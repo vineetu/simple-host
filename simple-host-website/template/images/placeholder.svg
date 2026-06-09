@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 360" role="img" aria-labelledby="title desc">
+  <title id="title">Placeholder illustration</title>
+  <desc id="desc">Abstract geometric artwork used as a local SVG asset.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#dff5ef" />
+      <stop offset="100%" stop-color="#f7fbff" />
+    </linearGradient>
+    <linearGradient id="shape" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#0f7b6c" />
+      <stop offset="100%" stop-color="#74d7c9" />
+    </linearGradient>
+  </defs>
+  <rect width="520" height="360" rx="28" fill="url(#bg)" />
+  <circle cx="120" cy="88" r="54" fill="#ffffff" opacity="0.7" />
+  <circle cx="410" cy="94" r="34" fill="#0f7b6c" opacity="0.14" />
+  <rect x="72" y="140" width="376" height="150" rx="22" fill="#ffffff" opacity="0.92" />
+  <path d="M130 245c34-60 72-91 112-91 44 0 79 25 112 84" fill="none" stroke="url(#shape)" stroke-linecap="round" stroke-width="22" />
+  <path d="M138 252h230" stroke="#d7e9e5" stroke-linecap="round" stroke-width="18" />
+  <circle cx="188" cy="190" r="18" fill="#0f7b6c" />
+  <circle cx="270" cy="172" r="12" fill="#74d7c9" />
+  <circle cx="330" cy="206" r="16" fill="#0f7b6c" opacity="0.75" />
+  <text x="72" y="330" fill="#496170" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="600">
+    Local SVG Placeholder
+  </text>
+</svg>

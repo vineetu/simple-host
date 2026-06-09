@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Install — Simple Host</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #faf9f7;
+      --surface: #ffffff;
+      --border: #e8e5e0;
+      --text: #1a1a1a;
+      --text-secondary: #6b6560;
+      --accent: #c96442;
+      --accent-hover: #b5573a;
+      --radius: 8px;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --mono: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .container { max-width: 720px; margin: 0 auto; padding: 0 24px; }
+
+    header {
+      padding: 20px 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 40px;
+    }
+    header .container {
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .logo {
+      font-size: 15px; font-weight: 600;
+      letter-spacing: -0.3px; color: var(--text); text-decoration: none;
+    }
+    nav.top { display: flex; gap: 18px; font-size: 13px; }
+    nav.top a { color: var(--text-secondary); text-decoration: none; }
+    nav.top a:hover { color: var(--text); }
+    nav.top a.current { color: var(--accent); }
+
+    main { padding-bottom: 80px; }
+
+    .eyebrow {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      margin-bottom: 10px;
+    }
+
+    h1 {
+      font-size: 32px; font-weight: 600;
+      letter-spacing: -0.5px; line-height: 1.15;
+      margin-bottom: 14px;
+    }
+    h1 .dot { color: var(--accent); }
+
+    .lede {
+      color: var(--text-secondary);
+      font-size: 15px; line-height: 1.65;
+      margin-bottom: 36px;
+      max-width: 580px;
+    }
+    .lede code {
+      font-family: var(--mono); font-size: 13px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 1px 5px; border-radius: 4px;
+    }
+
+    section { margin-bottom: 44px; }
+
+    section h2 {
+      font-size: 18px; font-weight: 600;
+      letter-spacing: -0.2px;
+      margin: 0 0 10px;
+    }
+
+    section p {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+    }
+    section p code {
+      font-family: var(--mono); font-size: 12.5px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 1px 5px; border-radius: 4px;
+      color: var(--text);
+    }
+
+    pre {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      font-family: var(--mono);
+      font-size: 12.5px;
+      line-height: 1.55;
+      color: var(--text);
+      overflow-x: auto;
+      margin: 0 0 12px;
+      white-space: pre;
+    }
+
+    .code-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0 0 8px;
+    }
+    .code-head span {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .copy-btn, .download-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 30px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 12px;
+      font-weight: 600;
+      text-decoration: none;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    .copy-btn:hover, .download-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .download-btn.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .download-btn.primary:hover {
+      background: var(--accent-hover);
+      color: #fff;
+    }
+
+    .download-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin: 14px 0 12px;
+    }
+    .download-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+    }
+    .download-card h3 {
+      font-size: 14px;
+      margin: 0 0 4px;
+    }
+    .download-card p {
+      font-size: 12.5px;
+      line-height: 1.5;
+      margin: 0 0 12px;
+    }
+    .download-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .recommended {
+      border: 1px solid var(--accent);
+      background: rgba(201, 100, 66, 0.04);
+      border-radius: var(--radius);
+      padding: 16px 18px 14px;
+      margin-bottom: 18px;
+    }
+    .recommended .badge {
+      display: inline-block;
+      background: var(--accent);
+      color: white;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 3px 7px;
+      border-radius: 4px;
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+    .recommended h3 { font-size: 15px; font-weight: 600; margin: 0 0 6px; }
+    .recommended p { font-size: 13px; color: var(--text); margin-bottom: 10px; }
+    .recommended pre { margin-bottom: 0; }
+
+    .caveat {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.55;
+      border-left: 2px solid var(--border);
+      padding-left: 12px;
+      margin: 8px 0 12px;
+    }
+    .caveat a { color: var(--accent); text-decoration: none; }
+    .caveat a:hover { text-decoration: underline; }
+
+    ul.skill-list {
+      list-style: none; padding: 0; margin: 8px 0 0;
+      font-size: 14px;
+    }
+    ul.skill-list li {
+      padding-left: 16px; position: relative;
+      margin-bottom: 6px;
+      color: var(--text-secondary);
+    }
+    ul.skill-list li::before {
+      content: "›"; position: absolute; left: 0;
+      color: var(--accent); font-weight: 700;
+    }
+    ul.skill-list code {
+      font-family: var(--mono); font-size: 12.5px;
+      color: var(--text); font-weight: 600;
+    }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 20px 0;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    footer a { color: var(--text-secondary); text-decoration: none; }
+    footer a:hover { color: var(--text); }
+
+    @media (max-width: 640px) {
+      .download-grid { grid-template-columns: 1fr; }
+      .code-head { align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a class="logo" href="/">Simple Host</a>
+      <nav class="top">
+        <a href="/">Home</a>
+        <a href="/install.html" class="current">Install</a>
+        <a href="/docs.html">API</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="container">
+      <div class="eyebrow">Install</div>
+      <h1>No git. No registry. Just HTTPS<span class="dot">.</span></h1>
+      <p class="lede">
+        Two skills ship in one bundle: <code>website-deploy</code> (deploy) and
+        <code>website-deploy-builder</code> (figure out what to add). Pick whichever
+        install path matches your agent. Claude web and desktop users can upload
+        the two ZIP files directly; local coding agents can use the shell installer.
+      </p>
+
+      <section>
+        <div class="eyebrow">Claude web or desktop</div>
+        <h2>Download the two skill ZIPs</h2>
+        <p>Use this path when you're in the Claude website or desktop app and do not have a local shell attached to the chat.</p>
+        <div class="download-grid">
+          <div class="download-card">
+            <h3>website-deploy</h3>
+            <p>Deploys a local static site to Simple Host, including auth, packaging, upload, and verification.</p>
+            <div class="download-actions">
+              <a class="download-btn primary" href="/skills/website-deploy.zip" download>Download ZIP</a>
+              <a class="download-btn" href="/skills/website-deploy/SKILL.md" download>SKILL.md</a>
+            </div>
+          </div>
+          <div class="download-card">
+            <h3>website-deploy-builder</h3>
+            <p>Helps decide what to build on Simple Host and turns an idea into an implementation prompt.</p>
+            <div class="download-actions">
+              <a class="download-btn primary" href="/skills/website-deploy-builder.zip" download>Download ZIP</a>
+              <a class="download-btn" href="/skills/website-deploy-builder/SKILL.md" download>SKILL.md</a>
+            </div>
+          </div>
+        </div>
+        <p class="caveat">
+          In Claude, enable Code execution and file creation if Skills are hidden,
+          then open <code>Customize &gt; Skills</code>, click <code>+</code>,
+          choose <code>Create skill</code>, choose <code>Upload a skill</code>,
+          and upload one ZIP at a time. Repeat for the second ZIP, then toggle both
+          skills on. Official guidance:
+          <a href="https://support.claude.com/en/articles/12512180-use-skills-in-claude" target="_blank" rel="noreferrer">Use Skills in Claude</a>.
+        </p>
+      </section>
+
+      <section>
+        <div class="eyebrow">Easiest path</div>
+        <h2>Tell a local agent to install them</h2>
+        <p>Paste this into a fresh chat with Claude Code, Codex, Cursor, or any local agent with shell and HTTPS access. The agent fetches and installs — no commands for you to run.</p>
+        <div class="recommended">
+          <span class="badge">Recommended</span>
+          <div class="code-head">
+            <span>Copy-paste prompt</span>
+            <button class="copy-btn" type="button" data-copy-target="agent-install-prompt">Copy</button>
+          </div>
+          <pre id="agent-install-prompt">Install the Simple Host skills onto this machine.
+
+If you use Claude Code or another agent that reads ~/.claude/skills, run:
+curl -fsSL https://simple-host.ideaflow.page/install.sh | sh
+
+If you use Codex CLI or another agent that reads ~/.agents/skills, run:
+curl -fsSL https://simple-host.ideaflow.page/install.sh | sh -s -- ~/.agents/skills
+
+Then list the skills you have available — two new ones should appear:
+website-deploy, website-deploy-builder.
+
+Restart yourself if needed for them to be picked up.</pre>
+        </div>
+        <p class="caveat">
+          The script downloads <code>/skills.zip</code> (a few KB of markdown),
+          extracts it into the right directory, and exits. No git, no npm, no
+          registry, no marketplace.
+        </p>
+      </section>
+
+      <section>
+        <div class="eyebrow">Single command</div>
+        <h2>Run the installer directly</h2>
+        <p>If you'd rather run the install yourself:</p>
+        <div class="code-head">
+          <span>Claude Code / ~/.claude/skills</span>
+          <button class="copy-btn" type="button" data-copy-target="claude-install-command">Copy</button>
+        </div>
+        <pre id="claude-install-command">curl -fsSL https://simple-host.ideaflow.page/install.sh | sh</pre>
+        <p>Override the destination directory (Codex CLI, custom agent, etc.):</p>
+        <div class="code-head">
+          <span>Codex CLI / ~/.agents/skills</span>
+          <button class="copy-btn" type="button" data-copy-target="codex-install-command">Copy</button>
+        </div>
+        <pre id="codex-install-command">curl -fsSL https://simple-host.ideaflow.page/install.sh | sh -s -- ~/.agents/skills</pre>
+        <p class="caveat">
+          The script is plain shell and only does <code>curl</code> +
+          <code>unzip</code> into a directory you choose. You can read it
+          before piping if you'd like:
+          <a href="/install.sh">view <code>install.sh</code></a>.
+        </p>
+      </section>
+
+      <section>
+        <div class="eyebrow">Claude Code · session install</div>
+        <h2><code>--plugin-url</code></h2>
+        <p>
+          Claude Code supports loading a plugin from an HTTPS URL for the current
+          session. Useful for trying the skills without touching your filesystem:
+        </p>
+        <div class="code-head">
+          <span>Session-only plugin</span>
+          <button class="copy-btn" type="button" data-copy-target="plugin-install-command">Copy</button>
+        </div>
+        <pre id="plugin-install-command">claude --plugin-url https://simple-host.ideaflow.page/plugin.zip</pre>
+        <p class="caveat">
+          Session-only — once you exit Claude Code the skills are gone, and
+          you'll need the flag again next time. For permanent install, use one
+          of the paths above. Skills installed this way are namespaced under
+          the plugin (e.g. <code>simple-host-website:website-deploy-builder</code>)
+          rather than appearing as user-level skills.
+        </p>
+      </section>
+
+      <section>
+        <div class="eyebrow">Manual fallback</div>
+        <h2>If you can't run shell scripts</h2>
+        <p>Browser-download <a href="/skills.zip" style="color: var(--accent); text-decoration: none">skills.zip</a>, then extract:</p>
+        <div class="code-head">
+          <span>Manual extract</span>
+          <button class="copy-btn" type="button" data-copy-target="manual-install-command">Copy</button>
+        </div>
+        <pre id="manual-install-command"># Claude Code
+mkdir -p ~/.claude/skills
+unzip -o ~/Downloads/simple-host-skills.zip -d ~/.claude/skills/
+
+# Codex CLI / generic
+mkdir -p ~/.agents/skills
+unzip -o ~/Downloads/simple-host-skills.zip -d ~/.agents/skills/</pre>
+        <p>Restart your agent. Two folders should appear inside the skills directory.</p>
+      </section>
+
+      <section>
+        <div class="eyebrow">After installing</div>
+        <h2>Use the skills</h2>
+        <p>Common entry points:</p>
+        <ul class="skill-list">
+          <li>"Use the <code>website-deploy</code> skill to deploy this directory. My email is you@example.com." — first-time only; registers and saves an API key locally.</li>
+          <li>"Use the <code>website-deploy-builder</code> skill — I want to add a shared comment board to my site." — maps your idea to capabilities (static / state / external APIs) and produces a wiring prompt.</li>
+        </ul>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      Simple Host &middot; <a href="/">Home</a> &middot; <a href="/install.html">Install</a> &middot; <a href="/docs.html">API reference</a> &middot; With thanks to Jacob Cole and Tejas D Channappa.
+    </div>
+  </footer>
+  <script>
+    function setCopied(button) {
+      const original = button.textContent;
+      button.textContent = 'Copied';
+      button.disabled = true;
+      setTimeout(() => {
+        button.textContent = original;
+        button.disabled = false;
+      }, 1200);
+    }
+
+    function fallbackCopy(text) {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.top = '-1000px';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        return true;
+      } finally {
+        textarea.remove();
+      }
+    }
+
+    document.querySelectorAll('[data-copy-target]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const target = document.getElementById(button.dataset.copyTarget);
+        if (!target) return;
+        const text = target.textContent.replace(/\s+$/, '');
+        try {
+          if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+          } else {
+            fallbackCopy(text);
+          }
+          setCopied(button);
+        } catch {
+          if (fallbackCopy(text)) setCopied(button);
+        }
+      });
+    });
+  </script>
+</body>
+</html>

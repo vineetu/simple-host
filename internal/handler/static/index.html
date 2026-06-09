@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simple Host</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..600;1,9..144,400..500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #faf9f7;
+      --surface: #ffffff;
+      --border: #e8e5e0;
+      --text: #1a1a1a;
+      --text-secondary: #6b6560;
+      --accent: #c96442;
+      --accent-hover: #b5573a;
+      --success: #2d8659;
+      --error: #c4342d;
+      --radius: 8px;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --mono: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Header */
+    header {
+      padding: 20px 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 32px;
+    }
+
+    header .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    nav.top {
+      display: flex;
+      gap: 18px;
+      font-size: 13px;
+    }
+
+    nav.top a {
+      color: var(--text-secondary);
+      text-decoration: none;
+    }
+
+    nav.top a:hover {
+      color: var(--text);
+    }
+
+    nav.top a.current {
+      color: var(--accent);
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .user-badge {
+      font-size: 13px;
+      color: var(--text-secondary);
+      font-family: var(--mono);
+    }
+
+    /* Buttons */
+    button, .btn {
+      font-family: var(--font);
+      font-size: 14px;
+      font-weight: 500;
+      border: none;
+      border-radius: var(--radius);
+      padding: 8px 16px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .btn-primary:hover { background: var(--accent-hover); }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    .btn-small {
+      font-size: 12px;
+      padding: 4px 10px;
+    }
+
+    .btn-ghost {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 13px;
+      padding: 4px 8px;
+    }
+
+    .btn-ghost:hover { color: var(--text); }
+
+    /* Auth screen — editorial layout */
+    .auth-screen {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 88vh;
+      padding: 24px;
+    }
+
+    .auth-card {
+      width: 100%;
+      max-width: 460px;
+      text-align: left;
+    }
+
+    .auth-eyebrow {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 36px;
+    }
+    .auth-eyebrow::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .auth-display {
+      font-family: 'Fraunces', Georgia, 'Times New Roman', serif;
+      font-weight: 500;
+      font-style: normal;
+      font-size: 44px;
+      line-height: 1.04;
+      letter-spacing: -0.025em;
+      color: var(--text);
+      margin: 0 0 18px;
+    }
+    .auth-display em {
+      font-style: italic;
+      font-weight: 400;
+      color: var(--accent);
+    }
+
+    .auth-lede {
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      margin: 0 0 36px;
+      max-width: 400px;
+    }
+    .auth-lede strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .auth-form {
+      width: 100%;
+    }
+
+    .auth-input {
+      display: flex;
+      align-items: stretch;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      overflow: hidden;
+    }
+    .auth-input:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px rgba(201, 100, 66, 0.08);
+    }
+    .auth-input input {
+      flex: 1;
+      min-width: 0;
+      border: none;
+      background: transparent;
+      font-family: var(--font);
+      font-size: 15px;
+      padding: 16px 18px;
+      outline: none;
+      color: var(--text);
+    }
+    .auth-input input::placeholder { color: var(--text-secondary); opacity: 0.6; }
+    .auth-input input#code-input {
+      font-family: var(--mono);
+      font-size: 18px;
+      letter-spacing: 0.15em;
+      font-variant-numeric: tabular-nums;
+    }
+    .auth-input .arrow-btn {
+      flex-shrink: 0;
+      background: transparent;
+      border: none;
+      color: var(--accent);
+      cursor: pointer;
+      font-size: 18px;
+      font-weight: 500;
+      padding: 0 22px;
+      transition: color 0.15s, transform 0.15s;
+      font-family: var(--font);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .auth-input .arrow-btn:hover { color: var(--accent-hover); }
+    .auth-input .arrow-btn:hover svg { transform: translateX(2px); }
+    .auth-input .arrow-btn svg { transition: transform 0.15s; }
+    .auth-input .arrow-btn:disabled {
+      color: var(--text-secondary);
+      opacity: 0.4;
+      cursor: wait;
+    }
+    .auth-input .arrow-btn:disabled svg { transform: none; }
+
+    .auth-fine {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin: 14px 2px 0;
+      letter-spacing: 0.005em;
+    }
+    .auth-fine code {
+      font-family: var(--mono);
+      font-size: 11px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 1px 5px;
+      border-radius: 4px;
+      color: var(--text);
+    }
+
+    .auth-secondary {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 13px;
+      cursor: pointer;
+      padding: 0;
+      margin-top: 20px;
+      text-decoration: underline;
+      text-decoration-color: var(--border);
+      text-underline-offset: 3px;
+      font-family: var(--font);
+    }
+    .auth-secondary:hover {
+      color: var(--text);
+      text-decoration-color: var(--text-secondary);
+    }
+
+    .verifying-screen {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+    .verifying-screen .spinner {
+      width: 14px; height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @media (max-width: 480px) {
+      .auth-display { font-size: 34px; }
+      .auth-eyebrow { margin-bottom: 24px; }
+      .auth-lede { margin-bottom: 28px; }
+    }
+
+    /* Inputs */
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-family: var(--mono);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    input:focus {
+      border-color: var(--accent);
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+      text-align: left;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 6px;
+      color: var(--text-secondary);
+    }
+
+    /* Views */
+    .view { display: none; }
+    .view.active { display: block; }
+
+    .site-footer {
+      border-top: 1px solid var(--border);
+      padding: 20px 24px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .site-footer a {
+      color: var(--text-secondary);
+      text-decoration: none;
+    }
+    .site-footer a:hover {
+      color: var(--text);
+    }
+
+    /* Sites list */
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .section-header h2 {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+    }
+
+    .site-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      background: var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .site-card {
+      background: var(--surface);
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .site-info h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      font-family: var(--mono);
+    }
+
+    .site-meta {
+      font-size: 12px;
+      color: var(--text-secondary);
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .site-meta span {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .site-url {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .site-url:hover { text-decoration: underline; }
+
+    .site-actions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .site-versions {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 12px 20px 16px;
+    }
+
+    .versions-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .version-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 12px;
+    }
+
+    .version-row .version-num {
+      font-family: var(--mono);
+      font-weight: 600;
+      min-width: 38px;
+    }
+
+    .version-row .version-date {
+      color: var(--text-secondary);
+      flex: 1;
+    }
+
+    .version-row .version-active-tag {
+      color: var(--success);
+      font-weight: 500;
+    }
+
+    .versions-status {
+      color: var(--text-secondary);
+      font-size: 12px;
+      padding: 6px 2px;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 48px 24px;
+      color: var(--text-secondary);
+      font-size: 14px;
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+    }
+
+    .empty-state p:first-child {
+      font-size: 15px;
+      margin-bottom: 4px;
+      color: var(--text);
+    }
+
+    /* Deploy callout (replaces upload form) */
+    .deploy-callout {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 28px;
+    }
+
+    .deploy-callout h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .deploy-callout p {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 14px;
+      line-height: 1.55;
+    }
+
+    .deploy-callout code {
+      font-family: var(--mono);
+      font-size: 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 1px 5px;
+      border-radius: 4px;
+      color: var(--text);
+    }
+
+    .callout-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .callout-actions a.btn-primary {
+      color: white;
+      text-decoration: none;
+    }
+    .callout-actions a.btn-ghost {
+      text-decoration: none;
+    }
+
+    /* Admin panel */
+    .owner-badge {
+      font-family: var(--mono);
+      font-size: 11px;
+      background: var(--bg);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .admin-section {
+      margin-top: 32px;
+      padding-top: 32px;
+      border-top: 1px solid var(--border);
+    }
+
+    .created-key {
+      background: #f5f0eb;
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-top: 16px;
+      font-family: var(--mono);
+      font-size: 13px;
+      word-break: break-all;
+    }
+
+    .created-key .label {
+      font-family: var(--font);
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+
+    .created-key .warning {
+      font-family: var(--font);
+      font-size: 12px;
+      color: var(--error);
+      margin-top: 8px;
+    }
+
+    /* Toast / messages */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      padding: 12px 20px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 500;
+      color: white;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: all 0.3s ease;
+      z-index: 100;
+      max-width: 400px;
+    }
+
+    .toast.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .toast.success { background: var(--success); }
+    .toast.error { background: var(--error); }
+
+    /* Checkbox */
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .checkbox-group input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent);
+    }
+
+    .checkbox-group label {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin: 0;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+    }
+
+    .tab {
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      margin-bottom: -1px;
+    }
+
+    .tab:hover { color: var(--text); }
+    .tab.active {
+      color: var(--text);
+      border-bottom-color: var(--accent);
+    }
+
+    /* Spinner */
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .btn-primary .spinner { border-color: rgba(255,255,255,0.3); border-top-color: white; }
+    .btn-secondary .spinner { border-color: rgba(0,0,0,0.1); border-top-color: var(--text); }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* Version badge */
+    .version-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      background: #f0ebe5;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: var(--mono);
+      color: var(--text-secondary);
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+    }
+
+    .status-dot.live { background: var(--success); }
+    .status-dot.pending { background: #d4a843; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a class="logo" href="/">Simple Host</a>
+      <div class="top-actions">
+        <nav class="top">
+          <a href="/" class="current">Home</a>
+          <a href="/install.html">Install</a>
+          <a href="/docs.html">API</a>
+        </nav>
+        <div class="header-actions" id="user-actions" style="display:none">
+          <span class="user-badge" id="username-display"></span>
+          <button class="btn-ghost" onclick="logout()">Sign out</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Auth View -->
+  <div id="auth-view" class="view active">
+    <div class="auth-screen">
+      <div class="auth-card">
+        <div class="auth-eyebrow"><span>Sign in</span></div>
+
+        <!-- Step 1: enter email -->
+        <div id="email-form-wrap">
+          <h1 class="auth-display">Static sites,<br><em>deployed by your agent.</em></h1>
+          <p class="auth-lede">Email yourself a one-time code. Or paste the code into the <strong>website-deploy</strong> skill running in your editor.</p>
+
+          <form class="auth-form" id="email-form" onsubmit="return handleAuth(event)">
+            <div class="auth-input">
+              <input type="email" id="email-input" placeholder="you@anywhere.com" autocomplete="email" required>
+              <button type="submit" class="arrow-btn" id="auth-btn" aria-label="Send sign-in code">
+                <span class="btn-text">Send</span>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7h10M8 3l4 4-4 4"/></svg>
+              </button>
+            </div>
+            <p class="auth-fine">We'll email a 6-digit code. Expires in 15 minutes.</p>
+          </form>
+        </div>
+
+        <!-- Step 2: enter code -->
+        <div id="code-form-wrap" style="display:none">
+          <h1 class="auth-display">Check your<br><em>inbox.</em></h1>
+          <p class="auth-lede">Sent a 6-digit code to <strong id="code-email-label"></strong>. Type it below or open the link from the email — both work.</p>
+
+          <form class="auth-form" id="code-form" onsubmit="return handleCodeSubmit(event)">
+            <div class="auth-input">
+              <input type="text" id="code-input" inputmode="numeric" pattern="[0-9-]*" maxlength="7" placeholder="123-456" autocomplete="one-time-code" required>
+              <button type="submit" class="arrow-btn" id="verify-btn" aria-label="Verify code">
+                <span class="btn-text">Verify</span>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7h10M8 3l4 4-4 4"/></svg>
+              </button>
+            </div>
+            <p class="auth-fine">Code expires in 15 minutes. Three wrong attempts burn the code.</p>
+            <button type="button" class="auth-secondary" onclick="resetAuth()">Use a different email</button>
+          </form>
+        </div>
+
+        <!-- Step 2b: verifying a magic-link token -->
+        <div id="verifying-screen" style="display:none" class="verifying-screen">
+          <div class="spinner"></div>
+          <span>Signing you in…</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main View -->
+  <div id="main-view" class="view">
+    <div class="container">
+      <div id="tab-bar" class="tabs">
+        <button class="tab active" data-tab="sites" onclick="switchTab('sites')">Sites</button>
+        <button class="tab" data-tab="admin" onclick="switchTab('admin')" id="admin-tab" style="display:none">Admin</button>
+      </div>
+
+      <!-- Sites Tab -->
+      <div id="sites-tab" class="view active">
+        <!-- Deploy callout -->
+        <div class="deploy-callout">
+          <h3>Deploy with your agent</h3>
+          <p>
+            Browser uploads are off. Sites are deployed by the
+            <code>website-deploy</code> skill running in your coding agent.
+            Install it once, then ask the agent to deploy a directory.
+          </p>
+          <div class="callout-actions">
+            <a class="btn btn-primary btn-small" href="/install.html">Install the skill →</a>
+            <a class="btn btn-ghost btn-small" href="/docs.html">API reference</a>
+          </div>
+        </div>
+
+        <!-- Sites List -->
+        <div class="section-header">
+          <h2>Your sites</h2>
+          <button class="btn btn-secondary btn-small" onclick="loadSites()">Refresh</button>
+        </div>
+        <div id="sites-container">
+          <div class="empty-state">
+            <p>No sites yet</p>
+            <p>Deploy your first site above</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Admin Tab -->
+      <div id="admin-tab-content" class="view">
+        <div class="section-header">
+          <h2>All sites</h2>
+          <button class="btn btn-secondary btn-small" onclick="loadSites()">Refresh</button>
+        </div>
+        <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 16px;">
+          Every site across every user. Owner shown next to each.
+        </p>
+        <div id="admin-sites-container"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    Simple Host &middot; <a href="/">Home</a> &middot; <a href="/install.html">Install</a> &middot; <a href="/docs.html">API reference</a> &middot; With thanks to Jacob Cole and Tejas D Channappa.
+  </footer>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    let apiKey = localStorage.getItem('apiKey');
+    let currentUser = null;
+    let sites = [];
+    let pendingEmail = null;
+    // Declared up here so the init() IIFE below (which fires verifyAndEnter
+    // → api → getSkillVersion synchronously) doesn't hit a Temporal Dead
+    // Zone when reading this binding.
+    let skillVersionPromise;
+
+    // The auth UI has three top-level states that swap by display:
+    //   #email-form-wrap, #code-form-wrap, #verifying-screen
+    function showAuthStep(name) {
+      const map = {
+        email: 'email-form-wrap',
+        code: 'code-form-wrap',
+        verifying: 'verifying-screen',
+      };
+      for (const id of Object.values(map)) {
+        document.getElementById(id).style.display = 'none';
+      }
+      document.getElementById(map[name]).style.display = 'block';
+    }
+
+    // Init
+    (function init() {
+      const params = new URLSearchParams(location.search);
+      const token = params.get('token');
+      if (token) {
+        showAuthStep('verifying');
+        verifyMagicLink(token);
+        history.replaceState({}, '', location.pathname);
+        return;
+      }
+      if (apiKey) verifyAndEnter();
+    })();
+
+    // Toggle the arrow-button into a quiet loading state without blowing
+    // away the SVG/text. Re-enable on completion.
+    function setBtnLoading(id, loading) {
+      const b = document.getElementById(id);
+      if (!b) return;
+      b.disabled = loading;
+      b.style.opacity = loading ? '0.4' : '';
+    }
+
+    // Step 1: request a sign-in code
+    async function handleAuth(e) {
+      e.preventDefault();
+      const email = document.getElementById('email-input').value.trim().toLowerCase();
+      if (!email) return;
+
+      setBtnLoading('auth-btn', true);
+      try {
+        const res = await fetch('/v1/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+          pendingEmail = email;
+          document.getElementById('code-email-label').textContent = email;
+          showAuthStep('code');
+          setTimeout(() => document.getElementById('code-input').focus(), 50);
+        } else {
+          toast(data.error || 'Could not send code', 'error');
+        }
+      } catch {
+        toast('Cannot reach server', 'error');
+      } finally {
+        setBtnLoading('auth-btn', false);
+      }
+    }
+
+    // Step 2: submit the typed-in code
+    async function handleCodeSubmit(e) {
+      e.preventDefault();
+      if (!pendingEmail) { resetAuth(); return; }
+      const code = document.getElementById('code-input').value.replace(/[^0-9]/g, '');
+      if (code.length !== 6) { toast('Code is 6 digits', 'error'); return; }
+
+      setBtnLoading('verify-btn', true);
+      try {
+        const res = await fetch('/v1/auth/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: pendingEmail, code })
+        });
+        const data = await res.json();
+        if (res.ok) completeSignIn(data);
+        else toast(data.error || 'Invalid code', 'error');
+      } catch {
+        toast('Cannot reach server', 'error');
+      } finally {
+        setBtnLoading('verify-btn', false);
+      }
+    }
+
+    // Step 2b: verify a token from a magic link
+    async function verifyMagicLink(token) {
+      try {
+        const res = await fetch('/v1/auth/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          completeSignIn(data);
+        } else {
+          showAuthStep('email');
+          toast(data.error || 'Link expired — try again', 'error');
+        }
+      } catch {
+        showAuthStep('email');
+        toast('Cannot reach server', 'error');
+      }
+    }
+
+    function completeSignIn(data) {
+      apiKey = data.api_key;
+      currentUser = { id: data.id, username: data.username, is_admin: data.is_admin };
+      localStorage.setItem('apiKey', apiKey);
+      enterApp();
+    }
+
+    function resetAuth() {
+      pendingEmail = null;
+      document.getElementById('code-input').value = '';
+      showAuthStep('email');
+    }
+
+    function enterApp() {
+      document.getElementById('username-display').textContent = currentUser.username;
+      document.getElementById('user-actions').style.display = '';
+      if (currentUser.is_admin) {
+        document.getElementById('admin-tab').style.display = '';
+      }
+      showView('main-view');
+      loadSites();
+    }
+
+    async function verifyAndEnter() {
+      try {
+        const res = await api('GET', '/v1/me');
+        if (res.ok) {
+          currentUser = await res.json();
+          enterApp();
+          return;
+        }
+        if (res.status === 401) {
+          // Server explicitly rejected the key — only here do we wipe
+          // the saved session and fall back to the login screen.
+          apiKey = null;
+          localStorage.removeItem('apiKey');
+          return;
+        }
+        // Non-2xx, non-401 — likely transient (deploy, brief 5xx).
+        // Don't lock the user out: enter optimistically with whatever we
+        // can scrape together. If the user really is unauthenticated,
+        // subsequent API calls will return 401 and the UI will react then.
+        console.warn('verifyAndEnter: unexpected /v1/me status', res.status);
+        currentUser = { id: '', username: '', is_admin: false };
+        enterApp();
+      } catch (err) {
+        console.warn('verifyAndEnter: /v1/me threw', err);
+        currentUser = { id: '', username: '', is_admin: false };
+        enterApp();
+      }
+    }
+
+    function logout() {
+      apiKey = null;
+      currentUser = null;
+      localStorage.removeItem('apiKey');
+      document.getElementById('user-actions').style.display = 'none';
+      document.getElementById('admin-tab').style.display = 'none';
+      switchTab('sites');
+      showView('auth-view');
+      document.getElementById('email-input').value = '';
+      resetAuth();
+    }
+
+    // Skill version is fetched once and cached, then sent on every API
+    // call so the notice middleware treats this admin UI as up-to-date
+    // and never injects `_notice` (which would wrap array responses and
+    // break list rendering). The `skillVersionPromise` binding lives at
+    // the top of the script — see the note up there for why.
+    function getSkillVersion() {
+      if (!skillVersionPromise) {
+        skillVersionPromise = fetch('/skills/version')
+          .then(r => r.ok ? r.json() : { version: '' })
+          .then(v => v.version || '')
+          .catch(() => '');
+      }
+      return skillVersionPromise;
+    }
+
+    // API helper
+    async function api(method, path, body) {
+      const version = await getSkillVersion();
+      const opts = {
+        method,
+        headers: {
+          'X-API-Key': apiKey,
+          ...(version ? { 'X-Skill-Version': version } : {}),
+        },
+      };
+      if (body instanceof FormData || body instanceof ArrayBuffer || body instanceof Blob) {
+        opts.body = body;
+      } else if (body) {
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(body);
+      }
+      return fetch(path, opts);
+    }
+
+    // Views
+    function showView(id) {
+      document.querySelectorAll('.view').forEach(v => {
+        if (v.id === 'sites-tab' || v.id === 'admin-tab-content') return;
+        v.classList.remove('active');
+      });
+      document.getElementById(id).classList.add('active');
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
+
+      document.getElementById('sites-tab').classList.toggle('active', tab === 'sites');
+      document.getElementById('admin-tab-content').classList.toggle('active', tab === 'admin');
+    }
+
+    // Sites
+    async function loadSites() {
+      try {
+        const res = await api('GET', '/v1/sites');
+        if (!res.ok) return;
+        sites = await res.json();
+        renderSites();
+      } catch {
+        toast('Failed to load sites', 'error');
+      }
+    }
+
+    function renderSites() {
+      const ownerId = currentUser && currentUser.id;
+      const ownSites = currentUser && currentUser.is_admin
+        ? sites.filter(s => s.user_id === ownerId)
+        : sites;
+
+      const myContainer = document.getElementById('sites-container');
+      if (!ownSites || ownSites.length === 0) {
+        myContainer.innerHTML = `
+          <div class="empty-state">
+            <p>No sites yet</p>
+            <p>Deploy your first site above</p>
+          </div>`;
+      } else {
+        myContainer.innerHTML = `<div class="site-list">${ownSites.map(s => renderSiteCard(s, false)).join('')}</div>`;
+      }
+
+      if (currentUser && currentUser.is_admin) {
+        const adminContainer = document.getElementById('admin-sites-container');
+        if (!sites || sites.length === 0) {
+          adminContainer.innerHTML = `
+            <div class="empty-state">
+              <p>No sites in the system yet</p>
+            </div>`;
+        } else {
+          adminContainer.innerHTML = `<div class="site-list">${sites.map(s => renderSiteCard(s, true)).join('')}</div>`;
+        }
+      }
+    }
+
+    function renderSiteCard(site, showOwner) {
+      const hasSiteURL = site.site_url;
+      const statusClass = hasSiteURL ? 'live' : 'pending';
+      const statusText = hasSiteURL ? 'Live' : 'Pending';
+      const name = esc(site.name);
+
+      return `
+        <div class="site-card">
+          <div class="site-info">
+            <h3>${name}</h3>
+            <div class="site-meta">
+              <span><span class="status-dot ${statusClass}"></span>${statusText}</span>
+              <span class="version-badge">v${site.active_version}</span>
+              ${showOwner && site.owner_username ? `<span class="owner-badge">${esc(site.owner_username)}</span>` : ''}
+              ${hasSiteURL ? `<a class="site-url" href="${esc(site.site_url)}" target="_blank">${esc(site.site_url)}</a>` : ''}
+            </div>
+          </div>
+          <div class="site-actions">
+            <button type="button" class="btn-small btn-secondary" onclick="toggleVersions('${name}')">Versions</button>
+            <button type="button" class="btn-small btn-ghost" onclick="confirmDelete('${name}')">Delete</button>
+          </div>
+        </div>
+        <div class="site-versions" id="versions-${name}" hidden></div>`;
+    }
+
+    async function toggleVersions(name) {
+      const panel = document.getElementById(`versions-${name}`);
+      if (!panel) return;
+      if (!panel.hidden) {
+        panel.hidden = true;
+        return;
+      }
+      panel.innerHTML = `<div class="versions-status">Loading versions…</div>`;
+      panel.hidden = false;
+      try {
+        const res = await api('GET', `/v1/sites/${encodeURIComponent(name)}/versions`);
+        if (!res.ok) {
+          panel.innerHTML = `<div class="versions-status">Could not load versions</div>`;
+          return;
+        }
+        const versions = await res.json();
+        if (!Array.isArray(versions) || !versions.length) {
+          panel.innerHTML = `<div class="versions-status">No versions found</div>`;
+          return;
+        }
+        panel.innerHTML = `<div class="versions-list">${versions.map(v => `
+          <div class="version-row">
+            <span class="version-num">v${v.version_number}</span>
+            <span class="version-date">${esc(new Date(v.created_at).toLocaleString())}</span>
+            ${v.is_active
+              ? '<span class="version-active-tag">active</span>'
+              : `<button type="button" class="btn-small btn-secondary" onclick="rollbackTo('${name}', ${v.version_number})">Make active</button>`}
+          </div>`).join('')}</div>`;
+      } catch {
+        panel.innerHTML = `<div class="versions-status">Could not load versions</div>`;
+      }
+    }
+
+    async function rollbackTo(name, versionNumber) {
+      if (!confirm(`Make v${versionNumber} the active version of "${name}"?`)) return;
+      try {
+        const res = await api('PUT', `/v1/sites/${encodeURIComponent(name)}/active-version`, { version_number: versionNumber });
+        if (!res.ok) {
+          const err = await res.json().catch(() => null);
+          toast((err && err.error) || 'Could not change active version', 'error');
+          return;
+        }
+        toast(`Active version is now v${versionNumber}`, 'success');
+        await loadSites();
+      } catch {
+        toast('Could not change active version', 'error');
+      }
+    }
+
+    async function confirmDelete(name) {
+      if (!confirm(`Delete site "${name}"? This removes all versions from disk and cannot be undone.`)) return;
+      try {
+        const res = await api('DELETE', `/v1/sites/${encodeURIComponent(name)}`);
+        if (!res.ok && res.status !== 204) {
+          const err = await res.json().catch(() => null);
+          toast((err && err.error) || 'Could not delete site', 'error');
+          return;
+        }
+        toast(`Deleted ${name}`, 'success');
+        await loadSites();
+      } catch {
+        toast('Could not delete site', 'error');
+      }
+    }
+
+    // Toast
+    function toast(msg, type) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = `toast ${type} visible`;
+      setTimeout(() => { el.classList.remove('visible'); }, 3000);
+    }
+
+    // Escape HTML
+    function esc(str) {
+      if (!str) return '';
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>

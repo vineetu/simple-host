@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Simple Host — API Docs</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+  <style>
+    :root {
+      --bg: #faf9f7;
+      --border: #e8e5e0;
+      --text: #1a1a1a;
+      --text-secondary: #6b6560;
+      --accent: #c96442;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    header {
+      padding: 20px 0;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+
+    header .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    nav.top {
+      display: flex;
+      gap: 18px;
+      font-size: 13px;
+    }
+
+    nav.top a {
+      color: var(--text-secondary);
+      text-decoration: none;
+    }
+
+    nav.top a:hover {
+      color: var(--text);
+    }
+
+    nav.top a.current {
+      color: var(--accent);
+    }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 20px 0;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    footer a {
+      color: var(--text-secondary);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      color: var(--text);
+    }
+
+    .topbar { display: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a class="logo" href="/">Simple Host</a>
+      <nav class="top">
+        <a href="/">Home</a>
+        <a href="/install.html">Install</a>
+        <a href="/docs.html" class="current">API</a>
+      </nav>
+    </div>
+  </header>
+  <div id="swagger-ui"></div>
+  <footer>
+    <div class="container">
+      Simple Host &middot; <a href="/">Home</a> &middot; <a href="/install.html">Install</a> &middot; <a href="/docs.html">API reference</a> &middot; With thanks to Jacob Cole and Tejas D Channappa.
+    </div>
+  </footer>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>
+    SwaggerUIBundle({
+      url: '/openapi.yaml',
+      dom_id: '#swagger-ui',
+      presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
+      layout: 'BaseLayout',
+      deepLinking: true,
+    });
+  </script>
+</body>
+</html>

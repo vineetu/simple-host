@@ -1,0 +1,27 @@
+# Build artifacts
+/dist/
+/build/
+/data/
+*.exe
+*.dylib
+*.so
+*.test
+*.out
+/simple-host
+/server
+
+# Node (mcp-server)
+node_modules/
+*.log
+.npm/
+
+# Editor + OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Local env
+.env
+.env.local

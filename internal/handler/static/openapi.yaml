@@ -1,0 +1,412 @@
+openapi: 3.0.3
+info:
+  title: Simple Host API
+  description: Static website hosting service. Upload sites as tarballs, served via cortex-share.
+  version: 1.0.0
+
+servers:
+  - url: https://simple-host.ideaflow.page
+    description: Production
+
+paths:
+  /v1/auth:
+    post:
+      summary: Authenticate or register
+      description: Enter your email. Creates a new user if first time, returns existing user otherwise.
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: vsriram@company.com
+      responses:
+        '200':
+          description: Existing user authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '201':
+          description: New user created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /v1/me:
+    get:
+      summary: Get current user info
+      tags: [Auth]
+      security:
+        - apiKey: []
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  username:
+                    type: string
+                  is_admin:
+                    type: boolean
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/sites:
+    get:
+      summary: List sites
+      description: Returns the authenticated user's sites. Admins see all sites.
+      tags: [Sites]
+      security:
+        - apiKey: []
+      responses:
+        '200':
+          description: List of sites
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Site'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/sites/{sitename}:
+    post:
+      summary: Create a new site
+      description: Upload a tar.gz or zip archive to create a new site. Max 100MB.
+      tags: [Sites]
+      security:
+        - apiKey: []
+      parameters:
+        - $ref: '#/components/parameters/sitename'
+      requestBody:
+        required: true
+        content:
+          application/gzip:
+            schema:
+              type: string
+              format: binary
+          application/zip:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '201':
+          description: Site created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteWithNote'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Site already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '413':
+          description: Archive too large (max 100MB)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      summary: Update an existing site
+      description: Upload a new version of an existing site. Creates a new version number.
+      tags: [Sites]
+      security:
+        - apiKey: []
+      parameters:
+        - $ref: '#/components/parameters/sitename'
+      requestBody:
+        required: true
+        content:
+          application/gzip:
+            schema:
+              type: string
+              format: binary
+          application/zip:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: Site updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteWithNote'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Site not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '413':
+          description: Archive too large (max 100MB)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      summary: Delete your own site
+      description: Delete a site owned by the authenticated user, including all versions and files from disk. Admin API keys do not get delete-any-site behavior through this endpoint.
+      tags: [Sites]
+      security:
+        - apiKey: []
+      parameters:
+        - $ref: '#/components/parameters/sitename'
+      responses:
+        '204':
+          description: Site deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Site not found for this user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/sites/{sitename}/state:
+    get:
+      summary: Get per-site JSON state
+      description: |
+        Returns the JSON blob stored for this site. No API key required — the
+        server checks the request `Origin` (or `Referer`) and only accepts
+        calls from `https://{sitename}.ideaflow.page`.
+        Returns `null` if no state has been written yet.
+      tags: [State]
+      parameters:
+        - $ref: '#/components/parameters/sitename'
+      responses:
+        '200':
+          description: Current state (arbitrary JSON, `null` if unset)
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: Origin/Referer does not match the site
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Site not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      summary: Replace per-site JSON state
+      description: |
+        Overwrites the JSON blob stored for this site. Body must be valid JSON,
+        up to 1 MB. No API key required — `Origin`/`Referer` must match
+        `https://{sitename}.ideaflow.page`. The blob is shared across all
+        visitors; the last write wins. Do not store secrets or per-user data.
+      tags: [State]
+      parameters:
+        - $ref: '#/components/parameters/sitename'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {}
+      responses:
+        '200':
+          description: State updated; response echoes the saved value
+          content:
+            application/json:
+              schema: {}
+        '400':
+          description: Invalid JSON
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Origin/Referer does not match the site
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Site not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '413':
+          description: State exceeds 1 MB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /healthz:
+    get:
+      summary: Liveness probe
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /readyz:
+    get:
+      summary: Readiness probe
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is ready (DB connected)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+        '503':
+          description: Service is not ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: unready
+
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  parameters:
+    sitename:
+      name: sitename
+      in: path
+      required: true
+      schema:
+        type: string
+      example: my-cool-site
+
+  schemas:
+    AuthResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        api_key:
+          type: string
+        is_admin:
+          type: boolean
+        created:
+          type: boolean
+          description: true if this is a new user
+
+    Site:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        active_version:
+          type: integer
+        site_url:
+          type: string
+          nullable: true
+          example: https://my-cool-site.ideaflow.page
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    SiteWithNote:
+      allOf:
+        - $ref: '#/components/schemas/Site'
+        - type: object
+          properties:
+            note:
+              type: string
+              description: Optional deployment note
+          example:
+            id: 550e8400-e29b-41d4-a716-446655440000
+            user_id: 660e8400-e29b-41d4-a716-446655440000
+            name: my-cool-site
+            active_version: 3
+            site_url: https://my-cool-site.ideaflow.page
+            created_at: '2026-04-05T12:00:00Z'
+            updated_at: '2026-04-05T12:05:00Z'
+            note: Deployment completed
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Missing or invalid API key
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Admin access required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

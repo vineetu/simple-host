@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Static Site Template</title>
+    <meta
+      name="description"
+      content="A small multi-page static site template for deployment training."
+    />
+    <link rel="stylesheet" href="css/style.css" />
+    <script src="js/main.js" defer></script>
+  </head>
+  <body>
+    <!-- Shared site header with simple navigation. -->
+    <header class="site-header">
+      <div class="container header-inner">
+        <a class="brand" href="index.html">Static Template</a>
+        <button
+          class="nav-toggle"
+          type="button"
+          aria-expanded="false"
+          aria-controls="site-nav"
+        >
+          <span class="sr-only">Toggle navigation</span>
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+        <nav class="site-nav" id="site-nav" aria-label="Primary navigation">
+          <a class="active" href="index.html">Home</a>
+          <a href="about.html">About</a>
+          <button class="theme-toggle" type="button" aria-label="Toggle theme">
+            Theme
+          </button>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <!-- Hero section introduces the purpose of the template site. -->
+      <section class="hero">
+        <div class="container hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow">Deployable Example</p>
+            <h1>A clean static site students can run, inspect, and deploy.</h1>
+            <p class="lead">
+              This template shows a valid multi-file HTML, CSS, and JavaScript
+              setup with relative links, shared assets, and responsive layout.
+            </p>
+            <div class="hero-actions">
+              <a class="button primary" href="about.html">See the About page</a>
+              <a class="button secondary" href="images/placeholder.svg"
+                >Open the SVG asset</a
+              >
+            </div>
+          </div>
+          <div class="hero-card">
+            <img
+              src="images/placeholder.svg"
+              alt="Abstract placeholder illustration"
+              width="520"
+              height="360"
+            />
+          </div>
+        </div>
+      </section>
+
+      <!-- Small feature grid highlights what this template includes. -->
+      <section class="section">
+        <div class="container">
+          <div class="section-heading">
+            <p class="eyebrow">Included Pieces</p>
+            <h2>Everything stays simple and portable.</h2>
+          </div>
+          <div class="feature-grid">
+            <article class="card">
+              <h3>Relative Paths</h3>
+              <p>
+                Every link and asset reference is local, so the site works from
+                a folder, a ZIP, or a static host.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Shared Styling</h3>
+              <p>
+                Both pages use one stylesheet, which is a common pattern for
+                small static sites.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Basic JavaScript</h3>
+              <p>
+                The script handles mobile navigation, theme preference, and a
+                live clock for a realistic example.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- Utility section demonstrates simple dynamic content. -->
+      <section class="section section-accent">
+        <div class="container utility-panel">
+          <div>
+            <p class="eyebrow">Live Demo</p>
+            <h2>Local time from the shared JavaScript file.</h2>
+            <p>
+              Small interactions help students verify that linked scripts load
+              correctly on every page.
+            </p>
+          </div>
+          <div class="clock-card">
+            <span class="clock-label">Current time</span>
+            <time class="clock" data-clock>--:--:--</time>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Shared footer repeats the multi-page navigation pattern. -->
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>Built for static hosting training.</p>
+        <nav aria-label="Footer navigation">
+          <a href="index.html">Home</a>
+          <a href="about.html">About</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>

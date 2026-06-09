@@ -1,0 +1,12 @@
+{
+  "name": "website-deploy",
+  "version": "0.5.0",
+  "description": "Deploy static websites (ideaflow.page), plus a guide for what to build given the static + per-site state hosting capabilities.",
+  "author": {
+    "name": "Website Deploy"
+  },
+  "skills": [
+    "skills/website-deploy",
+    "skills/website-deploy-builder"
+  ]
+}
