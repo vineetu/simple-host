@@ -1513,7 +1513,13 @@
         } else if (f.type === 'application/pdf') {
           if (f.size > 20 * 1024 * 1024) { toast(f.name + ' is too large', 'error'); return; }
           const r = new FileReader();
-          r.onload = function () { const d = String(r.result || ''); pendingAtts.push({ kind: 'document', mediaType: 'application/pdf', name: f.name, data: (d.split(',')[1] || '') }); renderTray(); };
+          r.onload = function () {
+            const d = String(r.result || '');
+            const token = 'sh-asset-' + (assetMap.length + 1);
+            assetMap.push({ token: token, dataUrl: d, name: f.name });   // for a download link
+            pendingAtts.push({ kind: 'document', mediaType: 'application/pdf', name: f.name, data: (d.split(',')[1] || ''), token: token });
+            renderTray();
+          };
           r.readAsDataURL(f);
         } else {
           toast('Only images and PDFs are supported', 'error');
@@ -1552,11 +1558,11 @@
       pendingAtts = []; renderTray();
       const names = atts.map(function (a) { return a.name; }).join(', ');
       aiAppend('user', (names ? '📎 ' + names + '\n' : '') + text);
-      const imgHints = atts.filter(function (a) { return a.kind === 'image' && a.token; })
-        .map(function (a) { return a.token + ' = "' + a.name + '"'; });
-      const hint = imgHints.length
-        ? '\n\n[To place an uploaded image on the page, use an <img> with this EXACT src (unchanged): ' + imgHints.join('; ') + '. Only if I want it shown.]'
-        : '';
+      const imgHints = atts.filter(function (a) { return a.kind === 'image' && a.token; }).map(function (a) { return a.token + ' = "' + a.name + '"'; });
+      const pdfHints = atts.filter(function (a) { return a.kind === 'document' && a.token; }).map(function (a) { return a.token + ' = "' + a.name + '"'; });
+      let hint = '';
+      if (imgHints.length) hint += '\n\n[To place an uploaded image on the page, use an <img> with this EXACT src (unchanged): ' + imgHints.join('; ') + '. Only if I want it shown.]';
+      if (pdfHints.length) hint += '\n\n[To let visitors download an uploaded PDF, add a link like <a href="TOKEN" download="name.pdf">Download</a> using this EXACT href token (unchanged): ' + pdfHints.join('; ') + '. Only if I want it on the page.]';
       chatMessages.push({ role: 'user', content: (text || '(see attached files)') + hint });
       const send = document.getElementById('chat-send');
       send.disabled = true;
