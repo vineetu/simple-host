@@ -588,35 +588,79 @@
       text-decoration: none;
     }
 
-    /* AI create */
+    /* AI create — conversational builder */
     .ai-create {
       background: var(--surface);
       border: 1px solid var(--border-hi);
       border-radius: var(--radius);
-      padding: 20px 22px;
       margin-bottom: 20px;
+      overflow: hidden;
     }
-    .ai-create h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
-    .ai-create h3 .spark { color: var(--accent); }
-    .ai-create > p { font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; }
-    .ai-create textarea {
-      width: 100%; box-sizing: border-box;
-      background: var(--bg); color: var(--text);
-      border: 1px solid var(--border); border-radius: 8px;
-      padding: 10px 12px; font-family: var(--font); font-size: 13.5px;
-      line-height: 1.6; resize: vertical; outline: none;
+    .ai-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px; border-bottom: 1px solid var(--border);
     }
-    .ai-create textarea:focus { border-color: var(--accent); }
-    .ai-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
-    .ai-hint { font-size: 12px; color: var(--text-secondary); }
-    #gen-result { margin-top: 16px; }
-    .gen-preview-wrap {
-      border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
-      background: #fff; margin-bottom: 12px;
+    .ai-head h3 { font-size: 15px; font-weight: 600; }
+    .ai-head .spark { color: var(--accent); }
+    .ai-body { display: grid; grid-template-columns: 1fr 1fr; }
+    .ai-chat {
+      display: flex; flex-direction: column; gap: 12px;
+      padding: 18px 20px; overflow-y: auto;
+      max-height: 460px; min-height: 240px;
     }
-    #gen-frame { width: 100%; height: 380px; border: 0; display: block; }
-    .gen-publish { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-    .gen-publish input { flex: 1; min-width: 160px; }
+    .ai-preview {
+      border-left: 1px solid var(--border);
+      display: flex; flex-direction: column; min-width: 0;
+    }
+    .ai-preview-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 9px 14px; border-bottom: 1px solid var(--border);
+    }
+    .ai-preview-label {
+      font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--text-secondary);
+    }
+    .ai-preview iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 300px; }
+    .ai-publish { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--border); }
+    .ai-publish input { flex: 1; min-width: 0; }
+
+    /* chat bubbles */
+    .msg { display: flex; max-width: 94%; }
+    .msg .bubble {
+      padding: 9px 13px; border-radius: 13px; font-size: 13.5px;
+      line-height: 1.55; white-space: pre-wrap; word-break: break-word;
+    }
+    .msg.user { align-self: flex-end; }
+    .msg.user .bubble {
+      background: var(--accent); color: var(--on-accent);
+      border-bottom-right-radius: 4px; font-weight: 500;
+    }
+    .msg.ai { align-self: flex-start; }
+    .msg.ai .bubble {
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      border-bottom-left-radius: 4px;
+    }
+    .msg.ai .bubble.thinking { color: var(--text-secondary); letter-spacing: 0.15em; }
+
+    .ai-input { display: flex; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--border); }
+    .ai-input input { flex: 1; min-width: 0; }
+
+    /* fullscreen preview overlay */
+    .ai-fs { position: fixed; inset: 0; z-index: 200; background: var(--bg); display: flex; flex-direction: column; }
+    .ai-fs-bar {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 11px 16px; border-bottom: 1px solid var(--border); background: var(--header-bg);
+      backdrop-filter: blur(8px);
+    }
+    .ai-fs-bar .grp { display: flex; gap: 8px; }
+    .ai-fs iframe { flex: 1; width: 100%; border: 0; background: #fff; }
+
+    @media (max-width: 720px) {
+      .ai-body { grid-template-columns: 1fr; }
+      .ai-preview { border-left: 0; border-top: 1px solid var(--border); }
+      .ai-chat { max-height: 300px; }
+      .ai-preview iframe { min-height: 200px; max-height: 240px; }
+    }
 
     /* Admin panel */
     .owner-badge {
@@ -858,23 +902,42 @@
 
       <!-- Sites Tab -->
       <div id="sites-tab" class="view active">
-        <!-- AI create -->
+        <!-- AI create (conversational) -->
         <div class="ai-create" id="ai-create">
-          <h3><span class="spark">✦</span> Create a site with AI</h3>
-          <p>Describe what you want — Haiku builds it, you preview, then publish. Powered by simple·host.</p>
-          <textarea id="gen-prompt" rows="3" placeholder="e.g. a coming-soon page for my coffee subscription with an email signup and a launch countdown"></textarea>
-          <div class="ai-actions">
-            <button class="btn btn-primary" id="gen-btn" onclick="generateSite()">Generate</button>
-            <span class="ai-hint" id="gen-status"></span>
+          <div class="ai-head">
+            <h3><span class="spark">✦</span> Create a site with AI</h3>
+            <button class="btn-ghost btn-small" id="ai-reset" onclick="resetChat()" hidden>Start over</button>
           </div>
-          <div id="gen-result" hidden>
-            <div class="gen-preview-wrap"><iframe id="gen-frame" title="preview" sandbox="allow-scripts allow-popups"></iframe></div>
-            <div class="gen-publish">
-              <input type="text" id="gen-name" placeholder="site-name">
-              <button class="btn btn-primary" id="gen-publish-btn" onclick="publishGenerated()">Publish →</button>
-              <button class="btn btn-secondary" onclick="regenerate()">Start over</button>
+          <div class="ai-body">
+            <div class="ai-chat" id="ai-chat"></div>
+            <div class="ai-preview" id="ai-preview" hidden>
+              <div class="ai-preview-head">
+                <span class="ai-preview-label">Live preview</span>
+                <button class="btn-small btn-secondary" onclick="openFullscreen()">⤢ Fullscreen</button>
+              </div>
+              <iframe id="gen-frame" title="preview" sandbox="allow-scripts allow-popups"></iframe>
+              <div class="ai-publish">
+                <input type="text" id="gen-name" placeholder="site-name">
+                <button class="btn btn-primary btn-small" id="gen-publish-btn" onclick="publishGenerated()">Publish →</button>
+              </div>
             </div>
           </div>
+          <form class="ai-input" onsubmit="return sendChat(event)">
+            <input type="text" id="chat-input" placeholder="Describe the site you want to build…" autocomplete="off">
+            <button class="btn btn-primary" type="submit" id="chat-send">Send</button>
+          </form>
+        </div>
+
+        <!-- Fullscreen preview overlay -->
+        <div class="ai-fs" id="ai-fs" hidden>
+          <div class="ai-fs-bar">
+            <span class="ai-preview-label">Live preview</span>
+            <div class="grp">
+              <button class="btn btn-primary btn-small" onclick="publishGenerated()">Publish →</button>
+              <button class="btn btn-secondary btn-small" onclick="closeFullscreen()">✕ Close</button>
+            </div>
+          </div>
+          <iframe id="ai-fs-frame" title="fullscreen preview" sandbox="allow-scripts allow-popups"></iframe>
         </div>
 
         <!-- Deploy callout -->
@@ -1066,6 +1129,7 @@
         document.getElementById('admin-tab').style.display = '';
       }
       showView('main-view');
+      aiGreeting();
       loadSites();
     }
 
@@ -1309,54 +1373,112 @@
       return div.innerHTML;
     }
 
-    // ---- AI create: describe -> Haiku builds -> preview -> publish ----------
+    // ---- AI create: a planning conversation -> live preview -> publish ------
+    let chatMessages = [];   // [{role:'user'|'assistant', content}]
     let generatedHTML = null;
 
+    function aiAppend(role, text, opts) {
+      const chat = document.getElementById('ai-chat');
+      const wrap = document.createElement('div');
+      wrap.className = 'msg ' + (role === 'user' ? 'user' : 'ai');
+      const b = document.createElement('div');
+      b.className = 'bubble' + (opts && opts.thinking ? ' thinking' : '');
+      b.textContent = text;
+      wrap.appendChild(b);
+      chat.appendChild(wrap);
+      chat.scrollTop = chat.scrollHeight;
+      return wrap;
+    }
+
+    function aiGreeting() {
+      const chat = document.getElementById('ai-chat');
+      if (!chat || chat.childElementCount) return;
+      aiAppend('ai', "Hi! What would you like to build? Tell me the kind of site — landing page, portfolio, event RSVP, menu — plus any details like a name, the vibe, and what it should do. I'll ask a couple quick questions, then build it.");
+    }
+
+    function lastUserPrompt() {
+      for (let i = chatMessages.length - 1; i >= 0; i--) {
+        if (chatMessages[i].role === 'user') return chatMessages[i].content;
+      }
+      return 'site';
+    }
     function suggestName(p) {
       const words = (p.toLowerCase().match(/[a-z0-9]+/g) || []).filter(w => w.length > 2);
       return (words.slice(0, 2).join('-') || 'my-site').slice(0, 30);
     }
 
-    async function generateSite() {
-      const prompt = document.getElementById('gen-prompt').value.trim();
-      if (prompt.length < 3) { toast('Describe what you want to build', 'error'); return; }
-      const btn = document.getElementById('gen-btn');
-      const status = document.getElementById('gen-status');
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner"></span>';
-      status.textContent = 'Building your site… (10–25s)';
+    async function sendChat(e) {
+      if (e) e.preventDefault();
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text) return false;
+      input.value = '';
+      aiAppend('user', text);
+      chatMessages.push({ role: 'user', content: text });
+      const send = document.getElementById('chat-send');
+      send.disabled = true;
+      const thinking = aiAppend('ai', '• • •', { thinking: true });
       try {
-        const res = await api('POST', '/v1/generate', { prompt });
+        const res = await api('POST', '/v1/generate', { messages: chatMessages, html: generatedHTML || '' });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) { toast(data.error || 'Generation failed', 'error'); status.textContent = ''; return; }
-        generatedHTML = data.html;
-        document.getElementById('gen-frame').srcdoc = generatedHTML;
-        document.getElementById('gen-result').hidden = false;
-        const nameEl = document.getElementById('gen-name');
-        if (!nameEl.value) nameEl.value = suggestName(prompt);
-        status.textContent = 'Preview ready — publish when you like it.';
-      } catch (e) {
-        toast('Cannot reach server', 'error'); status.textContent = '';
+        thinking.remove();
+        if (!res.ok) { aiAppend('ai', data.error || 'Something went wrong — please try again.'); return false; }
+        const reply = data.reply || 'Done.';
+        aiAppend('ai', reply);
+        chatMessages.push({ role: 'assistant', content: reply });
+        if (data.html) {
+          generatedHTML = data.html;
+          updatePreview();
+          document.getElementById('ai-reset').hidden = false;
+        }
+      } catch (err) {
+        thinking.remove();
+        aiAppend('ai', 'Cannot reach the server — please try again.');
       } finally {
-        btn.disabled = false; btn.textContent = 'Regenerate';
+        send.disabled = false;
+        input.focus();
       }
+      return false;
     }
 
-    function regenerate() {
-      document.getElementById('gen-result').hidden = true;
+    function updatePreview() {
+      document.getElementById('gen-frame').srcdoc = generatedHTML;
+      const fs = document.getElementById('ai-fs-frame');
+      if (fs && !document.getElementById('ai-fs').hidden) fs.srcdoc = generatedHTML;
+      document.getElementById('ai-preview').hidden = false;
+      const nameEl = document.getElementById('gen-name');
+      if (!nameEl.value) nameEl.value = suggestName(lastUserPrompt());
+    }
+
+    function openFullscreen() {
+      if (!generatedHTML) return;
+      document.getElementById('ai-fs-frame').srcdoc = generatedHTML;
+      document.getElementById('ai-fs').hidden = false;
+      document.body.style.overflow = 'hidden';
+    }
+    function closeFullscreen() {
+      document.getElementById('ai-fs').hidden = true;
+      document.body.style.overflow = '';
+    }
+
+    function resetChat() {
+      chatMessages = [];
       generatedHTML = null;
-      document.getElementById('gen-status').textContent = '';
-      document.getElementById('gen-btn').textContent = 'Generate';
-      document.getElementById('gen-prompt').focus();
+      document.getElementById('ai-chat').innerHTML = '';
+      document.getElementById('ai-preview').hidden = true;
+      document.getElementById('ai-reset').hidden = true;
+      document.getElementById('gen-name').value = '';
+      aiGreeting();
+      document.getElementById('chat-input').focus();
     }
 
     async function publishGenerated() {
-      if (!generatedHTML) return;
+      if (!generatedHTML) { toast('Nothing to publish yet', 'error'); return; }
       let name = (document.getElementById('gen-name').value || '').trim().toLowerCase()
         .replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-      if (!name) { toast('Pick a site name', 'error'); return; }
+      if (!name) { toast('Pick a site name first', 'error'); return; }
       const btn = document.getElementById('gen-publish-btn');
-      btn.disabled = true;
+      if (btn) btn.disabled = true;
       try {
         let res = await api('POST', `/v1/sites/${encodeURIComponent(name)}/files`, { files: { 'index.html': generatedHTML } });
         if (res.status === 409) {
@@ -1366,17 +1488,14 @@
         if (!res.ok) { toast(data.error || 'Could not publish', 'error'); return; }
         const url = data.site_url || `${location.protocol}//${name}.${location.host}`;
         toast('Published! Opening your site…', 'success');
+        closeFullscreen();
         window.open(url, '_blank');
-        document.getElementById('gen-result').hidden = true;
-        generatedHTML = null;
-        document.getElementById('gen-prompt').value = '';
-        document.getElementById('gen-status').textContent = '';
-        document.getElementById('gen-btn').textContent = 'Generate';
+        aiAppend('ai', '✓ Published → ' + url + '  — you can keep refining and publish again anytime.');
         loadSites();
       } catch (e) {
         toast('Could not publish', 'error');
       } finally {
-        btn.disabled = false;
+        if (btn) btn.disabled = false;
       }
     }
 
