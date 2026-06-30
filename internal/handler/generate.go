@@ -63,9 +63,13 @@ type generateResponse struct {
 }
 
 const (
-	maxMessages      = 24
+	// Keep plenty of turns so a user can iterate on one site for a long session
+	// (the user asked for 25+ refinement turns). ~60 messages ≈ 30 exchanges; on
+	// top of that the current HTML is always re-sent, so edits keep working even
+	// once the oldest chat turns scroll out of the window.
+	maxMessages      = 60
 	maxMessageChars  = 6000
-	maxCurrentHTML   = 80 * 1024
+	maxCurrentHTML   = 200 * 1024
 	siteHTMLSentinel = "<<<SITE_HTML>>>"
 )
 

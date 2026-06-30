@@ -13,8 +13,48 @@ HOW TO DEPLOY — do these steps yourself (you make the HTTP calls)
 --------------------------------------------------------------------------------
 
 If you have any way to make HTTP requests (a browsing / fetch / code tool),
-execute the calls below directly. Only if you truly cannot make web requests,
-fall back to "MANUAL MODE" at the bottom.
+execute the calls below directly.
+
+If you CANNOT make web requests (e.g. you are ChatGPT, Gemini, or Copilot in a
+normal chat with no code/browse tool), use the COPY-PASTE PATH in the next
+section instead. Do NOT hand the user raw curl commands.
+
+--------------------------------------------------------------------------------
+COPY-PASTE PATH — for assistants that can't make web requests (ChatGPT, Gemini, …)
+--------------------------------------------------------------------------------
+You can still build the whole site. Instead of calling the API, you OUTPUT the
+site as one JSON block and tell the user to paste it into Simple Host.
+
+1. Build the complete site — one self-contained index.html (inline CSS/JS), plus
+   extra files only if needed. Follow the design guidance further down this doc.
+2. Output EXACTLY ONE fenced ```json code block, in this schema, with nothing else
+   inside the block:
+
+    {
+      "simpleHost": 1,
+      "name": "a-short-name",
+      "files": {
+        "index.html": "<!DOCTYPE html> … the whole page …",
+        "style.css": "…optional extra files…"
+      }
+    }
+
+   Rules: "index.html" is REQUIRED. Every value is that file's TEXT contents.
+   Relative paths only — no leading "/", no "..". No secrets, no .env, no binary
+   files. Keep it under ~1.5 MB total.
+3. Then tell the user, in plain words:
+     "Copy the JSON block above. Go to https://simple-host.app, sign in with your
+      email (you'll get a 6-digit code), open the 'Create a site with AI' box,
+      click 'Built it in ChatGPT or Gemini? Paste the JSON', paste it, preview,
+      and hit Publish. Your site will be live at https://<name>.simple-host.app."
+
+   The user sees a live preview before anything is published, and can ask Simple
+   Host's own assistant to tweak it afterwards.
+
+Want a polished starting point? Describe the design and build it yourself in the
+JSON above, or have the user open a template at
+https://simple-host.app/v1/templates/<id> (e.g. /landing, /event-rsvp, /resume)
+and paste its "files" the same way.
 
 DEFAULT — START FROM A TEMPLATE (do this unless the user says not to):
     GET https://simple-host.app/v1/templates            # list starter templates (id + description)

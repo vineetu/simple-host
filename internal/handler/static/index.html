@@ -626,6 +626,7 @@
     .ai-preview iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 300px; }
     .ai-publish { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--border); }
     .ai-publish input { flex: 1; min-width: 0; }
+    .gen-files { font-size: 11px; color: var(--text-secondary); padding: 8px 14px 0; word-break: break-all; line-height: 1.5; }
 
     /* chat bubbles */
     .msg { display: flex; max-width: 94%; }
@@ -645,8 +646,21 @@
     }
     .msg.ai .bubble.thinking { color: var(--text-secondary); letter-spacing: 0.15em; }
 
-    .ai-input { display: flex; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--border); }
+    .ai-input { display: flex; gap: 8px; padding: 14px 20px 8px; border-top: 1px solid var(--border); }
     .ai-input input { flex: 1; min-width: 0; }
+
+    .ai-paste { padding: 0 20px 16px; }
+    .ai-paste-toggle { background: none; border: 0; color: var(--accent); cursor: pointer; font-family: var(--font); font-size: 12.5px; padding: 6px 0; }
+    .ai-paste-toggle:hover { text-decoration: underline; }
+    #paste-box { margin-top: 8px; }
+    #paste-box textarea {
+      width: 100%; box-sizing: border-box; background: var(--bg); color: var(--text);
+      border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+      font-family: var(--mono); font-size: 12px; line-height: 1.5; resize: vertical; outline: none;
+    }
+    #paste-box textarea:focus { border-color: var(--accent); }
+    .ai-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+    .ai-hint { font-size: 12px; color: var(--text-secondary); }
 
     /* fullscreen preview overlay */
     .ai-fs { position: fixed; inset: 0; z-index: 200; background: var(--bg); display: flex; flex-direction: column; }
@@ -921,6 +935,7 @@
                 <button class="btn-small btn-secondary" onclick="openFullscreen()">⤢ Fullscreen</button>
               </div>
               <iframe id="gen-frame" title="preview" sandbox="allow-scripts allow-popups"></iframe>
+              <div class="gen-files" id="gen-files" hidden></div>
               <div class="ai-publish">
                 <input type="text" id="gen-name" placeholder="site-name">
                 <button class="btn btn-primary btn-small" id="gen-publish-btn" onclick="publishGenerated()">Publish →</button>
@@ -931,6 +946,16 @@
             <input type="text" id="chat-input" placeholder="Describe the site you want to build…" autocomplete="off">
             <button class="btn btn-primary" type="submit" id="chat-send">Send</button>
           </form>
+          <div class="ai-paste">
+            <button type="button" class="ai-paste-toggle" id="paste-toggle" onclick="togglePaste()">Built it in ChatGPT or Gemini? Paste the JSON →</button>
+            <div id="paste-box" hidden>
+              <textarea id="paste-input" rows="4" placeholder='Paste the JSON the assistant gave you — e.g. {"files":{"index.html":"&lt;!DOCTYPE html&gt;…"}}'></textarea>
+              <div class="ai-actions">
+                <button class="btn btn-primary btn-small" onclick="importPaste()">Preview it</button>
+                <span class="ai-hint" id="paste-status"></span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Fullscreen preview overlay -->
@@ -1382,6 +1407,7 @@
     let chatMessages = [];   // [{role:'user'|'assistant', content}]
     let generatedHTML = null;
     let isPublishing = false;
+    let extraFiles = {};   // extra files beyond index.html (multi-file paste imports)
 
     function aiAppend(role, text, opts) {
       const chat = document.getElementById('ai-chat');
@@ -1466,6 +1492,22 @@
       if (!document.getElementById('ai-fs').hidden) paintFrame('ai-fs-frame');
       const nameEl = document.getElementById('gen-name');
       if (!nameEl.value) nameEl.value = suggestName(lastUserPrompt());
+      showFileList();
+    }
+
+    // List every path that Publish will upload (the preview only shows index.html).
+    // textContent only — never innerHTML — so a filename can't inject markup.
+    function showFileList() {
+      const el = document.getElementById('gen-files');
+      const names = ['index.html'].concat(Object.keys(extraFiles).sort());
+      if (names.length > 1) {
+        el.textContent = 'Will publish ' + names.length + ' files: ' + names.join(', ') +
+          ' — linked CSS/JS load on the published site, not in this preview.';
+        el.hidden = false;
+      } else {
+        el.textContent = '';
+        el.hidden = true;
+      }
     }
 
     function openFullscreen() {
@@ -1482,10 +1524,12 @@
     function resetChat() {
       chatMessages = [];
       generatedHTML = null;
+      extraFiles = {};
       document.getElementById('gen-frame').removeAttribute('srcdoc');
       document.getElementById('ai-chat').innerHTML = '';
       document.getElementById('ai-preview').hidden = true;
       document.getElementById('ai-reset').hidden = true;
+      document.getElementById('gen-files').hidden = true;
       document.getElementById('gen-name').value = '';
       aiGreeting();
       document.getElementById('chat-input').focus();
@@ -1500,10 +1544,11 @@
       isPublishing = true;
       const btn = document.getElementById('gen-publish-btn');
       if (btn) btn.disabled = true;
+      const files = Object.assign({}, extraFiles, { 'index.html': generatedHTML });
       try {
-        let res = await api('POST', `/v1/sites/${encodeURIComponent(name)}/files`, { files: { 'index.html': generatedHTML } });
+        let res = await api('POST', `/v1/sites/${encodeURIComponent(name)}/files`, { files });
         if (res.status === 409) {
-          res = await api('PUT', `/v1/sites/${encodeURIComponent(name)}/files`, { files: { 'index.html': generatedHTML } });
+          res = await api('PUT', `/v1/sites/${encodeURIComponent(name)}/files`, { files });
         }
         const data = await res.json().catch(() => ({}));
         if (!res.ok) { toast(data.error || 'Could not publish', 'error'); return; }
@@ -1519,6 +1564,78 @@
         if (btn) btn.disabled = false;
         isPublishing = false;
       }
+    }
+
+    // ---- Paste-a-site: import a JSON blob from a web LLM (ChatGPT/Gemini) -----
+    // The blob is shown only in a value (textarea) and rendered only inside the
+    // sandboxed srcdoc preview — never inserted into this page's DOM. Publishing
+    // routes through the same auth'd /v1/sites/{name}/files endpoint, whose
+    // server-side SanitizeFiles is the real guard (path traversal, secret files,
+    // size, extension denylist). These client checks are just friendly errors.
+    const UNSAFE_KEYS = { '__proto__': 1, 'constructor': 1, 'prototype': 1 };
+
+    function togglePaste() {
+      const box = document.getElementById('paste-box');
+      box.hidden = !box.hidden;
+      if (!box.hidden) document.getElementById('paste-input').focus();
+    }
+
+    function importPaste() {
+      const raw = document.getElementById('paste-input').value.trim();
+      const status = document.getElementById('paste-status');
+      const fail = function (m) { status.textContent = m; };
+      if (!raw) return fail('Paste the JSON first.');
+      if (raw.length > 2000000) return fail('That paste is too large (2 MB max).');
+
+      let obj;
+      try { obj = JSON.parse(raw); }
+      catch (e) {
+        const m = raw.match(/\{[\s\S]*\}/);          // tolerate a ```json fenced block
+        try { obj = JSON.parse(m ? m[0] : raw); }
+        catch (e2) { return fail('That doesn’t look like valid JSON — copy the whole block.'); }
+      }
+      if (!obj || typeof obj !== 'object') return fail('Expected a JSON object.');
+
+      let filesIn, bare = false;
+      if (obj.files && typeof obj.files === 'object') { filesIn = obj.files; }
+      else if (obj['index.html'] || Object.keys(obj).some(function (k) { return k.toLowerCase().endsWith('.html'); })) { filesIn = obj; bare = true; }
+      else return fail('No "files" found. Expected {"files":{"index.html":"…"}}.');
+
+      const clean = {};
+      let total = 0, n = 0;
+      for (const k of Object.keys(filesIn)) {
+        if (Object.prototype.hasOwnProperty.call(UNSAFE_KEYS, k)) continue;
+        // In bare mode (no "files" wrapper) skip metadata keys like name/simpleHost
+        // that aren't file paths, so they don't get published as stray files.
+        if (bare && k.indexOf('.') === -1 && k.indexOf('/') === -1) continue;
+        const v = filesIn[k];
+        if (typeof v !== 'string') return fail('Every file must be text — "' + k + '" isn’t.');
+        if (k.length > 200 || k.indexOf('..') !== -1 || k.charAt(0) === '/' || k.charAt(0) === '\\') return fail('Unsafe file path: ' + k);
+        total += v.length; n++;
+        clean[k] = v;
+      }
+      if (n === 0) return fail('No usable files in that JSON.');
+      if (n > 200) return fail('Too many files (200 max).');
+      if (total > 1500000) return fail('Those files are too large (1.5 MB max).');
+      if (!clean['index.html']) return fail('An index.html is required to preview & publish.');
+
+      // Load into the shared builder: index.html drives the preview; the rest ride along on publish.
+      generatedHTML = clean['index.html'];
+      extraFiles = {};
+      for (const k of Object.keys(clean)) if (k !== 'index.html') extraFiles[k] = clean[k];
+      const names = Object.keys(clean).sort();
+      const suggested = (typeof obj.name === 'string') ? obj.name : '';
+      document.getElementById('gen-name').value =
+        (suggested || 'pasted-site').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'pasted-site';
+      updatePreview();
+      document.getElementById('ai-reset').hidden = false;
+      document.getElementById('paste-box').hidden = true;
+      document.getElementById('paste-input').value = '';
+      status.textContent = '';
+      // Disclose EVERY file that will be published — the preview only renders
+      // index.html, so list the rest so nothing ships unseen.
+      aiAppend('ai', 'Imported ' + n + ' file' + (n > 1 ? 's' : '') + ': ' + names.join(', ') +
+        '. The preview shows index.html — publish to put them all live, or tell me what to tweak.');
     }
 
     // Esc closes the fullscreen preview.
