@@ -88,10 +88,11 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string) {
 func adminUICSP(next http.Handler) http.Handler {
 	const policy = "default-src 'self'; " +
 		"script-src 'self' 'unsafe-inline'; " +
-		"style-src 'self' 'unsafe-inline'; " +
+		"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
 		"img-src 'self' data:; " +
-		"font-src 'self' data:; " +
+		"font-src 'self' data: https://fonts.gstatic.com; " +
 		"connect-src 'self'; " +
+		"frame-src 'self' blob:; " +
 		"object-src 'none'; " +
 		"base-uri 'none'; " +
 		"frame-ancestors 'none'"

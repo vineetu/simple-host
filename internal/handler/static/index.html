@@ -10,6 +10,9 @@
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    /* Author display rules (e.g. .ai-fs{display:flex}) otherwise override the
+       UA [hidden]{display:none} rule, leaving "hidden" overlays on screen. */
+    [hidden] { display: none !important; }
 
     :root {
       --bg: #020617;
@@ -658,8 +661,10 @@
     @media (max-width: 720px) {
       .ai-body { grid-template-columns: 1fr; }
       .ai-preview { border-left: 0; border-top: 1px solid var(--border); }
-      .ai-chat { max-height: 300px; }
-      .ai-preview iframe { min-height: 200px; max-height: 240px; }
+      .ai-chat { max-height: 280px; }
+      .ai-preview iframe { min-height: 360px; }
+      /* On a phone the inline frame is cramped — make Fullscreen the obvious move. */
+      .ai-preview-head .btn-small { font-size: 13px; padding: 6px 12px; }
     }
 
     /* Admin panel */
@@ -872,7 +877,7 @@
 
           <form class="auth-form" id="code-form" onsubmit="return handleCodeSubmit(event)">
             <div class="auth-input">
-              <input type="text" id="code-input" inputmode="numeric" pattern="[0-9-]*" maxlength="7" placeholder="123-456" autocomplete="one-time-code" required>
+              <input type="text" id="code-input" inputmode="numeric" pattern="[0-9\-]*" maxlength="7" placeholder="123-456" autocomplete="one-time-code" required>
               <button type="submit" class="arrow-btn" id="verify-btn" aria-label="Verify code">
                 <span class="btn-text">Verify</span>
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7h10M8 3l4 4-4 4"/></svg>
@@ -1376,6 +1381,7 @@
     // ---- AI create: a planning conversation -> live preview -> publish ------
     let chatMessages = [];   // [{role:'user'|'assistant', content}]
     let generatedHTML = null;
+    let isPublishing = false;
 
     function aiAppend(role, text, opts) {
       const chat = document.getElementById('ai-chat');
@@ -1422,7 +1428,7 @@
         const res = await api('POST', '/v1/generate', { messages: chatMessages, html: generatedHTML || '' });
         const data = await res.json().catch(() => ({}));
         thinking.remove();
-        if (!res.ok) { aiAppend('ai', data.error || 'Something went wrong — please try again.'); return false; }
+        if (!res.ok) { chatMessages.pop(); aiAppend('ai', data.error || 'Something went wrong — please try again.'); return false; }
         const reply = data.reply || 'Done.';
         aiAppend('ai', reply);
         chatMessages.push({ role: 'assistant', content: reply });
@@ -1433,6 +1439,7 @@
         }
       } catch (err) {
         thinking.remove();
+        chatMessages.pop();   // drop the failed turn so it doesn't accumulate
         aiAppend('ai', 'Cannot reach the server — please try again.');
       } finally {
         send.disabled = false;
@@ -1486,9 +1493,11 @@
 
     async function publishGenerated() {
       if (!generatedHTML) { toast('Nothing to publish yet', 'error'); return; }
+      if (isPublishing) return;   // both the inline and fullscreen buttons call this
       let name = (document.getElementById('gen-name').value || '').trim().toLowerCase()
         .replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
       if (!name) { toast('Pick a site name first', 'error'); return; }
+      isPublishing = true;
       const btn = document.getElementById('gen-publish-btn');
       if (btn) btn.disabled = true;
       try {
@@ -1508,8 +1517,14 @@
         toast('Could not publish', 'error');
       } finally {
         if (btn) btn.disabled = false;
+        isPublishing = false;
       }
     }
+
+    // Esc closes the fullscreen preview.
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !document.getElementById('ai-fs').hidden) closeFullscreen();
+    });
 
     // Theme toggle (light / dark). Initial theme is set pre-paint in <head>.
     (function () {
