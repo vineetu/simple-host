@@ -1548,6 +1548,26 @@
       if (fi) fi.addEventListener('change', function (e) { handleFiles(e.target.files); e.target.value = ''; });
     })();
 
+    // Async agent path: POST /v1/generate returns a jobId; poll status until the
+    // run finishes. Each request is sub-second, so no proxy timeout can cut a
+    // long build. Returns { reply, html } on success or { error } on failure.
+    async function pollJob(jobId) {
+      const deadline = Date.now() + 6 * 60 * 1000; // client-side give-up
+      while (Date.now() < deadline) {
+        await new Promise(function (r) { setTimeout(r, 2000); });
+        let sres;
+        try { sres = await api('GET', '/v1/generate/status?id=' + encodeURIComponent(jobId)); }
+        catch (e) { continue; }            // transient network blip — keep polling
+        const s = await sres.json().catch(() => ({}));
+        if (sres.status === 404) return { error: 'That session expired — please try again.' };
+        if (!sres.ok) continue;            // 429 / 5xx — back off and retry
+        if (s.status === 'done') return { reply: s.reply, html: s.html };
+        if (s.status === 'error') return { error: s.error || 'The assistant had trouble — please try again.' };
+        // status === 'running' → keep polling
+      }
+      return { error: 'This is taking longer than usual — please try again.' };
+    }
+
     async function sendChat(e) {
       if (e) e.preventDefault();
       const input = document.getElementById('chat-input');
@@ -1574,9 +1594,10 @@
       });
       try {
         const res = await api('POST', '/v1/generate', { messages: chatMessages, html: generatedHTML || '', attachments: payload });
-        const data = await res.json().catch(() => ({}));
+        let data = await res.json().catch(() => ({}));
+        if (res.ok && data.jobId) data = await pollJob(data.jobId);  // async agent path
         thinking.remove();
-        if (!res.ok) { chatMessages.pop(); pendingAtts = atts; renderTray(); aiAppend('ai', data.error || 'Something went wrong — please try again.'); return false; }
+        if (!res.ok || (data && data.error)) { chatMessages.pop(); pendingAtts = atts; renderTray(); aiAppend('ai', (data && data.error) || 'Something went wrong — please try again.'); return false; }
         const reply = data.reply || 'Done.';
         aiAppend('ai', reply);
         chatMessages.push({ role: 'assistant', content: reply });

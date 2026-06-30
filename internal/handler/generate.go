@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -27,9 +28,10 @@ type GenerateHandler struct {
 	model       string
 	agentURL    string // when set, proxy each turn here (Claude Agent SDK server)
 	agentSecret string
-	client      *http.Client
-	ipLimiter   *rateLimiter
-	userLimiter *rateLimiter
+	client        *http.Client
+	ipLimiter     *rateLimiter
+	userLimiter   *rateLimiter
+	statusLimiter *rateLimiter // generous: status polling is cheap and frequent
 }
 
 func NewGenerateHandler(apiKey, model, agentURL, agentSecret string) *GenerateHandler {
@@ -37,23 +39,32 @@ func NewGenerateHandler(apiKey, model, agentURL, agentSecret string) *GenerateHa
 	// is the real cost guard against scripted abuse.
 	ipLimiter := newRateLimiter(20, 1.0/12.0)   // burst 20, +1 every 12s
 	userLimiter := newRateLimiter(30, 1.0/10.0) // burst 30, +1 every 10s
+	// Status polling happens every couple seconds for the length of a run, so it
+	// needs a much higher ceiling than the (expensive) generate calls.
+	statusLimiter := newRateLimiter(240, 4.0) // burst 240, +4/s
 	ipLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	userLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	statusLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	return &GenerateHandler{
 		apiKey:      apiKey,
 		model:       model,
 		agentURL:    agentURL,
 		agentSecret: agentSecret,
-		// Agent runs (tool use + a full-page generation) can run long, so allow
-		// more headroom than a single Messages-API call would need.
-		client:      &http.Client{Timeout: 240 * time.Second},
-		ipLimiter:   ipLimiter,
-		userLimiter: userLimiter,
+		// Generous enough for the direct Messages-API fallback (one long call).
+		// On the agent path every call here is a quick job-start or status poll,
+		// so this ceiling just sits unused.
+		client:        &http.Client{Timeout: 120 * time.Second},
+		ipLimiter:     ipLimiter,
+		userLimiter:   userLimiter,
+		statusLimiter: statusLimiter,
 	}
 }
 
 func (h *GenerateHandler) Register(mux *http.ServeMux, authMW func(http.Handler) http.Handler) {
 	mux.Handle("POST /v1/generate", authMW(http.HandlerFunc(h.generate)))
+	// Async status poll — only meaningful when an agent server is configured
+	// (the direct Messages-API path answers synchronously from POST /v1/generate).
+	mux.Handle("GET /v1/generate/status", authMW(http.HandlerFunc(h.status)))
 }
 
 type generateRequest struct {
@@ -78,7 +89,10 @@ type attachmentIn struct {
 }
 
 type generateResponse struct {
-	Reply string `json:"reply"`
+	// JobID is returned by the async (agent-server) path; the client then polls
+	// GET /v1/generate/status. The direct path returns Reply/HTML inline instead.
+	JobID string `json:"jobId,omitempty"`
+	Reply string `json:"reply,omitempty"`
 	HTML  string `json:"html,omitempty"`
 }
 
@@ -126,15 +140,17 @@ func (h *GenerateHandler) generate(w http.ResponseWriter, r *http.Request) {
 	// Preferred path: hand the turn to the Agent SDK server, which runs a real
 	// agent (with a deploy_site tool) on the box subscription. We forward the
 	// signed-in user's key so the agent can publish on their behalf. The sign-in
-	// gate + rate limit above stay here, on the public edge.
+	// gate + rate limit above stay here, on the public edge. The agent runs as a
+	// background JOB (returns a jobId immediately) so no HTTP hop waits out a
+	// proxy timeout; the client polls GET /v1/generate/status.
 	if h.agentURL != "" {
-		reply, html, err := h.proxyToAgent(r.Context(), req, atts, clientAPIKey(r))
+		jobID, err := h.startAgentJob(r.Context(), req, atts, clientAPIKey(r))
 		if err != nil {
-			log.Printf("generate (agent): %v", err)
+			log.Printf("generate (agent start): %v", err)
 			writeJSON(w, http.StatusBadGateway, errorResponse{Error: "the assistant had trouble — please try again"})
 			return
 		}
-		writeJSON(w, http.StatusOK, generateResponse{Reply: reply, HTML: html})
+		writeJSON(w, http.StatusOK, generateResponse{JobID: jobID})
 		return
 	}
 
@@ -161,12 +177,11 @@ type agentRequest struct {
 	UserKey     string          `json:"userKey"`
 }
 
-// proxyToAgent forwards one turn to the Agent SDK server and returns its
-// {reply, html}. atts is the already-sanitized attachment list; userKey is the
-// signed-in user's API key, passed so the agent can publish on their behalf via
-// its deploy_site tool. The shared secret authenticates this server-to-server
-// call.
-func (h *GenerateHandler) proxyToAgent(ctx context.Context, req generateRequest, atts []attachmentIn, userKey string) (string, string, error) {
+// startAgentJob asks the Agent SDK server to begin a run and returns its jobId.
+// atts is the already-sanitized attachment list; userKey is the signed-in user's
+// API key, forwarded so the agent can publish on their behalf (and so the agent
+// can bind the job to that user). The shared secret authenticates the call.
+func (h *GenerateHandler) startAgentJob(ctx context.Context, req generateRequest, atts []attachmentIn, userKey string) (string, error) {
 	body, err := json.Marshal(agentRequest{
 		Messages:    sanitizeMessages(req.Messages),
 		HTML:        req.HTML,
@@ -174,39 +189,92 @@ func (h *GenerateHandler) proxyToAgent(ctx context.Context, req generateRequest,
 		UserKey:     userKey,
 	})
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, h.agentURL+"/generate", bytes.NewReader(body))
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("X-Agent-Secret", h.agentSecret)
+	httpReq.Header.Set("X-User-Key", userKey)
 
 	resp, err := h.client.Do(httpReq)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 	defer resp.Body.Close()
 
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", "", fmt.Errorf("agent server status %d: %s", resp.StatusCode, string(raw))
+		return "", fmt.Errorf("agent server status %d: %s", resp.StatusCode, string(raw))
 	}
 
-	var out generateResponse
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return "", "", err
+	var out struct {
+		JobID string `json:"jobId"`
 	}
-	return out.Reply, out.HTML, nil
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return "", err
+	}
+	if out.JobID == "" {
+		return "", fmt.Errorf("agent server returned no jobId")
+	}
+	return out.JobID, nil
+}
+
+// status proxies a poll for an in-flight agent job. It forwards the job id and
+// the caller's key (so the agent server can verify the job belongs to them) and
+// streams the agent's status JSON (running / done{reply,html} / error) straight
+// back, preserving its HTTP status.
+func (h *GenerateHandler) status(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "sign in to use AI create"})
+		return
+	}
+	if !h.statusLimiter.allow(clientIP(r)) {
+		tooManyRequests(w)
+		return
+	}
+	if h.agentURL == "" {
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no async backend configured"})
+		return
+	}
+	id := strings.TrimSpace(r.URL.Query().Get("id"))
+	if id == "" {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "id is required"})
+		return
+	}
+
+	httpReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, h.agentURL+"/generate/status?id="+url.QueryEscape(id), nil)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, errorResponse{Error: "the assistant had trouble — please try again"})
+		return
+	}
+	httpReq.Header.Set("X-Agent-Secret", h.agentSecret)
+	httpReq.Header.Set("X-User-Key", clientAPIKey(r))
+
+	resp, err := h.client.Do(httpReq)
+	if err != nil {
+		log.Printf("generate (status): %v", err)
+		writeJSON(w, http.StatusBadGateway, errorResponse{Error: "the assistant had trouble — please try again"})
+		return
+	}
+	defer resp.Body.Close()
+
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(resp.StatusCode)
+	w.Write(raw)
 }
 
 // clientAPIKey returns the caller's API key (the same header the auth middleware
-// authenticated), used as the deploy credential when proxying to the agent.
+// authenticated), used as the deploy credential and job owner when proxying to
+// the agent.
 func clientAPIKey(r *http.Request) string {
 	return r.Header.Get("X-API-Key")
 }
