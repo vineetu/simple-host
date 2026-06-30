@@ -35,6 +35,8 @@ On Claude Code you can also install via the bundled marketplace:
 /plugin install website-deploy@simple-host
 ```
 
+Using **Hermes** or **OpenClaw**? The skills are plain `SKILL.md`, so they install natively too — e.g. Hermes: `hermes skills install https://simple-host.app/skills/website-deploy/SKILL.md --name website-deploy`. Per-agent paths are on the [get-started page](https://simple-host.app/install.html).
+
 Then just talk to your agent:
 
 > *"Build me a wedding RSVP page and deploy it."*

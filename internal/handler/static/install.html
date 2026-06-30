@@ -382,6 +382,8 @@ Then list your skills: you should see website-deploy and website-deploy-builder.
             <tr><td>Claude Code</td><td><code>~/.claude/skills/</code></td><td><code>%USERPROFILE%\.claude\skills\</code></td></tr>
             <tr><td>Codex CLI</td><td><code>~/.agents/skills/</code></td><td><code>%USERPROFILE%\.agents\skills\</code></td></tr>
             <tr><td>opencode</td><td><code>~/.config/opencode/skills/</code></td><td><code>%USERPROFILE%\.config\opencode\skills\</code></td></tr>
+            <tr><td>Hermes</td><td><code>~/.hermes/skills/</code></td><td><code>%USERPROFILE%\.hermes\skills\</code></td></tr>
+            <tr><td>OpenClaw</td><td><code>~/.openclaw/skills/</code></td><td><code>%USERPROFILE%\.openclaw\skills\</code></td></tr>
             <tr><td>Cursor / other</td><td colspan="2">Point it at the skills directory it reads (see your tool's docs) — the files are identical.</td></tr>
             <tr><td>Claude.ai / Desktop</td><td colspan="2">Needs a paid plan (Pro/Max/Team) with <b>Code execution</b> on. Open your skills settings (<b>Settings → Features</b>, or Customize → Skills), choose <b>“+ Create skill”</b>, and upload each ZIP <b>separately</b>: <a class="dl" href="/skills/website-deploy.zip" download>website-deploy.zip</a> <a class="dl" href="/skills/website-deploy-builder.zip" download>website-deploy-builder.zip</a></td></tr>
           </tbody>
@@ -401,6 +403,7 @@ Then list your skills: you should see website-deploy and website-deploy-builder.
 Invoke-WebRequest https://simple-host.app/skills.zip -OutFile "$env:TEMP\sh-skills.zip"
 Expand-Archive "$env:TEMP\sh-skills.zip" "$env:USERPROFILE\.claude\skills" -Force</pre>
         <p class="note">For Codex / opencode, swap in the folder from the table. There's also a one-liner for macOS/Linux — <code>curl -fsSL https://simple-host.app/install.sh | sh</code> — but it only does the unzip above; <a href="/install.sh">read it first</a> if you'd rather not run a script.</p>
+        <p class="note"><b>Hermes</b> installs straight from the URL — no download needed: <code>hermes skills install https://simple-host.app/skills/website-deploy/SKILL.md --name website-deploy</code> (and the same with <code>website-deploy-builder</code>). <b>OpenClaw</b> auto-discovers any <code>SKILL.md</code> under its skills root, so the unzip above into <code>~/.openclaw/skills/</code> is all it needs.</p>
       </section>
 
       <!-- ============================ WEB AGENTS ============================ -->
