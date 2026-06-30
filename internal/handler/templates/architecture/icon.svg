@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- App icon: stacked layers + nodes-and-edges on the indigo accent.
+     Square viewBox, no text, reads cleanly down to ~32px. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Architecture doc icon">
+  <!-- rounded-square background in the brand accent -->
+  <rect width="512" height="512" rx="112" fill="#5b5ef4"/>
+
+  <!-- three stacked "layer" plates (isometric-ish slabs), top to bottom -->
+  <g fill="#ffffff" opacity="0.95">
+    <!-- top layer -->
+    <path d="M256 96 L408 168 L256 240 L104 168 Z"/>
+  </g>
+  <g fill="#ffffff" opacity="0.65">
+    <!-- middle layer -->
+    <path d="M256 200 L408 272 L256 344 L104 272 Z"/>
+  </g>
+  <g fill="#ffffff" opacity="0.40">
+    <!-- bottom layer -->
+    <path d="M256 304 L408 376 L256 448 L104 376 Z"/>
+  </g>
+
+  <!-- a couple of "nodes" connected by an edge to read as a graph/system -->
+  <g stroke="#5b5ef4" stroke-width="10" fill="#ffffff">
+    <line x1="200" y1="168" x2="312" y2="168" stroke-linecap="round"/>
+    <circle cx="200" cy="168" r="20"/>
+    <circle cx="312" cy="168" r="20"/>
+  </g>
+</svg>

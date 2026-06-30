@@ -1,0 +1,162 @@
+# Simple Host — deploy a website (instructions for an AI assistant)
+
+You are an AI assistant. A human asked you to publish a website on Simple Host.
+You can do the whole thing yourself by calling this JSON API. The human's ONLY
+job is to read you the 6-digit code that gets emailed to them.
+
+API base:  https://simple-host.app
+The site goes live at:  https://<name>.simple-host.app
+Full machine-readable spec:  https://simple-host.app/openapi.json
+
+--------------------------------------------------------------------------------
+HOW TO DEPLOY — do these steps yourself (you make the HTTP calls)
+--------------------------------------------------------------------------------
+
+If you have any way to make HTTP requests (a browsing / fetch / code tool),
+execute the calls below directly. Only if you truly cannot make web requests,
+fall back to "MANUAL MODE" at the bottom.
+
+DEFAULT — START FROM A TEMPLATE (do this unless the user says not to):
+    GET https://simple-host.app/v1/templates            # list starter templates (id + description)
+    GET https://simple-host.app/v1/templates/<id>        # returns {"files":{...}} ready to deploy
+ALWAYS browse the catalog FIRST and pick the closest match to what the user wants,
+then edit the text/content in its files to fit them and deploy that "files" map in
+STEP 3. Templates carry a consistent, polished, accessible design — strongly
+PREFER them over writing a page from scratch. Only hand-author HTML yourself if
+the user EXPLICITLY asks for a fully custom design, or if no template is a
+reasonable fit. (If you must hand-author: avoid gradient/image page backgrounds —
+the drop-in widgets below detect light/dark from the background color and a
+gradient reads as transparent; use a solid background, or pass the widget an
+accent override.) The catalog covers the common "static + a little backend" sites
+(landing, waitlist, event-rsvp, architecture doc, travel itinerary, résumé).
+
+STEP 1 — Ask the user for their email, then request a sign-in code:
+
+    POST https://simple-host.app/v1/auth
+    Content-Type: application/json
+    {"email": "USER_EMAIL"}
+
+Tell the user: "Check your email for a 6-digit code and paste it here."
+
+STEP 2 — When the user gives you the code, exchange it for an API key:
+
+    POST https://simple-host.app/v1/auth/verify
+    Content-Type: application/json
+    {"email": "USER_EMAIL", "code": "THE_6_DIGITS"}
+
+The response contains "api_key". Keep it for this session and send it as the
+header  X-API-Key: <api_key>  on every call below.  IMPORTANT: the header is
+literally  X-API-Key  — `Authorization: Bearer <key>` does NOT work and returns
+401. (The code expires in 15 minutes and allows 3 tries; if it fails, repeat
+Step 1.)
+
+STEP 3 — Write the site and deploy it. Pick a short name (lowercase letters,
+digits, hyphens). Send each file's contents inline:
+
+    POST https://simple-host.app/v1/sites/<name>/files
+    X-API-Key: <api_key>
+    Content-Type: application/json
+    {"files": {
+        "index.html": "<!doctype html><html>…</html>",
+        "css/style.css": "body{…}"
+    }}
+
+- 201 = created. The response includes "site_url" — give it to the user.
+- 409 = that name is taken. If the user owns it, repeat the call with PUT
+  instead of POST to update it; otherwise pick another name.
+- index.html is required. Keep it to text files (HTML/CSS/JS/SVG). Limits:
+  total < 100 MB, < 50,000 files. Files like .env / .git/* are skipped;
+  script extensions (.sh .py .rb .go .php …) are rejected.
+
+STEP 4 — Tell the user their site is live at  https://<name>.simple-host.app .
+
+That's the whole flow. To re-deploy later, use PUT on the same /files URL. To
+list the user's sites: GET https://simple-host.app/v1/sites with the X-API-Key
+header. To delete one: DELETE https://simple-host.app/v1/sites/<name>.
+
+--------------------------------------------------------------------------------
+A FEW RULES
+--------------------------------------------------------------------------------
+- The api_key authenticates as this user and controls all their sites. Keep it
+  in this session; don't post it back to the user unless they ask. If it ever
+  leaks, the user should sign in again to get a fresh one.
+- Do NOT use any "admin" key — it cannot create sites. Use the user's key from
+  Step 2.
+- Want a dynamic feature (guestbook, counter, poll)? Each site has a free public
+  JSON store. From the site's OWN page JavaScript:
+      const sub=location.hostname.split('.')[0];
+      const apex=location.hostname.split('.').slice(-2).join('.');
+      const U=`${location.protocol}//${apex}/v1/sites/${sub}/state`;
+      const state=(await fetch(U).then(r=>r.json()))||{};            // read
+      await fetch(U,{method:'PUT',headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({...state,count:(state.count||0)+1})}); // write
+  This store is PUBLIC (anyone can read it) — never put secrets in it.
+  For concurrency-safe edits (many users at once), prefer PATCH with atomic ops
+  over read-modify-write PUT — these never clobber each other:
+      await fetch(U,{method:'PATCH',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ops:[{op:'inc',path:'count',by:1}]})});     // atomic counter
+      // also: {op:'append',path:'items',value:{...}},  {op:'set',path:'a.b',value:x},
+      //       {op:'remove',path:'a.b'},  {op:'removeWhere',path:'items',match:{id:'x'}}
+  Cheap polling: GET returns an ETag; send If-None-Match:'<that ETag>' to get a
+  304 (no body) when nothing changed.
+
+--------------------------------------------------------------------------------
+COMMENTS — add a threaded discussion section to any page (one line)
+--------------------------------------------------------------------------------
+Want visitors to discuss (Reddit-style threads with replies + upvotes)? Add these
+two lines where you want the discussion to appear, before </body>:
+
+    <section id="sh-comments"></section>
+    <script src="https://simple-host.app/comments.js" defer></script>
+
+It stores threads in the site's state KV (keys "_comments" and "_votes") using
+ATOMIC ops, so simultaneous posters never clobber each other, and polls cheaply so
+threads update live. It auto-matches the page's font and light/dark theme. The
+store is PUBLIC (anyone can read) — don't post anything sensitive. To set the
+accent color, add  <script>window.SH_COMMENTS={accent:"#5b5ef4"}</script>  BEFORE
+the comments.js tag. Consider adding this to most pages you deploy.
+
+--------------------------------------------------------------------------------
+UI MOCKUP FEEDBACK — let reviewers pin comments, then read them back
+--------------------------------------------------------------------------------
+Deploying a UI mockup for review? Add this one line to the page before </body>:
+
+    <script src="https://simple-host.app/feedback.js"></script>
+
+Reviewers can then click anywhere on the page to drop a pinned comment. Comments
+are saved to the site's state KV under the key "_comments" (optimistic-concurrency
+writes, so simultaneous reviewers don't overwrite each other).
+
+To READ the feedback back (so you can act on it), GET the state — the store is
+Origin-gated, so send the site's own Origin header:
+
+    curl -H "Origin: https://<name>.simple-host.app" \
+         https://simple-host.app/v1/sites/<name>/state
+
+Each entry in "_comments" tells you EXACTLY where the reviewer pointed:
+    { "body": "make this bigger",      // the comment
+      "sel":  "main > section:nth-of-type(2) > button",  // CSS selector of the element
+      "text": "Sign up",               // the element's text (map it to your code)
+      "nx": 0.5, "ny": 0.5,            // position within that element (0..1)
+      "author": "...", "ts": 1700000000000 }
+Use "sel" + "text" to locate the exact element in your source and apply the change.
+
+--------------------------------------------------------------------------------
+MANUAL MODE — only if you cannot make HTTP requests yourself
+--------------------------------------------------------------------------------
+Hand the user these commands to run in their terminal (they paste their key
+once; it never appears in this chat):
+
+    # 1. sign in
+    curl -s https://simple-host.app/v1/auth -H 'Content-Type: application/json' \
+      -d '{"email":"you@example.com"}'
+    # (check email for the code, then:)
+    SIMPLE_HOST_KEY=$(curl -s https://simple-host.app/v1/auth/verify \
+      -H 'Content-Type: application/json' \
+      -d '{"email":"you@example.com","code":"123456"}' \
+      | sed -n 's/.*"api_key":"\([^"]*\)".*/\1/p'); export SIMPLE_HOST_KEY
+    # 2. deploy (you write index.html into the JSON)
+    curl -s -X POST https://simple-host.app/v1/sites/my-site/files \
+      -H "X-API-Key: $SIMPLE_HOST_KEY" -H 'Content-Type: application/json' \
+      -d '{"files":{"index.html":"<!doctype html><h1>Hello</h1>"}}'
+    # 3. visit https://my-site.simple-host.app

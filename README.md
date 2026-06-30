@@ -76,9 +76,12 @@ CREATE TABLE versions (
   version_number INTEGER NOT NULL,
   disk_path TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'uploading',
+  archive_sha256 TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(site_id, version_number)
 );
+-- Existing deployment (no migrations framework — apply by hand before deploying):
+--   ALTER TABLE versions ADD COLUMN archive_sha256 TEXT NOT NULL DEFAULT '';
 CREATE TABLE auth_tokens (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT NOT NULL,

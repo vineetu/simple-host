@@ -15,6 +15,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
+	dbpkg "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/internal/storage"
@@ -39,7 +40,16 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	authMW := auth.Middleware(cfg.AdminAPIKey, db)
+	// Ensure a real admin user row exists so the admin key can own sites.
+	adminKey, err := auth.GenerateAPIKey()
+	if err != nil {
+		log.Fatalf("generate admin row key: %v", err)
+	}
+	adminUserID, err := dbpkg.EnsureAdminUser(context.Background(), db, adminKey)
+	if err != nil {
+		log.Fatalf("ensure admin user: %v", err)
+	}
+	authMW := auth.Middleware(cfg.AdminAPIKey, adminUserID, db)
 
 	// Stale-skill notice middleware. Compares the X-Skill-Version header
 	// against the bundled plugin.json version and injects a `_notice`
@@ -61,12 +71,13 @@ func main() {
 
 	handler.RegisterHealthRoutes(mux, db)
 	handler.NewUserHandler(db, mailer, cfg.PublicBaseURL).Register(mux, authMW, noticeMW)
-	handler.NewSiteHandler(db, diskStorage, cfg.SiteDomain, cfg.DeployScript).Register(mux, authMW, noticeMW)
-	handler.RegisterUIRoutes(mux)
+	handler.NewSiteHandler(db, diskStorage, cfg.SiteDomain, cfg.DeployScript, cfg.AdminAPIKey).Register(mux, authMW, noticeMW)
+	handler.RegisterTemplateRoutes(mux)
+	handler.RegisterUIRoutes(mux, cfg.PublicBaseURL)
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           mux,
+		Handler:           handler.SecurityHeaders(handler.CORS(mux)),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

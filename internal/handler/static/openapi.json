@@ -1,0 +1,261 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Simple Host — Deploy API (web-LLM subset)",
+    "version": "1.0.0",
+    "description": "Minimal API for an AI assistant (e.g. a ChatGPT Custom GPT Action) to deploy and manage static websites on Simple Host.\n\nFlow: (1) requestSignInCode emails the user a 6-digit code; (2) verifySignInCode exchanges that code for an API key; (3) deploySite/updateSite publish a site by sending file contents inline as JSON; (4) listSites/deleteSite manage them.\n\nOmitted on purpose: binary/archive upload, version history & rollback, skill bundles, and the browser-side per-site state KV (that is called from the deployed page's own JavaScript, not server-side — see /llms.txt). A templates catalog and search are planned for v2.\n\nSecurity: the API key authenticates as the user and can manage all of their sites. Never paste it into a chat transcript; in a Custom GPT, store it in the Action's auth config.",
+    "x-roadmap-v2": ["GET /v1/templates (starter templates)", "GET /v1/templates/search"]
+  },
+  "servers": [
+    { "url": "https://simple-host.app", "description": "Playground" }
+  ],
+  "security": [{ "ApiKeyAuth": [] }],
+  "paths": {
+    "/v1/auth": {
+      "post": {
+        "operationId": "requestSignInCode",
+        "summary": "Email the user a 6-digit sign-in code",
+        "description": "Step 1 of sign-in. Always returns 202 for any syntactically valid email (does not reveal whether the address is registered).",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SignInRequest" }
+            }
+          }
+        },
+        "responses": {
+          "202": { "description": "A code was emailed (if the address can receive mail)." },
+          "400": { "$ref": "#/components/responses/Error" },
+          "429": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/auth/verify": {
+      "post": {
+        "operationId": "verifySignInCode",
+        "summary": "Exchange the emailed code for an API key",
+        "description": "Step 2 of sign-in. Returns the user's API key. The code expires in 15 minutes and allows 3 attempts.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/VerifyRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verified.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Error" },
+          "429": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/me": {
+      "get": {
+        "operationId": "getCurrentUser",
+        "summary": "Return the authenticated user (use to confirm a key works)",
+        "responses": {
+          "200": {
+            "description": "The current user.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/User" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/sites": {
+      "get": {
+        "operationId": "listSites",
+        "summary": "List the sites owned by the authenticated user",
+        "responses": {
+          "200": {
+            "description": "The user's sites.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Site" }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/sites/{name}/files": {
+      "parameters": [{ "$ref": "#/components/parameters/SiteName" }],
+      "post": {
+        "operationId": "deploySite",
+        "summary": "Create a new site from inline files (JSON)",
+        "description": "Publishes a brand-new site. The body is a map of relative path -> UTF-8 file contents; the site must include an index.html. Returns 409 if the name is already taken — retry with updateSite if the user owns it.",
+        "requestBody": { "$ref": "#/components/requestBodies/Files" },
+        "responses": {
+          "201": { "$ref": "#/components/responses/SiteResponse" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      },
+      "put": {
+        "operationId": "updateSite",
+        "summary": "Update an existing owned site from inline files (JSON)",
+        "description": "Publishes a new version of a site the user already owns. Same body shape as deploySite. Returns 404 if the user does not own the name.",
+        "requestBody": { "$ref": "#/components/requestBodies/Files" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/SiteResponse" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/sites/{name}": {
+      "parameters": [{ "$ref": "#/components/parameters/SiteName" }],
+      "delete": {
+        "operationId": "deleteSite",
+        "summary": "Delete a site the user owns",
+        "responses": {
+          "204": { "description": "Deleted." },
+          "401": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Per-user API key obtained from verifySignInCode."
+      }
+    },
+    "parameters": {
+      "SiteName": {
+        "name": "name",
+        "in": "path",
+        "required": true,
+        "description": "Site name: a DNS label (1-63 chars, lowercase letters/digits/hyphens, no leading/trailing hyphen). Becomes https://<name>.simple-host.app.",
+        "schema": {
+          "type": "string",
+          "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+        }
+      }
+    },
+    "requestBodies": {
+      "Files": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/FilesRequest" },
+            "example": {
+              "files": {
+                "index.html": "<!doctype html><html><body><h1>Hello</h1></body></html>",
+                "css/style.css": "body{font-family:sans-serif}"
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Error.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "SiteResponse": {
+        "description": "The created or updated site.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Site" }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "SignInRequest": {
+        "type": "object",
+        "required": ["email"],
+        "properties": {
+          "email": { "type": "string", "format": "email" }
+        }
+      },
+      "VerifyRequest": {
+        "type": "object",
+        "required": ["email", "code"],
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "code": { "type": "string", "description": "The 6-digit code from the email." }
+        }
+      },
+      "AuthResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "username": { "type": "string" },
+          "api_key": { "type": "string", "description": "Use as the X-API-Key header on all other calls." },
+          "is_admin": { "type": "boolean" },
+          "created": { "type": "boolean", "description": "True if this verification created the account." }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "username": { "type": "string" },
+          "is_admin": { "type": "boolean" }
+        }
+      },
+      "Site": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "user_id": { "type": "string" },
+          "name": { "type": "string" },
+          "active_version": { "type": "integer" },
+          "site_url": { "type": "string", "format": "uri" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "FilesRequest": {
+        "type": "object",
+        "required": ["files"],
+        "properties": {
+          "files": {
+            "type": "object",
+            "description": "Map of relative path (forward slashes, no leading slash, no '..') to UTF-8 file contents. Must be non-empty and include index.html. Limits: <=100MB body, <=50,000 files. Secret files (.env, .git/*, id_rsa, ...) are skipped; source-script extensions (.sh .py .rb .go .php ...) are rejected.",
+            "additionalProperties": { "type": "string" }
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" }
+        }
+      }
+    }
+  }
+}

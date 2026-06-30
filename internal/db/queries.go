@@ -4,8 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"time"
 )
+
+// ErrStateVersionConflict is returned by UpdateSiteStateCAS when the caller's
+// expected version no longer matches the stored one (a concurrent write landed
+// in between). Callers should re-read and retry.
+var ErrStateVersionConflict = errors.New("state version conflict")
 
 func CreateUser(ctx context.Context, db *sql.DB, username, apiKey string, isAdmin bool) (User, error) {
 	const query = `
@@ -299,42 +305,148 @@ func IncrementAuthTokenAttempts(ctx context.Context, db *sql.DB, id string) erro
 	return err
 }
 
-func GetSiteState(ctx context.Context, db *sql.DB, name string) (json.RawMessage, error) {
+// GetSiteState returns the site's state document and its current version. The
+// version is a monotonic counter bumped on every write, used for optimistic
+// concurrency (see UpdateSiteStateCAS).
+func GetSiteState(ctx context.Context, db *sql.DB, name string) (json.RawMessage, int, error) {
 	// COALESCE so a SQL NULL becomes the JSON literal `null` — keeps the
 	// scan target (json.RawMessage / []byte) happy and the response a
 	// well-formed JSON document either way.
-	const query = `SELECT COALESCE(state, 'null'::jsonb) FROM sites WHERE name = $1`
+	const query = `SELECT COALESCE(state, 'null'::jsonb), state_version FROM sites WHERE name = $1`
 
 	var state []byte
-	if err := db.QueryRowContext(ctx, query, name).Scan(&state); err != nil {
-		return nil, err
+	var version int
+	if err := db.QueryRowContext(ctx, query, name).Scan(&state, &version); err != nil {
+		return nil, 0, err
 	}
 	if len(state) == 0 {
-		return json.RawMessage("null"), nil
+		return json.RawMessage("null"), version, nil
 	}
-	return json.RawMessage(state), nil
+	return json.RawMessage(state), version, nil
 }
 
-func UpdateSiteState(ctx context.Context, db *sql.DB, name string, state json.RawMessage) error {
+// UpdateSiteState overwrites state unconditionally (last-write-wins) and bumps
+// the version. Returns the new version. This is the default behavior when the
+// caller does not opt into optimistic concurrency.
+func UpdateSiteState(ctx context.Context, db *sql.DB, name string, state json.RawMessage) (int, error) {
 	const query = `
 		UPDATE sites
-		SET state = $2::jsonb, updated_at = now()
+		SET state = $2::jsonb, state_version = state_version + 1, updated_at = now()
 		WHERE name = $1
+		RETURNING state_version
 	`
 
-	result, err := db.ExecContext(ctx, query, name, string(state))
+	var version int
+	err := db.QueryRowContext(ctx, query, name, string(state)).Scan(&version)
 	if err != nil {
-		return err
+		return 0, err // includes sql.ErrNoRows when the site doesn't exist
 	}
+	return version, nil
+}
 
-	rows, err := result.RowsAffected()
+// UpdateSiteStateCAS overwrites state only if the stored version equals
+// `expected` (compare-and-swap / optimistic concurrency). Returns the new
+// version on success, sql.ErrNoRows if the site is missing, or
+// ErrStateVersionConflict if a concurrent write moved the version.
+func UpdateSiteStateCAS(ctx context.Context, db *sql.DB, name string, state json.RawMessage, expected int) (int, error) {
+	const query = `
+		UPDATE sites
+		SET state = $2::jsonb, state_version = state_version + 1, updated_at = now()
+		WHERE name = $1 AND state_version = $3
+		RETURNING state_version
+	`
+
+	var version int
+	err := db.QueryRowContext(ctx, query, name, string(state), expected).Scan(&version)
+	if errors.Is(err, sql.ErrNoRows) {
+		// No row updated: either the site is gone or the version moved. Probe
+		// to return the precise error.
+		var exists bool
+		probe := db.QueryRowContext(ctx, `SELECT true FROM sites WHERE name = $1`, name).Scan(&exists)
+		if errors.Is(probe, sql.ErrNoRows) {
+			return 0, sql.ErrNoRows
+		}
+		if probe != nil {
+			return 0, probe
+		}
+		return 0, ErrStateVersionConflict
+	}
 	if err != nil {
-		return err
+		return 0, err
 	}
-	if rows == 0 {
-		return sql.ErrNoRows
+	return version, nil
+}
+
+// SetViewPasswordHash stores (or with hash="" clears) the bcrypt view-password
+// hash that gates public viewing of a site.
+func SetViewPasswordHash(ctx context.Context, db *sql.DB, siteID, hash string) error {
+	var v any
+	if hash != "" {
+		v = hash
 	}
-	return nil
+	_, err := db.ExecContext(ctx, `UPDATE sites SET view_password_hash = $2, updated_at = now() WHERE id = $1`, siteID, v)
+	return err
+}
+
+// LoadViewLocks returns site name -> bcrypt hash for every view-locked site, for
+// the in-memory cache the nginx auth_request handler consults (so an unlocked
+// page view costs a memory lookup, not a DB hit).
+func LoadViewLocks(ctx context.Context, db *sql.DB) (map[string]string, error) {
+	rows, err := db.QueryContext(ctx, `SELECT name, view_password_hash FROM sites WHERE view_password_hash IS NOT NULL`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make(map[string]string)
+	for rows.Next() {
+		var name, hash string
+		if err := rows.Scan(&name, &hash); err != nil {
+			return nil, err
+		}
+		out[name] = hash
+	}
+	return out, rows.Err()
+}
+
+// GetSiteStateVersion reads ONLY the state version — cheap, for conditional GET
+// (If-None-Match -> 304) so pollers don't fetch/serialize the whole document.
+func GetSiteStateVersion(ctx context.Context, db *sql.DB, name string) (int, error) {
+	var version int
+	err := db.QueryRowContext(ctx, `SELECT state_version FROM sites WHERE name = $1`, name).Scan(&version)
+	return version, err
+}
+
+// GetSiteStateForUpdate reads state + version and locks the row FOR UPDATE, so a
+// read-modify-write (atomic PATCH) applies without lost updates. Concurrent
+// PATCHes serialize on the lock instead of burning CPU on optimistic retries.
+// Use inside a transaction.
+func GetSiteStateForUpdate(ctx context.Context, q Querier, name string) (json.RawMessage, int, error) {
+	const query = `SELECT COALESCE(state, 'null'::jsonb), state_version FROM sites WHERE name = $1 FOR UPDATE`
+	var state []byte
+	var version int
+	if err := q.QueryRowContext(ctx, query, name).Scan(&state, &version); err != nil {
+		return nil, 0, err
+	}
+	if len(state) == 0 {
+		return json.RawMessage("null"), version, nil
+	}
+	return json.RawMessage(state), version, nil
+}
+
+// SetSiteState overwrites state and bumps the version using the given Querier
+// (typically a tx). Returns the new version.
+func SetSiteState(ctx context.Context, q Querier, name string, state json.RawMessage) (int, error) {
+	const query = `
+		UPDATE sites
+		SET state = $2::jsonb, state_version = state_version + 1, updated_at = now()
+		WHERE name = $1
+		RETURNING state_version
+	`
+	var version int
+	if err := q.QueryRowContext(ctx, query, name, string(state)).Scan(&version); err != nil {
+		return 0, err
+	}
+	return version, nil
 }
 
 func UpdateSiteActiveVersion(ctx context.Context, db Querier, siteID string, version int) error {
@@ -348,15 +460,15 @@ func UpdateSiteActiveVersion(ctx context.Context, db Querier, siteID string, ver
 	return err
 }
 
-func CreateVersion(ctx context.Context, db Querier, siteID string, versionNumber int, diskPath string) (Version, error) {
+func CreateVersion(ctx context.Context, db Querier, siteID string, versionNumber int, diskPath, archiveSHA256 string) (Version, error) {
 	const query = `
-		INSERT INTO versions (site_id, version_number, disk_path, status)
-		VALUES ($1, $2, $3, 'uploading')
+		INSERT INTO versions (site_id, version_number, disk_path, status, archive_sha256)
+		VALUES ($1, $2, $3, 'uploading', $4)
 		RETURNING id, site_id, version_number, disk_path, status, created_at
 	`
 
 	var version Version
-	err := db.QueryRowContext(ctx, query, siteID, versionNumber, diskPath).Scan(
+	err := db.QueryRowContext(ctx, query, siteID, versionNumber, diskPath, archiveSHA256).Scan(
 		&version.ID,
 		&version.SiteID,
 		&version.VersionNumber,
@@ -364,6 +476,7 @@ func CreateVersion(ctx context.Context, db Querier, siteID string, versionNumber
 		&version.Status,
 		&version.CreatedAt,
 	)
+	version.ArchiveSHA256 = archiveSHA256
 	return version, err
 }
 
@@ -401,6 +514,15 @@ func ActivateVersion(ctx context.Context, db Querier, versionID string) error {
 
 	_, err := db.ExecContext(ctx, query, versionID)
 	return err
+}
+
+// LockSiteForUpdate takes a row-level lock on the sites row so concurrent
+// uploads to the same site serialize their version allocation. Must be called
+// inside a transaction; the lock releases on commit/rollback.
+func LockSiteForUpdate(ctx context.Context, db Querier, siteID string) error {
+	const query = `SELECT id FROM sites WHERE id = $1 FOR UPDATE`
+	var id string
+	return db.QueryRowContext(ctx, query, siteID).Scan(&id)
 }
 
 func GetMaxVersionNumber(ctx context.Context, db Querier, siteID string) (int, error) {

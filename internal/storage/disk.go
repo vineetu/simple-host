@@ -76,14 +76,27 @@ func (d *DiskStorage) WriteFiles(ctx context.Context, siteName string, versionNu
 func (d *DiskStorage) UpdateCurrent(siteName string, versionNum int) error {
 	siteDir := filepath.Join(d.dataDir, siteName)
 	versionDir := filepath.Join(siteDir, fmt.Sprintf("v%d", versionNum))
-
 	currentDir := filepath.Join(siteDir, "current")
+	tmpDir := filepath.Join(siteDir, ".current.tmp")
+
+	// Build the new tree off to the side. While this (slow) copy runs, the live
+	// `current` directory keeps serving the previous version untouched.
+	if err := os.RemoveAll(tmpDir); err != nil {
+		return fmt.Errorf("remove temp current dir: %w", err)
+	}
+	if err := copyDir(versionDir, tmpDir); err != nil {
+		return fmt.Errorf("copy version %d to temp current: %w", versionNum, err)
+	}
+
+	// Swap into place. The window where `current` is absent is now just a
+	// remove + rename (fast metadata ops) rather than the full copy duration.
+	// `current` lands as a fresh directory at the same path each deploy — the
+	// same semantics the proxy already serves today.
 	if err := os.RemoveAll(currentDir); err != nil {
 		return fmt.Errorf("remove current dir: %w", err)
 	}
-
-	if err := copyDir(versionDir, currentDir); err != nil {
-		return fmt.Errorf("copy version %d to current: %w", versionNum, err)
+	if err := os.Rename(tmpDir, currentDir); err != nil {
+		return fmt.Errorf("promote temp current dir: %w", err)
 	}
 
 	return nil

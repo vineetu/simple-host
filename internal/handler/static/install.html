@@ -3,458 +3,445 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Install — Simple Host</title>
+  <title>Get started — Simple Host</title>
+  <script>(function(){try{document.documentElement.dataset.theme=localStorage.getItem('sh-theme')||'dark';}catch(e){document.documentElement.dataset.theme='dark';}})();</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #faf9f7;
-      --surface: #ffffff;
-      --border: #e8e5e0;
-      --text: #1a1a1a;
-      --text-secondary: #6b6560;
-      --accent: #c96442;
-      --accent-hover: #b5573a;
-      --radius: 8px;
-      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-      --mono: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+      --bg: #020617;
+      --grid: #0f1830;
+      --panel: rgba(15, 23, 42, 0.7);
+      --panel-solid: #0b1222;
+      --border: #1e293b;
+      --border-hi: #334155;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --dim: #475569;
+      --cyan: #22d3ee;
+      --emerald: #34d399;
+      --violet: #a78bfa;
+      --amber: #fbbf24;
+      --rose: #fb7185;
+      --orange: #fb923c;
+      --radius: 12px;
+      --header-bg: rgba(2, 6, 23, 0.75);
+      --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+    }
+    html[data-theme="light"] {
+      --bg: #f7f8fb;
+      --grid: #e9edf4;
+      --panel: rgba(15, 23, 42, 0.04);
+      --panel-solid: #ffffff;
+      --border: #e2e8f0;
+      --border-hi: #cbd5e1;
+      --text: #0f172a;
+      --muted: #475569;
+      --dim: #94a3b8;
+      --cyan: #0891b2;
+      --emerald: #059669;
+      --header-bg: rgba(255, 255, 255, 0.82);
     }
 
     body {
-      font-family: var(--font);
+      font-family: var(--mono);
       background: var(--bg);
       color: var(--text);
       line-height: 1.6;
       min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      background-image:
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+      background-size: 48px 48px;
+      background-position: center top;
     }
 
-    .container { max-width: 720px; margin: 0 auto; padding: 0 24px; }
+    .container { max-width: 1080px; margin: 0 auto; padding: 0 28px; }
 
     header {
-      padding: 20px 0;
       border-bottom: 1px solid var(--border);
-      margin-bottom: 40px;
+      background: var(--header-bg);
+      backdrop-filter: blur(8px);
+      position: sticky; top: 0; z-index: 10;
     }
     header .container {
       display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 28px;
     }
     .logo {
-      font-size: 15px; font-weight: 600;
-      letter-spacing: -0.3px; color: var(--text); text-decoration: none;
+      font-size: 14px; font-weight: 700; letter-spacing: 0.5px;
+      color: var(--text); text-decoration: none;
     }
-    nav.top { display: flex; gap: 18px; font-size: 13px; }
-    nav.top a { color: var(--text-secondary); text-decoration: none; }
+    .logo b { color: var(--cyan); }
+    nav.top { display: flex; gap: 22px; font-size: 13px; }
+    nav.top a { color: var(--muted); text-decoration: none; transition: color .15s; }
     nav.top a:hover { color: var(--text); }
-    nav.top a.current { color: var(--accent); }
+    nav.top a.current { color: var(--cyan); }
 
-    main { padding-bottom: 80px; }
+    .theme-toggle {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 8px;
+      width: 32px; height: 30px; padding: 0;
+      cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 14px; line-height: 1;
+    }
+    .theme-toggle:hover { border-color: var(--cyan); color: var(--cyan); }
+
+    main { padding: 64px 0 96px; }
 
     .eyebrow {
-      font-family: var(--mono);
-      font-size: 11px;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: var(--text-secondary);
-      margin-bottom: 10px;
+      font-size: 12px; font-weight: 600;
+      letter-spacing: 0.22em; text-transform: uppercase;
+      color: var(--cyan);
+      margin-bottom: 18px;
     }
 
     h1 {
-      font-size: 32px; font-weight: 600;
-      letter-spacing: -0.5px; line-height: 1.15;
-      margin-bottom: 14px;
+      font-size: clamp(34px, 5vw, 52px); font-weight: 700;
+      letter-spacing: -1px; line-height: 1.05;
+      margin-bottom: 20px;
     }
-    h1 .dot { color: var(--accent); }
+    h1 .accent { color: var(--cyan); }
 
     .lede {
-      color: var(--text-secondary);
-      font-size: 15px; line-height: 1.65;
-      margin-bottom: 36px;
-      max-width: 580px;
+      color: var(--muted);
+      font-size: 16px; line-height: 1.7;
+      max-width: 640px;
     }
-    .lede code {
-      font-family: var(--mono); font-size: 13px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      padding: 1px 5px; border-radius: 4px;
-    }
+    .lede b { color: var(--text); font-weight: 500; }
 
-    section { margin-bottom: 44px; }
+    .url-hero {
+      display: inline-flex; align-items: center; gap: 14px; flex-wrap: wrap;
+      background: var(--panel-solid);
+      border: 1px solid var(--border-hi);
+      border-radius: 10px;
+      padding: 12px 14px 12px 18px;
+      margin-top: 28px;
+    }
+    .url-hero .label {
+      font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--dim);
+    }
+    .url-hero code { font-size: 15px; font-weight: 600; color: var(--emerald); }
 
-    section h2 {
-      font-size: 18px; font-weight: 600;
-      letter-spacing: -0.2px;
-      margin: 0 0 10px;
-    }
-
-    section p {
-      font-size: 14px;
-      color: var(--text-secondary);
-      margin-bottom: 12px;
-    }
-    section p code {
-      font-family: var(--mono); font-size: 12.5px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      padding: 1px 5px; border-radius: 4px;
-      color: var(--text);
-    }
-
-    pre {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 14px 16px;
-      font-family: var(--mono);
-      font-size: 12.5px;
-      line-height: 1.55;
-      color: var(--text);
-      overflow-x: auto;
-      margin: 0 0 12px;
-      white-space: pre;
-    }
-
-    .code-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin: 0 0 8px;
-    }
-    .code-head span {
-      font-size: 13px;
-      color: var(--text-secondary);
-    }
-
-    .copy-btn, .download-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 30px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      background: var(--surface);
-      color: var(--text);
-      font-family: var(--font);
-      font-size: 12px;
-      font-weight: 600;
-      text-decoration: none;
-      padding: 5px 10px;
-      cursor: pointer;
-    }
-    .copy-btn:hover, .download-btn:hover {
-      border-color: var(--accent);
-      color: var(--accent);
-    }
-    .download-btn.primary {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #fff;
-    }
-    .download-btn.primary:hover {
-      background: var(--accent-hover);
-      color: #fff;
-    }
-
-    .download-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-      margin: 14px 0 12px;
-    }
-    .download-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 14px;
-    }
-    .download-card h3 {
-      font-size: 14px;
-      margin: 0 0 4px;
-    }
-    .download-card p {
-      font-size: 12.5px;
-      line-height: 1.5;
-      margin: 0 0 12px;
-    }
-    .download-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .recommended {
-      border: 1px solid var(--accent);
-      background: rgba(201, 100, 66, 0.04);
-      border-radius: var(--radius);
-      padding: 16px 18px 14px;
-      margin-bottom: 18px;
-    }
-    .recommended .badge {
-      display: inline-block;
-      background: var(--accent);
-      color: white;
-      font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      padding: 3px 7px;
-      border-radius: 4px;
+    section.block { margin-top: 88px; }
+    .sec-head { margin-bottom: 36px; }
+    .sec-head h2 {
+      font-size: 30px; font-weight: 700; letter-spacing: -0.5px;
       margin-bottom: 10px;
-      font-weight: 600;
     }
-    .recommended h3 { font-size: 15px; font-weight: 600; margin: 0 0 6px; }
-    .recommended p { font-size: 13px; color: var(--text); margin-bottom: 10px; }
-    .recommended pre { margin-bottom: 0; }
+    .sec-head p { color: var(--muted); font-size: 14px; }
+    .sec-head p .k { color: var(--text); }
 
-    .caveat {
-      font-size: 13px;
-      color: var(--text-secondary);
-      line-height: 1.55;
-      border-left: 2px solid var(--border);
-      padding-left: 12px;
-      margin: 8px 0 12px;
+    /* two-column: steps + terminal mockup */
+    .split {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 44px;
+      align-items: start;
     }
-    .caveat a { color: var(--accent); text-decoration: none; }
-    .caveat a:hover { text-decoration: underline; }
 
-    ul.skill-list {
-      list-style: none; padding: 0; margin: 8px 0 0;
-      font-size: 14px;
+    .steps { list-style: none; position: relative; }
+    .steps::before {
+      content: ""; position: absolute; left: 17px; top: 18px; bottom: 18px;
+      width: 1px; background: var(--border-hi);
     }
-    ul.skill-list li {
-      padding-left: 16px; position: relative;
-      margin-bottom: 6px;
-      color: var(--text-secondary);
+    .steps li { position: relative; padding-left: 54px; margin-bottom: 30px; }
+    .steps li:last-child { margin-bottom: 0; }
+    .steps .num {
+      position: absolute; left: 0; top: 0;
+      width: 35px; height: 35px; border-radius: 50%;
+      border: 1px solid var(--border-hi); background: var(--bg);
+      color: var(--cyan); font-size: 14px; font-weight: 600;
+      display: flex; align-items: center; justify-content: center;
     }
-    ul.skill-list li::before {
-      content: "›"; position: absolute; left: 0;
-      color: var(--accent); font-weight: 700;
+    .steps h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+    .steps p { color: var(--muted); font-size: 13.5px; line-height: 1.65; }
+    .steps p code, .inline-code {
+      color: var(--cyan); background: rgba(34, 211, 238, 0.08);
+      border: 1px solid rgba(34, 211, 238, 0.2);
+      padding: 1px 6px; border-radius: 5px; font-size: 12.5px;
     }
-    ul.skill-list code {
-      font-family: var(--mono); font-size: 12.5px;
-      color: var(--text); font-weight: 600;
+    .steps a { color: var(--cyan); text-decoration: none; }
+    .steps a:hover { text-decoration: underline; }
+
+    /* terminal / chat mockup */
+    /* terminal mockups stay dark in BOTH themes — a light terminal looks wrong */
+    .mock {
+      background: #0b1222;
+      border: 1px solid #1e293b;
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: 0 20px 50px -20px rgba(0,0,0,0.6);
     }
+    .mock .bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 12px 16px; border-bottom: 1px solid #1e293b;
+      background: rgba(2,6,23,0.4);
+    }
+    .mock .bar .dot { width: 11px; height: 11px; border-radius: 50%; }
+    .dot.r { background: var(--rose); } .dot.y { background: var(--amber); } .dot.g { background: var(--emerald); }
+    .mock .bar .tag { margin-left: auto; font-size: 11px; color: var(--dim); letter-spacing: 0.1em; }
+    .mock pre {
+      padding: 20px; font-size: 13px; line-height: 1.85;
+      white-space: pre-wrap; word-break: break-word; color: #f1f5f9;
+    }
+    .c-cm { color: #475569; }   /* comment */
+    .c-kw { color: #22d3ee; }   /* keyword / label */
+    .c-st { color: #34d399; }   /* string / success */
+    .c-mu { color: #94a3b8; }
+    .c-vi { color: #a78bfa; }
+
+    .copy-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-height: 30px; border: 1px solid var(--border-hi); border-radius: 8px;
+      background: var(--panel-solid); color: var(--text);
+      font-family: var(--mono); font-size: 12px; font-weight: 600;
+      padding: 5px 12px; cursor: pointer; transition: all .15s;
+    }
+    .copy-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+
+    /* what-you-can-build grid */
+    .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 10px; padding: 18px; transition: border-color .15s;
+    }
+    .card:hover { border-color: var(--border-hi); }
+    .card .ic { font-size: 18px; margin-bottom: 10px; }
+    .card h4 { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+    .card p { font-size: 12.5px; color: var(--muted); line-height: 1.6; }
+
+    .note { color: var(--dim); font-size: 13px; margin-top: 20px; }
+    .note a { color: var(--cyan); text-decoration: none; }
+    .note a:hover { text-decoration: underline; }
 
     footer {
       border-top: 1px solid var(--border);
-      padding: 20px 0;
-      font-size: 12px;
-      color: var(--text-secondary);
+      padding: 26px 0; font-size: 12px; color: var(--dim);
     }
-    footer a { color: var(--text-secondary); text-decoration: none; }
+    footer a { color: var(--muted); text-decoration: none; }
     footer a:hover { color: var(--text); }
 
-    @media (max-width: 640px) {
-      .download-grid { grid-template-columns: 1fr; }
-      .code-head { align-items: flex-start; }
+    @media (max-width: 820px) {
+      .split { grid-template-columns: 1fr; gap: 32px; }
+      .cards { grid-template-columns: 1fr; }
+      nav.top { gap: 16px; }
     }
   </style>
 </head>
 <body>
   <header>
     <div class="container">
-      <a class="logo" href="/">Simple Host</a>
-      <nav class="top">
-        <a href="/">Home</a>
-        <a href="/install.html" class="current">Install</a>
-        <a href="/docs.html">API</a>
-      </nav>
+      <a class="logo" href="/">simple<b>·</b>host</a>
+      <div style="display:flex; align-items:center; gap:18px">
+        <nav class="top">
+          <a href="/">Home</a>
+          <a href="/install.html" class="current">Get started</a>
+          <a href="/docs.html">API</a>
+        </nav>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle theme">☀</button>
+      </div>
     </div>
   </header>
 
   <main>
     <div class="container">
-      <div class="eyebrow">Install</div>
-      <h1>No git. No registry. Just HTTPS<span class="dot">.</span></h1>
+      <div class="eyebrow">Get started</div>
+      <h1>Ship a website by<br>talking to your <span class="accent">AI</span>.</h1>
       <p class="lede">
-        Two skills ship in one bundle: <code>website-deploy</code> (deploy) and
-        <code>website-deploy-builder</code> (figure out what to add). Pick whichever
-        install path matches your agent. Claude web and desktop users can upload
-        the two ZIP files directly; local coding agents can use the shell installer.
+        No git, no dashboard, no signup form. There are two ways in, depending on
+        where your AI lives: <b>install the skill</b> if you're in a coding agent,
+        or <b>just paste a link</b> if you're in a web chat like ChatGPT.
       </p>
 
-      <section>
-        <div class="eyebrow">Claude web or desktop</div>
-        <h2>Download the two skill ZIPs</h2>
-        <p>Use this path when you're in the Claude website or desktop app and do not have a local shell attached to the chat.</p>
-        <div class="download-grid">
-          <div class="download-card">
-            <h3>website-deploy</h3>
-            <p>Deploys a local static site to Simple Host, including auth, packaging, upload, and verification.</p>
-            <div class="download-actions">
-              <a class="download-btn primary" href="/skills/website-deploy.zip" download>Download ZIP</a>
-              <a class="download-btn" href="/skills/website-deploy/SKILL.md" download>SKILL.md</a>
+      <!-- ============================ CODING AGENTS ============================ -->
+      <section class="block">
+        <div class="sec-head">
+          <div class="eyebrow" style="margin-bottom:12px">For coding agents · the skill</div>
+          <h2>Up and running in three steps.</h2>
+          <p>Works with <span class="k">Claude Code</span>, <span class="k">Codex CLI</span>, <span class="k">opencode</span>, and <span class="k">Cursor</span> — anything with a shell.</p>
+        </div>
+
+        <div class="split">
+          <ol class="steps">
+            <li>
+              <span class="num">1</span>
+              <h3>Install the skill</h3>
+              <p>One command drops it into your agent's skills folder:</p>
+              <p style="margin-top:8px"><span class="inline-code" id="ic-claude">curl -fsSL https://simple-host.app/install.sh | sh</span></p>
+              <p style="margin-top:8px">Codex CLI → append <code>-s -- ~/.agents/skills</code>. opencode / Cursor → point it at their skills dir. <a href="/install.sh">view install.sh</a></p>
+            </li>
+            <li>
+              <span class="num">2</span>
+              <h3>Describe what you want</h3>
+              <p>In a fresh chat, point at your files or just describe the site: <em>"Deploy this folder to Simple Host,"</em> or <em>"Build me a waitlist page with email signups."</em></p>
+            </li>
+            <li>
+              <span class="num">3</span>
+              <h3>It ships — then iterate</h3>
+              <p>Live at <span class="inline-code">https://your-name.simple-host.app</span> in under a minute. Change it by chatting: <em>"make the hero green," "add a live counter."</em></p>
+            </li>
+          </ol>
+
+          <div class="mock">
+            <div class="bar">
+              <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+              <span class="tag">example prompt</span>
             </div>
+<pre><span class="c-cm"># Step 1 — install the skill (once)</span>
+<span class="c-st">curl -fsSL https://simple-host.app/install.sh | sh</span>
+
+<span class="c-cm"># Step 2 — describe your site</span>
+<span class="c-kw">Build</span> a coming-soon page for my app
+<span class="c-st">"PlantPal"</span> with an email signup list
+and a live "join N others" counter.
+
+<span class="c-cm"># Step 3 — ship it</span>
+<span class="c-kw">Use</span> the simple-host skill to deploy it.
+
+<span class="c-cm"># iterate, in plain English</span>
+<span class="c-st">"make the hero forest-green"</span>
+<span class="c-st">"add a countdown to launch day"</span></pre>
           </div>
-          <div class="download-card">
-            <h3>website-deploy-builder</h3>
-            <p>Helps decide what to build on Simple Host and turns an idea into an implementation prompt.</p>
-            <div class="download-actions">
-              <a class="download-btn primary" href="/skills/website-deploy-builder.zip" download>Download ZIP</a>
-              <a class="download-btn" href="/skills/website-deploy-builder/SKILL.md" download>SKILL.md</a>
+        </div>
+      </section>
+
+      <!-- ============================ WEB AGENTS ============================ -->
+      <section class="block">
+        <div class="sec-head">
+          <div class="eyebrow" style="margin-bottom:12px">For web AI · just a link</div>
+          <h2>No install? Paste a link.</h2>
+          <p>Any browser assistant that can read a web page — <span class="k">ChatGPT</span>, <span class="k">Gemini</span>, <span class="k">Claude</span>, <span class="k">Copilot</span>. Give it the link, describe what you want, and read it the code it emails you.</p>
+        </div>
+
+        <div class="url-hero">
+          <span class="label">Give your AI this</span>
+          <code id="llms-url">https://simple-host.app/llms.txt</code>
+          <button class="copy-btn" type="button" data-copy-target="llms-url">Copy</button>
+        </div>
+
+        <div class="split" style="margin-top:36px">
+          <ol class="steps">
+            <li>
+              <span class="num">1</span>
+              <h3>Paste the link &amp; describe it</h3>
+              <p>Drop the <span class="inline-code">/llms.txt</span> link into the chat and say what you want built. The assistant reads it and learns the whole API itself.</p>
+            </li>
+            <li>
+              <span class="num">2</span>
+              <h3>Read it the 6-digit code</h3>
+              <p>It signs you in by email — you just paste back the code from your inbox. First deploy creates your account; no form to fill.</p>
+            </li>
+            <li>
+              <span class="num">3</span>
+              <h3>Get your live URL</h3>
+              <p>It builds and deploys, then hands you <span class="inline-code">https://your-name.simple-host.app</span>. Ask for changes in plain English.</p>
+            </li>
+          </ol>
+
+          <div class="mock">
+            <div class="bar">
+              <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+              <span class="tag">chatgpt · gemini · copilot</span>
             </div>
+<pre><span class="c-mu">You</span>
+<span class="c-kw">Build</span> me a wedding RSVP page and put it
+online. Instructions: <span class="c-st">https://simple-host.app/llms.txt</span>
+My email is <span class="c-st">priya@example.com</span>
+
+<span class="c-vi">Assistant</span>
+<span class="c-st">✓</span> Read the instructions at /llms.txt
+<span class="c-st">✓</span> Emailed a 6-digit code — paste it here
+<span class="c-mu">  → you: 481920</span>
+<span class="c-st">✓</span> Built the page &amp; deployed it
+<span class="c-st">→</span> <span class="c-kw">https://priya-wedding.simple-host.app</span></pre>
           </div>
         </div>
-        <p class="caveat">
-          In Claude, enable Code execution and file creation if Skills are hidden,
-          then open <code>Customize &gt; Skills</code>, click <code>+</code>,
-          choose <code>Create skill</code>, choose <code>Upload a skill</code>,
-          and upload one ZIP at a time. Repeat for the second ZIP, then toggle both
-          skills on. Official guidance:
-          <a href="https://support.claude.com/en/articles/12512180-use-skills-in-claude" target="_blank" rel="noreferrer">Use Skills in Claude</a>.
-        </p>
+        <p class="note">The only requirement is that the assistant can make web requests. If one genuinely can't, switch to one that can — everything else is automatic.</p>
       </section>
 
-      <section>
-        <div class="eyebrow">Easiest path</div>
-        <h2>Tell a local agent to install them</h2>
-        <p>Paste this into a fresh chat with Claude Code, Codex, Cursor, or any local agent with shell and HTTPS access. The agent fetches and installs — no commands for you to run.</p>
-        <div class="recommended">
-          <span class="badge">Recommended</span>
-          <div class="code-head">
-            <span>Copy-paste prompt</span>
-            <button class="copy-btn" type="button" data-copy-target="agent-install-prompt">Copy</button>
+      <!-- ============================ WHAT YOU CAN BUILD ============================ -->
+      <section class="block">
+        <div class="sec-head">
+          <h2>A static site — with a backend when you need it.</h2>
+          <p>Your assistant reads the spec, so you don't have to.</p>
+        </div>
+        <div class="cards">
+          <div class="card">
+            <div class="ic">🌐</div>
+            <h4>Anything HTML</h4>
+            <p>Portfolios, résumés, landing &amp; coming-soon pages, event RSVPs, menus, docs.</p>
           </div>
-          <pre id="agent-install-prompt">Install the Simple Host skills onto this machine.
-
-If you use Claude Code or another agent that reads ~/.claude/skills, run:
-curl -fsSL https://simple-host.ideaflow.page/install.sh | sh
-
-If you use Codex CLI or another agent that reads ~/.agents/skills, run:
-curl -fsSL https://simple-host.ideaflow.page/install.sh | sh -s -- ~/.agents/skills
-
-Then list the skills you have available — two new ones should appear:
-website-deploy, website-deploy-builder.
-
-Restart yourself if needed for them to be picked up.</pre>
+          <div class="card">
+            <div class="ic">🗄️</div>
+            <h4>A free per-site store</h4>
+            <p>Forms, counters, polls, votes, guestbooks — no database to set up.</p>
+          </div>
+          <div class="card">
+            <div class="ic">💬</div>
+            <h4>Drop-in widgets</h4>
+            <p>Threaded comments, feedback pins, password-protected private pages, ready-made templates.</p>
+          </div>
         </div>
-        <p class="caveat">
-          The script downloads <code>/skills.zip</code> (a few KB of markdown),
-          extracts it into the right directory, and exits. No git, no npm, no
-          registry, no marketplace.
-        </p>
-      </section>
-
-      <section>
-        <div class="eyebrow">Single command</div>
-        <h2>Run the installer directly</h2>
-        <p>If you'd rather run the install yourself:</p>
-        <div class="code-head">
-          <span>Claude Code / ~/.claude/skills</span>
-          <button class="copy-btn" type="button" data-copy-target="claude-install-command">Copy</button>
-        </div>
-        <pre id="claude-install-command">curl -fsSL https://simple-host.ideaflow.page/install.sh | sh</pre>
-        <p>Override the destination directory (Codex CLI, custom agent, etc.):</p>
-        <div class="code-head">
-          <span>Codex CLI / ~/.agents/skills</span>
-          <button class="copy-btn" type="button" data-copy-target="codex-install-command">Copy</button>
-        </div>
-        <pre id="codex-install-command">curl -fsSL https://simple-host.ideaflow.page/install.sh | sh -s -- ~/.agents/skills</pre>
-        <p class="caveat">
-          The script is plain shell and only does <code>curl</code> +
-          <code>unzip</code> into a directory you choose. You can read it
-          before piping if you'd like:
-          <a href="/install.sh">view <code>install.sh</code></a>.
-        </p>
-      </section>
-
-      <section>
-        <div class="eyebrow">Claude Code · session install</div>
-        <h2><code>--plugin-url</code></h2>
-        <p>
-          Claude Code supports loading a plugin from an HTTPS URL for the current
-          session. Useful for trying the skills without touching your filesystem:
-        </p>
-        <div class="code-head">
-          <span>Session-only plugin</span>
-          <button class="copy-btn" type="button" data-copy-target="plugin-install-command">Copy</button>
-        </div>
-        <pre id="plugin-install-command">claude --plugin-url https://simple-host.ideaflow.page/plugin.zip</pre>
-        <p class="caveat">
-          Session-only — once you exit Claude Code the skills are gone, and
-          you'll need the flag again next time. For permanent install, use one
-          of the paths above. Skills installed this way are namespaced under
-          the plugin (e.g. <code>simple-host-website:website-deploy-builder</code>)
-          rather than appearing as user-level skills.
-        </p>
-      </section>
-
-      <section>
-        <div class="eyebrow">Manual fallback</div>
-        <h2>If you can't run shell scripts</h2>
-        <p>Browser-download <a href="/skills.zip" style="color: var(--accent); text-decoration: none">skills.zip</a>, then extract:</p>
-        <div class="code-head">
-          <span>Manual extract</span>
-          <button class="copy-btn" type="button" data-copy-target="manual-install-command">Copy</button>
-        </div>
-        <pre id="manual-install-command"># Claude Code
-mkdir -p ~/.claude/skills
-unzip -o ~/Downloads/simple-host-skills.zip -d ~/.claude/skills/
-
-# Codex CLI / generic
-mkdir -p ~/.agents/skills
-unzip -o ~/Downloads/simple-host-skills.zip -d ~/.agents/skills/</pre>
-        <p>Restart your agent. Two folders should appear inside the skills directory.</p>
-      </section>
-
-      <section>
-        <div class="eyebrow">After installing</div>
-        <h2>Use the skills</h2>
-        <p>Common entry points:</p>
-        <ul class="skill-list">
-          <li>"Use the <code>website-deploy</code> skill to deploy this directory. My email is you@example.com." — first-time only; registers and saves an API key locally.</li>
-          <li>"Use the <code>website-deploy-builder</code> skill — I want to add a shared comment board to my site." — maps your idea to capabilities (static / state / external APIs) and produces a wiring prompt.</li>
-        </ul>
+        <p class="note">Full machine-readable reference: <a href="/llms.txt">/llms.txt</a> &middot; <a href="/openapi.json">/openapi.json</a></p>
       </section>
     </div>
   </main>
 
   <footer>
     <div class="container">
-      Simple Host &middot; <a href="/">Home</a> &middot; <a href="/install.html">Install</a> &middot; <a href="/docs.html">API reference</a> &middot; With thanks to Jacob Cole and Tejas D Channappa.
+      simple·host &nbsp;·&nbsp; <a href="/">Home</a> &nbsp;·&nbsp; <a href="/install.html">Get started</a> &nbsp;·&nbsp; <a href="/docs.html">API reference</a> &nbsp;·&nbsp; With thanks to Jacob Cole and Tejas D Channappa.
     </div>
   </footer>
+
   <script>
-    function setCopied(button) {
-      const original = button.textContent;
-      button.textContent = 'Copied';
-      button.disabled = true;
-      setTimeout(() => {
-        button.textContent = original;
-        button.disabled = false;
-      }, 1200);
-    }
-
-    function fallbackCopy(text) {
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      textarea.setAttribute('readonly', '');
-      textarea.style.position = 'fixed';
-      textarea.style.top = '-1000px';
-      document.body.appendChild(textarea);
-      textarea.select();
-      try {
-        document.execCommand('copy');
-        return true;
-      } finally {
-        textarea.remove();
+    // Rewrite URLs to match the domain actually serving this page.
+    (function () {
+      var host = location.host;
+      if (host && host !== 'simple-host.app') {
+        document.querySelectorAll('pre, #llms-url, #ic-claude').forEach(function (el) {
+          el.textContent = el.textContent.split('simple-host.app').join(host);
+        });
       }
-    }
+    })();
 
-    document.querySelectorAll('[data-copy-target]').forEach((button) => {
-      button.addEventListener('click', async () => {
-        const target = document.getElementById(button.dataset.copyTarget);
+    // Theme toggle (light / dark). Initial theme set pre-paint in <head>.
+    (function () {
+      var btn = document.getElementById('theme-toggle');
+      if (!btn) return;
+      var ico = function () { return document.documentElement.dataset.theme === 'dark' ? '☀' : '☾'; };
+      btn.textContent = ico();
+      btn.addEventListener('click', function () {
+        var t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+        document.documentElement.dataset.theme = t;
+        try { localStorage.setItem('sh-theme', t); } catch (e) {}
+        btn.textContent = ico();
+      });
+    })();
+
+    document.querySelectorAll('[data-copy-target]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var target = document.getElementById(button.dataset.copyTarget);
         if (!target) return;
-        const text = target.textContent.replace(/\s+$/, '');
-        try {
-          if (navigator.clipboard && window.isSecureContext) {
-            await navigator.clipboard.writeText(text);
-          } else {
-            fallbackCopy(text);
-          }
-          setCopied(button);
-        } catch {
-          if (fallbackCopy(text)) setCopied(button);
+        var text = target.textContent.trim();
+        var done = function () {
+          var o = button.textContent; button.textContent = 'Copied'; button.disabled = true;
+          setTimeout(function () { button.textContent = o; button.disabled = false; }, 1200);
+        };
+        if (navigator.clipboard && window.isSecureContext) {
+          navigator.clipboard.writeText(text).then(done).catch(done);
+        } else {
+          var ta = document.createElement('textarea'); ta.value = text;
+          ta.style.position = 'fixed'; ta.style.top = '-1000px';
+          document.body.appendChild(ta); ta.select();
+          try { document.execCommand('copy'); } catch (e) {}
+          ta.remove(); done();
         }
       });
     });

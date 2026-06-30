@@ -1,0 +1,24 @@
+{
+  "name": "Architecture Doc",
+  "short_name": "Arch",
+  "description": "A clean, installable, offline-ready system-architecture explainer with real diagrams.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#5b5ef4",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

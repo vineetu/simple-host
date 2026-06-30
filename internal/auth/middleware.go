@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -29,19 +30,33 @@ func GenerateAPIKey() (string, error) {
 	return hex.EncodeToString(key), nil
 }
 
-func Middleware(adminAPIKey string, database *sql.DB) func(http.Handler) http.Handler {
+// Middleware authenticates X-API-Key. adminUserID is the real UUID of the
+// seeded `admin` users row, so the admin identity can own sites (the old
+// synthetic ID:"admin" violated the sites.user_id UUID foreign key).
+func Middleware(adminAPIKey, adminUserID string, database *sql.DB) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			apiKey := r.Header.Get("X-API-Key")
 			if apiKey == "" {
-				writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+				// Most common mistake (humans and LLMs alike): sending the key as
+				// `Authorization: Bearer <key>`. This API only reads X-API-Key, so
+				// point them at the right header instead of a bare "unauthorized".
+				msg := "missing API key: send it as the header 'X-API-Key: <key>'. " +
+					"Get a key via POST /v1/auth then POST /v1/auth/verify. See /llms.txt."
+				if r.Header.Get("Authorization") != "" {
+					msg = "missing X-API-Key header: this API authenticates with " +
+						"'X-API-Key: <key>', not 'Authorization: Bearer'. Resend your key " +
+						"in the X-API-Key header. See /llms.txt."
+				}
+				writeJSON(w, http.StatusUnauthorized, errorResponse{Error: msg})
 				return
 			}
 
-			// Check hardcoded admin key first
-			if apiKey == adminAPIKey {
+			// Check hardcoded admin key first. Constant-time compare so the
+			// match can't be inferred from response timing.
+			if subtle.ConstantTimeCompare([]byte(apiKey), []byte(adminAPIKey)) == 1 {
 				adminUser := &db.User{
-					ID:       "admin",
+					ID:       adminUserID,
 					Username: "admin",
 					IsAdmin:  true,
 				}
@@ -53,7 +68,7 @@ func Middleware(adminAPIKey string, database *sql.DB) func(http.Handler) http.Ha
 			user, err := db.GetUserByAPIKey(r.Context(), database, apiKey)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
-					writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+					writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "invalid API key: the X-API-Key you sent is not recognized. If it expired or leaked, sign in again via POST /v1/auth."})
 					return
 				}
 

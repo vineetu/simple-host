@@ -29,5 +29,6 @@ type Version struct {
 	VersionNumber int
 	DiskPath      string
 	Status        string
+	ArchiveSHA256 string
 	CreatedAt     time.Time
 }

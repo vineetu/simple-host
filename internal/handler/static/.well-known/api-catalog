@@ -1,0 +1,21 @@
+{
+  "linkset": [
+    {
+      "anchor": "https://simple-host.app",
+      "service-desc": [
+        {
+          "href": "https://simple-host.app/openapi.json",
+          "type": "application/vnd.oai.openapi+json",
+          "title": "Simple Host Deploy API (web-LLM subset)"
+        }
+      ],
+      "service-doc": [
+        {
+          "href": "https://simple-host.app/llms.txt",
+          "type": "text/plain",
+          "title": "Simple Host — how to deploy (LLM quickstart)"
+        }
+      ]
+    }
+  ]
+}

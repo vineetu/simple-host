@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Event RSVP · simple-host</title>
+<style>
+  /* ---------- shared design system (inline, no CDN) ---------- */
+  :root {
+    --bg:#f6f7fb; --card:#fff; --ink:#1c2430; --muted:#6b7785;
+    --accent:#5b5ef4; --accent-soft:#ececfe; --border:#e6e9ef;
+    --radius:14px; --shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px rgba(16,24,40,.06);
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.5;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:640px;margin:0 auto;padding:48px 20px 80px;}
+  h1{font-size:30px;margin:0 0 4px;letter-spacing:-.02em;}
+  .sub{color:var(--muted);margin:0 0 28px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px;margin-bottom:18px;}
+  /* event detail rows */
+  .meta{display:flex;gap:12px;align-items:flex-start;margin:0 0 12px;}
+  .meta:last-child{margin-bottom:0;}
+  .meta .ico{font-size:20px;line-height:1.2;width:24px;text-align:center;flex:0 0 24px;}
+  .meta .txt{font-size:15px;}
+  .meta .txt a{color:var(--accent);text-decoration:none;}
+  .meta .txt a:hover{text-decoration:underline;}
+  .desc{margin:14px 0 0;color:var(--ink);white-space:pre-wrap;}
+  /* headcount banner */
+  .head{display:flex;align-items:center;gap:14px;}
+  .head .num{font-size:48px;font-weight:800;letter-spacing:-.03em;line-height:1;color:var(--accent);}
+  .head .lbl{color:var(--muted);font-weight:600;}
+  /* form */
+  label{display:block;font-size:13px;font-weight:600;margin:0 0 6px;color:var(--ink);}
+  input,select{width:100%;font:inherit;color:var(--ink);padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#fff;outline:none;}
+  input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+  .row{margin-bottom:14px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media (max-width:480px){.grid2{grid-template-columns:1fr;}}
+  button{font:inherit;font-weight:600;cursor:pointer;background:var(--accent);color:#fff;border:0;padding:11px 18px;border-radius:10px;transition:filter .15s ease;width:100%;}
+  button:hover{filter:brightness(1.05);}
+  button:disabled{opacity:.55;cursor:default;filter:none;}
+  /* guest list */
+  h2{font-size:14px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:0 0 14px;}
+  .guest{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);}
+  .guest:last-child{border-bottom:0;}
+  .guest .gname{font-weight:600;}
+  .guest .gmeta{color:var(--muted);font-size:13px;}
+  .pill{font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;}
+  .pill.yes{background:#e7f6ec;color:#1c7a3e;}
+  .pill.no{background:#fdecec;color:#b3261e;}
+  .empty{color:var(--muted);text-align:center;padding:24px 0;}
+  .privnote{color:var(--muted);font-size:12px;margin:10px 0 0;}
+  .thanks{background:#e7f6ec;border:1px solid #bfe6cd;color:#1c7a3e;padding:12px 14px;border-radius:10px;font-size:14px;margin-bottom:14px;}
+  .notice{background:#fff8e6;border:1px solid #f3e2a8;color:#7a5b00;padding:12px 14px;border-radius:10px;font-size:14px;margin-bottom:18px;}
+  footer{text-align:center;color:var(--muted);font-size:12px;margin-top:36px;}
+  footer code{background:var(--accent-soft);color:var(--accent);padding:1px 6px;border-radius:6px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============================================================
+       EDIT YOUR EVENT DETAILS HERE — plain text/links, no JS needed.
+       ============================================================ -->
+  <h1 id="ev-title">Summer Rooftop Mixer</h1>
+  <p class="sub" id="ev-tagline">An evening of drinks, music, and good company.</p>
+
+  <div class="card">
+    <div class="meta">
+      <span class="ico">📅</span>
+      <span class="txt"><strong>Saturday, July 18, 2026</strong> · 6:30 PM – 10:00 PM</span>
+    </div>
+    <div class="meta">
+      <span class="ico">📍</span>
+      <span class="txt">
+        The Skyline Loft, 220 Market St, San Francisco
+        <!-- maps link: swap the query for your address -->
+        · <a href="https://www.google.com/maps/search/?api=1&query=220+Market+St+San+Francisco" target="_blank" rel="noopener">map</a>
+      </span>
+    </div>
+    <div class="meta">
+      <span class="ico">🗓️</span>
+      <span class="txt desc">Schedule:
+6:30 — Doors &amp; welcome drinks
+7:30 — Short toast
+8:00 — Music &amp; mingling
+10:00 — Wrap up</span>
+    </div>
+  </div>
+
+  <!-- live headcount, computed from RSVPs in shared state -->
+  <div class="card">
+    <div class="head">
+      <span class="num" id="count">—</span>
+      <span class="lbl" id="count-lbl">people coming</span>
+    </div>
+  </div>
+
+  <!-- Shown only when not on a *.simple-host.app origin -->
+  <div id="notice" class="notice" hidden>
+    🎉 RSVPs save once this page is <strong>deployed</strong> to
+    <code>&lt;name&gt;.simple-host.app</code>. You're viewing it locally, so this shows demo data.
+  </div>
+
+  <form id="form" class="card">
+    <div id="thanks" class="thanks" hidden>Thanks, you're on the list! 🎈</div>
+    <div class="row">
+      <label for="name">Your name</label>
+      <input id="name" maxlength="40" placeholder="Ada Lovelace" autocomplete="name" />
+    </div>
+    <div class="grid2">
+      <div class="row">
+        <label for="attending">Can you make it?</label>
+        <select id="attending">
+          <option value="yes">Yes, I'll be there</option>
+          <option value="no">Sorry, can't make it</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="guests">Guests (incl. you)</label>
+        <input id="guests" type="number" min="1" max="20" value="1" />
+      </div>
+    </div>
+    <button id="submit" type="submit">Send RSVP</button>
+  </form>
+
+  <div class="card">
+    <h2>Who's coming</h2>
+    <div id="list"><div class="empty">Loading…</div></div>
+    <!-- This RSVP list (first names + attending status) is rendered publicly,
+         like a party page. It does NOT include any private contact info. -->
+    <p class="privnote">Heads up: this guest list is public — anyone with the link can see names and attending status.</p>
+  </div>
+
+  <footer>Deployed on simple-host · static + state KV</footer>
+</div>
+
+<script>
+/* =====================================================================
+   simple-host STATE KV — Event / RSVP
+   ---------------------------------------------------------------------
+   STATE SHAPE:
+     { "rsvps": [ { "name": string, "attending": "yes"|"no",
+                    "guests": number, "ts": number }, ... ] }
+   Newest first; capped to the last 200 to keep the doc small (<1MB).
+   Headcount = sum of `guests` over entries where attending === "yes".
+
+   Access pattern (same across all templates): the page lives on
+   <sub>.simple-host.app and talks cross-origin to the apex:
+     READ : GET  https://simple-host.app/v1/sites/<sub>/state -> JSON | null
+     WRITE: PUT  https://simple-host.app/v1/sites/<sub>/state (whole-doc, last-write-wins)
+   We re-read right before every write so concurrent RSVPs don't clobber.
+   ===================================================================== */
+
+const MAX_RSVPS = 200;
+const LS_KEY = 'sh_rsvp_done';   // local hint so we can thank a returning browser
+
+function stateUrl(){
+  const host=location.hostname;
+  if(!host||!host.includes('.'))return null;          // localhost / file://
+  const sub=host.split('.')[0];
+  const apex=host.split('.').slice(-2).join('.');
+  if(sub===apex||!sub)return null;
+  return `${location.protocol}//${apex}/v1/sites/${sub}/state`;
+}
+const API=stateUrl();
+
+const els={
+  form:document.getElementById('form'),
+  name:document.getElementById('name'),
+  attending:document.getElementById('attending'),
+  guests:document.getElementById('guests'),
+  submit:document.getElementById('submit'),
+  list:document.getElementById('list'),
+  count:document.getElementById('count'),
+  countLbl:document.getElementById('count-lbl'),
+  notice:document.getElementById('notice'),
+  thanks:document.getElementById('thanks'),
+};
+
+// READ: whole doc; `null` (never written) => empty state.
+async function readState(){
+  const res=await fetch(API,{cache:'no-store'});
+  if(!res.ok)throw new Error('read '+res.status);
+  const doc=await res.json();                          // may be literally null
+  return (doc&&Array.isArray(doc.rsvps))?doc:{rsvps:[]};
+}
+// WRITE: PUT the entire new document (last-write-wins).
+async function writeState(doc){
+  const res=await fetch(API,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(doc)});
+  if(!res.ok)throw new Error('write '+res.status);
+}
+
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+function headcount(rsvps){
+  return rsvps.filter(r=>r.attending==='yes')
+              .reduce((n,r)=>n+(Number(r.guests)||1),0);
+}
+
+function paint(doc){
+  const n=headcount(doc.rsvps);
+  els.count.textContent=n.toLocaleString();
+  els.countLbl.textContent = n===1 ? 'person coming' : 'people coming';
+
+  if(!doc.rsvps.length){
+    els.list.innerHTML='<div class="empty">No RSVPs yet — be the first!</div>';
+    return;
+  }
+  els.list.innerHTML=doc.rsvps.map(r=>{
+    const yes=r.attending==='yes';
+    const g=(Number(r.guests)||1);
+    const extra=yes&&g>1?` · +${g-1} guest${g-1>1?'s':''}`:'';
+    return `<div class="guest">
+        <span><span class="gname">${esc(r.name)}</span><span class="gmeta">${extra}</span></span>
+        <span class="pill ${yes?'yes':'no'}">${yes?'Going':'Can’t go'}</span>
+      </div>`;
+  }).join('');
+}
+
+els.form.addEventListener('submit',async ev=>{
+  ev.preventDefault();
+  const name=els.name.value.trim();
+  if(!name)return;
+  const attending=els.attending.value==='no'?'no':'yes';
+  let guests=parseInt(els.guests.value,10); if(!(guests>=1))guests=1; if(guests>20)guests=20;
+
+  els.submit.disabled=true; els.submit.textContent='Sending…';
+  try{
+    // read-modify-write: re-fetch first so we don't clobber other RSVPs.
+    const doc=await readState();
+    doc.rsvps.unshift({name,attending,guests,ts:Date.now()});
+    doc.rsvps=doc.rsvps.slice(0,MAX_RSVPS);            // cap to keep doc small
+    await writeState(doc);
+    try{localStorage.setItem(LS_KEY,'1');}catch(e){}
+    els.thanks.hidden=false;
+    els.name.value=''; els.guests.value='1';
+    paint(doc);
+  }catch(err){
+    alert('Could not send RSVP: '+err.message);
+  }finally{
+    els.submit.disabled=false; els.submit.textContent='Send RSVP';
+  }
+});
+
+// Boot
+if(!API){
+  els.notice.hidden=false;
+  paint({rsvps:[
+    {name:'Grace H.',attending:'yes',guests:2,ts:Date.now()},
+    {name:'Linus T.',attending:'yes',guests:1,ts:Date.now()},
+    {name:'Ada L.',attending:'no',guests:1,ts:Date.now()},
+  ]});
+}else{
+  readState().then(paint).catch(err=>{
+    els.list.innerHTML='<div class="empty">Could not load RSVPs ('+esc(err.message)+').</div>';
+  });
+}
+</script>
+</body>
+</html>

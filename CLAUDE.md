@@ -30,7 +30,7 @@ There is no separate object store, CDN, build pipeline, or microservices. Everyt
 One `http.ServeMux` in `main.go`. Major prefixes:
 
 - `/api/auth`, `/v1/me`, `/v1/sites/*` — REST surface. Mostly auth-gated. Wrapped with `noticeMW`.
-- `/v1/sites/{site}/state` — per-site JSON state. Origin-checked (only `{site}.ideaflow.page` may read/write). NOT wrapped with `noticeMW` since browser pages parse the body directly.
+- `/v1/sites/{site}/state` — per-site JSON state. **Public per-site scratch storage**, not a secure store: the only gate is an `Origin`/`Referer` check (browser pages hold no API key), which real browsers can't forge cross-site but `curl` can. Treat as readable/writable by anyone who knows the site name — no confidentiality/integrity guarantee; never put secrets in it. Abuse is bounded by a per-IP rate limit + a 1 MB cap. NOT wrapped with `noticeMW` since browser pages parse the body directly.
 - `/sites/{site}/...` — public static serving. Path safety + `http.FileServer` rooted at `<DATA_DIR>/<site>/current/`.
 - `/skills.zip`, `/plugin.zip`, `/install.sh`, `/skills/version` — Website Deploy bundle downloads. Public, no auth.
 - `/healthz`, `/readyz` — probes.

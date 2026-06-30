@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Waitlist · simple-host</title>
+<style>
+  /* ---------- shared design system (inline, no CDN) ---------- */
+  :root {
+    --bg:#f6f7fb; --card:#fff; --ink:#1c2430; --muted:#6b7785;
+    --accent:#5b5ef4; --accent-soft:#ececfe; --border:#e6e9ef;
+    --radius:14px; --shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px rgba(16,24,40,.06);
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.5;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:560px;margin:0 auto;padding:72px 20px 80px;text-align:center;}
+  .badge{display:inline-block;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:5px 12px;border-radius:999px;margin-bottom:20px;}
+  h1{font-size:40px;margin:0 0 12px;letter-spacing:-.03em;line-height:1.1;}
+  .sub{color:var(--muted);font-size:18px;margin:0 auto 30px;max-width:440px;}
+  /* countdown */
+  .countdown{display:flex;justify-content:center;gap:10px;margin:0 0 32px;}
+  .cd{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 4px;min-width:70px;}
+  .cd .n{font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1;color:var(--accent);}
+  .cd .u{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-top:6px;}
+  /* form card */
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:24px;margin:0 auto;max-width:440px;}
+  .field{display:flex;gap:10px;}
+  @media (max-width:440px){.field{flex-direction:column;}}
+  input{flex:1;font:inherit;color:var(--ink);padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:#fff;outline:none;}
+  input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+  button{font:inherit;font-weight:600;cursor:pointer;background:var(--accent);color:#fff;border:0;padding:12px 22px;border-radius:10px;transition:filter .15s ease;white-space:nowrap;}
+  button:hover{filter:brightness(1.05);}
+  button:disabled{opacity:.55;cursor:default;filter:none;}
+  .count{margin:18px 0 0;font-weight:600;}
+  .count .hl{color:var(--accent);}
+  .privnote{color:var(--muted);font-size:12px;margin:14px auto 0;max-width:440px;}
+  .thanks{font-size:17px;font-weight:600;color:#1c7a3e;}
+  .thanks small{display:block;font-weight:400;color:var(--muted);font-size:14px;margin-top:6px;}
+  .notice{background:#fff8e6;border:1px solid #f3e2a8;color:#7a5b00;padding:12px 14px;border-radius:10px;font-size:14px;margin:0 auto 22px;max-width:440px;text-align:left;}
+  .notice code{background:#fff;border:1px solid #f3e2a8;padding:1px 6px;border-radius:6px;}
+  footer{text-align:center;color:var(--muted);font-size:12px;margin-top:40px;}
+  footer code{background:var(--accent-soft);color:var(--accent);padding:1px 6px;border-radius:6px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============================================================
+       EDIT YOUR PRODUCT COPY HERE.
+       ============================================================ -->
+  <span class="badge">Coming soon</span>
+  <h1 id="headline">Nimbus is coming</h1>
+  <p class="sub" id="valueprop">The calmest way to capture ideas and ship them. Be the first to try it.</p>
+
+  <!-- Optional launch countdown. Set LAUNCH_DATE in the script below;
+       leave it empty to hide the countdown entirely. -->
+  <div class="countdown" id="countdown" hidden>
+    <div class="cd"><div class="n" id="cd-d">0</div><div class="u">days</div></div>
+    <div class="cd"><div class="n" id="cd-h">0</div><div class="u">hrs</div></div>
+    <div class="cd"><div class="n" id="cd-m">0</div><div class="u">min</div></div>
+    <div class="cd"><div class="n" id="cd-s">0</div><div class="u">sec</div></div>
+  </div>
+
+  <!-- Shown only when not on a *.simple-host.app origin -->
+  <div id="notice" class="notice" hidden>
+    🚀 Signups save once this page is <strong>deployed</strong> to
+    <code>&lt;name&gt;.simple-host.app</code>. You're viewing it locally, so the count is demo data.
+  </div>
+
+  <div class="card" id="card">
+    <div id="form-wrap">
+      <div class="field">
+        <input id="email" type="email" placeholder="you@example.com" autocomplete="email" />
+        <button id="submit">Join waitlist</button>
+      </div>
+    </div>
+    <div id="done" hidden class="thanks">You're on the list! 🎉<small>We'll email you the moment we launch.</small></div>
+    <p class="count" id="count">&nbsp;</p>
+  </div>
+
+  <!-- Privacy: the state KV is PUBLIC-READ. We store signups but only ever
+       display the COUNT — never the email addresses themselves. -->
+  <p class="privnote">We only show the number of signups, never anyone's email. Submissions are kept in this site's public store, so please don't use this for sensitive data.</p>
+
+  <footer>Deployed on simple-host · static + state KV</footer>
+</div>
+
+<script>
+/* =====================================================================
+   simple-host STATE KV — Waitlist
+   ---------------------------------------------------------------------
+   STATE SHAPE:
+     { "signups": [ { "email": string, "ts": number }, ... ] }
+   Count shown to visitors = signups.length. Capped to MAX_SIGNUPS so the
+   doc stays well under the 1MB limit (oldest entries drop off the count
+   cap but the displayed number stays a faithful total — see note below).
+
+   PRIVACY: the KV is PUBLIC-READ (anyone can GET the whole JSON). Emails
+   are stored but NEVER rendered into the page — we only ever show a count.
+   <!-- Emails live in a public store; do not use for sensitive signups. -->
+
+   Access pattern:
+     READ : GET  https://simple-host.app/v1/sites/<sub>/state -> JSON | null
+     WRITE: PUT  https://simple-host.app/v1/sites/<sub>/state (whole-doc)
+   ===================================================================== */
+
+// To keep an accurate count even after we trim old emails, we keep a
+// running `count` field separate from the stored `signups` sample.
+const MAX_SIGNUPS = 5000;        // hard cap on stored email entries (<1MB)
+const LS_KEY = 'sh_waitlist_joined';   // avoid obvious double-counts per browser
+
+/* ---- OPTIONAL: set a launch date to enable the countdown ----
+   Use any value Date can parse, e.g. '2026-09-01T17:00:00Z'.
+   Leave as '' to hide the countdown.                          */
+const LAUNCH_DATE = '2026-09-01T17:00:00Z';
+
+function stateUrl(){
+  const host=location.hostname;
+  if(!host||!host.includes('.'))return null;          // localhost / file://
+  const sub=host.split('.')[0];
+  const apex=host.split('.').slice(-2).join('.');
+  if(sub===apex||!sub)return null;
+  return `${location.protocol}//${apex}/v1/sites/${sub}/state`;
+}
+const API=stateUrl();
+
+const els={
+  email:document.getElementById('email'),
+  submit:document.getElementById('submit'),
+  formWrap:document.getElementById('form-wrap'),
+  done:document.getElementById('done'),
+  count:document.getElementById('count'),
+  notice:document.getElementById('notice'),
+};
+
+// READ: whole doc; `null` => empty state.
+async function readState(){
+  const res=await fetch(API,{cache:'no-store'});
+  if(!res.ok)throw new Error('read '+res.status);
+  const doc=await res.json();
+  if(doc&&Array.isArray(doc.signups))return {signups:doc.signups,count:Number(doc.count)||doc.signups.length};
+  return {signups:[],count:0};
+}
+async function writeState(doc){
+  const res=await fetch(API,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(doc)});
+  if(!res.ok)throw new Error('write '+res.status);
+}
+
+function validEmail(e){return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);}
+
+function showCount(n){
+  // Only ever a number — never the emails themselves.
+  els.count.innerHTML = n>0
+    ? `Join <span class="hl">${n.toLocaleString()}</span> other${n===1?'':'s'} on the waitlist`
+    : 'Be the first to join the waitlist';
+}
+
+function markJoined(){
+  els.formWrap.hidden=true;
+  els.done.hidden=false;
+}
+
+async function submit(){
+  const email=els.email.value.trim().toLowerCase();
+  if(!validEmail(email)){els.email.focus();els.email.style.borderColor='#b3261e';return;}
+  els.submit.disabled=true; els.submit.textContent='Joining…';
+  try{
+    // read-modify-write: re-fetch so concurrent signups don't clobber.
+    const doc=await readState();
+    // best-effort de-dupe within the stored sample
+    if(!doc.signups.some(s=>s.email===email)){
+      doc.signups.push({email,ts:Date.now()});
+      doc.count=(doc.count||0)+1;
+      if(doc.signups.length>MAX_SIGNUPS)doc.signups=doc.signups.slice(-MAX_SIGNUPS);
+      await writeState(doc);
+    }
+    try{localStorage.setItem(LS_KEY,'1');}catch(e){}
+    markJoined();
+    showCount(doc.count);
+  }catch(err){
+    alert('Could not join: '+err.message);
+  }finally{
+    els.submit.disabled=false; els.submit.textContent='Join waitlist';
+  }
+}
+els.submit.addEventListener('click',submit);
+els.email.addEventListener('keydown',e=>{if(e.key==='Enter')submit();});
+
+/* ---- countdown ---- */
+function startCountdown(){
+  if(!LAUNCH_DATE)return;
+  const target=new Date(LAUNCH_DATE).getTime();
+  if(isNaN(target))return;
+  const cd=document.getElementById('countdown');
+  cd.hidden=false;
+  const tick=()=>{
+    let diff=Math.max(0,target-Date.now());
+    const d=Math.floor(diff/864e5);diff-=d*864e5;
+    const h=Math.floor(diff/36e5);diff-=h*36e5;
+    const m=Math.floor(diff/6e4);diff-=m*6e4;
+    const s=Math.floor(diff/1e3);
+    document.getElementById('cd-d').textContent=d;
+    document.getElementById('cd-h').textContent=String(h).padStart(2,'0');
+    document.getElementById('cd-m').textContent=String(m).padStart(2,'0');
+    document.getElementById('cd-s').textContent=String(s).padStart(2,'0');
+  };
+  tick();setInterval(tick,1000);
+}
+
+/* ---- boot ---- */
+startCountdown();
+let alreadyJoined=false;try{alreadyJoined=localStorage.getItem(LS_KEY)==='1';}catch(e){}
+if(alreadyJoined)markJoined();
+
+if(!API){
+  els.notice.hidden=false;
+  showCount(312);                                       // demo number offline
+}else{
+  readState().then(d=>showCount(d.count)).catch(err=>{
+    els.count.textContent='Could not load signups ('+err.message+')';
+  });
+}
+</script>
+</body>
+</html>

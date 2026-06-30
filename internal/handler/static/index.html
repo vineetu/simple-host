@@ -4,25 +4,47 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Simple Host</title>
+  <script>(function(){try{document.documentElement.dataset.theme=localStorage.getItem('sh-theme')||'dark';}catch(e){document.documentElement.dataset.theme='dark';}})();</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..600;1,9..144,400..500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #faf9f7;
+      --bg: #020617;
+      --surface: #0b1222;
+      --grid: #0f1830;
+      --border: #1e293b;
+      --border-hi: #334155;
+      --text: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --dim: #475569;
+      --accent: #22d3ee;
+      --accent-hover: #67e8f9;
+      --success: #34d399;
+      --error: #fb7185;
+      --radius: 10px;
+      --font: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+      --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+      --header-bg: rgba(2, 6, 23, 0.75);
+      --on-accent: #020617;
+    }
+    html[data-theme="light"] {
+      --bg: #f7f8fb;
       --surface: #ffffff;
-      --border: #e8e5e0;
-      --text: #1a1a1a;
-      --text-secondary: #6b6560;
-      --accent: #c96442;
-      --accent-hover: #b5573a;
-      --success: #2d8659;
-      --error: #c4342d;
-      --radius: 8px;
-      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-      --mono: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+      --grid: #e9edf4;
+      --border: #e2e8f0;
+      --border-hi: #cbd5e1;
+      --text: #0f172a;
+      --text-secondary: #475569;
+      --dim: #94a3b8;
+      --accent: #0891b2;
+      --accent-hover: #0e7490;
+      --success: #059669;
+      --error: #e11d48;
+      --header-bg: rgba(255, 255, 255, 0.82);
+      --on-accent: #ffffff;
     }
 
     body {
@@ -31,6 +53,11 @@
       color: var(--text);
       line-height: 1.6;
       min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      background-image:
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+      background-size: 48px 48px;
     }
 
     .container {
@@ -41,9 +68,12 @@
 
     /* Header */
     header {
-      padding: 20px 0;
+      padding: 16px 0;
       border-bottom: 1px solid var(--border);
       margin-bottom: 32px;
+      background: var(--header-bg);
+      backdrop-filter: blur(8px);
+      position: sticky; top: 0; z-index: 10;
     }
 
     header .container {
@@ -53,12 +83,13 @@
     }
 
     .logo {
-      font-size: 15px;
-      font-weight: 600;
-      letter-spacing: -0.3px;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
       color: var(--text);
       text-decoration: none;
     }
+    .logo b { color: var(--accent); }
 
     .top-actions {
       display: flex;
@@ -97,6 +128,19 @@
       font-family: var(--mono);
     }
 
+    .theme-toggle {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      border-radius: 8px;
+      width: 32px; height: 30px;
+      padding: 0;
+      cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 14px; line-height: 1;
+    }
+    .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+
     /* Buttons */
     button, .btn {
       font-family: var(--font);
@@ -111,7 +155,8 @@
 
     .btn-primary {
       background: var(--accent);
-      color: white;
+      color: var(--on-accent);
+      font-weight: 600;
     }
 
     .btn-primary:hover { background: var(--accent-hover); }
@@ -176,10 +221,10 @@
     }
 
     .auth-display {
-      font-family: 'Fraunces', Georgia, 'Times New Roman', serif;
-      font-weight: 500;
+      font-family: var(--mono);
+      font-weight: 700;
       font-style: normal;
-      font-size: 44px;
+      font-size: 40px;
       line-height: 1.04;
       letter-spacing: -0.025em;
       color: var(--text);
@@ -218,7 +263,7 @@
     }
     .auth-input:focus-within {
       border-color: var(--accent);
-      box-shadow: 0 0 0 4px rgba(201, 100, 66, 0.08);
+      box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.12);
     }
     .auth-input input {
       flex: 1;
@@ -561,7 +606,8 @@
     }
 
     .created-key {
-      background: #f5f0eb;
+      background: rgba(34, 211, 238, 0.06);
+      border: 1px solid var(--border-hi);
       border-radius: var(--radius);
       padding: 16px;
       margin-top: 16px;
@@ -631,28 +677,31 @@
 
     /* Tabs */
     .tabs {
-      display: flex;
-      gap: 0;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 24px;
+      display: inline-flex;
+      gap: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 4px;
+      margin-bottom: 28px;
     }
 
     .tab {
-      padding: 8px 16px;
+      padding: 7px 16px;
       font-size: 13px;
       font-weight: 500;
       color: var(--text-secondary);
       background: none;
       border: none;
-      border-bottom: 2px solid transparent;
+      border-radius: 7px;
       cursor: pointer;
-      margin-bottom: -1px;
+      transition: all 0.15s;
     }
 
     .tab:hover { color: var(--text); }
     .tab.active {
-      color: var(--text);
-      border-bottom-color: var(--accent);
+      color: var(--accent);
+      background: rgba(34, 211, 238, 0.12);
     }
 
     /* Spinner */
@@ -681,7 +730,7 @@
       display: inline-flex;
       align-items: center;
       padding: 2px 8px;
-      background: #f0ebe5;
+      background: rgba(148, 163, 184, 0.14);
       border-radius: 4px;
       font-size: 11px;
       font-family: var(--mono);
@@ -703,13 +752,14 @@
 <body>
   <header>
     <div class="container">
-      <a class="logo" href="/">Simple Host</a>
+      <a class="logo" href="/">simple<b>·</b>host</a>
       <div class="top-actions">
         <nav class="top">
           <a href="/" class="current">Home</a>
-          <a href="/install.html">Install</a>
+          <a href="/install.html">Get started</a>
           <a href="/docs.html">API</a>
         </nav>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle theme">☀</button>
         <div class="header-actions" id="user-actions" style="display:none">
           <span class="user-badge" id="username-display"></span>
           <button class="btn-ghost" onclick="logout()">Sign out</button>
@@ -820,7 +870,7 @@
   </div>
 
   <footer class="site-footer">
-    Simple Host &middot; <a href="/">Home</a> &middot; <a href="/install.html">Install</a> &middot; <a href="/docs.html">API reference</a> &middot; With thanks to Jacob Cole and Tejas D Channappa.
+    simple·host &middot; <a href="/">Home</a> &middot; <a href="/install.html">Get started</a> &middot; <a href="/docs.html">API reference</a> &middot; With thanks to Jacob Cole and Tejas D Channappa.
   </footer>
 
   <!-- Toast -->
@@ -1209,6 +1259,20 @@
       div.textContent = str;
       return div.innerHTML;
     }
+
+    // Theme toggle (light / dark). Initial theme is set pre-paint in <head>.
+    (function () {
+      var btn = document.getElementById('theme-toggle');
+      if (!btn) return;
+      var ico = function () { return document.documentElement.dataset.theme === 'dark' ? '☀' : '☾'; };
+      btn.textContent = ico();
+      btn.addEventListener('click', function () {
+        var t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+        document.documentElement.dataset.theme = t;
+        try { localStorage.setItem('sh-theme', t); } catch (e) {}
+        btn.textContent = ico();
+      });
+    })();
   </script>
 </body>
 </html>

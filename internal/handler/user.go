@@ -31,6 +31,12 @@ type UserHandler struct {
 	database      *sql.DB
 	mailer        email.Sender
 	publicBaseURL string
+
+	// Abuse limiters: ipLimiter caps requests per client IP across both auth
+	// routes; emailLimiter caps challenges/verifies aimed at a single address
+	// (mail-bomb + code-grinding defense). See ratelimit.go.
+	ipLimiter    *rateLimiter
+	emailLimiter *rateLimiter
 }
 
 type authRequest struct {
@@ -62,22 +68,35 @@ type errorResponse struct {
 }
 
 func NewUserHandler(database *sql.DB, mailer email.Sender, publicBaseURL string) *UserHandler {
+	// ~12 req/min/IP (burst 20) across both auth routes; ~1.2/min/email
+	// (burst 5). Generous for a human signing in, tight against automation.
+	ipLimiter := newRateLimiter(20, 0.2)
+	emailLimiter := newRateLimiter(5, 0.02)
+	ipLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	emailLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	return &UserHandler{
 		database:      database,
 		mailer:        mailer,
 		publicBaseURL: strings.TrimRight(publicBaseURL, "/"),
+		ipLimiter:     ipLimiter,
+		emailLimiter:  emailLimiter,
 	}
 }
 
 func (h *UserHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddleware func(http.Handler) http.Handler) {
-	mux.Handle("POST /v1/auth", noticeMiddleware(http.HandlerFunc(h.requestSignIn)))
-	mux.Handle("POST /v1/auth/verify", noticeMiddleware(http.HandlerFunc(h.verifySignIn)))
+	mux.Handle("POST /v1/auth", noticeMiddleware(rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.requestSignIn))))
+	mux.Handle("POST /v1/auth/verify", noticeMiddleware(rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.verifySignIn))))
 	mux.Handle("GET /v1/me", noticeMiddleware(authMiddleware(http.HandlerFunc(h.me))))
 }
 
-// requestSignIn handles POST /v1/auth: creates the user if they don't exist
-// yet (so we can issue an API key on verify), generates a 6-digit code and a
+// requestSignIn handles POST /v1/auth: generates a 6-digit code and a
 // magic-link token, stores them with a 15-minute TTL, and emails the user.
+//
+// The user row is NOT created here. It is created lazily on successful
+// verification (see verifySignIn). This keeps requestSignIn doing identical
+// work for every email — no DB-write side effect and no timing difference
+// between known and unknown addresses — so it can't be used to enumerate
+// registered users or to pollute the users table with unverified addresses.
 //
 // The API key is NEVER returned by this endpoint. Only /v1/auth/verify can
 // hand it out, and only after the code/token round-trips through the user's
@@ -95,27 +114,10 @@ func (h *UserHandler) requestSignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Ensure the user row exists so /v1/auth/verify can immediately return an
-	// API key. The api_key column is populated up-front; it is just never
-	// disclosed until verification completes.
-	_, err := db.GetUserByUsername(r.Context(), h.database, req.Email)
-	if errors.Is(err, sql.ErrNoRows) {
-		apiKey, kerr := auth.GenerateAPIKey()
-		if kerr != nil {
-			log.Printf("auth: GenerateAPIKey: %v", kerr)
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-			return
-		}
-		if _, cerr := db.CreateUser(r.Context(), h.database, req.Email, apiKey, false); cerr != nil {
-			if !isUniqueViolation(cerr) {
-				log.Printf("auth: CreateUser: %v", cerr)
-				writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-				return
-			}
-		}
-	} else if err != nil {
-		log.Printf("auth: GetUserByUsername: %v", err)
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+	// Per-address throttle: stops one email from being mail-bombed even if the
+	// attacker rotates source IPs.
+	if !h.emailLimiter.allow(req.Email) {
+		tooManyRequests(w)
 		return
 	}
 
@@ -202,6 +204,12 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 
 	// For code-entry path, compare submitted code against the stored value.
 	if req.Token == "" {
+		// Throttle guesses against a specific address across tokens, on top of
+		// the per-token maxCodeAttempts cap.
+		if !h.emailLimiter.allow(tok.Email) {
+			tooManyRequests(w)
+			return
+		}
 		if subtleConstantTimeEqual(req.Code, tok.Code) != 1 {
 			_ = db.IncrementAuthTokenAttempts(r.Context(), h.database, tok.ID)
 			writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "invalid or expired code"})
@@ -209,9 +217,33 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Lazily create the user on first successful verification. requestSignIn no
+	// longer pre-creates the row, so this is where a new account is born.
+	created := false
 	user, err := db.GetUserByUsername(r.Context(), h.database, tok.Email)
-	if err != nil {
-		log.Printf("auth: GetUserByUsername(%s) after verify: %v", tok.Email, err)
+	if errors.Is(err, sql.ErrNoRows) {
+		apiKey, kerr := auth.GenerateAPIKey()
+		if kerr != nil {
+			log.Printf("auth: GenerateAPIKey: %v", kerr)
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return
+		}
+		user, err = db.CreateUser(r.Context(), h.database, tok.Email, apiKey, false)
+		if err != nil {
+			if isUniqueViolation(err) {
+				// Concurrent verify won the race — re-fetch the existing row.
+				user, err = db.GetUserByUsername(r.Context(), h.database, tok.Email)
+			}
+			if err != nil {
+				log.Printf("auth: CreateUser after verify: %v", err)
+				writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+				return
+			}
+		} else {
+			created = true
+		}
+	} else if err != nil {
+		log.Printf("auth: GetUserByUsername after verify: %v", err)
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
@@ -225,7 +257,7 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 		Username: user.Username,
 		APIKey:   user.APIKey,
 		IsAdmin:  user.IsAdmin,
-		Created:  false,
+		Created:  created,
 	})
 }
 

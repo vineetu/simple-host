@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Group Travel Itinerary · simple-host</title>
+<style>
+  /* ---------- shared design system (inline, no CDN) ---------- */
+  :root {
+    --bg:#f6f7fb; --card:#fff; --ink:#1c2430; --muted:#6b7785;
+    --accent:#5b5ef4; --accent-soft:#ececfe; --border:#e6e9ef;
+    --radius:14px; --shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px rgba(16,24,40,.06);
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.5;-webkit-font-smoothing:antialiased;}
+  a{color:var(--accent);text-decoration:none;}
+  a:hover{text-decoration:underline;}
+  .wrap{max-width:760px;margin:0 auto;padding:56px 20px 80px;}
+
+  /* ---------- header ---------- */
+  header.hero{text-align:center;margin-bottom:34px;}
+  .badge{display:inline-block;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:5px 12px;border-radius:999px;margin-bottom:18px;}
+  h1{font-size:38px;margin:0 0 10px;letter-spacing:-.03em;line-height:1.1;}
+  .tagline{color:var(--muted);font-size:18px;margin:0 auto;max-width:520px;}
+
+  /* ---------- traveler filter pills ---------- */
+  .filter{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:0 0 36px;}
+  .pill{font:inherit;font-size:14px;font-weight:600;cursor:pointer;background:var(--card);color:var(--ink);border:1px solid var(--border);padding:8px 16px;border-radius:999px;transition:all .15s ease;box-shadow:var(--shadow);}
+  .pill:hover{border-color:var(--accent);}
+  .pill.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+  /* ---------- section headings ---------- */
+  .section-head{display:flex;align-items:baseline;gap:10px;margin:0 0 16px;}
+  .section-head h2{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0;}
+  .section-head .rule{flex:1;height:1px;background:var(--border);}
+
+  /* ---------- generic card ---------- */
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;margin-bottom:14px;}
+
+  /* ---------- who-tags (traveler-group chips) ---------- */
+  .tags{display:flex;flex-wrap:wrap;gap:6px;}
+  .tag{display:inline-block;background:var(--accent-soft);color:var(--accent);font-size:11px;font-weight:700;letter-spacing:.03em;padding:3px 9px;border-radius:999px;}
+
+  /* ---------- flights ---------- */
+  .flight-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;}
+  .flight-route{font-size:20px;font-weight:800;letter-spacing:-.01em;margin:0;}
+  .flight-when{color:var(--muted);font-size:14px;margin-top:2px;}
+  .flight-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px 18px;margin-top:4px;}
+  .kv .k{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);}
+  .kv .v{font-size:15px;font-weight:600;margin-top:1px;}
+  .kv .v.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;}
+
+  /* ---------- day timeline ---------- */
+  .timeline{position:relative;padding-left:30px;}
+  .timeline::before{content:"";position:absolute;left:9px;top:6px;bottom:6px;width:2px;background:var(--border);}
+  .day{position:relative;margin-bottom:14px;}
+  .day::before{content:"";position:absolute;left:-29px;top:22px;width:14px;height:14px;border-radius:50%;background:var(--accent);border:3px solid var(--bg);box-shadow:0 0 0 1px var(--border);}
+  .day-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:10px;}
+  .day-date{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);}
+  .day-loc{font-size:21px;font-weight:800;letter-spacing:-.02em;margin:2px 0 0;display:flex;align-items:center;gap:7px;}
+  .pin{font-size:14px;color:var(--accent);white-space:nowrap;}
+  .meta-row{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:14px;margin:8px 0;}
+  .meta-row .ic{flex:none;width:16px;text-align:center;}
+  .meta-row strong{color:var(--ink);font-weight:600;}
+
+  /* activities */
+  .acts{list-style:none;margin:12px 0 0;padding:0;border-top:1px dashed var(--border);}
+  .act{display:flex;gap:12px;padding:9px 0;border-bottom:1px dashed var(--border);}
+  .act:last-child{border-bottom:0;}
+  .act .time{flex:none;width:74px;font-size:13px;font-weight:700;color:var(--accent);padding-top:1px;}
+  .act .body .name{font-weight:600;}
+  .act .body .sub{color:var(--muted);font-size:13px;margin-top:1px;}
+
+  /* hidden by filter */
+  .is-hidden{display:none !important;}
+  .empty{color:var(--muted);font-size:14px;font-style:italic;padding:8px 2px;}
+
+  /* ---------- footer ---------- */
+  footer{text-align:center;color:var(--muted);font-size:13px;margin-top:46px;border-top:1px solid var(--border);padding-top:24px;}
+  footer .summary{margin-bottom:10px;}
+  footer .summary b{color:var(--ink);}
+  footer .deploy{font-size:12px;}
+  footer code{background:var(--accent-soft);color:var(--accent);padding:1px 6px;border-radius:6px;}
+
+  @media (max-width:520px){
+    h1{font-size:30px;}
+    .wrap{padding:40px 16px 64px;}
+    .flight-head{flex-direction:column;gap:6px;}
+    .act .time{width:64px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <!-- The whole page renders from the TRIP object below. -->
+</div>
+
+<script>
+/* =====================================================================
+   GROUP-TRAVEL ITINERARY — single-file static template (simple-host)
+   ---------------------------------------------------------------------
+   HOW TO USE THIS FILE
+     Edit ONLY the TRIP object below, then deploy. Everything on the page
+     (header, traveler filter, flight cards, day-by-day timeline, footer
+     summary) is generated from this data. No build step, no backend, no
+     network calls — viewers just read the published itinerary.
+
+   THE DATA MODEL (all fields are plain strings unless noted)
+     title     : trip name shown as the big heading.
+     dates     : human date range, e.g. "Jul 29 – Aug 6, 2026".
+     tagline   : one-line subtitle.
+     travelers : the traveler GROUPS. Each { id, name }.
+                 - id  : SHORT code used to tag flights/days (e.g. "VJ").
+                 - name: friendly label shown on the filter pill + chips.
+                 The filter pills are built from this list (+ "Everyone").
+     flights[] : one card each.
+                 who    : a traveler id (string) OR array of ids that this
+                          flight belongs to. Used by the filter + chips.
+                 route, date, time, flight, pnr, bags : shown as labels.
+                 checkin: optional URL -> renders an "Online check-in" link.
+     days[]    : the itinerary timeline, in order.
+                 date     : short date label, e.g. "Jul 29".
+                 location : place name for the day.
+                 map      : optional Google-Maps (or any) URL -> map pin link.
+                 lodging  : where the group sleeps that night (optional).
+                 transport: transport note for the day (optional).
+                 who      : id or array of ids -> tags the WHOLE day.
+                 activities[] : { time, name, provider?, dur? }
+                                provider/dur are optional; each activity can
+                                also carry its own `who` to tag just that row
+                                (defaults to the day's `who` if omitted).
+
+   THE FILTER (the only interactivity)
+     Pills: "Everyone" + one per traveler group. Clicking a group pill keeps
+     only the flights / days / activities tagged with that group's id and
+     hides the rest — pure client-side show/hide, no data is mutated. A day
+     with no matching items (or whose own `who` excludes the group) is hidden.
+
+   Replace the sample NYC <-> Puerto Rico data with your own and ship it.
+   ===================================================================== */
+  const TRIP = {
+    title: "NYC ↔ Puerto Rico 2026",
+    dates: "Jul 29 – Aug 6, 2026",
+    tagline: "Three crews converging on the island for a week of sun, salt, and old-city wandering.",
+
+    // Traveler GROUPS — the `id` is what you tag flights/days with.
+    // (Sample data — all names, codes and bookings below are fictional.)
+    travelers: [
+      { id: "AS", name: "Alex + Sam" },
+      { id: "JR", name: "Jordan + Riley" },
+      { id: "T",  name: "Taylor" },
+    ],
+
+    // FLIGHTS — `who` is an id or array of ids.
+    flights: [
+      { who: "AS", route: "JFK → SJU", date: "Jul 29", time: "8:10 AM", flight: "XY 1203", pnr: "ABC123", bags: "1 checked",  checkin: "https://example.com/checkin" },
+      { who: "JR", route: "EWR → SJU", date: "Jul 29", time: "10:45 AM", flight: "XY 1588", pnr: "DEF456", bags: "2 checked", checkin: "https://example.com/checkin" },
+      { who: "T",  route: "JFK → SJU", date: "Jul 30", time: "6:30 AM", flight: "XY 0487",  pnr: "GHI789", bags: "carry-on only", checkin: "https://example.com/checkin" },
+      { who: ["AS","JR","T"], route: "SJU → JFK", date: "Aug 6", time: "9:20 PM", flight: "XY 1110", pnr: "JKL012", bags: "1 checked each", checkin: "https://example.com/checkin" },
+    ],
+
+    // DAYS — vertical timeline, in order. `who` tags the whole day.
+    days: [
+      {
+        date: "Jul 29", location: "San Juan", map: "https://maps.google.com/?q=Old+San+Juan",
+        lodging: "Old town rental", who: ["AS","JR"],
+        transport: "Jeep rental pickup at SJU; ~25 min to Old San Juan.",
+        activities: [
+          { time: "3:00 PM", name: "Walk Old San Juan", provider: "", dur: "2h" },
+          { time: "6:30 PM", name: "Group dinner", provider: "Reservation under Alex", dur: "1.5h" },
+          { time: "9:00 PM", name: "Drinks in the old city", provider: "", dur: "" },
+        ],
+      },
+      {
+        date: "Jul 30", location: "San Juan", map: "https://maps.google.com/?q=Castillo+San+Felipe+del+Morro",
+        lodging: "Old town rental", who: ["AS","JR","T"],
+        transport: "Taylor arrives 11:30 AM — pickup from SJU.",
+        activities: [
+          { time: "9:00 AM", name: "El Morro fortress", provider: "Nat'l Park Service", dur: "2h", who: ["AS","JR"] },
+          { time: "12:30 PM", name: "Welcome lunch — full crew", provider: "", dur: "1.5h" },
+          { time: "4:00 PM", name: "Condado Beach", provider: "", dur: "" },
+        ],
+      },
+      {
+        date: "Jul 31", location: "El Yunque Rainforest", map: "https://maps.google.com/?q=El+Yunque+National+Forest",
+        lodging: "Río Grande eco-cabin", who: ["AS","JR","T"],
+        transport: "Drive east ~45 min; reservations required to enter park.",
+        activities: [
+          { time: "8:30 AM", name: "La Mina Falls hike", provider: "Recreation.gov permit", dur: "3h" },
+          { time: "1:00 PM", name: "Roadside picnic lunch", provider: "", dur: "1h" },
+          { time: "3:30 PM", name: "Luquillo kiosks + beach", provider: "", dur: "" },
+        ],
+      },
+      {
+        date: "Aug 1", location: "Vieques", map: "https://maps.google.com/?q=Vieques+Puerto+Rico",
+        lodging: "Esperanza guesthouse", who: ["AS","T"],
+        transport: "Ceiba ferry 9:30 AM (book ahead). Jordan + Riley stay on main island.",
+        activities: [
+          { time: "10:30 AM", name: "Sun Bay beach", provider: "", dur: "" , who: ["AS","T"]},
+          { time: "8:30 PM", name: "Bioluminescent bay kayak", provider: "Local tour operator", dur: "2h", who: ["AS","T"] },
+        ],
+      },
+      {
+        date: "Aug 4", location: "Cabo Rojo", map: "https://maps.google.com/?q=Cabo+Rojo+Lighthouse",
+        lodging: "Boquerón beach house", who: ["AS","JR","T"],
+        transport: "Group reconvenes; drive southwest ~2.5h.",
+        activities: [
+          { time: "11:00 AM", name: "Los Morrillos Lighthouse + salt flats", provider: "", dur: "2h" },
+          { time: "2:00 PM", name: "Playa Sucia", provider: "", dur: "" },
+          { time: "7:00 PM", name: "Sunset seafood dinner", provider: "Walk-in", dur: "" },
+        ],
+      },
+      {
+        date: "Aug 6", location: "San Juan — Departure", map: "https://maps.google.com/?q=Luis+Munoz+Marin+Airport",
+        lodging: "—", who: ["AS","JR","T"],
+        transport: "Return jeep at SJU by 6 PM; whole crew flies out together 9:20 PM.",
+        activities: [
+          { time: "12:00 PM", name: "Last lunch in Santurce", provider: "Food trucks", dur: "1.5h" },
+          { time: "6:00 PM", name: "Airport — drop rental, check in", provider: "", dur: "" },
+        ],
+      },
+    ],
+
+    // Footer scope line (free text). Shown beside the auto summary.
+    scope: "Lodging, flights & day plans only — meals are pay-your-own unless noted.",
+  };
+
+/* =====================================================================
+   RENDER CODE — you normally don't need to touch anything below here.
+   It reads TRIP, builds the DOM, and wires up the traveler filter.
+   ===================================================================== */
+
+  // small helpers
+  const $ = (sel, root=document) => root.querySelector(sel);
+  const el = (tag, cls, html) => {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (html != null) n.innerHTML = html;
+    return n;
+  };
+  const esc = s => String(s == null ? "" : s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  // Normalize a `who` field (string | array | missing) into an array of ids.
+  const whoList = who => who == null ? [] : (Array.isArray(who) ? who : [who]);
+  // Map a traveler id -> friendly name (falls back to the raw id).
+  const nameOf = id => (TRIP.travelers.find(t => t.id === id) || {}).name || id;
+  // Build the chip row for a set of traveler ids.
+  function tagChips(who) {
+    const wrap = el("div", "tags");
+    whoList(who).forEach(id => wrap.appendChild(el("span", "tag", esc(nameOf(id)))));
+    return wrap;
+  }
+  // A small labeled section header with a hairline rule.
+  function sectionHead(label) {
+    const h = el("div", "section-head");
+    h.appendChild(el("h2", null, esc(label)));
+    h.appendChild(el("div", "rule"));
+    return h;
+  }
+
+  const app = $("#app");
+
+  /* ---- 1. HEADER ---- */
+  const hero = el("header", "hero");
+  hero.appendChild(el("span", "badge", "Group itinerary"));
+  hero.appendChild(el("h1", null, esc(TRIP.title)));
+  hero.appendChild(el("div", "tagline",
+    `<strong style="color:var(--ink)">${esc(TRIP.dates)}</strong>${TRIP.tagline ? " · " + esc(TRIP.tagline) : ""}`));
+  app.appendChild(hero);
+
+  /* ---- 2. TRAVELER-GROUP FILTER ---- */
+  // "Everyone" (id "*") plus one pill per traveler group.
+  let activeFilter = "*";
+  const filter = el("div", "filter");
+  const pillDefs = [{ id: "*", name: "Everyone" }, ...TRIP.travelers];
+  const pills = pillDefs.map(p => {
+    const b = el("button", "pill" + (p.id === "*" ? " active" : ""), esc(p.name));
+    b.dataset.id = p.id;
+    b.addEventListener("click", () => setFilter(p.id));
+    filter.appendChild(b);
+    return b;
+  });
+  app.appendChild(filter);
+
+  /* ---- 3. FLIGHTS ---- */
+  app.appendChild(sectionHead("Flights"));
+  const flightsWrap = el("div");
+  TRIP.flights.forEach(f => {
+    const card = el("div", "card flight");
+    card.dataset.who = whoList(f.who).join(" ");   // used by the filter
+
+    const head = el("div", "flight-head");
+    const left = el("div");
+    left.appendChild(el("div", "flight-route", esc(f.route)));
+    left.appendChild(el("div", "flight-when", `${esc(f.date)} · ${esc(f.time)}`));
+    head.appendChild(left);
+    head.appendChild(tagChips(f.who));
+    card.appendChild(head);
+
+    const grid = el("div", "flight-grid");
+    const kv = (k, v, mono) => {
+      const c = el("div", "kv");
+      c.appendChild(el("div", "k", esc(k)));
+      c.appendChild(el("div", "v" + (mono ? " mono" : ""), v));
+      return c;
+    };
+    if (f.flight) grid.appendChild(kv("Flight", esc(f.flight), true));
+    if (f.pnr)    grid.appendChild(kv("Confirmation", esc(f.pnr), true));
+    if (f.bags)   grid.appendChild(kv("Baggage", esc(f.bags)));
+    if (f.checkin)
+      grid.appendChild(kv("Check-in",
+        `<a href="${esc(f.checkin)}" target="_blank" rel="noopener">Online check-in ↗</a>`));
+    card.appendChild(grid);
+
+    flightsWrap.appendChild(card);
+  });
+  app.appendChild(flightsWrap);
+
+  /* ---- 4. PER-DAY ITINERARY (timeline) ---- */
+  app.appendChild(sectionHead("Day by day"));
+  const timeline = el("div", "timeline");
+  TRIP.days.forEach(d => {
+    const day = el("div", "card day");
+    day.dataset.who = whoList(d.who).join(" ");
+
+    // heading: date + location (with map pin) + who chips
+    const head = el("div", "day-head");
+    const left = el("div");
+    left.appendChild(el("div", "day-date", esc(d.date)));
+    const loc = el("div", "day-loc");
+    loc.appendChild(document.createTextNode(d.location || ""));
+    if (d.map) {
+      const pin = el("a", "pin",
+        `📍 <span style="font-size:13px;font-weight:600;">Map ↗</span>`);
+      pin.href = d.map; pin.target = "_blank"; pin.rel = "noopener";
+      loc.appendChild(pin);
+    }
+    left.appendChild(loc);
+    head.appendChild(left);
+    head.appendChild(tagChips(d.who));
+    day.appendChild(head);
+
+    // lodging + transport meta rows
+    if (d.lodging && d.lodging !== "—")
+      day.appendChild(el("div", "meta-row",
+        `<span class="ic">🛏️</span><span><strong>Stay:</strong> ${esc(d.lodging)}</span>`));
+    if (d.transport)
+      day.appendChild(el("div", "meta-row",
+        `<span class="ic">🚗</span><span><strong>Transport:</strong> ${esc(d.transport)}</span>`));
+
+    // activities list (each row can carry its own `who`; defaults to day's)
+    if (Array.isArray(d.activities) && d.activities.length) {
+      const ul = el("ul", "acts");
+      d.activities.forEach(a => {
+        const li = el("li", "act");
+        li.dataset.who = (whoList(a.who).length ? whoList(a.who) : whoList(d.who)).join(" ");
+        li.appendChild(el("div", "time", esc(a.time || "")));
+        const body = el("div", "body");
+        body.appendChild(el("div", "name", esc(a.name || "")));
+        const subBits = [];
+        if (a.provider) subBits.push(esc(a.provider));
+        if (a.dur)      subBits.push(esc(a.dur));
+        if (subBits.length) body.appendChild(el("div", "sub", subBits.join(" · ")));
+        li.appendChild(body);
+        ul.appendChild(li);
+      });
+      day.appendChild(ul);
+    }
+
+    timeline.appendChild(day);
+  });
+  app.appendChild(timeline);
+
+  /* ---- 5. FOOTER ---- */
+  const footer = el("footer");
+  const travelerCount = TRIP.travelers.length;
+  const dayCount = TRIP.days.length;
+  footer.appendChild(el("div", "summary",
+    `<b>${esc(TRIP.dates)}</b> · <b>${travelerCount}</b> traveler group${travelerCount===1?"":"s"} · `
+    + `<b>${dayCount}</b> planned day${dayCount===1?"":"s"}`
+    + (TRIP.scope ? `<br><span style="color:var(--muted)">${esc(TRIP.scope)}</span>` : "")));
+  footer.appendChild(el("div", "deploy",
+    `Deployed on <code>simple-host</code> · static itinerary`));
+  app.appendChild(footer);
+
+  /* ---- FILTER BEHAVIOR (pure client-side show/hide) ----
+     id "*" => show everything. Otherwise show only items tagged with the id.
+     Items with NO `who` tags are treated as "everyone" and always shown.
+     A day is hidden if its own tags exclude the group; otherwise non-matching
+     activity rows are hidden and a day with zero visible rows is hidden too. */
+  function matches(node) {
+    if (activeFilter === "*") return true;
+    const tags = (node.dataset.who || "").split(/\s+/).filter(Boolean);
+    if (!tags.length) return true;            // untagged = applies to everyone
+    return tags.includes(activeFilter);
+  }
+
+  function applyFilter() {
+    // flights
+    flightsWrap.querySelectorAll(".flight").forEach(c =>
+      c.classList.toggle("is-hidden", !matches(c)));
+    showEmpty(flightsWrap, "No flights for this group.");
+
+    // days + their activities
+    timeline.querySelectorAll(".day").forEach(day => {
+      const dayOk = matches(day);
+      let visibleActs = 0;
+      day.querySelectorAll(".act").forEach(act => {
+        const ok = dayOk && matches(act);
+        act.classList.toggle("is-hidden", !ok);
+        if (ok) visibleActs++;
+      });
+      const hasActs = !!day.querySelector(".act");
+      // hide the whole day if its tags exclude the group, or it has activities
+      // but none of them survive the filter.
+      day.classList.toggle("is-hidden", !dayOk || (hasActs && visibleActs === 0));
+    });
+    showEmpty(timeline, "No days for this group.");
+  }
+
+  // Show a one-line "empty" placeholder in a container when all its cards hide.
+  function showEmpty(container, msg) {
+    let note = container.querySelector(":scope > .empty");
+    const anyVisible = [...container.children].some(
+      c => c !== note && !c.classList.contains("is-hidden"));
+    if (!anyVisible) {
+      if (!note) { note = el("div", "empty", esc(msg)); container.appendChild(note); }
+      note.classList.remove("is-hidden");
+    } else if (note) {
+      note.classList.add("is-hidden");
+    }
+  }
+
+  function setFilter(id) {
+    activeFilter = id;
+    pills.forEach(p => p.classList.toggle("active", p.dataset.id === id));
+    applyFilter();
+  }
+
+  // initial paint
+  applyFilter();
+</script>
+</body>
+</html>

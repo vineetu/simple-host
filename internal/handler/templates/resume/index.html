@@ -1,0 +1,337 @@
+<!doctype html>
+<!-- Template: CurriculumVitae by ViniciusCarvalhoLima (github.com/ViniciusCarvalhoLima/CurriculumVitae), MIT. Adapted for simple-host. -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Jordan Avery — Software Engineer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="keywords" content="software engineer, full stack, backend, web developer, resume" />
+    <meta name="description" content="Resume of Jordan Avery, Senior Software Engineer" />
+    <meta name="robots" content="index, follow" />
+    <!-- Keep the credits pls :) -->
+    <meta name="author" content="Arthur Vinicius Carneiro Nunes" />
+    <style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  line-height: 1.3;
+  color: #000;
+  background: #f5f5f5;
+  font-size: 10.5pt;
+}
+
+.container {
+  max-width: 210mm;
+  margin: 0 auto;
+  background: #fff;
+  padding: 0.75in;
+  min-height: 297mm;
+  position: relative;
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+  .container {
+    padding: 0.5in;
+    margin: 0;
+  }
+}
+
+/* Header */
+.header {
+  text-align: center;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #000;
+  padding-bottom: 8px;
+}
+
+.header h1 {
+  font-size: 20pt;
+  font-weight: bold;
+  margin-bottom: 4px;
+  letter-spacing: 1px;
+}
+
+.header .title {
+  font-size: 11pt;
+  margin-bottom: 6px;
+  font-weight: normal;
+}
+
+.contact {
+  font-size: 9.5pt;
+  line-height: 1.4;
+}
+
+.contact a {
+  color: #000;
+  text-decoration: none;
+}
+
+.contact a:hover {
+  text-decoration: underline;
+}
+
+/* Section Headers */
+.section {
+  margin-bottom: 14px;
+}
+
+.section-title {
+  font-size: 11pt;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid #000;
+  padding-bottom: 2px;
+}
+
+/* Summary */
+.summary {
+  text-align: justify;
+  line-height: 1.4;
+}
+
+/* Skills */
+.skills-grid {
+  line-height: 1.5;
+}
+
+.skill-category {
+  margin-bottom: 4px;
+}
+
+.skill-category strong {
+  font-weight: bold;
+}
+
+/* Experience */
+.job {
+  margin-bottom: 10px;
+}
+
+.job-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 2px;
+}
+
+.job-title-company {
+  font-weight: bold;
+  font-size: 10.5pt;
+}
+
+.job-date {
+  font-style: italic;
+  font-size: 9.5pt;
+  color: #333;
+}
+
+.job-position {
+  font-style: italic;
+  margin-bottom: 4px;
+  font-size: 10pt;
+}
+
+.job ul {
+  margin-left: 18px;
+  margin-top: 3px;
+}
+
+.job li {
+  margin-bottom: 3px;
+  line-height: 1.35;
+}
+
+/* Projects */
+.project {
+  margin-bottom: 8px;
+}
+
+.project-header {
+  font-weight: bold;
+  margin-bottom: 3px;
+}
+
+.project-header a {
+  color: #000;
+  text-decoration: none;
+}
+
+.project-description {
+  line-height: 1.4;
+}
+
+.project ul {
+  margin-left: 18px;
+  margin-top: 3px;
+}
+
+.project li {
+  margin-bottom: 3px;
+  line-height: 1.35;
+}
+
+/* Education */
+.education-item {
+  margin-bottom: 6px;
+}
+
+.education-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.education-school {
+  font-weight: bold;
+}
+
+.education-date {
+  font-style: italic;
+  font-size: 9.5pt;
+  color: #333;
+}
+
+.education-degree {
+  font-size: 10pt;
+}
+
+/* Metrics highlighting */
+strong.metric {
+  font-weight: bold;
+}
+    </style>
+</head>
+<body>
+    <div class="container" id="resume-container">
+        <!-- Header -->
+        <div class="header">
+            <h1>Jordan Avery</h1>
+            <div class="title">Senior Software Engineer</div>
+            <div class="contact">
+                <a href="mailto:jordan.avery@example.com">jordan.avery@example.com</a> |
+                <a href="https://www.linkedin.com/in/jordan-avery-dev/" target="_blank" rel="noopener">LinkedIn</a>
+                <br>
+                <a href="https://github.com/jordanavery" target="_blank" rel="noopener">GitHub</a> |
+                <a href="https://jordanavery.example.com" target="_blank" rel="noopener">Portfolio</a> |
+                <a>+1 (555) 014-2839</a> |
+                <a href="#" onclick="window.print(); return false;">🖨️ Print</a>
+            </div>
+        </div>
+
+        <!-- Professional Summary -->
+        <div class="section">
+            <div class="section-title">Professional Summary</div>
+            <p class="summary">
+                Senior Software Engineer with 7+ years of experience designing, building, and scaling web applications and
+                distributed backend systems. Specializes in full-stack development with <strong>TypeScript</strong>,
+                <strong>React</strong>, <strong>Node.js</strong>, <strong>Go</strong>, and <strong>Python</strong>, backed by
+                strong fundamentals in <strong>PostgreSQL</strong>, <strong>Docker</strong>, <strong>Kubernetes</strong>, and
+                cloud infrastructure on <strong>AWS</strong>. Comfortable owning features end to end, mentoring engineers, and
+                shipping reliable software with agile teams. Known for pragmatic problem-solving, clean architecture, and a
+                bias toward measurable impact.
+            </p>
+        </div>
+
+        <!-- Technical Skills -->
+        <div class="section">
+            <div class="section-title">Technical Skills</div>
+            <div class="skills-grid">
+                <div class="skill-category"><strong>Languages:</strong> TypeScript, JavaScript, Go, Python, SQL, HTML, CSS</div>
+                <div class="skill-category"><strong>Frontend:</strong> React, Next.js, Redux, Tailwind CSS, Vite, Jest, Playwright</div>
+                <div class="skill-category"><strong>Backend:</strong> Node.js, Express, Go (net/http, gRPC), FastAPI, REST, GraphQL</div>
+                <div class="skill-category"><strong>Data &amp; Infrastructure:</strong> PostgreSQL, Redis, Kafka, Elasticsearch, S3</div>
+                <div class="skill-category"><strong>Cloud &amp; DevOps:</strong> AWS, Docker, Kubernetes, Terraform, GitHub Actions, CI/CD</div>
+                <div class="skill-category"><strong>Practices:</strong> Agile/Scrum, TDD, code review, observability, system design</div>
+            </div>
+        </div>
+
+        <!-- Professional Experience -->
+        <div class="section">
+            <div class="section-title">Professional Experience</div>
+
+            <!-- Experience One -->
+            <div class="job">
+                <div class="job-header">
+                    <div class="job-title-company">Northwind Labs</div>
+                    <div class="job-date">March 2022 - Present</div>
+                </div>
+                <div class="job-position">Senior Software Engineer</div>
+                <ul>
+                    <li>Led the redesign of a customer-facing analytics dashboard in React and TypeScript, cutting median page load time by <strong class="metric">42%</strong> and lifting weekly active usage by <strong class="metric">30%</strong>.</li>
+                    <li>Architected a Go-based microservice for event ingestion handling <strong class="metric">12M+</strong> events per day, with horizontal autoscaling on Kubernetes.</li>
+                    <li>Introduced a shared component library and design tokens, reducing duplicated UI code across four product teams and accelerating feature delivery.</li>
+                    <li>Mentored three junior engineers, established code review standards, and ran a weekly system-design study group.</li>
+                    <li>Improved observability with structured logging, distributed tracing, and SLO dashboards, reducing mean time to resolution by <strong class="metric">35%</strong>.</li>
+                </ul>
+            </div>
+
+            <!-- Experience Two -->
+            <div class="job">
+                <div class="job-header">
+                    <div class="job-title-company">Brightpoint Software</div>
+                    <div class="job-date">June 2019 - February 2022</div>
+                </div>
+                <div class="job-position">Full-Stack Engineer</div>
+                <ul>
+                    <li>Built and maintained core features for a B2B SaaS platform using Node.js, React, and PostgreSQL, serving <strong class="metric">8,000+</strong> business customers.</li>
+                    <li>Designed and implemented secure authentication and role-based access control, including OAuth 2.0 and SSO integrations.</li>
+                    <li>Optimized slow database queries and added Redis caching, reducing p95 API latency from 800ms to <strong class="metric">180ms</strong>.</li>
+                    <li>Migrated a legacy monolith deployment to containerized services with Docker and CI/CD pipelines on GitHub Actions.</li>
+                </ul>
+            </div>
+
+            <!-- Experience Three -->
+            <div class="job">
+                <div class="job-header">
+                    <div class="job-title-company">Cedar &amp; Co. Digital</div>
+                    <div class="job-date">July 2018 - May 2019</div>
+                </div>
+                <div class="job-position">Software Engineer</div>
+                <ul>
+                    <li>Developed responsive marketing and e-commerce sites for agency clients using JavaScript, HTML, and CSS.</li>
+                    <li>Integrated third-party payment and analytics APIs, improving checkout conversion for a flagship client by <strong class="metric">18%</strong>.</li>
+                    <li>Collaborated with designers and product managers in an agile workflow, delivering features on biweekly sprints.</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Projects -->
+        <div class="section">
+            <div class="section-title">Selected Projects</div>
+            <div class="project">
+                <div class="project-header"><a href="https://github.com/jordanavery/taskflow" target="_blank" rel="noopener">TaskFlow — Open-Source Task Runner</a></div>
+                <div class="project-description">A lightweight CLI and library for orchestrating concurrent build tasks, written in Go. 1.2k+ GitHub stars and used by several small teams in production.</div>
+            </div>
+            <div class="project">
+                <div class="project-header"><a href="https://github.com/jordanavery/inkwell" target="_blank" rel="noopener">Inkwell — Markdown Knowledge Base</a></div>
+                <div class="project-description">A self-hosted notes app with full-text search and a React frontend backed by a FastAPI service and PostgreSQL.</div>
+            </div>
+        </div>
+
+        <!-- Education & Languages -->
+        <div class="section">
+            <div class="section-title">Education &amp; Languages</div>
+            <div class="education-item">
+                <strong>B.S. in Computer Science</strong> | Lakeshore State University | 2014 - 2018
+            </div>
+            <div class="education-item" style="margin-top: 4px;">
+                <strong>Languages:</strong> English (Native), Spanish (Professional Working Proficiency)
+            </div>
+        </div>
+    </div>
+
+    <section id="sh-comments"></section>
+    <script src="https://simple-host.app/comments.js" defer></script>
+</body>
+</html>

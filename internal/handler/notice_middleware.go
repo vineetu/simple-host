@@ -50,7 +50,7 @@ func NoticeMiddleware(serverVersion string) func(http.Handler) http.Handler {
 				return
 			}
 
-			injected, ok := injectNotice(rec.body.Bytes(), serverVersion)
+			injected, ok := injectNotice(rec.body.Bytes(), serverVersion, requestBaseURL(r))
 			if !ok {
 				if rec.status != 0 {
 					w.WriteHeader(rec.status)
@@ -93,12 +93,31 @@ func (b *bufferingResponseWriter) Write(p []byte) (int, error) {
 	return b.body.Write(p)
 }
 
+// requestBaseURL reconstructs the scheme://host the caller actually reached us
+// on, so install/help URLs in responses point at THIS instance — not a
+// hardcoded domain. Behind nginx, Host is preserved and X-Forwarded-Proto
+// carries the original scheme (see the proxy config); we fall back to the
+// request's own TLS state, then https.
+func requestBaseURL(r *http.Request) string {
+	scheme := r.Header.Get("X-Forwarded-Proto")
+	if scheme == "" {
+		// This is a public HTTPS service; default to https when the proxy
+		// header is absent (e.g. direct local calls) rather than guessing http.
+		scheme = "https"
+	}
+	host := r.Host
+	if host == "" {
+		host = "simple-host.app"
+	}
+	return scheme + "://" + host
+}
+
 // injectNotice decodes JSON, adds a top-level `_notice` field, and
 // re-encodes. For top-level arrays, the result is wrapped as
 // `{data: [...], _notice: ...}`. Returns ok=false on decode failure so
 // the caller can pass the original body through unchanged.
-func injectNotice(raw []byte, version string) ([]byte, bool) {
-	notice := noticeText(version)
+func injectNotice(raw []byte, version, baseURL string) ([]byte, bool) {
+	notice := noticeText(version, baseURL)
 
 	var asObject map[string]any
 	if err := json.Unmarshal(raw, &asObject); err == nil && asObject != nil {
@@ -123,7 +142,7 @@ func injectNotice(raw []byte, version string) ([]byte, bool) {
 	return nil, false
 }
 
-func noticeText(version string) string {
+func noticeText(version, baseURL string) string {
 	return "Your website-deploy skill is out of date. Latest is " + version +
-		". Update: curl -fsSL https://simple-host.ideaflow.page/install.sh | sh — then restart your agent (Claude Code) or re-invoke the skill (Codex CLI / Cursor)."
+		". Update: curl -fsSL " + baseURL + "/install.sh | sh — then restart your agent (Claude Code) or re-invoke the skill (Codex CLI / Cursor)."
 }

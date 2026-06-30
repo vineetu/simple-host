@@ -86,8 +86,11 @@ This code expires in 15 minutes. If you didn't request this, you can ignore the 
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 300 {
-		buf, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("resend %d: %s", resp.StatusCode, string(buf))
+		// Drain so the connection can be reused, but do NOT propagate the
+		// upstream body — it can echo request details into our logs. The
+		// status code is enough to diagnose Resend misconfig.
+		_, _ = io.Copy(io.Discard, resp.Body)
+		return fmt.Errorf("resend returned status %d", resp.StatusCode)
 	}
 	return nil
 }
