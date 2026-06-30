@@ -172,6 +172,12 @@
     .dl { display: inline-block; color: var(--cyan); border: 1px solid var(--border-hi);
           border-radius: 7px; padding: 4px 10px; font-size: 12px; text-decoration: none; margin: 2px 4px 2px 0; }
     .dl:hover { border-color: var(--cyan); text-decoration: none; }
+    .insttbl { width: 100%; border-collapse: collapse; margin: 6px 0 18px; font-size: 13px; }
+    .insttbl th, .insttbl td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .insttbl th { color: var(--muted); font-weight: 600; font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; }
+    .insttbl td code { color: var(--cyan); font-size: 12px; }
+    .insttbl tr:last-child td { border-bottom: 0; }
+    .insttbl td:first-child { white-space: nowrap; color: var(--text); }
 
     /* terminal / chat mockup */
     /* terminal mockups stay dark in BOTH themes — a light terminal looks wrong */
@@ -275,11 +281,9 @@
           <ol class="steps">
             <li>
               <span class="num">1</span>
-              <h3>Install the skill</h3>
-              <p>One command drops it into your agent's skills folder — it teaches the agent the whole platform (JSON deploy, per-site state &amp; collections, private pages, comments/feedback widgets, templates):</p>
-              <p style="margin-top:8px"><span class="inline-code" id="ic-claude">curl -fsSL https://simple-host.app/install.sh | sh</span></p>
-              <p style="margin-top:8px">Codex CLI → append <code>-s -- ~/.agents/skills</code>. opencode / Cursor → point it at their skills dir. <a href="/install.sh">view install.sh</a></p>
-              <p style="margin-top:8px">No terminal (<b>Claude.ai or Desktop</b>)? Download <a class="dl" href="/skills/website-deploy.zip" download>website-deploy.zip</a> <a class="dl" href="/skills/website-deploy-builder.zip" download>website-deploy-builder.zip</a> and add them in <b>Settings → Capabilities → Skills → Upload skill</b>.</p>
+              <h3>Add the skill</h3>
+              <p>Drop the skill files into your tool's skills folder — <b>no script to run</b>. It teaches the agent the whole platform (JSON deploy, state &amp; collections, private pages, widgets, templates). Per-tool and Windows steps are right below.</p>
+              <p style="margin-top:8px">Quickest: tell your agent <em>"download <span class="inline-code" id="ic-claude">https://simple-host.app/skills.zip</span> and unzip it into ~/.claude/skills"</em> — or grab <a class="dl" href="/skills.zip" download>skills.zip</a> yourself.</p>
             </li>
             <li>
               <span class="num">2</span>
@@ -298,8 +302,8 @@
               <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
               <span class="tag">example prompt</span>
             </div>
-<pre><span class="c-cm"># Step 1 — install the skill (once)</span>
-<span class="c-st">curl -fsSL https://simple-host.app/install.sh | sh</span>
+<pre><span class="c-cm"># Step 1 — add the skill (no script — unzip into</span>
+<span class="c-cm">#          ~/.claude/skills; see the table below)</span>
 
 <span class="c-cm"># Step 2 — describe your site</span>
 <span class="c-kw">Build</span> a coming-soon page for my app
@@ -314,6 +318,52 @@ and a live "join N others" counter.
 <span class="c-st">"add a countdown to launch day"</span></pre>
           </div>
         </div>
+      </section>
+
+      <!-- ===================== INSTALLING THE SKILL ===================== -->
+      <section class="block">
+        <div class="sec-head">
+          <div class="eyebrow" style="margin-bottom:12px">Installing the skill · no script required</div>
+          <h2>Just drop it in your skills folder.</h2>
+          <p>The skill is plain Markdown — nothing executes. Download <a class="dl" href="/skills.zip" download>skills.zip</a> and unzip it into your tool's skills directory, or tell your agent to do it. You never have to pipe a remote script into your shell.</p>
+        </div>
+
+        <div class="recommended">
+          <span class="badge">Tell your agent</span>
+          <div class="code-head">
+            <span>Copy-paste — the agent installs it with its own file tools</span>
+            <button class="copy-btn" type="button" data-copy-target="p-agentinstall">Copy</button>
+          </div>
+          <pre id="p-agentinstall">Download https://simple-host.app/skills.zip and unzip it into my skills
+folder (~/.claude/skills for Claude Code — create it if it doesn't exist).
+Then list your skills: you should see website-deploy and website-deploy-builder.</pre>
+        </div>
+
+        <table class="insttbl">
+          <thead><tr><th>Tool</th><th>Skills folder · macOS / Linux</th><th>Windows</th></tr></thead>
+          <tbody>
+            <tr><td>Claude Code</td><td><code>~/.claude/skills/</code></td><td><code>%USERPROFILE%\.claude\skills\</code></td></tr>
+            <tr><td>Codex CLI</td><td><code>~/.agents/skills/</code></td><td><code>%USERPROFILE%\.agents\skills\</code></td></tr>
+            <tr><td>opencode</td><td><code>~/.config/opencode/skills/</code></td><td><code>%USERPROFILE%\.config\opencode\skills\</code></td></tr>
+            <tr><td>Cursor / other</td><td colspan="2">Point it at the skills directory it reads (see your tool's docs) — the files are identical.</td></tr>
+            <tr><td>Claude.ai / Desktop</td><td colspan="2">No folder — upload the ZIP in <b>Settings → Capabilities → Skills → Upload skill</b>.</td></tr>
+          </tbody>
+        </table>
+
+        <p>Rather run it yourself? Unzip into your tool's folder:</p>
+        <div class="code-head">
+          <span>macOS / Linux · (Claude Code shown)</span>
+          <button class="copy-btn" type="button" data-copy-target="cmd-unix">Copy</button>
+        </div>
+        <pre id="cmd-unix">mkdir -p ~/.claude/skills && curl -fsSL https://simple-host.app/skills.zip -o /tmp/sh-skills.zip && unzip -o /tmp/sh-skills.zip -d ~/.claude/skills</pre>
+        <div class="code-head">
+          <span>Windows · PowerShell · (Claude Code shown)</span>
+          <button class="copy-btn" type="button" data-copy-target="cmd-win">Copy</button>
+        </div>
+        <pre id="cmd-win">New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\skills" | Out-Null
+Invoke-WebRequest https://simple-host.app/skills.zip -OutFile "$env:TEMP\sh-skills.zip"
+Expand-Archive "$env:TEMP\sh-skills.zip" "$env:USERPROFILE\.claude\skills" -Force</pre>
+        <p class="note">For Codex / opencode, swap in the folder from the table. There's also a one-liner for macOS/Linux — <code>curl -fsSL https://simple-host.app/install.sh | sh</code> — but it only does the unzip above; <a href="/install.sh">read it first</a> if you'd rather not run a script.</p>
       </section>
 
       <!-- ============================ WEB AGENTS ============================ -->
