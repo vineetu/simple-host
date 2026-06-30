@@ -130,6 +130,7 @@
       color: var(--dim);
     }
     .url-hero code { font-size: 15px; font-weight: 600; color: var(--emerald); }
+    .url-hero code.llms-line { color: var(--muted); font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 340px; }
 
     section.block { margin-top: 88px; }
     .sec-head { margin-bottom: 36px; }
@@ -375,17 +376,18 @@ Expand-Archive "$env:TEMP\sh-skills.zip" "$env:USERPROFILE\.claude\skills" -Forc
         </div>
 
         <div class="url-hero">
-          <span class="label">Give your AI this</span>
-          <code id="llms-url">https://simple-host.app/llms.txt</code>
-          <button class="copy-btn" type="button" data-copy-target="llms-url">Copy</button>
+          <span class="label">Copy the instructions</span>
+          <code class="llms-line"># Simple Host — full deploy instructions for your AI …</code>
+          <button class="copy-btn" id="copy-llms" type="button">Copy instructions</button>
         </div>
+        <p class="note" style="margin-top:10px">Most chat assistants can't open a link — so copy the full instructions (the contents of <a href="/llms.txt">/llms.txt</a>) and paste them straight into the chat.</p>
 
         <div class="split" style="margin-top:36px">
           <ol class="steps">
             <li>
               <span class="num">1</span>
               <h3>Ask it to build the site</h3>
-              <p>Paste the <span class="inline-code">/llms.txt</span> link into the chat and describe what you want. It reads the instructions and builds a complete site as <b>one JSON block</b>.</p>
+              <p>Paste the <b>instructions</b> (the Copy button above) into the chat, then describe what you want. It builds a complete site as <b>one JSON block</b>. <span style="color:var(--dim)">(If your AI can open links, <span class="inline-code">/llms.txt</span> works too.)</span></p>
             </li>
             <li>
               <span class="num">2</span>
@@ -478,6 +480,38 @@ into Simple Host:
         document.documentElement.dataset.theme = t;
         try { localStorage.setItem('sh-theme', t); } catch (e) {}
         btn.textContent = ico();
+      });
+    })();
+
+    // Copy the FULL llms.txt — most chat assistants can't open a link, so the
+    // user pastes the whole instructions into the chat. Prefetched on load; falls
+    // back to fetching on click, then to the bare URL if even that fails.
+    (function () {
+      var btn = document.getElementById('copy-llms');
+      if (!btn) return;
+      var cache = null;
+      fetch('/llms.txt').then(function (r) { return r.text(); }).then(function (t) { cache = t; }).catch(function () {});
+      var stash = function (text) {
+        var ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.top = '-1000px';
+        document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); } catch (e) {}
+        ta.remove();
+      };
+      var flash = function () {
+        var o = btn.textContent; btn.textContent = 'Copied ✓'; btn.disabled = true;
+        setTimeout(function () { btn.textContent = o; btn.disabled = false; }, 1500);
+      };
+      var put = function (text) {
+        if (navigator.clipboard && window.isSecureContext) {
+          navigator.clipboard.writeText(text).then(flash).catch(function () { stash(text); flash(); });
+        } else { stash(text); flash(); }
+      };
+      btn.addEventListener('click', function () {
+        if (cache) { put(cache); return; }
+        fetch('/llms.txt').then(function (r) { return r.text(); })
+          .then(function (t) { cache = t; put(t); })
+          .catch(function () { put(location.origin + '/llms.txt'); });
       });
     })();
 
