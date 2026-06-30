@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -55,6 +56,19 @@ type generateRequest struct {
 	// can make incremental edits without the whole document living in the chat
 	// transcript.
 	HTML string `json:"html"`
+	// Attachments ride along with the latest user message: images (vision),
+	// PDFs (document blocks), or text files (inlined into the prompt).
+	Attachments []attachmentIn `json:"attachments"`
+}
+
+// attachmentIn is one user-supplied file from the chat. Images/PDFs carry base64
+// Data; text files carry plain Text.
+type attachmentIn struct {
+	Kind      string `json:"kind"`      // "image" | "document" | "text"
+	MediaType string `json:"mediaType"` // for image/document
+	Name      string `json:"name"`
+	Data      string `json:"data"` // base64 (image/document)
+	Text      string `json:"text"` // text files
 }
 
 type generateResponse struct {
@@ -85,7 +99,8 @@ func (h *GenerateHandler) generate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req generateRequest
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 256<<10)).Decode(&req); err != nil {
+	// Large cap because attachments (images/PDFs) ride in the JSON as base64.
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32<<20)).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
 		return
 	}
@@ -94,6 +109,16 @@ func (h *GenerateHandler) generate(w http.ResponseWriter, r *http.Request) {
 	if len(msgs) == 0 {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "say what you'd like to build"})
 		return
+	}
+
+	atts, err := sanitizeAttachments(req.Attachments)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		return
+	}
+	if len(atts) > 0 {
+		li := len(msgs) - 1 // attach to the latest user turn
+		msgs[li].Content = buildUserBlocks(msgs[li].Content, atts)
 	}
 
 	reply, html, err := h.converse(r.Context(), msgs, req.HTML)
@@ -114,7 +139,8 @@ func sanitizeMessages(in []claudeMessage) []claudeMessage {
 		if role != "user" && role != "assistant" {
 			role = "user"
 		}
-		c := strings.TrimSpace(m.Content)
+		s, _ := m.Content.(string) // incoming messages are plain strings
+		c := strings.TrimSpace(s)
 		if c == "" {
 			continue
 		}
@@ -133,12 +159,109 @@ func sanitizeMessages(in []claudeMessage) []claudeMessage {
 	return out
 }
 
+const (
+	maxAttachments      = 6
+	maxAttachTextChars  = 100_000
+	maxAttachTotalBytes = 18 << 20
+)
+
+var allowedImageTypes = map[string]bool{
+	"image/png": true, "image/jpeg": true, "image/webp": true, "image/gif": true,
+}
+
+// sanitizeAttachments validates user-supplied files (type allowlist, per-file and
+// total size caps, count cap). The data itself is opaque base64 we pass straight
+// to Anthropic — it never touches our disk or shell.
+func sanitizeAttachments(in []attachmentIn) ([]attachmentIn, error) {
+	if len(in) == 0 {
+		return nil, nil
+	}
+	if len(in) > maxAttachments {
+		return nil, fmt.Errorf("too many attachments (max %d)", maxAttachments)
+	}
+	out := make([]attachmentIn, 0, len(in))
+	total := 0
+	for _, a := range in {
+		switch a.Kind {
+		case "image":
+			if !allowedImageTypes[a.MediaType] {
+				return nil, fmt.Errorf("unsupported image type %q", a.MediaType)
+			}
+			if a.Data == "" {
+				return nil, fmt.Errorf("empty image data")
+			}
+			if len(a.Data) > 7<<20 { // ~5 MB binary after base64
+				return nil, fmt.Errorf("image %q is too large (5 MB max)", a.Name)
+			}
+			total += len(a.Data)
+			out = append(out, attachmentIn{Kind: "image", MediaType: a.MediaType, Name: a.Name, Data: a.Data})
+		case "document":
+			if a.MediaType != "application/pdf" {
+				return nil, fmt.Errorf("only PDF documents are supported")
+			}
+			if a.Data == "" {
+				return nil, fmt.Errorf("empty document")
+			}
+			if len(a.Data) > 24<<20 {
+				return nil, fmt.Errorf("PDF %q is too large", a.Name)
+			}
+			total += len(a.Data)
+			out = append(out, attachmentIn{Kind: "document", MediaType: "application/pdf", Name: a.Name, Data: a.Data})
+		case "text":
+			t := a.Text
+			if len(t) > maxAttachTextChars {
+				t = t[:maxAttachTextChars]
+			}
+			total += len(t)
+			out = append(out, attachmentIn{Kind: "text", Name: a.Name, Text: t})
+		default:
+			return nil, fmt.Errorf("unsupported attachment kind %q", a.Kind)
+		}
+		if total > maxAttachTotalBytes {
+			return nil, fmt.Errorf("attachments are too large in total")
+		}
+	}
+	return out, nil
+}
+
+// buildUserBlocks turns the latest user message into a content-block array: the
+// image/document blocks first, then a single text block (the typed message plus
+// any inlined text files). Anthropic requires a non-empty text block.
+func buildUserBlocks(textContent any, atts []attachmentIn) []any {
+	text, _ := textContent.(string)
+	var blocks []any
+	var extra strings.Builder
+	for _, a := range atts {
+		switch a.Kind {
+		case "image":
+			blocks = append(blocks, map[string]any{
+				"type":   "image",
+				"source": map[string]any{"type": "base64", "media_type": a.MediaType, "data": a.Data},
+			})
+		case "document":
+			blocks = append(blocks, map[string]any{
+				"type":   "document",
+				"source": map[string]any{"type": "base64", "media_type": "application/pdf", "data": a.Data},
+			})
+		case "text":
+			extra.WriteString("\n\n--- Attached file: " + a.Name + " ---\n" + a.Text)
+		}
+	}
+	t := strings.TrimSpace(text + extra.String())
+	if t == "" {
+		t = "Use the attached file(s) to build the site."
+	}
+	blocks = append(blocks, map[string]any{"type": "text", "text": t})
+	return blocks
+}
+
 const generateSystemPrompt = `You are a warm, sharp web-design assistant inside the simple-host site builder. You help a non-technical person create ONE single-page website through a short, friendly conversation.
 
 How to behave:
 - If the request is vague, ask AT MOST 1-2 short clarifying questions (e.g. name? overall vibe? what should it do?). Don't interrogate — as soon as you have enough, build it.
 - When you have enough to build, or the user asks for the site or a change, produce the site.
 - Keep chat replies to a sentence or two, friendly and concrete. NEVER paste HTML or code into the chat text.
+- The user may attach images or files. Use them: treat an image as visual reference — replicate a mockup's layout/colors/typography, read text or data out of a screenshot, or match branding; treat attached text/PDF files as content or source to incorporate. (You receive attachments to look at; you can't embed the raw uploaded bytes, so recreate the look or use the content.)
 
 OUTPUT FORMAT — follow exactly:
 - First write your short conversational reply as plain text.
@@ -223,8 +346,10 @@ func splitReplyAndHTML(text string) (string, string, error) {
 }
 
 type claudeMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role string `json:"role"`
+	// Content is a plain string for normal turns, or a []any of content blocks
+	// (image/document/text) for a user turn that carries attachments.
+	Content any `json:"content"`
 }
 
 type claudeRequest struct {

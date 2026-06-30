@@ -109,6 +109,7 @@
     nav.top a {
       color: var(--text-secondary);
       text-decoration: none;
+      white-space: nowrap;
     }
 
     nav.top a:hover {
@@ -647,7 +648,23 @@
     .msg.ai .bubble.thinking { color: var(--text-secondary); letter-spacing: 0.15em; }
 
     .ai-input { display: flex; gap: 8px; padding: 14px 20px 8px; border-top: 1px solid var(--border); }
-    .ai-input input { flex: 1; min-width: 0; }
+    .ai-input input[type="text"] { flex: 1; min-width: 0; }
+    .attach-btn {
+      flex: 0 0 auto; width: 38px; background: var(--surface); border: 1px solid var(--border);
+      color: var(--text-secondary); border-radius: 8px; cursor: pointer; font-size: 16px; line-height: 1;
+    }
+    .attach-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .ai-tray { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 20px 0; }
+    .att-chip {
+      display: inline-flex; align-items: center; gap: 6px; background: var(--bg);
+      border: 1px solid var(--border); border-radius: 8px; padding: 4px 6px 4px 4px;
+      font-size: 12px; max-width: 190px;
+    }
+    .att-chip img { width: 26px; height: 26px; object-fit: cover; border-radius: 4px; flex: 0 0 auto; }
+    .att-chip .ic { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; background: var(--surface); border-radius: 4px; font-size: 13px; flex: 0 0 auto; }
+    .att-chip .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); }
+    .att-chip .rm { background: none; border: 0; color: var(--text-secondary); cursor: pointer; font-size: 14px; padding: 0 2px; line-height: 1; }
+    .att-chip .rm:hover { color: var(--error); }
 
     .ai-paste { padding: 0 20px 16px; }
     .ai-paste-toggle { background: none; border: 0; color: var(--accent); cursor: pointer; font-family: var(--font); font-size: 12.5px; padding: 6px 0; }
@@ -692,6 +709,9 @@
       .user-badge { display: none; }       /* email is too wide on a phone; Sign out stays */
       .btn-ghost { font-size: 12px; padding: 4px 6px; }
       .logo { font-size: 13px; }
+      /* Once logged in, the bar also has the theme toggle + Sign out — too much
+         with the marketing links. Drop them on phones (they're in the footer). */
+      body.authed nav.top { display: none; }
     }
     @media (max-width: 380px) {
       nav.top { gap: 11px; }
@@ -959,8 +979,12 @@
               </div>
             </div>
           </div>
+          <div class="ai-tray" id="ai-tray" hidden></div>
           <form class="ai-input" onsubmit="return sendChat(event)">
-            <input type="text" id="chat-input" placeholder="Describe the site you want to build…" autocomplete="off">
+            <button type="button" class="attach-btn" id="attach-btn" title="Attach images or files" onclick="document.getElementById('chat-files').click()">📎</button>
+            <input type="file" id="chat-files" multiple style="display:none"
+                   accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,.txt,.md,.markdown,.csv,.json,.html,.css,.js,.ts,.svg,.xml,.yml,.yaml">
+            <input type="text" id="chat-input" placeholder="Describe the site — or attach an image/file…" autocomplete="off">
             <button class="btn btn-primary" type="submit" id="chat-send">Send</button>
           </form>
           <div class="ai-paste">
@@ -1170,6 +1194,7 @@
     }
 
     function enterApp() {
+      document.body.classList.add('authed');
       document.getElementById('username-display').textContent = currentUser.username;
       document.getElementById('user-actions').style.display = '';
       if (currentUser.is_admin) {
@@ -1213,6 +1238,7 @@
       apiKey = null;
       currentUser = null;
       localStorage.removeItem('apiKey');
+      document.body.classList.remove('authed');
       document.getElementById('user-actions').style.display = 'none';
       document.getElementById('admin-tab').style.display = 'none';
       switchTab('sites');
@@ -1425,6 +1451,7 @@
     let generatedHTML = null;
     let isPublishing = false;
     let extraFiles = {};   // extra files beyond index.html (multi-file paste imports)
+    let pendingAtts = [];  // images/files attached to the NEXT message
 
     function aiAppend(role, text, opts) {
       const chat = document.getElementById('ai-chat');
@@ -1456,22 +1483,78 @@
       return (words.slice(0, 2).join('-') || 'my-site').slice(0, 30);
     }
 
+    // ---- attachments: images (vision), PDFs (document), text files (inlined) ---
+    const IMG_TYPES = { 'image/png': 1, 'image/jpeg': 1, 'image/webp': 1, 'image/gif': 1 };
+
+    function handleFiles(files) {
+      Array.prototype.forEach.call(files, function (f) {
+        if (pendingAtts.length >= 6) { toast('Up to 6 attachments', 'error'); return; }
+        if (IMG_TYPES[f.type]) {
+          if (f.size > 5 * 1024 * 1024) { toast(f.name + ' is too large (5 MB max)', 'error'); return; }
+          const r = new FileReader();
+          r.onload = function () { const d = String(r.result || ''); pendingAtts.push({ kind: 'image', mediaType: f.type, name: f.name, data: (d.split(',')[1] || ''), dataUrl: d }); renderTray(); };
+          r.readAsDataURL(f);
+        } else if (f.type === 'application/pdf') {
+          if (f.size > 20 * 1024 * 1024) { toast(f.name + ' is too large', 'error'); return; }
+          const r = new FileReader();
+          r.onload = function () { const d = String(r.result || ''); pendingAtts.push({ kind: 'document', mediaType: 'application/pdf', name: f.name, data: (d.split(',')[1] || '') }); renderTray(); };
+          r.readAsDataURL(f);
+        } else if ((f.type || '').indexOf('text') === 0 || /\.(txt|md|markdown|csv|json|html?|css|js|ts|svg|xml|ya?ml)$/i.test(f.name)) {
+          if (f.size > 200 * 1024) { toast(f.name + ' is too large (200 KB max)', 'error'); return; }
+          const r = new FileReader();
+          r.onload = function () { pendingAtts.push({ kind: 'text', name: f.name, text: String(r.result || '') }); renderTray(); };
+          r.readAsText(f);
+        } else {
+          toast('Unsupported file: ' + f.name, 'error');
+        }
+      });
+    }
+
+    function renderTray() {
+      const tray = document.getElementById('ai-tray');
+      if (!pendingAtts.length) { tray.hidden = true; tray.textContent = ''; return; }
+      tray.hidden = false; tray.textContent = '';
+      pendingAtts.forEach(function (a, i) {
+        const chip = document.createElement('div'); chip.className = 'att-chip';
+        if (a.kind === 'image' && a.dataUrl) { const im = document.createElement('img'); im.src = a.dataUrl; im.alt = ''; chip.appendChild(im); }
+        else { const ic = document.createElement('span'); ic.className = 'ic'; ic.textContent = a.kind === 'document' ? '📄' : '📃'; chip.appendChild(ic); }
+        const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = a.name || a.kind; chip.appendChild(nm);
+        const rm = document.createElement('button'); rm.className = 'rm'; rm.type = 'button'; rm.textContent = '✕';
+        rm.addEventListener('click', function () { pendingAtts.splice(i, 1); renderTray(); });
+        chip.appendChild(rm);
+        tray.appendChild(chip);
+      });
+    }
+
+    (function () {
+      const fi = document.getElementById('chat-files');
+      if (fi) fi.addEventListener('change', function (e) { handleFiles(e.target.files); e.target.value = ''; });
+    })();
+
     async function sendChat(e) {
       if (e) e.preventDefault();
       const input = document.getElementById('chat-input');
       const text = input.value.trim();
-      if (!text) return false;
+      const atts = pendingAtts.slice();
+      if (!text && !atts.length) return false;
       input.value = '';
-      aiAppend('user', text);
-      chatMessages.push({ role: 'user', content: text });
+      pendingAtts = []; renderTray();
+      const names = atts.map(function (a) { return a.name; }).join(', ');
+      aiAppend('user', (names ? '📎 ' + names + '\n' : '') + text);
+      chatMessages.push({ role: 'user', content: text || '(see attached files)' });
       const send = document.getElementById('chat-send');
       send.disabled = true;
       const thinking = aiAppend('ai', '• • •', { thinking: true });
+      const payload = atts.map(function (a) {
+        return a.kind === 'text'
+          ? { kind: 'text', name: a.name, text: a.text }
+          : { kind: a.kind, mediaType: a.mediaType, name: a.name, data: a.data };
+      });
       try {
-        const res = await api('POST', '/v1/generate', { messages: chatMessages, html: generatedHTML || '' });
+        const res = await api('POST', '/v1/generate', { messages: chatMessages, html: generatedHTML || '', attachments: payload });
         const data = await res.json().catch(() => ({}));
         thinking.remove();
-        if (!res.ok) { chatMessages.pop(); aiAppend('ai', data.error || 'Something went wrong — please try again.'); return false; }
+        if (!res.ok) { chatMessages.pop(); pendingAtts = atts; renderTray(); aiAppend('ai', data.error || 'Something went wrong — please try again.'); return false; }
         const reply = data.reply || 'Done.';
         aiAppend('ai', reply);
         chatMessages.push({ role: 'assistant', content: reply });
@@ -1483,6 +1566,7 @@
       } catch (err) {
         thinking.remove();
         chatMessages.pop();   // drop the failed turn so it doesn't accumulate
+        pendingAtts = atts; renderTray();
         aiAppend('ai', 'Cannot reach the server — please try again.');
       } finally {
         send.disabled = false;
@@ -1542,6 +1626,7 @@
       chatMessages = [];
       generatedHTML = null;
       extraFiles = {};
+      pendingAtts = []; renderTray();
       document.getElementById('gen-frame').removeAttribute('srcdoc');
       document.getElementById('ai-chat').innerHTML = '';
       document.getElementById('ai-preview').hidden = true;
