@@ -681,6 +681,23 @@
       .ai-preview-head .btn-small { font-size: 13px; padding: 6px 12px; }
     }
 
+    /* Mobile header: the logged-in bar (logo + nav + theme + email + sign out)
+       overflowed the viewport. Tighten spacing and drop the long email. */
+    @media (max-width: 640px) {
+      .container { padding: 0 16px; }
+      header { padding: 12px 0; }
+      .top-actions { gap: 12px; }
+      nav.top { gap: 14px; font-size: 12px; }
+      .header-actions { gap: 8px; }
+      .user-badge { display: none; }       /* email is too wide on a phone; Sign out stays */
+      .btn-ghost { font-size: 12px; padding: 4px 6px; }
+      .logo { font-size: 13px; }
+    }
+    @media (max-width: 380px) {
+      nav.top { gap: 11px; }
+      nav.top a[href="/docs.html"] { display: none; }  /* shed "API" on the tiniest screens */
+    }
+
     /* Admin panel */
     .owner-badge {
       font-family: var(--mono);

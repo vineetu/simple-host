@@ -197,9 +197,19 @@
     .mock .bar .dot { width: 11px; height: 11px; border-radius: 50%; }
     .dot.r { background: var(--rose); } .dot.y { background: var(--amber); } .dot.g { background: var(--emerald); }
     .mock .bar .tag { margin-left: auto; font-size: 11px; color: var(--dim); letter-spacing: 0.1em; }
+    /* Standalone command blocks (cmd-unix, cmd-win, "tell your agent") — dark
+       terminal look in both themes, and they MUST wrap or they overflow on a
+       phone (the base pre default is white-space:pre = no wrapping). */
+    pre {
+      background: #0b1222; border: 1px solid #1e293b; border-radius: 8px;
+      padding: 12px 14px; margin: 0 0 12px;
+      font-family: var(--mono); font-size: 12.5px; line-height: 1.6; color: #e2e8f0;
+      white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word;
+    }
     .mock pre {
-      padding: 20px; font-size: 13px; line-height: 1.85;
-      white-space: pre-wrap; word-break: break-word; color: #f1f5f9;
+      padding: 20px; font-size: 13px; line-height: 1.85; border: 0; border-radius: 0;
+      background: transparent; margin: 0;
+      white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; color: #f1f5f9;
     }
     .c-cm { color: #475569; }   /* comment */
     .c-kw { color: #22d3ee; }   /* keyword / label */
@@ -242,6 +252,23 @@
       .split { grid-template-columns: 1fr; gap: 32px; }
       .cards { grid-template-columns: 1fr; }
       nav.top { gap: 16px; }
+    }
+    @media (max-width: 640px) {
+      .container { padding: 0 16px; }
+      header .container { padding: 14px 16px; }
+      .logo { font-size: 13px; }
+      nav.top { gap: 13px; font-size: 12px; }
+      h1 { font-size: 32px; }
+      .url-hero { width: 100%; }
+      .url-hero code.llms-line { max-width: 200px; }
+      /* the per-tool table holds long paths — let them wrap instead of overflowing */
+      .insttbl { font-size: 12px; }
+      .insttbl th, .insttbl td { padding: 8px 8px; }
+      .insttbl td:first-child { white-space: normal; }
+      .insttbl td code { font-size: 11px; word-break: break-all; }
+    }
+    @media (max-width: 380px) {
+      nav.top a[href="/docs.html"] { display: none; }
     }
   </style>
 </head>
