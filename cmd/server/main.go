@@ -75,6 +75,15 @@ func main() {
 	handler.RegisterTemplateRoutes(mux)
 	handler.RegisterUIRoutes(mux, cfg.PublicBaseURL)
 
+	// Optional "create with AI" endpoint. Sign-in-gated + rate limited; only
+	// enabled when an Anthropic key is configured (it spends real credits).
+	if cfg.AnthropicAPIKey != "" {
+		handler.NewGenerateHandler(cfg.AnthropicAPIKey, cfg.GenerateModel).Register(mux, authMW)
+		log.Printf("AI create endpoint enabled (/v1/generate, model %s)", cfg.GenerateModel)
+	} else {
+		log.Printf("ANTHROPIC_API_KEY not set; /v1/generate (AI create) disabled")
+	}
+
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
 		Handler:           handler.SecurityHeaders(handler.CORS(mux)),

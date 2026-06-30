@@ -24,6 +24,12 @@ type Config struct {
 	PublicBaseURL string
 	MailFrom      string
 	ResendAPIKey  string
+
+	// Optional "create with AI" endpoint (/v1/generate). Disabled when the key
+	// is empty. Spends real Anthropic credits, so it is sign-in-gated + rate
+	// limited; the model defaults to Haiku (cheap).
+	AnthropicAPIKey string
+	GenerateModel   string
 }
 
 func Load() (Config, error) {
@@ -37,6 +43,9 @@ func Load() (Config, error) {
 		PublicBaseURL: getEnvOrDefault("PUBLIC_BASE_URL", defaultPublicBaseURL),
 		MailFrom:      getEnvOrDefault("MAIL_FROM", defaultMailFrom),
 		ResendAPIKey:  os.Getenv("RESEND_API_KEY"),
+
+		AnthropicAPIKey: os.Getenv("ANTHROPIC_API_KEY"),
+		GenerateModel:   getEnvOrDefault("GENERATE_MODEL", "claude-haiku-4-5-20251001"),
 	}
 
 	if cfg.DBDSN == "" {
