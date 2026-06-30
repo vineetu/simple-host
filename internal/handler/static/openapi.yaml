@@ -1,18 +1,45 @@
 openapi: 3.0.3
 info:
   title: Simple Host API
-  description: Static website hosting service. Upload sites as tarballs, served via cortex-share.
-  version: 1.0.0
+  description: >-
+    Static website hosting with a light per-site backend. Deploy a site with one
+    API call — inline JSON files (LLM-friendly) or a tar.gz/zip archive — and each
+    site gets shared JSON state (with atomic ops), append-only collections,
+    optional password (view-lock) protection, and starter templates. Sign-in is a
+    6-digit email code that returns an API key, sent as the `X-API-Key` header.
+  version: 2.0.0
 
 servers:
-  - url: https://simple-host.ideaflow.page
+  - url: https://simple-host.app
     description: Production
+
+tags:
+  - name: Auth
+    description: Email-code sign-in
+  - name: Deploy
+    description: Create/update a site (JSON files or archive)
+  - name: Sites
+    description: List, versions, rollback, delete
+  - name: State
+    description: Per-site shared JSON store (public, Origin-gated)
+  - name: Collections
+    description: Append-only per-site lists
+  - name: Private pages
+    description: Password (view-lock) protection
+  - name: Templates
+    description: Starter templates
+  - name: AI
+    description: Generate a site from a prompt
+  - name: Health
 
 paths:
   /v1/auth:
     post:
-      summary: Authenticate or register
-      description: Enter your email. Creates a new user if first time, returns existing user otherwise.
+      summary: Request a sign-in code
+      description: >-
+        Emails a 6-digit code (and a magic link) to the address. No user row is
+        created here — the account is created lazily on the first successful
+        verify, so this can't be used to enumerate users.
       tags: [Auth]
       requestBody:
         required: true
@@ -22,32 +49,57 @@ paths:
               type: object
               required: [email]
               properties:
-                email:
-                  type: string
-                  format: email
-                  example: vsriram@company.com
+                email: { type: string, format: email, example: you@example.com }
+      responses:
+        '202':
+          description: Code sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  email: { type: string }
+                  expires_in_seconds: { type: integer, example: 900 }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /v1/auth/verify:
+    post:
+      summary: Verify the code and get an API key
+      description: >-
+        Exchange `{email, code}` (CLI/agent) or a magic-link `{token}` (browser)
+        for an API key. The first successful verify creates the account. The code
+        expires in 15 minutes and allows 3 attempts.
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string, format: email }
+                code: { type: string, example: '123456' }
+                token: { type: string, description: magic-link token (alternative to email+code) }
       responses:
         '200':
-          description: Existing user authenticated
+          description: Authenticated
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/AuthResponse'
-        '201':
-          description: New user created
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401':
+          description: Invalid or expired code
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/AuthResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
+              schema: { $ref: '#/components/schemas/Error' }
 
   /v1/me:
     get:
-      summary: Get current user info
+      summary: Current user
       tags: [Auth]
-      security:
-        - apiKey: []
+      security: [{ apiKey: [] }]
       responses:
         '200':
           description: Current user
@@ -56,357 +108,446 @@ paths:
               schema:
                 type: object
                 properties:
-                  id:
-                    type: string
-                    format: uuid
-                  username:
-                    type: string
-                  is_admin:
-                    type: boolean
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+                  id: { type: string, format: uuid }
+                  username: { type: string }
+                  is_admin: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthorized' }
 
   /v1/sites:
     get:
-      summary: List sites
+      summary: List your sites
       description: Returns the authenticated user's sites. Admins see all sites.
       tags: [Sites]
-      security:
-        - apiKey: []
+      security: [{ apiKey: [] }]
       responses:
         '200':
           description: List of sites
           content:
             application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Site'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+              schema: { type: array, items: { $ref: '#/components/schemas/Site' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
 
-  /v1/sites/{sitename}:
+  /v1/sites/{sitename}/files:
     post:
-      summary: Create a new site
-      description: Upload a tar.gz or zip archive to create a new site. Max 100MB.
-      tags: [Sites]
-      security:
-        - apiKey: []
-      parameters:
-        - $ref: '#/components/parameters/sitename'
-      requestBody:
-        required: true
-        content:
-          application/gzip:
-            schema:
-              type: string
-              format: binary
-          application/zip:
-            schema:
-              type: string
-              format: binary
-      responses:
-        '201':
-          description: Site created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SiteWithNote'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '409':
-          description: Site already exists
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '413':
-          description: Archive too large (max 100MB)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-    put:
-      summary: Update an existing site
-      description: Upload a new version of an existing site. Creates a new version number.
-      tags: [Sites]
-      security:
-        - apiKey: []
-      parameters:
-        - $ref: '#/components/parameters/sitename'
-      requestBody:
-        required: true
-        content:
-          application/gzip:
-            schema:
-              type: string
-              format: binary
-          application/zip:
-            schema:
-              type: string
-              format: binary
-      responses:
-        '200':
-          description: Site updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SiteWithNote'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          description: Site not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '413':
-          description: Archive too large (max 100MB)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-    delete:
-      summary: Delete your own site
-      description: Delete a site owned by the authenticated user, including all versions and files from disk. Admin API keys do not get delete-any-site behavior through this endpoint.
-      tags: [Sites]
-      security:
-        - apiKey: []
-      parameters:
-        - $ref: '#/components/parameters/sitename'
-      responses:
-        '204':
-          description: Site deleted
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          description: Site not found for this user
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  /v1/sites/{sitename}/state:
-    get:
-      summary: Get per-site JSON state
-      description: |
-        Returns the JSON blob stored for this site. No API key required — the
-        server checks the request `Origin` (or `Referer`) and only accepts
-        calls from `https://{sitename}.ideaflow.page`.
-        Returns `null` if no state has been written yet.
-      tags: [State]
-      parameters:
-        - $ref: '#/components/parameters/sitename'
-      responses:
-        '200':
-          description: Current state (arbitrary JSON, `null` if unset)
-          content:
-            application/json:
-              schema: {}
-        '403':
-          description: Origin/Referer does not match the site
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Site not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-    put:
-      summary: Replace per-site JSON state
-      description: |
-        Overwrites the JSON blob stored for this site. Body must be valid JSON,
-        up to 1 MB. No API key required — `Origin`/`Referer` must match
-        `https://{sitename}.ideaflow.page`. The blob is shared across all
-        visitors; the last write wins. Do not store secrets or per-user data.
-      tags: [State]
-      parameters:
-        - $ref: '#/components/parameters/sitename'
+      summary: Deploy a site from inline JSON files
+      description: >-
+        The LLM-friendly deploy path — send every file inline in one request, no
+        archiving. `index.html` is required. Relative paths only (`..`/absolute are
+        rejected); secret files (`.env`, `.git/*`, `id_rsa`) are dropped and script
+        extensions (`.sh .py .php …`) are rejected. Use PUT to update an existing site.
+      tags: [Deploy]
+      security: [{ apiKey: [] }]
+      parameters: [ { $ref: '#/components/parameters/sitename' } ]
       requestBody:
         required: true
         content:
           application/json:
-            schema: {}
+            schema: { $ref: '#/components/schemas/FilesBody' }
+      responses:
+        '201':
+          description: Site created
+          content: { application/json: { schema: { $ref: '#/components/schemas/SiteWithNote' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    put:
+      summary: Update a site from inline JSON files
+      description: Same as POST, but for an existing site you own. Creates a new version and activates it.
+      tags: [Deploy]
+      security: [{ apiKey: [] }]
+      parameters: [ { $ref: '#/components/parameters/sitename' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FilesBody' }
       responses:
         '200':
-          description: State updated; response echoes the saved value
-          content:
-            application/json:
-              schema: {}
-        '400':
-          description: Invalid JSON
+          description: Site updated
+          content: { application/json: { schema: { $ref: '#/components/schemas/SiteWithNote' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/sites/{sitename}:
+    post:
+      summary: Create a site from an archive
+      description: Upload a `.tar.gz` or `.zip` (for framework builds, binary assets, large sites). Max 100 MB.
+      tags: [Deploy]
+      security: [{ apiKey: [] }]
+      parameters: [ { $ref: '#/components/parameters/sitename' } ]
+      requestBody:
+        required: true
+        content:
+          application/gzip: { schema: { type: string, format: binary } }
+          application/zip: { schema: { type: string, format: binary } }
+      responses:
+        '201': { description: Site created, content: { application/json: { schema: { $ref: '#/components/schemas/SiteWithNote' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/TooLarge' }
+    put:
+      summary: Update a site from an archive
+      description: Upload a new version of an existing site you own. Creates a new version and activates it.
+      tags: [Deploy]
+      security: [{ apiKey: [] }]
+      parameters: [ { $ref: '#/components/parameters/sitename' } ]
+      requestBody:
+        required: true
+        content:
+          application/gzip: { schema: { type: string, format: binary } }
+          application/zip: { schema: { type: string, format: binary } }
+      responses:
+        '200': { description: Site updated, content: { application/json: { schema: { $ref: '#/components/schemas/SiteWithNote' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/TooLarge' }
+    delete:
+      summary: Delete your site
+      description: Deletes the site you own — all versions and files from disk.
+      tags: [Sites]
+      security: [{ apiKey: [] }]
+      parameters: [ { $ref: '#/components/parameters/sitename' } ]
+      responses:
+        '204': { description: Site deleted }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/sites/{sitename}/versions:
+    get:
+      summary: List a site's versions
+      tags: [Sites]
+      security: [{ apiKey: [] }]
+      parameters: [ { $ref: '#/components/parameters/sitename' } ]
+      responses:
+        '200':
+          description: Versions (newest first)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
-          description: Origin/Referer does not match the site
+                type: array
+                items:
+                  type: object
+                  properties:
+                    version_number: { type: integer }
+                    created_at: { type: string, format: date-time }
+                    is_active: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/sites/{sitename}/active-version:
+    put:
+      summary: Roll back to a version
+      description: Re-point the live site at an existing version number.
+      tags: [Sites]
+      security: [{ apiKey: [] }]
+      parameters: [ { $ref: '#/components/parameters/sitename' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version_number]
+              properties: { version_number: { type: integer, example: 2 } }
+      responses:
+        '200': { description: Active version changed }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/sites/{sitename}/state:
+    get:
+      summary: Read per-site JSON state
+      description: >-
+        Returns the JSON blob for this site (`null` if unset). PUBLIC store — no API
+        key; the server checks `Origin`/`Referer` and only accepts calls from the
+        site's own page (`https://{sitename}.simple-host.app`). The response carries
+        an `ETag`; send `If-None-Match: <etag>` to get a `304` when nothing changed
+        (cheap polling). Never store secrets here.
+      tags: [State]
+      parameters:
+        - { $ref: '#/components/parameters/sitename' }
+        - { name: If-None-Match, in: header, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: Current state (arbitrary JSON, `null` if unset)
+          headers: { ETag: { schema: { type: string } } }
+          content: { application/json: { schema: {} } }
+        '304': { description: Not modified (matched If-None-Match) }
+        '403': { $ref: '#/components/responses/OriginMismatch' }
+    put:
+      summary: Replace per-site JSON state
+      description: >-
+        Overwrites the whole blob (≤ 1 MB), last-write-wins. Optionally pass
+        `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict).
+        Origin-gated, no API key.
+      tags: [State]
+      parameters:
+        - { $ref: '#/components/parameters/sitename' }
+        - { name: If-Match, in: header, required: false, schema: { type: string } }
+      requestBody: { required: true, content: { application/json: { schema: {} } } }
+      responses:
+        '200': { description: Saved; echoes the value, headers: { ETag: { schema: { type: string } } }, content: { application/json: { schema: {} } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/OriginMismatch' }
+        '412': { description: ETag did not match (If-Match) }
+        '413': { $ref: '#/components/responses/TooLarge' }
+    patch:
+      summary: Atomically update per-site state
+      description: >-
+        Apply one or more atomic operations so concurrent writers never clobber.
+        Origin-gated, no API key. Ops — `set` (path,value), `inc` (path,by),
+        `append` (path,value), `remove` (path), `removeWhere` (path,match).
+      tags: [State]
+      parameters: [ { $ref: '#/components/parameters/sitename' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ops]
+              properties:
+                ops:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      op: { type: string, enum: [set, inc, append, remove, removeWhere] }
+                      path: { type: string, example: 'counters.visits' }
+                      value: {}
+                      by: { type: number }
+                      match: { type: object }
+              example: { ops: [ { op: inc, path: count, by: 1 }, { op: append, path: items, value: { id: 'x' } } ] }
+      responses:
+        '200': { description: New state, headers: { ETag: { schema: { type: string } } }, content: { application/json: { schema: {} } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/OriginMismatch' }
+
+  /v1/sites/{sitename}/collections/{coll}:
+    post:
+      summary: Append an item to a collection
+      description: Append-only list (O(1) insert). For signups, RSVPs, submissions. Origin-gated, no API key. Each item ≤ 64 KB.
+      tags: [Collections]
+      parameters:
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '201': { description: Item appended }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/OriginMismatch' }
+    get:
+      summary: List items in a collection
+      description: Newest-first, paginated. Origin-gated, no API key.
+      tags: [Collections]
+      parameters:
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+        - { name: limit, in: query, required: false, schema: { type: integer, default: 50, maximum: 200 } }
+        - { name: before, in: query, required: false, schema: { type: string }, description: cursor for the next page }
+      responses:
+        '200':
+          description: Items
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Site not found
+                type: object
+                properties:
+                  items: { type: array, items: { type: object } }
+        '403': { $ref: '#/components/responses/OriginMismatch' }
+
+  /v1/sites/{sitename}/view-password:
+    put:
+      summary: Set a view password (make the site private)
+      description: >-
+        Password-protect the whole site (view-lock). Visitors get a custom login
+        page + signed cookie, and the locked page's state/collections also require
+        unlocking. Owner only (API key).
+      tags: [Private pages]
+      security: [{ apiKey: [] }]
+      parameters: [ { $ref: '#/components/parameters/sitename' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties: { password: { type: string } }
+      responses:
+        '204': { description: View password set }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      summary: Remove the view password (make the site public again)
+      tags: [Private pages]
+      security: [{ apiKey: [] }]
+      parameters: [ { $ref: '#/components/parameters/sitename' } ]
+      responses:
+        '204': { description: View password removed }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/templates:
+    get:
+      summary: List starter templates
+      description: Public. Returns id + title + description for each template.
+      tags: [Templates]
+      responses:
+        '200':
+          description: Templates
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/TemplateMeta' } }
+
+  /v1/templates/{id}:
+    get:
+      summary: Get a template's deployable files
+      description: Public. Returns the template's `files` map, ready to POST to `/v1/sites/{name}/files`.
+      tags: [Templates]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string }, example: landing }
+      responses:
+        '200':
+          description: Template with files
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '413':
-          description: State exceeds 1 MB
+                allOf:
+                  - { $ref: '#/components/schemas/TemplateMeta' }
+                  - type: object
+                    properties: { files: { type: object, additionalProperties: { type: string } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/generate:
+    post:
+      summary: Generate a site from a prompt (AI create)
+      description: >-
+        Powers the home-page "create with AI" chat. Sign-in-gated and rate-limited
+        (spends Anthropic credits). Send the conversation and (optionally) the
+        current HTML and attachments; returns a short reply and, when ready, the
+        HTML. Disabled if the server has no Anthropic key.
+      tags: [AI]
+      security: [{ apiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                messages:
+                  type: array
+                  items:
+                    type: object
+                    properties: { role: { type: string, enum: [user, assistant] }, content: { type: string } }
+                html: { type: string, description: current site HTML, for incremental edits }
+                attachments:
+                  type: array
+                  description: images / PDFs / text on the latest user turn
+                  items:
+                    type: object
+                    properties:
+                      kind: { type: string, enum: [image, document, text] }
+                      mediaType: { type: string }
+                      name: { type: string }
+                      data: { type: string, description: base64 (image/document) }
+                      text: { type: string }
+      responses:
+        '200':
+          description: Reply (+ HTML when the model builds/updates the site)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                type: object
+                properties:
+                  reply: { type: string }
+                  html: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /healthz:
     get:
       summary: Liveness probe
       tags: [Health]
       responses:
-        '200':
-          description: Service is alive
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: ok
+        '200': { description: Alive, content: { application/json: { schema: { type: object, properties: { status: { type: string, example: ok } } } } } }
 
   /readyz:
     get:
-      summary: Readiness probe
+      summary: Readiness probe (DB connected)
       tags: [Health]
       responses:
-        '200':
-          description: Service is ready (DB connected)
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: ok
-        '503':
-          description: Service is not ready
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: unready
+        '200': { description: Ready, content: { application/json: { schema: { type: object, properties: { status: { type: string, example: ok } } } } } }
+        '503': { description: Not ready }
 
 components:
   securitySchemes:
-    apiKey:
-      type: apiKey
-      in: header
-      name: X-API-Key
+    apiKey: { type: apiKey, in: header, name: X-API-Key }
 
   parameters:
-    sitename:
-      name: sitename
-      in: path
-      required: true
-      schema:
-        type: string
-      example: my-cool-site
+    sitename: { name: sitename, in: path, required: true, schema: { type: string }, example: my-cool-site }
+    coll: { name: coll, in: path, required: true, schema: { type: string }, example: signups }
 
   schemas:
     AuthResponse:
       type: object
       properties:
-        id:
-          type: string
-          format: uuid
-        username:
-          type: string
-        api_key:
-          type: string
-        is_admin:
-          type: boolean
-        created:
-          type: boolean
-          description: true if this is a new user
+        id: { type: string, format: uuid }
+        username: { type: string }
+        api_key: { type: string }
+        is_admin: { type: boolean }
+        created: { type: boolean, description: true if this verify created the account }
+
+    FilesBody:
+      type: object
+      required: [files]
+      properties:
+        files:
+          type: object
+          additionalProperties: { type: string }
+          description: relative path -> file contents (text). `index.html` required.
+      example:
+        files:
+          index.html: '<!DOCTYPE html><h1>Hello</h1>'
+          css/style.css: 'body{font-family:sans-serif}'
 
     Site:
       type: object
       properties:
-        id:
-          type: string
-          format: uuid
-        user_id:
-          type: string
-          format: uuid
-        name:
-          type: string
-        active_version:
-          type: integer
-        site_url:
-          type: string
-          nullable: true
-          example: https://my-cool-site.ideaflow.page
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
+        id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        name: { type: string }
+        active_version: { type: integer }
+        site_url: { type: string, nullable: true, example: https://my-cool-site.simple-host.app }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
 
     SiteWithNote:
       allOf:
-        - $ref: '#/components/schemas/Site'
+        - { $ref: '#/components/schemas/Site' }
         - type: object
-          properties:
-            note:
-              type: string
-              description: Optional deployment note
-          example:
-            id: 550e8400-e29b-41d4-a716-446655440000
-            user_id: 660e8400-e29b-41d4-a716-446655440000
-            name: my-cool-site
-            active_version: 3
-            site_url: https://my-cool-site.ideaflow.page
-            created_at: '2026-04-05T12:00:00Z'
-            updated_at: '2026-04-05T12:05:00Z'
-            note: Deployment completed
+          properties: { note: { type: string } }
+
+    TemplateMeta:
+      type: object
+      properties:
+        id: { type: string, example: landing }
+        title: { type: string }
+        description: { type: string }
 
     Error:
       type: object
-      properties:
-        error:
-          type: string
+      properties: { error: { type: string } }
 
   responses:
-    BadRequest:
-      description: Invalid request
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-    Unauthorized:
-      description: Missing or invalid API key
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-    Forbidden:
-      description: Admin access required
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
+    BadRequest: { description: Invalid request, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Unauthorized: { description: Missing or invalid API key (use `X-API-Key`, not `Authorization: Bearer`), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Forbidden: { description: Admin access required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    NotFound: { description: Not found, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Conflict: { description: Site name already exists, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    TooLarge: { description: Payload too large, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    TooManyRequests: { description: Rate limited, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    OriginMismatch: { description: Origin/Referer does not match the site (or the site is locked), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
