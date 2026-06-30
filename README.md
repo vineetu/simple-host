@@ -1,8 +1,28 @@
 # Simple Host
 
-A small Go server that hosts static websites. Users register with an email, upload a `.tar.gz` of HTML/CSS/JS, and the site goes live at `https://{sitename}.ideaflow.page`. Includes a cross-IDE plugin (Website Deploy) that lets agents deploy via natural language.
+Deploy a website with one API call, and every site gets a little backend for free.
+A small Go server that hosts static sites at `https://{sitename}.simple-host.app` —
+plus per-site JSON state (with atomic ops), append-only collections, private
+(password-locked) pages, drop-in comments/feedback widgets, and starter templates.
+It's **API-native**: a coding agent (Claude Code, Codex, Cursor) or even a web LLM
+(ChatGPT/Gemini) can read one URL and ship a working, data-backed site end to end.
 
-**Live instance:** https://simple-host.ideaflow.page
+**Live:** https://simple-host.app · **API:** [`/openapi.yaml`](https://simple-host.app/openapi.yaml) · **For LLMs:** [`/llms.txt`](https://simple-host.app/llms.txt)
+
+## Install the skill (Claude Code / Codex / Cursor / opencode)
+
+One-command install via the bundled marketplace:
+
+```
+/plugin marketplace add vineetu/simple-host
+/plugin install website-deploy@simple-host
+```
+
+Then just ask your agent to deploy a folder, or "build me a waitlist page." No
+terminal? On Claude.ai / Desktop, upload the skill ZIPs from
+[simple-host.app/install.html](https://simple-host.app/install.html). On
+ChatGPT/Gemini, paste [simple-host.app/llms.txt](https://simple-host.app/llms.txt)
+and copy-paste the result.
 
 ## Why
 
@@ -25,8 +45,8 @@ Client (browser or agent)
    ▼  HTTPS
 ┌──────────────────────────────────────┐
 │  reverse proxy (yours)               │
-│  • wildcard *.ideaflow.page          │
-│  • routes <site>.ideaflow.page → /sites/<site>/
+│  • wildcard *.simple-host.app          │
+│  • routes <site>.simple-host.app → /sites/<site>/
 └──────────────────────────────────────┘
    │
    ▼
@@ -112,9 +132,9 @@ All via environment variables. `DB_DSN` and `ADMIN_API_KEY` are required; everyt
 | `DB_DSN` | *(required)* | Postgres DSN |
 | `ADMIN_API_KEY` | *(required)* | Hardcoded super-admin key. Pick something long. No default — public source intentionally won't ship one. |
 | `DATA_DIR` | `/root/workspace/general/sites` | Where site files live |
-| `SITE_DOMAIN` | `ideaflow.page` | Domain suffix used to build site URLs |
+| `SITE_DOMAIN` | `simple-host.app` | Domain suffix used to build site URLs |
 | `PORT` | `8090` | HTTP listen port |
-| `PUBLIC_BASE_URL` | `https://simple-host.ideaflow.page` | Used in magic-link emails |
+| `PUBLIC_BASE_URL` | `https://simple-host.app` | Used in magic-link emails |
 | `DEPLOY_SCRIPT` | `/root/workspace/general/scripts/deploy-site` | Optional hook run after each upload — receives the new site name |
 | `MAIL_FROM` | `Simple Host <noreply@simple-host.app>` | Magic-link sender |
 | `RESEND_API_KEY` | *(unset)* | If unset, `/v1/auth` will fail; magic-link auth is via [Resend](https://resend.com) |
@@ -154,7 +174,7 @@ Live OpenAPI at `/docs.html`.
 Install for end users:
 
 ```bash
-curl -fsSL https://simple-host.ideaflow.page/install.sh | sh
+curl -fsSL https://simple-host.app/install.sh | sh
 ```
 
 …or clone this repo and run `bash simple-host-website/setup.sh` for the full plugin (skills + MCP server).

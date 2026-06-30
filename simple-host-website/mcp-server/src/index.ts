@@ -14,7 +14,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import * as tar from "tar";
 
-const API_BASE_URL = "https://simple-host.ideaflow.page";
+const API_BASE_URL = "https://simple-host.app";
 const CONFIG_DIR = join(homedir(), ".website-deploy");
 const CONFIG_PATH = join(CONFIG_DIR, "config.json");
 

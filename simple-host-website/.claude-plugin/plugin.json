@@ -5,8 +5,7 @@
   "author": {
     "name": "Website Deploy"
   },
-  "skills": [
-    "skills/website-deploy",
-    "skills/website-deploy-builder"
-  ]
+  "homepage": "https://simple-host.app",
+  "repository": "https://github.com/vineetu/simple-host",
+  "license": "MIT"
 }

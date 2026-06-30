@@ -1,6 +1,6 @@
 # Website Deploy Plugin
 
-Deploy static websites to ideaflow.page from your AI coding IDE. Works with Claude Code, Codex CLI, and Cursor.
+Deploy static websites to simple-host.app from your AI coding IDE. Works with Claude Code, Codex CLI, and Cursor.
 
 ## Install
 
@@ -27,7 +27,7 @@ The AI will guide you through registration, validate your site, and deploy it.
 
 ## What is Website Deploy?
 
-Website Deploy serves **static files only** — HTML, CSS, JavaScript, images, and fonts. Your site will be live at `https://{sitename}.ideaflow.page`.
+Website Deploy serves **static files only** — HTML, CSS, JavaScript, images, and fonts. Your site will be live at `https://{sitename}.simple-host.app`.
 
 ### What works
 
