@@ -169,6 +169,9 @@
     }
     .steps a { color: var(--cyan); text-decoration: none; }
     .steps a:hover { text-decoration: underline; }
+    .dl { display: inline-block; color: var(--cyan); border: 1px solid var(--border-hi);
+          border-radius: 7px; padding: 4px 10px; font-size: 12px; text-decoration: none; margin: 2px 4px 2px 0; }
+    .dl:hover { border-color: var(--cyan); text-decoration: none; }
 
     /* terminal / chat mockup */
     /* terminal mockups stay dark in BOTH themes — a light terminal looks wrong */
@@ -273,9 +276,10 @@
             <li>
               <span class="num">1</span>
               <h3>Install the skill</h3>
-              <p>One command drops it into your agent's skills folder:</p>
+              <p>One command drops it into your agent's skills folder — it teaches the agent the whole platform (JSON deploy, per-site state &amp; collections, private pages, comments/feedback widgets, templates):</p>
               <p style="margin-top:8px"><span class="inline-code" id="ic-claude">curl -fsSL https://simple-host.app/install.sh | sh</span></p>
               <p style="margin-top:8px">Codex CLI → append <code>-s -- ~/.agents/skills</code>. opencode / Cursor → point it at their skills dir. <a href="/install.sh">view install.sh</a></p>
+              <p style="margin-top:8px">No terminal (<b>Claude.ai or Desktop</b>)? Download <a class="dl" href="/skills/website-deploy.zip" download>website-deploy.zip</a> <a class="dl" href="/skills/website-deploy-builder.zip" download>website-deploy-builder.zip</a> and add them in <b>Settings → Capabilities → Skills → Upload skill</b>.</p>
             </li>
             <li>
               <span class="num">2</span>

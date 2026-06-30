@@ -1,6 +1,6 @@
 ---
 name: website-deploy-builder
-description: Plan what to build on Website Deploy (ideaflow.page). Helps a user decide whether their idea fits a static-only hosting model, maps the idea to concrete in-browser patterns (per-site shared JSON state, localStorage, client-only logic, public APIs), and produces a focused prompt for an implementation agent. Use when a user is starting a new Website Deploy site or describes a feature idea and needs help mapping it to what static hosting can do.
+description: Plan what to build on Website Deploy (simple-host.app). Helps a user decide whether their idea fits the static + light-backend model, maps it to concrete patterns (shared JSON state with atomic ops, append-only collections, private/password-locked pages, drop-in comments/feedback widgets, localStorage, public APIs), suggests a starter template, and produces a focused prompt for an implementation agent. Use when a user is starting a new site or describes a feature idea and needs help mapping it to what the platform can do.
 ---
 
 # Website Deploy Builder
@@ -9,17 +9,22 @@ Use this skill when a user wants help deciding what to build on Website Deploy, 
 
 ## What Website Deploy gives you
 
-Website Deploy is a static-file host at `https://simple-host.ideaflow.page`. It serves each site at the root of its own subdomain (`https://<sitename>.ideaflow.page/`). There is no server-side execution, no per-user accounts, and no general file uploads beyond the archive you ship at deploy time — but the API does give you one piece of server-backed storage:
+Website Deploy is a static-file host at `https://simple-host.app`. It serves each site at the root of its own subdomain (`https://<sitename>.simple-host.app/`). There is no server-side execution — but the API gives each site a real, server-backed backend, plus drop-in widgets and templates:
 
 | Capability | How |
 |---|---|
-| HTML / CSS / JS / images / fonts served as a site | Any directory of files, packaged and uploaded |
-| Per-site JSON state (≤ 1 MB, shared across all visitors of the site) | `GET / PUT https://simple-host.ideaflow.page/v1/sites/<sitename>/state` |
+| HTML / CSS / JS / images / fonts served as a site | Deploy files inline as JSON (`/files`) or upload a `.tar.gz`/`.zip` |
+| Per-site JSON state (≤ 1 MB, shared across all visitors) | `GET / PUT /v1/sites/<sitename>/state` |
+| Atomic state updates (concurrent-safe counters, lists, votes) | `PATCH /v1/sites/<sitename>/state` with `{ops:[inc/append/set/remove/removeWhere]}`; `If-None-Match` ETag for cheap polling |
+| Append-only collections (signups / RSVPs / submissions) | `POST/GET /v1/sites/<sitename>/collections/<name>` |
+| Private (password-locked) pages | View-lock: custom login + signed cookie; gates the page and its state/collections |
+| Drop-in widgets | Comments (`comments.js` + `<section id="sh-comments">`); pin-on-page feedback (`feedback.js`) |
+| Starter templates | `GET /v1/templates`, `GET /v1/templates/<id>` → `{files}` ready to deploy |
 | Per-visitor state | `localStorage`, `sessionStorage`, `IndexedDB` (in the browser) |
 | External APIs | `fetch()` from the page to any public CORS-enabled API |
 | Routing | Static files only — `/page/` resolves to `/page/index.html`; SPA routing via the framework's hash router or `404.html` fallback |
 
-If your idea needs a server you control, a shared database, persistent per-user accounts, or anything that runs server-side, Website Deploy is not the right host. Say so and stop.
+If your idea needs a server you control, a shared SQL database, persistent per-user accounts, or anything that runs server-side, Website Deploy is not the right host. Say so and stop.
 
 ## How to use this skill
 
@@ -45,11 +50,11 @@ What it is: a single JSON document (up to 1 MB) scoped to your site. The server 
 
 When to choose: anything you'd want a tiny key-value store for — saved drafts, app state, a shared note, content the page just generated, configuration. **Not for secrets or per-user data**: anyone who can load the page can read the blob, and any visitor can overwrite it. If you need per-user data, store it under different keys inside the blob and key on something like `crypto.randomUUID()` saved in `localStorage`.
 
-How to use, from a page hosted at `https://<sitename>.ideaflow.page/`:
+How to use, from a page hosted at `https://<sitename>.simple-host.app/`:
 
 ```js
 const sitename = location.hostname.split('.')[0];
-const url = `https://simple-host.ideaflow.page/v1/sites/${sitename}/state`;
+const url = `https://simple-host.app/v1/sites/${sitename}/state`;
 
 // load
 const state = await fetch(url).then(r => r.json());
@@ -62,11 +67,11 @@ await fetch(url, {
 });
 ```
 
-Gotchas: the server checks the request `Origin` (or `Referer`) — calls only work from a page hosted at the matching `<sitename>.ideaflow.page` subdomain. Don't put API keys or PII in the blob — anyone who can load the page can read it. Body cap is 1 MB; sending more returns 413.
+Gotchas: the server checks the request `Origin` (or `Referer`) — calls only work from a page hosted at the matching `<sitename>.simple-host.app` subdomain. Don't put API keys or PII in the blob — anyone who can load the page can read it. Body cap is 1 MB; sending more returns 413.
 
 ### 3. Per-visitor state with `localStorage`
 
-What it is: small JSON blobs stored in the visitor's browser, scoped to your origin (`<sitename>.ideaflow.page`).
+What it is: small JSON blobs stored in the visitor's browser, scoped to your origin (`<sitename>.simple-host.app`).
 
 When to choose: anything you'd want a tiny key-value store for in a single-visitor experience — drafts, settings, app state, the user's progress. Per-visitor only; there is no sharing across browsers or devices.
 
@@ -124,8 +129,12 @@ Website Deploy serves files. There is no rewrite layer.
 
 | User says | Capabilities |
 |---|---|
-| "a landing page / portfolio / CV" | static only |
-| "a guestbook" | static + per-site JSON state |
+| "a landing page / portfolio / CV" | static only (or a `/v1/templates` starter) |
+| "a guestbook" | static + per-site JSON state (atomic `append`) |
+| "a waitlist / event RSVP / signup form" | static + append-only collection (+ a live count in state) |
+| "a private page to share (trip, draft, client proof)" | static + view-lock (password) |
+| "comments / discussion under a post" | static + `comments.js` widget |
+| "feedback on a mockup" | static + `feedback.js` pin widget |
 | "a tool that runs entirely in the browser" (calculator, drawing app, game) | static + `localStorage` for settings/saves |
 | "a journal / notes app" | static + `IndexedDB` (single-visitor scope) |
 | "a dashboard pulling from a public API" | static + external `fetch()` |
@@ -146,4 +155,4 @@ Mirror this shape for `IndexedDB`, external API calls, routing, etc.
 
 ## Handoff: deploy
 
-Once the user has decided what to build, they need to deploy. Tell them to use the `website-deploy` skill, which handles registration, framework-aware build, packaging, and upload. The site will be live at `https://<sitename>.ideaflow.page/`.
+Once the user has decided what to build, they need to deploy. Tell them to use the `website-deploy` skill, which handles registration, framework-aware build, packaging, and upload. The site will be live at `https://<sitename>.simple-host.app/`.
