@@ -315,9 +315,9 @@ and a live "join N others" counter.
       <!-- ============================ WEB AGENTS ============================ -->
       <section class="block">
         <div class="sec-head">
-          <div class="eyebrow" style="margin-bottom:12px">For web AI · just a link</div>
-          <h2>No install? Paste a link.</h2>
-          <p>Any browser assistant that can read a web page — <span class="k">ChatGPT</span>, <span class="k">Gemini</span>, <span class="k">Claude</span>, <span class="k">Copilot</span>. Give it the link, describe what you want, and read it the code it emails you.</p>
+          <div class="eyebrow" style="margin-bottom:12px">For web AI · copy &amp; paste</div>
+          <h2>No agent to run? Paste a site.</h2>
+          <p><span class="k">ChatGPT</span>, <span class="k">Gemini</span>, <span class="k">Copilot</span> and the like can't run commands or sign you in — so they <em>build</em> the site and hand you a JSON block. You paste it here, preview, and publish. Nothing to install.</p>
         </div>
 
         <div class="url-hero">
@@ -330,18 +330,18 @@ and a live "join N others" counter.
           <ol class="steps">
             <li>
               <span class="num">1</span>
-              <h3>Paste the link &amp; describe it</h3>
-              <p>Drop the <span class="inline-code">/llms.txt</span> link into the chat and say what you want built. The assistant reads it and learns the whole API itself.</p>
+              <h3>Ask it to build the site</h3>
+              <p>Paste the <span class="inline-code">/llms.txt</span> link into the chat and describe what you want. It reads the instructions and builds a complete site as <b>one JSON block</b>.</p>
             </li>
             <li>
               <span class="num">2</span>
-              <h3>Read it the 6-digit code</h3>
-              <p>It signs you in by email — you just paste back the code from your inbox. First deploy creates your account; no form to fill.</p>
+              <h3>Copy the JSON it gives you</h3>
+              <p>The assistant replies with a single <span class="inline-code">json</span> code block — copy the whole thing.</p>
             </li>
             <li>
               <span class="num">3</span>
-              <h3>Get your live URL</h3>
-              <p>It builds and deploys, then hands you <span class="inline-code">https://your-name.simple-host.app</span>. Ask for changes in plain English.</p>
+              <h3>Paste it here &amp; publish</h3>
+              <p>At <span class="inline-code">simple-host.app</span>, sign in (one 6-digit email code), open <b>Create a site with AI</b> → <b>“Built it in ChatGPT or Gemini? Paste the JSON”</b>, paste, preview, and hit Publish. Live at <span class="inline-code">https://your-name.simple-host.app</span>.</p>
             </li>
           </ol>
 
@@ -351,19 +351,21 @@ and a live "join N others" counter.
               <span class="tag">chatgpt · gemini · copilot</span>
             </div>
 <pre><span class="c-mu">You</span>
-<span class="c-kw">Build</span> me a wedding RSVP page and put it
-online. Instructions: <span class="c-st">https://simple-host.app/llms.txt</span>
-My email is <span class="c-st">priya@example.com</span>
+<span class="c-kw">Build</span> me a wedding RSVP page. Follow
+<span class="c-st">https://simple-host.app/llms.txt</span> and give me
+the JSON to paste.
 
 <span class="c-vi">Assistant</span>
-<span class="c-st">✓</span> Read the instructions at /llms.txt
-<span class="c-st">✓</span> Emailed a 6-digit code — paste it here
-<span class="c-mu">  → you: 481920</span>
-<span class="c-st">✓</span> Built the page &amp; deployed it
-<span class="c-st">→</span> <span class="c-kw">https://priya-wedding.simple-host.app</span></pre>
+Here's your site — copy this and paste it
+into Simple Host:
+<span class="c-cm">```json</span>
+<span class="c-mu">{</span> <span class="c-st">"simpleHost"</span>: 1, <span class="c-st">"name"</span>: <span class="c-st">"priya-wedding"</span>,
+  <span class="c-st">"files"</span>: <span class="c-mu">{</span> <span class="c-st">"index.html"</span>: <span class="c-st">"&lt;!DOCTYPE html&gt;…"</span> <span class="c-mu">} }</span>
+<span class="c-cm">```</span>
+<span class="c-mu">→ then paste it at simple-host.app → Publish</span></pre>
           </div>
         </div>
-        <p class="note">The only requirement is that the assistant can make web requests. If one genuinely can't, switch to one that can — everything else is automatic.</p>
+        <p class="note">Tip: if your assistant <em>can</em> make web requests (some can browse or run code), it can deploy directly — but the copy-paste path always works.</p>
       </section>
 
       <!-- ============================ WHAT YOU CAN BUILD ============================ -->
