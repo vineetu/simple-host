@@ -9,9 +9,15 @@ It's **API-native**: a coding agent (Claude Code, Codex, Cursor) or even a web L
 
 **Live:** https://simple-host.app · **API:** [`/openapi.yaml`](https://simple-host.app/openapi.yaml) · **For LLMs:** [`/llms.txt`](https://simple-host.app/llms.txt)
 
-## Install the skill (Claude Code / Codex / Cursor / opencode)
+## Install the skill
 
-One-command install via the bundled marketplace:
+**Any agent** — Claude Code, Codex, Cursor, opencode, Amp, Cline, and 12+ more — via the [`skills`](https://skills.sh) CLI:
+
+```
+npx skills add vineetu/simple-host
+```
+
+**Claude Code** — via the bundled marketplace:
 
 ```
 /plugin marketplace add vineetu/simple-host
