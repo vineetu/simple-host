@@ -1441,20 +1441,31 @@
       return false;
     }
 
+    // Render current HTML into a frame via srcdoc, which keeps the preview in an
+    // OPAQUE origin (it can't reach the parent or its stored API key). iOS Safari
+    // paints a frame blank if srcdoc is set while it (or an ancestor) is hidden
+    // and never recovers — so callers REVEAL the container first, and we set
+    // srcdoc a couple of frames later, once layout has happened.
+    function paintFrame(id) {
+      const f = document.getElementById(id);
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () { f.srcdoc = generatedHTML || ''; });
+      });
+    }
+
     function updatePreview() {
-      document.getElementById('gen-frame').srcdoc = generatedHTML;
-      const fs = document.getElementById('ai-fs-frame');
-      if (fs && !document.getElementById('ai-fs').hidden) fs.srcdoc = generatedHTML;
-      document.getElementById('ai-preview').hidden = false;
+      document.getElementById('ai-preview').hidden = false;   // reveal BEFORE painting
+      paintFrame('gen-frame');
+      if (!document.getElementById('ai-fs').hidden) paintFrame('ai-fs-frame');
       const nameEl = document.getElementById('gen-name');
       if (!nameEl.value) nameEl.value = suggestName(lastUserPrompt());
     }
 
     function openFullscreen() {
       if (!generatedHTML) return;
-      document.getElementById('ai-fs-frame').srcdoc = generatedHTML;
-      document.getElementById('ai-fs').hidden = false;
+      document.getElementById('ai-fs').hidden = false;        // show first…
       document.body.style.overflow = 'hidden';
+      paintFrame('ai-fs-frame');                              // …then paint once visible
     }
     function closeFullscreen() {
       document.getElementById('ai-fs').hidden = true;
@@ -1464,6 +1475,7 @@
     function resetChat() {
       chatMessages = [];
       generatedHTML = null;
+      document.getElementById('gen-frame').removeAttribute('srcdoc');
       document.getElementById('ai-chat').innerHTML = '';
       document.getElementById('ai-preview').hidden = true;
       document.getElementById('ai-reset').hidden = true;
