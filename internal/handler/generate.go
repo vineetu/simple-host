@@ -25,12 +25,14 @@ import (
 type GenerateHandler struct {
 	apiKey      string
 	model       string
+	agentURL    string // when set, proxy each turn here (Claude Agent SDK server)
+	agentSecret string
 	client      *http.Client
 	ipLimiter   *rateLimiter
 	userLimiter *rateLimiter
 }
 
-func NewGenerateHandler(apiKey, model string) *GenerateHandler {
+func NewGenerateHandler(apiKey, model, agentURL, agentSecret string) *GenerateHandler {
 	// A conversation is several turns, so allow a healthy burst; the slow refill
 	// is the real cost guard against scripted abuse.
 	ipLimiter := newRateLimiter(20, 1.0/12.0)   // burst 20, +1 every 12s
@@ -40,7 +42,11 @@ func NewGenerateHandler(apiKey, model string) *GenerateHandler {
 	return &GenerateHandler{
 		apiKey:      apiKey,
 		model:       model,
-		client:      &http.Client{Timeout: 120 * time.Second},
+		agentURL:    agentURL,
+		agentSecret: agentSecret,
+		// Agent runs (tool use + a full-page generation) can run long, so allow
+		// more headroom than a single Messages-API call would need.
+		client:      &http.Client{Timeout: 240 * time.Second},
 		ipLimiter:   ipLimiter,
 		userLimiter: userLimiter,
 	}
@@ -116,6 +122,23 @@ func (h *GenerateHandler) generate(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
 		return
 	}
+
+	// Preferred path: hand the turn to the Agent SDK server, which runs a real
+	// agent (with a deploy_site tool) on the box subscription. We forward the
+	// signed-in user's key so the agent can publish on their behalf. The sign-in
+	// gate + rate limit above stay here, on the public edge.
+	if h.agentURL != "" {
+		reply, html, err := h.proxyToAgent(r.Context(), req, atts, clientAPIKey(r))
+		if err != nil {
+			log.Printf("generate (agent): %v", err)
+			writeJSON(w, http.StatusBadGateway, errorResponse{Error: "the assistant had trouble — please try again"})
+			return
+		}
+		writeJSON(w, http.StatusOK, generateResponse{Reply: reply, HTML: html})
+		return
+	}
+
+	// Fallback path: call the Messages API directly (metered key).
 	if len(atts) > 0 {
 		li := len(msgs) - 1 // attach to the latest user turn
 		msgs[li].Content = buildUserBlocks(msgs[li].Content, atts)
@@ -128,6 +151,64 @@ func (h *GenerateHandler) generate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, generateResponse{Reply: reply, HTML: html})
+}
+
+// agentRequest is the body forwarded to the Agent SDK server.
+type agentRequest struct {
+	Messages    []claudeMessage `json:"messages"`
+	HTML        string          `json:"html"`
+	Attachments []attachmentIn  `json:"attachments"`
+	UserKey     string          `json:"userKey"`
+}
+
+// proxyToAgent forwards one turn to the Agent SDK server and returns its
+// {reply, html}. atts is the already-sanitized attachment list; userKey is the
+// signed-in user's API key, passed so the agent can publish on their behalf via
+// its deploy_site tool. The shared secret authenticates this server-to-server
+// call.
+func (h *GenerateHandler) proxyToAgent(ctx context.Context, req generateRequest, atts []attachmentIn, userKey string) (string, string, error) {
+	body, err := json.Marshal(agentRequest{
+		Messages:    sanitizeMessages(req.Messages),
+		HTML:        req.HTML,
+		Attachments: atts,
+		UserKey:     userKey,
+	})
+	if err != nil {
+		return "", "", err
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, h.agentURL+"/generate", bytes.NewReader(body))
+	if err != nil {
+		return "", "", err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("X-Agent-Secret", h.agentSecret)
+
+	resp, err := h.client.Do(httpReq)
+	if err != nil {
+		return "", "", err
+	}
+	defer resp.Body.Close()
+
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return "", "", err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", "", fmt.Errorf("agent server status %d: %s", resp.StatusCode, string(raw))
+	}
+
+	var out generateResponse
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return "", "", err
+	}
+	return out.Reply, out.HTML, nil
+}
+
+// clientAPIKey returns the caller's API key (the same header the auth middleware
+// authenticated), used as the deploy credential when proxying to the agent.
+func clientAPIKey(r *http.Request) string {
+	return r.Header.Get("X-API-Key")
 }
 
 // sanitizeMessages trims, caps, and validates the conversation, keeping only the

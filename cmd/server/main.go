@@ -77,11 +77,15 @@ func main() {
 
 	// Optional "create with AI" endpoint. Sign-in-gated + rate limited; only
 	// enabled when an Anthropic key is configured (it spends real credits).
-	if cfg.AnthropicAPIKey != "" {
-		handler.NewGenerateHandler(cfg.AnthropicAPIKey, cfg.GenerateModel).Register(mux, authMW)
-		log.Printf("AI create endpoint enabled (/v1/generate, model %s)", cfg.GenerateModel)
+	if cfg.AgentServerURL != "" || cfg.AnthropicAPIKey != "" {
+		handler.NewGenerateHandler(cfg.AnthropicAPIKey, cfg.GenerateModel, cfg.AgentServerURL, cfg.AgentSharedSecret).Register(mux, authMW)
+		if cfg.AgentServerURL != "" {
+			log.Printf("AI create endpoint enabled (/v1/generate -> agent server %s)", cfg.AgentServerURL)
+		} else {
+			log.Printf("AI create endpoint enabled (/v1/generate, direct Messages API, model %s)", cfg.GenerateModel)
+		}
 	} else {
-		log.Printf("ANTHROPIC_API_KEY not set; /v1/generate (AI create) disabled")
+		log.Printf("neither AGENT_SERVER_URL nor ANTHROPIC_API_KEY set; /v1/generate (AI create) disabled")
 	}
 
 	server := &http.Server{

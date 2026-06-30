@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"os"
+	"strings"
 )
 
 // Defaults are generic. A real deployment sets SITE_DOMAIN, PUBLIC_BASE_URL,
@@ -29,11 +30,18 @@ type Config struct {
 	MailFrom      string
 	ResendAPIKey  string
 
-	// Optional "create with AI" endpoint (/v1/generate). Disabled when the key
-	// is empty. Spends real Anthropic credits, so it is sign-in-gated + rate
-	// limited; the model defaults to Haiku (cheap).
-	AnthropicAPIKey string
-	GenerateModel   string
+	// Optional "create with AI" endpoint (/v1/generate). Disabled when neither
+	// AnthropicAPIKey nor AgentServerURL is set. Sign-in-gated + rate limited.
+	//
+	// Two backends:
+	//   - AgentServerURL set: proxy each turn to the Claude Agent SDK server
+	//     (real agent w/ tools, runs on the operator's box subscription). The
+	//     shared secret authenticates that call; both must match. Preferred.
+	//   - else AnthropicAPIKey set: call the Messages API directly (metered).
+	AnthropicAPIKey   string
+	GenerateModel     string
+	AgentServerURL    string // e.g. https://simple-host-agent.ideaflow.page (no trailing slash)
+	AgentSharedSecret string
 }
 
 func Load() (Config, error) {
@@ -48,8 +56,10 @@ func Load() (Config, error) {
 		MailFrom:      getEnvOrDefault("MAIL_FROM", defaultMailFrom),
 		ResendAPIKey:  os.Getenv("RESEND_API_KEY"),
 
-		AnthropicAPIKey: os.Getenv("ANTHROPIC_API_KEY"),
-		GenerateModel:   getEnvOrDefault("GENERATE_MODEL", "claude-haiku-4-5-20251001"),
+		AnthropicAPIKey:   os.Getenv("ANTHROPIC_API_KEY"),
+		GenerateModel:     getEnvOrDefault("GENERATE_MODEL", "claude-haiku-4-5-20251001"),
+		AgentServerURL:    strings.TrimRight(os.Getenv("AGENT_SERVER_URL"), "/"),
+		AgentSharedSecret: os.Getenv("AGENT_SHARED_SECRET"),
 	}
 
 	if cfg.DBDSN == "" {
