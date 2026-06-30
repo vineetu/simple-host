@@ -55,6 +55,21 @@ When you bump the plugin, update `simple-host-website/.claude-plugin/plugin.json
 - **The Website Deploy plugin's MCP server reads its version from `../../.claude-plugin/plugin.json` at runtime.** Don't restructure the install layout without updating that path.
 - **Single ServeMux, no router library.** Adding a new endpoint = adding a `mux.Handle` line in `main.go` or a handler's `Register` method.
 
+## Keeping the API and its docs in sync
+
+The API surface is described in several places that drift independently:
+`internal/handler/static/openapi.yaml` (**the source of truth**) + `openapi.json`
+(regenerate with `python3 -c "import yaml,json;json.dump(yaml.safe_load(open('internal/handler/static/openapi.yaml')),open('internal/handler/static/openapi.json','w'),indent=2)"`),
+`internal/handler/static/llms.txt` (curated LLM guide), and the two skills in
+`simple-host-website/skills/`. When you add or change a `/v1` route, update
+openapi.yaml, then llms.txt/skills if it's a user-facing capability.
+
+**Run `bash scripts/check-docs-sync.sh` after any route change** (and before
+deploying). It hard-fails if a registered `/v1` route isn't in openapi.yaml (or
+vice versa) and warns when a major capability is missing from llms.txt/the skills.
+This is what catches "endpoint shipped but undocumented" — exactly how
+collections + view-lock were once missing from llms.txt.
+
 ## Local dev
 
 ```bash

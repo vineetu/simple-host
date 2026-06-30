@@ -182,6 +182,42 @@ Each entry in "_comments" tells you EXACTLY where the reviewer pointed:
 Use "sel" + "text" to locate the exact element in your source and apply the change.
 
 --------------------------------------------------------------------------------
+COLLECTIONS — append-only lists (waitlist, RSVPs, form submissions)
+--------------------------------------------------------------------------------
+To COLLECT entries that grow over time (a waitlist, RSVP list, contact-form inbox),
+use a collection instead of the single state blob: each POST appends one immutable
+item; GET returns them (paginated). From the site's OWN page JavaScript:
+
+    const sub=location.hostname.split('.')[0];
+    const apex=location.hostname.split('.').slice(-2).join('.');
+    const U=`${location.protocol}//${apex}/v1/sites/${sub}/collections/signups`;
+    await fetch(U,{method:'POST',headers:{'Content-Type':'application/json'},
+                  body:JSON.stringify({email:'a@b.com'})});       // append one entry
+    const {items}=await fetch(U).then(r=>r.json());               // read them back
+
+Prefer a collection over state when entries must never overwrite each other and you
+just keep adding (scales to large lists; appends are cheap and concurrency-safe).
+Same Origin gate as state — entries are readable by anyone who can load the page, so
+for a PRIVATE inbox (e.g. emails only you should see) combine it with a
+password-locked page (below). Keep a running total in state for a live count.
+
+--------------------------------------------------------------------------------
+PRIVATE PAGES — password-lock a whole site (view-lock)
+--------------------------------------------------------------------------------
+To share a site with only people who have a password (a trip page, a draft, a client
+proof), lock it with the OWNER key after deploying:
+
+    curl -s -X PUT https://simple-host.app/v1/sites/<name>/view-password \
+      -H "X-API-Key: $SIMPLE_HOST_KEY" -H 'Content-Type: application/json' \
+      -d '{"password":"hunter2"}'
+    # unlock again:  curl -X DELETE .../v1/sites/<name>/view-password -H "X-API-Key: $SIMPLE_HOST_KEY"
+
+Visitors then get a login page; the correct password sets a signed cookie that
+unlocks the page AND its state/collections — so a locked page's data is private to
+people who know the password. Share the password out-of-band; it is never stored in
+the site's files.
+
+--------------------------------------------------------------------------------
 MANUAL MODE — only if you cannot make HTTP requests yourself
 --------------------------------------------------------------------------------
 Hand the user these commands to run in their terminal (they paste their key

@@ -457,16 +457,46 @@ paths:
                       text: { type: string }
       responses:
         '200':
-          description: Reply (+ HTML when the model builds/updates the site)
+          description: >-
+            With an agent backend, returns a jobId to poll at
+            /v1/generate/status. With the direct backend, returns the reply (+
+            HTML when the model builds/updates the site) inline.
           content:
             application/json:
               schema:
                 type: object
                 properties:
+                  jobId: { type: string, description: poll /v1/generate/status with this (async backend) }
                   reply: { type: string }
                   html: { type: string }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /v1/generate/status:
+    get:
+      summary: Poll an async AI-create job
+      description: >-
+        Poll the status of a job started by POST /v1/generate on the agent
+        backend. Returns running until the agent finishes, then done with the
+        reply and HTML. Sign-in-gated; the job is bound to the caller's key.
+      tags: [AI]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { name: id, in: query, required: true, schema: { type: string }, description: jobId from POST /v1/generate }
+      responses:
+        '200':
+          description: Job status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [running, done, error] }
+                  reply: { type: string }
+                  html: { type: string }
+                  error: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Unknown or expired job }
 
   /healthz:
     get:
