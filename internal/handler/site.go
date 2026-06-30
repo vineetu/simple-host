@@ -162,7 +162,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 }
 
 // originHostForSite returns the expected hostname for state CORS, e.g.
-// "mysite.ideaflow.page".
+// "mysite.simple-host.app".
 func (h *SiteHandler) originHostForSite(siteName string) string {
 	return siteName + "." + h.siteDomain
 }

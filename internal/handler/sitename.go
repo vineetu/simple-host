@@ -7,7 +7,7 @@ import (
 
 // validSiteName matches a single DNS label: lowercase alphanumerics and
 // hyphens, no leading/trailing hyphen, 1–63 chars. Site names become both a
-// subdomain (`<name>.ideaflow.page`) and an on-disk directory, and they flow
+// subdomain (`<name>.simple-host.app`) and an on-disk directory, and they flow
 // into the cortex-share deploy queue, so this is the load-bearing input guard
 // against path/queue/domain abuse. Every currently-deployed site name passes
 // this pattern, so it is safe to enforce on both create and update.

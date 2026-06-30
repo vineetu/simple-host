@@ -5,12 +5,16 @@ import (
 	"os"
 )
 
+// Defaults are generic. A real deployment sets SITE_DOMAIN, PUBLIC_BASE_URL,
+// and DATA_DIR via env to match its own domain and disk layout. DEPLOY_SCRIPT
+// is an optional post-activation hook (used to re-register shares on hosts that
+// have one); empty means no hook.
 const (
-	defaultDataDir       = "/root/workspace/general/sites"
-	defaultSiteDomain    = "ideaflow.page"
+	defaultDataDir       = "./data/sites"
+	defaultSiteDomain    = "simple-host.app"
 	defaultPort          = "8090"
-	defaultDeployScript  = "/root/workspace/general/scripts/deploy-site"
-	defaultPublicBaseURL = "https://simple-host.ideaflow.page"
+	defaultDeployScript  = ""
+	defaultPublicBaseURL = "https://simple-host.app"
 	defaultMailFrom      = "Simple Host <noreply@simple-host.app>"
 )
 

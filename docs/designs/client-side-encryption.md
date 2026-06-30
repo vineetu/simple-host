@@ -17,7 +17,7 @@ operator), can read them?"*
 The honest one-paragraph answer: **yes, but only for sites we stop serving as
 normal public websites.** simple-host's entire job today is to take an uploaded
 tarball, extract it to plaintext on disk, and let the reverse proxy serve those
-bytes to *anonymous* visitors over plain HTTPS (`{site}.ideaflow.page`). If an
+bytes to *anonymous* visitors over plain HTTPS (`{site}.simple-host.app`). If an
 anonymous browser can render the page, then by definition *something the server
 controls* had to hand it readable bytes — so for a normal public site the
 operator can always read the content. "Operator cannot read it" and "operator
@@ -61,7 +61,7 @@ they need different mechanisms.
 `tarball.Extract` → `DiskStorage.WriteFiles` writes mode-`0644` plaintext to
 `<DATA_DIR>/<site>/v<n>/` → `UpdateCurrent` copies it into `…/current/` → the
 reverse proxy (cortex-share / the outer `simple-host` proxy) serves
-`…/current/` straight to the public. For a browser at `https://foo.ideaflow.page`
+`…/current/` straight to the public. For a browser at `https://foo.simple-host.app`
 to show HTML/CSS/JS, *someone in that chain must produce plaintext for an
 unauthenticated client*. Therefore:
 
@@ -137,7 +137,7 @@ or DB.
 
 ### 5.1 Shape
 
-The site is **private**: visiting `https://foo.ideaflow.page` does *not* render the
+The site is **private**: visiting `https://foo.simple-host.app` does *not* render the
 user's site. Instead it serves one small, static, plaintext **bootstrap/unlock
 page** (the only plaintext the server holds for this site) plus opaque encrypted
 blobs. The unlock page, running in the browser:
@@ -194,7 +194,7 @@ run `tarball.Extract` or `ValidateExtensions` on this** — that's fine and expe
   browser derives the master key; unwrap content key; decrypt. The operator never
   sees the passphrase. Best for "only me."
 - **Fragment mode (`#key=…`)**: the content key (base64) lives in the URL fragment.
-  The owner shares the full link `https://foo.ideaflow.page/#key=<b64>`; anyone with
+  The owner shares the full link `https://foo.simple-host.app/#key=<b64>`; anyone with
   the link can read. The fragment is **not** transmitted to the server by browsers
   ([MDN fragment]), so the operator still never sees the key in logs/requests —
   but anyone the link is forwarded to can read, and it may end up in browser

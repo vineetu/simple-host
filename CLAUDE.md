@@ -8,14 +8,14 @@ One Go binary that hosts static websites. Users register, upload tarballs via AP
 
 There is no separate object store, CDN, build pipeline, or microservices. Everything is `cmd/server/main.go` plus a data directory plus a Postgres.
 
-**Live instance:** https://simple-host.ideaflow.page
+**Live instance:** https://simple-host.app
 
 ## Layout
 
 - `cmd/server/main.go` — wires config, opens Postgres, creates `DiskStorage`, mounts every handler onto a single `http.ServeMux`, runs the HTTP server with graceful shutdown. All routing decisions live here.
 - `internal/config` — env-driven config. `DB_DSN` and `ADMIN_API_KEY` are required; everything else has a sensible default.
 - `internal/auth` — `X-API-Key` middleware. The hardcoded `ADMIN_API_KEY` short-circuits to a synthetic admin user with `ID="admin"`; everything else looks up the `users` table.
-- `internal/db` — raw `database/sql` against Postgres. Schema is in `README.md` (no migrations framework).
+- `internal/db` — raw `database/sql` against Postgres. Schema is in `db/schema.sql` (no migrations framework).
 - `internal/storage/disk.go` — versioned site layout on disk: `<DATA_DIR>/<site>/v<n>/` with a `current` directory holding the live version.
 - `internal/tarball` — extracts and validates uploaded archives (path traversal guards, size limits, extension denylist for source-script types only).
 - `internal/handler/*.go` — one file per feature area. Treat them as separate apps that happen to share a `*sql.DB` and the same `mux`.

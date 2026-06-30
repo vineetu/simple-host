@@ -1,204 +1,138 @@
 # Simple Host
 
-Deploy a website with one API call, and every site gets a little backend for free.
-A small Go server that hosts static sites at `https://{sitename}.simple-host.app` —
-plus per-site JSON state (with atomic ops), append-only collections, private
-(password-locked) pages, drop-in comments/feedback widgets, and starter templates.
-It's **API-native**: a coding agent (Claude Code, Codex, Cursor) or even a web LLM
-(ChatGPT/Gemini) can read one URL and ship a working, data-backed site end to end.
+**Ship a real website with one sentence to your coding agent — and every site gets a little backend for free.**
 
-**Live:** https://simple-host.app · **API:** [`/openapi.yaml`](https://simple-host.app/openapi.yaml) · **For LLMs:** [`/llms.txt`](https://simple-host.app/llms.txt)
+**Live:** https://simple-host.app · **For your agent:** [`/llms.txt`](https://simple-host.app/llms.txt) · **API:** [`/openapi.yaml`](https://simple-host.app/openapi.yaml)
 
-## Install the skill
+---
 
-**Any agent** — Claude Code, Codex, Cursor, opencode, Amp, Cline, and 12+ more — via the [`skills`](https://skills.sh) CLI:
+## The idea
 
-```
+Hosting a static website is a solved problem. The thing nobody made *simple* is the little bit of backend almost every site quietly needs.
+
+Look at the websites real people actually build: a portfolio, a wedding RSVP, a neighborhood poll, a class project, a small landing page collecting emails, a guestbook for a side project. The overwhelming majority — call it ninety-something percent of the web ordinary people need — are static pages with **one sliver of dynamic behavior**: save an RSVP, count a vote, append to a guestbook, remember a preference.
+
+Today that one sliver is absurdly expensive. To store a single list of RSVPs you're told to stand up a separate backend service, run a database, register a domain, and thread environment variables through a build pipeline. The backend ends up heavier than the website it serves.
+
+**Simple Host folds both halves into one tiny binary.** Static hosting *and* a lightweight per-site datastore — lighter than Supabase, no schema, no separate service — in the same upload. Your agent ships the HTML and the data layer together, the site goes live at `https://yourname.simple-host.app`, and it just works.
+
+And because it stays small, it runs small. Simple Host serves all of its sites from a box with **1 CPU and 1 GB of RAM** — no CDN, no object store, no orchestration. One binary, one Postgres, one folder on disk. Most of the websites everyday people need, hosted on hardware you could forget under your desk.
+
+## Get going
+
+You don't deploy by hand. You tell your coding agent to, and it uses the Simple Host skill to do the rest.
+
+If you found this on GitHub, you almost certainly already have an agent — Claude Code, Cursor, Codex, opencode, and a dozen more. Install the skill once, for any of them:
+
+```bash
 npx skills add vineetu/simple-host
 ```
 
-**Claude Code** — via the bundled marketplace:
+On Claude Code you can also install via the bundled marketplace:
 
-```
+```bash
 /plugin marketplace add vineetu/simple-host
 /plugin install website-deploy@simple-host
 ```
 
-Then just ask your agent to deploy a folder, or "build me a waitlist page." No
-terminal? On Claude.ai / Desktop, upload the skill ZIPs from
-[simple-host.app/install.html](https://simple-host.app/install.html). On
-ChatGPT/Gemini, paste [simple-host.app/llms.txt](https://simple-host.app/llms.txt)
-and copy-paste the result.
+Then just talk to your agent:
 
-## Why
+> *"Build me a wedding RSVP page and deploy it."*
+> *"Deploy this folder."*
+> *"Add a guestbook to my site."*
 
-Most static-site hosts are great if you have a build pipeline, a domain to register, and the patience to thread environment variables through CI. This one isn't trying to be that. The goal is one HTTP upload, one subdomain, one MCP tool call from Claude / Codex / Cursor — for vibe-coded prototypes, demos, class projects, and personal sites.
+It signs you up (magic-link email → API key), builds the site, wires in state if the page needs it, and deploys. No terminal, no dashboard, no config files.
 
-## What it is
+**On the web instead?** ChatGPT, Gemini, and Copilot can do it too — paste [simple-host.app/llms.txt](https://simple-host.app/llms.txt) into the chat, describe what you want, and it hands you a site to publish. Or use the **Build with AI** chat right on [simple-host.app](https://simple-host.app), which builds and previews a site for you on the box itself.
 
-- **Static-file server** — uploads land in `<DATA_DIR>/<site>/v<n>/`, a `current` symlink points at the active version, files served by `http.FileServer`.
-- **Versioned** — every upload is a new immutable version; rollback flips the symlink.
-- **Per-site JSON state** — sites can store up to 1 MB of shared state via `GET/PUT /v1/sites/{name}/state`. Origin-checked so only your subdomain can read/write.
-- **Magic-link auth** — register with an email, get an API key, that's it.
-- **Admin browser UI** — at `/`, log in with your API key, see and manage your sites.
-- **Skill auto-update notice** — the API responds with a `_notice` field when the caller's installed Website Deploy skill is out of date.
+## What you get
 
-## Architecture
+- **One-call deploy** — upload a folder, get a live `https://{name}.simple-host.app`. Every deploy is a new immutable version; roll back instantly.
+- **A little backend, free** — per-site JSON state with atomic ops (set / increment / append), plus append-only collections for guestbooks, signups, and submissions. No schema, no database to run yourself.
+- **Drop-in widgets** — threaded comments and a feedback pin, one script tag each, theme-aware.
+- **Private pages** — password-lock any site behind a signed-cookie gate.
+- **Starter templates** — RSVP, waitlist, landing, résumé, and more, ready to fill in.
+- **Build with AI** — a chat on the homepage that designs, previews, and publishes a site for you.
+- **Magic-link auth** — register with an email, get an API key. That's the whole setup.
 
-```
-Client (browser or agent)
-   │
-   ▼  HTTPS
-┌──────────────────────────────────────┐
-│  reverse proxy (yours)               │
-│  • wildcard *.simple-host.app          │
-│  • routes <site>.simple-host.app → /sites/<site>/
-└──────────────────────────────────────┘
-   │
-   ▼
-┌──────────────────────────────────────┐
-│  Go server (cmd/server)              │
-│  • REST API (/v1/...)                │
-│  • static serve (/sites/<site>/...)  │
-│  • admin UI (/)                      │
-│  • embedded plugin bundle (/skills.zip, /plugin.zip)
-└──────────────────────────────────────┘
-   │              │
-   ▼              ▼
-Postgres      DATA_DIR (versioned site files on disk)
-```
+## How it works
 
-There's no separate object store, CDN, or build pipeline. Just one binary, a Postgres, and a directory.
+Three moving parts, and you can hold all of them in your head at once:
 
-## Quick start (local)
+1. A single **Go binary** serves every site's static files *and* exposes the REST API.
+2. A **Postgres** tracks users, sites, and versions.
+3. A **folder on disk** holds the versioned site files.
+
+A wildcard DNS record points `*.simple-host.app` at the binary, which maps each subdomain to its folder. That's the whole system — no object store, no CDN, no build farm, which is exactly why it fits on a 1 GB box. The per-site datastore lives next to the files and is origin-checked, so only a site's own subdomain can read or write its data from the browser.
+
+## Run your own
 
 ```bash
-# Postgres
+# 1. Postgres
 docker run -d --name simple-host-postgres -p 5432:5432 \
   -e POSTGRES_USER=simplehost -e POSTGRES_PASSWORD=simplehost -e POSTGRES_DB=simplehost \
   postgres:16-alpine
 
-# Schema
-docker exec simple-host-postgres psql -U simplehost -d simplehost -c "
-CREATE TABLE users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  username TEXT UNIQUE NOT NULL,
-  api_key TEXT UNIQUE NOT NULL,
-  is_admin BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-CREATE TABLE sites (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  name TEXT UNIQUE NOT NULL,
-  active_version INTEGER NOT NULL DEFAULT 1,
-  site_url TEXT,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
-CREATE TABLE versions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  site_id UUID REFERENCES sites(id) ON DELETE CASCADE,
-  version_number INTEGER NOT NULL,
-  disk_path TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'uploading',
-  archive_sha256 TEXT NOT NULL DEFAULT '',
-  created_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(site_id, version_number)
-);
--- Existing deployment (no migrations framework — apply by hand before deploying):
---   ALTER TABLE versions ADD COLUMN archive_sha256 TEXT NOT NULL DEFAULT '';
-CREATE TABLE auth_tokens (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email TEXT NOT NULL,
-  code TEXT NOT NULL,
-  link_token TEXT UNIQUE NOT NULL,
-  expires_at TIMESTAMPTZ NOT NULL,
-  used_at TIMESTAMPTZ,
-  attempts INT DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-"
+# 2. Schema (one-time)
+docker exec -i simple-host-postgres psql -U simplehost -d simplehost < db/schema.sql
 
-# Run
+# 3. Run
 DB_DSN='postgres://simplehost:simplehost@localhost:5432/simplehost?sslmode=disable' \
 DATA_DIR=./data/sites \
+SITE_DOMAIN=localhost:8090 \
+PUBLIC_BASE_URL=http://localhost:8090 \
 ADMIN_API_KEY=$(openssl rand -hex 32) \
 go run ./cmd/server
 ```
 
-Open http://localhost:8090. The `ADMIN_API_KEY` printed (or whichever you set) is the master key that gives admin access.
-
-## Configuration
-
-All via environment variables. `DB_DSN` and `ADMIN_API_KEY` are required; everything else has a default.
-
-| Env Var | Default | Description |
-|---|---|---|
-| `DB_DSN` | *(required)* | Postgres DSN |
-| `ADMIN_API_KEY` | *(required)* | Hardcoded super-admin key. Pick something long. No default — public source intentionally won't ship one. |
-| `DATA_DIR` | `/root/workspace/general/sites` | Where site files live |
-| `SITE_DOMAIN` | `simple-host.app` | Domain suffix used to build site URLs |
-| `PORT` | `8090` | HTTP listen port |
-| `PUBLIC_BASE_URL` | `https://simple-host.app` | Used in magic-link emails |
-| `DEPLOY_SCRIPT` | `/root/workspace/general/scripts/deploy-site` | Optional hook run after each upload — receives the new site name |
-| `MAIL_FROM` | `Simple Host <noreply@simple-host.app>` | Magic-link sender |
-| `RESEND_API_KEY` | *(unset)* | If unset, `/v1/auth` will fail; magic-link auth is via [Resend](https://resend.com) |
-
-The defaults are tuned for the maintainer's own deploy. Override them to match yours.
-
-## API
-
-All authenticated routes accept `X-API-Key: <key>`. JSON in, JSON out.
-
-| Endpoint | Method | Auth | Description |
-|---|---|---|---|
-| `/v1/auth` | POST | none | Send sign-in code to email |
-| `/v1/auth/verify` | POST | none | Exchange code (or magic-link token) for an API key |
-| `/v1/me` | GET | yes | Current user |
-| `/v1/sites` | GET | yes | List your sites (admin sees all) |
-| `/v1/sites/{name}` | POST | yes | Create site (raw tarball body, `Content-Type: application/gzip`) |
-| `/v1/sites/{name}` | PUT | yes | Upload new version (raw tarball body) |
-| `/v1/sites/{name}` | DELETE | yes | Delete site |
-| `/v1/sites/{name}/versions` | GET | yes | List versions for a site |
-| `/v1/sites/{name}/active-version` | PUT | yes | Roll back / forward (`{"version_number": N}`) |
-| `/v1/sites/{name}/state` | GET / PUT | origin-checked | Site's per-site JSON blob (≤ 1 MB) |
-| `/skills/version` | GET | none | Current Website Deploy skill version, e.g. `{"version":"0.5.0"}` |
-| `/skills.zip`, `/plugin.zip`, `/install.sh` | GET | none | The Website Deploy plugin bundle, served straight from the binary |
-| `/healthz`, `/readyz` | GET | none | Probes |
-
-Live OpenAPI at `/docs.html`.
-
-## Plugin (Website Deploy)
-
-`simple-host-website/` is a Claude/Codex/Cursor plugin. It bundles:
-
-- An MCP server (Node) that exposes `register`, `deploy`, `status`, `list` as agent-callable tools.
-- Two skills: `website-deploy` (the deploy workflow) and `website-deploy-builder` (helping a user decide what to build that fits a static-only model).
-- A `setup.sh` that detects which IDEs are installed and wires the MCP entry + skill into each.
-
-Install for end users:
+Open http://localhost:8090 and sign in with that `ADMIN_API_KEY` — it's the master key with admin access. Build a production binary with:
 
 ```bash
-curl -fsSL https://simple-host.app/install.sh | sh
-```
-
-…or clone this repo and run `bash simple-host-website/setup.sh` for the full plugin (skills + MCP server).
-
-The MCP server reads its version from the bundled `plugin.json` at module load and sends `X-Skill-Version` on every API call. If the server-side bundle is newer, the response carries a `_notice` field that the MCP server surfaces as a `NOTICE:` block in the tool result — the calling agent will tell the user to re-run setup. Updates use the same install URL, so they're in-scope of the original install consent (no permission re-ask).
-
-## Build / deploy
-
-```bash
-# local binary
-go build -o ./simple-host ./cmd/server
-
-# linux/amd64 (for a typical Linux box)
 GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o ./simple-host ./cmd/server
 ```
 
-There are no tests in the repo. Verify behavior by running the binary and exercising endpoints.
+A single self-contained binary: ship it anywhere, set the env vars, run it.
+
+### Configuration
+
+All via environment variables. `DB_DSN` and `ADMIN_API_KEY` are required; the rest have defaults.
+
+| Env var | Required | Description |
+|---|---|---|
+| `DB_DSN` | ✅ | Postgres DSN |
+| `ADMIN_API_KEY` | ✅ | Master admin key. Pick something long — the public source intentionally ships no default. |
+| `SITE_DOMAIN` | | Domain suffix for site URLs (e.g. `simple-host.app`) |
+| `PUBLIC_BASE_URL` | | Base URL used in magic-link emails |
+| `DATA_DIR` | | Where versioned site files live on disk |
+| `PORT` | | HTTP listen port (default `8090`) |
+| `RESEND_API_KEY` | | Magic-link email via [Resend](https://resend.com); auth is disabled without it |
+| `MAIL_FROM` | | Magic-link sender address |
+| `ANTHROPIC_API_KEY` | | Enables the **Build with AI** endpoint; unset = disabled |
+
+## API
+
+Everything an agent needs is at [`/llms.txt`](https://simple-host.app/llms.txt), with the full spec at [`/openapi.yaml`](https://simple-host.app/openapi.yaml) and live docs at [`/docs.html`](https://simple-host.app/docs.html). Authenticated routes take `X-API-Key: <key>`; JSON in, JSON out. The headline endpoints:
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/v1/auth`, `/v1/auth/verify` | POST | Magic-link sign-in → API key |
+| `/v1/sites` | GET | List your sites |
+| `/v1/sites/{name}/files` | POST / PUT | Deploy a site from a JSON `{path: content}` map |
+| `/v1/sites/{name}` | POST / PUT / DELETE | Deploy from a tarball / roll a new version / delete |
+| `/v1/sites/{name}/state` | GET / PUT / PATCH | Per-site JSON state with atomic ops (origin-checked) |
+| `/v1/sites/{name}/collections/{coll}` | GET / POST | Append-only collections |
+| `/v1/templates` | GET | Starter templates |
+| `/v1/generate` | POST | Build with AI (when enabled) |
+
+## The Website Deploy plugin
+
+[`simple-host-website/`](simple-host-website/) is the agent integration that the install commands above pull in. It bundles:
+
+- **Two skills** — `website-deploy` (the deploy workflow) and `website-deploy-builder` (helping decide what to build that fits a static-plus-light-state model).
+- **An MCP server** (Node) exposing `register`, `deploy`, `status`, and `list` as agent-callable tools.
+
+The plugin is embedded into the Go binary, so a running instance also serves it at `/skills.zip`, `/plugin.zip`, and per-skill ZIPs for manual upload (e.g. Claude.ai). It reports its version on every API call; if the server's bundle is newer, responses carry a `_notice` the agent surfaces so users know to update.
 
 ## License
 
-MIT. See `LICENSE`.
+MIT — see [`LICENSE`](LICENSE).

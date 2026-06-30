@@ -9,7 +9,7 @@ func TestValidateSiteShapeAcceptsExistingNames(t *testing.T) {
 		"jot", "jot-code", "jot-transcribe-app", "padkit", "padkit-tv", "ori",
 		"ori-app", "ori-letter-flow", "bass", "paragliding-beginners-map",
 		"nyc-puerto-rico-2026", "acme-health-demo", "kulkarni-is-awesome",
-		"xianqu-box-ideaflow-20260626", "open-kit", "auto-tune", "mixologist",
+		"xianqu-box-sample-20260626", "open-kit", "auto-tune", "mixologist",
 	}
 	for _, name := range existing {
 		if err := validateSiteShape(name); err != nil {

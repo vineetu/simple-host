@@ -23,7 +23,7 @@ upload**. There is exactly **one** model — it is **always zero-knowledge**:
 - The server stores only an **opaque ciphertext bundle**, two **wrapped copies of
   the DK** (one under the passphrase, one under an owner-held recovery code), the
   KDF/AEAD parameters, and a small static **unlock bootstrap page**.
-- A visitor opens `{site}.ideaflow.page`, the unlock page derives the key in-browser
+- A visitor opens `{site}.simple-host.app`, the unlock page derives the key in-browser
   from the passphrase (Argon2id), fetches the ciphertext, decrypts it
   (XChaCha20-Poly1305 / AES-256-GCM), and renders it via a Service-Worker virtual FS.
 
@@ -71,7 +71,7 @@ Read before trusting any summary:
 - **Visitor bytes are served by the external proxy reading `current/` off disk.**
   The ops runbook (`/root/workspace/CLAUDE.md`) is authoritative: `simple-host`
   "serves the registered static/website shares" via **cortex-share** registration,
-  and the shared **ideaflow/nginx proxy** fronting `*.ideaflow.page` reads
+  and the shared **nginx reverse proxy** fronting `*.simple-host.app` reads
   `<DATA_DIR>/<site>/current/` straight from disk. (The README architecture diagram
   showing the binary serving site bytes via `http.FileServer` is aspirational; no
   such route exists.) **This is the fact that makes the whole feature cheap:** an
@@ -260,7 +260,7 @@ shape — it receives an opaque blob.
 
 ## 6. In-browser unlock + render
 
-1. Visitor opens `{site}.ideaflow.page` → the proxy serves `current/index.html`, the
+1. Visitor opens `{site}.simple-host.app` → the proxy serves `current/index.html`, the
    **unlock shell** (the only plaintext the server holds for the site). This is an
    ordinary static page — no server logic runs.
 2. The shell prompts for the passphrase and runs **Argon2id in-browser** (libsodium.js

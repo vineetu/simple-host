@@ -86,7 +86,7 @@ func (rl *rateLimiter) startCleanup(every, idle time.Duration) {
 }
 
 // clientIP returns the originating client address. We sit behind the trusted
-// ideaflow/nginx proxy, which sets X-Forwarded-For, so the left-most entry is
+// nginx reverse proxy, which sets X-Forwarded-For, so the left-most entry is
 // the real client; fall back to the transport peer otherwise.
 func clientIP(r *http.Request) string {
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {

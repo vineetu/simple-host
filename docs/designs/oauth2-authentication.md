@@ -154,7 +154,7 @@ GET /v1/auth/oauth/{provider}/callback   -> callback (handles the provider's red
   consistency, like the email routes — though the notice is irrelevant on a redirect, it's harmless.
 - **Not** under `/api*` (proxy-reserved) and **not** browser-`fetch`ed (no preflight). Good.
 - The provider dashboards' **Authorized redirect URI** is configured to the *public* URL, e.g.
-  `https://simple-host.ideaflow.page/v1/auth/oauth/github/callback`. This is derived from
+  `https://simple-host.app/v1/auth/oauth/github/callback`. This is derived from
   `PUBLIC_BASE_URL` (Section 7) so it's correct behind the proxy.
 
 The admin UI (`internal/handler/static/index.html`, embedded) gains "Sign in with GitHub / Google"
