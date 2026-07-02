@@ -202,8 +202,27 @@
 
     .auth-card {
       width: 100%;
-      max-width: 460px;
+      max-width: 760px;
       text-align: left;
+    }
+    .auth-card .auth-form { max-width: 440px; }
+    .home-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin: 24px 0 26px;
+    }
+    .home-card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 16px 18px;
+      background: var(--surface);
+    }
+    .home-card .hc-ico { font-size: 22px; display: block; margin-bottom: 8px; line-height: 1; }
+    .home-card h3 { font-size: 14px; margin: 0 0 6px; color: var(--text); letter-spacing: -0.01em; }
+    .home-card p { font-size: 12.5px; line-height: 1.55; color: var(--text-secondary); margin: 0; }
+    @media (max-width: 680px) {
+      .home-cards { grid-template-columns: 1fr; gap: 10px; margin: 20px 0 22px; }
     }
 
     .auth-eyebrow {
@@ -913,8 +932,14 @@
 
         <!-- Step 1: enter email -->
         <div id="email-form-wrap">
-          <h1 class="auth-display">Static hosting,<br><em>with a little backend.</em></h1>
-          <p class="auth-lede">Like Vercel with a lite Supabase built in — deploy a static site in one call and get saved state, forms, and guestbooks for free. No separate database to run.<br><span class="auth-lede-cta">Sign in to start — or paste the code into the <strong>website-deploy</strong> skill in your editor.</span></p>
+          <h1 class="auth-display">A static site —<br><em>with a backend when you need it.</em></h1>
+          <p class="auth-lede">Your assistant reads the spec, so you don't have to.</p>
+          <div class="home-cards">
+            <div class="home-card"><span class="hc-ico">🌐</span><h3>Anything HTML</h3><p>Portfolios, résumés, landing &amp; coming-soon pages, event RSVPs, menus, docs.</p></div>
+            <div class="home-card"><span class="hc-ico">🗄️</span><h3>A free per-site store</h3><p>Forms, counters, polls, votes, guestbooks — no database to set up.</p></div>
+            <div class="home-card"><span class="hc-ico">💬</span><h3>Drop-in widgets</h3><p>Threaded comments, feedback pins, password-protected private pages, ready-made templates.</p></div>
+          </div>
+          <p class="auth-lede" style="margin-bottom:14px">Sign in to start — or paste the code into the <strong>website-deploy</strong> skill in your editor.</p>
 
           <form class="auth-form" id="email-form" onsubmit="return handleAuth(event)">
             <div class="auth-input">
