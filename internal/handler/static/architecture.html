@@ -262,7 +262,7 @@
       <div>
         <h2>Create with AI</h2>
         <p class="lede">The homepage builds a site for you through a chat — and the model runs <strong>off-box</strong>, so the platform never holds AI credentials on a served surface.</p>
-        <p><code>POST /v1/generate</code> keeps the sign-in gate and rate limit on the edge, then hands the turn to a separate <strong>Claude Agent SDK</strong> server as a background job (poll for the result — no request waits out a proxy timeout). That agent runs on a <strong>Claude subscription</strong> with its built-in file/shell tools disabled — only a scoped <code>deploy_site</code> tool — so a prompt-injected page can't run commands or exfiltrate keys. You preview in a sandboxed opaque-origin iframe, then publish through the same authenticated files API.</p>
+        <p><code>POST /v1/generate</code> keeps the sign-in gate and rate limit on the edge, then hands the turn to a separate <strong>agent service</strong> as a background job (poll for the result — no request waits out a proxy timeout). The agent runs with its built-in file/shell tools disabled — only a scoped <code>deploy_site</code> tool — so a prompt-injected page can't run commands or exfiltrate keys. You preview in a sandboxed opaque-origin iframe, then publish through the same authenticated files API.</p>
         <p class="fine">The agent server holds no user secrets, is reachable only with a shared secret, and binds each job to the caller's key.</p>
       </div>
     </section>
