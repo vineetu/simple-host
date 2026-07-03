@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy — Simple Host</title>
+  <script>(function(){try{document.documentElement.dataset.theme=localStorage.getItem('sh-theme')||'dark';}catch(e){document.documentElement.dataset.theme='dark';}})();</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#020617; --surface:#0b1222; --grid:#0f1830; --border:#1e293b; --text:#f1f5f9; --muted:#94a3b8; --dim:#475569; --accent:#22d3ee; --mono:'JetBrains Mono',ui-monospace,Menlo,monospace; }
+    html[data-theme="light"] { --bg:#f7f8fb; --surface:#fff; --grid:#e9edf4; --border:#e2e8f0; --text:#0f172a; --muted:#475569; --dim:#94a3b8; --accent:#0891b2; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:var(--mono); background:var(--bg); color:var(--text); line-height:1.7; min-height:100vh; -webkit-font-smoothing:antialiased;
+      background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px); background-size:48px 48px; }
+    .container { max-width:760px; margin:0 auto; padding:0 28px; }
+    header { border-bottom:1px solid var(--border); background:color-mix(in srgb,var(--bg) 78%,transparent); backdrop-filter:blur(8px); position:sticky; top:0; }
+    header .container { display:flex; align-items:center; justify-content:space-between; padding:16px 28px; }
+    .logo { font-size:14px; font-weight:700; letter-spacing:.5px; color:var(--text); text-decoration:none; } .logo b { color:var(--accent); }
+    nav a { color:var(--muted); text-decoration:none; font-size:13px; margin-left:22px; } nav a:hover { color:var(--accent); }
+    main { padding:56px 0 80px; }
+    .eyebrow { font-size:12px; letter-spacing:.22em; text-transform:uppercase; color:var(--accent); margin-bottom:14px; }
+    h1 { font-size:clamp(28px,4vw,40px); font-weight:700; letter-spacing:-.5px; line-height:1.1; margin-bottom:8px; }
+    .updated { color:var(--dim); font-size:13px; margin-bottom:36px; }
+    h2 { font-size:17px; font-weight:600; color:var(--text); margin:32px 0 10px; }
+    p, li { color:var(--muted); font-size:14.5px; margin-bottom:12px; }
+    ul { padding-left:20px; } li { margin-bottom:8px; }
+    strong { color:var(--text); font-weight:600; }
+    a { color:var(--accent); }
+    code { color:var(--accent); background:rgba(34,211,238,.08); padding:1px 6px; border-radius:5px; font-size:.9em; }
+    footer { border-top:1px solid var(--border); padding:26px 0; color:var(--dim); font-size:12px; }
+  </style>
+</head>
+<body>
+  <header><div class="container">
+    <a class="logo" href="/">simple<b>·</b>host</a>
+    <nav><a href="/">Home</a><a href="/docs.html">API</a><a href="/architecture.html">Architecture</a></nav>
+  </div></header>
+  <main class="container">
+    <div class="eyebrow">Privacy</div>
+    <h1>Privacy Policy</h1>
+    <p class="updated">Simple Host (simple-host.app) · last updated 2026-07-03</p>
+
+    <p>Simple Host is a static-website hosting service. This policy covers what data it handles, including when the service is used through an integration such as a ChatGPT GPT, an MCP server, or an AI coding agent.</p>
+
+    <h2>What we collect</h2>
+    <ul>
+      <li><strong>Email address</strong> — for sign-in. We email a one-time 6-digit code; verifying it creates your account and issues an API key.</li>
+      <li><strong>Your API key</strong> — a random token that authenticates your requests. Stored to look up your account.</li>
+      <li><strong>Sites you deploy</strong> — the files you upload, their versions, and the site name. Deployed sites are <strong>served publicly</strong> on the internet at <code>{site}.simple-host.app</code>.</li>
+      <li><strong>Per-site state</strong> — any data a site saves via the state/collections API. This is <strong>public to that site's audience</strong> by design; do not put secrets in it.</li>
+      <li><strong>Basic request metadata</strong> — IP address and timestamps, used for rate-limiting and abuse prevention.</li>
+    </ul>
+
+    <h2>How we use it</h2>
+    <ul>
+      <li>To authenticate you, host and serve your sites, and operate the per-site backend.</li>
+      <li>To enforce rate limits and quotas and to investigate abuse.</li>
+      <li>We do <strong>not</strong> sell your data or use it for advertising.</li>
+    </ul>
+
+    <h2>Using Simple Host through a GPT or agent</h2>
+    <p>When you use Simple Host through a shared ChatGPT GPT or agent, requests are made with the API key configured in that integration. Anything deployed is public and attributable to the account whose key is used. Do not upload confidential information.</p>
+
+    <h2>Retention &amp; your choices</h2>
+    <ul>
+      <li>You can delete any site you own at any time (via the API or the dashboard); deletions remove the served content.</li>
+      <li>Uploaded versions are retained to enable rollback until the site is deleted.</li>
+      <li>To delete your account or data, contact us below.</li>
+    </ul>
+
+    <h2>Third parties</h2>
+    <p>We use an email provider to send sign-in codes and a hosting provider to run the service. The optional "Create with AI" feature sends your prompt to Anthropic's Claude to generate a site. No other third-party sharing.</p>
+
+    <h2>Contact</h2>
+    <p>Questions or data requests: <a href="mailto:vineetu@gmail.com">vineetu@gmail.com</a>.</p>
+  </main>
+  <footer class="container">simple·host · <a href="/" style="color:inherit">Home</a></footer>
+</body>
+</html>
