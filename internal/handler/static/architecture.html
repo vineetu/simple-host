@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Architecture — Simple Host</title>
+  <meta name="description" content="How Simple Host works: one Go service, one Postgres, one disk — static sites that can never execute, safe by construction.">
+  <script>(function(){try{document.documentElement.dataset.theme=localStorage.getItem('sh-theme')||'dark';}catch(e){document.documentElement.dataset.theme='dark';}})();</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #020617; --surface: #0b1222; --surface-2: #0d1526;
+      --border: #1e293b; --border-hi: #334155;
+      --text: #f1f5f9; --text-secondary: #94a3b8; --dim: #475569;
+      --accent: #22d3ee; --accent-soft: rgba(34,211,238,.12);
+      --ok: #34d399; --ok-soft: rgba(52,211,153,.10);
+      --bad: #fb7185; --bad-soft: rgba(251,113,133,.10);
+      --amber: #fbbf24;
+      --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+      --display: 'Archivo', system-ui, sans-serif;
+      --body: 'Newsreader', Georgia, serif;
+    }
+    html[data-theme="light"] {
+      --bg: #fbfbfd; --surface: #ffffff; --surface-2: #f6f7fb;
+      --border: #e4e7ee; --border-hi: #cbd2de;
+      --text: #0f1e37; --text-secondary: #4a5878; --dim: #8b96ad;
+      --accent: #0e7490; --accent-soft: rgba(14,116,144,.08);
+      --ok: #0f9d6b; --ok-soft: rgba(15,157,107,.08);
+      --bad: #d6455d; --bad-soft: rgba(214,69,93,.07);
+      --amber: #b45309;
+    }
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font-family: var(--body); line-height: 1.65; font-size: 17px;
+      -webkit-font-smoothing: antialiased;
+      background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 46px 46px; background-position: center -1px;
+    }
+    html[data-theme="light"] body { background-image: linear-gradient(rgba(15,30,55,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(15,30,55,.035) 1px, transparent 1px); }
+    .wrap { max-width: 940px; margin: 0 auto; padding: 0 28px; }
+    a { color: inherit; }
+
+    /* Header */
+    header { position: sticky; top: 0; z-index: 20; backdrop-filter: blur(9px);
+      background: color-mix(in srgb, var(--bg) 82%, transparent); border-bottom: 1px solid var(--border); }
+    .bar { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; }
+    .logo { font-family: var(--mono); font-weight: 700; font-size: 14px; letter-spacing: .3px; text-decoration: none; color: var(--text); }
+    .logo b { color: var(--accent); }
+    nav.top { display: flex; gap: 20px; font-family: var(--mono); font-size: 12.5px; }
+    nav.top a { color: var(--text-secondary); text-decoration: none; }
+    nav.top a:hover, nav.top a.on { color: var(--accent); }
+    .tt { width: 32px; height: 30px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+    .tt:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Meta / TOC */
+    .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--text-secondary); }
+    .toc { display: flex; flex-wrap: wrap; gap: 6px 20px; font-family: var(--mono); font-size: 12px; color: var(--text-secondary); padding: 18px 0 22px; border-bottom: 1px solid var(--border); }
+    .toc a { text-decoration: none; color: var(--text-secondary); }
+    .toc a:hover { color: var(--accent); }
+    .toc b { color: var(--accent); font-weight: 600; }
+
+    /* Sections */
+    section { display: grid; grid-template-columns: 54px 1fr; gap: 0 22px; padding: 48px 0; border-bottom: 1px solid var(--border); }
+    .snum { font-family: var(--mono); font-size: 13px; color: var(--accent); padding-top: 6px; }
+    h1.title { font-family: var(--display); font-weight: 800; letter-spacing: -.02em; line-height: 1.02; font-size: clamp(34px, 6vw, 60px); margin: 6px 0 20px; }
+    h2 { font-family: var(--display); font-weight: 700; letter-spacing: -.02em; line-height: 1.05; font-size: clamp(26px, 4vw, 38px); margin: 0 0 14px; }
+    .lede { font-size: 19px; color: var(--text); margin: 0 0 8px; }
+    p { margin: 0 0 14px; color: var(--text-secondary); }
+    p strong, li strong { color: var(--text); font-weight: 500; }
+    .kicker { font-family: var(--mono); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+    .fine { font-family: var(--mono); font-size: 12px; color: var(--dim); letter-spacing: .3px; margin-top: 18px; }
+
+    /* Numbered claims */
+    .claims { margin: 22px 0 0; }
+    .claim { display: grid; grid-template-columns: 46px 1fr; gap: 16px; padding: 16px 0; border-top: 1px solid var(--border); }
+    .claim .ci { font-family: var(--mono); font-size: 12.5px; color: var(--accent); padding-top: 3px; }
+    .claim p { margin: 0; font-size: 15.5px; line-height: 1.6; }
+    .claim b { color: var(--text); font-family: var(--display); font-weight: 600; }
+
+    /* Figure */
+    figure { margin: 26px 0 4px; }
+    .figcap { font-family: var(--mono); font-size: 11.5px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-secondary); display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; margin-bottom: 14px; }
+    .figcap .t { color: var(--text); }
+    .lg { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; letter-spacing: .5px; }
+    .dot { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+    .diagram { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); padding: 16px; }
+    .lane { border: 1px dashed var(--border-hi); border-radius: 10px; padding: 26px 14px 14px; margin: 0 0 30px; position: relative; }
+    .lane:last-child { margin-bottom: 0; }
+    .lane-label { position: absolute; top: -9px; left: 14px; background: var(--surface); padding: 0 8px; font-family: var(--mono); font-size: 10.5px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-secondary); }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .node { border: 1px solid var(--border-hi); border-radius: 9px; background: var(--surface-2); padding: 12px 13px; }
+    .node.ok { border-color: color-mix(in srgb, var(--ok) 55%, var(--border-hi)); }
+    .node.bad { border-color: color-mix(in srgb, var(--bad) 55%, var(--border-hi)); background: var(--bad-soft); }
+    .node .nt { font-family: var(--display); font-weight: 600; font-size: 14px; color: var(--text); margin-bottom: 5px; }
+    .node .nm { font-family: var(--mono); font-size: 11px; line-height: 1.65; color: var(--text-secondary); }
+    .arrow { text-align: center; font-family: var(--mono); font-size: 10.5px; letter-spacing: .5px; color: var(--accent); padding: 7px 0; }
+    .arrow.ok { color: var(--ok); } .arrow.bad { color: var(--bad); } .arrow.mut { color: var(--dim); }
+    .arrow::before { content: "↓ "; }
+    .arrow.up::before { content: "↑ "; }
+
+    /* Table (trust / not) */
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    td { border-top: 1px solid var(--border); padding: 14px 0; vertical-align: top; font-size: 15px; }
+    td.tid { font-family: var(--mono); font-size: 12.5px; color: var(--accent); width: 42px; padding-right: 14px; white-space: nowrap; }
+    td.tk { font-family: var(--display); font-weight: 600; color: var(--text); width: 200px; padding-right: 22px; }
+    td.tv { color: var(--text-secondary); }
+    code { font-family: var(--mono); font-size: .88em; background: var(--accent-soft); color: var(--accent); padding: 1px 6px; border-radius: 5px; }
+
+    footer { padding: 40px 0 60px; font-family: var(--mono); font-size: 12px; color: var(--dim); }
+    footer a { color: var(--text-secondary); text-decoration: none; }
+
+    @media (max-width: 720px) {
+      body { font-size: 16px; }
+      section { grid-template-columns: 1fr; gap: 0; padding: 38px 0; }
+      .snum { padding: 0 0 8px; }
+      .row { grid-template-columns: 1fr; }
+      .claim { grid-template-columns: 40px 1fr; gap: 12px; }
+      td.tk { width: auto; display: block; padding-bottom: 4px; }
+      td.tv { display: block; }
+      .trow td { display: block; border: 0; padding: 2px 0; }
+      .trow { display: block; border-top: 1px solid var(--border); padding: 12px 0; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap bar">
+      <a class="logo" href="/">simple<b>·</b>host</a>
+      <div style="display:flex;align-items:center;gap:18px">
+        <nav class="top">
+          <a href="/">Home</a>
+          <a href="/install.html">Get started</a>
+          <a href="/docs.html">API</a>
+          <a href="/architecture.html" class="on">Architecture</a>
+        </nav>
+        <button class="tt" id="tt" aria-label="Toggle theme" onclick="toggleTheme()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" id="tt-i"></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="toc">
+      <b>Architecture</b>
+      <a href="#safety">01 Safety property</a>
+      <a href="#trust">02 Trust model</a>
+      <a href="#backend">03 The little backend</a>
+      <a href="#ai">04 Create with AI</a>
+      <a href="#runtime">05 Runtime</a>
+      <a href="#not">06 Non-goals</a>
+    </div>
+
+    <!-- 00 Overview -->
+    <section>
+      <div class="snum">00.</div>
+      <div>
+        <div class="kicker">Architecture brief</div>
+        <h1 class="title">One small service,<br>safe by construction.</h1>
+        <p class="lede">People tell AI agents what to build; the agents build, deploy, and manage static sites here. The platform's whole job is to make that safe — by construction, not by vigilance.</p>
+        <p>Simple Host is <strong>one Go service, one Postgres database, and one directory on disk</strong>, behind a single reverse proxy that fronts every <code>*.simple-host.app</code> subdomain. No CDN, no per-site infrastructure, no third-party hosting. Uploads are <strong>static data that can never execute on the server</strong>; every version is immutable, attributable, and instantly revertible; and the whole thing runs on a box with <strong>1 CPU and ~1 GB of RAM</strong>. This page is that argument, visualized.</p>
+        <div class="fine">simple-host.app · public playground · companion: /llms.txt · /openapi.yaml</div>
+      </div>
+    </section>
+
+    <!-- 01 Safety property -->
+    <section id="safety">
+      <div class="snum">01.</div>
+      <div>
+        <h2>The core safety property</h2>
+        <p class="lede">The defining constraint: user uploads are <strong>data, never code</strong> — they can never execute on the server. That is what makes agent-generated ("vibe-coded") sites safe to host.</p>
+        <div class="claims">
+          <div class="claim"><div class="ci">1.1</div><p><b>No execution path exists.</b> The server has no interpreter, no SSR runtime, no plugin loader, no per-site processes. Uploaded files are written to disk and later returned as bytes with a content type — a hostile upload has no more power than an email attachment sitting in a folder.</p></div>
+          <div class="claim"><div class="ci">1.2</div><p><b>Archives are validated before extraction.</b> Path traversal is blocked (no entry may escape its site directory), archive and file sizes are capped, and extensions are restricted to a static-content allowlist — scripts, binaries, and server configs (<code>.sh</code>, <code>.php</code>, <code>.env</code> …) are rejected at upload time, before anything touches disk.</p></div>
+          <div class="claim"><div class="ci">1.3</div><p><b>Serving is jailed per site.</b> Requests for site content are path-checked and rooted at that one site's <code>current/</code> directory. Directory listings are disabled; a directory without an index serves nothing. One site can't read another's files through the server.</p></div>
+          <div class="claim"><div class="ci">1.4</div><p><b>Everything is versioned and revertible.</b> Every upload is a new immutable version tied to an authenticated owner and timestamped. Bad content rolls back instantly — the <code>current</code> symlink flips atomically — and can be deleted by the owner or an admin.</p></div>
+        </div>
+
+        <figure>
+          <div class="figcap">
+            <span class="t">Fig 01 · Upload, validation &amp; serve pipeline</span>
+            <span class="lg"><span class="dot" style="background:var(--accent)"></span>Platform</span>
+            <span class="lg"><span class="dot" style="background:var(--ok)"></span>Accepted</span>
+            <span class="lg"><span class="dot" style="background:var(--bad)"></span>Rejected</span>
+          </div>
+          <div class="diagram">
+            <div class="lane">
+              <span class="lane-label">People &amp; agents</span>
+              <div class="row">
+                <div class="node"><div class="nt">Coding agent</div><div class="nm">holds the user's API key<br>uploads .tar.gz / .zip · or JSON files</div></div>
+                <div class="node"><div class="nt">Viewer's browser</div><div class="nm">GET https://{site}.simple-host.app/<br>public on the internet</div></div>
+              </div>
+            </div>
+            <div class="arrow ok" style="margin-top:-24px">1 · upload &nbsp;·&nbsp; GET site path</div>
+            <div class="lane">
+              <span class="lane-label">Platform · one Go service</span>
+              <div class="row">
+                <div class="node"><div class="nt">Upload API</div><div class="nm">X-API-Key → authenticated owner<br>2 · validate ↓</div></div>
+                <div class="node"><div class="nt">Path-safety check</div><div class="nm">jailed to one site's current/<br>safe path only ↓</div></div>
+              </div>
+              <div class="arrow" style="grid-column:1/2"></div>
+              <div class="row" style="margin-top:14px">
+                <div class="node ok"><div class="nt">Validation gate</div><div class="nm">size caps · extension allowlist<br>path-traversal blocked</div></div>
+                <div class="node"><div class="nt">Static file serve</div><div class="nm">bytes + content type only<br>no SSR · no exec · no autoindex</div></div>
+              </div>
+              <div class="arrow bad" style="margin-top:8px">.sh .php .env … → rejected at upload · nothing written to disk</div>
+            </div>
+            <div class="arrow ok">3 · extract vN · flip current &nbsp;·&nbsp; <span class="mut">read-only bytes from current/</span></div>
+            <div class="lane">
+              <span class="lane-label">Storage · versioned disk</span>
+              <div class="row">
+                <div class="node"><div class="nt">Versioned site tree</div><div class="nm">v1 … vN · immutable per upload<br>current → vN symlink · atomic flip</div></div>
+                <div class="node"><div class="nt">Postgres</div><div class="nm">users · sites · versions<br>per-site state &amp; collections</div></div>
+              </div>
+            </div>
+          </div>
+        </figure>
+        <p class="fine">Top to bottom: an agent authenticates with the user's key and uploads; the validation gate enforces size caps, the static-extension allowlist, and traversal protection — scripts and binaries die there, before anything touches disk. Accepted content extracts to a new immutable <code>vN/</code>, the <code>current</code> symlink flips atomically. Serving is a separate read-only path: path-safety check, then static bytes. No user code ever runs server-side.</p>
+      </div>
+    </section>
+
+    <!-- 02 Trust model -->
+    <section id="trust">
+      <div class="snum">02.</div>
+      <div>
+        <h2>Trust model</h2>
+        <p class="lede">Every surface is gated; the gates differ in strength. Sites are public on the internet — the protection is that they're static, owned, and revertible.</p>
+        <table>
+          <tr class="trow"><td class="tid">T1</td><td class="tk">Deploy &amp; manage sites</td><td class="tv">Per-user <strong>API key</strong>, issued by email magic-link registration. The key authenticates the owner of every upload, rollback, and delete.</td></tr>
+          <tr class="trow"><td class="tid">T2</td><td class="tk">Admin</td><td class="tv">A single admin key held in the service's <strong>environment file</strong> (<code>/etc/simple-host.env</code>, root-owned) — never in code, config, or the repo.</td></tr>
+          <tr class="trow"><td class="tid">T3</td><td class="tk">Viewing sites</td><td class="tv">Public by default. Any site can be made <strong>private</strong> with a password (view-lock): a login page sets a signed cookie that gates the page and its data.</td></tr>
+          <tr class="trow"><td class="tid">T4</td><td class="tk">Per-site state</td><td class="tv"><strong>Origin-checked</strong> — only browser calls originating from that deployed site's own subdomain are accepted. Attribution-grade, not a secret store.</td></tr>
+          <tr class="trow"><td class="tid">T5</td><td class="tk">Create with AI</td><td class="tv"><strong>Sign-in-gated and rate-limited</strong>, per user and per IP. Runs off-box on a Claude subscription; the platform stores no model credentials on served pages.</td></tr>
+          <tr class="trow"><td class="tid">T6</td><td class="tk">DB &amp; secrets</td><td class="tv">Postgres credentials and keys live in the root-owned env file, read at boot by the non-root service user. Not reachable from any served page.</td></tr>
+        </table>
+        <p class="fine">Known, accepted limitation: the origin check on state is attribution-grade, not authentication-grade — it prevents accidental cross-site misuse and gives accounting, not access control. Documented as such; secrets never belong in state.</p>
+      </div>
+    </section>
+
+    <!-- 03 Little backend -->
+    <section id="backend">
+      <div class="snum">03.</div>
+      <div>
+        <h2>The little backend</h2>
+        <p class="lede">Static hosting is commoditized. The difference here is that every site gets <strong>just enough backend</strong> — with no database to set up.</p>
+        <div class="claims">
+          <div class="claim"><div class="ci">3.1</div><p><b>Per-site JSON state.</b> One shared document per site (<code>GET/PUT/PATCH /v1/sites/{site}/state</code>), with atomic ops (increment, append, set) and ETags for cheap polling — counters, votes, saved app state, guestbooks.</p></div>
+          <div class="claim"><div class="ci">3.2</div><p><b>Append-only collections.</b> Growing lists (<code>/collections/{name}</code>) for signups, RSVPs, and form submissions — cheap appends, paginated reads.</p></div>
+          <div class="claim"><div class="ci">3.3</div><p><b>Drop-in widgets &amp; templates.</b> Threaded comments and feedback pins as one script tag each, password-locked private pages, and starter templates served from <code>/v1/templates</code>.</p></div>
+        </div>
+        <p class="fine">All of it is backed by the same single Postgres — no per-site database, no separate service. The store is public to the site's own audience by design; skills tell agents never to put secrets in it.</p>
+      </div>
+    </section>
+
+    <!-- 04 Create with AI -->
+    <section id="ai">
+      <div class="snum">04.</div>
+      <div>
+        <h2>Create with AI</h2>
+        <p class="lede">The homepage builds a site for you through a chat — and the model runs <strong>off-box</strong>, so the platform never holds AI credentials on a served surface.</p>
+        <p><code>POST /v1/generate</code> keeps the sign-in gate and rate limit on the edge, then hands the turn to a separate <strong>Claude Agent SDK</strong> server as a background job (poll for the result — no request waits out a proxy timeout). That agent runs on a <strong>Claude subscription</strong> with its built-in file/shell tools disabled — only a scoped <code>deploy_site</code> tool — so a prompt-injected page can't run commands or exfiltrate keys. You preview in a sandboxed opaque-origin iframe, then publish through the same authenticated files API.</p>
+        <p class="fine">The agent server holds no user secrets, is reachable only with a shared secret, and binds each job to the caller's key.</p>
+      </div>
+    </section>
+
+    <!-- 05 Runtime -->
+    <section id="runtime">
+      <div class="snum">05.</div>
+      <div>
+        <h2>Runtime &amp; deployment</h2>
+        <p class="lede">Where this actually runs: <strong>one small VM</strong>, one process, no orchestration.</p>
+        <div class="claims">
+          <div class="claim"><div class="ci">R1</div><p><b>One process.</b> A single Go binary under systemd — deliberately not a cluster. An <strong>nginx</strong> edge terminates TLS and routes every <code>*.simple-host.app</code> subdomain to it.</p></div>
+          <div class="claim"><div class="ci">R2</div><p><b>Hardened &amp; non-root.</b> Runs as a dedicated <code>simplehost</code> user with <code>NoNewPrivileges</code>, <code>ProtectSystem=strict</code>, and write access limited to the sites directory. Liveness (<code>/healthz</code>) and readiness (<code>/readyz</code>, DB-connected) gate traffic.</p></div>
+          <div class="claim"><div class="ci">R3</div><p><b>Small by design.</b> 1 CPU, ~1 GB RAM, 25 GB disk. Static serving and pass-through proxying — no heavy compute in-process.</p></div>
+          <div class="claim"><div class="ci">R4</div><p><b>Hot-swap releases.</b> Build, copy the new binary in, atomic rename over the old one, restart — site data and versioned files untouched. Old binaries kept for instant rollback.</p></div>
+          <div class="claim"><div class="ci">R5</div><p><b>Local state.</b> Postgres on the same box (users, sites, versions, per-site state); the versioned site tree on a local disk. No external object store — small enough not to need one.</p></div>
+        </div>
+
+        <figure>
+          <div class="figcap"><span class="t">Fig 02 · Runtime — one box, one process</span>
+            <span class="lg"><span class="dot" style="background:var(--accent)"></span>Platform</span>
+            <span class="lg"><span class="dot" style="background:var(--ok)"></span>Traffic</span>
+          </div>
+          <div class="diagram">
+            <div class="lane">
+              <span class="lane-label">Edge</span>
+              <div class="node" style="max-width:340px"><div class="nt">nginx</div><div class="nm">TLS · wildcard *.simple-host.app<br>routes {site} → the Go service</div></div>
+            </div>
+            <div class="arrow ok">HTTPS</div>
+            <div class="lane">
+              <span class="lane-label">One VM · systemd · non-root</span>
+              <div class="row">
+                <div class="node"><div class="nt">simple-host · Go</div><div class="nm">static serve · REST API · admin UI<br>/healthz · /readyz · embedded skill</div></div>
+                <div class="node"><div class="nt">Probes &amp; sandbox</div><div class="nm">ProtectSystem=strict · non-root<br>writes only /srv/simple-host/sites</div></div>
+              </div>
+            </div>
+            <div class="arrow mut">reads / writes</div>
+            <div class="lane">
+              <span class="lane-label">Local state</span>
+              <div class="row">
+                <div class="node"><div class="nt">Postgres</div><div class="nm">users · sites · versions<br>state · collections</div></div>
+                <div class="node"><div class="nt">Versioned disk</div><div class="nm">/srv/simple-host/sites<br>v1 … vN · current symlink</div></div>
+              </div>
+            </div>
+          </div>
+        </figure>
+      </div>
+    </section>
+
+    <!-- 06 Non-goals -->
+    <section id="not">
+      <div class="snum">06.</div>
+      <div>
+        <h2>What it deliberately is not</h2>
+        <table>
+          <tr class="trow"><td class="tid">N1</td><td class="tk">Not general compute</td><td class="tv">No user-code execution, by construction. No SSR, no backends, no PHP, no processes per site.</td></tr>
+          <tr class="trow"><td class="tid">N2</td><td class="tk">Static-only serving</td><td class="tv">HTML/CSS/JS/images/fonts served as bytes. Framework <em>output</em> is welcome; framework <em>servers</em> are not.</td></tr>
+          <tr class="trow"><td class="tid">N3</td><td class="tk">Not a secret store</td><td class="tv">Per-site state is readable by the site's audience and documented as such. Skills tell agents never to put credentials in uploads or state.</td></tr>
+          <tr class="trow"><td class="tid">N4</td><td class="tk">Not bypassable by scale</td><td class="tv">Per-site size and state caps are enforced server-side; AI create is rate-limited per user and IP.</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <footer class="wrap">
+      simple·host · architecture brief · <a href="/">Home</a> · <a href="/docs.html">API reference</a> · <a href="/llms.txt">llms.txt</a>
+    </footer>
+  </div>
+
+  <script>
+    var SUN = '<circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
+    var MOON = '<path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/>';
+    function paintIcon(){ document.getElementById('tt-i').innerHTML = document.documentElement.dataset.theme === 'light' ? MOON : SUN; }
+    function toggleTheme(){ var t = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'; document.documentElement.dataset.theme = t; try{ localStorage.setItem('sh-theme', t); }catch(e){} paintIcon(); }
+    paintIcon();
+  </script>
+</body>
+</html>

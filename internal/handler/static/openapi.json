@@ -51,6 +51,7 @@
   "paths": {
     "/v1/auth": {
       "post": {
+        "operationId": "postAuth",
         "summary": "Request a sign-in code",
         "description": "Emails a 6-digit code (and a magic link) to the address. No user row is created here \u2014 the account is created lazily on the first successful verify, so this can't be used to enumerate users.",
         "tags": [
@@ -110,6 +111,7 @@
     },
     "/v1/auth/verify": {
       "post": {
+        "operationId": "postAuthVerify",
         "summary": "Verify the code and get an API key",
         "description": "Exchange `{email, code}` (CLI/agent) or a magic-link `{token}` (browser) for an API key. The first successful verify creates the account. The code expires in 15 minutes and allows 3 attempts.",
         "tags": [
@@ -168,6 +170,7 @@
     },
     "/v1/me": {
       "get": {
+        "operationId": "getMe",
         "summary": "Current user",
         "tags": [
           "Auth"
@@ -208,6 +211,7 @@
     },
     "/v1/sites": {
       "get": {
+        "operationId": "getSites",
         "summary": "List your sites",
         "description": "Returns the authenticated user's sites. Admins see all sites.",
         "tags": [
@@ -240,6 +244,7 @@
     },
     "/v1/sites/{sitename}/files": {
       "post": {
+        "operationId": "postSitesBySitenameFiles",
         "summary": "Deploy a site from inline JSON files",
         "description": "The LLM-friendly deploy path \u2014 send every file inline in one request, no archiving. `index.html` is required. Relative paths only (`..`/absolute are rejected); secret files (`.env`, `.git/*`, `id_rsa`) are dropped and script extensions (`.sh .py .php \u2026`) are rejected. Use PUT to update an existing site.",
         "tags": [
@@ -288,6 +293,7 @@
         }
       },
       "put": {
+        "operationId": "putSitesBySitenameFiles",
         "summary": "Update a site from inline JSON files",
         "description": "Same as POST, but for an existing site you own. Creates a new version and activates it.",
         "tags": [
@@ -338,6 +344,7 @@
     },
     "/v1/sites/{sitename}": {
       "post": {
+        "operationId": "postSitesBySitename",
         "summary": "Create a site from an archive",
         "description": "Upload a `.tar.gz` or `.zip` (for framework builds, binary assets, large sites). Max 100 MB.",
         "tags": [
@@ -396,6 +403,7 @@
         }
       },
       "put": {
+        "operationId": "putSitesBySitename",
         "summary": "Update a site from an archive",
         "description": "Upload a new version of an existing site you own. Creates a new version and activates it.",
         "tags": [
@@ -451,6 +459,7 @@
         }
       },
       "delete": {
+        "operationId": "deleteSitesBySitename",
         "summary": "Delete your site",
         "description": "Deletes the site you own \u2014 all versions and files from disk.",
         "tags": [
@@ -481,6 +490,7 @@
     },
     "/v1/sites/{sitename}/versions": {
       "get": {
+        "operationId": "getSitesBySitenameVersions",
         "summary": "List a site's versions",
         "tags": [
           "Sites"
@@ -532,6 +542,7 @@
     },
     "/v1/sites/{sitename}/active-version": {
       "put": {
+        "operationId": "putSitesBySitenameActiveVersion",
         "summary": "Roll back to a version",
         "description": "Re-point the live site at an existing version number.",
         "tags": [
@@ -581,6 +592,7 @@
     },
     "/v1/sites/{sitename}/state": {
       "get": {
+        "operationId": "getSitesBySitenameState",
         "summary": "Read per-site JSON state",
         "description": "Returns the JSON blob for this site (`null` if unset). PUBLIC store \u2014 no API key; the server checks `Origin`/`Referer` and only accepts calls from the site's own page (`https://{sitename}.simple-host.app`). The response carries an `ETag`; send `If-None-Match: <etag>` to get a `304` when nothing changed (cheap polling). Never store secrets here.",
         "tags": [
@@ -624,6 +636,7 @@
         }
       },
       "put": {
+        "operationId": "putSitesBySitenameState",
         "summary": "Replace per-site JSON state",
         "description": "Overwrites the whole blob (\u2264 1 MB), last-write-wins. Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated, no API key.",
         "tags": [
@@ -681,6 +694,7 @@
         }
       },
       "patch": {
+        "operationId": "patchSitesBySitenameState",
         "summary": "Atomically update per-site state",
         "description": "Apply one or more atomic operations so concurrent writers never clobber. Origin-gated, no API key. Ops \u2014 `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match).",
         "tags": [
@@ -778,6 +792,7 @@
     },
     "/v1/sites/{sitename}/collections/{coll}": {
       "post": {
+        "operationId": "postSitesBySitenameCollectionsByColl",
         "summary": "Append an item to a collection",
         "description": "Append-only list (O(1) insert). For signups, RSVPs, submissions. Origin-gated, no API key. Each item \u2264 64 KB.",
         "tags": [
@@ -814,6 +829,7 @@
         }
       },
       "get": {
+        "operationId": "getSitesBySitenameCollectionsByColl",
         "summary": "List items in a collection",
         "description": "Newest-first, paginated. Origin-gated, no API key.",
         "tags": [
@@ -873,6 +889,7 @@
     },
     "/v1/sites/{sitename}/view-password": {
       "put": {
+        "operationId": "putSitesBySitenameViewPassword",
         "summary": "Set a view password (make the site private)",
         "description": "Password-protect the whole site (view-lock). Visitors get a custom login page + signed cookie, and the locked page's state/collections also require unlocking. Owner only (API key).",
         "tags": [
@@ -919,6 +936,7 @@
         }
       },
       "delete": {
+        "operationId": "deleteSitesBySitenameViewPassword",
         "summary": "Remove the view password (make the site public again)",
         "tags": [
           "Private pages"
@@ -948,6 +966,7 @@
     },
     "/v1/templates": {
       "get": {
+        "operationId": "getTemplates",
         "summary": "List starter templates",
         "description": "Public. Returns id + title + description for each template.",
         "tags": [
@@ -972,6 +991,7 @@
     },
     "/v1/templates/{id}": {
       "get": {
+        "operationId": "getTemplatesById",
         "summary": "Get a template's deployable files",
         "description": "Public. Returns the template's `files` map, ready to POST to `/v1/sites/{name}/files`.",
         "tags": [
@@ -1022,6 +1042,7 @@
     },
     "/v1/generate": {
       "post": {
+        "operationId": "postGenerate",
         "summary": "Generate a site from a prompt (AI create)",
         "description": "Powers the home-page \"create with AI\" chat. Sign-in-gated and rate-limited (spends Anthropic credits). Send the conversation and (optionally) the current HTML and attachments; returns a short reply and, when ready, the HTML. Disabled if the server has no Anthropic key.",
         "tags": [
@@ -1059,8 +1080,7 @@
                   },
                   "html": {
                     "type": "string",
-                    "description": "current site HTML",
-                    "for incremental edits": null
+                    "description": "current site HTML, for incremental edits"
                   },
                   "attachments": {
                     "type": "array",
@@ -1131,6 +1151,7 @@
     },
     "/v1/generate/status": {
       "get": {
+        "operationId": "getGenerateStatus",
         "summary": "Poll an async AI-create job",
         "description": "Poll the status of a job started by POST /v1/generate on the agent backend. Returns running until the agent finishes, then done with the reply and HTML. Sign-in-gated; the job is bound to the caller's key.",
         "tags": [
@@ -1193,6 +1214,7 @@
     },
     "/healthz": {
       "get": {
+        "operationId": "getHealthz",
         "summary": "Liveness probe",
         "tags": [
           "Health"
@@ -1219,6 +1241,7 @@
     },
     "/readyz": {
       "get": {
+        "operationId": "getReadyz",
         "summary": "Readiness probe (DB connected)",
         "tags": [
           "Health"
@@ -1402,8 +1425,7 @@
         }
       },
       "Unauthorized": {
-        "description": "Missing or invalid API key (use `X-API-Key`",
-        "not `Authorization": "Bearer`)",
+        "description": "Missing or invalid API key \u2014 send the X-API-Key header, not Authorization Bearer",
         "content": {
           "application/json": {
             "schema": {

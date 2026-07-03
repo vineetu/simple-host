@@ -35,6 +35,7 @@ tags:
 paths:
   /v1/auth:
     post:
+      operationId: postAuth
       summary: Request a sign-in code
       description: >-
         Emails a 6-digit code (and a magic link) to the address. No user row is
@@ -66,6 +67,7 @@ paths:
 
   /v1/auth/verify:
     post:
+      operationId: postAuthVerify
       summary: Verify the code and get an API key
       description: >-
         Exchange `{email, code}` (CLI/agent) or a magic-link `{token}` (browser)
@@ -97,6 +99,7 @@ paths:
 
   /v1/me:
     get:
+      operationId: getMe
       summary: Current user
       tags: [Auth]
       security: [{ apiKey: [] }]
@@ -115,6 +118,7 @@ paths:
 
   /v1/sites:
     get:
+      operationId: getSites
       summary: List your sites
       description: Returns the authenticated user's sites. Admins see all sites.
       tags: [Sites]
@@ -129,6 +133,7 @@ paths:
 
   /v1/sites/{sitename}/files:
     post:
+      operationId: postSitesBySitenameFiles
       summary: Deploy a site from inline JSON files
       description: >-
         The LLM-friendly deploy path — send every file inline in one request, no
@@ -151,6 +156,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '409': { $ref: '#/components/responses/Conflict' }
     put:
+      operationId: putSitesBySitenameFiles
       summary: Update a site from inline JSON files
       description: Same as POST, but for an existing site you own. Creates a new version and activates it.
       tags: [Deploy]
@@ -171,6 +177,7 @@ paths:
 
   /v1/sites/{sitename}:
     post:
+      operationId: postSitesBySitename
       summary: Create a site from an archive
       description: Upload a `.tar.gz` or `.zip` (for framework builds, binary assets, large sites). Max 100 MB.
       tags: [Deploy]
@@ -188,6 +195,7 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '413': { $ref: '#/components/responses/TooLarge' }
     put:
+      operationId: putSitesBySitename
       summary: Update a site from an archive
       description: Upload a new version of an existing site you own. Creates a new version and activates it.
       tags: [Deploy]
@@ -204,6 +212,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '413': { $ref: '#/components/responses/TooLarge' }
     delete:
+      operationId: deleteSitesBySitename
       summary: Delete your site
       description: Deletes the site you own — all versions and files from disk.
       tags: [Sites]
@@ -216,6 +225,7 @@ paths:
 
   /v1/sites/{sitename}/versions:
     get:
+      operationId: getSitesBySitenameVersions
       summary: List a site's versions
       tags: [Sites]
       security: [{ apiKey: [] }]
@@ -238,6 +248,7 @@ paths:
 
   /v1/sites/{sitename}/active-version:
     put:
+      operationId: putSitesBySitenameActiveVersion
       summary: Roll back to a version
       description: Re-point the live site at an existing version number.
       tags: [Sites]
@@ -258,6 +269,7 @@ paths:
 
   /v1/sites/{sitename}/state:
     get:
+      operationId: getSitesBySitenameState
       summary: Read per-site JSON state
       description: >-
         Returns the JSON blob for this site (`null` if unset). PUBLIC store — no API
@@ -277,6 +289,7 @@ paths:
         '304': { description: Not modified (matched If-None-Match) }
         '403': { $ref: '#/components/responses/OriginMismatch' }
     put:
+      operationId: putSitesBySitenameState
       summary: Replace per-site JSON state
       description: >-
         Overwrites the whole blob (≤ 1 MB), last-write-wins. Optionally pass
@@ -294,6 +307,7 @@ paths:
         '412': { description: ETag did not match (If-Match) }
         '413': { $ref: '#/components/responses/TooLarge' }
     patch:
+      operationId: patchSitesBySitenameState
       summary: Atomically update per-site state
       description: >-
         Apply one or more atomic operations so concurrent writers never clobber.
@@ -327,6 +341,7 @@ paths:
 
   /v1/sites/{sitename}/collections/{coll}:
     post:
+      operationId: postSitesBySitenameCollectionsByColl
       summary: Append an item to a collection
       description: Append-only list (O(1) insert). For signups, RSVPs, submissions. Origin-gated, no API key. Each item ≤ 64 KB.
       tags: [Collections]
@@ -339,6 +354,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '403': { $ref: '#/components/responses/OriginMismatch' }
     get:
+      operationId: getSitesBySitenameCollectionsByColl
       summary: List items in a collection
       description: Newest-first, paginated. Origin-gated, no API key.
       tags: [Collections]
@@ -360,6 +376,7 @@ paths:
 
   /v1/sites/{sitename}/view-password:
     put:
+      operationId: putSitesBySitenameViewPassword
       summary: Set a view password (make the site private)
       description: >-
         Password-protect the whole site (view-lock). Visitors get a custom login
@@ -381,6 +398,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
     delete:
+      operationId: deleteSitesBySitenameViewPassword
       summary: Remove the view password (make the site public again)
       tags: [Private pages]
       security: [{ apiKey: [] }]
@@ -392,6 +410,7 @@ paths:
 
   /v1/templates:
     get:
+      operationId: getTemplates
       summary: List starter templates
       description: Public. Returns id + title + description for each template.
       tags: [Templates]
@@ -404,6 +423,7 @@ paths:
 
   /v1/templates/{id}:
     get:
+      operationId: getTemplatesById
       summary: Get a template's deployable files
       description: Public. Returns the template's `files` map, ready to POST to `/v1/sites/{name}/files`.
       tags: [Templates]
@@ -423,6 +443,7 @@ paths:
 
   /v1/generate:
     post:
+      operationId: postGenerate
       summary: Generate a site from a prompt (AI create)
       description: >-
         Powers the home-page "create with AI" chat. Sign-in-gated and rate-limited
@@ -443,7 +464,7 @@ paths:
                   items:
                     type: object
                     properties: { role: { type: string, enum: [user, assistant] }, content: { type: string } }
-                html: { type: string, description: current site HTML, for incremental edits }
+                html: { type: string, description: "current site HTML, for incremental edits" }
                 attachments:
                   type: array
                   description: images / PDFs / text on the latest user turn
@@ -474,6 +495,7 @@ paths:
 
   /v1/generate/status:
     get:
+      operationId: getGenerateStatus
       summary: Poll an async AI-create job
       description: >-
         Poll the status of a job started by POST /v1/generate on the agent
@@ -500,6 +522,7 @@ paths:
 
   /healthz:
     get:
+      operationId: getHealthz
       summary: Liveness probe
       tags: [Health]
       responses:
@@ -507,6 +530,7 @@ paths:
 
   /readyz:
     get:
+      operationId: getReadyz
       summary: Readiness probe (DB connected)
       tags: [Health]
       responses:
@@ -574,7 +598,7 @@ components:
 
   responses:
     BadRequest: { description: Invalid request, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-    Unauthorized: { description: Missing or invalid API key (use `X-API-Key`, not `Authorization: Bearer`), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Unauthorized: { description: "Missing or invalid API key — send the X-API-Key header, not Authorization Bearer", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     Forbidden: { description: Admin access required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     NotFound: { description: Not found, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     Conflict: { description: Site name already exists, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
