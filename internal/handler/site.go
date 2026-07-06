@@ -119,6 +119,14 @@ func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, dep
 		previewTTL:      previewTTL,
 	}
 	if len(previewAccounts) > 0 {
+		ttlHours := int(previewTTL.Hours())
+		for u := range previewAccounts {
+			if n, err := db.BackfillPreviewExpiry(context.Background(), database, u, ttlHours); err != nil {
+				log.Printf("preview backfill %q: %v", u, err)
+			} else if n > 0 {
+				log.Printf("preview backfill: stamped expiry on %d existing site(s) for %q", n, u)
+			}
+		}
 		h.startExpirySweep(time.Hour)
 		log.Printf("preview-site expiry enabled: accounts=%d ttl=%s", len(previewAccounts), previewTTL)
 	}

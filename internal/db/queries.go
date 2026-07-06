@@ -127,6 +127,22 @@ func ListExpiredSites(ctx context.Context, db *sql.DB) ([]ExpiredSite, error) {
 	return out, rows.Err()
 }
 
+// BackfillPreviewExpiry stamps expires_at = created_at + ttlHours on every
+// still-permanent (NULL) site owned by the given preview account. Existing sites
+// older than the TTL become immediately expired and are removed by the next
+// sweep. Returns how many rows were updated.
+func BackfillPreviewExpiry(ctx context.Context, db *sql.DB, username string, ttlHours int) (int64, error) {
+	res, err := db.ExecContext(ctx,
+		`UPDATE sites SET expires_at = created_at + make_interval(hours => $1)
+		 WHERE expires_at IS NULL
+		   AND user_id IN (SELECT id FROM users WHERE lower(username) = lower($2))`,
+		ttlHours, username)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 func GetSite(ctx context.Context, db *sql.DB, name string) (Site, error) {
 	const query = `
 		SELECT id, user_id, name, active_version, site_url, created_at, updated_at
