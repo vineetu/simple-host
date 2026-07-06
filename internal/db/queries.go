@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -141,6 +142,36 @@ func BackfillPreviewExpiry(ctx context.Context, db *sql.DB, username string, ttl
 		return 0, err
 	}
 	return res.RowsAffected()
+}
+
+// GetAllowedOrigins returns the extra origins (beyond the site's own subdomain)
+// permitted to call this site's state/collections API — enables "backend
+// anywhere" (e.g. a page hosted on GitHub Pages using this site as its backend).
+func GetAllowedOrigins(ctx context.Context, db *sql.DB, siteName string) ([]string, error) {
+	var raw sql.NullString
+	err := db.QueryRowContext(ctx, `SELECT allowed_origins FROM sites WHERE name = $1`, siteName).Scan(&raw)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if !raw.Valid || strings.TrimSpace(raw.String) == "" {
+		return nil, nil
+	}
+	var out []string
+	for _, o := range strings.Split(raw.String, ",") {
+		if o = strings.TrimSpace(o); o != "" {
+			out = append(out, o)
+		}
+	}
+	return out, nil
+}
+
+// SetAllowedOrigins replaces the allowed-origins list for a site (comma-joined).
+func SetAllowedOrigins(ctx context.Context, db *sql.DB, siteID, origins string) error {
+	_, err := db.ExecContext(ctx, `UPDATE sites SET allowed_origins = $1 WHERE id = $2`, origins, siteID)
+	return err
 }
 
 func GetSite(ctx context.Context, db *sql.DB, name string) (Site, error) {

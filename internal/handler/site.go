@@ -211,6 +211,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// /internal is blocked at the apex proxy).
 	mux.Handle("PUT /v1/sites/{sitename}/view-password", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setViewPassword))))
 	mux.Handle("DELETE /v1/sites/{sitename}/view-password", noticeMiddleware(authMiddleware(http.HandlerFunc(h.deleteViewPassword))))
+	mux.Handle("PUT /v1/sites/{sitename}/allowed-origins", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setAllowedOrigins))))
 	mux.HandleFunc("GET /internal/view-auth", h.viewAuth)
 	mux.HandleFunc("GET /internal/view-login-page", h.viewLoginPage)
 	mux.HandleFunc("POST /internal/view-login", h.viewLogin)
@@ -232,6 +233,69 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 // "mysite.simple-host.app".
 func (h *SiteHandler) originHostForSite(siteName string) string {
 	return siteName + "." + h.siteDomain
+}
+
+// setAllowedOrigins lets a site owner list extra origins (scheme://host) that may
+// call the site's state/collections API cross-origin — so a page hosted anywhere
+// (GitHub Pages, Netlify, …) can use this site as its backend. Owner-only.
+func (h *SiteHandler) setAllowedOrigins(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+		return
+	}
+	siteName := strings.TrimSpace(r.PathValue("sitename"))
+	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+		return
+	}
+
+	var req struct {
+		Origins []string `json:"origins"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<10)).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid JSON body (expected {\"origins\":[\"https://you.github.io\"]})"})
+		return
+	}
+	clean := make([]string, 0, len(req.Origins))
+	for _, o := range req.Origins {
+		o = strings.TrimSpace(o)
+		if o == "" {
+			continue
+		}
+		u, err := url.Parse(o)
+		if err != nil || u.Scheme == "" || u.Host == "" || (u.Path != "" && u.Path != "/") {
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "each origin must be scheme://host with no path, e.g. https://you.github.io"})
+			return
+		}
+		clean = append(clean, u.Scheme+"://"+u.Host)
+	}
+	if len(clean) > 20 {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "too many origins (max 20)"})
+		return
+	}
+	if err := db.SetAllowedOrigins(r.Context(), h.database, site.ID, strings.Join(clean, ",")); err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"site": siteName, "allowed_origins": clean})
+}
+
+// originAllowedForSite reports whether the owner has whitelisted this exact
+// origin (scheme://host) for the site's state/collections API.
+func (h *SiteHandler) originAllowedForSite(ctx context.Context, siteName, origin string) bool {
+	origins, err := db.GetAllowedOrigins(ctx, h.database, siteName)
+	if err != nil || len(origins) == 0 {
+		return false
+	}
+	o := strings.ToLower(strings.TrimRight(origin, "/"))
+	for _, a := range origins {
+		if strings.ToLower(strings.TrimRight(a, "/")) == o {
+			return true
+		}
+	}
+	return false
 }
 
 // authorizeStateOrigin checks Origin/Referer and, on a match, sets the CORS
@@ -257,7 +321,11 @@ func (h *SiteHandler) authorizeStateOrigin(w http.ResponseWriter, r *http.Reques
 	if err != nil || parsed.Host == "" {
 		return false
 	}
-	if parsed.Host != want {
+	// Accept the site's own subdomain, OR any origin the owner has explicitly
+	// allowed (so a page hosted elsewhere — e.g. GitHub Pages — can use this
+	// site as its backend). A browser cannot forge Origin, so this is the same
+	// attribution-grade gate, just widened to owner-approved origins.
+	if parsed.Host != want && !h.originAllowedForSite(r.Context(), siteName, origin) {
 		return false
 	}
 

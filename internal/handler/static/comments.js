@@ -12,14 +12,24 @@
  */
 (function () {
   "use strict";
-  var host = location.hostname;
-  if (location.protocol === "file:" || host === "localhost" || host === "127.0.0.1") {
-    console.info("[comments] deploy this page to enable comments.");
-    return;
+  var _cfg = window.SH_COMMENTS || {};
+  var API;
+  if (_cfg.site) {
+    // Backend-anywhere: this page is hosted elsewhere (e.g. GitHub Pages) and
+    // uses a Simple Host site as its comments backend. The site owner must have
+    // added this page's origin via PUT /v1/sites/{site}/allowed-origins.
+    var base = (_cfg.base || "https://simple-host.app").replace(/\/+$/, "");
+    API = base + "/v1/sites/" + _cfg.site + "/state";
+  } else {
+    var host = location.hostname;
+    if (location.protocol === "file:" || host === "localhost" || host === "127.0.0.1") {
+      console.info("[comments] set window.SH_COMMENTS={site:'your-site'} to point at a backend, or deploy this page on simple-host.");
+      return;
+    }
+    var sub = host.split(".")[0];
+    var apex = host.split(".").slice(-2).join(".");
+    API = location.protocol + "//" + apex + "/v1/sites/" + sub + "/state";
   }
-  var sub = host.split(".")[0];
-  var apex = host.split(".").slice(-2).join(".");
-  var API = location.protocol + "//" + apex + "/v1/sites/" + sub + "/state";
   var CK = "_comments", VK = "_votes";
 
   var mount = document.getElementById("sh-comments") || document.body.appendChild(document.createElement("section"));
@@ -37,7 +47,6 @@
   var _bg = _rgb(getComputedStyle(document.body).backgroundColor);
   if (!_bg || _bg[3] === 0) _bg = _rgb(getComputedStyle(document.documentElement).backgroundColor) || [255, 255, 255];
   var _dark = _lum(_bg) < 0.5;
-  var _cfg = window.SH_COMMENTS || {};
   var A = _cfg.accent || (_dark ? "#8b8eff" : "#5b5ef4");
   var SURF = _dark ? "rgba(255,255,255,.05)" : "#ffffff";
   var FIELD = _dark ? "rgba(255,255,255,.06)" : "#f6f6f8";

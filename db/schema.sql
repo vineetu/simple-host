@@ -17,6 +17,7 @@ CREATE TABLE sites (
   active_version INTEGER NOT NULL DEFAULT 1,
   site_url       TEXT,
   expires_at     TIMESTAMPTZ,  -- NULL = permanent; set for ephemeral "preview" sites, swept when past
+  allowed_origins TEXT,        -- comma-separated extra origins allowed to call this site's state/collections (for "backend anywhere" — e.g. a GitHub Pages page)
   created_at     TIMESTAMPTZ DEFAULT now(),
   updated_at     TIMESTAMPTZ DEFAULT now()
 );
@@ -46,3 +47,4 @@ CREATE TABLE auth_tokens (
 -- Upgrading an existing deployment created before archive_sha256 existed:
 --   ALTER TABLE versions ADD COLUMN archive_sha256 TEXT NOT NULL DEFAULT '';
 --   ALTER TABLE sites ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+--   ALTER TABLE sites ADD COLUMN IF NOT EXISTS allowed_origins TEXT;
