@@ -73,16 +73,18 @@ type Querier interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
 
-func CreateSite(ctx context.Context, q Querier, userID, name, siteURL string) (Site, error) {
+// CreateSite inserts a new site. expiresAt is nil for permanent sites, or a
+// timestamp for ephemeral "preview" sites that the background sweep deletes.
+func CreateSite(ctx context.Context, q Querier, userID, name, siteURL string, expiresAt *time.Time) (Site, error) {
 	const query = `
-		INSERT INTO sites (user_id, name, site_url)
-		VALUES ($1, $2, $3)
+		INSERT INTO sites (user_id, name, site_url, expires_at)
+		VALUES ($1, $2, $3, $4)
 		RETURNING id, user_id, name, active_version, site_url, created_at, updated_at
 	`
 
 	var site Site
 
-	err := q.QueryRowContext(ctx, query, userID, name, siteURL).Scan(
+	err := q.QueryRowContext(ctx, query, userID, name, siteURL, expiresAt).Scan(
 		&site.ID,
 		&site.UserID,
 		&site.Name,
@@ -96,6 +98,33 @@ func CreateSite(ctx context.Context, q Querier, userID, name, siteURL string) (S
 	}
 
 	return site, nil
+}
+
+// ExpiredSite identifies a site past its expires_at (for the cleanup sweep).
+type ExpiredSite struct {
+	ID   string
+	Name string
+}
+
+// ListExpiredSites returns sites whose expires_at has passed. Sites with a NULL
+// expires_at (the default) are permanent and never returned.
+func ListExpiredSites(ctx context.Context, db *sql.DB) ([]ExpiredSite, error) {
+	rows, err := db.QueryContext(ctx,
+		`SELECT id, name FROM sites WHERE expires_at IS NOT NULL AND expires_at < now() ORDER BY expires_at LIMIT 500`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []ExpiredSite
+	for rows.Next() {
+		var e ExpiredSite
+		if err := rows.Scan(&e.ID, &e.Name); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
 }
 
 func GetSite(ctx context.Context, db *sql.DB, name string) (Site, error) {

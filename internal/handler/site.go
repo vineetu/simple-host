@@ -55,6 +55,11 @@ type SiteHandler struct {
 	// viewSecret signs the view-session cookie (HMAC), so bcrypt runs only on
 	// password submit, not on every page view.
 	viewSecret []byte
+
+	// previewAccounts (by username/email) get ephemeral sites: a site they create
+	// expires after previewTTL and is removed by the background sweep. Empty =off.
+	previewAccounts map[string]bool
+	previewTTL      time.Duration
 }
 
 // lockSite acquires the per-site upload mutex and returns its unlock func.
@@ -84,7 +89,7 @@ type versionResponse struct {
 	IsActive      bool      `json:"is_active"`
 }
 
-func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, deployScript, adminAPIKey string) *SiteHandler {
+func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration) *SiteHandler {
 	// Uploads: ~6/min/IP, burst 30. State writes: ~1/s/IP sustained, burst 60
 	// (a browser app may persist state on each interaction).
 	uploadLimiter := newRateLimiter(30, 0.1)
@@ -101,15 +106,69 @@ func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, dep
 
 	secret := sha256.Sum256([]byte(adminAPIKey + "|sh-view-cookie"))
 
-	return &SiteHandler{
-		database:      database,
-		disk:          disk,
-		siteDomain:    siteDomain,
-		deployScript:  deployScript,
-		uploadLimiter: uploadLimiter,
-		stateLimiter:  stateLimiter,
-		locks:         locks,
-		viewSecret:    secret[:],
+	h := &SiteHandler{
+		database:        database,
+		disk:            disk,
+		siteDomain:      siteDomain,
+		deployScript:    deployScript,
+		uploadLimiter:   uploadLimiter,
+		stateLimiter:    stateLimiter,
+		locks:           locks,
+		viewSecret:      secret[:],
+		previewAccounts: previewAccounts,
+		previewTTL:      previewTTL,
+	}
+	if len(previewAccounts) > 0 {
+		h.startExpirySweep(time.Hour)
+		log.Printf("preview-site expiry enabled: accounts=%d ttl=%s", len(previewAccounts), previewTTL)
+	}
+	return h
+}
+
+// previewExpiry returns a per-site expiry timestamp when the owner is a
+// configured preview account, or nil for a permanent site.
+func (h *SiteHandler) previewExpiry(user *db.User) *time.Time {
+	if user == nil || len(h.previewAccounts) == 0 || !h.previewAccounts[strings.ToLower(user.Username)] {
+		return nil
+	}
+	t := time.Now().Add(h.previewTTL)
+	return &t
+}
+
+// startExpirySweep periodically deletes sites whose expires_at has passed
+// (DB rows + on-disk files), keeping the platform free of stale preview sites.
+func (h *SiteHandler) startExpirySweep(every time.Duration) {
+	go func() {
+		// Run once shortly after boot, then on the interval.
+		time.Sleep(30 * time.Second)
+		for {
+			h.sweepExpiredSites()
+			time.Sleep(every)
+		}
+	}()
+}
+
+func (h *SiteHandler) sweepExpiredSites() {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	expired, err := db.ListExpiredSites(ctx, h.database)
+	if err != nil {
+		log.Printf("expiry sweep: list failed: %v", err)
+		return
+	}
+	for _, s := range expired {
+		unlock := h.lockSite(s.Name)
+		if err := db.DeleteSite(ctx, h.database, s.ID); err != nil {
+			log.Printf("expiry sweep: delete row %s (%s): %v", s.Name, s.ID, err)
+			unlock()
+			continue
+		}
+		if err := h.disk.DeleteSite(s.Name); err != nil {
+			log.Printf("expiry sweep: delete disk %s: %v", s.Name, err)
+		}
+		unlock()
+		log.Printf("expiry sweep: removed preview site %q", s.Name)
 	}
 }
 
@@ -429,7 +488,7 @@ func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user
 	defer tx.Rollback()
 
 	siteURL := fmt.Sprintf("https://%s.%s", siteName, h.siteDomain)
-	site, err := db.CreateSite(r.Context(), tx, user.ID, siteName, siteURL)
+	site, err := db.CreateSite(r.Context(), tx, user.ID, siteName, siteURL, h.previewExpiry(user))
 	if err != nil {
 		if isUniqueViolation(err) {
 			writeJSON(w, http.StatusConflict, errorResponse{Error: "site already exists"})

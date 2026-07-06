@@ -3,7 +3,9 @@ package config
 import (
 	"errors"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // Defaults are generic. A real deployment sets SITE_DOMAIN, PUBLIC_BASE_URL,
@@ -42,6 +44,14 @@ type Config struct {
 	GenerateModel     string
 	AgentServerURL    string // e.g. https://simple-host-agent.ideaflow.page (no trailing slash)
 	AgentSharedSecret string
+
+	// Ephemeral "preview" sites. Sites created by an account in PreviewAccounts
+	// get an expires_at = now + PreviewTTL, and a background sweep deletes them
+	// once expired. Everyone else's sites are permanent (expires_at NULL).
+	// PREVIEW_ACCOUNTS is a comma-separated list of usernames/emails; PreviewTTL
+	// comes from PREVIEW_TTL_HOURS (default 48h). Empty list = feature off.
+	PreviewAccounts map[string]bool
+	PreviewTTL      time.Duration
 }
 
 func Load() (Config, error) {
@@ -60,6 +70,19 @@ func Load() (Config, error) {
 		GenerateModel:     getEnvOrDefault("GENERATE_MODEL", "claude-haiku-4-5-20251001"),
 		AgentServerURL:    strings.TrimRight(os.Getenv("AGENT_SERVER_URL"), "/"),
 		AgentSharedSecret: os.Getenv("AGENT_SHARED_SECRET"),
+	}
+
+	cfg.PreviewAccounts = map[string]bool{}
+	for _, a := range strings.Split(os.Getenv("PREVIEW_ACCOUNTS"), ",") {
+		if a = strings.TrimSpace(strings.ToLower(a)); a != "" {
+			cfg.PreviewAccounts[a] = true
+		}
+	}
+	cfg.PreviewTTL = 48 * time.Hour
+	if v := os.Getenv("PREVIEW_TTL_HOURS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.PreviewTTL = time.Duration(n) * time.Hour
+		}
 	}
 
 	if cfg.DBDSN == "" {
