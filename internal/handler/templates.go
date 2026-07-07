@@ -24,6 +24,11 @@ type templateMeta struct {
 // simple — these are one-shot starters an LLM (down to small models) fills in.
 var templateCatalog = []templateMeta{
 	{
+		ID:          "ui-prototype",
+		Title:       "UI prototype + tap-to-comment review",
+		Description: "Ship a UI mockup for review: a polished app-screen prototype with the feedback overlay wired in — reviewers browse normally, then tap the Feedback button (or long-press on phones) to pin a note to any element. The building agent reads the notes back from state (sel/text/nx/ny anchors) and applies them.",
+	},
+	{
 		ID:          "event-rsvp",
 		Title:       "Event / RSVP",
 		Description: "Letterpress-invitation event page with a public RSVP form (append-only collection), recent-guest list, and a live headcount via atomic state ops. Note: entries are publicly readable.",

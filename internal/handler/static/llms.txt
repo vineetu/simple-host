@@ -68,7 +68,7 @@ reasonable fit. (If you must hand-author: avoid gradient/image page backgrounds 
 the drop-in widgets below detect light/dark from the background color and a
 gradient reads as transparent; use a solid background, or pass the widget an
 accent override.) The catalog covers the common "static + a little backend" sites
-(landing, waitlist, event-rsvp, architecture doc, travel itinerary, résumé).
+(ui-prototype review mock, landing, waitlist, event-rsvp, architecture doc, travel itinerary, résumé).
 
 STEP 1 — Ask the user for their email, then request a sign-in code:
 
@@ -177,7 +177,11 @@ Deploying a UI mockup for review? Add this one line to the page before </body>:
 
     <script src="https://simple-host.app/feedback.js"></script>
 
-Reviewers can then click anywhere on the page to drop a pinned comment. Comments
+(Or start from the "ui-prototype" template, which has this wired in.) Reviewers
+browse the page normally, then tap the floating "Feedback" button — the next
+tap/click pins a numbered note to that exact element (on phones, long-press is a
+shortcut; the composer is a bottom sheet). Theme it with
+window.SH_FEEDBACK={accent:"#hex",label:"Feedback"} before the tag. Comments
 are saved to the site's state KV under the key "_comments" (optimistic-concurrency
 writes, so simultaneous reviewers don't overwrite each other).
 

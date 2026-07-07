@@ -315,7 +315,7 @@ all of a user's Pages; a custom domain needs its own entry (max 20).
 GET /v1/templates             # list: id + description
 GET /v1/templates/<id>        # returns {"files":{…}} ready to POST to /files
 ```
-Catalog: landing, waitlist, event-rsvp, architecture, travel, resume. PREFER a
+Catalog: ui-prototype (app-screen mock + tap-to-comment review), landing, waitlist, event-rsvp, architecture, travel, resume. PREFER a
 template over hand-authoring — fetch it, edit the text, and deploy its `files` map.
 
 ## Key Knowledge

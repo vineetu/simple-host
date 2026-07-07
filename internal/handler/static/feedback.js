@@ -1,35 +1,46 @@
 /*
- * simple-host feedback overlay — click-to-comment for UI mockups.
+ * simple-host feedback overlay — tap-to-comment review for UI prototypes.
  *
  * Drop into any deployed page:
  *     <script src="https://simple-host.app/feedback.js"></script>
  *
- * Reviewers click anywhere to drop a pinned comment. Comments persist in the
- * site's public state KV under the reserved key "_comments", using optimistic
- * concurrency (ETag / If-Match) so simultaneous reviewers don't clobber each
- * other. A coding agent can read them back with:
- *     curl -H "Origin: https://<site>.<domain>" https://<apex>/v1/sites/<site>/state
- * and act on each comment's anchor: { sel, text, body, nx, ny, ... }.
+ * Hosted elsewhere (GitHub Pages, Netlify, …)? Point it at a Simple Host site
+ * whose owner allowed this page's origin (PUT /v1/sites/{site}/allowed-origins):
+ *     <script>window.SH_FEEDBACK = { site:"my-backend", base:"https://simple-host.app" }</script>
  *
- * NOTE: the state store is PUBLIC — comments are visible to anyone. Fine for
- * shared mockup review; don't put anything sensitive in a comment.
+ * HOW REVIEWERS USE IT
+ *   Browse mode (default): the page behaves completely normally.
+ *   Tap the floating "Feedback" pill → comment mode: a shield captures the next
+ *   tap/click, drops a numbered pin, and opens a composer (bottom sheet on
+ *   phones, popover on desktop). Post → back to browse mode.
+ *   Shortcut on touch devices: LONG-PRESS (~½s) anywhere in browse mode.
+ *   Tap any numbered pin to read that note.
+ *
+ * THEMING: window.SH_FEEDBACK = { accent:"#0f9d63", label:"Feedback",
+ *   theme:"light"|"dark"|"auto" } — or override the --shf-* CSS variables.
+ *
+ * HOW AN AGENT READS THE FEEDBACK BACK
+ *     curl -H "Origin: https://<site>.<domain>" https://<apex>/v1/sites/<site>/state
+ *   → { "_comments": [ { body, author, ts, sel, text, nx, ny, px, py } ] }
+ *   `sel` is a CSS selector for the element the reviewer tapped, `text` its
+ *   visible text (locate it in your source), `nx`/`ny` the position within that
+ *   element (0..1). Fix what each note asks, redeploy, done.
+ *
+ * Writes are single atomic PATCH appends (no read-modify-write), so many
+ * simultaneous reviewers never clobber each other. The state store is PUBLIC —
+ * fine for mockup review; don't put anything sensitive in a comment.
  */
 (function () {
   "use strict";
   var _cfg = window.SH_FEEDBACK || {};
   var API;
   if (_cfg.site) {
-    // Backend-anywhere: this page is hosted elsewhere (GitHub Pages, Netlify, …)
-    // and uses a Simple Host site as its feedback backend. The site owner must
-    // have added this page's origin via PUT /v1/sites/{site}/allowed-origins.
     var base = (_cfg.base || "https://simple-host.app").replace(/\/+$/, "");
     API = base + "/v1/sites/" + _cfg.site + "/state";
   } else {
     var host = location.hostname;
-    // Only meaningful on a deployed *.<domain> page (needs an Origin the server
-    // authorizes). On localhost/file:// we no-op with a hint.
     if (location.protocol === "file:" || host === "localhost" || host === "127.0.0.1") {
-      console.info("[feedback] set window.SH_FEEDBACK={site:'your-site'} to point at a backend, or deploy this page to enable click-to-comment.");
+      console.info("[feedback] set window.SH_FEEDBACK={site:'your-site'} to point at a backend, or deploy this page to enable tap-to-comment.");
       return;
     }
     var sub = host.split(".")[0];
@@ -37,42 +48,130 @@
     API = location.protocol + "//" + apex + "/v1/sites/" + sub + "/state";
   }
   var KEY = "_comments";
-  var MAX = 500;
 
   var author = localStorage.getItem("sh_feedback_author") || "";
-  var comments = [];
-  var commentMode = false;
+  var comments = [], etag = null;
+  var mode = false;          // comment mode on/off
+  var TOUCH = matchMedia("(pointer: coarse)").matches;
 
-  // ---- styles ----------------------------------------------------------------
+  // ---- theme -----------------------------------------------------------------
+  function _rgb(s) { var m = (s || "").match(/[\d.]+/g); return m ? m.map(Number) : null; }
+  function _lum(c) { return c ? (0.2126 * c[0] + 0.7152 * c[1] + 0.114 * c[2]) / 255 : 1; }
+  var _bg = _rgb(getComputedStyle(document.body).backgroundColor);
+  if (!_bg || _bg[3] === 0) _bg = _rgb(getComputedStyle(document.documentElement).backgroundColor) || [255, 255, 255];
+  var _dark = _cfg.theme === "dark" || (_cfg.theme !== "light" && _lum(_bg) < 0.5);
+  var A = _cfg.accent || (_dark ? "#8b8eff" : "#5b5ef4");
+  var LABEL = _cfg.label || "Feedback";
+
   var css = document.createElement("style");
   css.textContent =
-    ".shf-btn{position:fixed;right:16px;bottom:16px;z-index:2147483600;font:600 14px system-ui,sans-serif;background:#5b5ef4;color:#fff;border:0;border-radius:999px;padding:10px 16px;box-shadow:0 4px 14px rgba(0,0,0,.2);cursor:pointer}" +
-    ".shf-btn.on{background:#16a34a}" +
-    ".shf-pin{position:absolute;z-index:2147483600;width:24px;height:24px;margin:-24px 0 0 -2px;background:#5b5ef4;color:#fff;border:2px solid #fff;border-radius:50% 50% 50% 2px;font:700 12px system-ui;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.3)}" +
-    ".shf-pop{position:fixed;z-index:2147483601;background:#fff;color:#1a1a1a;border:1px solid #e5e5e5;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.18);padding:12px;width:260px;font:14px system-ui,sans-serif}" +
-    ".shf-pop textarea,.shf-pop input{width:100%;box-sizing:border-box;border:1px solid #ddd;border-radius:6px;padding:6px;font:14px system-ui;margin:4px 0}" +
-    ".shf-pop button{font:600 13px system-ui;border:0;border-radius:6px;padding:6px 12px;cursor:pointer}" +
-    ".shf-save{background:#5b5ef4;color:#fff}.shf-cancel{background:#eee;margin-left:6px}" +
-    ".shf-cmt{margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #f0f0f0}" +
-    ".shf-cmt b{color:#5b5ef4}.shf-meta{color:#888;font-size:12px}" +
-    "body.shf-picking, body.shf-picking *{cursor:crosshair !important}";
+    ":root{--shf-accent:" + A + ";--shf-on-accent:#fff;" +
+      "--shf-card:" + (_dark ? "#1c2030" : "#ffffff") + ";" +
+      "--shf-ink:" + (_dark ? "#f1f2f8" : "#1c2030") + ";" +
+      "--shf-border:" + (_dark ? "rgba(255,255,255,.16)" : "rgba(0,0,0,.12)") + ";" +
+      "--shf-muted:" + (_dark ? "rgba(235,235,245,.55)" : "rgba(60,60,70,.6)") + ";" +
+      "--shf-field:" + (_dark ? "rgba(255,255,255,.07)" : "rgba(0,0,0,.045)") + "}" +
+    ".shf-btn{position:fixed;right:16px;bottom:16px;z-index:2147483600;display:inline-flex;align-items:center;gap:8px;" +
+      "font:600 14px/1 inherit;font-family:inherit;background:var(--shf-card);color:var(--shf-ink);border:1px solid var(--shf-border);" +
+      "border-radius:999px;padding:11px 16px;box-shadow:0 6px 20px rgba(0,0,0,.18);cursor:pointer;transition:transform .12s}" +
+    ".shf-btn:active{transform:scale(.96)}" +
+    ".shf-btn .shf-n{background:var(--shf-accent);color:var(--shf-on-accent);border-radius:999px;font-size:11px;font-weight:700;padding:2px 7px}" +
+    ".shf-btn.on{background:var(--shf-accent);color:var(--shf-on-accent);border-color:var(--shf-accent)}" +
+    ".shf-shield{position:fixed;inset:0;z-index:2147483590;background:" + (_dark ? "rgba(120,130,255,.08)" : "rgba(80,90,255,.05)") + ";cursor:crosshair;touch-action:none}" +
+    ".shf-hint{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:2147483601;background:var(--shf-card);color:var(--shf-ink);" +
+      "border:1px solid var(--shf-border);border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.18);font:600 13px/1.2 inherit;font-family:inherit;" +
+      "padding:9px 16px;max-width:92vw;text-align:center}" +
+    ".shf-pin{position:absolute;z-index:2147483595;width:28px;height:28px;margin:-28px 0 0 -3px;background:var(--shf-accent);color:var(--shf-on-accent);" +
+      "border:2px solid #fff;border-radius:50% 50% 50% 3px;font:700 12px/1 inherit;font-family:inherit;display:flex;align-items:center;justify-content:center;" +
+      "cursor:pointer;box-shadow:0 3px 8px rgba(0,0,0,.28);opacity:.82;transition:opacity .15s,transform .12s}" +
+    ".shf-pin:hover,.shf-pin.hot{opacity:1;transform:scale(1.08)}" +
+    ".shf-pin.ghost{opacity:.55;pointer-events:none}" +
+    /* composer / viewer: popover on wide screens, bottom sheet on phones */
+    ".shf-pop{position:fixed;z-index:2147483602;background:var(--shf-card);color:var(--shf-ink);border:1px solid var(--shf-border);" +
+      "border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.25);padding:14px;width:300px;font:14px/1.5 inherit;font-family:inherit}" +
+    "@media (max-width:640px){.shf-pop{left:0!important;right:0;top:auto!important;bottom:0;width:auto;border-radius:16px 16px 0 0;" +
+      "padding:14px 16px calc(14px + env(safe-area-inset-bottom))}}" +
+    ".shf-pop .shf-ctx{font-size:12px;color:var(--shf-muted);margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+    ".shf-pop textarea,.shf-pop input{width:100%;box-sizing:border-box;background:var(--shf-field);color:inherit;border:1px solid var(--shf-border);" +
+      "border-radius:9px;padding:9px 10px;font:inherit;font-family:inherit;margin:0 0 8px;outline:none}" +
+    ".shf-pop textarea:focus,.shf-pop input:focus{border-color:var(--shf-accent)}" +
+    ".shf-pop textarea{min-height:72px;resize:vertical}" +
+    ".shf-row{display:flex;gap:8px;justify-content:flex-end;align-items:center}" +
+    ".shf-save{background:var(--shf-accent);color:var(--shf-on-accent);border:0;border-radius:9px;padding:8px 18px;font:600 14px inherit;font-family:inherit;cursor:pointer}" +
+    ".shf-save:disabled{opacity:.55}" +
+    ".shf-cancel{background:transparent;color:var(--shf-muted);border:0;font:600 13px inherit;font-family:inherit;cursor:pointer;padding:8px 10px}" +
+    ".shf-cmt b{color:var(--shf-accent)}.shf-meta{color:var(--shf-muted);font-size:12px;margin:2px 0 8px}" +
+    ".shf-toast{position:fixed;left:50%;bottom:76px;transform:translateX(-50%);z-index:2147483602;background:var(--shf-card);color:var(--shf-ink);" +
+      "border:1px solid var(--shf-border);border-radius:999px;padding:8px 16px;font:600 13px inherit;font-family:inherit;box-shadow:0 6px 20px rgba(0,0,0,.18)}";
   document.head.appendChild(css);
 
-  // ---- toggle button ---------------------------------------------------------
+  // ---- FAB + shield + hint -----------------------------------------------------
   var btn = document.createElement("button");
   btn.className = "shf-btn";
+  btn.type = "button";
   document.body.appendChild(btn);
-  function refreshBtn() {
-    btn.textContent = (commentMode ? "✓ Click to comment" : "💬 Comments") + " (" + comments.length + ")";
-    btn.classList.toggle("on", commentMode);
-  }
-  btn.addEventListener("click", function () {
-    commentMode = !commentMode;
-    document.body.classList.toggle("shf-picking", commentMode);
-    refreshBtn();
-  });
+  var shield = null, hint = null;
 
-  // ---- anchor capture --------------------------------------------------------
+  function refreshBtn() {
+    btn.innerHTML = "";
+    btn.appendChild(document.createTextNode(mode ? "✕ Cancel" : "💬 " + LABEL));
+    if (!mode && comments.length) { var n = document.createElement("span"); n.className = "shf-n"; n.textContent = comments.length; btn.appendChild(n); }
+    btn.classList.toggle("on", mode);
+  }
+  function setMode(on) {
+    mode = on;
+    closePop();
+    if (shield) { shield.remove(); shield = null; }
+    if (hint) { hint.remove(); hint = null; }
+    if (on) {
+      // The shield swallows ALL page interaction so a tap can only mean "comment
+      // here" — buttons/links underneath don't fire. Second tap on the FAB (or
+      // Esc) cancels.
+      shield = document.createElement("div");
+      shield.className = "shf-shield";
+      shield.addEventListener("pointerdown", onShieldTap);
+      document.body.appendChild(shield);
+      hint = document.createElement("div");
+      hint.className = "shf-hint";
+      hint.textContent = TOUCH ? "Tap where you want to leave a note" : "Click where you want to leave a note";
+      document.body.appendChild(hint);
+    }
+    refreshBtn();
+  }
+  btn.addEventListener("click", function () { setMode(!mode); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") setMode(false); });
+
+  function onShieldTap(e) {
+    e.preventDefault(); e.stopPropagation();
+    // Find what the reviewer actually pointed at beneath the shield.
+    shield.style.pointerEvents = "none";
+    var el = document.elementFromPoint(e.clientX, e.clientY) || document.body;
+    shield.style.pointerEvents = "";
+    openComposer(e.clientX, e.clientY, anchorFor(el, e.clientX, e.clientY));
+  }
+
+  // ---- long-press shortcut (touch, browse mode) --------------------------------
+  var lpTimer = null, lpStart = null, lpFired = false;
+  document.addEventListener("touchstart", function (e) {
+    if (mode || curPop || e.touches.length !== 1) return;
+    if (e.target.closest(".shf-btn,.shf-pop,.shf-pin")) return;
+    var t = e.touches[0];
+    lpStart = { x: t.clientX, y: t.clientY }; lpFired = false;
+    lpTimer = setTimeout(function () {
+      lpFired = true;
+      var el = document.elementFromPoint(lpStart.x, lpStart.y) || document.body;
+      openComposer(lpStart.x, lpStart.y, anchorFor(el, lpStart.x, lpStart.y));
+    }, 550);
+  }, { passive: true });
+  document.addEventListener("touchmove", function (e) {
+    if (!lpTimer || !lpStart) return;
+    var t = e.touches[0];
+    if (Math.abs(t.clientX - lpStart.x) > 10 || Math.abs(t.clientY - lpStart.y) > 10) { clearTimeout(lpTimer); lpTimer = null; }
+  }, { passive: true });
+  document.addEventListener("touchend", function () { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } }, { passive: true });
+  document.addEventListener("contextmenu", function (e) { if (lpFired || curPop) { e.preventDefault(); lpFired = false; } });
+
+  // ---- anchor capture ----------------------------------------------------------
   function cssPath(el) {
     if (!(el instanceof Element)) return "";
     var parts = [];
@@ -86,30 +185,25 @@
     }
     return parts.join(" > ");
   }
-
-  function captureAnchor(e) {
-    var el = e.target;
+  function anchorFor(el, cx, cy) {
     var r = el.getBoundingClientRect();
     var doc = document.documentElement;
     return {
-      sel: cssPath(el),                                              // which element
-      text: (el.innerText || el.textContent || "").trim().slice(0, 80), // its text (context for the agent)
-      nx: r.width ? (e.clientX - r.left) / r.width : 0,              // pos within element
-      ny: r.height ? (e.clientY - r.top) / r.height : 0,
-      px: (e.pageX) / Math.max(1, doc.scrollWidth),                 // pos within page (fallback)
-      py: (e.pageY) / Math.max(1, doc.scrollHeight),
+      sel: cssPath(el),                                                  // which element
+      text: (el.innerText || el.textContent || "").trim().slice(0, 80),  // its text (context for the agent)
+      nx: r.width ? (cx - r.left) / r.width : 0,                         // pos within element (0..1)
+      ny: r.height ? (cy - r.top) / r.height : 0,
+      px: (cx + window.scrollX) / Math.max(1, doc.scrollWidth),          // page-relative fallback
+      py: (cy + window.scrollY) / Math.max(1, doc.scrollHeight),
       vw: window.innerWidth
     };
   }
 
-  // ---- networking ------------------------------------------------------------
-  var etag = null;
-
+  // ---- networking (atomic append + cheap live poll) -----------------------------
   function ingest(st) {
     comments = (st && Array.isArray(st[KEY])) ? st[KEY] : [];
     render();
   }
-
   async function load() {
     try {
       var res = await fetch(API, { cache: "no-store", credentials: "include" });
@@ -117,9 +211,6 @@
       ingest(res.ok ? await res.json() : null);
     } catch (e) { ingest(null); }
   }
-
-  // Cheap live refresh: conditional GET returns 304 (no body) when unchanged, so
-  // polling is nearly free on the server.
   async function poll() {
     try {
       var res = await fetch(API, { cache: "no-store", credentials: "include", headers: etag ? { "If-None-Match": etag } : {} });
@@ -127,24 +218,19 @@
       if (res.ok) { etag = res.headers.get("ETag"); ingest(await res.json()); }
     } catch (e) {}
   }
-
-  // Append a comment with one atomic server-side op — no read-modify-write, no
-  // retries, conflict-free even with many simultaneous reviewers.
   async function addComment(c) {
-    try {
-      var res = await fetch(API, {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ops: [{ op: "append", path: KEY, value: c }] })
-      });
-      if (!res.ok) { alert("Could not save comment (" + res.status + ")"); return; }
-      etag = res.headers.get("ETag");
-      ingest(await res.json());
-    } catch (e) { alert("Could not save comment."); }
+    var res = await fetch(API, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ops: [{ op: "append", path: KEY, value: c }] })
+    });
+    if (!res.ok) throw new Error("save " + res.status);
+    etag = res.headers.get("ETag");
+    ingest(await res.json());
   }
 
-  // ---- rendering -------------------------------------------------------------
+  // ---- pins ---------------------------------------------------------------------
   function pinXY(c) {
     var el = c.sel ? document.querySelector(c.sel) : null;
     if (el) {
@@ -155,77 +241,102 @@
     return { x: (c.px || 0) * document.documentElement.scrollWidth,
              y: (c.py || 0) * document.documentElement.scrollHeight };
   }
-
   function render() {
-    Array.prototype.forEach.call(document.querySelectorAll(".shf-pin"), function (n) { n.remove(); });
+    Array.prototype.forEach.call(document.querySelectorAll(".shf-pin:not(.ghost)"), function (n) { n.remove(); });
     comments.forEach(function (c, i) {
       var p = pinXY(c);
-      var pin = document.createElement("div");
+      var pin = document.createElement("button");
+      pin.type = "button";
       pin.className = "shf-pin";
       pin.style.left = p.x + "px";
       pin.style.top = p.y + "px";
       pin.textContent = i + 1;
-      pin.title = (c.author ? c.author + ": " : "") + c.body;
-      pin.addEventListener("click", function (ev) { ev.stopPropagation(); showComment(c, p); });
+      pin.addEventListener("click", function (ev) { ev.stopPropagation(); ev.preventDefault(); showComment(c, p); });
       document.body.appendChild(pin);
     });
     refreshBtn();
   }
-
   function showComment(c, p) {
     closePop();
-    var pop = mkPop(Math.min(p.x - window.scrollX, window.innerWidth - 280), Math.min(p.y - window.scrollY, window.innerHeight - 140));
-    pop.innerHTML =
-      '<div class="shf-cmt"><b>' + esc(c.author || "anon") + '</b> ' +
-      '<span class="shf-meta">' + (c.text ? "on “" + esc(c.text) + "”" : "") + "</span><br>" +
-      esc(c.body) + "</div>";
-    var x = document.createElement("button");
-    x.className = "shf-cancel"; x.textContent = "close";
-    x.onclick = closePop; pop.appendChild(x);
+    var pop = mkPop(p.x - window.scrollX, p.y - window.scrollY);
+    var wrap = document.createElement("div"); wrap.className = "shf-cmt";
+    var b = document.createElement("b"); b.textContent = c.author || "anon";
+    var meta = document.createElement("div"); meta.className = "shf-meta";
+    meta.textContent = (c.text ? "on “" + c.text + "” · " : "") + when(c.ts);
+    var body = document.createElement("div"); body.textContent = c.body;
+    wrap.appendChild(b); wrap.appendChild(meta); wrap.appendChild(body);
+    pop.appendChild(wrap);
+    var row = document.createElement("div"); row.className = "shf-row";
+    var x = document.createElement("button"); x.className = "shf-cancel"; x.textContent = "Close"; x.onclick = closePop;
+    row.appendChild(x); pop.appendChild(row);
+  }
+  function when(ts) {
+    if (!ts) return "";
+    var d = (Date.now() - ts) / 864e5;
+    if (d < 1 / 24) return "just now";
+    if (d < 1) return Math.floor(d * 24) + "h ago";
+    if (d < 30) return Math.floor(d) + "d ago";
+    return new Date(ts).toLocaleDateString();
   }
 
-  // ---- comment composer ------------------------------------------------------
-  document.addEventListener("click", function (e) {
-    if (!commentMode) return;
-    if (e.target.closest(".shf-btn,.shf-pop,.shf-pin")) return;
-    e.preventDefault(); e.stopPropagation();
-    var anchor = captureAnchor(e);
-    openComposer(e.clientX, e.clientY, anchor);
-    commentMode = false; document.body.classList.remove("shf-picking"); refreshBtn();
-  }, true);
-
+  // ---- composer -------------------------------------------------------------------
   function openComposer(cx, cy, anchor) {
+    setModeSilent(false);
     closePop();
-    var pop = mkPop(Math.min(cx, window.innerWidth - 280), Math.min(cy, window.innerHeight - 180));
-    var nameRow = author ? "" : '<input class="shf-name" placeholder="your name (optional)">';
-    pop.innerHTML = nameRow + '<textarea class="shf-body" rows="3" placeholder="Leave a comment…"></textarea>';
-    var save = document.createElement("button"); save.className = "shf-save"; save.textContent = "Comment";
+    // Ghost pin marks the exact spot while composing.
+    var ghost = document.createElement("div");
+    ghost.className = "shf-pin ghost";
+    ghost.style.left = (cx + window.scrollX) + "px";
+    ghost.style.top = (cy + window.scrollY) + "px";
+    ghost.textContent = comments.length + 1;
+    document.body.appendChild(ghost);
+
+    var pop = mkPop(cx, cy);
+    if (anchor.text) { var ctx = document.createElement("div"); ctx.className = "shf-ctx"; ctx.textContent = "on “" + anchor.text + "”"; pop.appendChild(ctx); }
+    if (!author) { var n = document.createElement("input"); n.className = "shf-name"; n.placeholder = "your name (optional)"; pop.appendChild(n); }
+    var ta = document.createElement("textarea"); ta.placeholder = "What should change here?"; pop.appendChild(ta);
+    var row = document.createElement("div"); row.className = "shf-row";
     var cancel = document.createElement("button"); cancel.className = "shf-cancel"; cancel.textContent = "Cancel";
-    pop.appendChild(save); pop.appendChild(cancel);
-    cancel.onclick = closePop;
-    var ta = pop.querySelector(".shf-body"); ta.focus();
+    var save = document.createElement("button"); save.className = "shf-save"; save.textContent = "Post note";
+    row.appendChild(cancel); row.appendChild(save); pop.appendChild(row);
+    var cleanup = function () { ghost.remove(); closePop(); };
+    cancel.onclick = cleanup;
+    ta.focus();
     save.onclick = function () {
       var body = ta.value.trim(); if (!body) return;
       var nameEl = pop.querySelector(".shf-name");
       if (nameEl && nameEl.value.trim()) { author = nameEl.value.trim(); localStorage.setItem("sh_feedback_author", author); }
-      var c = Object.assign({ id: Date.now() + "-" + Math.round(performance.now()), body: body, author: author || "anon", ts: Date.now() }, anchor);
-      closePop();
-      addComment(c);
+      save.disabled = true; save.textContent = "Posting…";
+      var c = Object.assign({ id: Date.now() + "-" + Math.round(Math.random() * 1e6), body: body, author: author || "anon", ts: Date.now() }, anchor);
+      addComment(c).then(function () { cleanup(); toast("Note posted ✓"); })
+        .catch(function () { save.disabled = false; save.textContent = "Post note"; alert("Could not save the note."); });
     };
   }
+  function setModeSilent(on) { // leave comment mode without killing an open composer
+    mode = on;
+    if (shield) { shield.remove(); shield = null; }
+    if (hint) { hint.remove(); hint = null; }
+    refreshBtn();
+  }
+  function toast(msg) {
+    var t = document.createElement("div"); t.className = "shf-toast"; t.textContent = msg;
+    document.body.appendChild(t); setTimeout(function () { t.remove(); }, 1800);
+  }
 
-  // ---- small DOM helpers -----------------------------------------------------
+  // ---- small DOM helpers -------------------------------------------------------
   var curPop = null;
   function mkPop(x, y) {
     var pop = document.createElement("div");
-    pop.className = "shf-pop"; pop.style.left = x + "px"; pop.style.top = y + "px";
+    pop.className = "shf-pop";
+    // Desktop: clamp near the point. Phones: the media query pins it as a bottom sheet.
+    pop.style.left = Math.max(8, Math.min(x, window.innerWidth - 316)) + "px";
+    pop.style.top = Math.max(8, Math.min(y + 12, window.innerHeight - 220)) + "px";
     document.body.appendChild(pop); curPop = pop; return pop;
   }
-  function closePop() { if (curPop) { curPop.remove(); curPop = null; } }
-  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]; }); }
+  function closePop() { if (curPop) { curPop.remove(); curPop = null; } var g = document.querySelector(".shf-pin.ghost"); if (g) g.remove(); }
 
-  var t;
-  window.addEventListener("resize", function () { clearTimeout(t); t = setTimeout(render, 150); });
+  var rT;
+  window.addEventListener("resize", function () { clearTimeout(rT); rT = setTimeout(render, 150); });
   load();
-  setInterval(poll, 10000); // cheap conditional-GET refresh
+  setInterval(poll, 10000); // conditional GET → 304 when unchanged (nearly free)
 })();

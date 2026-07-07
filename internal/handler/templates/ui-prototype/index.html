@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loop — UI prototype</title>
+<meta name="description" content="Loop habit tracker — UI prototype v2 with tap-to-comment review layer.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --canvas:#fafaf7;
+    --ink:#191b18;
+    --ink-2:#5c6159;
+    --ink-3:#9aa094;
+    --accent:#0f9d63;
+    --accent-deep:#0b7a4d;
+    --tint:#e3f4ec;
+    --tint-2:#f0faf5;
+    --line:#e7e7e0;
+    --card:#ffffff;
+    --r:16px;
+    --spring:cubic-bezier(.34,1.45,.5,1);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    font-family:"Figtree",sans-serif;
+    font-weight:600;
+    background:var(--canvas);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+  svg{display:block}
+
+  /* ---------- staggered load reveal ---------- */
+  .rv{opacity:0;transform:translateY(14px);animation:rise .65s var(--spring) forwards;animation-delay:calc(var(--i,0)*75ms)}
+  @keyframes rise{to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){
+    .rv{animation:none;opacity:1;transform:none}
+    *{transition-duration:.01ms!important;animation-duration:.01ms!important}
+  }
+
+  /* ---------- desktop stage ---------- */
+  .stage{min-height:100vh;display:flex;flex-direction:column;align-items:center}
+  .deskhead{display:none}
+  .howto{margin:26px auto 40px;max-width:390px;width:100%;padding:0 20px}
+  .howto h2{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:8px}
+  .howto ol{list-style:none;counter-reset:s;display:flex;flex-direction:column;gap:5px}
+  .howto li{counter-increment:s;font-size:12.5px;color:var(--ink-2);display:flex;gap:8px;align-items:baseline;font-weight:600}
+  .howto li::before{content:counter(s);flex:0 0 16px;height:16px;border-radius:50%;background:var(--tint);color:var(--accent-deep);font-size:10px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;transform:translateY(2px)}
+
+  /* ---------- mobile banner ---------- */
+  .banner{
+    display:none;gap:10px;align-items:flex-start;
+    background:var(--ink);color:#f4f5f1;
+    padding:10px 12px 10px 14px;font-size:12.5px;line-height:1.45;font-weight:600;
+  }
+  .banner strong{font-weight:800;color:#fff}
+  .banner .bx{flex:0 0 auto;width:28px;height:28px;border-radius:8px;background:rgba(255,255,255,.12);color:#fff;font-size:15px;font-weight:800;line-height:1;margin-left:auto}
+  .banner.hidden{display:none!important}
+
+  /* ---------- phone frame (desktop) ---------- */
+  .phone{width:100%;max-width:390px;margin:0 auto}
+  .screenwrap{position:relative;background:var(--canvas)}
+  .screen{padding:0 20px 170px}
+
+  /* ---------- app UI ---------- */
+  .statusbar{display:flex;align-items:center;justify-content:space-between;padding:14px 2px 6px;font-size:13px;font-weight:700;letter-spacing:.02em}
+  .sb-app{display:flex;align-items:center;gap:6px;color:var(--ink-2)}
+  .sb-app .mark{width:14px;height:14px}
+  .today-head{padding:16px 2px 4px;display:flex;align-items:flex-end;justify-content:space-between}
+  .today-head h1{font-size:32px;font-weight:800;letter-spacing:-.03em;line-height:1}
+  .today-head .date{font-size:13px;color:var(--ink-3);font-weight:700;margin-top:7px}
+  .avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#4cc794);color:#fff;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(15,157,99,.28)}
+
+  .summary{display:grid;grid-template-columns:1fr 116px;gap:10px;margin-top:18px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 1px 2px rgba(25,27,24,.04)}
+  .streak{padding:16px;display:flex;align-items:center;gap:13px;background:linear-gradient(135deg,var(--tint-2),var(--tint));border-color:#d5ecdf;position:relative;overflow:hidden}
+  .streak::after{content:"";position:absolute;right:-30px;top:-30px;width:110px;height:110px;border-radius:50%;background:radial-gradient(circle,rgba(15,157,99,.12),transparent 70%)}
+  .flame{flex:0 0 44px;width:44px;height:44px;border-radius:14px;background:#fff;border:1px solid #d5ecdf;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(15,157,99,.14)}
+  .streak b{display:block;font-size:19px;font-weight:800;letter-spacing:-.02em;color:var(--accent-deep)}
+  .streak span{font-size:12px;color:var(--ink-2);font-weight:600}
+  .prog{padding:12px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
+  .ring{position:relative;width:56px;height:56px}
+  .ring svg{width:56px;height:56px;transform:rotate(-90deg)}
+  .ring .track{stroke:var(--line)}
+  .ring .fill{stroke:var(--accent);stroke-linecap:round;transition:stroke-dashoffset .7s var(--spring)}
+  .ring .num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:var(--accent-deep)}
+  .prog small{font-size:11px;font-weight:700;color:var(--ink-3)}
+
+  .section-h{display:flex;align-items:baseline;justify-content:space-between;margin:24px 2px 10px}
+  .section-h h2{font-size:14px;font-weight:800;letter-spacing:.01em}
+  .section-h span{font-size:11.5px;font-weight:700;color:var(--accent-deep)}
+
+  .habits{display:flex;flex-direction:column;gap:9px}
+  .habit{display:flex;align-items:center;gap:13px;padding:13px 14px;transition:background .3s,border-color .3s}
+  .habit .meta{flex:1;min-width:0}
+  .habit .name{font-size:15px;font-weight:700;letter-spacing:-.01em;transition:color .3s}
+  .habit .sub{font-size:11.5px;color:var(--ink-3);font-weight:600;margin-top:2px}
+  .dots{display:flex;gap:4px;margin-top:7px}
+  .dots i{width:7px;height:7px;border-radius:50%;background:var(--line);transition:background .3s,transform .3s var(--spring)}
+  .dots i.on{background:var(--accent)}
+  .chk{
+    flex:0 0 34px;width:34px;height:34px;border-radius:50%;
+    border:2px solid #d3d5cd;background:#fff;
+    display:flex;align-items:center;justify-content:center;
+    transition:background .35s var(--spring),border-color .35s,transform .35s var(--spring),box-shadow .35s;
+  }
+  .chk:active{transform:scale(.86)}
+  .chk svg{width:15px;height:15px}
+  .chk path{stroke:#fff;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;transition:stroke-dashoffset .4s ease .05s}
+  .habit.done .chk{background:var(--accent);border-color:var(--accent);box-shadow:0 4px 12px rgba(15,157,99,.3);transform:scale(1.04)}
+  .habit.done .chk path{stroke-dashoffset:0}
+  .habit.done{background:var(--tint-2);border-color:#dcefe5}
+  .habit.done .name{color:var(--accent-deep)}
+
+  /* ---------- tab bar ---------- */
+  .tabbar{
+    position:absolute;bottom:0;left:0;right:0;
+    display:flex;justify-content:space-around;align-items:center;
+    background:rgba(255,255,255,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    border-top:1px solid var(--line);padding:8px 6px calc(10px + env(safe-area-inset-bottom));
+  }
+  .tab{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;font-weight:700;color:var(--ink-3);padding:4px 16px;border-radius:12px;transition:color .25s,transform .25s var(--spring)}
+  .tab svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+  .tab.active{color:var(--accent)}
+  .tab:not(.active):active{transform:scale(.92)}
+
+  /* ---------- toast ---------- */
+  .toast{
+    position:absolute;left:50%;bottom:92px;transform:translate(-50%,12px);
+    background:var(--ink);color:#fff;font-size:12.5px;font-weight:700;
+    padding:9px 16px;border-radius:999px;white-space:nowrap;
+    opacity:0;pointer-events:none;transition:opacity .3s,transform .35s var(--spring);
+    box-shadow:0 8px 24px rgba(25,27,24,.25);z-index:40;
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+
+  /* ---------- ≤720px : full-bleed app ---------- */
+  @media (max-width:720px){
+    .banner{display:flex}
+    .screen{padding-bottom:180px} /* clears fixed tab bar + the feedback FAB (bottom-right 16px) */
+    .tabbar{position:fixed;z-index:30}
+    .toast{position:fixed;bottom:96px}
+    .howto{padding-bottom:110px;margin-bottom:0}
+  }
+
+  /* ---------- >720px : studio + phone frame ---------- */
+  @media (min-width:721px){
+    body{
+      background:
+        radial-gradient(900px 520px at 50% -8%,#ffffff 0%,rgba(255,255,255,0) 60%),
+        radial-gradient(1.2px 1.2px at 24px 24px,#dddcd2 40%,transparent 41%) 0 0/48px 48px,
+        #efefe9;
+    }
+    .stage{padding:44px 24px 8px}
+    .deskhead{display:block;text-align:center;margin-bottom:26px}
+    .deskhead h1{font-size:17px;font-weight:800;letter-spacing:-.01em}
+    .deskhead h1 em{font-style:normal;color:var(--ink-3);font-weight:700}
+    .deskhead h1 .pv{display:inline-block;margin-left:8px;padding:2px 9px;border-radius:999px;background:var(--tint);color:var(--accent-deep);font-size:10.5px;font-weight:800;letter-spacing:.1em;vertical-align:2px}
+    .deskhead p{margin-top:8px;font-size:13px;color:var(--ink-2);font-weight:600}
+    .phone{
+      width:390px;background:#15171a;border-radius:40px;padding:11px;
+      box-shadow:0 2px 4px rgba(20,22,20,.12),0 24px 60px -18px rgba(20,22,20,.35),inset 0 0 0 1.5px #2c2f33;
+    }
+    .screenwrap{border-radius:30px;overflow:hidden;height:760px}
+    .screen{height:100%;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;padding-bottom:120px}
+    .screen::-webkit-scrollbar{display:none}
+    .statusbar{padding-top:18px}
+    .howto{background:rgba(255,255,255,.6);border:1px solid var(--line);border-radius:14px;padding:14px 16px;backdrop-filter:blur(4px)}
+  }
+  @media (max-width:1100px) and (min-width:721px){.stage{padding-top:32px}}
+</style>
+</head>
+<body>
+
+<!-- mobile-only reviewer banner -->
+<div class="banner" id="banner" role="note">
+  <div><strong>Loop — onboarding + home · PROTOTYPE v2.</strong>
+  Browse normally. Tap the 💬 Feedback button (or long-press on touch) to pin a note to anything.</div>
+  <button class="bx" id="bannerX" aria-label="Dismiss instructions">×</button>
+</div>
+
+<div class="stage">
+
+  <!-- desktop-only header -->
+  <header class="deskhead rv" style="--i:0">
+    <h1>Loop <em>— onboarding + home</em><span class="pv">PROTOTYPE v2</span></h1>
+    <p>Browse normally. Tap the 💬 Feedback button (or long-press on touch) to pin a note to anything.</p>
+  </header>
+
+  <!-- the app -->
+  <div class="phone rv" style="--i:1">
+    <div class="screenwrap">
+      <main class="screen" id="screen">
+
+        <div class="statusbar rv" style="--i:2">
+          <span id="clock">9:41</span>
+          <span class="sb-app">
+            <svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="#0f9d63" stroke-width="4" stroke-dasharray="40 14" stroke-linecap="round"/></svg>
+            Loop
+          </span>
+        </div>
+
+        <header class="today-head rv" style="--i:3">
+          <div>
+            <h1>Today</h1>
+            <div class="date" id="date">Monday, July 7</div>
+          </div>
+          <div class="avatar" aria-hidden="true">AV</div>
+        </header>
+
+        <section class="summary">
+          <div class="card streak rv" style="--i:4">
+            <div class="flame" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24"><path fill="#0f9d63" d="M12.6 2.3c.4 2.9-.8 4.7-2.2 6.2C9 10 7.5 11.6 7.5 14.4a4.9 4.9 0 0 0 3.2 4.7c-.5-.9-.6-2-.1-3 .5-1 1.5-1.7 1.9-3 .9.8 1.5 2 1.5 3.2 0 .9-.3 1.9-.9 2.7a4.9 4.9 0 0 0 3.4-4.7c0-2.5-1.3-4-2.4-5.4-1-1.3-1.9-2.5-1.5-4.6a7.6 7.6 0 0 0-.9-2z"/></svg>
+            </div>
+            <div>
+              <b>12-day streak</b>
+              <span>Best: 21 days · keep it going</span>
+            </div>
+          </div>
+          <div class="card prog rv" style="--i:5">
+            <div class="ring">
+              <svg viewBox="0 0 36 36" aria-hidden="true">
+                <circle class="track" cx="18" cy="18" r="15.9" fill="none" stroke-width="3.4"/>
+                <circle class="fill" id="ringFill" cx="18" cy="18" r="15.9" fill="none" stroke-width="3.4" stroke-dasharray="100" stroke-dashoffset="40"/>
+              </svg>
+              <span class="num" id="ringNum">3/5</span>
+            </div>
+            <small id="ringLabel">3 of 5 done</small>
+          </div>
+        </section>
+
+        <div class="section-h rv" style="--i:6">
+          <h2>Habits</h2>
+          <span>This week</span>
+        </div>
+
+        <section class="habits" id="habits">
+          <div class="card habit done rv" style="--i:7">
+            <button class="chk" aria-pressed="true" aria-label="Toggle Morning run"><svg viewBox="0 0 24 24"><path pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
+            <div class="meta">
+              <div class="name">Morning run</div>
+              <div class="sub">7:00 AM · 3 km</div>
+              <div class="dots"><i class="on"></i><i class="on"></i><i></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on today"></i></div>
+            </div>
+          </div>
+          <div class="card habit done rv" style="--i:8">
+            <button class="chk" aria-pressed="true" aria-label="Toggle Read 20 pages"><svg viewBox="0 0 24 24"><path pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
+            <div class="meta">
+              <div class="name">Read 20 pages</div>
+              <div class="sub">Anytime · currently: Deep Work</div>
+              <div class="dots"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i class="on"></i><i class="on today"></i></div>
+            </div>
+          </div>
+          <div class="card habit rv" style="--i:9">
+            <button class="chk" aria-pressed="false" aria-label="Toggle Meditate 10 min"><svg viewBox="0 0 24 24"><path pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
+            <div class="meta">
+              <div class="name">Meditate 10 min</div>
+              <div class="sub">Evenings · guided</div>
+              <div class="dots"><i class="on"></i><i></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i class="today"></i></div>
+            </div>
+          </div>
+          <div class="card habit done rv" style="--i:10">
+            <button class="chk" aria-pressed="true" aria-label="Toggle Drink 2L water"><svg viewBox="0 0 24 24"><path pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
+            <div class="meta">
+              <div class="name">Drink 2L water</div>
+              <div class="sub">Throughout the day</div>
+              <div class="dots"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on today"></i></div>
+            </div>
+          </div>
+          <div class="card habit rv" style="--i:11">
+            <button class="chk" aria-pressed="false" aria-label="Toggle No sugar"><svg viewBox="0 0 24 24"><path pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
+            <div class="meta">
+              <div class="name">No sugar</div>
+              <div class="sub">All day · hardest one</div>
+              <div class="dots"><i class="on"></i><i></i><i></i><i class="on"></i><i class="on"></i><i></i><i class="today"></i></div>
+            </div>
+          </div>
+        </section>
+
+        <div class="toast" id="toast" role="status" aria-live="polite">Not in this prototype</div>
+      </main>
+
+      <nav class="tabbar" aria-label="App tabs">
+        <button class="tab active" aria-current="page">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M8.6 12.3l2.4 2.4 4.4-4.9"/></svg>
+          Today
+        </button>
+        <button class="tab" data-toast>
+          <svg viewBox="0 0 24 24"><path d="M5 19.5V13M12 19.5V8M19 19.5V4.5"/></svg>
+          Stats
+        </button>
+        <button class="tab" data-toast>
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.1"/><path d="M12 3.6v2.2M12 18.2v2.2M20.4 12h-2.2M5.8 12H3.6M17.9 6.1l-1.5 1.5M7.6 16.4l-1.5 1.5M17.9 17.9l-1.5-1.5M7.6 7.6L6.1 6.1"/></svg>
+          Settings
+        </button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- small human-facing explainer -->
+  <footer class="howto rv" style="--i:12">
+    <h2>How this review works</h2>
+    <ol>
+      <li>Browse the prototype like the real app — everything on the Today tab works.</li>
+      <li>Tap the Feedback pill (bottom-right), then tap anything to pin a note. Long-press works too.</li>
+      <li>That's it — the builder reads every note and ships the next revision.</li>
+    </ol>
+  </footer>
+</div>
+
+<script>
+/* =====================================================================
+   FOR THE AGENT: reading review feedback
+   =====================================================================
+   This prototype ships with the Simple Host feedback widget (loaded at
+   the end of <body>). Reviewers tap elements and leave notes; every note
+   lands in this site's PUBLIC STATE under the "_comments" key, each as:
+
+     { body, author, ts, sel, text, nx, ny }
+
+   Read them back at any time:
+
+     curl -H "Origin: https://<site>.simple-host.app" \
+          https://simple-host.app/v1/sites/<site>/state
+
+   How to act on a note:
+     - `sel`  = CSS selector of the element the reviewer tapped
+     - `text` = that element's visible text at the time
+     - `nx`/`ny` = where inside the element they tapped (0..1, 0..1)
+     Use `sel` + `text` to locate the exact element in THIS file, make the
+     requested change, then redeploy the file with:
+
+       PUT /v1/sites/<site>/files
+
+   Optional cleanup once a note is addressed: clear it by PUT-ing state
+   with the resolved items removed, or use PATCH ops like:
+
+       { "op": "removeWhere", "path": "_comments", "match": { "id": "<id>" } }
+
+   Everything below is plain client-side prototype behavior — no backend.
+   ===================================================================== */
+(function () {
+  "use strict";
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+
+  /* ---- status bar clock + date ---- */
+  function tick() {
+    var d = new Date();
+    var h = d.getHours() % 12 || 12;
+    $("#clock").textContent = h + ":" + String(d.getMinutes()).padStart(2, "0");
+  }
+  tick();
+  setInterval(tick, 30000);
+  $("#date").textContent = new Date().toLocaleDateString("en-US", {
+    weekday: "long", month: "long", day: "numeric"
+  });
+
+  /* ---- habit toggles + progress ring ---- */
+  var CIRC = 100; /* pathLength-normalized circumference */
+  function refresh() {
+    var rows = $$(".habit");
+    var done = rows.filter(function (r) { return r.classList.contains("done"); }).length;
+    var total = rows.length;
+    $("#ringFill").style.strokeDashoffset = CIRC - (done / total) * CIRC;
+    $("#ringNum").textContent = done + "/" + total;
+    $("#ringLabel").textContent = done + " of " + total + " done";
+  }
+  $$(".habit .chk").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var row = btn.closest(".habit");
+      var on = row.classList.toggle("done");
+      btn.setAttribute("aria-pressed", String(on));
+      var today = $(".dots .today", row);
+      if (today) {
+        today.classList.toggle("on", on);
+        today.style.transform = "scale(1.5)";
+        setTimeout(function () { today.style.transform = ""; }, 260);
+      }
+      refresh();
+    });
+  });
+  refresh();
+
+  /* ---- inactive tabs -> toast ---- */
+  var toastEl = $("#toast"), toastT;
+  $$("[data-toast]").forEach(function (tab) {
+    tab.addEventListener("click", function () {
+      toastEl.classList.add("show");
+      clearTimeout(toastT);
+      toastT = setTimeout(function () { toastEl.classList.remove("show"); }, 1600);
+    });
+  });
+
+  /* ---- mobile reviewer banner (remember dismissal) ---- */
+  var KEY = "loop-proto-banner-dismissed";
+  try {
+    if (localStorage.getItem(KEY)) $("#banner").classList.add("hidden");
+  } catch (e) { /* private mode: banner just shows */ }
+  $("#bannerX").addEventListener("click", function () {
+    $("#banner").classList.add("hidden");
+    try { localStorage.setItem(KEY, "1"); } catch (e) {}
+  });
+})();
+</script>
+
+<script>window.SH_FEEDBACK = { accent: "#0f9d63", label: "Feedback" }</script>
+<script src="https://simple-host.app/feedback.js" defer></script>
+</body>
+</html>
