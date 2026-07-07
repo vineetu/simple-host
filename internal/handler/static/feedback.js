@@ -16,16 +16,26 @@
  */
 (function () {
   "use strict";
-  var host = location.hostname;
-  // Only meaningful on a deployed *.<domain> page (needs an Origin the server
-  // authorizes). On localhost/file:// we no-op with a hint.
-  if (location.protocol === "file:" || host === "localhost" || host === "127.0.0.1") {
-    console.info("[feedback] deploy this page to enable click-to-comment.");
-    return;
+  var _cfg = window.SH_FEEDBACK || {};
+  var API;
+  if (_cfg.site) {
+    // Backend-anywhere: this page is hosted elsewhere (GitHub Pages, Netlify, …)
+    // and uses a Simple Host site as its feedback backend. The site owner must
+    // have added this page's origin via PUT /v1/sites/{site}/allowed-origins.
+    var base = (_cfg.base || "https://simple-host.app").replace(/\/+$/, "");
+    API = base + "/v1/sites/" + _cfg.site + "/state";
+  } else {
+    var host = location.hostname;
+    // Only meaningful on a deployed *.<domain> page (needs an Origin the server
+    // authorizes). On localhost/file:// we no-op with a hint.
+    if (location.protocol === "file:" || host === "localhost" || host === "127.0.0.1") {
+      console.info("[feedback] set window.SH_FEEDBACK={site:'your-site'} to point at a backend, or deploy this page to enable click-to-comment.");
+      return;
+    }
+    var sub = host.split(".")[0];
+    var apex = host.split(".").slice(-2).join(".");
+    API = location.protocol + "//" + apex + "/v1/sites/" + sub + "/state";
   }
-  var sub = host.split(".")[0];
-  var apex = host.split(".").slice(-2).join(".");
-  var API = location.protocol + "//" + apex + "/v1/sites/" + sub + "/state";
   var KEY = "_comments";
   var MAX = 500;
 

@@ -267,6 +267,49 @@ the site owner.
 - Pin-on-page feedback (great for mockups): `<script src="https://simple-host.app/feedback.js"></script>`.
 Both store under the site's state KV; read them back with the state GET above.
 
+**ALWAYS do a UX pass after embedding.** The widget's default look is a deliberately
+neutral baseline — it inherits the page's font and auto-detects light/dark, but it does
+NOT know the page's brand. After adding it, style it so it looks native to the page:
+
+1. Set the accent to the page's primary accent color:
+   `<script>window.SH_COMMENTS = { accent: "#b4451f" }</script>` (before the widget tag).
+   Also available: `title` ("Comments"), `placeholder`, `theme: "light"|"dark"|"auto"`.
+2. Fine-tune with CSS variables — the widget exposes its whole palette:
+   ```css
+   #sh-comments { --shc-accent:#b4451f; --shc-surface:rgba(0,0,0,.03);
+                  --shc-field:#fff; --shc-border:#e0d8cb; --shc-muted:#6f665c;
+                  --shc-radius:10px; }
+   ```
+   Match `--shc-border`/`--shc-surface` to the page's card style and `--shc-radius`
+   to the page's corner rounding. Check contrast in the page's actual background.
+3. Eyeball the result (screenshot if you can). Ship it only when the comments section
+   looks like it was designed with the page, not bolted on.
+
+### Backend for pages hosted ANYWHERE (GitHub Pages, Netlify, Cloudflare Pages, …)
+The state/collections backend and both widgets also work on pages that are NOT hosted
+on simple-host — e.g. an existing GitHub Pages blog. The page keeps its hosting; a
+Simple Host site acts purely as its backend. Setup (owner, once):
+
+```
+# 1. Create (or reuse) a site to be the backend — a placeholder index.html is fine:
+POST /v1/sites/<backend-name>/files   {"files":{"index.html":"<!doctype html>…"}}
+# 2. Allow the external page's origin (scheme://host, no path) to call it:
+PUT /v1/sites/<backend-name>/allowed-origins
+    {"origins":["https://username.github.io"]}
+```
+
+Then on the external page (three lines + the UX pass above):
+```html
+<section id="sh-comments"></section>
+<script>window.SH_COMMENTS = { site: "<backend-name>", base: "https://simple-host.app", accent: "#…" }</script>
+<script src="https://simple-host.app/comments.js" defer></script>
+```
+Feedback pins work the same way: `window.SH_FEEDBACK = { site, base }` before feedback.js.
+Raw state/collections calls also work from the allowed origin (same Origin-gated trust
+model — data is public to the page's audience; never store secrets). Note: GitHub user
+and project pages share one origin (`https://<username>.github.io`), so one entry covers
+all of a user's Pages; a custom domain needs its own entry (max 20).
+
 ### Start from a template (polished, accessible designs)
 ```
 GET /v1/templates             # list: id + description

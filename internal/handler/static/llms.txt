@@ -152,9 +152,23 @@ two lines where you want the discussion to appear, before </body>:
 It stores threads in the site's state KV (keys "_comments" and "_votes") using
 ATOMIC ops, so simultaneous posters never clobber each other, and polls cheaply so
 threads update live. It auto-matches the page's font and light/dark theme. The
-store is PUBLIC (anyone can read) — don't post anything sensitive. To set the
-accent color, add  <script>window.SH_COMMENTS={accent:"#5b5ef4"}</script>  BEFORE
-the comments.js tag. Consider adding this to most pages you deploy.
+store is PUBLIC (anyone can read) — don't post anything sensitive.
+
+STYLE IT TO MATCH THE PAGE (always do this): before the comments.js tag add
+    <script>window.SH_COMMENTS={accent:"#b4451f", title:"Comments"}</script>
+and fine-tune with CSS variables if needed:
+    #sh-comments{--shc-accent:…;--shc-surface:…;--shc-border:…;--shc-muted:…;--shc-radius:…}
+Match the accent, border and corner radius to the page's own design so the widget
+looks native, not bolted on. Consider adding comments to most pages you deploy.
+
+WORKS ON PAGES HOSTED ANYWHERE (GitHub Pages, Netlify, …): the page keeps its
+hosting; a simple-host site acts as its backend. As the owner:
+    PUT /v1/sites/<backend>/allowed-origins   (X-API-Key)
+    {"origins":["https://username.github.io"]}
+then on the external page set  window.SH_COMMENTS={site:"<backend>",
+base:"https://simple-host.app"}  before the script tag. feedback.js works the
+same via window.SH_FEEDBACK. State/collections are likewise callable from
+allowed origins.
 
 --------------------------------------------------------------------------------
 UI MOCKUP FEEDBACK — let reviewers pin comments, then read them back

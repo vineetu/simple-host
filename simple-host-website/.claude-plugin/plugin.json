@@ -1,6 +1,6 @@
 {
   "name": "website-deploy",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Deploy static websites to simple-host.app (inline JSON files or tar.gz/zip), plus a guide for what to build with the per-site backend: shared JSON state with atomic ops, append-only collections, private password-locked pages, drop-in comments/feedback widgets, and starter templates.",
   "author": {
     "name": "Website Deploy"

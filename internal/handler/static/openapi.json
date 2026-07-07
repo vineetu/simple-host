@@ -964,6 +964,81 @@
         }
       }
     },
+    "/v1/sites/{sitename}/allowed-origins": {
+      "put": {
+        "operationId": "putSitesBySitenameAllowedOrigins",
+        "summary": "Allow external origins to use this site's backend",
+        "description": "Whitelist extra origins (scheme://host, no path) that may call this site's state/collections API cross-origin \u2014 so a page hosted anywhere (GitHub Pages, Netlify, \u2026) can use the site as its backend for comments, feedback, counters, and forms. Replaces the whole list (max 20). Owner only. Same Origin-gated trust model as same-site calls: data stays public to the page's audience; never store secrets.",
+        "tags": [
+          "State"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "origins"
+                ],
+                "properties": {
+                  "origins": {
+                    "type": "array",
+                    "maxItems": 20,
+                    "items": {
+                      "type": "string",
+                      "example": "https://username.github.io"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Allowlist replaced",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "site": {
+                      "type": "string"
+                    },
+                    "allowed_origins": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
     "/v1/templates": {
       "get": {
         "operationId": "getTemplates",

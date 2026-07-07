@@ -11,7 +11,7 @@
     {
       "name": "website-deploy",
       "source": "./simple-host-website",
-      "version": "0.6.0",
+      "version": "0.7.0",
       "homepage": "https://simple-host.app",
       "description": "Deploy static websites to simple-host.app right from your coding agent \u2014 inline JSON files or a tar.gz/zip archive. Each site gets a per-site backend: shared JSON state with atomic ops, append-only collections, private (password-locked) pages, drop-in comments/feedback widgets, and starter templates. Bundles a builder skill that helps plan what to build."
     }
