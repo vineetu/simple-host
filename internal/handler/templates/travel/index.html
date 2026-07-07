@@ -4,107 +4,318 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Group Travel Itinerary · simple-host</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Karla:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
 <style>
-  /* ---------- shared design system (inline, no CDN) ---------- */
-  :root {
-    --bg:#f6f7fb; --card:#fff; --ink:#1c2430; --muted:#6b7785;
-    --accent:#5b5ef4; --accent-soft:#ececfe; --border:#e6e9ef;
-    --radius:14px; --shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px rgba(16,24,40,.06);
-    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  /* =====================================================================
+     SUN-BLEACHED POSTCARD — warm sand paper, ocean teal + sun-coral inks,
+     deep warm-brown type. Display: DM Serif Display · Body: Karla.
+     ===================================================================== */
+  :root{
+    --sand:#f3ead8;          /* page — bleached beach paper            */
+    --paper:#faf4e4;         /* the postcard itself                    */
+    --card:#fffdf3;          /* ticket stubs / day cards               */
+    --ink:#40301f;           /* deep warm brown                        */
+    --muted:#8d7c62;
+    --teal:#137974;          /* ocean */
+    --teal-deep:#0d5c58;
+    --teal-soft:#ddeee9;
+    --coral:#df5f3a;         /* sun */
+    --coral-soft:#f8e3d4;
+    --line:#e4d7ba;
+    --dash:#c9b591;
+    --serif:"DM Serif Display",Georgia,serif;
+    --body:"Karla",Georgia,serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box;}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.5;-webkit-font-smoothing:antialiased;}
-  a{color:var(--accent);text-decoration:none;}
-  a:hover{text-decoration:underline;}
-  .wrap{max-width:760px;margin:0 auto;padding:56px 20px 80px;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;color:var(--ink);font-family:var(--body);line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+    background:
+      radial-gradient(1100px 500px at 85% -8%, rgba(223,95,58,.08), transparent 60%),
+      radial-gradient(900px 480px at -10% 30%, rgba(19,121,116,.07), transparent 55%),
+      var(--sand);
+  }
+  /* airmail stripe pinned across the very top of the page */
+  body::before{
+    content:"";position:fixed;top:0;left:0;right:0;height:9px;z-index:10;
+    background:repeating-linear-gradient(-55deg,
+      var(--coral) 0 14px, var(--paper) 14px 26px,
+      var(--teal)  26px 40px, var(--paper) 40px 52px);
+  }
+  a{color:var(--teal);text-decoration:none;border-bottom:1px dashed rgba(19,121,116,.5);}
+  a:hover{color:var(--teal-deep);border-bottom-style:solid;}
+
+  .wrap{max-width:860px;margin:0 auto;padding:54px 22px 84px;}
+
+  /* ---------- the postcard ---------- */
+  .postcard{
+    position:relative;background:var(--paper);
+    border:1px solid var(--line);border-radius:6px;
+    box-shadow:0 2px 0 rgba(64,48,31,.05),0 22px 44px -22px rgba(64,48,31,.28);
+    padding:58px 54px 46px;
+  }
+  /* inner dashed "airmail" frame */
+  .postcard::before{
+    content:"";position:absolute;inset:14px;pointer-events:none;
+    border:2px dashed var(--dash);border-radius:3px;opacity:.7;
+  }
+  /* faint sun-fade across the paper */
+  .postcard::after{
+    content:"";position:absolute;inset:0;pointer-events:none;border-radius:6px;
+    background:linear-gradient(160deg, rgba(255,250,235,.65), transparent 45%);
+    mix-blend-mode:soft-light;
+  }
+  .postcard > *{position:relative;z-index:1;}
+
+  /* ---------- postage stamp + postmark (pure CSS/SVG) ---------- */
+  .stampbox{position:absolute;top:30px;right:34px;z-index:2;}
+  .stamp{
+    display:block;padding:7px;transform:rotate(4deg);
+    /* perforated edge: page-paper dots straddle the stamp rim */
+    background:radial-gradient(circle at 7px 7px, var(--paper) 3.2px, var(--teal-soft) 3.6px);
+    background-size:14px 14px;background-position:-7px -7px;
+    filter:drop-shadow(0 2px 3px rgba(64,48,31,.18));
+  }
+  .stamp-in{
+    display:flex;flex-direction:column;align-items:center;gap:2px;
+    background:var(--teal-soft);border:1px solid rgba(13,92,88,.35);
+    padding:10px 14px 8px;color:var(--teal-deep);
+  }
+  .stamp-in svg{display:block;width:34px;height:34px;}
+  .stamp-in .val{font-family:var(--serif);font-size:15px;line-height:1;letter-spacing:.04em;}
+  .stamp-in .cty{font-size:8px;font-weight:700;letter-spacing:.28em;text-transform:uppercase;}
+  .postmark{
+    position:absolute;top:-14px;right:44px;width:66px;height:66px;border-radius:50%;
+    border:2px dashed rgba(223,95,58,.55);transform:rotate(-9deg);pointer-events:none;
+  }
+  .postmark::before{
+    content:"";position:absolute;top:24px;left:-52px;width:50px;height:16px;
+    background:repeating-linear-gradient(0deg, rgba(223,95,58,.5) 0 2px, transparent 2px 7px);
+    border-radius:2px;transform:rotate(-4deg);
+  }
+  .postmark span{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:7.5px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;
+    color:rgba(223,95,58,.75);text-align:center;line-height:1.5;
+  }
 
   /* ---------- header ---------- */
-  header.hero{text-align:center;margin-bottom:34px;}
-  .badge{display:inline-block;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:5px 12px;border-radius:999px;margin-bottom:18px;}
-  h1{font-size:38px;margin:0 0 10px;letter-spacing:-.03em;line-height:1.1;}
-  .tagline{color:var(--muted);font-size:18px;margin:0 auto;max-width:520px;}
+  header.hero{margin:4px 0 34px;max-width:34ch;}
+  .kicker{
+    display:inline-block;font-size:11px;font-weight:700;letter-spacing:.3em;
+    text-transform:uppercase;color:var(--coral);margin-bottom:14px;
+  }
+  .kicker::after{content:"";display:inline-block;width:34px;height:1px;background:var(--coral);
+    vertical-align:middle;margin-left:12px;opacity:.6;}
+  h1{
+    font-family:var(--serif);font-weight:400;font-size:clamp(36px,5.4vw,54px);
+    line-height:1.04;letter-spacing:.005em;margin:0 0 14px;
+  }
+  h1 .amp{color:var(--teal);font-style:italic;}
+  .tagline{color:var(--muted);font-size:17px;margin:0;max-width:46ch;}
+  .tagline strong{color:var(--ink);font-weight:700;}
+  .tagline em{font-style:italic;}
 
   /* ---------- traveler filter pills ---------- */
-  .filter{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:0 0 36px;}
-  .pill{font:inherit;font-size:14px;font-weight:600;cursor:pointer;background:var(--card);color:var(--ink);border:1px solid var(--border);padding:8px 16px;border-radius:999px;transition:all .15s ease;box-shadow:var(--shadow);}
-  .pill:hover{border-color:var(--accent);}
-  .pill.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .filter{display:flex;flex-wrap:wrap;gap:9px;margin:0 0 42px;}
+  .pill{
+    font-family:var(--body);font-size:13px;font-weight:700;letter-spacing:.09em;
+    text-transform:uppercase;cursor:pointer;color:var(--ink);
+    background:var(--card);border:1.5px solid var(--dash);border-radius:999px;
+    padding:8px 17px;transition:border-color .16s ease,background .16s ease,color .16s ease,transform .16s ease;
+  }
+  .pill:hover{border-color:var(--teal);color:var(--teal-deep);transform:translateY(-1px);}
+  .pill.active{background:var(--teal);border-color:var(--teal);color:var(--paper);}
+  .pill:focus-visible{outline:2px solid var(--coral);outline-offset:2px;}
 
-  /* ---------- section headings ---------- */
-  .section-head{display:flex;align-items:baseline;gap:10px;margin:0 0 16px;}
-  .section-head h2{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0;}
-  .section-head .rule{flex:1;height:1px;background:var(--border);}
+  /* ---------- section labels — letterspaced small caps ---------- */
+  .section-head{display:flex;align-items:center;gap:14px;margin:0 0 20px;}
+  .section-head h2{
+    font-size:12px;font-weight:700;letter-spacing:.32em;text-transform:uppercase;
+    color:var(--teal-deep);margin:0;white-space:nowrap;
+  }
+  .section-head .mark{color:var(--coral);font-size:13px;line-height:1;}
+  .section-head .rule{flex:1;height:0;border-top:2px dashed var(--dash);}
 
   /* ---------- generic card ---------- */
-  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;margin-bottom:14px;}
+  .card{
+    position:relative;background:var(--card);border:1px solid var(--line);
+    border-radius:4px;padding:20px 24px;margin-bottom:16px;
+    box-shadow:0 1px 0 rgba(64,48,31,.05),0 10px 22px -16px rgba(64,48,31,.22);
+  }
 
   /* ---------- who-tags (traveler-group chips) ---------- */
-  .tags{display:flex;flex-wrap:wrap;gap:6px;}
-  .tag{display:inline-block;background:var(--accent-soft);color:var(--accent);font-size:11px;font-weight:700;letter-spacing:.03em;padding:3px 9px;border-radius:999px;}
+  .tags{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;}
+  .tag{
+    display:inline-block;background:var(--coral-soft);color:#b34a28;
+    font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    padding:4px 10px;border-radius:999px;border:1px solid rgba(223,95,58,.28);
+  }
 
-  /* ---------- flights ---------- */
-  .flight-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;}
-  .flight-route{font-size:20px;font-weight:800;letter-spacing:-.01em;margin:0;}
-  .flight-when{color:var(--muted);font-size:14px;margin-top:2px;}
-  .flight-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px 18px;margin-top:4px;}
-  .kv .k{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);}
-  .kv .v{font-size:15px;font-weight:600;margin-top:1px;}
-  .kv .v.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;}
+  /* ---------- flights — ticket stubs with perforated tear line ---------- */
+  .flight{padding:20px 24px 18px;}
+  .flight::before{ /* coral edge tab, like the printed stripe on a stub */
+    content:"";position:absolute;left:-1px;top:14px;bottom:14px;width:4px;
+    background:var(--coral);border-radius:0 3px 3px 0;opacity:.85;
+  }
+  .flight-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:14px;}
+  .flight-route{font-family:var(--serif);font-size:26px;font-weight:400;letter-spacing:.01em;margin:0;line-height:1.1;}
+  .flight-route .arrow{color:var(--teal);font-family:var(--body);font-size:20px;padding:0 2px;}
+  .flight-when{color:var(--muted);font-size:14px;margin-top:3px;font-weight:500;}
+  /* perforation between the stub head and the details, with punched notches */
+  .flight-grid{
+    position:relative;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
+    gap:12px 18px;margin-top:14px;padding-top:16px;border-top:2px dashed var(--dash);
+  }
+  .flight-grid::before,.flight-grid::after{
+    content:"";position:absolute;top:-9px;width:16px;height:16px;border-radius:50%;
+    background:var(--paper);border:1px solid var(--line);
+  }
+  .flight-grid::before{left:-33px;}
+  .flight-grid::after{right:-33px;}
+  .kv .k{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.2em;color:var(--muted);}
+  .kv .v{font-size:15px;font-weight:700;margin-top:2px;}
+  .kv .v.mono{font-family:var(--mono);font-weight:600;font-size:14px;color:var(--teal-deep);letter-spacing:.05em;}
 
   /* ---------- day timeline ---------- */
-  .timeline{position:relative;padding-left:30px;}
-  .timeline::before{content:"";position:absolute;left:9px;top:6px;bottom:6px;width:2px;background:var(--border);}
-  .day{position:relative;margin-bottom:14px;}
-  .day::before{content:"";position:absolute;left:-29px;top:22px;width:14px;height:14px;border-radius:50%;background:var(--accent);border:3px solid var(--bg);box-shadow:0 0 0 1px var(--border);}
+  .timeline{position:relative;padding-left:32px;}
+  .timeline::before{
+    content:"";position:absolute;left:8px;top:8px;bottom:8px;width:0;
+    border-left:2px dashed var(--dash);
+  }
+  .day{position:relative;margin-bottom:16px;}
+  .day::before{ /* coral compass-point marker */
+    content:"";position:absolute;left:-31px;top:24px;width:11px;height:11px;
+    background:var(--coral);transform:rotate(45deg);
+    box-shadow:0 0 0 4px var(--paper),0 0 0 5px var(--line);
+  }
   .day-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:10px;}
-  .day-date{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);}
-  .day-loc{font-size:21px;font-weight:800;letter-spacing:-.02em;margin:2px 0 0;display:flex;align-items:center;gap:7px;}
-  .pin{font-size:14px;color:var(--accent);white-space:nowrap;}
-  .meta-row{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:14px;margin:8px 0;}
-  .meta-row .ic{flex:none;width:16px;text-align:center;}
-  .meta-row strong{color:var(--ink);font-weight:600;}
+  .day-date{font-size:11px;font-weight:700;letter-spacing:.28em;text-transform:uppercase;color:var(--coral);}
+  .day-loc{
+    font-family:var(--serif);font-size:25px;font-weight:400;letter-spacing:.005em;
+    margin:3px 0 0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;line-height:1.15;
+  }
+  .pin{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+    white-space:nowrap;display:inline-flex;align-items:center;gap:4px;border-bottom:none;}
+  .pin:hover{border-bottom:none;}
+  .pin svg{width:11px;height:14px;display:block;}
+  .meta-row{display:flex;align-items:baseline;gap:10px;color:var(--muted);font-size:14px;margin:8px 0;}
+  .meta-row .mk{
+    flex:none;font-size:9.5px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;
+    color:var(--teal-deep);background:var(--teal-soft);padding:3px 8px 2px;border-radius:3px;
+    position:relative;top:-1px;
+  }
+  .meta-row strong{color:var(--ink);font-weight:700;}
 
   /* activities */
-  .acts{list-style:none;margin:12px 0 0;padding:0;border-top:1px dashed var(--border);}
-  .act{display:flex;gap:12px;padding:9px 0;border-bottom:1px dashed var(--border);}
-  .act:last-child{border-bottom:0;}
-  .act .time{flex:none;width:74px;font-size:13px;font-weight:700;color:var(--accent);padding-top:1px;}
-  .act .body .name{font-weight:600;}
-  .act .body .sub{color:var(--muted);font-size:13px;margin-top:1px;}
+  .acts{list-style:none;margin:14px 0 0;padding:0;border-top:2px dashed var(--dash);}
+  .act{display:flex;gap:14px;padding:10px 0;border-bottom:1px dashed var(--line);}
+  .act:last-child{border-bottom:0;padding-bottom:2px;}
+  .act .time{
+    flex:none;width:78px;font-size:12.5px;font-weight:700;color:var(--teal-deep);
+    padding-top:2px;letter-spacing:.03em;font-variant-numeric:tabular-nums;
+  }
+  .act .body .name{font-weight:700;font-size:15px;}
+  .act .body .sub{color:var(--muted);font-size:13px;margin-top:1px;font-style:italic;}
 
   /* hidden by filter */
   .is-hidden{display:none !important;}
-  .empty{color:var(--muted);font-size:14px;font-style:italic;padding:8px 2px;}
+  .empty{color:var(--muted);font-size:14px;font-style:italic;padding:8px 2px 14px;}
 
-  /* ---------- footer ---------- */
-  footer{text-align:center;color:var(--muted);font-size:13px;margin-top:46px;border-top:1px solid var(--border);padding-top:24px;}
-  footer .summary{margin-bottom:10px;}
+  /* ---------- trip chatter (comments widget mounts here) ---------- */
+  #sh-comments{margin-top:46px;}
+
+  /* ---------- footer — postcard sign-off ---------- */
+  footer{
+    margin-top:44px;padding-top:26px;border-top:2px dashed var(--dash);
+    color:var(--muted);font-size:14px;
+  }
+  footer .signoff{font-family:var(--serif);font-style:italic;font-size:19px;color:var(--ink);margin-bottom:8px;}
+  footer .summary{margin-bottom:12px;}
   footer .summary b{color:var(--ink);}
-  footer .deploy{font-size:12px;}
-  footer code{background:var(--accent-soft);color:var(--accent);padding:1px 6px;border-radius:6px;}
+  footer .deploy{font-size:12px;letter-spacing:.06em;}
+  footer code{
+    font-family:var(--mono);font-size:11px;background:var(--teal-soft);
+    color:var(--teal-deep);padding:2px 7px;border-radius:3px;
+  }
 
-  @media (max-width:520px){
-    h1{font-size:30px;}
-    .wrap{padding:40px 16px 64px;}
-    .flight-head{flex-direction:column;gap:6px;}
-    .act .time{width:64px;}
+  /* ---------- load reveal ---------- */
+  .reveal{animation:drift .55s cubic-bezier(.22,.8,.36,1) both;animation-delay:calc(var(--i,0)*70ms);}
+  @keyframes drift{
+    from{opacity:0;transform:translateY(14px);}
+    to{opacity:1;transform:none;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .reveal{animation:none;}
+    html{scroll-behavior:auto;}
+  }
+
+  /* ---------- responsive ---------- */
+  @media (max-width:640px){
+    .wrap{padding:34px 12px 56px;}
+    .postcard{padding:40px 22px 34px;}
+    .postcard::before{inset:9px;}
+    .stampbox{top:20px;right:16px;transform:scale(.82);transform-origin:top right;}
+    header.hero{margin-top:44px;}
+    .flight-head{flex-direction:column;gap:8px;}
+    .tags{justify-content:flex-start;}
+    .flight-grid::before{left:-31px;}
+    .flight-grid::after{right:-31px;}
+    .act .time{width:66px;}
+    .timeline{padding-left:26px;}
+    .timeline::before{left:5px;}
+    .day::before{left:-25px;}
+  }
+  @media (min-width:1100px){
+    .wrap{max-width:920px;padding-top:72px;}
+    .postcard{padding:64px 68px 52px;}
   }
 </style>
 </head>
 <body>
-<div class="wrap" id="app">
-  <!-- The whole page renders from the TRIP object below. -->
+<div class="wrap">
+  <div class="postcard" id="postcard">
+    <div class="stampbox" aria-hidden="true">
+      <span class="stamp"><span class="stamp-in">
+        <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <circle cx="20" cy="24" r="7.5"/>
+          <path d="M20 10v4M10.5 14.5l2.8 2.8M29.5 14.5l-2.8 2.8M6 24h4M30 24h4"/>
+          <path d="M4 33h32" stroke-dasharray="3 4"/>
+        </svg>
+        <span class="val">2026</span>
+        <span class="cty">Isla Post</span>
+      </span></span>
+      <span class="postmark"><span>SJU<br>· PR ·</span></span>
+    </div>
+
+    <div id="app">
+      <!-- The whole page renders from the TRIP object below. -->
+    </div>
+
+    <!-- Trip chatter — Simple Host comments widget mounts into this section -->
+    <section id="sh-comments"></section>
+  </div>
 </div>
 
 <script>
 /* =====================================================================
    GROUP-TRAVEL ITINERARY — single-file static template (simple-host)
    ---------------------------------------------------------------------
+   This page is fully STATIC: no build step, no backend of its own.
+   Simple Host features used:
+     • static site hosting  — this one index.html is the whole deploy
+     • comments widget      — /comments.js mounts "Trip chatter" into
+       #sh-comments so the group can coordinate; it auto-detects the
+       deployed site and no-ops gracefully on localhost.
+
    HOW TO USE THIS FILE
      Edit ONLY the TRIP object below, then deploy. Everything on the page
      (header, traveler filter, flight cards, day-by-day timeline, footer
-     summary) is generated from this data. No build step, no backend, no
-     network calls — viewers just read the published itinerary.
+     summary) is generated from this data.
 
    THE DATA MODEL (all fields are plain strings unless noted)
      title     : trip name shown as the big heading.
@@ -131,7 +342,7 @@
                                 also carry its own `who` to tag just that row
                                 (defaults to the day's `who` if omitted).
 
-   THE FILTER (the only interactivity)
+   THE FILTER (the page's own interactivity)
      Pills: "Everyone" + one per traveler group. Clicking a group pill keeps
      only the flights / days / activities tagged with that group's id and
      hides the rest — pure client-side show/hide, no data is mutated. A day
@@ -251,22 +462,28 @@
     whoList(who).forEach(id => wrap.appendChild(el("span", "tag", esc(nameOf(id)))));
     return wrap;
   }
-  // A small labeled section header with a hairline rule.
+  // A small-caps section label with a coral mark and a dashed rule.
   function sectionHead(label) {
     const h = el("div", "section-head");
+    h.appendChild(el("span", "mark", "✦"));
     h.appendChild(el("h2", null, esc(label)));
     h.appendChild(el("div", "rule"));
     return h;
   }
+  // tiny inline-SVG map pin (no emoji)
+  const PIN_SVG = `<svg viewBox="0 0 12 16" fill="none" stroke="currentColor" stroke-width="1.6">
+    <path d="M6 15C6 15 10.8 9.6 10.8 5.8A4.8 4.8 0 0 0 1.2 5.8C1.2 9.6 6 15 6 15Z"/>
+    <circle cx="6" cy="5.8" r="1.7"/></svg>`;
 
   const app = $("#app");
 
   /* ---- 1. HEADER ---- */
   const hero = el("header", "hero");
-  hero.appendChild(el("span", "badge", "Group itinerary"));
-  hero.appendChild(el("h1", null, esc(TRIP.title)));
-  hero.appendChild(el("div", "tagline",
-    `<strong style="color:var(--ink)">${esc(TRIP.dates)}</strong>${TRIP.tagline ? " · " + esc(TRIP.tagline) : ""}`));
+  hero.appendChild(el("span", "kicker", "Group itinerary"));
+  hero.appendChild(el("h1", null,
+    esc(TRIP.title).replace(/↔/g, '<span class="amp">↔</span>')));
+  hero.appendChild(el("p", "tagline",
+    `<strong>${esc(TRIP.dates)}</strong>${TRIP.tagline ? " · <em>" + esc(TRIP.tagline) + "</em>" : ""}`));
   app.appendChild(hero);
 
   /* ---- 2. TRAVELER-GROUP FILTER ---- */
@@ -292,7 +509,8 @@
 
     const head = el("div", "flight-head");
     const left = el("div");
-    left.appendChild(el("div", "flight-route", esc(f.route)));
+    left.appendChild(el("div", "flight-route",
+      esc(f.route).replace(/→/g, '<span class="arrow">→</span>')));
     left.appendChild(el("div", "flight-when", `${esc(f.date)} · ${esc(f.time)}`));
     head.appendChild(left);
     head.appendChild(tagChips(f.who));
@@ -331,8 +549,7 @@
     const loc = el("div", "day-loc");
     loc.appendChild(document.createTextNode(d.location || ""));
     if (d.map) {
-      const pin = el("a", "pin",
-        `📍 <span style="font-size:13px;font-weight:600;">Map ↗</span>`);
+      const pin = el("a", "pin", `${PIN_SVG}<span>Map ↗</span>`);
       pin.href = d.map; pin.target = "_blank"; pin.rel = "noopener";
       loc.appendChild(pin);
     }
@@ -341,13 +558,13 @@
     head.appendChild(tagChips(d.who));
     day.appendChild(head);
 
-    // lodging + transport meta rows
+    // lodging + transport meta rows (small-caps ledger labels, no icons)
     if (d.lodging && d.lodging !== "—")
       day.appendChild(el("div", "meta-row",
-        `<span class="ic">🛏️</span><span><strong>Stay:</strong> ${esc(d.lodging)}</span>`));
+        `<span class="mk">Stay</span><span>${esc(d.lodging)}</span>`));
     if (d.transport)
       day.appendChild(el("div", "meta-row",
-        `<span class="ic">🚗</span><span><strong>Transport:</strong> ${esc(d.transport)}</span>`));
+        `<span class="mk">Route</span><span>${esc(d.transport)}</span>`));
 
     // activities list (each row can carry its own `who`; defaults to day's)
     if (Array.isArray(d.activities) && d.activities.length) {
@@ -372,17 +589,18 @@
   });
   app.appendChild(timeline);
 
-  /* ---- 5. FOOTER ---- */
+  /* ---- 5. FOOTER (appended after #sh-comments so chatter sits above it) ---- */
   const footer = el("footer");
   const travelerCount = TRIP.travelers.length;
   const dayCount = TRIP.days.length;
+  footer.appendChild(el("div", "signoff", "Wish you were here —"));
   footer.appendChild(el("div", "summary",
     `<b>${esc(TRIP.dates)}</b> · <b>${travelerCount}</b> traveler group${travelerCount===1?"":"s"} · `
     + `<b>${dayCount}</b> planned day${dayCount===1?"":"s"}`
     + (TRIP.scope ? `<br><span style="color:var(--muted)">${esc(TRIP.scope)}</span>` : "")));
   footer.appendChild(el("div", "deploy",
     `Deployed on <code>simple-host</code> · static itinerary`));
-  app.appendChild(footer);
+  $("#postcard").appendChild(footer);
 
   /* ---- FILTER BEHAVIOR (pure client-side show/hide) ----
      id "*" => show everything. Otherwise show only items tagged with the id.
@@ -440,6 +658,17 @@
 
   // initial paint
   applyFilter();
+
+  /* ---- load reveal — gentle staggered drift-in of the top-level blocks ---- */
+  [...app.children].forEach((n, i) => {
+    n.classList.add("reveal");
+    n.style.setProperty("--i", Math.min(i, 10));
+  });
 </script>
+
+<!-- Trip chatter — Simple Host comments widget (auto-detects the deployed
+     site; no-ops gracefully on localhost) -->
+<script>window.SH_COMMENTS = { accent: "#137974", title: "Trip chatter", placeholder: "Questions, plans, hot takes…" }</script>
+<script src="https://simple-host.app/comments.js" defer></script>
 </body>
 </html>

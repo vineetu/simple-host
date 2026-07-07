@@ -3,223 +3,454 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Waitlist · simple-host</title>
+<title>Nimbus — launching soon</title>
+<meta name="description" content="Nimbus, the calmest way to capture ideas, is launching soon. Join the waitlist." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
 <style>
-  /* ---------- shared design system (inline, no CDN) ---------- */
-  :root {
-    --bg:#f6f7fb; --card:#fff; --ink:#1c2430; --muted:#6b7785;
-    --accent:#5b5ef4; --accent-soft:#ececfe; --border:#e6e9ef;
-    --radius:14px; --shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px rgba(16,24,40,.06);
-    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  /* ================================================================
+     MIDNIGHT LAUNCH — dark, deliberate, one electric accent.
+     Ink: #0a0c12 (near-black, never pure black)
+     Accent: chartreuse #d4ff3f
+     Display: Sora · Countdown: IBM Plex Mono (tabular-nums)
+     ================================================================ */
+  :root{
+    --ink:#0a0c12;
+    --ink-2:#0e1119;
+    --line:rgba(211,222,240,.08);
+    --line-2:rgba(211,222,240,.14);
+    --text:#e8ecf4;
+    --dim:#8b93a7;
+    --faint:#5b6272;
+    --accent:#d4ff3f;
+    --accent-dim:rgba(212,255,63,.14);
+    --accent-glow:rgba(212,255,63,.07);
+    --bad:#ff6b6b;
+    --sans:"Sora",ui-sans-serif,sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,monospace;
   }
-  *{box-sizing:border-box;}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.5;-webkit-font-smoothing:antialiased;}
-  .wrap{max-width:560px;margin:0 auto;padding:72px 20px 80px;text-align:center;}
-  .badge{display:inline-block;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:5px 12px;border-radius:999px;margin-bottom:20px;}
-  h1{font-size:40px;margin:0 0 12px;letter-spacing:-.03em;line-height:1.1;}
-  .sub{color:var(--muted);font-size:18px;margin:0 auto 30px;max-width:440px;}
-  /* countdown */
-  .countdown{display:flex;justify-content:center;gap:10px;margin:0 0 32px;}
-  .cd{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 4px;min-width:70px;}
-  .cd .n{font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1;color:var(--accent);}
-  .cd .u{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-top:6px;}
-  /* form card */
-  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:24px;margin:0 auto;max-width:440px;}
-  .field{display:flex;gap:10px;}
-  @media (max-width:440px){.field{flex-direction:column;}}
-  input{flex:1;font:inherit;color:var(--ink);padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:#fff;outline:none;}
-  input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
-  button{font:inherit;font-weight:600;cursor:pointer;background:var(--accent);color:#fff;border:0;padding:12px 22px;border-radius:10px;transition:filter .15s ease;white-space:nowrap;}
-  button:hover{filter:brightness(1.05);}
-  button:disabled{opacity:.55;cursor:default;filter:none;}
-  .count{margin:18px 0 0;font-weight:600;}
-  .count .hl{color:var(--accent);}
-  .privnote{color:var(--muted);font-size:12px;margin:14px auto 0;max-width:440px;}
-  .thanks{font-size:17px;font-weight:600;color:#1c7a3e;}
-  .thanks small{display:block;font-weight:400;color:var(--muted);font-size:14px;margin-top:6px;}
-  .notice{background:#fff8e6;border:1px solid #f3e2a8;color:#7a5b00;padding:12px 14px;border-radius:10px;font-size:14px;margin:0 auto 22px;max-width:440px;text-align:left;}
-  .notice code{background:#fff;border:1px solid #f3e2a8;padding:1px 6px;border-radius:6px;}
-  footer{text-align:center;color:var(--muted);font-size:12px;margin-top:40px;}
-  footer code{background:var(--accent-soft);color:var(--accent);padding:1px 6px;border-radius:6px;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--ink);
+    color:var(--text);
+    font-family:var(--sans);
+    line-height:1.55;
+    min-height:100svh;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* --- fine grid texture, fading toward the edges --- */
+  .grid-layer{
+    position:fixed;inset:0;z-index:0;pointer-events:none;
+    background-image:
+      linear-gradient(var(--line) 1px,transparent 1px),
+      linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:56px 56px;
+    -webkit-mask-image:radial-gradient(ellipse 90% 80% at 50% 32%,#000 30%,transparent 78%);
+    mask-image:radial-gradient(ellipse 90% 80% at 50% 32%,#000 30%,transparent 78%);
+  }
+  /* --- radial glow behind the headline --- */
+  .glow{
+    position:fixed;z-index:0;pointer-events:none;
+    left:50%;top:16%;width:min(920px,120vw);aspect-ratio:1.6;
+    transform:translateX(-50%);
+    background:radial-gradient(ellipse at center,var(--accent-glow) 0%,rgba(212,255,63,.025) 42%,transparent 70%);
+    filter:blur(6px);
+  }
+  /* --- soft noise (SVG data-uri, imperceptible but kills flatness) --- */
+  .noise{
+    position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.35;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .04 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .shell{
+    position:relative;z-index:1;
+    max-width:1100px;margin:0 auto;
+    padding:0 24px;
+    min-height:100svh;
+    display:flex;flex-direction:column;
+  }
+  header.top{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:28px 0 0;
+  }
+  .wordmark{
+    font-weight:800;font-size:15px;letter-spacing:.14em;text-transform:uppercase;
+    display:flex;align-items:center;gap:10px;color:var(--text);
+  }
+  .wordmark .dot{
+    width:9px;height:9px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 14px 2px rgba(212,255,63,.55);
+    animation:pulse 2.6s ease-in-out infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.45;}}
+  .status{
+    font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--dim);border:1px solid var(--line-2);border-radius:999px;padding:6px 14px;
+  }
+  .status b{color:var(--accent);font-weight:500;}
+
+  main{
+    flex:1;display:flex;flex-direction:column;justify-content:center;
+    text-align:center;padding:72px 0 56px;
+  }
+  .kicker{
+    font-family:var(--mono);font-size:12px;font-weight:400;
+    letter-spacing:.28em;text-transform:uppercase;color:var(--accent);
+    margin-bottom:26px;
+  }
+  .kicker::before,.kicker::after{content:"";display:inline-block;width:34px;height:1px;background:var(--accent-dim);vertical-align:middle;margin:0 14px;}
+  h1{
+    font-size:clamp(46px,8.5vw,104px);
+    font-weight:800;line-height:.98;letter-spacing:-.045em;
+    margin:0 auto 22px;max-width:16ch;
+    text-wrap:balance;
+  }
+  h1 .em{
+    color:var(--accent);
+    text-shadow:0 0 44px rgba(212,255,63,.35);
+  }
+  .sub{
+    color:var(--dim);font-size:clamp(16px,2vw,19px);font-weight:400;
+    max-width:52ch;margin:0 auto 58px;text-wrap:balance;
+  }
+
+  /* ---------- launch clock ---------- */
+  .clock{
+    font-family:var(--mono);
+    display:flex;align-items:baseline;justify-content:center;
+    gap:clamp(10px,3vw,26px);
+    margin:0 auto 64px;
+  }
+  .unit{display:flex;flex-direction:column;align-items:center;gap:10px;}
+  .unit .n{
+    font-size:clamp(44px,7.5vw,84px);
+    font-weight:300;line-height:1;
+    font-variant-numeric:tabular-nums;
+    letter-spacing:.02em;
+    color:var(--text);
+  }
+  .unit .u{
+    font-size:11px;letter-spacing:.3em;text-transform:uppercase;
+    font-variant-caps:small-caps;color:var(--faint);font-weight:400;
+    padding-top:2px;border-top:1px solid var(--line-2);
+    min-width:64px;
+  }
+  .sep{
+    font-size:clamp(30px,5vw,54px);font-weight:300;color:var(--accent);
+    opacity:.55;line-height:1;align-self:flex-start;
+    padding-top:clamp(4px,1vw,12px);
+    animation:blink 2s steps(1) infinite;
+  }
+  @keyframes blink{50%{opacity:.18;}}
+
+  /* ---------- form ---------- */
+  .signup{max-width:520px;margin:0 auto;width:100%;}
+  .field{
+    display:flex;gap:0;
+    background:var(--ink-2);
+    border:1px solid var(--line-2);
+    border-radius:14px;padding:6px;
+    transition:border-color .2s ease,box-shadow .2s ease;
+  }
+  .field:focus-within{border-color:rgba(212,255,63,.5);box-shadow:0 0 0 4px rgba(212,255,63,.08);}
+  .field.err{border-color:var(--bad);}
+  input[type=email]{
+    flex:1;min-width:0;font:inherit;font-size:15px;color:var(--text);
+    background:transparent;border:0;outline:none;padding:12px 16px;
+  }
+  input[type=email]::placeholder{color:var(--faint);}
+  button{
+    font:inherit;font-size:14px;font-weight:700;letter-spacing:.02em;
+    cursor:pointer;border:0;border-radius:10px;
+    background:var(--accent);color:#0c0f07;
+    padding:12px 24px;white-space:nowrap;
+    transition:transform .15s ease,box-shadow .2s ease,opacity .15s ease;
+    box-shadow:0 0 0 0 rgba(212,255,63,0);
+  }
+  button:hover{transform:translateY(-1px);box-shadow:0 6px 26px -6px rgba(212,255,63,.5);}
+  button:active{transform:translateY(0);}
+  button:disabled{opacity:.5;cursor:default;transform:none;box-shadow:none;}
+  .field-msg{
+    font-family:var(--mono);font-size:12px;color:var(--bad);
+    margin-top:10px;min-height:16px;text-align:left;padding-left:4px;
+  }
+  .joined{
+    display:none;
+    border:1px solid rgba(212,255,63,.35);border-radius:14px;
+    background:linear-gradient(180deg,rgba(212,255,63,.08),rgba(212,255,63,.02));
+    padding:22px 24px;font-weight:600;font-size:16px;
+  }
+  .joined small{display:block;font-weight:400;color:var(--dim);font-size:13px;margin-top:6px;}
+  .joined .tick{color:var(--accent);margin-right:8px;}
+
+  .count{
+    font-family:var(--mono);font-size:13px;letter-spacing:.06em;
+    color:var(--dim);margin-top:26px;
+  }
+  .count b{color:var(--accent);font-weight:500;font-variant-numeric:tabular-nums;}
+
+  .demo-note{
+    display:none;
+    font-family:var(--mono);font-size:11.5px;letter-spacing:.04em;color:var(--faint);
+    border:1px dashed var(--line-2);border-radius:10px;
+    padding:9px 16px;margin:26px auto 0;max-width:440px;
+  }
+  .demo-note b{color:var(--dim);font-weight:500;}
+
+  footer{
+    padding:26px 0 30px;
+    display:flex;flex-wrap:wrap;gap:10px 24px;align-items:center;justify-content:space-between;
+    border-top:1px solid var(--line);
+  }
+  .fine{
+    font-size:11.5px;color:var(--faint);max-width:56ch;text-align:left;line-height:1.6;
+  }
+  .made{
+    font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);white-space:nowrap;
+  }
+  .made a{color:var(--dim);text-decoration:none;border-bottom:1px solid var(--line-2);}
+  .made a:hover{color:var(--accent);border-color:var(--accent-dim);}
+
+  /* ---------- orchestrated reveal ---------- */
+  .rv{opacity:0;transform:translateY(18px);animation:rise .9s cubic-bezier(.2,.7,.2,1) forwards;}
+  .d1{animation-delay:.08s;}.d2{animation-delay:.2s;}.d3{animation-delay:.34s;}
+  .d4{animation-delay:.5s;}.d5{animation-delay:.66s;}.d6{animation-delay:.8s;}
+  @keyframes rise{to{opacity:1;transform:none;}}
+  @media (prefers-reduced-motion:reduce){
+    .rv{animation:none;opacity:1;transform:none;}
+    .sep,.wordmark .dot{animation:none;}
+  }
+
+  /* ---------- responsive ---------- */
+  @media (max-width:640px){
+    main{padding:56px 0 44px;}
+    .kicker::before,.kicker::after{width:18px;margin:0 10px;}
+    .sub{margin-bottom:44px;}
+    .clock{margin-bottom:48px;}
+    .unit .u{min-width:48px;letter-spacing:.22em;}
+    .field{flex-direction:column;gap:8px;padding:8px;}
+    button{padding:14px 24px;}
+    footer{flex-direction:column;align-items:flex-start;}
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="glow" aria-hidden="true"></div>
+<div class="grid-layer" aria-hidden="true"></div>
+<div class="noise" aria-hidden="true"></div>
 
-  <!-- ============================================================
-       EDIT YOUR PRODUCT COPY HERE.
-       ============================================================ -->
-  <span class="badge">Coming soon</span>
-  <h1 id="headline">Nimbus is coming</h1>
-  <p class="sub" id="valueprop">The calmest way to capture ideas and ship them. Be the first to try it.</p>
+<div class="shell">
+  <header class="top rv d1">
+    <div class="wordmark"><span class="dot"></span>Nimbus</div>
+    <div class="status">T-minus <b id="status-days">—</b> days</div>
+  </header>
 
-  <!-- Optional launch countdown. Set LAUNCH_DATE in the script below;
-       leave it empty to hide the countdown entirely. -->
-  <div class="countdown" id="countdown" hidden>
-    <div class="cd"><div class="n" id="cd-d">0</div><div class="u">days</div></div>
-    <div class="cd"><div class="n" id="cd-h">0</div><div class="u">hrs</div></div>
-    <div class="cd"><div class="n" id="cd-m">0</div><div class="u">min</div></div>
-    <div class="cd"><div class="n" id="cd-s">0</div><div class="u">sec</div></div>
-  </div>
+  <main>
+    <!-- ====== EDIT YOUR PRODUCT COPY HERE ====== -->
+    <p class="kicker rv d2">Launching soon</p>
+    <h1 class="rv d3">Your ideas,<br /><span class="em">finally at rest.</span></h1>
+    <p class="sub rv d4">Nimbus is the calmest way to capture a thought before it evaporates — one keystroke in, zero friction, no feeds, no noise. Be first through the door.</p>
 
-  <!-- Shown only when not on a *.simple-host.app origin -->
-  <div id="notice" class="notice" hidden>
-    🚀 Signups save once this page is <strong>deployed</strong> to
-    <code>&lt;name&gt;.simple-host.app</code>. You're viewing it locally, so the count is demo data.
-  </div>
-
-  <div class="card" id="card">
-    <div id="form-wrap">
-      <div class="field">
-        <input id="email" type="email" placeholder="you@example.com" autocomplete="email" />
-        <button id="submit">Join waitlist</button>
-      </div>
+    <!-- launch clock -->
+    <div class="clock rv d5" id="clock" role="timer" aria-label="Time until launch">
+      <div class="unit"><div class="n" id="cd-d">00</div><div class="u">days</div></div>
+      <div class="sep">:</div>
+      <div class="unit"><div class="n" id="cd-h">00</div><div class="u">hours</div></div>
+      <div class="sep">:</div>
+      <div class="unit"><div class="n" id="cd-m">00</div><div class="u">min</div></div>
+      <div class="sep">:</div>
+      <div class="unit"><div class="n" id="cd-s">00</div><div class="u">sec</div></div>
     </div>
-    <div id="done" hidden class="thanks">You're on the list! 🎉<small>We'll email you the moment we launch.</small></div>
-    <p class="count" id="count">&nbsp;</p>
-  </div>
 
-  <!-- Privacy: the state KV is PUBLIC-READ. We store signups but only ever
-       display the COUNT — never the email addresses themselves. -->
-  <p class="privnote">We only show the number of signups, never anyone's email. Submissions are kept in this site's public store, so please don't use this for sensitive data.</p>
+    <div class="signup rv d6">
+      <form id="form" novalidate>
+        <div class="field" id="fieldbox">
+          <input id="email" type="email" placeholder="you@example.com" autocomplete="email" aria-label="Email address" />
+          <button id="submit" type="submit">Join the waitlist</button>
+        </div>
+        <p class="field-msg" id="field-msg"></p>
+      </form>
+      <div class="joined" id="joined">
+        <span class="tick">✓</span>You're on the list.
+        <small>We'll email you the moment Nimbus opens its doors.</small>
+      </div>
+      <p class="count" id="count">&nbsp;</p>
+      <p class="demo-note" id="demo-note"><b>Demo mode</b> — signups save once this page is deployed to a subdomain.</p>
+    </div>
+  </main>
 
-  <footer>Deployed on simple-host · static + state KV</footer>
+  <footer class="rv d6">
+    <p class="fine">The signup count is public, and emails are kept in this site's public data store — only the count is ever shown, but please don't submit anything sensitive.</p>
+    <p class="made">Deployed on <a href="https://simple-host.app">simple-host</a></p>
+  </footer>
 </div>
 
 <script>
 /* =====================================================================
-   simple-host STATE KV — Waitlist
+   SIMPLE-HOST WAITLIST TEMPLATE — API CONTRACT (read me, agents)
    ---------------------------------------------------------------------
-   STATE SHAPE:
-     { "signups": [ { "email": string, "ts": number }, ... ] }
-   Count shown to visitors = signups.length. Capped to MAX_SIGNUPS so the
-   doc stays well under the 1MB limit (oldest entries drop off the count
-   cap but the displayed number stays a faithful total — see note below).
+   Every deployed site gets a small public data API on its APEX domain.
+   Derive the base URL from where the page is served:
 
-   PRIVACY: the KV is PUBLIC-READ (anyone can GET the whole JSON). Emails
-   are stored but NEVER rendered into the page — we only ever show a count.
-   <!-- Emails live in a public store; do not use for sensitive signups. -->
+     const host = location.hostname;                       // e.g. "nimbus.simple-host.app"
+     const sub  = host.split('.')[0];                      // "nimbus"
+     const apex = host.split('.').slice(-2).join('.');     // "simple-host.app"
+     const BASE = (host.includes('.') && sub !== apex)
+       ? `${location.protocol}//${apex}/v1/sites/${sub}`
+       : null;                                             // null => DEMO MODE (local file / apex / localhost)
 
-   Access pattern:
-     READ : GET  https://simple-host.app/v1/sites/<sub>/state -> JSON | null
-     WRITE: PUT  https://simple-host.app/v1/sites/<sub>/state (whole-doc)
+   Two primitives are used here:
+
+   1) COLLECTIONS — append-only event log (per-record, never overwritten):
+        POST `${BASE}/collections/signups`
+             body: JSON object, e.g. {"email":"a@b.com"}   -> 201 Created
+      Each POST appends one record. Records are NOT rendered back into
+      this page; the store is public, so we only ever display a count.
+
+   2) STATE — one JSON document per site (readable by anyone):
+        GET   `${BASE}/state`                    -> JSON doc | null (null until first write)
+        PATCH `${BASE}/state`
+             body: {"ops":[{"op":"inc","path":"signups","by":1}]}
+      PATCH ops are ATOMIC on the server — concurrent signups can't
+      clobber each other (unlike a read-modify-write PUT). The count
+      lives at doc.signups: read it as (doc && doc.signups) | 0.
+
+   PRIVACY: both stores are public per-site scratch storage. Anyone who
+   knows the site name can read them. We store submitted emails in the
+   signups collection but only ever SHOW the numeric count. Don't reuse
+   this pattern for sensitive data.
+
+   DEMO MODE: when BASE === null (opened from disk, localhost, or the
+   apex itself) we show a demo count (312) and a small notice instead of
+   erroring; the page becomes fully live once deployed to a subdomain.
    ===================================================================== */
 
-// To keep an accurate count even after we trim old emails, we keep a
-// running `count` field separate from the stored `signups` sample.
-const MAX_SIGNUPS = 5000;        // hard cap on stored email entries (<1MB)
-const LS_KEY = 'sh_waitlist_joined';   // avoid obvious double-counts per browser
+'use strict';
 
-/* ---- OPTIONAL: set a launch date to enable the countdown ----
-   Use any value Date can parse, e.g. '2026-09-01T17:00:00Z'.
-   Leave as '' to hide the countdown.                          */
-const LAUNCH_DATE = '2026-09-01T17:00:00Z';
+/* ---- config ---- */
+const LAUNCH_DATE = '2026-09-01T16:00:00Z';   // hardcoded target, ~8 weeks out — edit me
+const DEMO_COUNT  = 312;                      // shown when BASE === null
+const POLL_MS     = 20000;                    // re-fetch the public count every ~20s
+const LS_KEY      = 'nimbus_waitlist_joined'; // remember this browser already joined
 
-function stateUrl(){
-  const host=location.hostname;
-  if(!host||!host.includes('.'))return null;          // localhost / file://
-  const sub=host.split('.')[0];
-  const apex=host.split('.').slice(-2).join('.');
-  if(sub===apex||!sub)return null;
-  return `${location.protocol}//${apex}/v1/sites/${sub}/state`;
-}
-const API=stateUrl();
+/* ---- API base derivation (see contract above) ---- */
+const host = location.hostname;
+const sub  = host.split('.')[0];
+const apex = host.split('.').slice(-2).join('.');
+const BASE = (host.includes('.') && sub !== apex)
+  ? `${location.protocol}//${apex}/v1/sites/${sub}`
+  : null;
 
-const els={
-  email:document.getElementById('email'),
-  submit:document.getElementById('submit'),
-  formWrap:document.getElementById('form-wrap'),
-  done:document.getElementById('done'),
-  count:document.getElementById('count'),
-  notice:document.getElementById('notice'),
+/* ---- elements ---- */
+const $ = id => document.getElementById(id);
+const els = {
+  form: $('form'), email: $('email'), submit: $('submit'),
+  fieldbox: $('fieldbox'), fieldMsg: $('field-msg'),
+  joined: $('joined'), count: $('count'), demo: $('demo-note'),
+  statusDays: $('status-days'),
+  d: $('cd-d'), h: $('cd-h'), m: $('cd-m'), s: $('cd-s'),
 };
 
-// READ: whole doc; `null` => empty state.
-async function readState(){
-  const res=await fetch(API,{cache:'no-store'});
-  if(!res.ok)throw new Error('read '+res.status);
-  const doc=await res.json();
-  if(doc&&Array.isArray(doc.signups))return {signups:doc.signups,count:Number(doc.count)||doc.signups.length};
-  return {signups:[],count:0};
+/* =========================== launch clock =========================== */
+const target = new Date(LAUNCH_DATE).getTime();
+function tick(){
+  let diff = Math.max(0, target - Date.now());
+  const d = Math.floor(diff / 864e5); diff -= d * 864e5;
+  const h = Math.floor(diff / 36e5);  diff -= h * 36e5;
+  const m = Math.floor(diff / 6e4);   diff -= m * 6e4;
+  const s = Math.floor(diff / 1e3);
+  els.d.textContent = String(d).padStart(2, '0');
+  els.h.textContent = String(h).padStart(2, '0');
+  els.m.textContent = String(m).padStart(2, '0');
+  els.s.textContent = String(s).padStart(2, '0');
+  els.statusDays.textContent = d;
 }
-async function writeState(doc){
-  const res=await fetch(API,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(doc)});
-  if(!res.ok)throw new Error('write '+res.status);
-}
+tick();
+setInterval(tick, 1000);
 
-function validEmail(e){return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);}
-
+/* ============================== count =============================== */
 function showCount(n){
-  // Only ever a number — never the emails themselves.
-  els.count.innerHTML = n>0
-    ? `Join <span class="hl">${n.toLocaleString()}</span> other${n===1?'':'s'} on the waitlist`
-    : 'Be the first to join the waitlist';
+  els.count.innerHTML = n > 0
+    ? `Join <b>${Number(n).toLocaleString()}</b> other${n === 1 ? '' : 's'} on the waitlist`
+    : 'Be the first on the waitlist';
 }
+
+// GET /state -> doc may be null before the first write.
+async function fetchCount(){
+  const res = await fetch(`${BASE}/state`, { cache: 'no-store' });
+  if (!res.ok) throw new Error('state read ' + res.status);
+  const doc = await res.json();
+  return (doc && doc.signups) | 0;
+}
+
+function refreshCount(){
+  fetchCount().then(showCount).catch(() => {/* keep last shown count */});
+}
+
+/* ============================== signup ============================== */
+function validEmail(e){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
 
 function markJoined(){
-  els.formWrap.hidden=true;
-  els.done.hidden=false;
+  els.form.style.display = 'none';
+  els.joined.style.display = 'block';
 }
 
-async function submit(){
-  const email=els.email.value.trim().toLowerCase();
-  if(!validEmail(email)){els.email.focus();els.email.style.borderColor='#b3261e';return;}
-  els.submit.disabled=true; els.submit.textContent='Joining…';
-  try{
-    // read-modify-write: re-fetch so concurrent signups don't clobber.
-    const doc=await readState();
-    // best-effort de-dupe within the stored sample
-    if(!doc.signups.some(s=>s.email===email)){
-      doc.signups.push({email,ts:Date.now()});
-      doc.count=(doc.count||0)+1;
-      if(doc.signups.length>MAX_SIGNUPS)doc.signups=doc.signups.slice(-MAX_SIGNUPS);
-      await writeState(doc);
+async function submit(ev){
+  ev.preventDefault();
+  const email = els.email.value.trim().toLowerCase();
+  els.fieldbox.classList.remove('err');
+  els.fieldMsg.textContent = '';
+  if (!validEmail(email)){
+    els.fieldbox.classList.add('err');
+    els.fieldMsg.textContent = 'That doesn’t look like an email address.';
+    els.email.focus();
+    return;
+  }
+  els.submit.disabled = true;
+  els.submit.textContent = 'Joining…';
+  try {
+    if (BASE){
+      // 1) Append the signup record to the append-only collection.
+      const res = await fetch(`${BASE}/collections/signups`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      if (res.status !== 201 && !res.ok) throw new Error('signup ' + res.status);
+      // 2) Bump the public count via an atomic inc — no clobbering.
+      await fetch(`${BASE}/state`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ops: [{ op: 'inc', path: 'signups', by: 1 }] }),
+      });
+      refreshCount();
     }
-    try{localStorage.setItem(LS_KEY,'1');}catch(e){}
+    try { localStorage.setItem(LS_KEY, '1'); } catch (e) {}
     markJoined();
-    showCount(doc.count);
-  }catch(err){
-    alert('Could not join: '+err.message);
-  }finally{
-    els.submit.disabled=false; els.submit.textContent='Join waitlist';
+  } catch (err) {
+    els.fieldbox.classList.add('err');
+    els.fieldMsg.textContent = 'Couldn’t join right now — please try again. (' + err.message + ')';
+    els.submit.disabled = false;
+    els.submit.textContent = 'Join the waitlist';
   }
 }
-els.submit.addEventListener('click',submit);
-els.email.addEventListener('keydown',e=>{if(e.key==='Enter')submit();});
+els.form.addEventListener('submit', submit);
 
-/* ---- countdown ---- */
-function startCountdown(){
-  if(!LAUNCH_DATE)return;
-  const target=new Date(LAUNCH_DATE).getTime();
-  if(isNaN(target))return;
-  const cd=document.getElementById('countdown');
-  cd.hidden=false;
-  const tick=()=>{
-    let diff=Math.max(0,target-Date.now());
-    const d=Math.floor(diff/864e5);diff-=d*864e5;
-    const h=Math.floor(diff/36e5);diff-=h*36e5;
-    const m=Math.floor(diff/6e4);diff-=m*6e4;
-    const s=Math.floor(diff/1e3);
-    document.getElementById('cd-d').textContent=d;
-    document.getElementById('cd-h').textContent=String(h).padStart(2,'0');
-    document.getElementById('cd-m').textContent=String(m).padStart(2,'0');
-    document.getElementById('cd-s').textContent=String(s).padStart(2,'0');
-  };
-  tick();setInterval(tick,1000);
-}
+/* =============================== boot =============================== */
+let alreadyJoined = false;
+try { alreadyJoined = localStorage.getItem(LS_KEY) === '1'; } catch (e) {}
+if (alreadyJoined) markJoined();
 
-/* ---- boot ---- */
-startCountdown();
-let alreadyJoined=false;try{alreadyJoined=localStorage.getItem(LS_KEY)==='1';}catch(e){}
-if(alreadyJoined)markJoined();
-
-if(!API){
-  els.notice.hidden=false;
-  showCount(312);                                       // demo number offline
-}else{
-  readState().then(d=>showCount(d.count)).catch(err=>{
-    els.count.textContent='Could not load signups ('+err.message+')';
-  });
+if (!BASE){
+  // DEMO MODE — not on a deployed subdomain yet.
+  els.demo.style.display = 'block';
+  showCount(DEMO_COUNT);
+} else {
+  refreshCount();
+  setInterval(refreshCount, POLL_MS);
 }
 </script>
 </body>

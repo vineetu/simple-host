@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Architecture · Data backup &amp; restore</title>
+<title>SPEC-042 · Data backup &amp; restore architecture</title>
 
 <!-- ===== PWA wiring ===== -->
-<meta name="theme-color" content="#5b5ef4" />
+<meta name="theme-color" content="#1e4fd8" />
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" href="icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="icon.svg" />
@@ -14,56 +14,156 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Arch" />
 
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800&family=JetBrains+Mono:wght@400;500;600&family=Public+Sans:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
+
 <style>
-  /* ---------- shared design system (inline, no CDN) ---------- */
-  :root {
-    --bg:#f6f7fb; --card:#fff; --ink:#1c2430; --muted:#6b7785;
-    --accent:#5b5ef4; --accent-soft:#ececfe; --border:#e6e9ef;
-    --radius:14px; --shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px rgba(16,24,40,.06);
-    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  /* =====================================================================
+     "ENGINEERING BRIEF" — light-paper spec sheet with a blueprint grid.
+     Ink text · one technical accent (blueprint blue) · thin safety-orange
+     secondary reserved for warnings / failure modes.
+     ===================================================================== */
+  :root{
+    --paper:#fbfaf7;
+    --ink:#1b1d22;
+    --muted:#5c6068;
+    --faint:#8a8e96;
+    --blue:#1e4fd8;
+    --blue-wash:#eef2fd;
+    --orange:#e8590c;
+    --orange-wash:#fdf1e8;
+    --line:#d9d5cc;
+    --line-strong:#b8b3a6;
+    --grid:rgba(30,79,216,.055);
+    --display:"Archivo",sans-serif;
+    --body:"Public Sans",sans-serif;
+    --mono:"JetBrains Mono",monospace;
   }
   *{box-sizing:border-box;}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.6;-webkit-font-smoothing:antialiased;}
-  .wrap{max-width:820px;margin:0 auto;padding:64px 20px 80px;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;color:var(--ink);font-family:var(--body);font-size:16.5px;line-height:1.65;
+    background:var(--paper);
+    background-image:
+      linear-gradient(var(--grid) 1px,transparent 1px),
+      linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+    background-size:28px 28px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:960px;margin:0 auto;padding:56px 24px 96px;}
+  @media (max-width:600px){.wrap{padding:36px 16px 72px;}}
 
-  .badge{display:inline-block;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:5px 12px;border-radius:999px;margin-bottom:18px;}
-  h1{font-size:38px;margin:0 0 14px;letter-spacing:-.03em;line-height:1.12;}
-  .lede{color:var(--muted);font-size:19px;margin:0 0 8px;max-width:660px;}
+  /* ---------- mono utility (all labels / meta) ---------- */
+  .mono,.eyebrow,figcaption,th,.node b,.lane-tag,.stat b,.arrow i,.gutter i,
+  .meta,.fid,.badge{font-family:var(--mono);}
 
-  h2{font-size:24px;letter-spacing:-.02em;margin:48px 0 12px;}
-  h3{font-size:17px;margin:28px 0 8px;}
+  /* ---------- masthead ---------- */
+  header.masthead{border:1.5px solid var(--ink);background:var(--paper);padding:28px 30px 26px;position:relative;}
+  header.masthead::before{content:"";position:absolute;inset:6px;border:1px solid var(--line);pointer-events:none;}
+  .meta{display:flex;flex-wrap:wrap;gap:8px 22px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:18px;position:relative;}
+  .meta strong{color:var(--blue);font-weight:600;}
+  .badge{display:inline-block;border:1px solid var(--blue);color:var(--blue);font-size:11px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;padding:4px 12px;margin-bottom:16px;position:relative;background:var(--blue-wash);}
+  h1{font-family:var(--display);font-weight:800;font-size:clamp(30px,5.4vw,46px);letter-spacing:-.015em;line-height:1.06;margin:0 0 14px;text-wrap:balance;position:relative;}
+  .lede{color:var(--muted);font-size:18px;margin:0;max-width:640px;position:relative;}
+
+  /* ---------- numbered section headings ---------- */
+  section.spec{margin-top:64px;}
+  h2{font-family:var(--display);font-weight:700;font-size:clamp(21px,3vw,27px);letter-spacing:-.01em;margin:0 0 16px;display:flex;align-items:baseline;gap:14px;border-bottom:1.5px solid var(--ink);padding-bottom:10px;}
+  h2 .num{font-family:var(--mono);font-weight:500;font-size:.72em;color:var(--blue);letter-spacing:.06em;}
+  h3{font-family:var(--display);font-weight:700;font-size:17px;margin:30px 0 8px;}
   p{margin:0 0 14px;}
-  a{color:var(--accent);}
-  code{font-family:var(--mono);font-size:.9em;background:var(--accent-soft);color:var(--accent);padding:1px 6px;border-radius:6px;}
+  a{color:var(--blue);}
+  b{font-weight:600;}
+  code{font-family:var(--mono);font-size:.85em;background:var(--blue-wash);color:var(--blue);padding:1px 6px;border:1px solid #cdd8f5;}
   ul{margin:0 0 14px;padding-left:22px;}
-  li{margin:4px 0;}
+  li{margin:5px 0;}
 
-  /* cards / figures */
-  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px;margin:22px 0;}
-  figure{margin:24px 0;}
-  figure .card{margin:0;padding:18px 14px;}
-  figcaption{color:var(--muted);font-size:13px;margin-top:10px;text-align:center;}
-  svg.diagram{display:block;width:100%;height:auto;}
+  .eyebrow{display:block;font-size:11px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--blue);margin:26px 0 10px;}
+  .eyebrow::before{content:"";display:inline-block;width:22px;height:1.5px;background:var(--blue);vertical-align:middle;margin-right:10px;}
 
-  /* diagram typography (kept inside SVG via classes) */
-  .d-title{font:600 15px var(--font);fill:var(--ink);}
-  .d-node{font:600 13px var(--font);fill:var(--ink);}
-  .d-sub{font:400 11px var(--font);fill:var(--muted);}
-  .d-edge-label{font:500 11px var(--font);fill:var(--muted);}
-  .d-layer-label{font:700 11px var(--font);fill:var(--accent);letter-spacing:.05em;text-transform:uppercase;}
+  /* ---------- stat tiles ---------- */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1.5px solid var(--ink);margin:24px 0 8px;background:var(--paper);}
+  .stat{padding:16px 18px 14px;border-right:1px dashed var(--line-strong);position:relative;}
+  .stat:last-child{border-right:0;}
+  .stat b{display:block;font-size:20px;font-weight:600;color:var(--blue);letter-spacing:-.01em;margin-bottom:4px;}
+  .stat i{display:block;font-style:normal;font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin-bottom:8px;}
+  .stat span{color:var(--muted);font-size:13px;line-height:1.5;display:block;}
+  @media (max-width:820px){.stats{grid-template-columns:1fr 1fr;}.stat:nth-child(2){border-right:0;}.stat:nth-child(-n+2){border-bottom:1px dashed var(--line-strong);}}
+  @media (max-width:430px){.stats{grid-template-columns:1fr;}.stat{border-right:0;border-bottom:1px dashed var(--line-strong);}.stat:last-child{border-bottom:0;}}
 
-  .keypts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0;}
-  @media (max-width:560px){.keypts{grid-template-columns:1fr;}}
-  .kp{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);}
-  .kp b{display:block;margin-bottom:2px;}
-  .kp span{color:var(--muted);font-size:14px;}
+  /* ---------- figures ---------- */
+  figure{margin:22px 0 30px;}
+  figcaption{color:var(--muted);font-size:11.5px;letter-spacing:.04em;margin-top:12px;line-height:1.6;}
+  figcaption .k{color:var(--blue);font-weight:600;}
+  figcaption .r{color:var(--orange);font-weight:600;}
 
-  hr{border:0;border-top:1px solid var(--border);margin:48px 0;}
+  /* ---------- swim-lane flow diagram (pure HTML/CSS) ---------- */
+  .flow{border:1.5px solid var(--ink);background:var(--paper);padding:22px 20px 24px;display:grid;grid-template-columns:1fr 34px 1fr 34px 1fr;gap:0 8px;align-items:stretch;}
+  .lane{border:1.5px dashed var(--line-strong);padding:38px 12px 14px;position:relative;display:flex;flex-direction:column;background:rgba(251,250,247,.6);}
+  .lane-tag{position:absolute;top:-1px;left:-1px;background:var(--ink);color:var(--paper);font-size:10px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;padding:4px 11px;}
+  .node{border:1.5px solid var(--blue);background:var(--paper);padding:10px 12px 9px;text-align:center;}
+  .node.hot{background:var(--blue-wash);}
+  .node.dashed{border-style:dashed;}
+  .node b{display:block;font-size:11.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);}
+  .node span{display:block;color:var(--muted);font-size:12px;margin-top:3px;line-height:1.45;}
+  /* vertical arrow between nodes in a lane */
+  .arrow{flex:1 0 auto;min-height:30px;position:relative;display:flex;align-items:center;justify-content:center;margin:0 auto;width:100%;}
+  .arrow::before{content:"";position:absolute;left:50%;top:2px;bottom:9px;width:0;border-left:2px solid var(--blue);transform:translateX(-1px);}
+  .arrow::after{content:"";position:absolute;left:50%;bottom:0;transform:translateX(-50%);border:6px solid transparent;border-top:8px solid var(--blue);border-bottom:0;}
+  .arrow.rst::before{border-left-style:dashed;border-left-color:var(--orange);}
+  .arrow.rst::after{border-top-color:var(--orange);}
+  .arrow i{position:relative;font-style:normal;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);background:var(--paper);padding:1px 6px;transform:translateX(14%);}
+  /* horizontal gutter arrow between lanes */
+  .gutter{align-self:center;display:flex;flex-direction:column;align-items:center;gap:4px;padding-top:22px;}
+  .gutter .shaft{position:relative;width:100%;min-width:30px;height:0;border-top:2px solid var(--blue);}
+  .gutter .shaft::after{content:"";position:absolute;right:-2px;top:-7px;border:6px solid transparent;border-left:8px solid var(--blue);border-right:0;}
+  .gutter.rst .shaft{border-top-style:dashed;border-top-color:var(--orange);}
+  .gutter.rst .shaft::after{border-left-color:var(--orange);}
+  .gutter i{font-style:normal;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);writing-mode:vertical-rl;text-orientation:mixed;margin-top:2px;}
+  /* mobile: lanes stack, gutters rotate to vertical */
+  @media (max-width:720px){
+    .flow{grid-template-columns:1fr;gap:0;}
+    .gutter{flex-direction:row;padding:14px 0;gap:8px;justify-content:center;width:100%;}
+    .gutter .shaft{width:0;min-width:0;height:30px;border-top:0;border-left:2px solid var(--blue);}
+    .gutter .shaft::after{right:auto;top:auto;left:-7px;bottom:-2px;border:6px solid transparent;border-top:8px solid var(--blue);border-bottom:0;}
+    .gutter.rst .shaft{border-left-style:dashed;border-left-color:var(--orange);}
+    .gutter.rst .shaft::after{border-top-color:var(--orange);}
+    .gutter i{writing-mode:horizontal-tb;margin:0;}
+  }
+
+  /* ---------- failure-mode table ---------- */
+  .ftable{width:100%;border-collapse:collapse;border:1.5px solid var(--ink);background:var(--paper);font-size:14px;}
+  .ftable th{font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--paper);background:var(--ink);text-align:left;padding:9px 14px;}
+  .ftable td{padding:12px 14px;border-top:1px dashed var(--line-strong);vertical-align:top;color:var(--ink);}
+  .ftable td span{color:var(--muted);}
+  .fid{display:inline-block;border:1.5px solid var(--orange);color:var(--orange);background:var(--orange-wash);font-size:11px;font-weight:600;letter-spacing:.08em;padding:2px 8px;}
+  .ract{font-family:var(--mono);font-size:12px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;color:var(--blue);}
+  @media (max-width:720px){
+    .ftable thead{display:none;}
+    .ftable,.ftable tbody,.ftable tr,.ftable td{display:block;width:100%;}
+    .ftable tr{border-top:1.5px solid var(--ink);padding:6px 0;}
+    .ftable tr:first-child{border-top:0;}
+    .ftable td{border-top:0;padding:6px 14px;}
+    .ftable td[data-l]::before{content:attr(data-l);display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--faint);margin-bottom:2px;}
+  }
+
+  hr{border:0;border-top:1.5px solid var(--ink);margin:64px 0 0;}
 
   #sh-comments{margin-top:28px;}
-  footer{text-align:center;color:var(--muted);font-size:12px;margin-top:48px;}
-  footer code{background:var(--accent-soft);color:var(--accent);}
+  footer{color:var(--faint);font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;margin-top:64px;padding-top:18px;border-top:1px dashed var(--line-strong);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  footer code{background:transparent;border:0;padding:0;color:var(--blue);font-size:inherit;}
+
+  /* ---------- subtle load reveal ---------- */
+  @media (prefers-reduced-motion:no-preference){
+    .rv{opacity:0;transform:translateY(10px);animation:rv .55s cubic-bezier(.2,.7,.3,1) forwards;}
+    .rv:nth-child(2){animation-delay:.08s;}
+    .rv:nth-child(3){animation-delay:.16s;}
+    .rv:nth-child(4){animation-delay:.24s;}
+    .rv:nth-child(5){animation-delay:.32s;}
+    .rv:nth-child(6){animation-delay:.4s;}
+    @keyframes rv{to{opacity:1;transform:none;}}
+  }
 </style>
 </head>
 <body>
@@ -72,23 +172,31 @@
   <!-- =====================================================================
        EDIT YOUR DOC CONTENT HERE.
        This is a believable sample ("Data backup & restore architecture").
-       Replace the title, lede, sections, and the two SVG diagrams below
-       with your own system. The diagrams are plain inline SVG — each node
-       is its own <g> group with readable coordinates, so they're easy to
-       move/relabel by hand.
+       Replace the title, lede, sections, the swim-lane diagram, and the
+       failure-mode table with your own system. The diagram is pure
+       HTML/CSS — each box is a .node, each connector an .arrow or .gutter,
+       so it's easy to add/relabel lanes and steps by hand.
        ===================================================================== -->
 
-  <span class="badge">System design</span>
-  <h1 id="doc-title">Data backup &amp; restore architecture</h1>
-  <p class="lede" id="doc-lede">
-    How application data flows from live services into durable, encrypted
-    backups — and how it flows back during a restore. Three layers: capture,
-    storage, and recovery.
-  </p>
+  <header class="masthead rv">
+    <div class="meta">
+      <span>DOC <strong>SPEC-042</strong></span>
+      <span>REV <strong>C</strong></span>
+      <span>STATUS <strong>APPROVED</strong></span>
+      <span>CLASS <strong>SYSTEM DESIGN</strong></span>
+    </div>
+    <span class="badge">Engineering brief</span>
+    <h1 id="doc-title">Data backup &amp; restore architecture</h1>
+    <p class="lede" id="doc-lede">
+      How application data flows from live services into durable, encrypted
+      backups — and how it flows back during a restore. Three layers: capture,
+      storage, and recovery.
+    </p>
+  </header>
 
-  <!-- ---------- Section 1: overview ---------- -->
-  <section>
-    <h2>Overview</h2>
+  <!-- ---------- Section 01: overview ---------- -->
+  <section class="spec rv">
+    <h2><span class="num">01.</span> Overview</h2>
     <p>
       The system continuously protects the primary database without putting
       restore-time load on it. A <b>capture layer</b> turns live changes into a
@@ -98,282 +206,157 @@
       point-in-time state on demand and validates it before it goes live.
     </p>
 
-    <div class="keypts">
-      <div class="kp"><b>RPO ≈ 5 min</b><span>Change logs ship every few minutes, bounding data loss.</span></div>
-      <div class="kp"><b>RTO &lt; 30 min</b><span>Latest snapshot + replayed logs restores quickly.</span></div>
-      <div class="kp"><b>Encrypted at rest</b><span>Per-object keys; storage never sees plaintext.</span></div>
-      <div class="kp"><b>Verified restores</b><span>Every backup is test-restored automatically.</span></div>
+    <span class="eyebrow">TAB 01 · Service objectives</span>
+    <div class="stats">
+      <div class="stat"><i>RPO</i><b>≈ 5 min</b><span>Change logs ship every few minutes, bounding data loss.</span></div>
+      <div class="stat"><i>RTO</i><b>&lt; 30 min</b><span>Latest snapshot + replayed logs restores quickly.</span></div>
+      <div class="stat"><i>At rest</i><b>AES/OBJ</b><span>Encrypted with per-object keys; storage never sees plaintext.</span></div>
+      <div class="stat"><i>Validation</i><b>100%</b><span>Every backup is test-restored and verified automatically.</span></div>
     </div>
   </section>
 
-  <!-- ---------- Section 2: the data-flow diagram ---------- -->
-  <section>
-    <h2>How data flows</h2>
+  <!-- ---------- Section 02: the data-flow diagram ---------- -->
+  <section class="spec rv">
+    <h2><span class="num">02.</span> How data flows</h2>
     <p>
       The diagram below traces a write from the application all the way into
-      cold storage, and the reverse path during a restore. The three columns
-      are the three layers; arrows are labeled with what moves between them.
+      cold storage, and the reverse path during a restore. The three lanes
+      are the three layers; connectors are labeled with what moves between them.
     </p>
 
+    <span class="eyebrow">FIG 01 · Backup &amp; restore — end to end</span>
     <figure>
-      <div class="card">
-        <!-- =============================================================
-             DIAGRAM 1 — Backup & restore data flow (3 layers).
-             Layout: viewBox 0 0 800 460. Three vertical lanes:
-               CAPTURE  x≈40..250   |  STORAGE x≈300..510  |  RECOVERY x≈560..770
-             Each node is its own <g class="node"> with a <rect> + labels.
-             Edit a node by moving its <g>'s translate() and the matching
-             arrows. Arrowheads use the #arrow marker defined in <defs>.
-             ============================================================= -->
-        <svg class="diagram" viewBox="0 0 800 460" role="img"
-             aria-labelledby="d1-title d1-desc" preserveAspectRatio="xMidYMid meet">
-          <title id="d1-title">Backup and restore data flow</title>
-          <desc id="d1-desc">Application writes are captured as snapshots and change
-            logs, encrypted and stored redundantly, then replayed during restore.</desc>
+      <!-- =============================================================
+           DIAGRAM 1 — Backup & restore data flow (3 swim lanes).
+           Pure HTML/CSS. Each lane is a .lane, each box a .node, each
+           in-lane connector an .arrow (add <i>label</i> for edge text),
+           each cross-lane connector a .gutter. Add ".rst" for the
+           dashed orange restore path. On <720px the lanes stack and
+           the gutters rotate automatically.
+           ============================================================= -->
+      <div class="flow" role="img"
+           aria-label="Backup and restore data flow: application writes are captured as snapshots and change logs, encrypted and stored redundantly, then replayed during restore.">
 
-          <defs>
-            <!-- reusable arrowhead -->
-            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
-                    markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-              <path d="M0,0 L10,5 L0,10 z" fill="#5b5ef4"/>
-            </marker>
-            <!-- restore arrowhead (muted) -->
-            <marker id="arrow-r" viewBox="0 0 10 10" refX="9" refY="5"
-                    markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-              <path d="M0,0 L10,5 L0,10 z" fill="#6b7785"/>
-            </marker>
-          </defs>
+        <!-- ==== LANE 1 · CAPTURE ==== -->
+        <div class="lane">
+          <span class="lane-tag">Capture</span>
+          <div class="node hot"><b>Application</b><span>live read/write traffic</span></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node"><b>Primary database</b><span>source of truth</span></div>
+          <div class="arrow" aria-hidden="true"><i>snapshots / WAL</i></div>
+          <div class="node"><b>Backup agent</b><span>snapshots + change-log shipper</span></div>
+        </div>
 
-          <!-- ---- lane backgrounds + labels (the 3 layers) ---- -->
-          <g class="lanes">
-            <rect x="24"  y="64" width="234" height="372" rx="14" fill="#fbfbff" stroke="#e6e9ef"/>
-            <rect x="283" y="64" width="234" height="372" rx="14" fill="#fbfbff" stroke="#e6e9ef"/>
-            <rect x="542" y="64" width="234" height="372" rx="14" fill="#fbfbff" stroke="#e6e9ef"/>
-            <text class="d-layer-label" x="141" y="86" text-anchor="middle">Capture</text>
-            <text class="d-layer-label" x="400" y="86" text-anchor="middle">Storage</text>
-            <text class="d-layer-label" x="659" y="86" text-anchor="middle">Recovery</text>
-          </g>
+        <div class="gutter" aria-hidden="true"><div class="shaft"></div><i>ship</i></div>
 
-          <text class="d-title" x="24" y="44">Backup &amp; restore — end to end</text>
+        <!-- ==== LANE 2 · STORAGE ==== -->
+        <div class="lane">
+          <span class="lane-tag">Storage</span>
+          <div class="node"><b>Encrypt &amp; pack</b><span>per-object keys</span></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node hot"><b>Object store</b><span>versioned, primary region</span></div>
+          <div class="arrow" aria-hidden="true"><i>async replicate</i></div>
+          <div class="node dashed"><b>DR replica</b><span>second region</span></div>
+        </div>
 
-          <!-- ============ CAPTURE LAYER ============ -->
-          <!-- Node: Application -->
-          <g class="node" transform="translate(56,110)">
-            <rect width="170" height="60" rx="10" fill="#ececfe" stroke="#5b5ef4"/>
-            <text class="d-node" x="85" y="28" text-anchor="middle">Application</text>
-            <text class="d-sub"  x="85" y="46" text-anchor="middle">live read/write traffic</text>
-          </g>
+        <div class="gutter rst" aria-hidden="true"><div class="shaft"></div><i>fetch</i></div>
 
-          <!-- Node: Primary DB -->
-          <g class="node" transform="translate(56,210)">
-            <rect width="170" height="60" rx="10" fill="#fff" stroke="#5b5ef4"/>
-            <text class="d-node" x="85" y="28" text-anchor="middle">Primary database</text>
-            <text class="d-sub"  x="85" y="46" text-anchor="middle">source of truth</text>
-          </g>
-
-          <!-- Node: Backup agent -->
-          <g class="node" transform="translate(56,330)">
-            <rect width="170" height="72" rx="10" fill="#fff" stroke="#5b5ef4"/>
-            <text class="d-node" x="85" y="28" text-anchor="middle">Backup agent</text>
-            <text class="d-sub"  x="85" y="46" text-anchor="middle">snapshots +</text>
-            <text class="d-sub"  x="85" y="60" text-anchor="middle">change-log shipper</text>
-          </g>
-
-          <!-- ============ STORAGE LAYER ============ -->
-          <!-- Node: Encryption / packaging -->
-          <g class="node" transform="translate(315,150)">
-            <rect width="170" height="60" rx="10" fill="#fff" stroke="#5b5ef4"/>
-            <text class="d-node" x="85" y="26" text-anchor="middle">Encrypt &amp; pack</text>
-            <text class="d-sub"  x="85" y="44" text-anchor="middle">per-object keys</text>
-          </g>
-
-          <!-- Node: Object store (primary region) -->
-          <g class="node" transform="translate(315,250)">
-            <rect width="170" height="60" rx="10" fill="#ececfe" stroke="#5b5ef4"/>
-            <text class="d-node" x="85" y="26" text-anchor="middle">Object store</text>
-            <text class="d-sub"  x="85" y="44" text-anchor="middle">versioned, primary region</text>
-          </g>
-
-          <!-- Node: Replicated copy (DR region) -->
-          <g class="node" transform="translate(315,350)">
-            <rect width="170" height="60" rx="10" fill="#fff" stroke="#5b5ef4" stroke-dasharray="5 4"/>
-            <text class="d-node" x="85" y="26" text-anchor="middle">DR replica</text>
-            <text class="d-sub"  x="85" y="44" text-anchor="middle">second region</text>
-          </g>
-
-          <!-- ============ RECOVERY LAYER ============ -->
-          <!-- Node: Restore orchestrator -->
-          <g class="node" transform="translate(574,150)">
-            <rect width="170" height="60" rx="10" fill="#fff" stroke="#5b5ef4"/>
-            <text class="d-node" x="85" y="26" text-anchor="middle">Restore orchestrator</text>
-            <text class="d-sub"  x="85" y="44" text-anchor="middle">pick point-in-time</text>
-          </g>
-
-          <!-- Node: Rebuild + replay -->
-          <g class="node" transform="translate(574,250)">
-            <rect width="170" height="60" rx="10" fill="#fff" stroke="#5b5ef4"/>
-            <text class="d-node" x="85" y="26" text-anchor="middle">Rebuild + replay</text>
-            <text class="d-sub"  x="85" y="44" text-anchor="middle">snapshot + logs</text>
-          </g>
-
-          <!-- Node: Verified instance -->
-          <g class="node" transform="translate(574,350)">
-            <rect width="170" height="60" rx="10" fill="#ececfe" stroke="#5b5ef4"/>
-            <text class="d-node" x="85" y="26" text-anchor="middle">Verified instance</text>
-            <text class="d-sub"  x="85" y="44" text-anchor="middle">checksummed &amp; live</text>
-          </g>
-
-          <!-- ============ EDGES (backup path, indigo) ============ -->
-          <!-- App -> Primary DB -->
-          <line x1="141" y1="170" x2="141" y2="208" stroke="#5b5ef4" stroke-width="2" marker-end="url(#arrow)"/>
-          <!-- Primary DB -> Backup agent -->
-          <line x1="141" y1="270" x2="141" y2="328" stroke="#5b5ef4" stroke-width="2" marker-end="url(#arrow)"/>
-          <text class="d-edge-label" x="148" y="304">snapshots / WAL</text>
-
-          <!-- Backup agent -> Encrypt & pack (cross-lane) -->
-          <path d="M226 350 C 270 350, 270 180, 313 180" fill="none" stroke="#5b5ef4" stroke-width="2" marker-end="url(#arrow)"/>
-          <!-- Encrypt -> Object store -->
-          <line x1="400" y1="210" x2="400" y2="248" stroke="#5b5ef4" stroke-width="2" marker-end="url(#arrow)"/>
-          <!-- Object store -> DR replica -->
-          <line x1="400" y1="310" x2="400" y2="348" stroke="#5b5ef4" stroke-width="2" marker-end="url(#arrow)"/>
-          <text class="d-edge-label" x="408" y="334">async replicate</text>
-
-          <!-- ============ EDGES (restore path, muted) ============ -->
-          <!-- Object store -> Rebuild+replay (storage to recovery) -->
-          <path d="M485 280 C 530 280, 530 280, 572 280" fill="none" stroke="#6b7785" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow-r)"/>
-          <text class="d-edge-label" x="498" y="272">fetch backups</text>
-          <!-- Restore orchestrator -> Rebuild+replay -->
-          <line x1="659" y1="210" x2="659" y2="248" stroke="#6b7785" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow-r)"/>
-          <!-- Rebuild+replay -> Verified instance -->
-          <line x1="659" y1="310" x2="659" y2="348" stroke="#6b7785" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow-r)"/>
-        </svg>
+        <!-- ==== LANE 3 · RECOVERY ==== -->
+        <div class="lane">
+          <span class="lane-tag">Recovery</span>
+          <div class="node"><b>Restore orchestrator</b><span>pick point-in-time</span></div>
+          <div class="arrow rst" aria-hidden="true"></div>
+          <div class="node"><b>Rebuild + replay</b><span>snapshot + logs</span></div>
+          <div class="arrow rst" aria-hidden="true"><i>verify</i></div>
+          <div class="node hot"><b>Verified instance</b><span>checksummed &amp; live</span></div>
+        </div>
       </div>
-      <figcaption>Figure 1 — Solid indigo arrows: the backup path. Dashed grey arrows: the restore path.</figcaption>
+      <figcaption>FIG 01 — <span class="k">Solid blue</span> connectors: the backup path.
+        <span class="r">Dashed orange</span> connectors: the restore path.</figcaption>
     </figure>
   </section>
 
-  <!-- ---------- Section 3: the decision flow ---------- -->
-  <section>
-    <h2>Choosing a restore strategy</h2>
+  <!-- ---------- Section 03: failure modes & restore strategy ---------- -->
+  <section class="spec rv">
+    <h2><span class="num">03.</span> Failure modes &amp; restore strategy</h2>
     <p>
-      Not every incident needs a full restore. The decision tree below picks the
-      cheapest recovery that still meets the recovery-point objective (RPO).
+      Not every incident needs a full restore. When an incident is detected,
+      the table below picks the cheapest recovery that still meets the
+      recovery-point objective (RPO): if the primary region is unhealthy,
+      fail over; otherwise choose between point-in-time replay and the latest
+      snapshot based on how much recent data loss is tolerable.
     </p>
 
+    <span class="eyebrow">TAB 02 · Restore decision matrix</span>
     <figure>
-      <div class="card">
-        <!-- =============================================================
-             DIAGRAM 2 — Restore decision flow.
-             viewBox 0 0 800 360. Diamond = decision, rounded rect = action.
-             Yes/No branch labels sit on the edges. Edit by moving the
-             <g> groups; arrows reference the same #arrow marker.
-             ============================================================= -->
-        <svg class="diagram" viewBox="0 0 800 360" role="img"
-             aria-labelledby="d2-title d2-desc" preserveAspectRatio="xMidYMid meet">
-          <title id="d2-title">Restore decision flow</title>
-          <desc id="d2-desc">Decide between point-in-time replay, latest snapshot,
-            or full DR failover based on data loss and primary-region health.</desc>
-
-          <defs>
-            <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5"
-                    markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-              <path d="M0,0 L10,5 L0,10 z" fill="#5b5ef4"/>
-            </marker>
-          </defs>
-
-          <!-- Start -->
-          <g class="node" transform="translate(40,150)">
-            <rect width="150" height="56" rx="28" fill="#ececfe" stroke="#5b5ef4"/>
-            <text class="d-node" x="75" y="32" text-anchor="middle">Incident detected</text>
-          </g>
-
-          <!-- Decision 1: primary region healthy? (diamond) -->
-          <g class="node" transform="translate(250,128)">
-            <polygon points="100,0 200,50 100,100 0,50" fill="#fff" stroke="#5b5ef4"/>
-            <text class="d-node" x="100" y="46" text-anchor="middle">Primary region</text>
-            <text class="d-node" x="100" y="62" text-anchor="middle">healthy?</text>
-          </g>
-
-          <!-- Decision 2: data loss tolerable? (diamond) -->
-          <g class="node" transform="translate(540,18)">
-            <polygon points="100,0 200,50 100,100 0,50" fill="#fff" stroke="#5b5ef4"/>
-            <text class="d-node" x="100" y="46" text-anchor="middle">Recent data</text>
-            <text class="d-node" x="100" y="62" text-anchor="middle">loss OK?</text>
-          </g>
-
-          <!-- Action: PITR replay -->
-          <g class="node" transform="translate(610,158)">
-            <rect width="160" height="56" rx="10" fill="#fff" stroke="#5b5ef4"/>
-            <text class="d-node" x="80" y="26" text-anchor="middle">Point-in-time</text>
-            <text class="d-sub"  x="80" y="44" text-anchor="middle">replay change logs</text>
-          </g>
-
-          <!-- Action: latest snapshot -->
-          <g class="node" transform="translate(610,268)">
-            <rect width="160" height="56" rx="10" fill="#fff" stroke="#5b5ef4"/>
-            <text class="d-node" x="80" y="26" text-anchor="middle">Latest snapshot</text>
-            <text class="d-sub"  x="80" y="44" text-anchor="middle">fastest, small loss</text>
-          </g>
-
-          <!-- Action: DR failover -->
-          <g class="node" transform="translate(250,268)">
-            <rect width="200" height="56" rx="10" fill="#ececfe" stroke="#5b5ef4"/>
-            <text class="d-node" x="100" y="26" text-anchor="middle">Fail over to DR replica</text>
-            <text class="d-sub"  x="100" y="44" text-anchor="middle">promote second region</text>
-          </g>
-
-          <!-- ---- edges ---- -->
-          <!-- Start -> Decision 1 -->
-          <line x1="190" y1="178" x2="248" y2="178" stroke="#5b5ef4" stroke-width="2" marker-end="url(#arrow2)"/>
-
-          <!-- Decision 1 --No--> DR failover (down) -->
-          <path d="M350 228 C 350 250, 350 268, 350 266" fill="none" stroke="#5b5ef4" stroke-width="2" marker-end="url(#arrow2)"/>
-          <text class="d-edge-label" x="358" y="252">No</text>
-
-          <!-- Decision 1 --Yes--> Decision 2 (up-right) -->
-          <path d="M450 178 C 510 178, 560 120, 600 95" fill="none" stroke="#5b5ef4" stroke-width="2" marker-end="url(#arrow2)"/>
-          <text class="d-edge-label" x="500" y="150">Yes</text>
-
-          <!-- Decision 2 --No--> PITR replay -->
-          <path d="M690 118 C 690 140, 690 156, 690 156" fill="none" stroke="#5b5ef4" stroke-width="2" marker-end="url(#arrow2)"/>
-          <text class="d-edge-label" x="698" y="146">No</text>
-
-          <!-- Decision 2 --Yes--> latest snapshot -->
-          <path d="M740 95 C 770 130, 770 220, 720 266" fill="none" stroke="#5b5ef4" stroke-width="2" marker-end="url(#arrow2)"/>
-          <text class="d-edge-label" x="760" y="200">Yes</text>
-        </svg>
-      </div>
-      <figcaption>Figure 2 — Pick the cheapest recovery that meets the objective.</figcaption>
+      <table class="ftable">
+        <thead>
+          <tr><th>ID</th><th>Failure mode</th><th>Condition</th><th>Recovery action</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="fid">F1</span></td>
+            <td data-l="Failure mode">Primary region down<br /><span>region outage or infrastructure loss</span></td>
+            <td data-l="Condition">Primary region <b>not</b> healthy</td>
+            <td data-l="Recovery action"><span class="ract">Fail over to DR replica</span><br /><span>promote second region</span></td>
+          </tr>
+          <tr>
+            <td><span class="fid">F2</span></td>
+            <td data-l="Failure mode">Data corruption / bad deploy<br /><span>region healthy, recent data must survive</span></td>
+            <td data-l="Condition">Region healthy · recent data loss <b>not</b> OK</td>
+            <td data-l="Recovery action"><span class="ract">Point-in-time restore</span><br /><span>replay change logs to the moment before failure</span></td>
+          </tr>
+          <tr>
+            <td><span class="fid">F3</span></td>
+            <td data-l="Failure mode">Recoverable data loss<br /><span>region healthy, small loss acceptable</span></td>
+            <td data-l="Condition">Region healthy · recent data loss OK</td>
+            <td data-l="Recovery action"><span class="ract">Restore latest snapshot</span><br /><span>fastest path, small bounded loss</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <figcaption>TAB 02 — Pick the cheapest recovery that meets the objective.
+        Evaluate <span class="r">F1</span> first, then <span class="r">F2</span>/<span class="r">F3</span>.</figcaption>
     </figure>
 
     <h3>Notes for editors</h3>
     <ul>
-      <li>Both diagrams are inline SVG — no images, no libraries. Each box is a
-        <code>&lt;g class="node"&gt;</code> you can move with <code>translate(x,y)</code>.</li>
-      <li>Arrowheads come from the <code>&lt;marker&gt;</code> defs; reuse them on any
-        <code>&lt;line&gt;</code> or <code>&lt;path&gt;</code> via <code>marker-end</code>.</li>
-      <li>Colors and fonts inherit from the page's CSS variables and the
-        <code>.d-*</code> classes, so restyling is global.</li>
+      <li>The flow diagram is pure HTML/CSS — no images, no libraries. Each box is a
+        <code>.node</code> inside a <code>.lane</code>; connectors are <code>.arrow</code>
+        (in-lane) and <code>.gutter</code> (cross-lane) elements.</li>
+      <li>Add <code>.rst</code> to any connector to switch it to the dashed
+        safety-orange restore style; add an <code>&lt;i&gt;label&lt;/i&gt;</code>
+        inside an arrow for edge text.</li>
+      <li>Colors and fonts inherit from the page's CSS variables, so restyling
+        the whole brief is global.</li>
     </ul>
   </section>
 
   <hr />
 
   <!-- ---------- Discussion (cross-origin threaded comments widget) ---------- -->
-  <section>
-    <h2>Discussion</h2>
+  <section class="spec rv">
+    <h2><span class="num">04.</span> Discussion</h2>
     <p>Questions or suggestions about this design? Leave a threaded comment below.</p>
     <section id="sh-comments"></section>
   </section>
 
-  <footer>Deployed on <code>simple-host</code> · static + PWA</footer>
+  <footer>
+    <span>SPEC-042 · REV C</span>
+    <span>Deployed on <code>simple-host</code> · static + PWA</span>
+  </footer>
 </div>
 
+<!-- Theme the comments widget to match the brief -->
+<script>window.SH_COMMENTS = { accent: "#1e4fd8", title: "Review notes", placeholder: "Questions or corrections…" }</script>
 <!-- Cross-origin drop-in threaded-comments widget. Do not reimplement. -->
 <script src="https://simple-host.app/comments.js" defer></script>
 
 <!-- ===== Service worker registration (feature-detected) ===== -->
 <script>
+  // Features on this page:
+  //  - PWA: manifest.json + sw.js registered below (installable, offline-capable)
+  //  - Comments: simple-host threaded widget mounts into #sh-comments,
+  //    themed via window.SH_COMMENTS above.
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
       navigator.serviceWorker.register('sw.js').catch(function (err) {

@@ -26,27 +26,27 @@ var templateCatalog = []templateMeta{
 	{
 		ID:          "event-rsvp",
 		Title:       "Event / RSVP",
-		Description: "Event or party page with a public RSVP form, guest list, and live headcount. Uses the per-site state KV. Note: the guest list is publicly readable.",
+		Description: "Letterpress-invitation event page with a public RSVP form (append-only collection), recent-guest list, and a live headcount via atomic state ops. Note: entries are publicly readable.",
 	},
 	{
 		ID:          "waitlist",
 		Title:       "Waitlist / Coming soon",
-		Description: "Coming-soon page that collects email signups and shows a live \"join N others\" count. Uses the per-site state KV. Note: the store is public — shows the count, not the emails.",
+		Description: "Dark launch-countdown page that collects signups into an append-only collection and shows a live \"join N others\" count via atomic state ops. Note: the store is public — the page shows the count, not the emails.",
 	},
 	{
 		ID:          "landing",
 		Title:       "Product landing + email capture",
-		Description: "Hero + features product/app landing page with an inline email capture list and a live subscriber count. Uses the per-site state KV (public store).",
+		Description: "Swiss-poster product landing page with numbered features, an early-access form (append-only collection), and a live interest count via atomic state ops (public store).",
 	},
 	{
 		ID:          "architecture",
 		Title:       "Architecture / system-design doc (PWA)",
-		Description: "Technical explainer with inline-SVG diagrams, installable + offline (PWA: manifest + service worker), and a Reddit-style threaded comments section (reply + upvote) via the public state KV.",
+		Description: "Engineering-brief technical explainer with swim-lane flow diagrams, installable + offline (PWA: manifest + service worker), and a themed threaded comments section (reply + upvote) via the public state KV.",
 	},
 	{
 		ID:          "travel",
 		Title:       "Group travel itinerary",
-		Description: "Static group-trip page (a Google-Sheets replacement): per-traveler flights, a per-day timeline (location + map + lodging + activities + transport), and a traveler-group filter. Data-driven from one editable object. Pairs with view-lock for a private trip.",
+		Description: "Static group-trip page (a Google-Sheets replacement): per-traveler flights, a per-day timeline (location + map + lodging + activities + transport), and a traveler-group filter. Data-driven from one editable object, with a themed trip-chatter comments section. Pairs with view-lock for a private trip.",
 	},
 	{
 		ID:          "resume",
