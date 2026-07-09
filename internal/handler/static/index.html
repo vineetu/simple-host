@@ -1804,7 +1804,7 @@
         if (s.status === 'running') {
           showResumeLine(jobId);
           const building = aiAppend('ai', 'Still building…', { thinking: true });
-          const data = await pollJob(jobId);
+          const data = await pollJob(jobId, building);
           try { building.remove(); } catch (err) { /* ignore */ }
           if (!stillResuming(jobId)) return;
           if (data && data.error) {
@@ -1957,8 +1957,12 @@
     // Async agent path: POST /v1/generate returns a jobId; poll status until the
     // run finishes. Each request is sub-second, so no proxy timeout can cut a
     // long build. Returns { reply, html, messages? } on success or { error } on failure.
-    async function pollJob(jobId) {
-      const deadline = Date.now() + 6 * 60 * 1000; // client-side give-up
+    // thinkingEl (optional): the thinking-bubble wrap from aiAppend — when a
+    // running poll includes a non-empty progress string, update its text
+    // (textContent only). Absent progress leaves the existing "• • •" / copy.
+    // Client deadline (9 min) MUST exceed the agent server cap (8 min).
+    async function pollJob(jobId, thinkingEl) {
+      const deadline = Date.now() + 9 * 60 * 1000; // client-side give-up (> server 8 min)
       while (Date.now() < deadline) {
         await new Promise(function (r) { setTimeout(r, 2000); });
         let sres;
@@ -1969,7 +1973,16 @@
         if (!sres.ok) continue;            // 429 / 5xx — back off and retry
         if (s.status === 'done') return { reply: s.reply, html: s.html, messages: s.messages };
         if (s.status === 'error') return { error: s.error || 'The assistant had trouble — please try again.' };
-        // status === 'running' → keep polling
+        // status === 'running' → optional progress text, keep polling
+        // aiAppend returns the .msg wrap; the text lives on the child .bubble
+        if (thinkingEl && typeof s.progress === 'string' && s.progress) {
+          const bubble = thinkingEl.querySelector('.bubble');
+          if (bubble) {
+            bubble.textContent = s.progress;
+            // .thinking uses wide letter-spacing for "• • •"; normal spacing for words
+            bubble.style.letterSpacing = 'normal';
+          }
+        }
       }
       return { error: 'This is taking longer than usual — please try again.' };
     }
@@ -2007,7 +2020,7 @@
           bindJob(data.jobId);          // URL + activeJobId track LATEST job each turn
           showResumeLine(data.jobId);
           saveSession(data.jobId);      // mid-build snapshot (user turn, no assistant yet)
-          data = await pollJob(data.jobId);
+          data = await pollJob(data.jobId, thinking);
         }
         thinking.remove();
         if (!res.ok || (data && data.error)) { chatMessages.pop(); pendingAtts = atts; renderTray(); aiAppend('ai', (data && data.error) || 'Something went wrong — please try again.'); return false; }
