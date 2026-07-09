@@ -649,6 +649,13 @@
     .ai-preview iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 300px; }
     .ai-publish { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--border); }
     .ai-publish input { flex: 1; min-width: 0; }
+    .ai-publish input[readonly] { opacity: 0.85; cursor: default; }
+    .ai-publish-bound {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      padding: 0 14px 10px; font-size: 12px; color: var(--text-secondary);
+    }
+    .ai-publish-bound[hidden] { display: none !important; }
+    .ai-publish-bound .btn-ghost { font-size: 12px; padding: 0 2px; text-decoration: underline; }
     .gen-files { font-size: 11px; color: var(--text-secondary); padding: 8px 14px 0; word-break: break-all; line-height: 1.5; }
 
     /* chat bubbles */
@@ -1022,6 +1029,10 @@
                 <input type="text" id="gen-name" placeholder="site-name">
                 <button class="btn btn-primary btn-small" id="gen-publish-btn" onclick="publishGenerated()">Publish →</button>
               </div>
+              <div class="ai-publish-bound" id="gen-bound" hidden>
+                <span id="gen-bound-label"></span>
+                <button type="button" class="btn-ghost" id="gen-unbind" onclick="unbindPublishedSite()">Publish as new</button>
+              </div>
             </div>
           </div>
           <div class="ai-tray" id="ai-tray" hidden></div>
@@ -1051,7 +1062,7 @@
           <div class="ai-fs-bar">
             <span class="ai-preview-label">Live preview</span>
             <div class="grp">
-              <button class="btn btn-primary btn-small" onclick="publishGenerated()">Publish →</button>
+              <button class="btn btn-primary btn-small" id="gen-fs-publish-btn" onclick="publishGenerated()">Publish →</button>
               <button class="btn btn-secondary btn-small" onclick="closeFullscreen()">✕ Close</button>
             </div>
           </div>
@@ -1509,6 +1520,7 @@
     let pendingAtts = [];  // images/files attached to the NEXT message
     let assetMap = [];     // {token,dataUrl,name} — raster images the model can place via src token
     let activeJobId = null; // latest async jobId (also mirrored in ?job=)
+    let publishedSite = null; // live site this chat is bound to (one chat → one site)
 
     // ---- Resumable sessions: ?job=<id> + localStorage mirror (never put API key in URL) ---
     // Match agent job TTL so local mirrors don't outlive the server.
@@ -1595,6 +1607,7 @@
       const payload = JSON.stringify({
         messages: chatMessages,
         html: generatedHTML || '',
+        publishedSite: publishedSite || null,
         savedAt: Date.now(),
       });
       try {
@@ -1732,6 +1745,7 @@
       chatMessages = [];
       generatedHTML = null;
       extraFiles = {};
+      publishedSite = null;
       const chat = document.getElementById('ai-chat');
       if (chat) chat.innerHTML = '';
       const frame = document.getElementById('gen-frame');
@@ -1744,6 +1758,9 @@
       if (reset) reset.hidden = true;
       const files = document.getElementById('gen-files');
       if (files) { files.hidden = true; files.textContent = ''; }
+      const nameEl = document.getElementById('gen-name');
+      if (nameEl) { nameEl.value = ''; nameEl.readOnly = false; }
+      setPublishUI();
     }
 
     // On load: restore from localStorage instantly, then confirm with status API.
@@ -1757,7 +1774,11 @@
       if (cached && Array.isArray(cached.messages) && cached.messages.length) {
         chatMessages = cached.messages;
         generatedHTML = cached.html || null;
+        // Sanitize — localStorage can be hand-edited; only keep a real slug.
+        publishedSite = (typeof cached.publishedSite === 'string')
+          ? (normalizeSiteName(cached.publishedSite) || null) : null;
         rehydrateChatUI();
+        setPublishUI();
       }
       const send = document.getElementById('chat-send');
       if (send) send.disabled = true;
@@ -1867,6 +1888,8 @@
         bindJob(jobId);
         saveSession(jobId);
       }
+      // Keep bound publish UI in sync after any rehydrate/preview update.
+      if (publishedSite) setPublishUI();
     }
 
     function aiAppend(role, text, opts) {
@@ -1894,9 +1917,88 @@
       }
       return 'site';
     }
+    // Normalize a site slug (same rules as the publish name field).
+    function normalizeSiteName(n) {
+      return (String(n || '').trim().toLowerCase()
+        .replace(/[^a-z0-9-]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-+|-+$/g, ''));
+    }
+    // Suggest a slug from the prompt, skipping filler ("build a portfolio…" → portfolio).
     function suggestName(p) {
-      const words = (p.toLowerCase().match(/[a-z0-9]+/g) || []).filter(w => w.length > 2);
+      const filler = {
+        build: 1, make: 1, create: 1, a: 1, an: 1, the: 1, my: 1, our: 1,
+        for: 1, site: 1, website: 1, page: 1, app: 1, one: 1, simple: 1, small: 1
+      };
+      const words = (String(p || '').toLowerCase().match(/[a-z0-9]+/g) || [])
+        .filter(function (w) { return w.length > 2 && !filler[w]; });
       return (words.slice(0, 2).join('-') || 'my-site').slice(0, 30);
+    }
+    // Better name from the generated page's <title> (before brand separators).
+    function siteNameFromHTML(html) {
+      if (!html) return '';
+      const m = String(html).match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+      if (!m) return '';
+      let title = m[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+      if (!title) return '';
+      // Keep the part before the first separator: — – | · : or " - "
+      title = title.split(/\s*[—–|·:]\s*|\s+-\s+/)[0].trim();
+      if (!title) return '';
+      let slug = title.toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      const generic = {
+        home: 1, welcome: 1, untitled: 1, document: 1,
+        index: 1, page: 1, site: 1, website: 1
+      };
+      slug = slug.split('-').filter(function (w) { return w && !generic[w]; }).join('-');
+      if (!slug) return '';
+      return slug.slice(0, 30).replace(/-+$/g, '');
+    }
+    // Sync name field + both publish buttons + bound caption with publishedSite.
+    function setPublishUI() {
+      const nameEl = document.getElementById('gen-name');
+      const btn = document.getElementById('gen-publish-btn');
+      const fsBtn = document.getElementById('gen-fs-publish-btn');
+      const bound = document.getElementById('gen-bound');
+      const boundLabel = document.getElementById('gen-bound-label');
+      const unbindBtn = document.getElementById('gen-unbind');
+      if (publishedSite) {
+        if (nameEl) {
+          nameEl.value = publishedSite;
+          nameEl.readOnly = true;
+        }
+        if (btn) btn.textContent = 'Update site →';
+        if (fsBtn) fsBtn.textContent = 'Update site →';
+        if (bound) bound.hidden = false;
+        if (boundLabel) {
+          boundLabel.textContent = 'Editing live site: ' + publishedSite + '.' + location.host;
+        }
+        if (unbindBtn) unbindBtn.disabled = !!isPublishing;
+      } else {
+        if (nameEl) nameEl.readOnly = false;
+        if (btn) btn.textContent = 'Publish →';
+        if (fsBtn) fsBtn.textContent = 'Publish →';
+        if (bound) bound.hidden = true;
+        if (boundLabel) boundLabel.textContent = '';
+        if (unbindBtn) unbindBtn.disabled = false;
+      }
+    }
+    // Fork: unbind so the next publish can create a new site under a new name.
+    function unbindPublishedSite() {
+      if (isPublishing) return; // don't unbind under an in-flight publish/update
+      publishedSite = null;
+      const nameEl = document.getElementById('gen-name');
+      if (nameEl) {
+        nameEl.readOnly = false;
+        nameEl.value = '';
+      }
+      setPublishUI();
+      if (nameEl) {
+        nameEl.value = siteNameFromHTML(generatedHTML) || suggestName(lastUserPrompt());
+      }
+      if (activeJobId) saveSession(activeJobId);
     }
 
     // ---- attachments: images (vision), PDFs (document), text files (inlined) ---
@@ -2075,7 +2177,10 @@
       paintFrame('gen-frame');
       if (!document.getElementById('ai-fs').hidden) paintFrame('ai-fs-frame');
       const nameEl = document.getElementById('gen-name');
-      if (!nameEl.value) nameEl.value = suggestName(lastUserPrompt());
+      // Only fill when empty — never clobber a typed name, and never once bound.
+      if (!publishedSite && nameEl && !nameEl.value) {
+        nameEl.value = siteNameFromHTML(generatedHTML) || suggestName(lastUserPrompt());
+      }
       showFileList();
     }
 
@@ -2117,6 +2222,7 @@
       chatMessages = [];
       generatedHTML = null;
       extraFiles = {};
+      publishedSite = null;
       pendingAtts = []; assetMap = []; renderTray();
       document.getElementById('gen-frame').removeAttribute('srcdoc');
       document.getElementById('ai-chat').innerHTML = '';
@@ -2124,7 +2230,10 @@
       document.querySelector('.ai-body').classList.remove('has-preview');
       document.getElementById('ai-reset').hidden = true;
       document.getElementById('gen-files').hidden = true;
-      document.getElementById('gen-name').value = '';
+      const nameEl = document.getElementById('gen-name');
+      nameEl.value = '';
+      nameEl.readOnly = false;
+      setPublishUI();
       aiGreeting();
       document.getElementById('chat-input').focus();
     }
@@ -2132,31 +2241,64 @@
     async function publishGenerated() {
       if (!generatedHTML) { toast('Nothing to publish yet', 'error'); return; }
       if (isPublishing) return;   // both the inline and fullscreen buttons call this
-      let name = (document.getElementById('gen-name').value || '').trim().toLowerCase()
-        .replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-      if (!name) { toast('Pick a site name first', 'error'); return; }
+      let name;
+      // Capture bound state up front so mid-flight unbind (if any) can't change path or re-bind.
+      const bound = !!publishedSite;
+      if (bound) {
+        // Ignore #gen-name while bound — always update the same live site.
+        name = normalizeSiteName(publishedSite);
+        if (!name) { toast('Pick a site name first', 'error'); return; }
+      } else {
+        name = normalizeSiteName(document.getElementById('gen-name').value);
+        if (!name) { toast('Pick a site name first', 'error'); return; }
+      }
       isPublishing = true;
       const btn = document.getElementById('gen-publish-btn');
+      const fsBtn = document.getElementById('gen-fs-publish-btn');
       if (btn) btn.disabled = true;
+      if (fsBtn) fsBtn.disabled = true;
+      setPublishUI(); // disables "Publish as new" while in flight when bound
       const files = Object.assign({}, extraFiles, { 'index.html': renderHTML() });
       try {
-        let res = await api('POST', `/v1/sites/${encodeURIComponent(name)}/files`, { files });
-        if (res.status === 409) {
+        let res;
+        if (bound) {
+          // Update → new version, same site. 404 (deleted) → recreate under same name.
           res = await api('PUT', `/v1/sites/${encodeURIComponent(name)}/files`, { files });
+          if (res.status === 404) {
+            res = await api('POST', `/v1/sites/${encodeURIComponent(name)}/files`, { files });
+          }
+        } else {
+          res = await api('POST', `/v1/sites/${encodeURIComponent(name)}/files`, { files });
+          if (res.status === 409) {
+            res = await api('PUT', `/v1/sites/${encodeURIComponent(name)}/files`, { files });
+          }
         }
         const data = await res.json().catch(() => ({}));
         if (!res.ok) { toast(data.error || 'Could not publish', 'error'); return; }
         const url = data.site_url || `${location.protocol}//${name}.${location.host}`;
-        toast('Published! Opening your site…', 'success');
+        // Only bind on first publish. Use the start-of-call `bound` flag — not live
+        // `publishedSite` — so a mid-flight unbind cannot be undone by success.
+        if (!bound) {
+          publishedSite = name;
+          if (activeJobId) saveSession(activeJobId);
+        }
+        toast(bound ? 'Updated! Opening your site…' : 'Published! Opening your site…', 'success');
         closeFullscreen();
         window.open(url, '_blank');
-        aiAppend('ai', '✓ Published → ' + url + '  — you can keep refining and publish again anytime.');
+        if (bound) {
+          aiAppend('ai', '✓ Updated → ' + url + ' — your live site now has the latest version.');
+        } else {
+          aiAppend('ai', '✓ Published → ' + url);
+        }
         loadSites();
       } catch (e) {
         toast('Could not publish', 'error');
       } finally {
         if (btn) btn.disabled = false;
+        if (fsBtn) fsBtn.disabled = false;
         isPublishing = false;
+        // Bind UI (name lock, Update label, unbind enable) after success or error.
+        setPublishUI();
       }
     }
 
@@ -2218,9 +2360,12 @@
       extraFiles = {};
       for (const k of Object.keys(clean)) if (k !== 'index.html') extraFiles[k] = clean[k];
       const names = Object.keys(clean).sort();
-      const suggested = (typeof obj.name === 'string') ? obj.name : '';
-      document.getElementById('gen-name').value =
-        (suggested || 'pasted-site').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'pasted-site';
+      // Don't overwrite the name field while this chat is bound to a live site.
+      if (!publishedSite) {
+        const suggested = (typeof obj.name === 'string') ? obj.name : '';
+        document.getElementById('gen-name').value =
+          (suggested || 'pasted-site').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'pasted-site';
+      }
       updatePreview();
       document.getElementById('ai-reset').hidden = false;
       document.getElementById('paste-box').hidden = true;
