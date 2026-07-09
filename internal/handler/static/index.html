@@ -668,6 +668,18 @@
       border-bottom-left-radius: 4px;
     }
     .msg.ai .bubble.thinking { color: var(--text-secondary); letter-spacing: 0.15em; }
+    /* Resume link shown when an async build job starts (shareable / bookmarkable). */
+    .msg.resume { max-width: 100%; }
+    .msg.resume .bubble {
+      background: var(--bg); border: 1px dashed var(--border-hi); color: var(--text-secondary);
+      font-size: 12.5px;
+    }
+    .resume-url-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .resume-url {
+      flex: 1; min-width: 0; font-family: var(--mono); font-size: 11.5px;
+      word-break: break-all; color: var(--text); background: var(--surface);
+      border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px;
+    }
 
     .ai-input { display: flex; gap: 8px; padding: 14px 20px 8px; border-top: 1px solid var(--border); }
     .ai-input input[type="text"] { flex: 1; min-width: 0; }
@@ -1236,7 +1248,15 @@
         document.getElementById('admin-tab').style.display = '';
       }
       showView('main-view');
-      aiGreeting();
+      // Resume a ?job= session when present; otherwise show the usual greeting.
+      const rawJob = new URLSearchParams(location.search).get('job');
+      const resumeId = safeJobIdClient(rawJob);
+      if (resumeId) {
+        tryResumeFromUrl(resumeId);
+      } else {
+        if (rawJob) clearJobUrl(); // drop malformed ?job=
+        aiGreeting();
+      }
       loadSites();
     }
 
@@ -1488,6 +1508,366 @@
     let extraFiles = {};   // extra files beyond index.html (multi-file paste imports)
     let pendingAtts = [];  // images/files attached to the NEXT message
     let assetMap = [];     // {token,dataUrl,name} — raster images the model can place via src token
+    let activeJobId = null; // latest async jobId (also mirrored in ?job=)
+
+    // ---- Resumable sessions: ?job=<id> + localStorage mirror (never put API key in URL) ---
+    // Match agent job TTL so local mirrors don't outlive the server.
+    const SESSION_PREFIX = 'sh-ai-session:';
+    const SESSION_TTL_MS = 6 * 60 * 60 * 1000;
+    const SESSION_MAX = 6; // each entry can hold ~200 KB html — cap growth
+
+    function sessionKey(jobId) { return SESSION_PREFIX + jobId; }
+
+    // UUID-shaped only (agent mint is crypto.randomUUID). Rejects path junk in ?job=.
+    function safeJobIdClient(id) {
+      const s = String(id || '');
+      return /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(s) ? s : null;
+    }
+
+    function setJobUrl(jobId) {
+      if (!jobId) return;
+      const u = new URL(location.href);
+      u.searchParams.set('job', jobId);
+      history.replaceState({}, '', u.pathname + u.search);
+    }
+
+    function clearJobUrl() {
+      const u = new URL(location.href);
+      if (!u.searchParams.has('job')) return;
+      u.searchParams.delete('job');
+      const q = u.searchParams.toString();
+      history.replaceState({}, '', u.pathname + (q ? '?' + q : ''));
+    }
+
+    // Drop expired / excess sh-ai-session:* keys. keepId is always retained.
+    // aggressive=true: used after a quota error — keep only keepId.
+    function pruneSessions(keepId, aggressive) {
+      try {
+        const now = Date.now();
+        const entries = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (!k || k.indexOf(SESSION_PREFIX) !== 0) continue;
+          let savedAt = 0;
+          try {
+            const o = JSON.parse(localStorage.getItem(k) || '');
+            savedAt = (o && o.savedAt) || 0;
+          } catch (e) { savedAt = 0; }
+          entries.push({ k: k, savedAt: savedAt });
+        }
+        const keepKey = keepId ? sessionKey(keepId) : null;
+        for (let i = 0; i < entries.length; i++) {
+          const e = entries[i];
+          if (keepKey && e.k === keepKey) continue;
+          if (!e.savedAt || (now - e.savedAt > SESSION_TTL_MS)) {
+            try { localStorage.removeItem(e.k); } catch (err) { /* ignore */ }
+          }
+        }
+        // Re-list survivors and cap count (newest first).
+        const remain = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (!k || k.indexOf(SESSION_PREFIX) !== 0) continue;
+          let savedAt = 0;
+          try {
+            const o = JSON.parse(localStorage.getItem(k) || '');
+            savedAt = (o && o.savedAt) || 0;
+          } catch (e) { savedAt = 0; }
+          remain.push({ k: k, savedAt: savedAt });
+        }
+        remain.sort(function (a, b) { return b.savedAt - a.savedAt; });
+        // Always retain keepId; cap how many *other* sessions we keep.
+        const maxOthers = aggressive ? 0 : (keepKey ? Math.max(0, SESSION_MAX - 1) : SESSION_MAX);
+        let keptOthers = 0;
+        for (let i = 0; i < remain.length; i++) {
+          if (keepKey && remain[i].k === keepKey) continue;
+          if (aggressive || keptOthers >= maxOthers) {
+            try { localStorage.removeItem(remain[i].k); } catch (err) { /* ignore */ }
+          } else {
+            keptOthers++;
+          }
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    function saveSession(jobId) {
+      if (!jobId) return;
+      const payload = JSON.stringify({
+        messages: chatMessages,
+        html: generatedHTML || '',
+        savedAt: Date.now(),
+      });
+      try {
+        localStorage.setItem(sessionKey(jobId), payload);
+        pruneSessions(jobId, false);
+      } catch (e) {
+        // Quota / private mode — prune hard and retry once; status API still works.
+        try {
+          pruneSessions(jobId, true);
+          localStorage.setItem(sessionKey(jobId), payload);
+        } catch (e2) { /* give up */ }
+      }
+    }
+
+    function loadSession(jobId) {
+      try {
+        const raw = localStorage.getItem(sessionKey(jobId));
+        if (!raw) return null;
+        const o = JSON.parse(raw);
+        if (o && o.savedAt && (Date.now() - o.savedAt > SESSION_TTL_MS)) {
+          clearSession(jobId);
+          return null;
+        }
+        return o;
+      } catch (e) { return null; }
+    }
+
+    function clearSession(jobId) {
+      if (!jobId) return;
+      try { localStorage.removeItem(sessionKey(jobId)); } catch (e) { /* ignore */ }
+    }
+
+    // Track the latest job: URL + activeJobId + drop the previous localStorage key.
+    function bindJob(jobId) {
+      if (!jobId) return;
+      if (activeJobId && activeJobId !== jobId) clearSession(activeJobId);
+      activeJobId = jobId;
+      setJobUrl(jobId);
+    }
+
+    function showResumeLine(jobId) {
+      if (!jobId) return;
+      const chat = document.getElementById('ai-chat');
+      if (!chat) return;
+      const prev = chat.querySelector('.resume-line');
+      if (prev) prev.remove();
+      const url = location.origin + '/?job=' + encodeURIComponent(jobId);
+      const wrap = document.createElement('div');
+      wrap.className = 'msg ai resume resume-line';
+      const b = document.createElement('div');
+      b.className = 'bubble';
+      const p = document.createElement('div');
+      p.textContent = 'Building your site — you can leave this page and come back anytime:';
+      const row = document.createElement('div');
+      row.className = 'resume-url-row';
+      const code = document.createElement('code');
+      code.className = 'resume-url';
+      code.textContent = url;
+      const copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'btn-small btn-secondary';
+      copy.textContent = 'Copy';
+      copy.addEventListener('click', function () {
+        function ok() {
+          copy.textContent = 'Copied';
+          setTimeout(function () { copy.textContent = 'Copy'; }, 1500);
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(url).then(ok).catch(function () {
+            try {
+              const ta = document.createElement('textarea');
+              ta.value = url; document.body.appendChild(ta); ta.select();
+              document.execCommand('copy'); document.body.removeChild(ta); ok();
+            } catch (e) { /* ignore */ }
+          });
+        } else {
+          try {
+            const ta = document.createElement('textarea');
+            ta.value = url; document.body.appendChild(ta); ta.select();
+            document.execCommand('copy'); document.body.removeChild(ta); ok();
+          } catch (e) { /* ignore */ }
+        }
+      });
+      row.appendChild(code);
+      row.appendChild(copy);
+      b.appendChild(p);
+      b.appendChild(row);
+      wrap.appendChild(b);
+      chat.appendChild(wrap);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    // Replay chatMessages into the chat log (and preview) after a localStorage or
+    // status-API rehydrate. Clears the log first so a later authoritative status
+    // cannot double-append bubbles. textContent via aiAppend — never inject HTML.
+    function rehydrateChatUI() {
+      const chat = document.getElementById('ai-chat');
+      if (!chat) return;
+      chat.innerHTML = '';
+      for (let i = 0; i < chatMessages.length; i++) {
+        const m = chatMessages[i];
+        aiAppend(m.role === 'user' ? 'user' : 'ai', m.content || '');
+      }
+      if (generatedHTML) {
+        updatePreview();
+        document.getElementById('ai-reset').hidden = false;
+      } else if (chatMessages.length) {
+        document.getElementById('ai-reset').hidden = false;
+      } else {
+        aiGreeting();
+      }
+    }
+
+    // True when authoritative messages match what we already rendered (skip a
+    // second full rebuild that would flash the same bubbles).
+    function sameTranscript(msgs) {
+      if (!Array.isArray(msgs) || msgs.length !== chatMessages.length) return false;
+      for (let i = 0; i < msgs.length; i++) {
+        const a = msgs[i] || {};
+        const b = chatMessages[i] || {};
+        if ((a.role || '') !== (b.role || '')) return false;
+        if ((a.content || '') !== (b.content || '')) return false;
+      }
+      return true;
+    }
+
+    // True while this tab is still resuming jobId. Becomes false if the user
+    // hits Start over (activeJobId=null) or starts a newer job (bindJob).
+    function stillResuming(jobId) {
+      return !!jobId && activeJobId === jobId;
+    }
+
+    // Drop restored chat + preview (used when status says this key can't read the job).
+    function wipeResumeUI() {
+      chatMessages = [];
+      generatedHTML = null;
+      extraFiles = {};
+      const chat = document.getElementById('ai-chat');
+      if (chat) chat.innerHTML = '';
+      const frame = document.getElementById('gen-frame');
+      if (frame) frame.removeAttribute('srcdoc');
+      const prev = document.getElementById('ai-preview');
+      if (prev) prev.hidden = true;
+      const body = document.querySelector('.ai-body');
+      if (body) body.classList.remove('has-preview');
+      const reset = document.getElementById('ai-reset');
+      if (reset) reset.hidden = true;
+      const files = document.getElementById('gen-files');
+      if (files) { files.hidden = true; files.textContent = ''; }
+    }
+
+    // On load: restore from localStorage instantly, then confirm with status API.
+    // Guarded on jobId so the no-agent direct path is unaffected.
+    async function tryResumeFromUrl(jobId) {
+      jobId = safeJobIdClient(jobId);
+      if (!jobId) return;
+      activeJobId = jobId;
+      pruneSessions(jobId, false);
+      const cached = loadSession(jobId);
+      if (cached && Array.isArray(cached.messages) && cached.messages.length) {
+        chatMessages = cached.messages;
+        generatedHTML = cached.html || null;
+        rehydrateChatUI();
+      }
+      const send = document.getElementById('chat-send');
+      if (send) send.disabled = true;
+      const note = aiAppend('ai', cached ? 'Checking build status…' : 'Restoring session…', { thinking: true });
+      try {
+        let sres;
+        try { sres = await api('GET', '/v1/generate/status?id=' + encodeURIComponent(jobId)); }
+        catch (e) {
+          try { note.remove(); } catch (err) { /* ignore */ }
+          if (stillResuming(jobId) && !cached) aiAppend('ai', 'Could not reach the server to restore that session.');
+          return;
+        }
+        // User may have Start-over'd or started a new turn while the request was in flight.
+        if (!stillResuming(jobId)) {
+          try { note.remove(); } catch (err) { /* ignore */ }
+          return;
+        }
+        const s = await sres.json().catch(function () { return {}; });
+        try { note.remove(); } catch (err) { /* ignore */ }
+        if (!stillResuming(jobId)) return;
+        if (sres.status === 404) {
+          aiAppend('ai', 'That session expired — starting fresh.');
+          clearSession(jobId);
+          clearJobUrl();
+          activeJobId = null;
+          if (!chatMessages.length) {
+            document.getElementById('ai-chat').innerHTML = '';
+            aiGreeting();
+          }
+          return;
+        }
+        if (sres.status === 401 || sres.status === 403) {
+          // localStorage is per-browser, not per-account — never leave another
+          // account's transcript on screen after the server refuses the job.
+          clearSession(jobId);
+          wipeResumeUI();
+          aiAppend('ai', 'Could not restore that session — sign in with the same account and try again.');
+          return;
+        }
+        if (!sres.ok) {
+          if (!cached) aiAppend('ai', (s && s.error) || 'Could not restore that session.');
+          return;
+        }
+        if (s.status === 'running') {
+          showResumeLine(jobId);
+          const building = aiAppend('ai', 'Still building…', { thinking: true });
+          const data = await pollJob(jobId);
+          try { building.remove(); } catch (err) { /* ignore */ }
+          if (!stillResuming(jobId)) return;
+          if (data && data.error) {
+            aiAppend('ai', data.error);
+            return;
+          }
+          applyResumeResult(data, jobId);
+          return;
+        }
+        if (s.status === 'error') {
+          aiAppend('ai', s.error || 'That build failed — you can keep chatting or start over.');
+          if (chatMessages.length) document.getElementById('ai-reset').hidden = false;
+          return;
+        }
+        if (s.status === 'done') {
+          applyResumeResult(s, jobId);
+        }
+      } catch (err) {
+        try { note.remove(); } catch (e2) { /* ignore */ }
+        if (stillResuming(jobId) && !cached) aiAppend('ai', 'Could not restore that session.');
+      } finally {
+        // Always re-enable: Start over during resume clears activeJobId, and send
+        // must not stay stuck disabled. sendChat will disable again if it starts.
+        if (send) send.disabled = false;
+      }
+    }
+
+    // Apply a done status (or pollJob result) as the authoritative transcript when
+    // messages is present; otherwise fall back to reply/html + existing chat state.
+    // rehydrateChatUI clears first — never double-appends bubbles after a local restore.
+    function applyResumeResult(data, jobId) {
+      if (!data) return;
+      // Superseded by Start over or a newer job — do not clobber current UI/state.
+      if (jobId && !stillResuming(jobId)) return;
+      if (Array.isArray(data.messages) && data.messages.length) {
+        const htmlChanged = !!(data.html && data.html !== (generatedHTML || ''));
+        if (!sameTranscript(data.messages) || htmlChanged) {
+          chatMessages = data.messages.slice();
+          if (data.html) generatedHTML = data.html;
+          rehydrateChatUI();
+        } else if (data.html) {
+          generatedHTML = data.html;
+        }
+      } else {
+        if (data.reply) {
+          // Avoid duplicating if localStorage already has the same last assistant turn.
+          const last = chatMessages[chatMessages.length - 1];
+          if (!(last && last.role === 'assistant' && last.content === data.reply)) {
+            aiAppend('ai', data.reply);
+            chatMessages.push({ role: 'assistant', content: data.reply });
+          }
+        }
+        if (data.html) {
+          generatedHTML = data.html;
+          updatePreview();
+        }
+        if (chatMessages.length) document.getElementById('ai-reset').hidden = false;
+      }
+      if (jobId && stillResuming(jobId)) {
+        bindJob(jobId);
+        saveSession(jobId);
+      }
+    }
 
     function aiAppend(role, text, opts) {
       const chat = document.getElementById('ai-chat');
@@ -1576,7 +1956,7 @@
 
     // Async agent path: POST /v1/generate returns a jobId; poll status until the
     // run finishes. Each request is sub-second, so no proxy timeout can cut a
-    // long build. Returns { reply, html } on success or { error } on failure.
+    // long build. Returns { reply, html, messages? } on success or { error } on failure.
     async function pollJob(jobId) {
       const deadline = Date.now() + 6 * 60 * 1000; // client-side give-up
       while (Date.now() < deadline) {
@@ -1587,7 +1967,7 @@
         const s = await sres.json().catch(() => ({}));
         if (sres.status === 404) return { error: 'That session expired — please try again.' };
         if (!sres.ok) continue;            // 429 / 5xx — back off and retry
-        if (s.status === 'done') return { reply: s.reply, html: s.html };
+        if (s.status === 'done') return { reply: s.reply, html: s.html, messages: s.messages };
         if (s.status === 'error') return { error: s.error || 'The assistant had trouble — please try again.' };
         // status === 'running' → keep polling
       }
@@ -1621,7 +2001,14 @@
       try {
         const res = await api('POST', '/v1/generate', { messages: chatMessages, html: generatedHTML || '', attachments: payload });
         let data = await res.json().catch(() => ({}));
-        if (res.ok && data.jobId) data = await pollJob(data.jobId);  // async agent path
+        // Async agent path: stamp the shareable ?job= URL, mirror session, then poll.
+        // Direct (no-agent) path returns {reply,html} inline with no jobId — untouched.
+        if (res.ok && data.jobId) {
+          bindJob(data.jobId);          // URL + activeJobId track LATEST job each turn
+          showResumeLine(data.jobId);
+          saveSession(data.jobId);      // mid-build snapshot (user turn, no assistant yet)
+          data = await pollJob(data.jobId);
+        }
         thinking.remove();
         if (!res.ok || (data && data.error)) { chatMessages.pop(); pendingAtts = atts; renderTray(); aiAppend('ai', (data && data.error) || 'Something went wrong — please try again.'); return false; }
         const reply = data.reply || 'Done.';
@@ -1632,6 +2019,9 @@
           updatePreview();
           document.getElementById('ai-reset').hidden = false;
         }
+        // After every completed turn, refresh the localStorage mirror under the
+        // latest jobId so a mid-conversation reload restores the whole transcript.
+        if (activeJobId) saveSession(activeJobId);
       } catch (err) {
         thinking.remove();
         chatMessages.pop();   // drop the failed turn so it doesn't accumulate
@@ -1703,6 +2093,14 @@
     }
 
     function resetChat() {
+      // Drop the resumable session (URL + localStorage) along with in-memory state.
+      if (activeJobId) clearSession(activeJobId);
+      else {
+        const j = new URLSearchParams(location.search).get('job');
+        if (j) clearSession(j);
+      }
+      clearJobUrl();
+      activeJobId = null;
       chatMessages = [];
       generatedHTML = null;
       extraFiles = {};

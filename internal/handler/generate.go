@@ -266,7 +266,9 @@ func (h *GenerateHandler) status(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	// 8 MiB so a resume payload (full messages transcript + up to ~200 KB html)
+	// is not silently truncated by LimitReader.
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(resp.StatusCode)
 	w.Write(raw)
