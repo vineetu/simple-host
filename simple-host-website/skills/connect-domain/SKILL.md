@@ -10,8 +10,10 @@ A site deployed on simple-host is already live at
 domain** — a subdomain (e.g. `recipes.brand.com`) or an apex (e.g. `brand.com`) — so the
 site is served from it with automatic HTTPS.
 
-**This is agent-driven.** You do every API call and compute the exact DNS record. The human's
-only job is pasting one record into their registrar, then telling you when it's saved.
+**This is agent-driven.** You do every API call and compute the exact DNS record. Then either
+**add that record yourself** if you have DNS access for the domain (a provider MCP/API — see step
+3b; ask permission first), or hand the human the single record to paste. Buying a domain (when
+they have none) and — absent your own DNS access — pasting the record are the only human steps.
 
 ## When to use this
 
@@ -73,6 +75,40 @@ For apex, use the returned A record (`Type: A`, host `@` or the bare domain, val
 the IP from the response). Do not ask them to change nameservers or delete anything.
 Only this one record is added.
 
+### 3b. Better: add the record YOURSELF if you have DNS access (ask permission first)
+If you (the agent) already have a way to edit this domain's DNS — a **DNS-provider MCP
+server** or an **API token** for the host that manages it — prefer to make the change
+yourself instead of asking the human to paste it. Do NOT do it silently: get explicit
+permission first, then act.
+
+1. **Find who runs the DNS.** Check the domain's nameservers (`dig +short NS <domain>` or an
+   equivalent tool): `*.vercel-dns.com` → Vercel; `*.ns.cloudflare.com` → Cloudflare;
+   `*.registrar-servers.com` → Namecheap; `*.porkbun.com` / `curitiba…` → Porkbun; etc.
+2. **Check you actually have a tool for that provider** — a connected MCP server (e.g. a Vercel
+   / Cloudflare MCP) or an API credential in scope. If you don't, fall back to step 3 (relay to
+   the human).
+3. **Ask the human for permission, naming exactly what you'll do.** For example:
+   > I can add this record for you — I have access to your **Vercel** DNS. I'll add **one**
+   > record (`CNAME recipes → cname.simple-host.app`) and change nothing else. OK to proceed?
+   Wait for a clear yes. This consent gate is required every time — never modify someone's DNS
+   without it.
+4. **Make the change — ADD-ONLY, least authority:**
+   - Create exactly the one record from the bind response (the CNAME, or the apex A record).
+   - **Never delete or edit existing records.** MX, TXT (SPF/DKIM/DMARC), NS, and any existing
+     A/CNAME must be left untouched — email and the current site must keep working.
+   - Apex is the one careful case: pointing the bare domain at us **replaces** the domain's
+     current apex target (e.g. its Vercel A/ALIAS). Only do that if the human confirmed they want
+     the whole apex moved; otherwise steer them to a subdomain (`recipes.brand.com`), which is
+     purely additive.
+   - If the provider supports it, read back the record you created to confirm it's exactly right.
+5. **Tell the human what you did** ("Added `CNAME recipes → cname.simple-host.app` in Vercel;
+   left everything else untouched"), then continue to verification (step 4 below) as normal.
+
+If anything is ambiguous — you're unsure which record set is safe to touch, the domain has an
+existing apex site, or you lack a scoped tool — **don't guess; hand the single record to the human
+(step 3) instead.** Add-only + explicit consent is the rule; automation is a convenience on top of
+it, never a reason to skip the guardrails.
+
 ### 4. Verify — poll until active
 ```
 GET /v1/sites/{site}/domain
@@ -111,7 +147,10 @@ domain to its own site, so it can't be used to write to a different site.)
 
 ## Gotchas
 
-- **Add the DNS record, don't replace anything.** Never touch MX/email records.
+- **Add the DNS record, don't replace anything.** Never touch MX/email records — whether the
+  human adds it or you do it via an API/MCP.
+- **If you have DNS access, do it yourself — but ask first (step 3b).** Explicit human consent
+  every time; add-only; least authority. No tool or any doubt → hand the record to the human.
 - **Subdomain or apex.** Subdomains (`recipes.brand.com`) use a CNAME — simplest path.
   Apex domains (`brand.com`) work too via the A record returned by the bind. Prefer a
   subdomain when the user has no preference for the bare domain.
