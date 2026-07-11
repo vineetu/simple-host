@@ -26,8 +26,39 @@ func (d *DiskStorage) DataDir() string {
 	return d.dataDir
 }
 
-func (d *DiskStorage) WriteFiles(ctx context.Context, siteName string, versionNum int, files map[string][]byte) error {
-	siteDir := filepath.Join(d.dataDir, siteName)
+// SiteDir returns the real on-disk directory for a site under the by-id layout:
+// <dataDir>/by-id/<userID>/<siteName>.
+func (d *DiskStorage) SiteDir(userID, siteName string) string {
+	return filepath.Join(d.dataDir, "by-id", userID, siteName)
+}
+
+// validPathKey rejects empty / "." / ".." / absolute / multi-segment path keys
+// used as userID or siteName so they cannot escape the data dir.
+func validPathKey(key string) bool {
+	if key == "" || key == "." || key == ".." {
+		return false
+	}
+	if strings.Contains(key, "..") {
+		return false
+	}
+	if filepath.IsAbs(key) || strings.ContainsAny(key, `/\`) {
+		return false
+	}
+	if !filepath.IsLocal(key) || filepath.Clean(key) != key {
+		return false
+	}
+	return true
+}
+
+func (d *DiskStorage) WriteFiles(ctx context.Context, userID, siteName string, versionNum int, files map[string][]byte) error {
+	if !validPathKey(userID) {
+		return fmt.Errorf("invalid user id %q", userID)
+	}
+	if !validPathKey(siteName) {
+		return fmt.Errorf("invalid site name %q", siteName)
+	}
+
+	siteDir := d.SiteDir(userID, siteName)
 	tmpDir := filepath.Join(siteDir, fmt.Sprintf(".v%d.tmp", versionNum))
 	versionDir := filepath.Join(siteDir, fmt.Sprintf("v%d", versionNum))
 
@@ -73,8 +104,15 @@ func (d *DiskStorage) WriteFiles(ctx context.Context, siteName string, versionNu
 	return nil
 }
 
-func (d *DiskStorage) UpdateCurrent(siteName string, versionNum int) error {
-	siteDir := filepath.Join(d.dataDir, siteName)
+func (d *DiskStorage) UpdateCurrent(userID, siteName string, versionNum int) error {
+	if !validPathKey(userID) {
+		return fmt.Errorf("invalid user id %q", userID)
+	}
+	if !validPathKey(siteName) {
+		return fmt.Errorf("invalid site name %q", siteName)
+	}
+
+	siteDir := d.SiteDir(userID, siteName)
 	versionDir := filepath.Join(siteDir, fmt.Sprintf("v%d", versionNum))
 	currentDir := filepath.Join(siteDir, "current")
 	tmpDir := filepath.Join(siteDir, ".current.tmp")
@@ -99,16 +137,64 @@ func (d *DiskStorage) UpdateCurrent(siteName string, versionNum int) error {
 		return fmt.Errorf("promote temp current dir: %w", err)
 	}
 
+	// Back-compat symlink for the legacy edge that serves
+	// <dataDir>/<siteName>/current. Relative target keeps the tree relocatable.
+	if err := d.ensureBackCompatSymlink(userID, siteName); err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func (d *DiskStorage) DeleteSite(siteName string) error {
-	if siteName == "" || siteName == "." || !filepath.IsLocal(siteName) || filepath.Clean(siteName) != siteName || strings.ContainsAny(siteName, `/\`) {
+// ensureBackCompatSymlink creates or refreshes
+// <dataDir>/<siteName> -> by-id/<userID>/<siteName>. Never clobbers a real
+// directory or file at that path (returns an error so operators notice).
+func (d *DiskStorage) ensureBackCompatSymlink(userID, siteName string) error {
+	compatPath := filepath.Join(d.dataDir, siteName)
+	// Relative target from dataDir so the whole tree stays relocatable.
+	compatTarget := filepath.Join("by-id", userID, siteName)
+
+	info, err := os.Lstat(compatPath)
+	if err == nil {
+		if info.Mode()&os.ModeSymlink == 0 {
+			return fmt.Errorf("back-compat path %q exists and is not a symlink; refusing to clobber", compatPath)
+		}
+		// Existing symlink: refresh by remove + recreate (idempotent).
+		if err := os.Remove(compatPath); err != nil {
+			return fmt.Errorf("remove stale back-compat symlink: %w", err)
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("lstat back-compat path: %w", err)
+	}
+
+	if err := os.Symlink(compatTarget, compatPath); err != nil {
+		return fmt.Errorf("create back-compat symlink: %w", err)
+	}
+	return nil
+}
+
+func (d *DiskStorage) DeleteSite(userID, siteName string) error {
+	if !validPathKey(userID) {
+		return fmt.Errorf("invalid user id %q", userID)
+	}
+	if !validPathKey(siteName) {
 		return fmt.Errorf("invalid site name %q", siteName)
 	}
 
-	if err := os.RemoveAll(filepath.Join(d.dataDir, siteName)); err != nil {
+	if err := os.RemoveAll(d.SiteDir(userID, siteName)); err != nil {
 		return fmt.Errorf("delete site dir: %w", err)
+	}
+
+	// Remove the back-compat symlink only when it is a symlink — never RemoveAll
+	// a real directory/file that happens to share the site name.
+	compatPath := filepath.Join(d.dataDir, siteName)
+	info, err := os.Lstat(compatPath)
+	if err == nil && info.Mode()&os.ModeSymlink != 0 {
+		if err := os.Remove(compatPath); err != nil {
+			return fmt.Errorf("remove back-compat symlink: %w", err)
+		}
+	} else if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("lstat back-compat path: %w", err)
 	}
 
 	return nil

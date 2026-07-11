@@ -174,7 +174,7 @@ func (h *SiteHandler) sweepExpiredSites() {
 			unlock()
 			continue
 		}
-		if err := h.disk.DeleteSite(s.Name); err != nil {
+		if err := h.disk.DeleteSite(s.UserID, s.Name); err != nil {
 			log.Printf("expiry sweep: delete disk %s: %v", s.Name, err)
 		}
 		unlock()
@@ -606,7 +606,7 @@ func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user
 	}
 
 	const versionNumber = 1
-	diskPath := fmt.Sprintf("%s/v%d/", siteName, versionNumber)
+	diskPath := fmt.Sprintf("by-id/%s/%s/v%d/", user.ID, siteName, versionNumber)
 
 	version, err := db.CreateVersion(r.Context(), tx, site.ID, versionNumber, diskPath, archiveSHA)
 	if err != nil {
@@ -615,7 +615,7 @@ func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user
 	}
 
 	// Write the new version dir (not yet live) before committing.
-	if err := h.disk.WriteFiles(r.Context(), siteName, versionNumber, files); err != nil {
+	if err := h.disk.WriteFiles(r.Context(), user.ID, siteName, versionNumber, files); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
@@ -637,7 +637,7 @@ func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user
 
 	// Promote only AFTER the DB is durable: a commit failure leaves `current`
 	// untouched (pointing at the last good version) rather than half-swapped.
-	if err := h.disk.UpdateCurrent(siteName, versionNumber); err != nil {
+	if err := h.disk.UpdateCurrent(user.ID, siteName, versionNumber); err != nil {
 		log.Printf("createSite: promote %s v%d after commit: %v", siteName, versionNumber, err)
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -722,7 +722,7 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 	}
 
 	versionNumber := maxVersion + 1
-	diskPath := fmt.Sprintf("%s/v%d/", siteName, versionNumber)
+	diskPath := fmt.Sprintf("by-id/%s/%s/v%d/", site.UserID, siteName, versionNumber)
 
 	version, err := db.CreateVersion(r.Context(), tx, site.ID, versionNumber, diskPath, archiveSHA)
 	if err != nil {
@@ -731,7 +731,7 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 	}
 
 	// Write the new version dir (not yet live) before committing.
-	if err := h.disk.WriteFiles(r.Context(), siteName, versionNumber, files); err != nil {
+	if err := h.disk.WriteFiles(r.Context(), site.UserID, siteName, versionNumber, files); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
@@ -753,7 +753,7 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 
 	// Promote only AFTER commit: if the DB never committed, `current` still
 	// points at the previous good version instead of a half-applied swap.
-	if err := h.disk.UpdateCurrent(siteName, versionNumber); err != nil {
+	if err := h.disk.UpdateCurrent(site.UserID, siteName, versionNumber); err != nil {
 		log.Printf("updateSite: promote %s v%d after commit: %v", siteName, versionNumber, err)
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -1006,7 +1006,7 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.disk.UpdateCurrent(site.Name, req.VersionNumber); err != nil {
+	if err := h.disk.UpdateCurrent(site.UserID, site.Name, req.VersionNumber); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
@@ -1061,7 +1061,7 @@ func (h *SiteHandler) deleteSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.disk.DeleteSite(site.Name); err != nil {
+	if err := h.disk.DeleteSite(site.UserID, site.Name); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}

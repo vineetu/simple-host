@@ -124,15 +124,16 @@ func CreateSite(ctx context.Context, q Querier, userID, name, siteURL string, ex
 
 // ExpiredSite identifies a site past its expires_at (for the cleanup sweep).
 type ExpiredSite struct {
-	ID   string
-	Name string
+	ID     string
+	UserID string
+	Name   string
 }
 
 // ListExpiredSites returns sites whose expires_at has passed. Sites with a NULL
 // expires_at (the default) are permanent and never returned.
 func ListExpiredSites(ctx context.Context, db *sql.DB) ([]ExpiredSite, error) {
 	rows, err := db.QueryContext(ctx,
-		`SELECT id, name FROM sites WHERE expires_at IS NOT NULL AND expires_at < now() ORDER BY expires_at LIMIT 500`)
+		`SELECT id, user_id, name FROM sites WHERE expires_at IS NOT NULL AND expires_at < now() ORDER BY expires_at LIMIT 500`)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +142,7 @@ func ListExpiredSites(ctx context.Context, db *sql.DB) ([]ExpiredSite, error) {
 	var out []ExpiredSite
 	for rows.Next() {
 		var e ExpiredSite
-		if err := rows.Scan(&e.ID, &e.Name); err != nil {
+		if err := rows.Scan(&e.ID, &e.UserID, &e.Name); err != nil {
 			return nil, err
 		}
 		out = append(out, e)
