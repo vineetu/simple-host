@@ -303,11 +303,16 @@ func GetSite(ctx context.Context, db *sql.DB, name string) (Site, error) {
 	return site, err
 }
 
-// GetSiteIDByName returns the site's UUID for a globally unique name.
+// GetSiteIDByName resolves a bare site name for the legacy edge. When multiple
+// users own the same name, it returns the ORIGINAL (oldest) owner so the
+// legacy subdomain / bare-name route never flips to a later same-named site.
 // Returns sql.ErrNoRows if no site with that name exists.
 func GetSiteIDByName(ctx context.Context, db *sql.DB, name string) (string, error) {
 	var id string
-	err := db.QueryRowContext(ctx, `SELECT id FROM sites WHERE name = $1`, name).Scan(&id)
+	err := db.QueryRowContext(ctx,
+		`SELECT id FROM sites WHERE name = $1 ORDER BY created_at ASC, id ASC LIMIT 1`,
+		name,
+	).Scan(&id)
 	return id, err
 }
 

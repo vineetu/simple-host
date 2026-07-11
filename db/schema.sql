@@ -15,13 +15,14 @@ CREATE TABLE users (
 CREATE TABLE sites (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id        UUID REFERENCES users(id) ON DELETE CASCADE,
-  name           TEXT UNIQUE NOT NULL,
+  name           TEXT NOT NULL,
   active_version INTEGER NOT NULL DEFAULT 1,
   site_url       TEXT,
   expires_at     TIMESTAMPTZ,  -- NULL = permanent; set for ephemeral "preview" sites, swept when past
   allowed_origins TEXT,        -- comma-separated extra origins allowed to call this site's state/collections (for "backend anywhere" — e.g. a GitHub Pages page)
   created_at     TIMESTAMPTZ DEFAULT now(),
-  updated_at     TIMESTAMPTZ DEFAULT now()
+  updated_at     TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT sites_user_name UNIQUE (user_id, name)
 );
 
 -- Frozen legacy per-site hostnames (e.g. mysite.simple-host.app) bound to a

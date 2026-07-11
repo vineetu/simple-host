@@ -146,9 +146,10 @@ func (d *DiskStorage) UpdateCurrent(userID, siteName string, versionNum int) err
 	return nil
 }
 
-// ensureBackCompatSymlink creates or refreshes
-// <dataDir>/<siteName> -> by-id/<userID>/<siteName>. Never clobbers a real
-// directory or file at that path (returns an error so operators notice).
+// ensureBackCompatSymlink creates <dataDir>/<siteName> -> by-id/<userID>/<siteName>
+// only if the path does not already exist (first-owner-wins). A later same-named
+// site from a different user must never hijack the legacy flat symlink.
+// Never clobbers a real directory or file at that path.
 func (d *DiskStorage) ensureBackCompatSymlink(userID, siteName string) error {
 	compatPath := filepath.Join(d.dataDir, siteName)
 	// Relative target from dataDir so the whole tree stays relocatable.
@@ -159,14 +160,23 @@ func (d *DiskStorage) ensureBackCompatSymlink(userID, siteName string) error {
 		if info.Mode()&os.ModeSymlink == 0 {
 			return fmt.Errorf("back-compat path %q exists and is not a symlink; refusing to clobber", compatPath)
 		}
-		// Existing symlink: refresh by remove + recreate (idempotent).
-		if err := os.Remove(compatPath); err != nil {
-			return fmt.Errorf("remove stale back-compat symlink: %w", err)
+		// Existing symlink: leave it. Idempotent no-op if it already points at
+		// us; if it points elsewhere another user owns the legacy name.
+		cur, rerr := os.Readlink(compatPath)
+		if rerr != nil {
+			return fmt.Errorf("readlink back-compat path: %w", rerr)
 		}
-	} else if !os.IsNotExist(err) {
+		if cur == compatTarget {
+			return nil
+		}
+		// Different owner — do not repoint / hijack.
+		return nil
+	}
+	if !os.IsNotExist(err) {
 		return fmt.Errorf("lstat back-compat path: %w", err)
 	}
 
+	// Not exist: this owner is first for the name.
 	if err := os.Symlink(compatTarget, compatPath); err != nil {
 		return fmt.Errorf("create back-compat symlink: %w", err)
 	}
@@ -185,14 +195,24 @@ func (d *DiskStorage) DeleteSite(userID, siteName string) error {
 		return fmt.Errorf("delete site dir: %w", err)
 	}
 
-	// Remove the back-compat symlink only when it is a symlink — never RemoveAll
-	// a real directory/file that happens to share the site name.
+	// Remove the back-compat symlink only when it is a symlink that currently
+	// points at THIS site's by-id dir. If another user's same-named site owns
+	// the legacy name, leave their symlink alone. Never RemoveAll a real
+	// directory/file that happens to share the site name.
 	compatPath := filepath.Join(d.dataDir, siteName)
+	compatTarget := filepath.Join("by-id", userID, siteName)
 	info, err := os.Lstat(compatPath)
 	if err == nil && info.Mode()&os.ModeSymlink != 0 {
-		if err := os.Remove(compatPath); err != nil {
-			return fmt.Errorf("remove back-compat symlink: %w", err)
+		cur, rerr := os.Readlink(compatPath)
+		if rerr != nil {
+			return fmt.Errorf("readlink back-compat path: %w", rerr)
 		}
+		if cur == compatTarget {
+			if err := os.Remove(compatPath); err != nil {
+				return fmt.Errorf("remove back-compat symlink: %w", err)
+			}
+		}
+		// else: points at another user's dir — leave it
 	} else if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("lstat back-compat path: %w", err)
 	}

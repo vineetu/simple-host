@@ -624,7 +624,12 @@ func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user
 	}
 	defer tx.Rollback()
 
-	siteURL := fmt.Sprintf("https://%s.%s", siteName, h.siteDomain)
+	var siteURL string
+	if user.Handle.Valid && user.Handle.String != "" {
+		siteURL = fmt.Sprintf("https://%s/%s/%s/", h.contentHost, user.Handle.String, siteName)
+	} else {
+		siteURL = fmt.Sprintf("https://%s.%s", siteName, h.siteDomain)
+	}
 	site, err := db.CreateSite(r.Context(), tx, user.ID, siteName, siteURL, h.previewExpiry(user))
 	if err != nil {
 		if isUniqueViolation(err) {
