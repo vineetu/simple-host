@@ -329,13 +329,9 @@ func (h *SiteHandler) resolveSiteID(r *http.Request, siteName string) (string, e
 	return db.GetSiteIDByName(r.Context(), h.database, siteName)
 }
 
-// originAllowedForSite reports whether the owner has whitelisted this exact
-// origin (scheme://host) for the site's state/collections API.
-func (h *SiteHandler) originAllowedForSite(ctx context.Context, siteName, origin string) bool {
-	siteID, err := db.GetSiteIDByName(ctx, h.database, siteName)
-	if err != nil {
-		return false
-	}
+// originAllowedForSiteID reports whether the owner has whitelisted this exact
+// origin (scheme://host) for the given site_id's state/collections API.
+func (h *SiteHandler) originAllowedForSiteID(ctx context.Context, siteID, origin string) bool {
 	origins, err := db.GetAllowedOriginsByID(ctx, h.database, siteID)
 	if err != nil || len(origins) == 0 {
 		return false
@@ -349,22 +345,39 @@ func (h *SiteHandler) originAllowedForSite(ctx context.Context, siteName, origin
 	return false
 }
 
-// originIsBoundDomain reports whether host is a custom domain bound to a site of
-// this name (the same-origin state API on a connected domain). Ties the domain to
-// its specific site so one owner's domain can't authorize writes to a foreign site.
-func (h *SiteHandler) originIsBoundDomain(ctx context.Context, siteName, host string) bool {
-	info, err := db.GetSiteByCustomDomain(ctx, h.database, strings.ToLower(host))
+// originIsBoundDomainID reports whether host is this site's own custom_domain
+// (same-origin state on a connected domain). Keyed by site_id so a domain bound
+// to one same-named site cannot authorize writes to another.
+func (h *SiteHandler) originIsBoundDomainID(ctx context.Context, siteID, host string) bool {
+	info, ok, err := db.GetSiteDomainInfo(ctx, h.database, siteID)
+	if err != nil || !ok {
+		return false
+	}
+	return strings.EqualFold(info.Domain, host)
+}
+
+// isLegacyOwner reports whether siteID is the deterministic oldest owner of
+// siteName — i.e. the site that the legacy <name>.<siteDomain> host actually
+// serves. Only that site may be authorized by the name-subdomain Origin.
+func (h *SiteHandler) isLegacyOwner(ctx context.Context, siteName, siteID string) bool {
+	legacyID, err := db.GetSiteIDByName(ctx, h.database, siteName)
 	if err != nil {
 		return false
 	}
-	return info.Name == siteName
+	return legacyID == siteID
 }
 
 // authorizeStateOrigin checks Origin/Referer and, on a match, sets the CORS
 // headers that allow the calling site to read the response. Returns true if
-// the request is allowed.
+// the request is allowed. The gate is keyed to the same site_id that the data
+// handlers resolve (via resolveSiteID), so two same-named sites cannot widen
+// each other's allowed_origins or bound custom_domain.
 func (h *SiteHandler) authorizeStateOrigin(w http.ResponseWriter, r *http.Request, siteName string) bool {
-	want := h.originHostForSite(siteName)
+	// Resolve once; if we can't attribute the request to a real site, deny.
+	siteID, err := h.resolveSiteID(r, siteName)
+	if err != nil {
+		return false
+	}
 
 	origin := r.Header.Get("Origin")
 	if origin == "" {
@@ -383,16 +396,18 @@ func (h *SiteHandler) authorizeStateOrigin(w http.ResponseWriter, r *http.Reques
 	if err != nil || parsed.Host == "" {
 		return false
 	}
-	// Accept the site's own subdomain, the shared v3 content host
-	// (sites.<SITE_DOMAIN> — all path-model pages share this Origin), the site's
-	// own bound custom domain (same-origin state on a connected domain), OR any
-	// origin the owner has explicitly allowed (so a page hosted elsewhere —
-	// e.g. GitHub Pages — can use this site as its backend). A browser cannot
-	// forge Origin, so this is the same attribution-grade gate, just widened
-	// to owner-approved origins, the co-tenant content host, and the bound domain.
-	if parsed.Host != want && parsed.Host != h.contentHost &&
-		!h.originIsBoundDomain(r.Context(), siteName, parsed.Host) &&
-		!h.originAllowedForSite(r.Context(), siteName, origin) {
+	// Accept the shared v3 content host (sites.<SITE_DOMAIN> — all path-model
+	// pages share this Origin), the legacy <name>.<domain> host only when this
+	// site is the oldest same-named owner (the one that host actually serves),
+	// this site's own bound custom domain, OR any origin the owner has
+	// explicitly allowed for THIS site_id. A browser cannot forge Origin, so
+	// this is the same attribution-grade gate, just widened to owner-approved
+	// origins, the co-tenant content host, and the bound domain.
+	want := h.originHostForSite(siteName)
+	if parsed.Host != h.contentHost &&
+		!(parsed.Host == want && h.isLegacyOwner(r.Context(), siteName, siteID)) &&
+		!h.originIsBoundDomainID(r.Context(), siteID, parsed.Host) &&
+		!h.originAllowedForSiteID(r.Context(), siteID, origin) {
 		return false
 	}
 

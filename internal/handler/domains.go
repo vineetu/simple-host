@@ -102,7 +102,7 @@ func isOwnHost(host, base string) bool {
 	return strings.HasSuffix(host, "."+base)
 }
 
-// dnsRecord is the CNAME the site owner must create.
+// dnsRecord is the DNS record (A or CNAME) the site owner must create.
 type dnsRecord struct {
 	Type  string `json:"type"`
 	Host  string `json:"host"`
