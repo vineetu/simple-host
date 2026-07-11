@@ -25,6 +25,10 @@ type Config struct {
 	DBDSN         string
 	DataDir       string
 	SiteDomain    string
+	// ContentHost is the shared v3 content-serving host (e.g. sites.simple-host.app).
+	// Pages served there call state/collections with this Origin for every site.
+	// Defaults to "sites."+SiteDomain; override with CONTENT_HOST if needed.
+	ContentHost   string
 	AdminAPIKey   string
 	Port          string
 	DeployScript  string
@@ -71,6 +75,8 @@ func Load() (Config, error) {
 		AgentServerURL:    strings.TrimRight(os.Getenv("AGENT_SERVER_URL"), "/"),
 		AgentSharedSecret: os.Getenv("AGENT_SHARED_SECRET"),
 	}
+	// CONTENT_HOST defaults to sites.<SITE_DOMAIN> so prod/test need no extra env.
+	cfg.ContentHost = getEnvOrDefault("CONTENT_HOST", "sites."+cfg.SiteDomain)
 
 	cfg.PreviewAccounts = map[string]bool{}
 	for _, a := range strings.Split(os.Getenv("PREVIEW_ACCOUNTS"), ",") {

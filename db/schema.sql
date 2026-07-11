@@ -22,6 +22,16 @@ CREATE TABLE sites (
   updated_at     TIMESTAMPTZ DEFAULT now()
 );
 
+-- Frozen legacy per-site hostnames (e.g. mysite.simple-host.app) bound to a
+-- site_id. Populated by a later backfill; not wired into request paths yet.
+CREATE TABLE legacy_hostnames (
+  hostname   TEXT PRIMARY KEY,
+  site_id    UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  user_id    UUID REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_legacy_hostnames_site ON legacy_hostnames(site_id);
+
 CREATE TABLE versions (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   site_id        UUID REFERENCES sites(id) ON DELETE CASCADE,

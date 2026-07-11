@@ -190,6 +190,31 @@ func GetAllowedOriginsByID(ctx context.Context, db *sql.DB, siteID string) ([]st
 	return out, nil
 }
 
+// GetLegacyHostnamesByID returns the frozen legacy hostnames bound to a site_id.
+func GetLegacyHostnamesByID(ctx context.Context, db *sql.DB, siteID string) ([]string, error) {
+	rows, err := db.QueryContext(ctx, `SELECT hostname FROM legacy_hostnames WHERE site_id = $1`, siteID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []string
+	for rows.Next() {
+		var h string
+		if err := rows.Scan(&h); err != nil {
+			return nil, err
+		}
+		out = append(out, h)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
+}
+
 // SetAllowedOrigins replaces the allowed-origins list for a site (comma-joined).
 func SetAllowedOrigins(ctx context.Context, db *sql.DB, siteID, origins string) error {
 	_, err := db.ExecContext(ctx, `UPDATE sites SET allowed_origins = $1 WHERE id = $2`, origins, siteID)

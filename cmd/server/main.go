@@ -71,7 +71,7 @@ func main() {
 
 	handler.RegisterHealthRoutes(mux, db)
 	handler.NewUserHandler(db, mailer, cfg.PublicBaseURL).Register(mux, authMW, noticeMW)
-	handler.NewSiteHandler(db, diskStorage, cfg.SiteDomain, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL).Register(mux, authMW, noticeMW)
+	handler.NewSiteHandler(db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL).Register(mux, authMW, noticeMW)
 	handler.RegisterTemplateRoutes(mux)
 	handler.RegisterUIRoutes(mux, cfg.PublicBaseURL)
 

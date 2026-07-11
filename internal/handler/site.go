@@ -39,6 +39,7 @@ type SiteHandler struct {
 	database     *sql.DB
 	disk         *storage.DiskStorage
 	siteDomain   string
+	contentHost  string // shared v3 content host, e.g. sites.simple-host.app
 	deployScript string
 
 	// uploadLocks serializes write+promote per site name (sitename -> *sync.Mutex).
@@ -89,7 +90,7 @@ type versionResponse struct {
 	IsActive      bool      `json:"is_active"`
 }
 
-func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration) *SiteHandler {
+func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, contentHost, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration) *SiteHandler {
 	// Uploads: ~6/min/IP, burst 30. State writes: ~1/s/IP sustained, burst 60
 	// (a browser app may persist state on each interaction).
 	uploadLimiter := newRateLimiter(30, 0.1)
@@ -110,6 +111,7 @@ func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, dep
 		database:        database,
 		disk:            disk,
 		siteDomain:      siteDomain,
+		contentHost:     contentHost,
 		deployScript:    deployScript,
 		uploadLimiter:   uploadLimiter,
 		stateLimiter:    stateLimiter,
@@ -325,11 +327,13 @@ func (h *SiteHandler) authorizeStateOrigin(w http.ResponseWriter, r *http.Reques
 	if err != nil || parsed.Host == "" {
 		return false
 	}
-	// Accept the site's own subdomain, OR any origin the owner has explicitly
-	// allowed (so a page hosted elsewhere — e.g. GitHub Pages — can use this
-	// site as its backend). A browser cannot forge Origin, so this is the same
-	// attribution-grade gate, just widened to owner-approved origins.
-	if parsed.Host != want && !h.originAllowedForSite(r.Context(), siteName, origin) {
+	// Accept the site's own subdomain, the shared v3 content host
+	// (sites.<SITE_DOMAIN> — all path-model pages share this Origin), OR any
+	// origin the owner has explicitly allowed (so a page hosted elsewhere —
+	// e.g. GitHub Pages — can use this site as its backend). A browser cannot
+	// forge Origin, so this is the same attribution-grade gate, just widened
+	// to owner-approved origins and the co-tenant content host.
+	if parsed.Host != want && parsed.Host != h.contentHost && !h.originAllowedForSite(r.Context(), siteName, origin) {
 		return false
 	}
 
