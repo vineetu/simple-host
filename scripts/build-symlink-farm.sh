@@ -22,6 +22,10 @@ $DB -c "SELECT handle, id FROM users WHERE handle IS NOT NULL;" | while IFS='|' 
   ln -sfn "../by-id/$uid" "$ROOT/handles/$handle"
 done
 
+# The app writes as the service user; keep the farm owned by it (not root),
+# or new uploads fail with EACCES on root-owned by-id dirs.
+chown -R simplehost:simplehost "$ROOT/by-id" "$ROOT/handles" 2>/dev/null || true
+
 echo "=== farm ==="
 ls -la "$ROOT/handles" "$ROOT/by-id"
 for d in "$ROOT"/handles/*; do
