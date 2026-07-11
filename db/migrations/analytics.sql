@@ -21,3 +21,6 @@ CREATE TABLE IF NOT EXISTS analytics_ingest_state (
   inode        BIGINT NOT NULL DEFAULT 0,
   updated_at   TIMESTAMPTZ DEFAULT now()
 );
+
+-- App DB role needs access (tables above may be created as a superuser).
+GRANT ALL ON site_view_daily, site_visitor_daily, analytics_ingest_state TO simplehost;
