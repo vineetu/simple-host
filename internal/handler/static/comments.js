@@ -4,10 +4,17 @@
  *   <section id="sh-comments"></section>
  *   <script src="https://simple-host.app/comments.js" defer></script>
  *
+ * Auto-derives the state API from the page URL:
+ *   - Content host (sites.<domain>/<handle>/<site>/…): /v1/u/<handle>/sites/<site>/state
+ *   - Legacy per-site subdomain or custom domain: same-origin /v1/sites/<label>/state
+ * On a custom domain set window.SH_COMMENTS = { site: "…" } (and optionally handle).
+ *
  * Hosted elsewhere (GitHub Pages, Netlify, …)? Point it at a Simple Host site
  * whose owner has allowed this page's origin:
  *
  *   <script>window.SH_COMMENTS = { site: "my-backend", base: "https://simple-host.app" }</script>
+ *   // optional handle for the unambiguous user-scoped route:
+ *   // { site:"my-backend", handle:"alice", base:"https://simple-host.app" }
  *
  * THEMING — the default is deliberately neutral; match it to the host page via
  * config and/or CSS variables:
@@ -31,16 +38,27 @@
     // site as its comments backend. The site owner must have added this page's
     // origin via PUT /v1/sites/{site}/allowed-origins.
     var base = (_cfg.base || "https://simple-host.app").replace(/\/+$/, "");
-    API = base + "/v1/sites/" + _cfg.site + "/state";
+    if (_cfg.handle) {
+      API = base + "/v1/u/" + _cfg.handle + "/sites/" + _cfg.site + "/state";
+    } else {
+      API = base + "/v1/sites/" + _cfg.site + "/state";
+    }
   } else {
-    var host = location.hostname;
+    var host = location.hostname, path = location.pathname;
     if (location.protocol === "file:" || host === "localhost" || host === "127.0.0.1") {
       console.info("[comments] set window.SH_COMMENTS={site:'your-site'} to point at a backend, or deploy this page on simple-host.");
       return;
     }
-    var sub = host.split(".")[0];
-    var apex = host.split(".").slice(-2).join(".");
-    API = location.protocol + "//" + apex + "/v1/sites/" + sub + "/state";
+    // v3 path model: /<handle>/<site>/... on the content host (host starts with "sites.")
+    var m = path.match(/^\/([a-z0-9-]{1,39})\/([a-z0-9-]{1,63})(?:\/|$)/);
+    if (host.split(".")[0] === "sites" && m) {
+      API = location.origin + "/v1/u/" + m[1] + "/sites/" + m[2] + "/state";
+    } else {
+      // legacy per-site subdomain OR a custom domain: same-origin, site = first label
+      // (subdomain) — for a custom domain the author should set window.SH_COMMENTS={site:"..."}.
+      var sub = host.split(".")[0];
+      API = location.origin + "/v1/sites/" + sub + "/state";
+    }
   }
   var CK = "_comments", VK = "_votes";
 

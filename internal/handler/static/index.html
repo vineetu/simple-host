@@ -1240,7 +1240,7 @@
 
     function completeSignIn(data) {
       apiKey = data.api_key;
-      currentUser = { id: data.id, username: data.username, is_admin: data.is_admin };
+      currentUser = { id: data.id, username: data.username, is_admin: data.is_admin, handle: data.handle };
       localStorage.setItem('apiKey', apiKey);
       enterApp();
     }
@@ -1973,7 +1973,11 @@
         if (fsBtn) fsBtn.textContent = 'Update site →';
         if (bound) bound.hidden = false;
         if (boundLabel) {
-          boundLabel.textContent = 'Editing live site: ' + publishedSite + '.' + location.host;
+          // Prefer the canonical path-model site_url from the sites list when
+          // known; otherwise just show the site name (never invent a subdomain).
+          const boundSite = sites && sites.find(function (s) { return s.name === publishedSite; });
+          const boundURL = boundSite && boundSite.site_url;
+          boundLabel.textContent = 'Editing live site: ' + (boundURL || publishedSite);
         }
         if (unbindBtn) unbindBtn.disabled = !!isPublishing;
       } else {
@@ -2275,20 +2279,30 @@
         }
         const data = await res.json().catch(() => ({}));
         if (!res.ok) { toast(data.error || 'Could not publish', 'error'); return; }
-        const url = data.site_url || `${location.protocol}//${name}.${location.host}`;
+        // Prefer server-provided site_url (path-model). Fall back to the content
+        // host path when the handle is known; never invent a per-site subdomain.
+        let url = data.site_url || '';
+        if (!url && currentUser && currentUser.handle) {
+          const parts = location.hostname.split('.');
+          const apex = parts.length >= 2 ? parts.slice(-2).join('.') : location.hostname;
+          url = `${location.protocol}//sites.${apex}/${currentUser.handle}/${name}/`;
+        }
         // Only bind on first publish. Use the start-of-call `bound` flag — not live
         // `publishedSite` — so a mid-flight unbind cannot be undone by success.
         if (!bound) {
           publishedSite = name;
           if (activeJobId) saveSession(activeJobId);
         }
-        toast(bound ? 'Updated! Opening your site…' : 'Published! Opening your site…', 'success');
+        toast(bound ? (url ? 'Updated! Opening your site…' : 'Updated!')
+                    : (url ? 'Published! Opening your site…' : 'Published!'), 'success');
         closeFullscreen();
-        window.open(url, '_blank');
+        if (url) window.open(url, '_blank');
         if (bound) {
-          aiAppend('ai', '✓ Updated → ' + url + ' — your live site now has the latest version.');
+          aiAppend('ai', url
+            ? '✓ Updated → ' + url + ' — your live site now has the latest version.'
+            : '✓ Updated — your live site now has the latest version.');
         } else {
-          aiAppend('ai', '✓ Published → ' + url);
+          aiAppend('ai', url ? '✓ Published → ' + url : '✓ Published');
         }
         loadSites();
       } catch (e) {

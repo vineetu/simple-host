@@ -4,9 +4,16 @@
  * Drop into any deployed page:
  *     <script src="https://simple-host.app/feedback.js"></script>
  *
+ * Auto-derives the state API from the page URL:
+ *   - Content host (sites.<domain>/<handle>/<site>/…): /v1/u/<handle>/sites/<site>/state
+ *   - Legacy per-site subdomain or custom domain: same-origin /v1/sites/<label>/state
+ * On a custom domain set window.SH_FEEDBACK = { site: "…" } (and optionally handle).
+ *
  * Hosted elsewhere (GitHub Pages, Netlify, …)? Point it at a Simple Host site
  * whose owner allowed this page's origin (PUT /v1/sites/{site}/allowed-origins):
  *     <script>window.SH_FEEDBACK = { site:"my-backend", base:"https://simple-host.app" }</script>
+ *     // optional handle for the unambiguous user-scoped route:
+ *     // { site:"my-backend", handle:"alice", base:"https://simple-host.app" }
  *
  * HOW REVIEWERS USE IT
  *   Browse mode (default): the page behaves completely normally.
@@ -20,7 +27,8 @@
  *   theme:"light"|"dark"|"auto" } — or override the --shf-* CSS variables.
  *
  * HOW AN AGENT READS THE FEEDBACK BACK
- *     curl -H "Origin: https://<site>.<domain>" https://<apex>/v1/sites/<site>/state
+ *     curl -H "Origin: https://sites.<domain>" \
+ *       https://sites.<domain>/v1/u/<handle>/sites/<site>/state
  *   → { "_comments": [ { body, author, ts, sel, text, nx, ny, px, py } ] }
  *   `sel` is a CSS selector for the element the reviewer tapped, `text` its
  *   visible text (locate it in your source), `nx`/`ny` the position within that
@@ -36,16 +44,27 @@
   var API;
   if (_cfg.site) {
     var base = (_cfg.base || "https://simple-host.app").replace(/\/+$/, "");
-    API = base + "/v1/sites/" + _cfg.site + "/state";
+    if (_cfg.handle) {
+      API = base + "/v1/u/" + _cfg.handle + "/sites/" + _cfg.site + "/state";
+    } else {
+      API = base + "/v1/sites/" + _cfg.site + "/state";
+    }
   } else {
-    var host = location.hostname;
+    var host = location.hostname, path = location.pathname;
     if (location.protocol === "file:" || host === "localhost" || host === "127.0.0.1") {
       console.info("[feedback] set window.SH_FEEDBACK={site:'your-site'} to point at a backend, or deploy this page to enable tap-to-comment.");
       return;
     }
-    var sub = host.split(".")[0];
-    var apex = host.split(".").slice(-2).join(".");
-    API = location.protocol + "//" + apex + "/v1/sites/" + sub + "/state";
+    // v3 path model: /<handle>/<site>/... on the content host (host starts with "sites.")
+    var m = path.match(/^\/([a-z0-9-]{1,39})\/([a-z0-9-]{1,63})(?:\/|$)/);
+    if (host.split(".")[0] === "sites" && m) {
+      API = location.origin + "/v1/u/" + m[1] + "/sites/" + m[2] + "/state";
+    } else {
+      // legacy per-site subdomain OR a custom domain: same-origin, site = first label
+      // (subdomain) — for a custom domain the author should set window.SH_FEEDBACK={site:"..."}.
+      var sub = host.split(".")[0];
+      API = location.origin + "/v1/sites/" + sub + "/state";
+    }
   }
   var KEY = "_comments";
 
