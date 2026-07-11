@@ -1,0 +1,44 @@
+{
+	email admin@simple-host.app
+	on_demand_tls {
+		ask http://127.0.0.1:9099/ask
+	}
+}
+
+# Dashboard / login / API (separate origin from content).
+d.agent-deploy.dev {
+	reverse_proxy 127.0.0.1:8090
+}
+
+# v3 content host: all user sites served by PATH under one origin.
+#   /<handle>/<site>/<rest>  ->  handles/<handle>/<site>/current/<rest>
+# (symlink farm: handles/<handle> -> by-id/<user_id> -> flat <site> dir)
+sites.d.agent-deploy.dev {
+	@api path /v1/* /internal/*
+	handle @api {
+		reverse_proxy 127.0.0.1:8090
+	}
+	handle {
+		# add trailing slash on bare /<handle>/<site> so relative links resolve
+		@nodir path_regexp nodir ^/([a-z0-9-]{1,39})/([a-z0-9-]{1,63})$
+		redir @nodir {uri}/ 308
+
+		@site path_regexp site ^/([a-z0-9-]{1,39})/([a-z0-9-]{1,63})(/.*)?$
+		rewrite @site /{re.site.1}/{re.site.2}/current{re.site.3}
+		root * /srv/simple-host/sites/handles
+		file_server
+	}
+}
+
+# Legacy per-site subdomains (<name>.d.agent-deploy.dev) + custom domains (on-demand TLS).
+https:// {
+	tls {
+		on_demand
+	}
+	@api path /v1/* /internal/*
+	handle @api {
+		reverse_proxy 127.0.0.1:8090
+	}
+	root * /srv/simple-host/sites/{labels.3}/current
+	file_server
+}

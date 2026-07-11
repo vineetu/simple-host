@@ -7,6 +7,8 @@ CREATE TABLE users (
   username   TEXT UNIQUE NOT NULL,
   api_key    TEXT UNIQUE NOT NULL,
   is_admin   BOOLEAN DEFAULT FALSE,
+  handle             TEXT UNIQUE,          -- URL-safe public path id (^[a-z0-9-]{1,39}$); backfilled separately
+  handle_changed_at  TIMESTAMPTZ,          -- last time handle was set/changed; NULL until first set
   created_at TIMESTAMPTZ DEFAULT now()
 );
 

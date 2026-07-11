@@ -68,6 +68,27 @@ func GetUserByUsername(ctx context.Context, db *sql.DB, username string) (User, 
 	return user, err
 }
 
+// GetUserByHandle looks up a user by their URL-safe handle.
+// Selects the same columns as the other GetUser* helpers (handle is the
+// lookup key only — not scanned into User, so existing callers stay untouched).
+func GetUserByHandle(ctx context.Context, db *sql.DB, handle string) (User, error) {
+	const query = `
+		SELECT id, username, api_key, is_admin, created_at
+		FROM users
+		WHERE handle = $1
+	`
+
+	var user User
+	err := db.QueryRowContext(ctx, query, handle).Scan(
+		&user.ID,
+		&user.Username,
+		&user.APIKey,
+		&user.IsAdmin,
+		&user.CreatedAt,
+	)
+	return user, err
+}
+
 // Querier abstracts *sql.DB and *sql.Tx for transaction-safe queries.
 type Querier interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
