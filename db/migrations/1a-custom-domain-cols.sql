@@ -1,0 +1,4 @@
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS custom_domain      TEXT UNIQUE;
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS domain_status      TEXT;
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS domain_verified_at TIMESTAMPTZ;
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS domain_last_error  TEXT;
