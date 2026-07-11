@@ -51,6 +51,17 @@ func (h *SiteHandler) patchSiteState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Resolve name -> site_id once; all subsequent state ops key by id.
+	siteID, err := db.GetSiteIDByName(r.Context(), h.database, siteName)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+
 	r.Body = http.MaxBytesReader(w, r.Body, maxSiteStateSize)
 	var req struct {
 		Ops []stateOp `json:"ops"`
@@ -80,7 +91,7 @@ func (h *SiteHandler) patchSiteState(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	cur, _, err := db.GetSiteStateForUpdate(r.Context(), tx, siteName)
+	cur, _, err := db.GetSiteStateForUpdateByID(r.Context(), tx, siteID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
@@ -111,7 +122,7 @@ func (h *SiteHandler) patchSiteState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newVersion, err := db.SetSiteState(r.Context(), tx, siteName, newBytes)
+	newVersion, err := db.SetSiteStateByID(r.Context(), tx, siteID, newBytes)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return

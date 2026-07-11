@@ -168,6 +168,28 @@ func GetAllowedOrigins(ctx context.Context, db *sql.DB, siteName string) ([]stri
 	return out, nil
 }
 
+// GetAllowedOriginsByID is the site_id-keyed variant of GetAllowedOrigins.
+func GetAllowedOriginsByID(ctx context.Context, db *sql.DB, siteID string) ([]string, error) {
+	var raw sql.NullString
+	err := db.QueryRowContext(ctx, `SELECT allowed_origins FROM sites WHERE id = $1`, siteID).Scan(&raw)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if !raw.Valid || strings.TrimSpace(raw.String) == "" {
+		return nil, nil
+	}
+	var out []string
+	for _, o := range strings.Split(raw.String, ",") {
+		if o = strings.TrimSpace(o); o != "" {
+			out = append(out, o)
+		}
+	}
+	return out, nil
+}
+
 // SetAllowedOrigins replaces the allowed-origins list for a site (comma-joined).
 func SetAllowedOrigins(ctx context.Context, db *sql.DB, siteID, origins string) error {
 	_, err := db.ExecContext(ctx, `UPDATE sites SET allowed_origins = $1 WHERE id = $2`, origins, siteID)
@@ -193,6 +215,14 @@ func GetSite(ctx context.Context, db *sql.DB, name string) (Site, error) {
 		&site.UpdatedAt,
 	)
 	return site, err
+}
+
+// GetSiteIDByName returns the site's UUID for a globally unique name.
+// Returns sql.ErrNoRows if no site with that name exists.
+func GetSiteIDByName(ctx context.Context, db *sql.DB, name string) (string, error) {
+	var id string
+	err := db.QueryRowContext(ctx, `SELECT id FROM sites WHERE name = $1`, name).Scan(&id)
+	return id, err
 }
 
 func GetSiteByUser(ctx context.Context, db *sql.DB, userID, name string) (Site, error) {
@@ -401,6 +431,21 @@ func GetSiteState(ctx context.Context, db *sql.DB, name string) (json.RawMessage
 	return json.RawMessage(state), version, nil
 }
 
+// GetSiteStateByID is the site_id-keyed variant of GetSiteState.
+func GetSiteStateByID(ctx context.Context, db *sql.DB, siteID string) (json.RawMessage, int, error) {
+	const query = `SELECT COALESCE(state, 'null'::jsonb), state_version FROM sites WHERE id = $1`
+
+	var state []byte
+	var version int
+	if err := db.QueryRowContext(ctx, query, siteID).Scan(&state, &version); err != nil {
+		return nil, 0, err
+	}
+	if len(state) == 0 {
+		return json.RawMessage("null"), version, nil
+	}
+	return json.RawMessage(state), version, nil
+}
+
 // UpdateSiteState overwrites state unconditionally (last-write-wins) and bumps
 // the version. Returns the new version. This is the default behavior when the
 // caller does not opt into optimistic concurrency.
@@ -414,6 +459,23 @@ func UpdateSiteState(ctx context.Context, db *sql.DB, name string, state json.Ra
 
 	var version int
 	err := db.QueryRowContext(ctx, query, name, string(state)).Scan(&version)
+	if err != nil {
+		return 0, err // includes sql.ErrNoRows when the site doesn't exist
+	}
+	return version, nil
+}
+
+// UpdateSiteStateByID is the site_id-keyed variant of UpdateSiteState.
+func UpdateSiteStateByID(ctx context.Context, db *sql.DB, siteID string, state json.RawMessage) (int, error) {
+	const query = `
+		UPDATE sites
+		SET state = $2::jsonb, state_version = state_version + 1, updated_at = now()
+		WHERE id = $1
+		RETURNING state_version
+	`
+
+	var version int
+	err := db.QueryRowContext(ctx, query, siteID, string(state)).Scan(&version)
 	if err != nil {
 		return 0, err // includes sql.ErrNoRows when the site doesn't exist
 	}
@@ -439,6 +501,36 @@ func UpdateSiteStateCAS(ctx context.Context, db *sql.DB, name string, state json
 		// to return the precise error.
 		var exists bool
 		probe := db.QueryRowContext(ctx, `SELECT true FROM sites WHERE name = $1`, name).Scan(&exists)
+		if errors.Is(probe, sql.ErrNoRows) {
+			return 0, sql.ErrNoRows
+		}
+		if probe != nil {
+			return 0, probe
+		}
+		return 0, ErrStateVersionConflict
+	}
+	if err != nil {
+		return 0, err
+	}
+	return version, nil
+}
+
+// UpdateSiteStateCASByID is the site_id-keyed variant of UpdateSiteStateCAS.
+func UpdateSiteStateCASByID(ctx context.Context, db *sql.DB, siteID string, state json.RawMessage, expected int) (int, error) {
+	const query = `
+		UPDATE sites
+		SET state = $2::jsonb, state_version = state_version + 1, updated_at = now()
+		WHERE id = $1 AND state_version = $3
+		RETURNING state_version
+	`
+
+	var version int
+	err := db.QueryRowContext(ctx, query, siteID, string(state), expected).Scan(&version)
+	if errors.Is(err, sql.ErrNoRows) {
+		// No row updated: either the site is gone or the version moved. Probe
+		// to return the precise error.
+		var exists bool
+		probe := db.QueryRowContext(ctx, `SELECT true FROM sites WHERE id = $1`, siteID).Scan(&exists)
 		if errors.Is(probe, sql.ErrNoRows) {
 			return 0, sql.ErrNoRows
 		}
@@ -492,6 +584,13 @@ func GetSiteStateVersion(ctx context.Context, db *sql.DB, name string) (int, err
 	return version, err
 }
 
+// GetSiteStateVersionByID is the site_id-keyed variant of GetSiteStateVersion.
+func GetSiteStateVersionByID(ctx context.Context, db *sql.DB, siteID string) (int, error) {
+	var version int
+	err := db.QueryRowContext(ctx, `SELECT state_version FROM sites WHERE id = $1`, siteID).Scan(&version)
+	return version, err
+}
+
 // GetSiteStateForUpdate reads state + version and locks the row FOR UPDATE, so a
 // read-modify-write (atomic PATCH) applies without lost updates. Concurrent
 // PATCHes serialize on the lock instead of burning CPU on optimistic retries.
@@ -501,6 +600,20 @@ func GetSiteStateForUpdate(ctx context.Context, q Querier, name string) (json.Ra
 	var state []byte
 	var version int
 	if err := q.QueryRowContext(ctx, query, name).Scan(&state, &version); err != nil {
+		return nil, 0, err
+	}
+	if len(state) == 0 {
+		return json.RawMessage("null"), version, nil
+	}
+	return json.RawMessage(state), version, nil
+}
+
+// GetSiteStateForUpdateByID is the site_id-keyed variant of GetSiteStateForUpdate.
+func GetSiteStateForUpdateByID(ctx context.Context, q Querier, siteID string) (json.RawMessage, int, error) {
+	const query = `SELECT COALESCE(state, 'null'::jsonb), state_version FROM sites WHERE id = $1 FOR UPDATE`
+	var state []byte
+	var version int
+	if err := q.QueryRowContext(ctx, query, siteID).Scan(&state, &version); err != nil {
 		return nil, 0, err
 	}
 	if len(state) == 0 {
@@ -520,6 +633,21 @@ func SetSiteState(ctx context.Context, q Querier, name string, state json.RawMes
 	`
 	var version int
 	if err := q.QueryRowContext(ctx, query, name, string(state)).Scan(&version); err != nil {
+		return 0, err
+	}
+	return version, nil
+}
+
+// SetSiteStateByID is the site_id-keyed variant of SetSiteState.
+func SetSiteStateByID(ctx context.Context, q Querier, siteID string, state json.RawMessage) (int, error) {
+	const query = `
+		UPDATE sites
+		SET state = $2::jsonb, state_version = state_version + 1, updated_at = now()
+		WHERE id = $1
+		RETURNING state_version
+	`
+	var version int
+	if err := q.QueryRowContext(ctx, query, siteID, string(state)).Scan(&version); err != nil {
 		return 0, err
 	}
 	return version, nil

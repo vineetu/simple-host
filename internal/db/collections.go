@@ -47,6 +47,21 @@ func AppendCollectionItem(ctx context.Context, db *sql.DB, siteName, collection 
 	return it, err
 }
 
+// AppendCollectionItemByID is the site_id-keyed variant of AppendCollectionItem.
+// Returns sql.ErrNoRows if the site_id does not exist.
+func AppendCollectionItemByID(ctx context.Context, db *sql.DB, siteID, collection string, data json.RawMessage) (CollectionItem, error) {
+	const q = `
+		INSERT INTO collection_items (site_id, collection, data)
+		SELECT id, $2, $3::jsonb FROM sites WHERE id = $1
+		RETURNING id, data, created_at`
+	var it CollectionItem
+	err := db.QueryRowContext(ctx, q, siteID, collection, string(data)).Scan(&it.ID, &it.Data, &it.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return it, sql.ErrNoRows
+	}
+	return it, err
+}
+
 // ListCollectionItems returns items newest-first, paginated by id cursor.
 // before == 0 means "from the newest"; otherwise return items with id < before.
 func ListCollectionItems(ctx context.Context, db *sql.DB, siteName, collection string, limit int, before int64) ([]CollectionItem, error) {
@@ -59,6 +74,33 @@ func ListCollectionItems(ctx context.Context, db *sql.DB, siteName, collection s
 		ORDER BY id DESC
 		LIMIT $4`
 	rows, err := db.QueryContext(ctx, q, siteName, collection, before, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]CollectionItem, 0, limit)
+	for rows.Next() {
+		var it CollectionItem
+		if err := rows.Scan(&it.ID, &it.Data, &it.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, it)
+	}
+	return out, rows.Err()
+}
+
+// ListCollectionItemsByID is the site_id-keyed variant of ListCollectionItems.
+// before == 0 means "from the newest"; otherwise return items with id < before.
+func ListCollectionItemsByID(ctx context.Context, db *sql.DB, siteID, collection string, limit int, before int64) ([]CollectionItem, error) {
+	const q = `
+		SELECT id, data, created_at
+		FROM collection_items
+		WHERE site_id = $1
+		  AND collection = $2
+		  AND ($3 = 0 OR id < $3)
+		ORDER BY id DESC
+		LIMIT $4`
+	rows, err := db.QueryContext(ctx, q, siteID, collection, before, limit)
 	if err != nil {
 		return nil, err
 	}

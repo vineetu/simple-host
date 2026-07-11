@@ -285,7 +285,11 @@ func (h *SiteHandler) setAllowedOrigins(w http.ResponseWriter, r *http.Request) 
 // originAllowedForSite reports whether the owner has whitelisted this exact
 // origin (scheme://host) for the site's state/collections API.
 func (h *SiteHandler) originAllowedForSite(ctx context.Context, siteName, origin string) bool {
-	origins, err := db.GetAllowedOrigins(ctx, h.database, siteName)
+	siteID, err := db.GetSiteIDByName(ctx, h.database, siteName)
+	if err != nil {
+		return false
+	}
+	origins, err := db.GetAllowedOriginsByID(ctx, h.database, siteID)
 	if err != nil || len(origins) == 0 {
 		return false
 	}
@@ -376,12 +380,23 @@ func (h *SiteHandler) getSiteState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Resolve name -> site_id once; all subsequent state ops key by id.
+	siteID, err := db.GetSiteIDByName(r.Context(), h.database, siteName)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+
 	// Conditional GET: if the caller already has the current version, do a cheap
 	// version-only check and return 304 — no fetch/serialize of the document.
 	// Makes pollers (e.g. the feedback overlay) nearly free on CPU.
 	if inm := strings.TrimSpace(r.Header.Get("If-None-Match")); inm != "" {
 		if expected, ok := parseIfMatch(inm); ok {
-			ver, err := db.GetSiteStateVersion(r.Context(), h.database, siteName)
+			ver, err := db.GetSiteStateVersionByID(r.Context(), h.database, siteID)
 			if errors.Is(err, sql.ErrNoRows) {
 				writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
 				return
@@ -394,7 +409,7 @@ func (h *SiteHandler) getSiteState(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	state, version, err := db.GetSiteState(r.Context(), h.database, siteName)
+	state, version, err := db.GetSiteStateByID(r.Context(), h.database, siteID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
@@ -444,6 +459,17 @@ func (h *SiteHandler) putSiteState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Resolve name -> site_id once; all subsequent state ops key by id.
+	siteID, err := db.GetSiteIDByName(r.Context(), h.database, siteName)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+
 	r.Body = http.MaxBytesReader(w, r.Body, maxSiteStateSize)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -473,17 +499,17 @@ func (h *SiteHandler) putSiteState(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid If-Match header"})
 			return
 		}
-		newVersion, err = db.UpdateSiteStateCAS(r.Context(), h.database, siteName, state, expected)
+		newVersion, err = db.UpdateSiteStateCASByID(r.Context(), h.database, siteID, state, expected)
 		if errors.Is(err, db.ErrStateVersionConflict) {
 			// Hand back the current version so the client can re-read and retry.
-			if _, cur, gerr := db.GetSiteState(r.Context(), h.database, siteName); gerr == nil {
+			if _, cur, gerr := db.GetSiteStateByID(r.Context(), h.database, siteID); gerr == nil {
 				w.Header().Set("ETag", stateETag(cur))
 			}
 			writeJSON(w, http.StatusPreconditionFailed, errorResponse{Error: "state version conflict — re-read and retry"})
 			return
 		}
 	} else {
-		newVersion, err = db.UpdateSiteState(r.Context(), h.database, siteName, state)
+		newVersion, err = db.UpdateSiteStateByID(r.Context(), h.database, siteID, state)
 	}
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

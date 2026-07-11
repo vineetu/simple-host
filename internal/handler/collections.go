@@ -34,6 +34,17 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Resolve name -> site_id once; collection ops key by id.
+	siteID, err := db.GetSiteIDByName(r.Context(), h.database, siteName)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+
 	r.Body = http.MaxBytesReader(w, r.Body, maxCollectionItemSize)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -50,7 +61,7 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item, err := db.AppendCollectionItem(r.Context(), h.database, siteName, coll, json.RawMessage(body))
+	item, err := db.AppendCollectionItemByID(r.Context(), h.database, siteID, coll, json.RawMessage(body))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
@@ -69,6 +80,17 @@ func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Resolve name -> site_id once; collection ops key by id.
+	siteID, err := db.GetSiteIDByName(r.Context(), h.database, siteName)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+
 	limit := defaultCollectionPage
 	if v, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && v > 0 {
 		limit = v
@@ -81,7 +103,7 @@ func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
 		before = v
 	}
 
-	items, err := db.ListCollectionItems(r.Context(), h.database, siteName, coll, limit, before)
+	items, err := db.ListCollectionItemsByID(r.Context(), h.database, siteID, coll, limit, before)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
