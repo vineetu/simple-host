@@ -22,27 +22,27 @@ const (
 )
 
 type Config struct {
-	DBDSN         string
-	DataDir       string
-	SiteDomain    string
+	DBDSN      string
+	DataDir    string
+	SiteDomain string
 	// ContentHost is the shared v3 content-serving host (e.g. sites.simple-host.app).
 	// Pages served there call state/collections with this Origin for every site.
 	// Defaults to "sites."+SiteDomain; override with CONTENT_HOST if needed.
-	ContentHost   string
+	ContentHost string
 	// CNAMETarget is the hostname users CNAME their custom domains to (e.g.
 	// cname.simple-host.app). Defaults to "cname."+SiteDomain; override with
 	// CNAME_TARGET if needed.
-	CNAMETarget   string
+	CNAMETarget string
 	// CustomDomainIP is the box's public IPv4, returned as the A-record value when
 	// a user connects an APEX custom domain (which can't use a CNAME). Set via
 	// CUSTOM_DOMAIN_IP; empty means apex records fall back to the CNAME target.
 	CustomDomainIP string
-	AdminAPIKey   string
-	Port          string
-	DeployScript  string
-	PublicBaseURL string
-	MailFrom      string
-	ResendAPIKey  string
+	AdminAPIKey    string
+	Port           string
+	DeployScript   string
+	PublicBaseURL  string
+	MailFrom       string
+	ResendAPIKey   string
 
 	// Optional "create with AI" endpoint (/v1/generate). Disabled when neither
 	// AnthropicAPIKey nor AgentServerURL is set. Sign-in-gated + rate limited.
@@ -64,6 +64,12 @@ type Config struct {
 	// comes from PREVIEW_TTL_HOURS (default 48h). Empty list = feature off.
 	PreviewAccounts map[string]bool
 	PreviewTTL      time.Duration
+
+	// AnalyticsLog is the path to the nginx analytics access log. Empty (the
+	// default) disables the log ingester entirely — safe for local dev and
+	// hosts that have not configured the analytics log yet.
+	// Set ANALYTICS_LOG=/var/log/simple-host/analytics.log in production.
+	AnalyticsLog string
 }
 
 func Load() (Config, error) {
@@ -89,6 +95,7 @@ func Load() (Config, error) {
 	// binding a custom domain.
 	cfg.CNAMETarget = getEnvOrDefault("CNAME_TARGET", "cname."+cfg.SiteDomain)
 	cfg.CustomDomainIP = os.Getenv("CUSTOM_DOMAIN_IP")
+	cfg.AnalyticsLog = os.Getenv("ANALYTICS_LOG")
 
 	cfg.PreviewAccounts = map[string]bool{}
 	for _, a := range strings.Split(os.Getenv("PREVIEW_ACCOUNTS"), ",") {

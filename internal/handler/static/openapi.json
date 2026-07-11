@@ -41,6 +41,10 @@
       "description": "Bind one custom domain per site (CNAME + on-demand TLS)"
     },
     {
+      "name": "Analytics",
+      "description": "Per-site visitor analytics (server-side, owner-scoped)"
+    },
+    {
       "name": "Templates",
       "description": "Starter templates"
     },
@@ -584,6 +588,99 @@
         "responses": {
           "200": {
             "description": "Active version changed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/analytics": {
+      "get": {
+        "operationId": "getSitesBySitenameAnalytics",
+        "summary": "Get per-site visitor analytics",
+        "description": "Owner-scoped daily view and visitor counts derived server-side from the access log (no client beacon). `visitors` are distinct hashed IPs per UTC day \u2014 salt rotates daily, so a returning-next-day visitor counts once per day in the range total. `daily` is zero-filled dense for the requested window (oldest \u2192 newest). Owner only (API key).",
+        "tags": [
+          "Analytics"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "description": "Number of UTC days to include (default 30, clamp 1..365)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365,
+              "default": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Analytics for the site",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "range_days": {
+                      "type": "integer",
+                      "example": 30
+                    },
+                    "totals": {
+                      "type": "object",
+                      "properties": {
+                        "views": {
+                          "type": "integer",
+                          "example": 1234
+                        },
+                        "visitors": {
+                          "type": "integer",
+                          "example": 456
+                        }
+                      }
+                    },
+                    "daily": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "day": {
+                            "type": "string",
+                            "format": "date",
+                            "example": "2026-07-11"
+                          },
+                          "views": {
+                            "type": "integer",
+                            "example": 42
+                          },
+                          "visitors": {
+                            "type": "integer",
+                            "example": 30
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"

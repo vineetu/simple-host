@@ -13,6 +13,7 @@ import (
 
 	_ "github.com/lib/pq"
 
+	"github.com/vsriram/simple-host/internal/analytics"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	dbpkg "github.com/vsriram/simple-host/internal/db"
@@ -86,6 +87,14 @@ func main() {
 		}
 	} else {
 		log.Printf("neither AGENT_SERVER_URL nor ANTHROPIC_API_KEY set; /v1/generate (AI create) disabled")
+	}
+
+	// Server-side visitor analytics: tail the nginx analytics log into daily
+	// aggregates. Off unless ANALYTICS_LOG is set (safe default for local dev).
+	if cfg.AnalyticsLog != "" {
+		analytics.NewIngester(db, cfg.AnalyticsLog, cfg.AdminAPIKey, cfg.ContentHost, cfg.SiteDomain).
+			Start(5 * time.Minute)
+		log.Printf("analytics ingester enabled: %s", cfg.AnalyticsLog)
 	}
 
 	server := &http.Server{
