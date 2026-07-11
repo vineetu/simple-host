@@ -5,7 +5,8 @@ You can do the whole thing yourself by calling this JSON API. The human's ONLY
 job is to read you the 6-digit code that gets emailed to them.
 
 API base:  https://simple-host.app
-The site goes live at:  https://<name>.simple-host.app
+The site goes live at:  https://sites.simple-host.app/<handle>/<name>/
+  (dashboard/API stay on https://simple-host.app — a separate origin)
 Full machine-readable spec:  https://simple-host.app/openapi.json
 
 --------------------------------------------------------------------------------
@@ -27,6 +28,9 @@ site as one JSON block and tell the user to paste it into Simple Host.
 
 1. Build the complete site — one self-contained index.html (inline CSS/JS), plus
    extra files only if needed. Follow the design guidance further down this doc.
+   USE RELATIVE LINKS ONLY (css/app.css, ./img/x.png) — never root-absolute
+   paths like /css/app.css. Sites live under /<handle>/<name>/, so root-absolute
+   paths resolve to the wrong place and break.
 2. Output EXACTLY ONE fenced ```json code block, in this schema, with nothing else
    inside the block:
 
@@ -46,7 +50,8 @@ site as one JSON block and tell the user to paste it into Simple Host.
      "Copy the JSON block above. Go to https://simple-host.app, sign in with your
       email (you'll get a 6-digit code), open the 'Create a site with AI' box,
       click 'Built it in ChatGPT or Gemini? Paste the JSON', paste it, preview,
-      and hit Publish. Your site will be live at https://<name>.simple-host.app."
+      and hit Publish. Your site will be live at
+      https://sites.simple-host.app/<your-handle>/<name>/."
 
    The user sees a live preview before anything is published, and can ask Simple
    Host's own assistant to tweak it afterwards.
@@ -84,14 +89,17 @@ STEP 2 — When the user gives you the code, exchange it for an API key:
     Content-Type: application/json
     {"email": "USER_EMAIL", "code": "THE_6_DIGITS"}
 
-The response contains "api_key". Keep it for this session and send it as the
-header  X-API-Key: <api_key>  on every call below.  IMPORTANT: the header is
+The response contains "api_key" and "handle" (the user's URL-safe handle used
+in site URLs). Keep the api_key for this session and send it as the header
+X-API-Key: <api_key>  on every call below.  IMPORTANT: the header is
 literally  X-API-Key  — `Authorization: Bearer <key>` does NOT work and returns
 401. (The code expires in 15 minutes and allows 3 tries; if it fails, repeat
-Step 1.)
+Step 1.) You can also read handle later via GET /v1/me.
 
 STEP 3 — Write the site and deploy it. Pick a short name (lowercase letters,
-digits, hyphens). Send each file's contents inline:
+digits, hyphens). USE RELATIVE LINKS in every file (css/app.css, not
+/css/app.css) — the site is served under a path prefix. Send each file's
+contents inline:
 
     POST https://simple-host.app/v1/sites/<name>/files
     X-API-Key: <api_key>
@@ -108,7 +116,10 @@ digits, hyphens). Send each file's contents inline:
   total < 100 MB, < 50,000 files. Files like .env / .git/* are skipped;
   script extensions (.sh .py .rb .go .php …) are rejected.
 
-STEP 4 — Tell the user their site is live at  https://<name>.simple-host.app .
+STEP 4 — Tell the user their site is live at
+https://sites.simple-host.app/<handle>/<name>/  (use the handle from Step 2
+or the site_url from the response). Older links of the form
+https://<name>.simple-host.app/ still resolve (legacy).
 
 That's the whole flow. To re-deploy later, use PUT on the same /files URL. To
 list the user's sites: GET https://simple-host.app/v1/sites with the X-API-Key
@@ -122,15 +133,25 @@ A FEW RULES
   leaks, the user should sign in again to get a fresh one.
 - Do NOT use any "admin" key — it cannot create sites. Use the user's key from
   Step 2.
+- USE RELATIVE LINKS. Sites live under /<handle>/<name>/ on the content host.
+  Root-absolute paths like /css/app.css resolve to sites.simple-host.app/css/…
+  (wrong) and break. Prefer css/app.css, ./img/x.png, ../shared/y. For framework
+  builds set the base/public path so output uses relative URLs (e.g. Vite
+  base:'./', Next basePath, etc.).
 - Want a dynamic feature (guestbook, counter, poll)? Each site has a free public
-  JSON store. From the site's OWN page JavaScript:
-      const sub=location.hostname.split('.')[0];
-      const apex=location.hostname.split('.').slice(-2).join('.');
-      const U=`${location.protocol}//${apex}/v1/sites/${sub}/state`;
+  JSON store. From a page served on the content host, call the SAME-ORIGIN
+  user-scoped route (widgets auto-derive this; hand-written fetch can too):
+      // page is at https://sites.simple-host.app/<handle>/<name>/...
+      const m = location.pathname.match(/^\/([a-z0-9-]+)\/([a-z0-9-]+)/);
+      const U = `/v1/u/${m[1]}/sites/${m[2]}/state`;   // same-origin
       const state=(await fetch(U).then(r=>r.json()))||{};            // read
       await fetch(U,{method:'PUT',headers:{'Content-Type':'application/json'},
                     body:JSON.stringify({...state,count:(state.count||0)+1})}); // write
-  This store is PUBLIC (anyone can read it) — never put secrets in it.
+  Legacy /v1/sites/<name>/state still works. This store is PUBLIC (anyone who
+  can load the page can read it) — never put secrets in it. The content host
+  sites.simple-host.app is a SHARED origin across sites (co-tenancy is accepted;
+  state was never confidential). Owners can allow extra origins via
+  PUT /v1/sites/<name>/allowed-origins for "backend anywhere."
   For concurrency-safe edits (many users at once), prefer PATCH with atomic ops
   over read-modify-write PUT — these never clobber each other:
       await fetch(U,{method:'PATCH',headers:{'Content-Type':'application/json'},
@@ -151,8 +172,10 @@ two lines where you want the discussion to appear, before </body>:
 
 It stores threads in the site's state KV (keys "_comments" and "_votes") using
 ATOMIC ops, so simultaneous posters never clobber each other, and polls cheaply so
-threads update live. It auto-matches the page's font and light/dark theme. The
-store is PUBLIC (anyone can read) — don't post anything sensitive.
+threads update live. On the content host it auto-derives the same-origin
+/v1/u/<handle>/sites/<site>/state URL from the path. It auto-matches the page's
+font and light/dark theme. The store is PUBLIC (anyone can read) — don't post
+anything sensitive.
 
 STYLE IT TO MATCH THE PAGE (always do this): before the comments.js tag add
     <script>window.SH_COMMENTS={accent:"#b4451f", title:"Comments"}</script>
@@ -186,10 +209,14 @@ are saved to the site's state KV under the key "_comments" (optimistic-concurren
 writes, so simultaneous reviewers don't overwrite each other).
 
 To READ the feedback back (so you can act on it), GET the state — the store is
-Origin-gated, so send the site's own Origin header:
+Origin-gated, so send the content host Origin (or the site's own Origin on a
+custom domain):
 
-    curl -H "Origin: https://<name>.simple-host.app" \
-         https://simple-host.app/v1/sites/<name>/state
+    curl -H "Origin: https://sites.simple-host.app" \
+         https://simple-host.app/v1/u/<handle>/sites/<name>/state
+    # legacy still works:
+    # curl -H "Origin: https://sites.simple-host.app" \
+    #      https://simple-host.app/v1/sites/<name>/state
 
 Each entry in "_comments" tells you EXACTLY where the reviewer pointed:
     { "body": "make this bigger",      // the comment
@@ -204,36 +231,46 @@ COLLECTIONS — append-only lists (waitlist, RSVPs, form submissions)
 --------------------------------------------------------------------------------
 To COLLECT entries that grow over time (a waitlist, RSVP list, contact-form inbox),
 use a collection instead of the single state blob: each POST appends one immutable
-item; GET returns them (paginated). From the site's OWN page JavaScript:
+item; GET returns them (paginated). From a page on the content host:
 
-    const sub=location.hostname.split('.')[0];
-    const apex=location.hostname.split('.').slice(-2).join('.');
-    const U=`${location.protocol}//${apex}/v1/sites/${sub}/collections/signups`;
+    const m = location.pathname.match(/^\/([a-z0-9-]+)\/([a-z0-9-]+)/);
+    const U = `/v1/u/${m[1]}/sites/${m[2]}/collections/signups`;  // same-origin
     await fetch(U,{method:'POST',headers:{'Content-Type':'application/json'},
                   body:JSON.stringify({email:'a@b.com'})});       // append one entry
     const {items}=await fetch(U).then(r=>r.json());               // read them back
 
 Prefer a collection over state when entries must never overwrite each other and you
 just keep adding (scales to large lists; appends are cheap and concurrency-safe).
-Same Origin gate as state — entries are readable by anyone who can load the page, so
-for a PRIVATE inbox (e.g. emails only you should see) combine it with a
-password-locked page (below). Keep a running total in state for a live count.
+Same Origin gate as state — entries are readable by anyone who can load the page.
+For a PRIVATE inbox (emails only you should see), connect a custom domain first
+(see below) then password-lock the page. Keep a running total in state for a live count.
 
 --------------------------------------------------------------------------------
-PRIVATE PAGES — password-lock a whole site (view-lock)
+PRIVATE PAGES — password-lock (requires a connected custom domain)
 --------------------------------------------------------------------------------
-To share a site with only people who have a password (a trip page, a draft, a client
-proof), lock it with the OWNER key after deploying:
+Password-protected / private pages are a property of a CONNECTED CUSTOM DOMAIN
+(its own isolated origin), NOT of a path on the shared content host. If the user
+wants privacy, connect a domain first (see Custom domains below), then lock the
+site with the OWNER key:
 
     curl -s -X PUT https://simple-host.app/v1/sites/<name>/view-password \
       -H "X-API-Key: $SIMPLE_HOST_KEY" -H 'Content-Type: application/json' \
       -d '{"password":"hunter2"}'
     # unlock again:  curl -X DELETE .../v1/sites/<name>/view-password -H "X-API-Key: $SIMPLE_HOST_KEY"
 
-Visitors then get a login page; the correct password sets a signed cookie that
-unlocks the page AND its state/collections — so a locked page's data is private to
-people who know the password. Share the password out-of-band; it is never stored in
-the site's files.
+Visitors then get a login page on the custom domain; the correct password sets a
+signed cookie that unlocks the page AND its state/collections — so a locked
+page's data is private to people who know the password. Share the password
+out-of-band; it is never stored in the site's files.
+
+--------------------------------------------------------------------------------
+CUSTOM DOMAINS — serve a site from the user's own domain
+--------------------------------------------------------------------------------
+A user can serve a site from their own domain (e.g. recipes.brand.com). This is
+a distinct flow — use the connect-domain skill (simple-host-website/skills/
+connect-domain). Summary: POST /v1/sites/<name>/domain {"domain":"…"} → user
+adds one CNAME → poll GET /v1/sites/<name>/domain until status is active.
+Privacy / password-lock is available on the connected domain's isolated origin.
 
 --------------------------------------------------------------------------------
 MANUAL MODE — only if you cannot make HTTP requests yourself
@@ -249,8 +286,9 @@ once; it never appears in this chat):
       -H 'Content-Type: application/json' \
       -d '{"email":"you@example.com","code":"123456"}' \
       | sed -n 's/.*"api_key":"\([^"]*\)".*/\1/p'); export SIMPLE_HOST_KEY
-    # 2. deploy (you write index.html into the JSON)
+    # 2. deploy (you write index.html into the JSON — use RELATIVE links)
     curl -s -X POST https://simple-host.app/v1/sites/my-site/files \
       -H "X-API-Key: $SIMPLE_HOST_KEY" -H 'Content-Type: application/json' \
       -d '{"files":{"index.html":"<!doctype html><h1>Hello</h1>"}}'
-    # 3. visit https://my-site.simple-host.app
+    # 3. visit https://sites.simple-host.app/<handle>/my-site/
+      # (handle is in the verify response / GET /v1/me; or use site_url from the deploy response)
