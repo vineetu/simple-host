@@ -229,6 +229,17 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("PUT /v1/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSiteState)))
 	mux.Handle("PATCH /v1/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchSiteState)))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/state", h.optionsSiteState)
+
+	// v3 user-scoped state/collections: unambiguous after UNIQUE(name) drops.
+	// Same handlers as above; resolveSiteID reads {handle} when present.
+	mux.HandleFunc("GET /v1/u/{handle}/sites/{sitename}/collections/{coll}", h.listCollection)
+	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection)))
+	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/collections/{coll}", h.optionsCollection)
+
+	mux.HandleFunc("GET /v1/u/{handle}/sites/{sitename}/state", h.getSiteState)
+	mux.Handle("PUT /v1/u/{handle}/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSiteState)))
+	mux.Handle("PATCH /v1/u/{handle}/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchSiteState)))
+	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/state", h.optionsSiteState)
 }
 
 // originHostForSite returns the expected hostname for state CORS, e.g.
@@ -282,6 +293,26 @@ func (h *SiteHandler) setAllowedOrigins(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"site": siteName, "allowed_origins": clean})
+}
+
+// resolveSiteID resolves the target site's id. When the route carries a {handle} path
+// value (the v3 user-scoped routes), it resolves handle->user_id then (user_id,name)->site
+// so the lookup is unambiguous even after UNIQUE(name) is dropped. Otherwise it falls back
+// to the legacy global name lookup. Returns sql.ErrNoRows if not found (caller maps to 404).
+func (h *SiteHandler) resolveSiteID(r *http.Request, siteName string) (string, error) {
+	handle := strings.TrimSpace(r.PathValue("handle"))
+	if handle != "" {
+		u, err := db.GetUserByHandle(r.Context(), h.database, handle)
+		if err != nil {
+			return "", err
+		}
+		s, err := db.GetSiteByUser(r.Context(), h.database, u.ID, siteName)
+		if err != nil {
+			return "", err
+		}
+		return s.ID, nil
+	}
+	return db.GetSiteIDByName(r.Context(), h.database, siteName)
 }
 
 // originAllowedForSite reports whether the owner has whitelisted this exact
@@ -385,7 +416,7 @@ func (h *SiteHandler) getSiteState(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Resolve name -> site_id once; all subsequent state ops key by id.
-	siteID, err := db.GetSiteIDByName(r.Context(), h.database, siteName)
+	siteID, err := h.resolveSiteID(r, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
@@ -464,7 +495,7 @@ func (h *SiteHandler) putSiteState(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Resolve name -> site_id once; all subsequent state ops key by id.
-	siteID, err := db.GetSiteIDByName(r.Context(), h.database, siteName)
+	siteID, err := h.resolveSiteID(r, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})

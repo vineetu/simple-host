@@ -35,7 +35,7 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Resolve name -> site_id once; collection ops key by id.
-	siteID, err := db.GetSiteIDByName(r.Context(), h.database, siteName)
+	siteID, err := h.resolveSiteID(r, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
@@ -81,7 +81,7 @@ func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Resolve name -> site_id once; collection ops key by id.
-	siteID, err := db.GetSiteIDByName(r.Context(), h.database, siteName)
+	siteID, err := h.resolveSiteID(r, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
