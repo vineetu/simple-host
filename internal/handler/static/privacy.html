@@ -48,7 +48,7 @@
     <ul>
       <li><strong>Email address</strong> — for sign-in. We email a one-time 6-digit code; verifying it creates your account and issues an API key.</li>
       <li><strong>Your API key</strong> — a random token that authenticates your requests. Stored to look up your account.</li>
-      <li><strong>Sites you deploy</strong> — the files you upload, their versions, and the site name. Deployed sites are <strong>served publicly</strong> on the internet at <code>{site}.simple-host.app</code>.</li>
+      <li><strong>Sites you deploy</strong> — the files you upload, their versions, and the site name. Deployed sites are <strong>served publicly</strong> on the internet at <code>sites.simple-host.app/&lt;handle&gt;/&lt;site&gt;/</code>. Privacy (password lock) is available on a connected custom domain.</li>
       <li><strong>Per-site state</strong> — any data a site saves via the state/collections API. This is <strong>public to that site's audience</strong> by design; do not put secrets in it.</li>
       <li><strong>Basic request metadata</strong> — IP address and timestamps, used for rate-limiting and abuse prevention.</li>
     </ul>

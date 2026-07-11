@@ -162,7 +162,7 @@
         <div class="kicker">Architecture brief</div>
         <h1 class="title">One small service,<br>safe by construction.</h1>
         <p class="lede">People tell AI agents what to build; the agents build, deploy, and manage static sites here. The platform's whole job is to make that safe — by construction, not by vigilance.</p>
-        <p>Simple Host is <strong>one Go service, one Postgres database, and one directory on disk</strong>, behind a single reverse proxy that fronts every <code>*.simple-host.app</code> subdomain. No CDN, no per-site infrastructure, no third-party hosting. Uploads are <strong>static data that can never execute on the server</strong>; every version is immutable, attributable, and instantly revertible; and the whole thing runs on a box with <strong>1 CPU and ~1 GB of RAM</strong>. This page is that argument, visualized.</p>
+        <p>Simple Host is <strong>one Go service, one Postgres database, and one directory on disk</strong>, behind a single reverse proxy that fronts the content host <code>sites.simple-host.app</code> (sites by path) and the dashboard origin. No CDN, no per-site infrastructure, no third-party hosting. Uploads are <strong>static data that can never execute on the server</strong>; every version is immutable, attributable, and instantly revertible; and the whole thing runs on a box with <strong>1 CPU and ~1 GB of RAM</strong>. This page is that argument, visualized.</p>
         <div class="fine">simple-host.app · public playground · companion: /llms.txt · /openapi.yaml</div>
       </div>
     </section>
@@ -192,7 +192,7 @@
               <span class="lane-label">People &amp; agents</span>
               <div class="row">
                 <div class="node"><div class="nt">Coding agent</div><div class="nm">holds the user's API key<br>uploads .tar.gz / .zip · or JSON files</div></div>
-                <div class="node"><div class="nt">Viewer's browser</div><div class="nm">GET https://{site}.simple-host.app/<br>public on the internet</div></div>
+                <div class="node"><div class="nt">Viewer's browser</div><div class="nm">GET https://sites.simple-host.app/&lt;handle&gt;/&lt;site&gt;/<br>public on the internet</div></div>
               </div>
             </div>
             <div class="arrow ok" style="margin-top:-24px">1 · upload &nbsp;·&nbsp; GET site path</div>
@@ -232,8 +232,8 @@
         <table>
           <tr class="trow"><td class="tid">T1</td><td class="tk">Deploy &amp; manage sites</td><td class="tv">Per-user <strong>API key</strong>, issued by email magic-link registration. The key authenticates the owner of every upload, rollback, and delete.</td></tr>
           <tr class="trow"><td class="tid">T2</td><td class="tk">Admin</td><td class="tv">A single admin key held in the service's <strong>environment file</strong> (<code>/etc/simple-host.env</code>, root-owned) — never in code, config, or the repo.</td></tr>
-          <tr class="trow"><td class="tid">T3</td><td class="tk">Viewing sites</td><td class="tv">Public by default. Any site can be made <strong>private</strong> with a password (view-lock): a login page sets a signed cookie that gates the page and its data.</td></tr>
-          <tr class="trow"><td class="tid">T4</td><td class="tk">Per-site state</td><td class="tv"><strong>Origin-checked</strong> — only browser calls originating from that deployed site's own subdomain are accepted. Attribution-grade, not a secret store.</td></tr>
+          <tr class="trow"><td class="tid">T3</td><td class="tk">Viewing sites</td><td class="tv">Public by default. Privacy (view-lock password) is available on a <strong>connected custom domain</strong>: a login page sets a signed cookie that gates the page and its data.</td></tr>
+          <tr class="trow"><td class="tid">T4</td><td class="tk">Per-site state</td><td class="tv"><strong>Origin-checked</strong> — only browser calls from that site's own origin (the content host path, or a connected custom domain), plus owner-allowlisted origins, are accepted. Attribution-grade, not a secret store.</td></tr>
           <tr class="trow"><td class="tid">T5</td><td class="tk">Create with AI</td><td class="tv"><strong>Sign-in-gated and rate-limited</strong>, per user and per IP. Runs off-box; the platform stores no model credentials on served pages.</td></tr>
           <tr class="trow"><td class="tid">T6</td><td class="tk">DB &amp; secrets</td><td class="tv">Postgres credentials and keys live in the root-owned env file, read at boot by the non-root service user. Not reachable from any served page.</td></tr>
         </table>
@@ -250,7 +250,7 @@
         <div class="claims">
           <div class="claim"><div class="ci">3.1</div><p><b>Per-site JSON state.</b> One shared document per site (<code>GET/PUT/PATCH /v1/sites/{site}/state</code>), with atomic ops (increment, append, set) and ETags for cheap polling — counters, votes, saved app state, guestbooks.</p></div>
           <div class="claim"><div class="ci">3.2</div><p><b>Append-only collections.</b> Growing lists (<code>/collections/{name}</code>) for signups, RSVPs, and form submissions — cheap appends, paginated reads.</p></div>
-          <div class="claim"><div class="ci">3.3</div><p><b>Drop-in widgets &amp; templates.</b> Threaded comments and feedback pins as one script tag each, password-locked private pages, and starter templates served from <code>/v1/templates</code>.</p></div>
+          <div class="claim"><div class="ci">3.3</div><p><b>Drop-in widgets &amp; templates.</b> Threaded comments and feedback pins as one script tag each, password-locked private pages on a connected custom domain, and starter templates served from <code>/v1/templates</code>.</p></div>
         </div>
         <p class="fine">All of it is backed by the same single Postgres — no per-site database, no separate service. The store is public to the site's own audience by design; skills tell agents never to put secrets in it.</p>
       </div>
@@ -274,7 +274,7 @@
         <h2>Runtime &amp; deployment</h2>
         <p class="lede">Where this actually runs: <strong>one small VM</strong>, one process, no orchestration.</p>
         <div class="claims">
-          <div class="claim"><div class="ci">R1</div><p><b>One process.</b> A single Go binary under systemd — deliberately not a cluster. An <strong>nginx</strong> edge terminates TLS and routes every <code>*.simple-host.app</code> subdomain to it.</p></div>
+          <div class="claim"><div class="ci">R1</div><p><b>One process.</b> A single Go binary under systemd — deliberately not a cluster. A <strong>Caddy</strong> edge terminates TLS, serves the content host by path and the dashboard, and issues on-demand certs for connected custom domains.</p></div>
           <div class="claim"><div class="ci">R2</div><p><b>Hardened &amp; non-root.</b> Runs as a dedicated <code>simplehost</code> user with <code>NoNewPrivileges</code>, <code>ProtectSystem=strict</code>, and write access limited to the sites directory. Liveness (<code>/healthz</code>) and readiness (<code>/readyz</code>, DB-connected) gate traffic.</p></div>
           <div class="claim"><div class="ci">R3</div><p><b>Small by design.</b> 1 CPU, ~1 GB RAM, 25 GB disk. Static serving and pass-through proxying — no heavy compute in-process.</p></div>
           <div class="claim"><div class="ci">R4</div><p><b>Hot-swap releases.</b> Build, copy the new binary in, atomic rename over the old one, restart — site data and versioned files untouched. Old binaries kept for instant rollback.</p></div>
@@ -289,7 +289,7 @@
           <div class="diagram">
             <div class="lane">
               <span class="lane-label">Edge</span>
-              <div class="node" style="max-width:340px"><div class="nt">nginx</div><div class="nm">TLS · wildcard *.simple-host.app<br>routes {site} → the Go service</div></div>
+              <div class="node" style="max-width:340px"><div class="nt">Caddy</div><div class="nm">TLS · content host by path + dashboard<br>on-demand certs for custom domains</div></div>
             </div>
             <div class="arrow ok">HTTPS</div>
             <div class="lane">
