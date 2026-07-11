@@ -40,6 +40,7 @@ type SiteHandler struct {
 	disk         *storage.DiskStorage
 	siteDomain   string
 	contentHost  string // shared v3 content host, e.g. sites.simple-host.app
+	cnameTarget  string // CNAME target for custom domains, e.g. cname.simple-host.app
 	deployScript string
 
 	// uploadLocks serializes write+promote per site name (sitename -> *sync.Mutex).
@@ -90,7 +91,7 @@ type versionResponse struct {
 	IsActive      bool      `json:"is_active"`
 }
 
-func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, contentHost, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration) *SiteHandler {
+func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, contentHost, cnameTarget, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration) *SiteHandler {
 	// Uploads: ~6/min/IP, burst 30. State writes: ~1/s/IP sustained, burst 60
 	// (a browser app may persist state on each interaction).
 	uploadLimiter := newRateLimiter(30, 0.1)
@@ -112,6 +113,7 @@ func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, con
 		disk:            disk,
 		siteDomain:      siteDomain,
 		contentHost:     contentHost,
+		cnameTarget:     cnameTarget,
 		deployScript:    deployScript,
 		uploadLimiter:   uploadLimiter,
 		stateLimiter:    stateLimiter,
@@ -214,6 +216,14 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("PUT /v1/sites/{sitename}/view-password", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setViewPassword))))
 	mux.Handle("DELETE /v1/sites/{sitename}/view-password", noticeMiddleware(authMiddleware(http.HandlerFunc(h.deleteViewPassword))))
 	mux.Handle("PUT /v1/sites/{sitename}/allowed-origins", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setAllowedOrigins))))
+
+	// Custom domain (one per site): owner binds a hostname, gets a CNAME record
+	// to create; Caddy on-demand TLS asks /internal/tls-ask before issuing a cert.
+	mux.Handle("POST /v1/sites/{sitename}/domain", noticeMiddleware(authMiddleware(http.HandlerFunc(h.bindDomain))))
+	mux.Handle("GET /v1/sites/{sitename}/domain", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getDomain))))
+	mux.Handle("DELETE /v1/sites/{sitename}/domain", noticeMiddleware(authMiddleware(http.HandlerFunc(h.deleteDomain))))
+	mux.HandleFunc("GET /internal/tls-ask", h.tlsAsk)
+
 	mux.HandleFunc("GET /internal/view-auth", h.viewAuth)
 	mux.HandleFunc("GET /internal/view-login-page", h.viewLoginPage)
 	mux.HandleFunc("POST /internal/view-login", h.viewLogin)
@@ -335,6 +345,17 @@ func (h *SiteHandler) originAllowedForSite(ctx context.Context, siteName, origin
 	return false
 }
 
+// originIsBoundDomain reports whether host is a custom domain bound to a site of
+// this name (the same-origin state API on a connected domain). Ties the domain to
+// its specific site so one owner's domain can't authorize writes to a foreign site.
+func (h *SiteHandler) originIsBoundDomain(ctx context.Context, siteName, host string) bool {
+	info, err := db.GetSiteByCustomDomain(ctx, h.database, strings.ToLower(host))
+	if err != nil {
+		return false
+	}
+	return info.Name == siteName
+}
+
 // authorizeStateOrigin checks Origin/Referer and, on a match, sets the CORS
 // headers that allow the calling site to read the response. Returns true if
 // the request is allowed.
@@ -359,12 +380,15 @@ func (h *SiteHandler) authorizeStateOrigin(w http.ResponseWriter, r *http.Reques
 		return false
 	}
 	// Accept the site's own subdomain, the shared v3 content host
-	// (sites.<SITE_DOMAIN> — all path-model pages share this Origin), OR any
+	// (sites.<SITE_DOMAIN> — all path-model pages share this Origin), the site's
+	// own bound custom domain (same-origin state on a connected domain), OR any
 	// origin the owner has explicitly allowed (so a page hosted elsewhere —
 	// e.g. GitHub Pages — can use this site as its backend). A browser cannot
 	// forge Origin, so this is the same attribution-grade gate, just widened
-	// to owner-approved origins and the co-tenant content host.
-	if parsed.Host != want && parsed.Host != h.contentHost && !h.originAllowedForSite(r.Context(), siteName, origin) {
+	// to owner-approved origins, the co-tenant content host, and the bound domain.
+	if parsed.Host != want && parsed.Host != h.contentHost &&
+		!h.originIsBoundDomain(r.Context(), siteName, parsed.Host) &&
+		!h.originAllowedForSite(r.Context(), siteName, origin) {
 		return false
 	}
 

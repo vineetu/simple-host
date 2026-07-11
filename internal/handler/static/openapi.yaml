@@ -26,6 +26,8 @@ tags:
     description: Append-only per-site lists
   - name: Private pages
     description: Password (view-lock) protection
+  - name: Custom domains
+    description: Bind one custom domain per site (CNAME + on-demand TLS)
   - name: Templates
     description: Starter templates
   - name: AI
@@ -570,6 +572,94 @@ paths:
                   site: { type: string }
                   allowed_origins: { type: array, items: { type: string } }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/sites/{sitename}/domain:
+    post:
+      operationId: postSitesBySitenameDomain
+      summary: Bind a custom domain to this site
+      description: >-
+        Bind ONE custom domain to the site (status starts as `pending`). Returns
+        the DNS CNAME record the owner must create (host → platform CNAME
+        target). Once DNS points at us, on-demand TLS issues a cert and the
+        domain is served at its root. Domains are globally unique; hijacking the
+        platform zone is rejected. Owner only (API key).
+      tags: [Custom domains]
+      security: [{ apiKey: [] }]
+      parameters: [ { $ref: '#/components/parameters/sitename' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [domain]
+              properties:
+                domain: { type: string, example: www.example.com }
+      responses:
+        '200':
+          description: Domain bound (pending DNS)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  domain: { type: string, example: www.example.com }
+                  status: { type: string, enum: [pending, active, error], example: pending }
+                  dns:
+                    type: object
+                    properties:
+                      type: { type: string, example: CNAME }
+                      host: { type: string, example: www.example.com }
+                      value: { type: string, example: cname.simple-host.app }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Domain already taken by another site
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    get:
+      operationId: getSitesBySitenameDomain
+      summary: Get the custom domain binding for this site
+      description: >-
+        Returns the bound domain and status, or `{domain:null,status:null}` when
+        none is set. Includes the CNAME DNS record to add when a domain is bound.
+        Owner only (API key).
+      tags: [Custom domains]
+      security: [{ apiKey: [] }]
+      parameters: [ { $ref: '#/components/parameters/sitename' } ]
+      responses:
+        '200':
+          description: Current domain binding
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  domain: { type: string, nullable: true, example: www.example.com }
+                  status: { type: string, nullable: true, enum: [pending, active, error] }
+                  verified_at: { type: string, format: date-time, nullable: true }
+                  last_error: { type: string }
+                  dns:
+                    type: object
+                    properties:
+                      type: { type: string, example: CNAME }
+                      host: { type: string }
+                      value: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteSitesBySitenameDomain
+      summary: Unbind the custom domain from this site
+      description: Clears the domain binding and removes the serving symlink. Owner only (API key).
+      tags: [Custom domains]
+      security: [{ apiKey: [] }]
+      parameters: [ { $ref: '#/components/parameters/sitename' } ]
+      responses:
+        '204': { description: Domain unbound }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 

@@ -29,6 +29,10 @@ type Config struct {
 	// Pages served there call state/collections with this Origin for every site.
 	// Defaults to "sites."+SiteDomain; override with CONTENT_HOST if needed.
 	ContentHost   string
+	// CNAMETarget is the hostname users CNAME their custom domains to (e.g.
+	// cname.simple-host.app). Defaults to "cname."+SiteDomain; override with
+	// CNAME_TARGET if needed.
+	CNAMETarget   string
 	AdminAPIKey   string
 	Port          string
 	DeployScript  string
@@ -77,6 +81,9 @@ func Load() (Config, error) {
 	}
 	// CONTENT_HOST defaults to sites.<SITE_DOMAIN> so prod/test need no extra env.
 	cfg.ContentHost = getEnvOrDefault("CONTENT_HOST", "sites."+cfg.SiteDomain)
+	// CNAME_TARGET defaults to cname.<SITE_DOMAIN> — the record humans add when
+	// binding a custom domain.
+	cfg.CNAMETarget = getEnvOrDefault("CNAME_TARGET", "cname."+cfg.SiteDomain)
 
 	cfg.PreviewAccounts = map[string]bool{}
 	for _, a := range strings.Split(os.Getenv("PREVIEW_ACCOUNTS"), ",") {

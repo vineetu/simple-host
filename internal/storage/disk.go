@@ -50,6 +50,102 @@ func validPathKey(key string) bool {
 	return true
 }
 
+// validDomainKey is like validPathKey but allows '.' (DNS labels). Rejects
+// empty, "..", absolute paths, slashes, leading dots, and non-local names so a
+// custom domain cannot escape <dataDir>/domains/.
+func validDomainKey(domain string) bool {
+	if domain == "" || domain == "." || domain == ".." {
+		return false
+	}
+	if strings.Contains(domain, "..") {
+		return false
+	}
+	if strings.HasPrefix(domain, ".") {
+		return false
+	}
+	if filepath.IsAbs(domain) || strings.ContainsAny(domain, `/\`) {
+		return false
+	}
+	// filepath.IsLocal rejects ".." and absolute; Clean must be identity so we
+	// don't accept names that collapse to something else.
+	if !filepath.IsLocal(domain) || filepath.Clean(domain) != domain {
+		return false
+	}
+	return true
+}
+
+// BindDomain creates <dataDir>/domains/<domain> -> ../by-id/<userID>/<siteName>
+// (relative symlink) so Caddy can serve the bound site at the domain root.
+// Idempotent when the symlink already points at the same target; errors if it
+// points elsewhere (domains are globally unique).
+func (d *DiskStorage) BindDomain(userID, siteName, domain string) error {
+	if !validPathKey(userID) {
+		return fmt.Errorf("invalid user id %q", userID)
+	}
+	if !validPathKey(siteName) {
+		return fmt.Errorf("invalid site name %q", siteName)
+	}
+	if !validDomainKey(domain) {
+		return fmt.Errorf("invalid domain %q", domain)
+	}
+
+	domainsDir := filepath.Join(d.dataDir, "domains")
+	if err := os.MkdirAll(domainsDir, 0o755); err != nil {
+		return fmt.Errorf("create domains dir: %w", err)
+	}
+
+	linkPath := filepath.Join(domainsDir, domain)
+	// Relative from domains/<domain> -> by-id/<userID>/<siteName>
+	target := filepath.Join("..", "by-id", userID, siteName)
+
+	info, err := os.Lstat(linkPath)
+	if err == nil {
+		if info.Mode()&os.ModeSymlink == 0 {
+			return fmt.Errorf("domain path %q exists and is not a symlink; refusing to clobber", linkPath)
+		}
+		cur, rerr := os.Readlink(linkPath)
+		if rerr != nil {
+			return fmt.Errorf("readlink domain path: %w", rerr)
+		}
+		if cur == target {
+			return nil // already bound to this site
+		}
+		return fmt.Errorf("domain %q already bound to a different site", domain)
+	}
+	if !os.IsNotExist(err) {
+		return fmt.Errorf("lstat domain path: %w", err)
+	}
+
+	if err := os.Symlink(target, linkPath); err != nil {
+		return fmt.Errorf("create domain symlink: %w", err)
+	}
+	return nil
+}
+
+// UnbindDomain removes <dataDir>/domains/<domain> only if it is a symlink.
+// Absent path is a no-op. Refuses to remove a real file/directory.
+func (d *DiskStorage) UnbindDomain(domain string) error {
+	if !validDomainKey(domain) {
+		return fmt.Errorf("invalid domain %q", domain)
+	}
+
+	linkPath := filepath.Join(d.dataDir, "domains", domain)
+	info, err := os.Lstat(linkPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("lstat domain path: %w", err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		return fmt.Errorf("domain path %q is not a symlink; refusing to remove", linkPath)
+	}
+	if err := os.Remove(linkPath); err != nil {
+		return fmt.Errorf("remove domain symlink: %w", err)
+	}
+	return nil
+}
+
 func (d *DiskStorage) WriteFiles(ctx context.Context, userID, siteName string, versionNum int, files map[string][]byte) error {
 	if !validPathKey(userID) {
 		return fmt.Errorf("invalid user id %q", userID)

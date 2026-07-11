@@ -20,6 +20,10 @@ CREATE TABLE sites (
   site_url       TEXT,
   expires_at     TIMESTAMPTZ,  -- NULL = permanent; set for ephemeral "preview" sites, swept when past
   allowed_origins TEXT,        -- comma-separated extra origins allowed to call this site's state/collections (for "backend anywhere" — e.g. a GitHub Pages page)
+  custom_domain      TEXT UNIQUE,   -- one custom domain per site; globally unique
+  domain_status      TEXT,          -- pending | active | error (NULL = no domain)
+  domain_verified_at TIMESTAMPTZ,
+  domain_last_error  TEXT,
   created_at     TIMESTAMPTZ DEFAULT now(),
   updated_at     TIMESTAMPTZ DEFAULT now(),
   CONSTRAINT sites_user_name UNIQUE (user_id, name)
@@ -61,3 +65,8 @@ CREATE TABLE auth_tokens (
 --   ALTER TABLE versions ADD COLUMN archive_sha256 TEXT NOT NULL DEFAULT '';
 --   ALTER TABLE sites ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
 --   ALTER TABLE sites ADD COLUMN IF NOT EXISTS allowed_origins TEXT;
+-- Custom domain (v3 path-model Phase 1a); live migration is applied separately:
+--   ALTER TABLE sites ADD COLUMN IF NOT EXISTS custom_domain TEXT UNIQUE;
+--   ALTER TABLE sites ADD COLUMN IF NOT EXISTS domain_status TEXT;
+--   ALTER TABLE sites ADD COLUMN IF NOT EXISTS domain_verified_at TIMESTAMPTZ;
+--   ALTER TABLE sites ADD COLUMN IF NOT EXISTS domain_last_error TEXT;
