@@ -74,109 +74,27 @@ Registration is a two-step email verification flow. The user proves they own the
 
 ## Framework Detection and Build
 
-Detect the framework from `package.json` (`dependencies` / `devDependencies` / `scripts`) and project-root config files. Run the framework's production build **with a relative base/public path**. Sites live under `/<handle>/<sitename>/`, so root-absolute asset URLs (`/assets/...`) break; relative ones (`./assets/...`) work.
+Detect from `package.json` (deps / `scripts`) + root config files. Run the framework's PRODUCTION
+build **with a relative base/public path** — sites live under `/<handle>/<sitename>/`, so
+root-absolute `/assets/...` break and relative `./assets/...` work — then upload the output dir.
+Website Deploy runs NO Node at serve time; only static files are served.
 
-### Vite (plain, Vue, React, Svelte, Preact, Lit templates)
-Detect: `vite` in `devDependencies`, or `vite.config.{js,ts,mjs,cjs}` at project root.
-Set `base: './'` in `vite.config` (or pass `--base ./`).
-Build:
-```bash
-npx vite build --base ./
-```
-Output directory: `dist/`.
+| Framework | Detect | Build (with relative base) | Output |
+|---|---|---|---|
+| Vite (Vue/React/Svelte/Preact/Lit) | `vite` dep or `vite.config.*` | `npx vite build --base ./` (or `base:'./'` in config) | `dist/` |
+| Next.js | `next` dep or `next.config.*` | in `next.config`: `output:'export'`, `images.unoptimized:true`, `trailingSlash:true`, `assetPrefix:'./'` → `npx next build` | `out/` |
+| Create React App | `react-scripts` dep | `PUBLIC_URL=. npm run build` | `build/` |
+| SvelteKit | `@sveltejs/kit` dep or `svelte.config.*` | `@sveltejs/adapter-static` with `fallback:'index.html'` + `kit.paths.relative:true` → `npm run build` | `build/` |
+| Astro | `astro` dep or `astro.config.*` | `base:'./'` in `astro.config` → `npx astro build` | `dist/` |
+| Nuxt 3/4 | `nuxt` dep or `nuxt.config.*` | relative `app.baseURL` → `npx nuxt generate` (NOT `nuxt build` — that's a Node server) | `.output/public/` |
+| Angular | `@angular/core` dep or `angular.json` | `ng build --configuration=production --base-href ./` | `dist/<proj>/` (or `dist/<proj>/browser/` on v17+) |
+| Gatsby | `gatsby` dep or `gatsby-config.*` | relative `pathPrefix`/asset prefix → `npx gatsby build` | `public/` |
+| Vue CLI (legacy, no Vite) | `@vue/cli-service` or `vue.config.js` | `publicPath:'./'` in `vue.config.js` → `npm run build` | `dist/` |
+| Plain static (no build) | no `package.json` / no framework dep | none — upload as-is, **relative links only** (`css/app.css`, not `/css/app.css`) | the dir itself |
 
-### Next.js
-Detect: `next` in `dependencies` or `devDependencies`, or `next.config.{js,mjs,ts}` present.
-Edit `next.config.js` to enable static export (required — Website Deploy does not run Node). Prefer a relative asset prefix so output works under a path:
-```js
-module.exports = {
-  output: 'export',
-  images: { unoptimized: true },
-  trailingSlash: true,
-  // path-model: avoid root-absolute asset URLs
-  assetPrefix: './',
-};
-```
-Build:
-```bash
-npx next build
-```
-Output directory: `out/`.
-
-### Create React App (CRA)
-Detect: `react-scripts` in `dependencies` or `devDependencies`.
-Build with a relative homepage so assets are not root-absolute:
-```bash
-PUBLIC_URL=. npm run build
-```
-Output directory: `build/`.
-
-### SvelteKit
-Detect: `@sveltejs/kit` in `devDependencies`, or `svelte.config.{js,ts}` at project root.
-Ensure the static adapter is installed (`@sveltejs/adapter-static`). Edit `svelte.config.js`:
-```js
-import adapter from '@sveltejs/adapter-static';
-export default {
-  kit: {
-    adapter: adapter({ fallback: 'index.html' }),
-    paths: { relative: true },
-  },
-};
-```
-Build:
-```bash
-npm run build
-```
-Output directory: `build/`.
-
-### Astro
-Detect: `astro` in `dependencies` or `devDependencies`, or `astro.config.{mjs,ts,js}` at project root.
-Set a relative base in `astro.config` (`base: './'` or equivalent) so built asset URLs are relative.
-Build:
-```bash
-npx astro build
-```
-Output directory: `dist/`.
-
-### Nuxt (Nuxt 3 / Nuxt 4)
-Detect: `nuxt` in `dependencies` or `devDependencies`, or `nuxt.config.{ts,js,mjs}` at project root.
-Static generation (required — Website Deploy does not run Node). Configure `app.baseURL` / relative asset URLs so the output is not root-absolute.
-```bash
-npx nuxt generate
-```
-Output directory: `.output/public/`. `nuxt build` produces a Node server bundle that Website Deploy cannot run.
-
-### Angular
-Detect: `@angular/core` in `dependencies`, or `angular.json` at project root.
-Build with a relative base href:
-```bash
-ng build --configuration=production --base-href ./
-```
-Output directory: `dist/<project-name>/` (older layout) or `dist/<project-name>/browser/` (Angular 17+).
-
-### Gatsby
-Detect: `gatsby` in `dependencies` or `devDependencies`, or `gatsby-config.{js,ts}` at project root.
-Configure `pathPrefix` / asset prefix appropriately for path hosting, or ensure built HTML uses relative asset links.
-Build:
-```bash
-npx gatsby build
-```
-Output directory: `public/`.
-
-### Vue CLI (legacy Vue 2/3 without Vite)
-Detect: `@vue/cli-service` in `devDependencies`, or `vue.config.js` at project root.
-Set `publicPath: './'` in `vue.config.js`.
-Build:
-```bash
-npm run build
-```
-Output directory: `dist/`.
-
-### Plain static HTML (no build system)
-Detect: no `package.json`, or `package.json` has no recognized framework dep and no build script. No build step needed — upload the directory as-is. **Use relative links only** (`css/app.css`, not `/css/app.css`).
-
-### Unrecognized framework
-If you find a build system you do not recognize (Eleventy, Hugo, Jekyll, Remix static export, Qwik, SolidStart, VitePress, Docusaurus, etc.), run that framework's production build with a relative base/public path and upload its output directory. Root-absolute asset URLs will break under `/<handle>/<sitename>/`.
+**Unrecognized build system** (Eleventy, Hugo, Jekyll, Remix static export, Qwik, SolidStart,
+VitePress, Docusaurus, …): run its normal production build with a relative base/public path and
+upload the output dir. Root-absolute asset URLs break under `/<handle>/<sitename>/`.
 
 ## Pre-Flight Checks (run on the directory to upload)
 
