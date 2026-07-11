@@ -152,6 +152,9 @@ If any problem blocks deployment, explain and stop before uploading.
 
 - List sites: `GET /v1/sites` with `X-API-Key`. Returns sites owned by the caller (admins see all).
 - Current user: `GET /v1/me` with `X-API-Key` (includes `handle`).
+- List versions: `GET /v1/sites/<sitename>/versions` with `X-API-Key`.
+- Roll back / switch active version: `PUT /v1/sites/<sitename>/active-version` with `X-API-Key` and body `{"version_number": <n>}`. Uploads are append-only; this re-points `current` at an existing version. (There is NO `.../activate` or `.../version/<n>` endpoint — use this one.)
+- Delete a site: `DELETE /v1/sites/<sitename>` with `X-API-Key` — removes the site, all its versions, and its state/collections. Not reversible.
 
 ## Custom domains
 
