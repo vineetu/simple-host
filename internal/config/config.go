@@ -33,6 +33,10 @@ type Config struct {
 	// cname.simple-host.app). Defaults to "cname."+SiteDomain; override with
 	// CNAME_TARGET if needed.
 	CNAMETarget   string
+	// CustomDomainIP is the box's public IPv4, returned as the A-record value when
+	// a user connects an APEX custom domain (which can't use a CNAME). Set via
+	// CUSTOM_DOMAIN_IP; empty means apex records fall back to the CNAME target.
+	CustomDomainIP string
 	AdminAPIKey   string
 	Port          string
 	DeployScript  string
@@ -84,6 +88,7 @@ func Load() (Config, error) {
 	// CNAME_TARGET defaults to cname.<SITE_DOMAIN> — the record humans add when
 	// binding a custom domain.
 	cfg.CNAMETarget = getEnvOrDefault("CNAME_TARGET", "cname."+cfg.SiteDomain)
+	cfg.CustomDomainIP = os.Getenv("CUSTOM_DOMAIN_IP")
 
 	cfg.PreviewAccounts = map[string]bool{}
 	for _, a := range strings.Split(os.Getenv("PREVIEW_ACCOUNTS"), ",") {

@@ -1421,10 +1421,14 @@
               <span class="version-badge">v${site.active_version}</span>
               ${showOwner && site.owner_username ? `<span class="owner-badge">${esc(site.owner_username)}</span>` : ''}
               ${hasSiteURL ? `<a class="site-url" href="${esc(site.site_url)}" target="_blank">${esc(site.site_url)}</a>` : ''}
+              ${site.custom_domain ? `<span class="owner-badge domain-badge">🌐 ${esc(site.custom_domain)}${site.domain_status ? ' · ' + esc(site.domain_status) : ''}</span>` : ''}
             </div>
           </div>
           <div class="site-actions">
             <button type="button" class="btn-small btn-secondary" onclick="toggleVersions('${name}')">Versions</button>
+            ${site.custom_domain
+              ? `<button type="button" class="btn-small btn-ghost" onclick="disconnectDomain('${name}')">Disconnect ${esc(site.custom_domain)}</button>`
+              : `<button type="button" class="btn-small btn-secondary" onclick="connectDomain('${name}')">Connect domain</button>`}
             <button type="button" class="btn-small btn-ghost" onclick="confirmDelete('${name}')">Delete</button>
           </div>
         </div>
@@ -1493,6 +1497,39 @@
         await loadSites();
       } catch {
         toast('Could not delete site', 'error');
+      }
+    }
+
+    async function connectDomain(name) {
+      const d = prompt('Enter the custom domain to connect (e.g. recipes.brand.com):');
+      if (!d) return;
+      try {
+        const res = await api('POST', `/v1/sites/${encodeURIComponent(name)}/domain`, { domain: d.trim() });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          toast(body.error || 'Could not connect domain', 'error');
+          return;
+        }
+        toast(`Domain pending — add a CNAME: ${body.dns ? body.dns.host + ' -> ' + body.dns.value : ''}`, 'success');
+        await loadSites();
+      } catch {
+        toast('Could not connect domain', 'error');
+      }
+    }
+
+    async function disconnectDomain(name) {
+      if (!confirm('Disconnect this domain?')) return;
+      try {
+        const res = await api('DELETE', `/v1/sites/${encodeURIComponent(name)}/domain`);
+        if (res.status !== 204 && !res.ok) {
+          const b = await res.json().catch(() => ({}));
+          toast(b.error || 'Could not disconnect', 'error');
+          return;
+        }
+        toast('Domain disconnected', 'success');
+        await loadSites();
+      } catch {
+        toast('Could not disconnect', 'error');
       }
     }
 

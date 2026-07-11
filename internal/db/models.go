@@ -22,6 +22,8 @@ type Site struct {
 	SiteURL       string
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+	CustomDomain  sql.NullString
+	DomainStatus  sql.NullString
 
 	// OwnerUsername is populated only by ListAllSites (admin view).
 	OwnerUsername string

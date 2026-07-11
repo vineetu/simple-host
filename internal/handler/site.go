@@ -41,6 +41,7 @@ type SiteHandler struct {
 	siteDomain   string
 	contentHost  string // shared v3 content host, e.g. sites.simple-host.app
 	cnameTarget  string // CNAME target for custom domains, e.g. cname.simple-host.app
+	customDomainIP string // box public IPv4 for APEX custom-domain A records
 	deployScript string
 
 	// uploadLocks serializes write+promote per site name (sitename -> *sync.Mutex).
@@ -80,6 +81,8 @@ type siteResponse struct {
 	SiteURL        string    `json:"site_url"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
+	CustomDomain   string    `json:"custom_domain,omitempty"`
+	DomainStatus   string    `json:"domain_status,omitempty"`
 	OwnerUsername  string    `json:"owner_username,omitempty"`
 	Note           string    `json:"note,omitempty"`
 }
@@ -91,7 +94,7 @@ type versionResponse struct {
 	IsActive      bool      `json:"is_active"`
 }
 
-func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, contentHost, cnameTarget, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration) *SiteHandler {
+func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, contentHost, cnameTarget, customDomainIP, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration) *SiteHandler {
 	// Uploads: ~6/min/IP, burst 30. State writes: ~1/s/IP sustained, burst 60
 	// (a browser app may persist state on each interaction).
 	uploadLimiter := newRateLimiter(30, 0.1)
@@ -114,6 +117,7 @@ func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, con
 		siteDomain:      siteDomain,
 		contentHost:     contentHost,
 		cnameTarget:     cnameTarget,
+		customDomainIP:  customDomainIP,
 		deployScript:    deployScript,
 		uploadLimiter:   uploadLimiter,
 		stateLimiter:    stateLimiter,
@@ -1241,6 +1245,8 @@ func toSiteResponse(site db.Site, note string) siteResponse {
 		SiteURL:       site.SiteURL,
 		CreatedAt:     site.CreatedAt,
 		UpdatedAt:     site.UpdatedAt,
+		CustomDomain:  site.CustomDomain.String,
+		DomainStatus:  site.DomainStatus.String,
 		OwnerUsername: site.OwnerUsername,
 		Note:          note,
 	}

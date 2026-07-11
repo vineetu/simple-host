@@ -12,6 +12,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
+	"golang.org/x/net/publicsuffix"
 )
 
 // labelRE matches a single DNS label (ASCII only): 1–63 of [a-z0-9-].
@@ -81,6 +82,13 @@ func (h *SiteHandler) normalizeDomain(raw string) (string, error) {
 	return s, nil
 }
 
+// isApexDomain reports whether domain is its own registrable apex (eTLD+1),
+// i.e. it has no subdomain label (agent-deploy.dev -> true, x.agent-deploy.dev -> false).
+func isApexDomain(domain string) bool {
+	etld1, err := publicsuffix.EffectiveTLDPlusOne(domain)
+	return err == nil && etld1 == domain
+}
+
 // isOwnHost reports whether host equals base or is a subdomain of base.
 func isOwnHost(host, base string) bool {
 	host = strings.ToLower(strings.TrimSpace(host))
@@ -101,7 +109,13 @@ type dnsRecord struct {
 	Value string `json:"value"`
 }
 
+// dnsRecordFor returns the DNS record a user must add to point their domain at us.
+// An apex/registrable domain (e.g. agent-deploy.dev) can't use a CNAME, so it gets
+// an A record to the box IP; a subdomain (e.g. recipes.brand.com) gets a CNAME.
 func (h *SiteHandler) dnsRecordFor(domain string) dnsRecord {
+	if h.customDomainIP != "" && isApexDomain(domain) {
+		return dnsRecord{Type: "A", Host: domain, Value: h.customDomainIP}
+	}
 	return dnsRecord{
 		Type:  "CNAME",
 		Host:  domain,

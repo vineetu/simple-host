@@ -358,7 +358,7 @@ func DeleteSite(ctx context.Context, db Querier, siteID string) error {
 
 func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 	const query = `
-		SELECT s.id, s.user_id, s.name, s.active_version, s.site_url, s.created_at, s.updated_at, u.username
+		SELECT s.id, s.user_id, s.name, s.active_version, s.site_url, s.created_at, s.updated_at, s.custom_domain, s.domain_status, u.username
 		FROM sites s
 		INNER JOIN users u ON u.id = s.user_id
 		ORDER BY s.created_at ASC, s.name ASC
@@ -381,6 +381,8 @@ func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 			&site.SiteURL,
 			&site.CreatedAt,
 			&site.UpdatedAt,
+			&site.CustomDomain,
+			&site.DomainStatus,
 			&site.OwnerUsername,
 		); err != nil {
 			return nil, err
@@ -395,7 +397,7 @@ func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 
 func ListSitesByUser(ctx context.Context, db *sql.DB, userID string) ([]Site, error) {
 	const query = `
-		SELECT id, user_id, name, active_version, site_url, created_at, updated_at
+		SELECT id, user_id, name, active_version, site_url, created_at, updated_at, custom_domain, domain_status
 		FROM sites
 		WHERE user_id = $1
 		ORDER BY created_at ASC, name ASC
@@ -423,6 +425,8 @@ func scanSiteRows(rows *sql.Rows) ([]Site, error) {
 			&site.SiteURL,
 			&site.CreatedAt,
 			&site.UpdatedAt,
+			&site.CustomDomain,
+			&site.DomainStatus,
 		); err != nil {
 			return nil, err
 		}
