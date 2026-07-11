@@ -18,7 +18,7 @@ func CreateUser(ctx context.Context, db *sql.DB, username, apiKey string, isAdmi
 	const query = `
 		INSERT INTO users (username, api_key, is_admin)
 		VALUES ($1, $2, $3)
-		RETURNING id, username, api_key, is_admin, created_at
+		RETURNING id, username, api_key, is_admin, created_at, handle
 	`
 
 	var user User
@@ -28,13 +28,14 @@ func CreateUser(ctx context.Context, db *sql.DB, username, apiKey string, isAdmi
 		&user.APIKey,
 		&user.IsAdmin,
 		&user.CreatedAt,
+		&user.Handle,
 	)
 	return user, err
 }
 
 func GetUserByAPIKey(ctx context.Context, db *sql.DB, apiKey string) (User, error) {
 	const query = `
-		SELECT id, username, api_key, is_admin, created_at
+		SELECT id, username, api_key, is_admin, created_at, handle
 		FROM users
 		WHERE api_key = $1
 	`
@@ -46,13 +47,14 @@ func GetUserByAPIKey(ctx context.Context, db *sql.DB, apiKey string) (User, erro
 		&user.APIKey,
 		&user.IsAdmin,
 		&user.CreatedAt,
+		&user.Handle,
 	)
 	return user, err
 }
 
 func GetUserByUsername(ctx context.Context, db *sql.DB, username string) (User, error) {
 	const query = `
-		SELECT id, username, api_key, is_admin, created_at
+		SELECT id, username, api_key, is_admin, created_at, handle
 		FROM users
 		WHERE username = $1
 	`
@@ -64,16 +66,15 @@ func GetUserByUsername(ctx context.Context, db *sql.DB, username string) (User, 
 		&user.APIKey,
 		&user.IsAdmin,
 		&user.CreatedAt,
+		&user.Handle,
 	)
 	return user, err
 }
 
 // GetUserByHandle looks up a user by their URL-safe handle.
-// Selects the same columns as the other GetUser* helpers (handle is the
-// lookup key only — not scanned into User, so existing callers stay untouched).
 func GetUserByHandle(ctx context.Context, db *sql.DB, handle string) (User, error) {
 	const query = `
-		SELECT id, username, api_key, is_admin, created_at
+		SELECT id, username, api_key, is_admin, created_at, handle
 		FROM users
 		WHERE handle = $1
 	`
@@ -85,8 +86,46 @@ func GetUserByHandle(ctx context.Context, db *sql.DB, handle string) (User, erro
 		&user.APIKey,
 		&user.IsAdmin,
 		&user.CreatedAt,
+		&user.Handle,
 	)
 	return user, err
+}
+
+// ClaimHandle atomically sets a user's handle iff still unset. Returns (true,nil) on
+// success, (false,nil) if the handle is taken (unique violation) so the caller can try
+// the next candidate, (false,err) on other errors.
+func ClaimHandle(ctx context.Context, database *sql.DB, userID, handle string) (bool, error) {
+	const query = `
+		UPDATE users
+		SET handle = $2, handle_changed_at = now()
+		WHERE id = $1 AND handle IS NULL
+	`
+	res, err := database.ExecContext(ctx, query, userID, handle)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	if n == 0 {
+		// Already had a handle, or user id not found.
+		return false, nil
+	}
+	return true, nil
+}
+
+// isUniqueViolation detects a Postgres unique-constraint violation (SQLSTATE 23505).
+func isUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	// lib/pq and pgx both surface the SQLSTATE in the error text as "23505".
+	msg := err.Error()
+	return strings.Contains(msg, "23505") || strings.Contains(strings.ToLower(msg), "unique")
 }
 
 // Querier abstracts *sql.DB and *sql.Tx for transaction-safe queries.

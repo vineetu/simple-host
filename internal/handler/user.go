@@ -61,6 +61,7 @@ type authResponse struct {
 	APIKey   string `json:"api_key"`
 	IsAdmin  bool   `json:"is_admin"`
 	Created  bool   `json:"created"`
+	Handle   string `json:"handle,omitempty"`
 }
 
 type errorResponse struct {
@@ -248,6 +249,18 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Assign a URL-safe handle for new users (or lazy-backfill older rows that
+	// still have a NULL handle). ClaimHandle only writes WHERE handle IS NULL,
+	// so existing handles are never overwritten.
+	if created || !user.Handle.Valid {
+		h.assignHandle(r.Context(), user.ID, tok.Email)
+		if refetched, rerr := db.GetUserByUsername(r.Context(), h.database, tok.Email); rerr == nil {
+			user = refetched
+		} else {
+			log.Printf("auth: refetch after assignHandle: %v", rerr)
+		}
+	}
+
 	if err := db.MarkAuthTokenUsed(r.Context(), h.database, tok.ID); err != nil {
 		log.Printf("auth: MarkAuthTokenUsed: %v", err)
 	}
@@ -258,6 +271,7 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 		APIKey:   user.APIKey,
 		IsAdmin:  user.IsAdmin,
 		Created:  created,
+		Handle:   user.Handle.String,
 	})
 }
 
@@ -272,6 +286,7 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 		ID:       user.ID,
 		Username: user.Username,
 		IsAdmin:  user.IsAdmin,
+		Handle:   user.Handle.String,
 	})
 }
 
@@ -279,6 +294,7 @@ type meResponse struct {
 	ID       string `json:"id"`
 	Username string `json:"username"`
 	IsAdmin  bool   `json:"is_admin"`
+	Handle   string `json:"handle,omitempty"`
 }
 
 func isUniqueViolation(err error) bool {

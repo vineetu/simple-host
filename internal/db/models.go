@@ -1,6 +1,9 @@
 package db
 
-import "time"
+import (
+	"database/sql"
+	"time"
+)
 
 type User struct {
 	ID        string
@@ -8,6 +11,7 @@ type User struct {
 	APIKey    string
 	IsAdmin   bool
 	CreatedAt time.Time
+	Handle    sql.NullString
 }
 
 type Site struct {
