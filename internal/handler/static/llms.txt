@@ -266,11 +266,28 @@ out-of-band; it is never stored in the site's files.
 --------------------------------------------------------------------------------
 CUSTOM DOMAINS — serve a site from the user's own domain
 --------------------------------------------------------------------------------
-A user can serve a site from their own domain (e.g. recipes.brand.com). This is
-a distinct flow — use the connect-domain skill (simple-host-website/skills/
-connect-domain). Summary: POST /v1/sites/<name>/domain {"domain":"…"} → user
-adds one CNAME → poll GET /v1/sites/<name>/domain until status is active.
-Privacy / password-lock is available on the connected domain's isolated origin.
+A user can serve a site from their own domain — a subdomain (e.g.
+recipes.brand.com via CNAME) or an apex (e.g. brand.com via A record). Use the
+connect-domain skill (simple-host-website/skills/connect-domain). Summary:
+POST /v1/sites/<name>/domain {"domain":"…"} → add the returned DNS record →
+poll GET /v1/sites/<name>/domain until status is active; DELETE to disconnect.
+Automatic HTTPS. Privacy / password-lock is available on the connected domain's
+isolated origin.
+
+--------------------------------------------------------------------------------
+ANALYTICS — server-side visitor stats (no tracking script)
+--------------------------------------------------------------------------------
+Every site gets built-in visitor analytics computed from server access logs —
+no client tracking script needed. Owner-authed:
+
+    GET /v1/sites/<name>/analytics?days=30
+    X-API-Key: <api_key>
+
+Returns {range_days, totals:{views, visitors}, daily:[{day, views, visitors}…]}.
+Page views and unique visitors per day, with a 30-day trend. Privacy-preserving:
+IPs are hashed with a daily-rotating salt and never stored raw. "Unique
+visitors" = distinct hashes per UTC day. The dashboard shows per-site
+"N views · M visitors (30d)" plus a sparkline.
 
 --------------------------------------------------------------------------------
 MANUAL MODE — only if you cannot make HTTP requests yourself

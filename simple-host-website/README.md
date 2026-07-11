@@ -27,7 +27,7 @@ The AI will guide you through registration, validate your site, and deploy it.
 
 ## What is Website Deploy?
 
-Website Deploy serves **static files only** — HTML, CSS, JavaScript, images, and fonts. Your site will be live at `https://sites.simple-host.app/{handle}/{sitename}/`. Private pages and custom domains (e.g. `recipes.brand.com`) are available — see the `connect-domain` skill.
+Website Deploy serves **static files only** — HTML, CSS, JavaScript, images, and fonts. Your site will be live at `https://sites.simple-host.app/{handle}/{sitename}/`. Every site gets built-in visitor analytics (views + unique visitors). Custom domains work too — subdomain or apex (e.g. `recipes.brand.com` / `brand.com`) — see the `connect-domain` skill; private/password pages require a connected domain.
 
 ### What works
 

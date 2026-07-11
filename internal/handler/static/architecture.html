@@ -251,6 +251,7 @@
           <div class="claim"><div class="ci">3.1</div><p><b>Per-site JSON state.</b> One shared document per site (<code>GET/PUT/PATCH /v1/sites/{site}/state</code>), with atomic ops (increment, append, set) and ETags for cheap polling — counters, votes, saved app state, guestbooks.</p></div>
           <div class="claim"><div class="ci">3.2</div><p><b>Append-only collections.</b> Growing lists (<code>/collections/{name}</code>) for signups, RSVPs, and form submissions — cheap appends, paginated reads.</p></div>
           <div class="claim"><div class="ci">3.3</div><p><b>Drop-in widgets &amp; templates.</b> Threaded comments and feedback pins as one script tag each, password-locked private pages on a connected custom domain, and starter templates served from <code>/v1/templates</code>.</p></div>
+          <div class="claim"><div class="ci">3.4</div><p><b>Server-side visitor analytics.</b> Per-site page views and unique visitors with a 30-day trend, computed from access logs — privacy-preserving (IPs hashed with a daily-rotating salt, never stored raw), no tracking script needed.</p></div>
         </div>
         <p class="fine">All of it is backed by the same single Postgres — no per-site database, no separate service. The store is public to the site's own audience by design; skills tell agents never to put secrets in it.</p>
       </div>

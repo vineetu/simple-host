@@ -1,13 +1,14 @@
 ---
 name: connect-domain
-description: Connect a user's own custom domain (e.g. recipes.brand.com) to a site already deployed on simple-host. Use when a user wants their site served from their own domain with automatic HTTPS, or wants a private/password-protected site (privacy is offered only on a connected domain). Drives the bind → DNS → verify → live flow; the agent does the API work and relays the one DNS record the human must add at their registrar.
+description: Connect a user's own custom domain (subdomain e.g. recipes.brand.com via CNAME, or apex e.g. brand.com via A record) to a site already deployed on simple-host. Use when a user wants their site served from their own domain with automatic HTTPS, or wants a private/password-protected site (privacy is offered only on a connected domain). Drives the bind → DNS → verify → live flow; the agent does the API work and relays the one DNS record the human must add at their registrar.
 ---
 
 # Connect a Custom Domain
 
 A site deployed on simple-host is already live at
 `https://sites.simple-host.app/<handle>/<site>/`. This skill connects the user's **own
-domain** — e.g. `recipes.brand.com` — so the site is served from it with automatic HTTPS.
+domain** — a subdomain (e.g. `recipes.brand.com`) or an apex (e.g. `brand.com`) — so the
+site is served from it with automatic HTTPS.
 
 **This is agent-driven.** You do every API call and compute the exact DNS record. The human's
 only job is pasting one record into their registrar, then telling you when it's saved.
@@ -28,9 +29,11 @@ only job is pasting one record into their registrar, then telling you when it's 
 ## The flow
 
 ### 1. Confirm the site exists and pick the domain
-The site must already be deployed. Ask the user for the exact domain they want, e.g.
-`recipes.brand.com`. Subdomains (`recipes.brand.com`) are supported today; a bare apex
-(`brand.com`) needs an A record and is a later step — prefer a subdomain when you can.
+The site must already be deployed. Ask the user for the exact domain they want.
+**Subdomains** (`recipes.brand.com`) are the simplest path (CNAME). **Apex domains**
+(`brand.com`) are fully supported too — the bind returns an A record instead of a
+CNAME. Prefer a subdomain when the user has no strong preference; use apex when
+they want the bare domain.
 
 ### 2. Bind the domain
 ```
@@ -40,7 +43,7 @@ Content-Type: application/json
 
 { "domain": "recipes.brand.com" }
 ```
-Response:
+Response (subdomain example — CNAME):
 ```json
 {
   "domain": "recipes.brand.com",
@@ -48,11 +51,13 @@ Response:
   "dns": { "type": "CNAME", "host": "recipes.brand.com", "value": "cname.simple-host.app" }
 }
 ```
+For an apex (`brand.com`), `dns.type` is `A` and `dns.value` is the IP to point at —
+relay whatever the response returns; don't invent the target.
 `409` means the domain is already connected to another site. `400` means the domain is
 malformed or is one of our own hostnames.
 
 ### 3. Relay the DNS record to the human (their only task)
-Give them the record from the `dns` object, in plain terms:
+Give them the record from the `dns` object, in plain terms. Subdomain (CNAME) example:
 
 > Add this record at your domain registrar (where you bought the domain), then tell me when
 > it's saved:
@@ -64,7 +69,9 @@ Give them the record from the `dns` object, in plain terms:
 >
 > Leave your other records (especially MX / email) untouched.
 
-Do not ask them to change nameservers or delete anything. Only this one record is added.
+For apex, use the returned A record (`Type: A`, host `@` or the bare domain, value =
+the IP from the response). Do not ask them to change nameservers or delete anything.
+Only this one record is added.
 
 ### 4. Verify — poll until active
 ```
@@ -76,8 +83,8 @@ Returns `{"domain": "...", "status": "...", "verified_at": ..., "last_error": ..
 - `pending` — DNS not yet visible / cert not issued. Wait and poll again (DNS can take a few
   minutes to a couple of hours to propagate).
 - `active` — the domain resolves to us and a real HTTPS certificate has been issued.
-- `error` — see `last_error`; usually the CNAME isn't in place yet or points elsewhere. Re-check
-  step 3 with the user.
+- `error` — see `last_error`; usually the DNS record isn't in place yet or points elsewhere.
+  Re-check step 3 with the user.
 
 Poll every ~30s for a few minutes; if it's still pending after that, DNS is likely still
 propagating — tell the user it can take longer and they can come back.
@@ -93,7 +100,7 @@ DELETE /v1/sites/{site}/domain
 X-API-Key: <api_key>
 ```
 Unbinds the domain (the site stays live at its `sites.simple-host.app/<handle>/<site>/` path).
-Tell the user they can also remove the CNAME record at their registrar afterward.
+Tell the user they can also remove the DNS record at their registrar afterward.
 
 ## Backend on a connected domain
 
@@ -104,10 +111,10 @@ domain to its own site, so it can't be used to write to a different site.)
 
 ## Gotchas
 
-- **Add the CNAME, don't replace anything.** Never touch MX/email records.
-- **Subdomain now, apex later.** `recipes.brand.com` works via CNAME today. A bare
-  `brand.com` needs an A record (apex) — a later capability; steer users to a subdomain when
-  possible.
+- **Add the DNS record, don't replace anything.** Never touch MX/email records.
+- **Subdomain or apex.** Subdomains (`recipes.brand.com`) use a CNAME — simplest path.
+  Apex domains (`brand.com`) work too via the A record returned by the bind. Prefer a
+  subdomain when the user has no preference for the bare domain.
 - **HTTPS is automatic.** Don't tell users to upload certificates — the cert is issued for them
-  once DNS points at us. It cannot be issued until the CNAME is in place (that's the gate).
+  once DNS points at us. It cannot be issued until the DNS record is in place (that's the gate).
 - **Propagation is not instant.** `pending` right after the user adds the record is normal.

@@ -237,11 +237,24 @@ If any problem blocks deployment, explain and stop before uploading.
 
 ## Custom domains
 
-To serve a site from the user's own domain (e.g. `recipes.brand.com`), use the
-`connect-domain` skill (`simple-host-website/skills/connect-domain`). Summary:
-`POST /v1/sites/<sitename>/domain` with `{domain}` → user adds one CNAME → poll
-`GET /v1/sites/<sitename>/domain` until `active`. Privacy / password-lock is a
-property of the connected domain's isolated origin, not of a path on the shared host.
+To serve a site from the user's own domain — a subdomain (e.g. `recipes.brand.com`
+via CNAME) or an apex (e.g. `brand.com` via A record) — use the `connect-domain`
+skill (`simple-host-website/skills/connect-domain`). Summary:
+`POST /v1/sites/<sitename>/domain` with `{domain}` → user adds the returned DNS
+record → poll `GET /v1/sites/<sitename>/domain` until `active`. Automatic HTTPS.
+Privacy / password-lock is a property of the connected domain's isolated origin,
+not of a path on the shared host.
+
+## Analytics
+
+Every deployed site automatically gets server-side visitor analytics (page views
+and unique visitors per day, 30-day trend) computed from access logs — no tracking
+script needed. Privacy-preserving: IPs are hashed with a daily-rotating salt,
+never stored raw. "Unique visitors" = distinct hashes per UTC day.
+
+- Dashboard: each site shows `N views · M visitors (30d)` plus a sparkline.
+- API (owner-authed): `GET /v1/sites/<sitename>/analytics?days=30` →
+  `{range_days, totals:{views, visitors}, daily:[{day, views, visitors}…]}`.
 
 ## Backends & extras (no server you manage)
 
