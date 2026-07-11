@@ -374,6 +374,131 @@ paths:
                   items: { type: array, items: { type: object } }
         '403': { $ref: '#/components/responses/OriginMismatch' }
 
+  /v1/u/{handle}/sites/{sitename}/state:
+    get:
+      operationId: getSiteStateByHandle
+      summary: Read per-site JSON state (v3, by handle)
+      description: >-
+        Returns the JSON blob for this site (`null` if unset). PUBLIC store — no API
+        key; the server checks `Origin`/`Referer` and only accepts calls from the
+        site's own page (`https://{sitename}.simple-host.app`). The response carries
+        an `ETag`; send `If-None-Match: <etag>` to get a `304` when nothing changed
+        (cheap polling). Never store secrets here.
+        v3 user-scoped, path-model-canonical variant: resolves the site by
+        (handle -> user_id) + (user_id, name).
+      tags: [State]
+      parameters:
+        - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's URL-safe handle" }
+        - { $ref: '#/components/parameters/sitename' }
+        - { name: If-None-Match, in: header, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: Current state (arbitrary JSON, `null` if unset)
+          headers: { ETag: { schema: { type: string } } }
+          content: { application/json: { schema: {} } }
+        '304': { description: Not modified (matched If-None-Match) }
+        '403': { $ref: '#/components/responses/OriginMismatch' }
+    put:
+      operationId: putSiteStateByHandle
+      summary: Replace per-site JSON state (v3, by handle)
+      description: >-
+        Overwrites the whole blob (≤ 1 MB), last-write-wins. Optionally pass
+        `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict).
+        Origin-gated, no API key.
+        v3 user-scoped, path-model-canonical variant: resolves the site by
+        (handle -> user_id) + (user_id, name).
+      tags: [State]
+      parameters:
+        - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's URL-safe handle" }
+        - { $ref: '#/components/parameters/sitename' }
+        - { name: If-Match, in: header, required: false, schema: { type: string } }
+      requestBody: { required: true, content: { application/json: { schema: {} } } }
+      responses:
+        '200': { description: Saved; echoes the value, headers: { ETag: { schema: { type: string } } }, content: { application/json: { schema: {} } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/OriginMismatch' }
+        '412': { description: ETag did not match (If-Match) }
+        '413': { $ref: '#/components/responses/TooLarge' }
+    patch:
+      operationId: patchSiteStateByHandle
+      summary: Atomically update per-site state (v3, by handle)
+      description: >-
+        Apply one or more atomic operations so concurrent writers never clobber.
+        Origin-gated, no API key. Ops — `set` (path,value), `inc` (path,by),
+        `append` (path,value), `remove` (path), `removeWhere` (path,match).
+        v3 user-scoped, path-model-canonical variant: resolves the site by
+        (handle -> user_id) + (user_id, name).
+      tags: [State]
+      parameters:
+        - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's URL-safe handle" }
+        - { $ref: '#/components/parameters/sitename' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ops]
+              properties:
+                ops:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      op: { type: string, enum: [set, inc, append, remove, removeWhere] }
+                      path: { type: string, example: 'counters.visits' }
+                      value: {}
+                      by: { type: number }
+                      match: { type: object }
+              example: { ops: [ { op: inc, path: count, by: 1 }, { op: append, path: items, value: { id: 'x' } } ] }
+      responses:
+        '200': { description: New state, headers: { ETag: { schema: { type: string } } }, content: { application/json: { schema: {} } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/OriginMismatch' }
+
+  /v1/u/{handle}/sites/{sitename}/collections/{coll}:
+    post:
+      operationId: postCollectionByHandle
+      summary: Append an item to a collection (v3, by handle)
+      description: >-
+        Append-only list (O(1) insert). For signups, RSVPs, submissions. Origin-gated, no API key. Each item ≤ 64 KB.
+        v3 user-scoped, path-model-canonical variant: resolves the site by
+        (handle -> user_id) + (user_id, name).
+      tags: [Collections]
+      parameters:
+        - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's URL-safe handle" }
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '201': { description: Item appended }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/OriginMismatch' }
+    get:
+      operationId: getCollectionByHandle
+      summary: List items in a collection (v3, by handle)
+      description: >-
+        Newest-first, paginated. Origin-gated, no API key.
+        v3 user-scoped, path-model-canonical variant: resolves the site by
+        (handle -> user_id) + (user_id, name).
+      tags: [Collections]
+      parameters:
+        - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's URL-safe handle" }
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+        - { name: limit, in: query, required: false, schema: { type: integer, default: 50, maximum: 200 } }
+        - { name: before, in: query, required: false, schema: { type: string }, description: cursor for the next page }
+      responses:
+        '200':
+          description: Items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { type: object } }
+        '403': { $ref: '#/components/responses/OriginMismatch' }
+
   /v1/sites/{sitename}/view-password:
     put:
       operationId: putSitesBySitenameViewPassword
