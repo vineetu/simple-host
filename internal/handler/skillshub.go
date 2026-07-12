@@ -123,8 +123,34 @@ func serveSkillDoc(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(data)
 }
 
-// RegisterSkillsHub mounts the public skills catalog + per-skill markdown fetch.
+// wellKnownEntry is one item in /.well-known/skills/index.json (the convention
+// agent skill hubs — e.g. Hermes — probe to auto-discover a site's skills).
+type wellKnownEntry struct {
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Files       []string `json:"files"`
+}
+
+// serveWellKnownSkillsIndex serves /.well-known/skills/index.json so any hub can
+// discover this site's skills. Each skill's files live at
+// /.well-known/skills/<name>/SKILL.md.
+func serveWellKnownSkillsIndex(w http.ResponseWriter, r *http.Request) {
+	skills := listBundledSkills()
+	entries := make([]wellKnownEntry, 0, len(skills))
+	for _, s := range skills {
+		entries = append(entries, wellKnownEntry{Name: s.Name, Description: s.Description, Files: []string{"SKILL.md"}})
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "public, max-age=300")
+	_ = json.NewEncoder(w).Encode(map[string]any{"skills": entries})
+}
+
+// RegisterSkillsHub mounts the public skills catalog + per-skill markdown fetch,
+// plus the /.well-known/skills discovery endpoint used by agent skill hubs.
 func RegisterSkillsHub(mux *http.ServeMux, publicBaseURL string) {
 	mux.HandleFunc("GET /v1/skills", serveSkillsCatalog(publicBaseURL))
 	mux.HandleFunc("GET /v1/skills/{name}", serveSkillDoc)
+	// Well-known agent-skills discovery (Hermes/OpenClaw/etc.).
+	mux.HandleFunc("GET /.well-known/skills/index.json", serveWellKnownSkillsIndex)
+	mux.HandleFunc("GET /.well-known/skills/{name}/SKILL.md", serveSkillDoc)
 }
