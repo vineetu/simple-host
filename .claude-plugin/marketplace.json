@@ -5,7 +5,7 @@
     "url": "https://github.com/vineetu/simple-host"
   },
   "metadata": {
-    "description": "Deploy websites to simple-host.app from your coding agent \u2014 static hosting plus a per-site backend (state, collections, private pages, templates)."
+    "description": "Deploy websites to simple-host.app from your coding agent \u2014 static hosting, a per-site backend (shared JSON state, collections, private pages), connect your own custom domain (subdomain or apex) with automatic HTTPS, and built-in visitor analytics."
   },
   "plugins": [
     {
@@ -13,7 +13,7 @@
       "source": "./simple-host-website",
       "version": "0.7.0",
       "homepage": "https://simple-host.app",
-      "description": "Deploy static websites to simple-host.app right from your coding agent \u2014 inline JSON files or a tar.gz/zip archive. Each site gets a per-site backend: shared JSON state with atomic ops, append-only collections, private (password-locked) pages, drop-in comments/feedback widgets, and starter templates. Bundles a builder skill that helps plan what to build."
+      "description": "Deploy static websites to simple-host.app from your coding agent (inline JSON or tar.gz/zip). Each site gets a per-site backend (shared JSON state with atomic ops, append-only collections, drop-in comments/feedback widgets, templates), built-in server-side visitor analytics, and can be connected to your own custom domain \u2014 subdomain via CNAME or apex via A record \u2014 with automatic HTTPS and private/password pages. Bundles a builder skill (plan what to build) and a connect-domain skill."
     }
   ]
 }
