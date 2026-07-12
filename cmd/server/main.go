@@ -75,6 +75,7 @@ func main() {
 	handler.NewSiteHandler(db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL).Register(mux, authMW, noticeMW)
 	handler.RegisterTemplateRoutes(mux)
 	handler.RegisterUIRoutes(mux, cfg.PublicBaseURL)
+	handler.RegisterSkillsHub(mux, cfg.PublicBaseURL)
 
 	// Optional "create with AI" endpoint. Sign-in-gated + rate limited; only
 	// enabled when an Anthropic key is configured (it spends real credits).

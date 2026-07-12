@@ -57,6 +57,85 @@
     }
   ],
   "paths": {
+    "/v1/skills": {
+      "get": {
+        "operationId": "listSkills",
+        "summary": "Skills hub catalog \u2014 discover the bundled agent skills",
+        "description": "Public catalog of the skills this server bundles (name + description + fetch URL), so any agent can search them over HTTP. No auth.",
+        "responses": {
+          "200": {
+            "description": "Skill catalog",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "plugin": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer"
+                    },
+                    "skills": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/skills/{name}": {
+      "get": {
+        "operationId": "getSkill",
+        "summary": "Fetch one skill's SKILL.md (markdown)",
+        "description": "Returns the raw SKILL.md for the named skill. Public, no auth.",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The skill's SKILL.md",
+            "content": {
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such skill"
+          }
+        }
+      }
+    },
     "/v1/auth": {
       "post": {
         "operationId": "postAuth",
