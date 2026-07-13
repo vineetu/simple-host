@@ -722,6 +722,14 @@ func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	// Ensure handles/<handle> -> by-id/<user_id> so the content-host path URL
+	// (sites.<domain>/<handle>/<site>/) resolves — critical for a new user's
+	// first deploy. Non-fatal: the legacy subdomain still works if this fails.
+	if user.Handle.Valid && user.Handle.String != "" {
+		if err := h.disk.EnsureHandleLink(user.Handle.String, user.ID); err != nil {
+			log.Printf("createSite: ensure handle link %s: %v", user.Handle.String, err)
+		}
+	}
 
 	site.ActiveVersion = versionNumber
 
@@ -837,6 +845,11 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 		log.Printf("updateSite: promote %s v%d after commit: %v", siteName, versionNumber, err)
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
+	}
+	if user.Handle.Valid && user.Handle.String != "" {
+		if err := h.disk.EnsureHandleLink(user.Handle.String, user.ID); err != nil {
+			log.Printf("updateSite: ensure handle link %s: %v", user.Handle.String, err)
+		}
 	}
 
 	site.ActiveVersion = versionNumber

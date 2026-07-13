@@ -242,6 +242,50 @@ func (d *DiskStorage) UpdateCurrent(userID, siteName string, versionNum int) err
 	return nil
 }
 
+// EnsureHandleLink makes handles/<handle> -> by-id/<userID> so the content host
+// (sites.<domain>/<handle>/<site>/) resolves for this user's sites. Idempotent;
+// never clobbers a real dir. Called on every deploy so a brand-new user's first
+// upload is immediately reachable by path (no reconciler needed).
+func (d *DiskStorage) EnsureHandleLink(handle, userID string) error {
+	if !validPathKey(handle) {
+		return fmt.Errorf("invalid handle %q", handle)
+	}
+	if !validPathKey(userID) {
+		return fmt.Errorf("invalid user id %q", userID)
+	}
+	handlesDir := filepath.Join(d.dataDir, "handles")
+	if err := os.MkdirAll(handlesDir, 0o755); err != nil {
+		return fmt.Errorf("create handles dir: %w", err)
+	}
+	linkPath := filepath.Join(handlesDir, handle)
+	target := filepath.Join("..", "by-id", userID) // relative from handles/<handle>
+
+	info, err := os.Lstat(linkPath)
+	if err == nil {
+		if info.Mode()&os.ModeSymlink == 0 {
+			return fmt.Errorf("handle path %q exists and is not a symlink; refusing to clobber", linkPath)
+		}
+		cur, rerr := os.Readlink(linkPath)
+		if rerr != nil {
+			return fmt.Errorf("readlink handle path: %w", rerr)
+		}
+		if cur == target {
+			return nil
+		}
+		// Handles are unique per user_id; if it points elsewhere the handle was
+		// reassigned — repoint it to the current owner.
+		if err := os.Remove(linkPath); err != nil {
+			return fmt.Errorf("remove stale handle link: %w", err)
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("lstat handle path: %w", err)
+	}
+	if err := os.Symlink(target, linkPath); err != nil {
+		return fmt.Errorf("create handle link: %w", err)
+	}
+	return nil
+}
+
 // ensureBackCompatSymlink creates <dataDir>/<siteName> -> by-id/<userID>/<siteName>
 // only if the path does not already exist (first-owner-wins). A later same-named
 // site from a different user must never hijack the legacy flat symlink.
