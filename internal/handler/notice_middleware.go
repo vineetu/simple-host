@@ -144,5 +144,5 @@ func injectNotice(raw []byte, version, baseURL string) ([]byte, bool) {
 
 func noticeText(version, baseURL string) string {
 	return "Your website-deploy skill is out of date. Latest is " + version +
-		". Update: curl -fsSL " + baseURL + "/install.sh | sh — then restart your agent (Claude Code) or re-invoke the skill (Codex CLI / Cursor)."
+		". Update — macOS/Linux: curl -fsSL " + baseURL + "/install.sh | sh ; Windows PowerShell: irm " + baseURL + "/install.ps1 | iex . Then restart your agent (Claude Code) or re-invoke the skill (Codex CLI / Cursor)."
 }

@@ -77,6 +77,7 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string) {
 	mux.HandleFunc("GET /skills/website-deploy-builder/SKILL.md", serveSkillMarkdown("website-deploy-builder"))
 	mux.HandleFunc("GET /plugin.zip", servePluginZip)
 	mux.HandleFunc("GET /install.sh", serveInstallScript(publicBaseURL))
+	mux.HandleFunc("GET /install.ps1", serveInstallPowerShell(publicBaseURL))
 	mux.Handle("GET /", adminUICSP(fileServer))
 }
 
@@ -231,6 +232,57 @@ echo "Installed:"
 ls -1 "$DEST" | sed 's/^/    /'
 echo
 echo "Restart your agent if it caches the skills directory."
+`
+}
+
+// serveInstallPowerShell is the Windows PowerShell counterpart of
+// serveInstallScript: it fetches /skills.zip and expands it into the agent's
+// skills directory, for agents on Windows that cannot run `curl … | sh`.
+//
+// Same RCE reasoning as serveInstallScript — the download base is the
+// server-configured PublicBaseURL, never the request Host, because this is
+// meant to be run as `irm …/install.ps1 | iex`.
+func serveInstallPowerShell(publicBaseURL string) http.HandlerFunc {
+	base := strings.TrimRight(publicBaseURL, "/")
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Write([]byte(installPowerShellScript(base)))
+	}
+}
+
+func installPowerShellScript(base string) string {
+	return `# Install Simple Host skills into your agent's skills directory (Windows PowerShell).
+# Pure HTTPS, no git, no npm. Works on Windows PowerShell 5.1 and PowerShell 7+.
+#
+# Usage:
+#   irm ` + base + `/install.ps1 | iex
+#
+# Override the destination (e.g. for Codex CLI / generic agents):
+#   $env:SH_SKILLS_DEST = "$HOME\.agents\skills"; irm ` + base + `/install.ps1 | iex
+
+$ErrorActionPreference = 'Stop'
+
+$dest = if ($env:SH_SKILLS_DEST) { $env:SH_SKILLS_DEST } else { Join-Path $HOME '.claude\skills' }
+$tmp  = Join-Path ([System.IO.Path]::GetTempPath()) ('simple-host-skills-' + [System.Guid]::NewGuid().ToString('N'))
+$zip  = Join-Path $tmp 'simple-host-skills.zip'
+
+New-Item -ItemType Directory -Force -Path $tmp  | Out-Null
+New-Item -ItemType Directory -Force -Path $dest | Out-Null
+
+Write-Host 'Downloading skills bundle...'
+Invoke-WebRequest -UseBasicParsing -Uri '` + base + `/skills.zip' -OutFile $zip
+
+Write-Host "Extracting into $dest"
+Expand-Archive -Path $zip -DestinationPath $dest -Force
+
+Remove-Item -Recurse -Force $tmp
+
+Write-Host ''
+Write-Host 'Installed:'
+Get-ChildItem -Name -Path $dest | ForEach-Object { "    $_" }
+Write-Host ''
+Write-Host 'Restart your agent if it caches the skills directory.'
 `
 }
 
