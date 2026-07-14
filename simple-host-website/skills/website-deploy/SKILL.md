@@ -50,7 +50,12 @@ the built directory as `.tar.gz` or `.zip` and upload it (see "Upload" below).
 
 Registration is a two-step email verification flow. The user proves they own the email address before the server hands out an API key.
 
-1. **Check whether `~/.website-deploy/config.json` exists.** If it contains a non-empty `api_key`, registration is done — skip the rest of this section.
+The config file lives at `~/.website-deploy/config.json` — resolve `~` to the OS home
+directory rather than assuming shell tilde-expansion (`$env:USERPROFILE\.website-deploy\config.json`
+on Windows, `$HOME/.website-deploy/config.json` on macOS/Linux); some tool-call paths on
+Windows don't expand a literal `~`.
+
+1. **Check whether the config file exists.** If it contains a non-empty `api_key`, registration is done — skip the rest of this section.
 2. **Ask the user for their email** and post it:
    ```
    POST /v1/auth
@@ -66,7 +71,7 @@ Registration is a two-step email verification flow. The user proves they own the
    {"email": "<user@example.com>", "code": "<6-digit code>"}
    ```
    On success the response includes `api_key`, `username`, `handle`, `id`, and `is_admin`. The `handle` is the URL-safe path segment used in site URLs (`sites.simple-host.app/<handle>/<sitename>/`).
-5. **Save** the `api_key`, `username`, and `handle` to `~/.website-deploy/config.json`. The API key never rotates unless the user explicitly asks for a new one, so this file is the single source of truth going forward. You can re-read `handle` anytime via `GET /v1/me`.
+5. **Save** the `api_key`, `username`, and `handle` to the config file above (OS-appropriate path). The API key never rotates unless the user explicitly asks for a new one, so this file is the single source of truth going forward. You can re-read `handle` anytime via `GET /v1/me`.
 6. **Failure modes:**
    - `401 invalid or expired code` — code was wrong; try once more, or restart from step 2 (codes expire in 15 minutes).
    - `401 too many attempts` — three wrong codes in a row burn the token; restart from step 2.
@@ -83,7 +88,7 @@ Website Deploy runs NO Node at serve time; only static files are served.
 |---|---|---|---|
 | Vite (Vue/React/Svelte/Preact/Lit) | `vite` dep or `vite.config.*` | `npx vite build --base ./` (or `base:'./'` in config) | `dist/` |
 | Next.js | `next` dep or `next.config.*` | in `next.config`: `output:'export'`, `images.unoptimized:true`, `trailingSlash:true`, `assetPrefix:'./'` → `npx next build` | `out/` |
-| Create React App | `react-scripts` dep | `PUBLIC_URL=. npm run build` | `build/` |
+| Create React App | `react-scripts` dep | `PUBLIC_URL=. npm run build` (macOS/Linux/bash) — on Windows PowerShell: `$env:PUBLIC_URL='.'; npm run build`; cmd.exe: `set PUBLIC_URL=.&& npm run build` | `build/` |
 | SvelteKit | `@sveltejs/kit` dep or `svelte.config.*` | `@sveltejs/adapter-static` with `fallback:'index.html'` + `kit.paths.relative:true` → `npm run build` | `build/` |
 | Astro | `astro` dep or `astro.config.*` | `base:'./'` in `astro.config` → `npx astro build` | `dist/` |
 | Nuxt 3/4 | `nuxt` dep or `nuxt.config.*` | relative `app.baseURL` → `npx nuxt generate` (NOT `nuxt build` — that's a Node server) | `.output/public/` |
@@ -108,6 +113,11 @@ For framework projects this is the build output (`dist/`, `build/`, `out/`, `pub
 - Warn if `node_modules/` is present — usually means the source tree was selected instead of the built output.
 - Warn if `.env` files are present — they should not be uploaded.
 - Warn on any single file larger than 25 MB.
+- Windows note: if HTML/CSS/JS files were authored via Windows PowerShell 5.1
+  (`Set-Content`/`Out-File -Encoding utf8`), they get a leading UTF-8 BOM — browsers
+  usually skip it silently, but it's cleaner to avoid. Write with `-Encoding utf8NoBOM`
+  (PowerShell 7+) or, on Windows PowerShell 5.1, `[System.IO.File]::WriteAllText($path,
+  $content, (New-Object System.Text.UTF8Encoding($false)))`.
 
 ### Semantic
 
@@ -124,11 +134,13 @@ If any problem blocks deployment, explain and stop before uploading.
 
 1. Confirm the directory is the final static site directory (build output for framework projects; source for plain HTML).
 2. Validate the sitename: lowercase letters, numbers, and hyphens only.
-3. Package the directory:
-   ```bash
-   tar -czf /tmp/<sitename>.tar.gz -C <dir> .
-   ```
-   (A `.zip` archive is also accepted.)
+3. Package the directory, into the OS temp dir (not a hardcoded `/tmp` — that path doesn't
+   exist on Windows):
+   - macOS/Linux: `tar -czf /tmp/<sitename>.tar.gz -C <dir> .`
+   - Windows PowerShell: `tar -czf $env:TEMP\<sitename>.tar.gz -C <dir> .` (bsdtar, bundled
+     since Win10 1803) — or `Compress-Archive -Path <dir>\* -DestinationPath $env:TEMP\<sitename>.zip`
+     for a native `.zip` instead.
+   (A `.zip` archive is also accepted on any OS.)
 4. Upload. For a new site:
    ```
    POST /v1/sites/<sitename>
