@@ -27,6 +27,8 @@ Website Deploy is a static-file host at `https://simple-host.app`. Each site is 
 
 If your idea needs a server you control, a shared SQL database, persistent per-user accounts, or anything that runs server-side, Website Deploy is not the right host. Say so and stop.
 
+**Always pair a form with a viewer.** Any site that COLLECTS data (a signup, RSVP, guestbook, contact form, order) MUST also ship a second page — e.g. `admin.html` — that reads the same collection back (`GET .../collections/<name>?limit=200` → `{items:[{id,data,created_at},…]}`) and lists every entry for the owner, newest first, plus the live total from state. Link it quietly from the main page (a small "Organizer view →" in the footer). A form with nowhere to read the results is only half the feature — and the person you're building for will not think to ask for the viewer, so add it by default. Mark the viewer `<meta name="robots" content="noindex">`; it's reachable by URL (the store is public), so don't fake a password.
+
 ## How to use this skill
 
 1. Ask the user what they're trying to build, in plain language. Don't push capabilities at them — let them describe the idea.

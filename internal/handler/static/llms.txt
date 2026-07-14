@@ -1,311 +1,41 @@
-# Simple Host — deploy a website (instructions for an AI assistant)
+Output ONLY one fenced ```json code block for Simple Host, and nothing else. Use this exact schema:
+{"simpleHost":1,"name":"[YOUR-SITE-NAME]","files":{"index.html":"<the full, self-contained page as escaped text, with inline CSS and JS>"}}
+Relative links only — never a leading slash. index.html must be one self-contained file (inline CSS/JS).
 
-You are an AI assistant. A human asked you to publish a website on Simple Host.
-You can do the whole thing yourself by calling this JSON API. The human's ONLY
-job is to read you the 6-digit code that gets emailed to them.
+SITE: [Describe your site in plain language here — what it's for, the style/colors/vibe, the font, any headings, and all the real details like names, dates, times, and locations. Say what visitors should be able to do.]
 
-API base:  https://simple-host.app
-The site goes live at:  https://sites.simple-host.app/<handle>/<name>/
-  (dashboard/API stay on https://simple-host.app — a separate origin)
-Full machine-readable spec:  https://simple-host.app/openapi.json
+BACKEND — FOLLOW EXACTLY, DO NOT IMPROVISE.
+This site is hosted at https://sites.simple-host.app/<handle>/<name>/ and has a real, free JSON backend that you MUST use.
+HARD BAN: never use localStorage, sessionStorage, cookies, or any client-only/in-memory storage for shared data (sign-ups, RSVPs, counts, messages). Shared data MUST live on the server via fetch(). Do NOT invent endpoints. Do NOT hardcode the handle or the site name.
 
---------------------------------------------------------------------------------
-HOW TO DEPLOY — do these steps yourself (you make the HTTP calls)
---------------------------------------------------------------------------------
+Put this EXACT route setup at the very top of your <script>:
+const m = location.pathname.match(/^\/([a-z0-9-]+)\/([a-z0-9-]+)/);
+const BASE = m ? '/v1/u/' + m[1] + '/sites/' + m[2] : null;
+const STATE = BASE ? BASE + '/state' : null;
+const LIST  = BASE ? BASE + '/collections/entries' : null;
 
-If you have any way to make HTTP requests (a browsing / fetch / code tool),
-execute the calls below directly.
+STEP 1 — Save an entry (do BOTH awaits):
+await fetch(LIST, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ /* the entry's fields, e.g. name, guests: Number(guests) */ })});
+await fetch(STATE, {method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ops:[{op:'inc', path:'total', by: 1}]})});
+(If you're counting people rather than entries, use by: Number(guests) instead of by: 1.)
 
-If you CANNOT make web requests (e.g. you are ChatGPT, Gemini, or Copilot in a
-normal chat with no code/browse tool), use the COPY-PASTE PATH in the next
-section instead. Do NOT hand the user raw curl commands.
+STEP 2 — Live count:
+async function loadCount(){ if(!STATE) return; const s = await fetch(STATE).then(r=>r.json()).catch(()=>({})); document.getElementById('count').textContent = (s && s.total) || 0; }
+Call loadCount() on page load, again right after a successful save, and on a setInterval every 4000ms. Make sure there is an element with id="count" on the page.
 
---------------------------------------------------------------------------------
-COPY-PASTE PATH — for assistants that can't make web requests (ChatGPT, Gemini, …)
---------------------------------------------------------------------------------
-You can still build the whole site. Instead of calling the API, you OUTPUT the
-site as one JSON block and tell the user to paste it into Simple Host.
+STEP 3 — After a successful save, hide the form and show a friendly confirmation message, then clear the inputs.
 
-1. Build the complete site — one self-contained index.html (inline CSS/JS), plus
-   extra files only if needed. Follow the design guidance further down this doc.
-   USE RELATIVE LINKS ONLY (css/app.css, ./img/x.png) — never root-absolute
-   paths like /css/app.css. Sites live under /<handle>/<name>/, so root-absolute
-   paths resolve to the wrong place and break.
-2. Output EXACTLY ONE fenced ```json code block, in this schema, with nothing else
-   inside the block:
+STEP 4 — Visitor messages/comments: do NOT hand-build these. Use Simple Host's built-in comments widget by adding EXACTLY these three lines immediately before </body>, and nothing else for messages:
+- a <script> tag whose content is:  window.SH_COMMENTS={accent:"#HEXCOLOR", title:"YOUR TITLE"}
+- then:  <section id="sh-comments"></section>
+- then a <script> tag with src="https://simple-host.app/comments.js" and the defer attribute
+(Only include Step 4 if your site actually needs a comments/message section.)
 
-    {
-      "simpleHost": 1,
-      "name": "a-short-name",
-      "files": {
-        "index.html": "<!DOCTYPE html> … the whole page …",
-        "style.css": "…optional extra files…"
-      }
-    }
+STEP 5 — Use a SOLID background color, not a gradient (the comments widget reads light/dark from a solid background; a gradient breaks it). The backend store is PUBLIC — never put secrets in it.
 
-   Rules: "index.html" is REQUIRED. Every value is that file's TEXT contents.
-   Relative paths only — no leading "/", no "..". No secrets, no .env, no binary
-   files. Keep it under ~1.5 MB total.
-3. Then tell the user, in plain words:
-     "Copy the JSON block above. Go to https://simple-host.app, sign in with your
-      email (you'll get a 6-digit code), open the 'Create a site with AI' box,
-      click 'Built it in ChatGPT or Gemini? Paste the JSON', paste it, preview,
-      and hit Publish. Your site will be live at
-      https://sites.simple-host.app/<your-handle>/<name>/."
+STEP 6 — A PLACE TO VIEW WHAT'S COLLECTED (do this WHENEVER the site saves entries — RSVPs, sign-ups, messages, orders). A form with nowhere to read the results is useless, so ALWAYS add a SECOND file "admin.html" to the files{} map (files can hold more than one file):
+- admin.html derives BASE/LIST/STATE from location.pathname the SAME way, then does GET LIST + '?limit=200' and renders EVERY entry in a clean table (all fields, newest first) plus the live total from STATE. Load on open and refresh every 5000ms. Response shape: { items:[ { id, data:{...your fields}, created_at } ], next }.
+- Match the site's visual style. Put <meta name="robots" content="noindex"> in its <head>. Do NOT build a fake password gate (the data is public by URL — say so in one small line rather than pretending it's locked).
+- From index.html, link to it quietly: a small "Organizer view →" link (href="admin.html") in the footer.
 
-   The user sees a live preview before anything is published, and can ask Simple
-   Host's own assistant to tweak it afterwards.
-
-Want a polished starting point? Describe the design and build it yourself in the
-JSON above, or have the user open a template at
-https://simple-host.app/v1/templates/<id> (e.g. /landing, /event-rsvp, /resume)
-and paste its "files" the same way.
-
-DEFAULT — START FROM A TEMPLATE (do this unless the user says not to):
-    GET https://simple-host.app/v1/templates            # list starter templates (id + description)
-    GET https://simple-host.app/v1/templates/<id>        # returns {"files":{...}} ready to deploy
-ALWAYS browse the catalog FIRST and pick the closest match to what the user wants,
-then edit the text/content in its files to fit them and deploy that "files" map in
-STEP 3. Templates carry a consistent, polished, accessible design — strongly
-PREFER them over writing a page from scratch. Only hand-author HTML yourself if
-the user EXPLICITLY asks for a fully custom design, or if no template is a
-reasonable fit. (If you must hand-author: avoid gradient/image page backgrounds —
-the drop-in widgets below detect light/dark from the background color and a
-gradient reads as transparent; use a solid background, or pass the widget an
-accent override.) The catalog covers the common "static + a little backend" sites
-(ui-prototype review mock, landing, waitlist, event-rsvp, architecture doc, travel itinerary, résumé).
-
-STEP 1 — Ask the user for their email, then request a sign-in code:
-
-    POST https://simple-host.app/v1/auth
-    Content-Type: application/json
-    {"email": "USER_EMAIL"}
-
-Tell the user: "Check your email for a 6-digit code and paste it here."
-
-STEP 2 — When the user gives you the code, exchange it for an API key:
-
-    POST https://simple-host.app/v1/auth/verify
-    Content-Type: application/json
-    {"email": "USER_EMAIL", "code": "THE_6_DIGITS"}
-
-The response contains "api_key" and "handle" (the user's URL-safe handle used
-in site URLs). Keep the api_key for this session and send it as the header
-X-API-Key: <api_key>  on every call below.  IMPORTANT: the header is
-literally  X-API-Key  — `Authorization: Bearer <key>` does NOT work and returns
-401. (The code expires in 15 minutes and allows 3 tries; if it fails, repeat
-Step 1.) You can also read handle later via GET /v1/me.
-
-STEP 3 — Write the site and deploy it. Pick a short name (lowercase letters,
-digits, hyphens). USE RELATIVE LINKS in every file (css/app.css, not
-/css/app.css) — the site is served under a path prefix. Send each file's
-contents inline:
-
-    POST https://simple-host.app/v1/sites/<name>/files
-    X-API-Key: <api_key>
-    Content-Type: application/json
-    {"files": {
-        "index.html": "<!doctype html><html>…</html>",
-        "css/style.css": "body{…}"
-    }}
-
-- 201 = created. The response includes "site_url" — give it to the user.
-- 409 = that name is taken. If the user owns it, repeat the call with PUT
-  instead of POST to update it; otherwise pick another name.
-- index.html is required. Keep it to text files (HTML/CSS/JS/SVG). Limits:
-  total < 100 MB, < 50,000 files. Files like .env / .git/* are skipped;
-  script extensions (.sh .py .rb .go .php …) are rejected.
-
-STEP 4 — Tell the user their site is live at
-https://sites.simple-host.app/<handle>/<name>/  (use the handle from Step 2
-or the site_url from the response). Older links of the form
-https://<name>.simple-host.app/ still resolve (legacy).
-
-That's the whole flow. To re-deploy later, use PUT on the same /files URL. To
-list the user's sites: GET https://simple-host.app/v1/sites with the X-API-Key
-header. To delete one: DELETE https://simple-host.app/v1/sites/<name>.
-
---------------------------------------------------------------------------------
-A FEW RULES
---------------------------------------------------------------------------------
-- The api_key authenticates as this user and controls all their sites. Keep it
-  in this session; don't post it back to the user unless they ask. If it ever
-  leaks, the user should sign in again to get a fresh one.
-- Do NOT use any "admin" key — it cannot create sites. Use the user's key from
-  Step 2.
-- USE RELATIVE LINKS. Sites live under /<handle>/<name>/ on the content host.
-  Root-absolute paths like /css/app.css resolve to sites.simple-host.app/css/…
-  (wrong) and break. Prefer css/app.css, ./img/x.png, ../shared/y. For framework
-  builds set the base/public path so output uses relative URLs (e.g. Vite
-  base:'./', Next basePath, etc.).
-- Want a dynamic feature (guestbook, counter, poll)? Each site has a free public
-  JSON store. From a page served on the content host, call the SAME-ORIGIN
-  user-scoped route (widgets auto-derive this; hand-written fetch can too):
-      // page is at https://sites.simple-host.app/<handle>/<name>/...
-      const m = location.pathname.match(/^\/([a-z0-9-]+)\/([a-z0-9-]+)/);
-      const U = `/v1/u/${m[1]}/sites/${m[2]}/state`;   // same-origin
-      const state=(await fetch(U).then(r=>r.json()))||{};            // read
-      await fetch(U,{method:'PUT',headers:{'Content-Type':'application/json'},
-                    body:JSON.stringify({...state,count:(state.count||0)+1})}); // write
-  Legacy /v1/sites/<name>/state still works. This store is PUBLIC (anyone who
-  can load the page can read it) — never put secrets in it. The content host
-  sites.simple-host.app is a SHARED origin across sites (co-tenancy is accepted;
-  state was never confidential). Owners can allow extra origins via
-  PUT /v1/sites/<name>/allowed-origins for "backend anywhere."
-  For concurrency-safe edits (many users at once), prefer PATCH with atomic ops
-  over read-modify-write PUT — these never clobber each other:
-      await fetch(U,{method:'PATCH',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({ops:[{op:'inc',path:'count',by:1}]})});     // atomic counter
-      // also: {op:'append',path:'items',value:{...}},  {op:'set',path:'a.b',value:x},
-      //       {op:'remove',path:'a.b'},  {op:'removeWhere',path:'items',match:{id:'x'}}
-  Cheap polling: GET returns an ETag; send If-None-Match:'<that ETag>' to get a
-  304 (no body) when nothing changed.
-
---------------------------------------------------------------------------------
-COMMENTS — add a threaded discussion section to any page (one line)
---------------------------------------------------------------------------------
-Want visitors to discuss (Reddit-style threads with replies + upvotes)? Add these
-two lines where you want the discussion to appear, before </body>:
-
-    <section id="sh-comments"></section>
-    <script src="https://simple-host.app/comments.js" defer></script>
-
-It stores threads in the site's state KV (keys "_comments" and "_votes") using
-ATOMIC ops, so simultaneous posters never clobber each other, and polls cheaply so
-threads update live. On the content host it auto-derives the same-origin
-/v1/u/<handle>/sites/<site>/state URL from the path. It auto-matches the page's
-font and light/dark theme. The store is PUBLIC (anyone can read) — don't post
-anything sensitive.
-
-STYLE IT TO MATCH THE PAGE (always do this): before the comments.js tag add
-    <script>window.SH_COMMENTS={accent:"#b4451f", title:"Comments"}</script>
-and fine-tune with CSS variables if needed:
-    #sh-comments{--shc-accent:…;--shc-surface:…;--shc-border:…;--shc-muted:…;--shc-radius:…}
-Match the accent, border and corner radius to the page's own design so the widget
-looks native, not bolted on. Consider adding comments to most pages you deploy.
-
-WORKS ON PAGES HOSTED ANYWHERE (GitHub Pages, Netlify, …): the page keeps its
-hosting; a simple-host site acts as its backend. As the owner:
-    PUT /v1/sites/<backend>/allowed-origins   (X-API-Key)
-    {"origins":["https://username.github.io"]}
-then on the external page set  window.SH_COMMENTS={site:"<backend>",
-base:"https://simple-host.app"}  before the script tag. feedback.js works the
-same via window.SH_FEEDBACK. State/collections are likewise callable from
-allowed origins.
-
---------------------------------------------------------------------------------
-UI MOCKUP FEEDBACK — let reviewers pin comments, then read them back
---------------------------------------------------------------------------------
-Deploying a UI mockup for review? Add this one line to the page before </body>:
-
-    <script src="https://simple-host.app/feedback.js"></script>
-
-(Or start from the "ui-prototype" template, which has this wired in.) Reviewers
-browse the page normally, then tap the floating "Feedback" button — the next
-tap/click pins a numbered note to that exact element (on phones, long-press is a
-shortcut; the composer is a bottom sheet). Theme it with
-window.SH_FEEDBACK={accent:"#hex",label:"Feedback"} before the tag. Comments
-are saved to the site's state KV under the key "_comments" (optimistic-concurrency
-writes, so simultaneous reviewers don't overwrite each other).
-
-To READ the feedback back (so you can act on it), GET the state — the store is
-Origin-gated, so send the content host Origin (or the site's own Origin on a
-custom domain):
-
-    curl -H "Origin: https://sites.simple-host.app" \
-         https://simple-host.app/v1/u/<handle>/sites/<name>/state
-    # legacy still works:
-    # curl -H "Origin: https://sites.simple-host.app" \
-    #      https://simple-host.app/v1/sites/<name>/state
-
-Each entry in "_comments" tells you EXACTLY where the reviewer pointed:
-    { "body": "make this bigger",      // the comment
-      "sel":  "main > section:nth-of-type(2) > button",  // CSS selector of the element
-      "text": "Sign up",               // the element's text (map it to your code)
-      "nx": 0.5, "ny": 0.5,            // position within that element (0..1)
-      "author": "...", "ts": 1700000000000 }
-Use "sel" + "text" to locate the exact element in your source and apply the change.
-
---------------------------------------------------------------------------------
-COLLECTIONS — append-only lists (waitlist, RSVPs, form submissions)
---------------------------------------------------------------------------------
-To COLLECT entries that grow over time (a waitlist, RSVP list, contact-form inbox),
-use a collection instead of the single state blob: each POST appends one immutable
-item; GET returns them (paginated). From a page on the content host:
-
-    const m = location.pathname.match(/^\/([a-z0-9-]+)\/([a-z0-9-]+)/);
-    const U = `/v1/u/${m[1]}/sites/${m[2]}/collections/signups`;  // same-origin
-    await fetch(U,{method:'POST',headers:{'Content-Type':'application/json'},
-                  body:JSON.stringify({email:'a@b.com'})});       // append one entry
-    const {items}=await fetch(U).then(r=>r.json());               // read them back
-
-Prefer a collection over state when entries must never overwrite each other and you
-just keep adding (scales to large lists; appends are cheap and concurrency-safe).
-Same Origin gate as state — entries are readable by anyone who can load the page.
-For a PRIVATE inbox (emails only you should see), connect a custom domain first
-(see below) then password-lock the page. Keep a running total in state for a live count.
-
---------------------------------------------------------------------------------
-PRIVATE PAGES — password-lock (requires a connected custom domain)
---------------------------------------------------------------------------------
-Password-protected / private pages are a property of a CONNECTED CUSTOM DOMAIN
-(its own isolated origin), NOT of a path on the shared content host. If the user
-wants privacy, connect a domain first (see Custom domains below), then lock the
-site with the OWNER key:
-
-    curl -s -X PUT https://simple-host.app/v1/sites/<name>/view-password \
-      -H "X-API-Key: $SIMPLE_HOST_KEY" -H 'Content-Type: application/json' \
-      -d '{"password":"hunter2"}'
-    # unlock again:  curl -X DELETE .../v1/sites/<name>/view-password -H "X-API-Key: $SIMPLE_HOST_KEY"
-
-Visitors then get a login page on the custom domain; the correct password sets a
-signed cookie that unlocks the page AND its state/collections — so a locked
-page's data is private to people who know the password. Share the password
-out-of-band; it is never stored in the site's files.
-
---------------------------------------------------------------------------------
-CUSTOM DOMAINS — serve a site from the user's own domain
---------------------------------------------------------------------------------
-A user can serve a site from their own domain — a subdomain (e.g.
-recipes.brand.com via CNAME) or an apex (e.g. brand.com via A record). Use the
-connect-domain skill (simple-host-website/skills/connect-domain). Summary:
-POST /v1/sites/<name>/domain {"domain":"…"} → add the returned DNS record →
-poll GET /v1/sites/<name>/domain until status is active; DELETE to disconnect.
-Automatic HTTPS. Privacy / password-lock is available on the connected domain's
-isolated origin.
-
---------------------------------------------------------------------------------
-ANALYTICS — server-side visitor stats (no tracking script)
---------------------------------------------------------------------------------
-Every site gets built-in visitor analytics computed from server access logs —
-no client tracking script needed. Owner-authed:
-
-    GET /v1/sites/<name>/analytics?days=30
-    X-API-Key: <api_key>
-
-Returns {range_days, totals:{views, visitors}, daily:[{day, views, visitors}…]}.
-Page views and unique visitors per day, with a 30-day trend. Privacy-preserving:
-IPs are hashed with a daily-rotating salt and never stored raw. "Unique
-visitors" = distinct hashes per UTC day. The dashboard shows per-site
-"N views · M visitors (30d)" plus a sparkline.
-
---------------------------------------------------------------------------------
-MANUAL MODE — only if you cannot make HTTP requests yourself
---------------------------------------------------------------------------------
-Hand the user these commands to run in their terminal (they paste their key
-once; it never appears in this chat):
-
-    # 1. sign in
-    curl -s https://simple-host.app/v1/auth -H 'Content-Type: application/json' \
-      -d '{"email":"you@example.com"}'
-    # (check email for the code, then:)
-    SIMPLE_HOST_KEY=$(curl -s https://simple-host.app/v1/auth/verify \
-      -H 'Content-Type: application/json' \
-      -d '{"email":"you@example.com","code":"123456"}' \
-      | sed -n 's/.*"api_key":"\([^"]*\)".*/\1/p'); export SIMPLE_HOST_KEY
-    # 2. deploy (you write index.html into the JSON — use RELATIVE links)
-    curl -s -X POST https://simple-host.app/v1/sites/my-site/files \
-      -H "X-API-Key: $SIMPLE_HOST_KEY" -H 'Content-Type: application/json' \
-      -d '{"files":{"index.html":"<!doctype html><h1>Hello</h1>"}}'
-    # 3. visit https://sites.simple-host.app/<handle>/my-site/
-      # (handle is in the verify response / GET /v1/me; or use site_url from the deploy response)
+SELF-CHECK before you answer: (a) zero uses of localStorage/sessionStorage/cookies anywhere; (b) fetch() is actually called three ways — POST to LIST, PATCH to STATE, and GET to STATE; (c) if used, the three comments lines are present verbatim; (d) BASE/STATE/LIST are derived from location.pathname and NOT hardcoded; (e) background is a solid color; (f) if the site collects anything, files{} ALSO contains admin.html that GETs LIST and renders the entries, linked from index.html. If any check fails, fix it before outputting. Output only the JSON block.
