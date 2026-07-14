@@ -254,12 +254,21 @@
             </table>
 
             <div class="code-head">
-              <span>Tell your agent (it installs with its own file tools)</span>
+              <span>Tell your agent (file-based agents: Claude Code, Codex, opencode…)</span>
               <button class="copy-btn" type="button" data-copy-target="p-agentinstall">Copy</button>
             </div>
-            <pre id="p-agentinstall">Download https://simple-host.app/skills.zip and unzip it into my skills
-folder (~/.claude/skills for Claude Code — create it if it doesn't exist).
-Then list your skills: you should see website-deploy and website-deploy-builder.</pre>
+            <pre id="p-agentinstall">Download https://simple-host.app/skills.zip and unzip it into your skills folder — create it if it doesn't exist. Use the folder for whichever agent you are:
+   • Claude Code   ~/.claude/skills/
+   • Codex CLI     ~/.agents/skills/
+   • opencode      ~/.config/opencode/skills/
+(On Windows, ~ means %USERPROFILE%.) Then list your skills, confirm website-deploy and website-deploy-builder now appear, and ask me what I'd like to build.</pre>
+            <p class="note" style="margin-top:8px"><b>GitHub Copilot CLI</b> sandboxes its own <code class="inline-code">~/.copilot</code> folder, so a download-and-unzip can't reach it — add each skill by URL with Copilot's own command instead:</p>
+            <div class="code-head">
+              <span>GitHub Copilot CLI</span>
+              <button class="copy-btn" type="button" data-copy-target="cmd-copilot">Copy</button>
+            </div>
+            <pre id="cmd-copilot">copilot skill add https://simple-host.app/skills/website-deploy/SKILL.md
+copilot skill add https://simple-host.app/skills/website-deploy-builder/SKILL.md</pre>
 
             <div class="code-head">
               <span>Manual · macOS / Linux (Claude Code shown)</span>
