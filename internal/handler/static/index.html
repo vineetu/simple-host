@@ -596,6 +596,35 @@
       color: var(--text);
     }
 
+    /* Public showcase banner (signed-in, has-handle only) */
+    .showcase-banner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(34, 211, 238, 0.06);
+      border: 1px solid var(--border-hi);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      text-decoration: none;
+      color: var(--text);
+      font-size: 13px;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .showcase-banner:hover {
+      border-color: var(--accent);
+      background: rgba(34, 211, 238, 0.1);
+    }
+    .showcase-banner .sb-ico { font-size: 15px; line-height: 1; }
+    .showcase-banner .sb-text { flex: 1; min-width: 0; color: var(--text-secondary); }
+    .showcase-banner .sb-text b {
+      font-family: var(--mono);
+      font-weight: 600;
+      color: var(--accent);
+      word-break: break-all;
+    }
+    .showcase-banner .sb-arrow { color: var(--accent); flex-shrink: 0; }
+
     /* Deploy callout (replaces upload form) */
     .deploy-callout {
       background: var(--surface);
@@ -1041,6 +1070,13 @@
 
       <!-- Sites Tab -->
       <div id="sites-tab" class="view active">
+        <!-- Public showcase link (shown only when signed in with a handle) -->
+        <a id="showcase-banner" class="showcase-banner" href="#" target="_blank" rel="noopener" hidden>
+          <span class="sb-ico">🌐</span>
+          <span class="sb-text">Your public showcase: <b id="showcase-label"></b></span>
+          <span class="sb-arrow">↗</span>
+        </a>
+
         <!-- AI create (conversational) -->
         <div class="ai-create" id="ai-create">
           <div class="ai-head">
@@ -1289,6 +1325,7 @@
       if (currentUser.is_admin) {
         document.getElementById('admin-tab').style.display = '';
       }
+      updateShowcaseBanner();
       showView('main-view');
       // Resume a ?job= session when present; otherwise show the usual greeting.
       const rawJob = new URLSearchParams(location.search).get('job');
@@ -1300,6 +1337,20 @@
         aiGreeting();
       }
       loadSites();
+    }
+
+    // Show a link to the user's public showcase (sites.<apex>/<handle>).
+    // Only rendered when signed in AND currentUser.handle is present; hidden otherwise.
+    function updateShowcaseBanner() {
+      const banner = document.getElementById('showcase-banner');
+      if (!banner) return;
+      const handle = currentUser && currentUser.handle;
+      if (!handle) { banner.hidden = true; return; }
+      const contentHost = 'sites.' + location.hostname.replace(/^www\./, '');
+      const showcaseUrl = location.protocol + '//' + contentHost + '/' + handle;
+      banner.href = showcaseUrl;
+      document.getElementById('showcase-label').textContent = contentHost + '/' + handle;
+      banner.hidden = false;
     }
 
     async function verifyAndEnter() {
@@ -1336,6 +1387,7 @@
       currentUser = null;
       localStorage.removeItem('apiKey');
       document.body.classList.remove('authed');
+      document.getElementById('showcase-banner').hidden = true;
       document.getElementById('user-actions').style.display = 'none';
       document.getElementById('admin-tab').style.display = 'none';
       switchTab('sites');

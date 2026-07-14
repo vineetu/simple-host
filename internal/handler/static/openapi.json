@@ -677,6 +677,63 @@
         }
       }
     },
+    "/v1/sites/{sitename}/visibility": {
+      "put": {
+        "operationId": "putSitesBySitenameVisibility",
+        "summary": "Set showcase visibility",
+        "description": "Set whether this site is listed on the owner's public showcase at sites.<domain>/<handle>. `public` = listed on the showcase; `unlisted` = still reachable by direct link but hidden from the showcase. Owner only (API key).",
+        "tags": [
+          "Sites"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "visibility"
+                ],
+                "properties": {
+                  "visibility": {
+                    "type": "string",
+                    "enum": [
+                      "public",
+                      "unlisted"
+                    ],
+                    "example": "unlisted"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Visibility updated"
+          },
+          "400": {
+            "description": "Invalid visibility value"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
     "/v1/sites/{sitename}/analytics": {
       "get": {
         "operationId": "getSitesBySitenameAnalytics",

@@ -29,6 +29,12 @@ CREATE TABLE sites (
   CONSTRAINT sites_user_name UNIQUE (user_id, name)
 );
 
+-- Showcase visibility (added later): whether a site is listed on the owner's
+-- public showcase at sites.<domain>/<handle>. Defaults to 'public' so every
+-- existing site keeps its current behavior (all sites are already URL-reachable).
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'public'
+  CHECK (visibility IN ('public', 'unlisted'));
+
 -- Frozen legacy per-site hostnames (e.g. mysite.simple-host.app) bound to a
 -- site_id. Populated by a later backfill; not wired into request paths yet.
 CREATE TABLE legacy_hostnames (

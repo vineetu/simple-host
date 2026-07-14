@@ -375,7 +375,7 @@ func DeleteSite(ctx context.Context, db Querier, siteID string) error {
 
 func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 	const query = `
-		SELECT s.id, s.user_id, s.name, s.active_version, s.site_url, s.created_at, s.updated_at, s.custom_domain, s.domain_status, u.username
+		SELECT s.id, s.user_id, s.name, s.active_version, s.site_url, s.created_at, s.updated_at, s.custom_domain, s.domain_status, s.visibility, u.username
 		FROM sites s
 		INNER JOIN users u ON u.id = s.user_id
 		ORDER BY s.created_at ASC, s.name ASC
@@ -400,6 +400,7 @@ func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 			&site.UpdatedAt,
 			&site.CustomDomain,
 			&site.DomainStatus,
+			&site.Visibility,
 			&site.OwnerUsername,
 		); err != nil {
 			return nil, err
@@ -414,7 +415,7 @@ func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 
 func ListSitesByUser(ctx context.Context, db *sql.DB, userID string) ([]Site, error) {
 	const query = `
-		SELECT id, user_id, name, active_version, site_url, created_at, updated_at, custom_domain, domain_status
+		SELECT id, user_id, name, active_version, site_url, created_at, updated_at, custom_domain, domain_status, visibility
 		FROM sites
 		WHERE user_id = $1
 		ORDER BY created_at ASC, name ASC
@@ -425,6 +426,23 @@ func ListSitesByUser(ctx context.Context, db *sql.DB, userID string) ([]Site, er
 		return nil, err
 	}
 	return scanSiteRows(rows)
+}
+
+// SetSiteVisibility updates a site's showcase visibility ('public' | 'unlisted').
+func SetSiteVisibility(ctx context.Context, db *sql.DB, siteID, visibility string) error {
+	const query = `UPDATE sites SET visibility = $2, updated_at = now() WHERE id = $1`
+	res, err := db.ExecContext(ctx, query, siteID, visibility)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 func scanSiteRows(rows *sql.Rows) ([]Site, error) {
@@ -444,6 +462,7 @@ func scanSiteRows(rows *sql.Rows) ([]Site, error) {
 			&site.UpdatedAt,
 			&site.CustomDomain,
 			&site.DomainStatus,
+			&site.Visibility,
 		); err != nil {
 			return nil, err
 		}

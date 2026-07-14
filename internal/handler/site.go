@@ -83,6 +83,7 @@ type siteResponse struct {
 	UpdatedAt      time.Time `json:"updated_at"`
 	CustomDomain   string    `json:"custom_domain,omitempty"`
 	DomainStatus   string    `json:"domain_status,omitempty"`
+	Visibility     string    `json:"visibility,omitempty"`
 	OwnerUsername  string    `json:"owner_username,omitempty"`
 	Note           string    `json:"note,omitempty"`
 }
@@ -196,6 +197,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("GET /v1/sites/{sitename}/versions", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listVersions))))
 	mux.Handle("PUT /v1/sites/{sitename}/active-version", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setActiveVersion))))
 	mux.Handle("GET /v1/sites/{sitename}/analytics", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteAnalytics))))
+	mux.Handle("PUT /v1/sites/{sitename}/visibility", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setVisibility))))
 
 	// JSON deploy (LLM-friendly): file contents inline, no archive. Same auth +
 	// rate-limit chain as the archive upload; CORS preflight is handled by the
@@ -232,6 +234,11 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.HandleFunc("GET /internal/view-auth", h.viewAuth)
 	mux.HandleFunc("GET /internal/view-login-page", h.viewLoginPage)
 	mux.HandleFunc("POST /internal/view-login", h.viewLogin)
+
+	// Per-user public showcase + branded 404s, reached only via the content-host
+	// nginx block (single-segment /<handle> -> showcase; file misses -> notfound).
+	mux.HandleFunc("GET /internal/showcase/{handle}", h.showcase)
+	mux.HandleFunc("GET /internal/notfound", h.notFound)
 
 	// Append-only collections (second backend type): cheap O(1) appends +
 	// paginated reads for large/high-volume lists. Origin-gated + view-lock
@@ -1167,6 +1174,57 @@ func (h *SiteHandler) deleteSite(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// setVisibility toggles a site's showcase visibility ('public' | 'unlisted').
+// Owner-only: the site is resolved via GetSiteByUser, so a user can only change
+// their own sites.
+func (h *SiteHandler) setVisibility(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+		return
+	}
+
+	siteName := strings.TrimSpace(r.PathValue("sitename"))
+	if siteName == "" {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
+		return
+	}
+
+	var body struct {
+		Visibility string `json:"visibility"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
+		return
+	}
+	vis := strings.ToLower(strings.TrimSpace(body.Visibility))
+	if vis != "public" && vis != "unlisted" {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "visibility must be 'public' or 'unlisted'"})
+		return
+	}
+
+	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+
+	if err := db.SetSiteVisibility(r.Context(), h.database, site.ID, vis); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"name": siteName, "visibility": vis})
+}
+
 func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -1266,6 +1324,10 @@ func archiveFilename(siteName string, body []byte) string {
 }
 
 func toSiteResponse(site db.Site, note string) siteResponse {
+	visibility := site.Visibility
+	if visibility == "" {
+		visibility = "public"
+	}
 	return siteResponse{
 		ID:            site.ID,
 		UserID:        site.UserID,
@@ -1276,6 +1338,7 @@ func toSiteResponse(site db.Site, note string) siteResponse {
 		UpdatedAt:     site.UpdatedAt,
 		CustomDomain:  site.CustomDomain.String,
 		DomainStatus:  site.DomainStatus.String,
+		Visibility:    visibility,
 		OwnerUsername: site.OwnerUsername,
 		Note:          note,
 	}

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>404 — Not found · simple·host</title>
+  <script>(function(){try{var s=localStorage.getItem('sh-theme');document.documentElement.dataset.theme=s||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');}catch(e){document.documentElement.dataset.theme='light';}})();</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    [hidden] { display: none !important; }
+
+    :root {
+      --bg: #020617;
+      --surface: #0b1222;
+      --grid: #0f1830;
+      --border: #1e293b;
+      --border-hi: #334155;
+      --text: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --dim: #475569;
+      --accent: #22d3ee;
+      --accent-hover: #67e8f9;
+      --success: #34d399;
+      --error: #fb7185;
+      --radius: 10px;
+      --font: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+      --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+      --header-bg: rgba(2, 6, 23, 0.75);
+      --on-accent: #020617;
+    }
+    html[data-theme="light"] {
+      --bg: #f7f8fb;
+      --surface: #ffffff;
+      --grid: #e9edf4;
+      --border: #e2e8f0;
+      --border-hi: #cbd5e1;
+      --text: #0f172a;
+      --text-secondary: #475569;
+      --dim: #94a3b8;
+      --accent: #0891b2;
+      --accent-hover: #0e7490;
+      --success: #059669;
+      --error: #e11d48;
+      --header-bg: rgba(255, 255, 255, 0.82);
+      --on-accent: #ffffff;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      background-image:
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+      background-size: 48px 48px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .container { max-width: 720px; margin: 0 auto; padding: 0 24px; width: 100%; }
+
+    header {
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+      background: var(--header-bg);
+      backdrop-filter: blur(8px);
+    }
+    header .container { display: flex; align-items: center; justify-content: space-between; }
+
+    .logo {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: var(--text);
+      text-decoration: none;
+    }
+    .logo b { color: var(--accent); }
+
+    .theme-toggle {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      border-radius: 8px;
+      width: 32px; height: 30px;
+      padding: 0;
+      cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 14px; line-height: 1;
+    }
+    .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+
+    .nf-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 24px;
+      text-align: center;
+    }
+    .nf-card { max-width: 460px; }
+
+    .nf-code {
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 96px;
+      line-height: 1;
+      letter-spacing: -0.04em;
+      color: var(--accent);
+      margin-bottom: 20px;
+    }
+    .nf-msg {
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    .nf-sub {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 28px;
+      line-height: 1.6;
+    }
+
+    .btn-primary {
+      display: inline-block;
+      font-family: var(--font);
+      font-size: 14px;
+      font-weight: 600;
+      border: none;
+      border-radius: var(--radius);
+      padding: 10px 20px;
+      cursor: pointer;
+      background: var(--accent);
+      color: var(--on-accent);
+      text-decoration: none;
+      transition: background 0.15s ease;
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+
+    .site-footer {
+      border-top: 1px solid var(--border);
+      padding: 20px 24px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .site-footer a { color: var(--text-secondary); text-decoration: none; }
+    .site-footer a:hover { color: var(--text); }
+
+    @media (max-width: 480px) { .nf-code { font-size: 72px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a class="logo" href="__SH_BACKLINK_URL__">simple<b>·</b>host</a>
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle theme"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5.1 5.1l1.4 1.4M17.5 17.5l1.4 1.4M18.9 5.1l-1.4 1.4M6.5 17.5l-1.4 1.4"/></svg></button>
+    </div>
+  </header>
+
+  <div class="nf-wrap">
+    <div class="nf-card">
+      <div class="nf-code">404</div>
+      <h1 class="nf-msg">__SH_MESSAGE__</h1>
+      <p class="nf-sub">__SH_SUBTEXT__</p>
+      <a class="btn-primary" href="__SH_BACKLINK_URL__">__SH_BACKLINK_LABEL__</a>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    simple·host &middot; <a href="__SH_BACKLINK_URL__">__SH_BACKLINK_LABEL__</a>
+  </footer>
+
+  <script>
+    // Theme toggle (light / dark). Initial theme is set pre-paint in <head>.
+    (function () {
+      var btn = document.getElementById('theme-toggle');
+      if (!btn) return;
+      var SUN = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5.1 5.1l1.4 1.4M17.5 17.5l1.4 1.4M18.9 5.1l-1.4 1.4M6.5 17.5l-1.4 1.4"/></svg>';
+      var MOON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+      var paint = function () { btn.innerHTML = document.documentElement.dataset.theme === 'dark' ? SUN : MOON; };
+      paint();
+      btn.addEventListener('click', function () {
+        var t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+        document.documentElement.dataset.theme = t;
+        try { localStorage.setItem('sh-theme', t); } catch (e) {}
+        paint();
+      });
+    })();
+  </script>
+</body>
+</html>

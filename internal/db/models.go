@@ -24,6 +24,7 @@ type Site struct {
 	UpdatedAt     time.Time
 	CustomDomain  sql.NullString
 	DomainStatus  sql.NullString
+	Visibility    string // showcase visibility: 'public' | 'unlisted' (default 'public')
 
 	// OwnerUsername is populated only by ListAllSites (admin view).
 	OwnerUsername string

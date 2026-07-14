@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="index">
+  <title>@__SH_HANDLE__'s sites · simple·host</title>
+  <script>(function(){try{var s=localStorage.getItem('sh-theme');document.documentElement.dataset.theme=s||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');}catch(e){document.documentElement.dataset.theme='light';}})();</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    [hidden] { display: none !important; }
+
+    :root {
+      --bg: #020617;
+      --surface: #0b1222;
+      --grid: #0f1830;
+      --border: #1e293b;
+      --border-hi: #334155;
+      --text: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --dim: #475569;
+      --accent: #22d3ee;
+      --accent-hover: #67e8f9;
+      --success: #34d399;
+      --error: #fb7185;
+      --radius: 10px;
+      --font: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+      --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+      --header-bg: rgba(2, 6, 23, 0.75);
+      --on-accent: #020617;
+    }
+    html[data-theme="light"] {
+      --bg: #f7f8fb;
+      --surface: #ffffff;
+      --grid: #e9edf4;
+      --border: #e2e8f0;
+      --border-hi: #cbd5e1;
+      --text: #0f172a;
+      --text-secondary: #475569;
+      --dim: #94a3b8;
+      --accent: #0891b2;
+      --accent-hover: #0e7490;
+      --success: #059669;
+      --error: #e11d48;
+      --header-bg: rgba(255, 255, 255, 0.82);
+      --on-accent: #ffffff;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      background-image:
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+      background-size: 48px 48px;
+    }
+
+    .container { max-width: 860px; margin: 0 auto; padding: 0 24px; }
+
+    /* Header */
+    header {
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 32px;
+      background: var(--header-bg);
+      backdrop-filter: blur(8px);
+      position: sticky; top: 0; z-index: 10;
+    }
+    header .container { display: flex; align-items: center; justify-content: space-between; }
+    .logo {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: var(--text);
+      text-decoration: none;
+    }
+    .logo b { color: var(--accent); }
+    .top-actions { display: flex; align-items: center; gap: 16px; }
+
+    .theme-toggle {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      border-radius: 8px;
+      width: 32px; height: 30px;
+      padding: 0;
+      cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 14px; line-height: 1;
+    }
+    .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Buttons */
+    button, .btn {
+      font-family: var(--font);
+      font-size: 14px;
+      font-weight: 500;
+      border: none;
+      border-radius: var(--radius);
+      padding: 8px 16px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .btn-primary { background: var(--accent); color: var(--on-accent); font-weight: 600; text-decoration: none; display: inline-block; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-secondary { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: var(--surface); color: var(--text); }
+    .btn-small { font-size: 12px; padding: 4px 10px; }
+    .btn-ghost { background: none; border: none; color: var(--text-secondary); font-size: 13px; padding: 4px 8px; cursor: pointer; font-family: var(--font); }
+    .btn-ghost:hover { color: var(--text); }
+
+    /* Page title */
+    .profile-head { margin-bottom: 28px; }
+    .profile-eyebrow {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 16px;
+    }
+    .profile-eyebrow::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+    .profile-head h1 {
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 34px;
+      line-height: 1.05;
+      letter-spacing: -0.025em;
+      color: var(--text);
+      margin: 0 0 8px;
+    }
+    .profile-head h1 em { font-style: italic; font-weight: 400; color: var(--accent); }
+    .profile-head p { font-size: 14px; color: var(--text-secondary); margin: 0; }
+
+    .owner-note {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 12.5px;
+      color: var(--text-secondary);
+      background: rgba(34, 211, 238, 0.06);
+      border: 1px solid var(--border-hi);
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      margin-bottom: 24px;
+    }
+    .owner-note b { color: var(--text); font-weight: 600; }
+
+    /* Public gallery */
+    .gallery {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+      margin-bottom: 32px;
+    }
+    @media (max-width: 640px) { .gallery { grid-template-columns: 1fr; } }
+    .g-card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 18px 16px;
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .g-card h3 { font-size: 15px; font-weight: 600; font-family: var(--mono); color: var(--text); word-break: break-all; }
+    .g-card .g-meta { font-size: 12px; color: var(--text-secondary); }
+    .g-card .g-open {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--accent);
+      text-decoration: none;
+      margin-top: auto;
+    }
+    .g-card .g-open:hover { text-decoration: underline; }
+
+    .empty-state {
+      text-align: center;
+      padding: 48px 24px;
+      color: var(--text-secondary);
+      font-size: 14px;
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      margin-bottom: 32px;
+    }
+
+    /* Numbered sections (owner mode) */
+    .section { margin-bottom: 34px; }
+    .section-num {
+      display: flex; align-items: baseline; gap: 12px;
+      margin-bottom: 18px;
+    }
+    .section-num .num {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+    }
+    .section-num h2 {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+      color: var(--text);
+    }
+    .section-num .line { flex: 1; height: 1px; background: var(--border); align-self: center; }
+
+    /* Overview stat cards */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    @media (max-width: 680px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+    .stat {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      background: var(--surface);
+    }
+    .stat .s-val {
+      font-family: var(--mono);
+      font-size: 26px;
+      font-weight: 700;
+      line-height: 1.1;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+    .stat .s-lbl {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-secondary);
+      margin-top: 6px;
+    }
+
+    /* Inventory table */
+    .inv-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      background: var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .inv-row {
+      background: var(--surface);
+      padding: 14px 18px;
+    }
+    .inv-main {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .inv-id { min-width: 0; }
+    .inv-id h3 {
+      font-size: 14px; font-weight: 600; font-family: var(--mono);
+      color: var(--text); word-break: break-all;
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+    .inv-path {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: var(--text-secondary);
+      word-break: break-all;
+      margin-top: 3px;
+    }
+    .vis-badge {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+    .vis-badge.public { color: var(--success); border-color: var(--success); }
+    .vis-badge.unlisted { color: var(--text-secondary); }
+
+    .inv-nums {
+      display: flex;
+      gap: 18px;
+      flex-shrink: 0;
+      font-variant-numeric: tabular-nums;
+    }
+    .inv-nums .col { text-align: right; }
+    .inv-nums .col .n {
+      font-family: var(--mono);
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .inv-nums .col .l {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-secondary);
+    }
+
+    .inv-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+      align-items: center;
+    }
+    .inv-actions a.btn-small.btn-secondary { text-decoration: none; display: inline-block; }
+    .spark-toggle {
+      background: none; border: none;
+      color: var(--accent);
+      font-family: var(--font);
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      padding: 4px 0;
+      margin-left: auto;
+    }
+    .spark-toggle:hover { text-decoration: underline; }
+
+    .inv-trend {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      color: var(--text-secondary);
+      font-size: 11px;
+    }
+    .an-spark { display: block; margin-top: 6px; color: var(--accent); opacity: 0.9; }
+    .an-spark .an-base { stroke: var(--border-hi); opacity: 0.6; }
+
+    /* versions panel */
+    .versions-panel {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+    .versions-list { display: flex; flex-direction: column; gap: 6px; }
+    .version-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 8px 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 12px;
+    }
+    .version-row .version-num { font-family: var(--mono); font-weight: 600; min-width: 38px; }
+    .version-row .version-date { color: var(--text-secondary); flex: 1; }
+    .version-row .version-active-tag { color: var(--success); font-weight: 500; }
+    .versions-status { color: var(--text-secondary); font-size: 12px; padding: 6px 2px; }
+
+    /* Owner sign-in affordance */
+    .site-footer {
+      border-top: 1px solid var(--border);
+      padding: 24px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .site-footer a { color: var(--text-secondary); text-decoration: none; }
+    .site-footer a:hover { color: var(--text); }
+    .signin-link {
+      background: none; border: none;
+      color: var(--text-secondary);
+      font-family: var(--font);
+      font-size: 12px;
+      cursor: pointer;
+      text-decoration: underline;
+      text-decoration-color: var(--border);
+      text-underline-offset: 3px;
+    }
+    .signin-link:hover { color: var(--text); }
+    .signin-box {
+      max-width: 440px;
+      margin: 14px auto 0;
+      display: flex;
+      gap: 8px;
+    }
+    .signin-box input {
+      flex: 1;
+      min-width: 0;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-family: var(--mono);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
+      outline: none;
+    }
+    .signin-box input:focus { border-color: var(--accent); }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px; right: 24px;
+      padding: 12px 20px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 500;
+      color: white;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: all 0.3s ease;
+      z-index: 100;
+      max-width: 400px;
+    }
+    .toast.visible { opacity: 1; transform: translateY(0); }
+    .toast.success { background: var(--success); }
+    .toast.error { background: var(--error); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a class="logo" id="brand-link" href="/">simple<b>·</b>host</a>
+      <div class="top-actions">
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle theme"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5.1 5.1l1.4 1.4M17.5 17.5l1.4 1.4M18.9 5.1l-1.4 1.4M6.5 17.5l-1.4 1.4"/></svg></button>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="profile-head">
+      <div class="profile-eyebrow"><span>Profile</span></div>
+      <h1><em>@</em>__SH_HANDLE__<em>'s</em> sites</h1>
+      <p id="profile-sub">Public sites published on simple·host.</p>
+    </div>
+
+    <div class="owner-note" id="owner-note" hidden>
+      <span>👁</span>
+      <span>You're viewing <b>your own showcase</b> — public visitors see only your public sites.</span>
+    </div>
+
+    <!-- Public gallery (default) -->
+    <div id="public-view">
+      <div class="gallery" id="gallery"></div>
+    </div>
+
+    <!-- Owner dashboard (hydrated) -->
+    <div id="owner-view" hidden>
+      <div class="section">
+        <div class="section-num"><span class="num">01</span><h2>Overview</h2><span class="line"></span></div>
+        <div class="stats" id="stats"></div>
+      </div>
+      <div class="section">
+        <div class="section-num"><span class="num">02</span><h2>Site Inventory</h2><span class="line"></span></div>
+        <div id="inventory"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <div id="signin-affordance">
+      <span>Owner? <button type="button" class="signin-link" id="reveal-signin">Manage your sites →</button></span>
+      <div class="signin-box" id="signin-box" hidden>
+        <input type="password" id="key-input" placeholder="Paste your API key" autocomplete="off" spellcheck="false">
+        <button type="button" class="btn btn-primary btn-small" id="key-submit">Sign in</button>
+      </div>
+      <p style="margin-top:12px;">or <a id="login-elsewhere" href="/">log in at simple·host →</a></p>
+    </div>
+    <p style="margin-top:16px;">simple·host &middot; <a id="footer-main" href="/">Home</a></p>
+  </footer>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // --- injected data (guarded for direct-open) -----------------------------
+    var SHOWCASE = null;
+    try { SHOWCASE = window.__SHOWCASE__ = /*__SHOWCASE_DATA__*/; } catch (e) { SHOWCASE = null; }
+    if (!SHOWCASE || typeof SHOWCASE !== 'object') {
+      SHOWCASE = { handle: '__SH_HANDLE__', sitesBaseUrl: '', mainUrl: '/', sites: [] };
+    }
+    if (!Array.isArray(SHOWCASE.sites)) SHOWCASE.sites = [];
+    var HANDLE = SHOWCASE.handle || '__SH_HANDLE__';
+    var MAIN_URL = SHOWCASE.mainUrl || '/';
+
+    var apiKey = null;
+    try { apiKey = localStorage.getItem('apiKey'); } catch (e) {}
+
+    // Point brand/footer links back to the main app.
+    (function () {
+      var b = document.getElementById('brand-link'); if (b) b.href = MAIN_URL;
+      var fm = document.getElementById('footer-main'); if (fm) fm.href = MAIN_URL;
+      var le = document.getElementById('login-elsewhere'); if (le) le.href = MAIN_URL;
+    })();
+
+    function esc(str) {
+      if (str === 0) return '0';
+      if (!str) return '';
+      var div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+    function toast(msg, type) {
+      var el = document.getElementById('toast');
+      if (!el) return;
+      el.textContent = msg;
+      el.className = 'toast ' + (type || '') + ' visible';
+      setTimeout(function () { el.classList.remove('visible'); }, 3000);
+    }
+    function fmtDate(s) {
+      if (!s) return '';
+      var d = new Date(s);
+      if (isNaN(d.getTime())) return esc(s);
+      return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+    function num(v) {
+      var n = Number(v);
+      return Number.isFinite(n) ? Math.max(0, Math.trunc(n)) : 0;
+    }
+
+    // Same-origin API helper. nginx proxies /v1 to the app from the sites host.
+    async function api(method, path, body) {
+      var opts = { method: method, headers: { 'X-API-Key': apiKey || '' } };
+      if (body) {
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(body);
+      }
+      return fetch(path, opts);
+    }
+
+    // --------------------------------------------------------------- PUBLIC VIEW
+    function renderPublic() {
+      var gallery = document.getElementById('gallery');
+      var pub = SHOWCASE.sites || [];
+      if (!pub.length) {
+        gallery.outerHTML = '<div class="empty-state" id="gallery">No public sites yet.</div>';
+        return;
+      }
+      gallery.innerHTML = pub.map(function (s) {
+        var name = esc(s.name || '');
+        var url = esc(s.url || '#');
+        return '<div class="g-card">' +
+          '<h3>' + name + '</h3>' +
+          '<div class="g-meta">Created ' + fmtDate(s.created_at) + '</div>' +
+          '<a class="g-open" href="' + url + '" target="_blank" rel="noopener">Open ↗</a>' +
+          '</div>';
+      }).join('');
+    }
+
+    function showPublic() {
+      document.getElementById('public-view').hidden = false;
+      document.getElementById('owner-view').hidden = true;
+      document.getElementById('owner-note').hidden = true;
+    }
+    function showOwner() {
+      document.getElementById('public-view').hidden = true;
+      document.getElementById('owner-view').hidden = false;
+      document.getElementById('owner-note').hidden = false;
+      document.getElementById('signin-affordance').hidden = true;
+      var sub = document.getElementById('profile-sub');
+      if (sub) sub.textContent = 'Your full site inventory — including unlisted sites.';
+    }
+
+    // --------------------------------------------------------------- OWNER MODE
+    // per-site analytics cache: name -> {totals, daily}
+    var analyticsCache = {};
+
+    async function hydrateOwner() {
+      if (!apiKey) return false;
+      var me;
+      try {
+        var res = await api('GET', '/v1/me');
+        if (!res.ok) return false;
+        me = await res.json();
+      } catch (e) { return false; }
+      if (!me) return false;
+      var isOwner = (me.handle && me.handle === HANDLE) || me.is_admin === true;
+      if (!isOwner) return false;
+
+      // Load ALL sites (incl unlisted).
+      var allSites = [];
+      try {
+        var sres = await api('GET', '/v1/sites');
+        if (sres.ok) {
+          var data = await sres.json();
+          if (Array.isArray(data)) allSites = data;
+          // Admin sees all sites; narrow to this handle's owner if possible.
+          if (me.is_admin && me.handle !== HANDLE && me.id) {
+            // viewing someone else's showcase as admin: keep all for now
+          }
+        }
+      } catch (e) { return false; }
+
+      showOwner();
+      renderInventory(allSites);
+      await loadAllAnalytics(allSites);
+      return true;
+    }
+
+    function renderInventory(sitesArr) {
+      var inv = document.getElementById('inventory');
+      if (!sitesArr || !sitesArr.length) {
+        inv.innerHTML = '<div class="empty-state">No sites yet.</div>';
+        renderStats([]);
+        return;
+      }
+      inv.innerHTML = '<div class="inv-list">' + sitesArr.map(function (s) {
+        return renderInvRow(s);
+      }).join('') + '</div>';
+      renderStats(sitesArr);
+    }
+
+    function siteOpenUrl(s) {
+      if (s.site_url) return s.site_url;
+      var base = SHOWCASE.sitesBaseUrl || '';
+      return base + '/' + encodeURIComponent(HANDLE) + '/' + encodeURIComponent(s.name || '') + '/';
+    }
+    function sitePath(s) {
+      return '/' + HANDLE + '/' + (s.name || '') + '/';
+    }
+
+    function renderInvRow(s) {
+      var name = esc(s.name || '');
+      var vis = (s.visibility === 'public') ? 'public' : 'unlisted';
+      var openUrl = esc(siteOpenUrl(s));
+      return '<div class="inv-row" data-site="' + name + '">' +
+        '<div class="inv-main">' +
+          '<div class="inv-id">' +
+            '<h3>' + name + ' <span class="vis-badge ' + vis + '" data-vis-badge="' + name + '">' + vis + '</span></h3>' +
+            '<div class="inv-path">' + esc(sitePath(s)) + '</div>' +
+          '</div>' +
+          '<div class="inv-nums" data-nums="' + name + '">' +
+            '<div class="col"><div class="n" data-k="today-views">—</div><div class="l">Views today</div></div>' +
+            '<div class="col"><div class="n" data-k="today-visits">—</div><div class="l">Visits today</div></div>' +
+            '<div class="col"><div class="n" data-k="week-views">—</div><div class="l">7-day views</div></div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="inv-actions">' +
+          '<a class="btn-small btn-secondary" href="' + openUrl + '" target="_blank" rel="noopener">Open</a>' +
+          '<button type="button" class="btn-small btn-secondary" onclick="toggleVis(\'' + name + '\',\'' + vis + '\')" data-vis-btn="' + name + '">' + (vis === 'public' ? 'Make unlisted' : 'Make public') + '</button>' +
+          '<button type="button" class="btn-small btn-secondary" onclick="toggleVersions(\'' + name + '\')">Revert</button>' +
+          '<button type="button" class="btn-small btn-ghost" onclick="confirmDelete(\'' + name + '\')">Delete</button>' +
+          '<button type="button" class="spark-toggle" onclick="toggleTrend(\'' + name + '\')" data-trend-btn="' + name + '">Show 7-day trend</button>' +
+        '</div>' +
+        '<div class="versions-panel" data-versions="' + name + '" hidden></div>' +
+        '<div class="inv-trend" data-trend="' + name + '" hidden></div>' +
+      '</div>';
+    }
+
+    function renderStats(sitesArr) {
+      var totalSites = sitesArr.length;
+      var viewedToday = 0, visitsToday = 0, weekViews = 0;
+      sitesArr.forEach(function (s) {
+        var a = analyticsCache[s.name];
+        if (!a) return;
+        var t = todayMetrics(a);
+        if (t.views > 0) viewedToday++;
+        visitsToday += t.visits;
+        weekViews += weekViewsFor(a);
+      });
+      var cards = [
+        { v: totalSites, l: 'Total sites' },
+        { v: viewedToday, l: 'Viewed today' },
+        { v: visitsToday, l: 'Visits today' },
+        { v: weekViews, l: '7-day views' }
+      ];
+      document.getElementById('stats').innerHTML = cards.map(function (c) {
+        return '<div class="stat"><div class="s-val">' + c.v.toLocaleString() + '</div><div class="s-lbl">' + c.l + '</div></div>';
+      }).join('');
+    }
+
+    function todayStr() {
+      var d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    function todayMetrics(a) {
+      var daily = Array.isArray(a && a.daily) ? a.daily : [];
+      var t = todayStr();
+      var row = daily.filter(function (d) { return d && String(d.day).slice(0, 10) === t; })[0];
+      return { views: row ? num(row.views) : 0, visits: row ? num(row.visitors) : 0 };
+    }
+    function weekViewsFor(a) {
+      var daily = Array.isArray(a && a.daily) ? a.daily : [];
+      var last7 = daily.slice(-7);
+      return last7.reduce(function (sum, d) { return sum + num(d && d.views); }, 0);
+    }
+
+    async function loadAllAnalytics(sitesArr) {
+      for (var i = 0; i < sitesArr.length; i++) {
+        var s = sitesArr[i];
+        try {
+          var res = await api('GET', '/v1/sites/' + encodeURIComponent(s.name) + '/analytics?days=30');
+          if (!res.ok) continue;
+          var data = await res.json();
+          analyticsCache[s.name] = data;
+          fillRowNums(s.name, data);
+        } catch (e) { /* leave placeholders */ }
+      }
+      // recompute aggregate after analytics land
+      renderStats(sitesArr);
+    }
+
+    function fillRowNums(name, data) {
+      var wrap = document.querySelector('[data-nums="' + cssEsc(name) + '"]');
+      if (!wrap) return;
+      var t = todayMetrics(data);
+      var wv = weekViewsFor(data);
+      var setk = function (k, val) {
+        var el = wrap.querySelector('[data-k="' + k + '"]');
+        if (el) el.textContent = val.toLocaleString();
+      };
+      setk('today-views', t.views);
+      setk('today-visits', t.visits);
+      setk('week-views', wv);
+    }
+
+    function cssEsc(s) { return String(s).replace(/["\\]/g, '\\$&'); }
+
+    // sparkline mirrors index.html renderSparkline (last 7 days)
+    function renderSparkline(daily) {
+      var w = 220, h = 34, pad = 2;
+      var arr = Array.isArray(daily) ? daily.slice(-7) : [];
+      var n = arr.length || 1;
+      var vals = arr.map(function (d) { return num(d && d.views); });
+      var max = Math.max.apply(null, [1].concat(vals));
+      var innerH = h - pad * 2;
+      var innerW = w - pad * 2;
+      var points = vals.map(function (v, i) {
+        var x = pad + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
+        var y = pad + innerH - (v / max) * innerH;
+        return x.toFixed(1) + ',' + y.toFixed(1);
+      }).join(' ');
+      var baseY = (h - pad).toFixed(1);
+      return '<svg class="an-spark" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true">' +
+        '<line class="an-base" x1="' + pad + '" y1="' + baseY + '" x2="' + (w - pad) + '" y2="' + baseY + '" stroke="currentColor" stroke-width="1"/>' +
+        '<polyline fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" points="' + points + '"/>' +
+        '</svg>';
+    }
+
+    function toggleTrend(name) {
+      var panel = document.querySelector('[data-trend="' + cssEsc(name) + '"]');
+      var btn = document.querySelector('[data-trend-btn="' + cssEsc(name) + '"]');
+      if (!panel) return;
+      if (!panel.hidden) {
+        panel.hidden = true;
+        if (btn) btn.textContent = 'Show 7-day trend';
+        return;
+      }
+      var a = analyticsCache[name];
+      var daily = (a && Array.isArray(a.daily)) ? a.daily : [];
+      var wv = weekViewsFor(a || {});
+      panel.innerHTML = '<span>7-day views: <b style="color:var(--text)">' + wv.toLocaleString() + '</b></span>' + renderSparkline(daily);
+      panel.hidden = false;
+      if (btn) btn.textContent = 'Hide 7-day trend';
+    }
+
+    async function toggleVis(name, current) {
+      var next = current === 'public' ? 'unlisted' : 'public';
+      try {
+        var res = await api('PUT', '/v1/sites/' + encodeURIComponent(name) + '/visibility', { visibility: next });
+        if (!res.ok) {
+          var err = await res.json().catch(function () { return null; });
+          toast((err && err.error) || 'Could not change visibility', 'error');
+          return;
+        }
+        var badge = document.querySelector('[data-vis-badge="' + cssEsc(name) + '"]');
+        if (badge) { badge.className = 'vis-badge ' + next; badge.setAttribute('data-vis-badge', name); badge.textContent = next; }
+        var btn = document.querySelector('[data-vis-btn="' + cssEsc(name) + '"]');
+        if (btn) { btn.setAttribute('onclick', "toggleVis('" + name + "','" + next + "')"); btn.textContent = next === 'public' ? 'Make unlisted' : 'Make public'; }
+        toast(name + ' is now ' + next, 'success');
+      } catch (e) {
+        toast('Could not change visibility', 'error');
+      }
+    }
+
+    async function toggleVersions(name) {
+      var panel = document.querySelector('[data-versions="' + cssEsc(name) + '"]');
+      if (!panel) return;
+      if (!panel.hidden) { panel.hidden = true; return; }
+      panel.innerHTML = '<div class="versions-status">Loading versions…</div>';
+      panel.hidden = false;
+      try {
+        var res = await api('GET', '/v1/sites/' + encodeURIComponent(name) + '/versions');
+        if (!res.ok) { panel.innerHTML = '<div class="versions-status">Could not load versions</div>'; return; }
+        var versions = await res.json();
+        if (!Array.isArray(versions) || !versions.length) {
+          panel.innerHTML = '<div class="versions-status">No versions found</div>'; return;
+        }
+        panel.innerHTML = '<div class="versions-list">' + versions.map(function (v) {
+          return '<div class="version-row">' +
+            '<span class="version-num">v' + esc(v.version_number) + '</span>' +
+            '<span class="version-date">' + esc(new Date(v.created_at).toLocaleString()) + '</span>' +
+            (v.is_active
+              ? '<span class="version-active-tag">active</span>'
+              : '<button type="button" class="btn-small btn-secondary" onclick="rollbackTo(\'' + name + '\', ' + Number(v.version_number) + ')">Make active</button>') +
+            '</div>';
+        }).join('') + '</div>';
+      } catch (e) {
+        panel.innerHTML = '<div class="versions-status">Could not load versions</div>';
+      }
+    }
+
+    async function rollbackTo(name, versionNumber) {
+      if (!confirm('Make v' + versionNumber + ' the active version of "' + name + '"?')) return;
+      try {
+        var res = await api('PUT', '/v1/sites/' + encodeURIComponent(name) + '/active-version', { version_number: versionNumber });
+        if (!res.ok) {
+          var err = await res.json().catch(function () { return null; });
+          toast((err && err.error) || 'Could not change active version', 'error');
+          return;
+        }
+        toast('Active version is now v' + versionNumber, 'success');
+        toggleVersions(name); // collapse
+      } catch (e) {
+        toast('Could not change active version', 'error');
+      }
+    }
+
+    async function confirmDelete(name) {
+      if (!confirm('Delete site "' + name + '"? This removes all versions and cannot be undone.')) return;
+      try {
+        var res = await api('DELETE', '/v1/sites/' + encodeURIComponent(name));
+        if (!res.ok && res.status !== 204) {
+          var err = await res.json().catch(function () { return null; });
+          toast((err && err.error) || 'Could not delete site', 'error');
+          return;
+        }
+        toast('Deleted ' + name, 'success');
+        var row = document.querySelector('.inv-row[data-site="' + cssEsc(name) + '"]');
+        if (row) row.remove();
+      } catch (e) {
+        toast('Could not delete site', 'error');
+      }
+    }
+
+    // ------------------------------------------------------------ sign-in box
+    (function () {
+      var reveal = document.getElementById('reveal-signin');
+      var box = document.getElementById('signin-box');
+      var input = document.getElementById('key-input');
+      var submit = document.getElementById('key-submit');
+      if (reveal) reveal.addEventListener('click', function () {
+        box.hidden = !box.hidden;
+        if (!box.hidden) input.focus();
+      });
+      function doSubmit() {
+        var v = (input.value || '').trim();
+        if (!v) return;
+        try { localStorage.setItem('apiKey', v); } catch (e) {}
+        apiKey = v;
+        hydrateOwner().then(function (ok) {
+          if (!ok) { toast('Key does not match this showcase', 'error'); }
+        }).catch(function () { toast('Sign-in failed', 'error'); });
+      }
+      if (submit) submit.addEventListener('click', doSubmit);
+      if (input) input.addEventListener('keydown', function (e) { if (e.key === 'Enter') doSubmit(); });
+    })();
+
+    // ------------------------------------------------------------------- boot
+    renderPublic();
+    showPublic();
+    if (apiKey) {
+      hydrateOwner().catch(function () { /* stay in public view on any error */ });
+    }
+
+    // Theme toggle (light / dark). Initial theme is set pre-paint in <head>.
+    (function () {
+      var btn = document.getElementById('theme-toggle');
+      if (!btn) return;
+      var SUN = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5.1 5.1l1.4 1.4M17.5 17.5l1.4 1.4M18.9 5.1l-1.4 1.4M6.5 17.5l-1.4 1.4"/></svg>';
+      var MOON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+      var paint = function () { btn.innerHTML = document.documentElement.dataset.theme === 'dark' ? SUN : MOON; };
+      paint();
+      btn.addEventListener('click', function () {
+        var t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+        document.documentElement.dataset.theme = t;
+        try { localStorage.setItem('sh-theme', t); } catch (e) {}
+        paint();
+      });
+    })();
+  </script>
+</body>
+</html>
