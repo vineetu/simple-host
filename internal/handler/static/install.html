@@ -228,14 +228,22 @@
             <div>
               <div class="eyebrow">In a coding agent</div>
               <h2>Add the skill to your agent.</h2>
-              <p>Works with Claude Code, Cursor, Codex CLI, opencode — anything with a shell. One line teaches your agent the whole platform (deploy, state &amp; collections, private pages, widgets). Then just say <em>“deploy this folder”</em> or <em>“build me a waitlist page.”</em></p>
+              <p>Works with Claude Code, Cursor, Codex CLI, opencode, GitHub Copilot — anything with a shell. One line teaches your agent the whole platform (deploy, state &amp; collections, private pages, widgets). Then just say <em>“deploy this folder”</em> or <em>“build me a waitlist page.”</em> The installer knows each agent's skills folder (and the right Windows paths), so you don't have to.</p>
             </div>
           </div>
           <div class="code-head">
-            <span>Any agent · one line</span>
+            <span>Any agent · one line (auto-detects your agent)</span>
             <button class="copy-btn" type="button" data-copy-target="cmd-npx">Copy</button>
           </div>
           <pre id="cmd-npx">npx skills add vineetu/simple-host</pre>
+
+          <p class="note" style="margin-top:12px"><b>GitHub Copilot CLI:</b> Copilot can't unzip skills into its own sandboxed <code class="inline-code">~/.copilot</code> folder, so install them from your terminal with the universal installer — name the agent and use <code class="inline-code">--copy</code> (Windows symlinks need admin), adding each skill:</p>
+          <div class="code-head">
+            <span>GitHub Copilot · one skill per line</span>
+            <button class="copy-btn" type="button" data-copy-target="cmd-npx-copilot">Copy</button>
+          </div>
+          <pre id="cmd-npx-copilot">npx skills add vineetu/simple-host -g -a github-copilot -s website-deploy --copy -y
+npx skills add vineetu/simple-host -g -a github-copilot -s website-deploy-builder --copy -y</pre>
 
           <details class="more">
             <summary>Other tools · manual install · Windows</summary>
