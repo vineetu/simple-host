@@ -65,7 +65,7 @@ var (
 	pluginVersionErr  error
 )
 
-func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string) {
+func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler) {
 	sub, _ := fs.Sub(staticFiles, "static")
 	fileServer := http.FileServerFS(sub)
 
@@ -78,7 +78,9 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string) {
 	mux.HandleFunc("GET /plugin.zip", servePluginZip)
 	mux.HandleFunc("GET /install.sh", serveInstallScript(publicBaseURL))
 	mux.HandleFunc("GET /install.ps1", serveInstallPowerShell(publicBaseURL))
-	mux.Handle("GET /", adminUICSP(fileServer))
+	// On the base origin, a bare /<handle> that resolves to a real user renders
+	// that user's owner app; everything else is the landing page / static files.
+	mux.Handle("GET /", adminUICSP(sh.ownerAppOrStatic(fileServer)))
 }
 
 // adminUICSP adds a Content-Security-Policy to the admin UI / landing pages.

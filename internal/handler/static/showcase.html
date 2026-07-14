@@ -368,36 +368,8 @@
     }
     .site-footer a { color: var(--text-secondary); text-decoration: none; }
     .site-footer a:hover { color: var(--text); }
-    .signin-link {
-      background: none; border: none;
-      color: var(--text-secondary);
-      font-family: var(--font);
-      font-size: 12px;
-      cursor: pointer;
-      text-decoration: underline;
-      text-decoration-color: var(--border);
-      text-underline-offset: 3px;
-    }
-    .signin-link:hover { color: var(--text); }
-    .signin-box {
-      max-width: 440px;
-      margin: 14px auto 0;
-      display: flex;
-      gap: 8px;
-    }
-    .signin-box input {
-      flex: 1;
-      min-width: 0;
-      padding: 8px 12px;
-      font-size: 13px;
-      font-family: var(--mono);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      background: var(--surface);
-      color: var(--text);
-      outline: none;
-    }
-    .signin-box input:focus { border-color: var(--accent); }
+    #manage-cta { margin-bottom: 8px; }
+    #manage-cta .btn-primary { font-size: 13px; padding: 9px 18px; }
 
     /* Toast */
     .toast {
@@ -441,6 +413,11 @@
       <span>You're viewing <b>your own showcase</b> — public visitors see only your public sites.</span>
     </div>
 
+    <div class="owner-note" id="owner-share" hidden>
+      <span>🔗</span>
+      <span>Your public showcase: <a id="owner-share-link" href="#" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">#</a></span>
+    </div>
+
     <!-- Public gallery (default) -->
     <div id="public-view">
       <div class="gallery" id="gallery"></div>
@@ -460,13 +437,8 @@
   </div>
 
   <footer class="site-footer">
-    <div id="signin-affordance">
-      <span>Owner? <button type="button" class="signin-link" id="reveal-signin">Manage your sites →</button></span>
-      <div class="signin-box" id="signin-box" hidden>
-        <input type="password" id="key-input" placeholder="Paste your API key" autocomplete="off" spellcheck="false">
-        <button type="button" class="btn btn-primary btn-small" id="key-submit">Sign in</button>
-      </div>
-      <p style="margin-top:12px;">or <a id="login-elsewhere" href="/">log in at simple·host →</a></p>
+    <div id="manage-cta" hidden>
+      <a class="btn btn-primary" id="manage-cta-link" href="/">Manage your sites →</a>
     </div>
     <p style="margin-top:16px;">simple·host &middot; <a id="footer-main" href="/">Home</a></p>
   </footer>
@@ -478,12 +450,20 @@
     var SHOWCASE = null;
     try { SHOWCASE = window.__SHOWCASE__ = /*__SHOWCASE_DATA__*/; } catch (e) { SHOWCASE = null; }
     if (!SHOWCASE || typeof SHOWCASE !== 'object') {
-      SHOWCASE = { handle: '__SH_HANDLE__', sitesBaseUrl: '', mainUrl: '/', sites: [] };
+      SHOWCASE = { handle: '__SH_HANDLE__', sitesBaseUrl: '', mainUrl: '/', ownerAppUrl: '/', publicShowcaseUrl: '', sites: [] };
     }
     if (!Array.isArray(SHOWCASE.sites)) SHOWCASE.sites = [];
     var HANDLE = SHOWCASE.handle || '__SH_HANDLE__';
     var MAIN_URL = SHOWCASE.mainUrl || '/';
 
+    // Are we on the base owner app (where the API key already lives) or on the
+    // public content host? Chosen defensively — bad mainUrl falls back to false.
+    var onBaseApp = false;
+    try { onBaseApp = location.hostname === new URL(SHOWCASE.mainUrl, location.href).hostname; } catch (e) { onBaseApp = false; }
+
+    // READ ONLY — this page never writes localStorage('apiKey'). On the base app
+    // the key is already present (user logged in there); on the content host it
+    // is absent by design and we route owners to the base app instead.
     var apiKey = null;
     try { apiKey = localStorage.getItem('apiKey'); } catch (e) {}
 
@@ -491,7 +471,6 @@
     (function () {
       var b = document.getElementById('brand-link'); if (b) b.href = MAIN_URL;
       var fm = document.getElementById('footer-main'); if (fm) fm.href = MAIN_URL;
-      var le = document.getElementById('login-elsewhere'); if (le) le.href = MAIN_URL;
     })();
 
     function esc(str) {
@@ -548,16 +527,43 @@
       }).join('');
     }
 
+    // Non-owner CTA — exactly one link, chosen by origin. Never shown in owner view.
+    function renderCta() {
+      var wrap = document.getElementById('manage-cta');
+      var link = document.getElementById('manage-cta-link');
+      if (!wrap || !link) return;
+      if (onBaseApp) {
+        // On the base owner app but not signed in → send them to sign in.
+        link.textContent = 'Sign in to manage →';
+        link.href = SHOWCASE.mainUrl || '/';
+        link.target = '_self';
+      } else {
+        // On the public content host → send owners to their app (already logged in there).
+        link.textContent = 'Manage your sites →';
+        link.href = SHOWCASE.ownerAppUrl || SHOWCASE.mainUrl || '/';
+        link.target = '_self';
+      }
+      wrap.hidden = false;
+    }
+
     function showPublic() {
       document.getElementById('public-view').hidden = false;
       document.getElementById('owner-view').hidden = true;
       document.getElementById('owner-note').hidden = true;
+      renderCta();
     }
     function showOwner() {
       document.getElementById('public-view').hidden = true;
       document.getElementById('owner-view').hidden = false;
       document.getElementById('owner-note').hidden = false;
-      document.getElementById('signin-affordance').hidden = true;
+      var cta = document.getElementById('manage-cta');
+      if (cta) cta.hidden = true;
+      var share = document.getElementById('owner-share');
+      if (share && SHOWCASE.publicShowcaseUrl) {
+        var a = document.getElementById('owner-share-link');
+        if (a) { a.href = SHOWCASE.publicShowcaseUrl; a.textContent = SHOWCASE.publicShowcaseUrl + ' ↗'; }
+        share.hidden = false;
+      }
       var sub = document.getElementById('profile-sub');
       if (sub) sub.textContent = 'Your full site inventory — including unlisted sites.';
     }
@@ -833,29 +839,6 @@
         toast('Could not delete site', 'error');
       }
     }
-
-    // ------------------------------------------------------------ sign-in box
-    (function () {
-      var reveal = document.getElementById('reveal-signin');
-      var box = document.getElementById('signin-box');
-      var input = document.getElementById('key-input');
-      var submit = document.getElementById('key-submit');
-      if (reveal) reveal.addEventListener('click', function () {
-        box.hidden = !box.hidden;
-        if (!box.hidden) input.focus();
-      });
-      function doSubmit() {
-        var v = (input.value || '').trim();
-        if (!v) return;
-        try { localStorage.setItem('apiKey', v); } catch (e) {}
-        apiKey = v;
-        hydrateOwner().then(function (ok) {
-          if (!ok) { toast('Key does not match this showcase', 'error'); }
-        }).catch(function () { toast('Sign-in failed', 'error'); });
-      }
-      if (submit) submit.addEventListener('click', doSubmit);
-      if (input) input.addEventListener('keydown', function (e) { if (e.key === 'Enter') doSubmit(); });
-    })();
 
     // ------------------------------------------------------------------- boot
     renderPublic();

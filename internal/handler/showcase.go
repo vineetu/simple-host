@@ -36,10 +36,12 @@ type showcaseSite struct {
 }
 
 type showcaseData struct {
-	Handle       string         `json:"handle"`
-	SitesBaseURL string         `json:"sitesBaseUrl"`
-	MainURL      string         `json:"mainUrl"`
-	Sites        []showcaseSite `json:"sites"`
+	Handle            string         `json:"handle"`
+	SitesBaseURL      string         `json:"sitesBaseUrl"`
+	PublicShowcaseURL string         `json:"publicShowcaseUrl"`
+	OwnerAppURL       string         `json:"ownerAppUrl"`
+	MainURL           string         `json:"mainUrl"`
+	Sites             []showcaseSite `json:"sites"`
 }
 
 // publicSitesBase reconstructs the scheme://host the browser reached the content
@@ -71,6 +73,46 @@ func (h *SiteHandler) mainSiteURL() string {
 // the owner view client-side when a matching same-origin API key is present.
 func (h *SiteHandler) showcase(w http.ResponseWriter, r *http.Request) {
 	handle := strings.ToLower(strings.TrimSpace(r.PathValue("handle")))
+	h.renderShowcase(w, r, handle)
+}
+
+// ownerAppOrStatic serves the per-user OWNER APP on the base origin
+// (<domain>/<handle>) when the single path segment resolves to a real handle,
+// otherwise falls through to the static file server (landing page, docs, install
+// page, assets, SPA). The page it renders hydrates into the full owner dashboard
+// client-side, because on the base origin the API key is already in localStorage
+// from login — no paste, no redirect. The cheap dot/charset filter means the DB
+// lookup only fires for handle-shaped paths, never for a static asset request.
+func (h *SiteHandler) ownerAppOrStatic(fileServer http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seg := strings.Trim(r.URL.Path, "/")
+		if seg != "" && !strings.ContainsAny(seg, "/.") &&
+			showcaseHandleRe.MatchString(strings.ToLower(seg)) && !reservedShowcaseHandles[strings.ToLower(seg)] {
+			if _, err := db.GetUserByHandle(r.Context(), h.database, strings.ToLower(seg)); err == nil {
+				h.renderShowcase(w, r, strings.ToLower(seg))
+				return
+			}
+		}
+		fileServer.ServeHTTP(w, r)
+	})
+}
+
+// contentBaseURL is the absolute base for user site + showcase links — always the
+// content host (sites.<domain>), regardless of which origin served the page, so
+// the rendered links are correct whether it came from the base app or the
+// content host.
+func (h *SiteHandler) contentBaseURL() string {
+	host := h.contentHost
+	if host == "" {
+		host = "sites." + h.siteDomain
+	}
+	return "https://" + host
+}
+
+// renderShowcase renders the per-user showcase for `handle`. Same output on both
+// origins (all links absolute): served on the content host it's the public,
+// read-only view; served on the base app it hydrates into the owner dashboard.
+func (h *SiteHandler) renderShowcase(w http.ResponseWriter, r *http.Request, handle string) {
 	if handle == "" || !showcaseHandleRe.MatchString(handle) || reservedShowcaseHandles[handle] {
 		h.renderNotFound(w, r, "/"+handle)
 		return
@@ -92,12 +134,14 @@ func (h *SiteHandler) showcase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	base := h.publicSitesBase(r)
+	contentBase := h.contentBaseURL()
 	data := showcaseData{
-		Handle:       handle,
-		SitesBaseURL: base,
-		MainURL:      h.mainSiteURL(),
-		Sites:        []showcaseSite{},
+		Handle:            handle,
+		SitesBaseURL:      contentBase,
+		PublicShowcaseURL: contentBase + "/" + handle,
+		OwnerAppURL:       h.mainSiteURL() + "/" + handle,
+		MainURL:           h.mainSiteURL(),
+		Sites:             []showcaseSite{},
 	}
 	for _, s := range sites {
 		vis := s.Visibility
@@ -109,7 +153,7 @@ func (h *SiteHandler) showcase(w http.ResponseWriter, r *http.Request) {
 		}
 		data.Sites = append(data.Sites, showcaseSite{
 			Name:       s.Name,
-			URL:        base + "/" + handle + "/" + s.Name + "/",
+			URL:        contentBase + "/" + handle + "/" + s.Name + "/",
 			CreatedAt:  s.CreatedAt,
 			Visibility: vis,
 		})
