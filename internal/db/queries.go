@@ -91,6 +91,23 @@ func GetUserByHandle(ctx context.Context, db *sql.DB, handle string) (User, erro
 	return user, err
 }
 
+// GetHandleBySiteName returns the URL-safe handle of the OLDEST owner of a site
+// named `name` — i.e. the account the legacy <name>.<siteDomain> host used to
+// serve. Used to 301 a deprecated name-subdomain to its canonical path URL.
+// Returns sql.ErrNoRows if no such site; the handle is "" if the owner has none.
+func GetHandleBySiteName(ctx context.Context, db *sql.DB, name string) (string, error) {
+	const query = `
+		SELECT COALESCE(u.handle, '')
+		FROM sites s JOIN users u ON u.id = s.user_id
+		WHERE s.name = $1
+		ORDER BY s.created_at ASC
+		LIMIT 1
+	`
+	var handle string
+	err := db.QueryRowContext(ctx, query, name).Scan(&handle)
+	return handle, err
+}
+
 // ClaimHandle atomically sets a user's handle iff still unset. Returns (true,nil) on
 // success, (false,nil) if the handle is taken (unique violation) so the caller can try
 // the next candidate, (false,err) on other errors.

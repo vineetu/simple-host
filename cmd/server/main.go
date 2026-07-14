@@ -100,7 +100,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           handler.SecurityHeaders(handler.CORS(mux)),
+		Handler:           handler.LegacyHostRedirect(cfg.SiteDomain, cfg.ContentHost, db, handler.SecurityHeaders(handler.CORS(mux))),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
