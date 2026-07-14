@@ -335,7 +335,7 @@ func GetSiteIDByName(ctx context.Context, db *sql.DB, name string) (string, erro
 
 func GetSiteByUser(ctx context.Context, db *sql.DB, userID, name string) (Site, error) {
 	const query = `
-		SELECT id, user_id, name, active_version, site_url, created_at, updated_at
+		SELECT id, user_id, name, active_version, site_url, created_at, updated_at, custom_domain, domain_status, visibility
 		FROM sites
 		WHERE user_id = $1 AND name = $2
 	`
@@ -349,6 +349,9 @@ func GetSiteByUser(ctx context.Context, db *sql.DB, userID, name string) (Site, 
 		&site.SiteURL,
 		&site.CreatedAt,
 		&site.UpdatedAt,
+		&site.CustomDomain,
+		&site.DomainStatus,
+		&site.Visibility,
 	)
 	return site, err
 }

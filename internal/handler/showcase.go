@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"html"
 	"net/http"
 	"regexp"
 	"strings"
@@ -185,7 +186,7 @@ func (h *SiteHandler) renderNotFound(w http.ResponseWriter, r *http.Request, ori
 		// Last-resort inline 404 so a miss never falls through to nginx's default.
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`<!doctype html><meta charset=utf-8><meta name=robots content=noindex><title>404</title><h1>404</h1><p>` + message + `</p><a href="` + backURL + `">` + backLabel + `</a>`))
+		_, _ = w.Write([]byte(`<!doctype html><meta charset=utf-8><meta name=robots content=noindex><title>404</title><h1>404</h1><p>` + html.EscapeString(message) + `</p><a href="` + html.EscapeString(backURL) + `">` + html.EscapeString(backLabel) + `</a>`))
 		return
 	}
 
