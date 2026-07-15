@@ -126,7 +126,7 @@ Gotchas:
 
 What it is: a static HTML/JS dashboard or report built from data that was exported before deploy. The export becomes ordinary site data (`.json`, `.csv`, or pre-rendered HTML) and Website Deploy only serves the finished files.
 
-When to choose: public reports, class projects, social-media research notes, and read-only dashboards where the private work already happened in another tool. For example, a user can turn a sanitized TweetClaw follower export or X/Twitter search result into a static report, then deploy the report output here.
+When to choose: public reports, class projects, research notes, and read-only dashboards where the private work already happened in another tool. For example, a user can turn a sanitized analytics or social export (a follower list, a search result, a CSV of metrics) into a static report, then deploy the report output here.
 
 Gotchas:
 - Treat every deployed file as public. Remove API keys, cookies, private account data, raw emails, and anything the user did not explicitly approve for publication.
@@ -158,7 +158,7 @@ A user can serve a site from their own domain (e.g. `recipes.brand.com`). This i
 | "a tool that runs entirely in the browser" (calculator, drawing app, game) | static + `localStorage` for settings/saves |
 | "a journal / notes app" | static + `IndexedDB` (single-visitor scope) |
 | "a dashboard pulling from a public API" | static + external `fetch()` |
-| "a report from TweetClaw, analytics, or another private tool" | static export + optional client-side filtering |
+| "a report from an exported dataset (analytics, social, etc.)" | static export + optional client-side filtering |
 | "a multi-page site" | static only — each page is its own folder + `index.html` (relative links) |
 | "my own domain / brand.com" | static + `connect-domain` skill |
 | "a slide deck I want to share a link to" | build with Slidev, Reveal.js, or similar and deploy the output |

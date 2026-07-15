@@ -1,6 +1,6 @@
 {
   "name": "website-deploy",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "description": "Deploy static websites to simple-host.app from your coding agent (inline JSON or tar.gz/zip). Each site gets a per-site backend (shared JSON state with atomic ops, append-only collections, drop-in comments/feedback widgets, templates), built-in server-side visitor analytics, and can be connected to your own custom domain \u2014 subdomain via CNAME or apex via A record \u2014 with automatic HTTPS and private/password pages. Bundles a builder skill (plan what to build) and a connect-domain skill.",
   "author": {
     "name": "Website Deploy"
