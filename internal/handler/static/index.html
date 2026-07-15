@@ -2622,6 +2622,10 @@
         try { localStorage.setItem('sh-theme', t); } catch (e) {}
         paint();
       });
+      // Sync theme live across other open pages/tabs (they fire 'storage').
+      window.addEventListener('storage', function (e) {
+        if (e.key === 'sh-theme' && e.newValue) { document.documentElement.dataset.theme = e.newValue; paint(); }
+      });
     })();
   </script>
 </body>

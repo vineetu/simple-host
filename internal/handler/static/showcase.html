@@ -241,6 +241,94 @@
       margin-top: 6px;
     }
 
+    /* Owner view tabs (Sites | Analytics) */
+    .owner-tabs {
+      display: inline-flex;
+      gap: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 4px;
+      margin-bottom: 24px;
+    }
+    .owner-tab {
+      padding: 7px 18px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      background: none;
+      border: none;
+      border-radius: 7px;
+      cursor: pointer;
+      font-family: var(--font);
+      transition: all 0.15s;
+    }
+    .owner-tab:hover { color: var(--text); }
+    .owner-tab.active {
+      color: var(--accent);
+      background: rgba(34, 211, 238, 0.12);
+    }
+
+    /* Analytics screen */
+    .an-toolbar {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 12px; margin-bottom: 20px;
+    }
+    .range-seg {
+      display: inline-flex;
+      gap: 2px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 3px;
+    }
+    .range-opt {
+      padding: 5px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      background: none;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: var(--font);
+      font-variant-numeric: tabular-nums;
+      transition: all 0.15s;
+    }
+    .range-opt:hover { color: var(--text); }
+    .range-opt.active { color: var(--accent); background: rgba(34, 211, 238, 0.12); }
+    .an-loading { color: var(--text-secondary); font-size: 13px; padding: 8px 2px; }
+
+    .an-site-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      background: var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .an-site-row {
+      background: var(--surface);
+      padding: 16px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .an-site-id { min-width: 0; }
+    .an-site-id h3 {
+      font-size: 14px; font-weight: 600; font-family: var(--mono);
+      color: var(--text); word-break: break-all;
+    }
+    .an-site-id .an-site-vals {
+      font-size: 12px; color: var(--text-secondary); margin-top: 4px;
+      font-variant-numeric: tabular-nums;
+    }
+    .an-site-id .an-site-vals b { color: var(--text); font-weight: 600; }
+    .an-site-spark { flex-shrink: 0; }
+
     /* Inventory table */
     .inv-list {
       display: flex;
@@ -287,26 +375,6 @@
     .vis-badge.public { color: var(--success); border-color: var(--success); }
     .vis-badge.unlisted { color: var(--text-secondary); }
 
-    .inv-nums {
-      display: flex;
-      gap: 18px;
-      flex-shrink: 0;
-      font-variant-numeric: tabular-nums;
-    }
-    .inv-nums .col { text-align: right; }
-    .inv-nums .col .n {
-      font-family: var(--mono);
-      font-size: 15px;
-      font-weight: 600;
-      color: var(--text);
-    }
-    .inv-nums .col .l {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--text-secondary);
-    }
-
     .inv-actions {
       display: flex;
       gap: 6px;
@@ -315,27 +383,7 @@
       align-items: center;
     }
     .inv-actions a.btn-small.btn-secondary { text-decoration: none; display: inline-block; }
-    .spark-toggle {
-      background: none; border: none;
-      color: var(--accent);
-      font-family: var(--font);
-      font-size: 11px;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      cursor: pointer;
-      padding: 4px 0;
-      margin-left: auto;
-    }
-    .spark-toggle:hover { text-decoration: underline; }
-
-    .inv-trend {
-      margin-top: 12px;
-      padding-top: 12px;
-      border-top: 1px solid var(--border);
-      color: var(--text-secondary);
-      font-size: 11px;
-    }
-    .an-spark { display: block; margin-top: 6px; color: var(--accent); opacity: 0.9; }
+    .an-spark { display: block; color: var(--accent); opacity: 0.9; }
     .an-spark .an-base { stroke: var(--border-hi); opacity: 0.6; }
 
     /* versions panel */
@@ -398,7 +446,7 @@
       padding: 9px 14px; border-bottom: 1px solid var(--border);
     }
     .ai-preview-label { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-secondary); }
-    .ai-preview iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 300px; }
+    .ai-preview iframe { flex: 1; width: 100%; border: 0; background: var(--surface); min-height: 300px; }
     .ai-preview-head .btn-small { text-decoration: none; }
 
     .msg { display: flex; max-width: 94%; }
@@ -543,13 +591,30 @@
 
     <!-- Owner dashboard (hydrated) -->
     <div id="owner-view" hidden>
-      <div class="section" id="owner-overview">
-        <div class="section-num"><span class="num">01</span><h2>Overview</h2><span class="line"></span><a class="btn btn-primary btn-small" id="owner-new-site" href="#" target="_self">＋ New site</a></div>
-        <div class="stats" id="stats"></div>
+      <div class="owner-tabs" role="tablist">
+        <button type="button" class="owner-tab active" id="tab-sites" data-owner-tab="sites" role="tab">Sites</button>
+        <button type="button" class="owner-tab" id="tab-analytics" data-owner-tab="analytics" role="tab">Analytics</button>
       </div>
-      <div class="section">
-        <div class="section-num"><span class="num">02</span><h2>Site Inventory</h2><span class="line"></span></div>
+
+      <!-- Sites view (management inventory) -->
+      <div class="section" id="owner-sites-view">
+        <div class="section-num"><span class="num">01</span><h2>Site Inventory</h2><span class="line"></span><a class="btn btn-primary btn-small" id="owner-new-site" href="#" target="_self">＋ New site</a></div>
         <div id="inventory"></div>
+      </div>
+
+      <!-- Analytics view (dedicated screen) -->
+      <div class="section" id="owner-analytics-view" hidden>
+        <div class="section-num"><span class="num">01</span><h2>Analytics</h2><span class="line"></span></div>
+        <div class="an-toolbar">
+          <div class="stats" id="an-totals" style="flex:1;min-width:260px;"></div>
+          <div class="range-seg" id="an-range" role="tablist" aria-label="Analytics range">
+            <button type="button" class="range-opt" data-days="7" role="tab">7d</button>
+            <button type="button" class="range-opt" data-days="14" role="tab">14d</button>
+            <button type="button" class="range-opt active" data-days="30" role="tab">30d</button>
+            <button type="button" class="range-opt" data-days="90" role="tab">90d</button>
+          </div>
+        </div>
+        <div id="an-body"></div>
       </div>
     </div>
   </div>
@@ -692,8 +757,11 @@
     }
 
     // --------------------------------------------------------------- OWNER MODE
-    // per-site analytics cache: name -> {totals, daily}
+    // per-site analytics cache, keyed by range: days -> { name -> {totals, daily} }
     var analyticsCache = {};
+    var ownerSites = [];            // the owner's sites (management inventory)
+    var currentRange = 30;         // selected analytics range (days)
+    var analyticsLoaded = {};      // days -> true once fetched for that range
 
     async function hydrateOwner() {
       if (!apiKey) return false;
@@ -725,19 +793,17 @@
         }
       } catch (e) { return false; }
 
+      ownerSites = allSites;
       showOwner();
       renderInventory(allSites);
-      await loadAllAnalytics(allSites);
+      initOwnerTabs();
+      initRangeSelector();
       return true;
     }
 
     function renderInventory(sitesArr) {
       var inv = document.getElementById('inventory');
-      var overview = document.getElementById('owner-overview');
       if (!sitesArr || !sitesArr.length) {
-        // Brand-new owner: zero stat cards are meaningless, so hide Overview
-        // entirely and show a single clean onboarding state instead.
-        if (overview) overview.hidden = true;
         var newUrl = (SHOWCASE.mainUrl || '/').replace(/\/$/, '') + '/?new=1';
         inv.innerHTML = '<div class="empty-state" style="padding:72px 24px;">' +
           '<div style="margin-bottom:20px;">No sites yet — deploy your first one.</div>' +
@@ -745,11 +811,9 @@
           '</div>';
         return;
       }
-      if (overview) overview.hidden = false;
       inv.innerHTML = '<div class="inv-list">' + sitesArr.map(function (s) {
         return renderInvRow(s);
       }).join('') + '</div>';
-      renderStats(sitesArr);
     }
 
     function siteOpenUrl(s) {
@@ -771,97 +835,110 @@
             '<h3>' + name + ' <span class="vis-badge ' + vis + '" data-vis-badge="' + name + '">' + vis + '</span></h3>' +
             '<div class="inv-path">' + esc(sitePath(s)) + '</div>' +
           '</div>' +
-          '<div class="inv-nums" data-nums="' + name + '">' +
-            '<div class="col"><div class="n" data-k="today-views">—</div><div class="l">Views today</div></div>' +
-            '<div class="col"><div class="n" data-k="today-visits">—</div><div class="l">Visits today</div></div>' +
-            '<div class="col"><div class="n" data-k="week-views">—</div><div class="l">7-day views</div></div>' +
-          '</div>' +
         '</div>' +
         '<div class="inv-actions">' +
           '<a class="btn-small btn-secondary" href="' + openUrl + '" target="_blank" rel="noopener">Open</a>' +
           '<button type="button" class="btn-small btn-secondary" onclick="toggleVis(\'' + name + '\',\'' + vis + '\')" data-vis-btn="' + name + '">' + (vis === 'public' ? 'Make unlisted' : 'Make public') + '</button>' +
           '<button type="button" class="btn-small btn-secondary" onclick="toggleVersions(\'' + name + '\')">Revert</button>' +
           '<button type="button" class="btn-small btn-ghost" onclick="confirmDelete(\'' + name + '\')">Delete</button>' +
-          '<button type="button" class="spark-toggle" onclick="toggleTrend(\'' + name + '\')" data-trend-btn="' + name + '">Show 7-day trend</button>' +
         '</div>' +
         '<div class="versions-panel" data-versions="' + name + '" hidden></div>' +
-        '<div class="inv-trend" data-trend="' + name + '" hidden></div>' +
       '</div>';
-    }
-
-    function renderStats(sitesArr) {
-      var totalSites = sitesArr.length;
-      var viewedToday = 0, visitsToday = 0, weekViews = 0;
-      sitesArr.forEach(function (s) {
-        var a = analyticsCache[s.name];
-        if (!a) return;
-        var t = todayMetrics(a);
-        if (t.views > 0) viewedToday++;
-        visitsToday += t.visits;
-        weekViews += weekViewsFor(a);
-      });
-      var cards = [
-        { v: totalSites, l: 'Total sites' },
-        { v: viewedToday, l: 'Viewed today' },
-        { v: visitsToday, l: 'Visits today' },
-        { v: weekViews, l: '7-day views' }
-      ];
-      document.getElementById('stats').innerHTML = cards.map(function (c) {
-        return '<div class="stat"><div class="s-val">' + c.v.toLocaleString() + '</div><div class="s-lbl">' + c.l + '</div></div>';
-      }).join('');
-    }
-
-    function todayStr() {
-      var d = new Date();
-      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-    }
-    function todayMetrics(a) {
-      var daily = Array.isArray(a && a.daily) ? a.daily : [];
-      var t = todayStr();
-      var row = daily.filter(function (d) { return d && String(d.day).slice(0, 10) === t; })[0];
-      return { views: row ? num(row.views) : 0, visits: row ? num(row.visitors) : 0 };
-    }
-    function weekViewsFor(a) {
-      var daily = Array.isArray(a && a.daily) ? a.daily : [];
-      var last7 = daily.slice(-7);
-      return last7.reduce(function (sum, d) { return sum + num(d && d.views); }, 0);
-    }
-
-    async function loadAllAnalytics(sitesArr) {
-      for (var i = 0; i < sitesArr.length; i++) {
-        var s = sitesArr[i];
-        try {
-          var res = await api('GET', '/v1/sites/' + encodeURIComponent(s.name) + '/analytics?days=30');
-          if (!res.ok) continue;
-          var data = await res.json();
-          analyticsCache[s.name] = data;
-          fillRowNums(s.name, data);
-        } catch (e) { /* leave placeholders */ }
-      }
-      // recompute aggregate after analytics land
-      renderStats(sitesArr);
-    }
-
-    function fillRowNums(name, data) {
-      var wrap = document.querySelector('[data-nums="' + cssEsc(name) + '"]');
-      if (!wrap) return;
-      var t = todayMetrics(data);
-      var wv = weekViewsFor(data);
-      var setk = function (k, val) {
-        var el = wrap.querySelector('[data-k="' + k + '"]');
-        if (el) el.textContent = val.toLocaleString();
-      };
-      setk('today-views', t.views);
-      setk('today-visits', t.visits);
-      setk('week-views', wv);
     }
 
     function cssEsc(s) { return String(s).replace(/["\\]/g, '\\$&'); }
 
-    // sparkline mirrors index.html renderSparkline (last 7 days)
+    // Sum views/visitors over an analytics payload's daily[] rows for the range.
+    function rangeMetrics(a) {
+      var daily = Array.isArray(a && a.daily) ? a.daily : [];
+      var views = 0, visitors = 0;
+      daily.forEach(function (d) {
+        views += num(d && d.views);
+        visitors += num(d && d.visitors);
+      });
+      return { views: views, visitors: visitors, daily: daily };
+    }
+
+    // ---- Owner view tabs (Sites | Analytics) ----
+    function initOwnerTabs() {
+      var tabs = document.querySelectorAll('.owner-tab');
+      tabs.forEach(function (t) {
+        t.addEventListener('click', function () { switchOwnerTab(t.getAttribute('data-owner-tab')); });
+      });
+    }
+    function switchOwnerTab(which) {
+      document.querySelectorAll('.owner-tab').forEach(function (t) {
+        t.classList.toggle('active', t.getAttribute('data-owner-tab') === which);
+      });
+      var isAnalytics = which === 'analytics';
+      document.getElementById('owner-sites-view').hidden = isAnalytics;
+      document.getElementById('owner-analytics-view').hidden = !isAnalytics;
+      if (isAnalytics) loadAnalyticsRange(currentRange);
+    }
+
+    // ---- Analytics range selector (7/14/30/90) ----
+    function initRangeSelector() {
+      var opts = document.querySelectorAll('#an-range .range-opt');
+      opts.forEach(function (o) {
+        o.addEventListener('click', function () {
+          var days = parseInt(o.getAttribute('data-days'), 10) || 30;
+          currentRange = days;
+          opts.forEach(function (x) { x.classList.toggle('active', x === o); });
+          loadAnalyticsRange(days);
+        });
+      });
+    }
+
+    // Fetch every site's analytics for the range concurrently, then render.
+    async function loadAnalyticsRange(days) {
+      var body = document.getElementById('an-body');
+      if (!ownerSites.length) {
+        document.getElementById('an-totals').innerHTML = '';
+        body.innerHTML = '<div class="empty-state">No sites yet — nothing to measure.</div>';
+        return;
+      }
+      if (analyticsLoaded[days]) { renderAnalytics(days); return; }
+      body.innerHTML = '<div class="an-loading">Loading ' + days + '-day analytics…</div>';
+      var cache = analyticsCache[days] = analyticsCache[days] || {};
+      await Promise.all(ownerSites.map(async function (s) {
+        try {
+          var res = await api('GET', '/v1/sites/' + encodeURIComponent(s.name) + '/analytics?days=' + days);
+          if (res.ok) cache[s.name] = await res.json();
+        } catch (e) { /* leave missing */ }
+      }));
+      analyticsLoaded[days] = true;
+      // Only render if this range is still the selected one.
+      if (currentRange === days) renderAnalytics(days);
+    }
+
+    function renderAnalytics(days) {
+      var cache = analyticsCache[days] || {};
+      var totalViews = 0, totalVisitors = 0;
+      var rows = ownerSites.map(function (s) {
+        var m = rangeMetrics(cache[s.name]);
+        totalViews += m.views;
+        totalVisitors += m.visitors;
+        return { name: s.name, m: m };
+      });
+      var label = days + '-day';
+      document.getElementById('an-totals').innerHTML =
+        '<div class="stat"><div class="s-val">' + totalViews.toLocaleString() + '</div><div class="s-lbl">' + label + ' views</div></div>' +
+        '<div class="stat"><div class="s-val">' + totalVisitors.toLocaleString() + '</div><div class="s-lbl">' + label + ' visitors</div></div>';
+      document.getElementById('an-body').innerHTML = '<div class="an-site-list">' + rows.map(function (r) {
+        return '<div class="an-site-row">' +
+          '<div class="an-site-id">' +
+            '<h3>' + esc(r.name) + '</h3>' +
+            '<div class="an-site-vals"><b>' + r.m.views.toLocaleString() + '</b> views · <b>' + r.m.visitors.toLocaleString() + '</b> visitors <span style="color:var(--dim)">(' + label + ')</span></div>' +
+          '</div>' +
+          '<div class="an-site-spark">' + renderSparkline(r.m.daily) + '</div>' +
+        '</div>';
+      }).join('') + '</div>';
+    }
+
+    // sparkline mirrors index.html renderSparkline; plots the full daily[] range.
     function renderSparkline(daily) {
       var w = 220, h = 34, pad = 2;
-      var arr = Array.isArray(daily) ? daily.slice(-7) : [];
+      var arr = Array.isArray(daily) ? daily : [];
       var n = arr.length || 1;
       var vals = arr.map(function (d) { return num(d && d.views); });
       var max = Math.max.apply(null, [1].concat(vals));
@@ -877,23 +954,6 @@
         '<line class="an-base" x1="' + pad + '" y1="' + baseY + '" x2="' + (w - pad) + '" y2="' + baseY + '" stroke="currentColor" stroke-width="1"/>' +
         '<polyline fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" points="' + points + '"/>' +
         '</svg>';
-    }
-
-    function toggleTrend(name) {
-      var panel = document.querySelector('[data-trend="' + cssEsc(name) + '"]');
-      var btn = document.querySelector('[data-trend-btn="' + cssEsc(name) + '"]');
-      if (!panel) return;
-      if (!panel.hidden) {
-        panel.hidden = true;
-        if (btn) btn.textContent = 'Show 7-day trend';
-        return;
-      }
-      var a = analyticsCache[name];
-      var daily = (a && Array.isArray(a.daily)) ? a.daily : [];
-      var wv = weekViewsFor(a || {});
-      panel.innerHTML = '<span>7-day views: <b style="color:var(--text)">' + wv.toLocaleString() + '</b></span>' + renderSparkline(daily);
-      panel.hidden = false;
-      if (btn) btn.textContent = 'Hide 7-day trend';
     }
 
     async function toggleVis(name, current) {
@@ -1231,6 +1291,10 @@
         document.documentElement.dataset.theme = t;
         try { localStorage.setItem('sh-theme', t); } catch (e) {}
         paint();
+      });
+      // Sync theme live across other open pages/tabs (they fire 'storage').
+      window.addEventListener('storage', function (e) {
+        if (e.key === 'sh-theme' && e.newValue) { document.documentElement.dataset.theme = e.newValue; paint(); }
       });
     })();
   </script>
