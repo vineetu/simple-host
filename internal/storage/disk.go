@@ -233,11 +233,10 @@ func (d *DiskStorage) UpdateCurrent(userID, siteName string, versionNum int) err
 		return fmt.Errorf("promote temp current dir: %w", err)
 	}
 
-	// Back-compat symlink for the legacy edge that serves
-	// <dataDir>/<siteName>/current. Relative target keeps the tree relocatable.
-	if err := d.ensureBackCompatSymlink(userID, siteName); err != nil {
-		return err
-	}
+	// Legacy per-name subdomain (<siteName>.<domain>) is deprecated: we no longer
+	// create the flat back-compat symlink at <dataDir>/<siteName>. Sites are
+	// reachable only by path (sites.<domain>/<handle>/<siteName>/). DeleteSite
+	// still cleans up any pre-existing back-compat symlink.
 
 	return nil
 }
@@ -286,42 +285,10 @@ func (d *DiskStorage) EnsureHandleLink(handle, userID string) error {
 	return nil
 }
 
-// ensureBackCompatSymlink creates <dataDir>/<siteName> -> by-id/<userID>/<siteName>
-// only if the path does not already exist (first-owner-wins). A later same-named
-// site from a different user must never hijack the legacy flat symlink.
-// Never clobbers a real directory or file at that path.
-func (d *DiskStorage) ensureBackCompatSymlink(userID, siteName string) error {
-	compatPath := filepath.Join(d.dataDir, siteName)
-	// Relative target from dataDir so the whole tree stays relocatable.
-	compatTarget := filepath.Join("by-id", userID, siteName)
-
-	info, err := os.Lstat(compatPath)
-	if err == nil {
-		if info.Mode()&os.ModeSymlink == 0 {
-			return fmt.Errorf("back-compat path %q exists and is not a symlink; refusing to clobber", compatPath)
-		}
-		// Existing symlink: leave it. Idempotent no-op if it already points at
-		// us; if it points elsewhere another user owns the legacy name.
-		cur, rerr := os.Readlink(compatPath)
-		if rerr != nil {
-			return fmt.Errorf("readlink back-compat path: %w", rerr)
-		}
-		if cur == compatTarget {
-			return nil
-		}
-		// Different owner — do not repoint / hijack.
-		return nil
-	}
-	if !os.IsNotExist(err) {
-		return fmt.Errorf("lstat back-compat path: %w", err)
-	}
-
-	// Not exist: this owner is first for the name.
-	if err := os.Symlink(compatTarget, compatPath); err != nil {
-		return fmt.Errorf("create back-compat symlink: %w", err)
-	}
-	return nil
-}
+// ensureBackCompatSymlink was removed: legacy per-name subdomains
+// (<siteName>.<domain>) are deprecated and are no longer created on deploy. Sites
+// are reachable by path only (sites.<domain>/<handle>/<siteName>/). DeleteSite
+// still removes any pre-existing back-compat symlink so the tree self-cleans.
 
 func (d *DiskStorage) DeleteSite(userID, siteName string) error {
 	if !validPathKey(userID) {
