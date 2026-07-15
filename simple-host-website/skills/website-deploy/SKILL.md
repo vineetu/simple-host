@@ -200,6 +200,13 @@ across sites (co-tenancy is accepted — don't store secrets; state was never co
 Owners can allow extra origins via `PUT /v1/sites/<sitename>/allowed-origins` for
 "backend anywhere."
 
+> **Origin-gated, not API-key'd — trips up server-side/agent callers.** These
+> endpoints (state AND collections, reads AND writes) trust the site's `Origin`, which
+> a browser page on the site sends automatically. A curl/backend/agent request without
+> it gets **403**. Send the site's origin header:
+> `curl -H "Origin: https://sites.simple-host.app" https://sites.simple-host.app/v1/u/<handle>/sites/<sitename>/state`
+> (a `Referer:` of the page works too).
+
 ### Per-site JSON state (shared key-value blob)
 Replace the whole blob, or apply ATOMIC ops so concurrent visitors never clobber:
 ```
@@ -220,8 +227,7 @@ From a page at `https://sites.simple-host.app/<handle>/<sitename>/...`:
 const m = location.pathname.match(/^\/([a-z0-9-]+)\/([a-z0-9-]+)/);
 const url = `/v1/u/${m[1]}/sites/${m[2]}/state`;  // same-origin
 ```
-Cheap polling: send `If-None-Match: <etag>` on GET to get `304` when unchanged.
-Public store (anyone who loads the page can read it) — no secrets/PII. ~1 MB cap.
+Cheap polling: send `If-None-Match: <etag>` on GET to get `304` when unchanged. ~1 MB cap.
 
 ### Append-only collections (fast growing lists)
 For signups / RSVPs / submissions — O(1) append, paginated reads:
