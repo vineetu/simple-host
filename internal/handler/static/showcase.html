@@ -371,6 +371,82 @@
     #manage-cta { margin-bottom: 8px; }
     #manage-cta .btn-primary { font-size: 13px; padding: 9px 18px; }
 
+    /* Build a site with AI */
+    .ai-create {
+      background: var(--surface);
+      border: 1px solid var(--border-hi);
+      border-radius: var(--radius);
+      margin-bottom: 28px;
+      overflow: hidden;
+    }
+    .ai-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px; border-bottom: 1px solid var(--border);
+    }
+    .ai-head h3 { font-size: 15px; font-weight: 600; }
+    .ai-head .spark { color: var(--accent); }
+    .ai-body { display: grid; grid-template-columns: 1fr; }
+    .ai-body.has-preview { grid-template-columns: 1fr 1fr; }
+    .ai-chat {
+      display: flex; flex-direction: column; gap: 12px;
+      padding: 18px 20px; overflow-y: auto;
+      max-height: 460px; min-height: 200px;
+    }
+    .ai-preview { border-left: 1px solid var(--border); display: flex; flex-direction: column; min-width: 0; }
+    .ai-preview-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 9px 14px; border-bottom: 1px solid var(--border);
+    }
+    .ai-preview-label { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-secondary); }
+    .ai-preview iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 300px; }
+    .ai-preview-head .btn-small { text-decoration: none; }
+
+    .msg { display: flex; max-width: 94%; }
+    .msg .bubble {
+      padding: 9px 13px; border-radius: 13px; font-size: 13.5px;
+      line-height: 1.55; white-space: pre-wrap; word-break: break-word;
+    }
+    .msg.user { align-self: flex-end; }
+    .msg.user .bubble {
+      background: var(--accent); color: var(--on-accent);
+      border-bottom-right-radius: 4px; font-weight: 500;
+    }
+    .msg.ai { align-self: flex-start; }
+    .msg.ai .bubble {
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      border-bottom-left-radius: 4px;
+    }
+    .msg.ai .bubble.thinking { color: var(--text-secondary); letter-spacing: 0.15em; }
+
+    .ai-input { display: flex; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--border); }
+    .ai-input input[type="text"] {
+      flex: 1; min-width: 0;
+      padding: 10px 14px; font-size: 14px; font-family: var(--mono);
+      border: 1px solid var(--border); border-radius: var(--radius);
+      background: var(--bg); color: var(--text); outline: none;
+    }
+    .ai-input input[type="text"]:focus { border-color: var(--accent); }
+
+    .ai-auth { padding: 14px 20px 0; }
+    .ai-auth-inner { border: 1px solid var(--border-hi); border-radius: var(--radius); padding: 14px 16px; background: var(--bg); }
+    .ai-auth-label { display: block; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 10px; }
+    .ai-auth-label b { color: var(--text); font-family: var(--mono); }
+    .ai-authrow { display: flex; gap: 8px; }
+    .ai-authrow input {
+      flex: 1; min-width: 0;
+      padding: 9px 12px; font-size: 14px; font-family: var(--mono);
+      border: 1px solid var(--border); border-radius: var(--radius);
+      background: var(--surface); color: var(--text); outline: none;
+    }
+    .ai-authrow input:focus { border-color: var(--accent); }
+    #ai-code-reset { margin-top: 10px; text-decoration: underline; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    @media (max-width: 640px) {
+      .ai-body, .ai-body.has-preview { grid-template-columns: 1fr; }
+      .ai-preview { border-left: 0; border-top: 1px solid var(--border); }
+    }
+
     /* Toast */
     .toast {
       position: fixed;
@@ -416,6 +492,48 @@
     <div class="owner-note" id="owner-share" hidden>
       <span>🔗</span>
       <span>Your public showcase: <a id="owner-share-link" href="#" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">#</a></span>
+    </div>
+
+    <!-- Build a site with AI — shown in BOTH public and owner views -->
+    <div class="ai-create" id="ai-create">
+      <div class="ai-head">
+        <h3><span class="spark">✦</span> Build a site with AI</h3>
+        <button class="btn-ghost btn-small" id="ai-reset" type="button" hidden>Start over</button>
+      </div>
+      <div class="ai-body">
+        <div class="ai-chat" id="ai-chat"></div>
+        <div class="ai-preview" id="ai-preview" hidden>
+          <div class="ai-preview-head">
+            <span class="ai-preview-label">Your built site</span>
+            <a class="btn-small btn-secondary" id="gen-open-link" href="#" target="_blank" rel="noopener">Open full page ↗</a>
+          </div>
+          <iframe id="gen-frame" title="preview" sandbox="allow-scripts allow-popups"></iframe>
+        </div>
+      </div>
+      <!-- Inline sign-in (revealed only for visitors on submit) -->
+      <div class="ai-auth" id="ai-auth" hidden>
+        <div class="ai-auth-inner">
+          <form id="ai-email-form">
+            <label class="ai-auth-label" id="ai-auth-label">Sign in to build — we'll email a 6-digit code.</label>
+            <div class="ai-authrow">
+              <input type="email" id="ai-email-input" placeholder="you@anywhere.com" autocomplete="email">
+              <button class="btn btn-primary btn-small" type="submit" id="ai-email-btn">Send code</button>
+            </div>
+          </form>
+          <form id="ai-code-form" hidden>
+            <label class="ai-auth-label">Enter the 6-digit code we emailed to <b id="ai-code-email"></b>.</label>
+            <div class="ai-authrow">
+              <input type="text" id="ai-code-input" inputmode="numeric" pattern="[0-9\-]*" maxlength="7" placeholder="123-456" autocomplete="one-time-code">
+              <button class="btn btn-primary btn-small" type="submit" id="ai-code-btn">Verify</button>
+            </div>
+            <button type="button" class="btn-ghost btn-small" id="ai-code-reset">Use a different email</button>
+          </form>
+        </div>
+      </div>
+      <form class="ai-input" id="ai-form">
+        <input type="text" id="chat-input" placeholder="Describe the site you want — e.g. a landing page for my coffee shop…" autocomplete="off">
+        <button class="btn btn-primary" type="submit" id="chat-send">Build</button>
+      </form>
     </div>
 
     <!-- Public gallery (default) -->
@@ -857,6 +975,241 @@
         toast('Could not delete site', 'error');
       }
     }
+
+    // -------------------------------------------------- BUILD A SITE WITH AI
+    // Mirrors index.html's generate flow: POST /v1/generate → {jobId} (async)
+    // or {reply,html} (inline); poll GET /v1/generate/status?id=<jobId>.
+    // /v1/generate needs an API key (costs credits) — visitors sign in first via
+    // the SAME email-code flow (POST /v1/auth → POST /v1/auth/verify → api_key).
+    var chatMessages = [];
+    var generatedHTML = null;
+    var aiBusy = false;
+    var pendingAuthText = null;   // prompt captured while a visitor signs in
+    var pendingAuthEmail = null;
+
+    function aiAppend(role, text, opts) {
+      var chat = document.getElementById('ai-chat');
+      var wrap = document.createElement('div');
+      wrap.className = 'msg ' + (role === 'user' ? 'user' : 'ai');
+      var b = document.createElement('div');
+      b.className = 'bubble' + (opts && opts.thinking ? ' thinking' : '');
+      b.textContent = text;
+      wrap.appendChild(b);
+      chat.appendChild(wrap);
+      chat.scrollTop = chat.scrollHeight;
+      return wrap;
+    }
+
+    function aiGreeting() {
+      var chat = document.getElementById('ai-chat');
+      if (!chat || chat.childElementCount) return;
+      aiAppend('ai', "Hi! Describe the site you'd like — a landing page, portfolio, event RSVP, menu — plus any details (a name, the vibe, what it should do). I'll build it, then you can open it.");
+    }
+
+    function updatePreview() {
+      var frame = document.getElementById('gen-frame');
+      document.getElementById('ai-preview').hidden = false;
+      document.querySelector('#ai-create .ai-body').classList.add('has-preview');
+      // srcdoc keeps the preview in an opaque origin (can't reach our apiKey).
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () { frame.srcdoc = generatedHTML || ''; });
+      });
+      // "Open full page" → serve the built HTML from a blob URL in a new tab.
+      var open = document.getElementById('gen-open-link');
+      if (open) {
+        try {
+          if (open._blobUrl) URL.revokeObjectURL(open._blobUrl);
+          var blob = new Blob([generatedHTML || ''], { type: 'text/html' });
+          open._blobUrl = URL.createObjectURL(blob);
+          open.href = open._blobUrl;
+        } catch (e) {}
+      }
+      document.getElementById('ai-reset').hidden = false;
+    }
+
+    // Poll an async build job until done/error. Sub-second requests, so no proxy
+    // timeout can cut a long build. Returns {reply,html} or {error}.
+    async function pollJob(jobId, thinkingEl) {
+      var deadline = Date.now() + 9 * 60 * 1000; // > server 8-min cap
+      while (Date.now() < deadline) {
+        await new Promise(function (r) { setTimeout(r, 2000); });
+        var sres;
+        try { sres = await api('GET', '/v1/generate/status?id=' + encodeURIComponent(jobId)); }
+        catch (e) { continue; }
+        var s = await sres.json().catch(function () { return {}; });
+        if (sres.status === 404) return { error: 'That session expired — please try again.' };
+        if (!sres.ok) continue;
+        if (s.status === 'done') return { reply: s.reply, html: s.html };
+        if (s.status === 'error') return { error: s.error || 'The assistant had trouble — please try again.' };
+        if (thinkingEl && typeof s.progress === 'string' && s.progress) {
+          var bubble = thinkingEl.querySelector('.bubble');
+          if (bubble) { bubble.textContent = s.progress; bubble.style.letterSpacing = 'normal'; }
+        }
+      }
+      return { error: 'This is taking longer than usual — please try again.' };
+    }
+
+    // Run one generate turn. Requires apiKey (caller guarantees it).
+    async function runGenerate(text) {
+      chatMessages.push({ role: 'user', content: text });
+      var send = document.getElementById('chat-send');
+      send.disabled = true; aiBusy = true;
+      var thinking = aiAppend('ai', '• • •', { thinking: true });
+      try {
+        var res = await api('POST', '/v1/generate', { messages: chatMessages, html: generatedHTML || '', attachments: [] });
+        var data = await res.json().catch(function () { return {}; });
+        // Async path returns {jobId}; direct path returns {reply,html} inline.
+        if (res.ok && data.jobId) {
+          data = await pollJob(data.jobId, thinking);
+        }
+        thinking.remove();
+        if (!res.ok || (data && data.error)) {
+          chatMessages.pop();
+          aiAppend('ai', (data && data.error) || 'Something went wrong — please try again.');
+          return;
+        }
+        var reply = data.reply || 'Done.';
+        aiAppend('ai', reply);
+        chatMessages.push({ role: 'assistant', content: reply });
+        if (data.html) { generatedHTML = data.html; updatePreview(); }
+      } catch (e) {
+        thinking.remove();
+        chatMessages.pop();
+        aiAppend('ai', 'Cannot reach the server — please try again.');
+      } finally {
+        send.disabled = false; aiBusy = false;
+        var input = document.getElementById('chat-input');
+        if (input) input.focus();
+      }
+    }
+
+    // Submit handler: gate on apiKey. Signed-in → build. Visitor → reveal sign-in
+    // and stash the prompt; the build resumes once a key is obtained.
+    function onAiSubmit(e) {
+      if (e) e.preventDefault();
+      if (aiBusy) return false;
+      var input = document.getElementById('chat-input');
+      var text = (input.value || '').trim();
+      if (!text) return false;
+      if (!apiKey) {
+        // Do NOT submit to /v1/generate without a key. Reveal inline sign-in.
+        pendingAuthText = text;
+        input.value = '';
+        aiAppend('user', text);
+        aiAppend('ai', 'One quick step — sign in with your email so I can build this for you (it uses AI credits).');
+        showAiAuth('email');
+        return false;
+      }
+      input.value = '';
+      aiAppend('user', text);
+      runGenerate(text);
+      return false;
+    }
+
+    function showAiAuth(step) {
+      document.getElementById('ai-auth').hidden = false;
+      var emailForm = document.getElementById('ai-email-form');
+      var codeForm = document.getElementById('ai-code-form');
+      if (step === 'code') {
+        emailForm.hidden = true; codeForm.hidden = false;
+        setTimeout(function () { document.getElementById('ai-code-input').focus(); }, 50);
+      } else {
+        emailForm.hidden = false; codeForm.hidden = true;
+        setTimeout(function () { document.getElementById('ai-email-input').focus(); }, 50);
+      }
+    }
+    function hideAiAuth() { document.getElementById('ai-auth').hidden = true; }
+
+    // Step 1: request a 6-digit code (POST /v1/auth {email}).
+    async function onAiEmailSubmit(e) {
+      if (e) e.preventDefault();
+      var email = (document.getElementById('ai-email-input').value || '').trim().toLowerCase();
+      if (!email) return false;
+      var btn = document.getElementById('ai-email-btn');
+      btn.disabled = true;
+      try {
+        var res = await fetch('/v1/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email })
+        });
+        var data = await res.json().catch(function () { return {}; });
+        if (res.ok) {
+          pendingAuthEmail = email;
+          document.getElementById('ai-code-email').textContent = email;
+          showAiAuth('code');
+        } else {
+          toast((data && data.error) || 'Could not send code', 'error');
+        }
+      } catch (e2) {
+        toast('Cannot reach server', 'error');
+      } finally {
+        btn.disabled = false;
+      }
+      return false;
+    }
+
+    // Step 2: verify the code (POST /v1/auth/verify {email, code}) → {api_key}.
+    async function onAiCodeSubmit(e) {
+      if (e) e.preventDefault();
+      if (!pendingAuthEmail) { showAiAuth('email'); return false; }
+      var code = (document.getElementById('ai-code-input').value || '').replace(/[^0-9]/g, '');
+      if (code.length !== 6) { toast('Code is 6 digits', 'error'); return false; }
+      var btn = document.getElementById('ai-code-btn');
+      btn.disabled = true;
+      try {
+        var res = await fetch('/v1/auth/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: pendingAuthEmail, code: code })
+        });
+        var data = await res.json().catch(function () { return {}; });
+        if (res.ok && data.api_key) {
+          apiKey = data.api_key;
+          // This page is on the base origin (simple-host.app), so storing is safe.
+          try { localStorage.setItem('apiKey', apiKey); } catch (e2) {}
+          hideAiAuth();
+          toast('Signed in — building your site…', 'success');
+          var text = pendingAuthText; pendingAuthText = null; pendingAuthEmail = null;
+          if (text) runGenerate(text);
+        } else {
+          toast((data && data.error) || 'Invalid code', 'error');
+        }
+      } catch (e3) {
+        toast('Cannot reach server', 'error');
+      } finally {
+        btn.disabled = false;
+      }
+      return false;
+    }
+
+    function resetAiChat() {
+      chatMessages = [];
+      generatedHTML = null;
+      document.getElementById('ai-chat').innerHTML = '';
+      document.getElementById('gen-frame').removeAttribute('srcdoc');
+      document.getElementById('ai-preview').hidden = true;
+      document.querySelector('#ai-create .ai-body').classList.remove('has-preview');
+      document.getElementById('ai-reset').hidden = true;
+      hideAiAuth();
+      pendingAuthText = null;
+      aiGreeting();
+      document.getElementById('chat-input').focus();
+    }
+
+    (function initAiCreate() {
+      var form = document.getElementById('ai-form');
+      if (form) form.addEventListener('submit', onAiSubmit);
+      var ef = document.getElementById('ai-email-form');
+      if (ef) ef.addEventListener('submit', onAiEmailSubmit);
+      var cf = document.getElementById('ai-code-form');
+      if (cf) cf.addEventListener('submit', onAiCodeSubmit);
+      var cr = document.getElementById('ai-code-reset');
+      if (cr) cr.addEventListener('click', function () { pendingAuthEmail = null; document.getElementById('ai-code-input').value = ''; showAiAuth('email'); });
+      var rs = document.getElementById('ai-reset');
+      if (rs) rs.addEventListener('click', resetAiChat);
+      aiGreeting();
+    })();
 
     // ------------------------------------------------------------------- boot
     renderPublic();
