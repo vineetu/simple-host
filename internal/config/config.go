@@ -56,6 +56,12 @@ type Config struct {
 	GenerateModel     string
 	AgentServerURL    string // e.g. https://simple-host-agent.ideaflow.page (no trailing slash)
 	AgentSharedSecret string
+	// Direct-call backend for /v1/generate when AgentServerURL is unset:
+	// "anthropic" (default, uses AnthropicAPIKey) or "deepseek"/"openai"
+	// (OpenAI-compatible, uses GenerateAPIKey + GenerateBaseURL).
+	GenerateProvider string
+	GenerateAPIKey   string
+	GenerateBaseURL  string
 
 	// Ephemeral "preview" sites. Sites created by an account in PreviewAccounts
 	// get an expires_at = now + PreviewTTL, and a background sweep deletes them
@@ -88,6 +94,9 @@ func Load() (Config, error) {
 		GenerateModel:     getEnvOrDefault("GENERATE_MODEL", "claude-haiku-4-5-20251001"),
 		AgentServerURL:    strings.TrimRight(os.Getenv("AGENT_SERVER_URL"), "/"),
 		AgentSharedSecret: os.Getenv("AGENT_SHARED_SECRET"),
+		GenerateProvider:  getEnvOrDefault("GENERATE_PROVIDER", "anthropic"),
+		GenerateAPIKey:    os.Getenv("GENERATE_API_KEY"),
+		GenerateBaseURL:   strings.TrimRight(getEnvOrDefault("GENERATE_BASE_URL", "https://api.deepseek.com"), "/"),
 	}
 	// CONTENT_HOST defaults to sites.<SITE_DOMAIN> so prod/test need no extra env.
 	cfg.ContentHost = getEnvOrDefault("CONTENT_HOST", "sites."+cfg.SiteDomain)

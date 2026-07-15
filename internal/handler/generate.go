@@ -24,6 +24,8 @@ import (
 // and per IP, because each turn spends real Anthropic credits. Disabled when
 // ANTHROPIC_API_KEY is unset.
 type GenerateHandler struct {
+	provider    string // "anthropic" (default) or "deepseek"/"openai" (OpenAI-compatible)
+	baseURL     string // OpenAI-compatible base URL, used when provider != anthropic
 	apiKey      string
 	model       string
 	agentURL    string // when set, proxy each turn here (Claude Agent SDK server)
@@ -34,7 +36,7 @@ type GenerateHandler struct {
 	statusLimiter *rateLimiter // generous: status polling is cheap and frequent
 }
 
-func NewGenerateHandler(apiKey, model, agentURL, agentSecret string) *GenerateHandler {
+func NewGenerateHandler(provider, apiKey, model, baseURL, agentURL, agentSecret string) *GenerateHandler {
 	// A conversation is several turns, so allow a healthy burst; the slow refill
 	// is the real cost guard against scripted abuse.
 	ipLimiter := newRateLimiter(20, 1.0/12.0)   // burst 20, +1 every 12s
@@ -46,6 +48,8 @@ func NewGenerateHandler(apiKey, model, agentURL, agentSecret string) *GenerateHa
 	userLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	statusLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	return &GenerateHandler{
+		provider:    provider,
+		baseURL:     baseURL,
 		apiKey:      apiKey,
 		model:       model,
 		agentURL:    agentURL,
@@ -435,6 +439,14 @@ func (h *GenerateHandler) converse(ctx context.Context, msgs []claudeMessage, cu
 		system += "\n\nThe current version of the site is below. When the user asks for a change, return the FULL revised document.\n<<<CURRENT_SITE>>>\n" + currentHTML
 	}
 
+	if h.provider == "deepseek" || h.provider == "openai" {
+		return h.converseOpenAI(ctx, system, msgs)
+	}
+	return h.converseClaude(ctx, system, msgs)
+}
+
+// converseClaude calls the Anthropic Messages API directly.
+func (h *GenerateHandler) converseClaude(ctx context.Context, system string, msgs []claudeMessage) (string, string, error) {
 	body, err := json.Marshal(claudeRequest{
 		Model:     h.model,
 		MaxTokens: 8192,
@@ -482,6 +494,70 @@ func (h *GenerateHandler) converse(ctx context.Context, msgs []claudeMessage, cu
 	return splitReplyAndHTML(sb.String())
 }
 
+// converseOpenAI calls an OpenAI-compatible chat-completions API (DeepSeek,
+// OpenAI, etc.). The system prompt is passed as a leading system message, and
+// each claudeMessage is flattened to a plain-string content message (attachment
+// blocks are JSON-encoded as a best-effort fallback — the direct OpenAI path is
+// primarily used for text-only conversations).
+func (h *GenerateHandler) converseOpenAI(ctx context.Context, system string, msgs []claudeMessage) (string, string, error) {
+	out := make([]openaiMessage, 0, len(msgs)+1)
+	out = append(out, openaiMessage{Role: "system", Content: system})
+	for _, m := range msgs {
+		var content string
+		switch c := m.Content.(type) {
+		case string:
+			content = c
+		default:
+			if b, err := json.Marshal(c); err == nil {
+				content = string(b)
+			}
+		}
+		out = append(out, openaiMessage{Role: m.Role, Content: content})
+	}
+
+	body, err := json.Marshal(openaiRequest{
+		Model:     h.model,
+		MaxTokens: 8192,
+		Messages:  out,
+	})
+	if err != nil {
+		return "", "", err
+	}
+
+	endpoint := strings.TrimRight(h.baseURL, "/") + "/chat/completions"
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return "", "", err
+	}
+	httpReq.Header.Set("authorization", "Bearer "+h.apiKey)
+	httpReq.Header.Set("content-type", "application/json")
+
+	resp, err := h.client.Do(httpReq)
+	if err != nil {
+		return "", "", err
+	}
+	defer resp.Body.Close()
+
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return "", "", err
+	}
+
+	var parsed openaiResponse
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return "", "", err
+	}
+	if parsed.Error != nil {
+		log.Printf("generate: %s error: %s", h.provider, parsed.Error.Message)
+		return "", "", io.EOF
+	}
+	if len(parsed.Choices) == 0 {
+		log.Printf("generate: %s returned no choices", h.provider)
+		return "", "", io.EOF
+	}
+	return splitReplyAndHTML(parsed.Choices[0].Message.Content)
+}
+
 // splitReplyAndHTML separates the conversational reply from the optional HTML
 // document, which the model delimits with the sentinel marker.
 func splitReplyAndHTML(text string) (string, string, error) {
@@ -515,6 +591,30 @@ type claudeResponse struct {
 		Type string `json:"type"`
 		Text string `json:"text"`
 	} `json:"content"`
+	Error *struct {
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
+// OpenAI-compatible chat-completions wire types, used by converseOpenAI for the
+// DeepSeek/OpenAI direct-call backend.
+type openaiMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type openaiRequest struct {
+	Model     string          `json:"model"`
+	MaxTokens int             `json:"max_tokens"`
+	Messages  []openaiMessage `json:"messages"`
+}
+
+type openaiResponse struct {
+	Choices []struct {
+		Message struct {
+			Content string `json:"content"`
+		} `json:"message"`
+	} `json:"choices"`
 	Error *struct {
 		Message string `json:"message"`
 	} `json:"error"`

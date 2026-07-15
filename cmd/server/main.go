@@ -80,15 +80,21 @@ func main() {
 
 	// Optional "create with AI" endpoint. Sign-in-gated + rate limited; only
 	// enabled when an Anthropic key is configured (it spends real credits).
-	if cfg.AgentServerURL != "" || cfg.AnthropicAPIKey != "" {
-		handler.NewGenerateHandler(cfg.AnthropicAPIKey, cfg.GenerateModel, cfg.AgentServerURL, cfg.AgentSharedSecret).Register(mux, authMW)
+	// The direct-call path uses the Anthropic key by default, or the OpenAI-
+	// compatible key (DeepSeek/OpenAI) when GENERATE_PROVIDER selects it.
+	genKey := cfg.AnthropicAPIKey
+	if cfg.GenerateProvider == "deepseek" || cfg.GenerateProvider == "openai" {
+		genKey = cfg.GenerateAPIKey
+	}
+	if cfg.AgentServerURL != "" || genKey != "" {
+		handler.NewGenerateHandler(cfg.GenerateProvider, genKey, cfg.GenerateModel, cfg.GenerateBaseURL, cfg.AgentServerURL, cfg.AgentSharedSecret).Register(mux, authMW)
 		if cfg.AgentServerURL != "" {
 			log.Printf("AI create endpoint enabled (/v1/generate -> agent server %s)", cfg.AgentServerURL)
 		} else {
-			log.Printf("AI create endpoint enabled (/v1/generate, direct Messages API, model %s)", cfg.GenerateModel)
+			log.Printf("AI create endpoint enabled (/v1/generate, direct %s API, model %s)", cfg.GenerateProvider, cfg.GenerateModel)
 		}
 	} else {
-		log.Printf("neither AGENT_SERVER_URL nor ANTHROPIC_API_KEY set; /v1/generate (AI create) disabled")
+		log.Printf("no generate backend configured; /v1/generate (AI create) disabled")
 	}
 
 	// Server-side visitor analytics: tail the nginx analytics log into daily
