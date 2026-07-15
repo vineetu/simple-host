@@ -22,7 +22,7 @@ And because it stays small, it runs small. Simple Host serves all of its sites f
 
 You don't deploy by hand. You tell your coding agent to, and it uses the Simple Host skill to do the rest.
 
-If you found this on GitHub, you almost certainly already have an agent — Claude Code, Cursor, Codex, opencode, and a dozen more. Install the skill once, for any of them:
+If you found this on GitHub, you almost certainly already have an agent — Claude Code, Cursor, Codex, opencode, GitHub Copilot, and a dozen more. Install the skill once, for any of them:
 
 ```bash
 npx skills add vineetu/simple-host

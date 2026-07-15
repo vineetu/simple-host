@@ -1319,6 +1319,13 @@
     }
 
     function enterApp() {
+      // Retired homepage: a signed-in owner lands on their app (/<handle>), not
+      // the old apex dashboard. Bare root only — preserve ?job= build resume and
+      // any other query-driven apex flow (e.g. /?new=1 to build a new site).
+      if (currentUser && currentUser.handle && location.pathname === '/' && !location.search) {
+        location.replace('/' + encodeURIComponent(currentUser.handle));
+        return;
+      }
       document.body.classList.add('authed');
       document.getElementById('username-display').textContent = currentUser.username;
       document.getElementById('user-actions').style.display = '';

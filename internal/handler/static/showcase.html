@@ -426,7 +426,7 @@
     <!-- Owner dashboard (hydrated) -->
     <div id="owner-view" hidden>
       <div class="section">
-        <div class="section-num"><span class="num">01</span><h2>Overview</h2><span class="line"></span></div>
+        <div class="section-num"><span class="num">01</span><h2>Overview</h2><span class="line"></span><a class="btn btn-primary btn-small" id="owner-new-site" href="#" target="_self">＋ New site</a></div>
         <div class="stats" id="stats"></div>
       </div>
       <div class="section">
@@ -563,6 +563,11 @@
         var a = document.getElementById('owner-share-link');
         if (a) { a.href = SHOWCASE.publicShowcaseUrl; a.textContent = SHOWCASE.publicShowcaseUrl + ' ↗'; }
         share.hidden = false;
+      }
+      var newSite = document.getElementById('owner-new-site');
+      if (newSite) {
+        newSite.href = (SHOWCASE.mainUrl || '/').replace(/\/$/, '') + '/?new=1';
+        newSite.target = '_self';
       }
       var sub = document.getElementById('profile-sub');
       if (sub) sub.textContent = 'Your full site inventory — including unlisted sites.';
