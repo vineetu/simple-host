@@ -595,11 +595,15 @@
         var sres = await api('GET', '/v1/sites');
         if (sres.ok) {
           var data = await sres.json();
-          if (Array.isArray(data)) allSites = data;
-          // Admin sees all sites; narrow to this handle's owner if possible.
-          if (me.is_admin && me.handle !== HANDLE && me.id) {
-            // viewing someone else's showcase as admin: keep all for now
+          // /v1/sites is wrapped as {data:[...],_notice} for callers without an
+          // X-Skill-Version header (every browser) — unwrap it.
+          var arr = Array.isArray(data) ? data : (data && Array.isArray(data.data) ? data.data : []);
+          // On your OWN showcase, show only YOUR sites (an admin's /v1/sites
+          // returns everyone's, which would look wrong on your profile).
+          if (me.id && me.handle === HANDLE) {
+            arr = arr.filter(function (s) { return s.user_id === me.id; });
           }
+          allSites = arr;
         }
       } catch (e) { return false; }
 
@@ -802,8 +806,9 @@
       try {
         var res = await api('GET', '/v1/sites/' + encodeURIComponent(name) + '/versions');
         if (!res.ok) { panel.innerHTML = '<div class="versions-status">Could not load versions</div>'; return; }
-        var versions = await res.json();
-        if (!Array.isArray(versions) || !versions.length) {
+        var vjson = await res.json();
+        var versions = Array.isArray(vjson) ? vjson : (vjson && Array.isArray(vjson.data) ? vjson.data : []);
+        if (!versions.length) {
           panel.innerHTML = '<div class="versions-status">No versions found</div>'; return;
         }
         panel.innerHTML = '<div class="versions-list">' + versions.map(function (v) {
