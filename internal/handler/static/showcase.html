@@ -416,6 +416,8 @@
     }
     .site-footer a { color: var(--text-secondary); text-decoration: none; }
     .site-footer a:hover { color: var(--text); }
+    .sh-foot-links { display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; margin-top: 4px; }
+    .sh-foot-links a { font-size: 12px; }
     #manage-cta { margin-bottom: 8px; }
     #manage-cta .btn-primary { font-size: 13px; padding: 9px 18px; }
 
@@ -624,6 +626,12 @@
       <a class="btn btn-primary" id="manage-cta-link" href="/">Manage your sites →</a>
     </div>
     <p style="margin-top:16px;"><a id="footer-main" href="/">simple·host</a></p>
+    <nav class="sh-foot-links">
+      <a class="foot-info" data-path="install.html" href="/install.html">Get started</a>
+      <a class="foot-info" data-path="architecture.html" href="/architecture.html">Architecture</a>
+      <a class="foot-info" data-path="docs.html" href="/docs.html">API</a>
+      <a class="foot-info" data-path="privacy.html" href="/privacy.html">Privacy</a>
+    </nav>
   </footer>
 
   <div class="toast" id="toast"></div>
@@ -654,6 +662,14 @@
     (function () {
       var b = document.getElementById('brand-link'); if (b) b.href = MAIN_URL;
       var fm = document.getElementById('footer-main'); if (fm) fm.href = MAIN_URL;
+      // Info links live on the main app; on the content host they must be absolute.
+      try {
+        var base = new URL(MAIN_URL, location.href);
+        var links = document.querySelectorAll('.foot-info');
+        for (var i = 0; i < links.length; i++) {
+          links[i].href = new URL(links[i].getAttribute('data-path'), base).href;
+        }
+      } catch (e) {}
     })();
 
     function esc(str) {
