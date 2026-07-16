@@ -862,6 +862,54 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
+  /v1/generate/stream:
+    post:
+      operationId: postGenerateStream
+      summary: Generate a site from a prompt, streamed (SSE)
+      description: >-
+        Streaming variant of POST /v1/generate for the direct OpenAI-compatible
+        backend (DeepSeek). Same request body. Responds with a text/event-stream
+        of `data:` events: {type:stage,value}, {type:reply,delta}, {type:html,delta},
+        {type:done,reply,html}, {type:error,message}. The client treats deltas as
+        UX and trusts the final `done` for canonical values. Sign-in-gated and
+        rate-limited. Returns 404 when the backend is not deepseek/openai. Used by
+        the /dev streaming-chat testbed.
+      tags: [AI]
+      security: [{ apiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                messages:
+                  type: array
+                  items:
+                    type: object
+                    properties: { role: { type: string, enum: [user, assistant] }, content: { type: string } }
+                html: { type: string, description: "current site HTML, for incremental edits" }
+                attachments:
+                  type: array
+                  description: images / PDFs / text on the latest user turn
+                  items:
+                    type: object
+                    properties:
+                      kind: { type: string, enum: [image, document, text] }
+                      mediaType: { type: string }
+                      name: { type: string }
+                      data: { type: string, description: base64 (image/document) }
+                      text: { type: string }
+      responses:
+        '200':
+          description: An SSE (text/event-stream) of stage/reply/html/done/error events.
+          content:
+            text/event-stream:
+              schema: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: streaming not available for this backend }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
   /v1/generate/status:
     get:
       operationId: getGenerateStatus

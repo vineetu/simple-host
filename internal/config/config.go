@@ -63,6 +63,15 @@ type Config struct {
 	GenerateAPIKey   string
 	GenerateBaseURL  string
 
+	// Decoupled backend for the streaming endpoint POST /v1/generate/stream (the
+	// /dev streaming-chat testbed). Lets streaming run on DeepSeek while the main
+	// blocking chat stays on whatever GENERATE_PROVIDER/agent path is configured
+	// (e.g. Claude). Enabled only when STREAM_API_KEY is set. OpenAI-compatible.
+	StreamProvider string
+	StreamAPIKey   string
+	StreamModel    string
+	StreamBaseURL  string
+
 	// Ephemeral "preview" sites. Sites created by an account in PreviewAccounts
 	// get an expires_at = now + PreviewTTL, and a background sweep deletes them
 	// once expired. Everyone else's sites are permanent (expires_at NULL).
@@ -97,6 +106,10 @@ func Load() (Config, error) {
 		GenerateProvider:  getEnvOrDefault("GENERATE_PROVIDER", "anthropic"),
 		GenerateAPIKey:    os.Getenv("GENERATE_API_KEY"),
 		GenerateBaseURL:   strings.TrimRight(getEnvOrDefault("GENERATE_BASE_URL", "https://api.deepseek.com"), "/"),
+		StreamProvider:    getEnvOrDefault("STREAM_PROVIDER", "deepseek"),
+		StreamAPIKey:      os.Getenv("STREAM_API_KEY"),
+		StreamModel:       getEnvOrDefault("STREAM_MODEL", "deepseek-v4-flash"),
+		StreamBaseURL:     strings.TrimRight(getEnvOrDefault("STREAM_BASE_URL", "https://api.deepseek.com"), "/"),
 	}
 	// CONTENT_HOST defaults to sites.<SITE_DOMAIN> so prod/test need no extra env.
 	cfg.ContentHost = getEnvOrDefault("CONTENT_HOST", "sites."+cfg.SiteDomain)

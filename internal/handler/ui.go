@@ -78,6 +78,9 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	mux.HandleFunc("GET /plugin.zip", servePluginZip)
 	mux.HandleFunc("GET /install.sh", serveInstallScript(publicBaseURL))
 	mux.HandleFunc("GET /install.ps1", serveInstallPowerShell(publicBaseURL))
+	// Streaming-chat testbed (dogfood the new /v1/generate/stream experience in
+	// isolation from the main chat). Same CSP as the admin UI.
+	mux.Handle("GET /dev", adminUICSP(serveStaticPage("dev.html")))
 	// On the base origin, a bare /<handle> that resolves to a real user renders
 	// that user's owner app; everything else is the landing page / static files.
 	mux.Handle("GET /", adminUICSP(sh.ownerAppOrStatic(fileServer)))
@@ -103,6 +106,20 @@ func adminUICSP(next http.Handler) http.Handler {
 		w.Header().Set("Content-Security-Policy", policy)
 		next.ServeHTTP(w, r)
 	})
+}
+
+// serveStaticPage serves one embedded static HTML page at a clean (extensionless)
+// route. Zero modtime disables conditional caching, which is fine for a testbed.
+func serveStaticPage(name string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		data, err := staticFiles.ReadFile("static/" + name)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(data))
+	}
 }
 
 // serveSkillsVersion returns {"version":"X"} from the embedded plugin.json.

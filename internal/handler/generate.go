@@ -30,6 +30,12 @@ type GenerateHandler struct {
 	model       string
 	agentURL    string // when set, proxy each turn here (Claude Agent SDK server)
 	agentSecret string
+	// Decoupled backend for the streaming endpoint (see ConfigureStreaming). Empty
+	// streamAPIKey means /v1/generate/stream is disabled.
+	streamProvider string
+	streamAPIKey   string
+	streamModel    string
+	streamBaseURL  string
 	client        *http.Client
 	ipLimiter     *rateLimiter
 	userLimiter   *rateLimiter
@@ -64,8 +70,22 @@ func NewGenerateHandler(provider, apiKey, model, baseURL, agentURL, agentSecret 
 	}
 }
 
+// ConfigureStreaming enables POST /v1/generate/stream with its own
+// OpenAI-compatible backend, decoupled from the main generate provider so the
+// blocking chat can stay on Claude while /dev streams via DeepSeek. No-op guard:
+// the endpoint returns 404 until apiKey is non-empty.
+func (h *GenerateHandler) ConfigureStreaming(provider, apiKey, model, baseURL string) {
+	h.streamProvider = provider
+	h.streamAPIKey = apiKey
+	h.streamModel = model
+	h.streamBaseURL = strings.TrimRight(baseURL, "/")
+}
+
 func (h *GenerateHandler) Register(mux *http.ServeMux, authMW func(http.Handler) http.Handler) {
 	mux.Handle("POST /v1/generate", authMW(http.HandlerFunc(h.generate)))
+	// Streaming variant (SSE) for the direct OpenAI-compatible path — used by the
+	// /dev streaming-chat testbed. Only active when provider is deepseek/openai.
+	mux.Handle("POST /v1/generate/stream", authMW(http.HandlerFunc(h.generateStream)))
 	// Async status poll — only meaningful when an agent server is configured
 	// (the direct Messages-API path answers synchronously from POST /v1/generate).
 	mux.Handle("GET /v1/generate/status", authMW(http.HandlerFunc(h.status)))
@@ -431,6 +451,17 @@ The HTML document:
 - When updating an existing site, return the FULL revised document, keeping everything except the requested change.`
 
 func (h *GenerateHandler) converse(ctx context.Context, msgs []claudeMessage, currentHTML string) (string, string, error) {
+	system := buildGenerateSystem(currentHTML)
+	if h.provider == "deepseek" || h.provider == "openai" {
+		return h.converseOpenAI(ctx, system, msgs)
+	}
+	return h.converseClaude(ctx, system, msgs)
+}
+
+// buildGenerateSystem assembles the system prompt, appending the (capped) current
+// site HTML when the user is iterating on an existing page. Shared by the blocking
+// and streaming paths.
+func buildGenerateSystem(currentHTML string) string {
 	system := generateSystemPrompt
 	if strings.TrimSpace(currentHTML) != "" {
 		if len(currentHTML) > maxCurrentHTML {
@@ -438,11 +469,29 @@ func (h *GenerateHandler) converse(ctx context.Context, msgs []claudeMessage, cu
 		}
 		system += "\n\nThe current version of the site is below. When the user asks for a change, return the FULL revised document.\n<<<CURRENT_SITE>>>\n" + currentHTML
 	}
+	return system
+}
 
-	if h.provider == "deepseek" || h.provider == "openai" {
-		return h.converseOpenAI(ctx, system, msgs)
+// flattenToOpenAI turns the system prompt + conversation into OpenAI-style
+// messages: a leading system message, then each turn's content as a plain string
+// (attachment blocks are JSON-encoded as a best-effort fallback). Shared by the
+// blocking and streaming OpenAI-compatible paths.
+func flattenToOpenAI(system string, msgs []claudeMessage) []openaiMessage {
+	out := make([]openaiMessage, 0, len(msgs)+1)
+	out = append(out, openaiMessage{Role: "system", Content: system})
+	for _, m := range msgs {
+		var content string
+		switch c := m.Content.(type) {
+		case string:
+			content = c
+		default:
+			if b, err := json.Marshal(c); err == nil {
+				content = string(b)
+			}
+		}
+		out = append(out, openaiMessage{Role: m.Role, Content: content})
 	}
-	return h.converseClaude(ctx, system, msgs)
+	return out
 }
 
 // converseClaude calls the Anthropic Messages API directly.
@@ -500,20 +549,7 @@ func (h *GenerateHandler) converseClaude(ctx context.Context, system string, msg
 // blocks are JSON-encoded as a best-effort fallback — the direct OpenAI path is
 // primarily used for text-only conversations).
 func (h *GenerateHandler) converseOpenAI(ctx context.Context, system string, msgs []claudeMessage) (string, string, error) {
-	out := make([]openaiMessage, 0, len(msgs)+1)
-	out = append(out, openaiMessage{Role: "system", Content: system})
-	for _, m := range msgs {
-		var content string
-		switch c := m.Content.(type) {
-		case string:
-			content = c
-		default:
-			if b, err := json.Marshal(c); err == nil {
-				content = string(b)
-			}
-		}
-		out = append(out, openaiMessage{Role: m.Role, Content: content})
-	}
+	out := flattenToOpenAI(system, msgs)
 
 	body, err := json.Marshal(openaiRequest{
 		Model:     h.model,
@@ -607,6 +643,7 @@ type openaiRequest struct {
 	Model     string          `json:"model"`
 	MaxTokens int             `json:"max_tokens"`
 	Messages  []openaiMessage `json:"messages"`
+	Stream    bool            `json:"stream,omitempty"`
 }
 
 type openaiResponse struct {
