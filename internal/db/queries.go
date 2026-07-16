@@ -416,6 +416,33 @@ func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 	return sites, nil
 }
 
+// ListAllUsers returns every registered user (admin view), oldest first. API keys
+// are deliberately NOT selected.
+func ListAllUsers(ctx context.Context, db *sql.DB) ([]User, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT id, username, is_admin, created_at, COALESCE(handle, '')
+		FROM users
+		ORDER BY created_at ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []User
+	for rows.Next() {
+		var u User
+		var handle string
+		if err := rows.Scan(&u.ID, &u.Username, &u.IsAdmin, &u.CreatedAt, &handle); err != nil {
+			return nil, err
+		}
+		if handle != "" {
+			u.Handle = sql.NullString{String: handle, Valid: true}
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
 func ListSitesByUser(ctx context.Context, db *sql.DB, userID string) ([]Site, error) {
 	const query = `
 		SELECT id, user_id, name, active_version, site_url, created_at, updated_at, custom_domain, domain_status, visibility

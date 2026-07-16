@@ -837,6 +837,42 @@ paths:
                     properties: { files: { type: object, additionalProperties: { type: string } } }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /v1/admin/users:
+    get:
+      operationId: getAdminUsers
+      summary: List all users + their sites (admin)
+      description: >-
+        Admin-only. Returns every registered user with their sites nested (API keys
+        are never included). Powers the /admin dashboard. A signed-in non-admin gets
+        404, not 403 — the endpoint does not confirm it exists to anyone who may not
+        use it, and /admin renders that as an ordinary not-found page.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      responses:
+        '200':
+          description: All users with nested sites and totals.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_count: { type: integer }
+                  site_count: { type: integer }
+                  users:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        username: { type: string }
+                        handle: { type: string }
+                        is_admin: { type: boolean }
+                        created_at: { type: string, format: date-time }
+                        site_count: { type: integer }
+                        sites: { type: array, items: { type: object } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: not an admin (deliberately indistinguishable from a route that does not exist) }
+
   /v1/generate:
     post:
       operationId: postGenerate

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Admin — simple·host</title>
+<script>(function(){try{var s=localStorage.getItem('sh-theme');document.documentElement.dataset.theme=s||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');}catch(e){document.documentElement.dataset.theme='light';}})();</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+[hidden]{display:none!important}
+:root{
+  --bg:#020617;--surface:#0b1222;--surface2:#0f1830;--border:#1e293b;--border-hi:#334155;
+  --text:#f1f5f9;--dim:#94a3b8;--faint:#475569;--accent:#22d3ee;--ok:#34d399;--err:#fb7185;--on-accent:#020617;
+  --font:'JetBrains Mono',ui-monospace,Menlo,monospace;
+}
+html[data-theme="light"]{
+  --bg:#f7f8fb;--surface:#fff;--surface2:#eef2f8;--border:#e2e8f0;--border-hi:#cbd5e1;
+  --text:#0f172a;--dim:#475569;--faint:#94a3b8;--accent:#0891b2;--ok:#059669;--err:#e11d48;--on-accent:#fff;
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;
+  background-image:linear-gradient(var(--surface2) 1px,transparent 1px),linear-gradient(90deg,var(--surface2) 1px,transparent 1px);background-size:48px 48px;}
+.container{max-width:960px;margin:0 auto;padding:0 20px}
+header{border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:10}
+header .container{display:flex;align-items:center;justify-content:space-between;height:56px}
+.brand{font-size:14px;font-weight:700}.brand b{color:var(--accent)}.brand .tag{color:var(--faint);font-weight:500;margin-left:8px}
+.icon-btn{background:transparent;border:1px solid var(--border);color:var(--dim);border-radius:8px;height:30px;padding:0 10px;cursor:pointer;font-family:var(--font);font-size:12px}
+.icon-btn:hover{border-color:var(--accent);color:var(--accent)}
+.stats{display:flex;gap:16px;margin:22px 0 8px}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;flex:1}
+.stat .n{font-size:26px;font-weight:700;color:var(--accent);line-height:1}
+.stat .l{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-top:6px}
+.msg{padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--dim);font-size:13px;margin-top:16px}
+.msg.err{border-color:var(--err);color:var(--err)}
+.users{margin:12px 0 60px;display:flex;flex-direction:column;gap:12px}
+.user{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px}
+.user-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.user-head .name{font-size:15px;font-weight:600}
+.badge{font-size:10.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--border-hi);color:var(--dim)}
+.badge.admin{color:var(--accent);border-color:var(--accent)}
+.badge.count{color:var(--text)}
+.user-head .when{margin-left:auto;font-size:11px;color:var(--faint)}
+.handle{color:var(--faint);font-size:12px}
+.sites{margin-top:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+.site{border:1px solid var(--border);border-radius:9px;padding:9px 11px;background:var(--surface2);min-width:0}
+.site .sn{font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:6px}
+.dot{width:6px;height:6px;border-radius:50%;flex:none}.dot.live{background:var(--ok)}.dot.pending{background:var(--faint)}
+.site a{color:var(--accent);font-size:11px;text-decoration:none;display:block;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.site a:hover{text-decoration:underline}
+.site .cd{font-size:10.5px;color:var(--dim);margin-top:3px}
+.nosites{font-size:11.5px;color:var(--faint);margin-top:10px}
+</style>
+</head>
+<body>
+<header><div class="container">
+  <div class="brand">simple<b>·</b>host <span class="tag">admin</span></div>
+  <div style="display:flex;gap:8px">
+    <button class="icon-btn" onclick="location.href='/'">← App</button>
+    <button class="icon-btn" onclick="toggleTheme()">◑</button>
+  </div>
+</div></header>
+
+<div class="container">
+  <div class="stats" id="stats" hidden>
+    <div class="stat"><div class="n" id="uc">–</div><div class="l">Users</div></div>
+    <div class="stat"><div class="n" id="sc">–</div><div class="l">Websites</div></div>
+  </div>
+  <div id="status" class="msg" hidden></div>
+  <div class="users" id="users"></div>
+</div>
+
+<script>
+var apiKey = localStorage.getItem('apiKey') || '';
+function toggleTheme(){ var t=document.documentElement.dataset.theme==='dark'?'light':'dark'; document.documentElement.dataset.theme=t; try{localStorage.setItem('sh-theme',t);}catch(e){} }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function fmtDate(s){ try{ return new Date(s).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}); }catch(e){ return ''; } }
+function status(msg, err){ var s=document.getElementById('status'); s.hidden=false; s.className='msg'+(err?' err':''); s.textContent=msg; }
+
+function siteCard(s){
+  var live=!!s.site_url;
+  return '<div class="site"><div class="sn"><span class="dot '+(live?'live':'pending')+'"></span>'+esc(s.name)+'</div>'+
+    (live?'<a href="'+esc(s.site_url)+'" target="_blank" rel="noopener">'+esc(s.site_url)+'</a>':'<span class="cd">not live yet</span>')+
+    (s.custom_domain?'<div class="cd">🌐 '+esc(s.custom_domain)+'</div>':'')+'</div>';
+}
+function userCard(u){
+  var sites=(u.sites||[]);
+  var head='<div class="user-head"><span class="name">'+esc(u.username)+'</span>'+
+    (u.handle?'<span class="handle">/'+esc(u.handle)+'</span>':'')+
+    (u.is_admin?'<span class="badge admin">admin</span>':'')+
+    '<span class="badge count">'+u.site_count+' site'+(u.site_count===1?'':'s')+'</span>'+
+    '<span class="when">joined '+fmtDate(u.created_at)+'</span></div>';
+  var body = sites.length ? '<div class="sites">'+sites.map(siteCard).join('')+'</div>' : '<div class="nosites">No sites yet.</div>';
+  return '<div class="user">'+head+body+'</div>';
+}
+
+// Anyone who is not an admin sees an ordinary not-found page — no key prompt, no
+// hint that this route means anything. The page shell has to be public (a browser
+// navigation carries no API key, so the server cannot gate it), which makes this
+// the only place the distinction can be drawn. Signing in on the main app is
+// enough: it stores the key under the same 'apiKey' name this reads.
+function renderNotFound(){
+  document.title='Not found · simple·host';
+  document.body.innerHTML='<div class="container" style="padding-top:80px;text-align:center">'+
+    '<div style="font-size:44px;font-weight:600;letter-spacing:-1px">404</div>'+
+    '<p style="color:var(--dim);margin-top:8px">That page does not exist.</p>'+
+    '<p style="margin-top:22px"><a href="/" style="color:var(--dim)">← simple·host</a></p></div>';
+}
+
+async function load(){
+  if(!apiKey){ renderNotFound(); return; }
+  status('Loading…');
+  try{
+    var res=await fetch('/v1/admin/users',{headers:{'X-API-Key':apiKey}});
+    if(res.status===401||res.status===403||res.status===404){ renderNotFound(); return; }
+    var data=await res.json().catch(function(){return{};});
+    if(!res.ok){ status(data.error||('HTTP '+res.status), true); return; }
+    document.getElementById('status').hidden=true;
+    document.getElementById('stats').hidden=false;
+    document.getElementById('uc').textContent=data.user_count;
+    document.getElementById('sc').textContent=data.site_count;
+    var users=(data.users||[]);
+    // Most sites first, then newest joiners.
+    users.sort(function(a,b){ return (b.site_count-a.site_count) || (new Date(b.created_at)-new Date(a.created_at)); });
+    document.getElementById('users').innerHTML = users.map(userCard).join('');
+  }catch(e){ status('Could not reach the server: '+(e.message||e), true); }
+}
+load();
+</script>
+</body>
+</html>

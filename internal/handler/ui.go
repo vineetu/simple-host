@@ -81,9 +81,28 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	mux.HandleFunc("GET /plugin.zip", servePluginZip)
 	mux.HandleFunc("GET /install.sh", serveInstallScript(publicBaseURL))
 	mux.HandleFunc("GET /install.ps1", serveInstallPowerShell(publicBaseURL))
+	// Admin dashboard: all signed-up users + their sites. This shell is public —
+	// a browser navigation carries no API key, so it cannot be gated server-side.
+	// It renders nothing until /v1/admin/users answers, and that IS gated; a
+	// non-admin gets the 404 page instead. See admin.html.
+	mux.Handle("GET /admin", adminUICSP(serveStaticPage("admin.html")))
 	// On the base origin, a bare /<handle> that resolves to a real user renders
 	// that user's owner app; everything else is the landing page / static files.
 	mux.Handle("GET /", adminUICSP(sh.ownerAppOrStatic(fileServer)))
+}
+
+// serveStaticPage serves one embedded HTML page at a fixed route, for pages that
+// need a clean URL rather than the .html the file server would expose.
+func serveStaticPage(name string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := staticFiles.ReadFile("static/" + name)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(body)
+	})
 }
 
 // adminUICSP adds a Content-Security-Policy to the admin UI / landing pages.
