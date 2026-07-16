@@ -810,6 +810,40 @@ paths:
                     properties: { files: { type: object, additionalProperties: { type: string } } }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /v1/admin/users:
+    get:
+      operationId: getAdminUsers
+      summary: List all users + their sites (admin)
+      description: >-
+        Admin-only. Returns every registered user with their sites nested (API keys
+        are never included). Powers the /admin dashboard. Non-admins get 403.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      responses:
+        '200':
+          description: All users with nested sites and totals.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_count: { type: integer }
+                  site_count: { type: integer }
+                  users:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        username: { type: string }
+                        handle: { type: string }
+                        is_admin: { type: boolean }
+                        created_at: { type: string, format: date-time }
+                        site_count: { type: integer }
+                        sites: { type: array, items: { type: object } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: not an admin }
+
   /v1/generate:
     post:
       operationId: postGenerate

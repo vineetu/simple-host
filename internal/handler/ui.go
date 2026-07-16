@@ -81,6 +81,8 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// Streaming-chat testbed (dogfood the new /v1/generate/stream experience in
 	// isolation from the main chat). Same CSP as the admin UI.
 	mux.Handle("GET /dev", adminUICSP(serveStaticPage("dev.html")))
+	// Admin dashboard: all signed-up users + their sites (API is admin-gated).
+	mux.Handle("GET /admin", adminUICSP(serveStaticPage("admin.html")))
 	// On the base origin, a bare /<handle> that resolves to a real user renders
 	// that user's owner app; everything else is the landing page / static files.
 	mux.Handle("GET /", adminUICSP(sh.ownerAppOrStatic(fileServer)))

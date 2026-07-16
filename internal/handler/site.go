@@ -194,6 +194,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("PUT /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.updateSite)))))
 	mux.Handle("DELETE /v1/sites/{sitename}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.deleteSite))))
 	mux.Handle("GET /v1/sites", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listSites))))
+	mux.Handle("GET /v1/admin/users", authMiddleware(http.HandlerFunc(h.adminUsers)))
 	mux.Handle("GET /v1/sites/{sitename}/versions", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listVersions))))
 	mux.Handle("PUT /v1/sites/{sitename}/active-version", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setActiveVersion))))
 	mux.Handle("GET /v1/sites/{sitename}/analytics", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteAnalytics))))
@@ -1252,6 +1253,61 @@ func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, response)
+}
+
+// adminUsers returns every registered user with their sites nested (admin only).
+// Powers the /admin dashboard. API keys are never included.
+func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+		return
+	}
+	if !user.IsAdmin {
+		writeJSON(w, http.StatusForbidden, errorResponse{Error: "admin only"})
+		return
+	}
+
+	users, err := db.ListAllUsers(r.Context(), h.database)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	sites, err := db.ListAllSites(r.Context(), h.database)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+
+	// Group sites under their owner.
+	byUser := make(map[string][]map[string]any, len(users))
+	for _, s := range sites {
+		byUser[s.UserID] = append(byUser[s.UserID], map[string]any{
+			"name":           s.Name,
+			"site_url":       s.SiteURL,
+			"active_version": s.ActiveVersion,
+			"custom_domain":  s.CustomDomain.String,
+			"created_at":     s.CreatedAt,
+		})
+	}
+
+	out := make([]map[string]any, 0, len(users))
+	for _, u := range users {
+		list := byUser[u.ID]
+		if list == nil {
+			list = []map[string]any{}
+		}
+		out = append(out, map[string]any{
+			"id":         u.ID,
+			"username":   u.Username,
+			"handle":     u.Handle.String,
+			"is_admin":   u.IsAdmin,
+			"created_at": u.CreatedAt,
+			"site_count": len(list),
+			"sites":      list,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"users": out, "user_count": len(out), "site_count": len(sites)})
 }
 
 // readAndValidateFiles reads the archive body, verifies an optional
