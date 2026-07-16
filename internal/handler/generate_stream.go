@@ -43,13 +43,14 @@ func (h *GenerateHandler) generateStream(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "sign in to use AI create"})
 		return
 	}
-	if !h.ipLimiter.allow(clientIP(r)) || !h.userLimiter.allow(user.ID) {
-		tooManyRequests(w)
-		return
-	}
-	// Streaming uses its own decoupled OpenAI-compatible backend (ConfigureStreaming).
+	// Provider guard before the rate limiter, so a 404 (streaming not configured)
+	// doesn't spend the caller's rate-limit budget.
 	if h.streamAPIKey == "" || (h.streamProvider != "deepseek" && h.streamProvider != "openai") {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "streaming not available for this backend"})
+		return
+	}
+	if !h.ipLimiter.allow(clientIP(r)) || !h.userLimiter.allow(user.ID) {
+		tooManyRequests(w)
 		return
 	}
 
@@ -194,11 +195,14 @@ func (h *GenerateHandler) streamConverse(ctx context.Context, msgs []claudeMessa
 	}
 
 	reader := bufio.NewReader(resp.Body)
+	sawDone := false
+	var readErr error
 	for {
 		line, rerr := reader.ReadString('\n')
 		if s := strings.TrimRight(line, "\r\n"); s != "" && strings.HasPrefix(s, "data:") {
 			data := strings.TrimSpace(s[len("data:"):])
 			if data == "[DONE]" {
+				sawDone = true
 				break
 			}
 			var chunk openaiStreamChunk
@@ -207,8 +211,21 @@ func (h *GenerateHandler) streamConverse(ctx context.Context, msgs []claudeMessa
 			}
 		}
 		if rerr != nil {
+			if rerr != io.EOF {
+				readErr = rerr
+			}
 			break
 		}
+	}
+
+	// A proxy/network drop or upstream stall ends the stream before the terminating
+	// [DONE]. Don't emit a false "done" — return an error so the caller surfaces one
+	// and the client shows a problem instead of a half-built "complete" site.
+	if !sawDone {
+		if readErr != nil {
+			return fmt.Errorf("stream interrupted: %w", readErr)
+		}
+		return fmt.Errorf("stream ended before completion")
 	}
 
 	// Authoritative final values — the client replaces streamed UX with these.

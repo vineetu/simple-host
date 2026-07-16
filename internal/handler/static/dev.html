@@ -154,9 +154,17 @@ async function run(text){
   var bubble=null;         // assistant reply bubble (created on first reply delta)
   var replyText='';
   var htmlBuf='';
+  var gotDone=false;
   var codepre=document.getElementById('codepre');
 
   function setStage(v){ var map={connecting:'connecting…',generating:'thinking…',writing:'writing the page…'}; var s=stage.querySelector('span:last-child'); if(s) s.textContent=map[v]||v; }
+  function handle(ev){
+    if(ev.type==='stage'){ setStage(ev.value); }
+    else if(ev.type==='reply'){ if(!bubble){ if(stage.parentNode)stage.remove(); bubble=el('msg ai',''); } replyText+=ev.delta; bubble.textContent=replyText; scroll(); }
+    else if(ev.type==='html'){ htmlBuf+=ev.delta; codepre.textContent=htmlBuf; }
+    else if(ev.type==='done'){ gotDone=true; if(!bubble){ if(stage.parentNode)stage.remove(); bubble=el('msg ai',''); } if(ev.reply) bubble.textContent=ev.reply; replyText=ev.reply||replyText; if(ev.html){ currentHTML=ev.html; codepre.textContent=currentHTML; paint(); } }
+    else if(ev.type==='error'){ throw new Error(ev.message||'stream error'); }
+  }
 
   try{
     var res=await fetch('/v1/generate/stream',{method:'POST',headers:{'X-API-Key':apiKey,'content-type':'application/json'},body:JSON.stringify({messages:messages, html:currentHTML})});
@@ -172,20 +180,15 @@ async function run(text){
         if(line.slice(0,5)!=='data:') continue;
         var data=line.slice(5).trim(); if(!data) continue;
         var ev; try{ ev=JSON.parse(data); }catch(_){ continue; }
-        if(ev.type==='stage'){ setStage(ev.value); }
-        else if(ev.type==='reply'){ if(!bubble){ stage.remove(); bubble=el('msg ai',''); } replyText+=ev.delta; bubble.textContent=replyText; scroll(); }
-        else if(ev.type==='html'){ htmlBuf+=ev.delta; codepre.textContent=htmlBuf; }
-        else if(ev.type==='done'){
-          if(!bubble && ev.reply){ stage.remove(); bubble=el('msg ai',''); }
-          if(ev.reply && bubble) bubble.textContent=ev.reply;
-          replyText=ev.reply||replyText;
-          if(ev.html){ currentHTML=ev.html; codepre.textContent=currentHTML; paint(); }
-        }
-        else if(ev.type==='error'){ throw new Error(ev.message||'stream error'); }
+        handle(ev);
       }
     }
+    // Flush a trailing event that arrived without a final newline.
+    var tail=buf.trim();
+    if(tail.slice(0,5)==='data:'){ try{ handle(JSON.parse(tail.slice(5).trim())); }catch(_){} }
     if(stage.parentNode) stage.remove();
-    if(!bubble && replyText) { bubble=el('msg ai', replyText); }
+    // No terminating "done" → the stream was cut; don't record a half build as success.
+    if(!gotDone) throw new Error('the response was cut short — please try again');
     messages.push({role:'assistant', content:replyText||'Done.'});
   }catch(err){
     if(stage.parentNode) stage.remove();
