@@ -30,12 +30,6 @@ type GenerateHandler struct {
 	model       string
 	agentURL    string // when set, proxy each turn here (Claude Agent SDK server)
 	agentSecret string
-	// Decoupled backend for the streaming endpoint (see ConfigureStreaming). Empty
-	// streamAPIKey means /v1/generate/stream is disabled.
-	streamProvider string
-	streamAPIKey   string
-	streamModel    string
-	streamBaseURL  string
 	client        *http.Client
 	ipLimiter     *rateLimiter
 	userLimiter   *rateLimiter
@@ -70,22 +64,8 @@ func NewGenerateHandler(provider, apiKey, model, baseURL, agentURL, agentSecret 
 	}
 }
 
-// ConfigureStreaming enables POST /v1/generate/stream with its own
-// OpenAI-compatible backend, decoupled from the main generate provider so the
-// blocking chat can stay on Claude while /dev streams via DeepSeek. No-op guard:
-// the endpoint returns 404 until apiKey is non-empty.
-func (h *GenerateHandler) ConfigureStreaming(provider, apiKey, model, baseURL string) {
-	h.streamProvider = provider
-	h.streamAPIKey = apiKey
-	h.streamModel = model
-	h.streamBaseURL = strings.TrimRight(baseURL, "/")
-}
-
 func (h *GenerateHandler) Register(mux *http.ServeMux, authMW func(http.Handler) http.Handler) {
 	mux.Handle("POST /v1/generate", authMW(http.HandlerFunc(h.generate)))
-	// Streaming variant (SSE) for the direct OpenAI-compatible path — used by the
-	// /dev streaming-chat testbed. Only active when provider is deepseek/openai.
-	mux.Handle("POST /v1/generate/stream", authMW(http.HandlerFunc(h.generateStream)))
 	// Async status poll — only meaningful when an agent server is configured
 	// (the direct Messages-API path answers synchronously from POST /v1/generate).
 	mux.Handle("GET /v1/generate/status", authMW(http.HandlerFunc(h.status)))
@@ -643,7 +623,6 @@ type openaiRequest struct {
 	Model     string          `json:"model"`
 	MaxTokens int             `json:"max_tokens"`
 	Messages  []openaiMessage `json:"messages"`
-	Stream    bool            `json:"stream,omitempty"`
 }
 
 type openaiResponse struct {

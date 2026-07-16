@@ -78,9 +78,6 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	mux.HandleFunc("GET /plugin.zip", servePluginZip)
 	mux.HandleFunc("GET /install.sh", serveInstallScript(publicBaseURL))
 	mux.HandleFunc("GET /install.ps1", serveInstallPowerShell(publicBaseURL))
-	// Streaming-chat testbed (dogfood the new /v1/generate/stream experience in
-	// isolation from the main chat). Same CSP as the admin UI.
-	mux.Handle("GET /dev", adminUICSP(serveStaticPage("dev.html")))
 	// Admin dashboard: all signed-up users + their sites (API is admin-gated).
 	mux.Handle("GET /admin", adminUICSP(serveStaticPage("admin.html")))
 	// On the base origin, a bare /<handle> that resolves to a real user renders

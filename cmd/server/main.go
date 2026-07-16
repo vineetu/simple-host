@@ -86,21 +86,12 @@ func main() {
 	if cfg.GenerateProvider == "deepseek" || cfg.GenerateProvider == "openai" {
 		genKey = cfg.GenerateAPIKey
 	}
-	if cfg.AgentServerURL != "" || genKey != "" || cfg.StreamAPIKey != "" {
-		gh := handler.NewGenerateHandler(cfg.GenerateProvider, genKey, cfg.GenerateModel, cfg.GenerateBaseURL, cfg.AgentServerURL, cfg.AgentSharedSecret)
-		// Decoupled streaming backend (/v1/generate/stream, /dev testbed) — lets
-		// streaming run on DeepSeek while the blocking chat stays on Claude.
-		if cfg.StreamAPIKey != "" {
-			gh.ConfigureStreaming(cfg.StreamProvider, cfg.StreamAPIKey, cfg.StreamModel, cfg.StreamBaseURL)
-			log.Printf("streaming AI create enabled (/v1/generate/stream, %s, model %s)", cfg.StreamProvider, cfg.StreamModel)
-		}
-		gh.Register(mux, authMW)
+	if cfg.AgentServerURL != "" || genKey != "" {
+		handler.NewGenerateHandler(cfg.GenerateProvider, genKey, cfg.GenerateModel, cfg.GenerateBaseURL, cfg.AgentServerURL, cfg.AgentSharedSecret).Register(mux, authMW)
 		if cfg.AgentServerURL != "" {
 			log.Printf("AI create endpoint enabled (/v1/generate -> agent server %s)", cfg.AgentServerURL)
-		} else if genKey != "" {
-			log.Printf("AI create endpoint enabled (/v1/generate, direct %s API, model %s)", cfg.GenerateProvider, cfg.GenerateModel)
 		} else {
-			log.Printf("AI create: streaming-only (blocking /v1/generate has no backend configured)")
+			log.Printf("AI create endpoint enabled (/v1/generate, direct %s API, model %s)", cfg.GenerateProvider, cfg.GenerateModel)
 		}
 	} else {
 		log.Printf("no generate backend configured; /v1/generate (AI create) disabled")
