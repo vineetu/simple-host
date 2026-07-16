@@ -1,6 +1,9 @@
 # Streaming "Build with AI" chat — design (dev testbed)
 
-**Status:** draft for review (Grok + Sonnet) · 2026-07-16
+**Status:** SHIPPED to https://simple-host.app/dev · 2026-07-16 (commits be8995f + 33c4d18).
+Proxy go/no-go PASSED (SSE un-buffered, ~1.2s TTFT). Implementation reviewed by
+Grok + Sonnet; P0 (false-completion on cut streams) fixed. Deferred items noted in
+[[simple-host-streaming-chat]] memory. Draft history below.
 **Owner:** Vineet · driver: Opus · reviewers: Grok (x-ai/grok-4.5), Sonnet
 
 ## Goal
