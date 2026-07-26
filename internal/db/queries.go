@@ -320,6 +320,33 @@ func GetSite(ctx context.Context, db *sql.DB, name string) (Site, error) {
 	return site, err
 }
 
+// GetSiteByIDAny resolves a site by its primary key regardless of owner. Used
+// by the admin-only delete path, where the (user_id, name) lookup can't apply:
+// site names are unique per user, not globally, so an admin acting on someone
+// else's site has to address it by ID.
+func GetSiteByIDAny(ctx context.Context, db *sql.DB, siteID string) (Site, error) {
+	const query = `
+		SELECT id, user_id, name, active_version, site_url, created_at, updated_at, custom_domain, domain_status, visibility
+		FROM sites
+		WHERE id = $1
+	`
+
+	var site Site
+	err := db.QueryRowContext(ctx, query, siteID).Scan(
+		&site.ID,
+		&site.UserID,
+		&site.Name,
+		&site.ActiveVersion,
+		&site.SiteURL,
+		&site.CreatedAt,
+		&site.UpdatedAt,
+		&site.CustomDomain,
+		&site.DomainStatus,
+		&site.Visibility,
+	)
+	return site, err
+}
+
 // GetSiteIDByName resolves a bare site name for the legacy edge. When multiple
 // users own the same name, it returns the ORIGINAL (oldest) owner so the
 // legacy subdomain / bare-name route never flips to a later same-named site.

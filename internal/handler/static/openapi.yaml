@@ -871,6 +871,30 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { description: not an admin }
 
+  /v1/admin/sites/{siteid}:
+    delete:
+      operationId: adminDeleteSite
+      summary: Delete any site (admin)
+      description: >-
+        Admin-only. Deletes a site whoever owns it, along with every version and
+        its files on disk. Irreversible. Addressed by site ID rather than name
+        because names are only unique per user — get IDs from GET /v1/admin/users.
+        Non-admins get 403.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      parameters:
+        - name: siteid
+          in: path
+          required: true
+          description: The site's UUID (from GET /v1/admin/users).
+          schema: { type: string }
+      responses:
+        '204': { description: Site deleted. }
+        '400': { description: site id is required }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: not an admin }
+        '404': { description: no site with that id }
+
   /v1/generate:
     post:
       operationId: postGenerate

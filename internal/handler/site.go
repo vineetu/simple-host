@@ -195,6 +195,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("DELETE /v1/sites/{sitename}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.deleteSite))))
 	mux.Handle("GET /v1/sites", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listSites))))
 	mux.Handle("GET /v1/admin/users", authMiddleware(http.HandlerFunc(h.adminUsers)))
+	mux.Handle("DELETE /v1/admin/sites/{siteid}", authMiddleware(http.HandlerFunc(h.adminDeleteSite)))
 	mux.Handle("GET /v1/sites/{sitename}/versions", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listVersions))))
 	mux.Handle("PUT /v1/sites/{sitename}/active-version", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setActiveVersion))))
 	mux.Handle("GET /v1/sites/{sitename}/analytics", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteAnalytics))))
@@ -1145,6 +1146,45 @@ func (h *SiteHandler) deleteSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.purgeSite(w, r, site)
+}
+
+// adminDeleteSite deletes any site, whoever owns it (admin only). Addressed by
+// site ID, not name: names are unique per user, so a name alone is ambiguous
+// across owners. IDs come from GET /v1/admin/users, which powers /admin.
+func (h *SiteHandler) adminDeleteSite(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+		return
+	}
+	if !user.IsAdmin {
+		writeJSON(w, http.StatusForbidden, errorResponse{Error: "admin only"})
+		return
+	}
+
+	siteID := strings.TrimSpace(r.PathValue("siteid"))
+	if siteID == "" {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site id is required"})
+		return
+	}
+
+	site, err := db.GetSiteByIDAny(r.Context(), h.database, siteID)
+	if err != nil {
+		// A malformed UUID comes back as a Postgres cast error, not ErrNoRows;
+		// either way the caller named a site that doesn't exist.
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+		return
+	}
+
+	log.Printf("admin delete: user=%s site=%s (%s) owner=%s", user.Username, site.Name, site.ID, site.UserID)
+	h.purgeSite(w, r, site)
+}
+
+// purgeSite removes a site's rows and its files on disk, then writes the
+// response. Shared by the owner delete path and the admin delete path — the
+// difference between them is only how the site was authorized and resolved.
+func (h *SiteHandler) purgeSite(w http.ResponseWriter, r *http.Request, site db.Site) {
 	tx, err := h.database.BeginTx(r.Context(), nil)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -1283,6 +1323,7 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 	byUser := make(map[string][]map[string]any, len(users))
 	for _, s := range sites {
 		byUser[s.UserID] = append(byUser[s.UserID], map[string]any{
+			"id":             s.ID,
 			"name":           s.Name,
 			"site_url":       s.SiteURL,
 			"active_version": s.ActiveVersion,
