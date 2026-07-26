@@ -5,7 +5,7 @@
 **Scope:** let a *visitor* of a hosted site sign in with their email, and let the
 site show them their own private page and their own private data.
 
-> **Read §0 first.** Three live bugs must be fixed before any of this is built, and
+> **Read §0 first.** Four live bugs must be fixed before any of this is built, and
 > one of them is a privacy bug affecting users today.
 
 ---
@@ -141,8 +141,10 @@ Every candidate escape was checked and every one fails:
 | Sandboxed iframe / opaque origin | Opaque origins have no cookie or storage access at all. |
 | Session-holding iframe on a distinct origin + `postMessage` | The closest miss. The frame authenticates its parent by `event.origin` — and Alice's and Mallory's parents have the **identical** origin. It cannot tell them apart. Also needs a per-site origin anyway. |
 
-> **A session on the shared content host cannot be secured. A site with sign-in needs
-> its own origin.** This is not a preference; it is the whole design.
+> **A session on the shared content host cannot be secured. A site with sign-in needs an
+> origin it does not share with other people's sites.** This is not a preference; it is
+> the whole design. §2.1 draws that boundary around the *account* — one subdomain per
+> user — which is the cheapest place to draw it that still separates tenants.
 
 The server already concedes it: `site.go:417` accepts `contentHost` as a valid Origin
 for **every** site and reflects it with `Access-Control-Allow-Credentials: true`
@@ -152,9 +154,131 @@ This is also already the stated product rule in the `connect-domain` skill — *
 is a property of a connected domain (its own isolated origin), not of a path on the
 shared host."* Invite-only generalises it.
 
-### 2.1 Put site origins on a different registrable domain
+### 2.1 One origin per *user*: `<handle>.simple-host.app/sites/<site>/`
 
-The first draft proposed `<handle>--<site>.simple-host.app`. Review killed it:
+**Decision: each user gets a subdomain; their sites live on a path under it.** The
+trust boundary is drawn around the *account*, not the individual site.
+
+```
+https://vineetu.simple-host.app/sites/site-1/
+```
+
+**The infra already exists.** Verified on the playground 2026-07-26:
+
+| Piece | Status |
+|---|---|
+| `*.simple-host.app` DNS | resolves to the box already |
+| TLS | wildcard cert already carries `DNS:*.simple-host.app` |
+| nginx | already has `server_name ~^(?<sub>[^.]+)\.simple-host.app$` |
+| Disk layout | symlink farm is **already keyed by handle**: `/srv/simple-host/sites/handles/<handle>/<site>/current` |
+
+So the serving change is one nginx block: stop 301ing that regex server to the apex,
+root it at `handles/$sub`, strip the `/sites/` prefix. No new domain, no new DNS, no
+new certificate. This is the cheapest version of origin isolation available, and it
+deletes most of what §2.2 called Phase 0.
+
+**What it buys.** `vineetu.simple-host.app` and `mallory.simple-host.app` are
+different origins, so the shared-origin attack at the top of §2 is dead: Mallory's
+page cannot read your members' sessions or your sites' state. That is the threat that
+actually matters, and it is the one this fixes.
+
+**What it does not buy, and why that's acceptable.** Your own sites still share an
+origin with each other, so `site-1` can read `site-2`'s member session. Both are
+authored by the same person: this is self-XSS, not a tenancy break. The one real
+exception is a site that renders **untrusted third-party content** — user-submitted
+HTML, or a page an agent generated from someone else's prompt. Such a site should bind
+a custom domain, which already exists as a feature. Document that; don't engineer for
+it in v1.
+
+**Residual same-site exposure.** Sibling subdomains share the registrable domain
+`simple-host.app`, so they are *same-site*. Two consequences, both already handled
+elsewhere in this spec: `SameSite=Lax` provides no CSRF protection between siblings
+(→ explicit CSRF token, §5), and a sibling can set `Domain=simple-host.app` cookies
+that are *sent* to your origin (→ `__Host-` prefixed session cookie, which forbids a
+`Domain` attribute and therefore cannot be forged by tossing, §5). The worst residual
+is cookie-jar bloat: a nuisance, not a compromise.
+
+#### Dual addressing: both URLs work, but not for gated sites 🔴
+
+The old path URL keeps working — people have already shared
+`sites.simple-host.app/vineetu/site-1/` links. But **whether the shared host may
+serve bytes depends on whether the site has access control**:
+
+| Site | `<handle>.simple-host.app/sites/x/` | `sites.simple-host.app/<handle>/x/` |
+|---|---|---|
+| Public | serves | serves (or 302s — cosmetic) |
+| Invite-only or password-locked | serves | **302 → subdomain. Never serves bytes.** |
+
+If a gated site served content on the shared host, that host would be an
+**unauthenticated mirror of the private content**. The attacker never needs to steal a
+session — they use the other door. The `__Host-` cookie would not leak to the shared
+origin, so the *session* stays safe; what leaks is the thing the session was
+protecting. **This is P1 in a different costume**: a wall on one path, an open door on
+another. Same bug, so it gets the same priority.
+
+Two corollaries:
+
+- **Sessions may only be minted on the per-user origin.** The auth endpoints bind to
+  `<handle>.simple-host.app` and 404 on `sites.simple-host.app`. Otherwise the shared
+  host becomes a second session realm in which every user's members are co-resident —
+  reintroducing exactly the problem §2 exists to solve.
+- **That redirect is 302, never 301.** Its target depends on mutable state (the
+  handle, and the site's visibility). A 301 is cached indefinitely and outlives the
+  rollback — that is the concrete failure that forced users to clear site data during
+  the prod incident. **General rule for this codebase: a redirect whose target depends
+  on a DB column is never permanent.**
+
+#### No handle → no subdomain → cannot be invite-only
+
+Users without a handle fall back to the path URL only. Such a site **cannot** be set
+to invite-only; enabling the toggle claims a subdomain first. This is not a
+limitation to apologise for — it is what guarantees the invariant that *a gated site
+has exactly one door*. Product copy: "Invite-only needs your own address. We'll set
+one up."
+
+#### Handles become DNS labels, so validation has to get stricter
+
+`reservedHandles` (`handles.go:14`) already blocks the dangerous path collisions —
+`sites`, `www`, `api`, `admin`, `auth`, `v1`. Good; the obvious subdomain hijack is
+covered. But a handle is about to become a **hostname**, and `showcaseHandleRe` is
+`^[a-z0-9-]{1,39}$` (`showcase.go:20`), which permits:
+
+- **leading/trailing hyphens** — `-foo`, `foo-`: not valid DNS labels;
+- **`xn--` prefix** — browsers and TLS libraries interpret it as punycode, so `xn--`
+  handles can render as arbitrary Unicode in the address bar. Reserve the prefix.
+
+Also extend `reservedHandles` with the DNS/mail names that only start mattering once
+handles are hosts: `mail`, `smtp`, `imap`, `mx`, `ns`, `autoconfig`, `autodiscover`,
+`_acme-challenge`, plus the phishing set `secure`, `account`, `billing`, `verify`,
+`signin`, `support`. Audit existing rows before enforcing.
+
+#### Optional hardening: get `simple-host.app` onto the PSL
+
+Confirmed 2026-07-26 that it is **not** on the Public Suffix List (16,409 entries, no
+match). Adding it makes sibling subdomains *cross-site*, which switches `SameSite` on
+and makes `Domain=simple-host.app` cookies unsettable — turning both residual
+exposures above into non-issues. Cost is a PR to publicsuffix.org.
+
+Two caveats: propagation rides browser release trains, so treat it as
+defence-in-depth and **never depend on it** — carry the explicit CSRF token
+regardless. And **verify the platform's own login still works first**: once the apex
+is a public suffix, host-only cookies on `simple-host.app` should still be settable,
+but that behaviour has browser-specific history and must be tested, not assumed.
+
+#### Why not a separate registrable domain per site
+
+An earlier revision of this section proposed moving site origins to their own
+registrable domain (`*.simple-host.site`), one origin per site. It is strictly
+stronger — it isolates a user's sites from *each other* and fixes root-relative asset
+paths. It is also a new domain, new DNS, new certificate, and a migration of every
+existing URL, to defend against a threat model in which the attacker is the site's
+own author. **Rejected on cost/benefit for v1.** Custom domains remain the escape
+hatch for anyone who needs true per-site isolation.
+
+The rejected variant this section originally argued against — `<handle>--<site>.simple-host.app`,
+one origin per site on the *platform's* domain — stays rejected, and its problems are
+worth keeping on record because two of them would bite any scheme that packs two
+identifiers into one DNS label:
 
 - **`simple-host.app` is not on the Public Suffix List**, so siblings are *same-site*.
   `SameSite=Lax` therefore provides **zero** CSRF protection between tenants, and a
@@ -172,55 +296,87 @@ The first draft proposed `<handle>--<site>.simple-host.app`. Review killed it:
 - RFC 5891 reserves hyphens in a label's 3rd–4th characters, so a 2-char handle gives
   the malformed `jo--shop`, which some validators reject.
 
-**Decision: hosted site origins move to their own registrable domain**, e.g.
-`*.simple-host.site`, entirely separate from the platform's `simple-host.app`. That
-one change retires the phishing vector and the cookie-eviction vector, and makes
-tenant↔platform genuinely cross-site. **Submit that domain to the PSL** to make
-tenant↔tenant cross-site too — worth doing, but it takes weeks and must not block:
-until it lands, carry an explicit CSRF token (§5) rather than relying on `SameSite`.
+Note that the per-user scheme in §2.1 dodges all four: one identifier per label, so
+nothing to collide; and the phishing bullet shrinks to a reserved-name problem, which
+`reservedHandles` already largely solves.
 
-**Allocate the hostname; never derive it.** `member_origin` is stored on `sites` and
-resolved by lookup, so there is nothing to parse and no ambiguity:
+**A handle is now a security boundary, so retiring one must be deliberate.** The
+"allocate, don't derive" discipline carries over from the rejected scheme — it just
+attaches to handles instead of per-site origins:
 
-- default to `<site>.simple-host.site` when free, else `<site>-<handle>`, else owner picks;
-- `UNIQUE`, bound to `site_id` at issue time, **never recomputed** from a mutable name;
-- a `retired_origins` tombstone table blocks reuse forever. Without it, renaming or
-  deleting a site frees a host that still holds visitors' session cookies, service
-  workers and cache entries — whoever claims it next **inherits live sessions**;
-- on rename/delete/transfer: revoke all sessions and emit
-  `Clear-Site-Data: "cache", "cookies", "storage", "executionContexts"` on the old origin;
-- reject `--` in site names and handles at creation (and audit existing rows), extend
-  the reserved lists (`handles.go:14`, `sitename.go:22`) with `secure`, `account`,
-  `billing`, `verify`, `signin`, `support`, `simple`, `host`.
+- a **`retired_handles` tombstone table blocks reuse forever.** Without it, a handle
+  rename or account deletion frees a hostname that still holds visitors' session
+  cookies, service workers and cache entries — whoever claims it next **inherits live
+  sessions**. This is the single most dangerous omission in the whole design;
+- on handle change or account deletion: revoke every member session under that handle
+  and emit `Clear-Site-Data: "cache", "cookies", "storage", "executionContexts"` on
+  the old host;
+- `ClaimHandle` (`queries.go:114`) currently **validates nothing at all**. It must
+  enforce the DNS-label rules and reserved lists above before handles become hosts.
 
 ### 2.2 Phase 0 is a user-visible feature, not plumbing
 
-"Give your site its own address" ships on its own merits: a shorter URL, isolated
-`localStorage`, and — because privacy becomes a property of an origin you now own —
-**view-lock without having to buy a domain**. The `connect-domain` skill currently
-tells people they must own a domain to password-protect a page. Phase 0 deletes that
-requirement. Ship it as its own release.
+"Get your own address" ships on its own merits: `vineetu.simple-host.app` is shorter
+and more memorable than `sites.simple-host.app/vineetu/`, your sites get a
+`localStorage` of their own, and — because privacy becomes a property of an origin you
+now own — **view-lock without having to buy a domain**. The `connect-domain` skill
+currently tells people they must own a domain to password-protect a page. Phase 0
+deletes that requirement. Ship it as its own release.
 
-**The old path URL must 301 to the new origin.** People have already shared
-`sites.simple-host.app/alice/shop/` links. With the redirect the story is *"your site
-gets a shorter address and old links still work"* — an upgrade, not a tax. It's safe:
-a `__Host-` cookie never travels back to the shared origin.
+Since §2.1 established that DNS, TLS, the nginx capture block and the handle-keyed
+symlink farm all already exist, Phase 0 is now roughly *one nginx block plus handle
+validation plus the tombstone table* — not the domain acquisition and full URL
+migration this section assumed in the previous revision. Re-estimated in §12.
+
+**The old path URL 302s to the new address** (302, not 301 — see §2.1: the target
+depends on the handle and on visibility, both mutable). People have already shared
+`sites.simple-host.app/alice/shop/` links, so the story is *"your sites get a shorter
+address and old links still work"* — an upgrade, not a tax. It is safe in the public
+case, and for gated sites the shared host must redirect without serving bytes.
+
+⚠️ **Prerequisite: drain the existing 301 cache first.** Today every single-label host
+`*.simple-host.app` **301s to the apex** — verified: `vineetu.simple-host.app/` →
+`301 https://simple-host.app/`. Those are permanent redirects, already cached in the
+browser of anyone who has hit one, and they will not re-ask. Turning that host into a
+real origin therefore does nothing for those users until they clear site data. **Demote
+that redirect to 302 and deploy it well before the cutover** so caches can drain. This
+is the same trap that made the prod incident outlive its rollback.
 
 ⚠️ **This breaks deployed sites' JS.** Every skill and `llms.txt` derives the API base
-with `location.pathname.match(/^\/([a-z0-9-]+)\/([a-z0-9-]+)/)`. On the site's own
-origin that matches the wrong segments and silently builds a bad URL. Which leads to
-the fix that's better than a fix:
+with `location.pathname.match(/^\/([a-z0-9-]+)\/([a-z0-9-]+)/)`. On the per-user origin
+the first segment is the literal `sites`, not a handle, so that regex silently builds a
+bad URL. Which leads to:
 
-### 2.3 On its own origin, a site's API loses its prefix
+### 2.3 On the per-user origin, the API prefix loses the handle
 
-There is exactly one site on that origin, so the handle and site name are redundant:
+The origin already names the user, so the handle is redundant — but the site name is
+**not**, because one origin now hosts all of that user's sites. The prefix shrinks by
+one segment rather than disappearing:
+
+```
+/sites/{site}/v1/state     /sites/{site}/v1/collections/{coll}     /sites/{site}/v1/members/me
+```
+
+This is the one place the per-user model is meaningfully worse than one-origin-per-site,
+which would have allowed a fully prefix-free API:
 
 ```
 /v1/state          /v1/collections/{coll}          /v1/members/me
 ```
 
-Nothing to derive, no regex, nothing an agent can get wrong — and materially nicer on
-custom domains. The prefixed routes keep working on the shared host.
+Two mitigations, and they matter because "an agent gets the API base wrong" is the
+single most likely way this feature fails in practice:
+
+- **Ship a `<base href>`-independent helper, not a regex.** The site's own JS should
+  never parse `location.pathname`. Serve the site name to the page (a `<meta>` tag
+  injected at deploy time, or a `/sites/{site}/v1/whoami` probe) and have `members.js`
+  (§10) read it. Then update the skills and `llms.txt` to use the helper and delete the
+  regex from the documented path entirely.
+- **A custom domain still gets the prefix-free form.** `shop.example.com/v1/state`
+  works, because a bound custom domain does resolve to exactly one site. So the
+  prefix-free API is not lost — it becomes another reason to bind a domain.
+
+The two-segment prefixed routes keep working unchanged on the shared host.
 
 ---
 
@@ -271,25 +427,36 @@ CREATE TABLE site_member_auth_tokens (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE retired_origins (                -- §2.1: never re-issue a host
-  origin     TEXT PRIMARY KEY,
+CREATE TABLE retired_handles (                -- §2.1: never re-issue a hostname
+  handle     TEXT PRIMARY KEY,
   retired_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-ALTER TABLE sites ADD COLUMN access_mode   TEXT NOT NULL DEFAULT 'public'
+ALTER TABLE sites ADD COLUMN access_mode TEXT NOT NULL DEFAULT 'public'
   CHECK (access_mode IN ('public','password','invite'));
-ALTER TABLE sites ADD COLUMN invite_list   TEXT;           -- emails and @domains, comma-separated
-ALTER TABLE sites ADD COLUMN member_origin TEXT UNIQUE;
+ALTER TABLE sites ADD COLUMN invite_list TEXT;             -- emails and @domains, comma-separated
 ```
 
 `access_mode` is the single source of truth — no separate `members_enabled` flag.
+
+**There is no `member_origin` column.** Under the per-user model (§2.1) the member
+origin is `<users.handle>.simple-host.app` — the handle *is* the allocation, already
+stored, already `UNIQUE`. "Allocate, don't derive" is satisfied because the handle is
+claimed once and never recomputed from a mutable value. Deriving the host from it is a
+string concatenation, not a guess.
+
+Consequence: **`access_mode <> 'public'` requires the owner to have a handle.** Enforce
+it in the mode-change handler, not as a DB constraint (the check spans tables). A site
+whose owner has no handle can only be `public` — §2.1's one-door invariant.
 
 ---
 
 ## 4. Endpoints (v1)
 
-Served **only on the site's own origin**, prefix-free. Owner routes stay on the
-platform origin under the existing `/v1/sites/{sitename}/...` shape.
+Served **only on the owner's per-user origin**, under `/sites/{site}/` (§2.3). They
+must **404 on `sites.simple-host.app`** — §2.1's rule that sessions may only be minted
+on the isolated origin. Owner routes stay on the platform origin under the existing
+`/v1/sites/{sitename}/...` shape. Paths below are relative to `/sites/{site}`.
 
 **Visitor** — session cookie only, no API key:
 
@@ -327,7 +494,7 @@ Two independent mitigations, both required:
 
 1. **Name the route `/v1/members/me/data`**, never `/state`.
 2. **Fix `cors.go` to match explicit routes, not suffixes**, and give member endpoints
-   their own hard same-origin check: `Origin` must equal this site's `member_origin`
+   their own hard same-origin check: `Origin` must equal the owner's per-user origin
    exactly, or be absent. No `contentHost`, no `allowed_origins` widening, and never
    `Allow-Credentials` for a foreign origin.
 
@@ -412,8 +579,8 @@ When it lands: OIDC authorization-code + PKCE, one platform-wide client. Verify 
 `aud`, `exp`, `nonce` **and `state`** (the first draft omitted `state`, which is the
 control that actually protects the callback). With one shared client the `redirect_uri`
 is the platform's and must bounce to the site origin — **that bounce is an open
-redirect and a code leak unless validated against the site's registered
-`member_origin`.**
+redirect and a code leak unless the target is validated against the owner's per-user
+origin, resolved from the handle — never taken from a request parameter.**
 
 Key on `provider_sub`, never on the email string: `provider_sub` is stable, emails are
 recycled and mutable. The takeover it prevents — Mallory's Google account creates a
@@ -449,7 +616,8 @@ Three things must be true or the gate is theatre:
 2. **Gate the old URL too.** Files are still served at
    `sites.simple-host.app/<handle>/<site>/`. Unless that block also honours
    `access_mode`, the entire gate is bypassed by using the old link. The shared host
-   must `301` to `member_origin` for any non-public site.
+   must **`302`** (never `301` — §2.1) to the per-user origin for any non-public site,
+   and must not serve bytes.
 3. **No caching.** `Cache-Control: private, no-store` + `Vary: Cookie` on gated
    responses, and verify no proxy cache holds 200s from before the flip.
 
@@ -560,12 +728,19 @@ draft's implicit ~2 weeks was about half of reality.
 |---|---|---|
 | **P — prerequisites** | Fix P1–P4: deploy the gate, re-key view-lock to `site_id`, exempt member origins in `legacyhost.go`, backfill missing DDL | **3–4** |
 | **A — write-only collections** | `GET` owner-only + dashboard submissions view. Independent, ship first | **1–2** |
-| **0 — own address** | New registrable domain + wildcard cert; nginx block ordered *before* the legacy regex; `member_origin` + `retired_origins`; 5th branch in `authorizeStateOrigin`; `/v1/` proxy on the new block; prefix-free routes; analytics host attribution (`ingest.go:435`); `--` charset enforcement; 301 from the old path | **3–4** |
+| **0 — own address** | Repoint the existing `~^(?<sub>[^.]+)\.simple-host.app$` block from 301-to-apex to `handles/$sub` + strip `/sites/`; demote the legacy 301 to 302 **and let it drain first**; handle validation (DNS-label rules, `xn--`, reserved DNS/mail/phishing names, `ClaimHandle`); `retired_handles` + `Clear-Site-Data` on handle change; 5th branch in `authorizeStateOrigin`; `/v1/` on the new block; analytics host attribution (`ingest.go:435`) | **2–3** |
 | **1 — invite-only sign-in** | Tables; session middleware; 6 visitor + 3 owner endpoints; `me/data` via a *refactored* state engine; hosted sign-in page; invite email template + `Sender` method; `access_mode` gate; `members.js`; openapi + llms.txt + 2 skills; `privacy.html` | **8–11** |
 | **2 — Google** | JWKS/RS256 or a new dep; PKCE, `state`, nonce; the redirect-bounce validation; identities table | **4–6** |
 | **3 — open mode, per-member collections, webhooks, BYO OAuth client** | | **5–7** |
 
-**≈ 24–34 days total**, of which **≈ 15–21** reaches a shippable invite-only feature.
+**≈ 23–33 days total**, of which **≈ 14–20** reaches a shippable invite-only feature.
+
+Phase 0 got *cheaper* when the origin model changed to per-user subdomains (§2.1) — no
+domain to buy, no certificate, no URL migration — but only by about a day. The saving is
+real and small: most of Phase 0 was never the domain, it was handle validation, the
+tombstone table, and unpicking `LegacyHostRedirect`. **The critical-path risk is not
+effort, it is the 301 cache drain**, which is elapsed time rather than work and should
+start as early as possible, independently of everything else.
 
 **Deployment reality:** this ships to the **playground (`simple-host.app`) only.** The
 ideaflow box runs an older binary against an older schema (`users` has no `handle`;
@@ -577,10 +752,16 @@ binary, as it did on the v3 cutover, or every authenticated request 500s.
 
 ## 13. Open questions
 
-- Which registrable domain to buy for site origins, and who submits the PSL request.
-- If a site has both `member_origin` and a custom domain, they are two origins with two
+- Who submits the `simple-host.app` PSL request, and does the platform's own apex login
+  survive it (§2.1 — must be tested, not assumed).
+- **Should a user's sites be isolated from each other?** §2.1 says no for v1: same
+  author, so it's self-XSS. The case that would change the answer is a site rendering
+  untrusted third-party content. If that becomes common, the answer is one origin per
+  site, and the migration is much easier from per-user subdomains than from today's
+  fully shared host.
+- If a site has both a per-user origin and a custom domain, they are two origins with two
   independent session stores — logout on one leaves the other live. **Proposal:** once a
-  custom domain exists it is canonical; the platform host 301s to it and its sessions
+  custom domain exists it is canonical; the per-user host 302s to it and its sessions
   are revoked.
 - Free-tier cap on members per site.
 - Does the AI builder learn to scaffold an invite-only area, or is it skill-only at first?

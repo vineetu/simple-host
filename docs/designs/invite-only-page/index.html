@@ -50,6 +50,9 @@ h3{font-size:15px;margin-bottom:8px}
 p{color:var(--text-secondary);margin-bottom:14px}
 p strong,li strong{color:var(--text);font-weight:600}
 .rule{height:1px;background:var(--border);margin:56px 0 0}
+.mono-line{margin:18px 0 14px;padding:12px 14px;border:1px solid var(--border);border-left:2px solid var(--accent);
+  border-radius:8px;background:var(--surface);overflow-x:auto}
+.mono-line code{font-size:13px;color:var(--text);white-space:nowrap}
 
 figure{margin:26px 0 10px;border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:20px 18px 14px;overflow:hidden}
 figure svg{display:block;width:100%;height:auto}
@@ -213,19 +216,21 @@ footer a{color:var(--accent);text-decoration:none}footer a:hover{text-decoration
 
   <!-- ============ THE ADDRESS CHANGE ============ -->
   <section>
-    <h2>Why your site gets a new address</h2>
+    <h2>Why you get your own address</h2>
     <p>This is the one part that changes something visible, so it's worth being straight about.</p>
-    <p>Right now every site lives at a shared address — <code>sites.simple-host.app/you/your-site/</code>.
-      To a browser, everything under that one address is <strong>the same place</strong>. Browsers keep sign-ins
-      apart by address, and they have no finer setting. So while your site shares an address with
-      everyone else's, a stranger's page could read your visitors' sessions.</p>
-    <p>There is no clever fix for that — it's how the web works. So a site with sign-in
-      <strong>gets its own address</strong>.</p>
+    <p>Right now every site on the platform lives under one shared address —
+      <code>sites.simple-host.app/you/your-site/</code>. To a browser, everything under that address is
+      <strong>the same place</strong>. Browsers keep sign-ins apart by address and have no finer setting;
+      a folder in the path means nothing to them. So while your site shares an address with everyone
+      else's, a stranger's page could read your visitors' sessions.</p>
+    <p>There is no clever fix for that — it's how the web works. So <strong>you get your own
+      address</strong>, and your sites live on it:</p>
+    <p class="mono-line"><code>vineetu.simple-host.app/sites/your-site/</code></p>
 
     <figure>
-      <svg viewBox="0 0 700 260" role="img" aria-label="Shared address means sites can reach each other; a private address walls them off.">
+      <svg viewBox="0 0 700 260" role="img" aria-label="On one shared address a stranger's page can reach your visitors' sign-ins; with an address per person, other people are walled off.">
         <!-- LEFT -->
-        <text x="16" y="20" class="svg-label">One shared address</text>
+        <text x="16" y="20" class="svg-label">One address for everyone</text>
         <text x="16" y="36" class="svg-sub">sites.simple-host.app/…</text>
         <rect x="16" y="48" width="310" height="150" rx="10" class="box-err"/>
         <rect x="34" y="74" width="86" height="52" rx="7" class="box"/>
@@ -239,31 +244,40 @@ footer a{color:var(--accent);text-decoration:none}footer a:hover{text-decoration
         <text x="34" y="190" class="svg-tiny">one address · no walls inside it</text>
 
         <!-- RIGHT -->
-        <text x="378" y="20" class="svg-label">Its own address</text>
-        <text x="378" y="36" class="svg-sub">your-site.simple-host.site</text>
-        <rect x="378" y="48" width="306" height="150" rx="10" class="box-ok"/>
-        <rect x="396" y="74" width="86" height="52" rx="7" class="box-ok"/>
-        <text x="408" y="96" class="svg-sub">your</text><text x="408" y="112" class="svg-sub">site</text>
-        <line x1="496" y1="66" x2="496" y2="182" class="ln" stroke-dasharray="3 4"/>
-        <rect x="510" y="74" width="76" height="52" rx="7" class="box"/>
-        <text x="522" y="96" class="svg-sub">someone</text><text x="522" y="112" class="svg-sub">else's</text>
-        <line x1="600" y1="66" x2="600" y2="182" class="ln" stroke-dasharray="3 4"/>
-        <rect x="612" y="74" width="60" height="52" rx="7" class="box"/>
-        <text x="622" y="96" class="svg-sub">a bad</text><text x="622" y="112" class="svg-sub">actor</text>
-        <path d="M540,140 L505,140" class="ln-err" marker-end=""/>
-        <text x="512" y="158" class="svg-tiny svg-err">blocked</text>
-        <text x="396" y="190" class="svg-tiny svg-ok">separate addresses · real walls between them</text>
+        <text x="378" y="20" class="svg-label">An address per person</text>
+        <text x="378" y="36" class="svg-sub">vineetu.simple-host.app/sites/…</text>
+        <rect x="378" y="48" width="200" height="150" rx="10" class="box-ok"/>
+        <rect x="392" y="74" width="80" height="52" rx="7" class="box-ok"/>
+        <text x="404" y="96" class="svg-sub">your</text><text x="404" y="112" class="svg-sub">site-1</text>
+        <rect x="482" y="74" width="80" height="52" rx="7" class="box-ok"/>
+        <text x="494" y="96" class="svg-sub">your</text><text x="494" y="112" class="svg-sub">site-2</text>
+        <text x="392" y="152" class="svg-tiny svg-ok">yours · only you put things here</text>
+        <text x="392" y="190" class="svg-tiny">your own address</text>
+        <line x1="592" y1="56" x2="592" y2="192" class="ln" stroke-dasharray="3 4"/>
+        <rect x="606" y="74" width="78" height="52" rx="7" class="box"/>
+        <text x="616" y="96" class="svg-sub">everyone</text><text x="616" y="112" class="svg-sub">else</text>
+        <path d="M604,142 L584,142" class="ln-err"/>
+        <text x="576" y="162" class="svg-tiny svg-err">blocked</text>
 
         <!-- bottom -->
         <rect x="16" y="214" width="668" height="34" rx="8" class="box-dash"/>
         <text x="34" y="236" class="svg-sub">Your old link keeps working — it forwards to the new one.</text>
       </svg>
-      <figcaption><b>Fig 3</b> · Browsers separate sign-ins by <b>address</b>, never by folder. A private page needs a private address — which is also just a shorter, nicer URL.</figcaption>
+      <figcaption><b>Fig 3</b> · Browsers separate sign-ins by <b>address</b>, never by folder. The wall goes around <b>you</b> — the cheapest place to put it that still keeps other people out.</figcaption>
     </figure>
 
-    <p>Two upsides fall out of this for free: the address is <strong>shorter</strong>
-      (<code>your-site.simple-host.site</code>), and password-protecting a page
+    <p>Two upsides fall out of this for free: the address is <strong>shorter and it's yours</strong>
+      (<code>vineetu.simple-host.app</code>), and password-protecting a page
       <strong>stops requiring you to buy a domain</strong> — which is the rule today.</p>
+
+    <p>One honest limit. The wall goes around <em>you</em>, not around each site, so your own
+      sites share an address with each other. In practice that's fine: you wrote all of them.
+      It only matters if a site displays content that <strong>other people</strong> submit —
+      then that site should have its own domain, which is already something you can connect.</p>
+
+    <p>And one thing that follows from all of this: an invite-only page is only ever reachable at
+      <em>one</em> address. The old shared link doesn't quietly keep serving a private page on the
+      side — it forwards. A locked door with a second unlocked entrance isn't locked.</p>
   </section>
 
   <!-- ============ THE SETTING ============ -->
