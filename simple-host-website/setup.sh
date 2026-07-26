@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 MCP_SERVER_DIR="$SCRIPT_DIR/mcp-server"
 MCP_DIST_DIR="$MCP_SERVER_DIR/dist"
 MCP_ENTRYPOINT="$MCP_DIST_DIR/index.js"
-SKILL_SOURCE="$SCRIPT_DIR/skills/website-deploy/SKILL.md"
+SKILLS_SOURCE_DIR="$SCRIPT_DIR/skills"
 
 SUMMARY_LINES=()
 
@@ -22,16 +22,28 @@ ensure_parent_dir() {
   mkdir -p "$(dirname "$1")"
 }
 
-ensure_skill_installed() {
-  local target="$1"
+# Install EVERY bundled skill into an agent's skills root, copying each skill's
+# whole directory. A skill is no longer one file: website-deploy's SKILL.md
+# routes to references/*.md, and copying only SKILL.md would leave the agent
+# holding a table of contents with no chapters.
+ensure_skills_installed() {
+  local skills_root="$1"
+  local skill_dir name
 
-  ensure_parent_dir "$target"
-  if [[ ! -f "$SKILL_SOURCE" ]]; then
-    log "Skill source not found at $SKILL_SOURCE; skipping copy to $target"
+  if [[ ! -d "$SKILLS_SOURCE_DIR" ]]; then
+    log "Skill source not found at $SKILLS_SOURCE_DIR; skipping copy to $skills_root"
     return 1
   fi
 
-  cp "$SKILL_SOURCE" "$target"
+  mkdir -p "$skills_root"
+  for skill_dir in "$SKILLS_SOURCE_DIR"/*/; do
+    [[ -f "$skill_dir/SKILL.md" ]] || continue
+    name="$(basename "$skill_dir")"
+    # Overwrite in place rather than deleting first — an installer should never
+    # rm -rf a directory under the user's home.
+    mkdir -p "$skills_root/$name"
+    cp -R "$skill_dir". "$skills_root/$name/"
+  done
   return 0
 }
 
@@ -145,9 +157,9 @@ ensure_mcp_server_ready() {
 }
 
 install_claude_code() {
-  local tool config_path skill_path
+  local tool config_path skills_root
   config_path="$HOME/.claude/settings.json"
-  skill_path="$HOME/.claude/skills/website-deploy/SKILL.md"
+  skills_root="$HOME/.claude/skills"
 
   if ! command -v claude >/dev/null 2>&1; then
     log "Claude Code not detected; skipping."
@@ -162,15 +174,15 @@ install_claude_code() {
   fi
 
   merge_mcp_json "$config_path" "$tool"
-  ensure_skill_installed "$skill_path"
+  ensure_skills_installed "$skills_root"
   log "Configured Claude Code."
-  add_summary "Claude Code: MCP configured at $config_path and skill installed at $skill_path"
+  add_summary "Claude Code: MCP configured at $config_path and skills installed in $skills_root"
 }
 
 install_codex_cli() {
-  local config_path skill_path
+  local config_path skills_root
   config_path="$HOME/.codex/config.toml"
-  skill_path="$HOME/.agents/skills/website-deploy/SKILL.md"
+  skills_root="$HOME/.agents/skills"
 
   if ! command -v codex >/dev/null 2>&1; then
     log "Codex CLI not detected; skipping."
@@ -184,15 +196,15 @@ install_codex_cli() {
     log "Codex CLI MCP config already present; leaving it unchanged."
   fi
 
-  ensure_skill_installed "$skill_path"
+  ensure_skills_installed "$skills_root"
   log "Configured Codex CLI skill."
-  add_summary "Codex CLI: MCP configured at $config_path and skill installed at $skill_path"
+  add_summary "Codex CLI: MCP configured at $config_path and skills installed in $skills_root"
 }
 
 install_cursor() {
-  local tool config_path skill_path
+  local tool config_path skills_root
   config_path="$HOME/.cursor/mcp.json"
-  skill_path="$HOME/.cursor/skills/website-deploy/SKILL.md"
+  skills_root="$HOME/.cursor/skills"
 
   if [[ ! -d "$HOME/.cursor" ]]; then
     log "Cursor not detected; skipping."
@@ -207,9 +219,9 @@ install_cursor() {
   fi
 
   merge_mcp_json "$config_path" "$tool"
-  ensure_skill_installed "$skill_path"
+  ensure_skills_installed "$skills_root"
   log "Configured Cursor."
-  add_summary "Cursor: MCP configured at $config_path and skill installed at $skill_path"
+  add_summary "Cursor: MCP configured at $config_path and skills installed in $skills_root"
 }
 
 main() {
