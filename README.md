@@ -35,7 +35,7 @@ On Claude Code you can also install via the bundled marketplace:
 /plugin install website-deploy@simple-host
 ```
 
-Using **Hermes** or **OpenClaw**? The skills are plain `SKILL.md`, so they install natively too — e.g. Hermes: `hermes skills install https://simple-host.app/skills/website-deploy/SKILL.md --name website-deploy`. That fetches one file; `website-deploy`'s SKILL.md routes to reference documents, and cites each by full URL as well as relative path so a single-file install can still fetch them (`https://simple-host.app/skills/website-deploy/references/<name>.md`). Per-agent paths are on the [get-started page](https://simple-host.app/install.html).
+Using **Hermes** or **OpenClaw**? The skills are plain `SKILL.md`, so they install natively too — e.g. Hermes: `hermes skills install https://simple-host.app/skills/website-deploy/SKILL.md --name website-deploy`. That fetches one file; `website-deploy`'s SKILL.md routes to reference documents, and cites each by full URL as well as relative path so a single-file install can still fetch them (`https://simple-host.app/v1/skills/website-deploy/references/<name>.md`). Per-agent paths are on the [get-started page](https://simple-host.app/install.html).
 
 Then just talk to your agent:
 

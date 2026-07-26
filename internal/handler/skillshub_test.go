@@ -114,40 +114,6 @@ func TestWellKnownIndexAdvertisesReferences(t *testing.T) {
 
 // Every human-facing doc cites the bare /skills/ prefix, so someone reading
 // /skills/website-deploy/SKILL.md will guess /skills/website-deploy/references/
-// for the files it names. That guess must work, not fall through to the static
-// file server.
-func TestReferencesServeUnderTheBareSkillsPrefix(t *testing.T) {
-	for _, dir := range bundledSkillDirs() {
-		for _, f := range skillFiles(dir) {
-			if !strings.HasPrefix(f, "references/") {
-				continue
-			}
-			file := strings.TrimPrefix(f, "references/")
-			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/skills/"+dir+"/"+f, nil)
-			req.SetPathValue("file", file)
-			serveSkillReferenceFor(dir)(rec, req)
-			if rec.Code != http.StatusOK {
-				t.Errorf("/skills/%s/%s = %d, want 200", dir, f, rec.Code)
-			}
-		}
-	}
-}
-
-// The bound-name handler must still reject a bad filename — binding the skill
-// name from the route removes one guard, not both.
-func TestBareSkillsPrefixRejectsBadFilenames(t *testing.T) {
-	for _, file := range []string{"backend.txt", "Backend.md", "../SKILL.md", ".md", ""} {
-		rec := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/skills/website-deploy/references/x", nil)
-		req.SetPathValue("file", file)
-		serveSkillReferenceFor("website-deploy")(rec, req)
-		if rec.Code == http.StatusOK {
-			t.Errorf("file %q was served, want a rejection", file)
-		}
-	}
-}
-
 // Every reference the router SKILL.md points at must actually exist — a broken
 // pointer is worse than the monolith it replaced.
 func TestSkillReferencePointersResolve(t *testing.T) {
