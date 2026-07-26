@@ -71,10 +71,13 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 
 	mux.HandleFunc("GET /skills.zip", serveSkillsZip)
 	mux.HandleFunc("GET /skills/version", serveSkillsVersion)
-	mux.HandleFunc("GET /skills/website-deploy.zip", serveSkillZip("website-deploy"))
-	mux.HandleFunc("GET /skills/website-deploy/SKILL.md", serveSkillMarkdown("website-deploy"))
-	mux.HandleFunc("GET /skills/website-deploy-builder.zip", serveSkillZip("website-deploy-builder"))
-	mux.HandleFunc("GET /skills/website-deploy-builder/SKILL.md", serveSkillMarkdown("website-deploy-builder"))
+	// Per-skill download routes, derived from the bundle rather than hand-listed:
+	// connect-domain shipped in 0.8.0 and never got its pair, so /skills/
+	// connect-domain.zip 404'd while the skill was advertised everywhere else.
+	for _, dir := range bundledSkillDirs() {
+		mux.HandleFunc("GET /skills/"+dir+".zip", serveSkillZip(dir))
+		mux.HandleFunc("GET /skills/"+dir+"/SKILL.md", serveSkillMarkdown(dir))
+	}
 	mux.HandleFunc("GET /plugin.zip", servePluginZip)
 	mux.HandleFunc("GET /install.sh", serveInstallScript(publicBaseURL))
 	mux.HandleFunc("GET /install.ps1", serveInstallPowerShell(publicBaseURL))

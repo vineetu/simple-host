@@ -41,19 +41,30 @@ done <<<"$documented"
 # Major capabilities that should be discoverable in the LLM/agent docs. Wording
 # varies across docs (e.g. "view-lock" vs "view-password"), so match the CONCEPT
 # with a regex rather than an exact string.
+#
+# Held as "name<TAB>regex" lines rather than an associative array: macOS still
+# ships bash 3.2, where `declare -A` is a syntax error and `set -u` then aborts
+# the script before it ever reports success.
 echo "== capability coverage (warn-only) =="
-declare -A caps=(
-  [state]='state'
-  [collections]='collection'
-  [private-pages]='view-?lock|view.password'
-  [templates]='template'
-  [comments]='comments\.js'
-  [feedback]='feedback\.js'
-)
+caps='state	state
+collections	collection
+private-pages	view-?lock|view.password
+templates	template
+comments	comments\.js
+feedback	feedback\.js'
+
+# A skill may be split into SKILL.md + references/*.md; a capability documented in
+# a reference is still discoverable, so search the whole skill directory.
 for doc in "$LLMS" "$SKILL_DEPLOY" "$SKILL_BUILD"; do
-  for c in "${!caps[@]}"; do
-    grep -qiE "${caps[$c]}" "$doc" || echo "  warn: $(basename "$(dirname "$doc")")/$(basename "$doc") doesn't mention '$c'"
-  done
+  [ -e "$doc" ] || { echo "  warn: missing doc: $doc"; continue; }
+  case "$doc" in
+    */SKILL.md) scope=$(dirname "$doc"); label=$(basename "$(dirname "$doc")") ;;
+    *)          scope="$doc";            label=$(basename "$doc") ;;
+  esac
+  while IFS=$(printf '\t') read -r name pattern; do
+    [ -z "$name" ] && continue
+    grep -qriE "$pattern" "$scope" || echo "  warn: $label doesn't mention '$name'"
+  done <<<"$caps"
 done
 
 echo

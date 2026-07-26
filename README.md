@@ -35,7 +35,7 @@ On Claude Code you can also install via the bundled marketplace:
 /plugin install website-deploy@simple-host
 ```
 
-Using **Hermes** or **OpenClaw**? The skills are plain `SKILL.md`, so they install natively too — e.g. Hermes: `hermes skills install https://simple-host.app/skills/website-deploy/SKILL.md --name website-deploy`. Per-agent paths are on the [get-started page](https://simple-host.app/install.html).
+Using **Hermes** or **OpenClaw**? The skills are plain `SKILL.md`, so they install natively too — e.g. Hermes: `hermes skills install https://simple-host.app/skills/website-deploy/SKILL.md --name website-deploy`. That fetches one file; `website-deploy`'s SKILL.md routes to reference documents, and cites each by full URL as well as relative path so a single-file install can still fetch them (`https://simple-host.app/v1/skills/website-deploy/references/<name>.md`). Per-agent paths are on the [get-started page](https://simple-host.app/install.html).
 
 Then just talk to your agent:
 
@@ -130,7 +130,7 @@ Everything an agent needs is at [`/llms.txt`](https://simple-host.app/llms.txt),
 
 [`simple-host-website/`](simple-host-website/) is the agent integration that the install commands above pull in. It bundles:
 
-- **Two skills** — `website-deploy` (the deploy workflow) and `website-deploy-builder` (helping decide what to build that fits a static-plus-light-state model).
+- **Three skills** — `website-deploy` (the deploy workflow, a router plus reference documents under `references/`), `website-deploy-builder` (helping decide what to build that fits a static-plus-light-state model), and `connect-domain` (pointing your own domain at a site, with automatic HTTPS).
 - **An MCP server** (Node) exposing `register`, `deploy`, `status`, and `list` as agent-callable tools.
 
 The plugin is embedded into the Go binary, so a running instance also serves it at `/skills.zip`, `/plugin.zip`, and per-skill ZIPs for manual upload (e.g. Claude.ai). It reports its version on every API call; if the server's bundle is newer, responses carry a `_notice` the agent surfaces so users know to update.

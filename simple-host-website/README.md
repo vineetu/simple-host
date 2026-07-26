@@ -57,9 +57,12 @@ The `template/` directory contains a ready-to-deploy example static site. Try it
 
 | IDE | MCP config | Skill |
 |---|---|---|
-| Claude Code | `~/.claude/settings.json` | `~/.claude/skills/website-deploy/SKILL.md` |
-| Codex CLI | `~/.codex/config.toml` | `~/.agents/skills/website-deploy/SKILL.md` |
-| Cursor | `~/.cursor/mcp.json` | `~/.cursor/skills/website-deploy/SKILL.md` |
+| Claude Code | `~/.claude/settings.json` | `~/.claude/skills/` |
+| ChatGPT desktop, Codex CLI | `~/.codex/config.toml` | `~/.agents/skills/` |
+| Cursor | `~/.cursor/mcp.json` | `~/.cursor/skills/` |
+
+Every bundled skill is copied as a whole directory — `website-deploy` ships a
+`references/` folder alongside its `SKILL.md`.
 
 ## Uninstall
 
