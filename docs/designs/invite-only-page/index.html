@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Invite-only sites — simple·host</title>
+<meta name="description" content="Let the right people in, and nobody else. How sign-in works for sites hosted on simple-host.">
+<script>(function(){try{var s=localStorage.getItem('sh-theme');document.documentElement.dataset.theme=s||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');}catch(e){document.documentElement.dataset.theme='light';}})();</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#020617;--surface:#0b1222;--surface2:#0f1830;--grid:#0f1830;--border:#1e293b;--border-hi:#334155;
+  --text:#f1f5f9;--text-secondary:#94a3b8;--dim:#475569;--accent:#22d3ee;--accent-hover:#67e8f9;
+  --ok:#34d399;--warn:#fbbf24;--err:#fb7185;--on-accent:#020617;--radius:10px;
+  --font:'JetBrains Mono',ui-monospace,Menlo,monospace;--header-bg:rgba(2,6,23,.75);
+}
+html[data-theme="light"]{
+  --bg:#f7f8fb;--surface:#fff;--surface2:#eef2f8;--grid:#e9edf4;--border:#e2e8f0;--border-hi:#cbd5e1;
+  --text:#0f172a;--text-secondary:#475569;--dim:#94a3b8;--accent:#0891b2;--accent-hover:#0e7490;
+  --ok:#059669;--warn:#b45309;--err:#e11d48;--on-accent:#fff;--header-bg:rgba(255,255,255,.82);
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:48px 48px;}
+.container{max-width:760px;margin:0 auto;padding:0 24px}
+header{border-bottom:1px solid var(--border);background:var(--header-bg);backdrop-filter:blur(10px);position:sticky;top:0;z-index:10}
+header .container{display:flex;align-items:center;justify-content:space-between;height:56px}
+.brand{font-size:14px;font-weight:700;text-decoration:none;color:var(--text)}.brand b{color:var(--accent)}
+.brand .tag{color:var(--dim);font-weight:500;margin-left:8px}
+.icon-btn{background:transparent;border:1px solid var(--border);color:var(--text-secondary);border-radius:8px;
+  height:30px;padding:0 10px;cursor:pointer;font-family:var(--font);font-size:12px}
+.icon-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+.hero{padding:64px 0 8px}
+.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:14px}
+h1{font-size:38px;line-height:1.15;letter-spacing:-.5px;font-weight:700;margin-bottom:18px}
+h1 em{font-style:normal;color:var(--accent)}
+.lede{font-size:16px;color:var(--text-secondary);max-width:560px}
+.status{display:inline-flex;align-items:center;gap:8px;margin-top:26px;font-size:12px;color:var(--text-secondary);
+  border:1px solid var(--border);border-radius:999px;padding:5px 14px;background:var(--surface)}
+.status .dot{width:7px;height:7px;border-radius:50%;background:var(--warn);flex:none}
+
+section{padding:52px 0 0}
+h2{font-size:22px;letter-spacing:-.3px;margin-bottom:12px}
+h3{font-size:15px;margin-bottom:8px}
+p{color:var(--text-secondary);margin-bottom:14px}
+p strong,li strong{color:var(--text);font-weight:600}
+.rule{height:1px;background:var(--border);margin:56px 0 0}
+
+figure{margin:26px 0 10px;border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:20px 18px 14px;overflow:hidden}
+figure svg{display:block;width:100%;height:auto}
+figcaption{margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-size:12px;color:var(--dim)}
+figcaption b{color:var(--text-secondary);font-weight:600}
+
+.svg-label{font:600 12px var(--font);fill:var(--text)}
+.svg-sub{font:400 10.5px var(--font);fill:var(--text-secondary)}
+.svg-tiny{font:400 9.5px var(--font);fill:var(--dim)}
+.svg-accent{fill:var(--accent)}
+.svg-ok{fill:var(--ok)}
+.svg-err{fill:var(--err)}
+.box{fill:var(--surface2);stroke:var(--border-hi);stroke-width:1}
+.box-ok{fill:var(--surface2);stroke:var(--ok);stroke-width:1.4}
+.box-err{fill:var(--surface2);stroke:var(--err);stroke-width:1.4}
+.box-dash{fill:none;stroke:var(--border-hi);stroke-width:1;stroke-dasharray:4 4}
+.ln{stroke:var(--border-hi);stroke-width:1.4;fill:none}
+.ln-accent{stroke:var(--accent);stroke-width:1.6;fill:none}
+.ln-err{stroke:var(--err);stroke-width:1.4;fill:none;stroke-dasharray:4 3}
+.ln-ok{stroke:var(--ok);stroke-width:1.6;fill:none}
+
+ul.points{list-style:none;display:grid;gap:10px;margin:0 0 18px}
+ul.points li{position:relative;padding-left:18px;color:var(--text-secondary);font-size:14px}
+ul.points li::before{content:"—";position:absolute;left:0;color:var(--accent)}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:22px 0}
+.card{border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:16px 16px 14px}
+.card .k{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-bottom:8px}
+.card p{font-size:13px;margin:0}
+.card.hi{border-color:var(--accent)}
+
+.note{border:1px solid var(--border);border-left:3px solid var(--warn);border-radius:10px;background:var(--surface);
+  padding:16px 18px;margin:22px 0;font-size:13.5px;color:var(--text-secondary)}
+.note.bad{border-left-color:var(--err)}
+.note b{color:var(--text)}
+table{width:100%;border-collapse:collapse;margin:20px 0;font-size:13px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+th{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);font-weight:600}
+td{color:var(--text-secondary)}td b{color:var(--text)}
+code{font-family:var(--font);font-size:.92em;background:var(--surface2);border:1px solid var(--border);
+  border-radius:5px;padding:1px 5px;color:var(--text)}
+footer{margin-top:64px;padding:28px 0 60px;border-top:1px solid var(--border);font-size:12px;color:var(--dim)}
+footer a{color:var(--accent);text-decoration:none}footer a:hover{text-decoration:underline}
+@media(max-width:640px){h1{font-size:28px}.hero{padding:40px 0 0}}
+</style>
+</head>
+<body>
+<header><div class="container">
+  <a class="brand" href="/">simple<b>·</b>host <span class="tag">invite-only</span></a>
+  <button class="icon-btn" onclick="toggleTheme()">◑</button>
+</div></header>
+
+<div class="container">
+
+  <div class="hero">
+    <div class="eyebrow">Feature proposal</div>
+    <h1>Let the right people in.<br><em>Nobody else.</em></h1>
+    <p class="lede">Name the people who may open your page. They get an email, click once, and they're in.
+      No passwords to invent, no accounts to manage, no database.</p>
+    <div class="status"><span class="dot"></span> Designed, not built — this page explains what it would be</div>
+  </div>
+
+  <div class="rule"></div>
+
+  <!-- ============ THE PROBLEM ============ -->
+  <section>
+    <h2>What's true today</h2>
+    <p>Every site here is public. That's usually the point — but it means a site can
+      <strong>collect</strong> things and never <strong>keep</strong> them. A signup form works; a page only your
+      client should read doesn't.</p>
+    <p>Our own docs say so out loud: <em>"fine for a party, not fine for anything you'd mind a stranger reading."</em>
+      Every site that gathers data ships with a small apology in the footer.</p>
+
+    <figure>
+      <svg viewBox="0 0 700 200" role="img" aria-label="Today anyone with the link gets in; with invite-only only named people do.">
+        <!-- LEFT: today -->
+        <text x="16" y="20" class="svg-label">Today</text>
+        <text x="16" y="36" class="svg-sub">anyone with the link</text>
+        <rect x="16" y="52" width="300" height="128" rx="10" class="box-err"/>
+        <text x="36" y="80" class="svg-sub">your page</text>
+        <line x1="36" y1="90" x2="296" y2="90" class="ln" opacity=".5"/>
+        <g class="svg-sub">
+          <text x="36" y="112">🙂 the client you meant</text>
+          <text x="36" y="134" class="svg-err">🙂 a stranger with the URL</text>
+          <text x="36" y="156" class="svg-err">🤖 a crawler</text>
+        </g>
+
+        <!-- RIGHT: invite-only -->
+        <text x="384" y="20" class="svg-label">Invite-only</text>
+        <text x="384" y="36" class="svg-sub">only the addresses you name</text>
+        <rect x="384" y="52" width="300" height="128" rx="10" class="box-ok"/>
+        <text x="404" y="80" class="svg-sub">your page</text>
+        <line x1="404" y1="90" x2="664" y2="90" class="ln" opacity=".5"/>
+        <g class="svg-sub">
+          <text x="404" y="112" class="svg-ok">🙂 ravi@client.com</text>
+          <text x="404" y="134" class="svg-ok">🙂 sam@client.com</text>
+          <text x="404" y="156">🚫 everyone else</text>
+        </g>
+      </svg>
+      <figcaption><b>Fig 1</b> · The whole feature in one picture. You keep a guest list; the platform checks it.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ HOW IT FEELS ============ -->
+  <section>
+    <h2>How it works, for the person using it</h2>
+    <p>The invite <em>is</em> the feature. There's no separate "sign up" step, because the first email
+      already proves who they are.</p>
+
+    <figure>
+      <svg viewBox="0 0 700 250" role="img" aria-label="Flow: owner adds an email, visitor receives a link, clicks it, and is signed in.">
+        <defs>
+          <marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto">
+            <path d="M0,0 L7,3.2 L0,6.4 z" fill="var(--accent)"/>
+          </marker>
+        </defs>
+
+        <!-- 1 -->
+        <rect x="12" y="40" width="150" height="86" rx="10" class="box"/>
+        <text x="26" y="30" class="svg-tiny">STEP 1</text>
+        <text x="26" y="66" class="svg-label">You</text>
+        <text x="26" y="88" class="svg-sub">add an address</text>
+        <text x="26" y="106" class="svg-sub svg-accent">ravi@client.com</text>
+
+        <line x1="168" y1="83" x2="204" y2="83" class="ln-accent" marker-end="url(#ah)"/>
+
+        <!-- 2 -->
+        <rect x="210" y="40" width="150" height="86" rx="10" class="box"/>
+        <text x="224" y="30" class="svg-tiny">STEP 2</text>
+        <text x="224" y="66" class="svg-label">Ravi gets mail</text>
+        <text x="224" y="88" class="svg-sub">"Alice shared a</text>
+        <text x="224" y="104" class="svg-sub">private page"</text>
+
+        <line x1="366" y1="83" x2="402" y2="83" class="ln-accent" marker-end="url(#ah)"/>
+
+        <!-- 3 -->
+        <rect x="408" y="40" width="150" height="86" rx="10" class="box"/>
+        <text x="422" y="30" class="svg-tiny">STEP 3</text>
+        <text x="422" y="66" class="svg-label">He clicks</text>
+        <text x="422" y="88" class="svg-sub">one tap — or a</text>
+        <text x="422" y="104" class="svg-sub">6-digit code</text>
+
+        <line x1="564" y1="83" x2="600" y2="83" class="ln-ok" marker-end="url(#ah)"/>
+
+        <!-- 4 -->
+        <rect x="606" y="40" width="82" height="86" rx="10" class="box-ok"/>
+        <text x="620" y="30" class="svg-tiny">DONE</text>
+        <text x="620" y="72" class="svg-label svg-ok">He's in</text>
+        <text x="620" y="94" class="svg-sub">for 30</text>
+        <text x="620" y="110" class="svg-sub">days</text>
+
+        <!-- annotations -->
+        <rect x="12" y="160" width="676" height="72" rx="10" class="box-dash"/>
+        <text x="30" y="184" class="svg-label">What nobody has to do</text>
+        <text x="30" y="206" class="svg-sub">✕ invent a password  ✕ confirm an account  ✕ install anything  ✕ write auth code</text>
+        <text x="30" y="224" class="svg-tiny">You add an address. Everything else is the platform's job.</text>
+      </svg>
+      <figcaption><b>Fig 2</b> · Sharing, signing up and signing in collapse into a single action.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ THE ADDRESS CHANGE ============ -->
+  <section>
+    <h2>Why your site gets a new address</h2>
+    <p>This is the one part that changes something visible, so it's worth being straight about.</p>
+    <p>Right now every site lives at a shared address — <code>sites.simple-host.app/you/your-site/</code>.
+      To a browser, everything under that one address is <strong>the same place</strong>. Browsers keep sign-ins
+      apart by address, and they have no finer setting. So while your site shares an address with
+      everyone else's, a stranger's page could read your visitors' sessions.</p>
+    <p>There is no clever fix for that — it's how the web works. So a site with sign-in
+      <strong>gets its own address</strong>.</p>
+
+    <figure>
+      <svg viewBox="0 0 700 260" role="img" aria-label="Shared address means sites can reach each other; a private address walls them off.">
+        <!-- LEFT -->
+        <text x="16" y="20" class="svg-label">One shared address</text>
+        <text x="16" y="36" class="svg-sub">sites.simple-host.app/…</text>
+        <rect x="16" y="48" width="310" height="150" rx="10" class="box-err"/>
+        <rect x="34" y="74" width="86" height="52" rx="7" class="box"/>
+        <text x="46" y="96" class="svg-sub">your</text><text x="46" y="112" class="svg-sub">site</text>
+        <rect x="134" y="74" width="86" height="52" rx="7" class="box"/>
+        <text x="146" y="96" class="svg-sub">someone</text><text x="146" y="112" class="svg-sub">else's</text>
+        <rect x="234" y="74" width="76" height="52" rx="7" class="box"/>
+        <text x="246" y="96" class="svg-sub">a bad</text><text x="246" y="112" class="svg-sub">actor</text>
+        <path d="M272,132 C272,158 90,158 78,132" class="ln-err"/>
+        <text x="120" y="172" class="svg-tiny svg-err">can reach into your site's sign-ins</text>
+        <text x="34" y="190" class="svg-tiny">one address · no walls inside it</text>
+
+        <!-- RIGHT -->
+        <text x="378" y="20" class="svg-label">Its own address</text>
+        <text x="378" y="36" class="svg-sub">your-site.simple-host.site</text>
+        <rect x="378" y="48" width="306" height="150" rx="10" class="box-ok"/>
+        <rect x="396" y="74" width="86" height="52" rx="7" class="box-ok"/>
+        <text x="408" y="96" class="svg-sub">your</text><text x="408" y="112" class="svg-sub">site</text>
+        <line x1="496" y1="66" x2="496" y2="182" class="ln" stroke-dasharray="3 4"/>
+        <rect x="510" y="74" width="76" height="52" rx="7" class="box"/>
+        <text x="522" y="96" class="svg-sub">someone</text><text x="522" y="112" class="svg-sub">else's</text>
+        <line x1="600" y1="66" x2="600" y2="182" class="ln" stroke-dasharray="3 4"/>
+        <rect x="612" y="74" width="60" height="52" rx="7" class="box"/>
+        <text x="622" y="96" class="svg-sub">a bad</text><text x="622" y="112" class="svg-sub">actor</text>
+        <path d="M540,140 L505,140" class="ln-err" marker-end=""/>
+        <text x="512" y="158" class="svg-tiny svg-err">blocked</text>
+        <text x="396" y="190" class="svg-tiny svg-ok">separate addresses · real walls between them</text>
+
+        <!-- bottom -->
+        <rect x="16" y="214" width="668" height="34" rx="8" class="box-dash"/>
+        <text x="34" y="236" class="svg-sub">Your old link keeps working — it forwards to the new one.</text>
+      </svg>
+      <figcaption><b>Fig 3</b> · Browsers separate sign-ins by <b>address</b>, never by folder. A private page needs a private address — which is also just a shorter, nicer URL.</figcaption>
+    </figure>
+
+    <p>Two upsides fall out of this for free: the address is <strong>shorter</strong>
+      (<code>your-site.simple-host.site</code>), and password-protecting a page
+      <strong>stops requiring you to buy a domain</strong> — which is the rule today.</p>
+  </section>
+
+  <!-- ============ THE SETTING ============ -->
+  <section>
+    <h2>One setting, three answers</h2>
+    <p>Everything above collapses into a single question in the dashboard:
+      <strong>who can open this site?</strong></p>
+
+    <figure>
+      <svg viewBox="0 0 700 168" role="img" aria-label="Three access modes: anyone, one shared password, only invited people.">
+        <text x="16" y="22" class="svg-label">Who can open this site?</text>
+
+        <rect x="16" y="40" width="212" height="108" rx="10" class="box"/>
+        <circle cx="38" cy="66" r="7" class="box"/>
+        <text x="56" y="70" class="svg-label">Anyone</text>
+        <text x="34" y="96" class="svg-sub">public on the internet</text>
+        <text x="34" y="116" class="svg-tiny">the default · today's behaviour</text>
+
+        <rect x="244" y="40" width="212" height="108" rx="10" class="box"/>
+        <circle cx="266" cy="66" r="7" class="box"/>
+        <text x="284" y="70" class="svg-label">One password</text>
+        <text x="262" y="96" class="svg-sub">everyone shares it</text>
+        <text x="262" y="116" class="svg-tiny">fine for a group · no identity</text>
+
+        <rect x="472" y="40" width="212" height="108" rx="10" class="box-ok"/>
+        <circle cx="494" cy="66" r="7" class="box-ok"/>
+        <circle cx="494" cy="66" r="3.2" class="svg-ok"/>
+        <text x="512" y="70" class="svg-label">Only people I invite</text>
+        <text x="490" y="96" class="svg-sub">a list of addresses</text>
+        <text x="490" y="116" class="svg-tiny svg-ok">new · they sign in with email</text>
+      </svg>
+      <figcaption><b>Fig 4</b> · No new dashboard section — one existing question gains a third answer.</figcaption>
+    </figure>
+
+    <p>For the common case — "only these four people may read this" — <strong>you write no code at all.</strong>
+      You flip the setting and list the addresses. For the rarer case where each person should see
+      <em>their own</em> content, a site can also store a private note per person.</p>
+  </section>
+
+  <!-- ============ HONEST BITS ============ -->
+  <section>
+    <h2>What we'd deliberately leave out</h2>
+    <p>The temptation with sign-in is to build an account system. We shouldn't. Cut from the first version:</p>
+    <table>
+      <thead><tr><th>Left out</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td><b>Open sign-up</b></td><td>Invite-only means only listed addresses are ever emailed — which removes the biggest abuse and spam problem before it exists.</td></tr>
+        <tr><td><b>Google / SSO buttons</b></td><td>Email works for every address, including corporate ones. A Google button would show <em>simple-host's</em> name on someone else's business page. It comes later, as an extra way to prove the same address.</td></tr>
+        <tr><td><b>Bans, roles, profiles, exports</b></td><td>Removing someone already ends their access. A site with twelve guests doesn't need a permissions system.</td></tr>
+        <tr><td><b>Visitor IP and device logs</b></td><td>It would mean holding <em>more</em> personal data about your visitors to render a screen nobody opens. Instead: <em>"3 of the 4 people you invited have opened this."</em></td></tr>
+      </tbody>
+    </table>
+    <p>What stays: the guest list, the page gate, a private note per person, and the ability for a
+      visitor to delete themselves.</p>
+  </section>
+
+  <!-- ============ FOUND WHILE DESIGNING ============ -->
+  <section>
+    <h2>Found while designing this</h2>
+    <div class="note bad">
+      <b>Password-protected pages are not currently private.</b> While mapping this out we checked a
+      live site with a view password set. The page serves publicly to anyone with the link, while its
+      data is locked away even from the owner — exactly backwards. The gate that was supposed to ask
+      for the password was never switched on.
+      <br><br>
+      Separately, two sites owned by different people that happen to share a name also share one lock,
+      so one person's password can open the other's page.
+      <br><br>
+      Both are fixed first, before any of this is built — they're the foundation invite-only stands on.
+    </div>
+    <p>Being able to say <em>"this page is private"</em> and have it be true is the actual product here.
+      That's worth getting right before adding anything on top.</p>
+  </section>
+
+  <!-- ============ ORDER ============ -->
+  <section>
+    <h2>The order it would ship in</h2>
+    <div class="cards">
+      <div class="card"><div class="k">First</div><h3>Fix the lock</h3><p>Make password-protection actually protect. Foundation for everything else.</p></div>
+      <div class="card"><div class="k">Then</div><h3>Private submissions</h3><p>Form entries stop being readable by strangers. Small change, removes the apology in our docs.</p></div>
+      <div class="card"><div class="k">Then</div><h3>Your own address</h3><p>A shorter URL, and privacy without buying a domain. Useful on its own.</p></div>
+      <div class="card hi"><div class="k">Then</div><h3>Invite-only</h3><p>The guest list, the email sign-in, the private note per person.</p></div>
+    </div>
+    <p>Each step is worth shipping by itself, which is the main reason to do them in this order —
+      nothing sits half-finished waiting on the step after it.</p>
+  </section>
+
+  <footer>
+    <p>A design proposal for simple·host — written 26 July 2026. Nothing here is built yet.</p>
+    <p style="margin-top:6px"><a href="https://simple-host.app/">simple-host.app</a> · <a href="https://simple-host.app/docs.html">API reference</a></p>
+  </footer>
+</div>
+
+<script>
+function toggleTheme(){var t=document.documentElement.dataset.theme==='dark'?'light':'dark';
+  document.documentElement.dataset.theme=t;try{localStorage.setItem('sh-theme',t);}catch(e){}}
+</script>
+</body>
+</html>
