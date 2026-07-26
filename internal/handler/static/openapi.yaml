@@ -78,6 +78,33 @@ paths:
             text/markdown:
               schema: { type: string }
         '404': { description: No such skill }
+  /v1/skills/{name}/references/{file}:
+    get:
+      operationId: getSkillReference
+      summary: Fetch one of a skill's reference documents (markdown)
+      description: >-
+        A skill's SKILL.md routes to reference documents under its references/
+        directory. A folder install has them on disk; install methods that fetch
+        only SKILL.md by URL do not, so SKILL.md cites each reference by
+        absolute URL as well and this endpoint serves it. Public, no auth.
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema: { type: string }
+        - name: file
+          in: path
+          required: true
+          description: The reference filename, e.g. backend.md
+          schema: { type: string }
+      responses:
+        '200':
+          description: The reference document
+          content:
+            text/markdown:
+              schema: { type: string }
+        '400': { description: Invalid skill or reference name }
+        '404': { description: No such reference }
   /v1/auth:
     post:
       operationId: postAuth

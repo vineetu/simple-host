@@ -169,6 +169,28 @@
     .insttbl tr:last-child td { border-bottom: 0; }
     .insttbl td:first-child { white-space: nowrap; color: var(--text); }
 
+    /* FAQ — collapsed by default so the page still leads with the three paths. */
+    .faq { margin-top: 56px; border-top: 1px solid var(--border); padding-top: 34px; }
+    .faq-title {
+      font-size: 12px; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase;
+      color: var(--cyan); margin-bottom: 18px;
+    }
+    .faq-q { border-bottom: 1px solid var(--border); }
+    .faq-q summary {
+      cursor: pointer; list-style: none; user-select: none;
+      font-size: 15px; font-weight: 600; color: var(--text);
+      padding: 14px 0 14px 22px; position: relative;
+    }
+    .faq-q summary::-webkit-details-marker { display: none; }
+    .faq-q summary::before { content: "▸"; position: absolute; left: 0; color: var(--cyan); }
+    .faq-q[open] summary::before { content: "▾"; }
+    .faq-q summary:hover { color: var(--cyan); }
+    .faq-q p {
+      color: var(--muted); font-size: 14px; line-height: 1.7;
+      margin: 0 0 14px 22px; max-width: 68ch;
+    }
+    .faq-q p b { color: var(--text); }
+
     .note { color: var(--dim); font-size: 13px; margin-top: 22px; }
     .note a, .path p a { color: var(--cyan); text-decoration: none; }
     .note a:hover, .path p a:hover { text-decoration: underline; }
@@ -228,7 +250,8 @@
             <div>
               <div class="eyebrow">In a coding agent</div>
               <h2>Add the skill to your agent.</h2>
-              <p>Works with Claude Code, Cursor, Codex CLI, opencode, GitHub Copilot — anything with a shell. One line teaches your agent the whole platform (deploy, state &amp; collections, private pages, widgets). Then just say <em>“deploy this folder”</em> or <em>“build me a waitlist page.”</em> The installer knows each agent's skills folder (and the right Windows paths), so you don't have to.</p>
+              <p>Works with Claude Code, the ChatGPT desktop app, Cursor, Codex CLI, opencode, GitHub Copilot — anything that can read and write files on your machine. One line teaches your agent the whole platform (deploy, state &amp; collections, private pages, widgets). Then just say <em>“deploy this folder”</em> or <em>“build me a waitlist page.”</em> The installer knows each agent's skills folder (and the right Windows paths), so you don't have to.</p>
+              <p class="dim" style="font-size:13px; margin-top:8px">ChatGPT: this needs the <b>desktop app</b>, in the mode that can open a folder and edit files. A plain ChatGPT chat in a browser can't install anything — use the third option below instead.</p>
             </div>
           </div>
           <div class="code-head">
@@ -243,21 +266,23 @@
             <button class="copy-btn" type="button" data-copy-target="cmd-npx-copilot">Copy</button>
           </div>
           <pre id="cmd-npx-copilot">npx skills add vineetu/simple-host -g -a github-copilot -s website-deploy --copy -y
-npx skills add vineetu/simple-host -g -a github-copilot -s website-deploy-builder --copy -y</pre>
+npx skills add vineetu/simple-host -g -a github-copilot -s website-deploy-builder --copy -y
+npx skills add vineetu/simple-host -g -a github-copilot -s connect-domain --copy -y</pre>
 
           <details class="more">
             <summary>Other tools · manual install · Windows</summary>
 
             <table class="insttbl">
-              <thead><tr><th>Tool</th><th>Skills folder · macOS / Linux</th><th>Windows</th></tr></thead>
+              <thead><tr><th>Tool</th><th>Skills folder · macOS / Linux</th><th>Windows · PowerShell</th></tr></thead>
               <tbody>
-                <tr><td>Claude Code</td><td><code>~/.claude/skills/</code></td><td><code>%USERPROFILE%\.claude\skills\</code></td></tr>
-                <tr><td>Codex CLI</td><td><code>~/.agents/skills/</code></td><td><code>%USERPROFILE%\.agents\skills\</code></td></tr>
-                <tr><td>opencode</td><td><code>~/.config/opencode/skills/</code></td><td><code>%USERPROFILE%\.config\opencode\skills\</code></td></tr>
-                <tr><td>Hermes</td><td><code>~/.hermes/skills/</code></td><td><code>%USERPROFILE%\.hermes\skills\</code></td></tr>
-                <tr><td>OpenClaw</td><td><code>~/.openclaw/skills/</code></td><td><code>%USERPROFILE%\.openclaw\skills\</code></td></tr>
-                <tr><td>Cursor / other</td><td colspan="2">Point it at the skills directory it reads — the files are identical.</td></tr>
-                <tr><td>Claude.ai / Desktop</td><td colspan="2">Paid plan with <b>Code execution</b> on. Skills settings → <b>“+ Create skill”</b>, upload each ZIP separately: <a class="dl" href="/skills/website-deploy.zip" download>website-deploy.zip</a> <a class="dl" href="/skills/website-deploy-builder.zip" download>website-deploy-builder.zip</a></td></tr>
+                <tr><td>Claude Code</td><td><code>~/.claude/skills/</code></td><td><code>$env:USERPROFILE\.claude\skills\</code></td></tr>
+                <tr><td>ChatGPT desktop<br>Codex CLI</td><td><code>~/.agents/skills/</code></td><td><code>$env:USERPROFILE\.agents\skills\</code></td></tr>
+                <tr><td>Cursor</td><td><code>~/.cursor/skills/</code></td><td><code>$env:USERPROFILE\.cursor\skills\</code></td></tr>
+                <tr><td>opencode</td><td><code>~/.config/opencode/skills/</code></td><td><code>$env:USERPROFILE\.config\opencode\skills\</code></td></tr>
+                <tr><td>Hermes</td><td><code>~/.hermes/skills/</code></td><td><code>$env:USERPROFILE\.hermes\skills\</code></td></tr>
+                <tr><td>OpenClaw</td><td><code>~/.openclaw/skills/</code></td><td><code>$env:USERPROFILE\.openclaw\skills\</code></td></tr>
+                <tr><td>Anything else</td><td colspan="2">Point it at the skills directory it reads — the files are identical.</td></tr>
+                <tr><td>Claude.ai / Desktop</td><td colspan="2">Paid plan with <b>Code execution</b> on. Skills settings → <b>“+ Create skill”</b>, upload each ZIP separately: <a class="dl" href="/skills/website-deploy.zip" download>website-deploy.zip</a> <a class="dl" href="/skills/website-deploy-builder.zip" download>website-deploy-builder.zip</a> <a class="dl" href="/skills/connect-domain.zip" download>connect-domain.zip</a></td></tr>
               </tbody>
             </table>
 
@@ -265,18 +290,22 @@ npx skills add vineetu/simple-host -g -a github-copilot -s website-deploy-builde
               <span>Tell your agent (file-based agents: Claude Code, Codex, opencode…)</span>
               <button class="copy-btn" type="button" data-copy-target="p-agentinstall">Copy</button>
             </div>
-            <pre id="p-agentinstall">Download https://simple-host.app/skills.zip and unzip it into your skills folder — create it if it doesn't exist. Use the folder for whichever agent you are:
-   • Claude Code   ~/.claude/skills/
-   • Codex CLI     ~/.agents/skills/
-   • opencode      ~/.config/opencode/skills/
-(On Windows, ~ means %USERPROFILE%.) Then list your skills, confirm website-deploy and website-deploy-builder now appear, and ask me what I'd like to build.</pre>
+            <pre id="p-agentinstall">Download https://simple-host.app/skills.zip and unzip it into your skills folder — create it if it doesn't exist. Use the one folder that matches whichever agent you are:
+   • Claude Code                  &lt;home&gt;/.claude/skills/
+   • ChatGPT desktop, Codex CLI   &lt;home&gt;/.agents/skills/
+   • Cursor                       &lt;home&gt;/.cursor/skills/
+   • opencode                     &lt;home&gt;/.config/opencode/skills/
+
+Work out &lt;home&gt; from the shell you are actually in: $HOME on macOS, Linux, and in PowerShell; %USERPROFILE% only in cmd. Put the three skill folders straight in, with no extra folder wrapped around them. Then list your skills, confirm website-deploy, website-deploy-builder and connect-domain all appear, and ask me what I'd like to build.</pre>
             <p class="note" style="margin-top:8px"><b>GitHub Copilot CLI</b> sandboxes its own <code class="inline-code">~/.copilot</code> folder, so a download-and-unzip can't reach it — add each skill by URL with Copilot's own command instead:</p>
             <div class="code-head">
               <span>GitHub Copilot CLI</span>
               <button class="copy-btn" type="button" data-copy-target="cmd-copilot">Copy</button>
             </div>
             <pre id="cmd-copilot">copilot skill add https://simple-host.app/skills/website-deploy/SKILL.md
-copilot skill add https://simple-host.app/skills/website-deploy-builder/SKILL.md</pre>
+copilot skill add https://simple-host.app/skills/website-deploy-builder/SKILL.md
+copilot skill add https://simple-host.app/skills/connect-domain/SKILL.md</pre>
+            <p class="note" style="margin-top:8px">These fetch one file each. <code class="inline-code">website-deploy</code>'s SKILL.md points at reference documents for framework builds, packaging, and the backend; it cites each one by full URL as well as by relative path, so an agent installed this way can still fetch them on demand.</p>
 
             <div class="code-head">
               <span>Manual · macOS / Linux (Claude Code shown)</span>
@@ -314,9 +343,9 @@ Expand-Archive "$env:TEMP\sh-skills.zip" "$env:USERPROFILE\.claude\skills" -Forc
           <div class="path-head">
             <span class="p-ic">📋</span>
             <div>
-              <div class="eyebrow">In ChatGPT, Gemini or Copilot</div>
+              <div class="eyebrow">In a browser chat · ChatGPT on the web, Gemini, Copilot</div>
               <h2>Copy a prompt, paste back the result.</h2>
-              <p>Copy the prompt below, paste it into your AI chat, and it hands you a ready-to-publish site as one block. Paste that back at <span class="inline-code">simple-host.app</span> and hit Publish. <span class="dim">(One 6-digit email code to publish — no password.)</span></p>
+              <p>For a chat that can't touch your files. Copy the prompt below, paste it into the chat, and it hands you a ready-to-publish site as one block. Paste that back at <span class="inline-code">simple-host.app</span> and hit Publish. <span class="dim">(One 6-digit email code to publish — no password.)</span></p>
             </div>
           </div>
           <button class="copy-btn wide" id="copy-llms" type="button">Copy the prompt</button>
@@ -325,6 +354,62 @@ Expand-Archive "$env:TEMP\sh-skills.zip" "$env:USERPROFILE\.claude\skills" -Forc
       </div>
 
       <p class="note">Curious what you can build? Static pages with a real backend when you need it — forms, counters, guestbooks, comments, private pages. <a href="/docs.html">See the full reference →</a></p>
+
+      <!-- ===== FAQ =====
+           Written because none of this was stated anywhere a human reads. The
+           visibility and the shared-store answers in particular were documented
+           only inside the agent skill. -->
+      <section class="faq" id="faq">
+        <h2 class="faq-title">Before you publish</h2>
+
+        <details class="faq-q">
+          <summary>Who can see my site?</summary>
+          <p>Anyone with the link. Sites are served on the public internet at
+          <code class="inline-code">sites.simple-host.app/&lt;you&gt;/&lt;site&gt;/</code> — there is
+          no sign-in in front of them and no “unlisted” mode. They are not listed
+          in a directory unless you choose to share them, but treat a link as
+          public. If you need a page only certain people can open, connect your
+          own domain and set a view password on it.</p>
+        </details>
+
+        <details class="faq-q">
+          <summary>Is the data my site collects private?</summary>
+          <p><b>No.</b> The per-site store — shared state and collections, which is
+          what powers RSVP forms, counters, guestbooks, and comments — is public
+          and unauthenticated. Anyone who knows the site name can read it and
+          write to it. It is a scratchpad, not a database. Never put passwords,
+          API keys, tokens, or anyone's personal information in it.</p>
+          <p>The practical version: a sign-up form on a Simple Host site is fine
+          for a party or a team lunch. It is not fine for anything you would mind
+          a stranger reading.</p>
+        </details>
+
+        <details class="faq-q">
+          <summary>Can someone else change my site?</summary>
+          <p>Not the files. Deploying a new version needs your API key, and today
+          every site has exactly one owner — there is no way to grant a colleague
+          deploy access yet. The <em>data</em> your site collects is a different
+          story: see the answer above.</p>
+        </details>
+
+        <details class="faq-q">
+          <summary>What is this actually good for?</summary>
+          <p>Anything that is a page: a portfolio, a résumé, an event invite, a
+          launch or coming-soon page, docs, a menu, a mockup you want feedback
+          pins on. Add the backend when the page needs to remember something
+          across visitors — an RSVP list, a vote, a counter, a guestbook.</p>
+          <p>What it is not: nothing runs on the server. No PHP, no Node, no
+          Python, no database you control, no server-side rendering. If your idea
+          needs a login system or private records, it needs a different host.</p>
+        </details>
+
+        <details class="faq-q">
+          <summary>How much does it cost, and what happens to my site?</summary>
+          <p>Nothing, and it stays up until you delete it. The server keeps recent
+          versions of each site so you can roll back. Deleting a site removes its
+          files, every version, and its stored data — that is not reversible.</p>
+        </details>
+      </section>
     </div>
   </main>
 

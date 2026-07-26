@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -26,7 +27,7 @@ func NoticeMiddleware(serverVersion string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			clientVer := r.Header.Get("X-Skill-Version")
-			stale := clientVer == "" || clientVer != serverVersion
+			stale := skillIsStale(clientVer, serverVersion)
 
 			if !stale {
 				next.ServeHTTP(w, r)
@@ -68,6 +69,52 @@ func NoticeMiddleware(serverVersion string) func(http.Handler) http.Handler {
 			}
 		})
 	}
+}
+
+// skillIsStale reports whether the caller's skill should be told to update.
+//
+// A missing header means "no skill version claimed" — always notify. Otherwise
+// notify only when the SERVER is genuinely newer. A client that is ahead of the
+// server is not stale: `npx skills add` installs straight from the GitHub
+// repository, so a user can legitimately be running a version that this server
+// has not been redeployed with yet. Telling them to "update" would send them in
+// a circle. An unparseable version falls back to plain inequality.
+func skillIsStale(clientVer, serverVersion string) bool {
+	if clientVer == "" {
+		return true
+	}
+	if clientVer == serverVersion {
+		return false
+	}
+	client, okC := parseSemver(clientVer)
+	server, okS := parseSemver(serverVersion)
+	if !okC || !okS {
+		return true // can't compare — preserve the old any-difference behavior
+	}
+	for i := 0; i < 3; i++ {
+		if client[i] != server[i] {
+			return client[i] < server[i]
+		}
+	}
+	return false
+}
+
+// parseSemver reads a plain MAJOR.MINOR.PATCH string. Pre-release and build
+// suffixes are not used by this plugin, so anything else is "unparseable".
+func parseSemver(v string) ([3]int, bool) {
+	var out [3]int
+	parts := strings.Split(strings.TrimSpace(v), ".")
+	if len(parts) != 3 {
+		return out, false
+	}
+	for i, p := range parts {
+		n, err := strconv.Atoi(p)
+		if err != nil || n < 0 {
+			return out, false
+		}
+		out[i] = n
+	}
+	return out, true
 }
 
 type bufferingResponseWriter struct {
