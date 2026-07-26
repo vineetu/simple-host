@@ -250,8 +250,8 @@
             <div>
               <div class="eyebrow">In a coding agent</div>
               <h2>Add the skill to your agent.</h2>
-              <p>Works with Claude Code, the ChatGPT desktop app, Cursor, Codex CLI, opencode, GitHub Copilot — anything that can read and write files on your machine. One line teaches your agent the whole platform (deploy, state &amp; collections, private pages, widgets). Then just say <em>“deploy this folder”</em> or <em>“build me a waitlist page.”</em> The installer knows each agent's skills folder (and the right Windows paths), so you don't have to.</p>
-              <p class="dim" style="font-size:13px; margin-top:8px">ChatGPT: this needs the <b>desktop app</b>, in the mode that can open a folder and edit files. A plain ChatGPT chat in a browser can't install anything — use the third option below instead.</p>
+              <p>One line, and your agent knows the whole platform. Then just say <em>“deploy this folder”</em> or <em>“build me a waitlist page.”</em></p>
+              <p class="dim" style="font-size:13px; margin-top:8px">Claude Code · Cursor · Codex CLI · opencode · GitHub Copilot · ChatGPT desktop</p>
             </div>
           </div>
           <div class="code-head">
@@ -260,17 +260,10 @@
           </div>
           <pre id="cmd-npx">npx skills add vineetu/simple-host</pre>
 
-          <p class="note" style="margin-top:12px"><b>GitHub Copilot CLI:</b> Copilot can't unzip skills into its own sandboxed <code class="inline-code">~/.copilot</code> folder, so install them from your terminal with the universal installer — name the agent and use <code class="inline-code">--copy</code> (Windows symlinks need admin), adding each skill:</p>
-          <div class="code-head">
-            <span>GitHub Copilot · one skill per line</span>
-            <button class="copy-btn" type="button" data-copy-target="cmd-npx-copilot">Copy</button>
-          </div>
-          <pre id="cmd-npx-copilot">npx skills add vineetu/simple-host -g -a github-copilot -s website-deploy --copy -y
-npx skills add vineetu/simple-host -g -a github-copilot -s website-deploy-builder --copy -y
-npx skills add vineetu/simple-host -g -a github-copilot -s connect-domain --copy -y</pre>
-
           <details class="more">
-            <summary>Other tools · manual install · Windows</summary>
+            <summary>Didn't work? · other tools · manual install · Windows</summary>
+
+            <p class="note"><b>On ChatGPT?</b> The skill needs the <b>desktop app</b>, in the mode that can open a folder and edit files. A browser chat can't install anything — use <a href="#paste">copy a prompt, paste back the result</a> instead.</p>
 
             <table class="insttbl">
               <thead><tr><th>Tool</th><th>Skills folder · macOS / Linux</th><th>Windows · PowerShell</th></tr></thead>
@@ -297,7 +290,15 @@ npx skills add vineetu/simple-host -g -a github-copilot -s connect-domain --copy
    • opencode                     &lt;home&gt;/.config/opencode/skills/
 
 Work out &lt;home&gt; from the shell you are actually in: $HOME on macOS, Linux, and in PowerShell; %USERPROFILE% only in cmd. Put the three skill folders straight in, with no extra folder wrapped around them. Then list your skills, confirm website-deploy, website-deploy-builder and connect-domain all appear, and ask me what I'd like to build.</pre>
-            <p class="note" style="margin-top:8px"><b>GitHub Copilot CLI</b> sandboxes its own <code class="inline-code">~/.copilot</code> folder, so a download-and-unzip can't reach it — add each skill by URL with Copilot's own command instead:</p>
+            <p class="note" style="margin-top:8px"><b>GitHub Copilot CLI</b> sandboxes its own <code class="inline-code">~/.copilot</code> folder, so a download-and-unzip can't reach it. Install from your own terminal instead — name the agent and use <code class="inline-code">--copy</code> (Windows symlinks need admin):</p>
+            <div class="code-head">
+              <span>GitHub Copilot · from your terminal</span>
+              <button class="copy-btn" type="button" data-copy-target="cmd-npx-copilot">Copy</button>
+            </div>
+            <pre id="cmd-npx-copilot">npx skills add vineetu/simple-host -g -a github-copilot -s website-deploy --copy -y
+npx skills add vineetu/simple-host -g -a github-copilot -s website-deploy-builder --copy -y
+npx skills add vineetu/simple-host -g -a github-copilot -s connect-domain --copy -y</pre>
+            <p class="note" style="margin-top:8px">Or add each skill by URL with Copilot's own command:</p>
             <div class="code-head">
               <span>GitHub Copilot CLI</span>
               <button class="copy-btn" type="button" data-copy-target="cmd-copilot">Copy</button>
@@ -339,7 +340,7 @@ Expand-Archive "$env:TEMP\sh-skills.zip" "$env:USERPROFILE\.claude\skills" -Forc
         </section>
 
         <!-- ===== CHATGPT / PASTE ===== -->
-        <section class="path path-paste">
+        <section class="path path-paste" id="paste">
           <div class="path-head">
             <span class="p-ic">📋</span>
             <div>
