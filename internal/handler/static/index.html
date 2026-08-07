@@ -685,15 +685,32 @@
     }
     .ai-head h3 { font-size: 15px; font-weight: 600; }
     .ai-head .spark { color: var(--accent); }
-    /* Single column until there's a preview, then split chat | preview (so the
-       chat isn't squeezed into the left half with an empty right half). */
+    /* Single column until there's a preview, then split steps | preview. */
     .ai-body { display: grid; grid-template-columns: 1fr; }
     .ai-body.has-preview { grid-template-columns: 1fr 1fr; }
-    .ai-chat {
-      display: flex; flex-direction: column; gap: 12px;
-      padding: 18px 20px; overflow-y: auto;
-      max-height: 460px; min-height: 240px;
+    .ai-steps { padding: 18px 20px; display: flex; flex-direction: column; gap: 20px; }
+    .ai-step { display: flex; gap: 12px; align-items: flex-start; }
+    .ai-step-n {
+      flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%;
+      background: var(--accent); color: var(--on-accent);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12.5px; font-weight: 600;
     }
+    .ai-step-c { flex: 1; min-width: 0; }
+    .ai-step-t { margin: 0 0 8px; font-size: 13.5px; font-weight: 600; }
+    .ai-prompt-row { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; }
+    .ai-prompt-box {
+      flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 12px; font-size: 12px; line-height: 1.5;
+      color: var(--text-secondary); white-space: pre-wrap; word-break: break-word;
+      max-height: 132px; overflow-y: auto;
+    }
+    #paste-input {
+      width: 100%; box-sizing: border-box; background: var(--bg); color: var(--text);
+      border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+      font-family: var(--mono); font-size: 12px; line-height: 1.5; resize: vertical; outline: none;
+    }
+    #paste-input:focus { border-color: var(--accent); }
     .ai-preview {
       border-left: 1px solid var(--border);
       display: flex; flex-direction: column; min-width: 0;
@@ -718,69 +735,6 @@
     .ai-publish-bound .btn-ghost { font-size: 12px; padding: 0 2px; text-decoration: underline; }
     .gen-files { font-size: 11px; color: var(--text-secondary); padding: 8px 14px 0; word-break: break-all; line-height: 1.5; }
 
-    /* chat bubbles */
-    .msg { display: flex; max-width: 94%; }
-    .msg .bubble {
-      padding: 9px 13px; border-radius: 13px; font-size: 13.5px;
-      line-height: 1.55; white-space: pre-wrap; word-break: break-word;
-    }
-    .msg.user { align-self: flex-end; }
-    .msg.user .bubble {
-      background: var(--accent); color: var(--on-accent);
-      border-bottom-right-radius: 4px; font-weight: 500;
-    }
-    .msg.ai { align-self: flex-start; }
-    .msg.ai .bubble {
-      background: var(--bg); border: 1px solid var(--border); color: var(--text);
-      border-bottom-left-radius: 4px;
-    }
-    .msg.ai .bubble.thinking { color: var(--text-secondary); letter-spacing: 0.15em; }
-    /* Resume link shown when an async build job starts (shareable / bookmarkable). */
-    .msg.resume { max-width: 100%; }
-    .msg.resume .bubble {
-      background: var(--bg); border: 1px dashed var(--border-hi); color: var(--text-secondary);
-      font-size: 12.5px;
-    }
-    .resume-url-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-    .resume-url {
-      flex: 1; min-width: 0; font-family: var(--mono); font-size: 11.5px;
-      word-break: break-all; color: var(--text); background: var(--surface);
-      border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px;
-    }
-
-    .ai-input { display: flex; gap: 8px; padding: 14px 20px 8px; border-top: 1px solid var(--border); }
-    .ai-input input[type="text"] { flex: 1; min-width: 0; }
-    .attach-btn {
-      flex: 0 0 auto; align-self: stretch; width: 46px;
-      display: inline-flex; align-items: center; justify-content: center;
-      background: transparent; border: 1px solid var(--border);
-      color: var(--text-secondary); border-radius: 8px; cursor: pointer;
-      transition: color .15s, border-color .15s;
-    }
-    .attach-btn:hover { border-color: var(--accent); color: var(--accent); }
-    .attach-btn svg { display: block; }
-    .ai-tray { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 20px 0; }
-    .att-chip {
-      display: inline-flex; align-items: center; gap: 6px; background: var(--bg);
-      border: 1px solid var(--border); border-radius: 8px; padding: 4px 6px 4px 4px;
-      font-size: 12px; max-width: 190px;
-    }
-    .att-chip img { width: 26px; height: 26px; object-fit: cover; border-radius: 4px; flex: 0 0 auto; }
-    .att-chip .ic { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; background: var(--surface); border-radius: 4px; font-size: 13px; flex: 0 0 auto; }
-    .att-chip .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); }
-    .att-chip .rm { background: none; border: 0; color: var(--text-secondary); cursor: pointer; font-size: 14px; padding: 0 2px; line-height: 1; }
-    .att-chip .rm:hover { color: var(--error); }
-
-    .ai-paste { padding: 0 20px 16px; }
-    .ai-paste-toggle { background: none; border: 0; color: var(--accent); cursor: pointer; font-family: var(--font); font-size: 12.5px; padding: 6px 0; }
-    .ai-paste-toggle:hover { text-decoration: underline; }
-    #paste-box { margin-top: 8px; }
-    #paste-box textarea {
-      width: 100%; box-sizing: border-box; background: var(--bg); color: var(--text);
-      border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
-      font-family: var(--mono); font-size: 12px; line-height: 1.5; resize: vertical; outline: none;
-    }
-    #paste-box textarea:focus { border-color: var(--accent); }
     .ai-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
     .ai-hint { font-size: 12px; color: var(--text-secondary); }
 
@@ -797,7 +751,6 @@
     @media (max-width: 720px) {
       .ai-body, .ai-body.has-preview { grid-template-columns: 1fr; }
       .ai-preview { border-left: 0; border-top: 1px solid var(--border); }
-      .ai-chat { max-height: 280px; }
       .ai-preview iframe { min-height: 360px; }
       /* On a phone the inline frame is cramped — make Fullscreen the obvious move. */
       .ai-preview-head .btn-small { font-size: 13px; padding: 6px 12px; }
@@ -1085,18 +1038,40 @@
           <span class="sb-arrow">↗</span>
         </a>
 
-        <!-- AI create (conversational) -->
+        <!-- Create a site: build it in your own AI, paste the JSON back -->
         <div class="ai-create" id="ai-create">
           <div class="ai-head">
-            <h3><span class="spark">✦</span> Create a site with AI</h3>
-            <button class="btn-ghost btn-small" id="ai-reset" onclick="resetChat()" hidden>Start over</button>
+            <h3><span class="spark">✦</span> Create a site</h3>
+            <button class="btn-ghost btn-small" id="ai-reset" onclick="resetBuilder()" hidden>Start over</button>
           </div>
           <div class="ai-body">
-            <div class="ai-chat" id="ai-chat"></div>
+            <div class="ai-steps">
+              <div class="ai-step">
+                <div class="ai-step-n">1</div>
+                <div class="ai-step-c">
+                  <p class="ai-step-t">Build it in ChatGPT, Claude or Gemini</p>
+                  <div class="ai-prompt-row">
+                    <code class="ai-prompt-box" id="prompt-preview"></code>
+                    <button type="button" class="btn btn-primary btn-small" id="prompt-copy-btn" onclick="copyPrompt()">Copy prompt</button>
+                  </div>
+                </div>
+              </div>
+              <div class="ai-step">
+                <div class="ai-step-n">2</div>
+                <div class="ai-step-c">
+                  <p class="ai-step-t">Paste the JSON it returns</p>
+                  <textarea id="paste-input" rows="6" placeholder='{"name":"my-site","files":{"index.html":"&lt;!DOCTYPE html&gt;…","style.css":"…"}}' autocomplete="off"></textarea>
+                  <div class="ai-actions">
+                    <button class="btn btn-primary btn-small" onclick="importPaste()">Preview it</button>
+                    <span class="ai-hint" id="paste-status"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
             <div class="ai-preview" id="ai-preview" hidden>
               <div class="ai-preview-head">
                 <span class="ai-preview-label">Live preview</span>
-                <button class="btn-small btn-secondary" onclick="openFullscreen()">⤢ Fullscreen</button>
+                <button class="btn-small btn-secondary" onclick="openFullscreen()">⤴ Fullscreen</button>
               </div>
               <iframe id="gen-frame" title="preview" sandbox="allow-scripts allow-popups"></iframe>
               <div class="gen-files" id="gen-files" hidden></div>
@@ -1107,26 +1082,6 @@
               <div class="ai-publish-bound" id="gen-bound" hidden>
                 <span id="gen-bound-label"></span>
                 <button type="button" class="btn-ghost" id="gen-unbind" onclick="unbindPublishedSite()">Publish as new</button>
-              </div>
-            </div>
-          </div>
-          <div class="ai-tray" id="ai-tray" hidden></div>
-          <form class="ai-input" onsubmit="return sendChat(event)">
-            <button type="button" class="attach-btn" id="attach-btn" title="Attach images or files" aria-label="Attach images or files" onclick="document.getElementById('chat-files').click()">
-              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-            </button>
-            <input type="file" id="chat-files" multiple style="display:none"
-                   accept="image/png,image/jpeg,image/webp,image/gif,application/pdf">
-            <input type="text" id="chat-input" placeholder="Describe the site — or attach an image/file…" autocomplete="off">
-            <button class="btn btn-primary" type="submit" id="chat-send">Send</button>
-          </form>
-          <div class="ai-paste">
-            <button type="button" class="ai-paste-toggle" id="paste-toggle" onclick="togglePaste()">Built it in ChatGPT or Gemini? Paste the JSON →</button>
-            <div id="paste-box" hidden>
-              <textarea id="paste-input" rows="4" placeholder='Paste the JSON the assistant gave you — e.g. {"files":{"index.html":"&lt;!DOCTYPE html&gt;…"}}'></textarea>
-              <div class="ai-actions">
-                <button class="btn btn-primary btn-small" onclick="importPaste()">Preview it</button>
-                <span class="ai-hint" id="paste-status"></span>
               </div>
             </div>
           </div>
@@ -1146,11 +1101,10 @@
 
         <!-- Deploy callout -->
         <div class="deploy-callout">
-          <h3>Deploy with your agent</h3>
+          <h3>Deploy with your coding agent</h3>
           <p>
-            Browser uploads are off. Sites are deployed by the
-            <code>website-deploy</code> skill running in your coding agent.
-            Install it once, then ask the agent to deploy a directory.
+            Prefer your coding agent? Install the <code>website-deploy</code>
+            skill once, then ask the agent to deploy a directory.
           </p>
           <div class="callout-actions">
             <a class="btn btn-primary btn-small" href="/install.html">Install the skill →</a>
@@ -1342,15 +1296,9 @@
       }
       updateShowcaseBanner();
       showView('main-view');
-      // Resume a ?job= session when present; otherwise show the usual greeting.
+      // A ?job= param left over from the retired in-app chat is harmless — drop it.
       const rawJob = new URLSearchParams(location.search).get('job');
-      const resumeId = safeJobIdClient(rawJob);
-      if (resumeId) {
-        tryResumeFromUrl(resumeId);
-      } else {
-        if (rawJob) clearJobUrl(); // drop malformed ?job=
-        aiGreeting();
-      }
+      if (rawJob) clearJobUrl();
       loadSites();
     }
 
@@ -1732,37 +1680,13 @@
       return div.innerHTML;
     }
 
-    // ---- AI create: a planning conversation -> live preview -> publish ------
-    let chatMessages = [];   // [{role:'user'|'assistant', content}]
+    // ---- Create a site: build it in your own AI, paste the JSON back ------
     let generatedHTML = null;
     let isPublishing = false;
     let extraFiles = {};   // extra files beyond index.html (multi-file paste imports)
-    let pendingAtts = [];  // images/files attached to the NEXT message
-    let assetMap = [];     // {token,dataUrl,name} — raster images the model can place via src token
-    let activeJobId = null; // latest async jobId (also mirrored in ?job=)
-    let publishedSite = null; // live site this chat is bound to (one chat → one site)
+    let publishedSite = null; // live site this builder is bound to (one build → one site)
 
-    // ---- Resumable sessions: ?job=<id> + localStorage mirror (never put API key in URL) ---
-    // Match agent job TTL so local mirrors don't outlive the server.
-    const SESSION_PREFIX = 'sh-ai-session:';
-    const SESSION_TTL_MS = 6 * 60 * 60 * 1000;
-    const SESSION_MAX = 6; // each entry can hold ~200 KB html — cap growth
-
-    function sessionKey(jobId) { return SESSION_PREFIX + jobId; }
-
-    // UUID-shaped only (agent mint is crypto.randomUUID). Rejects path junk in ?job=.
-    function safeJobIdClient(id) {
-      const s = String(id || '');
-      return /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(s) ? s : null;
-    }
-
-    function setJobUrl(jobId) {
-      if (!jobId) return;
-      const u = new URL(location.href);
-      u.searchParams.set('job', jobId);
-      history.replaceState({}, '', u.pathname + u.search);
-    }
-
+    // The retired in-app chat left ?job= in some saved URLs — drop it quietly.
     function clearJobUrl() {
       const u = new URL(location.href);
       if (!u.searchParams.has('job')) return;
@@ -1771,372 +1695,44 @@
       history.replaceState({}, '', u.pathname + (q ? '?' + q : ''));
     }
 
-    // Drop expired / excess sh-ai-session:* keys. keepId is always retained.
-    // aggressive=true: used after a quota error — keep only keepId.
-    function pruneSessions(keepId, aggressive) {
-      try {
-        const now = Date.now();
-        const entries = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (!k || k.indexOf(SESSION_PREFIX) !== 0) continue;
-          let savedAt = 0;
-          try {
-            const o = JSON.parse(localStorage.getItem(k) || '');
-            savedAt = (o && o.savedAt) || 0;
-          } catch (e) { savedAt = 0; }
-          entries.push({ k: k, savedAt: savedAt });
-        }
-        const keepKey = keepId ? sessionKey(keepId) : null;
-        for (let i = 0; i < entries.length; i++) {
-          const e = entries[i];
-          if (keepKey && e.k === keepKey) continue;
-          if (!e.savedAt || (now - e.savedAt > SESSION_TTL_MS)) {
-            try { localStorage.removeItem(e.k); } catch (err) { /* ignore */ }
-          }
-        }
-        // Re-list survivors and cap count (newest first).
-        const remain = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (!k || k.indexOf(SESSION_PREFIX) !== 0) continue;
-          let savedAt = 0;
-          try {
-            const o = JSON.parse(localStorage.getItem(k) || '');
-            savedAt = (o && o.savedAt) || 0;
-          } catch (e) { savedAt = 0; }
-          remain.push({ k: k, savedAt: savedAt });
-        }
-        remain.sort(function (a, b) { return b.savedAt - a.savedAt; });
-        // Always retain keepId; cap how many *other* sessions we keep.
-        const maxOthers = aggressive ? 0 : (keepKey ? Math.max(0, SESSION_MAX - 1) : SESSION_MAX);
-        let keptOthers = 0;
-        for (let i = 0; i < remain.length; i++) {
-          if (keepKey && remain[i].k === keepKey) continue;
-          if (aggressive || keptOthers >= maxOthers) {
-            try { localStorage.removeItem(remain[i].k); } catch (err) { /* ignore */ }
-          } else {
-            keptOthers++;
-          }
-        }
-      } catch (e) { /* ignore */ }
-    }
+    // ---- Bring-your-own-AI: the prompt users paste into their web chat agent ----
+    const BUILDER_PROMPT = `You are building a small static website on simple-host.
 
-    function saveSession(jobId) {
-      if (!jobId) return;
-      const payload = JSON.stringify({
-        messages: chatMessages,
-        html: generatedHTML || '',
-        publishedSite: publishedSite || null,
-        savedAt: Date.now(),
-      });
-      try {
-        localStorage.setItem(sessionKey(jobId), payload);
-        pruneSessions(jobId, false);
-      } catch (e) {
-        // Quota / private mode — prune hard and retry once; status API still works.
+Build the site the user asked for. If details are missing, make reasonable assumptions about the name, layout, colors, and copy. Make it genuinely good: real content, responsive design, semantic HTML, no lorem ipsum, no dead links. Inline CSS/JS is fine; you may also link CDN libraries or fonts with absolute https:// URLs. Images must be inline SVG or absolute https:// URLs - never local file paths.
+
+When done, reply with ONLY one JSON object in a single \`\`\`json fenced code block - nothing before or after it. Use exactly this shape:
+
+{ "name": "my-site", "files": { "index.html": "<full HTML document>", "style.css": "<optional styles>", "script.js": "<optional script>" } }
+
+Rules:
+- name: lowercase letters, numbers, hyphens only, max 30 characters.
+- index.html is required and must be a complete standalone document.
+- Every file value must be a single plain-text string. Up to 200 files.
+- Do not add any top-level fields other than name and files.`;
+
+    (function () {
+      const el = document.getElementById('prompt-preview');
+      if (el) el.textContent = BUILDER_PROMPT;
+    })();
+
+    function copyPrompt() {
+      const btn = document.getElementById('prompt-copy-btn');
+      function done() {
+        if (btn) { btn.textContent = 'Copied ✓'; setTimeout(function () { btn.textContent = 'Copy prompt'; }, 2000); }
+      }
+      function fallback() {
         try {
-          pruneSessions(jobId, true);
-          localStorage.setItem(sessionKey(jobId), payload);
-        } catch (e2) { /* give up */ }
+          const ta = document.createElement('textarea');
+          ta.value = BUILDER_PROMPT; document.body.appendChild(ta); ta.select();
+          document.execCommand('copy'); document.body.removeChild(ta); done();
+        } catch (e) { /* ignore */ }
       }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(BUILDER_PROMPT).then(done).catch(fallback);
+      } else fallback();
     }
 
-    function loadSession(jobId) {
-      try {
-        const raw = localStorage.getItem(sessionKey(jobId));
-        if (!raw) return null;
-        const o = JSON.parse(raw);
-        if (o && o.savedAt && (Date.now() - o.savedAt > SESSION_TTL_MS)) {
-          clearSession(jobId);
-          return null;
-        }
-        return o;
-      } catch (e) { return null; }
-    }
 
-    function clearSession(jobId) {
-      if (!jobId) return;
-      try { localStorage.removeItem(sessionKey(jobId)); } catch (e) { /* ignore */ }
-    }
-
-    // Track the latest job: URL + activeJobId + drop the previous localStorage key.
-    function bindJob(jobId) {
-      if (!jobId) return;
-      if (activeJobId && activeJobId !== jobId) clearSession(activeJobId);
-      activeJobId = jobId;
-      setJobUrl(jobId);
-    }
-
-    function showResumeLine(jobId) {
-      if (!jobId) return;
-      const chat = document.getElementById('ai-chat');
-      if (!chat) return;
-      const prev = chat.querySelector('.resume-line');
-      if (prev) prev.remove();
-      const url = location.origin + '/?job=' + encodeURIComponent(jobId);
-      const wrap = document.createElement('div');
-      wrap.className = 'msg ai resume resume-line';
-      const b = document.createElement('div');
-      b.className = 'bubble';
-      const p = document.createElement('div');
-      p.textContent = 'Building your site — you can leave this page and come back anytime:';
-      const row = document.createElement('div');
-      row.className = 'resume-url-row';
-      const code = document.createElement('code');
-      code.className = 'resume-url';
-      code.textContent = url;
-      const copy = document.createElement('button');
-      copy.type = 'button';
-      copy.className = 'btn-small btn-secondary';
-      copy.textContent = 'Copy';
-      copy.addEventListener('click', function () {
-        function ok() {
-          copy.textContent = 'Copied';
-          setTimeout(function () { copy.textContent = 'Copy'; }, 1500);
-        }
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(url).then(ok).catch(function () {
-            try {
-              const ta = document.createElement('textarea');
-              ta.value = url; document.body.appendChild(ta); ta.select();
-              document.execCommand('copy'); document.body.removeChild(ta); ok();
-            } catch (e) { /* ignore */ }
-          });
-        } else {
-          try {
-            const ta = document.createElement('textarea');
-            ta.value = url; document.body.appendChild(ta); ta.select();
-            document.execCommand('copy'); document.body.removeChild(ta); ok();
-          } catch (e) { /* ignore */ }
-        }
-      });
-      row.appendChild(code);
-      row.appendChild(copy);
-      b.appendChild(p);
-      b.appendChild(row);
-      wrap.appendChild(b);
-      chat.appendChild(wrap);
-      chat.scrollTop = chat.scrollHeight;
-    }
-
-    // Replay chatMessages into the chat log (and preview) after a localStorage or
-    // status-API rehydrate. Clears the log first so a later authoritative status
-    // cannot double-append bubbles. textContent via aiAppend — never inject HTML.
-    function rehydrateChatUI() {
-      const chat = document.getElementById('ai-chat');
-      if (!chat) return;
-      chat.innerHTML = '';
-      for (let i = 0; i < chatMessages.length; i++) {
-        const m = chatMessages[i];
-        aiAppend(m.role === 'user' ? 'user' : 'ai', m.content || '');
-      }
-      if (generatedHTML) {
-        updatePreview();
-        document.getElementById('ai-reset').hidden = false;
-      } else if (chatMessages.length) {
-        document.getElementById('ai-reset').hidden = false;
-      } else {
-        aiGreeting();
-      }
-    }
-
-    // True when authoritative messages match what we already rendered (skip a
-    // second full rebuild that would flash the same bubbles).
-    function sameTranscript(msgs) {
-      if (!Array.isArray(msgs) || msgs.length !== chatMessages.length) return false;
-      for (let i = 0; i < msgs.length; i++) {
-        const a = msgs[i] || {};
-        const b = chatMessages[i] || {};
-        if ((a.role || '') !== (b.role || '')) return false;
-        if ((a.content || '') !== (b.content || '')) return false;
-      }
-      return true;
-    }
-
-    // True while this tab is still resuming jobId. Becomes false if the user
-    // hits Start over (activeJobId=null) or starts a newer job (bindJob).
-    function stillResuming(jobId) {
-      return !!jobId && activeJobId === jobId;
-    }
-
-    // Drop restored chat + preview (used when status says this key can't read the job).
-    function wipeResumeUI() {
-      chatMessages = [];
-      generatedHTML = null;
-      extraFiles = {};
-      publishedSite = null;
-      const chat = document.getElementById('ai-chat');
-      if (chat) chat.innerHTML = '';
-      const frame = document.getElementById('gen-frame');
-      if (frame) frame.removeAttribute('srcdoc');
-      const prev = document.getElementById('ai-preview');
-      if (prev) prev.hidden = true;
-      const body = document.querySelector('.ai-body');
-      if (body) body.classList.remove('has-preview');
-      const reset = document.getElementById('ai-reset');
-      if (reset) reset.hidden = true;
-      const files = document.getElementById('gen-files');
-      if (files) { files.hidden = true; files.textContent = ''; }
-      const nameEl = document.getElementById('gen-name');
-      if (nameEl) { nameEl.value = ''; nameEl.readOnly = false; }
-      setPublishUI();
-    }
-
-    // On load: restore from localStorage instantly, then confirm with status API.
-    // Guarded on jobId so the no-agent direct path is unaffected.
-    async function tryResumeFromUrl(jobId) {
-      jobId = safeJobIdClient(jobId);
-      if (!jobId) return;
-      activeJobId = jobId;
-      pruneSessions(jobId, false);
-      const cached = loadSession(jobId);
-      if (cached && Array.isArray(cached.messages) && cached.messages.length) {
-        chatMessages = cached.messages;
-        generatedHTML = cached.html || null;
-        // Sanitize — localStorage can be hand-edited; only keep a real slug.
-        publishedSite = (typeof cached.publishedSite === 'string')
-          ? (normalizeSiteName(cached.publishedSite) || null) : null;
-        rehydrateChatUI();
-        setPublishUI();
-      }
-      const send = document.getElementById('chat-send');
-      if (send) send.disabled = true;
-      const note = aiAppend('ai', cached ? 'Checking build status…' : 'Restoring session…', { thinking: true });
-      try {
-        let sres;
-        try { sres = await api('GET', '/v1/generate/status?id=' + encodeURIComponent(jobId)); }
-        catch (e) {
-          try { note.remove(); } catch (err) { /* ignore */ }
-          if (stillResuming(jobId) && !cached) aiAppend('ai', 'Could not reach the server to restore that session.');
-          return;
-        }
-        // User may have Start-over'd or started a new turn while the request was in flight.
-        if (!stillResuming(jobId)) {
-          try { note.remove(); } catch (err) { /* ignore */ }
-          return;
-        }
-        const s = await sres.json().catch(function () { return {}; });
-        try { note.remove(); } catch (err) { /* ignore */ }
-        if (!stillResuming(jobId)) return;
-        if (sres.status === 404) {
-          aiAppend('ai', 'That session expired — starting fresh.');
-          clearSession(jobId);
-          clearJobUrl();
-          activeJobId = null;
-          if (!chatMessages.length) {
-            document.getElementById('ai-chat').innerHTML = '';
-            aiGreeting();
-          }
-          return;
-        }
-        if (sres.status === 401 || sres.status === 403) {
-          // localStorage is per-browser, not per-account — never leave another
-          // account's transcript on screen after the server refuses the job.
-          clearSession(jobId);
-          wipeResumeUI();
-          aiAppend('ai', 'Could not restore that session — sign in with the same account and try again.');
-          return;
-        }
-        if (!sres.ok) {
-          if (!cached) aiAppend('ai', (s && s.error) || 'Could not restore that session.');
-          return;
-        }
-        if (s.status === 'running') {
-          showResumeLine(jobId);
-          const building = aiAppend('ai', 'Still building…', { thinking: true });
-          const data = await pollJob(jobId, building);
-          try { building.remove(); } catch (err) { /* ignore */ }
-          if (!stillResuming(jobId)) return;
-          if (data && data.error) {
-            aiAppend('ai', data.error);
-            return;
-          }
-          applyResumeResult(data, jobId);
-          return;
-        }
-        if (s.status === 'error') {
-          aiAppend('ai', s.error || 'That build failed — you can keep chatting or start over.');
-          if (chatMessages.length) document.getElementById('ai-reset').hidden = false;
-          return;
-        }
-        if (s.status === 'done') {
-          applyResumeResult(s, jobId);
-        }
-      } catch (err) {
-        try { note.remove(); } catch (e2) { /* ignore */ }
-        if (stillResuming(jobId) && !cached) aiAppend('ai', 'Could not restore that session.');
-      } finally {
-        // Always re-enable: Start over during resume clears activeJobId, and send
-        // must not stay stuck disabled. sendChat will disable again if it starts.
-        if (send) send.disabled = false;
-      }
-    }
-
-    // Apply a done status (or pollJob result) as the authoritative transcript when
-    // messages is present; otherwise fall back to reply/html + existing chat state.
-    // rehydrateChatUI clears first — never double-appends bubbles after a local restore.
-    function applyResumeResult(data, jobId) {
-      if (!data) return;
-      // Superseded by Start over or a newer job — do not clobber current UI/state.
-      if (jobId && !stillResuming(jobId)) return;
-      if (Array.isArray(data.messages) && data.messages.length) {
-        const htmlChanged = !!(data.html && data.html !== (generatedHTML || ''));
-        if (!sameTranscript(data.messages) || htmlChanged) {
-          chatMessages = data.messages.slice();
-          if (data.html) generatedHTML = data.html;
-          rehydrateChatUI();
-        } else if (data.html) {
-          generatedHTML = data.html;
-        }
-      } else {
-        if (data.reply) {
-          // Avoid duplicating if localStorage already has the same last assistant turn.
-          const last = chatMessages[chatMessages.length - 1];
-          if (!(last && last.role === 'assistant' && last.content === data.reply)) {
-            aiAppend('ai', data.reply);
-            chatMessages.push({ role: 'assistant', content: data.reply });
-          }
-        }
-        if (data.html) {
-          generatedHTML = data.html;
-          updatePreview();
-        }
-        if (chatMessages.length) document.getElementById('ai-reset').hidden = false;
-      }
-      if (jobId && stillResuming(jobId)) {
-        bindJob(jobId);
-        saveSession(jobId);
-      }
-      // Keep bound publish UI in sync after any rehydrate/preview update.
-      if (publishedSite) setPublishUI();
-    }
-
-    function aiAppend(role, text, opts) {
-      const chat = document.getElementById('ai-chat');
-      const wrap = document.createElement('div');
-      wrap.className = 'msg ' + (role === 'user' ? 'user' : 'ai');
-      const b = document.createElement('div');
-      b.className = 'bubble' + (opts && opts.thinking ? ' thinking' : '');
-      b.textContent = text;
-      wrap.appendChild(b);
-      chat.appendChild(wrap);
-      chat.scrollTop = chat.scrollHeight;
-      return wrap;
-    }
-
-    function aiGreeting() {
-      const chat = document.getElementById('ai-chat');
-      if (!chat || chat.childElementCount) return;
-      aiAppend('ai', "Hi! What would you like to build? Tell me the kind of site — landing page, portfolio, event RSVP, menu — plus any details like a name, the vibe, and what it should do. I'll ask a couple quick questions, then build it.");
-    }
-
-    function lastUserPrompt() {
-      for (let i = chatMessages.length - 1; i >= 0; i--) {
-        if (chatMessages[i].role === 'user') return chatMessages[i].content;
-      }
-      return 'site';
-    }
     // Normalize a site slug (same rules as the publish name field).
     function normalizeSiteName(n) {
       return (String(n || '').trim().toLowerCase()
@@ -2144,16 +1740,7 @@
         .replace(/-+/g, '-')
         .replace(/^-+|-+$/g, ''));
     }
-    // Suggest a slug from the prompt, skipping filler ("build a portfolio…" → portfolio).
-    function suggestName(p) {
-      const filler = {
-        build: 1, make: 1, create: 1, a: 1, an: 1, the: 1, my: 1, our: 1,
-        for: 1, site: 1, website: 1, page: 1, app: 1, one: 1, simple: 1, small: 1
-      };
-      const words = (String(p || '').toLowerCase().match(/[a-z0-9]+/g) || [])
-        .filter(function (w) { return w.length > 2 && !filler[w]; });
-      return (words.slice(0, 2).join('-') || 'my-site').slice(0, 30);
-    }
+
     // Better name from the generated page's <title> (before brand separators).
     function siteNameFromHTML(html) {
       if (!html) return '';
@@ -2220,158 +1807,11 @@
       }
       setPublishUI();
       if (nameEl) {
-        nameEl.value = siteNameFromHTML(generatedHTML) || suggestName(lastUserPrompt());
+        nameEl.value = siteNameFromHTML(generatedHTML) || 'my-site';
       }
-      if (activeJobId) saveSession(activeJobId);
     }
 
-    // ---- attachments: images (vision), PDFs (document), text files (inlined) ---
-    const IMG_TYPES = { 'image/png': 1, 'image/jpeg': 1, 'image/webp': 1, 'image/gif': 1 };
 
-    function handleFiles(files) {
-      Array.prototype.forEach.call(files, function (f) {
-        if (pendingAtts.length >= 6) { toast('Up to 6 attachments', 'error'); return; }
-        if (IMG_TYPES[f.type]) {   // raster images only — safe to embed (SVG is excluded: it can script)
-          if (f.size > 5 * 1024 * 1024) { toast(f.name + ' is too large (5 MB max)', 'error'); return; }
-          const r = new FileReader();
-          r.onload = function () {
-            const d = String(r.result || '');
-            const token = 'sh-asset-' + (assetMap.length + 1);
-            assetMap.push({ token: token, dataUrl: d, name: f.name });
-            pendingAtts.push({ kind: 'image', mediaType: f.type, name: f.name, data: (d.split(',')[1] || ''), dataUrl: d, token: token });
-            renderTray();
-          };
-          r.readAsDataURL(f);
-        } else if (f.type === 'application/pdf') {
-          if (f.size > 20 * 1024 * 1024) { toast(f.name + ' is too large', 'error'); return; }
-          const r = new FileReader();
-          r.onload = function () {
-            const d = String(r.result || '');
-            const token = 'sh-asset-' + (assetMap.length + 1);
-            assetMap.push({ token: token, dataUrl: d, name: f.name });   // for a download link
-            pendingAtts.push({ kind: 'document', mediaType: 'application/pdf', name: f.name, data: (d.split(',')[1] || ''), token: token });
-            renderTray();
-          };
-          r.readAsDataURL(f);
-        } else {
-          toast('Only images and PDFs are supported', 'error');
-        }
-      });
-    }
-
-    function renderTray() {
-      const tray = document.getElementById('ai-tray');
-      if (!pendingAtts.length) { tray.hidden = true; tray.textContent = ''; return; }
-      tray.hidden = false; tray.textContent = '';
-      pendingAtts.forEach(function (a, i) {
-        const chip = document.createElement('div'); chip.className = 'att-chip';
-        if (a.kind === 'image' && a.dataUrl) { const im = document.createElement('img'); im.src = a.dataUrl; im.alt = ''; chip.appendChild(im); }
-        else { const ic = document.createElement('span'); ic.className = 'ic'; ic.textContent = a.kind === 'document' ? '📄' : '📃'; chip.appendChild(ic); }
-        const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = a.name || a.kind; chip.appendChild(nm);
-        const rm = document.createElement('button'); rm.className = 'rm'; rm.type = 'button'; rm.textContent = '✕';
-        rm.addEventListener('click', function () { pendingAtts.splice(i, 1); renderTray(); });
-        chip.appendChild(rm);
-        tray.appendChild(chip);
-      });
-    }
-
-    (function () {
-      const fi = document.getElementById('chat-files');
-      if (fi) fi.addEventListener('change', function (e) { handleFiles(e.target.files); e.target.value = ''; });
-    })();
-
-    // Async agent path: POST /v1/generate returns a jobId; poll status until the
-    // run finishes. Each request is sub-second, so no proxy timeout can cut a
-    // long build. Returns { reply, html, messages? } on success or { error } on failure.
-    // thinkingEl (optional): the thinking-bubble wrap from aiAppend — when a
-    // running poll includes a non-empty progress string, update its text
-    // (textContent only). Absent progress leaves the existing "• • •" / copy.
-    // Client deadline (9 min) MUST exceed the agent server cap (8 min).
-    async function pollJob(jobId, thinkingEl) {
-      const deadline = Date.now() + 9 * 60 * 1000; // client-side give-up (> server 8 min)
-      while (Date.now() < deadline) {
-        await new Promise(function (r) { setTimeout(r, 2000); });
-        let sres;
-        try { sres = await api('GET', '/v1/generate/status?id=' + encodeURIComponent(jobId)); }
-        catch (e) { continue; }            // transient network blip — keep polling
-        const s = await sres.json().catch(() => ({}));
-        if (sres.status === 404) return { error: 'That session expired — please try again.' };
-        if (!sres.ok) continue;            // 429 / 5xx — back off and retry
-        if (s.status === 'done') return { reply: s.reply, html: s.html, messages: s.messages };
-        if (s.status === 'error') return { error: s.error || 'The assistant had trouble — please try again.' };
-        // status === 'running' → optional progress text, keep polling
-        // aiAppend returns the .msg wrap; the text lives on the child .bubble
-        if (thinkingEl && typeof s.progress === 'string' && s.progress) {
-          const bubble = thinkingEl.querySelector('.bubble');
-          if (bubble) {
-            bubble.textContent = s.progress;
-            // .thinking uses wide letter-spacing for "• • •"; normal spacing for words
-            bubble.style.letterSpacing = 'normal';
-          }
-        }
-      }
-      return { error: 'This is taking longer than usual — please try again.' };
-    }
-
-    async function sendChat(e) {
-      if (e) e.preventDefault();
-      const input = document.getElementById('chat-input');
-      const text = input.value.trim();
-      const atts = pendingAtts.slice();
-      if (!text && !atts.length) return false;
-      input.value = '';
-      pendingAtts = []; renderTray();
-      const names = atts.map(function (a) { return a.name; }).join(', ');
-      aiAppend('user', (names ? '📎 ' + names + '\n' : '') + text);
-      const imgHints = atts.filter(function (a) { return a.kind === 'image' && a.token; }).map(function (a) { return a.token + ' = "' + a.name + '"'; });
-      const pdfHints = atts.filter(function (a) { return a.kind === 'document' && a.token; }).map(function (a) { return a.token + ' = "' + a.name + '"'; });
-      let hint = '';
-      if (imgHints.length) hint += '\n\n[To place an uploaded image on the page, use an <img> with this EXACT src (unchanged): ' + imgHints.join('; ') + '. Only if I want it shown.]';
-      if (pdfHints.length) hint += '\n\n[To let visitors download an uploaded PDF, add a link like <a href="TOKEN" download="name.pdf">Download</a> using this EXACT href token (unchanged): ' + pdfHints.join('; ') + '. Only if I want it on the page.]';
-      chatMessages.push({ role: 'user', content: (text || '(see attached files)') + hint });
-      const send = document.getElementById('chat-send');
-      send.disabled = true;
-      const thinking = aiAppend('ai', '• • •', { thinking: true });
-      const payload = atts.map(function (a) {
-        return a.kind === 'text'
-          ? { kind: 'text', name: a.name, text: a.text }
-          : { kind: a.kind, mediaType: a.mediaType, name: a.name, data: a.data };
-      });
-      try {
-        const res = await api('POST', '/v1/generate', { messages: chatMessages, html: generatedHTML || '', attachments: payload });
-        let data = await res.json().catch(() => ({}));
-        // Async agent path: stamp the shareable ?job= URL, mirror session, then poll.
-        // Direct (no-agent) path returns {reply,html} inline with no jobId — untouched.
-        if (res.ok && data.jobId) {
-          bindJob(data.jobId);          // URL + activeJobId track LATEST job each turn
-          showResumeLine(data.jobId);
-          saveSession(data.jobId);      // mid-build snapshot (user turn, no assistant yet)
-          data = await pollJob(data.jobId, thinking);
-        }
-        thinking.remove();
-        if (!res.ok || (data && data.error)) { chatMessages.pop(); pendingAtts = atts; renderTray(); aiAppend('ai', (data && data.error) || 'Something went wrong — please try again.'); return false; }
-        const reply = data.reply || 'Done.';
-        aiAppend('ai', reply);
-        chatMessages.push({ role: 'assistant', content: reply });
-        if (data.html) {
-          generatedHTML = data.html;
-          updatePreview();
-          document.getElementById('ai-reset').hidden = false;
-        }
-        // After every completed turn, refresh the localStorage mirror under the
-        // latest jobId so a mid-conversation reload restores the whole transcript.
-        if (activeJobId) saveSession(activeJobId);
-      } catch (err) {
-        thinking.remove();
-        chatMessages.pop();   // drop the failed turn so it doesn't accumulate
-        pendingAtts = atts; renderTray();
-        aiAppend('ai', 'Cannot reach the server — please try again.');
-      } finally {
-        send.disabled = false;
-        input.focus();
-      }
-      return false;
-    }
 
     // Render current HTML into a frame via srcdoc, which keeps the preview in an
     // OPAQUE origin (it can't reach the parent or its stored API key). iOS Safari
@@ -2382,9 +1822,7 @@
     // small tokens (what we send the model + store); we embed only for preview
     // and publish, so the model's edit-context never balloons with image bytes.
     function renderHTML() {
-      let h = generatedHTML || '';
-      for (let i = 0; i < assetMap.length; i++) h = h.split(assetMap[i].token).join(assetMap[i].dataUrl);
-      return h;
+      return generatedHTML || '';
     }
 
     function paintFrame(id) {
@@ -2403,7 +1841,7 @@
       const nameEl = document.getElementById('gen-name');
       // Only fill when empty — never clobber a typed name, and never once bound.
       if (!publishedSite && nameEl && !nameEl.value) {
-        nameEl.value = siteNameFromHTML(generatedHTML) || suggestName(lastUserPrompt());
+        nameEl.value = siteNameFromHTML(generatedHTML) || 'my-site';
       }
       showFileList();
     }
@@ -2434,22 +1872,11 @@
       document.body.style.overflow = '';
     }
 
-    function resetChat() {
-      // Drop the resumable session (URL + localStorage) along with in-memory state.
-      if (activeJobId) clearSession(activeJobId);
-      else {
-        const j = new URLSearchParams(location.search).get('job');
-        if (j) clearSession(j);
-      }
-      clearJobUrl();
-      activeJobId = null;
-      chatMessages = [];
+    function resetBuilder() {
       generatedHTML = null;
       extraFiles = {};
       publishedSite = null;
-      pendingAtts = []; assetMap = []; renderTray();
       document.getElementById('gen-frame').removeAttribute('srcdoc');
-      document.getElementById('ai-chat').innerHTML = '';
       document.getElementById('ai-preview').hidden = true;
       document.querySelector('.ai-body').classList.remove('has-preview');
       document.getElementById('ai-reset').hidden = true;
@@ -2458,8 +1885,6 @@
       nameEl.value = '';
       nameEl.readOnly = false;
       setPublishUI();
-      aiGreeting();
-      document.getElementById('chat-input').focus();
     }
 
     async function publishGenerated() {
@@ -2511,19 +1936,11 @@
         // `publishedSite` — so a mid-flight unbind cannot be undone by success.
         if (!bound) {
           publishedSite = name;
-          if (activeJobId) saveSession(activeJobId);
         }
         toast(bound ? (url ? 'Updated! Opening your site…' : 'Updated!')
                     : (url ? 'Published! Opening your site…' : 'Published!'), 'success');
         closeFullscreen();
         if (url) window.open(url, '_blank');
-        if (bound) {
-          aiAppend('ai', url
-            ? '✓ Updated → ' + url + ' — your live site now has the latest version.'
-            : '✓ Updated — your live site now has the latest version.');
-        } else {
-          aiAppend('ai', url ? '✓ Published → ' + url : '✓ Published');
-        }
         loadSites();
       } catch (e) {
         toast('Could not publish', 'error');
@@ -2543,12 +1960,6 @@
     // server-side SanitizeFiles is the real guard (path traversal, secret files,
     // size, extension denylist). These client checks are just friendly errors.
     const UNSAFE_KEYS = { '__proto__': 1, 'constructor': 1, 'prototype': 1 };
-
-    function togglePaste() {
-      const box = document.getElementById('paste-box');
-      box.hidden = !box.hidden;
-      if (!box.hidden) document.getElementById('paste-input').focus();
-    }
 
     function importPaste() {
       const raw = document.getElementById('paste-input').value.trim();
@@ -2602,13 +2013,10 @@
       }
       updatePreview();
       document.getElementById('ai-reset').hidden = false;
-      document.getElementById('paste-box').hidden = true;
-      document.getElementById('paste-input').value = '';
-      status.textContent = '';
       // Disclose EVERY file that will be published — the preview only renders
       // index.html, so list the rest so nothing ships unseen.
-      aiAppend('ai', 'Imported ' + n + ' file' + (n > 1 ? 's' : '') + ': ' + names.join(', ') +
-        '. The preview shows index.html — publish to put them all live, or tell me what to tweak.');
+      status.textContent = 'Imported ' + n + ' file' + (n > 1 ? 's' : '') + ': ' + names.join(', ') +
+        '. The preview shows index.html — publish to put them all live.';
     }
 
     // Esc closes the fullscreen preview.
