@@ -50,7 +50,7 @@ It signs you up (magic-link email → API key), builds the site, wires in state 
 ## What you get
 
 - **One-call deploy** — upload a folder, get a live `https://{name}.simple-host.app`. Every deploy is a new immutable version; roll back instantly.
-- **A little backend, free** — per-site JSON state with atomic ops (set / increment / append), plus append-only collections for guestbooks, signups, and submissions. No schema, no database to run yourself.
+- **A little backend, free** — per-site JSON state with atomic ops (set / inc / append), plus append-only collections for guestbooks, signups, and submissions. No schema, no database to run yourself.
 - **Drop-in widgets** — threaded comments and a feedback pin, one script tag each, theme-aware.
 - **Private pages** — password-lock any site behind a signed-cookie gate.
 - **Starter templates** — RSVP, waitlist, landing, résumé, and more, ready to fill in.
