@@ -27,8 +27,25 @@ import (
 	"github.com/vsriram/simple-host/internal/tarball"
 )
 
-const maxSiteArchiveSize = 100 << 20
+// maxSiteArchiveSize caps the upload body. Default 100 MB; override with
+// MAX_ARCHIVE_MB on an instance you run yourself (a hosted instance has other
+// people's disk to protect, your own does not).
+//
+// Raising this alone is not enough to accept a bigger site: tarball extraction
+// independently enforces maxTotalUncompressedSize (500 MB) and maxFileSize
+// (100 MB per file), and any reverse proxy in front needs its own body cap
+// raised to match, or it rejects the request before Go ever sees it.
+var maxSiteArchiveSize int64 = 100 << 20
+
 const maxSiteStateSize = 1 << 20
+
+func init() {
+	if v := os.Getenv("MAX_ARCHIVE_MB"); v != "" {
+		if mb, err := strconv.Atoi(v); err == nil && mb > 0 {
+			maxSiteArchiveSize = int64(mb) << 20
+		}
+	}
+}
 
 // maxSitesPerUser caps how many sites a single non-admin account may create, so
 // a self-registered user can't fill the shared disk with sites. Admins are
