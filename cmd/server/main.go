@@ -79,16 +79,19 @@ func main() {
 	handler.RegisterSkillsHub(mux, cfg.PublicBaseURL)
 
 	// Optional "create with AI" endpoint. Sign-in-gated + rate limited; only
-	// enabled when an Anthropic key is configured (it spends real credits).
-	if cfg.AgentServerURL != "" || cfg.AnthropicAPIKey != "" {
-		handler.NewGenerateHandler(cfg.AnthropicAPIKey, cfg.GenerateModel, cfg.AgentServerURL, cfg.AgentSharedSecret).Register(mux, authMW)
-		if cfg.AgentServerURL != "" {
+	// enabled when some model backend is configured (it spends real credits).
+	if cfg.LLMAPIKey != "" || cfg.AgentServerURL != "" || cfg.AnthropicAPIKey != "" {
+		handler.NewGenerateHandler(cfg.AnthropicAPIKey, cfg.GenerateModel, cfg.AgentServerURL, cfg.AgentSharedSecret, cfg.LLMAPIKey, cfg.LLMBaseURL, cfg.LLMModel, cfg.VisionAPIKey, cfg.VisionBaseURL, cfg.VisionModel).Register(mux, authMW)
+		switch {
+		case cfg.LLMAPIKey != "":
+			log.Printf("AI create endpoint enabled (/v1/generate, %s, model %s)", cfg.LLMBaseURL, cfg.LLMModel)
+		case cfg.AgentServerURL != "":
 			log.Printf("AI create endpoint enabled (/v1/generate -> agent server %s)", cfg.AgentServerURL)
-		} else {
+		default:
 			log.Printf("AI create endpoint enabled (/v1/generate, direct Messages API, model %s)", cfg.GenerateModel)
 		}
 	} else {
-		log.Printf("neither AGENT_SERVER_URL nor ANTHROPIC_API_KEY set; /v1/generate (AI create) disabled")
+		log.Printf("no model backend set (LLM_API_KEY / AGENT_SERVER_URL / ANTHROPIC_API_KEY); /v1/generate (AI create) disabled")
 	}
 
 	// Server-side visitor analytics: tail the nginx analytics log into daily

@@ -57,6 +57,21 @@ type Config struct {
 	AgentServerURL    string // e.g. https://simple-host-agent.ideaflow.page (no trailing slash)
 	AgentSharedSecret string
 
+	// OpenAI-compatible provider (DeepSeek, or anything speaking /chat/completions).
+	// Takes precedence over both paths above when LLMAPIKey is set: it is the
+	// cheapest option and needs no separate agent box to stay alive.
+	LLMAPIKey  string
+	LLMBaseURL string // default https://api.deepseek.com
+	LLMModel   string // default deepseek-v4-flash
+
+	// Vision pass. The builder model above is text-only and cheap; when the user
+	// attaches an image or PDF this model reads it and hands back a description,
+	// which is inlined into the builder's prompt. Optional: without it,
+	// attachments are refused honestly rather than silently ignored.
+	VisionAPIKey  string
+	VisionBaseURL string // default https://openrouter.ai/api/v1
+	VisionModel   string // default openai/gpt-5.6-luna
+
 	// Ephemeral "preview" sites. Sites created by an account in PreviewAccounts
 	// get an expires_at = now + PreviewTTL, and a background sweep deletes them
 	// once expired. Everyone else's sites are permanent (expires_at NULL).
@@ -85,6 +100,12 @@ func Load() (Config, error) {
 		ResendAPIKey:  os.Getenv("RESEND_API_KEY"),
 
 		AnthropicAPIKey:   os.Getenv("ANTHROPIC_API_KEY"),
+		LLMAPIKey:         firstNonEmpty(os.Getenv("LLM_API_KEY"), os.Getenv("DEEPSEEK_API_KEY")),
+		LLMBaseURL:        strings.TrimRight(getEnvOrDefault("LLM_BASE_URL", "https://api.deepseek.com"), "/"),
+		LLMModel:          getEnvOrDefault("LLM_MODEL", "deepseek-v4-flash"),
+		VisionAPIKey:      firstNonEmpty(os.Getenv("VISION_API_KEY"), os.Getenv("OPENROUTER_API_KEY")),
+		VisionBaseURL:     strings.TrimRight(getEnvOrDefault("VISION_BASE_URL", "https://openrouter.ai/api/v1"), "/"),
+		VisionModel:       getEnvOrDefault("VISION_MODEL", "openai/gpt-5.6-luna"),
 		GenerateModel:     getEnvOrDefault("GENERATE_MODEL", "claude-haiku-4-5-20251001"),
 		AgentServerURL:    strings.TrimRight(os.Getenv("AGENT_SERVER_URL"), "/"),
 		AgentSharedSecret: os.Getenv("AGENT_SHARED_SECRET"),
@@ -125,4 +146,15 @@ func getEnvOrDefault(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+// firstNonEmpty returns the first non-empty argument, so a provider can be
+// configured under either of two env var names.
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
