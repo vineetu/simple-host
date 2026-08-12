@@ -420,6 +420,71 @@
     #manage-cta .btn-primary { font-size: 13px; padding: 9px 18px; }
 
     /* Build a site with AI */
+    /* Skill install — the first thing the OWNER sees on their own showcase.
+       Revealed by showOwner(); public visitors never see it. */
+    .skill-install {
+      background: var(--surface);
+      border: 1px solid var(--border-hi);
+      border-radius: var(--radius);
+      padding: 18px 22px;
+      margin-bottom: 28px;
+    }
+    .skill-install .si-head {
+      display: flex; align-items: baseline; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap; margin-bottom: 6px;
+    }
+    .skill-install h3 { font-size: 15px; font-weight: 600; }
+    .skill-install .si-lede {
+      font-size: 13px; color: var(--text-secondary);
+      line-height: 1.55; margin-bottom: 12px;
+    }
+    .skill-install .si-cmd { display: flex; align-items: stretch; gap: 8px; }
+    .skill-install .si-cmd pre {
+      flex: 1; min-width: 0;
+      font-family: var(--mono); font-size: 12px; line-height: 1.5;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 6px; padding: 10px 12px;
+      /* pre-wrap, not pre: the multi-agent command is long and horizontal
+         scroll hides most of it. */
+      white-space: pre-wrap; word-break: break-word; margin: 0;
+    }
+
+    /* OS toggle — defaults to the visitor's own platform, still switchable. */
+    .skill-install .si-os { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+    .skill-install .si-os button {
+      font: inherit; font-size: 12px; padding: 4px 12px;
+      background: transparent; color: var(--text-secondary);
+      border: 0; cursor: pointer;
+    }
+    .skill-install .si-os button.on { background: var(--accent); color: #fff; }
+
+    /* Agent multi-select */
+    .skill-install .si-agents {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;
+    }
+    .skill-install .si-agents label {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12.5px; padding: 5px 11px;
+      border: 1px solid var(--border); border-radius: 999px;
+      cursor: pointer; user-select: none;
+    }
+    .skill-install .si-agents label:has(input:checked) {
+      border-color: var(--accent); background: var(--surface);
+      color: var(--text); font-weight: 500;
+    }
+    .skill-install .si-agents input { accent-color: var(--accent); margin: 0; }
+    .skill-install .si-foot {
+      font-size: 12px; color: var(--text-secondary);
+      margin-top: 10px; line-height: 1.55;
+    }
+    .skill-install .si-foot a { color: var(--accent); text-decoration: none; }
+    .skill-install code {
+      font-family: var(--mono); font-size: 12px;
+      background: var(--bg); border: 1px solid var(--border);
+      padding: 1px 5px; border-radius: 4px; color: var(--text);
+    }
+    @media (max-width: 560px) { .skill-install .si-cmd { flex-direction: column; } }
+
     .ai-create {
       background: var(--surface);
       border: 1px solid var(--border-hi);
@@ -542,7 +607,27 @@
       <span>Your public showcase: <a id="owner-share-link" href="#" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">#</a></span>
     </div>
 
-    <!-- Build a site with AI — shown in BOTH public and owner views -->
+    <!-- Install the skill. Owner-only: revealed by showOwner(). Sits above the
+         AI builder because publishing requires the skill — browser uploads are off. -->
+    <div class="skill-install" id="skill-install" hidden>
+      <div class="si-head">
+        <h3>Install the <code>website-deploy</code> skill</h3>
+        <div class="si-os" id="si-os" role="group" aria-label="Operating system">
+          <button type="button" data-os="unix" class="on">macOS / Linux</button><button type="button" data-os="win">Windows</button>
+        </div>
+      </div>
+      <p class="si-lede">Which coding agents do you use?</p>
+      <div class="si-agents" id="si-agents"></div>
+      <div class="si-cmd">
+        <pre id="si-cmd-text"></pre>
+        <button type="button" class="btn btn-secondary btn-small" id="si-copy">Copy</button>
+      </div>
+      <p class="si-foot"><a href="/install.html">More install options &rarr;</a></p>
+    </div>
+
+    <!-- Build a site with AI. Backed by /v1/generate, which now talks to an
+         OpenAI-compatible provider (DeepSeek) directly — no separate agent box
+         to go missing, which is what broke this before. -->
     <div class="ai-create" id="ai-create">
       <div class="ai-head">
         <h3><span class="spark">✦</span> Build a site with AI</h3>
@@ -754,7 +839,129 @@
       }
       var sub = document.getElementById('profile-sub');
       if (sub) sub.textContent = 'Your full site inventory — including unlisted sites.';
+      var si = document.getElementById('skill-install');
+      if (si) si.hidden = false;
     }
+
+    // ---- Skill installer: pick agents -> generated command -------------------
+    // Every agent reads the SAME three skills, just from its own folder, so
+    // installing for several is one download unzipped into several directories.
+    // Copilot CLI is the exception: it sandboxes ~/.copilot, so a download can't
+    // reach it and it has to add each skill by URL with its own command.
+    (function () {
+      var wrap = document.getElementById('si-agents');
+      if (!wrap) return;
+      var pre = document.getElementById('si-cmd-text');
+      var btn = document.getElementById('si-copy');
+      var osBox = document.getElementById('si-os');
+      var ZIP = 'https://simple-host.app/skills.zip';
+      var SKILLS = ['website-deploy', 'website-deploy-builder', 'connect-domain'];
+
+      var AGENTS = [
+        { id: 'claude',   label: 'Claude Code',     unix: '~/.claude/skills',           win: '$env:USERPROFILE\\.claude\\skills',           on: true },
+        { id: 'codex',    label: 'Codex / ChatGPT', unix: '~/.agents/skills',           win: '$env:USERPROFILE\\.agents\\skills',           on: true },
+        { id: 'cursor',   label: 'Cursor',          unix: '~/.cursor/skills',           win: '$env:USERPROFILE\\.cursor\\skills' },
+        { id: 'opencode', label: 'opencode',        unix: '~/.config/opencode/skills',  win: '$env:USERPROFILE\\.config\\opencode\\skills' },
+        { id: 'hermes',   label: 'Hermes',          unix: '~/.hermes/skills',           win: '$env:USERPROFILE\\.hermes\\skills' },
+        { id: 'openclaw', label: 'OpenClaw',        unix: '~/.openclaw/skills',         win: '$env:USERPROFILE\\.openclaw\\skills' },
+        { id: 'copilot',  label: 'Copilot CLI',     copilot: true }
+      ];
+
+      // Default the toggle to the visitor's own platform.
+      var uaPlat = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
+      var os = /win/i.test(uaPlat) || /Windows/i.test(navigator.userAgent) ? 'win' : 'unix';
+
+      AGENTS.forEach(function (a) {
+        var l = document.createElement('label');
+        var i = document.createElement('input');
+        i.type = 'checkbox'; i.value = a.id; i.checked = !!a.on;
+        i.addEventListener('change', render);
+        l.appendChild(i);
+        l.appendChild(document.createTextNode(a.label));
+        wrap.appendChild(l);
+      });
+
+      osBox.addEventListener('click', function (e) {
+        var b = e.target.closest('button[data-os]');
+        if (!b) return;
+        os = b.dataset.os;
+        Array.prototype.forEach.call(osBox.querySelectorAll('button'), function (x) {
+          x.classList.toggle('on', x.dataset.os === os);
+        });
+        render();
+      });
+
+      function selected() {
+        return AGENTS.filter(function (a) {
+          var i = wrap.querySelector('input[value="' + a.id + '"]');
+          return i && i.checked;
+        });
+      }
+
+      function build() {
+        var sel = selected();
+        if (!sel.length) return 'Select an agent above.';
+        var dirs = sel.filter(function (a) { return !a.copilot; }).map(function (a) { return os === 'win' ? a.win : a.unix; });
+        var out = [];
+
+        if (dirs.length && os === 'unix') {
+          if (dirs.length === 1) {
+            out.push('mkdir -p ' + dirs[0] + ' && curl -fsSL ' + ZIP + ' -o /tmp/sh-skills.zip && unzip -o /tmp/sh-skills.zip -d ' + dirs[0]);
+          } else {
+            out.push('curl -fsSL ' + ZIP + ' -o /tmp/sh-skills.zip');
+            out.push('for d in ' + dirs.join(' ') + '; do mkdir -p "$d" && unzip -oq /tmp/sh-skills.zip -d "$d"; done');
+          }
+        } else if (dirs.length) {
+          out.push('Invoke-WebRequest ' + ZIP + ' -OutFile "$env:TEMP\\sh-skills.zip"');
+          if (dirs.length === 1) {
+            out.push('New-Item -ItemType Directory -Force "' + dirs[0] + '" | Out-Null');
+            out.push('Expand-Archive "$env:TEMP\\sh-skills.zip" "' + dirs[0] + '" -Force');
+          } else {
+            out.push('foreach ($d in @(' + dirs.map(function (d) { return '"' + d + '"'; }).join(',') + ')) {');
+            out.push('  New-Item -ItemType Directory -Force $d | Out-Null');
+            out.push('  Expand-Archive "$env:TEMP\\sh-skills.zip" $d -Force');
+            out.push('}');
+          }
+        }
+
+        if (sel.some(function (a) { return a.copilot; })) {
+          if (out.length) out.push('');
+          SKILLS.forEach(function (s) {
+            out.push('copilot skill add https://simple-host.app/skills/' + s + '/SKILL.md');
+          });
+        }
+        return out.join('\n');
+      }
+
+      function render() {
+        pre.textContent = build();
+        Array.prototype.forEach.call(osBox.querySelectorAll('button'), function (x) {
+          x.classList.toggle('on', x.dataset.os === os);
+        });
+      }
+
+      // textContent (never innerHTML) so && stays literal; execCommand fallback
+      // because navigator.clipboard is undefined on non-secure origins.
+      btn.addEventListener('click', function () {
+        var text = pre.textContent;
+        var ok = function () {
+          btn.textContent = 'Copied';
+          setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
+        };
+        var fallback = function () {
+          var ta = document.createElement('textarea');
+          ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.select();
+          try { document.execCommand('copy'); ok(); } catch (e) { /* nothing else to try */ }
+          document.body.removeChild(ta);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(ok).catch(fallback);
+        } else { fallback(); }
+      });
+
+      render();
+    })();
 
     // --------------------------------------------------------------- OWNER MODE
     // per-site analytics cache, keyed by range: days -> { name -> {totals, daily} }
