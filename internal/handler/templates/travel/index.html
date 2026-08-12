@@ -1,674 +1,297 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Group Travel Itinerary · simple-host</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Karla:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trip · Itinerary</title>
+
+<!-- ===================================================================== -->
+<!--  EDIT ONLY THE TRIP OBJECT BELOW. Everything under it is the renderer  -->
+<!--  and needs no changes for a normal trip.                               -->
+<!-- ===================================================================== -->
+<script>
+const TRIP = {
+  title:    'Lisbon & the Algarve',
+  subtitle: 'Two weeks · four of us',
+
+  // Optional. Omit (or leave {}) for a solo trip and the "You are" filter hides.
+  people: {
+    A: {name:'Ana'},
+    B: {name:'Ben'},
+    C: {name:'Cleo'},
+    D: {name:'Dev'},
+  },
+
+  // ---- THE ONLY PART THAT REALLY MATTERS -----------------------------------
+  // Each item needs an absolute start/end and the timezone of the PLACE.
+  //
+  //  kind   flight | train | ferry | car | stay | activity | event
+  //  start  ISO instant — MUST end in Z or carry an offset (+01:00).
+  //         "2026-05-04T09:00" (no zone) is read in the VIEWER's timezone and
+  //         will show the wrong local time for everyone not sitting there.
+  //  end    same. For a stay this is checkout — the range is what keeps the
+  //         lodging showing as "right now" underneath the day's activities.
+  //  zone   IANA zone of where it happens ('Europe/Lisbon'). Times always
+  //         render in this zone, never converted to the reader's clock.
+  //  who    'all' or a string of person keys ('AB'). Ignored if no people.
+  //  qr     optional data: URL or image path — a QR card appears ONLY if set.
+  //  warn   optional amber callout for a clash or gotcha.
+  items: [
+    {kind:'flight', title:'LHR → LIS · TP1359', where:'London → Lisbon',
+     zone:'Europe/London', start:'2026-05-04T08:35:00Z', end:'2026-05-04T11:20:00Z',
+     who:'all', detail:'TAP Air Portugal · seats 12A–12D · 1 checked bag each'},
+
+    {kind:'stay', title:'Alfama apartment', where:'Lisbon',
+     zone:'Europe/Lisbon', start:'2026-05-04T14:00:00Z', end:'2026-05-08T10:00:00Z',
+     who:'all', detail:'4 nights · Rua dos Remédios · self check-in, code sent by host'},
+
+    {kind:'activity', title:'Fado dinner', where:'Clube de Fado, Lisbon',
+     zone:'Europe/Lisbon', start:'2026-05-05T19:30:00Z', end:'2026-05-05T22:00:00Z',
+     who:'all', detail:'Booked · table for 4 · arrive 15 min early'},
+
+    {kind:'train', title:'Lisbon → Lagos', where:'Oriente station',
+     zone:'Europe/Lisbon', start:'2026-05-08T11:09:00Z', end:'2026-05-08T14:52:00Z',
+     who:'all', detail:'Alfa Pendular · coach 2 · booking KJ42P',
+     warn:'Apartment checkout is 10:00 — leave time to cross the city.',
+     qr:''},
+
+    {kind:'stay', title:'Lagos guesthouse', where:'Lagos, Algarve',
+     zone:'Europe/Lisbon', start:'2026-05-08T15:00:00Z', end:'2026-05-12T10:00:00Z',
+     who:'all', detail:'4 nights · breakfast included'},
+
+    {kind:'activity', title:'Benagil cave boat trip', where:'Lagos marina',
+     zone:'Europe/Lisbon', start:'2026-05-09T09:00:00Z', end:'2026-05-09T11:30:00Z',
+     who:'AB', detail:'2h 30m · paid in full'},
+
+    {kind:'car', title:'Pick up the car', where:'Lagos station',
+     zone:'Europe/Lisbon', start:'2026-05-10T09:00:00Z', end:'2026-05-10T09:30:00Z',
+     who:'all', detail:'Compact · unlimited km · conf 4471902'},
+
+    {kind:'flight', title:'FAO → LHR · TP1364', where:'Faro → London',
+     zone:'Europe/Lisbon', start:'2026-05-12T13:40:00Z', end:'2026-05-12T16:25:00Z',
+     who:'all', detail:'TAP Air Portugal · drop the car at the airport first'},
+  ],
+
+  // Optional map pins [label, lat, lng]. Remove the array to drop the map.
+  places: [
+    ['Lisbon', 38.7223, -9.1393],
+    ['Lagos',  37.1028, -8.6741],
+    ['Faro',   37.0194, -7.9304],
+  ],
+
+  // Optional quick links / numbers. Remove to drop the section.
+  links: [
+    {name:'Apartment host', desc:'WhatsApp preferred', url:'tel:+351000000000'},
+    {name:'Car hire desk',  desc:'Lagos station · 08:00–19:00', url:'tel:+351000000001'},
+  ],
+};
+</script>
+<!-- ===================================================================== -->
+<!--  END OF EDITABLE SECTION                                              -->
+<!-- ===================================================================== -->
+
 <style>
-  /* =====================================================================
-     SUN-BLEACHED POSTCARD — warm sand paper, ocean teal + sun-coral inks,
-     deep warm-brown type. Display: DM Serif Display · Body: Karla.
-     ===================================================================== */
-  :root{
-    --sand:#f3ead8;          /* page — bleached beach paper            */
-    --paper:#faf4e4;         /* the postcard itself                    */
-    --card:#fffdf3;          /* ticket stubs / day cards               */
-    --ink:#40301f;           /* deep warm brown                        */
-    --muted:#8d7c62;
-    --teal:#137974;          /* ocean */
-    --teal-deep:#0d5c58;
-    --teal-soft:#ddeee9;
-    --coral:#df5f3a;         /* sun */
-    --coral-soft:#f8e3d4;
-    --line:#e4d7ba;
-    --dash:#c9b591;
-    --serif:"DM Serif Display",Georgia,serif;
-    --body:"Karla",Georgia,serif;
-    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-  }
-  *{box-sizing:border-box;}
-  html{scroll-behavior:smooth;}
-  body{
-    margin:0;color:var(--ink);font-family:var(--body);line-height:1.55;
-    -webkit-font-smoothing:antialiased;
-    background:
-      radial-gradient(1100px 500px at 85% -8%, rgba(223,95,58,.08), transparent 60%),
-      radial-gradient(900px 480px at -10% 30%, rgba(19,121,116,.07), transparent 55%),
-      var(--sand);
-  }
-  /* airmail stripe pinned across the very top of the page */
-  body::before{
-    content:"";position:fixed;top:0;left:0;right:0;height:9px;z-index:10;
-    background:repeating-linear-gradient(-55deg,
-      var(--coral) 0 14px, var(--paper) 14px 26px,
-      var(--teal)  26px 40px, var(--paper) 40px 52px);
-  }
-  a{color:var(--teal);text-decoration:none;border-bottom:1px dashed rgba(19,121,116,.5);}
-  a:hover{color:var(--teal-deep);border-bottom-style:solid;}
-
-  .wrap{max-width:860px;margin:0 auto;padding:54px 22px 84px;}
-
-  /* ---------- the postcard ---------- */
-  .postcard{
-    position:relative;background:var(--paper);
-    border:1px solid var(--line);border-radius:6px;
-    box-shadow:0 2px 0 rgba(64,48,31,.05),0 22px 44px -22px rgba(64,48,31,.28);
-    padding:58px 54px 46px;
-  }
-  /* inner dashed "airmail" frame */
-  .postcard::before{
-    content:"";position:absolute;inset:14px;pointer-events:none;
-    border:2px dashed var(--dash);border-radius:3px;opacity:.7;
-  }
-  /* faint sun-fade across the paper */
-  .postcard::after{
-    content:"";position:absolute;inset:0;pointer-events:none;border-radius:6px;
-    background:linear-gradient(160deg, rgba(255,250,235,.65), transparent 45%);
-    mix-blend-mode:soft-light;
-  }
-  .postcard > *{position:relative;z-index:1;}
-
-  /* ---------- postage stamp + postmark (pure CSS/SVG) ---------- */
-  .stampbox{position:absolute;top:30px;right:34px;z-index:2;}
-  .stamp{
-    display:block;padding:7px;transform:rotate(4deg);
-    /* perforated edge: page-paper dots straddle the stamp rim */
-    background:radial-gradient(circle at 7px 7px, var(--paper) 3.2px, var(--teal-soft) 3.6px);
-    background-size:14px 14px;background-position:-7px -7px;
-    filter:drop-shadow(0 2px 3px rgba(64,48,31,.18));
-  }
-  .stamp-in{
-    display:flex;flex-direction:column;align-items:center;gap:2px;
-    background:var(--teal-soft);border:1px solid rgba(13,92,88,.35);
-    padding:10px 14px 8px;color:var(--teal-deep);
-  }
-  .stamp-in svg{display:block;width:34px;height:34px;}
-  .stamp-in .val{font-family:var(--serif);font-size:15px;line-height:1;letter-spacing:.04em;}
-  .stamp-in .cty{font-size:8px;font-weight:700;letter-spacing:.28em;text-transform:uppercase;}
-  .postmark{
-    position:absolute;top:-14px;right:44px;width:66px;height:66px;border-radius:50%;
-    border:2px dashed rgba(223,95,58,.55);transform:rotate(-9deg);pointer-events:none;
-  }
-  .postmark::before{
-    content:"";position:absolute;top:24px;left:-52px;width:50px;height:16px;
-    background:repeating-linear-gradient(0deg, rgba(223,95,58,.5) 0 2px, transparent 2px 7px);
-    border-radius:2px;transform:rotate(-4deg);
-  }
-  .postmark span{
-    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-    font-size:7.5px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;
-    color:rgba(223,95,58,.75);text-align:center;line-height:1.5;
-  }
-
-  /* ---------- header ---------- */
-  header.hero{margin:4px 0 34px;max-width:34ch;}
-  .kicker{
-    display:inline-block;font-size:11px;font-weight:700;letter-spacing:.3em;
-    text-transform:uppercase;color:var(--coral);margin-bottom:14px;
-  }
-  .kicker::after{content:"";display:inline-block;width:34px;height:1px;background:var(--coral);
-    vertical-align:middle;margin-left:12px;opacity:.6;}
-  h1{
-    font-family:var(--serif);font-weight:400;font-size:clamp(36px,5.4vw,54px);
-    line-height:1.04;letter-spacing:.005em;margin:0 0 14px;
-  }
-  h1 .amp{color:var(--teal);font-style:italic;}
-  .tagline{color:var(--muted);font-size:17px;margin:0;max-width:46ch;}
-  .tagline strong{color:var(--ink);font-weight:700;}
-  .tagline em{font-style:italic;}
-
-  /* ---------- traveler filter pills ---------- */
-  .filter{display:flex;flex-wrap:wrap;gap:9px;margin:0 0 42px;}
-  .pill{
-    font-family:var(--body);font-size:13px;font-weight:700;letter-spacing:.09em;
-    text-transform:uppercase;cursor:pointer;color:var(--ink);
-    background:var(--card);border:1.5px solid var(--dash);border-radius:999px;
-    padding:8px 17px;transition:border-color .16s ease,background .16s ease,color .16s ease,transform .16s ease;
-  }
-  .pill:hover{border-color:var(--teal);color:var(--teal-deep);transform:translateY(-1px);}
-  .pill.active{background:var(--teal);border-color:var(--teal);color:var(--paper);}
-  .pill:focus-visible{outline:2px solid var(--coral);outline-offset:2px;}
-
-  /* ---------- section labels — letterspaced small caps ---------- */
-  .section-head{display:flex;align-items:center;gap:14px;margin:0 0 20px;}
-  .section-head h2{
-    font-size:12px;font-weight:700;letter-spacing:.32em;text-transform:uppercase;
-    color:var(--teal-deep);margin:0;white-space:nowrap;
-  }
-  .section-head .mark{color:var(--coral);font-size:13px;line-height:1;}
-  .section-head .rule{flex:1;height:0;border-top:2px dashed var(--dash);}
-
-  /* ---------- generic card ---------- */
-  .card{
-    position:relative;background:var(--card);border:1px solid var(--line);
-    border-radius:4px;padding:20px 24px;margin-bottom:16px;
-    box-shadow:0 1px 0 rgba(64,48,31,.05),0 10px 22px -16px rgba(64,48,31,.22);
-  }
-
-  /* ---------- who-tags (traveler-group chips) ---------- */
-  .tags{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;}
-  .tag{
-    display:inline-block;background:var(--coral-soft);color:#b34a28;
-    font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
-    padding:4px 10px;border-radius:999px;border:1px solid rgba(223,95,58,.28);
-  }
-
-  /* ---------- flights — ticket stubs with perforated tear line ---------- */
-  .flight{padding:20px 24px 18px;}
-  .flight::before{ /* coral edge tab, like the printed stripe on a stub */
-    content:"";position:absolute;left:-1px;top:14px;bottom:14px;width:4px;
-    background:var(--coral);border-radius:0 3px 3px 0;opacity:.85;
-  }
-  .flight-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:14px;}
-  .flight-route{font-family:var(--serif);font-size:26px;font-weight:400;letter-spacing:.01em;margin:0;line-height:1.1;}
-  .flight-route .arrow{color:var(--teal);font-family:var(--body);font-size:20px;padding:0 2px;}
-  .flight-when{color:var(--muted);font-size:14px;margin-top:3px;font-weight:500;}
-  /* perforation between the stub head and the details, with punched notches */
-  .flight-grid{
-    position:relative;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
-    gap:12px 18px;margin-top:14px;padding-top:16px;border-top:2px dashed var(--dash);
-  }
-  .flight-grid::before,.flight-grid::after{
-    content:"";position:absolute;top:-9px;width:16px;height:16px;border-radius:50%;
-    background:var(--paper);border:1px solid var(--line);
-  }
-  .flight-grid::before{left:-33px;}
-  .flight-grid::after{right:-33px;}
-  .kv .k{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.2em;color:var(--muted);}
-  .kv .v{font-size:15px;font-weight:700;margin-top:2px;}
-  .kv .v.mono{font-family:var(--mono);font-weight:600;font-size:14px;color:var(--teal-deep);letter-spacing:.05em;}
-
-  /* ---------- day timeline ---------- */
-  .timeline{position:relative;padding-left:32px;}
-  .timeline::before{
-    content:"";position:absolute;left:8px;top:8px;bottom:8px;width:0;
-    border-left:2px dashed var(--dash);
-  }
-  .day{position:relative;margin-bottom:16px;}
-  .day::before{ /* coral compass-point marker */
-    content:"";position:absolute;left:-31px;top:24px;width:11px;height:11px;
-    background:var(--coral);transform:rotate(45deg);
-    box-shadow:0 0 0 4px var(--paper),0 0 0 5px var(--line);
-  }
-  .day-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:10px;}
-  .day-date{font-size:11px;font-weight:700;letter-spacing:.28em;text-transform:uppercase;color:var(--coral);}
-  .day-loc{
-    font-family:var(--serif);font-size:25px;font-weight:400;letter-spacing:.005em;
-    margin:3px 0 0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;line-height:1.15;
-  }
-  .pin{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
-    white-space:nowrap;display:inline-flex;align-items:center;gap:4px;border-bottom:none;}
-  .pin:hover{border-bottom:none;}
-  .pin svg{width:11px;height:14px;display:block;}
-  .meta-row{display:flex;align-items:baseline;gap:10px;color:var(--muted);font-size:14px;margin:8px 0;}
-  .meta-row .mk{
-    flex:none;font-size:9.5px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;
-    color:var(--teal-deep);background:var(--teal-soft);padding:3px 8px 2px;border-radius:3px;
-    position:relative;top:-1px;
-  }
-  .meta-row strong{color:var(--ink);font-weight:700;}
-
-  /* activities */
-  .acts{list-style:none;margin:14px 0 0;padding:0;border-top:2px dashed var(--dash);}
-  .act{display:flex;gap:14px;padding:10px 0;border-bottom:1px dashed var(--line);}
-  .act:last-child{border-bottom:0;padding-bottom:2px;}
-  .act .time{
-    flex:none;width:78px;font-size:12.5px;font-weight:700;color:var(--teal-deep);
-    padding-top:2px;letter-spacing:.03em;font-variant-numeric:tabular-nums;
-  }
-  .act .body .name{font-weight:700;font-size:15px;}
-  .act .body .sub{color:var(--muted);font-size:13px;margin-top:1px;font-style:italic;}
-
-  /* hidden by filter */
-  .is-hidden{display:none !important;}
-  .empty{color:var(--muted);font-size:14px;font-style:italic;padding:8px 2px 14px;}
-
-  /* ---------- trip chatter (comments widget mounts here) ---------- */
-  #sh-comments{margin-top:46px;}
-
-  /* ---------- footer — postcard sign-off ---------- */
-  footer{
-    margin-top:44px;padding-top:26px;border-top:2px dashed var(--dash);
-    color:var(--muted);font-size:14px;
-  }
-  footer .signoff{font-family:var(--serif);font-style:italic;font-size:19px;color:var(--ink);margin-bottom:8px;}
-  footer .summary{margin-bottom:12px;}
-  footer .summary b{color:var(--ink);}
-  footer .deploy{font-size:12px;letter-spacing:.06em;}
-  footer code{
-    font-family:var(--mono);font-size:11px;background:var(--teal-soft);
-    color:var(--teal-deep);padding:2px 7px;border-radius:3px;
-  }
-
-  /* ---------- load reveal ---------- */
-  .reveal{animation:drift .55s cubic-bezier(.22,.8,.36,1) both;animation-delay:calc(var(--i,0)*70ms);}
-  @keyframes drift{
-    from{opacity:0;transform:translateY(14px);}
-    to{opacity:1;transform:none;}
-  }
-  @media (prefers-reduced-motion:reduce){
-    .reveal{animation:none;}
-    html{scroll-behavior:auto;}
-  }
-
-  /* ---------- responsive ---------- */
-  @media (max-width:640px){
-    .wrap{padding:34px 12px 56px;}
-    .postcard{padding:40px 22px 34px;}
-    .postcard::before{inset:9px;}
-    .stampbox{top:20px;right:16px;transform:scale(.82);transform-origin:top right;}
-    header.hero{margin-top:44px;}
-    .flight-head{flex-direction:column;gap:8px;}
-    .tags{justify-content:flex-start;}
-    .flight-grid::before{left:-31px;}
-    .flight-grid::after{right:-31px;}
-    .act .time{width:66px;}
-    .timeline{padding-left:26px;}
-    .timeline::before{left:5px;}
-    .day::before{left:-25px;}
-  }
-  @media (min-width:1100px){
-    .wrap{max-width:920px;padding-top:72px;}
-    .postcard{padding:64px 68px 52px;}
-  }
+:root{
+  --bg:#faf9f7; --surface:#fff; --line:#e6e2db; --text:#1c1a17; --dim:#6b6560;
+  --accent:#0f766e; --radius:12px;
+  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#14130f;--surface:#1c1a17;--line:#2e2b26;--text:#f2efe9;--dim:#a09a92;--accent:#5eead4}
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding-bottom:64px}
+.wrap{max-width:840px;margin:0 auto;padding:0 18px}
+header.hero{padding:28px 0 6px}
+h1{font-size:26px;letter-spacing:-.02em}
+.sub{color:var(--dim);font-size:14px;margin-top:4px}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin:26px 0 10px;font-weight:600}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.bar select,.search{font:inherit;padding:8px 11px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--text)}
+.search{width:100%}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px}
+.card.is-now{border-color:var(--accent);box-shadow:0 0 0 3px rgba(15,118,110,.09)}
+.card.is-past{opacity:.45}
+.row{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.title{font-weight:600;font-size:15.5px}
+.where{color:var(--dim);font-size:13px}
+.time{font-family:var(--mono);font-size:13px;font-weight:600}
+.zone{font-family:var(--mono);font-size:11px;color:var(--dim)}
+.detail{color:var(--dim);font-size:13px;margin-top:6px}
+.warn{margin-top:8px;font-size:12.5px;background:#fef3c7;border:1px solid #fde68a;color:#7c2d12;padding:7px 10px;border-radius:8px}
+.pill{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--dim)}
+.pill.live{background:var(--accent);border-color:var(--accent);color:#fff}
+.pill.soon{background:rgba(15,118,110,.09);border-color:rgba(15,118,110,.3);color:var(--accent)}
+.empty{color:var(--dim);font-size:14px;padding:10px 2px}
+.daylabel{font-size:12px;font-weight:600;color:var(--dim);margin:18px 0 6px}
+.qrbtn{margin-top:9px;font:inherit;font-size:12px;padding:5px 11px;border-radius:99px;border:1px solid var(--line);background:var(--bg);color:var(--text);cursor:pointer}
+.qrwrap{margin-top:10px}
+.qrwrap img{width:180px;height:180px;border:1px solid var(--line);border-radius:8px;background:#fff}
+#map{height:260px;border:1px solid var(--line);border-radius:var(--radius)}
+a.card{display:block;text-decoration:none;color:inherit}
+.preview{background:#1c1a17;color:#f5f3ef;padding:9px 0;font-size:13px}
+.preview input{font:inherit;font-size:13px;padding:4px 8px;border-radius:7px;border:1px solid #3a3733;background:#2a2723;color:#f5f3ef}
 </style>
 </head>
 <body>
+
+<!-- Authoring aid: open with ?preview to get a "pretend it's..." clock and
+     check what Now/Next looks like on any day. Invisible to normal visitors. -->
+<div class="preview" id="preview" hidden>
+  <div class="wrap">Preview clock <input type="datetime-local" id="pv"> <span id="pvnote"></span></div>
+</div>
+
 <div class="wrap">
-  <div class="postcard" id="postcard">
-    <div class="stampbox" aria-hidden="true">
-      <span class="stamp"><span class="stamp-in">
-        <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <circle cx="20" cy="24" r="7.5"/>
-          <path d="M20 10v4M10.5 14.5l2.8 2.8M29.5 14.5l-2.8 2.8M6 24h4M30 24h4"/>
-          <path d="M4 33h32" stroke-dasharray="3 4"/>
-        </svg>
-        <span class="val">2026</span>
-        <span class="cty">Isla Post</span>
-      </span></span>
-      <span class="postmark"><span>SJU<br>· PR ·</span></span>
-    </div>
+  <header class="hero">
+    <h1 id="t"></h1>
+    <div class="sub" id="s"></div>
+    <div class="bar" id="bar"></div>
+  </header>
 
-    <div id="app">
-      <!-- The whole page renders from the TRIP object below. -->
-    </div>
+  <h2>Right now</h2>
+  <div id="now"></div>
 
-    <!-- Trip chatter — Simple Host comments widget mounts into this section -->
-    <section id="sh-comments"></section>
-  </div>
+  <h2>Next</h2>
+  <div id="next"></div>
+
+  <h2>Everything</h2>
+  <input class="search" id="q" placeholder="Search the trip…" autocomplete="off">
+  <div id="all"></div>
+
+  <div id="mapsec" hidden><h2>Where</h2><div id="map"></div></div>
+  <div id="linksec" hidden><h2>Numbers &amp; links</h2><div id="links"></div></div>
 </div>
 
 <script>
-/* =====================================================================
-   GROUP-TRAVEL ITINERARY — single-file static template (simple-host)
-   ---------------------------------------------------------------------
-   This page is fully STATIC: no build step, no backend of its own.
-   Simple Host features used:
-     • static site hosting  — this one index.html is the whole deploy
-     • comments widget      — /comments.js mounts "Trip chatter" into
-       #sh-comments so the group can coordinate; it auto-detects the
-       deployed site and no-ops gracefully on localhost.
+const KIND={
+  flight:{label:'Flight',icon:'✈'}, train:{label:'Train',icon:'🚆'},
+  ferry:{label:'Ferry',icon:'⛴'},   car:{label:'Car',icon:'🚗'},
+  stay:{label:'Stay',icon:'🏠'},    activity:{label:'Activity',icon:'✦'},
+  event:{label:'Event',icon:'◆'},
+};
+const HAS_PEOPLE = TRIP.people && Object.keys(TRIP.people).length > 0;
+const ITEMS = (TRIP.items||[]).slice().sort((a,b)=>new Date(a.start)-new Date(b.start));
+let PERSON='all', AT=null;
+const at=()=>AT===null?Date.now():AT;
 
-   HOW TO USE THIS FILE
-     Edit ONLY the TRIP object below, then deploy. Everything on the page
-     (header, traveler filter, flight cards, day-by-day timeline, footer
-     summary) is generated from this data.
+/* Always format in the item's own zone. There is no "convert everything to my
+   timezone" mode on purpose: a departure time means the clock at that airport. */
+const f=(iso,zone,o)=>new Intl.DateTimeFormat('en-US',Object.assign({timeZone:zone,hour:'numeric',minute:'2-digit',hour12:true},o||{})).format(new Date(iso));
+function abbr(iso,zone){try{return new Intl.DateTimeFormat('en-US',{timeZone:zone,timeZoneName:'short'}).formatToParts(new Date(iso)).find(p=>p.type==='timeZoneName').value;}catch(e){return'';}}
+const dayKey=(iso,z)=>new Intl.DateTimeFormat('en-CA',{timeZone:z,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(iso));
+const dayLbl=(iso,z)=>new Intl.DateTimeFormat('en-US',{timeZone:z,weekday:'long',month:'short',day:'numeric'}).format(new Date(iso));
+function rel(iso){
+  const m=Math.round((new Date(iso)-at())/60000); if(m<0)return'';
+  if(m<60)return'in '+m+' min';
+  const h=Math.round(m/60); if(h<24)return'in '+h+' hr'+(h>1?'s':'');
+  const d=Math.round(h/24); return'in '+d+' day'+(d>1?'s':'');
+}
+const mine=it=>!HAS_PEOPLE||PERSON==='all'||it.who==='all'||!it.who||it.who.includes(PERSON);
+const spans=it=>new Date(it.start)<=at()&&at()<new Date(it.end);
 
-   THE DATA MODEL (all fields are plain strings unless noted)
-     title     : trip name shown as the big heading.
-     dates     : human date range, e.g. "Jul 29 – Aug 6, 2026".
-     tagline   : one-line subtitle.
-     travelers : the traveler GROUPS. Each { id, name }.
-                 - id  : SHORT code used to tag flights/days (e.g. "VJ").
-                 - name: friendly label shown on the filter pill + chips.
-                 The filter pills are built from this list (+ "Everyone").
-     flights[] : one card each.
-                 who    : a traveler id (string) OR array of ids that this
-                          flight belongs to. Used by the filter + chips.
-                 route, date, time, flight, pnr, bags : shown as labels.
-                 checkin: optional URL -> renders an "Online check-in" link.
-     days[]    : the itinerary timeline, in order.
-                 date     : short date label, e.g. "Jul 29".
-                 location : place name for the day.
-                 map      : optional Google-Maps (or any) URL -> map pin link.
-                 lodging  : where the group sleeps that night (optional).
-                 transport: transport note for the day (optional).
-                 who      : id or array of ids -> tags the WHOLE day.
-                 activities[] : { time, name, provider?, dur? }
-                                provider/dur are optional; each activity can
-                                also carry its own `who` to tag just that row
-                                (defaults to the day's `who` if omitted).
+function whoPills(it){
+  if(!HAS_PEOPLE) return '';
+  if(!it.who||it.who==='all') return '<span class="pill">everyone</span>';
+  return it.who.split('').map(c=>'<span class="pill">'+((TRIP.people[c]||{}).name||c)+'</span>').join('');
+}
 
-   THE FILTER (the page's own interactivity)
-     Pills: "Everyone" + one per traveler group. Clicking a group pill keeps
-     only the flights / days / activities tagged with that group's id and
-     hides the rest — pure client-side show/hide, no data is mutated. A day
-     with no matching items (or whose own `who` excludes the group) is hidden.
+function card(it,state){
+  const el=document.createElement('div');
+  el.className='card'+(state==='now'?' is-now':'')+(state==='past'?' is-past':'');
+  const k=KIND[it.kind]||{label:it.kind,icon:'•'};
+  const pill = state==='now' ? '<span class="pill live">happening now</span>'
+             : state==='next'? '<span class="pill soon">'+rel(it.start)+'</span>' : '';
+  // a stay shows a date range; everything else shows one clock time
+  const when = it.kind==='stay'
+    ? '<span class="time">'+f(it.start,it.zone,{month:'short',day:'numeric'})+' → '+f(it.end,it.zone,{month:'short',day:'numeric'})+'</span>'
+    : '<span class="time">'+f(it.start,it.zone)+'</span> <span class="zone">'+abbr(it.start,it.zone)+'</span>';
+  el.innerHTML='<div class="row"><span>'+k.icon+'</span><span class="title">'+it.title+'</span>'+
+    '<span class="pill">'+k.label+'</span>'+whoPills(it)+pill+'</div>'+
+    '<div class="row" style="margin-top:4px">'+when+'<span class="where">· '+(it.where||'')+'</span></div>'+
+    (it.detail?'<div class="detail">'+it.detail+'</div>':'')+
+    (it.warn?'<div class="warn">⚠ '+it.warn+'</div>':'');
+  if(it.qr){                                   // QR card ONLY when one exists
+    const b=document.createElement('button');b.className='qrbtn';b.textContent='Show QR';
+    const w=document.createElement('div');w.className='qrwrap';w.hidden=true;
+    const img=document.createElement('img');img.src=it.qr;img.alt=it.title+' pass';w.appendChild(img);
+    b.onclick=()=>{w.hidden=!w.hidden;b.textContent=w.hidden?'Show QR':'Hide QR';};
+    el.appendChild(b);el.appendChild(w);
+  }
+  return el;
+}
 
-   Replace the sample NYC <-> Puerto Rico data with your own and ship it.
-   ===================================================================== */
-  const TRIP = {
-    title: "NYC ↔ Puerto Rico 2026",
-    dates: "Jul 29 – Aug 6, 2026",
-    tagline: "Three crews converging on the island for a week of sun, salt, and old-city wandering.",
+function render(){
+  document.getElementById('t').textContent=TRIP.title||'Itinerary';
+  const zone=(ITEMS[0]||{}).zone||'UTC';
+  document.getElementById('s').textContent=(TRIP.subtitle?TRIP.subtitle+' · ':'')+
+    new Intl.DateTimeFormat('en-US',{timeZone:zone,weekday:'long',month:'long',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(at()))+
+    (AT===null?'':' · preview');
 
-    // Traveler GROUPS — the `id` is what you tag flights/days with.
-    // (Sample data — all names, codes and bookings below are fictional.)
-    travelers: [
-      { id: "AS", name: "Alex + Sam" },
-      { id: "JR", name: "Jordan + Riley" },
-      { id: "T",  name: "Taylor" },
-    ],
+  const list=ITEMS.filter(mine);
+  const now=list.filter(spans);
+  const next=list.filter(i=>new Date(i.start)>at()).slice(0,2);
 
-    // FLIGHTS — `who` is an id or array of ids.
-    flights: [
-      { who: "AS", route: "JFK → SJU", date: "Jul 29", time: "8:10 AM", flight: "XY 1203", pnr: "ABC123", bags: "1 checked",  checkin: "https://example.com/checkin" },
-      { who: "JR", route: "EWR → SJU", date: "Jul 29", time: "10:45 AM", flight: "XY 1588", pnr: "DEF456", bags: "2 checked", checkin: "https://example.com/checkin" },
-      { who: "T",  route: "JFK → SJU", date: "Jul 30", time: "6:30 AM", flight: "XY 0487",  pnr: "GHI789", bags: "carry-on only", checkin: "https://example.com/checkin" },
-      { who: ["AS","JR","T"], route: "SJU → JFK", date: "Aug 6", time: "9:20 PM", flight: "XY 1110", pnr: "JKL012", bags: "1 checked each", checkin: "https://example.com/checkin" },
-    ],
+  const nh=document.getElementById('now');nh.innerHTML='';
+  now.length?now.forEach(i=>nh.appendChild(card(i,'now')))
+            :nh.innerHTML='<div class="empty">Nothing scheduled at this moment.</div>';
+  const xh=document.getElementById('next');xh.innerHTML='';
+  next.length?next.forEach(i=>xh.appendChild(card(i,'next')))
+             :xh.innerHTML='<div class="empty">Nothing left — trip complete.</div>';
+  renderAll();
+}
 
-    // DAYS — vertical timeline, in order. `who` tags the whole day.
-    days: [
-      {
-        date: "Jul 29", location: "San Juan", map: "https://maps.google.com/?q=Old+San+Juan",
-        lodging: "Old town rental", who: ["AS","JR"],
-        transport: "Jeep rental pickup at SJU; ~25 min to Old San Juan.",
-        activities: [
-          { time: "3:00 PM", name: "Walk Old San Juan", provider: "", dur: "2h" },
-          { time: "6:30 PM", name: "Group dinner", provider: "Reservation under Alex", dur: "1.5h" },
-          { time: "9:00 PM", name: "Drinks in the old city", provider: "", dur: "" },
-        ],
-      },
-      {
-        date: "Jul 30", location: "San Juan", map: "https://maps.google.com/?q=Castillo+San+Felipe+del+Morro",
-        lodging: "Old town rental", who: ["AS","JR","T"],
-        transport: "Taylor arrives 11:30 AM — pickup from SJU.",
-        activities: [
-          { time: "9:00 AM", name: "El Morro fortress", provider: "Nat'l Park Service", dur: "2h", who: ["AS","JR"] },
-          { time: "12:30 PM", name: "Welcome lunch — full crew", provider: "", dur: "1.5h" },
-          { time: "4:00 PM", name: "Condado Beach", provider: "", dur: "" },
-        ],
-      },
-      {
-        date: "Jul 31", location: "El Yunque Rainforest", map: "https://maps.google.com/?q=El+Yunque+National+Forest",
-        lodging: "Río Grande eco-cabin", who: ["AS","JR","T"],
-        transport: "Drive east ~45 min; reservations required to enter park.",
-        activities: [
-          { time: "8:30 AM", name: "La Mina Falls hike", provider: "Recreation.gov permit", dur: "3h" },
-          { time: "1:00 PM", name: "Roadside picnic lunch", provider: "", dur: "1h" },
-          { time: "3:30 PM", name: "Luquillo kiosks + beach", provider: "", dur: "" },
-        ],
-      },
-      {
-        date: "Aug 1", location: "Vieques", map: "https://maps.google.com/?q=Vieques+Puerto+Rico",
-        lodging: "Esperanza guesthouse", who: ["AS","T"],
-        transport: "Ceiba ferry 9:30 AM (book ahead). Jordan + Riley stay on main island.",
-        activities: [
-          { time: "10:30 AM", name: "Sun Bay beach", provider: "", dur: "" , who: ["AS","T"]},
-          { time: "8:30 PM", name: "Bioluminescent bay kayak", provider: "Local tour operator", dur: "2h", who: ["AS","T"] },
-        ],
-      },
-      {
-        date: "Aug 4", location: "Cabo Rojo", map: "https://maps.google.com/?q=Cabo+Rojo+Lighthouse",
-        lodging: "Boquerón beach house", who: ["AS","JR","T"],
-        transport: "Group reconvenes; drive southwest ~2.5h.",
-        activities: [
-          { time: "11:00 AM", name: "Los Morrillos Lighthouse + salt flats", provider: "", dur: "2h" },
-          { time: "2:00 PM", name: "Playa Sucia", provider: "", dur: "" },
-          { time: "7:00 PM", name: "Sunset seafood dinner", provider: "Walk-in", dur: "" },
-        ],
-      },
-      {
-        date: "Aug 6", location: "San Juan — Departure", map: "https://maps.google.com/?q=Luis+Munoz+Marin+Airport",
-        lodging: "—", who: ["AS","JR","T"],
-        transport: "Return jeep at SJU by 6 PM; whole crew flies out together 9:20 PM.",
-        activities: [
-          { time: "12:00 PM", name: "Last lunch in Santurce", provider: "Food trucks", dur: "1.5h" },
-          { time: "6:00 PM", name: "Airport — drop rental, check in", provider: "", dur: "" },
-        ],
-      },
-    ],
+function renderAll(){
+  const q=document.getElementById('q').value.trim().toLowerCase();
+  const host=document.getElementById('all');host.innerHTML='';
+  let day='';
+  const list=ITEMS.filter(mine).filter(i=>!q||((i.title+' '+(i.where||'')+' '+(i.detail||'')+' '+(KIND[i.kind]||{}).label).toLowerCase().includes(q)));
+  if(!list.length){host.innerHTML='<div class="empty">No matches.</div>';return;}
+  list.forEach(i=>{
+    const dk=dayKey(i.start,i.zone);
+    if(dk!==day){day=dk;const h=document.createElement('div');h.className='daylabel';h.textContent=dayLbl(i.start,i.zone);host.appendChild(h);}
+    host.appendChild(card(i,spans(i)?'now':(new Date(i.end)<=at()?'past':'')));
+  });
+}
 
-    // Footer scope line (free text). Shown beside the auto summary.
-    scope: "Lodging, flights & day plans only — meals are pay-your-own unless noted.",
+// people filter
+if(HAS_PEOPLE){
+  const sel=document.createElement('select');
+  sel.innerHTML='<option value="all">Everyone</option>'+Object.entries(TRIP.people).map(([k,v])=>'<option value="'+k+'">'+v.name+'</option>').join('');
+  sel.onchange=e=>{PERSON=e.target.value;render();};
+  document.getElementById('bar').appendChild(sel);
+}
+// links
+if((TRIP.links||[]).length){
+  document.getElementById('linksec').hidden=false;
+  const h=document.getElementById('links');
+  TRIP.links.forEach(l=>{const a=document.createElement('a');a.className='card';a.href=l.url||'#';
+    a.innerHTML='<div class="title">'+l.name+'</div>'+(l.desc?'<div class="detail">'+l.desc+'</div>':'');h.appendChild(a);});
+}
+// map (Leaflet loaded only if there are pins)
+if((TRIP.places||[]).length){
+  document.getElementById('mapsec').hidden=false;
+  const css=document.createElement('link');css.rel='stylesheet';
+  css.href='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';document.head.appendChild(css);
+  const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+  s.onload=()=>{
+    const pts=TRIP.places.map(p=>[p[1],p[2]]);
+    const m=L.map('map',{scrollWheelZoom:false});
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:18,attribution:'© OpenStreetMap © CARTO'}).addTo(m);
+    TRIP.places.forEach(p=>L.circleMarker([p[1],p[2]],{radius:7,color:'#0f766e',fillColor:'#0f766e',fillOpacity:.75}).addTo(m).bindTooltip(p[0],{permanent:true,direction:'right'}));
+    pts.length>1?m.fitBounds(pts,{padding:[30,30]}):m.setView(pts[0],10);
   };
+  document.body.appendChild(s);
+}
+// preview clock (?preview)
+if(new URLSearchParams(location.search).has('preview')){
+  document.getElementById('preview').hidden=false;
+  document.getElementById('pvnote').textContent='— authoring aid; visitors never see this';
+  document.getElementById('pv').addEventListener('input',e=>{AT=e.target.value?new Date(e.target.value).getTime():null;render();});
+}
 
-/* =====================================================================
-   RENDER CODE — you normally don't need to touch anything below here.
-   It reads TRIP, builds the DOM, and wires up the traveler filter.
-   ===================================================================== */
-
-  // small helpers
-  const $ = (sel, root=document) => root.querySelector(sel);
-  const el = (tag, cls, html) => {
-    const n = document.createElement(tag);
-    if (cls) n.className = cls;
-    if (html != null) n.innerHTML = html;
-    return n;
-  };
-  const esc = s => String(s == null ? "" : s)
-    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-  // Normalize a `who` field (string | array | missing) into an array of ids.
-  const whoList = who => who == null ? [] : (Array.isArray(who) ? who : [who]);
-  // Map a traveler id -> friendly name (falls back to the raw id).
-  const nameOf = id => (TRIP.travelers.find(t => t.id === id) || {}).name || id;
-  // Build the chip row for a set of traveler ids.
-  function tagChips(who) {
-    const wrap = el("div", "tags");
-    whoList(who).forEach(id => wrap.appendChild(el("span", "tag", esc(nameOf(id)))));
-    return wrap;
-  }
-  // A small-caps section label with a coral mark and a dashed rule.
-  function sectionHead(label) {
-    const h = el("div", "section-head");
-    h.appendChild(el("span", "mark", "✦"));
-    h.appendChild(el("h2", null, esc(label)));
-    h.appendChild(el("div", "rule"));
-    return h;
-  }
-  // tiny inline-SVG map pin (no emoji)
-  const PIN_SVG = `<svg viewBox="0 0 12 16" fill="none" stroke="currentColor" stroke-width="1.6">
-    <path d="M6 15C6 15 10.8 9.6 10.8 5.8A4.8 4.8 0 0 0 1.2 5.8C1.2 9.6 6 15 6 15Z"/>
-    <circle cx="6" cy="5.8" r="1.7"/></svg>`;
-
-  const app = $("#app");
-
-  /* ---- 1. HEADER ---- */
-  const hero = el("header", "hero");
-  hero.appendChild(el("span", "kicker", "Group itinerary"));
-  hero.appendChild(el("h1", null,
-    esc(TRIP.title).replace(/↔/g, '<span class="amp">↔</span>')));
-  hero.appendChild(el("p", "tagline",
-    `<strong>${esc(TRIP.dates)}</strong>${TRIP.tagline ? " · <em>" + esc(TRIP.tagline) + "</em>" : ""}`));
-  app.appendChild(hero);
-
-  /* ---- 2. TRAVELER-GROUP FILTER ---- */
-  // "Everyone" (id "*") plus one pill per traveler group.
-  let activeFilter = "*";
-  const filter = el("div", "filter");
-  const pillDefs = [{ id: "*", name: "Everyone" }, ...TRIP.travelers];
-  const pills = pillDefs.map(p => {
-    const b = el("button", "pill" + (p.id === "*" ? " active" : ""), esc(p.name));
-    b.dataset.id = p.id;
-    b.addEventListener("click", () => setFilter(p.id));
-    filter.appendChild(b);
-    return b;
-  });
-  app.appendChild(filter);
-
-  /* ---- 3. FLIGHTS ---- */
-  app.appendChild(sectionHead("Flights"));
-  const flightsWrap = el("div");
-  TRIP.flights.forEach(f => {
-    const card = el("div", "card flight");
-    card.dataset.who = whoList(f.who).join(" ");   // used by the filter
-
-    const head = el("div", "flight-head");
-    const left = el("div");
-    left.appendChild(el("div", "flight-route",
-      esc(f.route).replace(/→/g, '<span class="arrow">→</span>')));
-    left.appendChild(el("div", "flight-when", `${esc(f.date)} · ${esc(f.time)}`));
-    head.appendChild(left);
-    head.appendChild(tagChips(f.who));
-    card.appendChild(head);
-
-    const grid = el("div", "flight-grid");
-    const kv = (k, v, mono) => {
-      const c = el("div", "kv");
-      c.appendChild(el("div", "k", esc(k)));
-      c.appendChild(el("div", "v" + (mono ? " mono" : ""), v));
-      return c;
-    };
-    if (f.flight) grid.appendChild(kv("Flight", esc(f.flight), true));
-    if (f.pnr)    grid.appendChild(kv("Confirmation", esc(f.pnr), true));
-    if (f.bags)   grid.appendChild(kv("Baggage", esc(f.bags)));
-    if (f.checkin)
-      grid.appendChild(kv("Check-in",
-        `<a href="${esc(f.checkin)}" target="_blank" rel="noopener">Online check-in ↗</a>`));
-    card.appendChild(grid);
-
-    flightsWrap.appendChild(card);
-  });
-  app.appendChild(flightsWrap);
-
-  /* ---- 4. PER-DAY ITINERARY (timeline) ---- */
-  app.appendChild(sectionHead("Day by day"));
-  const timeline = el("div", "timeline");
-  TRIP.days.forEach(d => {
-    const day = el("div", "card day");
-    day.dataset.who = whoList(d.who).join(" ");
-
-    // heading: date + location (with map pin) + who chips
-    const head = el("div", "day-head");
-    const left = el("div");
-    left.appendChild(el("div", "day-date", esc(d.date)));
-    const loc = el("div", "day-loc");
-    loc.appendChild(document.createTextNode(d.location || ""));
-    if (d.map) {
-      const pin = el("a", "pin", `${PIN_SVG}<span>Map ↗</span>`);
-      pin.href = d.map; pin.target = "_blank"; pin.rel = "noopener";
-      loc.appendChild(pin);
-    }
-    left.appendChild(loc);
-    head.appendChild(left);
-    head.appendChild(tagChips(d.who));
-    day.appendChild(head);
-
-    // lodging + transport meta rows (small-caps ledger labels, no icons)
-    if (d.lodging && d.lodging !== "—")
-      day.appendChild(el("div", "meta-row",
-        `<span class="mk">Stay</span><span>${esc(d.lodging)}</span>`));
-    if (d.transport)
-      day.appendChild(el("div", "meta-row",
-        `<span class="mk">Route</span><span>${esc(d.transport)}</span>`));
-
-    // activities list (each row can carry its own `who`; defaults to day's)
-    if (Array.isArray(d.activities) && d.activities.length) {
-      const ul = el("ul", "acts");
-      d.activities.forEach(a => {
-        const li = el("li", "act");
-        li.dataset.who = (whoList(a.who).length ? whoList(a.who) : whoList(d.who)).join(" ");
-        li.appendChild(el("div", "time", esc(a.time || "")));
-        const body = el("div", "body");
-        body.appendChild(el("div", "name", esc(a.name || "")));
-        const subBits = [];
-        if (a.provider) subBits.push(esc(a.provider));
-        if (a.dur)      subBits.push(esc(a.dur));
-        if (subBits.length) body.appendChild(el("div", "sub", subBits.join(" · ")));
-        li.appendChild(body);
-        ul.appendChild(li);
-      });
-      day.appendChild(ul);
-    }
-
-    timeline.appendChild(day);
-  });
-  app.appendChild(timeline);
-
-  /* ---- 5. FOOTER (appended after #sh-comments so chatter sits above it) ---- */
-  const footer = el("footer");
-  const travelerCount = TRIP.travelers.length;
-  const dayCount = TRIP.days.length;
-  footer.appendChild(el("div", "signoff", "Wish you were here —"));
-  footer.appendChild(el("div", "summary",
-    `<b>${esc(TRIP.dates)}</b> · <b>${travelerCount}</b> traveler group${travelerCount===1?"":"s"} · `
-    + `<b>${dayCount}</b> planned day${dayCount===1?"":"s"}`
-    + (TRIP.scope ? `<br><span style="color:var(--muted)">${esc(TRIP.scope)}</span>` : "")));
-  footer.appendChild(el("div", "deploy",
-    `Deployed on <code>simple-host</code> · static itinerary`));
-  $("#postcard").appendChild(footer);
-
-  /* ---- FILTER BEHAVIOR (pure client-side show/hide) ----
-     id "*" => show everything. Otherwise show only items tagged with the id.
-     Items with NO `who` tags are treated as "everyone" and always shown.
-     A day is hidden if its own tags exclude the group; otherwise non-matching
-     activity rows are hidden and a day with zero visible rows is hidden too. */
-  function matches(node) {
-    if (activeFilter === "*") return true;
-    const tags = (node.dataset.who || "").split(/\s+/).filter(Boolean);
-    if (!tags.length) return true;            // untagged = applies to everyone
-    return tags.includes(activeFilter);
-  }
-
-  function applyFilter() {
-    // flights
-    flightsWrap.querySelectorAll(".flight").forEach(c =>
-      c.classList.toggle("is-hidden", !matches(c)));
-    showEmpty(flightsWrap, "No flights for this group.");
-
-    // days + their activities
-    timeline.querySelectorAll(".day").forEach(day => {
-      const dayOk = matches(day);
-      let visibleActs = 0;
-      day.querySelectorAll(".act").forEach(act => {
-        const ok = dayOk && matches(act);
-        act.classList.toggle("is-hidden", !ok);
-        if (ok) visibleActs++;
-      });
-      const hasActs = !!day.querySelector(".act");
-      // hide the whole day if its tags exclude the group, or it has activities
-      // but none of them survive the filter.
-      day.classList.toggle("is-hidden", !dayOk || (hasActs && visibleActs === 0));
-    });
-    showEmpty(timeline, "No days for this group.");
-  }
-
-  // Show a one-line "empty" placeholder in a container when all its cards hide.
-  function showEmpty(container, msg) {
-    let note = container.querySelector(":scope > .empty");
-    const anyVisible = [...container.children].some(
-      c => c !== note && !c.classList.contains("is-hidden"));
-    if (!anyVisible) {
-      if (!note) { note = el("div", "empty", esc(msg)); container.appendChild(note); }
-      note.classList.remove("is-hidden");
-    } else if (note) {
-      note.classList.add("is-hidden");
-    }
-  }
-
-  function setFilter(id) {
-    activeFilter = id;
-    pills.forEach(p => p.classList.toggle("active", p.dataset.id === id));
-    applyFilter();
-  }
-
-  // initial paint
-  applyFilter();
-
-  /* ---- load reveal — gentle staggered drift-in of the top-level blocks ---- */
-  [...app.children].forEach((n, i) => {
-    n.classList.add("reveal");
-    n.style.setProperty("--i", Math.min(i, 10));
-  });
+document.getElementById('q').addEventListener('input',renderAll);
+render();
+setInterval(()=>{if(AT===null)render();},60000);
 </script>
-
-<!-- Trip chatter — Simple Host comments widget (auto-detects the deployed
-     site; no-ops gracefully on localhost) -->
-<script>window.SH_COMMENTS = { accent: "#137974", title: "Trip chatter", placeholder: "Questions, plans, hot takes…" }</script>
-<script src="https://simple-host.app/comments.js" defer></script>
 </body>
 </html>

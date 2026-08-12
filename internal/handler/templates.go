@@ -51,7 +51,7 @@ var templateCatalog = []templateMeta{
 	{
 		ID:          "travel",
 		Title:       "Group travel itinerary",
-		Description: "Static group-trip page (a Google-Sheets replacement): per-traveler flights, a per-day timeline (location + map + lodging + activities + transport), and a traveler-group filter. Data-driven from one editable object, with a themed trip-chatter comments section. Pairs with view-lock for a private trip.",
+		Description: "Static group-trip page (a Google-Sheets replacement) that leads with \"right now / next\": on open it shows only what is currently true — the activity you are in plus the place you are staying — instead of the whole trip. Also a searchable per-day timeline, map pins, a per-traveller filter, and a QR card only on the items that actually have one. Every time renders in the timezone of the place it happens and is never converted to the reader's clock. Fill in one TRIP object; add ?preview to scrub a clock through the trip and check any day. Pairs with view-lock for a private trip.",
 	},
 	{
 		ID:          "resume",
