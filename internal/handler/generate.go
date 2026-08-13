@@ -75,8 +75,14 @@ func NewGenerateHandler(apiKey, model, agentURL, agentSecret, llmKey, llmBase, l
 		// Generous enough for the direct Messages-API fallback (one long call).
 		// On the agent path every call here is a quick job-start or status poll,
 		// so this ceiling just sits unused.
-		client:        &http.Client{Timeout: 120 * time.Second},
-		llmClient:     &http.Client{Timeout: 5 * time.Minute},
+		client: &http.Client{Timeout: 120 * time.Second},
+		// Sized against maxLLMTokens, not guessed: the provider emits roughly 175
+		// tokens/s, so a build that actually uses the 64000-token budget runs ~6
+		// minutes. Three deadlines stack here and the order matters — this one (7m)
+		// must stay under jobRunTimeout (8m), which must stay under the client's
+		// polling deadline (9m). Invert any pair and a build that was still
+		// progressing gets reported as a failure.
+		llmClient:     &http.Client{Timeout: 7 * time.Minute},
 		ipLimiter:     ipLimiter,
 		userLimiter:   userLimiter,
 		statusLimiter: statusLimiter,
@@ -765,7 +771,15 @@ type openAIResponse struct {
 // Reasoning models bill their hidden reasoning against this same budget, so a
 // limit sized to the visible output truncates the document mid-tag — the failure
 // looks like a bad model rather than a bad setting.
-const maxLLMTokens = 24000
+//
+// 24000 was not far enough. Measured on deepseek-v4-flash, one full-page build
+// spent 9,408 tokens on reasoning and 12,444 on the document — so roughly 40% of
+// the budget is gone before a single tag is emitted, and anything larger than
+// ~50 KB of HTML came back finish_reason=length. The model's own ceiling is 384K
+// output tokens, so this cap was the only thing in the way. max_tokens is a
+// ceiling and not a reservation: raising it costs nothing on turns that don't
+// need it, since billing follows tokens actually produced.
+const maxLLMTokens = 64000
 
 // maxCurrentHTMLCompact bounds the site snapshot re-sent on every turn.
 const maxCurrentHTMLCompact = 96 * 1024
