@@ -875,28 +875,31 @@ paths:
       responses:
         '200':
           description: >-
-            With an agent backend, returns a jobId to poll at
-            /v1/generate/status. With the direct backend, returns the reply (+
-            HTML when the model builds/updates the site) inline.
+            Returns a jobId; poll /v1/generate/status until it reports done.
+            Every backend answers this way. A full build takes a minute or more,
+            which is far too long to hold one HTTP response open — browsers drop
+            an idle connection long before it finishes.
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  jobId: { type: string, description: poll /v1/generate/status with this (async backend) }
-                  reply: { type: string }
-                  html: { type: string }
+                  jobId: { type: string, description: poll /v1/generate/status with this }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503':
+          description: too many builds already running; retry shortly
 
   /v1/generate/status:
     get:
       operationId: getGenerateStatus
       summary: Poll an async AI-create job
       description: >-
-        Poll the status of a job started by POST /v1/generate on the agent
-        backend. Returns running until the agent finishes, then done with the
-        reply and HTML. Sign-in-gated; the job is bound to the caller's key.
+        Poll the status of a job started by POST /v1/generate. Returns running
+        until the build finishes, then done with the reply and HTML (or error
+        with a message). Poll every couple of seconds. Sign-in-gated, and a job
+        is visible only to the user who started it — anyone else gets 404, as
+        does an id that has expired. Jobs are kept 10 minutes after finishing.
       tags: [AI]
       security: [{ apiKey: [] }]
       parameters:

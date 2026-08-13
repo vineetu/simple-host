@@ -262,9 +262,9 @@
       <div class="snum">04.</div>
       <div>
         <h2>Create with AI</h2>
-        <p class="lede">The homepage builds a site for you through a chat — and the model runs <strong>off-box</strong>, so the platform never holds AI credentials on a served surface.</p>
-        <p><code>POST /v1/generate</code> keeps the sign-in gate and rate limit on the edge, then hands the turn to a separate <strong>agent service</strong> as a background job (poll for the result — no request waits out a proxy timeout). The agent runs with its built-in file/shell tools disabled — only a scoped <code>deploy_site</code> tool — so a prompt-injected page can't run commands or exfiltrate keys. You preview in a sandboxed opaque-origin iframe, then publish through the same authenticated files API.</p>
-        <p class="fine">The agent server holds no user secrets, is reachable only with a shared secret, and binds each job to the caller's key.</p>
+        <p class="lede">The homepage builds a site for you through a chat. The model is called <strong>server-side</strong>, so the provider key stays on the server and never reaches a served page.</p>
+        <p><code>POST /v1/generate</code> keeps the sign-in gate and rate limit on the edge, then runs the turn as a <strong>background job</strong> and answers with a job id you poll. A full build takes a minute or more — far longer than a browser will hold an idle connection open — so nothing depends on one long-lived request. The model only ever returns HTML; it is given no file or shell access. You preview in a sandboxed opaque-origin iframe, then publish through the same authenticated files API.</p>
+        <p class="fine">Each job is bound to the user who started it and is not visible to anyone else. An optional off-box agent backend can take over the same endpoint, in which case it publishes through a single scoped <code>deploy_site</code> tool and is reachable only with a shared secret.</p>
       </div>
     </section>
 

@@ -43,6 +43,9 @@ type GenerateHandler struct {
 	ipLimiter     *rateLimiter
 	userLimiter   *rateLimiter
 	statusLimiter *rateLimiter // generous: status polling is cheap and frequent
+	// Direct-backend turns run here as background jobs, so a long build never
+	// depends on the browser holding an idle connection open. See generate_jobs.go.
+	jobs *jobStore
 }
 
 func NewGenerateHandler(apiKey, model, agentURL, agentSecret, llmKey, llmBase, llmModel, visionKey, visionBase, visionModel string) *GenerateHandler {
@@ -56,6 +59,8 @@ func NewGenerateHandler(apiKey, model, agentURL, agentSecret, llmKey, llmBase, l
 	ipLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	userLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	statusLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	jobs := newJobStore()
+	jobs.startCleanup(time.Minute)
 	return &GenerateHandler{
 		apiKey:      apiKey,
 		model:       model,
@@ -75,13 +80,15 @@ func NewGenerateHandler(apiKey, model, agentURL, agentSecret, llmKey, llmBase, l
 		ipLimiter:     ipLimiter,
 		userLimiter:   userLimiter,
 		statusLimiter: statusLimiter,
+		jobs:          jobs,
 	}
 }
 
 func (h *GenerateHandler) Register(mux *http.ServeMux, authMW func(http.Handler) http.Handler) {
 	mux.Handle("POST /v1/generate", authMW(http.HandlerFunc(h.generate)))
-	// Async status poll — only meaningful when an agent server is configured
-	// (the direct Messages-API path answers synchronously from POST /v1/generate).
+	// Async status poll. Every backend now answers POST /v1/generate with a job
+	// id: the agent server tracks its own jobs and we proxy the poll to it, while
+	// the direct backends are tracked in-process by h.jobs.
 	mux.Handle("GET /v1/generate/status", authMW(http.HandlerFunc(h.status)))
 }
 
@@ -155,45 +162,40 @@ func (h *GenerateHandler) generate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Preferred path: an OpenAI-compatible provider (DeepSeek). Synchronous —
-	// one call, one answer — so the client gets reply+html inline and never
-	// polls. Checked before the agent server because it has no separate box to
-	// keep alive, which is exactly how the agent path died.
+	// Preferred path: an OpenAI-compatible provider (DeepSeek). Checked before the
+	// agent server because it has no separate box to keep alive, which is exactly
+	// how the agent path died. The provider call is long (a full page build runs
+	// over a minute), so it runs as a background job and the client polls, rather
+	// than holding an idle connection the browser will drop.
 	if h.llmKey != "" {
-		// NB: mutates msgs in place. Named honestly rather than as a copy that
-		// isn't one — the slice header copy would share the same backing array.
-		if len(atts) > 0 {
-			desc := ""
-			if h.visionKey != "" {
-				d, err := h.describeAttachments(r.Context(), atts)
-				if err != nil {
-					// Don't fail the whole turn over an attachment: build from the
-					// words we have and say the picture didn't come through.
-					log.Printf("generate (vision): %v", err)
-				} else {
-					desc = d
+		jobID, err := h.jobs.start(user.ID, func(ctx context.Context) (string, string, error) {
+			// NB: mutates msgs in place. Named honestly rather than as a copy that
+			// isn't one — the slice header copy would share the same backing array.
+			if len(atts) > 0 {
+				desc := ""
+				if h.visionKey != "" {
+					d, err := h.describeAttachments(ctx, atts)
+					if err != nil {
+						// Don't fail the whole turn over an attachment: build from the
+						// words we have and say the picture didn't come through.
+						log.Printf("generate (vision): %v", err)
+					} else {
+						desc = d
+					}
 				}
+				li := len(msgs) - 1
+				msgs[li].Content = inlineAttachmentsAsText(msgs[li].Content, atts, desc, h.visionKey != "")
 			}
-			li := len(msgs) - 1
-			msgs[li].Content = inlineAttachmentsAsText(msgs[li].Content, atts, desc, h.visionKey != "")
-		}
-		reply, html, err := h.converseOpenAI(r.Context(), msgs, req.HTML)
-		if err != nil {
+			return h.converseOpenAI(ctx, msgs, req.HTML)
+		}, func(err error) string {
 			log.Printf("generate (llm): %v", err)
-			switch {
-			case errors.Is(err, errTruncated):
-				// Retrying hits the same ceiling and bills another full generation.
-				writeJSON(w, http.StatusBadGateway, errorResponse{
-					Error: "that page came out too long to finish — try a simpler layout, or ask for one section at a time"})
-			case errors.Is(err, errContextTooLong):
-				writeJSON(w, http.StatusBadGateway, errorResponse{
-					Error: "this conversation has grown too long for the model — start a new site to keep going"})
-			default:
-				writeJSON(w, http.StatusBadGateway, errorResponse{Error: "the assistant had trouble — please try again"})
-			}
+			return generateErrorMessage(err)
+		})
+		if err != nil {
+			h.writeJobStartError(w, err, "llm")
 			return
 		}
-		writeJSON(w, http.StatusOK, generateResponse{Reply: reply, HTML: html})
+		writeJSON(w, http.StatusOK, generateResponse{JobID: jobID})
 		return
 	}
 
@@ -214,19 +216,51 @@ func (h *GenerateHandler) generate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fallback path: call the Messages API directly (metered key).
+	// Fallback path: call the Messages API directly (metered key). Same shape as
+	// the provider path above — one long call, so it runs as a job too.
 	if len(atts) > 0 {
 		li := len(msgs) - 1 // attach to the latest user turn
 		msgs[li].Content = buildUserBlocks(msgs[li].Content, atts)
 	}
 
-	reply, html, err := h.converse(r.Context(), msgs, req.HTML)
-	if err != nil {
+	jobID, err := h.jobs.start(user.ID, func(ctx context.Context) (string, string, error) {
+		return h.converse(ctx, msgs, req.HTML)
+	}, func(err error) string {
 		log.Printf("generate: %v", err)
-		writeJSON(w, http.StatusBadGateway, errorResponse{Error: "the assistant had trouble — please try again"})
+		return generateErrorMessage(err)
+	})
+	if err != nil {
+		h.writeJobStartError(w, err, "anthropic")
 		return
 	}
-	writeJSON(w, http.StatusOK, generateResponse{Reply: reply, HTML: html})
+	writeJSON(w, http.StatusOK, generateResponse{JobID: jobID})
+}
+
+// generateErrorMessage turns a provider failure into something worth showing a
+// user. The two specific cases are worth naming because retrying is futile:
+// both need the user to change what they asked for.
+func generateErrorMessage(err error) string {
+	switch {
+	case errors.Is(err, errTruncated):
+		// Retrying hits the same ceiling and bills another full generation.
+		return "that page came out too long to finish — try a simpler layout, or ask for one section at a time"
+	case errors.Is(err, errContextTooLong):
+		return "this conversation has grown too long for the model — start a new site to keep going"
+	default:
+		return "the assistant had trouble — please try again"
+	}
+}
+
+// writeJobStartError reports a failure to even start a job. Being over the
+// in-flight ceiling is a "come back in a moment", not a broken build.
+func (h *GenerateHandler) writeJobStartError(w http.ResponseWriter, err error, path string) {
+	if errors.Is(err, errJobsBusy) {
+		writeJSON(w, http.StatusServiceUnavailable, errorResponse{
+			Error: "too many builds running right now — give it a moment and try again"})
+		return
+	}
+	log.Printf("generate (%s job start): %v", path, err)
+	writeJSON(w, http.StatusBadGateway, errorResponse{Error: "the assistant had trouble — please try again"})
 }
 
 // agentRequest is the body forwarded to the Agent SDK server.
@@ -300,13 +334,13 @@ func (h *GenerateHandler) status(w http.ResponseWriter, r *http.Request) {
 		tooManyRequests(w)
 		return
 	}
-	if h.agentURL == "" {
-		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no async backend configured"})
-		return
-	}
 	id := strings.TrimSpace(r.URL.Query().Get("id"))
 	if id == "" {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "id is required"})
+		return
+	}
+	if h.usesLocalJobs() {
+		h.localStatus(w, user.ID, id)
 		return
 	}
 
@@ -332,6 +366,34 @@ func (h *GenerateHandler) status(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(resp.StatusCode)
 	w.Write(raw)
+}
+
+// usesLocalJobs reports whether turns run in this process rather than on the
+// agent server. It mirrors the dispatch order in generate() — provider first,
+// agent second, metered Anthropic key last — and the two MUST agree: if a turn
+// starts as a local job but its poll is proxied to the agent server (or the
+// reverse), every build reports as expired.
+func (h *GenerateHandler) usesLocalJobs() bool {
+	return h.llmKey != "" || h.agentURL == ""
+}
+
+// localStatus answers a poll for a job running in this process.
+func (h *GenerateHandler) localStatus(w http.ResponseWriter, owner, id string) {
+	j, ok := h.jobs.get(id, owner)
+	if !ok {
+		// The client renders 404 as "that session expired", which is the right
+		// reading of an id we have swept or never issued.
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "that build is no longer available"})
+		return
+	}
+	switch {
+	case !j.done:
+		writeJSON(w, http.StatusOK, jobStatusResponse{Status: "running"})
+	case j.failure != "":
+		writeJSON(w, http.StatusOK, jobStatusResponse{Status: "error", Error: j.failure})
+	default:
+		writeJSON(w, http.StatusOK, jobStatusResponse{Status: "done", Reply: j.reply, HTML: j.html})
+	}
 }
 
 // clientAPIKey returns the caller's API key (the same header the auth middleware
@@ -640,17 +702,35 @@ func cleanHTML(s string) string {
 		}
 		s = strings.TrimSuffix(strings.TrimSpace(s), "```")
 	}
-	lower := strings.ToLower(s)
-	if i := strings.Index(lower, "<!doctype"); i > 0 {
+	// Search s itself rather than a lowercased copy: ToLower is not
+	// length-preserving (U+023A "Ⱥ" is 2 bytes and lowercases to a 3-byte rune),
+	// so an index taken from the copy can point past the end of s and panic the
+	// slice below. Model output is attacker-influenced, so that was reachable.
+	if i := indexFold(s, "<!doctype"); i > 0 {
 		s = s[i:]
-	} else if i := strings.Index(lower, "<html"); i > 0 {
+	} else if i := indexFold(s, "<html"); i > 0 {
 		s = s[i:]
 	}
 	s = strings.TrimSpace(s)
-	if !strings.HasPrefix(strings.ToLower(s), "<!doctype") && strings.HasPrefix(strings.ToLower(s), "<html") {
+	if !hasPrefixFold(s, "<!doctype") && hasPrefixFold(s, "<html") {
 		s = "<!DOCTYPE html>\n" + s
 	}
 	return s
+}
+
+// indexFold is strings.Index with ASCII-case-insensitive matching, returning an
+// offset that is always valid in s. pat must be lowercase ASCII.
+func indexFold(s, pat string) int {
+	for i := 0; i+len(pat) <= len(s); i++ {
+		if strings.EqualFold(s[i:i+len(pat)], pat) {
+			return i
+		}
+	}
+	return -1
+}
+
+func hasPrefixFold(s, pat string) bool {
+	return len(s) >= len(pat) && strings.EqualFold(s[:len(pat)], pat)
 }
 
 // ---------------------------------------------------------------------------
