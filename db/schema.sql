@@ -96,3 +96,143 @@ CREATE TABLE IF NOT EXISTS analytics_ingest_state (
 --   ALTER TABLE sites ADD COLUMN IF NOT EXISTS domain_status TEXT;
 --   ALTER TABLE sites ADD COLUMN IF NOT EXISTS domain_verified_at TIMESTAMPTZ;
 --   ALTER TABLE sites ADD COLUMN IF NOT EXISTS domain_last_error TEXT;
+-- Visitor Google/GitHub sign-in (live migration: db/migrations/visitor-oauth.sql):
+--   ALTER TABLE sites ADD COLUMN IF NOT EXISTS allow_anonymous_writes BOOLEAN NOT NULL DEFAULT FALSE;
+-- One-account unification (live migration: db/migrations/unify-identities.sql):
+--   DROP visitors + recreate visitor_sessions(user_id) + oauth_identities.
+
+-- Operator escape hatch. Default FALSE. No owner API in v1; set via
+-- ADMIN_API-Key endpoint or SQL.
+ALTER TABLE sites
+  ADD COLUMN IF NOT EXISTS allow_anonymous_writes BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Durable visitor identity. Not a users row. Not an owner.
+-- Same human on Google and GitHub => two rows. No email column.
+CREATE TABLE IF NOT EXISTS visitors (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  provider         TEXT NOT NULL CHECK (provider IN ('google', 'github')),
+  provider_user_id TEXT NOT NULL,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_login_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (provider, provider_user_id)
+);
+
+-- In-flight authorization-code flows. Pattern-match of auth_tokens:
+-- opaque secret, short TTL, single-use.
+CREATE TABLE IF NOT EXISTS oauth_states (
+  state          TEXT PRIMARY KEY,
+  provider       TEXT NOT NULL CHECK (provider IN ('google', 'github')),
+  code_verifier  TEXT NOT NULL,
+  return_to      TEXT NOT NULL,
+  host           TEXT NOT NULL,
+  site_id        UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at     TIMESTAMPTZ NOT NULL,
+  used_at        TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS oauth_states_expires_idx ON oauth_states (expires_at);
+
+-- Server-side session. Cookie value is id (32 bytes, stored raw).
+CREATE TABLE IF NOT EXISTS visitor_sessions (
+  id              BYTEA PRIMARY KEY,
+  visitor_id      UUID NOT NULL REFERENCES visitors(id) ON DELETE CASCADE,
+  site_id         UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  host            TEXT NOT NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_seen_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at      TIMESTAMPTZ NOT NULL,
+  idle_expires_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS visitor_sessions_expires_idx
+  ON visitor_sessions (expires_at);
+CREATE INDEX IF NOT EXISTS visitor_sessions_visitor_idx
+  ON visitor_sessions (visitor_id);
+
+-- One-time bounce from the apex callback onto the host that will Set-Cookie.
+CREATE TABLE IF NOT EXISTS visitor_establish_tokens (
+  once         TEXT PRIMARY KEY,
+  session_id   BYTEA NOT NULL REFERENCES visitor_sessions(id) ON DELETE CASCADE,
+  host         TEXT NOT NULL,
+  return_to    TEXT NOT NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at   TIMESTAMPTZ NOT NULL,
+  used_at      TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS visitor_establish_tokens_expires_idx
+  ON visitor_establish_tokens (expires_at);
+
+-- unify-identities.sql (appended). Safe to re-run. Destructive only to empty
+-- visitor identity/session tables. Live apply: db/migrations/unify-identities.sql.
+
+DROP TABLE IF EXISTS visitor_establish_tokens;
+DROP TABLE IF EXISTS visitor_sessions;
+DROP TABLE IF EXISTS visitors;
+
+CREATE TABLE IF NOT EXISTS oauth_identities (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id          UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  provider         TEXT NOT NULL CHECK (provider IN ('google', 'github')),
+  provider_user_id TEXT NOT NULL,
+  email            TEXT,
+  email_verified   BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (provider, provider_user_id)
+);
+CREATE INDEX IF NOT EXISTS oauth_identities_user_id_idx
+  ON oauth_identities (user_id);
+
+CREATE TABLE IF NOT EXISTS visitor_sessions (
+  id              BYTEA PRIMARY KEY,
+  user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  site_id         UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  host            TEXT NOT NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_seen_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at      TIMESTAMPTZ NOT NULL,
+  idle_expires_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS visitor_sessions_expires_idx
+  ON visitor_sessions (expires_at);
+CREATE INDEX IF NOT EXISTS visitor_sessions_user_idx
+  ON visitor_sessions (user_id);
+
+CREATE TABLE IF NOT EXISTS visitor_establish_tokens (
+  once         TEXT PRIMARY KEY,
+  session_id   BYTEA NOT NULL REFERENCES visitor_sessions(id) ON DELETE CASCADE,
+  host         TEXT NOT NULL,
+  return_to    TEXT NOT NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at   TIMESTAMPTZ NOT NULL,
+  used_at      TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS visitor_establish_tokens_expires_idx
+  ON visitor_establish_tokens (expires_at);
+
+ALTER TABLE oauth_states
+  ALTER COLUMN site_id DROP NOT NULL;
+
+ALTER TABLE oauth_states
+  ADD COLUMN IF NOT EXISTS purpose TEXT NOT NULL DEFAULT 'site';
+
+ALTER TABLE oauth_states
+  DROP CONSTRAINT IF EXISTS oauth_states_provider_check;
+ALTER TABLE oauth_states
+  ADD CONSTRAINT oauth_states_provider_check
+  CHECK (provider IN ('google', 'github'));
+
+ALTER TABLE oauth_states
+  DROP CONSTRAINT IF EXISTS oauth_states_purpose_check;
+ALTER TABLE oauth_states
+  ADD CONSTRAINT oauth_states_purpose_check
+  CHECK (purpose IN ('site', 'owner'));
+
+ALTER TABLE oauth_states
+  DROP CONSTRAINT IF EXISTS oauth_states_purpose_shape;
+ALTER TABLE oauth_states
+  ADD CONSTRAINT oauth_states_purpose_shape
+  CHECK (
+    (purpose = 'site'  AND site_id IS NOT NULL AND host <> '')
+    OR
+    (purpose = 'owner' AND site_id IS NULL)
+  );

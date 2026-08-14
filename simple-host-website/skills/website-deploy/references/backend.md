@@ -6,13 +6,24 @@ JavaScript — no server for you to run.
 ## Before you write a line of it: the trust model
 
 The content host `sites.simple-host.app` is a **shared origin** across all sites.
-State and collections are gated on the request `Origin`, not on an API key. A
-browser page on the site sends that header automatically; anyone else can set it
-by hand.
+Reads of state and collections are gated on the request `Origin`, not on an API
+key. A browser page on the site sends that header automatically; anyone else can
+set it by hand.
 
-So: **the store is public.** Anyone who knows the site name can read and write it.
+Writes (`PUT`/`PATCH` `/state`, `POST` `/collections/{coll}`) require a signed-in
+signed-in Google/GitHub session (`credentials: "include"` + `X-SH-CSRF: 1`) or
+the site owner's `X-API-Key`. The hosted-page session is the same account as
+dashboard sign-in but is not an API key and cannot deploy. A 401 with
+`code === "visitor_auth_required"` means: keep the form,
+show `error`, fetch `sign_in` (`/v1/auth/oauth/providers`) and navigate to
+`{apex}/v1/auth/oauth/{provider}?return_to=…`. Never claim success on a non-2xx.
+If POST is 2xx and PATCH is not, do not re-POST — retry PATCH only.
+
+So: **the store is public-read.** Anyone who knows the site name can read it.
 Never store passwords, API keys, tokens, or personal data there. Co-tenancy is
-accepted by design — this was never a confidential store.
+accepted by design — this was never a confidential store. Backend-anywhere
+pages (GitHub Pages + `allowed_origins`) can still read; signed-in writes from
+those hosts are out of v1 (no cross-site cookie).
 
 The practical trap: a `curl`, backend, or agent request with **no** `Origin` gets
 a **403**, on reads as well as writes. Send one:
@@ -54,7 +65,14 @@ Derive the URL from the page path — never hardcode the handle or site name:
 
 ```js
 const m = location.pathname.match(/^\/([a-z0-9-]+)\/([a-z0-9-]+)/);
-const url = `/v1/u/${m[1]}/sites/${m[2]}/state`;   // same-origin
+const url = location.origin + `/v1/u/${m[1]}/sites/${m[2]}/state`;   // same-origin
+const writeH = {'Content-Type':'application/json','X-SH-CSRF':'1'};
+const res = await fetch(url, {method:'PATCH', credentials:'include', headers:writeH,
+  body: JSON.stringify({ops:[{op:'inc', path:'count', by:1}]})});
+if (!res.ok) {
+  const err = await res.json().catch(()=>({}));
+  if (err.code === 'visitor_auth_required') { /* keep the form, offer sign-in */ }
+}
 ```
 
 Cheap polling: send `If-None-Match: <etag>` on `GET` and get `304` when nothing
@@ -89,7 +107,9 @@ instead of pretending otherwise.
   `<script src="https://simple-host.app/feedback.js"></script>`.
 
 Both store under the site's state and auto-derive the right URL from the page
-path. Use a **solid** page background — the widgets read light/dark from it, and
+path. They send `X-SH-CSRF` and `credentials` on writes; on
+`visitor_auth_required` they show "Sign in to post" and never claim success.
+Use a **solid** page background — the widgets read light/dark from it, and
 a gradient breaks the detection.
 
 **Always do a UX pass after embedding.** The default look is a deliberately
@@ -142,8 +162,8 @@ Feedback pins work the same way with `window.SH_FEEDBACK = { site, base }`.
 
 Note: GitHub user and project pages share one origin
 (`https://<username>.github.io`), so one entry covers all of a user's Pages; a
-custom domain needs its own entry. The same Origin-gated trust model applies —
-the data is public to the page's audience.
+custom domain needs its own entry. Reads stay Origin-gated. Signed-in writes
+from a backend-anywhere host 401 in v1 (no visitor cookie on the apex).
 
 ## Start from a template
 

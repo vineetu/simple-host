@@ -13,7 +13,7 @@ append-only collections) that its own page JavaScript can call.
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.9.0`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.11.0`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -96,9 +96,15 @@ production build output.
   fonts, audio, video, `.pdf`, `.wasm`, and binary downloads are all fine.
 - **Uploads are append-only.** Re-uploading creates a new version and activates
   it; older versions stay on disk. Rollback re-points at an existing version.
-- **The per-site store is PUBLIC.** State and collections are gated on the
-  request `Origin`, not on an API key — anyone who can load the site can read and
-  write them. Never put secrets, credentials, or personal data there.
+- **The per-site store is PUBLIC-READ.** State and collections GETs are gated
+  on the request `Origin`. Writes (`PUT`/`PATCH` `/state`, `POST` `/collections`)
+  require a signed-in Google/GitHub session (`X-SH-CSRF: 1` + cookie) or the
+  owner's `X-API-Key`. That session is the same account as dashboard sign-in
+  but is site-scoped and is **not** an API key — it cannot deploy or delete.
+  On `code === "visitor_auth_required"`, keep the form, show `error`, and
+  offer sign-in via `GET /v1/auth/oauth/providers` — never claim success,
+  never hide the form, never re-POST a collection item after a partial
+  write. Never put secrets, credentials, or personal data there.
 - **Origin-gating trips up non-browser callers.** A `curl`/backend/agent request
   with no `Origin` gets **403**. Send one:
   `curl -H "Origin: https://sites.simple-host.app" https://sites.simple-host.app/v1/u/<handle>/sites/<name>/state`

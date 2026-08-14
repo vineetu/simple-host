@@ -27,6 +27,8 @@
  * scores under "_votes", using ATOMIC ops (PATCH) so concurrent replies/votes
  * never clobber, and a conditional-GET poll so threads update live and cheap.
  *
+ * Writes need a visitor session (or the owner's X-API-Key). On
+ * visitor_auth_required the composer is replaced with a sign-in affordance.
  * PUBLIC store: anyone can read comments. Don't post anything sensitive.
  */
 (function () {
@@ -67,6 +69,7 @@
   var author = localStorage.getItem("sh_comments_author") || "";
   var voted = JSON.parse(localStorage.getItem("sh_comments_voted") || "{}");
   var comments = [], votes = {}, etag = null;
+  var needSignIn = false, providers = null;
 
   // ---- theme: blend into the HOST page --------------------------------------
   // Inherit the page's font + text color; detect light/dark from the page
@@ -122,7 +125,11 @@
     ".shc-link:hover{color:var(--shc-accent)}" +
     ".shc-kids{margin-top:2px;padding-left:14px;border-left:2px solid var(--shc-border-soft)}" +
     ".shc-reply{margin-top:10px}" +
-    ".shc-empty{color:var(--shc-muted);font-size:.92em;margin-top:18px;font-style:italic}";
+    ".shc-empty{color:var(--shc-muted);font-size:.92em;margin-top:18px;font-style:italic}" +
+    ".shc-signin{border:1px solid var(--shc-border);border-radius:var(--shc-radius);background:var(--shc-surface);padding:14px 12px;margin:0}" +
+    ".shc-signin-msg{font-weight:600;margin:0 0 10px}" +
+    ".shc-signin-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}" +
+    ".shc-banner{color:var(--shc-muted);font-size:.9em;margin:8px 0 0}";
   document.head.appendChild(css);
 
   // ---- networking (atomic ops + cheap live poll) ----------------------------
@@ -143,9 +150,72 @@
       if (r.ok) { etag = r.headers.get("ETag"); ingest(await r.json()); }
     } catch (e) {}
   }
+  function authApex() {
+    if (_cfg.authBase) return String(_cfg.authBase).replace(/\/+$/, "");
+    var hn = location.hostname;
+    if (hn.indexOf("sites.") === 0) return location.protocol + "//" + hn.replace(/^sites\./, "");
+    return "https://simple-host.app";
+  }
+  async function loadProviders() {
+    if (providers) return providers;
+    try {
+      var r = await fetch(authApex() + "/v1/auth/oauth/providers");
+      var d = await r.json();
+      providers = (d && d.providers) || [];
+    } catch (e) { providers = []; }
+    return providers;
+  }
+  function goSignIn(name) {
+    location.href = authApex() + "/v1/auth/oauth/" + encodeURIComponent(name) + "?return_to=" + encodeURIComponent(location.href);
+  }
+  function fillSignIn(container) {
+    container.textContent = "";
+    var box = el("div", "shc-signin");
+    var msg = el("div", "shc-signin-msg");
+    msg.textContent = "Sign in to post";
+    box.appendChild(msg);
+    var row = el("div", "shc-signin-row");
+    if (providers === null) {
+      var loading = el("span", "shc-banner");
+      loading.textContent = "Loading sign-in…";
+      row.appendChild(loading);
+      loadProviders().then(function () { render(); });
+    } else if (!providers.length) {
+      var none = el("span", "shc-banner");
+      none.textContent = "Sign-in is not configured on this host.";
+      row.appendChild(none);
+    } else {
+      providers.forEach(function (name) {
+        var b = el("button", "shc-btn");
+        b.type = "button";
+        b.textContent = "Sign in with " + name.charAt(0).toUpperCase() + name.slice(1);
+        b.onclick = function () { goSignIn(name); };
+        row.appendChild(b);
+      });
+    }
+    box.appendChild(row);
+    container.appendChild(box);
+  }
   async function patch(ops) {
-    var r = await fetch(API, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ops: ops }) });
-    if (!r.ok) { alert("Could not save (" + r.status + ")"); return false; }
+    var r = await fetch(API, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", "X-SH-CSRF": "1" },
+      body: JSON.stringify({ ops: ops })
+    });
+    if (!r.ok) {
+      var body = {};
+      try { body = await r.json(); } catch (e) {}
+      if (body && body.code === "visitor_auth_required") {
+        needSignIn = true;
+        render();
+        return false;
+      }
+      var banner = mount.querySelector(".shc-banner") || el("div", "shc-banner");
+      banner.textContent = body.error || ("Could not save (" + r.status + ")");
+      if (!banner.parentNode) mount.insertBefore(banner, mount.firstChild);
+      return false;
+    }
     etag = r.headers.get("ETag"); ingest(await r.json()); return true;
   }
   function postComment(parentId, body) {
@@ -194,8 +264,15 @@
     up.onclick = function () { upvote(c.id); };
     var reply = el("button", "shc-link"); reply.textContent = "Reply";
     var replyBox = el("div", "shc-reply"); replyBox.style.display = "none";
-    reply.onclick = function () { replyBox.style.display = replyBox.style.display === "none" ? "block" : "none"; if (replyBox.style.display === "block") replyBox.querySelector("textarea").focus(); };
-    buildComposer(replyBox, "Reply…", function (val, done) { postComment(c.id, val).then(function (ok) { if (ok) { replyBox.style.display = "none"; } done(); }); });
+    reply.onclick = function () {
+      replyBox.style.display = replyBox.style.display === "none" ? "block" : "none";
+      if (replyBox.style.display === "block") {
+        var ta = replyBox.querySelector("textarea");
+        if (ta) ta.focus();
+      }
+    };
+    if (needSignIn) fillSignIn(replyBox);
+    else buildComposer(replyBox, "Reply…", function (val, done) { postComment(c.id, val).then(function (ok) { if (ok) { replyBox.style.display = "none"; } done(); }); });
     actions.appendChild(up); actions.appendChild(reply);
     body.appendChild(meta); body.appendChild(text); body.appendChild(actions); body.appendChild(replyBox);
     var kids = el("div", "shc-kids");
@@ -213,7 +290,8 @@
     mount.appendChild(h);
     mount.appendChild(el("div", "shc-rule"));
     var top = el("div", "shc-new");
-    buildComposer(top, _cfg.placeholder || "Add a comment…", function (val, done) { postComment(null, val).then(done); }, true);
+    if (needSignIn) fillSignIn(top);
+    else buildComposer(top, _cfg.placeholder || "Add a comment…", function (val, done) { postComment(null, val).then(done); }, true);
     mount.appendChild(top);
     var roots = childrenOf(null);
     if (!roots.length) {

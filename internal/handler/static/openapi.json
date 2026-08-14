@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Simple Host API",
-    "description": "Static website hosting with a light per-site backend. Deploy a site with one API call \u2014 inline JSON files (LLM-friendly) or a tar.gz/zip archive \u2014 and each site gets shared JSON state (with atomic ops), append-only collections, optional password (view-lock) protection, and starter templates. Sign-in is a 6-digit email code that returns an API key, sent as the `X-API-Key` header.",
+    "description": "Static website hosting with a light per-site backend. Deploy a site with one API call \u2014 inline JSON files (LLM-friendly) or a tar.gz/zip archive \u2014 and each site gets shared JSON state (with atomic ops), append-only collections, optional password (view-lock) protection, and starter templates. Sign-in is a 6-digit email code or Google/GitHub that returns an API key, sent as the `X-API-Key` header. Hosted-page sign-in uses the same account but a site-scoped session cookie \u2014 never an API key.",
     "version": "2.0.0"
   },
   "servers": [
@@ -14,7 +14,11 @@
   "tags": [
     {
       "name": "Auth",
-      "description": "Email-code sign-in"
+      "description": "Email-code sign-in and dashboard OAuth handoff (`/?token=`)"
+    },
+    {
+      "name": "Visitor",
+      "description": "Site-scoped browser session for hosted-page Google/GitHub sign-in. Same `users` row as email-code / dashboard OAuth; the cookie is not an API key and does not satisfy owner routes."
     },
     {
       "name": "Deploy",
@@ -26,11 +30,11 @@
     },
     {
       "name": "State",
-      "description": "Per-site shared JSON store (public, Origin-gated)"
+      "description": "Per-site shared JSON store (reads Origin-gated; writes need a visitor session or owner key)"
     },
     {
       "name": "Collections",
-      "description": "Append-only per-site lists"
+      "description": "Append-only per-site lists (POST is a write)"
     },
     {
       "name": "Private pages",
@@ -244,7 +248,7 @@
       "post": {
         "operationId": "postAuthVerify",
         "summary": "Verify the code and get an API key",
-        "description": "Exchange `{email, code}` (CLI/agent) or a magic-link `{token}` (browser) for an API key. The first successful verify creates the account. The code expires in 15 minutes and allows 3 attempts.",
+        "description": "Exchange `{email, code}` (CLI/agent) or a magic-link `{token}` (browser) for an API key. The first successful email-code verify creates the account. Dashboard Google/GitHub also redeems through this endpoint (`/?token=`). The code expires in 15 minutes and allows 3 attempts.",
         "tags": [
           "Auth"
         ],
@@ -295,6 +299,315 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/v1/auth/oauth/providers": {
+      "get": {
+        "operationId": "getOAuthProviders",
+        "summary": "List enabled OAuth providers",
+        "description": "Public discovery for widgets and the dashboard. Returns the enabled provider names (`google`, `github`) so pages never hardcode a provider. Empty when neither pair is configured. Sign-in creates or links a `users` row; a hosted-page session still does not disclose an API key.",
+        "tags": [
+          "Visitor"
+        ],
+        "responses": {
+          "200": {
+            "description": "Enabled providers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "providers"
+                  ],
+                  "properties": {
+                    "providers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "google",
+                          "github"
+                        ]
+                      },
+                      "example": [
+                        "google",
+                        "github"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/oauth/{provider}": {
+      "get": {
+        "operationId": "startOAuth",
+        "summary": "Start OAuth",
+        "description": "Apex start. Query `return_to` is required and must be an absolute URL. Two shapes: the dashboard origin `/` (owner purpose \u2014 callback hands off via `/?token=`) or a real content-host path (`/{handle}/{sitename}/\u2026`) / DNS-proven custom domain (site purpose \u2014 callback issues a host-and-site-scoped session). Success 302s to the provider with PKCE S256. Unknown or disabled provider is 404. No cookie is set here. The caller cannot set `purpose`; it is derived from `return_to`.",
+        "tags": [
+          "Visitor"
+        ],
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "google",
+                "github"
+              ]
+            }
+          },
+          {
+            "name": "return_to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Absolute URL of the page to return to after sign-in"
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to the identity provider",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or missing return_to",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "invalid return_to"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or disabled provider",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "not found"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/v1/auth/oauth/{provider}/callback": {
+      "get": {
+        "operationId": "oauthCallback",
+        "summary": "OAuth callback",
+        "description": "Provider redirect URI on the apex. Consumes the one-time `state`. Identifies via userinfo, then `resolveUser` (link or create a `users` row on a verified email; refuse missing/unverified email). Site purpose 302s to `https://<return-host>/v1/visitor/establish?once=\u2026`. Owner purpose 302s to `{PUBLIC_BASE_URL}/?token=\u2026` for the dashboard to redeem via `POST /v1/auth/verify`. Neither redirect contains an API key. Failures are a short no-store HTML page on the apex with no Location and no cookie.",
+        "tags": [
+          "Visitor"
+        ],
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "google",
+                "github"
+              ]
+            }
+          },
+          {
+            "name": "code",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "error",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Site purpose: redirect to /v1/visitor/establish on the stored host. Owner purpose: redirect to /?token= on PUBLIC_BASE_URL.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad, replayed, or expired state, or provider error",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or disabled provider",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Token or userinfo failure",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/v1/visitor/establish": {
+      "get": {
+        "operationId": "establishVisitor",
+        "summary": "Establish the visitor session cookie",
+        "description": "One-time hop on the content host or custom domain. Consumes `once`, host-matches, sets `__Host-sh_vsess` (or `sh_vsess` on local HTTP), then 302s to the stored `return_to` with no query mutation. Never sets a cookie on the apex. Failures are HTML, no cookie, no redirect.",
+        "tags": [
+          "Visitor"
+        ],
+        "parameters": [
+          {
+            "name": "once",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Cookie set; redirect to the stored return_to",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              },
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad, replayed, expired, host-mismatch, or apex Host",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/v1/visitor/logout": {
+      "post": {
+        "operationId": "logoutVisitor",
+        "summary": "Log out this visitor session",
+        "description": "Deletes the session named by the visitor cookie and clears the cookie. Requires `X-SH-CSRF: 1` or `Content-Type: application/json` (not a simple form post).",
+        "tags": [
+          "Visitor"
+        ],
+        "parameters": [
+          {
+            "name": "X-SH-CSRF",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Session deleted and cookie cleared"
+          },
+          "403": {
+            "description": "Missing CSRF header (and not a JSON request)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string",
+                      "example": "csrf_required"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         }
       }
@@ -919,7 +1232,7 @@
       "put": {
         "operationId": "putSitesBySitenameState",
         "summary": "Replace per-site JSON state",
-        "description": "Overwrites the whole blob (\u2264 1 MB), last-write-wins. Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated, no API key.",
+        "description": "Overwrites the whole blob (\u2264 1 MB), last-write-wins. Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the owner's `X-API-Key`.",
         "tags": [
           "State"
         ],
@@ -934,6 +1247,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/csrf"
           }
         ],
         "requestBody": {
@@ -963,6 +1279,9 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "401": {
+            "$ref": "#/components/responses/VisitorAuthRequired"
+          },
           "403": {
             "$ref": "#/components/responses/OriginMismatch"
           },
@@ -977,13 +1296,16 @@
       "patch": {
         "operationId": "patchSitesBySitenameState",
         "summary": "Atomically update per-site state",
-        "description": "Apply one or more atomic operations so concurrent writers never clobber. Origin-gated, no API key. Ops \u2014 `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match).",
+        "description": "Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the owner's `X-API-Key`. Ops \u2014 `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match).",
         "tags": [
           "State"
         ],
         "parameters": [
           {
             "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/csrf"
           }
         ],
         "requestBody": {
@@ -1065,8 +1387,71 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "401": {
+            "$ref": "#/components/responses/VisitorAuthRequired"
+          },
           "403": {
             "$ref": "#/components/responses/OriginMismatch"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/collections": {
+      "get": {
+        "operationId": "getSitesBySitenameCollections",
+        "summary": "List collections a site has saved",
+        "description": "Owner-only inventory of named collections on this site, with row count and most-recent write. Empty site returns `{collections:[]}`.",
+        "tags": [
+          "Collections"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Collections",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "collections": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "example": "rsvps"
+                          },
+                          "count": {
+                            "type": "integer",
+                            "example": 7
+                          },
+                          "last_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         }
       }
@@ -1075,7 +1460,7 @@
       "post": {
         "operationId": "postSitesBySitenameCollectionsByColl",
         "summary": "Append an item to a collection",
-        "description": "Append-only list (O(1) insert). For signups, RSVPs, submissions. Origin-gated, no API key. Each item \u2264 64 KB.",
+        "description": "Append-only list (O(1) insert). For signups, RSVPs, submissions. Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the owner's `X-API-Key`. Each item \u2264 64 KB.",
         "tags": [
           "Collections"
         ],
@@ -1085,6 +1470,9 @@
           },
           {
             "$ref": "#/components/parameters/coll"
+          },
+          {
+            "$ref": "#/components/parameters/csrf"
           }
         ],
         "requestBody": {
@@ -1104,6 +1492,9 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "401": {
+            "$ref": "#/components/responses/VisitorAuthRequired"
+          },
           "403": {
             "$ref": "#/components/responses/OriginMismatch"
           }
@@ -1112,7 +1503,7 @@
       "get": {
         "operationId": "getSitesBySitenameCollectionsByColl",
         "summary": "List items in a collection",
-        "description": "Newest-first, paginated. Origin-gated, no API key.",
+        "description": "Newest-first, paginated. Origin-gated (no API key) for the site's own page, or owner/admin API key for the dashboard. Writes (POST) stay Origin-only.",
         "tags": [
           "Collections"
         ],
@@ -1164,6 +1555,47 @@
           },
           "403": {
             "$ref": "#/components/responses/OriginMismatch"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/collections/{coll}/export.csv": {
+      "get": {
+        "operationId": "exportSitesBySitenameCollectionsByColl",
+        "summary": "Download a collection as CSV",
+        "description": "Owner-only. Streams the whole collection (not capped at the public 200-row read limit). Columns are `id`, `created_at`, then the sorted union of JSON keys across all rows.",
+        "tags": [
+          "Collections"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/coll"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "CSV attachment",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         }
       }
@@ -1225,7 +1657,7 @@
       "put": {
         "operationId": "putSiteStateByHandle",
         "summary": "Replace per-site JSON state (v3, by handle)",
-        "description": "Overwrites the whole blob (\u2264 1 MB), last-write-wins. Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated, no API key. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Overwrites the whole blob (\u2264 1 MB), last-write-wins. Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the owner's `X-API-Key`. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "tags": [
           "State"
         ],
@@ -1249,6 +1681,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/csrf"
           }
         ],
         "requestBody": {
@@ -1278,6 +1713,9 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "401": {
+            "$ref": "#/components/responses/VisitorAuthRequired"
+          },
           "403": {
             "$ref": "#/components/responses/OriginMismatch"
           },
@@ -1292,7 +1730,7 @@
       "patch": {
         "operationId": "patchSiteStateByHandle",
         "summary": "Atomically update per-site state (v3, by handle)",
-        "description": "Apply one or more atomic operations so concurrent writers never clobber. Origin-gated, no API key. Ops \u2014 `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match). v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the owner's `X-API-Key`. Ops \u2014 `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match). v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "tags": [
           "State"
         ],
@@ -1308,6 +1746,9 @@
           },
           {
             "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/csrf"
           }
         ],
         "requestBody": {
@@ -1389,6 +1830,9 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "401": {
+            "$ref": "#/components/responses/VisitorAuthRequired"
+          },
           "403": {
             "$ref": "#/components/responses/OriginMismatch"
           }
@@ -1399,7 +1843,7 @@
       "post": {
         "operationId": "postCollectionByHandle",
         "summary": "Append an item to a collection (v3, by handle)",
-        "description": "Append-only list (O(1) insert). For signups, RSVPs, submissions. Origin-gated, no API key. Each item \u2264 64 KB. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Append-only list (O(1) insert). For signups, RSVPs, submissions. Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the owner's `X-API-Key`. Each item \u2264 64 KB. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "tags": [
           "Collections"
         ],
@@ -1418,6 +1862,9 @@
           },
           {
             "$ref": "#/components/parameters/coll"
+          },
+          {
+            "$ref": "#/components/parameters/csrf"
           }
         ],
         "requestBody": {
@@ -1437,6 +1884,9 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "401": {
+            "$ref": "#/components/responses/VisitorAuthRequired"
+          },
           "403": {
             "$ref": "#/components/responses/OriginMismatch"
           }
@@ -1445,7 +1895,7 @@
       "get": {
         "operationId": "getCollectionByHandle",
         "summary": "List items in a collection (v3, by handle)",
-        "description": "Newest-first, paginated. Origin-gated, no API key. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Newest-first, paginated. Origin-gated (no API key) for the site's own page, or owner/admin API key for the dashboard. Writes (POST) stay Origin-only. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "tags": [
           "Collections"
         ],
@@ -1506,6 +1956,83 @@
           },
           "403": {
             "$ref": "#/components/responses/OriginMismatch"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/allow-anonymous-writes": {
+      "put": {
+        "operationId": "putAllowAnonymousWrites",
+        "summary": "Admin override \u2014 allow anonymous writes on one site",
+        "description": "Sets `sites.allow_anonymous_writes`. Admin (`ADMIN_API_KEY`) only. Default is false. When `WRITE_AUTH_MODE=on` and this flag is true, anonymous writes to this site succeed and are logged with `outcome=overridden`. No `/v1/u/{handle}/\u2026` twin.",
+        "tags": [
+          "Sites"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "allow"
+                ],
+                "properties": {
+                  "allow": {
+                    "type": "boolean"
+                  }
+                }
+              },
+              "example": {
+                "allow": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Flag updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "site": {
+                      "type": "string"
+                    },
+                    "allow_anonymous_writes": {
+                      "type": "boolean"
+                    }
+                  }
+                },
+                "example": {
+                  "site": "wedding",
+                  "allow_anonymous_writes": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         }
       }
@@ -2334,6 +2861,18 @@
           "type": "string"
         },
         "example": "signups"
+      },
+      "csrf": {
+        "name": "X-SH-CSRF",
+        "in": "header",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "1"
+          ]
+        },
+        "description": "Required on cookie-authenticated writes"
       }
     },
     "schemas": {
@@ -2528,6 +3067,46 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "VisitorAuthRequired": {
+        "description": "Visitor sign-in required to write (WRITE_AUTH_MODE=on)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "error",
+                "code",
+                "sign_in",
+                "retry"
+              ],
+              "properties": {
+                "error": {
+                  "type": "string",
+                  "example": "sign-in required to write"
+                },
+                "code": {
+                  "type": "string",
+                  "example": "visitor_auth_required"
+                },
+                "sign_in": {
+                  "type": "string",
+                  "example": "/v1/auth/oauth/providers"
+                },
+                "retry": {
+                  "type": "boolean",
+                  "example": true
+                }
+              }
+            },
+            "example": {
+              "error": "sign-in required to write",
+              "code": "visitor_auth_required",
+              "sign_in": "/v1/auth/oauth/providers",
+              "retry": true
             }
           }
         }

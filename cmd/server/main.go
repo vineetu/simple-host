@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -70,10 +71,18 @@ func main() {
 		log.Printf("warning: RESEND_API_KEY not set; /v1/auth will fail until it is configured")
 	}
 
+	if names := cfg.EnabledVisitorProviders(); len(names) == 0 {
+		log.Printf("warning: no OAuth providers configured; visitor Google/GitHub sign-in disabled")
+	} else {
+		log.Printf("visitor OAuth enabled: %s", strings.Join(names, ", "))
+	}
+	log.Printf("write auth mode: %s", cfg.WriteAuthMode)
+
 	handler.RegisterHealthRoutes(mux, db)
 	handler.NewUserHandler(db, mailer, cfg.PublicBaseURL).Register(mux, authMW, noticeMW)
-	siteHandler := handler.NewSiteHandler(db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL)
+	siteHandler := handler.NewSiteHandler(db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID)
 	siteHandler.Register(mux, authMW, noticeMW)
+	handler.NewOAuthHandler(db, cfg).Register(mux)
 	handler.RegisterTemplateRoutes(mux)
 	handler.RegisterUIRoutes(mux, cfg.PublicBaseURL, siteHandler)
 	handler.RegisterSkillsHub(mux, cfg.PublicBaseURL)

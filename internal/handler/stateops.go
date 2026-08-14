@@ -61,6 +61,9 @@ func (h *SiteHandler) patchSiteState(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	if !h.visitorWriteOK(w, r, siteID, siteName, writeRouteStatePatch, "") {
+		return
+	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, maxSiteStateSize)
 	var req struct {

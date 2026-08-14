@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -91,6 +92,16 @@ type Config struct {
 	// hosts that have not configured the analytics log yet.
 	// Set ANALYTICS_LOG=/var/log/simple-host/analytics.log in production.
 	AnalyticsLog string
+
+	// WriteAuthMode gates anonymous state/collections writes: off | log | on.
+	// Unset or any unrecognized value is "log". The source default is never "on".
+	WriteAuthMode string
+
+	// Visitor OAuth. A provider is enabled only when BOTH of its vars are set.
+	GoogleOAuthClientID     string
+	GoogleOAuthClientSecret string
+	GitHubOAuthClientID     string
+	GitHubOAuthClientSecret string
 }
 
 func Load() (Config, error) {
@@ -125,6 +136,27 @@ func Load() (Config, error) {
 	cfg.CustomDomainIP = os.Getenv("CUSTOM_DOMAIN_IP")
 	cfg.AnalyticsLog = os.Getenv("ANALYTICS_LOG")
 
+	cfg.GoogleOAuthClientID = os.Getenv("GOOGLE_OAUTH_CLIENT_ID")
+	cfg.GoogleOAuthClientSecret = os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+	cfg.GitHubOAuthClientID = os.Getenv("GITHUB_OAUTH_CLIENT_ID")
+	cfg.GitHubOAuthClientSecret = os.Getenv("GITHUB_OAUTH_CLIENT_SECRET")
+	if xorNonEmpty(cfg.GoogleOAuthClientID, cfg.GoogleOAuthClientSecret) {
+		log.Printf("warning: Google OAuth is misconfigured (need both GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET); treating as off")
+	}
+	if xorNonEmpty(cfg.GitHubOAuthClientID, cfg.GitHubOAuthClientSecret) {
+		log.Printf("warning: GitHub OAuth is misconfigured (need both GITHUB_OAUTH_CLIENT_ID and GITHUB_OAUTH_CLIENT_SECRET); treating as off")
+	}
+
+	switch mode := strings.ToLower(strings.TrimSpace(os.Getenv("WRITE_AUTH_MODE"))); mode {
+	case "off", "log", "on":
+		cfg.WriteAuthMode = mode
+	case "":
+		cfg.WriteAuthMode = "log"
+	default:
+		log.Printf("warning: invalid WRITE_AUTH_MODE %q; treating as log", mode)
+		cfg.WriteAuthMode = "log"
+	}
+
 	cfg.PreviewAccounts = map[string]bool{}
 	for _, a := range strings.Split(os.Getenv("PREVIEW_ACCOUNTS"), ",") {
 		if a = strings.TrimSpace(strings.ToLower(a)); a != "" {
@@ -146,6 +178,39 @@ func Load() (Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// GoogleOAuthEnabled reports whether both Google client vars are set.
+func (c Config) GoogleOAuthEnabled() bool {
+	return c.GoogleOAuthClientID != "" && c.GoogleOAuthClientSecret != ""
+}
+
+// GitHubOAuthEnabled reports whether both GitHub client vars are set.
+func (c Config) GitHubOAuthEnabled() bool {
+	return c.GitHubOAuthClientID != "" && c.GitHubOAuthClientSecret != ""
+}
+
+// EnabledVisitorProviders returns the enabled provider names in stable order
+// (google, then github). Empty when neither pair is configured.
+func (c Config) EnabledVisitorProviders() []string {
+	var names []string
+	if c.GoogleOAuthEnabled() {
+		names = append(names, "google")
+	}
+	if c.GitHubOAuthEnabled() {
+		names = append(names, "github")
+	}
+	return names
+}
+
+// OAuthRedirectURI is the apex callback registered with the IdP. It is derived
+// from PUBLIC_BASE_URL — there is no separate redirect-base env var.
+func (c Config) OAuthRedirectURI(provider string) string {
+	return strings.TrimRight(c.PublicBaseURL, "/") + "/v1/auth/oauth/" + provider + "/callback"
+}
+
+func xorNonEmpty(a, b string) bool {
+	return (a == "") != (b == "")
 }
 
 func getEnvOrDefault(key, fallback string) string {

@@ -292,15 +292,13 @@
 /* =====================================================================
    SIMPLE-HOST WAITLIST TEMPLATE — API CONTRACT (read me, agents)
    ---------------------------------------------------------------------
-   Every deployed site gets a small public data API on its APEX domain.
-   Derive the base URL from where the page is served:
+   Every deployed site gets a small public data API, same-origin so the
+   host-only visitor cookie is sent. Writes need sign-in + X-SH-CSRF: 1.
 
-     const host = location.hostname;                       // e.g. "nimbus.simple-host.app"
-     const sub  = host.split('.')[0];                      // "nimbus"
-     const apex = host.split('.').slice(-2).join('.');     // "simple-host.app"
-     const BASE = (host.includes('.') && sub !== apex)
-       ? `${location.protocol}//${apex}/v1/sites/${sub}`
-       : null;                                             // null => DEMO MODE (local file / apex / localhost)
+     m = location.pathname.match(/^\/([a-z0-9-]+)\/([a-z0-9-]+)/)
+     BASE = location.origin + '/v1/u/' + m[1] + '/sites/' + m[2]
+     // custom domain: window.SH_SITE = {name:'…'} → location.origin + '/v1/sites/' + name
+     // else DEMO MODE
 
    Two primitives are used here:
 
@@ -323,9 +321,9 @@
    signups collection but only ever SHOW the numeric count. Don't reuse
    this pattern for sensitive data.
 
-   DEMO MODE: when BASE === null (opened from disk, localhost, or the
-   apex itself) we show a demo count (312) and a small notice instead of
-   erroring; the page becomes fully live once deployed to a subdomain.
+   DEMO MODE: when BASE === null (opened from disk, localhost, or without
+   a content-host path) we show a demo count (312) and a small notice
+   instead of erroring; the page becomes fully live once deployed.
    ===================================================================== */
 
 'use strict';
@@ -336,13 +334,20 @@ const DEMO_COUNT  = 312;                      // shown when BASE === null
 const POLL_MS     = 20000;                    // re-fetch the public count every ~20s
 const LS_KEY      = 'nimbus_waitlist_joined'; // remember this browser already joined
 
-/* ---- API base derivation (see contract above) ---- */
-const host = location.hostname;
-const sub  = host.split('.')[0];
-const apex = host.split('.').slice(-2).join('.');
-const BASE = (host.includes('.') && sub !== apex)
-  ? `${location.protocol}//${apex}/v1/sites/${sub}`
-  : null;
+/* ---- API base (same-origin — never the apex) ---- */
+function deriveBase(){
+  const host = location.hostname;
+  const m = location.pathname.match(/^\/([a-z0-9-]{1,39})\/([a-z0-9-]{1,63})(?:\/|$)/);
+  if (host.split('.')[0] === 'sites' && m) {
+    return location.origin + '/v1/u/' + m[1] + '/sites/' + m[2];
+  }
+  const name = (window.SH_SITE && window.SH_SITE.name) || '';
+  if (name) return location.origin + '/v1/sites/' + name;
+  return null;
+}
+const BASE = deriveBase();
+const WRITE_H = {'Content-Type':'application/json','X-SH-CSRF':'1'};
+let postedOK = false;
 
 /* ---- elements ---- */
 const $ = id => document.getElementById(id);
@@ -378,9 +383,46 @@ function showCount(n){
     : 'Be the first on the waitlist';
 }
 
+function authApex(){
+  const hn = location.hostname;
+  if (hn.indexOf('sites.') === 0) return location.protocol + '//' + hn.replace(/^sites\./, '');
+  return 'https://simple-host.app';
+}
+async function offerSignIn(){
+  let box = document.getElementById('signin');
+  if (!box){
+    box = document.createElement('div');
+    box.id = 'signin';
+    els.fieldMsg.insertAdjacentElement('afterend', box);
+  }
+  box.textContent = '';
+  try {
+    const r = await fetch(authApex() + '/v1/auth/oauth/providers');
+    const d = await r.json();
+    const names = (d && d.providers) || [];
+    if (!names.length){ box.textContent = 'Sign-in is not configured.'; return; }
+    names.forEach(name => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = 'Sign in with ' + name;
+      b.style.margin = '8px 8px 0 0';
+      b.onclick = () => {
+        location.href = authApex() + '/v1/auth/oauth/' + encodeURIComponent(name) +
+          '?return_to=' + encodeURIComponent(location.href);
+      };
+      box.appendChild(b);
+    });
+  } catch (e) {
+    box.textContent = 'Could not load sign-in.';
+  }
+}
+async function readErr(res){
+  try { return await res.json(); } catch (e) { return {}; }
+}
+
 // GET /state -> doc may be null before the first write.
 async function fetchCount(){
-  const res = await fetch(`${BASE}/state`, { cache: 'no-store' });
+  const res = await fetch(`${BASE}/state`, { cache: 'no-store', credentials: 'include' });
   if (!res.ok) throw new Error('state read ' + res.status);
   const doc = await res.json();
   return (doc && doc.signups) | 0;
@@ -413,24 +455,42 @@ async function submit(ev){
   els.submit.textContent = 'Joining…';
   try {
     if (BASE){
-      // 1) Append the signup record to the append-only collection.
-      const res = await fetch(`${BASE}/collections/signups`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-      if (res.status !== 201 && !res.ok) throw new Error('signup ' + res.status);
-      // 2) Bump the public count via an atomic inc — no clobbering.
-      await fetch(`${BASE}/state`, {
+      if (!postedOK){
+        const res = await fetch(`${BASE}/collections/signups`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: WRITE_H,
+          body: JSON.stringify({ email }),
+        });
+        if (res.status !== 201 && !res.ok){
+          const body = await readErr(res);
+          const err = new Error(body.error || ('signup ' + res.status));
+          err.code = body.code;
+          throw err;
+        }
+        postedOK = true;
+      }
+      const patch = await fetch(`${BASE}/state`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: WRITE_H,
         body: JSON.stringify({ ops: [{ op: 'inc', path: 'signups', by: 1 }] }),
       });
+      if (!patch.ok){
+        const body = await readErr(patch);
+        if (body.code === 'visitor_auth_required') offerSignIn();
+        els.fieldbox.classList.add('err');
+        els.fieldMsg.textContent = 'You’re saved; the count will update. ' + (body.error || patch.status);
+        els.submit.disabled = false;
+        els.submit.textContent = 'Join the waitlist';
+        return;
+      }
       refreshCount();
     }
     try { localStorage.setItem(LS_KEY, '1'); } catch (e) {}
     markJoined();
   } catch (err) {
+    if (err.code === 'visitor_auth_required') offerSignIn();
     els.fieldbox.classList.add('err');
     els.fieldMsg.textContent = 'Couldn’t join right now — please try again. (' + err.message + ')';
     els.submit.disabled = false;

@@ -51,7 +51,7 @@ Gotchas: the site lives under `/<handle>/<sitename>/` on the content host, so **
 
 What it is: a single JSON document (up to 1 MB) scoped to your site. The server stores it in Postgres; your site reads and writes it from the browser. The blob is shared across **everyone** who visits — the last writer wins.
 
-When to choose: anything you'd want a tiny key-value store for — saved drafts, app state, a shared note, content the page just generated, configuration. **Not for secrets or per-user data**: anyone who can load the page can read the blob, and any visitor can overwrite it. If you need per-user data, store it under different keys inside the blob and key on something like `crypto.randomUUID()` saved in `localStorage`.
+When to choose: anything you'd want a tiny key-value store for — saved drafts, app state, a shared note, content the page just generated, configuration. **Not for secrets or per-user data**: anyone who can load the page can read the blob. Writes require a Google/GitHub session (`X-SH-CSRF: 1`) or the owner's `X-API-Key` (same account; the hosted session is not an API key); a 401 with `code === "visitor_auth_required"` must keep the form and offer sign-in. If you need per-user data, store it under different keys inside the blob and key on something like `crypto.randomUUID()` saved in `localStorage`.
 
 How to use, from a page hosted at `https://sites.simple-host.app/<handle>/<sitename>/`:
 
@@ -62,14 +62,19 @@ const url = `/v1/u/${m[1]}/sites/${m[2]}/state`;
 // legacy /v1/sites/<sitename>/state still works; widgets auto-derive the right URL
 
 // load
-const state = await fetch(url).then(r => r.json());
+const state = await fetch(url, {credentials:'include'}).then(r => r.json());
 
-// save
-await fetch(url, {
-  method: 'PUT',
-  headers: {'Content-Type': 'application/json'},
-  body: JSON.stringify(state),
+// save — visitor session or owner X-API-Key; never claim success on non-2xx
+const res = await fetch(url, {
+  method: 'PATCH',
+  credentials: 'include',
+  headers: {'Content-Type': 'application/json', 'X-SH-CSRF': '1'},
+  body: JSON.stringify({ops:[{op:'set', path:'draft', value: state}]}),
 });
+if (!res.ok) {
+  const err = await res.json().catch(() => ({}));
+  if (err.code === 'visitor_auth_required') { /* keep the form, offer sign-in */ }
+}
 ```
 
 Gotchas: the content host `sites.simple-host.app` is a **shared origin** across sites (co-tenancy is accepted — don't store secrets; state was never confidential). Owners can allow extra origins via `PUT /v1/sites/<sitename>/allowed-origins` for "backend anywhere." Don't put API keys or PII in the blob — anyone who can load the page can read it. Body cap is 1 MB; sending more returns 413.

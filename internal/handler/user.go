@@ -44,9 +44,9 @@ type authRequest struct {
 }
 
 type authChallengeResponse struct {
-	Message  string `json:"message"`
-	Email    string `json:"email"`
-	ExpiresIn int   `json:"expires_in_seconds"`
+	Message   string `json:"message"`
+	Email     string `json:"email"`
+	ExpiresIn int    `json:"expires_in_seconds"`
 }
 
 type verifyRequest struct {
@@ -253,7 +253,7 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 	// still have a NULL handle). ClaimHandle only writes WHERE handle IS NULL,
 	// so existing handles are never overwritten.
 	if created || !user.Handle.Valid {
-		h.assignHandle(r.Context(), user.ID, tok.Email)
+		assignHandle(r.Context(), h.database, user.ID, tok.Email)
 		if refetched, rerr := db.GetUserByUsername(r.Context(), h.database, tok.Email); rerr == nil {
 			user = refetched
 		} else {

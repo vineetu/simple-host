@@ -14,7 +14,7 @@ There is no separate object store, CDN, build pipeline, or microservices. Everyt
 
 - `cmd/server/main.go` — wires config, opens Postgres, creates `DiskStorage`, mounts every handler onto a single `http.ServeMux`, runs the HTTP server with graceful shutdown. All routing decisions live here.
 - `internal/config` — env-driven config. `DB_DSN` and `ADMIN_API_KEY` are required; everything else has a sensible default.
-- `internal/auth` — `X-API-Key` middleware. The hardcoded `ADMIN_API_KEY` short-circuits to a synthetic admin user with `ID="admin"`; everything else looks up the `users` table.
+- `internal/auth` — `X-API-Key` middleware. The hardcoded `ADMIN_API_KEY` short-circuits to a synthetic admin user with `ID="admin"`; everything else looks up the `users` table. Middleware reads **only** `X-API-Key` — never the site session cookie. A hosted-page Google/GitHub sign-in is the same `users` row (`oauth_identities`); the `__Host-sh_vsess` cookie is accepted only by `visitorWriteOK` for state/collections writes.
 - `internal/db` — raw `database/sql` against Postgres. Schema is in `db/schema.sql` (no migrations framework).
 - `internal/storage/disk.go` — versioned site layout on disk: `<DATA_DIR>/<site>/v<n>/` with a `current` directory holding the live version.
 - `internal/tarball` — extracts and validates uploaded archives (path traversal guards, size limits, extension denylist for source-script types only).
@@ -30,7 +30,7 @@ There is no separate object store, CDN, build pipeline, or microservices. Everyt
 One `http.ServeMux` in `main.go`. Major prefixes:
 
 - `/api/auth`, `/v1/me`, `/v1/sites/*` — REST surface. Mostly auth-gated. Wrapped with `noticeMW`.
-- `/v1/sites/{site}/state` — per-site JSON state. **Public per-site scratch storage**, not a secure store: the only gate is an `Origin`/`Referer` check (browser pages hold no API key), which real browsers can't forge cross-site but `curl` can. Treat as readable/writable by anyone who knows the site name — no confidentiality/integrity guarantee; never put secrets in it. Abuse is bounded by a per-IP rate limit + a 1 MB cap. NOT wrapped with `noticeMW` since browser pages parse the body directly.
+- `/v1/sites/{site}/state` — per-site JSON state. **Public-read scratch storage**: GETs are Origin/Referer-gated (a real browser can't forge that cross-site; `curl` can). Writes (`PUT`/`PATCH` state, `POST` collections) go through `visitorWriteOK`: visitor session + `X-SH-CSRF`, owner `X-API-Key`, or `WRITE_AUTH_MODE=log` (measure, still allow). Unset `WRITE_AUTH_MODE` is `log`; the source default is never `on`. Never put secrets in it. NOT wrapped with `noticeMW`.
 - `/sites/{site}/...` — public static serving. Path safety + `http.FileServer` rooted at `<DATA_DIR>/<site>/current/`.
 - `/skills.zip`, `/plugin.zip`, `/install.sh`, `/skills/version` — Website Deploy bundle downloads. Public, no auth.
 - `/healthz`, `/readyz` — probes.
@@ -49,6 +49,7 @@ When you bump the plugin, update `simple-host-website/.claude-plugin/plugin.json
 ## Things that look weird but are intentional
 
 - **Admin user has no DB row.** `auth.Middleware` constructs a fake `&db.User{ID:"admin"}` when the request key matches `ADMIN_API_KEY`. Don't write code that joins `users.id = "admin"`.
+- **A site session is not owner power.** Custom domains reverse-proxy `/v1/` to this binary, so `__Host-sh_vsess` is sent to `/v1/sites/{name}`. Middleware ignores cookies; do not teach it to accept them.
 - **No `ADMIN_API_KEY` default in source.** Required env var. The previous default (`simple-host-admin-key-2026`) was removed when this repo went public so the source doesn't ship a known key.
 - **No tests in the repo.** `go test ./...` is a no-op. Verify behavior end-to-end against a running server.
 - **HTML/JS is embedded, not served from disk.** Editing `internal/handler/static/index.html` requires a binary rebuild for the change to take effect.

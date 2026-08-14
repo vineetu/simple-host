@@ -14,7 +14,7 @@ import (
 // in between). Callers should re-read and retry.
 var ErrStateVersionConflict = errors.New("state version conflict")
 
-func CreateUser(ctx context.Context, db *sql.DB, username, apiKey string, isAdmin bool) (User, error) {
+func CreateUser(ctx context.Context, q Querier, username, apiKey string, isAdmin bool) (User, error) {
 	const query = `
 		INSERT INTO users (username, api_key, is_admin)
 		VALUES ($1, $2, $3)
@@ -22,7 +22,7 @@ func CreateUser(ctx context.Context, db *sql.DB, username, apiKey string, isAdmi
 	`
 
 	var user User
-	err := db.QueryRowContext(ctx, query, username, apiKey, isAdmin).Scan(
+	err := q.QueryRowContext(ctx, query, username, apiKey, isAdmin).Scan(
 		&user.ID,
 		&user.Username,
 		&user.APIKey,
@@ -52,7 +52,7 @@ func GetUserByAPIKey(ctx context.Context, db *sql.DB, apiKey string) (User, erro
 	return user, err
 }
 
-func GetUserByUsername(ctx context.Context, db *sql.DB, username string) (User, error) {
+func GetUserByUsername(ctx context.Context, q Querier, username string) (User, error) {
 	const query = `
 		SELECT id, username, api_key, is_admin, created_at, handle
 		FROM users
@@ -60,7 +60,27 @@ func GetUserByUsername(ctx context.Context, db *sql.DB, username string) (User, 
 	`
 
 	var user User
-	err := db.QueryRowContext(ctx, query, username).Scan(
+	err := q.QueryRowContext(ctx, query, username).Scan(
+		&user.ID,
+		&user.Username,
+		&user.APIKey,
+		&user.IsAdmin,
+		&user.CreatedAt,
+		&user.Handle,
+	)
+	return user, err
+}
+
+// GetUserByID loads a users row by primary key.
+func GetUserByID(ctx context.Context, q Querier, id string) (User, error) {
+	const query = `
+		SELECT id, username, api_key, is_admin, created_at, handle
+		FROM users
+		WHERE id = $1
+	`
+
+	var user User
+	err := q.QueryRowContext(ctx, query, id).Scan(
 		&user.ID,
 		&user.Username,
 		&user.APIKey,
@@ -111,13 +131,13 @@ func GetHandleBySiteName(ctx context.Context, db *sql.DB, name string) (string, 
 // ClaimHandle atomically sets a user's handle iff still unset. Returns (true,nil) on
 // success, (false,nil) if the handle is taken (unique violation) so the caller can try
 // the next candidate, (false,err) on other errors.
-func ClaimHandle(ctx context.Context, database *sql.DB, userID, handle string) (bool, error) {
+func ClaimHandle(ctx context.Context, q Querier, userID, handle string) (bool, error) {
 	const query = `
 		UPDATE users
 		SET handle = $2, handle_changed_at = now()
 		WHERE id = $1 AND handle IS NULL
 	`
-	res, err := database.ExecContext(ctx, query, userID, handle)
+	res, err := q.ExecContext(ctx, query, userID, handle)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return false, nil
@@ -508,24 +528,24 @@ func scanSiteRows(rows *sql.Rows) ([]Site, error) {
 }
 
 // CreateAuthToken inserts a new verification token row.
-func CreateAuthToken(ctx context.Context, db *sql.DB, email, code, linkToken string, expiresAt time.Time) error {
+func CreateAuthToken(ctx context.Context, q Querier, email, code, linkToken string, expiresAt time.Time) error {
 	const query = `
 		INSERT INTO auth_tokens (email, code, link_token, expires_at)
 		VALUES ($1, $2, $3, $4)
 	`
-	_, err := db.ExecContext(ctx, query, email, code, linkToken, expiresAt)
+	_, err := q.ExecContext(ctx, query, email, code, linkToken, expiresAt)
 	return err
 }
 
 // AuthToken is the in-memory representation of a row in auth_tokens.
 type AuthToken struct {
-	ID         string
-	Email      string
-	Code       string
-	LinkToken  string
-	ExpiresAt  time.Time
-	UsedAt     sql.NullTime
-	Attempts   int
+	ID        string
+	Email     string
+	Code      string
+	LinkToken string
+	ExpiresAt time.Time
+	UsedAt    sql.NullTime
+	Attempts  int
 }
 
 // GetAuthTokenByLink returns the active (unused, not expired) token for a
