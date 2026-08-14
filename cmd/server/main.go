@@ -94,6 +94,16 @@ func main() {
 		log.Printf("no model backend set (LLM_API_KEY / AGENT_SERVER_URL / ANTHROPIC_API_KEY); /v1/generate (AI create) disabled")
 	}
 
+	// Voice input for the builder chat. Local speech-to-text, so this is CPU on
+	// this box rather than a metered API; still sign-in-gated and rate limited,
+	// because it is CPU anyone signed in can spend.
+	if cfg.TranscribeURL != "" {
+		handler.NewTranscribeHandler(cfg.TranscribeURL).Register(mux, authMW)
+		log.Printf("voice input enabled (/v1/transcribe -> %s)", cfg.TranscribeURL)
+	} else {
+		log.Printf("TRANSCRIBE_URL unset; /v1/transcribe (voice input) disabled")
+	}
+
 	// Server-side visitor analytics: tail the nginx analytics log into daily
 	// aggregates. Off unless ANALYTICS_LOG is set (safe default for local dev).
 	if cfg.AnalyticsLog != "" {

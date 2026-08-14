@@ -72,6 +72,12 @@ type Config struct {
 	VisionBaseURL string // default https://openrouter.ai/api/v1
 	VisionModel   string // default openai/gpt-5.6-luna
 
+	// Voice input for the builder chat (/v1/transcribe). Points at a local
+	// speech-to-text service; the model runs on this box, so audio never leaves
+	// the host and there is no per-minute cost. Unset disables the endpoint, and
+	// the chat hides its mic button.
+	TranscribeURL string // e.g. http://127.0.0.1:8100/transcribe
+
 	// Ephemeral "preview" sites. Sites created by an account in PreviewAccounts
 	// get an expires_at = now + PreviewTTL, and a background sweep deletes them
 	// once expired. Everyone else's sites are permanent (expires_at NULL).
@@ -109,6 +115,7 @@ func Load() (Config, error) {
 		GenerateModel:     getEnvOrDefault("GENERATE_MODEL", "claude-haiku-4-5-20251001"),
 		AgentServerURL:    strings.TrimRight(os.Getenv("AGENT_SERVER_URL"), "/"),
 		AgentSharedSecret: os.Getenv("AGENT_SHARED_SECRET"),
+		TranscribeURL:     strings.TrimRight(os.Getenv("TRANSCRIBE_URL"), "/"),
 	}
 	// CONTENT_HOST defaults to sites.<SITE_DOMAIN> so prod/test need no extra env.
 	cfg.ContentHost = getEnvOrDefault("CONTENT_HOST", "sites."+cfg.SiteDomain)

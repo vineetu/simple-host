@@ -539,6 +539,13 @@
       background: var(--bg); color: var(--text); outline: none;
     }
     .ai-input input[type="text"]:focus { border-color: var(--accent); }
+    .mic-btn { padding: 0 12px; line-height: 1; font-size: 16px; }
+    /* Recording needs to be unmistakable — it is a live microphone, and the only
+       thing telling the user it is on is this button. */
+    .mic-btn.recording { background: #d93636; border-color: #d93636; color: #fff; animation: mic-pulse 1.2s ease-in-out infinite; }
+    .mic-btn.busy { opacity: .6; }
+    @keyframes mic-pulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+    @media (prefers-reduced-motion: reduce) { .mic-btn.recording { animation: none; } }
 
     .ai-auth { padding: 14px 20px 0; }
     .ai-auth-inner { border: 1px solid var(--border-hi); border-radius: var(--radius); padding: 14px 16px; background: var(--bg); }
@@ -665,6 +672,10 @@
       </div>
       <form class="ai-input" id="ai-form">
         <input type="text" id="chat-input" placeholder="Describe the site you want — e.g. a landing page for my coffee shop…" autocomplete="off">
+        <!-- Hidden until we know voice input is actually usable: the endpoint has
+             to be configured, the browser has to expose a recorder, and getUserMedia
+             needs a secure context. A mic button that cannot record is worse than none. -->
+        <button class="btn mic-btn" type="button" id="chat-mic" hidden title="Speak your idea" aria-label="Speak your idea">🎤</button>
         <button class="btn btn-primary" type="submit" id="chat-send">Build</button>
       </form>
     </div>
@@ -1464,9 +1475,108 @@
       document.getElementById('chat-input').focus();
     }
 
+    // ------------------------------------------------------------ voice input
+    // Tap to record, tap to stop; the transcript lands in the chat box as
+    // editable text rather than sending itself. Speech recognition is wrong often
+    // enough that auto-sending would spend a real build on a misheard prompt.
+    var micRec = null, micChunks = [], micStream = null;
+
+    function micBtn() { return document.getElementById('chat-mic'); }
+
+    function micSet(state, title) {
+      var b = micBtn();
+      if (!b) return;
+      b.classList.toggle('recording', state === 'recording');
+      b.classList.toggle('busy', state === 'busy');
+      b.disabled = state === 'busy';
+      b.textContent = state === 'recording' ? '■' : '🎤';
+      b.title = title || (state === 'recording' ? 'Stop and transcribe' : 'Speak your idea');
+      b.setAttribute('aria-label', b.title);
+    }
+
+    function micStopTracks() {
+      if (micStream) { micStream.getTracks().forEach(function (t) { t.stop(); }); micStream = null; }
+    }
+
+    async function micStart() {
+      if (!apiKey) {
+        // Same sign-in gate as building. Ask before opening the mic, not after —
+        // recording first and then demanding an email wastes what they just said.
+        aiAppend('ai', 'One quick step — sign in with your email first, then I can listen.');
+        showAiAuth('email');
+        return;
+      }
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (e) {
+        // Denied or no device. Say so once; do not nag on every tap.
+        aiAppend('ai', 'I could not get the microphone — check the browser permission and try again.');
+        return;
+      }
+      micChunks = [];
+      // Let the browser choose its container. Chrome gives WebM/Opus and iOS
+      // Safari gives MP4/AAC; the server decodes both, so forcing a mimeType
+      // here would only break whichever browser disagrees.
+      try { micRec = new MediaRecorder(micStream); }
+      catch (e) { micStopTracks(); aiAppend('ai', 'This browser cannot record audio.'); return; }
+      micRec.ondataavailable = function (ev) { if (ev.data && ev.data.size) micChunks.push(ev.data); };
+      micRec.onstop = micFinish;
+      micRec.start();
+      micSet('recording');
+    }
+
+    async function micFinish() {
+      micStopTracks();
+      micSet('busy', 'Transcribing…');
+      var blob = new Blob(micChunks, { type: (micRec && micRec.mimeType) || 'audio/webm' });
+      micChunks = [];
+      try {
+        if (blob.size < 1200) { micSet('idle'); return; }   // an accidental tap, not speech
+        var res = await fetch('/v1/transcribe', {
+          method: 'POST',
+          headers: { 'X-API-Key': apiKey, 'Content-Type': blob.type || 'application/octet-stream' },
+          body: blob
+        });
+        var data = await res.json().catch(function () { return {}; });
+        if (!res.ok) { aiAppend('ai', data.error || 'That recording did not come through — please try again.'); micSet('idle'); return; }
+        var text = (data.text || '').trim();
+        if (!text) { aiAppend('ai', "I didn't catch any speech in that — try again a bit closer to the mic."); micSet('idle'); return; }
+        var input = document.getElementById('chat-input');
+        input.value = input.value ? input.value.replace(/\s+$/, '') + ' ' + text : text;
+        input.focus();
+      } catch (e) {
+        aiAppend('ai', 'That recording did not come through — please try again.');
+      } finally {
+        micSet('idle');
+      }
+    }
+
+    function micToggle() {
+      if (micRec && micRec.state === 'recording') { micRec.stop(); micRec = null; return; }
+      micStart();
+    }
+
+    // Only offer the button if every piece is actually present: a configured
+    // endpoint, a recorder, and a secure context (getUserMedia is unavailable on
+    // plain http, so the button would fail every time on a non-TLS origin).
+    async function initVoiceInput() {
+      var b = micBtn();
+      if (!b) return;
+      if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') return;
+      try {
+        var res = await fetch('/v1/transcribe', { method: 'POST' });
+        // 401 = wired up and asking us to sign in. 404 = endpoint not configured.
+        if (res.status === 404) return;
+      } catch (e) { return; }
+      b.hidden = false;
+      b.addEventListener('click', micToggle);
+      micSet('idle');
+    }
+
     (function initAiCreate() {
       var form = document.getElementById('ai-form');
       if (form) form.addEventListener('submit', onAiSubmit);
+      initVoiceInput();
       var ef = document.getElementById('ai-email-form');
       if (ef) ef.addEventListener('submit', onAiEmailSubmit);
       var cf = document.getElementById('ai-code-form');

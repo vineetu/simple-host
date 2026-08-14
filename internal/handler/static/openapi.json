@@ -2018,6 +2018,69 @@
         }
       }
     },
+    "/v1/transcribe": {
+      "post": {
+        "operationId": "postTranscribe",
+        "summary": "Transcribe a voice recording to text",
+        "description": "Powers the mic button in the builder chat. POST the raw audio bytes as the body with the recording's Content-Type \u2014 WebM/Opus (Chrome) and MP4/AAC (iOS Safari) are both accepted, since browsers disagree and the server sniffs the container itself. Speech-to-text runs on this box (Moonshine, CPU-only), so audio is never sent to a third party. Returns the text for the user to edit and send; it does not start a build. Sign-in-gated and rate limited. Absent when the server has no TRANSCRIBE_URL configured.",
+        "tags": [
+          "AI"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transcript. Empty text means no speech was detected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    },
+                    "seconds": {
+                      "type": "number",
+                      "description": "duration of the decoded audio"
+                    },
+                    "took_ms": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "no audio",
+            "or the container could not be decoded": null
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "413": {
+            "description": "recording too large (25 MB cap)"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
     "/v1/generate": {
       "post": {
         "operationId": "postGenerate",
