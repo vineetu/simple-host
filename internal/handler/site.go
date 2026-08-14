@@ -80,6 +80,11 @@ type SiteHandler struct {
 	// expires after previewTTL and is removed by the background sweep. Empty =off.
 	previewAccounts map[string]bool
 	previewTTL      time.Duration
+
+	// adminAPIKey is the env ADMIN_API_KEY. Used to recognize the admin on
+	// routes that are not wrapped with auth middleware (the public collection
+	// GET, which also accepts an owner key).
+	adminAPIKey string
 }
 
 // lockSite acquires the per-site upload mutex and returns its unlock func.
@@ -143,6 +148,7 @@ func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, con
 		viewSecret:      secret[:],
 		previewAccounts: previewAccounts,
 		previewTTL:      previewTTL,
+		adminAPIKey:     adminAPIKey,
 	}
 	if len(previewAccounts) > 0 {
 		ttlHours := int(previewTTL.Hours())
@@ -259,7 +265,10 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 
 	// Append-only collections (second backend type): cheap O(1) appends +
 	// paginated reads for large/high-volume lists. Origin-gated + view-lock
-	// aware, like state.
+	// aware, like state. Owner-authenticated list + CSV export sit next to
+	// them so a site owner can see (and download) what the site saved.
+	mux.Handle("GET /v1/sites/{sitename}/collections", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listSiteCollections))))
+	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}/export.csv", authMiddleware(http.HandlerFunc(h.exportCollectionCSV)))
 	mux.HandleFunc("GET /v1/sites/{sitename}/collections/{coll}", h.listCollection)
 	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection)))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/collections/{coll}", h.optionsCollection)

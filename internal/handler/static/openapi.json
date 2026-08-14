@@ -1071,6 +1071,66 @@
         }
       }
     },
+    "/v1/sites/{sitename}/collections": {
+      "get": {
+        "operationId": "getSitesBySitenameCollections",
+        "summary": "List collections a site has saved",
+        "description": "Owner-only inventory of named collections on this site, with row count and most-recent write. Empty site returns `{collections:[]}`.",
+        "tags": [
+          "Collections"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Collections",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "collections": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "example": "rsvps"
+                          },
+                          "count": {
+                            "type": "integer",
+                            "example": 7
+                          },
+                          "last_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
     "/v1/sites/{sitename}/collections/{coll}": {
       "post": {
         "operationId": "postSitesBySitenameCollectionsByColl",
@@ -1112,7 +1172,7 @@
       "get": {
         "operationId": "getSitesBySitenameCollectionsByColl",
         "summary": "List items in a collection",
-        "description": "Newest-first, paginated. Origin-gated, no API key.",
+        "description": "Newest-first, paginated. Origin-gated (no API key) for the site's own page, or owner/admin API key for the dashboard. Writes (POST) stay Origin-only.",
         "tags": [
           "Collections"
         ],
@@ -1164,6 +1224,47 @@
           },
           "403": {
             "$ref": "#/components/responses/OriginMismatch"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/collections/{coll}/export.csv": {
+      "get": {
+        "operationId": "exportSitesBySitenameCollectionsByColl",
+        "summary": "Download a collection as CSV",
+        "description": "Owner-only. Streams the whole collection (not capped at the public 200-row read limit). Columns are `id`, `created_at`, then the sorted union of JSON keys across all rows.",
+        "tags": [
+          "Collections"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/coll"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "CSV attachment",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         }
       }
@@ -1445,7 +1546,7 @@
       "get": {
         "operationId": "getCollectionByHandle",
         "summary": "List items in a collection (v3, by handle)",
-        "description": "Newest-first, paginated. Origin-gated, no API key. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Newest-first, paginated. Origin-gated (no API key) for the site's own page, or owner/admin API key for the dashboard. Writes (POST) stay Origin-only. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "tags": [
           "Collections"
         ],
