@@ -83,8 +83,9 @@ type SiteHandler struct {
 
 	// writeAuthMode is off | log | on (config default is log, never on).
 	writeAuthMode string
-	// adminAPIKey / adminUserID resolve owner/admin X-API-Key writers on
-	// state/collections without wrapping those routes in auth.Middleware.
+	// adminAPIKey / adminUserID recognize owner/admin X-API-Key callers on
+	// routes that are not wrapped with auth.Middleware: state/collections
+	// writers, and the public collection GET (which also accepts an owner key).
 	adminAPIKey string
 	adminUserID string
 }
@@ -268,7 +269,10 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 
 	// Append-only collections (second backend type): cheap O(1) appends +
 	// paginated reads for large/high-volume lists. Origin-gated + view-lock
-	// aware, like state.
+	// aware, like state. Owner-authenticated list + CSV export sit next to
+	// them so a site owner can see (and download) what the site saved.
+	mux.Handle("GET /v1/sites/{sitename}/collections", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listSiteCollections))))
+	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}/export.csv", authMiddleware(http.HandlerFunc(h.exportCollectionCSV)))
 	mux.HandleFunc("GET /v1/sites/{sitename}/collections/{coll}", h.listCollection)
 	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection)))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/collections/{coll}", h.optionsCollection)

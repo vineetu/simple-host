@@ -115,3 +115,102 @@ func ListCollectionItemsByID(ctx context.Context, db *sql.DB, siteID, collection
 	}
 	return out, rows.Err()
 }
+
+// CollectionSummary is one named collection on a site: how many rows it
+// holds and when the most recent write landed.
+type CollectionSummary struct {
+	Name   string    `json:"name"`
+	Count  int64     `json:"count"`
+	LastAt time.Time `json:"last_at"`
+}
+
+// ListCollectionSummariesByID returns every collection that has at least
+// one item for siteID, busiest first. Empty site → empty slice (not nil).
+func ListCollectionSummariesByID(ctx context.Context, db *sql.DB, siteID string) ([]CollectionSummary, error) {
+	const q = `
+		SELECT collection, count(*), max(created_at)
+		FROM collection_items
+		WHERE site_id = $1
+		GROUP BY collection
+		ORDER BY 2 DESC`
+	rows, err := db.QueryContext(ctx, q, siteID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]CollectionSummary, 0)
+	for rows.Next() {
+		var s CollectionSummary
+		if err := rows.Scan(&s.Name, &s.Count, &s.LastAt); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// CollectionExistsByID reports whether siteID has any rows in collection.
+func CollectionExistsByID(ctx context.Context, db *sql.DB, siteID, collection string) (bool, error) {
+	const q = `
+		SELECT EXISTS(
+			SELECT 1 FROM collection_items
+			WHERE site_id = $1 AND collection = $2
+		)`
+	var ok bool
+	err := db.QueryRowContext(ctx, q, siteID, collection).Scan(&ok)
+	return ok, err
+}
+
+// ListCollectionKeysByID returns the sorted union of JSON object keys
+// across every item in the collection. Non-object values contribute no keys.
+func ListCollectionKeysByID(ctx context.Context, db *sql.DB, siteID, collection string) ([]string, error) {
+	const q = `
+		SELECT DISTINCT k
+		FROM collection_items,
+		     LATERAL jsonb_object_keys(
+		       CASE WHEN jsonb_typeof(data) = 'object' THEN data ELSE '{}'::jsonb END
+		     ) AS k
+		WHERE site_id = $1 AND collection = $2
+		ORDER BY 1`
+	rows, err := db.QueryContext(ctx, q, siteID, collection)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]string, 0)
+	for rows.Next() {
+		var k string
+		if err := rows.Scan(&k); err != nil {
+			return nil, err
+		}
+		out = append(out, k)
+	}
+	return out, rows.Err()
+}
+
+// ForEachCollectionItemByID walks every item in the collection oldest-first,
+// unbounded. Used by the owner CSV export; the public paginated list is
+// ListCollectionItemsByID. fn is called once per row; a non-nil return
+// stops iteration and is returned to the caller.
+func ForEachCollectionItemByID(ctx context.Context, db *sql.DB, siteID, collection string, fn func(CollectionItem) error) error {
+	const q = `
+		SELECT id, data, created_at
+		FROM collection_items
+		WHERE site_id = $1 AND collection = $2
+		ORDER BY id ASC`
+	rows, err := db.QueryContext(ctx, q, siteID, collection)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var it CollectionItem
+		if err := rows.Scan(&it.ID, &it.Data, &it.CreatedAt); err != nil {
+			return err
+		}
+		if err := fn(it); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
+}
