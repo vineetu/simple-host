@@ -533,13 +533,17 @@
 
     .ai-input { display: flex; flex-direction: column; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--border); }
     .ai-input-row { display: flex; gap: 8px; align-items: stretch; }
-    .ai-input input[type="text"] {
+    .ai-input textarea#chat-input {
       flex: 1; min-width: 0;
       padding: 10px 14px; font-size: 14px; font-family: var(--mono);
       border: 1px solid var(--border); border-radius: var(--radius);
       background: var(--bg); color: var(--text); outline: none;
+      /* Grows with the transcript instead of scrolling a one-line box. The cap
+         keeps a long dictation from pushing the chat off screen. */
+      resize: none; overflow-y: auto; line-height: 1.45;
+      min-height: 40px; max-height: 168px;
     }
-    .ai-input input[type="text"]:focus { border-color: var(--accent); }
+    .ai-input textarea#chat-input:focus { border-color: var(--accent); }
     .mic-btn { padding: 0 12px; line-height: 1; font-size: 16px; }
     /* Recording needs to be unmistakable — it is a live microphone, and the only
        thing telling the user it is on is this button. */
@@ -711,7 +715,7 @@
       <form class="ai-input" id="ai-form">
         <div class="attach-strip" id="attach-strip" hidden></div>
         <div class="ai-input-row">
-          <input type="text" id="chat-input" placeholder="Describe the site you want — e.g. a landing page for my coffee shop…" autocomplete="off">
+          <textarea id="chat-input" rows="1" placeholder="Describe the site you want — e.g. a landing page for my coffee shop…" autocomplete="off"></textarea>
           <input type="file" id="chat-file" hidden multiple accept="image/png,image/jpeg,image/gif,image/webp,.png,.jpg,.jpeg,.gif,.webp,application/pdf,.pdf,text/plain,text/markdown,text/csv,application/json,.txt,.md,.csv,.json">
           <button class="btn mic-btn" type="button" id="chat-attach" title="Attach a file" aria-label="Attach a file">📎</button>
           <!-- Hidden until we know voice input is actually usable: the endpoint has
@@ -1858,7 +1862,7 @@
     // Tap to record, tap to stop; the transcript lands in the chat box as
     // editable text rather than sending itself. Speech recognition is wrong often
     // enough that auto-sending would spend a real build on a misheard prompt.
-    var micRec = null, micChunks = [], micStream = null;
+    var micRec = null, micChunks = [], micStream = null, micLive = false;
 
     function micBtn() { return document.getElementById('chat-mic'); }
 
@@ -1904,66 +1908,124 @@
       // send while the user is still talking.
       micRec.start(1000);
       micSet('recording');
-      micStartInterim();
+      // Live transcript if we can get it; the MediaRecorder above keeps running
+      // either way, so the stop-and-transcribe path is still the safety net if
+      // the socket never opens or drops mid-sentence.
+      micLive = false;
+      if (micLiveSupported()) {
+        try { micLive = await micStartLive(micStream); } catch (e) { micLive = false; }
+      }
     }
 
-    // Live transcript while recording.
+    // Auto-grow the prompt box as text arrives, so a dictated paragraph is
+    // visible instead of scrolling inside a one-line field.
+    function chatInputGrow() {
+      var el = document.getElementById('chat-input');
+      if (!el) return;
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 168) + 'px';
+    }
+
+    // Live transcription over a WebSocket.
     //
-    // Each pass re-sends the whole recording so far rather than the newest
-    // slice: only the first MediaRecorder chunk carries container headers, so a
-    // later slice on its own is not decodable. Re-transcribing costs CPU that
-    // grows with the clip, which is why the interval is seconds rather than
-    // continuous and why it stops after micInterimMaxMs — past that, waiting for
-    // the final pass is cheaper than guessing.
-    var micInterimTimer = null, micInterimBusy = false, micInterimBase = '', micStartedAt = 0;
-    var micInterimEveryMs = 4000, micInterimMaxMs = 90000;
+    // Raw PCM goes straight to the speech service as it is captured, and the
+    // model streams revisions back (~0.3s apart). We deliberately do NOT use
+    // MediaRecorder here: its output is container-framed, so only the first
+    // chunk is decodable on its own, which is what forces the batch endpoint to
+    // re-send the entire recording for every update.
+    var micWS = null, micAudioCtx = null, micNode = null, micSrc = null, micBase = '';
 
-    function micStartInterim() {
+    function micLiveSupported() {
+      return !!(window.AudioContext || window.webkitAudioContext) && typeof WebSocket !== 'undefined';
+    }
+
+    async function micStartLive(stream) {
+      var res = await fetch('/v1/transcribe/ticket', { method: 'POST', headers: { 'X-API-Key': apiKey } });
+      if (!res.ok) return false;
+      var t = (await res.json().catch(function () { return {}; })).ticket;
+      if (!t) return false;
+
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      micAudioCtx = new Ctx();
+      // Send the device's native rate and let the model resample: doing it in JS
+      // would cost quality for no benefit.
+      var rate = micAudioCtx.sampleRate;
+      var proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+      micWS = new WebSocket(proto + location.host + '/v1/transcribe/stream?t=' + encodeURIComponent(t) + '&rate=' + rate);
+      micWS.binaryType = 'arraybuffer';
+
       var input = document.getElementById('chat-input');
-      micInterimBase = input && input.value ? input.value.replace(/\s+$/, '') + ' ' : '';
-      micStartedAt = Date.now();
-      micInterimTimer = setInterval(micInterimPass, micInterimEveryMs);
+      micBase = input && input.value ? input.value.replace(/\s+$/, '') + ' ' : '';
+
+      micWS.onmessage = function (ev) {
+        var d = {};
+        try { d = JSON.parse(ev.data); } catch (e) { return; }
+        if (d.type === 'partial' || d.type === 'final') {
+          var el = document.getElementById('chat-input');
+          if (el && d.text) { el.value = micBase + d.text; chatInputGrow(); }
+        } else if (d.type === 'error') {
+          aiAppend('ai', d.error === 'busy'
+            ? 'The transcriber is busy right now — try again in a moment.'
+            : 'Live transcription dropped out; your recording will still be transcribed when you stop.');
+        }
+      };
+
+      await new Promise(function (resolve) {
+        micWS.onopen = resolve;
+        micWS.onerror = resolve;
+        setTimeout(resolve, 4000);
+      });
+      if (micWS.readyState !== WebSocket.OPEN) { micStopLive(); return false; }
+
+      micSrc = micAudioCtx.createMediaStreamSource(stream);
+      // ScriptProcessor is deprecated but is the only capture node iOS Safari
+      // supports without an AudioWorklet module file, which we cannot ship from
+      // an inline page. 4096 frames is ~85ms at 48k: small enough to feel live.
+      micNode = micAudioCtx.createScriptProcessor(4096, 1, 1);
+      micNode.onaudioprocess = function (e) {
+        if (!micWS || micWS.readyState !== WebSocket.OPEN) return;
+        var f = e.inputBuffer.getChannelData(0);
+        var pcm = new Int16Array(f.length);
+        for (var i = 0; i < f.length; i++) {
+          var s = f[i] < -1 ? -1 : f[i] > 1 ? 1 : f[i];
+          pcm[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+        }
+        micWS.send(pcm.buffer);
+      };
+      micSrc.connect(micNode);
+      // Route to a muted gain node: ScriptProcessor only runs while connected to
+      // the destination, but feeding the mic to the speakers would echo.
+      var mute = micAudioCtx.createGain();
+      mute.gain.value = 0;
+      micNode.connect(mute);
+      mute.connect(micAudioCtx.destination);
+      return true;
     }
 
-    function micStopInterim() {
-      if (micInterimTimer) { clearInterval(micInterimTimer); micInterimTimer = null; }
-    }
-
-    async function micInterimPass() {
-      // Skip if the previous pass is still running: overlapping passes would
-      // race to write the same input box, and the later-but-shorter result could
-      // win and visibly delete words.
-      if (micInterimBusy || !micChunks.length) return;
-      if (Date.now() - micStartedAt > micInterimMaxMs) { micStopInterim(); return; }
-      micInterimBusy = true;
-      try {
-        var blob = new Blob(micChunks, { type: (micRec && micRec.mimeType) || 'audio/webm' });
-        if (blob.size < 1200) return;
-        var res = await fetch('/v1/transcribe', {
-          method: 'POST',
-          headers: { 'X-API-Key': apiKey, 'Content-Type': blob.type || 'application/octet-stream' },
-          body: blob
-        });
-        if (!res.ok) return;   // interim failures are silent; the final pass reports
-        var data = await res.json().catch(function () { return {}; });
-        var text = (data.text || '').trim();
-        if (!text || !micInterimTimer) return;   // stopped while this was in flight
-        var input = document.getElementById('chat-input');
-        if (input) input.value = micInterimBase + text;
-      } catch (e) {
-        /* silent: this is a preview, the final pass is the one that must report */
-      } finally {
-        micInterimBusy = false;
+    function micStopLive() {
+      try { if (micNode) micNode.disconnect(); } catch (e) {}
+      try { if (micSrc) micSrc.disconnect(); } catch (e) {}
+      try { if (micAudioCtx) micAudioCtx.close(); } catch (e) {}
+      micNode = micSrc = micAudioCtx = null;
+      if (micWS) {
+        try { if (micWS.readyState === WebSocket.OPEN) micWS.send('stop'); } catch (e) {}
+        // Leave the socket open briefly so the final revision can arrive.
+        var ws = micWS;
+        setTimeout(function () { try { ws.close(); } catch (e) {} }, 1500);
+        micWS = null;
       }
     }
 
     async function micFinish() {
-      micStopInterim();
+      micStopLive();
       micStopTracks();
       micSet('busy', 'Transcribing…');
       var blob = new Blob(micChunks, { type: (micRec && micRec.mimeType) || 'audio/webm' });
       micChunks = [];
       try {
+        // The live stream already produced the text; re-transcribing the same
+        // audio would spend CPU to arrive at the same answer.
+        if (micLive) { micSet('idle'); document.getElementById('chat-input').focus(); return; }
         if (blob.size < 1200) { micSet('idle'); return; }   // an accidental tap, not speech
         var res = await fetch('/v1/transcribe', {
           method: 'POST',
@@ -1974,11 +2036,12 @@
         if (!res.ok) { aiAppend('ai', data.error || 'That recording did not come through — please try again.'); micSet('idle'); return; }
         var text = (data.text || '').trim();
         if (!text) { aiAppend('ai', "I didn't catch any speech in that — try again a bit closer to the mic."); micSet('idle'); return; }
-        // Rebuild from the base rather than appending: the interim passes have
-        // already been writing their guess into this box, and appending would
-        // print the recording twice.
+        // Rebuild from the base rather than appending: the live stream has
+        // already been writing into this box, and appending would print the
+        // recording twice.
         var input = document.getElementById('chat-input');
-        input.value = micInterimBase + text;
+        input.value = micBase + text;
+        chatInputGrow();
         input.focus();
       } catch (e) {
         aiAppend('ai', 'That recording did not come through — please try again.');
@@ -2012,6 +2075,19 @@
     (function initAiCreate() {
       var form = document.getElementById('ai-form');
       if (form) form.addEventListener('submit', onAiSubmit);
+      var ci = document.getElementById('chat-input');
+      if (ci) {
+        ci.addEventListener('input', chatInputGrow);
+        // A textarea would otherwise swallow Enter. Keep Enter as send (this is a
+        // chat box, not a document) and give Shift+Enter the newline.
+        ci.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            if (typeof form.requestSubmit === 'function') form.requestSubmit();
+            else onAiSubmit(new Event('submit'));
+          }
+        });
+      }
       initAttachInput();
       initVoiceInput();
       var ef = document.getElementById('ai-email-form');

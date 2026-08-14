@@ -85,6 +85,9 @@ type Config struct {
 	// the host and there is no per-minute cost. Unset disables the endpoint, and
 	// the chat hides its mic button.
 	TranscribeURL string // e.g. http://127.0.0.1:8100/transcribe
+	// Shared with the speech service to sign short-lived WebSocket tickets.
+	// Empty disables live transcription; the batch endpoint still works.
+	TranscribeTicketSecret string
 
 	// Ephemeral "preview" sites. Sites created by an account in PreviewAccounts
 	// get an expires_at = now + PreviewTTL, and a background sweep deletes them
@@ -123,20 +126,21 @@ func Load() (Config, error) {
 		MailFrom:      getEnvOrDefault("MAIL_FROM", defaultMailFrom),
 		ResendAPIKey:  os.Getenv("RESEND_API_KEY"),
 
-		AnthropicAPIKey:   os.Getenv("ANTHROPIC_API_KEY"),
-		LLMAPIKey:         firstNonEmpty(os.Getenv("LLM_API_KEY"), os.Getenv("DEEPSEEK_API_KEY")),
-		LLMBaseURL:        strings.TrimRight(getEnvOrDefault("LLM_BASE_URL", "https://api.deepseek.com"), "/"),
-		LLMModel:          getEnvOrDefault("LLM_MODEL", "deepseek-v4-flash"),
-		VisionAPIKey:      firstNonEmpty(os.Getenv("VISION_API_KEY"), os.Getenv("OPENROUTER_API_KEY")),
-		VisionBaseURL:     strings.TrimRight(getEnvOrDefault("VISION_BASE_URL", "https://openrouter.ai/api/v1"), "/"),
-		VisionModel:       getEnvOrDefault("VISION_MODEL", "openai/gpt-5.6-luna"),
-		GenerateModel:     getEnvOrDefault("GENERATE_MODEL", "claude-haiku-4-5-20251001"),
-		AgentServerURL:    strings.TrimRight(os.Getenv("AGENT_SERVER_URL"), "/"),
-		AgentSharedSecret: os.Getenv("AGENT_SHARED_SECRET"),
-		TranscribeURL:     strings.TrimRight(os.Getenv("TRANSCRIBE_URL"), "/"),
-		FallbackAPIKey:    os.Getenv("LLM_FALLBACK_API_KEY"),
-		FallbackBaseURL:   strings.TrimRight(getEnvOrDefault("LLM_FALLBACK_BASE_URL", "https://api.deepseek.com"), "/"),
-		FallbackModel:     getEnvOrDefault("LLM_FALLBACK_MODEL", "deepseek-v4-flash"),
+		AnthropicAPIKey:        os.Getenv("ANTHROPIC_API_KEY"),
+		LLMAPIKey:              firstNonEmpty(os.Getenv("LLM_API_KEY"), os.Getenv("DEEPSEEK_API_KEY")),
+		LLMBaseURL:             strings.TrimRight(getEnvOrDefault("LLM_BASE_URL", "https://api.deepseek.com"), "/"),
+		LLMModel:               getEnvOrDefault("LLM_MODEL", "deepseek-v4-flash"),
+		VisionAPIKey:           firstNonEmpty(os.Getenv("VISION_API_KEY"), os.Getenv("OPENROUTER_API_KEY")),
+		VisionBaseURL:          strings.TrimRight(getEnvOrDefault("VISION_BASE_URL", "https://openrouter.ai/api/v1"), "/"),
+		VisionModel:            getEnvOrDefault("VISION_MODEL", "openai/gpt-5.6-luna"),
+		GenerateModel:          getEnvOrDefault("GENERATE_MODEL", "claude-haiku-4-5-20251001"),
+		AgentServerURL:         strings.TrimRight(os.Getenv("AGENT_SERVER_URL"), "/"),
+		AgentSharedSecret:      os.Getenv("AGENT_SHARED_SECRET"),
+		TranscribeURL:          strings.TrimRight(os.Getenv("TRANSCRIBE_URL"), "/"),
+		TranscribeTicketSecret: os.Getenv("TRANSCRIBE_TICKET_SECRET"),
+		FallbackAPIKey:         os.Getenv("LLM_FALLBACK_API_KEY"),
+		FallbackBaseURL:        strings.TrimRight(getEnvOrDefault("LLM_FALLBACK_BASE_URL", "https://api.deepseek.com"), "/"),
+		FallbackModel:          getEnvOrDefault("LLM_FALLBACK_MODEL", "deepseek-v4-flash"),
 	}
 	// CONTENT_HOST defaults to sites.<SITE_DOMAIN> so prod/test need no extra env.
 	cfg.ContentHost = getEnvOrDefault("CONTENT_HOST", "sites."+cfg.SiteDomain)

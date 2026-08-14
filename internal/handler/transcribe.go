@@ -2,7 +2,11 @@ package handler
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -21,17 +25,18 @@ import (
 //
 // Disabled when TRANSCRIBE_URL is unset, exactly like the AI-create endpoint.
 type TranscribeHandler struct {
-	url         string
-	client      *http.Client
-	ipLimiter   *rateLimiter
-	userLimiter *rateLimiter
+	url          string
+	client       *http.Client
+	ipLimiter    *rateLimiter
+	userLimiter  *rateLimiter
+	ticketSecret string // shared with the speech service; empty disables live mode
 }
 
 // A voice prompt is seconds of speech. 25 MB is generous for that even at
 // browser bitrates, and the STT service caps duration independently.
 const maxAudioBytes = 25 << 20
 
-func NewTranscribeHandler(url string) *TranscribeHandler {
+func NewTranscribeHandler(url, ticketSecret string) *TranscribeHandler {
 	// The chat sends an interim pass every few seconds while the mic is open, so
 	// one ordinary recording is a burst of calls, not one. Sized for that: a
 	// 90-second recording is ~22 interim passes plus a final. Still real CPU on a
@@ -44,14 +49,16 @@ func NewTranscribeHandler(url string) *TranscribeHandler {
 		url: url,
 		// Generously above the worst case: the service caps audio at 5 minutes,
 		// which transcribes in well under a minute.
-		client:      &http.Client{Timeout: 3 * time.Minute},
-		ipLimiter:   ipLimiter,
-		userLimiter: userLimiter,
+		client:       &http.Client{Timeout: 3 * time.Minute},
+		ticketSecret: ticketSecret,
+		ipLimiter:    ipLimiter,
+		userLimiter:  userLimiter,
 	}
 }
 
 func (h *TranscribeHandler) Register(mux *http.ServeMux, authMW func(http.Handler) http.Handler) {
 	mux.Handle("POST /v1/transcribe", authMW(http.HandlerFunc(h.transcribe)))
+	mux.Handle("POST /v1/transcribe/ticket", authMW(http.HandlerFunc(h.ticket)))
 }
 
 func (h *TranscribeHandler) transcribe(w http.ResponseWriter, r *http.Request) {
@@ -111,4 +118,44 @@ func (h *TranscribeHandler) transcribe(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(raw)
+}
+
+// --- live streaming -------------------------------------------------------
+//
+// The live transcript runs over a WebSocket straight from the browser to the
+// speech service (nginx proxies it), because relaying audio through this
+// process would buy nothing and add a hop to every 200ms frame.
+//
+// That raises an auth problem: a browser cannot set headers on a WebSocket
+// handshake, so the API key cannot travel the way it does everywhere else.
+// Rather than put the key in a URL — where it lands in access logs and browser
+// history — the client asks this endpoint for a short-lived ticket and connects
+// with that. The speech service verifies the signature with a shared secret and
+// never sees a key, and a leaked ticket is worth seconds of microphone access to
+// one user rather than their account.
+
+// ticketTTL is deliberately short: it only has to survive the round trip from
+// minting to the WebSocket handshake.
+const ticketTTL = 60 * time.Second
+
+func (h *TranscribeHandler) ticket(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "sign in to use voice input"})
+		return
+	}
+	if h.ticketSecret == "" {
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "live transcription is not configured"})
+		return
+	}
+	if !h.ipLimiter.allow(clientIP(r)) || !h.userLimiter.allow(user.ID) {
+		tooManyRequests(w)
+		return
+	}
+	payload := fmt.Sprintf("%s:%d", user.ID, time.Now().Add(ticketTTL).Unix())
+	mac := hmac.New(sha256.New, []byte(h.ticketSecret))
+	mac.Write([]byte(payload))
+	tok := base64.RawURLEncoding.EncodeToString([]byte(payload)) + "." +
+		base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	writeJSON(w, http.StatusOK, map[string]any{"ticket": tok, "expires_in": int(ticketTTL.Seconds())})
 }
