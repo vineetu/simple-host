@@ -65,6 +65,13 @@ type Config struct {
 	LLMBaseURL string // default https://api.deepseek.com
 	LLMModel   string // default deepseek-v4-flash
 
+	// Optional second provider, tried only when the primary fails in a way a
+	// different model could survive. Production runs Grok (through the local
+	// CLIProxyAPI sidecar, on the subscription) as primary with DeepSeek here.
+	FallbackAPIKey  string
+	FallbackBaseURL string
+	FallbackModel   string
+
 	// Vision pass. The builder model above is text-only and cheap; when the user
 	// attaches an image or PDF this model reads it and hands back a description,
 	// which is inlined into the builder's prompt. Optional: without it,
@@ -127,6 +134,9 @@ func Load() (Config, error) {
 		AgentServerURL:    strings.TrimRight(os.Getenv("AGENT_SERVER_URL"), "/"),
 		AgentSharedSecret: os.Getenv("AGENT_SHARED_SECRET"),
 		TranscribeURL:     strings.TrimRight(os.Getenv("TRANSCRIBE_URL"), "/"),
+		FallbackAPIKey:    os.Getenv("LLM_FALLBACK_API_KEY"),
+		FallbackBaseURL:   strings.TrimRight(getEnvOrDefault("LLM_FALLBACK_BASE_URL", "https://api.deepseek.com"), "/"),
+		FallbackModel:     getEnvOrDefault("LLM_FALLBACK_MODEL", "deepseek-v4-flash"),
 	}
 	// CONTENT_HOST defaults to sites.<SITE_DOMAIN> so prod/test need no extra env.
 	cfg.ContentHost = getEnvOrDefault("CONTENT_HOST", "sites."+cfg.SiteDomain)

@@ -90,10 +90,10 @@ func main() {
 	// Optional "create with AI" endpoint. Sign-in-gated + rate limited; only
 	// enabled when some model backend is configured (it spends real credits).
 	if cfg.LLMAPIKey != "" || cfg.AgentServerURL != "" || cfg.AnthropicAPIKey != "" {
-		handler.NewGenerateHandler(cfg.AnthropicAPIKey, cfg.GenerateModel, cfg.AgentServerURL, cfg.AgentSharedSecret, cfg.LLMAPIKey, cfg.LLMBaseURL, cfg.LLMModel, cfg.VisionAPIKey, cfg.VisionBaseURL, cfg.VisionModel).Register(mux, authMW)
+		handler.NewGenerateHandler(cfg.AnthropicAPIKey, cfg.GenerateModel, cfg.AgentServerURL, cfg.AgentSharedSecret, cfg.LLMAPIKey, cfg.LLMBaseURL, cfg.LLMModel, cfg.FallbackAPIKey, cfg.FallbackBaseURL, cfg.FallbackModel, cfg.VisionAPIKey, cfg.VisionBaseURL, cfg.VisionModel).Register(mux, authMW)
 		switch {
 		case cfg.LLMAPIKey != "":
-			log.Printf("AI create endpoint enabled (/v1/generate, %s, model %s)", cfg.LLMBaseURL, cfg.LLMModel)
+			log.Printf("AI create endpoint enabled (/v1/generate, %s, model %s; fallback %s)", cfg.LLMBaseURL, cfg.LLMModel, fallbackLabel(cfg))
 		case cfg.AgentServerURL != "":
 			log.Printf("AI create endpoint enabled (/v1/generate -> agent server %s)", cfg.AgentServerURL)
 		default:
@@ -159,4 +159,13 @@ func main() {
 		}
 		os.Exit(1)
 	}
+}
+
+// fallbackLabel describes the secondary provider for the boot log, so an operator
+// can see at a glance whether a fallback is actually configured.
+func fallbackLabel(cfg config.Config) string {
+	if cfg.FallbackAPIKey == "" {
+		return "none"
+	}
+	return cfg.FallbackModel + " @ " + cfg.FallbackBaseURL
 }

@@ -27,17 +27,20 @@ import (
 // and per IP, because each turn spends real Anthropic credits. Disabled when
 // ANTHROPIC_API_KEY is unset.
 type GenerateHandler struct {
-	apiKey      string
-	model       string
-	agentURL    string // when set, proxy each turn here (Claude Agent SDK server)
-	agentSecret string
-	llmKey      string // OpenAI-compatible provider (DeepSeek etc); preferred when set
-	llmBase     string
-	llmModel    string
-	visionKey   string // optional vision model used to read image/PDF attachments
-	visionBase  string
-	visionModel string
-	client      *http.Client
+	apiKey        string
+	model         string
+	agentURL      string // when set, proxy each turn here (Claude Agent SDK server)
+	agentSecret   string
+	llmKey        string // OpenAI-compatible provider; preferred when set
+	fallbackKey   string // optional second provider, tried only when the primary fails
+	fallbackBase  string
+	fallbackModel string
+	llmBase       string
+	llmModel      string
+	visionKey     string // optional vision model used to read image/PDF attachments
+	visionBase    string
+	visionModel   string
+	client        *http.Client
 	// A generation is one long synchronous call; the shared client's timeout is
 	// sized for quick agent job-starts and status polls, so it gets its own.
 	llmClient     *http.Client
@@ -49,7 +52,7 @@ type GenerateHandler struct {
 	jobs *jobStore
 }
 
-func NewGenerateHandler(apiKey, model, agentURL, agentSecret, llmKey, llmBase, llmModel, visionKey, visionBase, visionModel string) *GenerateHandler {
+func NewGenerateHandler(apiKey, model, agentURL, agentSecret, llmKey, llmBase, llmModel, fallbackKey, fallbackBase, fallbackModel, visionKey, visionBase, visionModel string) *GenerateHandler {
 	// A conversation is several turns, so allow a healthy burst; the slow refill
 	// is the real cost guard against scripted abuse.
 	ipLimiter := newRateLimiter(20, 1.0/12.0)   // burst 20, +1 every 12s
@@ -63,16 +66,19 @@ func NewGenerateHandler(apiKey, model, agentURL, agentSecret, llmKey, llmBase, l
 	jobs := newJobStore()
 	jobs.startCleanup(time.Minute)
 	return &GenerateHandler{
-		apiKey:      apiKey,
-		model:       model,
-		agentURL:    agentURL,
-		agentSecret: agentSecret,
-		llmKey:      llmKey,
-		llmBase:     llmBase,
-		llmModel:    llmModel,
-		visionKey:   visionKey,
-		visionBase:  visionBase,
-		visionModel: visionModel,
+		apiKey:        apiKey,
+		model:         model,
+		agentURL:      agentURL,
+		agentSecret:   agentSecret,
+		llmKey:        llmKey,
+		llmBase:       llmBase,
+		llmModel:      llmModel,
+		fallbackKey:   fallbackKey,
+		fallbackBase:  fallbackBase,
+		fallbackModel: fallbackModel,
+		visionKey:     visionKey,
+		visionBase:    visionBase,
+		visionModel:   visionModel,
 		// Generous enough for the direct Messages-API fallback (one long call).
 		// On the agent path every call here is a quick job-start or status poll,
 		// so this ceiling just sits unused.
@@ -193,7 +199,7 @@ func (h *GenerateHandler) generate(w http.ResponseWriter, r *http.Request) {
 				li := len(msgs) - 1
 				msgs[li].Content = inlineAttachmentsAsText(msgs[li].Content, atts, desc, h.visionKey != "")
 			}
-			return h.converseOpenAI(ctx, msgs, req.HTML, report)
+			return h.converseWithFallback(ctx, msgs, req.HTML, report)
 		}, func(err error) string {
 			log.Printf("generate (llm): %v", err)
 			return generateErrorMessage(err)
@@ -804,7 +810,66 @@ const maxLLMTokens = 64000
 // maxCurrentHTMLCompact bounds the site snapshot re-sent on every turn.
 const maxCurrentHTMLCompact = 96 * 1024
 
-func (h *GenerateHandler) converseOpenAI(ctx context.Context, msgs []claudeMessage, currentHTML string, report func(string)) (string, string, error) {
+// llmProvider is one OpenAI-compatible endpoint. Two are configured: the primary
+// (Grok, reached through the local CLIProxyAPI sidecar on the user's
+// subscription) and a fallback (DeepSeek, metered). Same wire format, so one
+// code path serves both.
+type llmProvider struct {
+	key   string
+	base  string
+	model string
+	label string // for logs; never the key
+}
+
+func (h *GenerateHandler) primaryProvider() llmProvider {
+	return llmProvider{h.llmKey, h.llmBase, h.llmModel, "primary/" + h.llmModel}
+}
+
+func (h *GenerateHandler) fallbackProvider() (llmProvider, bool) {
+	if h.fallbackKey == "" {
+		return llmProvider{}, false
+	}
+	return llmProvider{h.fallbackKey, h.fallbackBase, h.fallbackModel, "fallback/" + h.fallbackModel}, true
+}
+
+// converseWithFallback runs the turn on the primary provider and, if that fails
+// in a way a different provider could plausibly survive, retries once on the
+// fallback.
+//
+// It deliberately does NOT retry a user-caused failure: an over-long context or
+// an output that hit the token ceiling fails identically on the second provider
+// and bills twice for the same answer. It also refuses to start the fallback
+// without enough of the job budget left to finish — arriving at the deadline
+// with a half-written page is worse than reporting the first failure honestly.
+func (h *GenerateHandler) converseWithFallback(ctx context.Context, msgs []claudeMessage, currentHTML string, report func(string)) (string, string, error) {
+	reply, html, err := h.converseOpenAI(ctx, h.primaryProvider(), msgs, currentHTML, report)
+	if err == nil {
+		return reply, html, nil
+	}
+	if errors.Is(err, errTruncated) || errors.Is(err, errContextTooLong) || ctx.Err() != nil {
+		return "", "", err
+	}
+	fb, ok := h.fallbackProvider()
+	if !ok {
+		return "", "", err
+	}
+	if dl, hasDL := ctx.Deadline(); hasDL && time.Until(dl) < minFallbackBudget {
+		log.Printf("generate: primary failed (%v); too little budget left for %s", err, fb.label)
+		return "", "", err
+	}
+	log.Printf("generate: primary failed (%v); retrying on %s", err, fb.label)
+	if report != nil {
+		report("Switching to the backup model…")
+	}
+	return h.converseOpenAI(ctx, fb, msgs, currentHTML, report)
+}
+
+// minFallbackBudget is the slack the fallback needs to be worth starting. A full
+// page build measured 85–130s here, so anything under this just burns the rest
+// of the job and still fails.
+const minFallbackBudget = 3 * time.Minute
+
+func (h *GenerateHandler) converseOpenAI(ctx context.Context, p llmProvider, msgs []claudeMessage, currentHTML string, report func(string)) (string, string, error) {
 	// The model has no idea what day it is and will happily list last year's
 	// dates as "upcoming".
 	system := generateSystemPrompt + "\n\nToday's date is " + time.Now().Format("Monday, 2 January 2006") + ". Any dates you invent must be in the future relative to that."
@@ -826,17 +891,17 @@ func (h *GenerateHandler) converseOpenAI(ctx context.Context, msgs []claudeMessa
 	}
 
 	body, err := json.Marshal(openAIRequest{
-		Model: h.llmModel, Messages: out, MaxTokens: maxLLMTokens, Temperature: 0.6, Stream: true,
+		Model: p.model, Messages: out, MaxTokens: maxLLMTokens, Temperature: 0.6, Stream: true,
 	})
 	if err != nil {
 		return "", "", err
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, h.llmBase+"/chat/completions", bytes.NewReader(body))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.base+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
 		return "", "", err
 	}
-	httpReq.Header.Set("Authorization", "Bearer "+h.llmKey)
+	httpReq.Header.Set("Authorization", "Bearer "+p.key)
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := h.llmClient.Do(httpReq)
