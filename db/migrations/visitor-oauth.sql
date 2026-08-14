@@ -1,3 +1,10 @@
+-- Visitor OAuth: identities, sessions, CSRF/PKCE state, establish tokens.
+--
+-- APPLY AS THE ROLE IN DB_DSN (the role that owns the existing tables), NOT as a
+-- superuser. Applying as postgres leaves these tables owned by postgres and the
+-- application role gets "permission denied for table oauth_states" at runtime —
+-- the OAuth start route then 500s while everything else looks healthy.
+-- If that happens: ALTER TABLE <each> OWNER TO <app role>;
 -- Visitor Google/GitHub sign-in (additive; safe to re-run).
 -- Operator escape hatch. Default FALSE. No owner API in v1; set via
 -- ADMIN_API-Key endpoint or SQL.
