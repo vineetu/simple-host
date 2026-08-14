@@ -167,6 +167,24 @@ func ConsumeEstablishToken(ctx context.Context, q Querier, once, host string) (E
 	return t, err
 }
 
+// GetSiteWriteGate returns the owning user_id and the admin override flag
+// used by visitorWriteOK.
+func GetSiteWriteGate(ctx context.Context, q Querier, siteID string) (userID string, allowAnonymous bool, err error) {
+	err = q.QueryRowContext(ctx,
+		`SELECT user_id::text, allow_anonymous_writes FROM sites WHERE id = $1`,
+		siteID,
+	).Scan(&userID, &allowAnonymous)
+	return
+}
+
+// SetAllowAnonymousWrites is the admin-only escape hatch on a site.
+func SetAllowAnonymousWrites(ctx context.Context, q Querier, siteID string, allow bool) error {
+	_, err := q.ExecContext(ctx,
+		`UPDATE sites SET allow_anonymous_writes = $1 WHERE id = $2`,
+		allow, siteID)
+	return err
+}
+
 // SweepVisitorAuth deletes expired OAuth states, establish tokens, and sessions.
 func SweepVisitorAuth(ctx context.Context, database *sql.DB) error {
 	if _, err := database.ExecContext(ctx, `DELETE FROM oauth_states WHERE expires_at < now()`); err != nil {

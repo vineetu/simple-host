@@ -65,7 +65,7 @@ Three moving parts, and you can hold all of them in your head at once:
 2. A **Postgres** tracks users, sites, and versions.
 3. A **folder on disk** holds the versioned site files.
 
-A wildcard DNS record points `*.simple-host.app` at the binary, which maps each subdomain to its folder. That's the whole system — no object store, no CDN, no build farm, which is exactly why it fits on a 1 GB box. The per-site datastore lives next to the files and is origin-checked, so only a site's own subdomain can read or write its data from the browser.
+A wildcard DNS record points `*.simple-host.app` at the binary, which maps each subdomain to its folder. That's the whole system — no object store, no CDN, no build farm, which is exactly why it fits on a 1 GB box. The per-site datastore lives next to the files: reads are Origin-checked; writes need a visitor Google/GitHub session or the owner's `X-API-Key`.
 
 ## Run your own
 
@@ -110,6 +110,7 @@ All via environment variables. `DB_DSN` and `ADMIN_API_KEY` are required; the re
 | `RESEND_API_KEY` | | Magic-link email via [Resend](https://resend.com); auth is disabled without it |
 | `MAIL_FROM` | | Magic-link sender address |
 | `ANTHROPIC_API_KEY` | | Enables the **Build with AI** endpoint; unset = disabled |
+| `WRITE_AUTH_MODE` | | `off` / `log` / `on`. Unset = `log` (anonymous writes succeed and are logged). Never default to `on` in source. |
 
 ## API
 
@@ -121,8 +122,8 @@ Everything an agent needs is at [`/llms.txt`](https://simple-host.app/llms.txt),
 | `/v1/sites` | GET | List your sites |
 | `/v1/sites/{name}/files` | POST / PUT | Deploy a site from a JSON `{path: content}` map |
 | `/v1/sites/{name}` | POST / PUT / DELETE | Deploy from a tarball / roll a new version / delete |
-| `/v1/sites/{name}/state` | GET / PUT / PATCH | Per-site JSON state with atomic ops (origin-checked) |
-| `/v1/sites/{name}/collections/{coll}` | GET / POST | Append-only collections |
+| `/v1/sites/{name}/state` | GET / PUT / PATCH | Per-site JSON state with atomic ops (reads Origin-checked; writes need a visitor session or owner key) |
+| `/v1/sites/{name}/collections/{coll}` | GET / POST | Append-only collections (POST is a write) |
 | `/v1/templates` | GET | Starter templates |
 | `/v1/generate` | POST | Build with AI (when enabled) |
 

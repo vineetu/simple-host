@@ -35,8 +35,10 @@
  *   element (0..1). Fix what each note asks, redeploy, done.
  *
  * Writes are single atomic PATCH appends (no read-modify-write), so many
- * simultaneous reviewers never clobber each other. The state store is PUBLIC —
- * fine for mockup review; don't put anything sensitive in a comment.
+ * simultaneous reviewers never clobber each other. Writes need a visitor
+ * session (or the owner's X-API-Key); visitor_auth_required shows "Sign in
+ * to post". The state store is PUBLIC — fine for mockup review; don't put
+ * anything sensitive in a comment.
  */
 (function () {
   "use strict";
@@ -72,6 +74,7 @@
   var comments = [], etag = null;
   var mode = false;          // comment mode on/off
   var TOUCH = matchMedia("(pointer: coarse)").matches;
+  var needSignIn = false, providers = null;
 
   // ---- theme -----------------------------------------------------------------
   function _rgb(s) { var m = (s || "").match(/[\d.]+/g); return m ? m.map(Number) : null; }
@@ -121,7 +124,9 @@
     ".shf-cancel{background:transparent;color:var(--shf-muted);border:0;font:600 13px inherit;font-family:inherit;cursor:pointer;padding:8px 10px}" +
     ".shf-cmt b{color:var(--shf-accent)}.shf-meta{color:var(--shf-muted);font-size:12px;margin:2px 0 8px}" +
     ".shf-toast{position:fixed;left:50%;bottom:76px;transform:translateX(-50%);z-index:2147483602;background:var(--shf-card);color:var(--shf-ink);" +
-      "border:1px solid var(--shf-border);border-radius:999px;padding:8px 16px;font:600 13px inherit;font-family:inherit;box-shadow:0 6px 20px rgba(0,0,0,.18)}";
+      "border:1px solid var(--shf-border);border-radius:999px;padding:8px 16px;font:600 13px inherit;font-family:inherit;box-shadow:0 6px 20px rgba(0,0,0,.18)}" +
+    ".shf-signin-msg{font-weight:600;margin:0 0 10px}" +
+    ".shf-signin-row{display:flex;flex-wrap:wrap;gap:8px}";
   document.head.appendChild(css);
 
   // ---- FAB + shield + hint -----------------------------------------------------
@@ -237,14 +242,77 @@
       if (res.ok) { etag = res.headers.get("ETag"); ingest(await res.json()); }
     } catch (e) {}
   }
+  function authApex() {
+    if (_cfg.authBase) return String(_cfg.authBase).replace(/\/+$/, "");
+    var hn = location.hostname;
+    if (hn.indexOf("sites.") === 0) return location.protocol + "//" + hn.replace(/^sites\./, "");
+    return "https://simple-host.app";
+  }
+  async function loadProviders() {
+    if (providers) return providers;
+    try {
+      var r = await fetch(authApex() + "/v1/auth/oauth/providers");
+      var d = await r.json();
+      providers = (d && d.providers) || [];
+    } catch (e) { providers = []; }
+    return providers;
+  }
+  function goSignIn(name) {
+    location.href = authApex() + "/v1/auth/oauth/" + encodeURIComponent(name) + "?return_to=" + encodeURIComponent(location.href);
+  }
+  function fillSignIn(pop) {
+    pop.textContent = "";
+    var msg = document.createElement("div");
+    msg.className = "shf-signin-msg";
+    msg.textContent = "Sign in to post";
+    pop.appendChild(msg);
+    var row = document.createElement("div");
+    row.className = "shf-signin-row";
+    if (providers === null) {
+      var loading = document.createElement("div");
+      loading.className = "shf-meta";
+      loading.textContent = "Loading sign-in…";
+      pop.appendChild(loading);
+      loadProviders().then(function () { if (curPop === pop) fillSignIn(pop); });
+    } else if (!providers.length) {
+      var none = document.createElement("div");
+      none.className = "shf-meta";
+      none.textContent = "Sign-in is not configured on this host.";
+      pop.appendChild(none);
+    } else {
+      providers.forEach(function (name) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "shf-save";
+        b.textContent = "Sign in with " + name.charAt(0).toUpperCase() + name.slice(1);
+        b.onclick = function () { goSignIn(name); };
+        row.appendChild(b);
+      });
+      pop.appendChild(row);
+    }
+    var cancelRow = document.createElement("div");
+    cancelRow.className = "shf-row";
+    var x = document.createElement("button");
+    x.className = "shf-cancel";
+    x.textContent = "Close";
+    x.onclick = closePop;
+    cancelRow.appendChild(x);
+    pop.appendChild(cancelRow);
+  }
   async function addComment(c) {
     var res = await fetch(API, {
       method: "PATCH",
       credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-SH-CSRF": "1" },
       body: JSON.stringify({ ops: [{ op: "append", path: KEY, value: c }] })
     });
-    if (!res.ok) throw new Error("save " + res.status);
+    if (!res.ok) {
+      var body = {};
+      try { body = await res.json(); } catch (e) {}
+      var err = new Error(body.error || ("save " + res.status));
+      err.code = body.code;
+      throw err;
+    }
     etag = res.headers.get("ETag");
     ingest(await res.json());
   }
@@ -321,6 +389,7 @@
     var cleanup = function () { ghost.remove(); closePop(); };
     cancel.onclick = cleanup;
     ta.focus();
+    if (needSignIn) { fillSignIn(pop); return; }
     save.onclick = function () {
       var body = ta.value.trim(); if (!body) return;
       var nameEl = pop.querySelector(".shf-name");
@@ -328,7 +397,16 @@
       save.disabled = true; save.textContent = "Posting…";
       var c = Object.assign({ id: Date.now() + "-" + Math.round(Math.random() * 1e6), body: body, author: author || "anon", ts: Date.now() }, anchor);
       addComment(c).then(function () { cleanup(); toast("Note posted ✓"); })
-        .catch(function () { save.disabled = false; save.textContent = "Post note"; alert("Could not save the note."); });
+        .catch(function (err) {
+          if (err && err.code === "visitor_auth_required") {
+            needSignIn = true;
+            fillSignIn(pop);
+            return;
+          }
+          save.disabled = false;
+          save.textContent = "Post note";
+          toast(err && err.message ? err.message : "Could not save the note.");
+        });
     };
   }
   function setModeSilent(on) { // leave comment mode without killing an open composer

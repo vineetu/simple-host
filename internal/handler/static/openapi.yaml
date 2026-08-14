@@ -23,9 +23,9 @@ tags:
   - name: Sites
     description: List, versions, rollback, delete
   - name: State
-    description: Per-site shared JSON store (public, Origin-gated)
+    description: Per-site shared JSON store (reads Origin-gated; writes need a visitor session or owner key)
   - name: Collections
-    description: Append-only per-site lists
+    description: Append-only per-site lists (POST is a write)
   - name: Private pages
     description: Password (view-lock) protection
   - name: Custom domains
@@ -603,15 +603,18 @@ paths:
       description: >-
         Overwrites the whole blob (≤ 1 MB), last-write-wins. Optionally pass
         `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict).
-        Origin-gated, no API key.
+        Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the
+        owner's `X-API-Key`.
       tags: [State]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
         - { name: If-Match, in: header, required: false, schema: { type: string } }
+        - { $ref: '#/components/parameters/csrf' }
       requestBody: { required: true, content: { application/json: { schema: {} } } }
       responses:
         '200': { description: Saved; echoes the value, headers: { ETag: { schema: { type: string } } }, content: { application/json: { schema: {} } } }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/VisitorAuthRequired' }
         '403': { $ref: '#/components/responses/OriginMismatch' }
         '412': { description: ETag did not match (If-Match) }
         '413': { $ref: '#/components/responses/TooLarge' }
@@ -620,10 +623,13 @@ paths:
       summary: Atomically update per-site state
       description: >-
         Apply one or more atomic operations so concurrent writers never clobber.
-        Origin-gated, no API key. Ops — `set` (path,value), `inc` (path,by),
+        Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the
+        owner's `X-API-Key`. Ops — `set` (path,value), `inc` (path,by),
         `append` (path,value), `remove` (path), `removeWhere` (path,match).
       tags: [State]
-      parameters: [ { $ref: '#/components/parameters/sitename' } ]
+      parameters:
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/csrf' }
       requestBody:
         required: true
         content:
@@ -646,21 +652,27 @@ paths:
       responses:
         '200': { description: New state, headers: { ETag: { schema: { type: string } } }, content: { application/json: { schema: {} } } }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/VisitorAuthRequired' }
         '403': { $ref: '#/components/responses/OriginMismatch' }
 
   /v1/sites/{sitename}/collections/{coll}:
     post:
       operationId: postSitesBySitenameCollectionsByColl
       summary: Append an item to a collection
-      description: Append-only list (O(1) insert). For signups, RSVPs, submissions. Origin-gated, no API key. Each item ≤ 64 KB.
+      description: >-
+        Append-only list (O(1) insert). For signups, RSVPs, submissions.
+        Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the
+        owner's `X-API-Key`. Each item ≤ 64 KB.
       tags: [Collections]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
         - { $ref: '#/components/parameters/coll' }
+        - { $ref: '#/components/parameters/csrf' }
       requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
       responses:
         '201': { description: Item appended }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/VisitorAuthRequired' }
         '403': { $ref: '#/components/responses/OriginMismatch' }
     get:
       operationId: getSitesBySitenameCollectionsByColl
@@ -713,7 +725,8 @@ paths:
       description: >-
         Overwrites the whole blob (≤ 1 MB), last-write-wins. Optionally pass
         `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict).
-        Origin-gated, no API key.
+        Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the
+        owner's `X-API-Key`.
         v3 user-scoped, path-model-canonical variant: resolves the site by
         (handle -> user_id) + (user_id, name).
       tags: [State]
@@ -721,10 +734,12 @@ paths:
         - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's URL-safe handle" }
         - { $ref: '#/components/parameters/sitename' }
         - { name: If-Match, in: header, required: false, schema: { type: string } }
+        - { $ref: '#/components/parameters/csrf' }
       requestBody: { required: true, content: { application/json: { schema: {} } } }
       responses:
         '200': { description: Saved; echoes the value, headers: { ETag: { schema: { type: string } } }, content: { application/json: { schema: {} } } }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/VisitorAuthRequired' }
         '403': { $ref: '#/components/responses/OriginMismatch' }
         '412': { description: ETag did not match (If-Match) }
         '413': { $ref: '#/components/responses/TooLarge' }
@@ -733,7 +748,8 @@ paths:
       summary: Atomically update per-site state (v3, by handle)
       description: >-
         Apply one or more atomic operations so concurrent writers never clobber.
-        Origin-gated, no API key. Ops — `set` (path,value), `inc` (path,by),
+        Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the
+        owner's `X-API-Key`. Ops — `set` (path,value), `inc` (path,by),
         `append` (path,value), `remove` (path), `removeWhere` (path,match).
         v3 user-scoped, path-model-canonical variant: resolves the site by
         (handle -> user_id) + (user_id, name).
@@ -741,6 +757,7 @@ paths:
       parameters:
         - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's URL-safe handle" }
         - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/csrf' }
       requestBody:
         required: true
         content:
@@ -763,6 +780,7 @@ paths:
       responses:
         '200': { description: New state, headers: { ETag: { schema: { type: string } } }, content: { application/json: { schema: {} } } }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/VisitorAuthRequired' }
         '403': { $ref: '#/components/responses/OriginMismatch' }
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}:
@@ -770,7 +788,9 @@ paths:
       operationId: postCollectionByHandle
       summary: Append an item to a collection (v3, by handle)
       description: >-
-        Append-only list (O(1) insert). For signups, RSVPs, submissions. Origin-gated, no API key. Each item ≤ 64 KB.
+        Append-only list (O(1) insert). For signups, RSVPs, submissions.
+        Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the
+        owner's `X-API-Key`. Each item ≤ 64 KB.
         v3 user-scoped, path-model-canonical variant: resolves the site by
         (handle -> user_id) + (user_id, name).
       tags: [Collections]
@@ -778,10 +798,12 @@ paths:
         - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's URL-safe handle" }
         - { $ref: '#/components/parameters/sitename' }
         - { $ref: '#/components/parameters/coll' }
+        - { $ref: '#/components/parameters/csrf' }
       requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
       responses:
         '201': { description: Item appended }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/VisitorAuthRequired' }
         '403': { $ref: '#/components/responses/OriginMismatch' }
     get:
       operationId: getCollectionByHandle
@@ -807,6 +829,43 @@ paths:
                 properties:
                   items: { type: array, items: { type: object } }
         '403': { $ref: '#/components/responses/OriginMismatch' }
+
+  /v1/sites/{sitename}/allow-anonymous-writes:
+    put:
+      operationId: putAllowAnonymousWrites
+      summary: Admin override — allow anonymous writes on one site
+      description: >-
+        Sets `sites.allow_anonymous_writes`. Admin (`ADMIN_API_KEY`) only. Default
+        is false. When `WRITE_AUTH_MODE=on` and this flag is true, anonymous
+        writes to this site succeed and are logged with `outcome=overridden`.
+        No `/v1/u/{handle}/…` twin.
+      tags: [Sites]
+      security: [{ apiKey: [] }]
+      parameters: [ { $ref: '#/components/parameters/sitename' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [allow]
+              properties: { allow: { type: boolean } }
+            example: { allow: true }
+      responses:
+        '200':
+          description: Flag updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  site: { type: string }
+                  allow_anonymous_writes: { type: boolean }
+              example: { site: wedding, allow_anonymous_writes: true }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /v1/sites/{sitename}/view-password:
     put:
@@ -1106,6 +1165,7 @@ components:
   parameters:
     sitename: { name: sitename, in: path, required: true, schema: { type: string }, example: my-cool-site }
     coll: { name: coll, in: path, required: true, schema: { type: string }, example: signups }
+    csrf: { name: X-SH-CSRF, in: header, required: false, schema: { type: string, enum: ['1'] }, description: Required on cookie-authenticated writes }
 
   schemas:
     AuthResponse:
@@ -1167,3 +1227,20 @@ components:
     TooLarge: { description: Payload too large, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     TooManyRequests: { description: Rate limited, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     OriginMismatch: { description: Origin/Referer does not match the site (or the site is locked), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    VisitorAuthRequired:
+      description: Visitor sign-in required to write (WRITE_AUTH_MODE=on)
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error, code, sign_in, retry]
+            properties:
+              error: { type: string, example: sign-in required to write }
+              code: { type: string, example: visitor_auth_required }
+              sign_in: { type: string, example: /v1/auth/oauth/providers }
+              retry: { type: boolean, example: true }
+          example:
+            error: sign-in required to write
+            code: visitor_auth_required
+            sign_in: /v1/auth/oauth/providers
+            retry: true

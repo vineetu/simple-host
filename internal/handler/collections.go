@@ -44,6 +44,9 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	if !h.visitorWriteOK(w, r, siteID, siteName, writeRouteCollectionPost, coll) {
+		return
+	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, maxCollectionItemSize)
 	body, err := io.ReadAll(r.Body)
@@ -124,7 +127,7 @@ func (h *SiteHandler) optionsCollection(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-SH-CSRF")
 	w.Header().Set("Access-Control-Max-Age", "600")
 	w.WriteHeader(http.StatusNoContent)
 }

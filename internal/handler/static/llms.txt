@@ -7,23 +7,29 @@ SITE: [Describe your site in plain language here — what it's for, the style/co
 BACKEND — FOLLOW EXACTLY, DO NOT IMPROVISE.
 This site is hosted at https://sites.simple-host.app/<handle>/<name>/ and has a real, free JSON backend that you MUST use.
 HARD BAN: never use localStorage, sessionStorage, cookies, or any client-only/in-memory storage for shared data (sign-ups, RSVPs, counts, messages). Shared data MUST live on the server via fetch(). Do NOT invent endpoints. Do NOT hardcode the handle or the site name.
+Writes require a visitor session (or the owner's X-API-Key). Reads stay Origin-gated.
 
 Put this EXACT route setup at the very top of your <script>:
 const m = location.pathname.match(/^\/([a-z0-9-]+)\/([a-z0-9-]+)/);
-const BASE = m ? '/v1/u/' + m[1] + '/sites/' + m[2] : null;
+const BASE = m ? location.origin + '/v1/u/' + m[1] + '/sites/' + m[2] : null;
 const STATE = BASE ? BASE + '/state' : null;
 const LIST  = BASE ? BASE + '/collections/entries' : null;
+const WRITE_H = {'Content-Type':'application/json','X-SH-CSRF':'1'};
+function authApex(){ const hn = location.hostname; return hn.indexOf('sites.')===0 ? location.protocol+'//'+hn.replace(/^sites\./,'') : 'https://simple-host.app'; }
+async function offerSignIn(){ const d = await fetch(authApex()+'/v1/auth/oauth/providers').then(r=>r.json()).catch(()=>({providers:[]})); const names = d.providers||[]; /* keep the form visible; render a Sign in button per name that does location.href = authApex()+'/v1/auth/oauth/'+name+'?return_to='+encodeURIComponent(location.href) */ }
 
-STEP 1 — Save an entry (do BOTH awaits):
-await fetch(LIST, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ /* the entry's fields, e.g. name, guests: Number(guests) */ })});
-await fetch(STATE, {method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ops:[{op:'inc', path:'total', by: 1}]})});
+STEP 1 — Save an entry (do BOTH awaits, send credentials + X-SH-CSRF; check res.ok):
+const post = await fetch(LIST, {method:'POST', credentials:'include', headers:WRITE_H, body: JSON.stringify({ /* the entry's fields, e.g. name, guests: Number(guests) */ })});
+if (!post.ok) { const err = await post.json().catch(()=>({})); if (err.code === 'visitor_auth_required') { offerSignIn(); } /* keep the form visible, show err.error, do NOT hide the form, do NOT claim success */ return; }
+const patch = await fetch(STATE, {method:'PATCH', credentials:'include', headers:WRITE_H, body: JSON.stringify({ops:[{op:'inc', path:'total', by: 1}]})});
+if (!patch.ok) { /* POST already saved — do NOT re-POST. Show "saved, count will update" and retry PATCH only. If patch JSON has code visitor_auth_required, offerSignIn(). Keep the form. */ return; }
 (If you're counting people rather than entries, use by: Number(guests) instead of by: 1.)
 
 STEP 2 — Live count:
-async function loadCount(){ if(!STATE) return; const s = await fetch(STATE).then(r=>r.json()).catch(()=>({})); document.getElementById('count').textContent = (s && s.total) || 0; }
+async function loadCount(){ if(!STATE) return; const s = await fetch(STATE, {credentials:'include'}).then(r=>r.json()).catch(()=>({})); document.getElementById('count').textContent = (s && s.total) || 0; }
 Call loadCount() on page load, again right after a successful save, and on a setInterval every 4000ms. Make sure there is an element with id="count" on the page.
 
-STEP 3 — After a successful save, hide the form and show a friendly confirmation message, then clear the inputs.
+STEP 3 — After a successful save (BOTH post and patch 2xx), hide the form and show a friendly confirmation message, then clear the inputs. Never hide the form on a 401 or any non-2xx. Never claim success unless both writes succeeded.
 
 STEP 4 — Visitor messages/comments: do NOT hand-build these. Use Simple Host's built-in comments widget by adding EXACTLY these three lines immediately before </body>, and nothing else for messages:
 - a <script> tag whose content is:  window.SH_COMMENTS={accent:"#HEXCOLOR", title:"YOUR TITLE"}
@@ -38,4 +44,4 @@ STEP 6 — A PLACE TO VIEW WHAT'S COLLECTED (do this WHENEVER the site saves ent
 - Match the site's visual style. Put <meta name="robots" content="noindex"> in its <head>. Do NOT build a fake password gate (the data is public by URL — say so in one small line rather than pretending it's locked).
 - From index.html, link to it quietly: a small "Organizer view →" link (href="admin.html") in the footer.
 
-SELF-CHECK before you answer: (a) zero uses of localStorage/sessionStorage/cookies anywhere; (b) fetch() is actually called three ways — POST to LIST, PATCH to STATE, and GET to STATE; (c) if used, the three comments lines are present verbatim; (d) BASE/STATE/LIST are derived from location.pathname and NOT hardcoded; (e) background is a solid color; (f) if the site collects anything, files{} ALSO contains admin.html that GETs LIST and renders the entries, linked from index.html. If any check fails, fix it before outputting. Output only the JSON block.
+SELF-CHECK before you answer: (a) zero uses of localStorage/sessionStorage/cookies anywhere; (b) fetch() is actually called three ways — POST to LIST, PATCH to STATE, and GET to STATE; (c) if used, the three comments lines are present verbatim; (d) BASE/STATE/LIST are derived from location.pathname + location.origin and NOT hardcoded; (e) background is a solid color; (f) if the site collects anything, files{} ALSO contains admin.html that GETs LIST and renders the entries, linked from index.html; (g) writes send credentials + X-SH-CSRF; (h) a 401 with code visitor_auth_required keeps the form and offers sign-in; (i) POST-ok / PATCH-fail does not re-POST. If any check fails, fix it before outputting. Output only the JSON block.

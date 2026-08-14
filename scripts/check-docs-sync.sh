@@ -51,7 +51,8 @@ collections	collection
 private-pages	view-?lock|view.password
 templates	template
 comments	comments\.js
-feedback	feedback\.js'
+feedback	feedback\.js
+visitor-sign-in	visitor.auth|visitor_auth_required|X-SH-CSRF'
 
 # A skill may be split into SKILL.md + references/*.md; a capability documented in
 # a reference is still discoverable, so search the whole skill directory.

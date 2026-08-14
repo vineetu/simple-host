@@ -320,16 +320,15 @@
 /* =====================================================================
    simple-host DATA API — early-access form (leads collection + counter)
    ---------------------------------------------------------------------
-   Every deployed site gets a free, PUBLIC, per-site data API on the apex
-   domain. This template uses two pieces of it:
+   Every deployed site gets a free, PUBLIC-READ, per-site data API.
+   Calls are same-origin (location.origin) so the host-only visitor
+   cookie is sent. Writes need sign-in + X-SH-CSRF: 1.
 
-   BASE URL derivation (works on any apex, not just simple-host.app):
-     host = location.hostname                 e.g. "myapp.simple-host.app"
-     sub  = host.split('.')[0]                -> "myapp"   (the site name)
-     apex = host.split('.').slice(-2).join('.') -> "simple-host.app"
-     BASE = `${location.protocol}//${apex}/v1/sites/${sub}`
-     If the page isn't on a subdomain (localhost, file://, bare apex),
-     BASE is null -> DEMO MODE: the form pretends to work, saves nothing.
+   BASE URL derivation (content-host path model):
+     m = location.pathname.match(/^\/([a-z0-9-]+)\/([a-z0-9-]+)/)
+     BASE = location.origin + '/v1/u/' + m[1] + '/sites/' + m[2]
+     On a custom domain set window.SH_SITE = {name:'…'}.
+     Otherwise BASE is null -> DEMO MODE.
 
    1) COLLECTION — append-only list, one immutable item per POST.
       Use for things that must never overwrite each other (waitlists,
@@ -351,8 +350,8 @@
       Other ops: {op:'set',path,value} {op:'append',path,value}
                  {op:'remove',path}   {op:'removeWhere',path,match}
 
-   PRIVACY — both stores are PUBLIC-READ (gated only by Origin, which
-   curl can forge). Anyone who knows the site name can read the leads.
+   PRIVACY — both stores are PUBLIC-READ (Origin-gated). Writes require
+   a visitor session. Anyone who knows the site name can read the leads.
    We therefore only ever RENDER the count, never the addresses, and we
    say so in the small print above. Never put secrets in state or
    collections. For a genuinely private inbox, pair a collection with a
@@ -363,13 +362,17 @@ const LS_KEY = 'nimbus_lead_v1';   // remember this browser already signed up
 
 function baseUrl(){
   const host = location.hostname;
-  const sub  = host.split('.')[0];
-  const apex = host.split('.').slice(-2).join('.');
-  return (host.includes('.') && sub !== apex)
-    ? `${location.protocol}//${apex}/v1/sites/${sub}`
-    : null;                        // localhost / file:// / bare apex
+  const m = location.pathname.match(/^\/([a-z0-9-]{1,39})\/([a-z0-9-]{1,63})(?:\/|$)/);
+  if (host.split('.')[0] === 'sites' && m) {
+    return location.origin + '/v1/u/' + m[1] + '/sites/' + m[2];
+  }
+  const name = (window.SH_SITE && window.SH_SITE.name) || '';
+  if (name) return location.origin + '/v1/sites/' + name;
+  return null;
 }
 const BASE = baseUrl();
+const WRITE_H = {'Content-Type':'application/json','X-SH-CSRF':'1'};
+let postedOK = false;
 
 const $ = id => document.getElementById(id);
 const els = {
@@ -388,9 +391,46 @@ function showCount(n){
   els.countHero.innerHTML = n > 0 ? msg : '';
 }
 
+function authApex(){
+  const hn = location.hostname;
+  if (hn.indexOf('sites.') === 0) return location.protocol + '//' + hn.replace(/^sites\./, '');
+  return 'https://simple-host.app';
+}
+async function offerSignIn(){
+  let box = document.getElementById('signin');
+  if (!box){
+    box = document.createElement('div');
+    box.id = 'signin';
+    els.err.insertAdjacentElement('afterend', box);
+  }
+  box.textContent = '';
+  try {
+    const r = await fetch(authApex() + '/v1/auth/oauth/providers');
+    const d = await r.json();
+    const names = (d && d.providers) || [];
+    if (!names.length){ box.textContent = 'Sign-in is not configured.'; return; }
+    names.forEach(name => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = 'Sign in with ' + name;
+      b.style.margin = '8px 8px 0 0';
+      b.onclick = () => {
+        location.href = authApex() + '/v1/auth/oauth/' + encodeURIComponent(name) +
+          '?return_to=' + encodeURIComponent(location.href);
+      };
+      box.appendChild(b);
+    });
+  } catch (e) {
+    box.textContent = 'Could not load sign-in.';
+  }
+}
+async function readErr(res){
+  try { return await res.json(); } catch (e) { return {}; }
+}
+
 async function fetchCount(){
   // State doc may be null before anyone signs up — treat as zero.
-  const res = await fetch(`${BASE}/state`, {cache:'no-store'});
+  const res = await fetch(`${BASE}/state`, {cache:'no-store', credentials:'include'});
   if(!res.ok) throw new Error('state read ' + res.status);
   const doc = await res.json();
   return (doc && Number(doc.leads)) || 0;
@@ -416,24 +456,39 @@ async function submit(ev){
   els.submit.textContent = 'Sending…';
   try{
     if(BASE){
-      // 1) append the lead to the collection (immutable, concurrency-safe)
-      const res = await fetch(`${BASE}/collections/leads`, {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({email}),
-      });
-      if(res.status !== 201 && !res.ok) throw new Error('save failed (' + res.status + ')');
-      // 2) bump the public counter atomically (never clobbers)
-      await fetch(`${BASE}/state`, {
+      if(!postedOK){
+        const res = await fetch(`${BASE}/collections/leads`, {
+          method:'POST',
+          credentials:'include',
+          headers:WRITE_H,
+          body:JSON.stringify({email}),
+        });
+        if(res.status !== 201 && !res.ok){
+          const body = await readErr(res);
+          const err = new Error(body.error || ('save failed (' + res.status + ')'));
+          err.code = body.code;
+          throw err;
+        }
+        postedOK = true;
+      }
+      const patch = await fetch(`${BASE}/state`, {
         method:'PATCH',
-        headers:{'Content-Type':'application/json'},
+        credentials:'include',
+        headers:WRITE_H,
         body:JSON.stringify({ops:[{op:'inc', path:'leads', by:1}]}),
       });
+      if(!patch.ok){
+        const body = await readErr(patch);
+        if(body.code === 'visitor_auth_required') offerSignIn();
+        els.err.textContent = 'You’re saved; the count will update. ' + (body.error || patch.status);
+        return;
+      }
     }
     try{ localStorage.setItem(LS_KEY, email); }catch(e){}
     markDone(email);
     if(BASE) fetchCount().then(showCount).catch(()=>{});
   }catch(err){
+    if(err.code === 'visitor_auth_required') offerSignIn();
     els.err.textContent = 'Could not sign up: ' + err.message + ' — please retry.';
   }finally{
     els.submit.disabled = false;

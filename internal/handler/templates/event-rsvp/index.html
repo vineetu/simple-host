@@ -475,17 +475,15 @@
    simple-host — Event / RSVP template
    ---------------------------------------------------------------------
    This page demonstrates the two per-site storage primitives every
-   deployed site gets, keyed off its own hostname (no API key needed
-   from the browser; access is origin-gated at the server):
+   deployed site gets. Calls are same-origin (location.origin) so the
+   host-only visitor session cookie is sent. Writes need a signed-in
+   visitor (or the owner's X-API-Key) and X-SH-CSRF: 1.
 
-   API BASE derivation — the page lives on <sub>.simple-host.app and
-   talks cross-origin to the apex:
-       host = location.hostname            e.g. "party.simple-host.app"
-       sub  = host.split('.')[0]           -> "party"
-       apex = host.split('.').slice(-2).join('.')   -> "simple-host.app"
-       BASE = `${location.protocol}//${apex}/v1/sites/${sub}`
-   If the host has no subdomain (localhost, file://, bare apex),
-   BASE is null and the page runs in DEMO MODE with sample data.
+   API BASE derivation — content-host path model:
+       m = location.pathname.match(/^\/([a-z0-9-]+)\/([a-z0-9-]+)/)
+       BASE = location.origin + '/v1/u/' + m[1] + '/sites/' + m[2]
+   On a custom domain set window.SH_SITE = {name: '…'}.
+   Otherwise BASE is null and the page runs in DEMO MODE with sample data.
 
    1) COLLECTIONS — append-only rows. Each RSVP is one immutable entry;
       no read-modify-write, no clobbering, no doc-size management:
@@ -505,8 +503,9 @@
           GET `${BASE}/state` -> the doc, which may be LITERALLY null
                                  (never written); count = (doc&&doc.headcount)|0
 
-   Both stores are PUBLIC per-site scratch storage — anyone who can view
-   the page can read them. Never put secrets or private contact info in.
+   Both stores are PUBLIC-READ — anyone who can view the page can read
+   them. Writes require sign-in. Never put secrets or private contact
+   info in. If POST succeeds and PATCH fails, do not re-POST.
 
    Also demonstrated: esc() before any user string touches the DOM,
    localStorage to greet a returning browser, a 15s count poll,
@@ -516,13 +515,21 @@
 const LS_KEY = 'sh_rsvp_done_v2';   // remembers {name, attending} locally
 const POLL_MS = 15000;
 
-// ---- API base ------------------------------------------------------
-const host = location.hostname;
-const sub = host.split('.')[0];
-const apex = host.split('.').slice(-2).join('.');
-const BASE = (host.includes('.') && sub !== apex)
-  ? `${location.protocol}//${apex}/v1/sites/${sub}`
-  : null;   // null => demo mode
+// ---- API base (same-origin — never the apex) ----------------------
+function deriveBase(){
+  const host = location.hostname;
+  const m = location.pathname.match(/^\/([a-z0-9-]{1,39})\/([a-z0-9-]{1,63})(?:\/|$)/);
+  if (host.split('.')[0] === 'sites' && m) {
+    return location.origin + '/v1/u/' + m[1] + '/sites/' + m[2];
+  }
+  const name = (window.SH_SITE && window.SH_SITE.name) || '';
+  if (name) return location.origin + '/v1/sites/' + name;
+  return null;
+}
+const BASE = deriveBase();
+const WRITE_H = {'Content-Type':'application/json','X-SH-CSRF':'1'};
+let postedOK = false;
+let pendingBump = 0;
 
 // ---- elements ------------------------------------------------------
 const $ = id => document.getElementById(id);
@@ -577,14 +584,50 @@ function paintThanks(name){
 }
 
 // ---- API calls -----------------------------------------------------
+function authApex(){
+  const hn = location.hostname;
+  if (hn.indexOf('sites.') === 0) return location.protocol + '//' + hn.replace(/^sites\./, '');
+  return 'https://simple-host.app';
+}
+async function offerSignIn(){
+  let box = document.getElementById('signin');
+  if (!box){
+    box = document.createElement('div');
+    box.id = 'signin';
+    els.err.insertAdjacentElement('afterend', box);
+  }
+  box.textContent = '';
+  try {
+    const r = await fetch(authApex() + '/v1/auth/oauth/providers');
+    const d = await r.json();
+    const names = (d && d.providers) || [];
+    if (!names.length){ box.textContent = 'Sign-in is not configured.'; return; }
+    names.forEach(name => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = 'Sign in with ' + name;
+      b.style.margin = '8px 8px 0 0';
+      b.onclick = () => {
+        location.href = authApex() + '/v1/auth/oauth/' + encodeURIComponent(name) +
+          '?return_to=' + encodeURIComponent(location.href);
+      };
+      box.appendChild(b);
+    });
+  } catch (e) {
+    box.textContent = 'Could not load sign-in.';
+  }
+}
+async function readErr(res){
+  try { return await res.json(); } catch (e) { return {}; }
+}
 async function fetchCount(){
-  const res = await fetch(`${BASE}/state`, {cache:'no-store'});
+  const res = await fetch(`${BASE}/state`, {cache:'no-store', credentials:'include'});
   if (!res.ok) throw new Error('state read ' + res.status);
   const doc = await res.json();          // may be literally null
   return (doc && doc.headcount) | 0;
 }
 async function fetchRsvps(){
-  const res = await fetch(`${BASE}/collections/rsvps`, {cache:'no-store'});
+  const res = await fetch(`${BASE}/collections/rsvps`, {cache:'no-store', credentials:'include'});
   if (!res.ok) throw new Error('collection read ' + res.status);
   const body = await res.json();
   const items = Array.isArray(body.items) ? body.items : [];
@@ -595,20 +638,32 @@ async function fetchRsvps(){
 async function postRsvp(entry){
   const res = await fetch(`${BASE}/collections/rsvps`, {
     method:'POST',
-    headers:{'Content-Type':'application/json'},
+    credentials:'include',
+    headers:WRITE_H,
     body: JSON.stringify(entry),
   });
-  if (res.status !== 201 && !res.ok) throw new Error('rsvp write ' + res.status);
+  if (res.status !== 201 && !res.ok){
+    const body = await readErr(res);
+    const err = new Error(body.error || ('rsvp write ' + res.status));
+    err.code = body.code;
+    throw err;
+  }
   return res.json();                     // {id, data, created_at}
 }
 async function bumpHeadcount(by){
   // atomic increment — concurrent RSVPs never clobber each other
   const res = await fetch(`${BASE}/state`, {
     method:'PATCH',
-    headers:{'Content-Type':'application/json'},
+    credentials:'include',
+    headers:WRITE_H,
     body: JSON.stringify({ops:[{op:'inc', path:'headcount', by}]}),
   });
-  if (!res.ok) throw new Error('count update ' + res.status);
+  if (!res.ok){
+    const body = await readErr(res);
+    const err = new Error(body.error || ('count update ' + res.status));
+    err.code = body.code;
+    throw err;
+  }
 }
 
 // ---- submit --------------------------------------------------------
@@ -632,14 +687,27 @@ els.form.addEventListener('submit', async ev => {
   els.submit.disabled = true;
   els.submit.textContent = 'Sending…';
   try{
-    await postRsvp({name, attending, guests});
-    if (attending === 'yes') await bumpHeadcount(guests);
+    if (!postedOK){
+      await postRsvp({name, attending, guests});
+      postedOK = true;
+      pendingBump = attending === 'yes' ? guests : 0;
+    }
+    if (pendingBump > 0){
+      try{
+        await bumpHeadcount(pendingBump);
+        pendingBump = 0;
+      }catch(err){
+        if (err.code === 'visitor_auth_required') offerSignIn();
+        showErr('Your reply is saved; the count will update. ' + err.message);
+        return;
+      }
+    }
     try{ localStorage.setItem(LS_KEY, JSON.stringify({name, attending})); }catch(e){}
     paintThanks(name);
-    // refresh both views with fresh server data
     fetchRsvps().then(paintList).catch(()=>{});
     fetchCount().then(paintCount).catch(()=>{});
   }catch(err){
+    if (err.code === 'visitor_auth_required') offerSignIn();
     showErr('Your reply could not be sent (' + err.message + '). Please try again.');
   }finally{
     els.submit.disabled = false;

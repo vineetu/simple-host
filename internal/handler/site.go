@@ -65,8 +65,8 @@ type SiteHandler struct {
 	uploadLocks sync.Map
 
 	// uploadLimiter throttles create/update uploads per client IP; stateLimiter
-	// throttles per-site state writes (which are intentionally unauthenticated —
-	// see authorizeStateOrigin). See ratelimit.go.
+	// throttles per-site state writes (Origin-gated reads; writes also go
+	// through visitorWriteOK). See ratelimit.go.
 	uploadLimiter *rateLimiter
 	stateLimiter  *rateLimiter
 
@@ -80,6 +80,13 @@ type SiteHandler struct {
 	// expires after previewTTL and is removed by the background sweep. Empty =off.
 	previewAccounts map[string]bool
 	previewTTL      time.Duration
+
+	// writeAuthMode is off | log | on (config default is log, never on).
+	writeAuthMode string
+	// adminAPIKey / adminUserID resolve owner/admin X-API-Key writers on
+	// state/collections without wrapping those routes in auth.Middleware.
+	adminAPIKey string
+	adminUserID string
 }
 
 // lockSite acquires the per-site upload mutex and returns its unlock func.
@@ -112,7 +119,7 @@ type versionResponse struct {
 	IsActive      bool      `json:"is_active"`
 }
 
-func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, contentHost, cnameTarget, customDomainIP, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration) *SiteHandler {
+func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, contentHost, cnameTarget, customDomainIP, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration, writeAuthMode, adminUserID string) *SiteHandler {
 	// Uploads: ~6/min/IP, burst 30. State writes: ~1/s/IP sustained, burst 60
 	// (a browser app may persist state on each interaction).
 	uploadLimiter := newRateLimiter(30, 0.1)
@@ -143,6 +150,9 @@ func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, con
 		viewSecret:      secret[:],
 		previewAccounts: previewAccounts,
 		previewTTL:      previewTTL,
+		writeAuthMode:   writeAuthMode,
+		adminAPIKey:     adminAPIKey,
+		adminUserID:     adminUserID,
 	}
 	if len(previewAccounts) > 0 {
 		ttlHours := int(previewTTL.Hours())
@@ -226,20 +236,19 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// that parse the JSON state object directly. Adding _notice would
 	// corrupt that contract.
 	//
-	// TRUST MODEL: site state is PUBLIC per-site scratch storage. The pages
-	// that use it run in the browser and hold no API key, so the only possible
-	// gate is the Origin/Referer check (authorizeStateOrigin), which a real
-	// browser cannot forge across sites but a non-browser client (curl) can.
-	// We therefore treat state as readable/writable by anyone who knows the
-	// site name: it has NO confidentiality or integrity guarantee — do not
-	// store secrets in it, and don't trust it for security decisions. Abuse is
-	// bounded by stateLimiter (rate) and maxSiteStateSize (1 MB cap).
+	// TRUST MODEL: site state is PUBLIC per-site scratch storage for reads.
+	// The Origin/Referer check (authorizeStateOrigin) still applies to every
+	// method. Writes additionally go through visitorWriteOK: a visitor
+	// session, the owner's X-API-Key, WRITE_AUTH_MODE=log (measure, allow),
+	// or the admin allow_anonymous_writes hatch. Do not store secrets in it.
+	// Abuse is bounded by stateLimiter (rate) and maxSiteStateSize (1 MB cap).
 	// View-lock (API-native): owner sets/clears a bcrypt view password; nginx
 	// enforces it via auth_request -> /internal/view-auth (public access to
 	// /internal is blocked at the apex proxy).
 	mux.Handle("PUT /v1/sites/{sitename}/view-password", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setViewPassword))))
 	mux.Handle("DELETE /v1/sites/{sitename}/view-password", noticeMiddleware(authMiddleware(http.HandlerFunc(h.deleteViewPassword))))
 	mux.Handle("PUT /v1/sites/{sitename}/allowed-origins", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setAllowedOrigins))))
+	mux.Handle("PUT /v1/sites/{sitename}/allow-anonymous-writes", noticeMiddleware(authMiddleware(auth.RequireAdmin(http.HandlerFunc(h.setAllowAnonymousWrites)))))
 
 	// Custom domain (one per site): owner binds a hostname, gets a CNAME record
 	// to create; Caddy on-demand TLS asks /internal/tls-ask before issuing a cert.
@@ -339,6 +348,37 @@ func (h *SiteHandler) setAllowedOrigins(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"site": siteName, "allowed_origins": clean})
+}
+
+// setAllowAnonymousWrites is the admin-only hatch so one site can keep
+// accepting unsigned writes while WRITE_AUTH_MODE=on.
+func (h *SiteHandler) setAllowAnonymousWrites(w http.ResponseWriter, r *http.Request) {
+	siteName := strings.TrimSpace(r.PathValue("sitename"))
+	if siteName == "" {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
+		return
+	}
+	var req struct {
+		Allow *bool `json:"allow"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil || req.Allow == nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
+		return
+	}
+	siteID, err := db.GetSiteIDByName(r.Context(), h.database, siteName)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	if err := db.SetAllowAnonymousWrites(r.Context(), h.database, siteID, *req.Allow); err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"site": siteName, "allow_anonymous_writes": *req.Allow})
 }
 
 // resolveSiteID resolves the target site's id. When the route carries a {handle} path
@@ -468,8 +508,9 @@ func (h *SiteHandler) optionsSiteState(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Access-Control-Allow-Methods", "GET, PUT, PATCH, OPTIONS")
 	// If-Match / If-None-Match carry the state version for optimistic-concurrency
-	// PUTs and conditional GETs; PATCH sends ops as JSON.
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, If-Match, If-None-Match")
+	// PUTs and conditional GETs; PATCH sends ops as JSON. X-SH-CSRF is required
+	// on cookie-authenticated writes.
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, If-Match, If-None-Match, X-SH-CSRF")
 	w.Header().Set("Access-Control-Max-Age", "600")
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -577,6 +618,9 @@ func (h *SiteHandler) putSiteState(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	if !h.visitorWriteOK(w, r, siteID, siteName, writeRouteStatePut, "") {
 		return
 	}
 
