@@ -39,23 +39,26 @@ const (
 // rather than a per-job lock: every access already goes through the store, so
 // one lock is both sufficient and easier to reason about.
 type generateJob struct {
-	owner   string // user ID; a job is only ever visible to the user who started it
-	started time.Time
-	ended   time.Time
-	done    bool
-	reply   string
-	html    string
-	failure string // user-facing message, already mapped from the provider error
+	owner    string // user ID; a job is only ever visible to the user who started it
+	started  time.Time
+	ended    time.Time
+	done     bool
+	reply    string
+	html     string
+	failure  string // user-facing message, already mapped from the provider error
+	progress string // latest stream snippet; job goroutine writes, poll reads
 }
 
 // jobStatusResponse is the poll body. The client keys off Status exactly:
 // "done" collects reply+html, "error" surfaces Error, anything else means keep
-// polling — so these strings are part of the wire contract.
+// polling — so these strings are part of the wire contract. Progress is a
+// human-readable snapshot of the in-flight stream (prose, then a size counter).
 type jobStatusResponse struct {
-	Status string `json:"status"` // "running" | "done" | "error"
-	Reply  string `json:"reply,omitempty"`
-	HTML   string `json:"html,omitempty"`
-	Error  string `json:"error,omitempty"`
+	Status   string `json:"status"` // "running" | "done" | "error"
+	Reply    string `json:"reply,omitempty"`
+	HTML     string `json:"html,omitempty"`
+	Error    string `json:"error,omitempty"`
+	Progress string `json:"progress,omitempty"`
 }
 
 type jobStore struct {
@@ -73,8 +76,9 @@ var errJobsBusy = errors.New("too many builds already running")
 // start registers a job owned by owner and runs work in the background, then
 // returns the job id to poll. work receives a context with its own deadline —
 // deliberately NOT the request context, which is cancelled the moment the
-// handler returns and would kill every build instantly.
-func (s *jobStore) start(owner string, work func(context.Context) (string, string, error), onErr func(error) string) (string, error) {
+// handler returns and would kill every build instantly — and a report callback
+// that publishes a progress string for the next status poll.
+func (s *jobStore) start(owner string, work func(context.Context, func(string)) (string, string, error), onErr func(error) string) (string, error) {
 	id, err := newJobID()
 	if err != nil {
 		return "", err
@@ -101,7 +105,9 @@ func (s *jobStore) start(owner string, work func(context.Context) (string, strin
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), jobRunTimeout)
 		defer cancel()
-		reply, html, err := runJobWork(ctx, work)
+		reply, html, err := runJobWork(ctx, func(ctx context.Context) (string, string, error) {
+			return work(ctx, s.progressReporter(id))
+		})
 
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -118,6 +124,20 @@ func (s *jobStore) start(owner string, work func(context.Context) (string, strin
 	}()
 
 	return id, nil
+}
+
+// progressReporter returns a callback the job goroutine uses to publish the
+// latest stream snapshot. The store mutex is the only guard: the writer is that
+// goroutine and the reader is an HTTP handler, so an unsynchronized write is a
+// real data race.
+func (s *jobStore) progressReporter(id string) func(string) {
+	return func(text string) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if j, ok := s.jobs[id]; ok && !j.done {
+			j.progress = text
+		}
+	}
 }
 
 // get returns the job if it exists and belongs to owner. A job belonging to

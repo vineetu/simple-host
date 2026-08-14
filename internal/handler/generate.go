@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -174,7 +175,7 @@ func (h *GenerateHandler) generate(w http.ResponseWriter, r *http.Request) {
 	// over a minute), so it runs as a background job and the client polls, rather
 	// than holding an idle connection the browser will drop.
 	if h.llmKey != "" {
-		jobID, err := h.jobs.start(user.ID, func(ctx context.Context) (string, string, error) {
+		jobID, err := h.jobs.start(user.ID, func(ctx context.Context, report func(string)) (string, string, error) {
 			// NB: mutates msgs in place. Named honestly rather than as a copy that
 			// isn't one — the slice header copy would share the same backing array.
 			if len(atts) > 0 {
@@ -192,7 +193,7 @@ func (h *GenerateHandler) generate(w http.ResponseWriter, r *http.Request) {
 				li := len(msgs) - 1
 				msgs[li].Content = inlineAttachmentsAsText(msgs[li].Content, atts, desc, h.visionKey != "")
 			}
-			return h.converseOpenAI(ctx, msgs, req.HTML)
+			return h.converseOpenAI(ctx, msgs, req.HTML, report)
 		}, func(err error) string {
 			log.Printf("generate (llm): %v", err)
 			return generateErrorMessage(err)
@@ -229,7 +230,7 @@ func (h *GenerateHandler) generate(w http.ResponseWriter, r *http.Request) {
 		msgs[li].Content = buildUserBlocks(msgs[li].Content, atts)
 	}
 
-	jobID, err := h.jobs.start(user.ID, func(ctx context.Context) (string, string, error) {
+	jobID, err := h.jobs.start(user.ID, func(ctx context.Context, _ func(string)) (string, string, error) {
 		return h.converse(ctx, msgs, req.HTML)
 	}, func(err error) string {
 		log.Printf("generate: %v", err)
@@ -394,7 +395,7 @@ func (h *GenerateHandler) localStatus(w http.ResponseWriter, owner, id string) {
 	}
 	switch {
 	case !j.done:
-		writeJSON(w, http.StatusOK, jobStatusResponse{Status: "running"})
+		writeJSON(w, http.StatusOK, jobStatusResponse{Status: "running", Progress: j.progress})
 	case j.failure != "":
 		writeJSON(w, http.StatusOK, jobStatusResponse{Status: "error", Error: j.failure})
 	default:
@@ -753,6 +754,25 @@ type openAIRequest struct {
 	Messages    []openAIMessage `json:"messages"`
 	MaxTokens   int             `json:"max_tokens"`
 	Temperature float64         `json:"temperature"`
+	Stream      bool            `json:"stream,omitempty"`
+}
+
+// openAIStreamChunk is one `data:` payload from a streamed chat.completions
+// response. Visible text arrives on delta.content; reasoning models emit their
+// hidden chain-of-thought on delta.reasoning_content (often for a minute-plus
+// before the first visible token). finish_reason arrives on the last chunk.
+// A provider error can show up here on HTTP 200 rather than as a non-200 status.
+type openAIStreamChunk struct {
+	Choices []struct {
+		Delta struct {
+			Content          string `json:"content"`
+			ReasoningContent string `json:"reasoning_content"`
+		} `json:"delta"`
+		FinishReason string `json:"finish_reason"`
+	} `json:"choices"`
+	Error *struct {
+		Message string `json:"message"`
+	} `json:"error"`
 }
 
 type openAIResponse struct {
@@ -784,7 +804,7 @@ const maxLLMTokens = 64000
 // maxCurrentHTMLCompact bounds the site snapshot re-sent on every turn.
 const maxCurrentHTMLCompact = 96 * 1024
 
-func (h *GenerateHandler) converseOpenAI(ctx context.Context, msgs []claudeMessage, currentHTML string) (string, string, error) {
+func (h *GenerateHandler) converseOpenAI(ctx context.Context, msgs []claudeMessage, currentHTML string, report func(string)) (string, string, error) {
 	// The model has no idea what day it is and will happily list last year's
 	// dates as "upcoming".
 	system := generateSystemPrompt + "\n\nToday's date is " + time.Now().Format("Monday, 2 January 2006") + ". Any dates you invent must be in the future relative to that."
@@ -806,7 +826,7 @@ func (h *GenerateHandler) converseOpenAI(ctx context.Context, msgs []claudeMessa
 	}
 
 	body, err := json.Marshal(openAIRequest{
-		Model: h.llmModel, Messages: out, MaxTokens: maxLLMTokens, Temperature: 0.6,
+		Model: h.llmModel, Messages: out, MaxTokens: maxLLMTokens, Temperature: 0.6, Stream: true,
 	})
 	if err != nil {
 		return "", "", err
@@ -825,39 +845,197 @@ func (h *GenerateHandler) converseOpenAI(ctx context.Context, msgs []claudeMessa
 	}
 	defer resp.Body.Close()
 
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	// Status first: a 402/429/401 otherwise arrives as an unmarshal error and the
+	// log says "invalid character" instead of "insufficient balance". Non-200
+	// bodies are a single JSON error (not SSE), including context-window rejects.
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		raw, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+		if err != nil {
+			return "", "", err
+		}
+		errBody := string(raw)
+		if len(errBody) > 500 {
+			errBody = errBody[:500]
+		}
+		if resp.StatusCode == http.StatusBadRequest && strings.Contains(strings.ToLower(errBody), "context") {
+			return "", "", errContextTooLong
+		}
+		return "", "", fmt.Errorf("llm status %d: %s", resp.StatusCode, errBody)
+	}
+
+	text, finishReason, err := consumeOpenAIStream(ctx, resp.Body, report)
 	if err != nil {
 		return "", "", err
 	}
-	// Status first: a 402/429/401 otherwise arrives as an unmarshal error and the
-	// log says "invalid character" instead of "insufficient balance".
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body := string(raw)
-		if len(body) > 500 {
-			body = body[:500]
-		}
-		if resp.StatusCode == http.StatusBadRequest && strings.Contains(strings.ToLower(body), "context") {
-			return "", "", errContextTooLong
-		}
-		return "", "", fmt.Errorf("llm status %d: %s", resp.StatusCode, body)
-	}
-	var parsed openAIResponse
-	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return "", "", fmt.Errorf("llm: decoding response: %w", err)
-	}
-	if parsed.Error != nil {
-		return "", "", fmt.Errorf("llm: %s", parsed.Error.Message)
-	}
-	if len(parsed.Choices) == 0 {
+	if text == "" {
 		return "", "", errors.New("llm: no choices in response")
 	}
 	// Anything other than a clean stop means a partial body. Publishing half a
 	// document is worse than failing: cleanHTML stamps a doctype on it so it
-	// looks whole.
-	if fr := parsed.Choices[0].FinishReason; fr != "stop" && fr != "" && fr != "tool_calls" {
-		return "", "", fmt.Errorf("%w (finish_reason=%s)", errTruncated, fr)
+	// looks whole. On a stream this arrives on the final chunk.
+	if finishReason != "stop" && finishReason != "" && finishReason != "tool_calls" {
+		return "", "", fmt.Errorf("%w (finish_reason=%s)", errTruncated, finishReason)
 	}
-	return splitReplyAndHTML(parsed.Choices[0].Message.Content)
+	return splitReplyAndHTML(text)
+}
+
+// maxSSELine is well above a typical delta but still a hard cap: bufio.Scanner
+// defaults to 64 KB and fails (quietly, from the caller's point of view) on a
+// larger token. A streamed HTML chunk can exceed that.
+const maxSSELine = 4 << 20
+
+// consumeOpenAIStream reads a text/event-stream chat.completions body, joining
+// choices[0].delta.content in order so the result matches the non-streaming
+// message.content. reasoning_content is accumulated only for the progress
+// bubble and is never written into the returned content string. report (if
+// non-nil) gets a human-readable progress string after each delta. Neither
+// buffer is logged.
+func consumeOpenAIStream(ctx context.Context, r io.Reader, report func(string)) (content, finishReason string, err error) {
+	sc := bufio.NewScanner(r)
+	sc.Buffer(make([]byte, 0, 64*1024), maxSSELine)
+
+	// contentAccum is the ONLY source of the returned text. reasoningAccum is
+	// progress-only: appending it here would leak the chain-of-thought into
+	// splitReplyAndHTML / cleanHTML and publish it as the site.
+	var contentAccum strings.Builder
+	var reasoningAccum strings.Builder
+	sawDone := false
+	for sc.Scan() {
+		if err := ctx.Err(); err != nil {
+			return "", "", err
+		}
+		line := strings.TrimSpace(sc.Text())
+		if line == "" {
+			continue
+		}
+		payload := line
+		if strings.HasPrefix(line, "data:") {
+			payload = strings.TrimSpace(line[5:])
+			if payload == "[DONE]" {
+				sawDone = true
+				break
+			}
+		} else if !strings.HasPrefix(line, "{") {
+			continue
+		}
+		if payload == "" || payload[0] != '{' {
+			continue
+		}
+
+		var chunk openAIStreamChunk
+		if err := json.Unmarshal([]byte(payload), &chunk); err != nil {
+			return "", "", fmt.Errorf("llm: decoding stream: %w", err)
+		}
+		if chunk.Error != nil {
+			msg := chunk.Error.Message
+			if strings.Contains(strings.ToLower(msg), "context") {
+				return "", "", errContextTooLong
+			}
+			return "", "", fmt.Errorf("llm: %s", msg)
+		}
+		if len(chunk.Choices) == 0 {
+			continue
+		}
+		delta := chunk.Choices[0].Delta
+		if delta.ReasoningContent != "" {
+			reasoningAccum.WriteString(delta.ReasoningContent)
+		}
+		if delta.Content != "" {
+			contentAccum.WriteString(delta.Content)
+		}
+		if report != nil {
+			// Visible tokens take over the bubble the moment they exist;
+			// reasoning is only shown while we are still waiting for them.
+			var p string
+			if contentAccum.Len() == 0 {
+				p = reasoningProgress(reasoningAccum.String())
+			} else {
+				p = streamProgress(contentAccum.String())
+			}
+			if p != "" {
+				report(p)
+			}
+		}
+		if fr := chunk.Choices[0].FinishReason; fr != "" {
+			finishReason = fr
+		}
+	}
+	if err := sc.Err(); err != nil {
+		if ctx.Err() != nil {
+			return "", "", ctx.Err()
+		}
+		return "", "", err
+	}
+	// A clean EOF with neither [DONE] nor a finish_reason is a truncated
+	// stream: the non-streaming path failed to unmarshal in this case, but
+	// SSE just ends. Publishing the stump would look like a finished site.
+	if !sawDone && finishReason == "" {
+		return "", "", fmt.Errorf("%w (stream ended without a terminal signal)", errTruncated)
+	}
+	return contentAccum.String(), finishReason, nil
+}
+
+// streamProgress turns accumulated VISIBLE model text into a short status for
+// the thinking bubble. While the model is writing prose we show that prose
+// (last ~120 chars); once the page starts we switch to a size counter — raw
+// HTML is noise in a chat bubble.
+func streamProgress(accum string) string {
+	if n, ok := htmlBytesSoFar(accum); ok {
+		if n < 1024 {
+			return "Writing the page…"
+		}
+		return fmt.Sprintf("Writing the page… %d KB", n/1024)
+	}
+	prose := strings.Join(strings.Fields(accum), " ")
+	if prose == "" {
+		return ""
+	}
+	return ellipsizeTail(prose, 120)
+}
+
+// reasoningProgress is the bubble text while a reasoning model is still
+// thinking and has not emitted any visible content. The reasoning itself is
+// never returned as the site.
+func reasoningProgress(accum string) string {
+	prose := strings.Join(strings.Fields(accum), " ")
+	if prose == "" {
+		return ""
+	}
+	return "Thinking… " + ellipsizeTail(prose, 120)
+}
+
+// ellipsizeTail keeps the last n runes of s, prefixing "…" when it had to cut.
+func ellipsizeTail(s string, n int) string {
+	r := []rune(s)
+	if len(r) > n {
+		return "…" + string(r[len(r)-n:])
+	}
+	return s
+}
+
+func htmlBytesSoFar(accum string) (int, bool) {
+	if i := strings.Index(accum, siteHTMLSentinel); i >= 0 {
+		n := len(accum) - i - len(siteHTMLSentinel)
+		if n < 0 {
+			n = 0
+		}
+		return n, true
+	}
+	if m := htmlFenceRe.FindStringIndex(accum); m != nil {
+		n := len(accum) - m[1]
+		if n < 0 {
+			n = 0
+		}
+		return n, true
+	}
+	if m := htmlStartRe.FindStringIndex(accum); m != nil {
+		n := len(accum) - m[0]
+		if n < 0 {
+			n = 0
+		}
+		return n, true
+	}
+	return 0, false
 }
 
 var (

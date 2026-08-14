@@ -531,7 +531,8 @@
     }
     .msg.ai .bubble.thinking { color: var(--text-secondary); letter-spacing: 0.15em; }
 
-    .ai-input { display: flex; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--border); }
+    .ai-input { display: flex; flex-direction: column; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--border); }
+    .ai-input-row { display: flex; gap: 8px; align-items: stretch; }
     .ai-input input[type="text"] {
       flex: 1; min-width: 0;
       padding: 10px 14px; font-size: 14px; font-family: var(--mono);
@@ -546,6 +547,43 @@
     .mic-btn.busy { opacity: .6; }
     @keyframes mic-pulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
     @media (prefers-reduced-motion: reduce) { .mic-btn.recording { animation: none; } }
+
+    /* Same visual language as .mic-btn (emoji control, no extra chrome). */
+    .attach-strip { display: flex; flex-wrap: wrap; gap: 8px; }
+    .attach-chip {
+      display: flex; align-items: center; gap: 6px;
+      max-width: 200px;
+      padding: 4px 6px 4px 4px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .attach-chip img {
+      width: 32px; height: 32px; object-fit: cover;
+      border-radius: 4px; flex-shrink: 0; background: var(--surface);
+    }
+    .attach-chip .attach-kind {
+      flex-shrink: 0;
+      font-size: 10px; font-weight: 600; letter-spacing: 0.06em;
+      padding: 3px 5px; border-radius: 4px;
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+    .attach-chip .attach-name {
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      min-width: 0;
+    }
+    .attach-chip .attach-x {
+      flex-shrink: 0;
+      background: none; border: none; color: var(--dim);
+      cursor: pointer; padding: 0 4px; font-size: 16px; line-height: 1;
+      border-radius: 4px;
+    }
+    .attach-chip .attach-x:hover { color: var(--error); }
+    /* inset so the highlight isn't clipped by .ai-create { overflow: hidden } */
+    .ai-create.drag-over { box-shadow: inset 0 0 0 2px var(--accent); }
 
     .ai-auth { padding: 14px 20px 0; }
     .ai-auth-inner { border: 1px solid var(--border-hi); border-radius: var(--radius); padding: 14px 16px; background: var(--bg); }
@@ -671,12 +709,17 @@
         </div>
       </div>
       <form class="ai-input" id="ai-form">
-        <input type="text" id="chat-input" placeholder="Describe the site you want — e.g. a landing page for my coffee shop…" autocomplete="off">
-        <!-- Hidden until we know voice input is actually usable: the endpoint has
-             to be configured, the browser has to expose a recorder, and getUserMedia
-             needs a secure context. A mic button that cannot record is worse than none. -->
-        <button class="btn mic-btn" type="button" id="chat-mic" hidden title="Speak your idea" aria-label="Speak your idea">🎤</button>
-        <button class="btn btn-primary" type="submit" id="chat-send">Build</button>
+        <div class="attach-strip" id="attach-strip" hidden></div>
+        <div class="ai-input-row">
+          <input type="text" id="chat-input" placeholder="Describe the site you want — e.g. a landing page for my coffee shop…" autocomplete="off">
+          <input type="file" id="chat-file" hidden multiple accept="image/png,image/jpeg,image/gif,image/webp,.png,.jpg,.jpeg,.gif,.webp,application/pdf,.pdf,text/plain,text/markdown,text/csv,application/json,.txt,.md,.csv,.json">
+          <button class="btn mic-btn" type="button" id="chat-attach" title="Attach a file" aria-label="Attach a file">📎</button>
+          <!-- Hidden until we know voice input is actually usable: the endpoint has
+               to be configured, the browser has to expose a recorder, and getUserMedia
+               needs a secure context. A mic button that cannot record is worse than none. -->
+          <button class="btn mic-btn" type="button" id="chat-mic" hidden title="Speak your idea" aria-label="Speak your idea">🎤</button>
+          <button class="btn btn-primary" type="submit" id="chat-send">Build</button>
+        </div>
       </form>
     </div>
 
@@ -1264,6 +1307,15 @@
     var aiBusy = false;
     var pendingAuthText = null;   // prompt captured while a visitor signs in
     var pendingAuthEmail = null;
+    var pendingAttachments = [];  // staged files; sent with the next turn
+    var attachLocked = false;     // true while a turn is encoding / in flight
+    var MAX_ATTACHMENTS = 6;
+    var MAX_IMAGE_BYTES = 5 * 1024 * 1024; // matches sanitizeAttachments (~5 MB binary)
+    // Server measures encoded payload bytes (base64 string length, or text length).
+    var MAX_IMAGE_ENCODED = 7 << 20;
+    var MAX_PDF_ENCODED = 24 << 20;
+    var MAX_ATTACH_TOTAL = 18 << 20;
+    var ALLOWED_IMAGE_TYPES = { 'image/png': true, 'image/jpeg': true, 'image/gif': true, 'image/webp': true };
 
     function aiAppend(role, text, opts) {
       var chat = document.getElementById('ai-chat');
@@ -1327,17 +1379,337 @@
       return { error: 'This is taking longer than usual — please try again.' };
     }
 
+    function attachExt(name) {
+      var s = String(name || '');
+      var i = s.lastIndexOf('.');
+      return i >= 0 ? s.slice(i + 1).toLowerCase() : '';
+    }
+
+    // Map a File to the server's kind/mediaType, or null if unsupported.
+    // file.type is often empty (drag-drop / paste) or a generic
+    // application/octet-stream, so we fall back to the extension.
+    function classifyAttachFile(file) {
+      var type = String((file && file.type) || '').toLowerCase();
+      var ext = attachExt(file && file.name);
+      if (type === 'image/jpg') type = 'image/jpeg';
+      if (ALLOWED_IMAGE_TYPES[type]) return { kind: 'image', mediaType: type };
+      if (type === 'application/pdf') return { kind: 'document', mediaType: 'application/pdf' };
+      if (type.indexOf('text/') === 0 || type === 'application/json') {
+        return { kind: 'text', mediaType: type || 'text/plain' };
+      }
+      if (ext === 'png') return { kind: 'image', mediaType: 'image/png' };
+      if (ext === 'jpg' || ext === 'jpeg') return { kind: 'image', mediaType: 'image/jpeg' };
+      if (ext === 'gif') return { kind: 'image', mediaType: 'image/gif' };
+      if (ext === 'webp') return { kind: 'image', mediaType: 'image/webp' };
+      if (ext === 'pdf') return { kind: 'document', mediaType: 'application/pdf' };
+      if (ext === 'txt' || ext === 'md' || ext === 'csv' || ext === 'json') {
+        return { kind: 'text', mediaType: 'text/plain' };
+      }
+      return null;
+    }
+
+    // Server counts len(base64) / len(text), not the raw File.size.
+    function encodedAttachSize(rec) {
+      if (!rec || !rec.file) return 0;
+      if (rec.kind === 'text') return rec.file.size || 0;
+      return 4 * Math.ceil((rec.file.size || 0) / 3);
+    }
+
+    function validateStagedAttachments(list) {
+      var src = list || pendingAttachments;
+      var i, a, enc, total = 0;
+      for (i = 0; i < src.length; i++) {
+        a = src[i];
+        enc = encodedAttachSize(a);
+        if (a.kind === 'document' && enc > MAX_PDF_ENCODED) {
+          return '"' + a.name + '" is too large — remove that PDF and try a smaller one.';
+        }
+        if (a.kind === 'image' && ((a.file && a.file.size > MAX_IMAGE_BYTES) || enc > MAX_IMAGE_ENCODED)) {
+          return '"' + a.name + '" is too large (5 MB max for images).';
+        }
+        total += enc;
+        if (total > MAX_ATTACH_TOTAL) {
+          return 'Those attachments are too large in total — remove "' + a.name + '" (or another file) and try again.';
+        }
+      }
+      return null;
+    }
+
+    // Ground-truth check after FileReader: same numbers sanitizeAttachments uses.
+    function validateEncodedPayload(atts) {
+      var i, a, n, total = 0;
+      for (i = 0; i < atts.length; i++) {
+        a = atts[i];
+        n = a.kind === 'text' ? String(a.text || '').length : String(a.data || '').length;
+        if (a.kind === 'document' && n > MAX_PDF_ENCODED) {
+          return '"' + a.name + '" is too large — remove that PDF and try a smaller one.';
+        }
+        if (a.kind === 'image' && n > MAX_IMAGE_ENCODED) {
+          return '"' + a.name + '" is too large (5 MB max for images).';
+        }
+        total += n;
+        if (total > MAX_ATTACH_TOTAL) {
+          return 'Those attachments are too large in total — remove "' + a.name + '" (or another file) and try again.';
+        }
+      }
+      return null;
+    }
+
+    function setAttachLocked(locked) {
+      attachLocked = !!locked;
+      var btn = document.getElementById('chat-attach');
+      if (btn) btn.disabled = attachLocked;
+      var xs = document.querySelectorAll('#attach-strip .attach-x');
+      var i;
+      for (i = 0; i < xs.length; i++) xs[i].disabled = attachLocked;
+    }
+
+    function addAttachFiles(fileList) {
+      if (aiBusy || attachLocked) return;
+      var files = Array.prototype.slice.call(fileList || []);
+      var i;
+      for (i = 0; i < files.length; i++) {
+        if (pendingAttachments.length >= MAX_ATTACHMENTS) {
+          aiAppend('ai', 'You can attach at most 6 files.');
+          break;
+        }
+        addOneAttachment(files[i]);
+      }
+    }
+
+    function addOneAttachment(file) {
+      if (!file || aiBusy || attachLocked) return;
+      var cls = classifyAttachFile(file);
+      var name = file.name || (cls && cls.kind === 'image' ? 'pasted-image.png' : 'untitled');
+      if (!cls) {
+        aiAppend('ai', '"' + name + '" is not a supported file type. Attach an image (PNG, JPEG, GIF, WebP), a PDF, or a plain-text file.');
+        return;
+      }
+      if (cls.kind === 'image' && file.size > MAX_IMAGE_BYTES) {
+        aiAppend('ai', '"' + name + '" is too large (5 MB max for images).');
+        return;
+      }
+      var rec = { kind: cls.kind, mediaType: cls.mediaType, name: name, file: file, previewUrl: null };
+      if (cls.kind === 'document' && encodedAttachSize(rec) > MAX_PDF_ENCODED) {
+        aiAppend('ai', '"' + name + '" is too large — remove it or attach a smaller PDF.');
+        return;
+      }
+      var already = 0, j;
+      for (j = 0; j < pendingAttachments.length; j++) already += encodedAttachSize(pendingAttachments[j]);
+      if (already + encodedAttachSize(rec) > MAX_ATTACH_TOTAL) {
+        aiAppend('ai', 'Those attachments are too large in total — remove a file before adding "' + name + '".');
+        return;
+      }
+      if (cls.kind === 'image') {
+        try { rec.previewUrl = URL.createObjectURL(file); } catch (e) {}
+      }
+      pendingAttachments.push(rec);
+      renderAttachStrip();
+    }
+
+    function removeAttachment(idx) {
+      if (aiBusy || attachLocked) return;
+      var a = pendingAttachments[idx];
+      if (!a) return;
+      if (a.previewUrl) { try { URL.revokeObjectURL(a.previewUrl); } catch (e) {} }
+      pendingAttachments.splice(idx, 1);
+      renderAttachStrip();
+    }
+
+    function renderAttachStrip() {
+      var strip = document.getElementById('attach-strip');
+      if (!strip) return;
+      strip.innerHTML = '';
+      if (!pendingAttachments.length) { strip.hidden = true; return; }
+      strip.hidden = false;
+      pendingAttachments.forEach(function (a, idx) {
+        var chip = document.createElement('div');
+        chip.className = 'attach-chip';
+        if (a.kind === 'image' && a.previewUrl) {
+          var img = document.createElement('img');
+          img.src = a.previewUrl;
+          img.alt = a.name;
+          chip.appendChild(img);
+        } else {
+          var tag = document.createElement('span');
+          tag.className = 'attach-kind';
+          tag.textContent = a.kind === 'document' ? 'PDF' : 'TXT';
+          chip.appendChild(tag);
+        }
+        var nm = document.createElement('span');
+        nm.className = 'attach-name';
+        nm.textContent = a.name;
+        nm.title = a.name;
+        chip.appendChild(nm);
+        var x = document.createElement('button');
+        x.type = 'button';
+        x.className = 'attach-x';
+        x.setAttribute('aria-label', 'Remove ' + a.name);
+        x.textContent = '×';
+        x.addEventListener('click', function () { removeAttachment(idx); });
+        chip.appendChild(x);
+        strip.appendChild(chip);
+      });
+      if (attachLocked) setAttachLocked(true);
+    }
+
+    function clearAttachments() {
+      var i;
+      for (i = 0; i < pendingAttachments.length; i++) {
+        if (pendingAttachments[i].previewUrl) {
+          try { URL.revokeObjectURL(pendingAttachments[i].previewUrl); } catch (e) {}
+        }
+      }
+      pendingAttachments = [];
+      renderAttachStrip();
+    }
+
+    function readFileAsBase64(file) {
+      return new Promise(function (resolve, reject) {
+        var reader = new FileReader();
+        reader.onload = function () {
+          var s = String(reader.result || '');
+          // FileReader.readAsDataURL returns "data:<mime>;base64,<payload>".
+          // The server base64-decodes `data` directly, so the prefix must go.
+          var comma = s.indexOf(',');
+          resolve(comma >= 0 ? s.slice(comma + 1) : s);
+        };
+        reader.onerror = function () { reject(reader.error); };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function readFileAsText(file) {
+      return new Promise(function (resolve, reject) {
+        var reader = new FileReader();
+        reader.onload = function () { resolve(String(reader.result || '')); };
+        reader.onerror = function () { reject(reader.error); };
+        reader.readAsText(file);
+      });
+    }
+
+    async function buildAttachmentsPayload(list) {
+      // Copy first: × / drop mutate the live array, and an await-in-loop over
+      // that array can skip a file and still send one the user just removed.
+      var src = (list || pendingAttachments).slice();
+      var out = [];
+      var i, a;
+      for (i = 0; i < src.length; i++) {
+        a = src[i];
+        if (a.kind === 'text') {
+          out.push({ kind: 'text', name: a.name, text: await readFileAsText(a.file) });
+        } else {
+          out.push({ kind: a.kind, mediaType: a.mediaType, name: a.name, data: await readFileAsBase64(a.file) });
+        }
+      }
+      return out;
+    }
+
+    // DataTransfer.types is a DOMStringList in older browsers (has .contains),
+    // not always a real array.
+    function attachDragHasFiles(e) {
+      var types = e.dataTransfer && e.dataTransfer.types;
+      if (!types) return false;
+      if (typeof types.contains === 'function') return types.contains('Files');
+      return Array.prototype.indexOf.call(types, 'Files') !== -1;
+    }
+
+    function initAttachInput() {
+      var btn = document.getElementById('chat-attach');
+      var picker = document.getElementById('chat-file');
+      var input = document.getElementById('chat-input');
+      var root = document.getElementById('ai-create');
+      if (btn && picker) {
+        btn.addEventListener('click', function () { picker.click(); });
+        picker.addEventListener('change', function () {
+          if (picker.files && picker.files.length) addAttachFiles(picker.files);
+          picker.value = ''; // so picking the same file twice still fires change
+        });
+      }
+      if (input) {
+        input.addEventListener('paste', function (e) {
+          var dt = e.clipboardData;
+          if (!dt) return;
+          var files = [];
+          var i, item, f;
+          if (dt.items && dt.items.length) {
+            for (i = 0; i < dt.items.length; i++) {
+              item = dt.items[i];
+              if (item.kind === 'file') {
+                f = item.getAsFile();
+                if (f) files.push(f);
+              }
+            }
+          } else if (dt.files && dt.files.length) {
+            files = Array.prototype.slice.call(dt.files);
+          }
+          // Only intercept pastes that actually carry a file; leave text alone.
+          if (!files.length) return;
+          e.preventDefault();
+          addAttachFiles(files);
+        });
+      }
+      if (root) {
+        var depth = 0;
+        root.addEventListener('dragenter', function (e) {
+          if (!attachDragHasFiles(e)) return;
+          e.preventDefault();
+          depth++;
+          root.classList.add('drag-over');
+        });
+        root.addEventListener('dragleave', function (e) {
+          if (!attachDragHasFiles(e)) return;
+          depth--;
+          if (depth <= 0) { depth = 0; root.classList.remove('drag-over'); }
+        });
+        root.addEventListener('dragover', function (e) {
+          if (!attachDragHasFiles(e)) return;
+          e.preventDefault();
+          try { e.dataTransfer.dropEffect = 'copy'; } catch (err) {}
+        });
+        root.addEventListener('drop', function (e) {
+          depth = 0;
+          root.classList.remove('drag-over');
+          if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
+          e.preventDefault();
+          addAttachFiles(e.dataTransfer.files);
+        });
+      }
+    }
+
     // Run one generate turn. Requires apiKey (caller guarantees it).
     async function runGenerate(text) {
       chatMessages.push({ role: 'user', content: text });
       var send = document.getElementById('chat-send');
       send.disabled = true; aiBusy = true;
+      setAttachLocked(true);
       var thinking = aiAppend('ai', '• • •', { thinking: true });
+      // Frozen at press-Build so later chip/drop mutations cannot change the sent set.
+      var toSend = pendingAttachments.slice();
+      var phase = 'read';
       try {
-        var res = await api('POST', '/v1/generate', { messages: chatMessages, html: generatedHTML || '', attachments: [] });
+        var stagedErr = validateStagedAttachments(toSend);
+        if (stagedErr) {
+          thinking.remove();
+          chatMessages.pop();
+          aiAppend('ai', stagedErr);
+          return;
+        }
+        var atts = await buildAttachmentsPayload(toSend);
+        var encErr = validateEncodedPayload(atts);
+        if (encErr) {
+          thinking.remove();
+          chatMessages.pop();
+          aiAppend('ai', encErr);
+          return;
+        }
+        phase = 'send';
+        var res = await api('POST', '/v1/generate', { messages: chatMessages, html: generatedHTML || '', attachments: atts });
         var data = await res.json().catch(function () { return {}; });
         // Async path returns {jobId}; direct path returns {reply,html} inline.
         if (res.ok && data.jobId) {
+          // Server accepted the files. Clear before the long poll, not before POST.
+          clearAttachments();
           data = await pollJob(data.jobId, thinking);
         }
         thinking.remove();
@@ -1346,6 +1718,7 @@
           aiAppend('ai', (data && data.error) || 'Something went wrong — please try again.');
           return;
         }
+        if (pendingAttachments.length) clearAttachments();
         var reply = data.reply || 'Done.';
         aiAppend('ai', reply);
         chatMessages.push({ role: 'assistant', content: reply });
@@ -1353,9 +1726,12 @@
       } catch (e) {
         thinking.remove();
         chatMessages.pop();
-        aiAppend('ai', 'Cannot reach the server — please try again.');
+        aiAppend('ai', phase === 'read'
+          ? 'Could not read an attached file — please try again.'
+          : 'Cannot reach the server — please try again.');
       } finally {
         send.disabled = false; aiBusy = false;
+        setAttachLocked(false);
         var input = document.getElementById('chat-input');
         if (input) input.focus();
       }
@@ -1372,6 +1748,8 @@
       if (!apiKey) {
         // Do NOT submit to /v1/generate without a key. Reveal inline sign-in.
         pendingAuthText = text;
+        // Files stay in pendingAttachments (the strip stays visible). There is
+        // no snapshot to restore after verify — a × during sign-in must stick.
         input.value = '';
         aiAppend('user', text);
         aiAppend('ai', 'One quick step — sign in with your email so I can build this for you (it uses AI credits).');
@@ -1471,6 +1849,7 @@
       document.getElementById('ai-reset').hidden = true;
       hideAiAuth();
       pendingAuthText = null;
+      clearAttachments();
       aiGreeting();
       document.getElementById('chat-input').focus();
     }
@@ -1576,6 +1955,7 @@
     (function initAiCreate() {
       var form = document.getElementById('ai-form');
       if (form) form.addEventListener('submit', onAiSubmit);
+      initAttachInput();
       initVoiceInput();
       var ef = document.getElementById('ai-email-form');
       if (ef) ef.addEventListener('submit', onAiEmailSubmit);
