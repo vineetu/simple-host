@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -17,7 +18,7 @@ const (
 	googleUserInfoURL = "https://openidconnect.googleapis.com/v1/userinfo"
 )
 
-// Google is the Google OAuth provider (openid + profile; no email).
+// Google is the Google OAuth provider (openid + email).
 type Google struct {
 	conf *oauth2.Config
 }
@@ -29,7 +30,7 @@ func NewGoogle(clientID, clientSecret, redirectURI string) *Google {
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
 			RedirectURL:  redirectURI,
-			Scopes:       []string{"openid", "profile"},
+			Scopes:       []string{"openid", "email"},
 			Endpoint: oauth2.Endpoint{
 				AuthURL:  googleAuthURL,
 				TokenURL: googleTokenURL,
@@ -71,10 +72,14 @@ func (g *Google) Exchange(ctx context.Context, code, verifier string) (Identity,
 	return ParseGoogleUserInfo(body)
 }
 
-// ParseGoogleUserInfo extracts sub from a Google userinfo JSON body.
+// ParseGoogleUserInfo extracts sub and the verified-email snapshot from a
+// Google userinfo JSON body. EmailVerified is true only when the JSON
+// boolean is true — a missing or non-boolean value is false.
 func ParseGoogleUserInfo(body []byte) (Identity, error) {
 	var payload struct {
-		Sub string `json:"sub"`
+		Sub           string          `json:"sub"`
+		Email         string          `json:"email"`
+		EmailVerified json.RawMessage `json:"email_verified"`
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return Identity{}, fmt.Errorf("google userinfo: %w", err)
@@ -82,7 +87,13 @@ func ParseGoogleUserInfo(body []byte) (Identity, error) {
 	if payload.Sub == "" {
 		return Identity{}, fmt.Errorf("google userinfo: missing sub")
 	}
-	return Identity{Provider: "google", UserID: payload.Sub}, nil
+	ident := Identity{
+		Provider:      "google",
+		UserID:        payload.Sub,
+		Email:         strings.ToLower(strings.TrimSpace(payload.Email)),
+		EmailVerified: string(payload.EmailVerified) == "true",
+	}
+	return ident, nil
 }
 
 var oauthHTTPClient = &http.Client{Timeout: 10 * time.Second}

@@ -23,6 +23,7 @@ func TestParseAbsoluteReturnTo(t *testing.T) {
 		{name: "non-default https port", raw: "https://sites.simple-host.app:8443/alice/blog/", base: httpsBase, wantErr: true},
 		{name: "default https port ok", raw: "https://sites.simple-host.app:443/alice/blog/", base: httpsBase},
 		{name: "default http port ok", raw: "http://sites.simple-host.app:80/alice/blog/", base: httpBase},
+		{name: "public-base port allowed", raw: "http://localhost:8090/", base: httpBase},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -77,4 +78,39 @@ func TestIsRejectedPlatformHost(t *testing.T) {
 	if isRejectedPlatformHost("recipes.brand.com", "simple-host.app", "sites.simple-host.app", "simple-host.app") {
 		t.Fatalf("custom domain must not be rejected as platform host")
 	}
+}
+
+func TestOwnerReturnToOK(t *testing.T) {
+	httpsBase := "https://simple-host.app"
+	httpBase := "http://localhost:8090"
+	ok := func(raw, base string) {
+		t.Helper()
+		u, err := parseAbsoluteReturnTo(raw, base)
+		if err != nil {
+			t.Fatalf("parse %q: %v", raw, err)
+		}
+		if !ownerReturnToOK(u, base) {
+			t.Fatalf("expected owner accept %q", raw)
+		}
+	}
+	bad := func(raw, base string) {
+		t.Helper()
+		u, err := parseAbsoluteReturnTo(raw, base)
+		if err != nil {
+			return
+		}
+		if ownerReturnToOK(u, base) {
+			t.Fatalf("expected owner reject %q", raw)
+		}
+	}
+	ok("https://simple-host.app/", httpsBase)
+	ok("https://simple-host.app", httpsBase)
+	ok("http://localhost:8090/", httpBase)
+	bad("https://simple-host.app/install.sh", httpsBase)
+	bad("https://simple-host.app/v1/me", httpsBase)
+	bad("https://simple-host.app/?token=abc", httpsBase)
+	bad("https://simple-host.app/#frag", httpsBase)
+	bad("https://www.simple-host.app/", httpsBase)
+	bad("https://sites.simple-host.app/alice/blog/", httpsBase)
+	bad("https://evil.example/", httpsBase)
 }

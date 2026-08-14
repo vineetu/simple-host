@@ -6,13 +6,17 @@ import (
 	"time"
 )
 
-// Visitor is a durable identity from Google or GitHub. Not a users row.
-type Visitor struct {
+// OAuthIdentity is a provider account linked to a users row. The durable key
+// is (provider, provider_user_id); email is a snapshot, not a uniqueness key.
+type OAuthIdentity struct {
 	ID             string
+	UserID         string
 	Provider       string
 	ProviderUserID string
+	Email          sql.NullString
+	EmailVerified  bool
 	CreatedAt      time.Time
-	LastLoginAt    time.Time
+	UpdatedAt      time.Time
 }
 
 // OAuthState is one in-flight authorization-code flow.
@@ -22,16 +26,18 @@ type OAuthState struct {
 	CodeVerifier string
 	ReturnTo     string
 	Host         string
-	SiteID       string
+	SiteID       sql.NullString
+	Purpose      string
 	CreatedAt    time.Time
 	ExpiresAt    time.Time
 	UsedAt       sql.NullTime
 }
 
-// VisitorSession is the server-side row behind the visitor cookie.
+// VisitorSession is the server-side row behind the site-scoped cookie.
+// UserID is the one principal; the cookie is not an API key.
 type VisitorSession struct {
 	ID            []byte
-	VisitorID     string
+	UserID        string
 	SiteID        string
 	Host          string
 	CreatedAt     time.Time
@@ -52,27 +58,61 @@ type EstablishToken struct {
 	UsedAt    sql.NullTime
 }
 
-// UpsertVisitor inserts a visitor or bumps last_login_at on (provider, provider_user_id).
-func UpsertVisitor(ctx context.Context, q Querier, provider, providerUserID string) (Visitor, error) {
+// GetOAuthIdentity looks up a linked provider account.
+// Returns sql.ErrNoRows when none exists.
+func GetOAuthIdentity(ctx context.Context, q Querier, provider, providerUserID string) (OAuthIdentity, error) {
 	const query = `
-		INSERT INTO visitors (provider, provider_user_id)
-		VALUES ($1, $2)
-		ON CONFLICT (provider, provider_user_id)
-		DO UPDATE SET last_login_at = now()
-		RETURNING id::text, provider, provider_user_id, created_at, last_login_at`
-	var v Visitor
+		SELECT id::text, user_id::text, provider, provider_user_id,
+		       email, email_verified, created_at, updated_at
+		FROM oauth_identities
+		WHERE provider = $1 AND provider_user_id = $2`
+	var id OAuthIdentity
 	err := q.QueryRowContext(ctx, query, provider, providerUserID).Scan(
-		&v.ID, &v.Provider, &v.ProviderUserID, &v.CreatedAt, &v.LastLoginAt,
+		&id.ID, &id.UserID, &id.Provider, &id.ProviderUserID,
+		&id.Email, &id.EmailVerified, &id.CreatedAt, &id.UpdatedAt,
 	)
-	return v, err
+	return id, err
+}
+
+// InsertOAuthIdentity links a provider account to a users row.
+func InsertOAuthIdentity(ctx context.Context, q Querier, userID, provider, providerUserID, email string, emailVerified bool) (OAuthIdentity, error) {
+	const query = `
+		INSERT INTO oauth_identities (user_id, provider, provider_user_id, email, email_verified)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id::text, user_id::text, provider, provider_user_id,
+		          email, email_verified, created_at, updated_at`
+	var emailArg any
+	if email != "" {
+		emailArg = email
+	}
+	var id OAuthIdentity
+	err := q.QueryRowContext(ctx, query, userID, provider, providerUserID, emailArg, emailVerified).Scan(
+		&id.ID, &id.UserID, &id.Provider, &id.ProviderUserID,
+		&id.Email, &id.EmailVerified, &id.CreatedAt, &id.UpdatedAt,
+	)
+	return id, err
+}
+
+// TouchOAuthIdentity updates the email snapshot on a successful re-identify.
+func TouchOAuthIdentity(ctx context.Context, q Querier, id, email string, emailVerified bool) error {
+	var emailArg any
+	if email != "" {
+		emailArg = email
+	}
+	_, err := q.ExecContext(ctx, `
+		UPDATE oauth_identities
+		SET email = $2, email_verified = $3, updated_at = now()
+		WHERE id = $1`, id, emailArg, emailVerified)
+	return err
 }
 
 // InsertOAuthState stores a new authorization-code flow.
-func InsertOAuthState(ctx context.Context, q Querier, state, provider, verifier, returnTo, host, siteID string, expiresAt time.Time) error {
+// purpose is "site" (siteID valid, host non-empty) or "owner" (siteID null).
+func InsertOAuthState(ctx context.Context, q Querier, state, provider, verifier, returnTo, host string, siteID sql.NullString, purpose string, expiresAt time.Time) error {
 	_, err := q.ExecContext(ctx, `
-		INSERT INTO oauth_states (state, provider, code_verifier, return_to, host, site_id, expires_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		state, provider, verifier, returnTo, host, siteID, expiresAt)
+		INSERT INTO oauth_states (state, provider, code_verifier, return_to, host, site_id, purpose, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		state, provider, verifier, returnTo, host, siteID, purpose, expiresAt)
 	return err
 }
 
@@ -83,12 +123,12 @@ func ConsumeOAuthState(ctx context.Context, q Querier, state string) (OAuthState
 		UPDATE oauth_states
 		SET used_at = now()
 		WHERE state = $1 AND used_at IS NULL AND expires_at > now()
-		RETURNING state, provider, code_verifier, return_to, host, site_id::text,
-		          created_at, expires_at, used_at`
+		RETURNING state, provider, code_verifier, return_to, host, site_id,
+		          purpose, created_at, expires_at, used_at`
 	var s OAuthState
 	err := q.QueryRowContext(ctx, query, state).Scan(
 		&s.State, &s.Provider, &s.CodeVerifier, &s.ReturnTo, &s.Host, &s.SiteID,
-		&s.CreatedAt, &s.ExpiresAt, &s.UsedAt,
+		&s.Purpose, &s.CreatedAt, &s.ExpiresAt, &s.UsedAt,
 	)
 	return s, err
 }
@@ -100,23 +140,23 @@ func PruneExpiredOAuthStates(ctx context.Context, q Querier) error {
 }
 
 // InsertVisitorSession stores a new site-scoped session. id is 32 raw bytes.
-func InsertVisitorSession(ctx context.Context, q Querier, id []byte, visitorID, siteID, host string, expiresAt, idleExpiresAt time.Time) error {
+func InsertVisitorSession(ctx context.Context, q Querier, id []byte, userID, siteID, host string, expiresAt, idleExpiresAt time.Time) error {
 	_, err := q.ExecContext(ctx, `
-		INSERT INTO visitor_sessions (id, visitor_id, site_id, host, expires_at, idle_expires_at)
+		INSERT INTO visitor_sessions (id, user_id, site_id, host, expires_at, idle_expires_at)
 		VALUES ($1, $2, $3, $4, $5, $6)`,
-		id, visitorID, siteID, host, expiresAt, idleExpiresAt)
+		id, userID, siteID, host, expiresAt, idleExpiresAt)
 	return err
 }
 
 // GetVisitorSession loads a session by raw id.
 func GetVisitorSession(ctx context.Context, q Querier, id []byte) (VisitorSession, error) {
 	const query = `
-		SELECT id, visitor_id::text, site_id::text, host, created_at, last_seen_at, expires_at, idle_expires_at
+		SELECT id, user_id::text, site_id::text, host, created_at, last_seen_at, expires_at, idle_expires_at
 		FROM visitor_sessions
 		WHERE id = $1`
 	var s VisitorSession
 	err := q.QueryRowContext(ctx, query, id).Scan(
-		&s.ID, &s.VisitorID, &s.SiteID, &s.Host,
+		&s.ID, &s.UserID, &s.SiteID, &s.Host,
 		&s.CreatedAt, &s.LastSeenAt, &s.ExpiresAt, &s.IdleExpiresAt,
 	)
 	return s, err
@@ -186,6 +226,7 @@ func SetAllowAnonymousWrites(ctx context.Context, q Querier, siteID string, allo
 }
 
 // SweepVisitorAuth deletes expired OAuth states, establish tokens, and sessions.
+// oauth_identities is durable and is not swept.
 func SweepVisitorAuth(ctx context.Context, database *sql.DB) error {
 	if _, err := database.ExecContext(ctx, `DELETE FROM oauth_states WHERE expires_at < now()`); err != nil {
 		return err

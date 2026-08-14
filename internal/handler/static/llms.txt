@@ -7,7 +7,7 @@ SITE: [Describe your site in plain language here — what it's for, the style/co
 BACKEND — FOLLOW EXACTLY, DO NOT IMPROVISE.
 This site is hosted at https://sites.simple-host.app/<handle>/<name>/ and has a real, free JSON backend that you MUST use.
 HARD BAN: never use localStorage, sessionStorage, cookies, or any client-only/in-memory storage for shared data (sign-ups, RSVPs, counts, messages). Shared data MUST live on the server via fetch(). Do NOT invent endpoints. Do NOT hardcode the handle or the site name.
-Writes require a visitor session (or the owner's X-API-Key). Reads stay Origin-gated.
+Writes require a signed-in Google/GitHub session on this site (or the owner's X-API-Key). That sign-in is the same account as the dashboard, but the hosted page only gets a site-scoped cookie — never an API key. Reads stay Origin-gated.
 
 Put this EXACT route setup at the very top of your <script>:
 const m = location.pathname.match(/^\/([a-z0-9-]+)\/([a-z0-9-]+)/);

@@ -11,8 +11,10 @@ key. A browser page on the site sends that header automatically; anyone else can
 set it by hand.
 
 Writes (`PUT`/`PATCH` `/state`, `POST` `/collections/{coll}`) require a signed-in
-visitor session (`credentials: "include"` + `X-SH-CSRF: 1`) or the site owner's
-`X-API-Key`. A 401 with `code === "visitor_auth_required"` means: keep the form,
+signed-in Google/GitHub session (`credentials: "include"` + `X-SH-CSRF: 1`) or
+the site owner's `X-API-Key`. The hosted-page session is the same account as
+dashboard sign-in but is not an API key and cannot deploy. A 401 with
+`code === "visitor_auth_required"` means: keep the form,
 show `error`, fetch `sign_in` (`/v1/auth/oauth/providers`) and navigate to
 `{apex}/v1/auth/oauth/{provider}?return_to=…`. Never claim success on a non-2xx.
 If POST is 2xx and PATCH is not, do not re-POST — retry PATCH only.

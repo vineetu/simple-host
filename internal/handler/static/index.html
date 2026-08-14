@@ -365,6 +365,36 @@
       text-decoration-color: var(--text-secondary);
     }
 
+    .auth-oauth {
+      margin-top: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .auth-oauth[hidden] { display: none; }
+    .auth-oauth-btn {
+      display: block;
+      text-align: center;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 13px;
+      font-family: var(--font);
+      background: var(--surface);
+    }
+    .auth-oauth-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .auth-divider {
+      margin-top: 16px;
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 12px;
+    }
+
     .verifying-screen {
       display: flex;
       align-items: center;
@@ -1033,6 +1063,7 @@
             </div>
             <p class="auth-fine">We'll email a 6-digit code. Expires in 15 minutes.</p>
           </form>
+          <div id="oauth-providers" class="auth-oauth" hidden></div>
 
           <!-- Visibility and the public store were documented only inside the
                agent skill; a person signing up here never saw either. -->
@@ -1219,6 +1250,25 @@
       document.getElementById(map[name]).style.display = 'block';
     }
 
+    function renderOAuthProviders() {
+      fetch('/v1/auth/oauth/providers').then(r => r.json()).then(d => {
+        const names = d.providers || [];
+        const wrap = document.getElementById('oauth-providers');
+        if (!wrap || !names.length) return;
+        wrap.innerHTML = '';
+        const ret = encodeURIComponent(location.origin + '/');
+        const label = { google: 'Sign in with Google', github: 'Sign in with GitHub' };
+        names.forEach(name => {
+          const a = document.createElement('a');
+          a.className = 'auth-oauth-btn';
+          a.href = '/v1/auth/oauth/' + encodeURIComponent(name) + '?return_to=' + ret;
+          a.textContent = label[name] || ('Sign in with ' + name);
+          wrap.appendChild(a);
+        });
+        wrap.hidden = false;
+      }).catch(() => {});
+    }
+
     // Init
     (function init() {
       const params = new URLSearchParams(location.search);
@@ -1229,6 +1279,7 @@
         history.replaceState({}, '', location.pathname);
         return;
       }
+      renderOAuthProviders();
       if (apiKey) verifyAndEnter();
     })();
 

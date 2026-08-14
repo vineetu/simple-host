@@ -40,14 +40,15 @@
   <main class="container">
     <div class="eyebrow">Privacy</div>
     <h1>Privacy Policy</h1>
-    <p class="updated">Simple Host (simple-host.app) · last updated 2026-07-03</p>
+    <p class="updated">Simple Host (simple-host.app) · last updated 2026-08-14</p>
 
     <p>Simple Host is a static-website hosting service. This policy covers what data it handles, including when the service is used through an integration such as a ChatGPT GPT, an MCP server, or an AI coding agent.</p>
 
     <h2>What we collect</h2>
     <ul>
-      <li><strong>Email address</strong> — for sign-in. We email a one-time 6-digit code; verifying it creates your account and issues an API key.</li>
-      <li><strong>Your API key</strong> — a random token that authenticates your requests. Stored to look up your account.</li>
+      <li><strong>Email address</strong> — for sign-in. We collect it when you verify a one-time emailed code, or when Google or GitHub asserts a <em>verified</em> address. That address is your account username. Signing in on someone else's hosted page (an RSVP, a guestbook) creates the same kind of account so we know who wrote — we do <strong>not</strong> email you a key, show you a dashboard, or give that page your API key.</li>
+      <li><strong>Provider account id</strong> — Google <code>sub</code> or GitHub numeric id, stored so the same person signing in again is the same account. We also keep a snapshot of the verified email the provider last sent. We do not store your name, picture, or access token.</li>
+      <li><strong>Your API key</strong> — a random token that authenticates owner requests (deploy, delete, rollback). Stored to look up your account. It is disclosed only after an owner-intent sign-in (emailed code, or “Sign in with Google” on this dashboard). A session cookie on a hosted site is not an API key and cannot deploy or delete anything.</li>
       <li><strong>Sites you deploy</strong> — the files you upload, their versions, and the site name. Deployed sites are <strong>served publicly</strong> on the internet at <code>sites.simple-host.app/&lt;handle&gt;/&lt;site&gt;/</code>. Privacy (password lock) is available on a connected custom domain.</li>
       <li><strong>Per-site state</strong> — any data a site saves via the state/collections API. This is <strong>public to that site's audience</strong> by design; do not put secrets in it.</li>
       <li><strong>Basic request metadata</strong> — IP address and timestamps, used for rate-limiting and abuse prevention.</li>
@@ -55,7 +56,7 @@
 
     <h2>How we use it</h2>
     <ul>
-      <li>To authenticate you, host and serve your sites, and operate the per-site backend.</li>
+      <li>To authenticate you, host and serve your sites, and operate the per-site backend. One account is used across every site you sign into and every site you own — we can join those in our database. We do not publish that join to other sites' pages.</li>
       <li>To enforce rate limits and quotas and to investigate abuse.</li>
       <li>We do <strong>not</strong> sell your data or use it for advertising.</li>
     </ul>
@@ -71,7 +72,7 @@
     </ul>
 
     <h2>Third parties</h2>
-    <p>We use an email provider to send sign-in codes and a hosting provider to run the service. The optional "Create with AI" feature sends your prompt to Anthropic's Claude to generate a site. No other third-party sharing.</p>
+    <p>We use an email provider to send sign-in codes, Google and/or GitHub when you choose those buttons (they see that you signed in here), and a hosting provider to run the service. The optional "Create with AI" feature sends your prompt to Anthropic's Claude to generate a site. No other third-party sharing.</p>
 
     <h2>Contact</h2>
     <p>Questions or data requests: <a href="mailto:vineetu@gmail.com">vineetu@gmail.com</a>.</p>

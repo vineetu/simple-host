@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/oauth"
@@ -33,6 +34,9 @@ const (
 var (
 	visitorHandleRe   = regexp.MustCompile(`^[a-z0-9-]{1,39}$`)
 	visitorSitenameRe = regexp.MustCompile(`^[a-z0-9-]{1,63}$`)
+
+	errOAuthEmailRefused = errors.New("oauth email refused")
+	errOAuthAdminRefused = errors.New("oauth admin refused")
 )
 
 type OAuthHandler struct {
@@ -92,7 +96,7 @@ func (h *OAuthHandler) start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sanitized, siteID, host, err := h.sanitizeReturnTo(r.Context(), r.URL.Query().Get("return_to"))
+	sanitized, siteID, host, purpose, err := h.sanitizeReturnTo(r.Context(), r.URL.Query().Get("return_to"))
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid return_to"})
 		return
@@ -110,7 +114,7 @@ func (h *OAuthHandler) start(w http.ResponseWriter, r *http.Request) {
 	}
 	verifier := oauth2.GenerateVerifier()
 	expiresAt := time.Now().Add(oauthStateTTL)
-	if err := db.InsertOAuthState(r.Context(), h.database, state, name, verifier, sanitized, host, siteID, expiresAt); err != nil {
+	if err := db.InsertOAuthState(r.Context(), h.database, state, name, verifier, sanitized, host, siteID, purpose, expiresAt); err != nil {
 		log.Printf("oauth: insert state: %v", err)
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -167,10 +171,50 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	visitor, err := db.UpsertVisitor(r.Context(), tx, ident.Provider, ident.UserID)
+	user, created, err := resolveUser(r.Context(), tx, ident)
+	if errors.Is(err, errOAuthEmailRefused) || errors.Is(err, errOAuthAdminRefused) {
+		writeOAuthHTMLError(w, http.StatusBadRequest)
+		return
+	}
 	if err != nil {
-		log.Printf("oauth: upsert visitor: %v", err)
+		log.Printf("oauth: resolve user: %v", err)
 		writeOAuthHTMLError(w, http.StatusBadGateway)
+		return
+	}
+
+	if st.Purpose == "owner" {
+		if created || !user.Handle.Valid {
+			assignHandle(r.Context(), tx, user.ID, user.Username)
+		}
+		linkToken, err := generateLinkToken(24)
+		if err != nil {
+			log.Printf("oauth: owner link token: %v", err)
+			writeOAuthHTMLError(w, http.StatusBadGateway)
+			return
+		}
+		code, err := generateNumericCode(6)
+		if err != nil {
+			log.Printf("oauth: owner unused code: %v", err)
+			writeOAuthHTMLError(w, http.StatusBadGateway)
+			return
+		}
+		if err := db.CreateAuthToken(r.Context(), tx, user.Username, code, linkToken, time.Now().Add(authTokenTTL)); err != nil {
+			log.Printf("oauth: owner auth token: %v", err)
+			writeOAuthHTMLError(w, http.StatusBadGateway)
+			return
+		}
+		if err := tx.Commit(); err != nil {
+			log.Printf("oauth: commit: %v", err)
+			writeOAuthHTMLError(w, http.StatusBadGateway)
+			return
+		}
+		dest := strings.TrimRight(h.cfg.PublicBaseURL, "/") + "/?token=" + url.QueryEscape(linkToken)
+		http.Redirect(w, r, dest, http.StatusFound)
+		return
+	}
+
+	if !st.SiteID.Valid || st.SiteID.String == "" || st.Host == "" {
+		writeOAuthHTMLError(w, http.StatusBadRequest)
 		return
 	}
 
@@ -181,7 +225,7 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := time.Now()
-	if err := db.InsertVisitorSession(r.Context(), tx, sessionID, visitor.ID, st.SiteID, st.Host, now.Add(30*24*time.Hour), now.Add(14*24*time.Hour)); err != nil {
+	if err := db.InsertVisitorSession(r.Context(), tx, sessionID, user.ID, st.SiteID.String, st.Host, now.Add(30*24*time.Hour), now.Add(14*24*time.Hour)); err != nil {
 		log.Printf("oauth: insert session: %v", err)
 		writeOAuthHTMLError(w, http.StatusBadGateway)
 		return
@@ -219,48 +263,137 @@ func writeOAuthHTMLError(w http.ResponseWriter, status int) {
 	_, _ = w.Write([]byte(oauthHTMLFailed))
 }
 
+// resolveUser maps a provider identity onto one users row.
+// Re-logins key only on (provider, provider_user_id). A missing or unverified
+// email is refused and creates nothing.
+func resolveUser(ctx context.Context, q db.Querier, ident oauth.Identity) (db.User, bool, error) {
+	existing, err := db.GetOAuthIdentity(ctx, q, ident.Provider, ident.UserID)
+	if err == nil {
+		user, uerr := db.GetUserByID(ctx, q, existing.UserID)
+		if uerr != nil {
+			return db.User{}, false, uerr
+		}
+		if terr := db.TouchOAuthIdentity(ctx, q, existing.ID, ident.Email, ident.EmailVerified); terr != nil {
+			return db.User{}, false, terr
+		}
+		return user, false, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return db.User{}, false, err
+	}
+
+	email := strings.ToLower(strings.TrimSpace(ident.Email))
+	if email == "" || !ident.EmailVerified || !validEmail.MatchString(email) {
+		if email == "" {
+			log.Printf("oauth: refused unverified or missing email provider=%s", ident.Provider)
+		} else {
+			log.Printf("oauth: refused unverified or missing email provider=%s email=%s", ident.Provider, redactEmail(email))
+		}
+		return db.User{}, false, errOAuthEmailRefused
+	}
+
+	user, err := db.GetUserByUsername(ctx, q, email)
+	created := false
+	switch {
+	case err == nil:
+		if user.Username == "admin" || user.IsAdmin {
+			log.Printf("oauth: refused admin link provider=%s", ident.Provider)
+			return db.User{}, false, errOAuthAdminRefused
+		}
+	case errors.Is(err, sql.ErrNoRows):
+		apiKey, kerr := auth.GenerateAPIKey()
+		if kerr != nil {
+			return db.User{}, false, kerr
+		}
+		user, err = db.CreateUser(ctx, q, email, apiKey, false)
+		if err != nil {
+			if isUniqueViolation(err) {
+				user, err = db.GetUserByUsername(ctx, q, email)
+			}
+			if err != nil {
+				return db.User{}, false, err
+			}
+		} else {
+			created = true
+		}
+		if user.Username == "admin" || user.IsAdmin {
+			log.Printf("oauth: refused admin link provider=%s", ident.Provider)
+			return db.User{}, false, errOAuthAdminRefused
+		}
+	default:
+		return db.User{}, false, err
+	}
+
+	if _, err := db.InsertOAuthIdentity(ctx, q, user.ID, ident.Provider, ident.UserID, email, ident.EmailVerified); err != nil {
+		if isUniqueViolation(err) {
+			// Concurrent callback won the race — reload the linked row.
+			linked, lerr := db.GetOAuthIdentity(ctx, q, ident.Provider, ident.UserID)
+			if lerr != nil {
+				return db.User{}, false, lerr
+			}
+			user, uerr := db.GetUserByID(ctx, q, linked.UserID)
+			return user, false, uerr
+		}
+		return db.User{}, false, err
+	}
+	return user, created, nil
+}
+
+func redactEmail(email string) string {
+	local, domain, ok := strings.Cut(email, "@")
+	if !ok || local == "" || domain == "" {
+		return "***"
+	}
+	return string([]rune(local)[0]) + "***@" + domain
+}
+
 // sanitizeReturnTo validates return_to at start time. On success it returns
-// parsed.String(), the resolved site_id, and the hostname (port stripped).
-func (h *OAuthHandler) sanitizeReturnTo(ctx context.Context, raw string) (string, string, string, error) {
+// parsed.String(), the resolved site_id (null for owner), hostname, and purpose.
+func (h *OAuthHandler) sanitizeReturnTo(ctx context.Context, raw string) (string, sql.NullString, string, string, error) {
 	parsed, err := parseAbsoluteReturnTo(raw, h.cfg.PublicBaseURL)
 	if err != nil {
-		return "", "", "", err
+		return "", sql.NullString{}, "", "", err
 	}
 	host := strings.ToLower(parsed.Hostname())
 	if host == "" {
-		return "", "", "", errInvalidReturnTo
+		return "", sql.NullString{}, "", "", errInvalidReturnTo
 	}
+
+	if ownerReturnToOK(parsed, h.cfg.PublicBaseURL) {
+		return parsed.String(), sql.NullString{}, "", "owner", nil
+	}
+
 	if isRejectedPlatformHost(host, h.cfg.SiteDomain, h.cfg.ContentHost, publicBaseHost(h.cfg.PublicBaseURL)) {
-		return "", "", "", errInvalidReturnTo
+		return "", sql.NullString{}, "", "", errInvalidReturnTo
 	}
 
 	if strings.EqualFold(host, h.cfg.ContentHost) {
 		handle, sitename, ok := splitContentHostPath(parsed.Path)
 		if !ok {
-			return "", "", "", errInvalidReturnTo
+			return "", sql.NullString{}, "", "", errInvalidReturnTo
 		}
 		user, err := db.GetUserByHandle(ctx, h.database, handle)
 		if err != nil {
-			return "", "", "", errInvalidReturnTo
+			return "", sql.NullString{}, "", "", errInvalidReturnTo
 		}
 		site, err := db.GetSiteByUser(ctx, h.database, user.ID, sitename)
 		if err != nil {
-			return "", "", "", errInvalidReturnTo
+			return "", sql.NullString{}, "", "", errInvalidReturnTo
 		}
-		return parsed.String(), site.ID, host, nil
+		return parsed.String(), sql.NullString{String: site.ID, Valid: true}, host, "site", nil
 	}
 
 	info, err := db.GetSiteByCustomDomain(ctx, h.database, host)
 	if err != nil {
-		return "", "", "", errInvalidReturnTo
+		return "", sql.NullString{}, "", "", errInvalidReturnTo
 	}
 	if !strings.EqualFold(info.Domain, host) {
-		return "", "", "", errInvalidReturnTo
+		return "", sql.NullString{}, "", "", errInvalidReturnTo
 	}
 	if err := h.proveCustomDomainControl(ctx, host); err != nil {
-		return "", "", "", errInvalidReturnTo
+		return "", sql.NullString{}, "", "", errInvalidReturnTo
 	}
-	return parsed.String(), info.SiteID, host, nil
+	return parsed.String(), sql.NullString{String: info.SiteID, Valid: true}, host, "site", nil
 }
 
 var errInvalidReturnTo = errors.New("invalid return_to")
@@ -288,10 +421,8 @@ func parseAbsoluteReturnTo(raw, publicBaseURL string) (*url.URL, error) {
 		return nil, errInvalidReturnTo
 	}
 	if port := parsed.Port(); port != "" {
-		if parsed.Scheme == "https" && port != "443" {
-			return nil, errInvalidReturnTo
-		}
-		if parsed.Scheme == "http" && port != "80" {
+		schemeDefault := (parsed.Scheme == "https" && port == "443") || (parsed.Scheme == "http" && port == "80")
+		if !schemeDefault && port != publicBasePort(publicBaseURL) {
 			return nil, errInvalidReturnTo
 		}
 	}
@@ -309,6 +440,58 @@ func publicBaseHost(publicBaseURL string) string {
 		return ""
 	}
 	return strings.ToLower(u.Hostname())
+}
+
+func publicBasePort(publicBaseURL string) string {
+	u, err := url.Parse(publicBaseURL)
+	if err != nil {
+		return ""
+	}
+	return u.Port()
+}
+
+// ownerReturnToOK is the dashboard allow-list: exact PUBLIC_BASE_URL host,
+// path Clean is "/", empty query, empty fragment. Apex is still rejected as
+// a site return_to via isRejectedPlatformHost.
+func ownerReturnToOK(parsed *url.URL, publicBaseURL string) bool {
+	if parsed == nil {
+		return false
+	}
+	base, err := url.Parse(publicBaseURL)
+	if err != nil || base.Host == "" {
+		return false
+	}
+	if !strings.EqualFold(parsed.Scheme, base.Scheme) {
+		return false
+	}
+	if !strings.EqualFold(parsed.Hostname(), base.Hostname()) {
+		return false
+	}
+	pPort, bPort := parsed.Port(), base.Port()
+	if pPort != bPort {
+		// Treat omitted vs scheme-default as the same port.
+		if !((pPort == "" || isSchemeDefaultPort(parsed.Scheme, pPort)) &&
+			(bPort == "" || isSchemeDefaultPort(base.Scheme, bPort))) {
+			return false
+		}
+		if pPort != "" && bPort != "" && pPort != bPort {
+			return false
+		}
+	}
+	if parsed.User != nil {
+		return false
+	}
+	if path.Clean("/"+parsed.Path) != "/" {
+		return false
+	}
+	if parsed.RawQuery != "" || parsed.Fragment != "" {
+		return false
+	}
+	return true
+}
+
+func isSchemeDefaultPort(scheme, port string) bool {
+	return (scheme == "https" && port == "443") || (scheme == "http" && port == "80")
 }
 
 func isRejectedPlatformHost(host, siteDomain, contentHost, publicBaseHostName string) bool {

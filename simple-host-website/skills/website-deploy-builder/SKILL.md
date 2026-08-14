@@ -51,7 +51,7 @@ Gotchas: the site lives under `/<handle>/<sitename>/` on the content host, so **
 
 What it is: a single JSON document (up to 1 MB) scoped to your site. The server stores it in Postgres; your site reads and writes it from the browser. The blob is shared across **everyone** who visits — the last writer wins.
 
-When to choose: anything you'd want a tiny key-value store for — saved drafts, app state, a shared note, content the page just generated, configuration. **Not for secrets or per-user data**: anyone who can load the page can read the blob. Writes require a visitor Google/GitHub session (`X-SH-CSRF: 1`) or the owner's `X-API-Key`; a 401 with `code === "visitor_auth_required"` must keep the form and offer sign-in. If you need per-user data, store it under different keys inside the blob and key on something like `crypto.randomUUID()` saved in `localStorage`.
+When to choose: anything you'd want a tiny key-value store for — saved drafts, app state, a shared note, content the page just generated, configuration. **Not for secrets or per-user data**: anyone who can load the page can read the blob. Writes require a Google/GitHub session (`X-SH-CSRF: 1`) or the owner's `X-API-Key` (same account; the hosted session is not an API key); a 401 with `code === "visitor_auth_required"` must keep the form and offer sign-in. If you need per-user data, store it under different keys inside the blob and key on something like `crypto.randomUUID()` saved in `localStorage`.
 
 How to use, from a page hosted at `https://sites.simple-host.app/<handle>/<sitename>/`:
 

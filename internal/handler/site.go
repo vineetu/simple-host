@@ -53,13 +53,13 @@ func init() {
 const maxSitesPerUser = 100
 
 type SiteHandler struct {
-	database     *sql.DB
-	disk         *storage.DiskStorage
-	siteDomain   string
-	contentHost  string // shared v3 content host, e.g. sites.simple-host.app
-	cnameTarget  string // CNAME target for custom domains, e.g. cname.simple-host.app
+	database       *sql.DB
+	disk           *storage.DiskStorage
+	siteDomain     string
+	contentHost    string // shared v3 content host, e.g. sites.simple-host.app
+	cnameTarget    string // CNAME target for custom domains, e.g. cname.simple-host.app
 	customDomainIP string // box public IPv4 for APEX custom-domain A records
-	deployScript string
+	deployScript   string
 
 	// uploadLocks serializes write+promote per site name (sitename -> *sync.Mutex).
 	uploadLocks sync.Map
@@ -100,18 +100,18 @@ func (h *SiteHandler) lockSite(name string) func() {
 }
 
 type siteResponse struct {
-	ID             string    `json:"id"`
-	UserID         string    `json:"user_id"`
-	Name           string    `json:"name"`
-	ActiveVersion  int       `json:"active_version"`
-	SiteURL        string    `json:"site_url"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	CustomDomain   string    `json:"custom_domain,omitempty"`
-	DomainStatus   string    `json:"domain_status,omitempty"`
-	Visibility     string    `json:"visibility,omitempty"`
-	OwnerUsername  string    `json:"owner_username,omitempty"`
-	Note           string    `json:"note,omitempty"`
+	ID            string    `json:"id"`
+	UserID        string    `json:"user_id"`
+	Name          string    `json:"name"`
+	ActiveVersion int       `json:"active_version"`
+	SiteURL       string    `json:"site_url"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+	CustomDomain  string    `json:"custom_domain,omitempty"`
+	DomainStatus  string    `json:"domain_status,omitempty"`
+	Visibility    string    `json:"visibility,omitempty"`
+	OwnerUsername string    `json:"owner_username,omitempty"`
+	Note          string    `json:"note,omitempty"`
 }
 
 type versionResponse struct {
@@ -736,6 +736,15 @@ func (h *SiteHandler) createSite(w http.ResponseWriter, r *http.Request) {
 // (createSiteFiles) so both inherit identical versioning, locking, commit-then-
 // promote ordering, and deploy-queue behavior.
 func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string) {
+	// A guest-created users row has a NULL handle until owner-intent. First
+	// deploy is owner-intent: assign before building the path-model site URL.
+	if user != nil && (!user.Handle.Valid || user.Handle.String == "") {
+		assignHandle(r.Context(), h.database, user.ID, user.Username)
+		if refetched, err := db.GetUserByUsername(r.Context(), h.database, user.Username); err == nil {
+			*user = refetched
+		}
+	}
+
 	// Serialize all write+promote activity for this site so concurrent uploads
 	// cannot race on version numbers or the `current` swap.
 	unlock := h.lockSite(siteName)

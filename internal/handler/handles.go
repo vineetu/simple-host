@@ -88,7 +88,8 @@ func sanitizeHandleBase(email string) string {
 
 // assignHandle claims a free URL-safe handle for userID derived from email.
 // Failures are logged but never fatal — a missing handle must not break sign-in.
-func (h *UserHandler) assignHandle(ctx context.Context, userID, email string) {
+// Owner-intent only: email-code verify, dashboard OAuth, or first deploy.
+func assignHandle(ctx context.Context, q db.Querier, userID, email string) {
 	base := sanitizeHandleBase(email)
 
 	// Candidates: base, base-2 … base-20, then base-<first8(userID)>.
@@ -112,7 +113,7 @@ func (h *UserHandler) assignHandle(ctx context.Context, userID, email string) {
 	}
 
 	for _, c := range candidates {
-		ok, err := db.ClaimHandle(ctx, h.database, userID, c)
+		ok, err := db.ClaimHandle(ctx, q, userID, c)
 		if err != nil {
 			log.Printf("auth: ClaimHandle(%s, %s): %v", userID, c, err)
 			return

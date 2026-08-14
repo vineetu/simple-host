@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Simple Host API",
-    "description": "Static website hosting with a light per-site backend. Deploy a site with one API call \u2014 inline JSON files (LLM-friendly) or a tar.gz/zip archive \u2014 and each site gets shared JSON state (with atomic ops), append-only collections, optional password (view-lock) protection, and starter templates. Sign-in is a 6-digit email code that returns an API key, sent as the `X-API-Key` header.",
+    "description": "Static website hosting with a light per-site backend. Deploy a site with one API call \u2014 inline JSON files (LLM-friendly) or a tar.gz/zip archive \u2014 and each site gets shared JSON state (with atomic ops), append-only collections, optional password (view-lock) protection, and starter templates. Sign-in is a 6-digit email code or Google/GitHub that returns an API key, sent as the `X-API-Key` header. Hosted-page sign-in uses the same account but a site-scoped session cookie \u2014 never an API key.",
     "version": "2.0.0"
   },
   "servers": [
@@ -14,11 +14,11 @@
   "tags": [
     {
       "name": "Auth",
-      "description": "Email-code sign-in"
+      "description": "Email-code sign-in and dashboard OAuth handoff (`/?token=`)"
     },
     {
       "name": "Visitor",
-      "description": "Visitor Google/GitHub sign-in (site-scoped session cookie)"
+      "description": "Site-scoped browser session for hosted-page Google/GitHub sign-in. Same `users` row as email-code / dashboard OAuth; the cookie is not an API key and does not satisfy owner routes."
     },
     {
       "name": "Deploy",
@@ -248,7 +248,7 @@
       "post": {
         "operationId": "postAuthVerify",
         "summary": "Verify the code and get an API key",
-        "description": "Exchange `{email, code}` (CLI/agent) or a magic-link `{token}` (browser) for an API key. The first successful verify creates the account. The code expires in 15 minutes and allows 3 attempts.",
+        "description": "Exchange `{email, code}` (CLI/agent) or a magic-link `{token}` (browser) for an API key. The first successful email-code verify creates the account. Dashboard Google/GitHub also redeems through this endpoint (`/?token=`). The code expires in 15 minutes and allows 3 attempts.",
         "tags": [
           "Auth"
         ],
@@ -306,8 +306,8 @@
     "/v1/auth/oauth/providers": {
       "get": {
         "operationId": "getOAuthProviders",
-        "summary": "List enabled visitor OAuth providers",
-        "description": "Public discovery for widgets. Returns the enabled provider names (`google`, `github`) so pages never hardcode a provider. Empty when neither pair is configured.",
+        "summary": "List enabled OAuth providers",
+        "description": "Public discovery for widgets and the dashboard. Returns the enabled provider names (`google`, `github`) so pages never hardcode a provider. Empty when neither pair is configured. Sign-in creates or links a `users` row; a hosted-page session still does not disclose an API key.",
         "tags": [
           "Visitor"
         ],
@@ -347,8 +347,8 @@
     "/v1/auth/oauth/{provider}": {
       "get": {
         "operationId": "startOAuth",
-        "summary": "Start visitor OAuth",
-        "description": "Apex start. Query `return_to` is required and must be an absolute URL of a real content-host path (`/{handle}/{sitename}/\u2026`) or a bound custom domain that passes a live DNS control check. Success 302s to the provider with PKCE S256. Unknown or disabled provider is 404. No cookie is set here.",
+        "summary": "Start OAuth",
+        "description": "Apex start. Query `return_to` is required and must be an absolute URL. Two shapes: the dashboard origin `/` (owner purpose \u2014 callback hands off via `/?token=`) or a real content-host path (`/{handle}/{sitename}/\u2026`) / DNS-proven custom domain (site purpose \u2014 callback issues a host-and-site-scoped session). Success 302s to the provider with PKCE S256. Unknown or disabled provider is 404. No cookie is set here. The caller cannot set `purpose`; it is derived from `return_to`.",
         "tags": [
           "Visitor"
         ],
@@ -423,8 +423,8 @@
     "/v1/auth/oauth/{provider}/callback": {
       "get": {
         "operationId": "oauthCallback",
-        "summary": "Visitor OAuth callback",
-        "description": "Provider redirect URI on the apex. Consumes the one-time `state`. On success, 302s to `https://<return-host>/v1/visitor/establish?once=\u2026` (scheme matches the stored return_to). Failures are a short no-store HTML page on the apex with no Location and no cookie.",
+        "summary": "OAuth callback",
+        "description": "Provider redirect URI on the apex. Consumes the one-time `state`. Identifies via userinfo, then `resolveUser` (link or create a `users` row on a verified email; refuse missing/unverified email). Site purpose 302s to `https://<return-host>/v1/visitor/establish?once=\u2026`. Owner purpose 302s to `{PUBLIC_BASE_URL}/?token=\u2026` for the dashboard to redeem via `POST /v1/auth/verify`. Neither redirect contains an API key. Failures are a short no-store HTML page on the apex with no Location and no cookie.",
         "tags": [
           "Visitor"
         ],
@@ -465,7 +465,7 @@
         ],
         "responses": {
           "302": {
-            "description": "Redirect to /v1/visitor/establish on the stored host",
+            "description": "Site purpose: redirect to /v1/visitor/establish on the stored host. Owner purpose: redirect to /?token= on PUBLIC_BASE_URL.",
             "headers": {
               "Location": {
                 "schema": {
