@@ -32,11 +32,12 @@ type TranscribeHandler struct {
 const maxAudioBytes = 25 << 20
 
 func NewTranscribeHandler(url string) *TranscribeHandler {
-	// Transcription is cheap but not free — it is real CPU on a 4-core box, and
-	// unlike a chat turn it can be triggered by holding a button. Allow a normal
-	// conversational pace and refill slowly.
-	ipLimiter := newRateLimiter(20, 1.0/6.0)   // burst 20, +1 every 6s
-	userLimiter := newRateLimiter(30, 1.0/5.0) // burst 30, +1 every 5s
+	// The chat sends an interim pass every few seconds while the mic is open, so
+	// one ordinary recording is a burst of calls, not one. Sized for that: a
+	// 90-second recording is ~22 interim passes plus a final. Still real CPU on a
+	// 4-core box, so the refill stays slow enough to bound scripted abuse.
+	ipLimiter := newRateLimiter(60, 1.0/3.0)   // burst 60, +1 every 3s
+	userLimiter := newRateLimiter(60, 1.0/3.0) // burst 60, +1 every 3s
 	ipLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	userLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	return &TranscribeHandler{
