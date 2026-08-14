@@ -535,7 +535,7 @@
       flex-shrink: 0;
     }
 
-    .site-versions {
+    .site-versions, .site-data {
       background: var(--surface);
       border-top: 1px solid var(--border);
       padding: 12px 20px 16px;
@@ -578,6 +578,55 @@
       color: var(--text-secondary);
       font-size: 12px;
       padding: 6px 2px;
+    }
+
+    .collection-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 12px;
+      flex-wrap: wrap;
+    }
+
+    .collection-row .collection-name {
+      font-family: var(--mono);
+      font-weight: 600;
+    }
+
+    .collection-row .collection-meta {
+      color: var(--text-secondary);
+      flex: 1;
+    }
+
+    .collection-view {
+      margin-top: 8px;
+    }
+
+    .data-table-wrap {
+      overflow-x: auto;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .data-table th, .data-table td {
+      text-align: left;
+      padding: 6px 8px;
+      border: 1px solid var(--border);
+      vertical-align: top;
+      white-space: nowrap;
+    }
+
+    .data-table th {
+      color: var(--text-secondary);
+      font-weight: 500;
     }
 
     .empty-state {
@@ -1477,13 +1526,15 @@
           </div>
           <div class="site-actions">
             <button type="button" class="btn-small btn-secondary" onclick="toggleVersions('${name}')">Versions</button>
+            <button type="button" class="btn-small btn-secondary" onclick="toggleData('${name}')">Data</button>
             ${site.custom_domain
               ? `<button type="button" class="btn-small btn-ghost" onclick="disconnectDomain('${name}')">Disconnect ${esc(site.custom_domain)}</button>`
               : `<button type="button" class="btn-small btn-secondary" onclick="connectDomain('${name}')">Connect domain</button>`}
             <button type="button" class="btn-small btn-ghost" onclick="confirmDelete('${name}')">Delete</button>
           </div>
         </div>
-        <div class="site-versions" id="versions-${name}" hidden></div>`;
+        <div class="site-versions" id="versions-${name}" hidden></div>
+        <div class="site-data" id="data-${name}" hidden></div>`;
     }
 
     // Per-site analytics (views/visitors + sparkline). Lazy via IntersectionObserver.
@@ -1597,6 +1648,125 @@
       } catch {
         panel.innerHTML = `<div class="versions-status">Could not load versions</div>`;
       }
+    }
+
+    async function toggleData(name) {
+      const panel = document.getElementById(`data-${name}`);
+      if (!panel) return;
+      if (!panel.hidden) {
+        panel.hidden = true;
+        return;
+      }
+      panel.innerHTML = `<div class="versions-status">Loading data…</div>`;
+      panel.hidden = false;
+      try {
+        const res = await api('GET', `/v1/sites/${encodeURIComponent(name)}/collections`);
+        if (!res.ok) {
+          panel.innerHTML = `<div class="versions-status">Could not load data</div>`;
+          return;
+        }
+        const body = await res.json();
+        const collections = (body && Array.isArray(body.collections)) ? body.collections : [];
+        if (!collections.length) {
+          panel.innerHTML = `<div class="versions-status">Nothing saved yet.</div>`;
+          return;
+        }
+        panel.innerHTML = `<div class="versions-list">${collections.map(c => {
+          const coll = String(c.name || '');
+          const count = Number.isFinite(Number(c.count)) ? Math.trunc(Number(c.count)) : 0;
+          const last = c.last_at ? esc(new Date(c.last_at).toLocaleString()) : '';
+          return `
+          <div>
+            <div class="collection-row">
+              <span class="collection-name">${esc(coll)}</span>
+              <span class="collection-meta">${count} row${count === 1 ? '' : 's'}${last ? ' · last ' + last : ''}</span>
+              <button type="button" class="btn-small btn-secondary" onclick="downloadCollectionCSV('${name}', '${esc(coll)}')">Download CSV</button>
+              <button type="button" class="btn-small btn-secondary" onclick="toggleCollectionView('${name}', '${esc(coll)}')">View</button>
+            </div>
+            <div class="collection-view" id="collview-${name}-${esc(coll)}" hidden></div>
+          </div>`;
+        }).join('')}</div>`;
+      } catch {
+        panel.innerHTML = `<div class="versions-status">Could not load data</div>`;
+      }
+    }
+
+    async function downloadCollectionCSV(name, coll) {
+      try {
+        const res = await api('GET', `/v1/sites/${encodeURIComponent(name)}/collections/${encodeURIComponent(coll)}/export.csv`);
+        if (!res.ok) {
+          const err = await res.json().catch(() => null);
+          toast((err && err.error) || 'Could not download CSV', 'error');
+          return;
+        }
+        const blob = await res.blob();
+        let filename = `${name}-${coll}.csv`;
+        const cd = res.headers.get('Content-Disposition');
+        const m = cd && cd.match(/filename="([^"]+)"/);
+        if (m) filename = m[1];
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch {
+        toast('Could not download CSV', 'error');
+      }
+    }
+
+    async function toggleCollectionView(name, coll) {
+      const el = document.getElementById(`collview-${name}-${coll}`);
+      if (!el) return;
+      if (!el.hidden) {
+        el.hidden = true;
+        return;
+      }
+      el.innerHTML = `<div class="versions-status">Loading…</div>`;
+      el.hidden = false;
+      try {
+        const res = await api('GET', `/v1/sites/${encodeURIComponent(name)}/collections/${encodeURIComponent(coll)}?limit=50`);
+        if (!res.ok) {
+          el.innerHTML = `<div class="versions-status">Could not load rows</div>`;
+          return;
+        }
+        const body = await res.json();
+        const items = (body && Array.isArray(body.items)) ? body.items : [];
+        if (!items.length) {
+          el.innerHTML = `<div class="versions-status">No rows</div>`;
+          return;
+        }
+        const keySet = {};
+        for (const it of items) {
+          const data = it && it.data;
+          if (data && typeof data === 'object' && !Array.isArray(data)) {
+            for (const k of Object.keys(data)) keySet[k] = true;
+          }
+        }
+        const keys = Object.keys(keySet).sort();
+        const head = ['id', 'created_at', ...keys].map(k => `<th>${esc(k)}</th>`).join('');
+        const rows = items.map(it => {
+          const data = (it && it.data && typeof it.data === 'object' && !Array.isArray(it.data)) ? it.data : {};
+          const created = it.created_at ? esc(new Date(it.created_at).toLocaleString()) : '';
+          const cells = [
+            `<td>${esc(String(it.id ?? ''))}</td>`,
+            `<td>${created}</td>`,
+            ...keys.map(k => `<td>${fmtCell(data[k])}</td>`),
+          ];
+          return `<tr>${cells.join('')}</tr>`;
+        }).join('');
+        el.innerHTML = `<div class="data-table-wrap"><table class="data-table"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
+      } catch {
+        el.innerHTML = `<div class="versions-status">Could not load rows</div>`;
+      }
+    }
+
+    function fmtCell(v) {
+      if (v == null) return '';
+      if (typeof v === 'object') return esc(JSON.stringify(v));
+      return esc(String(v));
     }
 
     async function rollbackTo(name, versionNumber) {
