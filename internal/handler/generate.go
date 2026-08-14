@@ -1055,8 +1055,26 @@ func streamProgress(accum string) string {
 	if prose == "" {
 		return ""
 	}
+	// A model that starts the document without the sentinel (or fence) would
+	// otherwise stream raw markup into the chat bubble. Show the size instead:
+	// the bubble is a status line, and tag soup in it reads as a malfunction.
+	if looksLikeMarkup(prose) {
+		if n := len(accum); n >= 1024 {
+			return fmt.Sprintf("Writing the page… %d KB", n/1024)
+		}
+		return "Writing the page…"
+	}
 	return ellipsizeTail(prose, 120)
 }
+
+// looksLikeMarkup reports whether s has enough tag-shaped text to be a document
+// rather than prose. One "<" in a sentence is punctuation; several with tag
+// names after them is HTML.
+func looksLikeMarkup(s string) bool {
+	return len(markupTagRe.FindAllStringIndex(s, 3)) >= 2
+}
+
+var markupTagRe = regexp.MustCompile(`<\s*/?\s*(!doctype|html|head|body|div|section|style|script|meta|link|h[1-6]|p|span|table|ul|li|nav|header|footer|main|article|img|button|form)\b`)
 
 // reasoningProgress is the bubble text while a reasoning model is still
 // thinking and has not emitted any visible content. The reasoning itself is
@@ -1065,6 +1083,12 @@ func reasoningProgress(accum string) string {
 	prose := strings.Join(strings.Fields(accum), " ")
 	if prose == "" {
 		return ""
+	}
+	// Reasoning routinely contains snippets of the page it is planning. Showing
+	// that verbatim looks like the chat is spitting out code at the user, so the
+	// bubble falls back to the plain status once markup appears.
+	if looksLikeMarkup(prose) {
+		return "Thinking…"
 	}
 	return "Thinking… " + ellipsizeTail(prose, 120)
 }
@@ -1092,6 +1116,10 @@ func htmlBytesSoFar(accum string) (int, bool) {
 			n = 0
 		}
 		return n, true
+	}
+	// Some models open the document directly, with neither sentinel nor fence.
+	if i := indexFold(accum, "<!doctype"); i >= 0 {
+		return len(accum) - i, true
 	}
 	if m := htmlStartRe.FindStringIndex(accum); m != nil {
 		n := len(accum) - m[0]
