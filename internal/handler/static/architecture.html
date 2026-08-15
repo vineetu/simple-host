@@ -264,7 +264,8 @@
         <h2>Create with AI</h2>
         <p class="lede">The homepage builds a site for you through a chat. The model is called <strong>server-side</strong>, so the provider key stays on the server and never reaches a served page.</p>
         <p><code>POST /v1/generate</code> keeps the sign-in gate and rate limit on the edge, then runs the turn as a <strong>background job</strong> and answers with a job id you poll. A full build takes a minute or more — far longer than a browser will hold an idle connection open — so nothing depends on one long-lived request. The model only ever returns HTML; it is given no file or shell access. You preview in a sandboxed opaque-origin iframe, then publish through the same authenticated files API.</p>
-        <p class="fine">Each job is bound to the user who started it and is not visible to anyone else. An optional off-box agent backend can take over the same endpoint, in which case it publishes through a single scoped <code>deploy_site</code> tool and is reachable only with a shared secret.</p>
+        <p>You can <strong>speak</strong> instead of typing — captions appear as you talk and the text stays editable before you send it. Speech is transcribed <strong>on this server</strong>, so recordings are never handed to a third party. You can also <strong>attach</strong> a screenshot, PDF or notes and have the page built from them.</p>
+        <p class="fine">Each job is bound to the user who started it and is not visible to anyone else. More than one model provider can be configured — the second is used only if the first fails — so a provider outage degrades rather than breaks. Today the builder runs on Grok, with DeepSeek behind it.</p>
       </div>
     </section>
 

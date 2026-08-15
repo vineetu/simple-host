@@ -34,6 +34,9 @@ One `http.ServeMux` in `main.go`. Major prefixes:
 - `/sites/{site}/...` — public static serving. Path safety + `http.FileServer` rooted at `<DATA_DIR>/<site>/current/`.
 - `/skills.zip`, `/plugin.zip`, `/install.sh`, `/skills/version` — Website Deploy bundle downloads. Public, no auth.
 - `/healthz`, `/readyz` — probes.
+- `/v1/generate`, `/v1/generate/status` — build-with-AI. Answers with a job id; the client polls. Any OpenAI-compatible provider, with an optional second used only on failure.
+- `/v1/transcribe`, `/v1/transcribe/ticket`, `/v1/transcribe/stream` — voice input for that chat. Live captions run over the WebSocket; the POST endpoint is the transcribe-on-stop fallback. Speech never leaves this host.
+- `/admin` — instance-wide view of accounts and their sites. Admin only; everyone else gets a 404, including on the API behind it.
 - `/` — admin browser UI. Login with an API key, manage your sites.
 
 ### Versioning
