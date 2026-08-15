@@ -1933,7 +1933,7 @@
     // MediaRecorder here: its output is container-framed, so only the first
     // chunk is decodable on its own, which is what forces the batch endpoint to
     // re-send the entire recording for every update.
-    var micWS = null, micAudioCtx = null, micNode = null, micSrc = null, micBase = '';
+    var micWS = null, micAudioCtx = null, micNode = null, micSrc = null, micBase = '', micGotText = false;
 
     function micLiveSupported() {
       return !!(window.AudioContext || window.webkitAudioContext) && typeof WebSocket !== 'undefined';
@@ -1956,18 +1956,39 @@
 
       var input = document.getElementById('chat-input');
       micBase = input && input.value ? input.value.replace(/\s+$/, '') + ' ' : '';
+      micGotText = false;
 
       micWS.onmessage = function (ev) {
         var d = {};
         try { d = JSON.parse(ev.data); } catch (e) { return; }
         if (d.type === 'partial' || d.type === 'final') {
-          var el = document.getElementById('chat-input');
-          if (el && d.text) { el.value = micBase + d.text; chatInputGrow(); }
+          if (d.text) {
+            micGotText = true;
+            var el = document.getElementById('chat-input');
+            if (el) { el.value = micBase + d.text; chatInputGrow(); }
+          }
+        } else if (d.type === 'queued') {
+          // All live slots are in use. Their audio is being buffered and will be
+          // caught up when a slot frees, so the right advice is to keep talking.
+          aiAppend('ai', d.position > 1
+            ? 'Captions are catching up (' + d.position + ' ahead of you) — keep talking, nothing is lost.'
+            : 'Captions are catching up — keep talking, nothing is lost.');
         } else if (d.type === 'error') {
+          // Live is unavailable, so this recording must go down the
+          // stop-and-transcribe path instead. Without clearing micLive the
+          // finish step would skip that too and the user would get nothing —
+          // which is exactly what happens to the 4th simultaneous speaker.
+          micLive = false;
           aiAppend('ai', d.error === 'busy'
-            ? 'The transcriber is busy right now — try again in a moment.'
-            : 'Live transcription dropped out; your recording will still be transcribed when you stop.');
+            ? "Live captions are busy right now — keep talking, I'll transcribe when you stop."
+            : "Live captions dropped out — keep talking, I'll transcribe when you stop.");
         }
+      };
+
+      // A socket that closes without ever producing text is not a working live
+      // session, whatever it looked like at handshake time.
+      micWS.onclose = function () {
+        if (!micGotText) micLive = false;
       };
 
       await new Promise(function (resolve) {
