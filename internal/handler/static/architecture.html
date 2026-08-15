@@ -246,14 +246,43 @@
       <div class="snum">03.</div>
       <div>
         <h2>The little backend</h2>
-        <p class="lede">Static hosting is commoditized. The difference here is that every site gets <strong>just enough backend</strong> — with no database to set up.</p>
+        <p class="lede">Static hosting is commoditized. The difference here is that every site gets <strong>just enough backend</strong> — a JSON tree, append-only lists, and no database to set up.</p>
         <div class="claims">
-          <div class="claim"><div class="ci">3.1</div><p><b>Per-site JSON state.</b> One shared document per site (<code>GET/PUT/PATCH /v1/sites/{site}/state</code>), with atomic ops (set, inc, append, remove) and ETags for cheap polling — counters, votes, saved app state, guestbooks.</p></div>
-          <div class="claim"><div class="ci">3.2</div><p><b>Append-only collections.</b> Growing lists (<code>/collections/{name}</code>) for signups, RSVPs, and form submissions — cheap appends, paginated reads.</p></div>
-          <div class="claim"><div class="ci">3.3</div><p><b>Drop-in widgets &amp; templates.</b> Threaded comments and feedback pins as one script tag each, password-locked private pages on a connected custom domain, and starter templates served from <code>/v1/templates</code>.</p></div>
-          <div class="claim"><div class="ci">3.4</div><p><b>Server-side visitor analytics.</b> Per-site page views and unique visitors with a 30-day trend, computed from access logs — privacy-preserving (IPs hashed with a daily-rotating salt, never stored raw), no tracking script needed.</p></div>
+          <div class="claim"><div class="ci">3.1</div><p><b>Per-site JSON state.</b> One shared document per site (<code>GET/PUT/PATCH /v1/sites/{site}/state</code>), with atomic ops (set, inc, append, remove) and ETags for cheap polling — counters, votes, saved app state, guestbooks. The whole document remains the unit of storage and of concurrency; it is no longer the only unit of addressing.</p></div>
+          <div class="claim"><div class="ci">3.2</div><p><b>Every node has an address.</b> You do not fetch the tree to touch one branch — <code>GET/PUT/DELETE /state/{path...}</code> names the node. A missing path is <code>null</code> with 200, not 404. <code>ETag</code> and <code>If-Match</code> stay document-level; storage stays one <code>jsonb</code> column. This is addressing, not a new store.</p></div>
+          <div class="claim"><div class="ci">3.3</div><p><b>Append-only collections.</b> Growing lists (<code>/collections/{name}</code>) for signups, RSVPs, and form submissions — cheap appends, paginated reads.</p></div>
+          <div class="claim"><div class="ci">3.4</div><p><b>Drop-in widgets &amp; templates.</b> Threaded comments and feedback pins as one script tag each, password-locked private pages on a connected custom domain, and starter templates served from <code>/v1/templates</code>.</p></div>
+          <div class="claim"><div class="ci">3.5</div><p><b>Server-side visitor analytics.</b> Per-site page views and unique visitors with a 30-day trend, computed from access logs — privacy-preserving (IPs hashed with a daily-rotating salt, never stored raw), no tracking script needed.</p></div>
         </div>
-        <p class="fine">All of it is backed by the same single Postgres — no per-site database, no separate service. The store is public to the site's own audience by design; skills tell agents never to put secrets in it.</p>
+
+        <figure>
+          <div class="figcap">
+            <span class="t">Fig 02 · Whole document vs one branch</span>
+            <span class="lg"><span class="dot" style="background:var(--accent)"></span>Document</span>
+            <span class="lg"><span class="dot" style="background:var(--ok)"></span>One path</span>
+          </div>
+          <div class="diagram">
+            <div class="lane">
+              <span class="lane-label">The document · still one jsonb</span>
+              <div class="node"><div class="nt">GET /v1/sites/{site}/state</div><div class="nm">{ rooms: { lobby, attic }, votes: { up, down } }<br>every key, every poll</div></div>
+            </div>
+            <div class="arrow ok">or name the path you need</div>
+            <div class="lane">
+              <span class="lane-label">One node · same document, same ETag</span>
+              <div class="row">
+                <div class="node ok"><div class="nt">GET …/state/rooms/lobby</div><div class="nm">{ lights: on, occupants: 3 }<br>200 · just that subtree</div></div>
+                <div class="node"><div class="nt">GET …/state/rooms/cellar</div><div class="nm">null<br>200 · missing path, not 404</div></div>
+              </div>
+            </div>
+          </div>
+        </figure>
+
+        <table>
+          <tr class="trow"><td class="tid">A1</td><td class="tk">Read a path</td><td class="tv"><code>GET /state/{path...}</code> returns one subtree. A missing path is <strong>null with 200</strong>, not 404 — an unset counter is not an error. Integer segments index an existing array; out of range is null.</td></tr>
+          <tr class="trow"><td class="tid">A2</td><td class="tk">Replace a path</td><td class="tv"><code>PUT /state/{path...}</code> replaces that subtree, <strong>creating intermediate objects</strong> as needed. Writes never create arrays: an integer segment only indexes an array that already exists.</td></tr>
+          <tr class="trow"><td class="tid">A3</td><td class="tk">Remove a path</td><td class="tv"><code>DELETE /state/{path...}</code> removes one path; siblings stay. A missing path is a no-op. Deleting an array index closes the gap.</td></tr>
+        </table>
+        <p class="fine">All of it is backed by the same single Postgres — no per-site database, no separate service. Path addressing walks the same <code>jsonb</code> column the document always lived in; it is not a second store. The store is public to the site's own audience by design; skills tell agents never to put secrets in it.</p>
       </div>
     </section>
 
@@ -283,7 +312,7 @@
         </div>
 
         <figure>
-          <div class="figcap"><span class="t">Fig 02 · Runtime — one box, one process</span>
+          <div class="figcap"><span class="t">Fig 03 · Runtime — one box, one process</span>
             <span class="lg"><span class="dot" style="background:var(--accent)"></span>Platform</span>
             <span class="lg"><span class="dot" style="background:var(--ok)"></span>Traffic</span>
           </div>
