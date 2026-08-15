@@ -19,15 +19,16 @@ const corsAllowHeaders = "Content-Type, X-API-Key, X-Content-Digest, X-Skill-Ver
 // (which only happens if the user gave it one). No Access-Control-Allow-
 // Credentials is sent, so "*" is permitted by the CORS spec.
 //
-// The per-site /state endpoints are deliberately EXCLUDED: they run their own
-// stricter per-site Origin policy (authorizeStateOrigin / optionsSiteState) and
-// set their own Access-Control-Allow-Origin, so we must not double-handle them.
+// The per-site /state endpoints (exact /state and /state/{path...}) are
+// deliberately EXCLUDED: they run their own stricter per-site Origin policy
+// (authorizeStateOrigin / optionsSiteState) and set their own
+// Access-Control-Allow-Origin, so we must not double-handle them.
 func CORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// The per-site state + collections endpoints run their own stricter,
 		// credentialed Origin policy (authorizeStateOrigin), so the permissive
 		// "*" policy must not touch them.
-		if strings.HasSuffix(r.URL.Path, "/state") || strings.Contains(r.URL.Path, "/collections/") {
+		if strings.HasSuffix(r.URL.Path, "/state") || strings.Contains(r.URL.Path, "/state/") || strings.Contains(r.URL.Path, "/collections/") {
 			next.ServeHTTP(w, r)
 			return
 		}

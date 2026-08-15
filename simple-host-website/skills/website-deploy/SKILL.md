@@ -97,7 +97,7 @@ production build output.
 - **Uploads are append-only.** Re-uploading creates a new version and activates
   it; older versions stay on disk. Rollback re-points at an existing version.
 - **The per-site store is PUBLIC-READ.** State and collections GETs are gated
-  on the request `Origin`. Writes (`PUT`/`PATCH` `/state`, `POST` `/collections`)
+  on the request `Origin`. Writes (`PUT`/`PATCH` `/state`, `PUT`/`DELETE` `/state/<path>`, `POST` `/collections`)
   require a signed-in Google/GitHub session (`X-SH-CSRF: 1` + cookie) or the
   owner's `X-API-Key`. That session is the same account as dashboard sign-in
   but is site-scoped and is **not** an API key — it cannot deploy or delete.

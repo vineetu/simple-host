@@ -43,7 +43,7 @@ done <<<"$documented"
 # cookie on a custom domain would escalate (UNIFY.md credential boundary).
 echo "== owner routes wrapped with authMiddleware =="
 unwrapped=$(grep -rhoE 'mux\.Handle(Func)?\("[A-Z]+ /v1/sites/[^"]+"[^)]*' internal/handler \
-  | grep -vE '/state"|/collections/\{coll\}' \
+  | grep -vE '/state|/collections/\{coll\}' \
   | grep -v authMiddleware || true)
 if [ -n "$unwrapped" ]; then
   echo "$unwrapped" | sed 's/^/  FAIL: owner route missing authMiddleware: /'

@@ -10,7 +10,7 @@ Reads of state and collections are gated on the request `Origin`, not on an API
 key. A browser page on the site sends that header automatically; anyone else can
 set it by hand.
 
-Writes (`PUT`/`PATCH` `/state`, `POST` `/collections/{coll}`) require a signed-in
+Writes (`PUT`/`PATCH` `/state`, `PUT`/`DELETE` `/state/<path>`, `POST` `/collections/{coll}`) require a signed-in
 signed-in Google/GitHub session (`credentials: "include"` + `X-SH-CSRF: 1`) or
 the site owner's `X-API-Key`. The hosted-page session is the same account as
 dashboard sign-in but is not an API key and cannot deploy. A 401 with
@@ -47,7 +47,15 @@ The canonical route is same-origin and user-scoped. The legacy
 GET   /v1/u/<handle>/sites/<sitename>/state
 PUT   /v1/u/<handle>/sites/<sitename>/state    # replace whole blob (optional If-Match: <etag>)
 PATCH /v1/u/<handle>/sites/<sitename>/state    # atomic ops — use these
+GET   /v1/u/<handle>/sites/<sitename>/state/<path>     # one subtree (`/state/a/b` is {"a":{"b":…}})
+PUT   /v1/u/<handle>/sites/<sitename>/state/<path>     # replace that subtree (creates intermediate objects)
+DELETE /v1/u/<handle>/sites/<sitename>/state/<path>    # remove that subtree; siblings stay
 ```
+
+A missing path is **200 + `null`**, not 404 (404 is only a missing site). Integer
+segments index an existing array on read; writes never create an array
+(`PUT …/items/0` when `items` is missing is 400). `ETag` / `If-Match` are still
+the whole document. Prefer a path GET when the page only needs one branch.
 
 `PATCH` ops, so concurrent visitors never clobber each other:
 

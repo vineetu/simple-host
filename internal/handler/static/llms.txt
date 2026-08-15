@@ -14,6 +14,7 @@ const m = location.pathname.match(/^\/([a-z0-9-]+)\/([a-z0-9-]+)/);
 const BASE = m ? location.origin + '/v1/u/' + m[1] + '/sites/' + m[2] : null;
 const STATE = BASE ? BASE + '/state' : null;
 const LIST  = BASE ? BASE + '/collections/entries' : null;
+// One branch of the document is a URL: GET STATE+'/a/b' returns just that subtree (200 + null if unset — never 404). PUT/DELETE STATE+'/a/b' write that subtree (same credentials + X-SH-CSRF as PATCH).
 const WRITE_H = {'Content-Type':'application/json','X-SH-CSRF':'1'};
 function authApex(){ const hn = location.hostname; return hn.indexOf('sites.')===0 ? location.protocol+'//'+hn.replace(/^sites\./,'') : 'https://simple-host.app'; }
 async function offerSignIn(){ const d = await fetch(authApex()+'/v1/auth/oauth/providers').then(r=>r.json()).catch(()=>({providers:[]})); const names = d.providers||[]; /* keep the form visible; render a Sign in button per name that does location.href = authApex()+'/v1/auth/oauth/'+name+'?return_to='+encodeURIComponent(location.href) */ }

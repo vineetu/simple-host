@@ -282,6 +282,12 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("PUT /v1/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSiteState)))
 	mux.Handle("PATCH /v1/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchSiteState)))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/state", h.optionsSiteState)
+	// Path-addressed subtree: same gates as /state (origin, view-lock; writes
+	// also rate-limit + visitorWriteOK). Exact /state above takes precedence.
+	mux.HandleFunc("GET /v1/sites/{sitename}/state/{path...}", h.getSiteStateAtPath)
+	mux.Handle("PUT /v1/sites/{sitename}/state/{path...}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSiteStateAtPath)))
+	mux.Handle("DELETE /v1/sites/{sitename}/state/{path...}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.deleteSiteStateAtPath)))
+	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/state/{path...}", h.optionsSiteStateAtPath)
 
 	// v3 user-scoped state/collections: unambiguous after UNIQUE(name) drops.
 	// Same handlers as above; resolveSiteID reads {handle} when present.
@@ -293,6 +299,10 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("PUT /v1/u/{handle}/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSiteState)))
 	mux.Handle("PATCH /v1/u/{handle}/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchSiteState)))
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/state", h.optionsSiteState)
+	mux.HandleFunc("GET /v1/u/{handle}/sites/{sitename}/state/{path...}", h.getSiteStateAtPath)
+	mux.Handle("PUT /v1/u/{handle}/sites/{sitename}/state/{path...}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSiteStateAtPath)))
+	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/state/{path...}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.deleteSiteStateAtPath)))
+	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/state/{path...}", h.optionsSiteStateAtPath)
 
 	// Visitor session cookie is issued here (content host / custom domain),
 	// never on the apex OAuth callback.

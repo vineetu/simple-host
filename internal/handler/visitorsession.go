@@ -19,9 +19,11 @@ import (
 )
 
 const (
-	writeRouteStatePut       = "state_put"
-	writeRouteStatePatch     = "state_patch"
-	writeRouteCollectionPost = "collection_post"
+	writeRouteStatePut        = "state_put"
+	writeRouteStatePatch      = "state_patch"
+	writeRouteStatePutPath    = "state_put_path"
+	writeRouteStateDeletePath = "state_delete_path"
+	writeRouteCollectionPost  = "collection_post"
 )
 
 const (
@@ -175,7 +177,8 @@ func writeVisitorAuthRequired(w http.ResponseWriter) {
 	})
 }
 
-// visitorWriteOK is the write gate for PUT/PATCH state and POST collections.
+// visitorWriteOK is the write gate for PUT/PATCH/DELETE state (whole document
+// or a path) and POST collections.
 // See SPEC.md §4.4. Returns false after writing the error response.
 func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, siteID, siteName, route, collection string) bool {
 	userID, allowAnon, err := db.GetSiteWriteGate(r.Context(), h.database, siteID)

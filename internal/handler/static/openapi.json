@@ -1396,6 +1396,190 @@
         }
       }
     },
+    "/v1/sites/{sitename}/state/{path...}": {
+      "get": {
+        "operationId": "getSitesBySitenameStateAtPath",
+        "summary": "Read a subtree of per-site JSON state",
+        "description": "Returns the JSON at this path (`GET /state/a/b` is `{\"a\":{\"b\":\u2026}}`). A missing path is `null` with 200 \u2014 never 404 (404 is only a missing site). Integer segments index an existing array. The `ETag` is the document version. Origin-gated like `GET /state`. Max 32 segments.",
+        "tags": [
+          "State"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/statePath"
+          },
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Subtree (arbitrary JSON, `null` if unset)",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified (matched If-None-Match)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/OriginMismatch"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "put": {
+        "operationId": "putSitesBySitenameStateAtPath",
+        "summary": "Replace a subtree of per-site JSON state",
+        "description": "Replaces the subtree at this path with the request body. Missing intermediate objects are created (`PUT /state/a/b/c` creates `a` and `b`). Writes never create arrays \u2014 `PUT /state/items/0` when `items` is missing is 400. `If-Match` is the document ETag (412 on conflict). Origin-gated. Same write gate as `PUT /state` (visitor session or owner `X-API-Key`). Resulting document still capped at 1 MB.",
+        "tags": [
+          "State"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/statePath"
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/csrf"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved; echoes the subtree",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/VisitorAuthRequired"
+          },
+          "403": {
+            "$ref": "#/components/responses/OriginMismatch"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "description": "ETag did not match (If-Match)"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSitesBySitenameStateAtPath",
+        "summary": "Remove a subtree of per-site JSON state",
+        "description": "Deletes the path. Siblings survive. A missing path is a no-op. `If-Match` is the document ETag. Origin-gated. Same write gate as `PUT /state` (visitor session or owner `X-API-Key`).",
+        "tags": [
+          "State"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/statePath"
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/csrf"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Path removed (body is `null`)",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/VisitorAuthRequired"
+          },
+          "403": {
+            "$ref": "#/components/responses/OriginMismatch"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "description": "ETag did not match (If-Match)"
+          }
+        }
+      }
+    },
     "/v1/sites/{sitename}/collections": {
       "get": {
         "operationId": "getSitesBySitenameCollections",
@@ -1835,6 +2019,217 @@
           },
           "403": {
             "$ref": "#/components/responses/OriginMismatch"
+          }
+        }
+      }
+    },
+    "/v1/u/{handle}/sites/{sitename}/state/{path...}": {
+      "get": {
+        "operationId": "getSiteStateByHandleAtPath",
+        "summary": "Read a subtree of per-site JSON state (v3, by handle)",
+        "description": "Returns the JSON at this path (`GET /state/a/b` is `{\"a\":{\"b\":\u2026}}`). A missing path is `null` with 200 \u2014 never 404 (404 is only a missing site). Integer segments index an existing array. The `ETag` is the document version. Origin-gated like `GET /state`. Max 32 segments. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "tags": [
+          "State"
+        ],
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "the site owner's URL-safe handle"
+          },
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/statePath"
+          },
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Subtree (arbitrary JSON, `null` if unset)",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified (matched If-None-Match)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/OriginMismatch"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "put": {
+        "operationId": "putSiteStateByHandleAtPath",
+        "summary": "Replace a subtree of per-site JSON state (v3, by handle)",
+        "description": "Replaces the subtree at this path with the request body. Missing intermediate objects are created (`PUT /state/a/b/c` creates `a` and `b`). Writes never create arrays \u2014 `PUT /state/items/0` when `items` is missing is 400. `If-Match` is the document ETag (412 on conflict). Origin-gated. Same write gate as `PUT /state` (visitor session or owner `X-API-Key`). Resulting document still capped at 1 MB. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "tags": [
+          "State"
+        ],
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "the site owner's URL-safe handle"
+          },
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/statePath"
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/csrf"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved; echoes the subtree",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/VisitorAuthRequired"
+          },
+          "403": {
+            "$ref": "#/components/responses/OriginMismatch"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "description": "ETag did not match (If-Match)"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSiteStateByHandleAtPath",
+        "summary": "Remove a subtree of per-site JSON state (v3, by handle)",
+        "description": "Deletes the path. Siblings survive. A missing path is a no-op. `If-Match` is the document ETag. Origin-gated. Same write gate as `PUT /state` (visitor session or owner `X-API-Key`). v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "tags": [
+          "State"
+        ],
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "the site owner's URL-safe handle"
+          },
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/statePath"
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/csrf"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Path removed (body is `null`)",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/VisitorAuthRequired"
+          },
+          "403": {
+            "$ref": "#/components/responses/OriginMismatch"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "description": "ETag did not match (If-Match)"
           }
         }
       }
@@ -2718,6 +3113,16 @@
           "type": "string"
         },
         "example": "my-cool-site"
+      },
+      "statePath": {
+        "name": "path...",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "example": "a/b",
+        "description": "Slash-separated path into the document. Max 32 segments; empty segments rejected."
       },
       "coll": {
         "name": "coll",
