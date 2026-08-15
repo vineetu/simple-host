@@ -1205,6 +1205,34 @@ paths:
         '413': { description: recording too large (25 MB cap) }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
+  /v1/transcribe/ticket:
+    post:
+      operationId: postTranscribeTicket
+      summary: Mint a short-lived ticket for live transcription
+      description: >-
+        Returns a 60-second signed ticket for the live speech WebSocket at
+        `/v1/transcribe/stream`. A browser cannot set headers on a WebSocket
+        handshake, so the API key cannot travel the usual way; putting it in the
+        URL would land it in access logs and history. The ticket is HMAC-signed,
+        carries only the user id and an expiry, and the speech service verifies
+        it without ever seeing a key. Absent when the server has no
+        TRANSCRIBE_TICKET_SECRET configured.
+      tags: [AI]
+      security: [{ apiKey: [] }]
+      responses:
+        '200':
+          description: A ticket to use as the `t` query parameter on the WebSocket.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ticket: { type: string }
+                  expires_in: { type: integer, description: seconds until it expires }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: live transcription is not configured }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
   /v1/generate:
     post:
       operationId: postGenerate
