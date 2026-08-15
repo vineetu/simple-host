@@ -1,3 +1,17 @@
+# SUPERSEDED — not implemented, and deliberately so
+
+Grok is the builder model as of 2026-08-15, but **not by this design**. It is
+reached through a local CLIProxyAPI sidecar that turns the existing Grok
+subscription into an ordinary OpenAI-compatible endpoint, so generation is a
+plain chat-completions call: no agent on the host, no tools, no sandbox to get
+right. See the commit "Run the builder on Grok, with DeepSeek as fallback".
+
+This document is kept because the reviews that killed it are worth reading — it
+went through three rounds and each round found the previous version unsafe or
+unrunnable. Do not implement what follows.
+
+---
+
 # Design: Grok CLI as a generation backend, DeepSeek as fallback
 
 Status: DRAFT **v3**, after two rounds of independent adversarial review
