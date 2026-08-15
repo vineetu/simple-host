@@ -218,26 +218,16 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionID, err := randomRaw(32)
-	if err != nil {
-		log.Printf("oauth: session id: %v", err)
-		writeOAuthHTMLError(w, http.StatusBadGateway)
-		return
-	}
-	now := time.Now()
-	if err := db.InsertVisitorSession(r.Context(), tx, sessionID, user.ID, st.SiteID.String, st.Host, now.Add(30*24*time.Hour), now.Add(14*24*time.Hour)); err != nil {
-		log.Printf("oauth: insert session: %v", err)
-		writeOAuthHTMLError(w, http.StatusBadGateway)
-		return
-	}
-
+	// The session cookie token is generated in establishVisitor, not here,
+	// so the database never stores a usable credential. This row carries
+	// user_id/site_id; only sha256(once) is written.
 	once, err := randomHex(32)
 	if err != nil {
 		log.Printf("oauth: establish once: %v", err)
 		writeOAuthHTMLError(w, http.StatusBadGateway)
 		return
 	}
-	if err := db.InsertEstablishToken(r.Context(), tx, once, sessionID, st.Host, st.ReturnTo, now.Add(60*time.Second)); err != nil {
+	if err := db.InsertEstablishToken(r.Context(), tx, once, user.ID, st.SiteID.String, st.Host, st.ReturnTo, time.Now().Add(60*time.Second)); err != nil {
 		log.Printf("oauth: insert establish: %v", err)
 		writeOAuthHTMLError(w, http.StatusBadGateway)
 		return

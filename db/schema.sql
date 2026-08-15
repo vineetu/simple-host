@@ -118,7 +118,8 @@ CREATE TABLE IF NOT EXISTS visitors (
 );
 
 -- In-flight authorization-code flows. Pattern-match of auth_tokens:
--- opaque secret, short TTL, single-use.
+-- opaque secret, short TTL, single-use. `state` is sha256 hex of the
+-- value sent to the provider; the raw token is never stored.
 CREATE TABLE IF NOT EXISTS oauth_states (
   state          TEXT PRIMARY KEY,
   provider       TEXT NOT NULL CHECK (provider IN ('google', 'github')),
@@ -182,6 +183,7 @@ CREATE TABLE IF NOT EXISTS oauth_identities (
 CREATE INDEX IF NOT EXISTS oauth_identities_user_id_idx
   ON oauth_identities (user_id);
 
+-- Server-side session. id is sha256 of the cookie token, never the token.
 CREATE TABLE IF NOT EXISTS visitor_sessions (
   id              BYTEA PRIMARY KEY,
   user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -197,9 +199,12 @@ CREATE INDEX IF NOT EXISTS visitor_sessions_expires_idx
 CREATE INDEX IF NOT EXISTS visitor_sessions_user_idx
   ON visitor_sessions (user_id);
 
+-- One-time bounce. `once` is sha256 hex of the URL value. The session
+-- cookie is issued at consume time so this row holds no replayable secret.
 CREATE TABLE IF NOT EXISTS visitor_establish_tokens (
   once         TEXT PRIMARY KEY,
-  session_id   BYTEA NOT NULL REFERENCES visitor_sessions(id) ON DELETE CASCADE,
+  user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  site_id      UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
   host         TEXT NOT NULL,
   return_to    TEXT NOT NULL,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -236,3 +241,10 @@ ALTER TABLE oauth_states
     OR
     (purpose = 'owner' AND site_id IS NULL)
   );
+
+COMMENT ON COLUMN visitor_sessions.id IS
+  'SHA-256 of the session cookie token. The raw token is never stored.';
+COMMENT ON COLUMN visitor_establish_tokens.once IS
+  'SHA-256 (hex) of the one-time establish URL token. The raw token is never stored.';
+COMMENT ON COLUMN oauth_states.state IS
+  'SHA-256 (hex) of the OAuth state parameter. The raw token is never stored.';

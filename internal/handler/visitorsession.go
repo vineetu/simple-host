@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/subtle"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"log"
 	"mime"
@@ -32,6 +31,9 @@ const (
 	visitorCookieMaxAge = 1209600 // 14 days
 	visitorCSRFHeader   = "X-SH-CSRF"
 	visitorCSRFValue    = "1"
+
+	visitorSessionTTL     = 30 * 24 * time.Hour
+	visitorSessionIdleTTL = 14 * 24 * time.Hour
 )
 
 func requestIsHTTPS(r *http.Request) bool {
@@ -135,13 +137,37 @@ func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tok, err := db.ConsumeEstablishToken(r.Context(), h.database, once, host)
+	tx, err := h.database.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeOAuthHTMLError(w, http.StatusBadGateway)
+		return
+	}
+	defer tx.Rollback()
+
+	tok, err := db.ConsumeEstablishToken(r.Context(), tx, once, host)
 	if err != nil {
 		writeOAuthHTMLError(w, http.StatusBadRequest)
 		return
 	}
 
-	setVisitorSessionCookie(w, r, hex.EncodeToString(tok.SessionID), visitorCookieMaxAge)
+	sessionToken, err := randomHex(32)
+	if err != nil {
+		writeOAuthHTMLError(w, http.StatusBadGateway)
+		return
+	}
+	now := time.Now()
+	if err := db.InsertVisitorSession(r.Context(), tx, sessionToken, tok.UserID, tok.SiteID, tok.Host, now.Add(visitorSessionTTL), now.Add(visitorSessionIdleTTL)); err != nil {
+		log.Printf("visitor: insert session: %v", err)
+		writeOAuthHTMLError(w, http.StatusBadGateway)
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		log.Printf("visitor: commit session: %v", err)
+		writeOAuthHTMLError(w, http.StatusBadGateway)
+		return
+	}
+
+	setVisitorSessionCookie(w, r, sessionToken, visitorCookieMaxAge)
 	http.Redirect(w, r, tok.ReturnTo, http.StatusFound)
 }
 
@@ -157,11 +183,9 @@ func (h *SiteHandler) logoutVisitor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if raw := visitorCookieValue(r); raw != "" {
-		if id, err := hex.DecodeString(raw); err == nil && len(id) == 32 {
-			if err := db.DeleteVisitorSession(r.Context(), h.database, id); err != nil {
-				writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-				return
-			}
+		if err := db.DeleteVisitorSession(r.Context(), h.database, raw); err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return
 		}
 	}
 	setVisitorSessionCookie(w, r, "", 0)
@@ -216,27 +240,25 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 	}
 
 	if raw := visitorCookieValue(r); raw != "" {
-		if id, decErr := hex.DecodeString(raw); decErr == nil && len(id) == 32 {
-			sess, sessErr := db.GetVisitorSession(r.Context(), h.database, id)
-			if sessErr == nil {
-				now := time.Now()
-				hostOK := strings.EqualFold(sess.Host, requestHostName(r))
-				siteOK := sess.SiteID == siteID
-				fresh := !now.After(sess.ExpiresAt) && !now.After(sess.IdleExpiresAt)
-				if hostOK && siteOK && fresh {
-					if r.Header.Get(visitorCSRFHeader) == visitorCSRFValue {
-						_ = db.TouchVisitorSession(r.Context(), h.database, id)
-						return true
-					}
-					if mode == "on" {
-						writeJSON(w, http.StatusForbidden, struct {
-							Error string `json:"error"`
-							Code  string `json:"code"`
-						}{Error: "missing CSRF header", Code: "csrf_required"})
-						return false
-					}
-					// log: treat missing CSRF as anonymous so old widgets still write.
+		sess, sessErr := db.GetVisitorSession(r.Context(), h.database, raw)
+		if sessErr == nil {
+			now := time.Now()
+			hostOK := strings.EqualFold(sess.Host, requestHostName(r))
+			siteOK := sess.SiteID == siteID
+			fresh := !now.After(sess.ExpiresAt) && !now.After(sess.IdleExpiresAt)
+			if hostOK && siteOK && fresh {
+				if r.Header.Get(visitorCSRFHeader) == visitorCSRFValue {
+					_ = db.TouchVisitorSession(r.Context(), h.database, raw)
+					return true
 				}
+				if mode == "on" {
+					writeJSON(w, http.StatusForbidden, struct {
+						Error string `json:"error"`
+						Code  string `json:"code"`
+					}{Error: "missing CSRF header", Code: "csrf_required"})
+					return false
+				}
+				// log: treat missing CSRF as anonymous so old widgets still write.
 			}
 		}
 	}

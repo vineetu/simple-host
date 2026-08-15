@@ -20,6 +20,7 @@ type OAuthIdentity struct {
 }
 
 // OAuthState is one in-flight authorization-code flow.
+// State is sha256 hex of the value sent to the provider, never that value.
 type OAuthState struct {
 	State        string
 	Provider     string
@@ -35,6 +36,7 @@ type OAuthState struct {
 
 // VisitorSession is the server-side row behind the site-scoped cookie.
 // UserID is the one principal; the cookie is not an API key.
+// ID is sha256(cookie token), never the token itself.
 type VisitorSession struct {
 	ID            []byte
 	UserID        string
@@ -47,10 +49,13 @@ type VisitorSession struct {
 }
 
 // EstablishToken is the one-time bounce from the apex callback onto the host
-// that will Set-Cookie.
+// that will Set-Cookie. The session cookie is issued at consume time so the
+// raw token is never written to the database. Once is sha256 hex of the URL
+// value, never the value itself.
 type EstablishToken struct {
 	Once      string
-	SessionID []byte
+	UserID    string
+	SiteID    string
 	Host      string
 	ReturnTo  string
 	CreatedAt time.Time
@@ -108,15 +113,20 @@ func TouchOAuthIdentity(ctx context.Context, q Querier, id, email string, emailV
 
 // InsertOAuthState stores a new authorization-code flow.
 // purpose is "site" (siteID valid, host non-empty) or "owner" (siteID null).
+// state is the value sent to the provider; only sha256(state) is stored.
 func InsertOAuthState(ctx context.Context, q Querier, state, provider, verifier, returnTo, host string, siteID sql.NullString, purpose string, expiresAt time.Time) error {
+	if err := requirePresentedToken(state); err != nil {
+		return err
+	}
 	_, err := q.ExecContext(ctx, `
 		INSERT INTO oauth_states (state, provider, code_verifier, return_to, host, site_id, purpose, expires_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		state, provider, verifier, returnTo, host, siteID, purpose, expiresAt)
+		HashTokenHex(state), provider, verifier, returnTo, host, siteID, purpose, expiresAt)
 	return err
 }
 
 // ConsumeOAuthState marks a state used iff it is unused and unexpired.
+// state is the value returned by the provider; lookup is by sha256(state).
 // Returns sql.ErrNoRows when the state is missing, used, or expired.
 func ConsumeOAuthState(ctx context.Context, q Querier, state string) (OAuthState, error) {
 	const query = `
@@ -126,7 +136,7 @@ func ConsumeOAuthState(ctx context.Context, q Querier, state string) (OAuthState
 		RETURNING state, provider, code_verifier, return_to, host, site_id,
 		          purpose, created_at, expires_at, used_at`
 	var s OAuthState
-	err := q.QueryRowContext(ctx, query, state).Scan(
+	err := q.QueryRowContext(ctx, query, HashTokenHex(state)).Scan(
 		&s.State, &s.Provider, &s.CodeVerifier, &s.ReturnTo, &s.Host, &s.SiteID,
 		&s.Purpose, &s.CreatedAt, &s.ExpiresAt, &s.UsedAt,
 	)
@@ -139,23 +149,27 @@ func PruneExpiredOAuthStates(ctx context.Context, q Querier) error {
 	return err
 }
 
-// InsertVisitorSession stores a new site-scoped session. id is 32 raw bytes.
-func InsertVisitorSession(ctx context.Context, q Querier, id []byte, userID, siteID, host string, expiresAt, idleExpiresAt time.Time) error {
+// InsertVisitorSession stores a new site-scoped session keyed by sha256(token).
+// token is the cookie value; it is never written to the database.
+func InsertVisitorSession(ctx context.Context, q Querier, token, userID, siteID, host string, expiresAt, idleExpiresAt time.Time) error {
+	if err := requirePresentedToken(token); err != nil {
+		return err
+	}
 	_, err := q.ExecContext(ctx, `
 		INSERT INTO visitor_sessions (id, user_id, site_id, host, expires_at, idle_expires_at)
 		VALUES ($1, $2, $3, $4, $5, $6)`,
-		id, userID, siteID, host, expiresAt, idleExpiresAt)
+		HashToken(token), userID, siteID, host, expiresAt, idleExpiresAt)
 	return err
 }
 
-// GetVisitorSession loads a session by raw id.
-func GetVisitorSession(ctx context.Context, q Querier, id []byte) (VisitorSession, error) {
+// GetVisitorSession loads a session by hashing the presented cookie token.
+func GetVisitorSession(ctx context.Context, q Querier, token string) (VisitorSession, error) {
 	const query = `
 		SELECT id, user_id::text, site_id::text, host, created_at, last_seen_at, expires_at, idle_expires_at
 		FROM visitor_sessions
 		WHERE id = $1`
 	var s VisitorSession
-	err := q.QueryRowContext(ctx, query, id).Scan(
+	err := q.QueryRowContext(ctx, query, HashToken(token)).Scan(
 		&s.ID, &s.UserID, &s.SiteID, &s.Host,
 		&s.CreatedAt, &s.LastSeenAt, &s.ExpiresAt, &s.IdleExpiresAt,
 	)
@@ -163,34 +177,39 @@ func GetVisitorSession(ctx context.Context, q Querier, id []byte) (VisitorSessio
 }
 
 // TouchVisitorSession slides idle_expires_at to min(now+14d, expires_at).
-func TouchVisitorSession(ctx context.Context, q Querier, id []byte) error {
+func TouchVisitorSession(ctx context.Context, q Querier, token string) error {
 	_, err := q.ExecContext(ctx, `
 		UPDATE visitor_sessions
 		SET last_seen_at = now(),
 		    idle_expires_at = LEAST(now() + interval '14 days', expires_at)
 		WHERE id = $1
 		  AND expires_at > now()
-		  AND idle_expires_at > now()`, id)
+		  AND idle_expires_at > now()`, HashToken(token))
 	return err
 }
 
 // DeleteVisitorSession removes one session row. Missing rows are not an error.
-func DeleteVisitorSession(ctx context.Context, q Querier, id []byte) error {
-	_, err := q.ExecContext(ctx, `DELETE FROM visitor_sessions WHERE id = $1`, id)
+func DeleteVisitorSession(ctx context.Context, q Querier, token string) error {
+	_, err := q.ExecContext(ctx, `DELETE FROM visitor_sessions WHERE id = $1`, HashToken(token))
 	return err
 }
 
 // InsertEstablishToken stores the one-time bounce token for Set-Cookie.
-func InsertEstablishToken(ctx context.Context, q Querier, once string, sessionID []byte, host, returnTo string, expiresAt time.Time) error {
+// once is the URL value; only sha256(once) is stored. The session cookie is
+// issued when the token is consumed, so this row holds no replayable secret.
+func InsertEstablishToken(ctx context.Context, q Querier, once, userID, siteID, host, returnTo string, expiresAt time.Time) error {
+	if err := requirePresentedToken(once); err != nil {
+		return err
+	}
 	_, err := q.ExecContext(ctx, `
-		INSERT INTO visitor_establish_tokens (once, session_id, host, return_to, expires_at)
-		VALUES ($1, $2, $3, $4, $5)`,
-		once, sessionID, host, returnTo, expiresAt)
+		INSERT INTO visitor_establish_tokens (once, user_id, site_id, host, return_to, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6)`,
+		HashTokenHex(once), userID, siteID, host, returnTo, expiresAt)
 	return err
 }
 
 // ConsumeEstablishToken marks a token used iff it is unused, unexpired, and
-// bound to host. Returns sql.ErrNoRows otherwise.
+// bound to host. Lookup is by sha256(once). Returns sql.ErrNoRows otherwise.
 func ConsumeEstablishToken(ctx context.Context, q Querier, once, host string) (EstablishToken, error) {
 	const query = `
 		UPDATE visitor_establish_tokens
@@ -199,10 +218,10 @@ func ConsumeEstablishToken(ctx context.Context, q Querier, once, host string) (E
 		  AND used_at IS NULL
 		  AND expires_at > now()
 		  AND lower(host) = lower($2)
-		RETURNING once, session_id, host, return_to, created_at, expires_at, used_at`
+		RETURNING once, user_id::text, site_id::text, host, return_to, created_at, expires_at, used_at`
 	var t EstablishToken
-	err := q.QueryRowContext(ctx, query, once, host).Scan(
-		&t.Once, &t.SessionID, &t.Host, &t.ReturnTo, &t.CreatedAt, &t.ExpiresAt, &t.UsedAt,
+	err := q.QueryRowContext(ctx, query, HashTokenHex(once), host).Scan(
+		&t.Once, &t.UserID, &t.SiteID, &t.Host, &t.ReturnTo, &t.CreatedAt, &t.ExpiresAt, &t.UsedAt,
 	)
 	return t, err
 }
