@@ -83,10 +83,9 @@ type SiteHandler struct {
 
 	// writeAuthMode is off | log | on (config default is log, never on).
 	writeAuthMode string
-	// adminAPIKey / adminUserID resolve owner/admin X-API-Key writers on
-	// state/collections without wrapping those routes in auth.Middleware.
-	// adminAPIKey is also used on the public collection GET, which accepts
-	// an owner or admin key without wrapping that route in auth middleware.
+	// adminAPIKey / adminUserID recognize owner/admin X-API-Key callers on
+	// routes that are not wrapped with auth.Middleware: state/collections
+	// writers, and the public collection GET (which also accepts an owner key).
 	adminAPIKey string
 	adminUserID string
 }
