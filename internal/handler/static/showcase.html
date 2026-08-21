@@ -484,6 +484,9 @@
       padding: 1px 5px; border-radius: 4px; color: var(--text);
     }
     @media (max-width: 560px) { .skill-install .si-cmd { flex-direction: column; } }
+    .skill-install .si-verify { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+    .skill-install .si-key-wrap { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+    .skill-install #si-key-value { font-size: 12px; padding: 3px 7px; border: 1px solid var(--border); border-radius: 6px; user-select: all; overflow-wrap: anywhere; }
 
     .ai-create {
       background: var(--surface);
@@ -656,32 +659,41 @@
       <span>Your public showcase: <a id="owner-share-link" href="#" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">#</a></span>
     </div>
 
-    <!-- Install the skill. Owner-only: revealed by showOwner(). Sits above the
-         AI builder because publishing requires the skill — browser uploads are off. -->
+    <!-- Install the skill. Owner-only: revealed by showOwner(). Leads the page:
+         the user's own AI is the primary door; the chat below is the fallback
+         builder and the help desk. Guided flow: copy → deploy → proof is the
+         site appearing in the list; "I'm stuck" hands off to the chat. -->
     <div class="skill-install" id="skill-install" hidden>
       <div class="si-head">
-        <h3>Install the <code>website-deploy</code> skill</h3>
+        <h3>Set up your AI — install the <code>website-deploy</code> skill</h3>
         <div class="si-os" id="si-os" role="group" aria-label="Operating system">
           <button type="button" data-os="unix" class="on">macOS / Linux</button><button type="button" data-os="win">Windows</button>
         </div>
       </div>
-      <p class="si-lede">Which coding agents do you use?</p>
+      <p class="si-lede"><b>1.</b> Pick what you use, then copy the box into your agent's terminal:</p>
       <div class="si-agents" id="si-agents"></div>
       <div class="si-cmd">
         <pre id="si-cmd-text"></pre>
         <button type="button" class="btn btn-secondary btn-small" id="si-copy">Copy</button>
       </div>
-      <p class="si-foot"><a href="/install.html">More install options &rarr;</a></p>
+      <p class="si-lede" style="margin-top:14px"><b>2.</b> Ask your agent to build something — <em>“deploy a hello page to simple-host”</em>. The moment it works, the site appears in your list below. That's how you know you're done.</p>
+      <div class="si-verify">
+        <span class="si-key-wrap">If your agent asks for your API key: <button type="button" class="btn btn-ghost btn-small" id="si-key-show">Show key</button><code id="si-key-value" hidden></code><button type="button" class="btn btn-ghost btn-small" id="si-key-copy" hidden>Copy</button></span>
+        <button type="button" class="btn btn-secondary btn-small" id="si-stuck">I'm stuck — help me</button>
+      </div>
     </div>
 
     <!-- Build a site with AI. Backed by /v1/generate, which now talks to an
          OpenAI-compatible provider (DeepSeek) directly — no separate agent box
-         to go missing, which is what broke this before. -->
+         to go missing, which is what broke this before. Leads the page: it is
+         the zero-install door, and it doubles as the help desk (install
+         debugging, capabilities, prompts for other agents). -->
     <div class="ai-create" id="ai-create">
       <div class="ai-head">
         <h3><span class="spark">✦</span> Build a site with AI</h3>
         <button class="btn-ghost btn-small" id="ai-reset" type="button" hidden>Start over</button>
       </div>
+      <p class="si-lede" style="margin-bottom:12px">No coding agent, or stuck installing? Build right here instead — or ask anything: install help, what the platform can do, or a ready-made prompt for your own AI.</p>
       <div class="ai-body">
         <div class="ai-chat" id="ai-chat"></div>
         <div class="ai-preview" id="ai-preview" hidden>
@@ -922,7 +934,8 @@
         { id: 'opencode', label: 'opencode',        unix: '~/.config/opencode/skills',  win: '$env:USERPROFILE\\.config\\opencode\\skills' },
         { id: 'hermes',   label: 'Hermes',          unix: '~/.hermes/skills',           win: '$env:USERPROFILE\\.hermes\\skills' },
         { id: 'openclaw', label: 'OpenClaw',        unix: '~/.openclaw/skills',         win: '$env:USERPROFILE\\.openclaw\\skills' },
-        { id: 'copilot',  label: 'Copilot CLI',     copilot: true }
+        { id: 'copilot',  label: 'Copilot CLI',     copilot: true },
+        { id: 'claudeapp', label: 'Claude app',     claudeapp: true }
       ];
 
       // Default the toggle to the visitor's own platform.
@@ -959,7 +972,7 @@
       function build() {
         var sel = selected();
         if (!sel.length) return 'Select an agent above.';
-        var dirs = sel.filter(function (a) { return !a.copilot; }).map(function (a) { return os === 'win' ? a.win : a.unix; });
+        var dirs = sel.filter(function (a) { return !a.copilot && !a.claudeapp; }).map(function (a) { return os === 'win' ? a.win : a.unix; });
         var out = [];
 
         if (dirs.length && os === 'unix') {
@@ -987,6 +1000,16 @@
           SKILLS.forEach(function (s) {
             out.push('copilot skill add https://simple-host.app/skills/' + s + '/SKILL.md');
           });
+        }
+
+        if (sel.some(function (a) { return a.claudeapp; })) {
+          if (out.length) out.push('');
+          out.push('Claude app (claude.ai / desktop / mobile) — no terminal. In the app:');
+          out.push('  Settings → Skills → “+ Create skill”, then upload each ZIP separately:');
+          SKILLS.forEach(function (s) {
+            out.push('  https://simple-host.app/skills/' + s + '.zip');
+          });
+          out.push('  (Paid plan with Code execution switched on. Claude Code is the terminal one — pick it above instead.)');
         }
         return out.join('\n');
       }
@@ -1019,6 +1042,38 @@
       });
 
       render();
+
+      // Guided-flow extras: reveal the API key (it's already in this browser's
+      // localStorage — it never goes through the AI), and the stuck button,
+      // which hands off to the chat with tool + OS pre-filled so a stuck
+      // person only has to paste their error.
+      var keyShow = document.getElementById('si-key-show');
+      var keyVal = document.getElementById('si-key-value');
+      var keyCopy = document.getElementById('si-key-copy');
+      if (keyShow) keyShow.addEventListener('click', function () {
+        if (!apiKey) { keyVal.textContent = 'Sign in first — then your key shows here.'; keyVal.hidden = false; return; }
+        var shown = !keyVal.hidden;
+        keyVal.textContent = apiKey;
+        keyVal.hidden = shown; keyCopy.hidden = shown;
+        keyShow.textContent = shown ? 'Show key' : 'Hide key';
+      });
+      if (keyCopy) keyCopy.addEventListener('click', function () {
+        var done = function () { keyCopy.textContent = 'Copied'; setTimeout(function () { keyCopy.textContent = 'Copy'; }, 1500); };
+        if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(apiKey).then(done).catch(function () {}); }
+      });
+
+      var stuck = document.getElementById('si-stuck');
+      if (stuck) stuck.addEventListener('click', function () {
+        var tools = selected().map(function (a) { return a.label; }).join(', ') || 'not sure which tool';
+        var ci = document.getElementById('chat-input');
+        var ac = document.getElementById('ai-create');
+        if (!ci) return;
+        ci.value = 'Help me install the skill. Tool: ' + tools + '. OS: ' + (os === 'win' ? 'Windows' : 'macOS/Linux') + '. What happened: ';
+        chatInputGrow({ target: ci });
+        if (ac) ac.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        ci.focus();
+        try { ci.setSelectionRange(ci.value.length, ci.value.length); } catch (e) {}
+      });
     })();
 
     // --------------------------------------------------------------- OWNER MODE
