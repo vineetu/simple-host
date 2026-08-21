@@ -251,7 +251,8 @@
               <div class="eyebrow">In a coding agent</div>
               <h2>Add the skill to your agent.</h2>
               <p>Works with Claude Code, the ChatGPT desktop app, Cursor, Codex CLI, opencode, GitHub Copilot — anything that can read and write files on your machine. One line teaches your agent the whole platform (deploy, state &amp; collections, private pages, widgets). Then just say <em>“deploy this folder”</em> or <em>“build me a waitlist page.”</em> The installer knows each agent's skills folder (and the right Windows paths), so you don't have to.</p>
-              <p class="dim" style="font-size:13px; margin-top:8px">ChatGPT: this needs the <b>desktop app</b>, in the mode that can open a folder and edit files. A plain ChatGPT chat in a browser can't install anything — use the third option below instead.</p>
+              <p class="dim" style="font-size:13px; margin-top:8px">ChatGPT: this needs the <b>desktop app</b>, in the mode that can open a folder and edit files. A plain ChatGPT chat in a browser can't install anything — use the last option below instead.</p>
+              <p class="dim" style="font-size:13px; margin-top:8px">Using the <b>Claude app</b> rather than Claude Code? It doesn't install from your terminal — see the next option.</p>
             </div>
           </div>
           <div class="code-head">
@@ -282,7 +283,7 @@ npx skills add vineetu/simple-host -g -a github-copilot -s connect-domain --copy
                 <tr><td>Hermes</td><td><code>~/.hermes/skills/</code></td><td><code>$env:USERPROFILE\.hermes\skills\</code></td></tr>
                 <tr><td>OpenClaw</td><td><code>~/.openclaw/skills/</code></td><td><code>$env:USERPROFILE\.openclaw\skills\</code></td></tr>
                 <tr><td>Anything else</td><td colspan="2">Point it at the skills directory it reads — the files are identical.</td></tr>
-                <tr><td>Claude.ai / Desktop</td><td colspan="2">Paid plan with <b>Code execution</b> on. Skills settings → <b>“+ Create skill”</b>, upload each ZIP separately: <a class="dl" href="/skills/website-deploy.zip" download>website-deploy.zip</a> <a class="dl" href="/skills/website-deploy-builder.zip" download>website-deploy-builder.zip</a> <a class="dl" href="/skills/connect-domain.zip" download>connect-domain.zip</a></td></tr>
+                <tr><td>Claude app<br>(claude.ai / desktop)</td><td colspan="2">Not a skills folder — the skills are uploaded in Settings. See <b>“Upload the skills to Claude”</b> above.</td></tr>
               </tbody>
             </table>
 
@@ -323,6 +324,26 @@ Expand-Archive "$env:TEMP\sh-skills.zip" "$env:USERPROFILE\.claude\skills" -Forc
 
             <p class="note" style="margin-top:12px">There's also <code class="inline-code">curl -fsSL https://simple-host.app/install.sh | sh</code> (macOS/Linux) — it only does the unzip above; <a href="/install.sh">read it first</a> if you prefer. <b>Hermes</b> installs from the URL directly: <code class="inline-code">hermes skills install https://simple-host.app/skills/website-deploy/SKILL.md --name website-deploy</code>. <b>OpenClaw</b> auto-discovers any <code class="inline-code">SKILL.md</code> under <code class="inline-code">~/.openclaw/skills/</code>.</p>
           </details>
+        </section>
+
+        <!-- ===== CLAUDE APP (skills are uploaded, not installed from a terminal) ===== -->
+        <section class="path path-claudeapp">
+          <div class="path-head">
+            <span class="p-ic">🅰️</span>
+            <div>
+              <div class="eyebrow">In the Claude app · desktop, web or mobile</div>
+              <h2>Upload the skills to Claude.</h2>
+              <p>The Claude app can't reach your terminal, so the one-line installer doesn't apply here — you upload the three skills once and Claude keeps them. After that, ask it to <em>“build me a waitlist page and put it online”</em> in an ordinary chat.</p>
+              <p class="dim" style="font-size:13px; margin-top:8px">Needs a paid plan with <b>Code execution</b> switched on. This is the Claude app — <b>Claude Code</b> is the terminal one, and it uses the option above.</p>
+            </div>
+          </div>
+          <p class="note"><b>Settings → Skills → “+ Create skill”</b>, then upload each file below. Three separate uploads — one skill per ZIP.</p>
+          <p style="margin-top:10px">
+            <a class="dl" href="/skills/website-deploy.zip" download>website-deploy.zip</a>
+            <a class="dl" href="/skills/website-deploy-builder.zip" download>website-deploy-builder.zip</a>
+            <a class="dl" href="/skills/connect-domain.zip" download>connect-domain.zip</a>
+          </p>
+          <p class="note" style="margin-top:12px"><span class="dim">Only want one? <code class="inline-code">website-deploy</code> is the one that publishes sites. The builder helps plan what to make, and connect-domain points your own domain at it.</span></p>
         </section>
 
         <!-- ===== BUILD WITH AI (leads on mobile) ===== -->
