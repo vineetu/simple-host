@@ -2657,7 +2657,7 @@
       "post": {
         "operationId": "postGenerate",
         "summary": "Generate a site from a prompt (AI create)",
-        "description": "Powers the home-page \"create with AI\" chat. Sign-in-gated and rate-limited (spends Anthropic credits). Send the conversation and (optionally) the current HTML and attachments; returns a short reply and, when ready, the HTML. Disabled if the server has no Anthropic key.",
+        "description": "Powers the home-page \"create with AI\" chat. Sign-in-gated and rate-limited. Runs on a single model backend (the operator's Grok subscription, via a local sidecar) with no fallback providers. Send the conversation and (optionally) the current HTML and attachments; returns a short reply and, when ready, the HTML. Disabled if no model backend is configured.",
         "tags": [
           "AI"
         ],

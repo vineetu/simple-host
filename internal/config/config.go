@@ -45,40 +45,22 @@ type Config struct {
 	MailFrom       string
 	ResendAPIKey   string
 
-	// Optional "create with AI" endpoint (/v1/generate). Disabled when neither
-	// AnthropicAPIKey nor AgentServerURL is set. Sign-in-gated + rate limited.
-	//
-	// Two backends:
-	//   - AgentServerURL set: proxy each turn to the Claude Agent SDK server
-	//     (real agent w/ tools, runs on the operator's box subscription). The
-	//     shared secret authenticates that call; both must match. Preferred.
-	//   - else AnthropicAPIKey set: call the Messages API directly (metered).
-	AnthropicAPIKey   string
-	GenerateModel     string
-	AgentServerURL    string // e.g. https://simple-host-agent.ideaflow.page (no trailing slash)
-	AgentSharedSecret string
-
-	// OpenAI-compatible provider (DeepSeek, or anything speaking /chat/completions).
-	// Takes precedence over both paths above when LLMAPIKey is set: it is the
-	// cheapest option and needs no separate agent box to stay alive.
+	// Optional "create with AI" endpoint (/v1/generate). Sign-in-gated + rate
+	// limited. Exactly ONE backend: an OpenAI-compatible /chat/completions
+	// endpoint — in production the local CLIProxyAPI sidecar exposing the
+	// operator's Grok subscription. No fallback providers, no metered API keys;
+	// if this endpoint is down, AI create reports an error rather than silently
+	// spending someone else's credits. All three vars must be set explicitly.
 	LLMAPIKey  string
-	LLMBaseURL string // default https://api.deepseek.com
-	LLMModel   string // default deepseek-v4-flash
+	LLMBaseURL string // e.g. http://127.0.0.1:8102/v1 (the Grok sidecar)
+	LLMModel   string // e.g. grok-4.6
 
-	// Optional second provider, tried only when the primary fails in a way a
-	// different model could survive. Production runs Grok (through the local
-	// CLIProxyAPI sidecar, on the subscription) as primary with DeepSeek here.
-	FallbackAPIKey  string
-	FallbackBaseURL string
-	FallbackModel   string
-
-	// Vision pass. The builder model above is text-only and cheap; when the user
-	// attaches an image or PDF this model reads it and hands back a description,
-	// which is inlined into the builder's prompt. Optional: without it,
-	// attachments are refused honestly rather than silently ignored.
+	// Vision pass for image attachments, same single-provider rule (production
+	// points it at the same Grok sidecar). Optional: without it, attachments
+	// are refused honestly rather than silently ignored.
 	VisionAPIKey  string
-	VisionBaseURL string // default https://openrouter.ai/api/v1
-	VisionModel   string // default openai/gpt-5.6-luna
+	VisionBaseURL string
+	VisionModel   string
 
 	// Voice input for the builder chat (/v1/transcribe). Points at a local
 	// speech-to-text service; the model runs on this box, so audio never leaves
@@ -126,21 +108,14 @@ func Load() (Config, error) {
 		MailFrom:      getEnvOrDefault("MAIL_FROM", defaultMailFrom),
 		ResendAPIKey:  os.Getenv("RESEND_API_KEY"),
 
-		AnthropicAPIKey:        os.Getenv("ANTHROPIC_API_KEY"),
-		LLMAPIKey:              firstNonEmpty(os.Getenv("LLM_API_KEY"), os.Getenv("DEEPSEEK_API_KEY")),
-		LLMBaseURL:             strings.TrimRight(getEnvOrDefault("LLM_BASE_URL", "https://api.deepseek.com"), "/"),
-		LLMModel:               getEnvOrDefault("LLM_MODEL", "deepseek-v4-flash"),
-		VisionAPIKey:           firstNonEmpty(os.Getenv("VISION_API_KEY"), os.Getenv("OPENROUTER_API_KEY")),
-		VisionBaseURL:          strings.TrimRight(getEnvOrDefault("VISION_BASE_URL", "https://openrouter.ai/api/v1"), "/"),
-		VisionModel:            getEnvOrDefault("VISION_MODEL", "openai/gpt-5.6-luna"),
-		GenerateModel:          getEnvOrDefault("GENERATE_MODEL", "claude-haiku-4-5-20251001"),
-		AgentServerURL:         strings.TrimRight(os.Getenv("AGENT_SERVER_URL"), "/"),
-		AgentSharedSecret:      os.Getenv("AGENT_SHARED_SECRET"),
+		LLMAPIKey:              os.Getenv("LLM_API_KEY"),
+		LLMBaseURL:             strings.TrimRight(os.Getenv("LLM_BASE_URL"), "/"),
+		LLMModel:               os.Getenv("LLM_MODEL"),
+		VisionAPIKey:           os.Getenv("VISION_API_KEY"),
+		VisionBaseURL:          strings.TrimRight(os.Getenv("VISION_BASE_URL"), "/"),
+		VisionModel:            os.Getenv("VISION_MODEL"),
 		TranscribeURL:          strings.TrimRight(os.Getenv("TRANSCRIBE_URL"), "/"),
 		TranscribeTicketSecret: os.Getenv("TRANSCRIBE_TICKET_SECRET"),
-		FallbackAPIKey:         os.Getenv("LLM_FALLBACK_API_KEY"),
-		FallbackBaseURL:        strings.TrimRight(getEnvOrDefault("LLM_FALLBACK_BASE_URL", "https://api.deepseek.com"), "/"),
-		FallbackModel:          getEnvOrDefault("LLM_FALLBACK_MODEL", "deepseek-v4-flash"),
 	}
 	// CONTENT_HOST defaults to sites.<SITE_DOMAIN> so prod/test need no extra env.
 	cfg.ContentHost = getEnvOrDefault("CONTENT_HOST", "sites."+cfg.SiteDomain)
@@ -234,13 +209,3 @@ func getEnvOrDefault(key, fallback string) string {
 	return fallback
 }
 
-// firstNonEmpty returns the first non-empty argument, so a provider can be
-// configured under either of two env var names.
-func firstNonEmpty(vals ...string) string {
-	for _, v := range vals {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
-}

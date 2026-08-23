@@ -10,7 +10,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -19,24 +18,18 @@ import (
 )
 
 // GenerateHandler powers the home page "create with AI" chat: a signed-in user
-// has a short planning conversation with Claude (Haiku by default), which asks
-// clarifying questions, proposes a plan, and returns a single self-contained
-// HTML file to preview, refine, and then deploy.
+// has a short planning conversation with the builder model (Grok, reached
+// through the local CLIProxyAPI sidecar on the operator's subscription), which
+// asks clarifying questions, proposes a plan, and returns a single
+// self-contained HTML file to preview, refine, and then deploy.
 //
 // Sign-in-gated (mounted behind the auth middleware) and rate limited per user
-// and per IP, because each turn spends real Anthropic credits. Disabled when
-// ANTHROPIC_API_KEY is unset.
+// and per IP. Exactly one provider — no fallbacks, no metered API keys.
+// Disabled when LLM_API_KEY / LLM_BASE_URL / LLM_MODEL are unset.
 type GenerateHandler struct {
-	apiKey        string
-	model         string
-	agentURL      string // when set, proxy each turn here (Claude Agent SDK server)
-	agentSecret   string
-	llmKey        string // OpenAI-compatible provider; preferred when set
-	fallbackKey   string // optional second provider, tried only when the primary fails
-	fallbackBase  string
-	fallbackModel string
-	llmBase       string
-	llmModel      string
+	llmKey   string // the single OpenAI-compatible provider (the Grok sidecar)
+	llmBase  string
+	llmModel string
 	visionKey     string // optional vision model used to read image/PDF attachments
 	visionBase    string
 	visionModel   string
@@ -52,7 +45,7 @@ type GenerateHandler struct {
 	jobs *jobStore
 }
 
-func NewGenerateHandler(apiKey, model, agentURL, agentSecret, llmKey, llmBase, llmModel, fallbackKey, fallbackBase, fallbackModel, visionKey, visionBase, visionModel string) *GenerateHandler {
+func NewGenerateHandler(llmKey, llmBase, llmModel, visionKey, visionBase, visionModel string) *GenerateHandler {
 	// A conversation is several turns, so allow a healthy burst; the slow refill
 	// is the real cost guard against scripted abuse.
 	ipLimiter := newRateLimiter(20, 1.0/12.0)   // burst 20, +1 every 12s
@@ -66,22 +59,13 @@ func NewGenerateHandler(apiKey, model, agentURL, agentSecret, llmKey, llmBase, l
 	jobs := newJobStore()
 	jobs.startCleanup(time.Minute)
 	return &GenerateHandler{
-		apiKey:        apiKey,
-		model:         model,
-		agentURL:      agentURL,
-		agentSecret:   agentSecret,
-		llmKey:        llmKey,
-		llmBase:       llmBase,
-		llmModel:      llmModel,
-		fallbackKey:   fallbackKey,
-		fallbackBase:  fallbackBase,
-		fallbackModel: fallbackModel,
-		visionKey:     visionKey,
-		visionBase:    visionBase,
-		visionModel:   visionModel,
-		// Generous enough for the direct Messages-API fallback (one long call).
-		// On the agent path every call here is a quick job-start or status poll,
-		// so this ceiling just sits unused.
+		llmKey:      llmKey,
+		llmBase:     llmBase,
+		llmModel:    llmModel,
+		visionKey:   visionKey,
+		visionBase:  visionBase,
+		visionModel: visionModel,
+		// Sized for the short vision calls; the long build calls use llmClient.
 		client: &http.Client{Timeout: 120 * time.Second},
 		// Sized against maxLLMTokens, not guessed: the provider emits roughly 175
 		// tokens/s, so a build that actually uses the 64000-token budget runs ~6
@@ -99,9 +83,8 @@ func NewGenerateHandler(apiKey, model, agentURL, agentSecret, llmKey, llmBase, l
 
 func (h *GenerateHandler) Register(mux *http.ServeMux, authMW func(http.Handler) http.Handler) {
 	mux.Handle("POST /v1/generate", authMW(http.HandlerFunc(h.generate)))
-	// Async status poll. Every backend now answers POST /v1/generate with a job
-	// id: the agent server tracks its own jobs and we proxy the poll to it, while
-	// the direct backends are tracked in-process by h.jobs.
+	// Async status poll. POST /v1/generate returns a job id; jobs are tracked
+	// in-process by h.jobs.
 	mux.Handle("GET /v1/generate/status", authMW(http.HandlerFunc(h.status)))
 }
 
@@ -112,7 +95,7 @@ type generateRequest struct {
 	// transcript.
 	HTML string `json:"html"`
 	// Attachments ride along with the latest user message: images (vision),
-	// PDFs (document blocks), or text files (inlined into the prompt).
+	// PDFs (mentioned but not read), or text files (inlined into the prompt).
 	Attachments []attachmentIn `json:"attachments"`
 }
 
@@ -127,8 +110,8 @@ type attachmentIn struct {
 }
 
 type generateResponse struct {
-	// JobID is returned by the async (agent-server) path; the client then polls
-	// GET /v1/generate/status. The direct path returns Reply/HTML inline instead.
+	// JobID identifies the async build; the client polls
+	// GET /v1/generate/status until it reports done.
 	JobID string `json:"jobId,omitempty"`
 	Reply string `json:"reply,omitempty"`
 	HTML  string `json:"html,omitempty"`
@@ -175,75 +158,39 @@ func (h *GenerateHandler) generate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Preferred path: an OpenAI-compatible provider (DeepSeek). Checked before the
-	// agent server because it has no separate box to keep alive, which is exactly
-	// how the agent path died. The provider call is long (a full page build runs
-	// over a minute), so it runs as a background job and the client polls, rather
-	// than holding an idle connection the browser will drop.
-	if h.llmKey != "" {
-		jobID, err := h.jobs.start(user.ID, func(ctx context.Context, report func(string)) (string, string, error) {
-			// NB: mutates msgs in place. Named honestly rather than as a copy that
-			// isn't one — the slice header copy would share the same backing array.
-			if len(atts) > 0 {
-				desc := ""
-				if h.visionKey != "" {
-					d, err := h.describeAttachments(ctx, atts)
-					if err != nil {
-						// Don't fail the whole turn over an attachment: build from the
-						// words we have and say the picture didn't come through.
-						log.Printf("generate (vision): %v", err)
-					} else {
-						desc = d
-					}
+	// The one and only path: an OpenAI-compatible provider — in production the
+	// Grok sidecar on the operator's subscription. The call is long (a full page
+	// build runs over a minute), so it runs as a background job and the client
+	// polls, rather than holding an idle connection the browser will drop.
+	if h.llmKey == "" {
+		writeJSON(w, http.StatusServiceUnavailable, errorResponse{Error: "AI create is not configured on this server"})
+		return
+	}
+	jobID, err := h.jobs.start(user.ID, func(ctx context.Context, report func(string)) (string, string, error) {
+		// NB: mutates msgs in place. Named honestly rather than as a copy that
+		// isn't one — the slice header copy would share the same backing array.
+		if len(atts) > 0 {
+			desc := ""
+			if h.visionKey != "" {
+				d, err := h.describeAttachments(ctx, atts)
+				if err != nil {
+					// Don't fail the whole turn over an attachment: build from the
+					// words we have and say the picture didn't come through.
+					log.Printf("generate (vision): %v", err)
+				} else {
+					desc = d
 				}
-				li := len(msgs) - 1
-				msgs[li].Content = inlineAttachmentsAsText(msgs[li].Content, atts, desc, h.visionKey != "")
 			}
-			return h.converseWithFallback(ctx, msgs, req.HTML, report)
-		}, func(err error) string {
-			log.Printf("generate (llm): %v", err)
-			return generateErrorMessage(err)
-		})
-		if err != nil {
-			h.writeJobStartError(w, err, "llm")
-			return
+			li := len(msgs) - 1
+			msgs[li].Content = inlineAttachmentsAsText(msgs[li].Content, atts, desc, h.visionKey != "")
 		}
-		writeJSON(w, http.StatusOK, generateResponse{JobID: jobID})
-		return
-	}
-
-	// Next: hand the turn to the Agent SDK server, which runs a real
-	// agent (with a deploy_site tool) on the box subscription. We forward the
-	// signed-in user's key so the agent can publish on their behalf. The sign-in
-	// gate + rate limit above stay here, on the public edge. The agent runs as a
-	// background JOB (returns a jobId immediately) so no HTTP hop waits out a
-	// proxy timeout; the client polls GET /v1/generate/status.
-	if h.agentURL != "" {
-		jobID, err := h.startAgentJob(r.Context(), req, atts, clientAPIKey(r))
-		if err != nil {
-			log.Printf("generate (agent start): %v", err)
-			writeJSON(w, http.StatusBadGateway, errorResponse{Error: "the assistant had trouble — please try again"})
-			return
-		}
-		writeJSON(w, http.StatusOK, generateResponse{JobID: jobID})
-		return
-	}
-
-	// Fallback path: call the Messages API directly (metered key). Same shape as
-	// the provider path above — one long call, so it runs as a job too.
-	if len(atts) > 0 {
-		li := len(msgs) - 1 // attach to the latest user turn
-		msgs[li].Content = buildUserBlocks(msgs[li].Content, atts)
-	}
-
-	jobID, err := h.jobs.start(user.ID, func(ctx context.Context, _ func(string)) (string, string, error) {
-		return h.converse(ctx, msgs, req.HTML)
+		return h.converseLLM(ctx, msgs, req.HTML, report)
 	}, func(err error) string {
-		log.Printf("generate: %v", err)
+		log.Printf("generate (llm): %v", err)
 		return generateErrorMessage(err)
 	})
 	if err != nil {
-		h.writeJobStartError(w, err, "anthropic")
+		h.writeJobStartError(w, err, "llm")
 		return
 	}
 	writeJSON(w, http.StatusOK, generateResponse{JobID: jobID})
@@ -277,66 +224,7 @@ func (h *GenerateHandler) writeJobStartError(w http.ResponseWriter, err error, p
 }
 
 // agentRequest is the body forwarded to the Agent SDK server.
-type agentRequest struct {
-	Messages    []claudeMessage `json:"messages"`
-	HTML        string          `json:"html"`
-	Attachments []attachmentIn  `json:"attachments"`
-	UserKey     string          `json:"userKey"`
-}
-
-// startAgentJob asks the Agent SDK server to begin a run and returns its jobId.
-// atts is the already-sanitized attachment list; userKey is the signed-in user's
-// API key, forwarded so the agent can publish on their behalf (and so the agent
-// can bind the job to that user). The shared secret authenticates the call.
-func (h *GenerateHandler) startAgentJob(ctx context.Context, req generateRequest, atts []attachmentIn, userKey string) (string, error) {
-	body, err := json.Marshal(agentRequest{
-		Messages:    sanitizeMessages(req.Messages),
-		HTML:        req.HTML,
-		Attachments: atts,
-		UserKey:     userKey,
-	})
-	if err != nil {
-		return "", err
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, h.agentURL+"/generate", bytes.NewReader(body))
-	if err != nil {
-		return "", err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("X-Agent-Secret", h.agentSecret)
-	httpReq.Header.Set("X-User-Key", userKey)
-
-	resp, err := h.client.Do(httpReq)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil {
-		return "", err
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("agent server status %d: %s", resp.StatusCode, string(raw))
-	}
-
-	var out struct {
-		JobID string `json:"jobId"`
-	}
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return "", err
-	}
-	if out.JobID == "" {
-		return "", fmt.Errorf("agent server returned no jobId")
-	}
-	return out.JobID, nil
-}
-
-// status proxies a poll for an in-flight agent job. It forwards the job id and
-// the caller's key (so the agent server can verify the job belongs to them) and
-// streams the agent's status JSON (running / done{reply,html} / error) straight
-// back, preserving its HTTP status.
+// status answers a poll for an in-flight build job.
 func (h *GenerateHandler) status(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -352,42 +240,7 @@ func (h *GenerateHandler) status(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "id is required"})
 		return
 	}
-	if h.usesLocalJobs() {
-		h.localStatus(w, user.ID, id)
-		return
-	}
-
-	httpReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, h.agentURL+"/generate/status?id="+url.QueryEscape(id), nil)
-	if err != nil {
-		writeJSON(w, http.StatusBadGateway, errorResponse{Error: "the assistant had trouble — please try again"})
-		return
-	}
-	httpReq.Header.Set("X-Agent-Secret", h.agentSecret)
-	httpReq.Header.Set("X-User-Key", clientAPIKey(r))
-
-	resp, err := h.client.Do(httpReq)
-	if err != nil {
-		log.Printf("generate (status): %v", err)
-		writeJSON(w, http.StatusBadGateway, errorResponse{Error: "the assistant had trouble — please try again"})
-		return
-	}
-	defer resp.Body.Close()
-
-	// 8 MiB so a resume payload (full messages transcript + up to ~200 KB html)
-	// is not silently truncated by LimitReader.
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(resp.StatusCode)
-	w.Write(raw)
-}
-
-// usesLocalJobs reports whether turns run in this process rather than on the
-// agent server. It mirrors the dispatch order in generate() — provider first,
-// agent second, metered Anthropic key last — and the two MUST agree: if a turn
-// starts as a local job but its poll is proxied to the agent server (or the
-// reverse), every build reports as expired.
-func (h *GenerateHandler) usesLocalJobs() bool {
-	return h.llmKey != "" || h.agentURL == ""
+	h.localStatus(w, user.ID, id)
 }
 
 // localStatus answers a poll for a job running in this process.
@@ -438,7 +291,7 @@ func sanitizeMessages(in []claudeMessage) []claudeMessage {
 	if len(out) > maxMessages {
 		out = out[len(out)-maxMessages:]
 	}
-	// Anthropic requires the first message to be from the user.
+	// The chat API requires the first message to be from the user.
 	for len(out) > 0 && out[0].Role != "user" {
 		out = out[1:]
 	}
@@ -457,7 +310,7 @@ var allowedImageTypes = map[string]bool{
 
 // sanitizeAttachments validates user-supplied files (type allowlist, per-file and
 // total size caps, count cap). The data itself is opaque base64 we pass straight
-// to Anthropic — it never touches our disk or shell.
+// to the model provider — it never touches our disk or shell.
 func sanitizeAttachments(in []attachmentIn) ([]attachmentIn, error) {
 	if len(in) == 0 {
 		return nil, nil
@@ -510,37 +363,6 @@ func sanitizeAttachments(in []attachmentIn) ([]attachmentIn, error) {
 	return out, nil
 }
 
-// buildUserBlocks turns the latest user message into a content-block array: the
-// image/document blocks first, then a single text block (the typed message plus
-// any inlined text files). Anthropic requires a non-empty text block.
-func buildUserBlocks(textContent any, atts []attachmentIn) []any {
-	text, _ := textContent.(string)
-	var blocks []any
-	var extra strings.Builder
-	for _, a := range atts {
-		switch a.Kind {
-		case "image":
-			blocks = append(blocks, map[string]any{
-				"type":   "image",
-				"source": map[string]any{"type": "base64", "media_type": a.MediaType, "data": a.Data},
-			})
-		case "document":
-			blocks = append(blocks, map[string]any{
-				"type":   "document",
-				"source": map[string]any{"type": "base64", "media_type": "application/pdf", "data": a.Data},
-			})
-		case "text":
-			extra.WriteString("\n\n--- Attached file: " + a.Name + " ---\n" + a.Text)
-		}
-	}
-	t := strings.TrimSpace(text + extra.String())
-	if t == "" {
-		t = "Use the attached file(s) to build the site."
-	}
-	blocks = append(blocks, map[string]any{"type": "text", "text": t})
-	return blocks
-}
-
 const generateSystemPrompt = `You are a warm, sharp web-design assistant inside the simple-host site builder. You help a non-technical person create ONE single-page website through a short, friendly conversation.
 
 How to behave:
@@ -581,62 +403,6 @@ Install playbook (the skills are the same three everywhere: website-deploy, webs
 - If they are stuck beyond this playbook, point them at simple-host.app/install.html for every option laid out.
 
 Prompts for their own agent or pipeline: when asked for one, write a ready-to-paste prompt block tailored to their described use case. Facts to build on: the agent should have the website-deploy skill installed (or read https://simple-host.app/llms.txt first); the API base is https://simple-host.app with X-API-Key auth; a deploy uploads files to a named site which goes live at https://sites.simple-host.app/<handle>/<name>/; state and collections are per-site under /v1/sites/<name>/. Keep the prompt self-contained so their agent needs no other context.`
-
-func (h *GenerateHandler) converse(ctx context.Context, msgs []claudeMessage, currentHTML string) (string, string, error) {
-	system := generateSystemPrompt
-	if strings.TrimSpace(currentHTML) != "" {
-		if len(currentHTML) > maxCurrentHTML {
-			currentHTML = currentHTML[:maxCurrentHTML]
-		}
-		system += "\n\nThe current version of the site is below. When the user asks for a change, return the FULL revised document.\n<<<CURRENT_SITE>>>\n" + currentHTML
-	}
-
-	body, err := json.Marshal(claudeRequest{
-		Model:     h.model,
-		MaxTokens: 8192,
-		System:    system,
-		Messages:  msgs,
-	})
-	if err != nil {
-		return "", "", err
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.anthropic.com/v1/messages", bytes.NewReader(body))
-	if err != nil {
-		return "", "", err
-	}
-	httpReq.Header.Set("x-api-key", h.apiKey)
-	httpReq.Header.Set("anthropic-version", "2023-06-01")
-	httpReq.Header.Set("content-type", "application/json")
-
-	resp, err := h.client.Do(httpReq)
-	if err != nil {
-		return "", "", err
-	}
-	defer resp.Body.Close()
-
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
-	if err != nil {
-		return "", "", err
-	}
-
-	var parsed claudeResponse
-	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return "", "", err
-	}
-	if parsed.Error != nil {
-		log.Printf("generate: anthropic error: %s", parsed.Error.Message)
-		return "", "", io.EOF
-	}
-
-	var sb strings.Builder
-	for _, c := range parsed.Content {
-		if c.Type == "text" {
-			sb.WriteString(c.Text)
-		}
-	}
-	return splitReplyAndHTML(sb.String())
-}
 
 // splitReplyAndHTML separates the conversational reply from the optional HTML
 // document, which the model delimits with the sentinel marker.
@@ -709,23 +475,6 @@ type claudeMessage struct {
 	Content any `json:"content"`
 }
 
-type claudeRequest struct {
-	Model     string          `json:"model"`
-	MaxTokens int             `json:"max_tokens"`
-	System    string          `json:"system"`
-	Messages  []claudeMessage `json:"messages"`
-}
-
-type claudeResponse struct {
-	Content []struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
-	} `json:"content"`
-	Error *struct {
-		Message string `json:"message"`
-	} `json:"error"`
-}
-
 // cleanHTML strips accidental markdown fences/preamble and guarantees a doctype
 // so browsers render in standards mode.
 func cleanHTML(s string) string {
@@ -768,7 +517,7 @@ func hasPrefixFold(s, pat string) bool {
 }
 
 // ---------------------------------------------------------------------------
-// OpenAI-compatible provider (DeepSeek and friends)
+// OpenAI-compatible provider (the Grok sidecar)
 // ---------------------------------------------------------------------------
 
 type openAIMessage struct {
@@ -831,10 +580,9 @@ const maxLLMTokens = 64000
 // maxCurrentHTMLCompact bounds the site snapshot re-sent on every turn.
 const maxCurrentHTMLCompact = 96 * 1024
 
-// llmProvider is one OpenAI-compatible endpoint. Two are configured: the primary
-// (Grok, reached through the local CLIProxyAPI sidecar on the user's
-// subscription) and a fallback (DeepSeek, metered). Same wire format, so one
-// code path serves both.
+// llmProvider is one OpenAI-compatible endpoint. Exactly one is configured:
+// Grok, reached through the local CLIProxyAPI sidecar on the operator's
+// subscription. No fallback providers exist by design.
 type llmProvider struct {
 	key   string
 	base  string
@@ -846,49 +594,12 @@ func (h *GenerateHandler) primaryProvider() llmProvider {
 	return llmProvider{h.llmKey, h.llmBase, h.llmModel, "primary/" + h.llmModel}
 }
 
-func (h *GenerateHandler) fallbackProvider() (llmProvider, bool) {
-	if h.fallbackKey == "" {
-		return llmProvider{}, false
-	}
-	return llmProvider{h.fallbackKey, h.fallbackBase, h.fallbackModel, "fallback/" + h.fallbackModel}, true
+// converseLLM runs the turn on the single configured provider. There is no
+// fallback by design: if Grok fails, the build fails honestly instead of
+// silently retrying on a metered third-party API key.
+func (h *GenerateHandler) converseLLM(ctx context.Context, msgs []claudeMessage, currentHTML string, report func(string)) (string, string, error) {
+	return h.converseOpenAI(ctx, h.primaryProvider(), msgs, currentHTML, report)
 }
-
-// converseWithFallback runs the turn on the primary provider and, if that fails
-// in a way a different provider could plausibly survive, retries once on the
-// fallback.
-//
-// It deliberately does NOT retry a user-caused failure: an over-long context or
-// an output that hit the token ceiling fails identically on the second provider
-// and bills twice for the same answer. It also refuses to start the fallback
-// without enough of the job budget left to finish — arriving at the deadline
-// with a half-written page is worse than reporting the first failure honestly.
-func (h *GenerateHandler) converseWithFallback(ctx context.Context, msgs []claudeMessage, currentHTML string, report func(string)) (string, string, error) {
-	reply, html, err := h.converseOpenAI(ctx, h.primaryProvider(), msgs, currentHTML, report)
-	if err == nil {
-		return reply, html, nil
-	}
-	if errors.Is(err, errTruncated) || errors.Is(err, errContextTooLong) || ctx.Err() != nil {
-		return "", "", err
-	}
-	fb, ok := h.fallbackProvider()
-	if !ok {
-		return "", "", err
-	}
-	if dl, hasDL := ctx.Deadline(); hasDL && time.Until(dl) < minFallbackBudget {
-		log.Printf("generate: primary failed (%v); too little budget left for %s", err, fb.label)
-		return "", "", err
-	}
-	log.Printf("generate: primary failed (%v); retrying on %s", err, fb.label)
-	if report != nil {
-		report("Switching to the backup model…")
-	}
-	return h.converseOpenAI(ctx, fb, msgs, currentHTML, report)
-}
-
-// minFallbackBudget is the slack the fallback needs to be worth starting. A full
-// page build measured 85–130s here, so anything under this just burns the rest
-// of the job and still fails.
-const minFallbackBudget = 3 * time.Minute
 
 func (h *GenerateHandler) converseOpenAI(ctx context.Context, p llmProvider, msgs []claudeMessage, currentHTML string, report func(string)) (string, string, error) {
 	// The model has no idea what day it is and will happily list last year's
@@ -1238,8 +949,10 @@ No preamble, no opinions, no suggestions. Just the description.`
 
 const maxVisionTokens = 4000
 
-// describeAttachments sends images/PDFs to the vision model and returns a plain
-// text description. Returns "" when nothing needed describing.
+// describeAttachments sends image attachments to the vision model (the same
+// Grok sidecar) and returns a plain text description. PDFs are not sent — the
+// provider has no document parser — so the text inliner mentions them as
+// unread instead. Returns "" when nothing needed describing.
 func (h *GenerateHandler) describeAttachments(ctx context.Context, atts []attachmentIn) (string, error) {
 	type part struct {
 		Type     string `json:"type"`
@@ -1247,29 +960,17 @@ func (h *GenerateHandler) describeAttachments(ctx context.Context, atts []attach
 		ImageURL *struct {
 			URL string `json:"url"`
 		} `json:"image_url,omitempty"`
-		File *struct {
-			Filename string `json:"filename"`
-			FileData string `json:"file_data"`
-		} `json:"file,omitempty"`
 	}
 
 	parts := []part{{Type: "text", Text: "Describe the attached reference material."}}
-	needsPDFPlugin := false
 	for _, a := range atts {
-		switch a.Kind {
-		case "image":
-			u := &struct {
-				URL string `json:"url"`
-			}{URL: "data:" + a.MediaType + ";base64," + a.Data}
-			parts = append(parts, part{Type: "image_url", ImageURL: u})
-		case "document":
-			f := &struct {
-				Filename string `json:"filename"`
-				FileData string `json:"file_data"`
-			}{Filename: safeFilename(a.Name), FileData: "data:" + a.MediaType + ";base64," + a.Data}
-			parts = append(parts, part{Type: "file", File: f})
-			needsPDFPlugin = true
+		if a.Kind != "image" {
+			continue
 		}
+		u := &struct {
+			URL string `json:"url"`
+		}{URL: "data:" + a.MediaType + ";base64," + a.Data}
+		parts = append(parts, part{Type: "image_url", ImageURL: u})
 	}
 	if len(parts) == 1 {
 		return "", nil // nothing visual to describe
@@ -1283,15 +984,6 @@ func (h *GenerateHandler) describeAttachments(ctx context.Context, atts []attach
 		},
 		"max_tokens": maxVisionTokens,
 	}
-	if needsPDFPlugin {
-		// OpenRouter only extracts PDF text when this plugin is requested; without
-		// it the same upload comes back "badly formatted or corrupted".
-		payload["plugins"] = []any{map[string]any{
-			"id":  "file-parser",
-			"pdf": map[string]any{"engine": "pdf-text"},
-		}}
-	}
-
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return "", err

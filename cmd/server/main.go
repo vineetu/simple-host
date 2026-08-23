@@ -88,19 +88,13 @@ func main() {
 	handler.RegisterSkillsHub(mux, cfg.PublicBaseURL)
 
 	// Optional "create with AI" endpoint. Sign-in-gated + rate limited; only
-	// enabled when some model backend is configured (it spends real credits).
-	if cfg.LLMAPIKey != "" || cfg.AgentServerURL != "" || cfg.AnthropicAPIKey != "" {
-		handler.NewGenerateHandler(cfg.AnthropicAPIKey, cfg.GenerateModel, cfg.AgentServerURL, cfg.AgentSharedSecret, cfg.LLMAPIKey, cfg.LLMBaseURL, cfg.LLMModel, cfg.FallbackAPIKey, cfg.FallbackBaseURL, cfg.FallbackModel, cfg.VisionAPIKey, cfg.VisionBaseURL, cfg.VisionModel).Register(mux, authMW)
-		switch {
-		case cfg.LLMAPIKey != "":
-			log.Printf("AI create endpoint enabled (/v1/generate, %s, model %s; fallback %s)", cfg.LLMBaseURL, cfg.LLMModel, fallbackLabel(cfg))
-		case cfg.AgentServerURL != "":
-			log.Printf("AI create endpoint enabled (/v1/generate -> agent server %s)", cfg.AgentServerURL)
-		default:
-			log.Printf("AI create endpoint enabled (/v1/generate, direct Messages API, model %s)", cfg.GenerateModel)
-		}
+	// enabled when the Grok sidecar (or another single OpenAI-compatible
+	// endpoint) is configured. One provider, no fallbacks, no metered API keys.
+	if cfg.LLMAPIKey != "" {
+		handler.NewGenerateHandler(cfg.LLMAPIKey, cfg.LLMBaseURL, cfg.LLMModel, cfg.VisionAPIKey, cfg.VisionBaseURL, cfg.VisionModel).Register(mux, authMW)
+		log.Printf("AI create endpoint enabled (/v1/generate, %s, model %s; no fallback)", cfg.LLMBaseURL, cfg.LLMModel)
 	} else {
-		log.Printf("no model backend set (LLM_API_KEY / AGENT_SERVER_URL / ANTHROPIC_API_KEY); /v1/generate (AI create) disabled")
+		log.Printf("no model backend set (LLM_API_KEY); /v1/generate (AI create) disabled")
 	}
 
 	// Voice input for the builder chat. Local speech-to-text, so this is CPU on
@@ -161,11 +155,3 @@ func main() {
 	}
 }
 
-// fallbackLabel describes the secondary provider for the boot log, so an operator
-// can see at a glance whether a fallback is actually configured.
-func fallbackLabel(cfg config.Config) string {
-	if cfg.FallbackAPIKey == "" {
-		return "none"
-	}
-	return cfg.FallbackModel + " @ " + cfg.FallbackBaseURL
-}
