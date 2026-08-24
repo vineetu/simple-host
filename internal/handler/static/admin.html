@@ -52,6 +52,16 @@ header .container{display:flex;align-items:center;justify-content:space-between;
 .site a:hover{text-decoration:underline}
 .site .cd{font-size:10.5px;color:var(--dim);margin-top:3px}
 .nosites{font-size:11.5px;color:var(--faint);margin-top:10px}
+.sec{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin:36px 0 4px}
+.secnote{font-size:11.5px;color:var(--faint);margin-bottom:12px}
+table.apx{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;font-size:12px;margin:10px 0 18px}
+table.apx th{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);text-align:left;padding:8px 12px;border-bottom:1px solid var(--border)}
+table.apx td{padding:7px 12px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:top}
+table.apx tr:last-child td{border-bottom:none}
+table.apx td.num{text-align:right;font-variant-numeric:tabular-nums}
+table.apx th.num{text-align:right}
+table.apx td .sub{color:var(--faint);font-size:10.5px;margin-top:2px}
+table.apx td.err{color:var(--err)}
 </style>
 </head>
 <body>
@@ -70,6 +80,25 @@ header .container{display:flex;align-items:center;justify-content:space-between;
   </div>
   <div id="status" class="msg" hidden></div>
   <div class="users" id="users"></div>
+
+  <div id="apitraffic" hidden>
+    <div class="sec">API traffic</div>
+    <div class="secnote">Every API call to simple-host, counted since this feature went live. Numbers are for today and the last 7 days; caller IPs are kept 30 days.</div>
+    <div class="stats">
+      <div class="stat"><div class="n" id="ax-calls">–</div><div class="l">Calls today</div></div>
+      <div class="stat"><div class="n" id="ax-ips">–</div><div class="l">Callers today</div></div>
+      <div class="stat"><div class="n" id="ax-errs">–</div><div class="l">Errors today</div></div>
+      <div class="stat"><div class="n" id="ax-ai">–</div><div class="l">AI builds today</div></div>
+    </div>
+    <table class="apx" id="ax-routes-t">
+      <thead><tr><th>What's being called</th><th class="num">Today</th><th class="num">7 days</th><th class="num">Errors</th></tr></thead>
+      <tbody id="ax-routes"></tbody>
+    </table>
+    <table class="apx" id="ax-ips-t">
+      <thead><tr><th>Who's calling</th><th>From</th><th class="num">Today</th><th class="num">7 days</th><th>Last seen</th></tr></thead>
+      <tbody id="ax-ipsrows"></tbody>
+    </table>
+  </div>
 </div>
 
 <script>
@@ -125,7 +154,32 @@ async function load(){
     // Most sites first, then newest joiners.
     users.sort(function(a,b){ return (b.site_count-a.site_count) || (new Date(b.created_at)-new Date(a.created_at)); });
     document.getElementById('users').innerHTML = users.map(userCard).join('');
+    loadTraffic();
   }catch(e){ status('Could not reach the server: '+(e.message||e), true); }
+}
+
+function fmtWhen(s){ try{ var d=new Date(s), m=(Date.now()-d)/60000; if(m<2) return 'just now'; if(m<60) return Math.round(m)+' min ago'; if(m<1440) return Math.round(m/60)+' h ago'; return fmtDate(s); }catch(e){ return ''; } }
+async function loadTraffic(){
+  try{
+    var res=await fetch('/v1/admin/api-analytics',{headers:{'X-API-Key':apiKey}});
+    if(!res.ok) return; // older server: section just stays hidden
+    var d=await res.json();
+    document.getElementById('apitraffic').hidden=false;
+    document.getElementById('ax-calls').textContent=d.calls_today;
+    document.getElementById('ax-ips').textContent=d.ips_today;
+    document.getElementById('ax-errs').textContent=d.errors_today;
+    document.getElementById('ax-ai').textContent=d.ai_builds_today;
+    document.getElementById('ax-routes').innerHTML=(d.routes||[]).map(function(r){
+      return '<tr><td>'+esc(r.route)+'</td><td class="num">'+r.today+'</td><td class="num">'+r.week+
+        '</td><td class="num'+(r.errors_week>0?' err':'')+'">'+(r.errors_week||'')+'</td></tr>';
+    }).join('')||'<tr><td colspan="4" style="color:var(--faint)">Nothing yet — data appears as calls come in.</td></tr>';
+    document.getElementById('ax-ipsrows').innerHTML=(d.ips||[]).map(function(x){
+      var who=esc(x.ip)+(x.org?'<div class="sub">'+esc(x.org)+'</div>':'');
+      var from=esc(x.where||'…')+'<div class="sub">'+esc(x.last_route||'')+'</div>';
+      return '<tr><td>'+who+'</td><td>'+from+'</td><td class="num">'+x.today+'</td><td class="num">'+x.week+
+        '</td><td>'+esc(fmtWhen(x.last_seen))+'</td></tr>';
+    }).join('')||'<tr><td colspan="5" style="color:var(--faint)">Nothing yet.</td></tr>';
+  }catch(e){}
 }
 load();
 </script>

@@ -107,6 +107,11 @@ func main() {
 		log.Printf("TRANSCRIBE_URL unset; /v1/transcribe (voice input) disabled")
 	}
 
+	// Per-endpoint API analytics for the admin page: every /v1/* request is
+	// counted (route, status, caller IP + geo) into daily aggregates.
+	apiMetrics := handler.NewAPIMetrics(db)
+	mux.Handle("GET /v1/admin/api-analytics", authMW(http.HandlerFunc(apiMetrics.AdminSummary)))
+
 	// Server-side visitor analytics: tail the nginx analytics log into daily
 	// aggregates. Off unless ANALYTICS_LOG is set (safe default for local dev).
 	if cfg.AnalyticsLog != "" {
@@ -117,7 +122,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           handler.LegacyHostRedirect(cfg.SiteDomain, cfg.ContentHost, db, handler.SecurityHeaders(handler.CORS(mux))),
+		Handler:           handler.LegacyHostRedirect(cfg.SiteDomain, cfg.ContentHost, db, handler.SecurityHeaders(handler.CORS(apiMetrics.Wrap(mux)))),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -154,4 +159,3 @@ func main() {
 		os.Exit(1)
 	}
 }
-
