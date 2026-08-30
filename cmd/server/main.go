@@ -92,7 +92,7 @@ func main() {
 	// endpoint) is configured. One provider, no fallbacks, no metered API keys.
 	if cfg.LLMAPIKey != "" {
 		handler.NewGenerateHandler(cfg.LLMAPIKey, cfg.LLMBaseURL, cfg.LLMModel, cfg.VisionAPIKey, cfg.VisionBaseURL, cfg.VisionModel).Register(mux, authMW)
-		log.Printf("AI create endpoint enabled (/v1/generate, %s, model %s; no fallback)", cfg.LLMBaseURL, cfg.LLMModel)
+		log.Printf("AI create endpoint enabled (/v1/generate, provider %s, %s, model %s; no fallback)", cfg.LLMProvider, cfg.LLMBaseURL, cfg.LLMModel)
 	} else {
 		log.Printf("no model backend set (LLM_API_KEY); /v1/generate (AI create) disabled")
 	}

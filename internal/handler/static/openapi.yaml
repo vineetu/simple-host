@@ -1133,6 +1133,42 @@ paths:
                     properties: { files: { type: object, additionalProperties: { type: string } } }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /v1/admin/api-analytics:
+    get:
+      operationId: getAdminApiAnalytics
+      summary: Per-endpoint API call analytics with caller geo (admin)
+      description: >-
+        Admin-only. Aggregated API traffic for the retention window: call counts for
+        today and the trailing week, today's error count, distinct caller IPs, AI
+        build counts, a per-route breakdown and a per-IP breakdown with geo. Served
+        from small day-granular aggregate tables, so it is cheap to poll. A signed-in
+        non-admin gets 404, not 403 — same rule as /v1/admin/users, so the endpoint
+        does not confirm it exists to anyone who may not use it.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      responses:
+        '200':
+          description: Aggregated API analytics for the retention window.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  calls_today: { type: integer }
+                  calls_week: { type: integer }
+                  errors_today: { type: integer }
+                  ips_today: { type: integer }
+                  ai_builds_today: { type: integer }
+                  ai_builds_week: { type: integer }
+                  retention_days: { type: integer }
+                  routes:
+                    type: array
+                    items: { type: object }
+                  ips:
+                    type: array
+                    items: { type: object }
+        '401': { description: Not signed in }
+        '404': { description: Signed in but not an admin }
   /v1/admin/users:
     get:
       operationId: getAdminUsers
