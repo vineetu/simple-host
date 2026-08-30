@@ -1,6 +1,6 @@
 ---
 name: connect-domain
-description: Connect a user's own custom domain (subdomain e.g. recipes.brand.com via CNAME, or apex e.g. brand.com via A record) to a site already deployed on simple-host. Use when a user wants their site served from their own domain with automatic HTTPS, or wants a private/password-protected site (privacy is offered only on a connected domain). Drives the bind → DNS → verify → live flow; the agent does the API work and relays the one DNS record the human must add at their registrar.
+description: Connect a user's own custom domain (subdomain e.g. recipes.brand.com via CNAME, or apex e.g. brand.com via A record) to a site already deployed on simple-host. Use when a user wants their site served from their own domain over HTTPS, or wants a private/password-protected site (privacy is offered only on a connected domain). Drives the bind → DNS → verify → live flow; the agent does the API work and relays the one DNS record the human must add at their registrar.
 ---
 
 # Connect a Custom Domain
@@ -8,7 +8,7 @@ description: Connect a user's own custom domain (subdomain e.g. recipes.brand.co
 A site deployed on simple-host is already live at
 `https://sites.simple-host.app/<handle>/<site>/`. This skill connects the user's **own
 domain** — a subdomain (e.g. `recipes.brand.com`) or an apex (e.g. `brand.com`) — so the
-site is served from it with automatic HTTPS.
+site is served from it over HTTPS.
 
 **This is agent-driven.** You do every API call and compute the exact DNS record. Then either
 **add that record yourself** if you have DNS access for the domain (a provider MCP/API — see step
@@ -91,24 +91,42 @@ subdomain, or the **A record** for an apex. Rules (non-negotiable):
 
 Then tell them what you added and continue to verification.
 
-### 4. Verify — poll until active
+### 4. Verify — by fetching the domain, NOT by polling status
+**Do not gate on `status: "active"`. It may never change, and waiting on it is the single most
+common way this flow gets stuck.** Nothing in the server transitions a binding out of `pending`
+on its own, so a domain can be fully live and still report `pending` indefinitely.
+
+Verify with an actual request instead:
+```
+curl -sS -o /dev/null -w '%{http_code}\n' https://recipes.brand.com/
+```
+- **200** → done. It's live. Go to step 5, whatever `status` says.
+- **Connection/TLS failure, but `http://` returns 301** → DNS and routing are correct and only
+  the certificate is missing. **This is not propagation — waiting will not fix it.** See below.
+- **DNS doesn't resolve yet** → that genuinely is propagation. Re-check the record matches the
+  bind response exactly, then retry over a few minutes.
+
+The status endpoint is still useful for reading back *what* is bound, just not as a gate:
 ```
 GET /v1/sites/{site}/domain
 X-API-Key: <api_key>
 ```
-Returns `{"domain": "...", "status": "...", "verified_at": ..., "last_error": ...}`.
+Returns `{"domain": "...", "status": "...", "verified_at": ..., "last_error": ...}`. Treat
+`pending` as "no information", and check `last_error` if something looks wrong.
 
-- `pending` — DNS not yet visible / cert not issued. Wait and poll again (DNS can take a few
-  minutes to a couple of hours to propagate).
-- `active` — the domain resolves to us and a real HTTPS certificate has been issued.
-- `error` — see `last_error`; usually the DNS record isn't in place yet or points elsewhere.
-  Re-check step 3 with the user.
+### 4b. If HTTPS never comes up — the certificate is an operator step
+Certificate issuance is **not** part of the API. It depends on how the deployment's edge is
+configured: an edge with on-demand TLS (e.g. the Caddy setup in `deploy/`) issues automatically,
+while an nginx deployment needs the operator to add a vhost and issue a cert once per domain.
+The API cannot tell you which you're on — that's why step 4 tests the domain directly.
 
-Poll every ~30s for a few minutes; if it's still pending after that, DNS is likely still
-propagating — tell the user it can take longer and they can come back.
+If `http://` redirects but `https://` fails, tell the user plainly that the DNS half is done and
+the certificate is pending an operator step, rather than blaming propagation. If you're the
+operator, the per-domain work is a vhost pointing at that domain's site directory plus a cert for
+it (see `deploy/nginx-customdomain.example.conf`).
 
 ### 5. Confirm it's live
-Once `active`, open `https://recipes.brand.com/` — it serves the connected site over HTTPS,
+Once `https://recipes.brand.com/` returns 200, it serves the connected site over HTTPS,
 on its **own origin**. This is where private/password-locked pages are available (the site has a
 real isolated origin, unlike a shared path).
 
@@ -136,6 +154,12 @@ domain to its own site, so it can't be used to write to a different site.)
 - **Subdomain or apex.** Subdomains (`recipes.brand.com`) use a CNAME — simplest path.
   Apex domains (`brand.com`) work too via the A record returned by the bind. Prefer a
   subdomain when the user has no preference for the bare domain.
-- **HTTPS is automatic.** Don't tell users to upload certificates — the cert is issued for them
-  once DNS points at us. It cannot be issued until the DNS record is in place (that's the gate).
-- **Propagation is not instant.** `pending` right after the user adds the record is normal.
+- **Never wait for `status: "active"`.** Nothing flips it, so a live domain can read `pending`
+  forever. Verify by fetching `https://<domain>/` and checking for 200 (step 4).
+- **Users never upload certificates.** But issuance isn't automatic on every deployment — it
+  depends on the edge (step 4b). DNS pointing at us is required first either way.
+- **`http://` 301 but `https://` failing is NOT propagation.** DNS is already correct; the
+  certificate is the missing piece. Saying "it's still propagating" here sends the user away to
+  wait for something that will never happen on its own.
+- **Propagation is not instant.** A domain that doesn't resolve at all right after the record is
+  added is normal; give it a few minutes.
