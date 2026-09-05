@@ -86,12 +86,12 @@ func (rl *rateLimiter) startCleanup(every, idle time.Duration) {
 }
 
 // clientIP returns the originating client address. We sit behind the trusted
-// nginx reverse proxy, which sets X-Forwarded-For, so the left-most entry is
-// the real client; fall back to the transport peer otherwise.
+// nginx appends the real client to X-Forwarded-For; earlier entries can be forged.
+// Fall back to the transport peer otherwise.
 func clientIP(r *http.Request) string {
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		if first := strings.TrimSpace(strings.SplitN(xff, ",", 2)[0]); first != "" {
-			return first
+		if last := strings.TrimSpace(xff[strings.LastIndex(xff, ",")+1:]); last != "" {
+			return last
 		}
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)

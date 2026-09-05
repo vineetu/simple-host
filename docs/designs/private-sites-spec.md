@@ -1,3 +1,5 @@
+> **Status (2026-09-05): Not planned — INTENT non-goal.** Private or password-locked pages, and isolating sites from each other, are explicitly out of scope; see `INTENT.md`.
+
 # Spec: Private Sites (one model — always zero-knowledge)
 
 Status: Implementation-ready spec / Draft

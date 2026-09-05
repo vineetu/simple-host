@@ -14,7 +14,7 @@ There is no separate object store, CDN, build pipeline, or microservices. Everyt
 
 - `cmd/server/main.go` — wires config, opens Postgres, creates `DiskStorage`, mounts every handler onto a single `http.ServeMux`, runs the HTTP server with graceful shutdown. All routing decisions live here.
 - `internal/config` — env-driven config. `DB_DSN` and `ADMIN_API_KEY` are required; everything else has a sensible default.
-- `internal/auth` — `X-API-Key` middleware. The hardcoded `ADMIN_API_KEY` short-circuits to a synthetic admin user with `ID="admin"`; everything else looks up the `users` table. Middleware reads **only** `X-API-Key` — never the site session cookie. A hosted-page Google/GitHub sign-in is the same `users` row (`oauth_identities`); the `__Host-sh_vsess` cookie is used by `visitorWriteOK` for state/collections writes and by the site-scoped `/me` read.
+- `internal/auth` — `X-API-Key` middleware. Every key, including `ADMIN_API_KEY`, resolves to a real `users` row; the admin row is created or updated at boot by `db.EnsureAdminUser` so it has a genuine UUID and can own sites. Middleware reads **only** `X-API-Key` — never the site session cookie. A visitor who signs in on a hosted page (Google or emailed code, custom domain only) is the same kind of `users` row; the `__Host-sh_vsess` cookie is used by `visitorWriteOK` for state/collections writes and by the site-scoped `/me` read.
 - `internal/db` — raw `database/sql` against Postgres. Schema is in `db/schema.sql` (no migrations framework).
 - `internal/storage/disk.go` — versioned site layout on disk: `<DATA_DIR>/<site>/v<n>/` with a `current` directory holding the live version.
 - `internal/tarball` — extracts and validates uploaded archives (path traversal guards, size limits, extension denylist for source-script types only).
@@ -30,12 +30,12 @@ There is no separate object store, CDN, build pipeline, or microservices. Everyt
 One `http.ServeMux` in `main.go`. Major prefixes:
 
 - `/api/auth`, `/v1/me`, `/v1/sites/*` — REST surface. Mostly auth-gated. Wrapped with `noticeMW`.
-- `/v1/sites/{site}/state` — per-site JSON state. **Public-read scratch storage**: GETs are Origin/Referer-gated (a real browser can't forge that cross-site; `curl` can). Writes (`PUT`/`PATCH` state, `POST` collections) go through `visitorWriteOK`: visitor session + `X-SH-CSRF`, any account `X-API-Key`, or `WRITE_AUTH_MODE=log` (measure, still allow). Unset `WRITE_AUTH_MODE` is `log`; the source default is never `on`. Never put secrets in it. NOT wrapped with `noticeMW`.
-- `GET /v1/sites/{site}/me` (and the user-scoped twin) reports the current visitor session without extending it (email only on a custom domain, never on the shared content host). Hosted `/auth.js` exposes `window.SH` for sign-in, a status box, state and collections.
+- `/v1/sites/{site}/state` and `/collections/{coll}` — the per-site backend. Reads are public (GETs are Origin/Referer-gated, which a browser page satisfies by itself and `curl` can set by hand). Writes (`PUT`/`PATCH` state, `POST` collections) go through `visitorWriteOK`: any account's `X-API-Key` (unknown key → 401 `invalid_api_key`), or a visitor session cookie + `X-SH-CSRF: 1` — and a visitor session exists only on a site's own custom domain. A page on the shared content host cannot save (401 `custom_domain_required`): every site there is one origin, so a sign-in could never be private to one site. Sites and their data are public to anyone with the link. NOT wrapped with `noticeMW`.
+- `GET /v1/sites/{site}/me` (and the user-scoped twin) reports the current visitor session without extending it. Hosted `/auth.js` exposes `window.SH` for sign-in (Google or emailed 6-digit code; `/visitor/auth`, `/visitor/auth/verify`), a status box, state and collections. Email codes are bound to where they were requested (dashboard vs one site).
 - `/sites/{site}/...` — public static serving. Path safety + `http.FileServer` rooted at `<DATA_DIR>/<site>/current/`.
 - `/skills.zip`, `/plugin.zip`, `/install.sh`, `/skills/version` — Website Deploy bundle downloads. Public, no auth.
 - `/healthz`, `/readyz` — probes.
-- `/v1/generate`, `/v1/generate/status` — build-with-AI. Answers with a job id; the client polls. Any OpenAI-compatible provider, with an optional second used only on failure.
+- `/v1/generate`, `/v1/generate/status` — build-with-AI. Answers with a job id; the client polls. Talks to the local Grok sidecar (CLIProxy) only — no fallback provider; if it is down the feature fails honestly.
 - `/v1/transcribe`, `/v1/transcribe/ticket`, `/v1/transcribe/stream` — voice input for that chat. Live captions run over the WebSocket; the POST endpoint is the transcribe-on-stop fallback. Speech never leaves this host.
 - `/admin` — instance-wide view of accounts and their sites. Admin only; everyone else gets a 404, including on the API behind it.
 - `/` — admin browser UI. Login with an API key, manage your sites.
@@ -52,7 +52,7 @@ When you bump the plugin, update `simple-host-website/.claude-plugin/plugin.json
 
 ## Things that look weird but are intentional
 
-- **Admin user has no DB row.** `auth.Middleware` constructs a fake `&db.User{ID:"admin"}` when the request key matches `ADMIN_API_KEY`. Don't write code that joins `users.id = "admin"`.
+- **The admin is a real `users` row.** `db.EnsureAdminUser` (called from `main.go` at boot) upserts a row whose API key is `ADMIN_API_KEY`, so the admin identity has a genuine UUID and can own sites. The older synthetic `ID:"admin"` shortcut is gone — it violated the `sites.user_id` foreign key — so don't reintroduce it.
 - **A site session is not owner power.** Custom domains reverse-proxy `/v1/` to this binary, so `__Host-sh_vsess` is sent to `/v1/sites/{name}`. Middleware ignores cookies; do not teach it to accept them.
 - **No `ADMIN_API_KEY` default in source.** Required env var. The previous default (`simple-host-admin-key-2026`) was removed when this repo went public so the source doesn't ship a known key.
 - **No tests in the repo.** `go test ./...` is a no-op. Verify behavior end-to-end against a running server.
@@ -65,7 +65,7 @@ When you bump the plugin, update `simple-host-website/.claude-plugin/plugin.json
 The API surface is described in several places that drift independently:
 `internal/handler/static/openapi.yaml` (**the source of truth**) + `openapi.json`
 (regenerate with `python3 -c "import yaml,json;json.dump(yaml.safe_load(open('internal/handler/static/openapi.yaml')),open('internal/handler/static/openapi.json','w'),indent=2)"`),
-`internal/handler/static/llms.txt` (curated LLM guide), and the two skills in
+`internal/handler/static/llms.txt` (curated LLM guide), and the skills in
 `simple-host-website/skills/`. When you add or change a `/v1` route, update
 openapi.yaml, then llms.txt/skills if it's a user-facing capability.
 
@@ -100,4 +100,4 @@ GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o ./simple-host ./cmd/server
 
 That's a single self-contained binary. Ship it to wherever, set the env vars, run it. The Website Deploy plugin (with MCP server + skills) is embedded; users download it from your `/skills.zip` or `/install.sh`.
 
-Hosted pages support email-code sign-in through /visitor/auth and /visitor/auth/verify (auth.js SH.email); state/collections writes accept any valid account API key as that account (2026-09-05).
+Product decisions and their reasons live in `INTENT.md`; read it before changing the write model, sign-in, or the skills.

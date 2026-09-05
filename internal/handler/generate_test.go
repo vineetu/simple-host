@@ -65,3 +65,16 @@ func indexOf(s, sub string) int {
 	}
 	return -1
 }
+
+func TestGeneratePromptCustomDomainSaving(t *testing.T) {
+	for _, term := range []string{"auth.js", "requireSignIn", "custom domain"} {
+		if !contains(generateSystemPrompt, term) {
+			t.Errorf("prompt missing %q", term)
+		}
+	}
+	for _, term := range []string{"comments.js", "GitHub", "templates"} {
+		if contains(generateSystemPrompt, term) {
+			t.Errorf("prompt contains %q", term)
+		}
+	}
+}

@@ -1,4 +1,4 @@
-// Package oauth talks to Google and GitHub for sign-in.
+// Package oauth talks to Google and optional OAuth providers for sign-in.
 // HTTP handlers do not own userinfo parsing or token exchange.
 package oauth
 

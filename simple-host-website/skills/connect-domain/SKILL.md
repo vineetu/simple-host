@@ -1,6 +1,6 @@
 ---
 name: connect-domain
-description: Connect a user's own custom domain (subdomain e.g. recipes.brand.com via CNAME, or apex e.g. brand.com via A record) to a site already deployed on simple-host. Use when a user wants their site served from their own domain over HTTPS. Drives the bind → DNS → verify → live flow; the agent does the API work and relays the one DNS record the human must add at their registrar.
+description: Connect a user's own custom domain (subdomain e.g. recipes.brand.com via CNAME, or apex e.g. brand.com via A record) to a site already deployed on simple-host. Use when a user wants their site served from their own domain over HTTPS, or wants visitors to be able to save anything from a page (visitor sign-in, and so saving, exists only on a site's own domain). Drives the bind → DNS → verify → live flow; the agent does the API work and relays the one DNS record the human must add at their registrar.
 ---
 
 # Connect a Custom Domain
@@ -10,6 +10,11 @@ A site deployed on simple-host is already live at
 domain** — a subdomain (e.g. `recipes.brand.com`) or an apex (e.g. `brand.com`) — so the
 site is served from it over HTTPS.
 
+Connecting a domain is also what lets a page **save**. Visitors sign in with Google or an
+emailed code only on a site's own domain; on the shared host every site is the same origin, so a
+sign-in there could never be private to one site, and pages there cannot write to the backend.
+This is the reason most people connect one.
+
 **This is agent-driven.** You do every API call and compute the exact DNS record. Then either
 **add that record yourself** if you have DNS access for the domain (a provider MCP/API — see step
 3b; ask permission first), or hand the human the single record to paste. Buying a domain (when
@@ -18,6 +23,8 @@ they have none) and — absent your own DNS access — pasting the record are th
 ## When to use this
 
 - The user asks to use their own domain / brand for a site.
+- The user wants visitors to save anything from a page (a guestbook, RSVP, poll, counter). The
+  `website-deploy` skill sends you here for that.
 
 ## Service
 
@@ -136,9 +143,9 @@ it (see `deploy/prod/nginx-customdomain.example.conf`). Until that is done the s
 
 ### 5. Confirm it's live
 Once `https://recipes.brand.com/` returns 200, it serves the connected site over HTTPS,
-on its **own origin**. The site is still public: a custom domain changes the address, not who
-can read it. (The sign-in — Google or email code — a page needs before it can *write* to its backend gates saving,
-not reading — it is not a private page.)
+on its **own origin**. Pages on it can now sign visitors in (Google or email code) and save to
+the site's backend. The site is still public: a custom domain changes the address, not who
+can read it — sign-in gates saving, not reading; it is not a private page.
 
 ### Disconnect
 ```
@@ -151,12 +158,13 @@ Tell the user they can also remove the DNS record at their registrar afterward.
 ## Backend on a connected domain
 
 The per-site backend (shared JSON state, collections) works from the connected domain
-**same-origin** — a page at `https://recipes.brand.com/` can call
-`/v1/sites/<site>/state` directly with no extra origin configuration. (The server ties the
-domain to its own site, so it can't be used to write to a different site.) Writes still need the
-visitor signed in (Google or email code): load `https://simple-host.app/auth.js` and, because the site name
-cannot be derived from a custom-domain URL, set `window.SH_CONFIG = { site: "<site>" }` before
-the tag. Pattern and API: the `website-deploy` skill's `references/backend.md`.
+**same-origin** — a page at `https://recipes.brand.com/` calls `/v1/sites/<site>/state` directly.
+(The server ties the domain to its own site, so it can't be used to write to a different site.)
+Writes need the visitor signed in — Google (more providers later) or an emailed code: load
+`https://simple-host.app/auth.js` and, because the site name cannot be derived from a
+custom-domain URL, set `window.SH_CONFIG = { site: "<site>" }` before the tag, then
+`await SH.requireSignIn()` before each save. Pattern and API: the `website-deploy` skill's
+`references/backend.md`.
 
 ## Gotchas
 

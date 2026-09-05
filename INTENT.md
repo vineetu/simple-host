@@ -20,8 +20,8 @@ Website Deploy skill; humans mostly never touch the API directly.
 
 - An agent with the skill installed can ship a working site, including a form that saves, on
   the first try, without the owner intervening.
-- Every write to a site's backend is attributable to a signed-in Google identity or the site
-  owner's API key. Reads stay public.
+- A page can only save data on a site that has its own domain, and there a visitor signs in
+  with Google or an emailed code. Agents save with an API key. Reads stay public.
 - The whole thing keeps running on a 1 CPU / 1 GB box: one binary, one Postgres, one folder.
 
 ## Non-goals
@@ -30,7 +30,9 @@ Website Deploy skill; humans mostly never touch the API directly.
   implementation of a view-lock; docs must not advertise one.
 - A general-purpose backend. No schema, no queries, no server-side code for site authors.
 - Metered third-party AI keys. AI create runs on the local Grok sidecar only.
-- Starter templates as a product surface. Nobody uses them; keep them working, do not invest.
+- Starter templates and drop-in widgets. Removed 2026-09-05; agents build pages themselves.
+- Isolating sites from each other on the shared host. Every site there is one origin. Anything
+  that needs privacy between sites, including visitor sign-in, lives on a custom domain.
 
 ## Constraints
 
@@ -44,7 +46,8 @@ Website Deploy skill; humans mostly never touch the API directly.
 ## Decisions already made
 
 - **2026-08-14. Every state/collection write requires a signed-in visitor.** Not per-site opt-in.
-  Reason: attributable writes without giving pages an API key. See `SPEC.md`.
+  Reason: writes should cost an identity without giving pages an API key. `SPEC.md` is the
+  historical design; later entries here override it.
 - **2026-08-23. AI create uses Grok only, via the local CLIProxy sidecar.** No fallbacks. Reason:
   no metered third-party AI keys, no silent provider switches.
 - **2026-09-05. Enforcement flipped globally (`WRITE_AUTH_MODE=on`).** Reason: the rule is only
@@ -67,3 +70,14 @@ Website Deploy skill; humans mostly never touch the API directly.
 - **2026-09-05. Email sign-in codes are bound to a purpose and, for hosted pages, to one site.**
   A visitor code cannot be redeemed at the dashboard for an API key or on another site. Reason:
   review found the opposite let a phished guestbook code become a full account credential.
+- **2026-09-05. Visitor sign-in and page saves only on a custom domain.** On the shared host all
+  sites are one origin, so a sign-in there can never be private to one site; rather than fight
+  that, saving is a feature you get by connecting a domain. Agents still write with a key
+  anywhere. Reason: "if you want safe writes you need a domain" is one sentence everyone can
+  understand.
+- **2026-09-05. Widgets and starter templates removed.** Reason: unused, stale, and every extra
+  surface is another place the story can drift.
+- **2026-09-05. Say "Google sign-in", never "Google only".** More providers may come; GitHub stays
+  wired but unconfigured and is not advertised.
+- **2026-09-05. Keep the story simple.** No "attributable writes" claim (nothing records an
+  author), no personal-data rules in the docs; one sentence that sites and their data are public.

@@ -72,7 +72,7 @@ func main() {
 	}
 
 	if names := cfg.EnabledVisitorProviders(); len(names) == 0 {
-		log.Printf("warning: no OAuth providers configured; visitor Google/GitHub sign-in disabled")
+		log.Printf("warning: no OAuth providers configured; visitor Google sign-in disabled")
 	} else {
 		log.Printf("visitor OAuth enabled: %s", strings.Join(names, ", "))
 	}
@@ -84,7 +84,6 @@ func main() {
 	siteHandler := handler.NewSiteHandler(db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID, mailer, userHandler.EmailLimiter())
 	siteHandler.Register(mux, authMW, noticeMW)
 	handler.NewOAuthHandler(db, cfg).Register(mux)
-	handler.RegisterTemplateRoutes(mux)
 	handler.RegisterUIRoutes(mux, cfg.PublicBaseURL, siteHandler)
 	handler.RegisterSkillsHub(mux, cfg.PublicBaseURL)
 

@@ -43,7 +43,7 @@ Then just talk to your agent:
 > *"Deploy this folder."*
 > *"Add a guestbook to my site."*
 
-It signs you up (magic-link email → API key), builds the site, wires in state if the page needs it, and deploys. No terminal, no dashboard, no config files.
+It signs you up (emailed code → API key), builds the site, wires in state if the page needs it, and deploys. No terminal, no dashboard, no config files.
 
 **On the web instead?** ChatGPT, Gemini, and Copilot can do it too — paste [simple-host.app/llms.txt](https://simple-host.app/llms.txt) into the chat, describe what you want, and it hands you a site to publish. Or use the **Build with AI** chat right on [simple-host.app](https://simple-host.app), which builds and previews a site for you on the box itself.
 
@@ -51,13 +51,12 @@ It signs you up (magic-link email → API key), builds the site, wires in state 
 
 - **One-call deploy** — upload a folder, get a live `https://{name}.simple-host.app`. Every deploy is a new immutable version; roll back instantly.
 - **A little backend, free** — per-site JSON state with atomic ops (set / inc / append), plus append-only collections for guestbooks, signups, and submissions. No schema, no database to run yourself.
-- **Drop-in widgets** — threaded comments and a feedback pin, one script tag each, theme-aware.
 - **See what your site collected** — read and download whatever visitors saved to it.
-- **Starter templates** — RSVP, waitlist, landing, résumé, and more, ready to fill in.
+- **Connect your own domain** — subdomain or apex. A site on its own domain can also let visitors sign in and save from a page.
 - **Build with AI** — a chat on the homepage that designs, previews, and publishes a site for you. Describe what you want, watch it being written, then publish.
 - **Talk to it** — dictate your idea instead of typing. Captions appear as you speak, and you can edit the text before sending.
 - **Show it what you mean** — attach screenshots or notes to the chat and it builds from them.
-- **Sign in your way** — a magic link by email, or Google. Visitors to your sites can sign in too, so a page can tell who is writing to it.
+- **Sign in your way** — an emailed code, or Google (more providers later). On a site with its own domain, visitors can sign in the same way so a page can save on their behalf.
 - **Your own admin view** — see every account on your instance and the sites they have made.
 
 ## How it works
@@ -68,7 +67,7 @@ Three moving parts, and you can hold all of them in your head at once:
 2. A **Postgres** tracks users, sites, and versions.
 3. A **folder on disk** holds the versioned site files.
 
-A wildcard DNS record points `*.simple-host.app` at the binary, which maps each subdomain to its folder. That's the whole system — no object store, no CDN, no build farm, which is exactly why it fits on a 1 GB box. The per-site datastore lives next to the files: reads are Origin-checked; writes need a visitor Google/GitHub session or the owner's `X-API-Key`.
+A wildcard DNS record points `*.simple-host.app` at the binary, which maps each subdomain to its folder. That's the whole system — no object store, no CDN, no build farm, which is exactly why it fits on a 1 GB box. The per-site datastore lives next to the files: reads are public; a page writes only on a site with its own custom domain, after the visitor signs in (Google or an emailed code); agents write with an account's `X-API-Key` anywhere.
 
 ## Run your own
 
@@ -114,8 +113,7 @@ All via environment variables. `DB_DSN` and `ADMIN_API_KEY` are required; the re
 | `MAIL_FROM` | | Magic-link sender address |
 | `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` | | The model behind **Build with AI**. Any OpenAI-compatible provider; unset = the feature is off. |
 | `TRANSCRIBE_URL` / `TRANSCRIBE_TICKET_SECRET` | | Speech-to-text for the chat mic. Unset = the mic is hidden. |
-| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | | Enables Google sign-in, for owners and for visitors to hosted sites. Both needed, or it stays off. |
-| `WRITE_AUTH_MODE` | | `off` / `log` / `on`. Unset = `log` (anonymous writes succeed and are logged). Never default to `on` in source. |
+| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | | Enables Google sign-in, for owners and for visitors to sites on a custom domain. Both needed, or it stays off. |
 
 ## API
 
@@ -123,20 +121,20 @@ Everything an agent needs is at [`/llms.txt`](https://simple-host.app/llms.txt),
 
 | Endpoint | Method | Description |
 |---|---|---|
-| `/v1/auth`, `/v1/auth/verify` | POST | Magic-link sign-in → API key |
+| `/v1/auth`, `/v1/auth/verify` | POST | Email-code sign-in → API key |
 | `/v1/sites` | GET | List your sites |
 | `/v1/sites/{name}/files` | POST / PUT | Deploy a site from a JSON `{path: content}` map |
 | `/v1/sites/{name}` | POST / PUT / DELETE | Deploy from a tarball / roll a new version / delete |
-| `/v1/sites/{name}/state` | GET / PUT / PATCH | Per-site JSON state with atomic ops (reads Origin-checked; writes need a visitor session or owner key) |
+| `/v1/sites/{name}/state` | GET / PUT / PATCH | Per-site JSON state with atomic ops (reads public; writes need a signed-in visitor on a custom domain, or an account's API key) |
 | `/v1/sites/{name}/collections/{coll}` | GET / POST | Append-only collections (POST is a write) |
-| `/v1/templates` | GET | Starter templates |
+| `/v1/sites/{name}/domain` | POST / GET / DELETE | Connect your own domain |
 | `/v1/generate` | POST | Build with AI (when enabled) |
 
 ## The Website Deploy plugin
 
 [`simple-host-website/`](simple-host-website/) is the agent integration that the install commands above pull in. It bundles:
 
-- **Three skills** — `website-deploy` (the deploy workflow, a router plus reference documents under `references/`), `website-deploy-builder` (helping decide what to build that fits a static-plus-light-state model), and `connect-domain` (pointing your own domain at a site, with automatic HTTPS).
+- **Three skills** — `website-deploy` (the deploy workflow, a router plus reference documents under `references/`), `website-deploy-builder` (helping decide what to build that fits a static-plus-light-state model), and `connect-domain` (pointing your own domain at a site, which is also what lets its pages save).
 - **An MCP server** (Node) exposing `register`, `deploy`, `status`, and `list` as agent-callable tools.
 
 The plugin is embedded into the Go binary, so a running instance also serves it at `/skills.zip`, `/plugin.zip`, and per-skill ZIPs for manual upload (e.g. Claude.ai). It reports its version on every API call; if the server's bundle is newer, responses carry a `_notice` the agent surfaces so users know to update.

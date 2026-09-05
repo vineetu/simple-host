@@ -34,7 +34,7 @@ func issueEmailCode(ctx context.Context, database *sql.DB, mailer email.Sender, 
 
 	// Per-address throttle: stops one email from being mail-bombed even if the
 	// attacker rotates source IPs.
-	if !limiter.allow(address) {
+	if !limiter.allow(emailLimiterKey(address)) {
 		return "", 0, http.StatusTooManyRequests, errorResponse{Error: "rate limit exceeded, slow down"}
 	}
 
@@ -106,7 +106,7 @@ func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter
 	if req.Token == "" {
 		// Throttle guesses against a specific address across tokens, on top of
 		// the per-token maxCodeAttempts cap.
-		if !limiter.allow(tok.Email) {
+		if !limiter.allow(emailLimiterKey(tok.Email)) {
 			return db.User{}, false, http.StatusTooManyRequests, errorResponse{Error: "rate limit exceeded, slow down"}
 		}
 		if subtleConstantTimeEqual(req.Code, tok.Code) != 1 {
@@ -143,10 +143,10 @@ func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter
 		return db.User{}, false, http.StatusInternalServerError, errorResponse{Error: "internal server error"}
 	}
 
-	// Assign a URL-safe handle for new users (or lazy-backfill older rows that
+	// Assign a URL-safe handle for dashboard users (or lazy-backfill older rows that
 	// still have a NULL handle). ClaimHandle only writes WHERE handle IS NULL,
 	// so existing handles are never overwritten.
-	if created || !user.Handle.Valid {
+	if purpose == "dashboard" && (created || !user.Handle.Valid) {
 		assignHandle(ctx, database, user.ID, tok.Email)
 		if refetched, rerr := db.GetUserByUsername(ctx, database, tok.Email); rerr == nil {
 			user = refetched
@@ -160,4 +160,14 @@ func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter
 	}
 
 	return user, created, 0, errorResponse{}
+}
+
+// emailLimiterKey groups plus aliases without changing the stored or sent address.
+func emailLimiterKey(address string) string {
+	local, domain, ok := strings.Cut(strings.ToLower(address), "@")
+	if !ok {
+		return strings.ToLower(address)
+	}
+	local, _, _ = strings.Cut(local, "+")
+	return local + "@" + domain
 }

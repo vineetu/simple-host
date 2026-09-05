@@ -1,7 +1,7 @@
 {
   "name": "website-deploy",
-  "version": "0.13.0",
-  "description": "Deploy static websites to simple-host.app from your coding agent (inline JSON or tar.gz/zip). Each site gets a per-site backend (shared JSON state with atomic ops, append-only collections, drop-in comments/feedback widgets, templates), built-in server-side visitor analytics, and can be connected to your own custom domain \u2014 subdomain via CNAME or apex via A record \u2014 with automatic HTTPS. Bundles a builder skill (plan what to build) and a connect-domain skill. Writes to the per-site backend require the visitor to sign in (Google or email-code sign-in via the hosted auth.js); reads stay public.",
+  "version": "0.14.0",
+  "description": "Deploy static websites to simple-host.app from your coding agent (inline JSON or tar.gz/zip). Each site gets a per-site backend (shared JSON state with atomic ops, append-only collections), built-in server-side visitor analytics, and can be connected to your own custom domain \u2014 subdomain via CNAME or apex via A record. Reads of the backend are public; a page can save only on a site with its own domain, where visitors sign in with Google or an emailed code via the hosted auth.js; agents write with an API key anywhere. Bundles a builder skill (plan what to build) and a connect-domain skill.",
   "author": {
     "name": "Website Deploy"
   },

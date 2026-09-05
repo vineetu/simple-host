@@ -1,3 +1,5 @@
+> **Status (2026-09-05): Shipped in a different form / superseded.** The live model is described in `INTENT.md`; read this as design history only.
+
 # simple-host.app: simplification pass + the sharing gap
 
 Status: §1, §2, §6 **implemented** on this branch · §3 partially · §4 **not started**

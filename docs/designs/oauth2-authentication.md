@@ -1,3 +1,5 @@
+> **Status (2026-09-05): Shipped in a different form / superseded.** The live model is described in `INTENT.md`; read this as design history only.
+
 # Design: OAuth2 / OIDC Social Login (GitHub, Google, …)
 
 Status: Proposed

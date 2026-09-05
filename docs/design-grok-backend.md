@@ -1,3 +1,5 @@
+> **Status (2026-09-05):** AI create runs on Grok through the local CLIProxy sidecar only — no fallback provider (the DeepSeek fallback mentioned below is gone). See `INTENT.md`.
+
 # SUPERSEDED — not implemented, and deliberately so
 
 Grok is the builder model as of 2026-08-15, but **not by this design**. It is

@@ -216,7 +216,7 @@ func Load() (Config, error) {
 		log.Printf("warning: Google OAuth is misconfigured (need both GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET); treating as off")
 	}
 	if xorNonEmpty(cfg.GitHubOAuthClientID, cfg.GitHubOAuthClientSecret) {
-		log.Printf("warning: GitHub OAuth is misconfigured (need both GITHUB_OAUTH_CLIENT_ID and GITHUB_OAUTH_CLIENT_SECRET); treating as off")
+		log.Printf("warning: optional OAuth provider is misconfigured (need both GITHUB_OAUTH_CLIENT_ID and GITHUB_OAUTH_CLIENT_SECRET); treating as off")
 	}
 
 	switch mode := strings.ToLower(strings.TrimSpace(os.Getenv("WRITE_AUTH_MODE"))); mode {
@@ -257,7 +257,7 @@ func (c Config) GoogleOAuthEnabled() bool {
 	return c.GoogleOAuthClientID != "" && c.GoogleOAuthClientSecret != ""
 }
 
-// GitHubOAuthEnabled reports whether both GitHub client vars are set.
+// GitHubOAuthEnabled reports whether both optional provider client vars are set.
 func (c Config) GitHubOAuthEnabled() bool {
 	return c.GitHubOAuthClientID != "" && c.GitHubOAuthClientSecret != ""
 }

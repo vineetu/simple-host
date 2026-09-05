@@ -87,10 +87,13 @@ These live in the separate `connect-domain` skill
 (https://simple-host.app/v1/skills/connect-domain). In short: `POST
 /v1/sites/<sitename>/domain` with `{domain}` returns one DNS record for the human
 to add at their registrar; poll `GET /v1/sites/<sitename>/domain` until `active`.
-HTTPS is automatic.
+
+A connected domain is also what lets a page save: visitor sign-in (Google or an
+emailed code) exists only on a site's own domain, so a form on the shared host
+cannot write to the backend (see `backend.md`). Agents write with an API key
+anywhere.
 
 **There is no private or password-locked mode.** Every deployed site is public to
 anyone with its address, on a custom domain or not. If a user asks for privacy,
-say so plainly rather than suggesting a workaround. The sign-in (Google or email code) that a
-page needs before it can *write* to its backend (see `backend.md`) gates saving,
-not reading — do not present it as a private page.
+say so plainly rather than suggesting a workaround. Sign-in gates saving, not
+reading — do not present it as a private page.

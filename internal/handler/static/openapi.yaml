@@ -4,11 +4,10 @@ info:
   description: >-
     Static website hosting with a light per-site backend. Deploy a site with one
     API call — inline JSON files (LLM-friendly) or a tar.gz/zip archive — and each
-    site gets shared JSON state (with atomic ops), append-only collections, and
-    starter templates. Sign-in is a 6-digit email code or Google/GitHub that
+    site gets shared JSON state (with atomic ops), append-only collections. Sign-in is a 6-digit email code or Google that
     returns an API key, sent as the
     `X-API-Key` header. Hosted-page sign-in uses the same account but a
-    site-scoped session cookie — never an API key.
+    site-scoped session cookie on a bound custom domain — never an API key. Shared-host saving requires an account X-API-Key.
   version: 2.0.0
 
 servers:
@@ -20,7 +19,7 @@ tags:
     description: Email-code sign-in and dashboard OAuth handoff (`/?token=`)
   - name: Visitor
     description: >-
-      Site-scoped browser session for hosted-page Google/GitHub or email-code sign-in.
+      Site-scoped browser session for hosted-page Google or email-code sign-in, only on a bound custom domain.
       Same `users` row as email-code / dashboard OAuth; the cookie is not an
       API key and does not satisfy owner routes.
   - name: Deploy
@@ -28,15 +27,13 @@ tags:
   - name: Sites
     description: List, versions, rollback, delete
   - name: State
-    description: Per-site shared JSON store (reads Origin-gated; writes need a visitor session or any account key)
+    description: Per-site shared JSON store (reads Origin-gated; writes need a custom-domain visitor session or any account key)
   - name: Collections
     description: Append-only per-site lists (POST is a write)
   - name: Custom domains
     description: Bind one custom domain per site (CNAME + on-demand TLS)
   - name: Analytics
     description: Per-site visitor analytics (server-side, owner-scoped)
-  - name: Templates
-    description: Starter templates
   - name: AI
     description: Generate a site from a prompt
   - name: Health
@@ -149,7 +146,7 @@ paths:
       description: >-
         Exchange `{email, code}` (CLI/agent) or a magic-link `{token}` (browser)
         for an API key. The first successful email-code verify creates the
-        account. Dashboard Google/GitHub also redeems through this endpoint
+        account. Dashboard Google also redeems through this endpoint
         (`/?token=`). Visitor-issued codes are not accepted here. The code expires in 15 minutes and allows 3 attempts.
       tags: [Auth]
       requestBody:
@@ -180,9 +177,9 @@ paths:
       operationId: getOAuthProviders
       summary: List enabled OAuth providers
       description: >-
-        Public discovery for widgets and the dashboard. Returns the enabled
-        provider names (`google`, `github`) so pages never hardcode a provider.
-        Empty when neither pair is configured. Sign-in creates or links a
+        Google (more providers later). Public discovery for pages and the dashboard. Returns the enabled
+        provider names (`google`) so pages never hardcode a provider.
+        Empty when sign-in is not configured. Sign-in creates or links a
         `users` row; a hosted-page session still does not disclose an API key.
       tags: [Visitor]
       responses:
@@ -196,8 +193,8 @@ paths:
                 properties:
                   providers:
                     type: array
-                    items: { type: string, enum: [google, github] }
-                    example: [google, github]
+                    items: { type: string, enum: [google] }
+                    example: [google]
 
   /v1/auth/oauth/{provider}:
     get:
@@ -206,17 +203,16 @@ paths:
       description: >-
         Apex start. Query `return_to` is required and must be an absolute URL.
         Two shapes: the dashboard origin `/` (owner purpose — callback hands
-        off via `/?token=`) or a real content-host path (`/{handle}/{sitename}/…`)
-        / DNS-proven custom domain (site purpose — callback issues a
+        off via `/?token=`) or a DNS-proven bound custom domain (site purpose — callback issues a
         host-and-site-scoped session). Success 302s to the provider with PKCE
         S256. Unknown or disabled provider is 404. No cookie is set here. The
-        caller cannot set `purpose`; it is derived from `return_to`.
+        Shared content-host return_to URLs are rejected with 400 invalid return_to, as are apex URLs outside the dashboard. The caller cannot set `purpose`; it is derived from `return_to`.
       tags: [Visitor]
       parameters:
         - name: provider
           in: path
           required: true
-          schema: { type: string, enum: [google, github] }
+          schema: { type: string, enum: [google] }
         - name: return_to
           in: query
           required: true
@@ -259,7 +255,7 @@ paths:
         - name: provider
           in: path
           required: true
-          schema: { type: string, enum: [google, github] }
+          schema: { type: string, enum: [google] }
         - name: code
           in: query
           schema: { type: string }
@@ -301,7 +297,7 @@ paths:
         One-time hop on the content host or custom domain. Consumes `once`,
         host-matches, sets `__Host-sh_vsess` (or `sh_vsess` on local HTTP),
         then 302s to the stored `return_to` with no query mutation. Never sets
-        a cookie on the apex. Failures are HTML, no cookie, no redirect.
+        a cookie on the apex or shared content host. Failures are HTML, no cookie, no redirect.
       tags: [Visitor]
       parameters:
         - name: once
@@ -783,7 +779,7 @@ paths:
     get:
       operationId: getVisitorMe
       summary: Read the current site visitor session
-      description: Origin/Referer-gated. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.
+      description: On the shared content host returns signed_in false, sign_in_available false and code custom_domain_required without consulting cookies. On custom domains, Origin/Referer-gated. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.
       tags: [State]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -800,14 +796,20 @@ paths:
                     required: [signed_in, expires_at]
                     properties:
                       signed_in: { type: boolean, enum: [true] }
-                      email: { type: string, description: Only on a custom domain (origin-isolated host). Omitted on the shared content host, where any co-tenant page could read it. Latest verified OAuth identity email; users.username when no identity exists }
-                      provider: { type: string, example: google, description: Omitted on the shared content host or when no OAuth identity exists }
+                      email: { type: string, description: On a custom domain. Latest verified OAuth identity email; users.username when no identity exists }
+                      provider: { type: string, example: google, description: Google (more providers later); omitted when no OAuth identity exists }
                       expires_at: { type: string, format: date-time, description: Earlier of absolute and idle expiry (RFC3339) }
                   - type: object
                     required: [signed_in, sign_in]
                     properties:
                       signed_in: { type: boolean, enum: [false] }
                       sign_in: { type: string, enum: [/v1/auth/oauth/providers] }
+                  - type: object
+                    required: [signed_in, sign_in_available, code]
+                    properties:
+                      signed_in: { type: boolean, enum: [false] }
+                      sign_in_available: { type: boolean, enum: [false] }
+                      code: { type: string, enum: [custom_domain_required] }
         '403': { $ref: '#/components/responses/OriginMismatch' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { description: Internal server error }
@@ -852,8 +854,8 @@ paths:
       description: >-
         Overwrites the whole blob (≤ 1 MB), last-write-wins. Optionally pass
         `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict).
-        Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or
-        any account's `X-API-Key`, attributed to that account. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}.
+        Origin-gated. Writes require a visitor session on the site's bound custom domain (`X-SH-CSRF: 1`) or
+        any account's `X-API-Key` (also on the shared host). Shared-host visitor writes return 401 custom_domain_required without consulting cookies. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}.
       tags: [State]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -864,11 +866,12 @@ paths:
         '200': { description: Saved; echoes the value, headers: { ETag: { schema: { type: string } } }, content: { application/json: { schema: {} } } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401':
-          description: Sign-in required (visitor_auth_required), or invalid account API key (invalid_api_key).
+          description: Custom domain required (custom_domain_required), sign-in required (visitor_auth_required), or invalid account API key (invalid_api_key).
           content:
             application/json:
-              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean } } }
+              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean }, docs: { type: string } } }
               examples:
+                customDomain: { value: { error: "saving needs a custom domain: connect one and visitors can sign in there", code: custom_domain_required, docs: "https://simple-host.app/v1/skills/connect-domain" } }
                 invalidKey: { value: { error: "invalid API key", code: invalid_api_key } }
                 signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
         '403': { $ref: '#/components/responses/OriginMismatch' }
@@ -879,8 +882,8 @@ paths:
       summary: Atomically update per-site state
       description: >-
         Apply one or more atomic operations so concurrent writers never clobber.
-        Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or
-        any account's `X-API-Key`, attributed to that account. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Ops — `set` (path,value), `inc` (path,by),
+        Origin-gated. Writes require a visitor session on the site's bound custom domain (`X-SH-CSRF: 1`) or
+        any account's `X-API-Key` (also on the shared host). Shared-host visitor writes return 401 custom_domain_required without consulting cookies. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Ops — `set` (path,value), `inc` (path,by),
         `append` (path,value), `remove` (path), `removeWhere` (path,match).
       tags: [State]
       parameters:
@@ -909,11 +912,12 @@ paths:
         '200': { description: New state, headers: { ETag: { schema: { type: string } } }, content: { application/json: { schema: {} } } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401':
-          description: Sign-in required (visitor_auth_required), or invalid account API key (invalid_api_key).
+          description: Custom domain required (custom_domain_required), sign-in required (visitor_auth_required), or invalid account API key (invalid_api_key).
           content:
             application/json:
-              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean } } }
+              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean }, docs: { type: string } } }
               examples:
+                customDomain: { value: { error: "saving needs a custom domain: connect one and visitors can sign in there", code: custom_domain_required, docs: "https://simple-host.app/v1/skills/connect-domain" } }
                 invalidKey: { value: { error: "invalid API key", code: invalid_api_key } }
                 signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
         '403': { $ref: '#/components/responses/OriginMismatch' }
@@ -953,8 +957,8 @@ paths:
       summary: Append an item to a collection
       description: >-
         Append-only list (O(1) insert). For signups, RSVPs, submissions.
-        Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or
-        any account's `X-API-Key`, attributed to that account. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB.
+        Origin-gated. Writes require a visitor session on the site's bound custom domain (`X-SH-CSRF: 1`) or
+        any account's `X-API-Key` (also on the shared host). Shared-host visitor writes return 401 custom_domain_required without consulting cookies. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB.
       tags: [Collections]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -965,11 +969,12 @@ paths:
         '201': { description: Item appended }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401':
-          description: Sign-in required (visitor_auth_required), or invalid account API key (invalid_api_key).
+          description: Custom domain required (custom_domain_required), sign-in required (visitor_auth_required), or invalid account API key (invalid_api_key).
           content:
             application/json:
-              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean } } }
+              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean }, docs: { type: string } } }
               examples:
+                customDomain: { value: { error: "saving needs a custom domain: connect one and visitors can sign in there", code: custom_domain_required, docs: "https://simple-host.app/v1/skills/connect-domain" } }
                 invalidKey: { value: { error: "invalid API key", code: invalid_api_key } }
                 signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
         '403': { $ref: '#/components/responses/OriginMismatch' }
@@ -978,8 +983,7 @@ paths:
       summary: List items in a collection
       description: >-
         Newest-first, paginated. Origin-gated (no API key) for the site's own
-        page, or owner/admin API key for the dashboard. Writes (POST) stay
-        Origin-only.
+        page, or owner/admin API key for the dashboard. Writes (POST) require a custom-domain visitor session with X-SH-CSRF or any valid account X-API-Key, also accepted on the shared host; Origin gating still applies.
       tags: [Collections]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -1023,7 +1027,7 @@ paths:
     get:
       operationId: getVisitorMeByHandle
       summary: Read the current site visitor session
-      description: Origin/Referer-gated. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.
+      description: On the shared content host returns signed_in false, sign_in_available false and code custom_domain_required without consulting cookies. On custom domains, Origin/Referer-gated. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.
       tags: [State]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -1041,14 +1045,20 @@ paths:
                     required: [signed_in, expires_at]
                     properties:
                       signed_in: { type: boolean, enum: [true] }
-                      email: { type: string, description: Only on a custom domain (origin-isolated host). Omitted on the shared content host, where any co-tenant page could read it. Latest verified OAuth identity email; users.username when no identity exists }
-                      provider: { type: string, example: google, description: Omitted on the shared content host or when no OAuth identity exists }
+                      email: { type: string, description: On a custom domain. Latest verified OAuth identity email; users.username when no identity exists }
+                      provider: { type: string, example: google, description: Google (more providers later); omitted when no OAuth identity exists }
                       expires_at: { type: string, format: date-time, description: Earlier of absolute and idle expiry (RFC3339) }
                   - type: object
                     required: [signed_in, sign_in]
                     properties:
                       signed_in: { type: boolean, enum: [false] }
                       sign_in: { type: string, enum: [/v1/auth/oauth/providers] }
+                  - type: object
+                    required: [signed_in, sign_in_available, code]
+                    properties:
+                      signed_in: { type: boolean, enum: [false] }
+                      sign_in_available: { type: boolean, enum: [false] }
+                      code: { type: string, enum: [custom_domain_required] }
         '403': { $ref: '#/components/responses/OriginMismatch' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { description: Internal server error }
@@ -1097,8 +1107,8 @@ paths:
       description: >-
         Overwrites the whole blob (≤ 1 MB), last-write-wins. Optionally pass
         `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict).
-        Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or
-        any account's `X-API-Key`, attributed to that account. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}.
+        Origin-gated. Writes require a visitor session on the site's bound custom domain (`X-SH-CSRF: 1`) or
+        any account's `X-API-Key` (also on the shared host). Shared-host visitor writes return 401 custom_domain_required without consulting cookies. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}.
         v3 user-scoped, path-model-canonical variant: resolves the site by
         (handle -> user_id) + (user_id, name).
       tags: [State]
@@ -1112,11 +1122,12 @@ paths:
         '200': { description: Saved; echoes the value, headers: { ETag: { schema: { type: string } } }, content: { application/json: { schema: {} } } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401':
-          description: Sign-in required (visitor_auth_required), or invalid account API key (invalid_api_key).
+          description: Custom domain required (custom_domain_required), sign-in required (visitor_auth_required), or invalid account API key (invalid_api_key).
           content:
             application/json:
-              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean } } }
+              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean }, docs: { type: string } } }
               examples:
+                customDomain: { value: { error: "saving needs a custom domain: connect one and visitors can sign in there", code: custom_domain_required, docs: "https://simple-host.app/v1/skills/connect-domain" } }
                 invalidKey: { value: { error: "invalid API key", code: invalid_api_key } }
                 signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
         '403': { $ref: '#/components/responses/OriginMismatch' }
@@ -1127,8 +1138,8 @@ paths:
       summary: Atomically update per-site state (v3, by handle)
       description: >-
         Apply one or more atomic operations so concurrent writers never clobber.
-        Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or
-        any account's `X-API-Key`, attributed to that account. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Ops — `set` (path,value), `inc` (path,by),
+        Origin-gated. Writes require a visitor session on the site's bound custom domain (`X-SH-CSRF: 1`) or
+        any account's `X-API-Key` (also on the shared host). Shared-host visitor writes return 401 custom_domain_required without consulting cookies. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Ops — `set` (path,value), `inc` (path,by),
         `append` (path,value), `remove` (path), `removeWhere` (path,match).
         v3 user-scoped, path-model-canonical variant: resolves the site by
         (handle -> user_id) + (user_id, name).
@@ -1160,11 +1171,12 @@ paths:
         '200': { description: New state, headers: { ETag: { schema: { type: string } } }, content: { application/json: { schema: {} } } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401':
-          description: Sign-in required (visitor_auth_required), or invalid account API key (invalid_api_key).
+          description: Custom domain required (custom_domain_required), sign-in required (visitor_auth_required), or invalid account API key (invalid_api_key).
           content:
             application/json:
-              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean } } }
+              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean }, docs: { type: string } } }
               examples:
+                customDomain: { value: { error: "saving needs a custom domain: connect one and visitors can sign in there", code: custom_domain_required, docs: "https://simple-host.app/v1/skills/connect-domain" } }
                 invalidKey: { value: { error: "invalid API key", code: invalid_api_key } }
                 signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
         '403': { $ref: '#/components/responses/OriginMismatch' }
@@ -1175,8 +1187,8 @@ paths:
       summary: Append an item to a collection (v3, by handle)
       description: >-
         Append-only list (O(1) insert). For signups, RSVPs, submissions.
-        Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or
-        any account's `X-API-Key`, attributed to that account. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB.
+        Origin-gated. Writes require a visitor session on the site's bound custom domain (`X-SH-CSRF: 1`) or
+        any account's `X-API-Key` (also on the shared host). Shared-host visitor writes return 401 custom_domain_required without consulting cookies. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB.
         v3 user-scoped, path-model-canonical variant: resolves the site by
         (handle -> user_id) + (user_id, name).
       tags: [Collections]
@@ -1190,11 +1202,12 @@ paths:
         '201': { description: Item appended }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401':
-          description: Sign-in required (visitor_auth_required), or invalid account API key (invalid_api_key).
+          description: Custom domain required (custom_domain_required), sign-in required (visitor_auth_required), or invalid account API key (invalid_api_key).
           content:
             application/json:
-              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean } } }
+              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean }, docs: { type: string } } }
               examples:
+                customDomain: { value: { error: "saving needs a custom domain: connect one and visitors can sign in there", code: custom_domain_required, docs: "https://simple-host.app/v1/skills/connect-domain" } }
                 invalidKey: { value: { error: "invalid API key", code: invalid_api_key } }
                 signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
         '403': { $ref: '#/components/responses/OriginMismatch' }
@@ -1203,8 +1216,7 @@ paths:
       summary: List items in a collection (v3, by handle)
       description: >-
         Newest-first, paginated. Origin-gated (no API key) for the site's own
-        page, or owner/admin API key for the dashboard. Writes (POST) stay
-        Origin-only.
+        page, or owner/admin API key for the dashboard. Writes (POST) require a custom-domain visitor session with X-SH-CSRF or any valid account X-API-Key, also accepted on the shared host; Origin gating still applies.
         v3 user-scoped, path-model-canonical variant: resolves the site by
         (handle -> user_id) + (user_id, name).
       tags: [Collections]
@@ -1269,7 +1281,7 @@ paths:
       description: >-
         Whitelist extra origins (scheme://host, no path) that may call this
         site's state/collections API cross-origin — so a page hosted anywhere
-        (GitHub Pages, Netlify, …) can use the site as its backend for comments,
+        (external hosting, Netlify, …) can use the site as its backend for comments,
         feedback, counters, and forms. Replaces the whole list (max 20). Owner
         only. Same Origin-gated trust model as same-site calls: data stays
         public to the page's audience; never store secrets.
@@ -1390,38 +1402,6 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
-  /v1/templates:
-    get:
-      operationId: getTemplates
-      summary: List starter templates
-      description: Public. Returns id + title + description for each template.
-      tags: [Templates]
-      responses:
-        '200':
-          description: Templates
-          content:
-            application/json:
-              schema: { type: array, items: { $ref: '#/components/schemas/TemplateMeta' } }
-
-  /v1/templates/{id}:
-    get:
-      operationId: getTemplatesById
-      summary: Get a template's deployable files
-      description: Public. Returns the template's `files` map, ready to POST to `/v1/sites/{name}/files`.
-      tags: [Templates]
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: string }, example: landing }
-      responses:
-        '200':
-          description: Template with files
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - { $ref: '#/components/schemas/TemplateMeta' }
-                  - type: object
-                    properties: { files: { type: object, additionalProperties: { type: string } } }
-        '404': { $ref: '#/components/responses/NotFound' }
 
   /v1/admin/api-analytics:
     get:
@@ -1663,7 +1643,7 @@ paths:
     post:
       operationId: requestSiteVisitorEmail
       summary: Request a site-scoped email sign-in code
-      description: Origin-gated and unavailable on the apex host. Uses the shared account
+      description: Origin-gated; sign-in is available only on the site's bound custom domain, unavailable on the apex and shared content host. Uses the shared account
         email-code limiter and site IP limiter. Normalizes and validates email, then
         sends a 6-digit Resend code valid for 15 minutes. Does not create the account
         yet.
@@ -1710,7 +1690,7 @@ paths:
                     enum:
                     - 900
         '400':
-          description: Invalid request, missing fields, or apex host
+          description: Invalid request, missing fields, apex host, or shared content host (custom_domain_required)
           content:
             application/json:
               schema: &id001
@@ -1723,7 +1703,8 @@ paths:
                   code:
                     type: string
               example:
-                error: not available on this host
+                error: sign-in needs a custom domain
+                code: custom_domain_required
         '401':
           description: Invalid or expired code; attempt cap reports too many attempts,
             request a new code. Verification only.
@@ -1796,7 +1777,7 @@ paths:
     post:
       operationId: verifySiteVisitorEmail
       summary: Verify a site-scoped email sign-in code
-      description: 'Origin-gated and unavailable on the apex host. Uses the shared account
+      description: 'Origin-gated; sign-in is available only on the site''s bound custom domain, unavailable on the apex and shared content host. Uses the shared account
         email-code limiter and dedicated visitor auth IP limiter. Codes are bound to this
         site and the visitor purpose; dashboard codes are not accepted. Checks the latest
         unused, unexpired token, caps attempts, and creates the account lazily. Never returns an
@@ -1829,7 +1810,7 @@ paths:
       responses:
         '200':
           description: Signed in; sets the existing host-only visitor session cookie.
-            Email/provider are omitted on the shared content host.
+            Email/provider are included on the custom domain; shared-host requests return 400 custom_domain_required.
           content:
             application/json:
               schema:
@@ -1853,12 +1834,13 @@ paths:
                     type: string
                     format: date-time
         '400':
-          description: Invalid request, missing fields, or apex host
+          description: Invalid request, missing fields, apex host, or shared content host (custom_domain_required)
           content:
             application/json:
               schema: *id001
               example:
-                error: not available on this host
+                error: sign-in needs a custom domain
+                code: custom_domain_required
         '401':
           description: Invalid or expired code; attempt cap reports too many attempts,
             request a new code. Verification only.
@@ -1931,7 +1913,7 @@ paths:
     post:
       operationId: requestUserSiteVisitorEmail
       summary: Request a site-scoped email sign-in code
-      description: Origin-gated and unavailable on the apex host. Uses the shared account
+      description: Origin-gated; sign-in is available only on the site's bound custom domain, unavailable on the apex and shared content host. Uses the shared account
         email-code limiter and site IP limiter. Normalizes and validates email, then
         sends a 6-digit Resend code valid for 15 minutes. Does not create the account
         yet.
@@ -1984,12 +1966,13 @@ paths:
                     enum:
                     - 900
         '400':
-          description: Invalid request, missing fields, or apex host
+          description: Invalid request, missing fields, apex host, or shared content host (custom_domain_required)
           content:
             application/json:
               schema: *id001
               example:
-                error: not available on this host
+                error: sign-in needs a custom domain
+                code: custom_domain_required
         '401':
           description: Invalid or expired code; attempt cap reports too many attempts,
             request a new code. Verification only.
@@ -2063,7 +2046,7 @@ paths:
     post:
       operationId: verifyUserSiteVisitorEmail
       summary: Verify a site-scoped email sign-in code
-      description: 'Origin-gated and unavailable on the apex host. Uses the shared account
+      description: 'Origin-gated; sign-in is available only on the site''s bound custom domain, unavailable on the apex and shared content host. Uses the shared account
         email-code limiter and dedicated visitor auth IP limiter. Codes are bound to this
         site and the visitor purpose; dashboard codes are not accepted. Checks the latest
         unused, unexpired token, caps attempts, and creates the account lazily. Never returns an
@@ -2097,7 +2080,7 @@ paths:
       responses:
         '200':
           description: Signed in; sets the existing host-only visitor session cookie.
-            Email/provider are omitted on the shared content host.
+            Email/provider are included on the custom domain; shared-host requests return 400 custom_domain_required.
           content:
             application/json:
               schema:
@@ -2121,12 +2104,13 @@ paths:
                     type: string
                     format: date-time
         '400':
-          description: Invalid request, missing fields, or apex host
+          description: Invalid request, missing fields, apex host, or shared content host (custom_domain_required)
           content:
             application/json:
               schema: *id001
               example:
-                error: not available on this host
+                error: sign-in needs a custom domain
+                code: custom_domain_required
         '401':
           description: Invalid or expired code; attempt cap reports too many attempts,
             request a new code. Verification only.
@@ -2272,13 +2256,6 @@ components:
         - type: object
           properties: { note: { type: string } }
 
-    TemplateMeta:
-      type: object
-      properties:
-        id: { type: string, example: landing }
-        title: { type: string }
-        description: { type: string }
-
     Error:
       type: object
       properties: { error: { type: string } }
@@ -2291,7 +2268,7 @@ components:
     Conflict: { description: Site name already exists, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     TooLarge: { description: Payload too large, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     TooManyRequests: { description: Rate limited, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-    OriginMismatch: { description: Origin/Referer does not match the site (or the site is locked), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    OriginMismatch: { description: Origin/Referer does not match the site, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     VisitorAuthRequired:
       description: Visitor sign-in required to write (WRITE_AUTH_MODE=on)
       content:

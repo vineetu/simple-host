@@ -1,3 +1,5 @@
+> **Status (2026-09-05): Partly executed.** Items about log mode (`WRITE_AUTH_MODE`), GitHub sign-in and private pages are settled — see `INTENT.md` — and are no longer open questions here.
+
 # simple-host cleanup plan (v2)
 
 **Status:** proposal, 2026-09-01. v1 was reviewed by Codex; verdict was "ship with

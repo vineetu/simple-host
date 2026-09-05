@@ -1,3 +1,5 @@
+> **Status (2026-09-05): Shipped in a different form / superseded.** The live model is described in `INTENT.md`; read this as design history only.
+
 # Install / Get-Started page redesign
 
 **File:** `internal/handler/static/install.html` (embedded in the Go binary → rebuild + redeploy to take effect).

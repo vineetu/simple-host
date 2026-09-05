@@ -259,7 +259,7 @@ func BackfillPreviewExpiry(ctx context.Context, db *sql.DB, username string, ttl
 
 // GetAllowedOrigins returns the extra origins (beyond the site's own subdomain)
 // permitted to call this site's state/collections API — enables "backend
-// anywhere" (e.g. a page hosted on GitHub Pages using this site as its backend).
+// anywhere" (e.g. a page hosted on external hosting using this site as its backend).
 func GetAllowedOrigins(ctx context.Context, db *sql.DB, siteName string) ([]string, error) {
 	var raw sql.NullString
 	err := db.QueryRowContext(ctx, `SELECT allowed_origins FROM sites WHERE name = $1`, siteName).Scan(&raw)

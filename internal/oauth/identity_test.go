@@ -79,7 +79,7 @@ func TestParseGoogleUserInfo(t *testing.T) {
 	}
 }
 
-func TestParseGitHubUserInfo(t *testing.T) {
+func TestParseGithubUserInfo(t *testing.T) {
 	cases := []struct {
 		name    string
 		body    string
@@ -114,7 +114,7 @@ func TestParseGitHubUserInfo(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got, err := ParseGitHubUserInfo([]byte(c.body))
+			got, err := ParseGithubUserInfo([]byte(c.body))
 			if c.wantErr {
 				if err == nil {
 					t.Fatalf("expected error, got %+v", got)
@@ -134,8 +134,8 @@ func TestParseGitHubUserInfo(t *testing.T) {
 	}
 }
 
-func TestParseGitHubEmails(t *testing.T) {
-	email, ok := ParseGitHubEmails([]byte(`[
+func TestParseGithubEmails(t *testing.T) {
+	email, ok := ParseGithubEmails([]byte(`[
 		{"email":"unverified@example.com","primary":true,"verified":false},
 		{"email":"Jane@Example.COM","primary":true,"verified":true},
 		{"email":"other@example.com","primary":false,"verified":true}
@@ -144,14 +144,14 @@ func TestParseGitHubEmails(t *testing.T) {
 		t.Fatalf("got %q verified=%v, want jane@example.com true", email, ok)
 	}
 
-	email, ok = ParseGitHubEmails([]byte(`[
+	email, ok = ParseGithubEmails([]byte(`[
 		{"email":"only@example.com","primary":true,"verified":false}
 	]`))
 	if ok || email != "" {
 		t.Fatalf("unverified primary must refuse, got %q verified=%v", email, ok)
 	}
 
-	email, ok = ParseGitHubEmails([]byte(`{"email":"not-an-array"}`))
+	email, ok = ParseGithubEmails([]byte(`{"email":"not-an-array"}`))
 	if ok || email != "" {
 		t.Fatalf("bad payload must refuse, got %q verified=%v", email, ok)
 	}

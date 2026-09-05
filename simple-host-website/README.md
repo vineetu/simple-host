@@ -27,9 +27,9 @@ The AI will guide you through registration, validate your site, and deploy it.
 
 ## What is Website Deploy?
 
-Website Deploy serves **static files only** — HTML, CSS, JavaScript, images, and fonts. Your site will be live at `https://sites.simple-host.app/{handle}/{sitename}/`. Every site gets built-in traffic analytics, measured server-side with nothing to add to your pages. Views and unique visitors are split by who was asking — `person`, `bot` and `infra` (uptime probes) — so `person` is the number that means real audience. Custom domains work too — subdomain or apex (e.g. `recipes.brand.com` / `brand.com`) — see the `connect-domain` skill.
+Website Deploy serves **static files only** — HTML, CSS, JavaScript, images, and fonts. Your site will be live at `https://sites.simple-host.app/{handle}/{sitename}/`. Every site gets built-in traffic analytics, computed server-side from access logs with nothing to add to your pages. Views and unique visitors are split by who was asking — `person`, `bot` and `infra` (uptime probes) — so `person` is the number that means real audience. Custom domains work too — subdomain or apex (e.g. `recipes.brand.com` / `brand.com`) — see the `connect-domain` skill.
 
-Every site also gets a small JSON backend (shared state, append-only collections) that its own pages can call. Reading it is public; writing to it requires the visitor to sign in (Google or an emailed code) via the hosted `https://simple-host.app/auth.js` helper — the `website-deploy` skill covers the pattern.
+Every site also gets a small JSON backend (shared state, append-only collections) that its own pages can call. Reading it is public. A page can save to it only on a site with its own custom domain, where visitors sign in with Google (more providers later) or an emailed code via the hosted `https://simple-host.app/auth.js` helper; agents write with an API key on any site. The `website-deploy` skill covers the pattern and `connect-domain` covers the domain.
 
 ### What works
 
@@ -49,9 +49,9 @@ Every site also gets a small JSON backend (shared state, append-only collections
 - Max uncompressed: 500 MB
 - Site names: lowercase letters, numbers, and hyphens only
 
-## Template
+## Example site
 
-The `template/` directory contains a ready-to-deploy example static site. Try it out:
+The `template/` directory in this plugin is a ready-to-deploy example static site. Try it out:
 
 > "Deploy the template folder as my-first-site"
 

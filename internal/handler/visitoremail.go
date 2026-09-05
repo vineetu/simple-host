@@ -13,6 +13,10 @@ import (
 )
 
 func (h *SiteHandler) visitorEmailSite(w http.ResponseWriter, r *http.Request) (string, bool) {
+	if strings.EqualFold(requestHostName(r), h.contentHost) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "sign-in needs a custom domain", "code": "custom_domain_required"})
+		return "", false
+	}
 	name := strings.TrimSpace(r.PathValue("sitename"))
 	if !h.authorizeStateOrigin(w, r, name) {
 		writeJSON(w, http.StatusForbidden, errorResponse{Error: "forbidden"})

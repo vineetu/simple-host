@@ -27,7 +27,7 @@ const (
 const (
 	visitorCookieHost   = "__Host-sh_vsess"
 	visitorCookieHTTP   = "sh_vsess"
-	visitorCookieMaxAge = 1209600 // 14 days
+	visitorCookieMaxAge = 2592000 // 30 days, matching absolute session lifetime; idle expiry is server-side
 	visitorCSRFHeader   = "X-SH-CSRF"
 	visitorCSRFValue    = "1"
 )
@@ -122,7 +122,7 @@ func (h *SiteHandler) isVisitorApexHost(host string) bool {
 // token, Set-Cookie on this host, 302 to the stored return_to.
 func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 	host := requestHostName(r)
-	if host == "" || h.isVisitorApexHost(host) {
+	if host == "" || h.isVisitorApexHost(host) || strings.EqualFold(host, h.contentHost) {
 		writeOAuthHTMLError(w, http.StatusBadRequest)
 		return
 	}
@@ -214,6 +214,26 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 		return true
 	}
 
+	if strings.EqualFold(requestHostName(r), h.contentHost) {
+		outcome := "allowed"
+		if mode == "on" {
+			outcome = "rejected"
+			if allowAnon {
+				outcome = "overridden"
+			}
+		}
+		h.logAnonWrite(r, siteID, siteName, route, collection, mode, outcome)
+		if outcome == "rejected" {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{
+				"error": "saving needs a custom domain: connect one and visitors can sign in there",
+				"code":  "custom_domain_required",
+				"docs":  "https://simple-host.app/v1/skills/connect-domain",
+			})
+			return false
+		}
+		return true
+	}
+
 	if raw := visitorCookieValue(r); raw != "" {
 		if id, decErr := hex.DecodeString(raw); decErr == nil && len(id) == 32 {
 			sess, sessErr := db.GetVisitorSession(r.Context(), h.database, id)
@@ -234,7 +254,7 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 						}{Error: "missing CSRF header", Code: "csrf_required"})
 						return false
 					}
-					// log: treat missing CSRF as anonymous so old widgets still write.
+					// log: treat missing CSRF as anonymous so existing pages still write.
 				}
 			}
 		}
@@ -301,6 +321,10 @@ func (h *SiteHandler) originClass(r *http.Request, siteID string) string {
 // getVisitorMe reports the current site session without extending its lifetime.
 func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "private, no-store")
+	if strings.EqualFold(requestHostName(r), h.contentHost) {
+		writeJSON(w, http.StatusOK, map[string]any{"signed_in": false, "sign_in_available": false, "code": "custom_domain_required"})
+		return
+	}
 	siteName := strings.TrimSpace(r.PathValue("sitename"))
 	if siteName == "" {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
@@ -332,24 +356,17 @@ func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 					expires = sess.IdleExpiresAt
 				}
 				resp := h.visitorSignedInResponse(r, expires, "", "")
-				// Who the visitor is, not just that they are signed in, is only
-				// revealed where the origin really isolates the site (a custom
-				// domain). On the shared content host every site is the same
-				// origin with the same host-only cookie, so any co-tenant page
-				// could read another site's /me; a Referer or path check cannot
-				// stop that (history.replaceState forges the path).
-				if !strings.EqualFold(requestHostName(r), h.contentHost) {
-					identity, err := db.GetLatestOAuthIdentity(r.Context(), h.database, sess.UserID)
-					resp.Email, resp.Provider = identity.Email.String, identity.Provider
-					if errors.Is(err, sql.ErrNoRows) {
-						var user db.User
-						user, err = db.GetUserByID(r.Context(), h.database, sess.UserID)
-						resp.Email = user.Username
-					}
-					if err != nil {
-						writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-						return
-					}
+
+				identity, err := db.GetLatestOAuthIdentity(r.Context(), h.database, sess.UserID)
+				resp.Email, resp.Provider = identity.Email.String, identity.Provider
+				if errors.Is(err, sql.ErrNoRows) {
+					var user db.User
+					user, err = db.GetUserByID(r.Context(), h.database, sess.UserID)
+					resp.Email = user.Username
+				}
+				if err != nil {
+					writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+					return
 				}
 				writeJSON(w, http.StatusOK, resp)
 				return

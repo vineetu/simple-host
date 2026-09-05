@@ -39,12 +39,23 @@ const SKILL_VERSION: string = (() => {
 // every subsequent request that the server still considers stale.
 let pendingNotice: string | undefined;
 
+// AuthChallengeResponse is what POST /v1/auth returns (202). It never
+// carries the API key: the key is only handed out by /v1/auth/verify
+// after the code round-trips through the user's mailbox.
+type AuthChallengeResponse = {
+  message: string;
+  email: string;
+  expires_in_seconds: number;
+};
+
+// AuthResponse is what POST /v1/auth/verify returns (200).
 type AuthResponse = {
   id: string | number;
   username: string;
   api_key: string;
   is_admin: boolean;
   created: string;
+  handle?: string;
 };
 
 type SiteInfo = {
@@ -82,7 +93,7 @@ async function readConfig(): Promise<Config> {
   try {
     raw = await fs.readFile(CONFIG_PATH, "utf8");
   } catch (error) {
-    throw new Error(`Missing API config at ${CONFIG_PATH}. Run register first.`);
+    throw new Error(`Missing API config at ${CONFIG_PATH}. Run register, then verify with the emailed code.`);
   }
 
   let parsed: unknown;
@@ -252,7 +263,9 @@ async function createArchive(directory: string): Promise<Buffer> {
   }
 }
 
-async function register(email: string): Promise<AuthResponse> {
+// register is step 1 of the two-step sign-in: it asks the server to email
+// a 6-digit code to `email`. Nothing is written to the local config here.
+async function register(email: string): Promise<{ message: string; email: string; expires_in_seconds?: number }> {
   const payload = JSON.stringify({ email });
   const response = (await requestJson(
     "POST",
@@ -261,14 +274,59 @@ async function register(email: string): Promise<AuthResponse> {
       "Content-Type": "application/json",
     },
     payload,
-  )) as AuthResponse;
+  )) as Partial<AuthChallengeResponse> | null;
 
-  if (typeof response !== "object" || response === null || typeof response.api_key !== "string") {
-    throw new Error("Auth response did not include api_key");
+  if (typeof response !== "object" || response === null) {
+    throw new Error("Unexpected /v1/auth response");
+  }
+
+  const sentTo = typeof response.email === "string" && response.email ? response.email : email;
+  const expires =
+    typeof response.expires_in_seconds === "number" && response.expires_in_seconds > 0
+      ? response.expires_in_seconds
+      : undefined;
+  const expiresText = expires
+    ? expires % 60 === 0
+      ? `${expires / 60} minutes`
+      : `${expires} seconds`
+    : "15 minutes";
+
+  return {
+    message: `A 6-digit code was emailed to ${sentTo}; call verify with it. Expires in ${expiresText}.`,
+    email: sentTo,
+    ...(expires !== undefined ? { expires_in_seconds: expires } : {}),
+  };
+}
+
+// verify is step 2: exchanges the emailed code for the API key and
+// persists it to the local config. The key itself is not echoed back.
+async function verify(
+  email: string,
+  code: string,
+): Promise<{ message: string; id: string | number; username: string; handle?: string; config_path: string }> {
+  const payload = JSON.stringify({ email, code });
+  const response = (await requestJson(
+    "POST",
+    "/v1/auth/verify",
+    {
+      "Content-Type": "application/json",
+    },
+    payload,
+  )) as Partial<AuthResponse> | null;
+
+  if (typeof response !== "object" || response === null || typeof response.api_key !== "string" || response.api_key === "") {
+    throw new Error("Verify response did not include api_key");
   }
 
   await writeConfig({ api_key: response.api_key });
-  return response;
+
+  return {
+    message: `Signed in. API key saved to ${CONFIG_PATH}; deploy, status and list are ready to use.`,
+    id: response.id ?? "",
+    username: response.username ?? "",
+    ...(typeof response.handle === "string" && response.handle ? { handle: response.handle } : {}),
+    config_path: CONFIG_PATH,
+  };
 }
 
 async function deploy(directory: string, siteName: string): Promise<unknown> {
@@ -327,16 +385,39 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     {
       name: "register",
-      description: "Register a Website Deploy account and persist the API key locally.",
+      description:
+        "Step 1 of sign-in: request a 6-digit sign-in code be emailed to the given address. " +
+        "Does not save anything locally. Ask the user for the code from their inbox, then call verify.",
       inputSchema: {
         type: "object",
         properties: {
           email: {
             type: "string",
-            description: "Email address to register.",
+            description: "Email address to register or sign in with.",
           },
         },
         required: ["email"],
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "verify",
+      description:
+        "Step 2 of sign-in: submit the 6-digit code emailed by register. On success the API key is " +
+        "persisted locally (~/.website-deploy/config.json) and deploy/status/list become usable.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          email: {
+            type: "string",
+            description: "The same email address passed to register.",
+          },
+          code: {
+            type: "string",
+            description: "The 6-digit code from the sign-in email.",
+          },
+        },
+        required: ["email", "code"],
         additionalProperties: false,
       },
     },
@@ -392,6 +473,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "register": {
         const email = assertString(request.params.arguments?.email, "email");
         return formatResult(await register(email));
+      }
+      case "verify": {
+        const email = assertString(request.params.arguments?.email, "email");
+        const code = assertString(request.params.arguments?.code, "code");
+        return formatResult(await verify(email, code));
       }
       case "deploy": {
         const directory = assertString(request.params.arguments?.directory, "directory");

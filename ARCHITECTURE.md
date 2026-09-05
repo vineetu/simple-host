@@ -39,8 +39,10 @@ one most likely to be where your change belongs.
 Some landmarks, not an inventory. `site.go` is deploy, versions and rollback.
 `ui.go` decides which static page a bare URL gets. `stateops.go` and
 `collections.go` are the per-site datastore.
-`visitorsession.go` serves Origin-gated `GET .../me` for site sessions; hosted
-`static/auth.js` exposes `window.SH` for visitor sign-in, status, state and collections. `generate.go` is Create-with-AI.
+`visitorsession.go` is the write gate (`visitorWriteOK`) and the Origin-gated
+`GET .../me`; `visitoremail.go` is email-code sign-in on a hosted page; hosted
+`static/auth.js` exposes `window.SH` for visitor sign-in, status, state and
+collections. `generate.go` is Create-with-AI.
 `analytics.go` and `apimetrics.go` are two unrelated things both called
 "analytics" — the first is per-site visitor traffic, the second is per-endpoint
 API call counts.
@@ -74,7 +76,8 @@ content.
 
 `internal/config` (environment), `internal/auth` (API key middleware),
 `internal/tarball` (extract, validate, sanitize uploads), `internal/email`
-(magic links), `internal/oauth` (Google, GitHub).
+(sign-in codes and magic links), `internal/oauth` (Google sign-in; more
+providers later).
 
 ### Outside the Go tree
 
@@ -110,9 +113,16 @@ reading code:
   beacon, no cookie, no script. Traffic is derived entirely from the server's own
   access log. Adding a script tag would break the promise the product makes.
 - **No object store, no CDN, no queue.** Files are on local disk.
-- **Raw visitor IPs are never stored.** Only a salted hash. The salt is stable,
-  not per-day, because a rotating salt makes counting unique visitors over a
-  range impossible.
+- **Site analytics never store a raw visitor IP.** The ingester keeps a salted
+  hash (stable salt, not per-day, because a rotating salt makes counting unique
+  visitors over a range impossible) plus per-day country counts. API caller
+  IPs are a different thing: `apimetrics.go` keeps them raw in `api_ip_daily`
+  for 30 days, then prunes, and geolocates them via ip-api.com into `ip_geo`.
+- **Writes need an identity; reads are public.** State and collection writes
+  accept any account's `X-API-Key`, or a visitor session — and a visitor
+  session exists only on a site's own custom domain, because every site on the
+  shared content host is one origin. There is no view-lock, no private page,
+  and no per-site opt-out.
 - **`site_view_daily` and `site_visitor_daily` are never written to, and must
   never be dropped.** They are the only surviving record of traffic from before
   classification existed, and are served as the `unknown` class.
@@ -155,4 +165,4 @@ prose and will rot; the Makefile is what executes.
 
 Revisit this file when a check changes or a package appears. Not otherwise.
 
-2026-09-05: shared email-code helpers serve dashboard and site-scoped visitor sign-in; visitors use the same accounts, and any valid account API key may write state/collections as that account.
+Product decisions and their reasons are in `INTENT.md`.

@@ -1,3 +1,5 @@
+> **Status (2026-09-05): Shipped (v2), current.** This document describes what runs.
+
 # Server-side per-site visitor analytics — design
 
 **Status — 2026-09-01: SHIPPED. This document describes the live v2 design.**

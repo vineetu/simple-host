@@ -250,7 +250,7 @@
             <div>
               <div class="eyebrow">In a coding agent</div>
               <h2>Add the skill to your agent.</h2>
-              <p>Works with Claude Code, the ChatGPT desktop app, Cursor, Codex CLI, opencode, GitHub Copilot — anything that can read and write files on your machine. One line teaches your agent the whole platform (deploy, state &amp; collections, widgets). Then just say <em>“deploy this folder”</em> or <em>“build me a waitlist page.”</em> The installer knows each agent's skills folder (and the right Windows paths), so you don't have to.</p>
+              <p>Works with Claude Code, the ChatGPT desktop app, Cursor, Codex CLI, opencode, GitHub Copilot — anything that can read and write files on your machine. One line teaches your agent the whole platform (deploy, state &amp; collections, visitor sign-in on your own domain). Then just say <em>“deploy this folder”</em> or <em>“build me a waitlist page.”</em> The installer knows each agent's skills folder (and the right Windows paths), so you don't have to.</p>
               <p class="dim" style="font-size:13px; margin-top:8px">ChatGPT: this needs the <b>desktop app</b>, in the mode that can open a folder and edit files. A plain ChatGPT chat in a browser can't install anything — use the last option below instead.</p>
               <p class="dim" style="font-size:13px; margin-top:8px">Using the <b>Claude app</b> rather than Claude Code? It doesn't install from your terminal — see the next option.</p>
             </div>
@@ -387,19 +387,22 @@ Expand-Archive "$env:TEMP\sh-skills.zip" "$env:USERPROFILE\.claude\skills" -Forc
           <summary>Who can see my site?</summary>
           <p>Anyone with the link. Sites are served on the public internet at
           <code class="inline-code">sites.simple-host.app/&lt;you&gt;/&lt;site&gt;/</code> — there is
-          no sign-in in front of them and no “unlisted” mode. They are not listed
-          in a directory unless you choose to share them, but treat a link as
-          public. There is no way to put a password on a site — if a page must
+          no sign-in in front of them. A site can be unlisted from your profile
+          page, but treat a link as public. There is no way to put a password on a site — if a page must
           not be readable by strangers, do not publish it here.</p>
         </details>
 
         <details class="faq-q">
           <summary>Is the data my site collects private?</summary>
-          <p><b>No.</b> The per-site store — shared state and collections, which is
-          what powers RSVP forms, counters, guestbooks, and comments — is public
-          and unauthenticated. Anyone who knows the site name can read it and
-          write to it. It is a scratchpad, not a database. Never put passwords,
-          API keys, tokens, or anyone's personal information in it.</p>
+          <p><b>No.</b> Sites and their data are public to anyone with the link.
+          The per-site store — shared state and collections, which is what powers
+          RSVP forms, counters and guestbooks — can be read by anyone who can
+          reach the site. Writing is different: a page can only save on behalf of
+          a visitor who has signed in (Google, or a 6-digit code emailed to them),
+          and that sign-in works only on a site's own custom domain. On the shared
+          <code class="inline-code">sites.simple-host.app</code> host there is no
+          visitor sign-in and pages cannot save data; your agent can still write
+          there with your API key.</p>
           <p>The practical version: a sign-up form on a Simple Host site is fine
           for a party or a team lunch. It is not fine for anything you would mind
           a stranger reading.</p>
@@ -416,8 +419,8 @@ Expand-Archive "$env:TEMP\sh-skills.zip" "$env:USERPROFILE\.claude\skills" -Forc
         <details class="faq-q">
           <summary>What is this actually good for?</summary>
           <p>Anything that is a page: a portfolio, a résumé, an event invite, a
-          launch or coming-soon page, docs, a menu, a mockup you want feedback
-          pins on. Add the backend when the page needs to remember something
+          launch or coming-soon page, docs, a menu, a mockup you want notes
+          on. Add the backend when the page needs to remember something
           across visitors — an RSVP list, a vote, a counter, a guestbook.</p>
           <p>What it is not: nothing runs on the server. No PHP, no Node, no
           Python, no database you control, no server-side rendering. If your idea

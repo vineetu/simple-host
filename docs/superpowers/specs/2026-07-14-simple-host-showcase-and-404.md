@@ -1,3 +1,5 @@
+> **Status (2026-09-05): Shipped in a different form / superseded.** The live model is described in `INTENT.md`; read this as design history only.
+
 # Per-user Showcase (`sites.simple-host.app/<handle>`) + Branded 404 pages
 
 **Status:** PROPOSAL — needs owner review before implementation (2026-07-14)

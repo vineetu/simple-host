@@ -72,8 +72,8 @@ func TestIsRejectedPlatformHost(t *testing.T) {
 			t.Fatalf("expected reject %q", h)
 		}
 	}
-	if isRejectedPlatformHost("sites.simple-host.app", "simple-host.app", "sites.simple-host.app", "localhost") {
-		t.Fatalf("content host must not be rejected")
+	if !isRejectedPlatformHost("sites.simple-host.app", "simple-host.app", "sites.simple-host.app", "localhost") {
+		t.Fatalf("content host must be rejected")
 	}
 	if isRejectedPlatformHost("recipes.brand.com", "simple-host.app", "sites.simple-host.app", "simple-host.app") {
 		t.Fatalf("custom domain must not be rejected as platform host")

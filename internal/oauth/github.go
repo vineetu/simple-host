@@ -19,14 +19,14 @@ const (
 	githubEmailsURL   = "https://api.github.com/user/emails"
 )
 
-// GitHub is the GitHub OAuth provider (read:user + user:email).
-type GitHub struct {
+// Github is the optional OAuth provider (read:user + user:email).
+type Github struct {
 	conf *oauth2.Config
 }
 
-// NewGitHub builds a GitHub provider. redirectURI must be the apex callback.
-func NewGitHub(clientID, clientSecret, redirectURI string) *GitHub {
-	return &GitHub{
+// NewGitHub builds the optional provider. redirectURI must be the apex callback.
+func NewGitHub(clientID, clientSecret, redirectURI string) *Github {
+	return &Github{
 		conf: &oauth2.Config{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
@@ -40,13 +40,13 @@ func NewGitHub(clientID, clientSecret, redirectURI string) *GitHub {
 	}
 }
 
-func (g *GitHub) Name() string { return "github" }
+func (g *Github) Name() string { return "github" }
 
-func (g *GitHub) AuthCodeURL(state, verifier string) string {
+func (g *Github) AuthCodeURL(state, verifier string) string {
 	return g.conf.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier))
 }
 
-func (g *GitHub) Exchange(ctx context.Context, code, verifier string) (Identity, error) {
+func (g *Github) Exchange(ctx context.Context, code, verifier string) (Identity, error) {
 	ctx, cancel := withOAuthTimeout(ctx)
 	defer cancel()
 	tok, err := g.conf.Exchange(ctx, code, oauth2.VerifierOption(verifier))
@@ -71,7 +71,7 @@ func githubGETIdentity(ctx context.Context, accessToken string) (Identity, error
 	if err != nil {
 		return Identity{}, fmt.Errorf("github userinfo: %w", err)
 	}
-	return ParseGitHubUserInfo(body)
+	return ParseGithubUserInfo(body)
 }
 
 func githubGETPrimaryEmail(ctx context.Context, accessToken string) (string, bool, error) {
@@ -79,7 +79,7 @@ func githubGETPrimaryEmail(ctx context.Context, accessToken string) (string, boo
 	if err != nil {
 		return "", false, fmt.Errorf("github emails: %w", err)
 	}
-	email, verified := ParseGitHubEmails(body)
+	email, verified := ParseGithubEmails(body)
 	return email, verified, nil
 }
 
@@ -106,9 +106,9 @@ func githubGET(ctx context.Context, url, accessToken string) ([]byte, error) {
 	return body, nil
 }
 
-// ParseGitHubUserInfo extracts the numeric id from a GitHub /user JSON body
+// ParseGithubUserInfo extracts the numeric id from the provider /user JSON body
 // and returns it as decimal text. The /user email field is ignored.
-func ParseGitHubUserInfo(body []byte) (Identity, error) {
+func ParseGithubUserInfo(body []byte) (Identity, error) {
 	var payload struct {
 		ID *int64 `json:"id"`
 	}
@@ -121,10 +121,10 @@ func ParseGitHubUserInfo(body []byte) (Identity, error) {
 	return Identity{Provider: "github", UserID: strconv.FormatInt(*payload.ID, 10)}, nil
 }
 
-// ParseGitHubEmails picks the first primary && verified address from a
-// GitHub /user/emails JSON body, lowercased. If none, email is empty and
+// ParseGithubEmails picks the first primary && verified address from a
+// provider /user/emails JSON body, lowercased. If none, email is empty and
 // verified is false — do not trust GET /user's email field.
-func ParseGitHubEmails(body []byte) (email string, verified bool) {
+func ParseGithubEmails(body []byte) (email string, verified bool) {
 	var list []struct {
 		Email    string `json:"email"`
 		Primary  bool   `json:"primary"`

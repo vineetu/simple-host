@@ -5,51 +5,14 @@ Omit files_base64 when there are no binary files. A path must not appear in both
 
 SITE: [Describe your site in plain language here — what it's for, the style/colors/vibe, the font, any headings, and all the real details like names, dates, times, and locations. Say what visitors should be able to do.]
 
-BACKEND — FOLLOW EXACTLY, DO NOT IMPROVISE.
-This site is hosted at https://sites.simple-host.app/<handle>/<name>/ and has a real, free JSON backend that you MUST use.
-HARD BAN: never use localStorage, sessionStorage, cookies, or any client-only/in-memory storage for shared data (sign-ups, RSVPs, counts, messages). Shared data MUST live on the server via fetch(). Do NOT invent endpoints. Do NOT hardcode the handle or the site name.
-Pages may offer Google or sign in with email via auth.js. Writes accept a site session or any account's X-API-Key, identifying that account; invalid keys return 401 invalid_api_key. The page gets a site-scoped cookie, never an API key. Reads stay Origin-gated. GET /v1/sites/{sitename}/me and /v1/u/{handle}/sites/{sitename}/me report signed_in and expires_at (email and provider only on a custom domain; on the shared content host the page learns that the visitor is signed in, not who); anonymous responses contain signed_in:false and sign_in:"/v1/auth/oauth/providers".
-
-RECOMMENDED — use the hosted auth.js helper. Add:
-<section id="sh-auth"></section>
-<script src="https://simple-host.app/auth.js" defer></script>
-Initialize after the deferred script runs, e.g. in DOMContentLoaded:
-SH.mount('#sh-auth');
-The helper derives the site's API from the page URL. Do not hardcode the handle/site.
-
-STEP 1 — Save an entry inside your async submit handler:
-await SH.requireSignIn();
-await SH.collection('entries').append({ /* entry fields */ });
-await SH.state.patch({ops:[{op:'inc', path:'total', by:1}]});
-Catch errors and keep the form visible. On error.code === 'visitor_auth_required', the helper updates the mounted sign-in box. Never claim success on failure. If append succeeded but patch failed, do NOT re-POST; show "saved, count will update" and retry PATCH only. For people counts use by:Number(guests).
-
-STEP 2 — Live count:
-async function loadCount(){ const s = await SH.state.get(); document.getElementById('count').textContent = (s.data && s.data.total) || 0; }
-Call on page load, after saving, and every 4000ms; include an element with id="count".
-
-RAW-FETCH FALLBACK — derive routes and send credentials + X-SH-CSRF:
-const m = location.pathname.match(/^\/([a-z0-9-]+)\/([a-z0-9-]+)/);
-const BASE = m ? location.origin + '/v1/u/' + m[1] + '/sites/' + m[2] : null;
-const STATE = BASE ? BASE + '/state' : null;
-const LIST = BASE ? BASE + '/collections/entries' : null;
-const res = await fetch(LIST, {method:'POST', credentials:'include', headers:{'Content-Type':'application/json','X-SH-CSRF':'1'}, body:JSON.stringify(item)});
-if (!res.ok) { const err = await res.json(); /* keep form; on visitor_auth_required offer Google or email sign-in; otherwise show err.error */ return; }
-For sign-in, fetch providers from the apex /v1/auth/oauth/providers; if configured, navigate to apex + '/v1/auth/oauth/google?return_to=' + encodeURIComponent(location.href). Apex is location.protocol+'//'+location.hostname.replace(/^sites\./,'') on sites.*; otherwise https://simple-host.app. PATCH STATE uses the same headers and {ops:[...]}; GET STATE uses credentials:'include'. Never re-POST after a successful append.
-
-STEP 3 — After a successful save (BOTH post and patch 2xx), hide the form and show a friendly confirmation message, then clear the inputs. Never hide the form on a 401 or any non-2xx. Never claim success unless both writes succeeded.
-
-STEP 4 — Visitor messages/comments: do NOT hand-build these. Use Simple Host's built-in comments widget by adding EXACTLY these three lines immediately before </body>, and nothing else for messages:
-- a <script> tag whose content is:  window.SH_COMMENTS={accent:"#HEXCOLOR", title:"YOUR TITLE"}
-- then:  <section id="sh-comments"></section>
-- then a <script> tag with src="https://simple-host.app/comments.js" and the defer attribute
-(Only include Step 4 if your site actually needs a comments/message section.)
-
-STEP 5 — Use a SOLID background color, not a gradient (the comments widget reads light/dark from a solid background; a gradient breaks it). The backend store is PUBLIC — never put secrets in it.
-
-STEP 6 — A PLACE TO VIEW WHAT'S COLLECTED (do this WHENEVER the site saves entries — RSVPs, sign-ups, messages, orders). A form with nowhere to read the results is useless, so ALWAYS add a SECOND file "admin.html" to the files{} map (files can hold more than one file):
-- admin.html derives BASE/LIST/STATE from location.pathname the SAME way, then does GET LIST + '?limit=200' and renders EVERY entry in a clean table (all fields, newest first) plus the live total from STATE. Load on open and refresh every 5000ms. Response shape: { items:[ { id, data:{...your fields}, created_at } ], next }.
-- Match the site's visual style. Put <meta name="robots" content="noindex"> in its <head>. Do NOT build a fake password gate (the data is public by URL — say so in one small line rather than pretending it's locked).
-- From index.html, link to it quietly: a small "Organizer view →" link (href="admin.html") in the footer.
+BACKEND AND SIGN-IN
+Every site has state and collections; reads are public and Origin/Referer-gated. Visitor saving needs the site's own bound custom domain. On the shared host, omit saving or show "Connect a domain to enable saving." Connect-domain guidance: https://simple-host.app/v1/skills/connect-domain.
+On a custom domain use <script src="https://simple-host.app/auth.js" defer></script>, then SH.mount('#sh-auth') after DOMContentLoaded with a matching <section id="sh-auth"></section>. Sign-in is Google or an emailed code. Configure window.SH_CONFIG={site:'your-site'} for a custom domain; the API stays same-origin.
+Before saving, await SH.requireSignIn(), then SH.collection('entries').append(item) or SH.state.patch({ops:[{op:'inc',path:'total',by:1}]}). Read with SH.state.get() or SH.collection('entries').list(). Shared data belongs on the server, not in localStorage/sessionStorage. Reads return public data; do not store secrets.
+Writes use credentials and X-SH-CSRF: 1 (auth.js handles both). Keep forms visible on errors; never claim success on failure or repeat a successful append to retry a failed count update.
+SH.email.request(email) sends a 6-digit code; SH.email.verify(email,code) signs in. Visitor verification never returns an API key. SH.me() returns the server body; on the shared host it is {"signed_in":false,"sign_in_available":false,"code":"custom_domain_required"}. There SH.mount() shows only "Saving is available once this site has its own domain." and SH.requireSignIn() rejects with code custom_domain_required.
+Agents write with X-API-Key, also on the shared host. Invalid keys return 401 invalid_api_key. Keep keys out of page HTML. WRITE_AUTH_MODE=log/off and the owner's allow_anonymous_writes override are compatibility exceptions, not a page-saving design.
+If the page collects entries, include a matching admin.html that reads and renders them, linked from index.html; the data is public. Use a solid page background.
 
 ANALYTICS — INFORMATIONAL, BUILD NOTHING FOR IT. Traffic is counted server-side from the access log: never add a hit counter, beacon, or analytics script to the page. Two read-only owner endpoints, X-API-Key, owner-scoped, days defaults to 30 (clamped 1..365):
 GET /v1/sites/<name>/analytics?days=30 → {range_days, classified_from, totals, last_24h, daily:[{day,...}], hourly:[{hour,...}]}. daily is zero-filled dense over the window; hourly is always 24 buckets ending with the hour in progress.
@@ -60,9 +23,6 @@ Every bucket (totals, last_24h, each daily, each hourly, each site) is the SAME 
 person = no automation signature; READ THIS AS THE AUDIENCE NUMBER. bot = crawlers, AI scrapers, SEO tools, security scanners, HTTP libraries. infra = uptime probes and health checks, usually the biggest number and never audience. unknown = days recorded before traffic was classified; report it separately, never folded into the other three.
 visitors = distinct hashed IPs over the window asked for, so totals.*.visitors is NOT the sum of the daily figures (one person on five days = 1 in totals, 5 in daily). Views count 200/304 GET document responses only, for every class alike.
 
-SELF-CHECK before you answer: (a) zero uses of localStorage/sessionStorage/cookies anywhere; (b) use SH.collection().append, SH.state.patch and SH.state.get (or equivalent POST/PATCH/GET fetch calls); (c) if used, the three comments lines are present verbatim; (d) the helper derives routes, or BASE/STATE/LIST are derived from location.pathname + location.origin, never hardcoded; (e) background is a solid color; (f) if the site collects anything, files{} ALSO contains admin.html that GETs LIST and renders the entries, linked from index.html; (g) writes send credentials + X-SH-CSRF; (h) a 401 with code visitor_auth_required keeps the form and offers sign-in; (i) POST-ok / PATCH-fail does not re-POST. If any check fails, fix it before outputting. Output only the JSON block.
+SELF-CHECK before you answer: shared-host pages have no save feature; custom-domain saving uses auth.js and await SH.requireSignIn(); shared data uses state/collections; API keys never appear in page code; failed writes keep the form visible; successful appends are never repeated; collected entries have a public organizer view; the background is solid. Output only the JSON block.
 
-
-EMAIL SIGN-IN — SH.email.request(email) POSTs to the site-scoped /visitor/auth and resolves {message,email,expires_in_seconds:900}. SH.email.verify(email, code) POSTs to /visitor/auth/verify with X-SH-CSRF: 1, clears the cached /me result, and resolves {signed_in:true,expires_at} (email and provider:"email" only off the shared content host). Both include credentials. SH.mount renders Google plus an inline email form, then a 6-digit code form; successful verification re-renders signed in. Errors appear in the box. Accounts are created lazily. Page sign-in mail contains no dashboard magic link and verification never returns an API key.
-
-AGENT SAVING ON BEHALF OF A PERSON — POST /v1/auth {"email":"person@example.com"} → person reads the 6-digit code from their inbox → POST /v1/auth/verify {"email":"person@example.com","code":"123456"} → receive api_key → send X-API-Key on state/collections writes to any site. The account is created if missing. This key is that person's identity: keep it secret, never put it in page HTML.
+AGENT SAVING — POST /v1/auth {"email":"person@example.com"}, then POST /v1/auth/verify with that email and the person's emailed code to receive api_key. Send X-API-Key on state/collections writes to any site, including on the shared host.

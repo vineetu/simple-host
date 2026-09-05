@@ -828,6 +828,20 @@
       color: var(--text);
     }
 
+    .deploy-callout .callout-hide { margin-left: auto; }
+    .agent-setup-link {
+      font-family: var(--font);
+      font-size: 12px;
+      color: var(--accent);
+      background: none;
+      border: none;
+      padding: 0;
+      margin-right: 8px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .agent-setup-link:hover { text-decoration: underline; }
+
     .callout-actions {
       display: flex;
       gap: 10px;
@@ -1142,11 +1156,8 @@
           <div class="home-cards">
             <div class="home-card"><span class="hc-ico">🌐</span><h3>Anything HTML</h3><p>Portfolios, résumés, landing &amp; coming-soon pages, event RSVPs, menus, docs.</p></div>
             <div class="home-card"><span class="hc-ico">🗄️</span><h3>A free per-site store</h3><p>Forms, counters, polls, votes, guestbooks — no database to set up.</p></div>
-            <div class="home-card"><span class="hc-ico">💬</span><h3>Drop-in widgets</h3><p>Threaded comments, feedback pins, ready-made templates.</p></div>
-            <div class="home-card"><span class="hc-ico">✨</span><h3>Or just describe it</h3><p>Say what you want and watch the page get built. Speak it instead of typing, or attach a screenshot to copy.</p></div>
+            <div class="home-card"><span class="hc-ico">✨</span><h3>Build it in chat</h3><p>Copy a prompt into ChatGPT, Claude or Gemini, paste back what it returns, preview and publish.</p></div>
           </div>
-          <p class="auth-lede" style="margin-bottom:10px"><strong>Have an AI already?</strong> Claude, Cursor, ChatGPT — set it up once and deploy by asking it. <a class="btn btn-primary btn-small" href="/install.html" style="margin-left:6px">Set up your AI →</a></p>
-          <p class="auth-lede" style="margin-bottom:14px">Or build right here in the browser — sign in to start:</p>
 
           <form class="auth-form" id="email-form" onsubmit="return handleAuth(event)">
             <div class="auth-input">
@@ -1160,11 +1171,8 @@
           </form>
           <div id="oauth-providers" class="auth-oauth" hidden></div>
 
-          <!-- Visibility and the public store were documented only inside the
-               agent skill; a person signing up here never saw either. -->
           <p class="auth-fine" style="margin-top:18px">
-            Sites are public to anyone with the link, and the per-site store is a
-            public scratchpad — never put secrets or personal data in it.
+            Sites and their data are public to anyone with the link.
             <a href="/install.html#faq">What to know before you publish →</a>
           </p>
         </div>
@@ -1274,8 +1282,10 @@
           <iframe id="ai-fs-frame" title="fullscreen preview" sandbox="allow-scripts allow-popups"></iframe>
         </div>
 
-        <!-- Deploy callout -->
-        <div class="deploy-callout">
+        <!-- Deploy callout. Shown in full when the account has no sites yet;
+             once it has one or more it collapses to a single line in the
+             section header (toggle persisted in localStorage). -->
+        <div class="deploy-callout" id="deploy-callout">
           <h3>Deploy with your coding agent</h3>
           <p>
             Prefer your coding agent? Install the <code>website-deploy</code>
@@ -1284,6 +1294,7 @@
           <div class="callout-actions">
             <a class="btn btn-primary btn-small" href="/install.html">Install the skill →</a>
             <a class="btn btn-ghost btn-small" href="/docs.html">API reference</a>
+            <button type="button" class="btn btn-ghost btn-small callout-hide" id="deploy-callout-hide" onclick="toggleAgentSetup(false)" hidden>Hide</button>
           </div>
         </div>
 
@@ -1291,6 +1302,7 @@
         <div class="section-header">
           <h2>Your sites</h2>
           <div class="section-tools">
+            <button type="button" class="agent-setup-link" id="agent-setup-link" onclick="toggleAgentSetup(true)" hidden>Set up your coding agent →</button>
             <label class="sort-label" for="site-sort">Sort</label>
             <select id="site-sort" class="sort-select" onchange="setSiteSort(this.value)">
               <option value="people">Most people</option>
@@ -1304,7 +1316,7 @@
         <div id="sites-container">
           <div class="empty-state">
             <p>No sites yet</p>
-            <p>Deploy your first site above</p>
+            <p>Build one above, or set up your coding agent to deploy a folder</p>
           </div>
         </div>
       </div>
@@ -1473,7 +1485,7 @@ function parseAnalyticsSummary(data) {
         if (!wrap || !names.length) return;
         wrap.innerHTML = '';
         const ret = encodeURIComponent(location.origin + '/');
-        const label = { google: 'Sign in with Google', github: 'Sign in with GitHub' };
+        const label = { google: 'Sign in with Google' };
         names.forEach(name => {
           const a = document.createElement('a');
           a.className = 'auth-oauth-btn';
@@ -1800,13 +1812,15 @@ function parseAnalyticsSummary(data) {
       const ownSites = currentUser && currentUser.is_admin
         ? sites.filter(s => s.user_id === ownerId)
         : sites;
+      // The agent-setup callout takes the page over only while there is nothing else to show.
+      updateAgentSetup(!ownSites || ownSites.length === 0);
 
       const myContainer = document.getElementById('sites-container');
       if (!ownSites || ownSites.length === 0) {
         myContainer.innerHTML = `
           <div class="empty-state">
             <p>No sites yet</p>
-            <p>Deploy your first site above</p>
+            <p>Build one above, or set up your coding agent to deploy a folder</p>
           </div>`;
       } else {
         myContainer.innerHTML = `<div class="site-list">${sortSites(ownSites).map(s => renderSiteCard(s, false)).join('')}</div>`;
@@ -1824,6 +1838,34 @@ function parseAnalyticsSummary(data) {
         }
       }
       loadAnalytics();
+    }
+
+    // "Deploy with your coding agent" callout: full-size for an account with
+    // no sites, otherwise collapsed to a link in the section header. The
+    // open/closed choice persists in localStorage under sh_agent_setup_open.
+    const AGENT_SETUP_KEY = 'sh_agent_setup_open';
+    let agentSetupForced = true;
+    function agentSetupOpen() {
+      try { return localStorage.getItem(AGENT_SETUP_KEY) === '1'; } catch (e) { return false; }
+    }
+    function updateAgentSetup(noSites) {
+      agentSetupForced = !!noSites;
+      const callout = document.getElementById('deploy-callout');
+      const link = document.getElementById('agent-setup-link');
+      const hide = document.getElementById('deploy-callout-hide');
+      if (!callout || !link || !hide) return;
+      const open = agentSetupForced || agentSetupOpen();
+      callout.hidden = !open;
+      hide.hidden = agentSetupForced;
+      link.hidden = agentSetupForced || open;
+    }
+    function toggleAgentSetup(open) {
+      try { localStorage.setItem(AGENT_SETUP_KEY, open ? '1' : '0'); } catch (e) {}
+      updateAgentSetup(agentSetupForced);
+      if (open) {
+        const callout = document.getElementById('deploy-callout');
+        if (callout && callout.scrollIntoView) callout.scrollIntoView({ block: 'nearest' });
+      }
     }
 
     function renderSiteCard(site, showOwner) {

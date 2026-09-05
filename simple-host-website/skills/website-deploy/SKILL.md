@@ -1,6 +1,6 @@
 ---
 name: website-deploy
-description: Deploy static websites to simple-host.app. Use when an agent needs to guide a user through registration, build/validate a static site, deploy it (inline JSON files OR a tar.gz/zip archive), or wire up the per-site backend — shared JSON state with atomic ops, append-only collections, drop-in comments/feedback widgets, and starter templates. Saving data from a page requires the visitor to sign in — Google or email-code sign-in via the hosted auth.js — reads stay public.
+description: Deploy static websites to simple-host.app. Use when an agent needs to guide a user through registration, build/validate a static site, deploy it (inline JSON files OR a tar.gz/zip archive), or wire up the per-site backend — shared JSON state with atomic ops and append-only collections. Reads are public; a page can save only on a site with its own custom domain, where visitors sign in with Google or an emailed code via the hosted auth.js; agents write with an API key anywhere.
 ---
 
 # Website Deploy
@@ -13,7 +13,7 @@ append-only collections) that its own page JavaScript can call.
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.13.0`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.14.0`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -46,7 +46,7 @@ some install methods fetch only `SKILL.md` — fetch the URL instead.
 | Register a user / get an API key | `references/register.md` · https://simple-host.app/v1/skills/website-deploy/references/register.md |
 | Detect a framework and build it for path hosting | `references/frameworks.md` · https://simple-host.app/v1/skills/website-deploy/references/frameworks.md |
 | Validate, package, upload, verify | `references/packaging-and-validation.md` · https://simple-host.app/v1/skills/website-deploy/references/packaging-and-validation.md |
-| Shared state, collections, widgets, templates | `references/backend.md` · https://simple-host.app/v1/skills/website-deploy/references/backend.md |
+| Shared state, collections, saving from a page or an agent | `references/backend.md` · https://simple-host.app/v1/skills/website-deploy/references/backend.md |
 | Versions, rollback, delete, analytics | `references/operations.md` · https://simple-host.app/v1/skills/website-deploy/references/operations.md |
 | A custom domain | the `connect-domain` skill · https://simple-host.app/v1/skills/connect-domain |
 
@@ -56,7 +56,8 @@ Typical combinations:
   JSON (below) → verify.
 - **Framework project:** register (if needed) → frameworks → packaging and
   validation.
-- **Site that needs to remember something:** backend, before you write the page.
+- **Site where visitors save something:** backend, then connect-domain, before
+  you write the page.
 
 ## Two ways to deploy
 
@@ -84,22 +85,26 @@ Package the built directory as `.tar.gz` or `.zip` and `POST /v1/sites/<sitename
 Do not upload a source tree for a project that has a build step. Upload the
 production build output.
 
-## Saving data requires sign-in
+## Saving from a page needs the site's own domain
 
-If a page writes to the site's backend — a form, a counter, a vote, a
-guestbook — the visitor must be signed in on that page, with Google or an
-emailed 6-digit code, both via auth.js. Reads are public; every write
-(`PUT`/`PATCH` `/state`, `POST` `/collections/<name>`) without a signed-in
-visitor or an `X-API-Key` gets a 401 (`code: "visitor_auth_required"`), and a
-hosted page never has an API key. So any page that saves loads
-`<script src="https://simple-host.app/auth.js" defer></script>`, mounts
-`SH.mount('#sh-auth')` next to the form (it offers both methods), and calls
-`await SH.requireSignIn()` before the write. Sign-in identifies the visitor;
-it does not make the page private — there is no private or password-locked
-page feature. Full `SH` API and the pattern to copy: `references/backend.md`.
-An agent that must write for a person from outside a browser uses that
-person's own API key, obtained by email code — see "Saving on behalf of a
-person from an agent" in `references/backend.md`.
+Every site's backend is readable by anyone. Writing needs an identity, and a
+page can only give a visitor one on a site with its **own custom domain**: there,
+visitors sign in with Google or an emailed 6-digit code through the hosted
+helper — `<script src="https://simple-host.app/auth.js" defer></script>`,
+`SH.mount('#sh-auth')` next to the form, `await SH.requireSignIn()` before
+`SH.state.patch(...)` or `SH.collection(name).append(...)`. On the shared host
+`sites.simple-host.app` every site is the same origin, so a sign-in there could
+never be private to one site; pages there cannot save and the server answers
+401 `{"code":"custom_domain_required"}`. So if the user wants visitors to save
+anything — a form, a counter, a vote, a guestbook — plan for the
+`connect-domain` skill from the start.
+
+Agents write with an API key (`X-API-Key`) on any site, shared host included.
+An agent acting for a person gets that person's key by email code. Both flows,
+the `SH` API and the error bodies: `references/backend.md`.
+
+Sign-in identifies the visitor; it does not make the page private. There is no
+private or password-locked page feature.
 
 ## Rules that always apply
 
@@ -113,14 +118,13 @@ person from an agent" in `references/backend.md`.
   fonts, audio, video, `.pdf`, `.wasm`, and binary downloads are all fine.
 - **Uploads are append-only.** Re-uploading creates a new version and activates
   it; older versions stay on disk. Rollback re-points at an existing version.
-- **The per-site store is PUBLIC-READ.** State and collections GETs are gated
-  on the request `Origin`; writes need sign-in (above). The visitor session is
-  the same account as dashboard sign-in but is site-scoped and is **not** an
-  API key — it cannot deploy or delete. On a failed write keep the form, never
-  claim success, and never re-POST a collection item after a partial write.
-  Never put secrets, credentials, or personal data in the store.
-- **Origin-gating trips up non-browser callers.** A `curl`/backend/agent request
-  with no `Origin` gets **403**. Send one:
+- **Sites and their data are public to anyone with the link.** The visitor
+  session is site-scoped and is **not** an API key — it cannot deploy or delete.
+  On a failed write keep the form, never claim success on a non-2xx, and never
+  re-POST a collection item after a partial write. Pair every form with a page
+  that shows what was collected.
+- **Origin-gating trips up non-browser reads.** A `curl`/script read with no
+  `Origin` gets **403**. Send one:
   `curl -H "Origin: https://sites.simple-host.app" https://sites.simple-host.app/v1/u/<handle>/sites/<name>/state`
 - **On a staleness notice:** API responses carry a `_notice` field when this skill
   is out of date. Relay it to the user verbatim, then update the skill — macOS/Linux

@@ -100,14 +100,14 @@ func normalizeAPIPath(p string) string {
 		seg = seg[:6]
 	}
 	// Positions of variable segments per API shape: /v1/sites/{name}/...,
-	// /v1/u/{handle}/sites/{name}/..., /v1/templates/{id}, /v1/skills/{name}/...
+	// /v1/u/{handle}/sites/{name}/..., /v1/skills/{name}/...
 	for i := range seg {
 		prev := ""
 		if i > 0 {
 			prev = seg[i-1]
 		}
 		switch prev {
-		case "sites", "templates", "skills", "u", "collections", "oauth":
+		case "sites", "skills", "u", "collections", "oauth":
 			seg[i] = "{x}"
 		}
 	}

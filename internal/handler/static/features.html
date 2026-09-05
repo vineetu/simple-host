@@ -157,15 +157,13 @@
       <a href="#manage">03 Managing sites</a>
       <a href="#state">04 Shared data</a>
       <a href="#collections">05 Collections</a>
-      <a href="#widgets">06 Widgets</a>
-      <a href="#domains">07 Your own domain</a>
-      <a href="#ai">08 Build with AI</a>
-      <a href="#voice">09 Voice &amp; attachments</a>
-      <a href="#templates">10 Templates</a>
-      <a href="#analytics">11 Traffic</a>
-      <a href="#admin">12 Admin</a>
-      <a href="#agent">13 Your AI agent</a>
-      <a href="#notbuilt">14 Not built</a>
+      <a href="#domains">06 Your own domain</a>
+      <a href="#ai">07 Build with AI</a>
+      <a href="#voice">08 Voice &amp; attachments</a>
+      <a href="#analytics">09 Traffic</a>
+      <a href="#admin">10 Admin</a>
+      <a href="#agent">11 Your AI agent</a>
+      <a href="#notbuilt">12 Not built</a>
     </div>
 
     <!-- 00 What this page is -->
@@ -234,25 +232,14 @@
               <h3>Sign in with Google</h3>
               <p class="fw">One tap instead of the email round-trip. It is the same account as the email sign-in when the addresses match, so you will not end up with two.</p>
               <dl class="fm">
-                <dt>Who</dt><dd>Site visitors leaving a comment or filling in a form, and owners who would rather not wait for mail.</dd>
-                <dt>Where</dt><dd>Under the email box on the home page, and in the sign-in prompt the comment and feedback widgets show.</dd>
-                <dt>Limits</dt><dd class="lim">The button only appears if the service has been set up for it. It is switched on here.</dd>
+                <dt>Who</dt><dd>Site visitors saving something on a site that has its own domain, and owners who would rather not wait for mail.</dd>
+                <dt>Where</dt><dd>Under the email box on the home page, and on your site — on your own domain — through the hosted sign-in helper.</dd>
+                <dt>Limits</dt><dd class="lim">Google is the provider today; more providers later.</dd>
               </dl>
             </div>
           </div>
 
-          <div class="feat" id="signin-github">
-            <div class="fid">signin-github</div>
-            <div>
-              <h3>Sign in with GitHub <span class="st no">Not active</span></h3>
-              <p class="fw">The same one-tap sign-in, using a GitHub account instead.</p>
-              <dl class="fm">
-                <dt>Who</dt><dd>Developers, and visitors to technical sites.</dd>
-                <dt>Where</dt><dd>Nowhere today — the button is not shown.</dd>
-                <dt>Limits</dt><dd class="lim">Fully built, but <b>not switched on for this instance</b>. Google is the only one-tap option here.</dd>
-              </dl>
-            </div>
-          </div>
+          <p class="fine">More providers later.</p>
 
           <div class="feat" id="account-handle">
             <div class="fid">account-handle</div>
@@ -274,8 +261,8 @@
               <p class="fw">A personal key that lets your coding agent publish and manage sites for you without you being at the keyboard.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone using a coding agent rather than clicking through screens.</dd>
-                <dt>Where</dt><dd>Your sites page, in the <strong>Set up your AI</strong> panel — <strong>Show key</strong>, then copy.</dd>
-                <dt>Limits</dt><dd class="lim">One key per account. It <b>cannot be rotated or revoked</b> from any screen, so treat it like a password.</dd>
+                <dt>Where</dt><dd>Your sites page. <strong>Rotate API key</strong> in the header issues a fresh key and shows it once, for you to copy.</dd>
+                <dt>Limits</dt><dd class="lim">One key per account. Rotating it <b>stops the old key immediately</b>, so update your agent straight after. Treat it like a password.</dd>
               </dl>
             </div>
           </div>
@@ -283,12 +270,12 @@
           <div class="feat" id="visitor-signin">
             <div class="fid">visitor-signin</div>
             <div>
-              <h3>Visitors sign in on your site <span class="st part">Partial</span></h3>
-              <p class="fw">Someone reading one of your pages can sign in right there, so a comment or a form entry carries a real identity rather than being anonymous.</p>
+              <h3>Visitors sign in on your site</h3>
+              <p class="fw">Someone reading one of your pages can sign in right there — with Google, or with a 6-digit code emailed to them — and the page can then save on their behalf.</p>
               <dl class="fm">
-                <dt>Who</dt><dd>Site authors who want to know who said what, and to make casual spam harder.</dd>
-                <dt>Where</dt><dd>On your published page: the comment box and the feedback panel offer sign-in when it is needed.</dd>
-                <dt>Limits</dt><dd class="lim">Sign-in works, but on this instance it is <b>being measured rather than required</b> — a page that does not sign in can still save data. Do not treat it as a lock yet.</dd>
+                <dt>Who</dt><dd>Site authors collecting anything from visitors: a form, a poll, an RSVP, a guestbook.</dd>
+                <dt>Where</dt><dd>On your published page, once it is served from your own domain. The page loads the hosted sign-in helper (<code>auth.js</code>) and that handles the rest.</dd>
+                <dt>Limits</dt><dd class="lim"><b>Only on a site's own custom domain.</b> On the shared <code>sites.simple-host.app</code> host there is no visitor sign-in and pages cannot save data, because every site there shares one origin. Your agent can still write there with your API key.</dd>
               </dl>
             </div>
           </div>
@@ -300,7 +287,7 @@
               <p class="fw">A visitor's sign-in is scoped to the one site they signed in on, and they can end it.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone on a shared or borrowed device.</dd>
-                <dt>Where</dt><dd>Offered by the widget they signed in through.</dd>
+                <dt>Where</dt><dd>Offered by the sign-in helper on the page they signed in on.</dd>
                 <dt>Limits</dt><dd class="lim">Signing in on one site does not sign you in on another; each site is separate.</dd>
               </dl>
             </div>
@@ -473,6 +460,19 @@
             </div>
           </div>
 
+          <div class="feat" id="site-rename">
+            <div class="fid">site-rename</div>
+            <div>
+              <h3>Rename a site <span class="st agent">Agent only</span></h3>
+              <p class="fw">Give a site a new name without republishing it. Its versions and its saved data come with it.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone who picked a throwaway name and then kept the site.</dd>
+                <dt>Where</dt><dd>No screen. Ask your agent to rename it.</dd>
+                <dt>Limits</dt><dd class="lim">The address changes with the name, so <b>update any links you have shared</b>. The new name must be free.</dd>
+              </dl>
+            </div>
+          </div>
+
           <div class="feat" id="site-delete">
             <div class="fid">site-delete</div>
             <div>
@@ -544,7 +544,7 @@
               <p class="fw">A single place your page can read and write that every visitor sees. It is the same box for everyone, so it is what makes numbers on the page real rather than personal.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone whose page needs to remember something across visitors — a count, a tally, a list, a setting.</dd>
-                <dt>Where</dt><dd>Used by your page's own code, and by the comment and feedback widgets. Nothing to switch on.</dd>
+                <dt>Where</dt><dd>Used by your page's own code. Nothing to switch on.</dd>
                 <dt>Limits</dt><dd class="lim">Up to <b>1 MB</b> in total. It is one box, not a database — no queries, no indexes, no per-visitor privacy.</dd>
               </dl>
             </div>
@@ -557,7 +557,7 @@
               <p class="fw">A page can add one to a number, add an item to a list, or remove one, without reading the whole box first. Two visitors doing it at the same instant both count.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone with a headcount, a vote, a guestbook or anything else several people touch at once.</dd>
-                <dt>Where</dt><dd>Used by your page's own code; the widgets and the starter templates already use it.</dd>
+                <dt>Where</dt><dd>Used by your page's own code.</dd>
                 <dt>Limits</dt><dd class="lim">Only the simple moves are supported — set, add-to-a-number, add-to-a-list, remove. Anything cleverer has to be worked out in the page.</dd>
               </dl>
             </div>
@@ -570,7 +570,7 @@
               <p class="fw">A page can keep checking for changes very cheaply, so a count or a comment thread updates itself while people are looking at it.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anything with a live figure on it — an RSVP headcount, a signup counter, a discussion.</dd>
-                <dt>Where</dt><dd>Built into the widgets; your own page can do the same.</dd>
+                <dt>Where</dt><dd>Your page's own code — a conditional request returns nothing when the box has not changed.</dd>
                 <dt>Limits</dt><dd class="lim">It is polling, not push. Expect a <b>few seconds</b> of lag, not instant.</dd>
               </dl>
             </div>
@@ -580,11 +580,11 @@
             <div class="fid">state-public</div>
             <div>
               <h3>The store is public, on purpose</h3>
-              <p class="fw">Anything your page saves can be read by anyone who can reach your site. This is stated plainly because it is the single most important thing to know before you build.</p>
+              <p class="fw">Sites and their data are public to anyone with the link. This is stated plainly because it is the single most important thing to know before you build.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Everyone using the store. It shapes what you should and should not collect.</dd>
                 <dt>Where</dt><dd>Not a setting — it is how the store works.</dd>
-                <dt>Limits</dt><dd class="lim"><b>Never put secrets, passwords, keys or private personal details in it.</b> Collect an email address only if you are comfortable it is readable. Reading it takes a page in a browser — pasting the address into a terminal will be refused, which is a speed bump, not privacy.</dd>
+                <dt>Limits</dt><dd class="lim">Anything a page can read, a visitor can read. Reading it takes a page in a browser — pasting the address into a terminal will be refused, which is a speed bump, not privacy.</dd>
               </dl>
             </div>
           </div>
@@ -592,12 +592,12 @@
           <div class="feat" id="state-write-gate">
             <div class="fid">state-write-gate</div>
             <div>
-              <h3>Who is allowed to write <span class="st part">Partial</span></h3>
-              <p class="fw">Saving is meant to require a signed-in visitor, or you as the owner, so a passer-by cannot fill your store with junk.</p>
+              <h3>Who is allowed to write</h3>
+              <p class="fw">Saving requires a signed-in visitor or an API key, so a passer-by cannot fill your store with junk. Reading never requires either.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone collecting entries in public.</dd>
-                <dt>Where</dt><dd>Not a screen — it is applied when a page tries to save.</dd>
-                <dt>Limits</dt><dd class="lim">On this instance the requirement is <b>being recorded rather than enforced</b>: unsigned saves still go through. Build as though a stranger could write, because today one can.</dd>
+                <dt>Where</dt><dd>Not a screen — it is applied when a page tries to save. Visitors sign in on your own domain; your agent sends your API key.</dd>
+                <dt>Limits</dt><dd class="lim">On the shared <code>sites.simple-host.app</code> host there is no visitor sign-in, so <b>pages there cannot save at all</b> — only an agent with a key can write. Connect your own domain to let visitors write.</dd>
               </dl>
             </div>
           </div>
@@ -608,7 +608,7 @@
               <h3>Use the store from a site hosted elsewhere <span class="st agent">Agent only</span></h3>
               <p class="fw">A page hosted somewhere else entirely can use one of your sites here as its backend, once you have allowed that page's address.</p>
               <dl class="fm">
-                <dt>Who</dt><dd>People whose site already lives on another host but who want a comment box or a form without running a server.</dd>
+                <dt>Who</dt><dd>People whose site already lives on another host but who want a form or a counter without running a server.</dd>
                 <dt>Where</dt><dd>No screen. Ask your agent to allow the address.</dd>
                 <dt>Limits</dt><dd class="lim">Up to <b>20 addresses</b> per site, and you have to name each one exactly.</dd>
               </dl>
@@ -634,7 +634,7 @@
               <p class="fw">Each submission is added to a named list — RSVPs, signups, orders, messages. Adding stays fast no matter how long the list gets.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone with a form: an event page, a waitlist, a contact form, a survey.</dd>
-                <dt>Where</dt><dd>Your page's own code saves to it. The starter templates already do.</dd>
+                <dt>Where</dt><dd>Your page's own code saves to it.</dd>
                 <dt>Limits</dt><dd class="lim">Up to <b>64 KB</b> per entry. Entries are <b>append-only — nothing can edit or delete a single entry</b>, from any screen or by any agent.</dd>
               </dl>
             </div>
@@ -683,86 +683,9 @@
       </div>
     </section>
 
-    <!-- 06 Widgets -->
-    <section id="widgets">
-      <div class="snum">06.</div>
-      <div>
-        <h2>Drop-in widgets</h2>
-        <p class="lede">Two finished pieces of interaction you add to a page in one line, rather than building them. Both use the site's own store, so there is nothing to configure.</p>
-        <div class="feats">
-
-          <div class="feat" id="widget-comments">
-            <div class="fid">widget-comments</div>
-            <div>
-              <h3>Threaded comments</h3>
-              <p class="fw">A full discussion section — write a comment, reply to one, upvote one — added to any page with a single line. It matches light and dark on its own and updates while people are reading.</p>
-              <dl class="fm">
-                <dt>Who</dt><dd>Anyone publishing something worth discussing: a post, a proposal, a design, a document.</dd>
-                <dt>Where</dt><dd>You add it to the page. Ask your agent for "the comments widget" and it will place it correctly.</dd>
-                <dt>Limits</dt><dd class="lim">Comments are <b>public and cannot be deleted or moderated</b> from any screen. There is no notification when someone replies.</dd>
-              </dl>
-            </div>
-          </div>
-
-          <div class="feat" id="widget-feedback">
-            <div class="fid">widget-feedback</div>
-            <div>
-              <h3>Tap-to-comment feedback pins</h3>
-              <p class="fw">A floating <strong>Feedback</strong> button turns the page into a review surface: a reviewer taps any part of the design and pins a note to it. Long-press works on a phone. Your agent can read the notes back and act on them, because each note knows what it was attached to.</p>
-              <dl class="fm">
-                <dt>Who</dt><dd>Anyone circulating a mockup or a draft page for review, especially with non-technical reviewers.</dd>
-                <dt>Where</dt><dd>You add it to the page; the <strong>UI prototype</strong> starter template already has it wired in.</dd>
-                <dt>Limits</dt><dd class="lim">Notes are <b>public and cannot be deleted or resolved</b>. There is no "done" state, no assignee and no notification.</dd>
-              </dl>
-            </div>
-          </div>
-
-          <div class="feat" id="widget-theming">
-            <div class="fid">widget-theming</div>
-            <div>
-              <h3>Make a widget match your page</h3>
-              <p class="fw">Both widgets take an accent colour, a title, placeholder wording and a light or dark setting, so they do not look bolted on.</p>
-              <dl class="fm">
-                <dt>Who</dt><dd>Anyone who cares how the page looks — which is the point of using this at all.</dd>
-                <dt>Where</dt><dd>Set alongside the widget when it is added to the page.</dd>
-                <dt>Limits</dt><dd class="lim">The automatic light/dark match needs a <b>solid background colour</b> on the page. On a gradient it guesses wrong.</dd>
-              </dl>
-            </div>
-          </div>
-
-          <div class="feat" id="widget-remote-host">
-            <div class="fid">widget-remote-host</div>
-            <div>
-              <h3>Use a widget on a site hosted elsewhere</h3>
-              <p class="fw">Both widgets work on a page hosted anywhere, pointed at one of your sites here for storage.</p>
-              <dl class="fm">
-                <dt>Who</dt><dd>People whose main site lives on another host and who just want comments on it.</dd>
-                <dt>Where</dt><dd>Added to the page, with the site here named alongside it.</dd>
-                <dt>Limits</dt><dd class="lim">You must first allow that page's address on the site here — see <code>state-cross-origin</code>, which has no screen.</dd>
-              </dl>
-            </div>
-          </div>
-
-          <div class="feat" id="widget-collision">
-            <div class="fid">widget-collision</div>
-            <div>
-              <h3>The two widgets do not co-exist <span class="st no">Known problem</span></h3>
-              <p class="fw">Comments and feedback pins both save into the same place on a site, so a page carrying both mixes them together and neither displays properly.</p>
-              <dl class="fm">
-                <dt>Who</dt><dd>Anyone who tries to add both to one page.</dd>
-                <dt>Where</dt><dd>Nothing warns you. It simply looks wrong.</dd>
-                <dt>Limits</dt><dd class="lim"><b>Use one or the other per site</b>, not both.</dd>
-              </dl>
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </section>
-
-    <!-- 07 Domains -->
+    <!-- 06 Domains -->
     <section id="domains">
-      <div class="snum">07.</div>
+      <div class="snum">06.</div>
       <div>
         <h2>Your own domain</h2>
         <p class="lede">A site can be served from a domain you own, so nothing in the address mentions this service.</p>
@@ -837,9 +760,9 @@
       </div>
     </section>
 
-    <!-- 08 Build with AI -->
+    <!-- 07 Build with AI -->
     <section id="ai">
-      <div class="snum">08.</div>
+      <div class="snum">07.</div>
       <div>
         <h2>Build with AI</h2>
         <p class="lede">Describe the site you want and watch it appear. There are two routes, and they differ in one important way: only one of them can publish.</p>
@@ -953,9 +876,9 @@
       </div>
     </section>
 
-    <!-- 09 Voice and attachments -->
+    <!-- 08 Voice and attachments -->
     <section id="voice">
-      <div class="snum">09.</div>
+      <div class="snum">08.</div>
       <div>
         <h2>Voice &amp; attachments</h2>
         <p class="lede">Two ways to describe a site without typing it — both aimed squarely at building from a phone.</p>
@@ -1017,34 +940,9 @@
       </div>
     </section>
 
-    <!-- 10 Templates -->
-    <section id="templates">
-      <div class="snum">10.</div>
-      <div>
-        <h2>Starter templates</h2>
-        <p class="lede">Seven complete, working sites to start from rather than a blank page — each with its backend already wired up.</p>
-        <div class="feats">
-
-          <div class="feat" id="templates-catalog">
-            <div class="fid">templates-catalog</div>
-            <div>
-              <h3>Seven ready-made sites <span class="st agent">Agent only</span></h3>
-              <p class="fw">Ask for one by description and you get a finished site you can edit: <strong>event / RSVP</strong>, <strong>waitlist or coming-soon</strong>, <strong>product landing with email capture</strong>, <strong>UI prototype with tap-to-comment review</strong>, <strong>architecture or system-design document</strong>, <strong>group travel itinerary</strong>, and <strong>résumé / CV</strong>.</p>
-              <dl class="fm">
-                <dt>Who</dt><dd>Anyone who does not want to start from nothing, and anyone unsure what this service is good for.</dd>
-                <dt>Where</dt><dd><b>No screen lists them.</b> Describe what you are making to your agent and it picks and fills one in.</dd>
-                <dt>Limits</dt><dd class="lim">You <b>cannot browse or preview them</b> anywhere in the dashboard. They are a starting point, not a theme you can switch later.</dd>
-              </dl>
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </section>
-
-    <!-- 11 Analytics -->
+    <!-- 09 Analytics -->
     <section id="analytics">
-      <div class="snum">11.</div>
+      <div class="snum">09.</div>
       <div>
         <h2>Traffic &amp; analytics</h2>
         <p class="lede">How many people actually read your site — separated from crawlers and from the service's own monitoring, because on a small site those swamp the real number entirely.</p>
@@ -1201,7 +1099,20 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Everyone — you get the numbers without your visitors paying for them.</dd>
                 <dt>Where</dt><dd>Automatic for every site.</dd>
-                <dt>Limits</dt><dd class="lim">No referrers, no countries, no pages-per-visit, no per-page breakdown. Figures update <b>every few minutes</b>, not instantly.</dd>
+                <dt>Limits</dt><dd class="lim">No referrers, no pages-per-visit, no per-page breakdown. Figures update <b>every few minutes</b>, not instantly.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="analytics-countries">
+            <div class="fid">analytics-countries</div>
+            <div>
+              <h3>Where your readers are</h3>
+              <p class="fw">People, by country, for each site — so you can tell whether a site is reaching the place it was made for.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone with a site aimed at a city, a country or a language.</dd>
+                <dt>Where</dt><dd>Open a site's full analytics from its name on the main dashboard; the country table is at the bottom.</dd>
+                <dt>Limits</dt><dd class="lim">Country only — <b>no city, no map</b>. It counts people, not bots, and a visitor whose country cannot be resolved is shown as unknown.</dd>
               </dl>
             </div>
           </div>
@@ -1210,9 +1121,9 @@
       </div>
     </section>
 
-    <!-- 12 Admin -->
+    <!-- 10 Admin -->
     <section id="admin">
-      <div class="snum">12.</div>
+      <div class="snum">10.</div>
       <div>
         <h2>Admin</h2>
         <p class="lede">For whoever runs the service. Everyone else gets an ordinary "not found" page, with no hint that these screens exist.</p>
@@ -1287,11 +1198,11 @@
             <div class="fid">admin-anonymous-writes</div>
             <div>
               <h3>Let one site keep accepting unsigned saves <span class="st admin">Admin only</span></h3>
-              <p class="fw">An escape hatch for a single site, so that when visitor sign-in is eventually required an older site does not break on the day it is switched on.</p>
+              <p class="fw">An escape hatch for a single site that has to keep accepting unsigned saves now that visitor sign-in is required.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Whoever runs the service, protecting an existing site during the change.</dd>
                 <dt>Where</dt><dd>No screen — set by an admin's agent.</dd>
-                <dt>Limits</dt><dd class="lim">Matters only once sign-in is actually required, which it is not yet on this instance.</dd>
+                <dt>Limits</dt><dd class="lim">Per site, set deliberately. A site with this on accepts writes from anyone, so it is for an existing site that cannot change, not a default.</dd>
               </dl>
             </div>
           </div>
@@ -1300,9 +1211,9 @@
       </div>
     </section>
 
-    <!-- 13 Your AI agent -->
+    <!-- 11 Your AI agent -->
     <section id="agent">
-      <div class="snum">13.</div>
+      <div class="snum">11.</div>
       <div>
         <h2>Your AI agent</h2>
         <p class="lede">Most of this service is designed to be driven by an agent rather than clicked. These are the pieces that teach one how.</p>
@@ -1442,24 +1353,20 @@
       </div>
     </section>
 
-    <!-- 14 Not built -->
+    <!-- 12 Not built -->
     <section id="notbuilt">
-      <div class="snum">14.</div>
+      <div class="snum">12.</div>
       <div>
         <h2>Not built</h2>
         <p class="lede">Things people reasonably expect, or have read about somewhere, that do not exist. Listed so nobody spends a morning looking for them.</p>
         <table>
           <tr class="trow"><td class="tk">Sharing a site with someone else</td><td class="tv">No collaborators, no second owner, no team. A site belongs to one account.</td></tr>
           <tr class="trow"><td class="tk">Editing or deleting one saved entry</td><td class="tv">Collections only grow. A mistaken or unwanted submission cannot be removed — not from a screen, not by an agent.</td></tr>
-          <tr class="trow"><td class="tk">Moderating comments</td><td class="tv">Nothing can hide or delete a comment or a feedback note once it is posted.</td></tr>
           <tr class="trow"><td class="tk">Private or password-protected sites</td><td class="tv">There is no way to put a password on a site, and no encrypted mode. Assume anything published is readable by anyone with the link.</td></tr>
           <tr class="trow"><td class="tk">Attaching a PDF to the AI chat</td><td class="tv">PDFs are not accepted. Screenshot the page you want copied, or paste the text.</td></tr>
           <tr class="trow"><td class="tk">Publishing straight from the AI chat</td><td class="tv">The chat builds and previews but cannot put a site live. Use the paste builder on the main dashboard.</td></tr>
-          <tr class="trow"><td class="tk">Browsing the starter templates</td><td class="tv">They exist but no screen lists them. Ask your agent.</td></tr>
-          <tr class="trow"><td class="tk">Renaming a site</td><td class="tv">Publish under the new name and delete the old one. The address changes with it.</td></tr>
-          <tr class="trow"><td class="tk">Rotating your agent key</td><td class="tv">One key per account, with no way to replace or revoke it from any screen.</td></tr>
-          <tr class="trow"><td class="tk">Email when something arrives</td><td class="tv">No notifications of any kind — not for form entries, comments or traffic. You check, or your agent does.</td></tr>
-          <tr class="trow"><td class="tk">Referrers, countries or page-level traffic</td><td class="tv">Traffic is per site: people, bots, monitoring and a trend. Nothing about where visitors came from or which page they read.</td></tr>
+          <tr class="trow"><td class="tk">Email when something arrives</td><td class="tv">No notifications of any kind — not for form entries or traffic. You check, or your agent does.</td></tr>
+          <tr class="trow"><td class="tk">Referrers or page-level traffic</td><td class="tv">Traffic is per site: people, bots, monitoring, a trend and countries. Nothing about which link a visitor came from or which page they read.</td></tr>
           <tr class="trow"><td class="tk">Anything that runs on the server</td><td class="tv">No server-side code, no scheduled jobs, no image processing, no sending mail from your site. Deliberate, and it is what keeps this safe to host.</td></tr>
         </table>
         <p class="fine">If something you need is on this list, say so — the point of writing it down is to make the gap arguable rather than invisible.</p>

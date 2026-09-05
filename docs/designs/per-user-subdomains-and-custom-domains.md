@@ -1,3 +1,5 @@
+> **Status (2026-09-05): Shipped in a different form / superseded.** The live model is described in `INTENT.md`; read this as design history only.
+
 # Design: Path-Based User Sites + Custom Domains (v3)
 
 **Status:** Draft v3 (2026-07-11) · **Author:** Claude (for Vineet)

@@ -43,7 +43,7 @@ done <<<"$documented"
 # cookie on a custom domain would escalate (UNIFY.md credential boundary).
 echo "== owner routes wrapped with authMiddleware =="
 unwrapped=$(grep -rhoE 'mux\.Handle(Func)?\("[A-Z]+ /v1/sites/[^"]+"[^)]*' internal/handler \
-  | grep -vE '/state"|/me"|/visitor/auth|/collections/\{coll\}' \
+  | grep -vE '/state"|/me"|/visitor/auth|/collections/\{coll\}"' \
   | grep -v authMiddleware || true)
 if [ -n "$unwrapped" ]; then
   echo "$unwrapped" | sed 's/^/  FAIL: owner route missing authMiddleware: /'
@@ -62,10 +62,7 @@ fi
 echo "== capability coverage (warn-only) =="
 caps='state	state
 collections	collection
-templates	template
-comments	comments\.js
-feedback	feedback\.js
-visitor-sign-in	visitor.auth|visitor_auth_required|X-SH-CSRF
+visitor-sign-in	visitor.auth|visitor_auth_required|custom_domain_required|auth\.js|X-SH-CSRF
 analytics	analytics'
 
 # A skill may be split into SKILL.md + references/*.md; a capability documented in

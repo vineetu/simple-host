@@ -386,7 +386,7 @@ func (h *SiteHandler) originHostForSite(siteName string) string {
 
 // setAllowedOrigins lets a site owner list extra origins (scheme://host) that may
 // call the site's state/collections API cross-origin — so a page hosted anywhere
-// (GitHub Pages, Netlify, …) can use this site as its backend. Owner-only.
+// (external hosting, Netlify, …) can use this site as its backend. Owner-only.
 func (h *SiteHandler) setAllowedOrigins(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {

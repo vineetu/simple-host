@@ -75,7 +75,7 @@ func NoticeMiddleware(serverVersion string) func(http.Handler) http.Handler {
 //
 // A missing header means "no skill version claimed" — always notify. Otherwise
 // notify only when the SERVER is genuinely newer. A client that is ahead of the
-// server is not stale: `npx skills add` installs straight from the GitHub
+// server is not stale: `npx skills add` installs straight from the source repository
 // repository, so a user can legitimately be running a version that this server
 // has not been redeployed with yet. Telling them to "update" would send them in
 // a circle. An unparseable version falls back to plain inequality.

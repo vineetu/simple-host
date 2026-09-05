@@ -367,22 +367,6 @@ func (h *OAuthHandler) sanitizeReturnTo(ctx context.Context, raw string) (string
 		return "", sql.NullString{}, "", "", errInvalidReturnTo
 	}
 
-	if strings.EqualFold(host, h.cfg.ContentHost) {
-		handle, sitename, ok := splitContentHostPath(parsed.Path)
-		if !ok {
-			return "", sql.NullString{}, "", "", errInvalidReturnTo
-		}
-		user, err := db.GetUserByHandle(ctx, h.database, handle)
-		if err != nil {
-			return "", sql.NullString{}, "", "", errInvalidReturnTo
-		}
-		site, err := db.GetSiteByUser(ctx, h.database, user.ID, sitename)
-		if err != nil {
-			return "", sql.NullString{}, "", "", errInvalidReturnTo
-		}
-		return parsed.String(), sql.NullString{String: site.ID, Valid: true}, host, "site", nil
-	}
-
 	info, err := db.GetSiteByCustomDomain(ctx, h.database, host)
 	if err != nil {
 		return "", sql.NullString{}, "", "", errInvalidReturnTo
@@ -503,7 +487,7 @@ func isRejectedPlatformHost(host, siteDomain, contentHost, publicBaseHostName st
 		return true
 	}
 	if contentHost != "" && host == contentHost {
-		return false
+		return true
 	}
 	// Legacy <name>.<siteDomain> host.
 	if siteDomain != "" && strings.HasSuffix(host, "."+siteDomain) {

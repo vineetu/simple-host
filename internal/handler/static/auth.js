@@ -1,5 +1,5 @@
 /*
- * simple-host visitor auth and storage — Google and email-code sign-in.
+ * simple-host visitor auth and storage — Google or an emailed code, only on a custom domain.
  * SH.email.request(email) sends a code; SH.email.verify(email, code) signs in.
  * SH.mount(target) offers Google plus an inline email/code form.
  *
@@ -13,16 +13,13 @@
  * or await SH.collection('entries').append(item). Never automatically re-POST.
  * Auto-derives the API from sites.<domain>/<handle>/<site>/ or the first host label.
  * Custom domain: set window.SH_CONFIG = {site:'my-site'} (same-origin API).
- * Backend anywhere (page hosted elsewhere): {site, handle, base:'https://simple-host.app'}
- * can READ only; no visitor session can be established there, so writes 401.
- * The owner must allow the page's origin. authBase optionally overrides the apex.
- * me() reports email/provider only on a custom domain; on the shared content
- * host the page learns that the visitor is signed in, not who they are.
+ * authBase optionally overrides the apex. me() returns the server response.
  * Theme the status box with --sh-accent, --sh-muted and --sh-radius.
  * Requires browser Promise, fetch and CustomEvent APIs; no build or dependencies.
  */
 (function () {
   "use strict";
+  var contentHost = location.hostname.indexOf("sites.") === 0;
   var _cfg = window.SH_CONFIG || {};
   var API_BASE, noBackend = false;
   if (_cfg.site) {
@@ -127,9 +124,16 @@
       }).then(function () { meCache = null; });
     },
     requireSignIn: function () {
+
       // Always re-check: a cached answer may be past expiry or signed out elsewhere.
       return SH.me({fresh: true}).then(function (me) {
         if (me.signed_in) return me;
+        if (me.sign_in_available === false) {
+          // The server decides: on the shared host there is no sign-in.
+          var e = new Error("sign-in needs a custom domain");
+          e.code = "custom_domain_required";
+          throw e;
+        }
         if (mounted) {
           // A sign-in box is on the page: bring it into view instead of leaving
           // the page for Google. Resume the save after inline sign-in.
@@ -207,6 +211,7 @@
       var box = typeof target === "string" ? document.querySelector(target) : target;
       if (!box) return Promise.reject(new Error("SH.mount: target not found"));
       mounted = box;
+
       function button(label, action) {
         var b = document.createElement("button");
         b.type = "button";
@@ -218,6 +223,11 @@
       function showError(e) { box.textContent = e.message; }
       function render() {
         return SH.me().then(function (me) {
+          if (me.sign_in_available === false) {
+            box.textContent = "Saving is available once this site has its own domain.";
+            box.style.cssText = "font:inherit;color:var(--sh-muted,#666)";
+            return;
+          }
           box.textContent = "";
           box.style.cssText = "display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px;font:inherit;color:var(--sh-muted,#666);border-radius:var(--sh-radius,6px)";
           if (me.signed_in) {
@@ -300,6 +310,6 @@
     }
   };
   // Preload for synchronous signIn(); mount/requireSignIn await discovery explicitly.
-  if (!noBackend) loadProviders().catch(function () {});
+  if (!noBackend && !contentHost) loadProviders().catch(function () {});
   SH.ready = SH.me().catch(function () { return {signed_in: false}; });
 }());

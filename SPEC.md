@@ -1,3 +1,10 @@
+> **HISTORICAL (2026-09-05). Superseded by `INTENT.md`.** Not a source of truth.
+> What changed since this was written: visitors are `users` rows; email-code
+> sign-in exists; any account key writes; sign-in is custom-domain-only; there
+> is no view-lock; `writer_forbidden` no longer exists. Read `INTENT.md` for the
+> current model and its decisions. The body below is kept as design history and
+> has not been rewritten.
+
 # SPEC: Visitor Google/GitHub sign-in, then every write requires it
 
 **2026-09-05 — Owner decision:** Added `GET /v1/sites/{sitename}/me` and
