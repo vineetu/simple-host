@@ -8,27 +8,33 @@ SITE: [Describe your site in plain language here — what it's for, the style/co
 BACKEND — FOLLOW EXACTLY, DO NOT IMPROVISE.
 This site is hosted at https://sites.simple-host.app/<handle>/<name>/ and has a real, free JSON backend that you MUST use.
 HARD BAN: never use localStorage, sessionStorage, cookies, or any client-only/in-memory storage for shared data (sign-ups, RSVPs, counts, messages). Shared data MUST live on the server via fetch(). Do NOT invent endpoints. Do NOT hardcode the handle or the site name.
-Writes require a signed-in Google/GitHub session on this site (or the owner's X-API-Key). That sign-in is the same account as the dashboard, but the hosted page only gets a site-scoped cookie — never an API key. Reads stay Origin-gated.
+Writes require a Google sign-in on this site (or the owner's X-API-Key). The page gets a site-scoped cookie, never an API key. Reads stay Origin-gated. GET /v1/sites/{sitename}/me and /v1/u/{handle}/sites/{sitename}/me report signed_in and expires_at (email and provider only on a custom domain; on the shared content host the page learns that the visitor is signed in, not who); anonymous responses contain signed_in:false and sign_in:"/v1/auth/oauth/providers".
 
-Put this EXACT route setup at the very top of your <script>:
+RECOMMENDED — use the hosted auth.js helper. Add:
+<section id="sh-auth"></section>
+<script src="https://simple-host.app/auth.js" defer></script>
+Initialize after the deferred script runs, e.g. in DOMContentLoaded:
+SH.mount('#sh-auth');
+The helper derives the site's API from the page URL. Do not hardcode the handle/site.
+
+STEP 1 — Save an entry inside your async submit handler:
+await SH.requireSignIn();
+await SH.collection('entries').append({ /* entry fields */ });
+await SH.state.patch({ops:[{op:'inc', path:'total', by:1}]});
+Catch errors and keep the form visible. On error.code === 'visitor_auth_required', the helper updates the mounted sign-in box. Never claim success on failure. If append succeeded but patch failed, do NOT re-POST; show "saved, count will update" and retry PATCH only. For people counts use by:Number(guests).
+
+STEP 2 — Live count:
+async function loadCount(){ const s = await SH.state.get(); document.getElementById('count').textContent = (s.data && s.data.total) || 0; }
+Call on page load, after saving, and every 4000ms; include an element with id="count".
+
+RAW-FETCH FALLBACK — derive routes and send credentials + X-SH-CSRF:
 const m = location.pathname.match(/^\/([a-z0-9-]+)\/([a-z0-9-]+)/);
 const BASE = m ? location.origin + '/v1/u/' + m[1] + '/sites/' + m[2] : null;
 const STATE = BASE ? BASE + '/state' : null;
-const LIST  = BASE ? BASE + '/collections/entries' : null;
-const WRITE_H = {'Content-Type':'application/json','X-SH-CSRF':'1'};
-function authApex(){ const hn = location.hostname; return hn.indexOf('sites.')===0 ? location.protocol+'//'+hn.replace(/^sites\./,'') : 'https://simple-host.app'; }
-async function offerSignIn(){ const d = await fetch(authApex()+'/v1/auth/oauth/providers').then(r=>r.json()).catch(()=>({providers:[]})); const names = d.providers||[]; /* keep the form visible; render a Sign in button per name that does location.href = authApex()+'/v1/auth/oauth/'+name+'?return_to='+encodeURIComponent(location.href) */ }
-
-STEP 1 — Save an entry (do BOTH awaits, send credentials + X-SH-CSRF; check res.ok):
-const post = await fetch(LIST, {method:'POST', credentials:'include', headers:WRITE_H, body: JSON.stringify({ /* the entry's fields, e.g. name, guests: Number(guests) */ })});
-if (!post.ok) { const err = await post.json().catch(()=>({})); if (err.code === 'visitor_auth_required') { offerSignIn(); } /* keep the form visible, show err.error, do NOT hide the form, do NOT claim success */ return; }
-const patch = await fetch(STATE, {method:'PATCH', credentials:'include', headers:WRITE_H, body: JSON.stringify({ops:[{op:'inc', path:'total', by: 1}]})});
-if (!patch.ok) { /* POST already saved — do NOT re-POST. Show "saved, count will update" and retry PATCH only. If patch JSON has code visitor_auth_required, offerSignIn(). Keep the form. */ return; }
-(If you're counting people rather than entries, use by: Number(guests) instead of by: 1.)
-
-STEP 2 — Live count:
-async function loadCount(){ if(!STATE) return; const s = await fetch(STATE, {credentials:'include'}).then(r=>r.json()).catch(()=>({})); document.getElementById('count').textContent = (s && s.total) || 0; }
-Call loadCount() on page load, again right after a successful save, and on a setInterval every 4000ms. Make sure there is an element with id="count" on the page.
+const LIST = BASE ? BASE + '/collections/entries' : null;
+const res = await fetch(LIST, {method:'POST', credentials:'include', headers:{'Content-Type':'application/json','X-SH-CSRF':'1'}, body:JSON.stringify(item)});
+if (!res.ok) { const err = await res.json(); /* keep form; on visitor_auth_required offer Google sign-in; otherwise show err.error */ return; }
+For sign-in, fetch providers from the apex /v1/auth/oauth/providers; if configured, navigate to apex + '/v1/auth/oauth/google?return_to=' + encodeURIComponent(location.href). Apex is location.protocol+'//'+location.hostname.replace(/^sites\./,'') on sites.*; otherwise https://simple-host.app. PATCH STATE uses the same headers and {ops:[...]}; GET STATE uses credentials:'include'. Never re-POST after a successful append.
 
 STEP 3 — After a successful save (BOTH post and patch 2xx), hide the form and show a friendly confirmation message, then clear the inputs. Never hide the form on a 401 or any non-2xx. Never claim success unless both writes succeeded.
 
@@ -54,4 +60,4 @@ Every bucket (totals, last_24h, each daily, each hourly, each site) is the SAME 
 person = no automation signature; READ THIS AS THE AUDIENCE NUMBER. bot = crawlers, AI scrapers, SEO tools, security scanners, HTTP libraries. infra = uptime probes and health checks, usually the biggest number and never audience. unknown = days recorded before traffic was classified; report it separately, never folded into the other three.
 visitors = distinct hashed IPs over the window asked for, so totals.*.visitors is NOT the sum of the daily figures (one person on five days = 1 in totals, 5 in daily). Views count 200/304 GET document responses only, for every class alike.
 
-SELF-CHECK before you answer: (a) zero uses of localStorage/sessionStorage/cookies anywhere; (b) fetch() is actually called three ways — POST to LIST, PATCH to STATE, and GET to STATE; (c) if used, the three comments lines are present verbatim; (d) BASE/STATE/LIST are derived from location.pathname + location.origin and NOT hardcoded; (e) background is a solid color; (f) if the site collects anything, files{} ALSO contains admin.html that GETs LIST and renders the entries, linked from index.html; (g) writes send credentials + X-SH-CSRF; (h) a 401 with code visitor_auth_required keeps the form and offers sign-in; (i) POST-ok / PATCH-fail does not re-POST. If any check fails, fix it before outputting. Output only the JSON block.
+SELF-CHECK before you answer: (a) zero uses of localStorage/sessionStorage/cookies anywhere; (b) use SH.collection().append, SH.state.patch and SH.state.get (or equivalent POST/PATCH/GET fetch calls); (c) if used, the three comments lines are present verbatim; (d) the helper derives routes, or BASE/STATE/LIST are derived from location.pathname + location.origin, never hardcoded; (e) background is a solid color; (f) if the site collects anything, files{} ALSO contains admin.html that GETs LIST and renders the entries, linked from index.html; (g) writes send credentials + X-SH-CSRF; (h) a 401 with code visitor_auth_required keeps the form and offers sign-in; (i) POST-ok / PATCH-fail does not re-POST. If any check fails, fix it before outputting. Output only the JSON block.

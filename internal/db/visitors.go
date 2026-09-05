@@ -74,6 +74,16 @@ func GetOAuthIdentity(ctx context.Context, q Querier, provider, providerUserID s
 	return id, err
 }
 
+// GetLatestOAuthIdentity returns the most recently created identity with a
+// provider-verified email for a user.
+func GetLatestOAuthIdentity(ctx context.Context, q Querier, userID string) (OAuthIdentity, error) {
+	const query = `SELECT provider, email FROM oauth_identities
+ WHERE user_id = $1 AND email_verified ORDER BY created_at DESC LIMIT 1`
+	var identity OAuthIdentity
+	err := q.QueryRowContext(ctx, query, userID).Scan(&identity.Provider, &identity.Email)
+	return identity, err
+}
+
 // InsertOAuthIdentity links a provider account to a users row.
 func InsertOAuthIdentity(ctx context.Context, q Querier, userID, provider, providerUserID, email string, emailVerified bool) (OAuthIdentity, error) {
 	const query = `

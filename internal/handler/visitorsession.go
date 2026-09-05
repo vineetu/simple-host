@@ -295,3 +295,85 @@ func (h *SiteHandler) originClass(r *http.Request, siteID string) string {
 	}
 	return "allowed_origin"
 }
+
+// getVisitorMe reports the current site session without extending its lifetime.
+func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "private, no-store")
+	siteName := strings.TrimSpace(r.PathValue("sitename"))
+	if siteName == "" {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
+		return
+	}
+	if !h.authorizeStateOrigin(w, r, siteName) {
+		writeJSON(w, http.StatusForbidden, errorResponse{Error: "forbidden"})
+		return
+	}
+	siteID, err := h.resolveSiteID(r, siteName)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	if id, decErr := hex.DecodeString(visitorCookieValue(r)); decErr == nil && len(id) == 32 {
+		sess, sessErr := db.GetVisitorSession(r.Context(), h.database, id)
+		if sessErr == nil {
+			now := time.Now()
+			hostOK := strings.EqualFold(sess.Host, requestHostName(r))
+			siteOK := sess.SiteID == siteID
+			fresh := !now.After(sess.ExpiresAt) && !now.After(sess.IdleExpiresAt)
+			if hostOK && siteOK && fresh {
+				expires := sess.ExpiresAt
+				if sess.IdleExpiresAt.Before(expires) {
+					expires = sess.IdleExpiresAt
+				}
+				resp := struct {
+					SignedIn  bool   `json:"signed_in"`
+					Email     string `json:"email,omitempty"`
+					Provider  string `json:"provider,omitempty"`
+					ExpiresAt string `json:"expires_at"`
+				}{SignedIn: true, ExpiresAt: expires.Format(time.RFC3339)}
+				// Who the visitor is, not just that they are signed in, is only
+				// revealed where the origin really isolates the site (a custom
+				// domain). On the shared content host every site is the same
+				// origin with the same host-only cookie, so any co-tenant page
+				// could read another site's /me; a Referer or path check cannot
+				// stop that (history.replaceState forges the path).
+				if !strings.EqualFold(requestHostName(r), h.contentHost) {
+					identity, err := db.GetLatestOAuthIdentity(r.Context(), h.database, sess.UserID)
+					resp.Email, resp.Provider = identity.Email.String, identity.Provider
+					if errors.Is(err, sql.ErrNoRows) {
+						var user db.User
+						user, err = db.GetUserByID(r.Context(), h.database, sess.UserID)
+						resp.Email = user.Username
+					}
+					if err != nil {
+						writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+						return
+					}
+				}
+				writeJSON(w, http.StatusOK, resp)
+				return
+			}
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"signed_in": false, "sign_in": "/v1/auth/oauth/providers"})
+}
+
+func (h *SiteHandler) optionsVisitorMe(w http.ResponseWriter, r *http.Request) {
+	siteName := strings.TrimSpace(r.PathValue("sitename"))
+	if siteName == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if !h.authorizeStateOrigin(w, r, siteName) {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	w.Header().Set("Access-Control-Max-Age", "600")
+	w.WriteHeader(http.StatusNoContent)
+}

@@ -1,5 +1,11 @@
 # SPEC: Visitor Google/GitHub sign-in, then every write requires it
 
+**2026-09-05 — Owner decision:** Added `GET /v1/sites/{sitename}/me` and
+`GET /v1/u/{handle}/sites/{sitename}/me`, superseding section 1.5's rejection
+of a session endpoint. These Origin-gated reads report the current site session
+without extending it. `/auth.js` is the hosted `window.SH` auth and storage helper. Review (Codex, Grok, same day): on the shared content host `/me` returns only `signed_in` and `expires_at`; `email`/`provider` are sent only on a custom domain, because co-tenant pages share the origin and the host-only cookie and a Referer/path check is forgeable via `history.replaceState`.
+
+
 Status: implementable  
 Date: 2026-08-14  
 Audience: an implementer working in this worktree who will not be asked questions  
@@ -661,6 +667,8 @@ WRITE_AUTH_MODE=on
 ```
 
 ### Step 6 — Operator flip (not a code default)
+
+**Executed 2026-09-05: `WRITE_AUTH_MODE=on`.**
 
 **Do not change the source default to `on`.** After step 4 has been deployed (hosted `comments.js` / `feedback.js` come from the embedded `FileServer` in `internal/handler/ui.go`; they are not long-cache-busted — next page load picks them up) and after owners have been told:
 

@@ -24,10 +24,11 @@ const corsAllowHeaders = "Content-Type, X-API-Key, X-Content-Digest, X-Skill-Ver
 // set their own Access-Control-Allow-Origin, so we must not double-handle them.
 func CORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// The per-site state + collections endpoints run their own stricter,
-		// credentialed Origin policy (authorizeStateOrigin), so the permissive
-		// "*" policy must not touch them.
-		if strings.HasSuffix(r.URL.Path, "/state") || strings.Contains(r.URL.Path, "/collections/") {
+		// The per-site state + collections + visitor /me endpoints run their own
+		// stricter, credentialed Origin policy (authorizeStateOrigin), so the
+		// permissive "*" policy must not touch them.
+		if strings.HasSuffix(r.URL.Path, "/state") || strings.Contains(r.URL.Path, "/collections/") ||
+			(strings.Contains(r.URL.Path, "/sites/") && strings.HasSuffix(r.URL.Path, "/me")) {
 			next.ServeHTTP(w, r)
 			return
 		}

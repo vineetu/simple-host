@@ -38,12 +38,12 @@ while read -r p; do
 done <<<"$documented"
 [ "$fail" -eq 0 ] && echo "  ok — every /v1 route is documented and vice versa"
 
-# Owner /v1/sites/{sitename} routes (except public state/collections and OPTIONS)
+# Owner /v1/sites/{sitename} routes (except public state/collections/me and OPTIONS)
 # must be wrapped with auth.Middleware. A missed wrap is how a site session
 # cookie on a custom domain would escalate (UNIFY.md credential boundary).
 echo "== owner routes wrapped with authMiddleware =="
 unwrapped=$(grep -rhoE 'mux\.Handle(Func)?\("[A-Z]+ /v1/sites/[^"]+"[^)]*' internal/handler \
-  | grep -vE '/state"|/collections/\{coll\}' \
+  | grep -vE '/state"|/me"|/collections/\{coll\}' \
   | grep -v authMiddleware || true)
 if [ -n "$unwrapped" ]; then
   echo "$unwrapped" | sed 's/^/  FAIL: owner route missing authMiddleware: /'

@@ -1,6 +1,6 @@
 ---
 name: website-deploy
-description: Deploy static websites to simple-host.app. Use when an agent needs to guide a user through registration, build/validate a static site, deploy it (inline JSON files OR a tar.gz/zip archive), or wire up the per-site backend — shared JSON state with atomic ops, append-only collections, drop-in comments/feedback widgets, and starter templates.
+description: Deploy static websites to simple-host.app. Use when an agent needs to guide a user through registration, build/validate a static site, deploy it (inline JSON files OR a tar.gz/zip archive), or wire up the per-site backend — shared JSON state with atomic ops, append-only collections, drop-in comments/feedback widgets, and starter templates. Saving data from a page requires the visitor to sign in with Google (hosted auth.js) — reads stay public.
 ---
 
 # Website Deploy
@@ -13,7 +13,7 @@ append-only collections) that its own page JavaScript can call.
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.11.0`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.12.0`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -84,6 +84,20 @@ Package the built directory as `.tar.gz` or `.zip` and `POST /v1/sites/<sitename
 Do not upload a source tree for a project that has a build step. Upload the
 production build output.
 
+## Saving data requires sign-in
+
+If a page writes to the site's backend — a form, a counter, a vote, a
+guestbook — the visitor must be signed in with Google on that page. Reads are
+public; every write (`PUT`/`PATCH` `/state`, `POST` `/collections/<name>`)
+without a signed-in visitor or the owner's `X-API-Key` gets a 401
+(`code: "visitor_auth_required"`), and a hosted page never has an API key. So
+any page that saves loads
+`<script src="https://simple-host.app/auth.js" defer></script>`, mounts
+`SH.mount('#sh-auth')` next to the form, and calls `await SH.requireSignIn()`
+before the write. Google is the only provider. Sign-in identifies the visitor;
+it does not make the page private — there is no private or password-locked
+page feature. Full `SH` API and the pattern to copy: `references/backend.md`.
+
 ## Rules that always apply
 
 - **Static files only.** Nothing executes server-side: no PHP, no Node, no SSR.
@@ -97,14 +111,11 @@ production build output.
 - **Uploads are append-only.** Re-uploading creates a new version and activates
   it; older versions stay on disk. Rollback re-points at an existing version.
 - **The per-site store is PUBLIC-READ.** State and collections GETs are gated
-  on the request `Origin`. Writes (`PUT`/`PATCH` `/state`, `POST` `/collections`)
-  require a signed-in Google/GitHub session (`X-SH-CSRF: 1` + cookie) or the
-  owner's `X-API-Key`. That session is the same account as dashboard sign-in
-  but is site-scoped and is **not** an API key — it cannot deploy or delete.
-  On `code === "visitor_auth_required"`, keep the form, show `error`, and
-  offer sign-in via `GET /v1/auth/oauth/providers` — never claim success,
-  never hide the form, never re-POST a collection item after a partial
-  write. Never put secrets, credentials, or personal data there.
+  on the request `Origin`; writes need sign-in (above). The visitor session is
+  the same account as dashboard sign-in but is site-scoped and is **not** an
+  API key — it cannot deploy or delete. On a failed write keep the form, never
+  claim success, and never re-POST a collection item after a partial write.
+  Never put secrets, credentials, or personal data in the store.
 - **Origin-gating trips up non-browser callers.** A `curl`/backend/agent request
   with no `Origin` gets **403**. Send one:
   `curl -H "Origin: https://sites.simple-host.app" https://sites.simple-host.app/v1/u/<handle>/sites/<name>/state`

@@ -38,7 +38,9 @@ one most likely to be where your change belongs.
 
 Some landmarks, not an inventory. `site.go` is deploy, versions and rollback.
 `ui.go` decides which static page a bare URL gets. `stateops.go` and
-`collections.go` are the per-site datastore. `generate.go` is Create-with-AI.
+`collections.go` are the per-site datastore.
+`visitorsession.go` serves Origin-gated `GET .../me` for site sessions; hosted
+`static/auth.js` exposes `window.SH` for visitor sign-in, status, state and collections. `generate.go` is Create-with-AI.
 `analytics.go` and `apimetrics.go` are two unrelated things both called
 "analytics" — the first is per-site visitor traffic, the second is per-endpoint
 API call counts.

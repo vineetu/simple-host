@@ -91,4 +91,6 @@ HTTPS is automatic.
 
 **There is no private or password-locked mode.** Every deployed site is public to
 anyone with its address, on a custom domain or not. If a user asks for privacy,
-say so plainly rather than suggesting a workaround.
+say so plainly rather than suggesting a workaround. The Google sign-in that a
+page needs before it can *write* to its backend (see `backend.md`) gates saving,
+not reading — do not present it as a private page.

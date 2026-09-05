@@ -14,9 +14,9 @@ Website Deploy is a static-file host at `https://simple-host.app`. Each site is 
 | Capability | How |
 |---|---|
 | HTML / CSS / JS / images / fonts served as a site | Deploy files inline as JSON (`/files`) or upload a `.tar.gz`/`.zip` |
-| Per-site JSON state (≤ 1 MB, shared across all visitors) | `GET / PUT /v1/u/<handle>/sites/<sitename>/state` (legacy `/v1/sites/<sitename>/state` still works) |
-| Atomic state updates (concurrent-safe counters, lists, votes) | `PATCH .../state` with `{ops:[inc/append/set/remove/removeWhere]}`; `If-None-Match` ETag for cheap polling |
-| Append-only collections (signups / RSVPs / submissions) | `POST/GET /v1/u/<handle>/sites/<sitename>/collections/<name>` |
+| Per-site JSON state (≤ 1 MB, shared across all visitors) | `GET / PUT /v1/u/<handle>/sites/<sitename>/state` (legacy `/v1/sites/<sitename>/state` still works). Reads public; writes need the visitor signed in with Google (`auth.js`) |
+| Atomic state updates (concurrent-safe counters, lists, votes) | `PATCH .../state` with `{ops:[inc/append/set/remove/removeWhere]}`; `If-None-Match` ETag for cheap polling. A write — visitor sign-in required |
+| Append-only collections (signups / RSVPs / submissions) | `POST/GET /v1/u/<handle>/sites/<sitename>/collections/<name>`. GET public; POST needs visitor sign-in |
 | Custom domain | `connect-domain` skill: bind domain → one CNAME → poll until active |
 | Drop-in widgets | Comments (`comments.js` + `<section id="sh-comments">`); pin-on-page feedback (`feedback.js`) |
 | Starter templates | `GET /v1/templates`, `GET /v1/templates/<id>` → `{files}` ready to deploy |
@@ -50,31 +50,41 @@ Gotchas: the site lives under `/<handle>/<sitename>/` on the content host, so **
 
 What it is: a single JSON document (up to 1 MB) scoped to your site. The server stores it in Postgres; your site reads and writes it from the browser. The blob is shared across **everyone** who visits — the last writer wins.
 
-When to choose: anything you'd want a tiny key-value store for — saved drafts, app state, a shared note, content the page just generated, configuration. **Not for secrets or per-user data**: anyone who can load the page can read the blob. Writes require a Google/GitHub session (`X-SH-CSRF: 1`) or the owner's `X-API-Key` (same account; the hosted session is not an API key); a 401 with `code === "visitor_auth_required"` must keep the form and offer sign-in. If you need per-user data, store it under different keys inside the blob and key on something like `crypto.randomUUID()` saved in `localStorage`.
+When to choose: anything you'd want a tiny key-value store for — saved drafts, app state, a shared note, content the page just generated, configuration. **Not for secrets or per-user data**: anyone who can load the page can read the blob. **If the page saves, the page signs the visitor in**: every write needs a visitor signed in with Google on that page (or the owner's `X-API-Key`, which a hosted page never has), so the page loads `https://simple-host.app/auth.js` and calls `await SH.requireSignIn()` before writing — otherwise the save 401s (`code === "visitor_auth_required"`). Google is the only provider; the session is not an API key. Sign-in gates writing only — it does not make the page private. If you need per-user data, store it under different keys inside the blob and key on something like `crypto.randomUUID()` saved in `localStorage`.
 
 How to use, from a page hosted at `https://sites.simple-host.app/<handle>/<sitename>/`:
 
-```js
-// same-origin user-scoped route (canonical on the content host)
-const m = location.pathname.match(/^\/([a-z0-9-]+)\/([a-z0-9-]+)/);
-const url = `/v1/u/${m[1]}/sites/${m[2]}/state`;
-// legacy /v1/sites/<sitename>/state still works; widgets auto-derive the right URL
+```html
+<div id="sh-auth"></div>
+<form id="f"><textarea name="draft"></textarea><button>Save</button></form>
+<p id="status"></p>
+<script src="https://simple-host.app/auth.js" defer></script>
+<script>
+window.addEventListener('DOMContentLoaded', async function () {
+  SH.mount('#sh-auth');                              // "Sign in with Google to save" / "Signed in as …"
+  const status = document.getElementById('status');
+  const form = document.getElementById('f');
 
-// load
-const state = await fetch(url, {credentials:'include'}).then(r => r.json());
+  // load — public, no sign-in; the helper derives the site URL from the page path
+  const { data } = await SH.state.get();
+  form.draft.value = data.draft || '';
 
-// save — visitor session or owner X-API-Key; never claim success on non-2xx
-const res = await fetch(url, {
-  method: 'PATCH',
-  credentials: 'include',
-  headers: {'Content-Type': 'application/json', 'X-SH-CSRF': '1'},
-  body: JSON.stringify({ops:[{op:'set', path:'draft', value: state}]}),
+  // save — sign in first, then write; keep the form on failure
+  form.onsubmit = async function (e) {
+    e.preventDefault();
+    await SH.requireSignIn();                        // navigates to Google if needed
+    try {
+      await SH.state.patch([{ op: 'set', path: 'draft', value: form.draft.value }]);
+      status.textContent = 'Saved';
+    } catch (err) {
+      status.textContent = 'Not saved: ' + (err.code || err.status);   // never claim success
+    }
+  };
 });
-if (!res.ok) {
-  const err = await res.json().catch(() => ({}));
-  if (err.code === 'visitor_auth_required') { /* keep the form, offer sign-in */ }
-}
+</script>
 ```
+
+Full `SH` API (`SH.state`, `SH.collection(name).append/list`, `SH.me`, `SH.signOut`, `SH_CONFIG` for custom domains) is in the `website-deploy` skill's `references/backend.md`.
 
 Gotchas: the content host `sites.simple-host.app` is a **shared origin** across sites (co-tenancy is accepted — don't store secrets; state was never confidential). Owners can allow extra origins via `PUT /v1/sites/<sitename>/allowed-origins` for "backend anywhere." Don't put API keys or PII in the blob — anyone who can load the page can read it. Body cap is 1 MB; sending more returns 413.
 
@@ -154,8 +164,8 @@ A user can serve a site from their own domain (e.g. `recipes.brand.com`). This i
 | User says | Capabilities |
 |---|---|
 | "a landing page / portfolio / CV" | static only (or a `/v1/templates` starter) |
-| "a guestbook" | static + per-site JSON state (atomic `append`) |
-| "a waitlist / event RSVP / signup form" | static + append-only collection (+ a live count in state) |
+| "a guestbook" | static + per-site JSON state (atomic `append`) + `auth.js` sign-in to post |
+| "a waitlist / event RSVP / signup form" | static + append-only collection (+ a live count in state) + `auth.js` sign-in to submit |
 | "comments / discussion under a post" | static + `comments.js` widget |
 | "feedback on a mockup" | static + `feedback.js` pin widget |
 | "a tool that runs entirely in the browser" (calculator, drawing app, game) | static + `localStorage` for settings/saves |
@@ -166,7 +176,7 @@ A user can serve a site from their own domain (e.g. `recipes.brand.com`). This i
 | "my own domain / brand.com" | static + `connect-domain` skill |
 | "a slide deck I want to share a link to" | build with Slidev, Reveal.js, or similar and deploy the output |
 
-If the user wants something Website Deploy can't host — per-user accounts that span devices, server-side execution, or a shared SQL database — say so explicitly and stop. Suggest they pair Website Deploy (for the static front-end) with a separate backend host (Vercel functions, Cloudflare Workers, Supabase, etc.) where their server-side logic lives. Custom domains *are* supported via `connect-domain`. Private or password-locked pages are not — every deployed site is public.
+If the user wants something Website Deploy can't host — per-user accounts that span devices, server-side execution, or a shared SQL database — say so explicitly and stop. Suggest they pair Website Deploy (for the static front-end) with a separate backend host (Vercel functions, Cloudflare Workers, Supabase, etc.) where their server-side logic lives. Custom domains *are* supported via `connect-domain`. Private or password-locked pages are not — every deployed site is public. Google sign-in gates *writing* to the backend, nothing gates *reading*; never present "sign in to save" as a private page.
 
 ## Generating a prompt for another agent
 

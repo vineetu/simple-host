@@ -137,7 +137,8 @@ it (see `deploy/prod/nginx-customdomain.example.conf`). Until that is done the s
 ### 5. Confirm it's live
 Once `https://recipes.brand.com/` returns 200, it serves the connected site over HTTPS,
 on its **own origin**. The site is still public: a custom domain changes the address, not who
-can read it.
+can read it. (The Google sign-in a page needs before it can *write* to its backend gates saving,
+not reading — it is not a private page.)
 
 ### Disconnect
 ```
@@ -152,7 +153,10 @@ Tell the user they can also remove the DNS record at their registrar afterward.
 The per-site backend (shared JSON state, collections) works from the connected domain
 **same-origin** — a page at `https://recipes.brand.com/` can call
 `/v1/sites/<site>/state` directly with no extra origin configuration. (The server ties the
-domain to its own site, so it can't be used to write to a different site.)
+domain to its own site, so it can't be used to write to a different site.) Writes still need the
+visitor signed in with Google: load `https://simple-host.app/auth.js` and, because the site name
+cannot be derived from a custom-domain URL, set `window.SH_CONFIG = { site: "<site>" }` before
+the tag. Pattern and API: the `website-deploy` skill's `references/backend.md`.
 
 ## Gotchas
 

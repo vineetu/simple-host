@@ -779,6 +779,52 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /v1/sites/{sitename}/me:
+    get:
+      operationId: getVisitorMe
+      summary: Read the current site visitor session
+      description: Origin/Referer-gated. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.
+      tags: [State]
+      parameters:
+        - { $ref: '#/components/parameters/sitename' }
+      responses:
+        '200':
+          description: Signed-in identity or anonymous visitor
+          headers:
+            Cache-Control: { schema: { type: string, enum: ['private, no-store'] } }
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    required: [signed_in, expires_at]
+                    properties:
+                      signed_in: { type: boolean, enum: [true] }
+                      email: { type: string, description: Only on a custom domain (origin-isolated host). Omitted on the shared content host, where any co-tenant page could read it. Latest verified OAuth identity email; users.username when no identity exists }
+                      provider: { type: string, example: google, description: Omitted on the shared content host or when no OAuth identity exists }
+                      expires_at: { type: string, format: date-time, description: Earlier of absolute and idle expiry (RFC3339) }
+                  - type: object
+                    required: [signed_in, sign_in]
+                    properties:
+                      signed_in: { type: boolean, enum: [false] }
+                      sign_in: { type: string, enum: [/v1/auth/oauth/providers] }
+        '403': { $ref: '#/components/responses/OriginMismatch' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { description: Internal server error }
+    options:
+      operationId: optionsVisitorMe
+      summary: Preflight for visitor session reads
+      tags: [State]
+      parameters:
+        - { $ref: '#/components/parameters/sitename' }
+      responses:
+        '204':
+          description: Origin allowed
+          headers:
+            Access-Control-Allow-Methods: { schema: { type: string, enum: ['GET, OPTIONS'] } }
+            Access-Control-Allow-Headers: { schema: { type: string, enum: [Content-Type] } }
+        '403': { $ref: '#/components/responses/OriginMismatch' }
+
   /v1/sites/{sitename}/state:
     get:
       operationId: getSitesBySitenameState
@@ -951,6 +997,54 @@ paths:
               schema: { type: string }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/u/{handle}/sites/{sitename}/me:
+    get:
+      operationId: getVisitorMeByHandle
+      summary: Read the current site visitor session
+      description: Origin/Referer-gated. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.
+      tags: [State]
+      parameters:
+        - { $ref: '#/components/parameters/sitename' }
+        - { name: handle, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Signed-in identity or anonymous visitor
+          headers:
+            Cache-Control: { schema: { type: string, enum: ['private, no-store'] } }
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    required: [signed_in, expires_at]
+                    properties:
+                      signed_in: { type: boolean, enum: [true] }
+                      email: { type: string, description: Only on a custom domain (origin-isolated host). Omitted on the shared content host, where any co-tenant page could read it. Latest verified OAuth identity email; users.username when no identity exists }
+                      provider: { type: string, example: google, description: Omitted on the shared content host or when no OAuth identity exists }
+                      expires_at: { type: string, format: date-time, description: Earlier of absolute and idle expiry (RFC3339) }
+                  - type: object
+                    required: [signed_in, sign_in]
+                    properties:
+                      signed_in: { type: boolean, enum: [false] }
+                      sign_in: { type: string, enum: [/v1/auth/oauth/providers] }
+        '403': { $ref: '#/components/responses/OriginMismatch' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { description: Internal server error }
+    options:
+      operationId: optionsVisitorMeByHandle
+      summary: Preflight for visitor session reads
+      tags: [State]
+      parameters:
+        - { $ref: '#/components/parameters/sitename' }
+        - { name: handle, in: path, required: true, schema: { type: string } }
+      responses:
+        '204':
+          description: Origin allowed
+          headers:
+            Access-Control-Allow-Methods: { schema: { type: string, enum: ['GET, OPTIONS'] } }
+            Access-Control-Allow-Headers: { schema: { type: string, enum: [Content-Type] } }
+        '403': { $ref: '#/components/responses/OriginMismatch' }
 
   /v1/u/{handle}/sites/{sitename}/state:
     get:

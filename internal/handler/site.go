@@ -262,6 +262,8 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection)))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/collections/{coll}", h.optionsCollection)
 
+	mux.HandleFunc("GET /v1/sites/{sitename}/me", h.getVisitorMe)
+	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/me", h.optionsVisitorMe)
 	mux.HandleFunc("GET /v1/sites/{sitename}/state", h.getSiteState)
 	mux.Handle("PUT /v1/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSiteState)))
 	mux.Handle("PATCH /v1/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchSiteState)))
@@ -273,6 +275,8 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection)))
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/collections/{coll}", h.optionsCollection)
 
+	mux.HandleFunc("GET /v1/u/{handle}/sites/{sitename}/me", h.getVisitorMe)
+	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/me", h.optionsVisitorMe)
 	mux.HandleFunc("GET /v1/u/{handle}/sites/{sitename}/state", h.getSiteState)
 	mux.Handle("PUT /v1/u/{handle}/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSiteState)))
 	mux.Handle("PATCH /v1/u/{handle}/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchSiteState)))

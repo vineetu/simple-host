@@ -14,7 +14,7 @@ There is no separate object store, CDN, build pipeline, or microservices. Everyt
 
 - `cmd/server/main.go` — wires config, opens Postgres, creates `DiskStorage`, mounts every handler onto a single `http.ServeMux`, runs the HTTP server with graceful shutdown. All routing decisions live here.
 - `internal/config` — env-driven config. `DB_DSN` and `ADMIN_API_KEY` are required; everything else has a sensible default.
-- `internal/auth` — `X-API-Key` middleware. The hardcoded `ADMIN_API_KEY` short-circuits to a synthetic admin user with `ID="admin"`; everything else looks up the `users` table. Middleware reads **only** `X-API-Key` — never the site session cookie. A hosted-page Google/GitHub sign-in is the same `users` row (`oauth_identities`); the `__Host-sh_vsess` cookie is accepted only by `visitorWriteOK` for state/collections writes.
+- `internal/auth` — `X-API-Key` middleware. The hardcoded `ADMIN_API_KEY` short-circuits to a synthetic admin user with `ID="admin"`; everything else looks up the `users` table. Middleware reads **only** `X-API-Key` — never the site session cookie. A hosted-page Google/GitHub sign-in is the same `users` row (`oauth_identities`); the `__Host-sh_vsess` cookie is used by `visitorWriteOK` for state/collections writes and by the site-scoped `/me` read.
 - `internal/db` — raw `database/sql` against Postgres. Schema is in `db/schema.sql` (no migrations framework).
 - `internal/storage/disk.go` — versioned site layout on disk: `<DATA_DIR>/<site>/v<n>/` with a `current` directory holding the live version.
 - `internal/tarball` — extracts and validates uploaded archives (path traversal guards, size limits, extension denylist for source-script types only).
@@ -31,6 +31,7 @@ One `http.ServeMux` in `main.go`. Major prefixes:
 
 - `/api/auth`, `/v1/me`, `/v1/sites/*` — REST surface. Mostly auth-gated. Wrapped with `noticeMW`.
 - `/v1/sites/{site}/state` — per-site JSON state. **Public-read scratch storage**: GETs are Origin/Referer-gated (a real browser can't forge that cross-site; `curl` can). Writes (`PUT`/`PATCH` state, `POST` collections) go through `visitorWriteOK`: visitor session + `X-SH-CSRF`, owner `X-API-Key`, or `WRITE_AUTH_MODE=log` (measure, still allow). Unset `WRITE_AUTH_MODE` is `log`; the source default is never `on`. Never put secrets in it. NOT wrapped with `noticeMW`.
+- `GET /v1/sites/{site}/me` (and the user-scoped twin) reports the current visitor session without extending it (email only on a custom domain, never on the shared content host). Hosted `/auth.js` exposes `window.SH` for sign-in, a status box, state and collections.
 - `/sites/{site}/...` — public static serving. Path safety + `http.FileServer` rooted at `<DATA_DIR>/<site>/current/`.
 - `/skills.zip`, `/plugin.zip`, `/install.sh`, `/skills/version` — Website Deploy bundle downloads. Public, no auth.
 - `/healthz`, `/readyz` — probes.
