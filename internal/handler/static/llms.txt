@@ -8,7 +8,7 @@ SITE: [Describe your site in plain language here — what it's for, the style/co
 BACKEND — FOLLOW EXACTLY, DO NOT IMPROVISE.
 This site is hosted at https://sites.simple-host.app/<handle>/<name>/ and has a real, free JSON backend that you MUST use.
 HARD BAN: never use localStorage, sessionStorage, cookies, or any client-only/in-memory storage for shared data (sign-ups, RSVPs, counts, messages). Shared data MUST live on the server via fetch(). Do NOT invent endpoints. Do NOT hardcode the handle or the site name.
-Writes require a Google sign-in on this site (or the owner's X-API-Key). The page gets a site-scoped cookie, never an API key. Reads stay Origin-gated. GET /v1/sites/{sitename}/me and /v1/u/{handle}/sites/{sitename}/me report signed_in and expires_at (email and provider only on a custom domain; on the shared content host the page learns that the visitor is signed in, not who); anonymous responses contain signed_in:false and sign_in:"/v1/auth/oauth/providers".
+Pages may offer Google or sign in with email via auth.js. Writes accept a site session or any account's X-API-Key, identifying that account; invalid keys return 401 invalid_api_key. The page gets a site-scoped cookie, never an API key. Reads stay Origin-gated. GET /v1/sites/{sitename}/me and /v1/u/{handle}/sites/{sitename}/me report signed_in and expires_at (email and provider only on a custom domain; on the shared content host the page learns that the visitor is signed in, not who); anonymous responses contain signed_in:false and sign_in:"/v1/auth/oauth/providers".
 
 RECOMMENDED — use the hosted auth.js helper. Add:
 <section id="sh-auth"></section>
@@ -33,7 +33,7 @@ const BASE = m ? location.origin + '/v1/u/' + m[1] + '/sites/' + m[2] : null;
 const STATE = BASE ? BASE + '/state' : null;
 const LIST = BASE ? BASE + '/collections/entries' : null;
 const res = await fetch(LIST, {method:'POST', credentials:'include', headers:{'Content-Type':'application/json','X-SH-CSRF':'1'}, body:JSON.stringify(item)});
-if (!res.ok) { const err = await res.json(); /* keep form; on visitor_auth_required offer Google sign-in; otherwise show err.error */ return; }
+if (!res.ok) { const err = await res.json(); /* keep form; on visitor_auth_required offer Google or email sign-in; otherwise show err.error */ return; }
 For sign-in, fetch providers from the apex /v1/auth/oauth/providers; if configured, navigate to apex + '/v1/auth/oauth/google?return_to=' + encodeURIComponent(location.href). Apex is location.protocol+'//'+location.hostname.replace(/^sites\./,'') on sites.*; otherwise https://simple-host.app. PATCH STATE uses the same headers and {ops:[...]}; GET STATE uses credentials:'include'. Never re-POST after a successful append.
 
 STEP 3 — After a successful save (BOTH post and patch 2xx), hide the form and show a friendly confirmation message, then clear the inputs. Never hide the form on a 401 or any non-2xx. Never claim success unless both writes succeeded.
@@ -61,3 +61,8 @@ person = no automation signature; READ THIS AS THE AUDIENCE NUMBER. bot = crawle
 visitors = distinct hashed IPs over the window asked for, so totals.*.visitors is NOT the sum of the daily figures (one person on five days = 1 in totals, 5 in daily). Views count 200/304 GET document responses only, for every class alike.
 
 SELF-CHECK before you answer: (a) zero uses of localStorage/sessionStorage/cookies anywhere; (b) use SH.collection().append, SH.state.patch and SH.state.get (or equivalent POST/PATCH/GET fetch calls); (c) if used, the three comments lines are present verbatim; (d) the helper derives routes, or BASE/STATE/LIST are derived from location.pathname + location.origin, never hardcoded; (e) background is a solid color; (f) if the site collects anything, files{} ALSO contains admin.html that GETs LIST and renders the entries, linked from index.html; (g) writes send credentials + X-SH-CSRF; (h) a 401 with code visitor_auth_required keeps the form and offers sign-in; (i) POST-ok / PATCH-fail does not re-POST. If any check fails, fix it before outputting. Output only the JSON block.
+
+
+EMAIL SIGN-IN — SH.email.request(email) POSTs to the site-scoped /visitor/auth and resolves {message,email,expires_in_seconds:900}. SH.email.verify(email, code) POSTs to /visitor/auth/verify with X-SH-CSRF: 1, clears the cached /me result, and resolves {signed_in:true,expires_at} (email and provider:"email" only off the shared content host). Both include credentials. SH.mount renders Google plus an inline email form, then a 6-digit code form; successful verification re-renders signed in. Errors appear in the box. Accounts are created lazily. Page sign-in mail contains no dashboard magic link and verification never returns an API key.
+
+AGENT SAVING ON BEHALF OF A PERSON — POST /v1/auth {"email":"person@example.com"} → person reads the 6-digit code from their inbox → POST /v1/auth/verify {"email":"person@example.com","code":"123456"} → receive api_key → send X-API-Key on state/collections writes to any site. The account is created if missing. This key is that person's identity: keep it secret, never put it in page HTML.

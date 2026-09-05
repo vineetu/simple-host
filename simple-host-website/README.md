@@ -29,7 +29,7 @@ The AI will guide you through registration, validate your site, and deploy it.
 
 Website Deploy serves **static files only** — HTML, CSS, JavaScript, images, and fonts. Your site will be live at `https://sites.simple-host.app/{handle}/{sitename}/`. Every site gets built-in traffic analytics, measured server-side with nothing to add to your pages. Views and unique visitors are split by who was asking — `person`, `bot` and `infra` (uptime probes) — so `person` is the number that means real audience. Custom domains work too — subdomain or apex (e.g. `recipes.brand.com` / `brand.com`) — see the `connect-domain` skill.
 
-Every site also gets a small JSON backend (shared state, append-only collections) that its own pages can call. Reading it is public; writing to it requires the visitor to sign in with Google, via the hosted `https://simple-host.app/auth.js` helper — the `website-deploy` skill covers the pattern.
+Every site also gets a small JSON backend (shared state, append-only collections) that its own pages can call. Reading it is public; writing to it requires the visitor to sign in (Google or an emailed code) via the hosted `https://simple-host.app/auth.js` helper — the `website-deploy` skill covers the pattern.
 
 ### What works
 

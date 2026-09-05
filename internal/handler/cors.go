@@ -28,7 +28,7 @@ func CORS(next http.Handler) http.Handler {
 		// stricter, credentialed Origin policy (authorizeStateOrigin), so the
 		// permissive "*" policy must not touch them.
 		if strings.HasSuffix(r.URL.Path, "/state") || strings.Contains(r.URL.Path, "/collections/") ||
-			(strings.Contains(r.URL.Path, "/sites/") && strings.HasSuffix(r.URL.Path, "/me")) {
+			(strings.Contains(r.URL.Path, "/sites/") && (strings.HasSuffix(r.URL.Path, "/me") || strings.Contains(r.URL.Path, "/visitor/auth"))) {
 			next.ServeHTTP(w, r)
 			return
 		}

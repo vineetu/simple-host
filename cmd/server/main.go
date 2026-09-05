@@ -79,8 +79,9 @@ func main() {
 	log.Printf("write auth mode: %s", cfg.WriteAuthMode)
 
 	handler.RegisterHealthRoutes(mux, db)
-	handler.NewUserHandler(db, mailer, cfg.PublicBaseURL).Register(mux, authMW, noticeMW)
-	siteHandler := handler.NewSiteHandler(db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID)
+	userHandler := handler.NewUserHandler(db, mailer, cfg.PublicBaseURL)
+	userHandler.Register(mux, authMW, noticeMW)
+	siteHandler := handler.NewSiteHandler(db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID, mailer, userHandler.EmailLimiter())
 	siteHandler.Register(mux, authMW, noticeMW)
 	handler.NewOAuthHandler(db, cfg).Register(mux)
 	handler.RegisterTemplateRoutes(mux)

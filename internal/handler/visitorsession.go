@@ -178,7 +178,7 @@ func writeVisitorAuthRequired(w http.ResponseWriter) {
 // visitorWriteOK is the write gate for PUT/PATCH state and POST collections.
 // See SPEC.md §4.4. Returns false after writing the error response.
 func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, siteID, siteName, route, collection string) bool {
-	userID, allowAnon, err := db.GetSiteWriteGate(r.Context(), h.database, siteID)
+	_, allowAnon, err := db.GetSiteWriteGate(r.Context(), h.database, siteID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
@@ -194,13 +194,15 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return false
 		}
-		if ok && (u.IsAdmin || u.ID == userID) {
+		// Agent writes accept any valid account key as the caller identity.
+		if ok {
+			log.Printf("key_write user_id=%s site_id=%s name=%s route=%s collection=%s", u.ID, siteID, siteName, route, collection)
 			return true
 		}
-		writeJSON(w, http.StatusForbidden, struct {
+		writeJSON(w, http.StatusUnauthorized, struct {
 			Error string `json:"error"`
 			Code  string `json:"code"`
-		}{Error: "forbidden", Code: "writer_forbidden"})
+		}{Error: "invalid API key", Code: "invalid_api_key"})
 		return false
 	}
 
@@ -329,12 +331,7 @@ func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 				if sess.IdleExpiresAt.Before(expires) {
 					expires = sess.IdleExpiresAt
 				}
-				resp := struct {
-					SignedIn  bool   `json:"signed_in"`
-					Email     string `json:"email,omitempty"`
-					Provider  string `json:"provider,omitempty"`
-					ExpiresAt string `json:"expires_at"`
-				}{SignedIn: true, ExpiresAt: expires.Format(time.RFC3339)}
+				resp := h.visitorSignedInResponse(r, expires, "", "")
 				// Who the visitor is, not just that they are signed in, is only
 				// revealed where the origin really isolates the site (a custom
 				// domain). On the shared content host every site is the same
@@ -376,4 +373,19 @@ func (h *SiteHandler) optionsVisitorMe(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 	w.Header().Set("Access-Control-Max-Age", "600")
 	w.WriteHeader(http.StatusNoContent)
+}
+
+type visitorMeResponse struct {
+	SignedIn  bool   `json:"signed_in"`
+	Email     string `json:"email,omitempty"`
+	Provider  string `json:"provider,omitempty"`
+	ExpiresAt string `json:"expires_at"`
+}
+
+func (h *SiteHandler) visitorSignedInResponse(r *http.Request, expires time.Time, email, provider string) visitorMeResponse {
+	resp := visitorMeResponse{SignedIn: true, ExpiresAt: expires.Format(time.RFC3339)}
+	if !strings.EqualFold(requestHostName(r), h.contentHost) {
+		resp.Email, resp.Provider = email, provider
+	}
+	return resp
 }

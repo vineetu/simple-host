@@ -154,3 +154,5 @@ is not:
 prose and will rot; the Makefile is what executes.
 
 Revisit this file when a check changes or a package appears. Not otherwise.
+
+2026-09-05: shared email-code helpers serve dashboard and site-scoped visitor sign-in; visitors use the same accounts, and any valid account API key may write state/collections as that account.

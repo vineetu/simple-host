@@ -558,17 +558,19 @@ func scanSiteRows(rows *sql.Rows) ([]Site, error) {
 }
 
 // CreateAuthToken inserts a new verification token row.
-func CreateAuthToken(ctx context.Context, q Querier, email, code, linkToken string, expiresAt time.Time) error {
+func CreateAuthToken(ctx context.Context, q Querier, email, code, linkToken string, expiresAt time.Time, purpose string, siteID sql.NullString) error {
 	const query = `
-		INSERT INTO auth_tokens (email, code, link_token, expires_at)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO auth_tokens (email, code, link_token, expires_at, purpose, site_id)
+		VALUES ($1, $2, $3, $4, $5, $6)
 	`
-	_, err := q.ExecContext(ctx, query, email, code, linkToken, expiresAt)
+	_, err := q.ExecContext(ctx, query, email, code, linkToken, expiresAt, purpose, siteID)
 	return err
 }
 
 // AuthToken is the in-memory representation of a row in auth_tokens.
 type AuthToken struct {
+	Purpose   string
+	SiteID    sql.NullString
 	ID        string
 	Email     string
 	Code      string
@@ -582,30 +584,30 @@ type AuthToken struct {
 // magic-link sign-in. Returns sql.ErrNoRows if none.
 func GetAuthTokenByLink(ctx context.Context, db *sql.DB, linkToken string) (AuthToken, error) {
 	const query = `
-		SELECT id, email, code, link_token, expires_at, used_at, attempts
+		SELECT id, email, code, link_token, expires_at, used_at, attempts, purpose, site_id
 		FROM auth_tokens
-		WHERE link_token = $1 AND used_at IS NULL AND expires_at > now()
+		WHERE link_token = $1 AND purpose = 'dashboard' AND used_at IS NULL AND expires_at > now()
 	`
 	var t AuthToken
 	err := db.QueryRowContext(ctx, query, linkToken).Scan(
-		&t.ID, &t.Email, &t.Code, &t.LinkToken, &t.ExpiresAt, &t.UsedAt, &t.Attempts,
+		&t.ID, &t.Email, &t.Code, &t.LinkToken, &t.ExpiresAt, &t.UsedAt, &t.Attempts, &t.Purpose, &t.SiteID,
 	)
 	return t, err
 }
 
 // GetLatestAuthTokenForEmail returns the most recent active token for an email
 // address (used for code entry). Returns sql.ErrNoRows if none.
-func GetLatestAuthTokenForEmail(ctx context.Context, db *sql.DB, email string) (AuthToken, error) {
+func GetLatestAuthTokenForEmail(ctx context.Context, db *sql.DB, email, purpose string, siteID sql.NullString) (AuthToken, error) {
 	const query = `
-		SELECT id, email, code, link_token, expires_at, used_at, attempts
+		SELECT id, email, code, link_token, expires_at, used_at, attempts, purpose, site_id
 		FROM auth_tokens
-		WHERE email = $1 AND used_at IS NULL AND expires_at > now()
+		WHERE email = $1 AND purpose = $2 AND site_id IS NOT DISTINCT FROM $3 AND used_at IS NULL AND expires_at > now()
 		ORDER BY created_at DESC
 		LIMIT 1
 	`
 	var t AuthToken
-	err := db.QueryRowContext(ctx, query, email).Scan(
-		&t.ID, &t.Email, &t.Code, &t.LinkToken, &t.ExpiresAt, &t.UsedAt, &t.Attempts,
+	err := db.QueryRowContext(ctx, query, email, purpose, siteID).Scan(
+		&t.ID, &t.Email, &t.Code, &t.LinkToken, &t.ExpiresAt, &t.UsedAt, &t.Attempts, &t.Purpose, &t.SiteID,
 	)
 	return t, err
 }

@@ -7,14 +7,15 @@ JavaScript — no server for you to run.
 
 **If the page saves, the page signs the visitor in.** Every write to a site's
 backend (`PUT`/`PATCH` `/state`, `POST` `/collections/{coll}`, and the
-`/v1/u/{handle}/...` twins) requires either a visitor signed in with Google on
-that page or the site owner's `X-API-Key`. A hosted page never has an API key,
-so any page that writes — a form, a counter, a vote, a guestbook — loads
-`https://simple-host.app/auth.js` and calls `await SH.requireSignIn()` before
-it saves (see "Sign-in for writes" below). This is a precondition, not an error
+`/v1/u/{handle}/...` twins) requires either a visitor signed in on that page
+(Google or an emailed code, both via auth.js) or an `X-API-Key`. A hosted page
+never has an API key, so any page that writes — a form, a counter, a vote, a
+guestbook — loads `https://simple-host.app/auth.js` and calls
+`await SH.requireSignIn()` before it saves (see "Sign-in for writes" below). This is a precondition, not an error
 branch: enforcement is global, and a page that skips it gets a 401
-(`code: "visitor_auth_required"`) and its save fails. Google is the only
-provider. `X-API-Key` still works for writes from scripts and agents.
+(`code: "visitor_auth_required"`) and its save fails. `X-API-Key` still works
+for writes from scripts and agents — the owner's key, or a person's own key
+(see "Saving on behalf of a person from an agent" below).
 
 Sign-in identifies the visitor; it does not make the page private. Reads stay
 public, and there is no private or password-locked page feature.
@@ -56,13 +57,18 @@ on a custom domain `{ site: "my-site" }`; backend-anywhere
 
 - `SH.ready` — promise; resolves after the first identity check.
 - `SH.me({fresh})` → `{signed_in:true, expires_at}` (plus `email` and
-  `provider:"google"` on a custom domain only: on the shared content host every
+  `provider` on a custom domain only: on the shared content host every
   site is the same origin, so the page learns *that* the visitor is signed in,
   not who) or `{signed_in:false, sign_in:"/v1/auth/oauth/providers"}`. Backed by
   `GET /v1/sites/{site}/me` (and `/v1/u/{handle}/sites/{site}/me`), Origin-gated
   like state, sent with `credentials:"include"`.
 - `SH.signIn({provider, returnTo})` — navigates to Google; returns to the current
   page afterwards.
+- `SH.email.request(email)` → promise; emails a 6-digit code (15-minute
+  expiry, 3 attempts). `POST {site}/visitor/auth`.
+- `SH.email.verify(email, code)` → promise; on success the visitor is signed in
+  with the same site-scoped session as Google (account created on first
+  verify). `POST {site}/visitor/auth/verify`.
 - `SH.signOut()` → promise.
 - `SH.requireSignIn()` → resolves the identity if signed in; otherwise navigates
   to sign-in and the promise never resolves. **Put this one call in front of
@@ -70,9 +76,11 @@ on a custom domain `{ site: "my-site" }`; backend-anywhere
 - `SH.state.get()` → `{data, etag}`; `SH.state.patch(ops)`;
   `SH.state.put(obj, {ifMatch})`.
 - `SH.collection(name).append(item)`; `SH.collection(name).list(query)`.
-- `SH.mount(target)` — renders a small status box: a "Sign in with Google to
-  save" button, or "Signed in as {email} · Sign out". Put
+- `SH.mount(target)` — renders a small status box. Signed out: a "Sign in
+  with Google" button plus an inline email form (email → "Send code" → 6-digit
+  code → "Verify"). Signed in: "Signed in as {email} · Sign out". Put
   `<div id="sh-auth"></div>` near the form and call `SH.mount('#sh-auth')`.
+  Either method works; nothing else in the page pattern changes.
 
 Every write sends `credentials:"include"`, `Content-Type: application/json` and
 `X-SH-CSRF: 1` for you. A non-2xx rejects with an `Error` carrying `.status`,
@@ -102,6 +110,30 @@ if (!res.ok) {
   status.textContent = 'Not saved: ' + (err.code || res.status);   // keep the form, never claim success
 }
 ```
+
+### Saving on behalf of a person from an agent (no browser)
+
+A code is bound to where it was requested: one emailed for a page sign-in works only on that site, and one requested through `/v1/auth` works only at `/v1/auth/verify`. Do not mix the two flows.
+
+Any account's API key writes to any site's state/collections (the write is
+accepted as that account's; the store itself records no author). An agent acting for a person who is **not** the site owner gets
+that person's key by email code:
+
+1. `POST https://simple-host.app/v1/auth` with `{"email":"person@example.com"}`
+   → 202 `{message, email, expires_in_seconds: 900}`. The person receives a
+   6-digit code (and a dashboard magic link they can ignore).
+2. Ask the person for the code, then `POST https://simple-host.app/v1/auth/verify`
+   with `{"email":"person@example.com","code":"123456"}` → 200 with `api_key`
+   (account created if it did not exist).
+3. Send `X-API-Key: <that key>` on `PUT`/`PATCH /v1/sites/{site}/state` and
+   `POST /v1/sites/{site}/collections/{coll}` (or the `/v1/u/{handle}/sites/{site}/...`
+   twins). An unknown key gets 401 `{"code":"invalid_api_key"}`.
+
+Rules: the key **is** that person's identity. Keep it in the agent's config or
+secret store — never in page HTML or committed files. It does not expire, and it
+also grants that person's own dashboard and site management, so it is not a
+throwaway token. If the agent is the site **owner's** agent, it already has the
+owner key and needs none of this.
 
 ## Shared JSON state (one key-value blob per site)
 
@@ -140,7 +172,7 @@ window.addEventListener('DOMContentLoaded', function () {
   const status = document.getElementById('status');
   document.getElementById('f').onsubmit = async function (e) {
     e.preventDefault();
-    await SH.requireSignIn();                      // navigates to Google if needed
+    await SH.requireSignIn();                      // signs the visitor in if needed
     try {
       await SH.state.patch([{ op: 'append', path: 'items', value: { text: e.target.text.value } },
                             { op: 'inc',    path: 'count', by: 1 }]);
@@ -193,8 +225,8 @@ instead of pretending otherwise.
 
 Both store under the site's state and auto-derive the right URL from the page
 path. Posting a comment or a pin is a write, so it needs a signed-in visitor;
-the widgets handle that themselves — they show "Sign in with Google to post"
-until then and never claim success on a failed write.
+the widgets handle that themselves — they show a Google sign-in prompt until then
+(the email-code form lives in auth.js, not in the widgets) and never claim success on a failed write.
 Use a **solid** page background — the widgets read light/dark from it, and
 a gradient breaks the detection.
 

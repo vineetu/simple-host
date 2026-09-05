@@ -14,7 +14,7 @@ Website Deploy is a static-file host at `https://simple-host.app`. Each site is 
 | Capability | How |
 |---|---|
 | HTML / CSS / JS / images / fonts served as a site | Deploy files inline as JSON (`/files`) or upload a `.tar.gz`/`.zip` |
-| Per-site JSON state (≤ 1 MB, shared across all visitors) | `GET / PUT /v1/u/<handle>/sites/<sitename>/state` (legacy `/v1/sites/<sitename>/state` still works). Reads public; writes need the visitor signed in with Google (`auth.js`) |
+| Per-site JSON state (≤ 1 MB, shared across all visitors) | `GET / PUT /v1/u/<handle>/sites/<sitename>/state` (legacy `/v1/sites/<sitename>/state` still works). Reads public; writes need the visitor signed in — Google or email code (`auth.js`) |
 | Atomic state updates (concurrent-safe counters, lists, votes) | `PATCH .../state` with `{ops:[inc/append/set/remove/removeWhere]}`; `If-None-Match` ETag for cheap polling. A write — visitor sign-in required |
 | Append-only collections (signups / RSVPs / submissions) | `POST/GET /v1/u/<handle>/sites/<sitename>/collections/<name>`. GET public; POST needs visitor sign-in |
 | Custom domain | `connect-domain` skill: bind domain → one CNAME → poll until active |
@@ -23,6 +23,7 @@ Website Deploy is a static-file host at `https://simple-host.app`. Each site is 
 | Per-visitor state | `localStorage`, `sessionStorage`, `IndexedDB` (in the browser) |
 | External APIs | `fetch()` from the page to any public CORS-enabled API |
 | Routing | Static files only — path-relative directories with `index.html`; SPA routing via the framework's hash router or `404.html` fallback |
+| Agent writing for a person (no browser) | That person's own API key, obtained by email code, as `X-API-Key` — see "Saving on behalf of a person from an agent" in the `website-deploy` skill's `references/backend.md` |
 
 If your idea needs a server you control, a shared SQL database, persistent per-user accounts, or anything that runs server-side, Website Deploy is not the right host. Say so and stop.
 
@@ -50,7 +51,7 @@ Gotchas: the site lives under `/<handle>/<sitename>/` on the content host, so **
 
 What it is: a single JSON document (up to 1 MB) scoped to your site. The server stores it in Postgres; your site reads and writes it from the browser. The blob is shared across **everyone** who visits — the last writer wins.
 
-When to choose: anything you'd want a tiny key-value store for — saved drafts, app state, a shared note, content the page just generated, configuration. **Not for secrets or per-user data**: anyone who can load the page can read the blob. **If the page saves, the page signs the visitor in**: every write needs a visitor signed in with Google on that page (or the owner's `X-API-Key`, which a hosted page never has), so the page loads `https://simple-host.app/auth.js` and calls `await SH.requireSignIn()` before writing — otherwise the save 401s (`code === "visitor_auth_required"`). Google is the only provider; the session is not an API key. Sign-in gates writing only — it does not make the page private. If you need per-user data, store it under different keys inside the blob and key on something like `crypto.randomUUID()` saved in `localStorage`.
+When to choose: anything you'd want a tiny key-value store for — saved drafts, app state, a shared note, content the page just generated, configuration. **Not for secrets or per-user data**: anyone who can load the page can read the blob. **If the page saves, the page signs the visitor in**: every write needs a visitor signed in on that page — Google or an emailed code (or an `X-API-Key`, which a hosted page never has), so the page loads `https://simple-host.app/auth.js` and calls `await SH.requireSignIn()` before writing — otherwise the save 401s (`code === "visitor_auth_required"`). The session is not an API key. Sign-in gates writing only — it does not make the page private. If you need per-user data, store it under different keys inside the blob and key on something like `crypto.randomUUID()` saved in `localStorage`.
 
 How to use, from a page hosted at `https://sites.simple-host.app/<handle>/<sitename>/`:
 
@@ -61,7 +62,7 @@ How to use, from a page hosted at `https://sites.simple-host.app/<handle>/<siten
 <script src="https://simple-host.app/auth.js" defer></script>
 <script>
 window.addEventListener('DOMContentLoaded', async function () {
-  SH.mount('#sh-auth');                              // "Sign in with Google to save" / "Signed in as …"
+  SH.mount('#sh-auth');                              // "Sign in with Google" + email-code form / "Signed in as …"
   const status = document.getElementById('status');
   const form = document.getElementById('f');
 
@@ -72,7 +73,7 @@ window.addEventListener('DOMContentLoaded', async function () {
   // save — sign in first, then write; keep the form on failure
   form.onsubmit = async function (e) {
     e.preventDefault();
-    await SH.requireSignIn();                        // navigates to Google if needed
+    await SH.requireSignIn();                        // signs the visitor in if needed
     try {
       await SH.state.patch([{ op: 'set', path: 'draft', value: form.draft.value }]);
       status.textContent = 'Saved';
@@ -176,7 +177,7 @@ A user can serve a site from their own domain (e.g. `recipes.brand.com`). This i
 | "my own domain / brand.com" | static + `connect-domain` skill |
 | "a slide deck I want to share a link to" | build with Slidev, Reveal.js, or similar and deploy the output |
 
-If the user wants something Website Deploy can't host — per-user accounts that span devices, server-side execution, or a shared SQL database — say so explicitly and stop. Suggest they pair Website Deploy (for the static front-end) with a separate backend host (Vercel functions, Cloudflare Workers, Supabase, etc.) where their server-side logic lives. Custom domains *are* supported via `connect-domain`. Private or password-locked pages are not — every deployed site is public. Google sign-in gates *writing* to the backend, nothing gates *reading*; never present "sign in to save" as a private page.
+If the user wants something Website Deploy can't host — per-user accounts that span devices, server-side execution, or a shared SQL database — say so explicitly and stop. Suggest they pair Website Deploy (for the static front-end) with a separate backend host (Vercel functions, Cloudflare Workers, Supabase, etc.) where their server-side logic lives. Custom domains *are* supported via `connect-domain`. Private or password-locked pages are not — every deployed site is public. Sign-in (Google or email code) gates *writing* to the backend, nothing gates *reading*; never present "sign in to save" as a private page.
 
 ## Generating a prompt for another agent
 

@@ -59,3 +59,11 @@ Website Deploy skill; humans mostly never touch the API directly.
   `SH.requireSignIn()` before saving) instead of every agent re-implementing thirty lines.
 - **2026-09-05. Skills teach sign-in as a precondition, not as a 401 branch.** Reason: an agent
   that only handles the error builds a form that looks fine in testing and fails for visitors.
+- **2026-09-05. One account model; visitors are not a separate class.** Any account's API key
+  writes to any site (accepted as that account's write; the store records no actor, only the
+  server log does), and a page can sign a visitor in by emailed code as well as Google, creating the account if it does not exist. Reason: "keep it simple";
+  an agent saving on behalf of a person gets their key through the same email-code flow the
+  dashboard already uses, and there is only one kind of identity to reason about.
+- **2026-09-05. Email sign-in codes are bound to a purpose and, for hosted pages, to one site.**
+  A visitor code cannot be redeemed at the dashboard for an API key or on another site. Reason:
+  review found the opposite let a phished guestbook code become a full account credential.

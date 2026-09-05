@@ -30,7 +30,7 @@ There is no separate object store, CDN, build pipeline, or microservices. Everyt
 One `http.ServeMux` in `main.go`. Major prefixes:
 
 - `/api/auth`, `/v1/me`, `/v1/sites/*` — REST surface. Mostly auth-gated. Wrapped with `noticeMW`.
-- `/v1/sites/{site}/state` — per-site JSON state. **Public-read scratch storage**: GETs are Origin/Referer-gated (a real browser can't forge that cross-site; `curl` can). Writes (`PUT`/`PATCH` state, `POST` collections) go through `visitorWriteOK`: visitor session + `X-SH-CSRF`, owner `X-API-Key`, or `WRITE_AUTH_MODE=log` (measure, still allow). Unset `WRITE_AUTH_MODE` is `log`; the source default is never `on`. Never put secrets in it. NOT wrapped with `noticeMW`.
+- `/v1/sites/{site}/state` — per-site JSON state. **Public-read scratch storage**: GETs are Origin/Referer-gated (a real browser can't forge that cross-site; `curl` can). Writes (`PUT`/`PATCH` state, `POST` collections) go through `visitorWriteOK`: visitor session + `X-SH-CSRF`, any account `X-API-Key`, or `WRITE_AUTH_MODE=log` (measure, still allow). Unset `WRITE_AUTH_MODE` is `log`; the source default is never `on`. Never put secrets in it. NOT wrapped with `noticeMW`.
 - `GET /v1/sites/{site}/me` (and the user-scoped twin) reports the current visitor session without extending it (email only on a custom domain, never on the shared content host). Hosted `/auth.js` exposes `window.SH` for sign-in, a status box, state and collections.
 - `/sites/{site}/...` — public static serving. Path safety + `http.FileServer` rooted at `<DATA_DIR>/<site>/current/`.
 - `/skills.zip`, `/plugin.zip`, `/install.sh`, `/skills/version` — Website Deploy bundle downloads. Public, no auth.
@@ -99,3 +99,5 @@ GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o ./simple-host ./cmd/server
 ```
 
 That's a single self-contained binary. Ship it to wherever, set the env vars, run it. The Website Deploy plugin (with MCP server + skills) is embedded; users download it from your `/skills.zip` or `/install.sh`.
+
+Hosted pages support email-code sign-in through /visitor/auth and /visitor/auth/verify (auth.js SH.email); state/collections writes accept any valid account API key as that account (2026-09-05).

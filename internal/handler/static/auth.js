@@ -1,5 +1,7 @@
 /*
- * simple-host visitor auth and storage — a drop-in hosted helper.
+ * simple-host visitor auth and storage — Google and email-code sign-in.
+ * SH.email.request(email) sends a code; SH.email.verify(email, code) signs in.
+ * SH.mount(target) offers Google plus an inline email/code form.
  *
  *   <section id="sh-auth"></section>
  *   <script src="https://simple-host.app/auth.js" defer></script>
@@ -53,7 +55,7 @@
     if (hn.indexOf("sites.") === 0) return location.protocol + "//" + hn.replace(/^sites\./, "");
     return "https://simple-host.app";
   }
-  var APEX = authApex(), providers = null, providerPromise, meCache;
+  var APEX = authApex(), providers = null, providerPromise, meCache, mounted = null;
   var API_ORIGIN = API_BASE.replace(/^(https?:\/\/[^\/]+).*$/, "$1");
   function unavailable() {
     var e = new Error("no backend configured");
@@ -128,11 +130,52 @@
       // Always re-check: a cached answer may be past expiry or signed out elsewhere.
       return SH.me({fresh: true}).then(function (me) {
         if (me.signed_in) return me;
-        return loadProviders().then(function () {
-          SH.signIn();
-          return new Promise(function () {});
+        if (mounted) {
+          // A sign-in box is on the page: bring it into view instead of leaving
+          // the page for Google. Resume the save after inline sign-in.
+          window.dispatchEvent(new CustomEvent("sh:signin-required"));
+          if (mounted.scrollIntoView) mounted.scrollIntoView({block: "center"});
+          return new Promise(function (resolve, reject) {
+            function signedIn() {
+              window.removeEventListener("sh:signed-in", signedIn);
+              SH.me({fresh: true}).then(resolve, reject);
+            }
+            window.addEventListener("sh:signed-in", signedIn);
+          });
+        }
+        return loadProviders().then(function (names) {
+          if (!names.length) {
+            var e = new Error("no sign-in method on this page: call SH.mount() to offer email sign-in");
+            e.code = "no_sign_in";
+            throw e;
+          }
+          SH.signIn({provider: names[0]});
+          return new Promise(function (resolve, reject) {
+            function signedIn() {
+              window.removeEventListener("sh:signed-in", signedIn);
+              SH.me({fresh: true}).then(resolve, reject);
+            }
+            window.addEventListener("sh:signed-in", signedIn);
+          });
         });
       });
+    },
+    email: {
+      request: function (email) {
+        return request(API_BASE + "/visitor/auth", {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({email: email})
+        });
+      },
+      verify: function (email, code) {
+        return write(API_BASE + "/visitor/auth/verify", "POST", {email: email, code: code}).then(function (body) {
+          meCache = null;
+          // Resumes any save waiting in requireSignIn(), whether the verify
+          // came from the mounted form or from page code.
+          window.dispatchEvent(new CustomEvent("sh:signed-in", {detail: body}));
+          return body;
+        });
+      }
     },
     state: {
       get: function () { return request(API_BASE + "/state", {}, true); },
@@ -163,6 +206,7 @@
       if (noBackend) return unavailable();
       var box = typeof target === "string" ? document.querySelector(target) : target;
       if (!box) return Promise.reject(new Error("SH.mount: target not found"));
+      mounted = box;
       function button(label, action) {
         var b = document.createElement("button");
         b.type = "button";
@@ -175,7 +219,7 @@
       function render() {
         return SH.me().then(function (me) {
           box.textContent = "";
-          box.style.cssText = "display:flex;align-items:center;gap:12px;padding:12px;font:inherit;color:var(--sh-muted,#666);border-radius:var(--sh-radius,6px)";
+          box.style.cssText = "display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px;font:inherit;color:var(--sh-muted,#666);border-radius:var(--sh-radius,6px)";
           if (me.signed_in) {
             var label = document.createElement("span");
             label.textContent = me.email ? "Signed in as " + me.email : "Signed in";
@@ -183,16 +227,72 @@
             button("Sign out", function () { SH.signOut().then(render).catch(showError); });
             return;
           }
+          var form = document.createElement("form");
+          form.style.cssText = "display:flex;flex-wrap:wrap;align-items:center;gap:8px";
+          var email = document.createElement("input");
+          email.type = "email";
+          email.required = true;
+          email.placeholder = "Email";
+          email.setAttribute("aria-label", "Email");
+          var code = document.createElement("input");
+          code.type = "text";
+          code.inputMode = "numeric";
+          code.pattern = "[0-9]{6}";
+          code.maxLength = 6;
+          code.required = true;
+          code.placeholder = "6-digit code";
+          code.setAttribute("aria-label", "6-digit code");
+          var style = "font:inherit;padding:6px 8px;color:var(--sh-muted,#666);border:1px solid var(--sh-muted,#666);border-radius:var(--sh-radius,6px)";
+          email.style.cssText = code.style.cssText = style;
+          var submit = document.createElement("button");
+          submit.type = "submit";
+          submit.textContent = "Send code";
+          submit.style.cssText = "font:inherit;cursor:pointer;padding:6px 12px;color:#fff;background:var(--sh-accent,#5b5ef4);border:0;border-radius:var(--sh-radius,6px)";
+          var error = document.createElement("span");
+          error.setAttribute("role", "status");
+          var address = null;
+          var reset = document.createElement("button");
+          reset.type = "button";
+          reset.textContent = "Use a different email";
+          reset.style.cssText = "font:inherit;font-size:small;cursor:pointer";
+          reset.onclick = function () {
+            address = null;
+            email.readOnly = false;
+            code.value = "";
+            form.removeChild(code);
+            form.removeChild(reset);
+            submit.textContent = "Send code";
+            error.textContent = "";
+          };
+          form.appendChild(email);
+          form.appendChild(submit);
+          form.appendChild(error);
+          form.onsubmit = function (event) {
+            event.preventDefault();
+            submit.disabled = true;
+            error.textContent = "";
+            var pending = address ? SH.email.verify(address, code.value).then(render) :
+              SH.email.request(email.value).then(function (body) {
+                address = body.email;
+                email.readOnly = true;
+                form.insertBefore(code, submit);
+                form.insertBefore(reset, error);
+                submit.textContent = "Verify";
+                error.textContent = body.message;
+                code.focus();
+              });
+            pending.catch(function (e) { error.textContent = e.message; }).then(function () {
+              submit.disabled = false;
+            });
+          };
+          box.appendChild(form);
           return loadProviders().then(function (names) {
-            if (!names.length) {
-              box.textContent = "sign-in is not configured on this host";
-              return;
-            }
+            if (!names.length) return;
             var name = names[0];
             button("Sign in with " + name.charAt(0).toUpperCase() + name.slice(1) + " to save", function () {
               SH.signIn({provider: name});
             });
-          });
+          }).catch(function (e) { error.textContent = e.message; });
         });
       }
       window.addEventListener("sh:signin-required", function () { render().catch(showError); });

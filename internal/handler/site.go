@@ -24,6 +24,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/storage"
 	"github.com/vsriram/simple-host/internal/tarball"
 )
@@ -54,6 +55,8 @@ func init() {
 const maxSitesPerUser = 100
 
 type SiteHandler struct {
+	mailer         email.Sender
+	emailLimiter   *rateLimiter
 	database       *sql.DB
 	disk           *storage.DiskStorage
 	siteDomain     string
@@ -68,8 +71,9 @@ type SiteHandler struct {
 	// uploadLimiter throttles create/update uploads per client IP; stateLimiter
 	// throttles per-site state writes (Origin-gated reads; writes also go
 	// through visitorWriteOK). See ratelimit.go.
-	uploadLimiter *rateLimiter
-	stateLimiter  *rateLimiter
+	uploadLimiter      *rateLimiter
+	stateLimiter       *rateLimiter
+	visitorAuthLimiter *rateLimiter
 
 	// previewAccounts (by username/email) get ephemeral sites: a site they create
 	// expires after previewTTL and is removed by the background sweep. Empty =off.
@@ -115,29 +119,34 @@ type versionResponse struct {
 	IsActive      bool      `json:"is_active"`
 }
 
-func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, contentHost, cnameTarget, customDomainIP, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration, writeAuthMode, adminUserID string) *SiteHandler {
+func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, contentHost, cnameTarget, customDomainIP, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration, writeAuthMode, adminUserID string, mailer email.Sender, emailLimiter *rateLimiter) *SiteHandler {
 	// Uploads: ~6/min/IP, burst 30. State writes: ~1/s/IP sustained, burst 60
 	// (a browser app may persist state on each interaction).
 	uploadLimiter := newRateLimiter(30, 0.1)
 	stateLimiter := newRateLimiter(60, 1)
+	visitorAuthLimiter := newRateLimiter(20, 0.2)
+	visitorAuthLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	uploadLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	stateLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 
 	h := &SiteHandler{
-		database:        database,
-		disk:            disk,
-		siteDomain:      siteDomain,
-		contentHost:     contentHost,
-		cnameTarget:     cnameTarget,
-		customDomainIP:  customDomainIP,
-		deployScript:    deployScript,
-		uploadLimiter:   uploadLimiter,
-		stateLimiter:    stateLimiter,
-		previewAccounts: previewAccounts,
-		previewTTL:      previewTTL,
-		writeAuthMode:   writeAuthMode,
-		adminAPIKey:     adminAPIKey,
-		adminUserID:     adminUserID,
+		mailer:             mailer,
+		emailLimiter:       emailLimiter,
+		database:           database,
+		disk:               disk,
+		siteDomain:         siteDomain,
+		contentHost:        contentHost,
+		cnameTarget:        cnameTarget,
+		customDomainIP:     customDomainIP,
+		deployScript:       deployScript,
+		uploadLimiter:      uploadLimiter,
+		stateLimiter:       stateLimiter,
+		visitorAuthLimiter: visitorAuthLimiter,
+		previewAccounts:    previewAccounts,
+		previewTTL:         previewTTL,
+		writeAuthMode:      writeAuthMode,
+		adminAPIKey:        adminAPIKey,
+		adminUserID:        adminUserID,
 	}
 	if len(previewAccounts) > 0 {
 		ttlHours := int(previewTTL.Hours())
@@ -234,7 +243,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// TRUST MODEL: site state is PUBLIC per-site scratch storage for reads.
 	// The Origin/Referer check (authorizeStateOrigin) still applies to every
 	// method. Writes additionally go through visitorWriteOK: a visitor
-	// session, the owner's X-API-Key, WRITE_AUTH_MODE=log (measure, allow),
+	// session, any account's X-API-Key, WRITE_AUTH_MODE=log (measure, allow),
 	// or the admin allow_anonymous_writes hatch. Do not store secrets in it.
 	// Abuse is bounded by stateLimiter (rate) and maxSiteStateSize (1 MB cap).
 	mux.Handle("PUT /v1/sites/{sitename}/allowed-origins", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setAllowedOrigins))))
@@ -264,6 +273,10 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 
 	mux.HandleFunc("GET /v1/sites/{sitename}/me", h.getVisitorMe)
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/me", h.optionsVisitorMe)
+	mux.HandleFunc("POST /v1/sites/{sitename}/visitor/auth", h.requestVisitorEmail)
+	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/visitor/auth", h.optionsVisitorEmail)
+	mux.HandleFunc("POST /v1/sites/{sitename}/visitor/auth/verify", h.verifyVisitorEmail)
+	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/visitor/auth/verify", h.optionsVisitorEmail)
 	mux.HandleFunc("GET /v1/sites/{sitename}/state", h.getSiteState)
 	mux.Handle("PUT /v1/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSiteState)))
 	mux.Handle("PATCH /v1/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchSiteState)))
@@ -277,6 +290,10 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 
 	mux.HandleFunc("GET /v1/u/{handle}/sites/{sitename}/me", h.getVisitorMe)
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/me", h.optionsVisitorMe)
+	mux.HandleFunc("POST /v1/u/{handle}/sites/{sitename}/visitor/auth", h.requestVisitorEmail)
+	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/visitor/auth", h.optionsVisitorEmail)
+	mux.HandleFunc("POST /v1/u/{handle}/sites/{sitename}/visitor/auth/verify", h.verifyVisitorEmail)
+	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/visitor/auth/verify", h.optionsVisitorEmail)
 	mux.HandleFunc("GET /v1/u/{handle}/sites/{sitename}/state", h.getSiteState)
 	mux.Handle("PUT /v1/u/{handle}/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSiteState)))
 	mux.Handle("PATCH /v1/u/{handle}/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchSiteState)))

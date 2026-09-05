@@ -90,11 +90,16 @@ CREATE TABLE auth_tokens (
   email      TEXT NOT NULL,
   code       TEXT NOT NULL,
   link_token TEXT UNIQUE NOT NULL,
+  purpose    TEXT NOT NULL DEFAULT 'dashboard',
+  site_id    UUID REFERENCES sites(id) ON DELETE CASCADE,
+  CONSTRAINT auth_tokens_purpose_check CHECK (purpose IN ('dashboard', 'visitor') AND ((purpose = 'visitor') = (site_id IS NOT NULL))),
   expires_at TIMESTAMPTZ NOT NULL,
   used_at    TIMESTAMPTZ,
   attempts   INT DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+CREATE INDEX auth_tokens_email_purpose_idx ON auth_tokens (email, purpose, site_id, created_at DESC);
 
 -- Per-site visitor analytics (nginx access log → ingester → aggregates).
 --

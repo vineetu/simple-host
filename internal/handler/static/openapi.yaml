@@ -20,7 +20,7 @@ tags:
     description: Email-code sign-in and dashboard OAuth handoff (`/?token=`)
   - name: Visitor
     description: >-
-      Site-scoped browser session for hosted-page Google/GitHub sign-in.
+      Site-scoped browser session for hosted-page Google/GitHub or email-code sign-in.
       Same `users` row as email-code / dashboard OAuth; the cookie is not an
       API key and does not satisfy owner routes.
   - name: Deploy
@@ -28,7 +28,7 @@ tags:
   - name: Sites
     description: List, versions, rollback, delete
   - name: State
-    description: Per-site shared JSON store (reads Origin-gated; writes need a visitor session or owner key)
+    description: Per-site shared JSON store (reads Origin-gated; writes need a visitor session or any account key)
   - name: Collections
     description: Append-only per-site lists (POST is a write)
   - name: Custom domains
@@ -150,7 +150,7 @@ paths:
         Exchange `{email, code}` (CLI/agent) or a magic-link `{token}` (browser)
         for an API key. The first successful email-code verify creates the
         account. Dashboard Google/GitHub also redeems through this endpoint
-        (`/?token=`). The code expires in 15 minutes and allows 3 attempts.
+        (`/?token=`). Visitor-issued codes are not accepted here. The code expires in 15 minutes and allows 3 attempts.
       tags: [Auth]
       requestBody:
         required: true
@@ -852,8 +852,8 @@ paths:
       description: >-
         Overwrites the whole blob (≤ 1 MB), last-write-wins. Optionally pass
         `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict).
-        Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the
-        owner's `X-API-Key`.
+        Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or
+        any account's `X-API-Key`, attributed to that account. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}.
       tags: [State]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -863,7 +863,14 @@ paths:
       responses:
         '200': { description: Saved; echoes the value, headers: { ETag: { schema: { type: string } } }, content: { application/json: { schema: {} } } }
         '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/VisitorAuthRequired' }
+        '401':
+          description: Sign-in required (visitor_auth_required), or invalid account API key (invalid_api_key).
+          content:
+            application/json:
+              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean } } }
+              examples:
+                invalidKey: { value: { error: "invalid API key", code: invalid_api_key } }
+                signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
         '403': { $ref: '#/components/responses/OriginMismatch' }
         '412': { description: ETag did not match (If-Match) }
         '413': { $ref: '#/components/responses/TooLarge' }
@@ -872,8 +879,8 @@ paths:
       summary: Atomically update per-site state
       description: >-
         Apply one or more atomic operations so concurrent writers never clobber.
-        Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the
-        owner's `X-API-Key`. Ops — `set` (path,value), `inc` (path,by),
+        Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or
+        any account's `X-API-Key`, attributed to that account. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Ops — `set` (path,value), `inc` (path,by),
         `append` (path,value), `remove` (path), `removeWhere` (path,match).
       tags: [State]
       parameters:
@@ -901,7 +908,14 @@ paths:
       responses:
         '200': { description: New state, headers: { ETag: { schema: { type: string } } }, content: { application/json: { schema: {} } } }
         '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/VisitorAuthRequired' }
+        '401':
+          description: Sign-in required (visitor_auth_required), or invalid account API key (invalid_api_key).
+          content:
+            application/json:
+              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean } } }
+              examples:
+                invalidKey: { value: { error: "invalid API key", code: invalid_api_key } }
+                signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
         '403': { $ref: '#/components/responses/OriginMismatch' }
 
   /v1/sites/{sitename}/collections:
@@ -939,8 +953,8 @@ paths:
       summary: Append an item to a collection
       description: >-
         Append-only list (O(1) insert). For signups, RSVPs, submissions.
-        Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the
-        owner's `X-API-Key`. Each item ≤ 64 KB.
+        Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or
+        any account's `X-API-Key`, attributed to that account. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB.
       tags: [Collections]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -950,7 +964,14 @@ paths:
       responses:
         '201': { description: Item appended }
         '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/VisitorAuthRequired' }
+        '401':
+          description: Sign-in required (visitor_auth_required), or invalid account API key (invalid_api_key).
+          content:
+            application/json:
+              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean } } }
+              examples:
+                invalidKey: { value: { error: "invalid API key", code: invalid_api_key } }
+                signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
         '403': { $ref: '#/components/responses/OriginMismatch' }
     get:
       operationId: getSitesBySitenameCollectionsByColl
@@ -1076,8 +1097,8 @@ paths:
       description: >-
         Overwrites the whole blob (≤ 1 MB), last-write-wins. Optionally pass
         `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict).
-        Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the
-        owner's `X-API-Key`.
+        Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or
+        any account's `X-API-Key`, attributed to that account. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}.
         v3 user-scoped, path-model-canonical variant: resolves the site by
         (handle -> user_id) + (user_id, name).
       tags: [State]
@@ -1090,7 +1111,14 @@ paths:
       responses:
         '200': { description: Saved; echoes the value, headers: { ETag: { schema: { type: string } } }, content: { application/json: { schema: {} } } }
         '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/VisitorAuthRequired' }
+        '401':
+          description: Sign-in required (visitor_auth_required), or invalid account API key (invalid_api_key).
+          content:
+            application/json:
+              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean } } }
+              examples:
+                invalidKey: { value: { error: "invalid API key", code: invalid_api_key } }
+                signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
         '403': { $ref: '#/components/responses/OriginMismatch' }
         '412': { description: ETag did not match (If-Match) }
         '413': { $ref: '#/components/responses/TooLarge' }
@@ -1099,8 +1127,8 @@ paths:
       summary: Atomically update per-site state (v3, by handle)
       description: >-
         Apply one or more atomic operations so concurrent writers never clobber.
-        Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the
-        owner's `X-API-Key`. Ops — `set` (path,value), `inc` (path,by),
+        Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or
+        any account's `X-API-Key`, attributed to that account. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Ops — `set` (path,value), `inc` (path,by),
         `append` (path,value), `remove` (path), `removeWhere` (path,match).
         v3 user-scoped, path-model-canonical variant: resolves the site by
         (handle -> user_id) + (user_id, name).
@@ -1131,7 +1159,14 @@ paths:
       responses:
         '200': { description: New state, headers: { ETag: { schema: { type: string } } }, content: { application/json: { schema: {} } } }
         '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/VisitorAuthRequired' }
+        '401':
+          description: Sign-in required (visitor_auth_required), or invalid account API key (invalid_api_key).
+          content:
+            application/json:
+              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean } } }
+              examples:
+                invalidKey: { value: { error: "invalid API key", code: invalid_api_key } }
+                signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
         '403': { $ref: '#/components/responses/OriginMismatch' }
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}:
@@ -1140,8 +1175,8 @@ paths:
       summary: Append an item to a collection (v3, by handle)
       description: >-
         Append-only list (O(1) insert). For signups, RSVPs, submissions.
-        Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the
-        owner's `X-API-Key`. Each item ≤ 64 KB.
+        Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or
+        any account's `X-API-Key`, attributed to that account. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB.
         v3 user-scoped, path-model-canonical variant: resolves the site by
         (handle -> user_id) + (user_id, name).
       tags: [Collections]
@@ -1154,7 +1189,14 @@ paths:
       responses:
         '201': { description: Item appended }
         '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/VisitorAuthRequired' }
+        '401':
+          description: Sign-in required (visitor_auth_required), or invalid account API key (invalid_api_key).
+          content:
+            application/json:
+              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean } } }
+              examples:
+                invalidKey: { value: { error: "invalid API key", code: invalid_api_key } }
+                signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
         '403': { $ref: '#/components/responses/OriginMismatch' }
     get:
       operationId: getCollectionByHandle
@@ -1616,6 +1658,543 @@ paths:
       responses:
         '200': { description: Ready, content: { application/json: { schema: { type: object, properties: { status: { type: string, example: ok } } } } } }
         '503': { description: Not ready }
+
+  /v1/sites/{sitename}/visitor/auth:
+    post:
+      operationId: requestSiteVisitorEmail
+      summary: Request a site-scoped email sign-in code
+      description: Origin-gated and unavailable on the apex host. Uses the shared account
+        email-code limiter and site IP limiter. Normalizes and validates email, then
+        sends a 6-digit Resend code valid for 15 minutes. Does not create the account
+        yet.
+      tags:
+      - Auth
+      security: []
+      parameters:
+      - &id002
+        $ref: '#/components/parameters/sitename'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: person@example.com
+      responses:
+        '202':
+          description: Code sent; no dashboard magic link.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - message
+                - email
+                - expires_in_seconds
+                properties:
+                  message:
+                    type: string
+                    enum:
+                    - Check your email for a sign-in code.
+                  email:
+                    type: string
+                    format: email
+                  expires_in_seconds:
+                    type: integer
+                    enum:
+                    - 900
+        '400':
+          description: Invalid request, missing fields, or apex host
+          content:
+            application/json:
+              schema: &id001
+                type: object
+                required:
+                - error
+                properties:
+                  error:
+                    type: string
+                  code:
+                    type: string
+              example:
+                error: not available on this host
+        '401':
+          description: Invalid or expired code; attempt cap reports too many attempts,
+            request a new code. Verification only.
+          content:
+            application/json:
+              schema: *id001
+              example:
+                error: invalid or expired code
+                code: invalid_code
+        '403':
+          description: Origin forbidden or missing CSRF (verification)
+          content:
+            application/json:
+              schema: *id001
+              example:
+                error: forbidden
+        '404':
+          description: Site not found
+          content:
+            application/json:
+              schema: *id001
+              example:
+                error: site not found
+        '429':
+          description: IP or shared per-email rate limit exceeded
+          content:
+            application/json:
+              schema: *id001
+              example:
+                error: rate limit exceeded, slow down
+        '500':
+          description: Internal error or email delivery failed
+          content:
+            application/json:
+              schema: *id001
+              example:
+                error: internal server error
+    options:
+      operationId: optionsRequestSiteVisitorEmail
+      summary: Preflight site email sign-in
+      tags:
+      - Auth
+      security: []
+      parameters: &id003
+      - *id002
+      responses:
+        '204':
+          description: Origin-authorized preflight
+          headers:
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+                enum:
+                - POST, OPTIONS
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+                enum:
+                - Content-Type, X-SH-CSRF
+            Access-Control-Max-Age:
+              schema:
+                type: string
+                enum:
+                - '600'
+        '400':
+          description: Missing site name
+        '403':
+          description: Origin forbidden
+  /v1/sites/{sitename}/visitor/auth/verify:
+    post:
+      operationId: verifySiteVisitorEmail
+      summary: Verify a site-scoped email sign-in code
+      description: 'Origin-gated and unavailable on the apex host. Uses the shared account
+        email-code limiter and dedicated visitor auth IP limiter. Codes are bound to this
+        site and the visitor purpose; dashboard codes are not accepted. Checks the latest
+        unused, unexpired token, caps attempts, and creates the account lazily. Never returns an
+        API key. Session has 30-day absolute and 14-day idle lifetimes. Send X-SH-CSRF:
+        1 is required explicitly; application/json does not satisfy this requirement.'
+      tags:
+      - Auth
+      security: []
+      parameters:
+      - *id002
+      - $ref: '#/components/parameters/csrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - email
+              - code
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: person@example.com
+                code:
+                  type: string
+                  example: '123456'
+                  description: 6-digit email code
+      responses:
+        '200':
+          description: Signed in; sets the existing host-only visitor session cookie.
+            Email/provider are omitted on the shared content host.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - signed_in
+                - expires_at
+                properties:
+                  signed_in:
+                    type: boolean
+                    enum:
+                    - true
+                  email:
+                    type: string
+                    format: email
+                  provider:
+                    type: string
+                    enum:
+                    - email
+                  expires_at:
+                    type: string
+                    format: date-time
+        '400':
+          description: Invalid request, missing fields, or apex host
+          content:
+            application/json:
+              schema: *id001
+              example:
+                error: not available on this host
+        '401':
+          description: Invalid or expired code; attempt cap reports too many attempts,
+            request a new code. Verification only.
+          content:
+            application/json:
+              schema: *id001
+              example:
+                error: invalid or expired code
+                code: invalid_code
+        '403':
+          description: Origin forbidden or missing CSRF (verification)
+          content:
+            application/json:
+              schema: *id001
+              example:
+                error: missing CSRF header
+                code: csrf_required
+        '404':
+          description: Site not found
+          content:
+            application/json:
+              schema: *id001
+              example:
+                error: site not found
+        '429':
+          description: IP or shared per-email rate limit exceeded
+          content:
+            application/json:
+              schema: *id001
+              example:
+                error: rate limit exceeded, slow down
+        '500':
+          description: Internal error or email delivery failed
+          content:
+            application/json:
+              schema: *id001
+              example:
+                error: internal server error
+    options:
+      operationId: optionsVerifySiteVisitorEmail
+      summary: Preflight site email sign-in
+      tags:
+      - Auth
+      security: []
+      parameters: *id003
+      responses:
+        '204':
+          description: Origin-authorized preflight
+          headers:
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+                enum:
+                - POST, OPTIONS
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+                enum:
+                - Content-Type, X-SH-CSRF
+            Access-Control-Max-Age:
+              schema:
+                type: string
+                enum:
+                - '600'
+        '400':
+          description: Missing site name
+        '403':
+          description: Origin forbidden
+  /v1/u/{handle}/sites/{sitename}/visitor/auth:
+    post:
+      operationId: requestUserSiteVisitorEmail
+      summary: Request a site-scoped email sign-in code
+      description: Origin-gated and unavailable on the apex host. Uses the shared account
+        email-code limiter and site IP limiter. Normalizes and validates email, then
+        sends a 6-digit Resend code valid for 15 minutes. Does not create the account
+        yet.
+      tags:
+      - Auth
+      security: []
+      parameters:
+      - &id004
+        name: handle
+        in: path
+        required: true
+        schema:
+          type: string
+      - &id005
+        $ref: '#/components/parameters/sitename'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: person@example.com
+      responses:
+        '202':
+          description: Code sent; no dashboard magic link.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - message
+                - email
+                - expires_in_seconds
+                properties:
+                  message:
+                    type: string
+                    enum:
+                    - Check your email for a sign-in code.
+                  email:
+                    type: string
+                    format: email
+                  expires_in_seconds:
+                    type: integer
+                    enum:
+                    - 900
+        '400':
+          description: Invalid request, missing fields, or apex host
+          content:
+            application/json:
+              schema: *id001
+              example:
+                error: not available on this host
+        '401':
+          description: Invalid or expired code; attempt cap reports too many attempts,
+            request a new code. Verification only.
+          content:
+            application/json:
+              schema: *id001
+              example:
+                error: invalid or expired code
+                code: invalid_code
+        '403':
+          description: Origin forbidden or missing CSRF (verification)
+          content:
+            application/json:
+              schema: *id001
+              example:
+                error: forbidden
+        '404':
+          description: Site not found
+          content:
+            application/json:
+              schema: *id001
+              example:
+                error: site not found
+        '429':
+          description: IP or shared per-email rate limit exceeded
+          content:
+            application/json:
+              schema: *id001
+              example:
+                error: rate limit exceeded, slow down
+        '500':
+          description: Internal error or email delivery failed
+          content:
+            application/json:
+              schema: *id001
+              example:
+                error: internal server error
+    options:
+      operationId: optionsRequestUserSiteVisitorEmail
+      summary: Preflight site email sign-in
+      tags:
+      - Auth
+      security: []
+      parameters: &id006
+      - *id004
+      - *id005
+      responses:
+        '204':
+          description: Origin-authorized preflight
+          headers:
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+                enum:
+                - POST, OPTIONS
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+                enum:
+                - Content-Type, X-SH-CSRF
+            Access-Control-Max-Age:
+              schema:
+                type: string
+                enum:
+                - '600'
+        '400':
+          description: Missing site name
+        '403':
+          description: Origin forbidden
+  /v1/u/{handle}/sites/{sitename}/visitor/auth/verify:
+    post:
+      operationId: verifyUserSiteVisitorEmail
+      summary: Verify a site-scoped email sign-in code
+      description: 'Origin-gated and unavailable on the apex host. Uses the shared account
+        email-code limiter and dedicated visitor auth IP limiter. Codes are bound to this
+        site and the visitor purpose; dashboard codes are not accepted. Checks the latest
+        unused, unexpired token, caps attempts, and creates the account lazily. Never returns an
+        API key. Session has 30-day absolute and 14-day idle lifetimes. Send X-SH-CSRF:
+        1 is required explicitly; application/json does not satisfy this requirement.'
+      tags:
+      - Auth
+      security: []
+      parameters:
+      - *id004
+      - *id005
+      - $ref: '#/components/parameters/csrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - email
+              - code
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: person@example.com
+                code:
+                  type: string
+                  example: '123456'
+                  description: 6-digit email code
+      responses:
+        '200':
+          description: Signed in; sets the existing host-only visitor session cookie.
+            Email/provider are omitted on the shared content host.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - signed_in
+                - expires_at
+                properties:
+                  signed_in:
+                    type: boolean
+                    enum:
+                    - true
+                  email:
+                    type: string
+                    format: email
+                  provider:
+                    type: string
+                    enum:
+                    - email
+                  expires_at:
+                    type: string
+                    format: date-time
+        '400':
+          description: Invalid request, missing fields, or apex host
+          content:
+            application/json:
+              schema: *id001
+              example:
+                error: not available on this host
+        '401':
+          description: Invalid or expired code; attempt cap reports too many attempts,
+            request a new code. Verification only.
+          content:
+            application/json:
+              schema: *id001
+              example:
+                error: invalid or expired code
+                code: invalid_code
+        '403':
+          description: Origin forbidden or missing CSRF (verification)
+          content:
+            application/json:
+              schema: *id001
+              example:
+                error: missing CSRF header
+                code: csrf_required
+        '404':
+          description: Site not found
+          content:
+            application/json:
+              schema: *id001
+              example:
+                error: site not found
+        '429':
+          description: IP or shared per-email rate limit exceeded
+          content:
+            application/json:
+              schema: *id001
+              example:
+                error: rate limit exceeded, slow down
+        '500':
+          description: Internal error or email delivery failed
+          content:
+            application/json:
+              schema: *id001
+              example:
+                error: internal server error
+    options:
+      operationId: optionsVerifyUserSiteVisitorEmail
+      summary: Preflight site email sign-in
+      tags:
+      - Auth
+      security: []
+      parameters: *id006
+      responses:
+        '204':
+          description: Origin-authorized preflight
+          headers:
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+                enum:
+                - POST, OPTIONS
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+                enum:
+                - Content-Type, X-SH-CSRF
+            Access-Control-Max-Age:
+              schema:
+                type: string
+                enum:
+                - '600'
+        '400':
+          description: Missing site name
+        '403':
+          description: Origin forbidden
 
 components:
   securitySchemes:

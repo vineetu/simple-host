@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"log"
 	"math/big"
 	"net/http"
 	"regexp"
@@ -135,52 +134,17 @@ func (h *UserHandler) requestSignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
-	if req.Email == "" || !validEmail.MatchString(req.Email) {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "valid email is required"})
+	email, expires, status, body := issueEmailCode(r.Context(), h.database, h.mailer, h.emailLimiter, req.Email, h.publicBaseURL, "dashboard", sql.NullString{})
+	if status != 0 {
+		writeEmailCodeError(w, status, body)
 		return
 	}
-
-	// Per-address throttle: stops one email from being mail-bombed even if the
-	// attacker rotates source IPs.
-	if !h.emailLimiter.allow(req.Email) {
-		tooManyRequests(w)
-		return
-	}
-
-	code, err := generateNumericCode(6)
-	if err != nil {
-		log.Printf("auth: generateNumericCode: %v", err)
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	linkToken, err := generateLinkToken(24)
-	if err != nil {
-		log.Printf("auth: generateLinkToken: %v", err)
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	expiresAt := time.Now().Add(authTokenTTL)
-	if err := db.CreateAuthToken(r.Context(), h.database, req.Email, code, linkToken, expiresAt); err != nil {
-		log.Printf("auth: CreateAuthToken: %v", err)
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	link := h.publicBaseURL + "/?token=" + linkToken
-	if err := h.mailer.SendSignInCode(req.Email, code, link); err != nil {
-		// Don't expose details to the caller, but log loudly — this is the
-		// most likely failure mode in production (Resend misconfig, DNS, etc).
-		log.Printf("auth: mailer.SendSignInCode(%s): %v", req.Email, err)
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "could not send verification email"})
-		return
-	}
+	req.Email = email
 
 	writeJSON(w, http.StatusAccepted, authChallengeResponse{
 		Message:   "Check your email for a sign-in code.",
 		Email:     req.Email,
-		ExpiresIn: int(authTokenTTL.Seconds()),
+		ExpiresIn: expires,
 	})
 }
 
@@ -197,98 +161,14 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
-	req.Code = strings.ReplaceAll(strings.TrimSpace(req.Code), "-", "")
-	req.Token = strings.TrimSpace(req.Token)
-
-	var tok db.AuthToken
-	var err error
-
-	switch {
-	case req.Token != "":
-		tok, err = db.GetAuthTokenByLink(r.Context(), h.database, req.Token)
-	case req.Email != "" && req.Code != "":
-		tok, err = db.GetLatestAuthTokenForEmail(r.Context(), h.database, req.Email)
-	default:
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "supply token or email+code"})
-		return
-	}
-
-	if errors.Is(err, sql.ErrNoRows) {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "invalid or expired code"})
-		return
-	}
-	if err != nil {
-		log.Printf("auth: lookup token: %v", err)
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	if tok.Attempts >= maxCodeAttempts {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "too many attempts, request a new code"})
-		return
-	}
-
-	// For code-entry path, compare submitted code against the stored value.
-	if req.Token == "" {
-		// Throttle guesses against a specific address across tokens, on top of
-		// the per-token maxCodeAttempts cap.
-		if !h.emailLimiter.allow(tok.Email) {
-			tooManyRequests(w)
-			return
-		}
-		if subtleConstantTimeEqual(req.Code, tok.Code) != 1 {
-			_ = db.IncrementAuthTokenAttempts(r.Context(), h.database, tok.ID)
-			writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "invalid or expired code"})
-			return
-		}
-	}
-
-	// Lazily create the user on first successful verification. requestSignIn no
-	// longer pre-creates the row, so this is where a new account is born.
-	created := false
-	user, err := db.GetUserByUsername(r.Context(), h.database, tok.Email)
-	if errors.Is(err, sql.ErrNoRows) {
-		apiKey, kerr := auth.GenerateAPIKey()
-		if kerr != nil {
-			log.Printf("auth: GenerateAPIKey: %v", kerr)
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-			return
-		}
-		user, err = db.CreateUser(r.Context(), h.database, tok.Email, apiKey, false)
-		if err != nil {
-			if isUniqueViolation(err) {
-				// Concurrent verify won the race — re-fetch the existing row.
-				user, err = db.GetUserByUsername(r.Context(), h.database, tok.Email)
-			}
-			if err != nil {
-				log.Printf("auth: CreateUser after verify: %v", err)
-				writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-				return
-			}
+	user, created, status, body := verifyEmailCode(r.Context(), h.database, h.emailLimiter, req, "dashboard", sql.NullString{})
+	if status != 0 {
+		if status == http.StatusUnauthorized {
+			writeJSON(w, status, map[string]string{"error": body.Error, "code": "invalid_code"})
 		} else {
-			created = true
+			writeEmailCodeError(w, status, body)
 		}
-	} else if err != nil {
-		log.Printf("auth: GetUserByUsername after verify: %v", err)
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
-	}
-
-	// Assign a URL-safe handle for new users (or lazy-backfill older rows that
-	// still have a NULL handle). ClaimHandle only writes WHERE handle IS NULL,
-	// so existing handles are never overwritten.
-	if created || !user.Handle.Valid {
-		assignHandle(r.Context(), h.database, user.ID, tok.Email)
-		if refetched, rerr := db.GetUserByUsername(r.Context(), h.database, tok.Email); rerr == nil {
-			user = refetched
-		} else {
-			log.Printf("auth: refetch after assignHandle: %v", rerr)
-		}
-	}
-
-	if err := db.MarkAuthTokenUsed(r.Context(), h.database, tok.ID); err != nil {
-		log.Printf("auth: MarkAuthTokenUsed: %v", err)
 	}
 
 	writeJSON(w, http.StatusOK, authResponse{

@@ -198,7 +198,7 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 			writeOAuthHTMLError(w, http.StatusBadGateway)
 			return
 		}
-		if err := db.CreateAuthToken(r.Context(), tx, user.Username, code, linkToken, time.Now().Add(authTokenTTL)); err != nil {
+		if err := db.CreateAuthToken(r.Context(), tx, user.Username, code, linkToken, time.Now().Add(authTokenTTL), "dashboard", sql.NullString{}); err != nil {
 			log.Printf("oauth: owner auth token: %v", err)
 			writeOAuthHTMLError(w, http.StatusBadGateway)
 			return

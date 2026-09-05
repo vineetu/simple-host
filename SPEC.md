@@ -753,3 +753,9 @@ Everything in the CUT column of §3, plus:
 | Widgets | `internal/handler/static/comments.js`, `feedback.js` |
 | Teachers | `llms.txt`, `openapi.yaml` + `openapi.json`, templates, skills, `plugin.json`, `README.md`, `CLAUDE.md` |
 | Docs sync | `bash scripts/check-docs-sync.sh` after every new `/v1` route |
+
+## Owner decision — 2026-09-05
+
+2026-09-05: Email sign-in tokens are bound to dashboard or visitor purpose, and visitor codes are bound to their issuing site.
+
+One account model: visitors are not a separate class. Any valid account API key may write to any site’s state/collections as that account; invalid keys return 401 invalid_api_key. Hosted pages may sign in using email and a 6-digit Resend code in addition to Google, lazily creating the same account and receiving the same site-scoped visitor session cookie. Site email sign-in never returns an API key or sends a dashboard magic link.

@@ -1,6 +1,6 @@
 ---
 name: website-deploy
-description: Deploy static websites to simple-host.app. Use when an agent needs to guide a user through registration, build/validate a static site, deploy it (inline JSON files OR a tar.gz/zip archive), or wire up the per-site backend — shared JSON state with atomic ops, append-only collections, drop-in comments/feedback widgets, and starter templates. Saving data from a page requires the visitor to sign in with Google (hosted auth.js) — reads stay public.
+description: Deploy static websites to simple-host.app. Use when an agent needs to guide a user through registration, build/validate a static site, deploy it (inline JSON files OR a tar.gz/zip archive), or wire up the per-site backend — shared JSON state with atomic ops, append-only collections, drop-in comments/feedback widgets, and starter templates. Saving data from a page requires the visitor to sign in — Google or email-code sign-in via the hosted auth.js — reads stay public.
 ---
 
 # Website Deploy
@@ -13,7 +13,7 @@ append-only collections) that its own page JavaScript can call.
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.12.0`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.13.0`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -87,16 +87,19 @@ production build output.
 ## Saving data requires sign-in
 
 If a page writes to the site's backend — a form, a counter, a vote, a
-guestbook — the visitor must be signed in with Google on that page. Reads are
-public; every write (`PUT`/`PATCH` `/state`, `POST` `/collections/<name>`)
-without a signed-in visitor or the owner's `X-API-Key` gets a 401
-(`code: "visitor_auth_required"`), and a hosted page never has an API key. So
-any page that saves loads
+guestbook — the visitor must be signed in on that page, with Google or an
+emailed 6-digit code, both via auth.js. Reads are public; every write
+(`PUT`/`PATCH` `/state`, `POST` `/collections/<name>`) without a signed-in
+visitor or an `X-API-Key` gets a 401 (`code: "visitor_auth_required"`), and a
+hosted page never has an API key. So any page that saves loads
 `<script src="https://simple-host.app/auth.js" defer></script>`, mounts
-`SH.mount('#sh-auth')` next to the form, and calls `await SH.requireSignIn()`
-before the write. Google is the only provider. Sign-in identifies the visitor;
+`SH.mount('#sh-auth')` next to the form (it offers both methods), and calls
+`await SH.requireSignIn()` before the write. Sign-in identifies the visitor;
 it does not make the page private — there is no private or password-locked
 page feature. Full `SH` API and the pattern to copy: `references/backend.md`.
+An agent that must write for a person from outside a browser uses that
+person's own API key, obtained by email code — see "Saving on behalf of a
+person from an agent" in `references/backend.md`.
 
 ## Rules that always apply
 
