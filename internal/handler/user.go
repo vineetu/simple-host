@@ -88,6 +88,32 @@ func (h *UserHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("POST /v1/auth", noticeMiddleware(rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.requestSignIn))))
 	mux.Handle("POST /v1/auth/verify", noticeMiddleware(rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.verifySignIn))))
 	mux.Handle("GET /v1/me", noticeMiddleware(authMiddleware(http.HandlerFunc(h.me))))
+	mux.Handle("POST /v1/me/api-key/rotate", noticeMiddleware(authMiddleware(http.HandlerFunc(h.rotateAPIKey))))
+}
+
+func (h *UserHandler) rotateAPIKey(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+		return
+	}
+	if user.APIKey == "" {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "the server admin key cannot be rotated through this endpoint"})
+		return
+	}
+	newKey, err := auth.GenerateAPIKey()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	if err := db.RotateAPIKey(r.Context(), h.database, user.ID, user.APIKey, newKey); err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{
+		"api_key": newKey,
+		"message": "API key rotated. The old key no longer works; update your agent or CLI with this new key.",
+	})
 }
 
 // requestSignIn handles POST /v1/auth: generates a 6-digit code and a

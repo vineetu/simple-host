@@ -46,10 +46,6 @@ func (h *SiteHandler) patchSiteState(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusForbidden, errorResponse{Error: "forbidden"})
 		return
 	}
-	if !h.viewSessionOK(r, siteName) {
-		writeJSON(w, http.StatusForbidden, errorResponse{Error: "this site is private — view it first to unlock its data"})
-		return
-	}
 
 	// Resolve name -> site_id once; all subsequent state ops key by id.
 	siteID, err := h.resolveSiteID(r, siteName)

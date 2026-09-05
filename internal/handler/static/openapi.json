@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Simple Host API",
-    "description": "Static website hosting with a light per-site backend. Deploy a site with one API call \u2014 inline JSON files (LLM-friendly) or a tar.gz/zip archive \u2014 and each site gets shared JSON state (with atomic ops), append-only collections, optional password (view-lock) protection, and starter templates. Sign-in is a 6-digit email code or Google/GitHub that returns an API key, sent as the `X-API-Key` header. Hosted-page sign-in uses the same account but a site-scoped session cookie \u2014 never an API key.",
+    "description": "Static website hosting with a light per-site backend. Deploy a site with one API call — inline JSON files (LLM-friendly) or a tar.gz/zip archive — and each site gets shared JSON state (with atomic ops), append-only collections, and starter templates. Sign-in is a 6-digit email code or Google/GitHub that returns an API key, sent as the `X-API-Key` header. Hosted-page sign-in uses the same account but a site-scoped session cookie — never an API key.",
     "version": "2.0.0"
   },
   "servers": [
@@ -37,10 +37,6 @@
       "description": "Append-only per-site lists (POST is a write)"
     },
     {
-      "name": "Private pages",
-      "description": "Password (view-lock) protection"
-    },
-    {
       "name": "Custom domains",
       "description": "Bind one custom domain per site (CNAME + on-demand TLS)"
     },
@@ -64,7 +60,7 @@
     "/v1/skills": {
       "get": {
         "operationId": "listSkills",
-        "summary": "Skills hub catalog \u2014 discover the bundled agent skills",
+        "summary": "Skills hub catalog — discover the bundled agent skills",
         "description": "Public catalog of the skills this server bundles (name + description + fetch URL), so any agent can search them over HTTP. No auth.",
         "responses": {
           "200": {
@@ -188,7 +184,7 @@
       "post": {
         "operationId": "postAuth",
         "summary": "Request a sign-in code",
-        "description": "Emails a 6-digit code (and a magic link) to the address. No user row is created here \u2014 the account is created lazily on the first successful verify, so this can't be used to enumerate users.",
+        "description": "Emails a 6-digit code (and a magic link) to the address. No user row is created here — the account is created lazily on the first successful verify, so this can't be used to enumerate users.",
         "tags": [
           "Auth"
         ],
@@ -348,7 +344,7 @@
       "get": {
         "operationId": "startOAuth",
         "summary": "Start OAuth",
-        "description": "Apex start. Query `return_to` is required and must be an absolute URL. Two shapes: the dashboard origin `/` (owner purpose \u2014 callback hands off via `/?token=`) or a real content-host path (`/{handle}/{sitename}/\u2026`) / DNS-proven custom domain (site purpose \u2014 callback issues a host-and-site-scoped session). Success 302s to the provider with PKCE S256. Unknown or disabled provider is 404. No cookie is set here. The caller cannot set `purpose`; it is derived from `return_to`.",
+        "description": "Apex start. Query `return_to` is required and must be an absolute URL. Two shapes: the dashboard origin `/` (owner purpose — callback hands off via `/?token=`) or a real content-host path (`/{handle}/{sitename}/…`) / DNS-proven custom domain (site purpose — callback issues a host-and-site-scoped session). Success 302s to the provider with PKCE S256. Unknown or disabled provider is 404. No cookie is set here. The caller cannot set `purpose`; it is derived from `return_to`.",
         "tags": [
           "Visitor"
         ],
@@ -424,7 +420,7 @@
       "get": {
         "operationId": "oauthCallback",
         "summary": "OAuth callback",
-        "description": "Provider redirect URI on the apex. Consumes the one-time `state`. Identifies via userinfo, then `resolveUser` (link or create a `users` row on a verified email; refuse missing/unverified email). Site purpose 302s to `https://<return-host>/v1/visitor/establish?once=\u2026`. Owner purpose 302s to `{PUBLIC_BASE_URL}/?token=\u2026` for the dashboard to redeem via `POST /v1/auth/verify`. Neither redirect contains an API key. Failures are a short no-store HTML page on the apex with no Location and no cookie.",
+        "description": "Provider redirect URI on the apex. Consumes the one-time `state`. Identifies via userinfo, then `resolveUser` (link or create a `users` row on a verified email; refuse missing/unverified email). Site purpose 302s to `https://<return-host>/v1/visitor/establish?once=…`. Owner purpose 302s to `{PUBLIC_BASE_URL}/?token=…` for the dashboard to redeem via `POST /v1/auth/verify`. Neither redirect contains an API key. Failures are a short no-store HTML page on the apex with no Location and no cookie.",
         "tags": [
           "Visitor"
         ],
@@ -653,6 +649,48 @@
         }
       }
     },
+    "/v1/me/api-key/rotate": {
+      "post": {
+        "operationId": "postMeApiKeyRotate",
+        "summary": "Rotate your API key",
+        "description": "Replaces the authenticated owner's API key and returns the new key. The old key stops working immediately.",
+        "tags": [
+          "Auth"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "API key rotated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "api_key",
+                    "message"
+                  ],
+                  "properties": {
+                    "api_key": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
     "/v1/sites": {
       "get": {
         "operationId": "getSites",
@@ -690,7 +728,7 @@
       "post": {
         "operationId": "postSitesBySitenameFiles",
         "summary": "Deploy a site from inline JSON files",
-        "description": "The LLM-friendly deploy path \u2014 send every file inline in one request, no archiving. `index.html` is required. Relative paths only (`..`/absolute are rejected); secret files (`.env`, `.git/*`, `id_rsa`) are dropped and script extensions (`.sh .py .php \u2026`) are rejected. Use PUT to update an existing site.",
+        "description": "The LLM-friendly deploy path — send every file inline in one request, no archiving. Text goes in `files`; base64-encoded binary goes in `files_base64`. `index.html` is required. Relative paths only (`..`/absolute are rejected); secret files (`.env`, `.git/*`, `id_rsa`) are dropped and script extensions (`.sh .py .php …`) are rejected. Use PUT to update an existing site.",
         "tags": [
           "Deploy"
         ],
@@ -787,6 +825,62 @@
       }
     },
     "/v1/sites/{sitename}": {
+      "patch": {
+        "operationId": "patchSitesBySitename",
+        "summary": "Rename your site",
+        "description": "Renames the database row and on-disk site directory. The new name uses the same validation and per-owner uniqueness rule as creation. A bound custom domain remains attached. The old public URL is not redirected and returns 404; the response states this explicitly.",
+        "tags": [
+          "Sites"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "example": "new-site-name"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Site renamed; includes old_url",
+            "site_url": null,
+            "and old_url_status": null
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      },
       "post": {
         "operationId": "postSitesBySitename",
         "summary": "Create a site from an archive",
@@ -905,7 +999,7 @@
       "delete": {
         "operationId": "deleteSitesBySitename",
         "summary": "Delete your site",
-        "description": "Deletes the site you own \u2014 all versions and files from disk.",
+        "description": "Deletes the site you own — all versions and files from disk.",
         "tags": [
           "Sites"
         ],
@@ -1038,7 +1132,7 @@
       "put": {
         "operationId": "putSitesBySitenameVisibility",
         "summary": "Set showcase visibility",
-        "description": "Set whether this site is listed on the owner's public showcase at sites.<domain>/<handle>. `public` = listed on the showcase; `unlisted` = still reachable by direct link but hidden from the showcase. Owner only (API key).",
+        "description": "Set whether this site is listed on the owner's public showcase at sites.<domain>/<handle>. `public` = listed on the showcase; `unlisted` = hidden from it. New sites are created `unlisted` — listing is an explicit act, not a side effect of deploying.\n\nThis controls LISTING ONLY. Both values are equally reachable by anyone with the URL; nothing on the content-serving path consults it. `unlisted` is not privacy and must never be described as such. Owner only (API key).",
         "tags": [
           "Sites"
         ],
@@ -1091,11 +1185,98 @@
         }
       }
     },
+    "/v1/analytics/sites": {
+      "get": {
+        "operationId": "getAnalyticsSites",
+        "summary": "Per-site traffic totals for every site you own",
+        "description": "One call returning the class split for all of the caller's sites, ordered by `person.views` descending — the \"which of my sites are actually being read\" view. Exists so a dashboard can sort by traffic without one request per site.\n\nNot under `/v1/sites/...` because that would collide with a site named \"analytics\". Pass `all=1` (admins only) to widen the scope to every site on the instance; non-admins get 403 rather than a silently narrowed list.",
+        "tags": [
+          "Analytics"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "description": "Number of UTC days to include (default 30, clamp 1..365)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365,
+              "default": 30
+            }
+          },
+          {
+            "name": "all",
+            "in": "query",
+            "required": false,
+            "description": "Admins only — include every site on the instance.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Per-site totals, highest `person.views` first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "range_days": {
+                      "type": "integer",
+                      "example": 30
+                    },
+                    "sites": {
+                      "type": "array",
+                      "items": {
+                        "allOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "example": "eb2-wait"
+                              }
+                            }
+                          },
+                          {
+                            "$ref": "#/components/schemas/TrafficSplit"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "`all=1` requested by a non-admin"
+          }
+        }
+      }
+    },
     "/v1/sites/{sitename}/analytics": {
       "get": {
         "operationId": "getSitesBySitenameAnalytics",
         "summary": "Get per-site visitor analytics",
-        "description": "Owner-scoped daily view and visitor counts derived server-side from the access log (no client beacon). `visitors` are distinct hashed IPs per UTC day \u2014 salt rotates daily, so a returning-next-day visitor counts once per day in the range total. `daily` is zero-filled dense for the requested window (oldest \u2192 newest). Owner only (API key).",
+        "description": "Owner-scoped view and visitor counts derived server-side from the access log (no client beacon). Every bucket is split three ways by who was asking: `person` (no automation signature), `bot` (crawlers, AI scrapers, SEO tools, security scanners, HTTP libraries) and `infra` (uptime probes and health checks aimed at the site). Read `person` as the audience number — a total that folds in `infra` is dominated by monitoring, not people.\n\n`visitors` are unique visitors: COUNT(DISTINCT hashed IP) over the window asked for. The salt is stable, so `totals.*.visitors` is genuine uniques for the range and is NOT the sum of the `daily` figures — someone who visited on five days is one unique in `totals` and five in `daily`. IP-based, so a shared office NAT reads as one visitor and a phone switching wifi→cellular reads as two.\n\n`daily` is zero-filled dense for the requested window (oldest → newest). `hourly` is always 24 zero-filled buckets ending with the hour in progress. Only successful document responses (200/304, non-asset paths) count as views, for every class alike. Owner only (API key).",
         "tags": [
           "Analytics"
         ],
@@ -1133,38 +1314,140 @@
                       "type": "integer",
                       "example": 30
                     },
+                    "classified_from": {
+                      "type": "string",
+                      "format": "date",
+                      "example": "2026-08-09",
+                      "description": "First UTC day for which the person/bot/infra split exists. Earlier days in `daily` report under `unknown`. Omitted when nothing has been classified yet."
+                    },
                     "totals": {
-                      "type": "object",
-                      "properties": {
-                        "views": {
-                          "type": "integer",
-                          "example": 1234
-                        },
-                        "visitors": {
-                          "type": "integer",
-                          "example": 456
-                        }
-                      }
+                      "$ref": "#/components/schemas/TrafficSplit"
+                    },
+                    "last_24h": {
+                      "$ref": "#/components/schemas/TrafficSplit"
                     },
                     "daily": {
                       "type": "array",
                       "items": {
-                        "type": "object",
-                        "properties": {
-                          "day": {
-                            "type": "string",
-                            "format": "date",
-                            "example": "2026-07-11"
+                        "allOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "day": {
+                                "type": "string",
+                                "format": "date",
+                                "example": "2026-08-31"
+                              }
+                            }
                           },
-                          "views": {
-                            "type": "integer",
-                            "example": 42
-                          },
-                          "visitors": {
-                            "type": "integer",
-                            "example": 30
+                          {
+                            "$ref": "#/components/schemas/TrafficSplit"
                           }
-                        }
+                        ]
+                      }
+                    },
+                    "hourly": {
+                      "type": "array",
+                      "description": "Exactly 24 buckets, oldest → newest.",
+                      "items": {
+                        "allOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "hour": {
+                                "type": "string",
+                                "format": "date-time",
+                                "example": "2026-08-31T14:00:00Z"
+                              }
+                            }
+                          },
+                          {
+                            "$ref": "#/components/schemas/TrafficSplit"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/analytics/geo": {
+      "get": {
+        "operationId": "getSitesBySitenameAnalyticsGeo",
+        "summary": "Where a site's visitors are, by country",
+        "description": "Per-country traffic for one site over the last `days` UTC days, split by the same `person` / `bot` / `infra` classes as the rest of analytics and ordered by `person.views` descending (ties broken by country code).\n\nCountry is resolved on the server from a local IP-range table refreshed from a public dataset — no visitor address is ever sent to a geolocation service, and the raw address is still never stored. Country data: \"IP Geolocation by DB-IP\" (https://db-ip.com), CC BY 4.0.\n\n`country` is ISO-3166 alpha-2. `\"XX\"` / `\"Unknown\"` is traffic the table could not place (an unlisted block, or a server whose ranges have not been loaded); it is listed rather than dropped, so the countries still add up to the site's totals.\n\n`visitors` is COUNT(DISTINCT hashed IP) over the whole window, exactly as in the main analytics endpoint — genuine uniques for the range, not the sum of the daily figures. Someone whose address changes country mid-range counts once in each, so the columns can total slightly more than the site's own figure. `unknown` is always zero here: the pre-classifier history has no addresses left to place. Owner only (API key).",
+        "tags": [
+          "Analytics"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "description": "Number of UTC days to include (default 30, clamp 1..365)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365,
+              "default": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Per-country traffic, most real people first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "range_days": {
+                      "type": "integer",
+                      "example": 30
+                    },
+                    "countries": {
+                      "type": "array",
+                      "items": {
+                        "allOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "country": {
+                                "type": "string",
+                                "example": "US",
+                                "description": "ISO-3166 alpha-2, or \"XX\" when unresolved"
+                              },
+                              "country_name": {
+                                "type": "string",
+                                "example": "United States"
+                              }
+                            }
+                          },
+                          {
+                            "$ref": "#/components/schemas/TrafficSplit"
+                          }
+                        ]
                       }
                     }
                   }
@@ -1188,7 +1471,7 @@
       "get": {
         "operationId": "getSitesBySitenameState",
         "summary": "Read per-site JSON state",
-        "description": "Returns the JSON blob for this site (`null` if unset). PUBLIC store \u2014 no API key; the server checks `Origin`/`Referer` and only accepts calls from the site's own page (`https://{sitename}.simple-host.app`). The response carries an `ETag`; send `If-None-Match: <etag>` to get a `304` when nothing changed (cheap polling). Never store secrets here.",
+        "description": "Returns the JSON blob for this site (`null` if unset). PUBLIC store — no API key; the server checks `Origin`/`Referer` and only accepts calls from the site's own page (`https://{sitename}.simple-host.app`). The response carries an `ETag`; send `If-None-Match: <etag>` to get a `304` when nothing changed (cheap polling). Never store secrets here.",
         "tags": [
           "State"
         ],
@@ -1232,7 +1515,7 @@
       "put": {
         "operationId": "putSitesBySitenameState",
         "summary": "Replace per-site JSON state",
-        "description": "Overwrites the whole blob (\u2264 1 MB), last-write-wins. Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the owner's `X-API-Key`.",
+        "description": "Overwrites the whole blob (≤ 1 MB), last-write-wins. Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the owner's `X-API-Key`.",
         "tags": [
           "State"
         ],
@@ -1296,7 +1579,7 @@
       "patch": {
         "operationId": "patchSitesBySitenameState",
         "summary": "Atomically update per-site state",
-        "description": "Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the owner's `X-API-Key`. Ops \u2014 `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match).",
+        "description": "Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the owner's `X-API-Key`. Ops — `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match).",
         "tags": [
           "State"
         ],
@@ -1460,7 +1743,7 @@
       "post": {
         "operationId": "postSitesBySitenameCollectionsByColl",
         "summary": "Append an item to a collection",
-        "description": "Append-only list (O(1) insert). For signups, RSVPs, submissions. Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the owner's `X-API-Key`. Each item \u2264 64 KB.",
+        "description": "Append-only list (O(1) insert). For signups, RSVPs, submissions. Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the owner's `X-API-Key`. Each item ≤ 64 KB.",
         "tags": [
           "Collections"
         ],
@@ -1604,7 +1887,7 @@
       "get": {
         "operationId": "getSiteStateByHandle",
         "summary": "Read per-site JSON state (v3, by handle)",
-        "description": "Returns the JSON blob for this site (`null` if unset). PUBLIC store \u2014 no API key; the server checks `Origin`/`Referer` and only accepts calls from the site's own page (`https://{sitename}.simple-host.app`). The response carries an `ETag`; send `If-None-Match: <etag>` to get a `304` when nothing changed (cheap polling). Never store secrets here. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Returns the JSON blob for this site (`null` if unset). PUBLIC store — no API key; the server checks `Origin`/`Referer` and only accepts calls from the site's own page (`https://{sitename}.simple-host.app`). The response carries an `ETag`; send `If-None-Match: <etag>` to get a `304` when nothing changed (cheap polling). Never store secrets here. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "tags": [
           "State"
         ],
@@ -1657,7 +1940,7 @@
       "put": {
         "operationId": "putSiteStateByHandle",
         "summary": "Replace per-site JSON state (v3, by handle)",
-        "description": "Overwrites the whole blob (\u2264 1 MB), last-write-wins. Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the owner's `X-API-Key`. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Overwrites the whole blob (≤ 1 MB), last-write-wins. Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the owner's `X-API-Key`. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "tags": [
           "State"
         ],
@@ -1730,7 +2013,7 @@
       "patch": {
         "operationId": "patchSiteStateByHandle",
         "summary": "Atomically update per-site state (v3, by handle)",
-        "description": "Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the owner's `X-API-Key`. Ops \u2014 `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match). v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the owner's `X-API-Key`. Ops — `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match). v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "tags": [
           "State"
         ],
@@ -1843,7 +2126,7 @@
       "post": {
         "operationId": "postCollectionByHandle",
         "summary": "Append an item to a collection (v3, by handle)",
-        "description": "Append-only list (O(1) insert). For signups, RSVPs, submissions. Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the owner's `X-API-Key`. Each item \u2264 64 KB. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Append-only list (O(1) insert). For signups, RSVPs, submissions. Origin-gated. Writes require a visitor session (`X-SH-CSRF: 1`) or the owner's `X-API-Key`. Each item ≤ 64 KB. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "tags": [
           "Collections"
         ],
@@ -1963,8 +2246,8 @@
     "/v1/sites/{sitename}/allow-anonymous-writes": {
       "put": {
         "operationId": "putAllowAnonymousWrites",
-        "summary": "Admin override \u2014 allow anonymous writes on one site",
-        "description": "Sets `sites.allow_anonymous_writes`. Admin (`ADMIN_API_KEY`) only. Default is false. When `WRITE_AUTH_MODE=on` and this flag is true, anonymous writes to this site succeed and are logged with `outcome=overridden`. No `/v1/u/{handle}/\u2026` twin.",
+        "summary": "Admin override — allow anonymous writes on one site",
+        "description": "Sets `sites.allow_anonymous_writes`. Admin (`ADMIN_API_KEY`) only. Default is false. When `WRITE_AUTH_MODE=on` and this flag is true, anonymous writes to this site succeed and are logged with `outcome=overridden`. No `/v1/u/{handle}/…` twin.",
         "tags": [
           "Sites"
         ],
@@ -2037,88 +2320,11 @@
         }
       }
     },
-    "/v1/sites/{sitename}/view-password": {
-      "put": {
-        "operationId": "putSitesBySitenameViewPassword",
-        "summary": "Set a view password (make the site private)",
-        "description": "Password-protect the whole site (view-lock). Visitors get a custom login page + signed cookie, and the locked page's state/collections also require unlocking. Owner only (API key).",
-        "tags": [
-          "Private pages"
-        ],
-        "security": [
-          {
-            "apiKey": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/sitename"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "password"
-                ],
-                "properties": {
-                  "password": {
-                    "type": "string"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "204": {
-            "description": "View password set"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        }
-      },
-      "delete": {
-        "operationId": "deleteSitesBySitenameViewPassword",
-        "summary": "Remove the view password (make the site public again)",
-        "tags": [
-          "Private pages"
-        ],
-        "security": [
-          {
-            "apiKey": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/sitename"
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "View password removed"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        }
-      }
-    },
     "/v1/sites/{sitename}/allowed-origins": {
       "put": {
         "operationId": "putSitesBySitenameAllowedOrigins",
         "summary": "Allow external origins to use this site's backend",
-        "description": "Whitelist extra origins (scheme://host, no path) that may call this site's state/collections API cross-origin \u2014 so a page hosted anywhere (GitHub Pages, Netlify, \u2026) can use the site as its backend for comments, feedback, counters, and forms. Replaces the whole list (max 20). Owner only. Same Origin-gated trust model as same-site calls: data stays public to the page's audience; never store secrets.",
+        "description": "Whitelist extra origins (scheme://host, no path) that may call this site's state/collections API cross-origin — so a page hosted anywhere (GitHub Pages, Netlify, …) can use the site as its backend for comments, feedback, counters, and forms. Replaces the whole list (max 20). Owner only. Same Origin-gated trust model as same-site calls: data stays public to the page's audience; never store secrets.",
         "tags": [
           "State"
         ],
@@ -2193,7 +2399,7 @@
       "post": {
         "operationId": "postSitesBySitenameDomain",
         "summary": "Bind a custom domain to this site",
-        "description": "Bind ONE custom domain to the site (status starts as `pending`). Returns the DNS CNAME record the owner must create (host \u2192 platform CNAME target). Once DNS points at us, on-demand TLS issues a cert and the domain is served at its root. Domains are globally unique; hijacking the platform zone is rejected. Owner only (API key).",
+        "description": "Bind ONE custom domain to the site (status starts as `pending`). Returns the DNS CNAME record the owner must create (host → platform CNAME target). Once DNS points at us, on-demand TLS issues a cert and the domain is served at its root. Domains are globally unique; hijacking the platform zone is rejected. Owner only (API key).",
         "tags": [
           "Custom domains"
         ],
@@ -2471,11 +2677,79 @@
         }
       }
     },
+    "/v1/admin/api-analytics": {
+      "get": {
+        "operationId": "getAdminApiAnalytics",
+        "summary": "Per-endpoint API call analytics with caller geo (admin)",
+        "description": "Admin-only. Aggregated API traffic for the retention window: call counts for today and the trailing week, today's error count, distinct caller IPs, AI build counts, a per-route breakdown and a per-IP breakdown with geo. Served from small day-granular aggregate tables, so it is cheap to poll. A signed-in non-admin gets 404, not 403 — same rule as /v1/admin/users, so the endpoint does not confirm it exists to anyone who may not use it.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Aggregated API analytics for the retention window.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "calls_today": {
+                      "type": "integer"
+                    },
+                    "calls_week": {
+                      "type": "integer"
+                    },
+                    "errors_today": {
+                      "type": "integer"
+                    },
+                    "ips_today": {
+                      "type": "integer"
+                    },
+                    "ai_builds_today": {
+                      "type": "integer"
+                    },
+                    "ai_builds_week": {
+                      "type": "integer"
+                    },
+                    "retention_days": {
+                      "type": "integer"
+                    },
+                    "routes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "ips": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "Signed in but not an admin"
+          }
+        }
+      }
+    },
     "/v1/admin/users": {
       "get": {
         "operationId": "getAdminUsers",
         "summary": "List all users + their sites (admin)",
-        "description": "Admin-only. Returns every registered user with their sites nested (API keys are never included). Powers the /admin dashboard. A signed-in non-admin gets 404, not 403 \u2014 the endpoint does not confirm it exists to anyone who may not use it, and /admin renders that as an ordinary not-found page.",
+        "description": "Admin-only. Returns every registered user with their sites nested (API keys are never included). Powers the /admin dashboard. A signed-in non-admin gets 404, not 403 — the endpoint does not confirm it exists to anyone who may not use it, and /admin renders that as an ordinary not-found page.",
         "tags": [
           "Admin"
         ],
@@ -2549,7 +2823,7 @@
       "post": {
         "operationId": "postTranscribe",
         "summary": "Transcribe a voice recording to text",
-        "description": "Powers the mic button in the builder chat. POST the raw audio bytes as the body with the recording's Content-Type \u2014 WebM/Opus (Chrome) and MP4/AAC (iOS Safari) are both accepted, since browsers disagree and the server sniffs the container itself. Speech-to-text runs on this box (Moonshine, CPU-only), so audio is never sent to a third party. Returns the text for the user to edit and send; it does not start a build. Sign-in-gated and rate limited. Absent when the server has no TRANSCRIBE_URL configured.",
+        "description": "Powers the mic button in the builder chat. POST the raw audio bytes as the body with the recording's Content-Type — WebM/Opus (Chrome) and MP4/AAC (iOS Safari) are both accepted, since browsers disagree and the server sniffs the container itself. Speech-to-text runs on this box (Moonshine, CPU-only), so audio is never sent to a third party. Returns the text for the user to edit and send; it does not start a build. Sign-in-gated and rate limited. Absent when the server has no TRANSCRIBE_URL configured.",
         "tags": [
           "AI"
         ],
@@ -2697,7 +2971,7 @@
                   },
                   "attachments": {
                     "type": "array",
-                    "description": "images / PDFs / text on the latest user turn",
+                    "description": "images / text on the latest user turn",
                     "items": {
                       "type": "object",
                       "properties": {
@@ -2732,7 +3006,7 @@
         },
         "responses": {
           "200": {
-            "description": "Returns a jobId; poll /v1/generate/status until it reports done. Every backend answers this way. A full build takes a minute or more, which is far too long to hold one HTTP response open \u2014 browsers drop an idle connection long before it finishes.",
+            "description": "Returns a jobId; poll /v1/generate/status until it reports done. Every backend answers this way. A full build takes a minute or more, which is far too long to hold one HTTP response open — browsers drop an idle connection long before it finishes.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2763,7 +3037,7 @@
       "get": {
         "operationId": "getGenerateStatus",
         "summary": "Poll an async AI-create job",
-        "description": "Poll the status of a job started by POST /v1/generate. Returns running until the build finishes, then done with the reply and HTML (or error with a message). Poll every couple of seconds. Sign-in-gated, and a job is visible only to the user who started it \u2014 anyone else gets 404, as does an id that has expired. Jobs are kept 10 minutes after finishing.",
+        "description": "Poll the status of a job started by POST /v1/generate. Returns running until the build finishes, then done with the reply and HTML (or error with a message). Poll every couple of seconds. Sign-in-gated, and a job is visible only to the user who started it — anyone else gets 404, as does an id that has expired. Jobs are kept 10 minutes after finishing.",
         "tags": [
           "AI"
         ],
@@ -2921,6 +3195,38 @@
       }
     },
     "schemas": {
+      "TrafficCounts": {
+        "type": "object",
+        "properties": {
+          "views": {
+            "type": "integer",
+            "example": 61
+          },
+          "visitors": {
+            "type": "integer",
+            "description": "Unique visitors — distinct hashed IPs over this bucket's window",
+            "example": 24
+          }
+        }
+      },
+      "TrafficSplit": {
+        "type": "object",
+        "description": "One bucket of traffic, split by who was asking. `person` is the audience figure; `infra` is the site's own monitoring and is normally far larger than either of the other two. `unknown` is non-zero only for days before `classified_from`, which were recorded before traffic was classified and cannot be broken down after the fact — do not fold it into any of the other three.",
+        "properties": {
+          "person": {
+            "$ref": "#/components/schemas/TrafficCounts"
+          },
+          "bot": {
+            "$ref": "#/components/schemas/TrafficCounts"
+          },
+          "infra": {
+            "$ref": "#/components/schemas/TrafficCounts"
+          },
+          "unknown": {
+            "$ref": "#/components/schemas/TrafficCounts"
+          }
+        }
+      },
       "AuthResponse": {
         "type": "object",
         "properties": {
@@ -2955,12 +3261,23 @@
               "type": "string"
             },
             "description": "relative path -> file contents (text). `index.html` required."
+          },
+          "files_base64": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "format": "byte"
+            },
+            "description": "relative path -> base64-encoded binary contents. A path cannot also appear in `files`."
           }
         },
         "example": {
           "files": {
             "index.html": "<!DOCTYPE html><h1>Hello</h1>",
             "css/style.css": "body{font-family:sans-serif}"
+          },
+          "files_base64": {
+            "assets/logo.png": "iVBORw0KGgoAAAANSUhEUg..."
           }
         }
       },
@@ -3047,7 +3364,7 @@
         }
       },
       "Unauthorized": {
-        "description": "Missing or invalid API key \u2014 send the X-API-Key header, not Authorization Bearer",
+        "description": "Missing or invalid API key — send the X-API-Key header, not Authorization Bearer",
         "content": {
           "application/json": {
             "schema": {

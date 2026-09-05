@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"database/sql"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -70,12 +71,6 @@ type SiteHandler struct {
 	uploadLimiter *rateLimiter
 	stateLimiter  *rateLimiter
 
-	// locks is the in-memory view-password cache for the nginx auth_request gate.
-	locks *viewLocks
-	// viewSecret signs the view-session cookie (HMAC), so bcrypt runs only on
-	// password submit, not on every page view.
-	viewSecret []byte
-
 	// previewAccounts (by username/email) get ephemeral sites: a site they create
 	// expires after previewTTL and is removed by the background sweep. Empty =off.
 	previewAccounts map[string]bool
@@ -128,15 +123,6 @@ func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, con
 	uploadLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	stateLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 
-	locks := newViewLocks()
-	if m, err := db.LoadViewLocks(context.Background(), database); err != nil {
-		log.Printf("viewauth: load locks at boot: %v", err)
-	} else {
-		locks.m = m
-	}
-
-	secret := sha256.Sum256([]byte(adminAPIKey + "|sh-view-cookie"))
-
 	h := &SiteHandler{
 		database:        database,
 		disk:            disk,
@@ -147,8 +133,6 @@ func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, con
 		deployScript:    deployScript,
 		uploadLimiter:   uploadLimiter,
 		stateLimiter:    stateLimiter,
-		locks:           locks,
-		viewSecret:      secret[:],
 		previewAccounts: previewAccounts,
 		previewTTL:      previewTTL,
 		writeAuthMode:   writeAuthMode,
@@ -166,6 +150,10 @@ func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, con
 		}
 		h.startExpirySweep(time.Hour)
 		log.Printf("preview-site expiry enabled: accounts=%d ttl=%s", len(previewAccounts), previewTTL)
+	}
+	if customDomainIP != "" {
+		h.startDomainChecks(domainCheckInterval)
+		log.Printf("custom-domain verification enabled: every %s, active re-proved after %s", domainCheckInterval, domainActiveAge)
 	}
 	return h
 }
@@ -221,11 +209,16 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("POST /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.createSite)))))
 	mux.Handle("PUT /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.updateSite)))))
 	mux.Handle("DELETE /v1/sites/{sitename}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.deleteSite))))
+	mux.Handle("PATCH /v1/sites/{sitename}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.renameSite))))
 	mux.Handle("GET /v1/sites", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listSites))))
 	mux.Handle("GET /v1/admin/users", authMiddleware(http.HandlerFunc(h.adminUsers)))
 	mux.Handle("GET /v1/sites/{sitename}/versions", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listVersions))))
 	mux.Handle("PUT /v1/sites/{sitename}/active-version", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setActiveVersion))))
 	mux.Handle("GET /v1/sites/{sitename}/analytics", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteAnalytics))))
+	mux.Handle("GET /v1/sites/{sitename}/analytics/geo", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteGeoAnalytics))))
+	// Deliberately not /v1/sites/analytics: that would collide with a site
+	// actually named "analytics".
+	mux.Handle("GET /v1/analytics/sites", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getAnalyticsSummary))))
 	mux.Handle("PUT /v1/sites/{sitename}/visibility", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setVisibility))))
 
 	// JSON deploy (LLM-friendly): file contents inline, no archive. Same auth +
@@ -244,11 +237,6 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// session, the owner's X-API-Key, WRITE_AUTH_MODE=log (measure, allow),
 	// or the admin allow_anonymous_writes hatch. Do not store secrets in it.
 	// Abuse is bounded by stateLimiter (rate) and maxSiteStateSize (1 MB cap).
-	// View-lock (API-native): owner sets/clears a bcrypt view password; nginx
-	// enforces it via auth_request -> /internal/view-auth (public access to
-	// /internal is blocked at the apex proxy).
-	mux.Handle("PUT /v1/sites/{sitename}/view-password", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setViewPassword))))
-	mux.Handle("DELETE /v1/sites/{sitename}/view-password", noticeMiddleware(authMiddleware(http.HandlerFunc(h.deleteViewPassword))))
 	mux.Handle("PUT /v1/sites/{sitename}/allowed-origins", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setAllowedOrigins))))
 	mux.Handle("PUT /v1/sites/{sitename}/allow-anonymous-writes", noticeMiddleware(authMiddleware(auth.RequireAdmin(http.HandlerFunc(h.setAllowAnonymousWrites)))))
 
@@ -259,18 +247,14 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("DELETE /v1/sites/{sitename}/domain", noticeMiddleware(authMiddleware(http.HandlerFunc(h.deleteDomain))))
 	mux.HandleFunc("GET /internal/tls-ask", h.tlsAsk)
 
-	mux.HandleFunc("GET /internal/view-auth", h.viewAuth)
-	mux.HandleFunc("GET /internal/view-login-page", h.viewLoginPage)
-	mux.HandleFunc("POST /internal/view-login", h.viewLogin)
-
 	// Per-user public showcase + branded 404s, reached only via the content-host
 	// nginx block (single-segment /<handle> -> showcase; file misses -> notfound).
 	mux.HandleFunc("GET /internal/showcase/{handle}", h.showcase)
 	mux.HandleFunc("GET /internal/notfound", h.notFound)
 
 	// Append-only collections (second backend type): cheap O(1) appends +
-	// paginated reads for large/high-volume lists. Origin-gated + view-lock
-	// aware, like state. Owner-authenticated list + CSV export sit next to
+	// paginated reads for large/high-volume lists. Origin-gated like state.
+	// Owner-authenticated list + CSV export sit next to
 	// them so a site owner can see (and download) what the site saved.
 	mux.Handle("GET /v1/sites/{sitename}/collections", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listSiteCollections))))
 	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}/export.csv", authMiddleware(http.HandlerFunc(h.exportCollectionCSV)))
@@ -300,6 +284,77 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	visitorLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	mux.Handle("GET /v1/visitor/establish", rateLimitByIP(visitorLimiter, http.HandlerFunc(h.establishVisitor)))
 	mux.Handle("POST /v1/visitor/logout", rateLimitByIP(visitorLimiter, http.HandlerFunc(h.logoutVisitor)))
+}
+
+func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	oldName := strings.TrimSpace(r.PathValue("sitename"))
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid JSON body (expected {\"name\":\"new-name\"})"})
+		return
+	}
+	newName := strings.TrimSpace(req.Name)
+	if err := validateSiteShape(newName); err != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		return
+	}
+	if err := validateSiteReserved(newName); err != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		return
+	}
+	if oldName == newName {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "new site name must be different"})
+		return
+	}
+	first, second := oldName, newName
+	if second < first {
+		first, second = second, first
+	}
+	unlockFirst := h.lockSite(first)
+	defer unlockFirst()
+	unlockSecond := h.lockSite(second)
+	defer unlockSecond()
+
+	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, oldName)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+		return
+	}
+	if _, err := db.GetSiteByUser(r.Context(), h.database, user.ID, newName); err == nil {
+		writeJSON(w, http.StatusConflict, errorResponse{Error: "you already have a site with that name"})
+		return
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	oldURL := site.SiteURL
+	newURL := fmt.Sprintf("https://%s/%s/%s/", h.contentHost, user.Handle.String, newName)
+	domain := ""
+	if site.CustomDomain.Valid {
+		domain = site.CustomDomain.String
+	}
+	if err := h.disk.RenameSite(user.ID, oldName, newName, domain); err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "could not move site files"})
+		return
+	}
+	if err := db.RenameSite(r.Context(), h.database, site.ID, newName, newURL); err != nil {
+		_ = h.disk.RenameSite(user.ID, newName, oldName, domain)
+		if isUniqueViolation(err) {
+			writeJSON(w, http.StatusConflict, errorResponse{Error: "you already have a site with that name"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"id": site.ID, "old_name": oldName, "name": newName,
+		"old_url": oldURL, "site_url": newURL, "old_url_status": "not_found",
+		"message":                 "Site renamed. The old URL no longer works and returns 404; use the new URL.",
+		"custom_domain_unchanged": domain != "",
+	})
 }
 
 // originHostForSite returns the expected hostname for state CORS, e.g.
@@ -531,10 +586,6 @@ func (h *SiteHandler) getSiteState(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusForbidden, errorResponse{Error: "forbidden"})
 		return
 	}
-	if !h.viewSessionOK(r, siteName) {
-		writeJSON(w, http.StatusForbidden, errorResponse{Error: "this site is private — view it first to unlock its data"})
-		return
-	}
 
 	// Resolve name -> site_id once; all subsequent state ops key by id.
 	siteID, err := h.resolveSiteID(r, siteName)
@@ -608,10 +659,6 @@ func (h *SiteHandler) putSiteState(w http.ResponseWriter, r *http.Request) {
 
 	if !h.authorizeStateOrigin(w, r, siteName) {
 		writeJSON(w, http.StatusForbidden, errorResponse{Error: "forbidden"})
-		return
-	}
-	if !h.viewSessionOK(r, siteName) {
-		writeJSON(w, http.StatusForbidden, errorResponse{Error: "this site is private — view it first to unlock its data"})
 		return
 	}
 
@@ -950,7 +997,8 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 // the file contents inline, no archiving step. For binary assets or large sites,
 // use the archive upload (POST/PUT /v1/sites/{name}).
 type filesRequest struct {
-	Files map[string]string `json:"files"`
+	Files       map[string]string `json:"files"`
+	FilesBase64 map[string]string `json:"files_base64"`
 }
 
 // readJSONFiles decodes a {"files":{path:contents}} body and runs it through the
@@ -975,9 +1023,21 @@ func (h *SiteHandler) readJSONFiles(w http.ResponseWriter, r *http.Request, site
 		return nil, "", errors.New("empty files")
 	}
 
-	raw := make(map[string][]byte, len(req.Files))
+	raw := make(map[string][]byte, len(req.Files)+len(req.FilesBase64))
 	for path, contents := range req.Files {
 		raw[path] = []byte(contents)
+	}
+	for path, contents := range req.FilesBase64 {
+		if _, exists := req.Files[path]; exists {
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: fmt.Sprintf("path %q is present in both files and files_base64", path)})
+			return nil, "", errors.New("duplicate text and base64 path")
+		}
+		decoded, err := base64.StdEncoding.DecodeString(contents)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: fmt.Sprintf("invalid base64 for %q", path)})
+			return nil, "", err
+		}
+		raw[path] = decoded
 	}
 
 	files, err := tarball.SanitizeFiles(raw)

@@ -1,6 +1,6 @@
 ---
 name: website-deploy
-description: Deploy static websites to simple-host.app. Use when an agent needs to guide a user through registration, build/validate a static site, deploy it (inline JSON files OR a tar.gz/zip archive), or wire up the per-site backend — shared JSON state with atomic ops, append-only collections, private (password-locked) pages on a custom domain, drop-in comments/feedback widgets, and starter templates.
+description: Deploy static websites to simple-host.app. Use when an agent needs to guide a user through registration, build/validate a static site, deploy it (inline JSON files OR a tar.gz/zip archive), or wire up the per-site backend — shared JSON state with atomic ops, append-only collections, drop-in comments/feedback widgets, and starter templates.
 ---
 
 # Website Deploy
@@ -48,7 +48,7 @@ some install methods fetch only `SKILL.md` — fetch the URL instead.
 | Validate, package, upload, verify | `references/packaging-and-validation.md` · https://simple-host.app/v1/skills/website-deploy/references/packaging-and-validation.md |
 | Shared state, collections, widgets, templates | `references/backend.md` · https://simple-host.app/v1/skills/website-deploy/references/backend.md |
 | Versions, rollback, delete, analytics | `references/operations.md` · https://simple-host.app/v1/skills/website-deploy/references/operations.md |
-| A custom domain, or a private/password-locked page | the `connect-domain` skill · https://simple-host.app/v1/skills/connect-domain |
+| A custom domain | the `connect-domain` skill · https://simple-host.app/v1/skills/connect-domain |
 
 Typical combinations:
 

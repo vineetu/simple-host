@@ -4,9 +4,9 @@ info:
   description: >-
     Static website hosting with a light per-site backend. Deploy a site with one
     API call — inline JSON files (LLM-friendly) or a tar.gz/zip archive — and each
-    site gets shared JSON state (with atomic ops), append-only collections,
-    optional password (view-lock) protection, and starter templates. Sign-in is a
-    6-digit email code or Google/GitHub that returns an API key, sent as the
+    site gets shared JSON state (with atomic ops), append-only collections, and
+    starter templates. Sign-in is a 6-digit email code or Google/GitHub that
+    returns an API key, sent as the
     `X-API-Key` header. Hosted-page sign-in uses the same account but a
     site-scoped session cookie — never an API key.
   version: 2.0.0
@@ -31,8 +31,6 @@ tags:
     description: Per-site shared JSON store (reads Origin-gated; writes need a visitor session or owner key)
   - name: Collections
     description: Append-only per-site lists (POST is a write)
-  - name: Private pages
-    description: Password (view-lock) protection
   - name: Custom domains
     description: Bind one custom domain per site (CNAME + on-demand TLS)
   - name: Analytics
@@ -369,6 +367,26 @@ paths:
                   is_admin: { type: boolean }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /v1/me/api-key/rotate:
+    post:
+      operationId: postMeApiKeyRotate
+      summary: Rotate your API key
+      description: Replaces the authenticated owner's API key and returns the new key. The old key stops working immediately.
+      tags: [Auth]
+      security: [{ apiKey: [] }]
+      responses:
+        '200':
+          description: API key rotated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [api_key, message]
+                properties:
+                  api_key: { type: string }
+                  message: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   /v1/sites:
     get:
       operationId: getSites
@@ -390,7 +408,8 @@ paths:
       summary: Deploy a site from inline JSON files
       description: >-
         The LLM-friendly deploy path — send every file inline in one request, no
-        archiving. `index.html` is required. Relative paths only (`..`/absolute are
+        archiving. Text goes in `files`; base64-encoded binary goes in
+        `files_base64`. `index.html` is required. Relative paths only (`..`/absolute are
         rejected); secret files (`.env`, `.git/*`, `id_rsa`) are dropped and script
         extensions (`.sh .py .php …`) are rejected. Use PUT to update an existing site.
       tags: [Deploy]
@@ -429,6 +448,31 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
 
   /v1/sites/{sitename}:
+    patch:
+      operationId: patchSitesBySitename
+      summary: Rename your site
+      description: >-
+        Renames the database row and on-disk site directory. The new name uses
+        the same validation and per-owner uniqueness rule as creation. A bound
+        custom domain remains attached. The old public URL is not redirected
+        and returns 404; the response states this explicitly.
+      tags: [Sites]
+      security: [{ apiKey: [] }]
+      parameters: [ { $ref: '#/components/parameters/sitename' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties: { name: { type: string, example: new-site-name } }
+      responses:
+        '200': { description: Site renamed; includes old_url, site_url, and old_url_status }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
     post:
       operationId: postSitesBySitename
       summary: Create a site from an archive
@@ -527,8 +571,14 @@ paths:
       description: >-
         Set whether this site is listed on the owner's public showcase at
         sites.<domain>/<handle>. `public` = listed on the showcase; `unlisted` =
-        still reachable by direct link but hidden from the showcase. Owner only
-        (API key).
+        hidden from it. New sites are created `unlisted` — listing is an
+        explicit act, not a side effect of deploying.
+
+
+        This controls LISTING ONLY. Both values are equally reachable by anyone
+        with the URL; nothing on the content-serving path consults it.
+        `unlisted` is not privacy and must never be described as such. Owner
+        only (API key).
       tags: [Sites]
       security: [{ apiKey: [] }]
       parameters: [ { $ref: '#/components/parameters/sitename' } ]
@@ -546,16 +596,80 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /v1/analytics/sites:
+    get:
+      operationId: getAnalyticsSites
+      summary: Per-site traffic totals for every site you own
+      description: >-
+        One call returning the class split for all of the caller's sites,
+        ordered by `person.views` descending — the "which of my sites are
+        actually being read" view. Exists so a dashboard can sort by traffic
+        without one request per site.
+
+
+        Not under `/v1/sites/...` because that would collide with a site named
+        "analytics". Pass `all=1` (admins only) to widen the scope to every site
+        on the instance; non-admins get 403 rather than a silently narrowed list.
+      tags: [Analytics]
+      security: [{ apiKey: [] }]
+      parameters:
+        - name: days
+          in: query
+          required: false
+          description: Number of UTC days to include (default 30, clamp 1..365)
+          schema: { type: integer, minimum: 1, maximum: 365, default: 30 }
+        - name: all
+          in: query
+          required: false
+          description: Admins only — include every site on the instance.
+          schema: { type: string, enum: ['1'] }
+      responses:
+        '200':
+          description: Per-site totals, highest `person.views` first.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  range_days: { type: integer, example: 30 }
+                  sites:
+                    type: array
+                    items:
+                      allOf:
+                        - type: object
+                          properties:
+                            name: { type: string, example: "eb2-wait" }
+                        - $ref: '#/components/schemas/TrafficSplit'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: '`all=1` requested by a non-admin' }
+
   /v1/sites/{sitename}/analytics:
     get:
       operationId: getSitesBySitenameAnalytics
       summary: Get per-site visitor analytics
       description: >-
-        Owner-scoped daily view and visitor counts derived server-side from the
-        access log (no client beacon). `visitors` are distinct hashed IPs per
-        UTC day — salt rotates daily, so a returning-next-day visitor counts
-        once per day in the range total. `daily` is zero-filled dense for the
-        requested window (oldest → newest). Owner only (API key).
+        Owner-scoped view and visitor counts derived server-side from the access
+        log (no client beacon). Every bucket is split three ways by who was
+        asking: `person` (no automation signature), `bot` (crawlers, AI
+        scrapers, SEO tools, security scanners, HTTP libraries) and `infra`
+        (uptime probes and health checks aimed at the site). Read `person` as
+        the audience number — a total that folds in `infra` is dominated by
+        monitoring, not people.
+
+
+        `visitors` are unique visitors: COUNT(DISTINCT hashed IP) over the
+        window asked for. The salt is stable, so `totals.*.visitors` is genuine
+        uniques for the range and is NOT the sum of the `daily` figures —
+        someone who visited on five days is one unique in `totals` and five in
+        `daily`. IP-based, so a shared office NAT reads as one visitor and a
+        phone switching wifi→cellular reads as two.
+
+
+        `daily` is zero-filled dense for the requested window (oldest → newest).
+        `hourly` is always 24 zero-filled buckets ending with the hour in
+        progress. Only successful document responses (200/304, non-asset paths)
+        count as views, for every class alike. Owner only (API key).
       tags: [Analytics]
       security: [{ apiKey: [] }]
       parameters:
@@ -574,19 +688,93 @@ paths:
                 type: object
                 properties:
                   range_days: { type: integer, example: 30 }
-                  totals:
-                    type: object
-                    properties:
-                      views: { type: integer, example: 1234 }
-                      visitors: { type: integer, example: 456 }
+                  classified_from:
+                    type: string
+                    format: date
+                    example: "2026-08-09"
+                    description: >-
+                      First UTC day for which the person/bot/infra split exists.
+                      Earlier days in `daily` report under `unknown`. Omitted
+                      when nothing has been classified yet.
+                  totals: { $ref: '#/components/schemas/TrafficSplit' }
+                  last_24h: { $ref: '#/components/schemas/TrafficSplit' }
                   daily:
                     type: array
                     items:
-                      type: object
-                      properties:
-                        day: { type: string, format: date, example: "2026-07-11" }
-                        views: { type: integer, example: 42 }
-                        visitors: { type: integer, example: 30 }
+                      allOf:
+                        - type: object
+                          properties:
+                            day: { type: string, format: date, example: "2026-08-31" }
+                        - $ref: '#/components/schemas/TrafficSplit'
+                  hourly:
+                    type: array
+                    description: Exactly 24 buckets, oldest → newest.
+                    items:
+                      allOf:
+                        - type: object
+                          properties:
+                            hour: { type: string, format: date-time, example: "2026-08-31T14:00:00Z" }
+                        - $ref: '#/components/schemas/TrafficSplit'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/sites/{sitename}/analytics/geo:
+    get:
+      operationId: getSitesBySitenameAnalyticsGeo
+      summary: Where a site's visitors are, by country
+      description: >-
+        Per-country traffic for one site over the last `days` UTC days, split by
+        the same `person` / `bot` / `infra` classes as the rest of analytics and
+        ordered by `person.views` descending (ties broken by country code).
+
+
+        Country is resolved on the server from a local IP-range table refreshed
+        from a public dataset — no visitor address is ever sent to a geolocation
+        service, and the raw address is still never stored. Country data: "IP
+        Geolocation by DB-IP" (https://db-ip.com), CC BY 4.0.
+
+
+        `country` is ISO-3166 alpha-2. `"XX"` / `"Unknown"` is traffic the table
+        could not place (an unlisted block, or a server whose ranges have not
+        been loaded); it is listed rather than dropped, so the countries still
+        add up to the site's totals.
+
+
+        `visitors` is COUNT(DISTINCT hashed IP) over the whole window, exactly
+        as in the main analytics endpoint — genuine uniques for the range, not
+        the sum of the daily figures. Someone whose address changes country
+        mid-range counts once in each, so the columns can total slightly more
+        than the site's own figure. `unknown` is always zero here: the
+        pre-classifier history has no addresses left to place. Owner only (API
+        key).
+      tags: [Analytics]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/sitename' }
+        - name: days
+          in: query
+          required: false
+          description: Number of UTC days to include (default 30, clamp 1..365)
+          schema: { type: integer, minimum: 1, maximum: 365, default: 30 }
+      responses:
+        '200':
+          description: Per-country traffic, most real people first.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  range_days: { type: integer, example: 30 }
+                  countries:
+                    type: array
+                    items:
+                      allOf:
+                        - type: object
+                          properties:
+                            country: { type: string, example: "US", description: 'ISO-3166 alpha-2, or "XX" when unresolved' }
+                            country_name: { type: string, example: "United States" }
+                        - $ref: '#/components/schemas/TrafficSplit'
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -938,40 +1126,6 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
-  /v1/sites/{sitename}/view-password:
-    put:
-      operationId: putSitesBySitenameViewPassword
-      summary: Set a view password (make the site private)
-      description: >-
-        Password-protect the whole site (view-lock). Visitors get a custom login
-        page + signed cookie, and the locked page's state/collections also require
-        unlocking. Owner only (API key).
-      tags: [Private pages]
-      security: [{ apiKey: [] }]
-      parameters: [ { $ref: '#/components/parameters/sitename' } ]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [password]
-              properties: { password: { type: string } }
-      responses:
-        '204': { description: View password set }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '404': { $ref: '#/components/responses/NotFound' }
-    delete:
-      operationId: deleteSitesBySitenameViewPassword
-      summary: Remove the view password (make the site public again)
-      tags: [Private pages]
-      security: [{ apiKey: [] }]
-      parameters: [ { $ref: '#/components/parameters/sitename' } ]
-      responses:
-        '204': { description: View password removed }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '404': { $ref: '#/components/responses/NotFound' }
-
   /v1/sites/{sitename}/allowed-origins:
     put:
       operationId: putSitesBySitenameAllowedOrigins
@@ -1296,7 +1450,7 @@ paths:
                 html: { type: string, description: "current site HTML, for incremental edits" }
                 attachments:
                   type: array
-                  description: images / PDFs / text on the latest user turn
+                  description: images / text on the latest user turn
                   items:
                     type: object
                     properties:
@@ -1379,6 +1533,27 @@ components:
     csrf: { name: X-SH-CSRF, in: header, required: false, schema: { type: string, enum: ['1'] }, description: Required on cookie-authenticated writes }
 
   schemas:
+    TrafficCounts:
+      type: object
+      properties:
+        views: { type: integer, example: 61 }
+        visitors: { type: integer, description: Unique visitors — distinct hashed IPs over this bucket's window, example: 24 }
+
+    TrafficSplit:
+      type: object
+      description: >-
+        One bucket of traffic, split by who was asking. `person` is the audience
+        figure; `infra` is the site's own monitoring and is normally far larger
+        than either of the other two. `unknown` is non-zero only for days before
+        `classified_from`, which were recorded before traffic was classified and
+        cannot be broken down after the fact — do not fold it into any of the
+        other three.
+      properties:
+        person: { $ref: '#/components/schemas/TrafficCounts' }
+        bot: { $ref: '#/components/schemas/TrafficCounts' }
+        infra: { $ref: '#/components/schemas/TrafficCounts' }
+        unknown: { $ref: '#/components/schemas/TrafficCounts' }
+
     AuthResponse:
       type: object
       properties:
@@ -1396,10 +1571,16 @@ components:
           type: object
           additionalProperties: { type: string }
           description: relative path -> file contents (text). `index.html` required.
+        files_base64:
+          type: object
+          additionalProperties: { type: string, format: byte }
+          description: relative path -> base64-encoded binary contents. A path cannot also appear in `files`.
       example:
         files:
           index.html: '<!DOCTYPE html><h1>Hello</h1>'
           css/style.css: 'body{font-family:sans-serif}'
+        files_base64:
+          assets/logo.png: 'iVBORw0KGgoAAAANSUhEUg...'
 
     Site:
       type: object

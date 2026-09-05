@@ -23,7 +23,7 @@
  *   #sh-comments { --shc-accent:…; --shc-surface:…; --shc-field:…;
  *                  --shc-border:…; --shc-muted:…; --shc-radius:…; }
  *
- * Stores comments in the site's public state KV under "_comments" and per-comment
+ * Stores comments in the site's public state KV under "_sh_comments" and per-comment
  * scores under "_votes", using ATOMIC ops (PATCH) so concurrent replies/votes
  * never clobber, and a conditional-GET poll so threads update live and cheap.
  *
@@ -62,7 +62,7 @@
       API = location.origin + "/v1/sites/" + sub + "/state";
     }
   }
-  var CK = "_comments", VK = "_votes";
+  var CK = "_sh_comments", LEGACY_CK = "_comments", VK = "_votes";
 
   var mount = document.getElementById("sh-comments") || document.body.appendChild(document.createElement("section"));
   mount.id = "sh-comments";
@@ -135,7 +135,11 @@
   // ---- networking (atomic ops + cheap live poll) ----------------------------
   function ingest(st) {
     st = st && typeof st === "object" ? st : {};
-    comments = Array.isArray(st[CK]) ? st[CK] : [];
+    var current = Array.isArray(st[CK]) ? st[CK] : [];
+    var legacy = Array.isArray(st[LEGACY_CK]) ? st[LEGACY_CK].filter(function (c) {
+      return c && Object.prototype.hasOwnProperty.call(c, "parentId");
+    }) : [];
+    comments = legacy.concat(current);
     votes = (st[VK] && typeof st[VK] === "object") ? st[VK] : {};
     render();
   }

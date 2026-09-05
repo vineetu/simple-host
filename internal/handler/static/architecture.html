@@ -110,6 +110,46 @@
     td.tv { color: var(--text-secondary); }
     code { font-family: var(--mono); font-size: .88em; background: var(--accent-soft); color: var(--accent); padding: 1px 6px; border-radius: 5px; }
 
+    /* Feature map — tools */
+    .mtools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 24px 0 16px; }
+    .mfilter { flex: 1 1 210px; min-width: 0; font-family: var(--mono); font-size: 13px; padding: 10px 12px;
+      border: 1px solid var(--border-hi); border-radius: 9px; background: var(--surface); color: var(--text); }
+    .mfilter::placeholder { color: var(--dim); }
+    .mfilter:focus { outline: none; border-color: var(--accent); }
+    .mbtn { font-family: var(--mono); font-size: 12px; padding: 10px 13px; border: 1px solid var(--border-hi);
+      border-radius: 9px; background: var(--surface); color: var(--text-secondary); cursor: pointer; }
+    .mbtn:hover { border-color: var(--accent); color: var(--accent); }
+    .mcount { font-family: var(--mono); font-size: 11.5px; color: var(--dim); flex: 1 1 100%; }
+
+    /* Feature map — one card per feature */
+    .feat { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); margin-bottom: 12px; }
+    .feat[open] { border-color: var(--border-hi); }
+    .feat > summary { cursor: pointer; list-style: none; padding: 14px 16px; display: flex; gap: 4px 11px; align-items: baseline; flex-wrap: wrap; }
+    .feat > summary::-webkit-details-marker { display: none; }
+    .feat > summary::before { content: "+"; font-family: var(--mono); font-size: 13px; color: var(--accent); }
+    .feat[open] > summary::before { content: "–"; }
+    .feat > summary:hover .fname { color: var(--accent); }
+    .fname { font-family: var(--display); font-weight: 600; font-size: 16.5px; color: var(--text); }
+    .fid { font-family: var(--mono); font-size: 10.5px; letter-spacing: .6px; color: var(--dim); }
+    .fsum { flex: 1 1 100%; margin: 2px 0 0; font-size: 14.5px; color: var(--text-secondary); padding-left: 19px; }
+    .fbody { padding: 4px 16px 16px; }
+    .frow { display: grid; grid-template-columns: 104px 1fr; gap: 4px 14px; padding: 9px 0; border-top: 1px solid var(--border); }
+    .fk { font-family: var(--mono); font-size: 10.5px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-secondary); padding-top: 4px; }
+    .fv { font-family: var(--mono); font-size: 12.5px; line-height: 1.8; color: var(--text-secondary); overflow-wrap: anywhere; }
+    .fv b { color: var(--text); font-weight: 600; }
+    .fv em { color: var(--dim); font-style: normal; }
+    .fv .none { color: var(--dim); }
+    /* The UI column is the one people forget — it gets the accent. */
+    .frow.ui .fk, .frow.ui .fv b { color: var(--accent); }
+    .frow.blast { border-top: 0; margin-top: 10px; padding: 12px 13px; border-radius: 9px;
+      background: var(--bad-soft); border: 1px solid color-mix(in srgb, var(--bad) 32%, transparent); }
+    .frow.blast .fk { color: var(--bad); }
+    .frow.blast .fv { font-family: var(--body); font-size: 14.5px; line-height: 1.6; color: var(--text); }
+    .badge { font-family: var(--mono); font-size: 9.5px; letter-spacing: .9px; text-transform: uppercase;
+      padding: 2px 7px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+    .badge.multi { color: var(--amber); }
+    .badge.solo { color: var(--dim); }
+
     footer { padding: 40px 0 60px; font-family: var(--mono); font-size: 12px; color: var(--dim); }
     footer a { color: var(--text-secondary); text-decoration: none; }
 
@@ -123,6 +163,9 @@
       td.tv { display: block; }
       .trow td { display: block; border: 0; padding: 2px 0; }
       .trow { display: block; border-top: 1px solid var(--border); padding: 12px 0; }
+      .frow { grid-template-columns: 1fr; gap: 3px; }
+      .fk { padding-top: 0; }
+      .fsum { padding-left: 0; }
     }
   </style>
 </head>
@@ -147,37 +190,384 @@
   <div class="wrap">
     <div class="toc">
       <b>Architecture</b>
-      <a href="#safety">01 Safety property</a>
-      <a href="#trust">02 Trust model</a>
-      <a href="#backend">03 The little backend</a>
-      <a href="#ai">04 Create with AI</a>
-      <a href="#runtime">05 Runtime</a>
-      <a href="#not">06 Non-goals</a>
+      <a href="#map">01 Feature map</a>
+      <a href="#consumers">02 Who renders what</a>
+      <a href="#traps">03 Traps</a>
+      <a href="#safety">04 Safety property</a>
+      <a href="#trust">05 Trust model</a>
+      <a href="#backend">06 The little backend</a>
+      <a href="#analytics">07 Counting visitors</a>
+      <a href="#ai">08 Create with AI</a>
+      <a href="#runtime">09 Runtime</a>
+      <a href="#not">10 Non-goals</a>
     </div>
 
     <!-- 00 Overview -->
     <section>
       <div class="snum">00.</div>
       <div>
-        <div class="kicker">Architecture brief</div>
-        <h1 class="title">One small service,<br>safe by construction.</h1>
-        <p class="lede">People tell AI agents what to build; the agents build, deploy, and manage static sites here. The platform's whole job is to make that safe — by construction, not by vigilance.</p>
-        <p>Simple Host is <strong>one Go service, one Postgres database, and one directory on disk</strong>, behind a single reverse proxy that fronts the content host <code>sites.simple-host.app</code> (sites by path) and the dashboard origin. No CDN, no per-site infrastructure, no third-party hosting. Uploads are <strong>static data that can never execute on the server</strong>; every version is immutable, attributable, and instantly revertible; and the whole thing runs on a box with <strong>1 CPU and ~1 GB of RAM</strong>. This page is that argument, visualized.</p>
-        <div class="fine">simple-host.app · public playground · companion: /llms.txt · /openapi.yaml</div>
+        <div class="kicker">Architecture brief · blast-radius map</div>
+        <h1 class="title">Every place<br>a feature lives.</h1>
+        <p class="lede">People tell AI agents what to build; the agents build, deploy and manage static sites here. This page exists so that changing one of those features never silently breaks a surface nobody remembered.</p>
+        <p>Simple Host is <strong>one Go service, one Postgres database and one directory on disk</strong>, behind an nginx edge that fronts the content host <code>sites.simple-host.app</code> (sites by path), every connected custom domain, and the dashboard origin. No CDN, no per-site infrastructure, no third-party hosting. Uploads are <strong>static data that can never execute on the server</strong>; every version is owned, timestamped and revertible.</p>
+        <p><strong>Why the map is first.</strong> The analytics response shape changed from a flat <code>{views, visitors}</code> to a person / bot / infra / unknown split. One consuming page was updated. A second — the owner Analytics tab, in a different file — was not, and quietly rendered zero for every site. Nothing failed; nothing logged; the owner found it by looking. The fix for that class of bug is not more care, it is <strong>a written-down list of every surface a feature touches</strong>. Sections 01–03 are that list. Sections 04–10 are the reasoning behind the design.</p>
+        <div class="fine">simple-host.app · public playground · companion: /llms.txt · /openapi.yaml · /docs.html</div>
       </div>
     </section>
 
-    <!-- 01 Safety property -->
-    <section id="safety">
+    <!-- 01 Feature map -->
+    <section id="map">
       <div class="snum">01.</div>
+      <div>
+        <h2>Feature map</h2>
+        <p class="lede">One card per feature. Open it and you have every file, route, screen, table and document that feature touches — and the line that says what else you must change with it.</p>
+        <p>The <strong style="color:var(--accent)">UI</strong> row is the one that matters most, and it is the one that gets skipped. It names the file <em>and</em> the tab inside it, because "I updated the dashboard" is exactly the sentence that shipped the analytics bug — there are two dashboards, and a third at <code>/admin</code>.</p>
+        <p>Each card's <strong>Product</strong> row links to the plain-language entries on the <a href="/features.html" style="color:var(--accent)">features page</a>. That is the other half of the same job: this page says where a feature lives, that one says what it promises — and a change usually invalidates both.</p>
+
+        <div class="mtools">
+          <input class="mfilter" id="mfilter" type="search" placeholder="Filter — try: analytics, state, showcase.html…" oninput="mfilter(this.value)" aria-label="Filter features">
+          <button class="mbtn" id="mall" onclick="mtoggle()">Expand all</button>
+          <span class="mcount" id="mcount"></span>
+        </div>
+
+        <details class="feat"><summary><span class="fname">Visitor analytics</span><span class="fid">analytics</span><span class="fsum">Per-site views and unique visitors from the edge log, split into people, bots and monitoring.</span></summary>
+          <div class="fbody">
+            <div class="frow"><span class="fk">Go</span><span class="fv"><b>internal/analytics/</b> — ingest.go <em>(tail, attribute, upsert)</em> · classify.go <em>(person/bot/infra)</em> · rebuild.go · <b>internal/db/analytics.go</b> · <b>internal/handler/analytics.go</b> · cmd/analytics-rebuild/main.go · started at cmd/server/main.go</span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv">GET /v1/sites/{sitename}/analytics <em>· owner</em><br>GET /v1/analytics/sites <em>· owner-scoped; all=1 admin-only, 403 otherwise</em></span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>index.html → Sites tab</b>, per-card slot <code>#an-{name}</code> — People/Bots/Infra cells + 24 h columns; also feeds the <code>#site-sort</code> ordering, and the same cards render inside the <b>Admin tab</b><br><b>showcase.html → owner Analytics tab</b> <code>#owner-analytics-view</code> — 7/14/30/90-day ranges, <code>#an-totals</code> + <code>#an-body</code> + sparklines. <b>This is the surface that was missed.</b></span></div>
+            <div class="frow"><span class="fk">Tables</span><span class="fv">writes <b>site_view_hourly</b> · <b>site_visitor_hourly</b> · analytics_ingest_state<br>reads those plus <b>site_view_daily</b> · <b>site_visitor_daily</b> <em>(frozen history — never drop)</em> and sites/users for attribution</span></div>
+            <div class="frow"><span class="fk">Infra</span><span class="fv">nginx <code>log_format shanalytics</code> <em>(per vhost)</em> · /var/log/simple-host/analytics.log · /etc/logrotate.d/simple-host-analytics <em>(create + delaycompress)</em> · <code>ANALYTICS_LOG</code> env</span></div>
+            <div class="frow"><span class="fk">Docs</span><span class="fv">openapi.yaml <em>(TrafficCounts, TrafficSplit, both paths)</em> · skills/website-deploy/references/operations.md · this page §07 · <em class="none">stale: docs/designs/analytics-design.md</em> · <em class="none">absent from README.md, llms.txt, every SKILL.md</em></span></div>
+            <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#analytics">analytics</a> · <a href="/features.html#analytics-traffic-split">analytics-traffic-split</a> · <a href="/features.html#analytics-people">analytics-people</a> · <a href="/features.html#analytics-site-cards">analytics-site-cards</a> · <a href="/features.html#analytics-owner-tab">analytics-owner-tab</a> · <a href="/features.html#analytics-range">analytics-range</a> · <a href="/features.html#analytics-earlier-history">analytics-earlier-history</a> · <a href="/features.html#analytics-sort-by-people">analytics-sort-by-people</a> · <a href="/features.html#admin-all-analytics">admin-all-analytics</a></span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv">Both consuming pages, every time — showcase.html reads only <code>daily[].person.views</code> and <code>totals.person.visitors</code>, so renaming a class breaks it silently while index.html keeps working. Then openapi.yaml and operations.md. If the ingest or classifier changed, re-run <code>analytics-rebuild</code> so history matches.</span></div>
+          </div>
+        </details>
+
+        <details class="feat"><summary><span class="fname">Per-site JSON state</span><span class="fid">state</span><span class="fsum">One shared JSON document per site with atomic ops and ETags. The widest blast radius on the platform.</span></summary>
+          <div class="fbody">
+            <div class="frow"><span class="fk">Go</span><span class="fv"><b>internal/handler/stateops.go</b> <em>(set/inc/append/remove/removeWhere under a row lock)</em> · internal/handler/site.go <em>(getSiteState, putSiteState, authorizeStateOrigin, resolveSiteID)</em> · internal/handler/visitorsession.go <em>(write gate)</em> · internal/db/queries.go</span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv">GET · PUT · PATCH · OPTIONS /v1/sites/{sitename}/state<br>GET · PUT · PATCH · OPTIONS /v1/u/{handle}/sites/{sitename}/state <em>(the v3 twin — both must change together)</em></span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>comments.js</b> — the threaded-comments widget on every deployed site that embeds it<br><b>feedback.js</b> — the pin overlay on every prototype<br><b>templates: landing, waitlist, event-rsvp</b> — live counters<br>plus <b>every site any LLM has generated from llms.txt</b>, which prescribes this exact contract<br><em>No first-party dashboard renders state — which is precisely why a break here is invisible in-house.</em></span></div>
+            <div class="frow"><span class="fk">Tables</span><span class="fv"><b>sites.state</b> (jsonb) · <b>sites.state_version</b> · sites.updated_at · reads sites.allowed_origins, sites.allow_anonymous_writes</span></div>
+            <div class="frow"><span class="fk">Docs</span><span class="fv">openapi.yaml <em>(both path shapes)</em> · llms.txt · skills/website-deploy/references/backend.md · website-deploy-builder/SKILL.md §2 · CLAUDE.md · docs/designs/state-storage.md <em>(proposal, not shipped)</em></span></div>
+            <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#state">state</a> · <a href="/features.html#state-shared-store">state-shared-store</a> · <a href="/features.html#state-atomic-ops">state-atomic-ops</a> · <a href="/features.html#state-live-updates">state-live-updates</a> · <a href="/features.html#state-public">state-public</a></span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv">The <code>ETag</code> header is load-bearing — both widgets poll with <code>If-None-Match</code> every 10 s and treat 304 as "no change". A PATCH must return the new document. The error body <code>{error, code:"visitor_auth_required"}</code> is matched by string in both widgets and three templates. Changing any of it means comments.js, feedback.js, three templates, llms.txt, backend.md and openapi.yaml — and it still cannot reach sites already deployed.</span></div>
+          </div>
+        </details>
+
+        <details class="feat"><summary><span class="fname">Append-only collections</span><span class="fid">collections</span><span class="fsum">Growing lists — signups, RSVPs, form submissions — with paginated reads and CSV export.</span></summary>
+          <div class="fbody">
+            <div class="frow"><span class="fk">Go</span><span class="fv"><b>internal/handler/collections.go</b> · internal/db/collections.go · shares the Origin gate and write gate with state</span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv">GET · POST · OPTIONS /v1/sites/{sitename}/collections/{coll} <em>+ the /v1/u/{handle}/… twin</em><br>GET /v1/sites/{sitename}/collections <em>· owner</em><br>GET /v1/sites/{sitename}/collections/{coll}/export.csv <em>· owner</em></span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>index.html → Sites tab</b> — <code>#data-{name}</code> collection list and <code>#collview-{name}-{coll}</code> row table, plus the CSV download button<br><b>templates: landing (leads), waitlist (signups), event-rsvp (rsvps)</b><br>plus the <code>admin.html</code> viewer that llms.txt <em>requires</em> every generated site to ship</span></div>
+            <div class="frow"><span class="fk">Tables</span><span class="fv"><b>collection_items</b> + <code>idx_collection_items</code> — <em>neither is in schema.sql or any migration</em></span></div>
+            <div class="frow"><span class="fk">Docs</span><span class="fv">openapi.yaml <em>(both shapes + export.csv)</em> · llms.txt · backend.md · website-deploy-builder/SKILL.md · operations.md</span></div>
+            <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#collections">collections</a> · <a href="/features.html#collection-append">collection-append</a> · <a href="/features.html#collection-read">collection-read</a> · <a href="/features.html#collection-inventory">collection-inventory</a> · <a href="/features.html#collection-csv">collection-csv</a></span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv">The read shape <code>{items:[{id, data, created_at}], next}</code> is prescribed to external LLMs — changing it breaks generated sites you will never see. The CSV export reads <code>Content-Disposition</code> in the browser. And deleting a site cascades every row away with no soft delete.</span></div>
+          </div>
+        </details>
+
+        <details class="feat"><summary><span class="fname">Registration &amp; API keys</span><span class="fid">auth</span><span class="fsum">Email magic-link or 6-digit code, exchanged for the per-user API key everything else depends on.</span></summary>
+          <div class="fbody">
+            <div class="frow"><span class="fk">Go</span><span class="fv"><b>internal/handler/user.go</b> · <b>internal/auth/middleware.go</b> <em>(X-API-Key, admin short-circuit)</em> · internal/email <em>(Resend)</em> · internal/handler/handles.go <em>(handle claimed at verify)</em> · internal/db/queries.go</span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv">POST /v1/auth · POST /v1/auth/verify · GET /v1/me</span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>index.html → auth view</b> — <code>#email-form-wrap</code>, <code>#code-form-wrap</code>, <code>#verifying-screen</code>; <code>/v1/me</code> gates all of <code>#main-view</code> and the Admin tab's visibility<br><b>showcase.html → <code>#ai-auth</code></b> — the same two endpoints inline, so a build can resume after signing in<br><b>install.html</b> describes the flow in prose</span></div>
+            <div class="frow"><span class="fk">Tables</span><span class="fv"><b>users</b> <em>(api_key, handle, is_admin)</em> · <b>auth_tokens</b> <em>(never pruned)</em></span></div>
+            <div class="frow"><span class="fk">Docs</span><span class="fv">openapi.yaml <em>(AuthResponse)</em> · skills/website-deploy/references/register.md · website-deploy/SKILL.md · README.md · CLAUDE.md</span></div>
+            <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#accounts">accounts</a> · <a href="/features.html#signin-email-code">signin-email-code</a> · <a href="/features.html#signin-magic-link">signin-magic-link</a> · <a href="/features.html#api-key">api-key</a> · <a href="/features.html#account-handle">account-handle</a></span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv"><code>/v1/me</code> gates the entire signed-in experience on <b>both</b> pages, and they read different fields — index.html needs <code>username</code> and <code>is_admin</code>, showcase.html needs <code>handle</code>. Any change to the auth response also touches register.md, which agents follow literally.</span></div>
+          </div>
+        </details>
+
+        <details class="feat"><summary><span class="fname">Owner OAuth sign-in</span><span class="fid">oauth-owner</span><span class="fsum">Google (and, in code, GitHub) sign-in that lands on the same users row as the magic link.</span></summary>
+          <div class="fbody">
+            <div class="frow"><span class="fk">Go</span><span class="fv"><b>internal/handler/oauth.go</b> <em>(purpose="owner" fork, return_to classification)</em> · internal/oauth/ <em>(provider.go, google.go, github.go — PKCE)</em> · internal/config</span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv">GET /v1/auth/oauth/providers · /v1/auth/oauth/{provider} · /v1/auth/oauth/{provider}/callback <em>— the same three routes also serve visitor sign-in; a <code>purpose</code> forks the callback</em></span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>index.html → auth view</b> <code>#oauth-providers</code><br><b>comments.js</b> and <b>feedback.js</b> sign-in blocks on every deployed site<br><b>templates: landing, waitlist, event-rsvp</b><br>prescribed by <b>llms.txt</b> to every generated site</span></div>
+            <div class="frow"><span class="fk">Tables</span><span class="fv"><b>oauth_states</b> <em>(+ purpose CHECK)</em> · <b>oauth_identities</b> · users · auth_tokens <em>(owner handoff)</em></span></div>
+            <div class="frow"><span class="fk">Docs</span><span class="fv">openapi.yaml · SPEC.md · UNIFY.md <em>(account matching, credential boundary)</em> · README.md · <em class="none">docs/designs/oauth2-authentication.md is superseded prior art</em></span></div>
+            <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#accounts">accounts</a> · <a href="/features.html#signin-google">signin-google</a> · <a href="/features.html#signin-github">signin-github</a></span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv"><code>/v1/auth/oauth/providers</code> has more consumers than any other auth route — five first-party surfaces plus every generated site. Adding or renaming a provider changes what all of them render. Owner and visitor flows share the routes: touching one is touching both.</span></div>
+          </div>
+        </details>
+
+        <details class="feat"><summary><span class="fname">Visitor sign-in &amp; sessions</span><span class="fid">visitor-sessions</span><span class="fsum">The site-scoped identity that lets a stranger write to state or leave a comment.</span></summary>
+          <div class="fbody">
+            <div class="frow"><span class="fk">Go</span><span class="fv"><b>internal/handler/visitorsession.go</b> <em>(cookie __Host-sh_vsess, X-SH-CSRF, visitorWriteOK)</em> · internal/handler/oauth.go <em>(mints the one-time establish token)</em> · internal/db/visitors.go</span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv">GET /v1/visitor/establish · POST /v1/visitor/logout</span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>comments.js</b> · <b>feedback.js</b> · <b>templates: landing, waitlist, event-rsvp</b> — all of them read <code>code:"visitor_auth_required"</code> off a failed write and swap in a sign-in prompt. <em>No first-party page exercises this path.</em></span></div>
+            <div class="frow"><span class="fk">Tables</span><span class="fv"><b>visitor_sessions</b> · <b>visitor_establish_tokens</b> · oauth_states · oauth_identities · users · reads sites for the write gate</span></div>
+            <div class="frow"><span class="fk">Docs</span><span class="fv">openapi.yaml <em>(VisitorAuthRequired)</em> · SPEC.md <em>(whole document)</em> · UNIFY.md · llms.txt · backend.md · CLAUDE.md</span></div>
+            <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#visitor-signin">visitor-signin</a> · <a href="/features.html#visitor-signout">visitor-signout</a> · <a href="/features.html#state-write-gate">state-write-gate</a></span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv">This feature's tables were created by a migration that shipped <b>without a GRANT</b>, so the application role cannot read or write them on this instance — the symptom is a route that 500s while everything around it looks healthy. Any migration that creates a table must grant it, and any change here should be verified against the live grants, not just the SQL file.</span></div>
+          </div>
+        </details>
+
+        <details class="feat"><summary><span class="fname">Comments &amp; feedback widgets</span><span class="fid">widgets</span><span class="fsum">Two drop-in script tags. Both are pure clients of per-site state.</span></summary>
+          <div class="fbody">
+            <div class="frow"><span class="fk">Go</span><span class="fv"><em>None.</em> Served as embedded static assets by the catch-all file server in internal/handler/ui.go</span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv">GET /comments.js · GET /feedback.js <em>(static)</em>; at runtime they call the state and OAuth-providers routes</span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>comments.js</b> — mounts at <code>#sh-comments</code>; composer, threads, inline reply, sign-in block<br><b>feedback.js</b> — floating pill, capture shield, numbered pins, composer sheet<br><b>templates: architecture and resume</b> embed comments.js; <b>ui-prototype</b> embeds feedback.js<br>plus every customer site that has ever pasted the tag</span></div>
+            <div class="frow"><span class="fk">Tables</span><span class="fv">via state only — <b>sites.state</b> keys <code>_comments</code> and <code>_votes</code></span></div>
+            <div class="frow"><span class="fk">Docs</span><span class="fv">backend.md <em>(embed + theming + UX pass)</em> · llms.txt <em>(comments only)</em> · website-deploy-builder/SKILL.md · README.md · <em class="none">feedback.js is absent from llms.txt</em></span></div>
+            <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#widgets">widgets</a> · <a href="/features.html#widget-comments">widget-comments</a> · <a href="/features.html#widget-feedback">widget-feedback</a> · <a href="/features.html#widget-theming">widget-theming</a> · <a href="/features.html#widget-remote-host">widget-remote-host</a> · <a href="/features.html#widget-collision">widget-collision</a></span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv">These ship <em>inside other people's sites</em> and are never redeployed by us — a breaking change to the state contract reaches them the moment the file is updated, and there is no version pin and no rollback. Treat their read of <code>_comments</code>, <code>_votes</code> and the pin geometry fields as a public API.</span></div>
+          </div>
+        </details>
+
+        <details class="feat"><summary><span class="fname">Site create, list, delete &amp; visibility</span><span class="fid">sites</span><span class="fsum">The core object. Almost every other feature hangs off a sites row.</span></summary>
+          <div class="fbody">
+            <div class="frow"><span class="fk">Go</span><span class="fv"><b>internal/handler/site.go</b> · internal/handler/sitename.go <em>(shape + reserved names)</em> · internal/storage/disk.go · internal/db/queries.go</span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv">POST · PUT · DELETE /v1/sites/{sitename} · GET /v1/sites · PUT /v1/sites/{sitename}/visibility · GET /v1/admin/users</span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>index.html → Sites tab</b> <code>#sites-container</code> <em>and</em> <b>→ Admin tab</b> <code>#admin-sites-container</code><br><b>showcase.html → owner Sites tab</b> <code>#inventory</code>, plus it seeds the Analytics tab's site list<br><b>showcase.html → public gallery</b> <code>#gallery</code> <em>(server-injected, not fetched)</em><br><b>admin.html → #users</b></span></div>
+            <div class="frow"><span class="fk">Tables</span><span class="fv"><b>sites</b> · cascades on delete to versions, collection_items, both analytics generations, legacy_hostnames, oauth_states, visitor_sessions</span></div>
+            <div class="frow"><span class="fk">Docs</span><span class="fv">openapi.yaml · website-deploy/SKILL.md · operations.md <em>(listing, delete)</em> · README.md · CLAUDE.md</span></div>
+            <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#manage">manage</a> · <a href="/features.html#site-list">site-list</a> · <a href="/features.html#site-visibility">site-visibility</a> · <a href="/features.html#site-delete">site-delete</a> · <a href="/features.html#site-name">site-name</a> · <a href="/features.html#site-url">site-url</a> · <a href="/features.html#site-quota">site-quota</a></span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv"><code>GET /v1/sites</code> feeds <b>four tabs across two pages</b> and each reads a different field set — index.html wants <code>site_url</code>, <code>active_version</code>, <code>owner_username</code>, <code>custom_domain</code>, <code>domain_status</code>; showcase.html wants <code>visibility</code> and <code>user_id</code>. Both unwrap the <code>{data:[…]}</code> notice envelope, so the wrapper is part of the contract too.</span></div>
+          </div>
+        </details>
+
+        <details class="feat"><summary><span class="fname">File upload</span><span class="fid">upload</span><span class="fsum">Two paths — inline JSON files, or a tar.gz/zip archive. Same guards, same versioning.</span></summary>
+          <div class="fbody">
+            <div class="frow"><span class="fk">Go</span><span class="fv"><b>internal/tarball/</b> — extract.go <em>(traversal, caps, secret skipping)</em> · validate.go <em>(script denylist)</em> · sanitize.go <em>(JSON path)</em> · internal/handler/site.go · internal/storage/disk.go</span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv">POST · PUT /v1/sites/{sitename}/files <em>(JSON)</em> · POST · PUT /v1/sites/{sitename} <em>(archive)</em></span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>index.html → Sites tab</b>, the "Create a site" builder — <code>publishGenerated()</code> writes files and reads <code>data.site_url</code><br><em>Everything else that uploads is an agent following the skills, not a screen.</em></span></div>
+            <div class="frow"><span class="fk">Tables</span><span class="fv">sites · <b>versions</b> <em>(disk_path, archive_sha256, status)</em></span></div>
+            <div class="frow"><span class="fk">Docs</span><span class="fv">openapi.yaml <em>(FilesBody)</em> · website-deploy/SKILL.md · packaging-and-validation.md · frameworks.md · CLAUDE.md</span></div>
+            <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#publish">publish</a> · <a href="/features.html#deploy-inline-files">deploy-inline-files</a> · <a href="/features.html#deploy-archive">deploy-archive</a> · <a href="/features.html#deploy-update">deploy-update</a> · <a href="/features.html#static-only">static-only</a></span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv">The dashboard builder relies on <b>status codes as control flow</b>: 404 on PUT means "recreate", 409 on POST means "update instead". Changing either code silently breaks publishing. The <code>X-Content-Digest</code> integrity header and the size caps are documented in packaging-and-validation.md, which agents follow step by step.</span></div>
+          </div>
+        </details>
+
+        <details class="feat"><summary><span class="fname">Versions &amp; rollback</span><span class="fid">versions</span><span class="fsum">Every deploy is a new version; rollback re-points which one is live.</span></summary>
+          <div class="fbody">
+            <div class="frow"><span class="fk">Go</span><span class="fv">internal/handler/site.go <em>(listVersions, setActiveVersion)</em> · <b>internal/storage/disk.go</b> <em>(UpdateCurrent — copy, remove, rename)</em> · internal/db/queries.go</span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv">GET /v1/sites/{sitename}/versions · PUT /v1/sites/{sitename}/active-version</span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>index.html → Sites tab</b> <code>#versions-{name}</code> — <em>expects a bare array</em><br><b>showcase.html → owner Sites tab</b> <code>[data-versions]</code> — <em>accepts an array or a <code>{data:[…]}</code> envelope</em><br><b>These two disagree today.</b> If this route ever starts being notice-wrapped, showcase.html survives and index.html silently renders nothing.</span></div>
+            <div class="frow"><span class="fk">Tables</span><span class="fv"><b>versions</b> · sites.active_version</span></div>
+            <div class="frow"><span class="fk">Docs</span><span class="fv">openapi.yaml · operations.md <em>("there is no .../activate — this is the one")</em> · README.md · CLAUDE.md §Versioning</span></div>
+            <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#site-versions">site-versions</a> · <a href="/features.html#site-rollback">site-rollback</a></span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv">Both pages, and the envelope asymmetry above is a latent bug worth fixing while you are in here. Note also that <code>versions.archive_sha256</code> is written but never read back, so there is no persisted integrity check to rely on.</span></div>
+          </div>
+        </details>
+
+        <details class="feat"><summary><span class="fname">Custom domains</span><span class="fid">domains</span><span class="fsum">Bind a domain to a site, relay one DNS record, verify by fetching it.</span></summary>
+          <div class="fbody">
+            <div class="frow"><span class="fk">Go</span><span class="fv"><b>internal/handler/domains.go</b> · internal/db/domains.go · internal/storage/disk.go <em>(BindDomain — a symlink in the domains farm)</em> · publicsuffix <em>(apex → A record, subdomain → CNAME)</em></span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv">POST · GET · DELETE /v1/sites/{sitename}/domain · GET /internal/tls-ask <em>(dead — Caddy-era)</em></span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>index.html → Sites tab</b> only — connect/disconnect buttons; the POST response's <code>dns.host</code> and <code>dns.value</code> are read straight into the toast the user copies from<br><em>showcase.html shows a bound domain but cannot change it.</em></span></div>
+            <div class="frow"><span class="fk">Tables</span><span class="fv">sites.custom_domain · domain_status · domain_verified_at · domain_last_error</span></div>
+            <div class="frow"><span class="fk">Docs</span><span class="fv"><b>skills/connect-domain/SKILL.md</b> <em>(the whole flow)</em> · openapi.yaml · operations.md · website-deploy-builder/SKILL.md · docs/designs/per-user-subdomains-and-custom-domains.md</span></div>
+            <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#domains">domains</a> · <a href="/features.html#custom-domain-connect">custom-domain-connect</a> · <a href="/features.html#custom-domain-dns-record">custom-domain-dns-record</a> · <a href="/features.html#custom-domain-https">custom-domain-https</a> · <a href="/features.html#custom-domain-status">custom-domain-status</a> · <a href="/features.html#custom-domain-disconnect">custom-domain-disconnect</a></span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv">nginx: a new domain needs a vhost <em>and</em> a certificate, both by hand — and that vhost must carry the <code>shanalytics</code> access-log line or the site records no analytics at all. The skill's promise ("verify by fetching the domain, never poll status") depends on <code>domain_status</code> staying advisory.</span></div>
+          </div>
+        </details>
+
+        <details class="feat"><summary><span class="fname">Write gate &amp; allowed origins</span><span class="fid">write-gate</span><span class="fsum">The switch that decides whether an anonymous write to state or collections is allowed.</span></summary>
+          <div class="fbody">
+            <div class="frow"><span class="fk">Go</span><span class="fv">internal/handler/visitorsession.go <em>(visitorWriteOK — off | log | on)</em> · internal/handler/site.go <em>(authorizeStateOrigin, setAllowedOrigins, setAllowAnonymousWrites)</em> · internal/config/config.go <em>(WRITE_AUTH_MODE)</em></span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv">PUT /v1/sites/{sitename}/allowed-origins <em>· owner</em><br>PUT /v1/sites/{sitename}/allow-anonymous-writes <em>· the only admin-required route on the platform</em></span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><em>None.</em> No screen exposes either switch — which is exactly why the deployed mode has to be checked, not assumed.</span></div>
+            <div class="frow"><span class="fk">Tables</span><span class="fv">sites.allowed_origins · sites.allow_anonymous_writes</span></div>
+            <div class="frow"><span class="fk">Docs</span><span class="fv">SPEC.md <em>(the write-auth spec)</em> · UNIFY.md <em>(credential boundary)</em> · openapi.yaml · backend.md · CLAUDE.md · README.md</span></div>
+            <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#state-write-gate">state-write-gate</a> · <a href="/features.html#state-cross-origin">state-cross-origin</a> · <a href="/features.html#admin-anonymous-writes">admin-anonymous-writes</a></span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv">This one env var silently changes the meaning of the trust model in §05 and of every "writes are authenticated" sentence in the docs. Change the mode and the wording has to move with it.</span></div>
+          </div>
+        </details>
+
+        <details class="feat"><summary><span class="fname">Create with AI</span><span class="fid">ai-create</span><span class="fsum">A chat that builds a page server-side and hands back a job id to poll.</span></summary>
+          <div class="fbody">
+            <div class="frow"><span class="fk">Go</span><span class="fv"><b>internal/handler/generate.go</b> <em>(prompt, provider call, sentinel)</em> · <b>internal/handler/generate_jobs.go</b> <em>(in-process store, owner binding, ceilings)</em> · internal/config <em>(LLM_PROVIDER / LLM_BASE_URL / LLM_MODEL / LLM_API_KEY, plus the optional VISION_* trio)</em></span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv">POST /v1/generate · GET /v1/generate/status?id=… <em>— note the query string; there is no /jobs/{id}</em>. Not registered at all without a provider key.</span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>showcase.html → <code>#ai-create</code></b> — the chat, <code>#ai-chat</code> + <code>#ai-preview</code> iframe + <code>#attach-strip</code>, with inline sign-in at <code>#ai-auth</code>. <b>This is the only page that calls /v1/generate.</b><br><b>index.html → Sites tab <code>#ai-create</code></b> is a <em>different</em> builder — it asks you to build in your own AI and paste the JSON back, then publishes via the files API. Same name, same look, no shared endpoint.</span></div>
+            <div class="frow"><span class="fk">Tables</span><span class="fv"><em>None directly.</em> Publishing goes through the normal deploy path into sites and versions; the only trace is a row in api_request_daily.</span></div>
+            <div class="frow"><span class="fk">Docs</span><span class="fv">openapi.yaml · README.md · CLAUDE.md · <em class="none">superseded: docs/design-grok-backend.md</em> · <em class="none">no skill covers AI create; LLM_PROVIDER appears in no doc</em></span></div>
+            <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#ai">ai</a> · <a href="/features.html#ai-chat-build">ai-chat-build</a> · <a href="/features.html#ai-chat-iterate">ai-chat-iterate</a> · <a href="/features.html#ai-chat-preview">ai-chat-preview</a> · <a href="/features.html#ai-paste-build">ai-paste-build</a> · <a href="/features.html#ai-paste-publish">ai-paste-publish</a> · <a href="/features.html#ai-single-provider">ai-single-provider</a> · <a href="/features.html#ai-build-queue">ai-build-queue</a></span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv">Two builders share one name — a change described as "the AI builder" needs to say which. The status response fields <code>status</code>, <code>reply</code>, <code>html</code>, <code>progress</code> and <code>error</code> are all read by the poller. README.md still documents a fallback provider and an Anthropic key that no longer exist.</span></div>
+          </div>
+        </details>
+
+        <details class="feat"><summary><span class="fname">Speech transcription</span><span class="fid">transcribe</span><span class="fsum">Dictate instead of typing. The model runs on this box.</span></summary>
+          <div class="fbody">
+            <div class="frow"><span class="fk">Go</span><span class="fv"><b>internal/handler/transcribe.go</b> <em>(HMAC ticket for the WebSocket, batch fallback)</em> · internal/config <em>(TRANSCRIBE_URL, TRANSCRIBE_TICKET_SECRET)</em></span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv">POST /v1/transcribe · POST /v1/transcribe/ticket <em>(both conditional on config)</em>. The live-caption WebSocket <code>/v1/transcribe/stream</code> is <b>proxied by nginx to a separate local service</b> — it is not a Go route, though CLAUDE.md lists it as one.</span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>showcase.html only</b> — <code>#chat-mic</code> and <code>#chat-input</code>. A 404 from <code>POST /v1/transcribe</code> is deliberately load-bearing: it is how the page decides to hide the mic button entirely.</span></div>
+            <div class="frow"><span class="fk">Tables</span><span class="fv"><em>None.</em></span></div>
+            <div class="frow"><span class="fk">Docs</span><span class="fv">openapi.yaml · README.md · CLAUDE.md · <em class="none">no skill coverage</em></span></div>
+            <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#voice">voice</a> · <a href="/features.html#voice-dictation">voice-dictation</a> · <a href="/features.html#voice-live-captions">voice-live-captions</a> · <a href="/features.html#voice-on-device-privacy">voice-on-device-privacy</a> · <a href="/features.html#ai-attachments">ai-attachments</a></span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv">Two off-repo services on loopback and their nginx location block. If the mic silently disappears, the probe request is the first thing to check — not the microphone permission.</span></div>
+          </div>
+        </details>
+
+        <details class="feat"><summary><span class="fname">Handles &amp; public showcase</span><span class="fid">showcase</span><span class="fsum">Every user gets a URL path and a public page listing their sites.</span></summary>
+          <div class="fbody">
+            <div class="frow"><span class="fk">Go</span><span class="fv"><b>internal/handler/showcase.go</b> <em>(server-renders showcase.html, injects the data blob)</em> · internal/handler/handles.go <em>(reserved names)</em> · internal/handler/ui.go <em>(the catch-all that routes /{handle})</em></span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv">GET /internal/showcase/{handle} <em>(nginx-only)</em> · GET / catch-all <em>(serves the owner app for a handle-shaped path)</em></span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>showcase.html → public gallery</b> <code>#public-view</code> / <code>#gallery</code> — rendered from a <em>server-injected</em> blob, not a fetch<br><b>showcase.html → owner console</b> <code>#owner-view</code> with its Sites and Analytics tabs<br><b>index.html</b> links to it via <code>#showcase-banner</code></span></div>
+            <div class="frow"><span class="fk">Tables</span><span class="fv">users.handle · sites <em>(visibility=unlisted is filtered out of the gallery)</em></span></div>
+            <div class="frow"><span class="fk">Docs</span><span class="fv">docs/superpowers/specs/2026-07-14-simple-host-showcase-and-404.md · register.md <em>(the handle is the URL segment)</em> · openapi.yaml <em>(visibility)</em></span></div>
+            <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#public-profile">public-profile</a> · <a href="/features.html#account-handle">account-handle</a></span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv">The injected blob is substituted by string replacement in Go — renaming a placeholder in the HTML breaks rendering with no compile error. And this one file is <em>both</em> a public page and the owner console, so a change aimed at one audience lands on the other.</span></div>
+          </div>
+        </details>
+
+        <details class="feat"><summary><span class="fname">Admin API analytics</span><span class="fid">api-metrics</span><span class="fsum">Per-endpoint request counts and caller geography, for the admin only.</span></summary>
+          <div class="fbody">
+            <div class="frow"><span class="fk">Go</span><span class="fv"><b>internal/handler/apimetrics.go</b> — the <code>Wrap</code> middleware counts every /v1/* request, flushes every 20 s, resolves geo lazily, prunes at 30 days</span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv">GET /v1/admin/api-analytics · GET /v1/admin/users <em>(both answer 404, not 403, to non-admins)</em></span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>admin.html only</b> — <code>#stats</code>, <code>#users</code>, and <code>#apitraffic</code> with its route and IP tables. Note this is a <em>third</em> dashboard, separate from index.html's Admin tab.</span></div>
+            <div class="frow"><span class="fk">Tables</span><span class="fv"><b>api_request_daily</b> · <b>api_ip_daily</b> <em>(raw IPs, deliberately, 30-day retention)</em> · <b>ip_geo</b> <em>(never pruned)</em></span></div>
+            <div class="frow"><span class="fk">Docs</span><span class="fv">openapi.yaml <em>— and nothing else. This feature is documented in exactly one file.</em></span></div>
+            <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#admin">admin</a> · <a href="/features.html#admin-api-traffic">admin-api-traffic</a> · <a href="/features.html#admin-users">admin-users</a> · <a href="/features.html#admin-all-sites">admin-all-sites</a></span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv">The <code>Wrap</code> middleware is on the hot path of every API request, so a change here has platform-wide latency reach even though only one page renders it. Route labels are normalised to bound cardinality — adding a path parameter without teaching the normaliser will blow up the table.</span></div>
+          </div>
+        </details>
+
+        <details class="feat"><summary><span class="fname">Starter templates</span><span class="fid">templates</span><span class="fsum">Seven ready-made sites an agent can fetch and deploy.</span></summary>
+          <div class="fbody">
+            <div class="frow"><span class="fk">Go</span><span class="fv">internal/handler/templates.go + the embedded internal/handler/templates/&lt;id&gt;/ tree</span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv">GET /v1/templates · GET /v1/templates/{id} <em>(both public)</em></span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><em>No first-party page calls these</em> — they are for agents. But the templates themselves are UI once deployed: <b>landing</b>, <b>waitlist</b> and <b>event-rsvp</b> call state and collections; <b>ui-prototype</b> embeds feedback.js; <b>architecture</b> and <b>resume</b> embed comments.js; <b>travel</b> is fully static.</span></div>
+            <div class="frow"><span class="fk">Tables</span><span class="fv"><em>None</em> — but the deployed output writes to sites.state and collection_items.</span></div>
+            <div class="frow"><span class="fk">Docs</span><span class="fv">openapi.yaml · backend.md <em>(the catalog)</em> · website-deploy-builder/SKILL.md · <em class="none">absent from llms.txt</em></span></div>
+            <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#templates">templates</a> · <a href="/features.html#templates-catalog">templates-catalog</a></span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv">Five of the seven templates are live consumers of the state or collections contract. A change to either means editing template HTML too — and every copy already deployed from them keeps the old contract forever.</span></div>
+          </div>
+        </details>
+
+        <details class="feat"><summary><span class="fname">Skills hub &amp; installers</span><span class="fid">skills</span><span class="fsum">The agent-facing product: three skills, an MCP server, and the installers that fetch them.</span></summary>
+          <div class="fbody">
+            <div class="frow"><span class="fk">Go</span><span class="fv"><b>internal/handler/skillshub.go</b> · internal/handler/ui.go <em>(zips, install scripts, PluginVersion)</em> · the embedded simple-host-website/ tree</span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv">GET /v1/skills · /v1/skills/{name} · /v1/skills/{name}/references/{file} · /.well-known/skills/… · /skills.zip · /skills/version · /skills/&lt;name&gt;.zip · /skills/&lt;name&gt;/SKILL.md · /plugin.zip · /install.sh · /install.ps1</span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>install.html</b> — every install path, and the <code>#copy-llms</code> button that fetches /llms.txt<br><b>showcase.html → <code>#skill-install</code></b> for owners<br><b>index.html</b> fetches <code>/skills/version</code> to set its skill-version header</span></div>
+            <div class="frow"><span class="fk">Tables</span><span class="fv"><em>None.</em></span></div>
+            <div class="frow"><span class="fk">Docs</span><span class="fv">the three SKILL.md files and five references/ files are <em>themselves</em> the artefact · README.md · simple-host-website/README.md · docs/designs/simplify-and-share.md</span></div>
+            <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#agent">agent</a> · <a href="/features.html#skill-website-deploy">skill-website-deploy</a> · <a href="/features.html#skill-website-deploy-builder">skill-website-deploy-builder</a> · <a href="/features.html#skill-connect-domain">skill-connect-domain</a> · <a href="/features.html#skill-install-page">skill-install-page</a> · <a href="/features.html#skill-install-oneline">skill-install-oneline</a> · <a href="/features.html#agent-prompt-llms">agent-prompt-llms</a> · <a href="/features.html#api-reference">api-reference</a></span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv">The plugin version lives in <code>plugin.json</code> and is echoed by <code>marketplace.json</code> and the SKILL.md header — the three have already drifted apart. Bumping one without the others changes who gets a staleness notice.</span></div>
+          </div>
+        </details>
+
+        <details class="feat"><summary><span class="fname">Stale-skill notice injection</span><span class="fid">notice</span><span class="fsum">Cross-cutting: rewrites JSON bodies to warn an agent its skill is out of date.</span></summary>
+          <div class="fbody">
+            <div class="frow"><span class="fk">Go</span><span class="fv"><b>internal/handler/notice_middleware.go</b> — buffers the response and injects <code>_notice</code> when <code>X-Skill-Version</code> is missing or stale; wraps roughly two dozen routes</span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv">Most of /v1/sites/* and /v1/auth/*. Deliberately <b>not</b> state, collections, static serving or skill downloads.</span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv">Invisible but decisive: <b>index.html</b> and <b>showcase.html</b> both unwrap <code>{data:[…]}</code> on /v1/sites <em>because of this middleware</em>. index.html additionally fetches <code>/skills/version</code> so its own calls are never wrapped.</span></div>
+            <div class="frow"><span class="fk">Tables</span><span class="fv"><em>None.</em></span></div>
+            <div class="frow"><span class="fk">Docs</span><span class="fv">CLAUDE.md §Skill staleness notice · website-deploy/SKILL.md · README.md</span></div>
+            <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#skill-stale-notice">skill-stale-notice</a></span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv">Adding a route to the wrapped set changes its response <em>shape</em> for every browser caller that does not send the header. That is the same failure mode as the analytics bug, arriving from the middleware instead of the handler.</span></div>
+          </div>
+        </details>
+
+        <details class="feat"><summary><span class="fname">Ephemeral preview sites</span><span class="fid">preview</span><span class="fsum">Sites from listed accounts self-destruct after a TTL.</span></summary>
+          <div class="fbody">
+            <div class="frow"><span class="fk">Go</span><span class="fv">internal/handler/site.go <em>(previewExpiry, sweepExpiredSites — a background loop, no route)</em> · internal/config <em>(PREVIEW_ACCOUNTS, PREVIEW_TTL_HOURS, default 48 h)</em></span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv"><em>None</em> — it rides on site creation and a sweep.</span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><em>None.</em> Nothing tells a user their site is temporary, which is worth remembering before enabling it for an account.</span></div>
+            <div class="frow"><span class="fk">Tables</span><span class="fv">sites.expires_at</span></div>
+            <div class="frow"><span class="fk">Docs</span><span class="fv"><em class="none">None. This feature is undocumented outside the config comments.</em></span></div>
+            <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#admin-preview-expiry">admin-preview-expiry</a></span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv">The sweep deletes sites outright, cascading versions, collections and analytics. Never repurpose <code>expires_at</code> for anything else.</span></div>
+          </div>
+        </details>
+
+        <details class="feat"><summary><span class="fname">Branded 404 &amp; legacy hosts</span><span class="fid">notfound</span><span class="fsum">A miss on the content host comes back as a branded page pointing at the owner's showcase.</span></summary>
+          <div class="fbody">
+            <div class="frow"><span class="fk">Go</span><span class="fv">internal/handler/showcase.go <em>(notFound, reads X-Original-URI)</em> · <b>internal/handler/legacyhost.go</b> <em>(global middleware: old per-site hostname → path URL)</em></span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv">GET /internal/notfound <em>(nginx error_page)</em> · plus a 301 applied to every request</span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>notfound.html</b> — server-rendered by string substitution of the message and back-link placeholders</span></div>
+            <div class="frow"><span class="fk">Tables</span><span class="fv">reads sites and users to decide the back-link. <em>Not</em> legacy_hostnames — that table has no live reader.</span></div>
+            <div class="frow"><span class="fk">Docs</span><span class="fv">docs/superpowers/specs/2026-07-14-simple-host-showcase-and-404.md</span></div>
+            <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#site-notfound-page">site-notfound-page</a> · <a href="/features.html#legacy-url-redirect">legacy-url-redirect</a></span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv">The nginx <code>error_page</code> and <code>@notfound</code> blocks are half of this feature; the Go handler alone cannot deliver it. The redirect middleware runs before everything, so a bug here affects every route on the platform.</span></div>
+          </div>
+        </details>
+
+        <details class="feat"><summary><span class="fname">Health &amp; readiness</span><span class="fid">health</span><span class="fsum">Two probes. One is static, one touches the database.</span></summary>
+          <div class="fbody">
+            <div class="frow"><span class="fk">Go</span><span class="fv">internal/handler/health.go</span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv">GET /healthz <em>(static ok)</em> · GET /readyz <em>(2 s DB ping, 503 on failure)</em></span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><em>None</em>, and nothing in nginx consults them — on one box they are observability, not a gate.</span></div>
+            <div class="frow"><span class="fk">Tables</span><span class="fv">ping only</span></div>
+            <div class="frow"><span class="fk">Docs</span><span class="fv">openapi.yaml · README.md</span></div>
+            <div class="frow"><span class="fk">Product</span><span class="fv"><em class="none">Internal — no user-facing feature entry.</em></span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv">If a load balancer or a monitor is ever pointed at these, they become traffic-affecting and the classifier should be checked — a hosted uptime checker lands in the <code>infra</code> class, which is where you want it.</span></div>
+          </div>
+        </details>
+
+        <details class="feat"><summary><span class="fname">Dashboard &amp; static pages</span><span class="fid">dashboard</span><span class="fsum">Everything served out of the embedded static directory.</span></summary>
+          <div class="fbody">
+            <div class="frow"><span class="fk">Go</span><span class="fv">internal/handler/ui.go <em>(catch-all file server + the dashboard CSP)</em> · internal/handler/showcase.go <em>(ownerAppOrStatic)</em></span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv">GET /admin · GET / catch-all <em>(also serves llms.txt, openapi.yaml/json, docs.html, privacy.html, install.html, comments.js, feedback.js — none of which are registered routes)</em></span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>index.html</b> <em>(auth view · Sites tab · Admin tab)</em> · <b>showcase.html</b> <em>(public gallery · owner Sites tab · owner Analytics tab · AI chat)</em> · <b>admin.html</b> · <b>install.html</b> · <b>docs.html</b> · <b>privacy.html</b> · <b>notfound.html</b> · <b>architecture.html</b> <em>(this page)</em></span></div>
+            <div class="frow"><span class="fk">Tables</span><span class="fv">the catch-all looks up users for handle-shaped paths</span></div>
+            <div class="frow"><span class="fk">Docs</span><span class="fv">CLAUDE.md · docs/designs/install-page-redesign.md · docs/designs/simplify-and-share.md</span></div>
+            <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#skill-setup-panel">skill-setup-panel</a> · <a href="/features.html#skill-help-desk">skill-help-desk</a> · <a href="/features.html#api-reference">api-reference</a></span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv">These files are <b>embedded into the binary</b> — editing one changes nothing until a rebuild and restart. Every "I fixed the page" claim should be verified against the running server, not the file on disk.</span></div>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- 02 Consumers -->
+    <section id="consumers">
+      <div class="snum">02.</div>
+      <div>
+        <h2>Who renders what</h2>
+        <p class="lede">The inverse of the map: pick an endpoint, see every screen that would go blank if you changed its shape. Rows marked <span class="badge multi">multi</span> have more than one consumer — those are the ones that bite.</p>
+        <table>
+          <tr class="trow"><td class="tid">E1</td><td class="tk">GET /v1/sites/{name}/analytics <span class="badge multi">multi</span></td><td class="tv"><strong>index.html</strong> Sites tab cards + Admin tab · <strong>showcase.html</strong> owner Analytics tab. The two read different subsets — showcase touches only <code>daily[].person.views</code> and <code>totals.person.visitors</code>. <em>This is the pair that already broke.</em></td></tr>
+          <tr class="trow"><td class="tid">E2</td><td class="tk">GET/PATCH …/state <span class="badge multi">multi</span></td><td class="tv"><strong>comments.js</strong> · <strong>feedback.js</strong> · templates <strong>landing</strong>, <strong>waitlist</strong>, <strong>event-rsvp</strong> · every LLM-generated site following <strong>llms.txt</strong>. The <code>ETag</code> header and the <code>visitor_auth_required</code> error code are part of the contract. Widest reach on the platform, and mostly outside our control.</td></tr>
+          <tr class="trow"><td class="tid">E3</td><td class="tk">GET /v1/sites <span class="badge multi">multi</span></td><td class="tv"><strong>index.html</strong> Sites tab <em>and</em> Admin tab · <strong>showcase.html</strong> owner Sites tab, which also seeds the Analytics tab. Four tabs, two pages, different required fields, both unwrapping the notice envelope.</td></tr>
+          <tr class="trow"><td class="tid">E4</td><td class="tk">GET /v1/auth/oauth/providers <span class="badge multi">multi</span></td><td class="tv"><strong>index.html</strong> auth view · <strong>comments.js</strong> · <strong>feedback.js</strong> · three templates · prescribed by <strong>llms.txt</strong>. Adding or renaming a provider changes all of them.</td></tr>
+          <tr class="trow"><td class="tid">E5</td><td class="tk">GET /v1/me <span class="badge multi">multi</span></td><td class="tv"><strong>index.html</strong> gates the whole signed-in app and the Admin tab · <strong>showcase.html</strong> gates the entire owner console. A field rename locks people out of both.</td></tr>
+          <tr class="trow"><td class="tid">E6</td><td class="tk">GET …/versions <span class="badge multi">multi</span></td><td class="tv"><strong>index.html</strong> expects a bare array; <strong>showcase.html</strong> accepts either shape. Already inconsistent — wrapping this route would break exactly one of them, silently.</td></tr>
+          <tr class="trow"><td class="tid">E7</td><td class="tk">POST /v1/auth · /v1/auth/verify <span class="badge multi">multi</span></td><td class="tv"><strong>index.html</strong> auth view <em>and</em> <strong>showcase.html</strong> inline builder sign-in.</td></tr>
+          <tr class="trow"><td class="tid">E8</td><td class="tk">PUT …/active-version · DELETE /v1/sites/{name} <span class="badge multi">multi</span></td><td class="tv">Both pages' site lists call these.</td></tr>
+          <tr class="trow"><td class="tid">E9</td><td class="tk">POST …/collections/{coll} <span class="badge multi">multi</span></td><td class="tv">Three templates plus every generated site; all of them branch on <code>visitor_auth_required</code>.</td></tr>
+          <tr class="trow"><td class="tid">E10</td><td class="tk">GET /v1/analytics/sites <span class="badge solo">one</span></td><td class="tv"><strong>index.html</strong> Sites tab ordering only. A failure degrades the sort silently rather than showing an error — by design, but worth knowing when it looks "fine".</td></tr>
+          <tr class="trow"><td class="tid">E11</td><td class="tk">POST /v1/generate · /v1/generate/status <span class="badge solo">one</span></td><td class="tv"><strong>showcase.html</strong> only. index.html's similarly-named builder does not call it.</td></tr>
+          <tr class="trow"><td class="tid">E12</td><td class="tk">/v1/transcribe · /ticket · /stream <span class="badge solo">one</span></td><td class="tv"><strong>showcase.html</strong> only. A 404 on the probe is how the mic button hides itself.</td></tr>
+          <tr class="trow"><td class="tid">E13</td><td class="tk">PUT …/visibility <span class="badge solo">one</span></td><td class="tv"><strong>showcase.html</strong> owner Sites tab only.</td></tr>
+          <tr class="trow"><td class="tid">E14</td><td class="tk">…/domain · …/collections · export.csv <span class="badge solo">one</span></td><td class="tv"><strong>index.html</strong> Sites tab only.</td></tr>
+          <tr class="trow"><td class="tid">E15</td><td class="tk">/v1/admin/users · /v1/admin/api-analytics <span class="badge solo">one</span></td><td class="tv"><strong>admin.html</strong> only — a third dashboard, separate from index.html's Admin tab.</td></tr>
+          <tr class="trow"><td class="tid">E16</td><td class="tk">GET /openapi.yaml <span class="badge multi">multi</span></td><td class="tv"><strong>docs.html</strong> renders the whole spec through Swagger UI. Every endpoint change surfaces here whether or not anyone updated it — which is why the spec is the source of truth and not a summary.</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <!-- 03 Traps -->
+    <section id="traps">
+      <div class="snum">03.</div>
+      <div>
+        <h2>Traps that have already bitten</h2>
+        <p class="lede">Not hypotheticals. Each of these has cost someone real time here.</p>
+        <div class="claims">
+          <div class="claim"><div class="ci">X1</div><p><b>A response-shape change ripples further than the handler.</b> There is no compile-time link between a Go struct and the JavaScript that reads it, so a renamed field fails by rendering <em>zero</em>, not by throwing. Before changing a shape, read §02 and open every consumer listed. The analytics split is the worked example: two pages, one updated, one silently blank.</p></div>
+          <div class="claim"><div class="ci">X2</div><p><b>The two <code>*_daily</code> analytics tables must never be dropped.</b> Nothing writes to them any more, which makes them look like debris. They are the only surviving record of <strong>2026-07-11 → 2026-08-08</strong> — the raw logs behind that month have rotated away and no rebuild can recover it. The API reads them for every day before <code>classified_from</code> and reports them as <code>unknown</code>. Dropping them silently deletes twenty-nine sites' first month, seventeen of which have no other history at all.</p></div>
+          <div class="claim"><div class="ci">X3</div><p><b>The ingester's inode-and-offset tracking constrains the logrotate config.</b> <code>copytruncate</code> keeps the inode and loses whatever was written between copy and truncate; the ingester needs the inode <em>change</em> to know it should drain the old file. It also cannot read gzip, so <code>delaycompress</code> is what gives it a full cycle to finish <code>.log.1</code>. Those two directives are code dependencies wearing a config's clothes.</p></div>
+          <div class="claim"><div class="ci">X4</div><p><b>Some features are half in nginx.</b> The branded 404, the analytics log and the live-captions WebSocket are each part Go and part edge config. Shipping the Go half and calling it done produces a feature that works on your laptop and not in production. A new custom-domain vhost that omits the <code>shanalytics</code> access-log line yields a site whose analytics are permanently empty, with nothing anywhere reporting a problem.</p></div>
+          <div class="claim"><div class="ci">X5</div><p><b>The schema file is not the schema.</b> Several things that production depends on — per-site state, the state version counter and the entire collections table with its index — exist in the live database but in no committed migration. A rebuild from <code>schema.sql</code> produces a database where those features cannot work. Any reconciliation must go <em>live → file</em>, never the other way. Relatedly: a migration that creates a table must also grant it to the application role, or the feature ships and 500s while everything around it looks healthy.</p></div>
+          <div class="claim"><div class="ci">X6</div><p><b>Static pages are embedded in the binary.</b> Editing anything under <code>internal/handler/static/</code> changes nothing until the binary is rebuilt and the service restarted. "Deployed" and "visible" are different claims — verify from the client, never from the file you just saved.</p></div>
+          <div class="claim"><div class="ci">X7</div><p><b>Two different builders are both called "Create a site".</b> One calls the model server-side; the other asks you to paste JSON from your own AI. They live on different pages and share no endpoint. Any instruction about "the AI builder" that does not name the page is ambiguous.</p></div>
+          <div class="claim"><div class="ci">X8</div><p><b>The docs-sync script catches less than it appears to.</b> <code>scripts/check-docs-sync.sh</code> hard-fails when a registered <code>/v1</code> route is missing from <code>openapi.yaml</code> or vice versa, and when an owner route is not auth-wrapped. Both are valuable. But it compares <strong>paths, not methods</strong>, so adding a verb to a documented path is invisible; it never checks whether prose <em>descriptions</em> still match behaviour; and it has no capability rule for analytics, custom domains, AI create or transcription. It would not have caught anything on this page.</p></div>
+        </div>
+        <p class="fine">The rule this page is built around: a feature is not changed until every cell in its row is changed. If that is too much work for the change you are making, the change is bigger than you thought — which is exactly the thing worth learning before shipping it, not after.</p>
+      </div>
+    </section>
+
+    <!-- 04 Safety property -->
+    <section id="safety">
+      <div class="snum">04.</div>
       <div>
         <h2>The core safety property</h2>
         <p class="lede">The defining constraint: user uploads are <strong>data, never code</strong> — they can never execute on the server. That is what makes agent-generated ("vibe-coded") sites safe to host.</p>
         <div class="claims">
-          <div class="claim"><div class="ci">1.1</div><p><b>No execution path exists.</b> The server has no interpreter, no SSR runtime, no plugin loader, no per-site processes. Uploaded files are written to disk and later returned as bytes with a content type — a hostile upload has no more power than an email attachment sitting in a folder.</p></div>
-          <div class="claim"><div class="ci">1.2</div><p><b>Archives are validated before extraction.</b> Path traversal is blocked (no entry may escape its site directory), archive and file sizes are capped, and extensions are restricted to a static-content allowlist — scripts, binaries, and server configs (<code>.sh</code>, <code>.php</code>, <code>.env</code> …) are rejected at upload time, before anything touches disk.</p></div>
-          <div class="claim"><div class="ci">1.3</div><p><b>Serving is jailed per site.</b> Requests for site content are path-checked and rooted at that one site's <code>current/</code> directory. Directory listings are disabled; a directory without an index serves nothing. One site can't read another's files through the server.</p></div>
-          <div class="claim"><div class="ci">1.4</div><p><b>Everything is versioned and revertible.</b> Every upload is a new immutable version tied to an authenticated owner and timestamped. Bad content rolls back instantly — the <code>current</code> symlink flips atomically — and can be deleted by the owner or an admin.</p></div>
+          <div class="claim"><div class="ci">4.1</div><p><b>No execution path exists.</b> The server has no interpreter, no SSR runtime, no plugin loader, no per-site processes. Uploaded files are written to disk and later returned as bytes with a content type — a hostile upload has no more power than an email attachment sitting in a folder.</p></div>
+          <div class="claim"><div class="ci">4.2</div><p><b>Archives are validated in memory, before anything touches disk.</b> Extraction produces a map of paths to bytes; every guard runs on that map, and only then is a version written. Path traversal is blocked twice over — at extract and again at write — along with absolute paths, control characters, depth over 32 and paths over 1024 bytes. Symlink, hardlink and device entries are dropped rather than followed. Caps: <strong>100 MB per file, 500 MB uncompressed total, 50,000 entries</strong>, and a 100 MB request body (<code>MAX_ARCHIVE_MB</code>). Zip bombs are handled by counting bytes actually read, never the declared size in the header.</p></div>
+          <div class="claim"><div class="ci">4.3</div><p><b>The extension check is a denylist, and it is a courtesy — not the safety control.</b> Being honest about this matters: only source-script types are hard-rejected (<code>.sh .bash .zsh .fish .bat .cmd .ps1 .py .pyc .rb .pl .go .php</code>). Everything else is accepted, binaries included. Secret-shaped files (<code>.env</code>, <code>.htpasswd</code>, <code>.npmrc</code>, <code>.netrc</code>, <code>id_rsa</code>, anything under <code>.git/</code> or <code>.ssh/</code>) are <em>silently skipped</em>, not rejected — the deploy still succeeds, minus the secret. The real guarantee is 4.1: nothing on disk can run.</p></div>
+          <div class="claim"><div class="ci">4.4</div><p><b>Serving is rooted per site, by nginx, off disk.</b> Static bytes never pass through the Go process. nginx maps <code>/&lt;handle&gt;/&lt;site&gt;/…</code> straight to that site's <code>current/</code> directory, with the handle and site captured by regexes limited to <code>[a-z0-9-]</code> — traversal is not expressible in them. Directory listings are off (nginx defaults to <code>autoindex off</code>, and nothing turns it on); a directory with no index serves nothing. The Go path checks are real but they are <strong>write-time</strong> controls: they decide where bytes land, not what gets served.</p></div>
+          <div class="claim"><div class="ci">4.5</div><p><b>Versions are per-upload, owned, timestamped and revertible — but "atomic symlink" would be a lie.</b> Each upload writes a new <code>vN/</code> and a <code>versions</code> row carrying the owner, a timestamp and a SHA-256 of the content. Going live <em>copies</em> that tree to <code>current/</code> via remove-then-rename: <code>current</code> is a real directory, not a symlink, and there is a brief window during the swap where it is absent. Rollback re-points it the same way. Small, real, and worth knowing before you promise zero-downtime deploys.</p></div>
         </div>
 
         <figure>
@@ -197,116 +587,187 @@
             </div>
             <div class="arrow ok" style="margin-top:-24px">1 · upload &nbsp;·&nbsp; GET site path</div>
             <div class="lane">
-              <span class="lane-label">Platform · one Go service</span>
+              <span class="lane-label">Platform · Go writes · nginx serves</span>
               <div class="row">
-                <div class="node"><div class="nt">Upload API</div><div class="nm">X-API-Key → authenticated owner<br>2 · validate ↓</div></div>
-                <div class="node"><div class="nt">Path-safety check</div><div class="nm">jailed to one site's current/<br>safe path only ↓</div></div>
+                <div class="node"><div class="nt">Upload API · Go</div><div class="nm">X-API-Key → authenticated owner<br>2 · validate in memory ↓</div></div>
+                <div class="node"><div class="nt">nginx path match</div><div class="nm">/&lt;handle&gt;/&lt;site&gt;/… → that site's current/<br>[a-z0-9-] captures · no traversal ↓</div></div>
               </div>
               <div class="arrow" style="grid-column:1/2"></div>
               <div class="row" style="margin-top:14px">
-                <div class="node ok"><div class="nt">Validation gate</div><div class="nm">size caps · extension allowlist<br>path-traversal blocked</div></div>
+                <div class="node ok"><div class="nt">Validation gate</div><div class="nm">100 MB/file · 500 MB total · 50k entries<br>traversal blocked twice · symlinks dropped</div></div>
                 <div class="node"><div class="nt">Static file serve</div><div class="nm">bytes + content type only<br>no SSR · no exec · no autoindex</div></div>
               </div>
-              <div class="arrow bad" style="margin-top:8px">.sh .php .env … → rejected at upload · nothing written to disk</div>
+              <div class="arrow bad" style="margin-top:8px">.sh .php .py … refused outright · .env and other secrets silently skipped · nothing written to disk</div>
             </div>
-            <div class="arrow ok">3 · extract vN · flip current &nbsp;·&nbsp; <span class="mut">read-only bytes from current/</span></div>
+            <div class="arrow ok">3 · write vN · copy into current/ &nbsp;·&nbsp; <span class="mut">read-only bytes from current/</span></div>
             <div class="lane">
               <span class="lane-label">Storage · versioned disk</span>
               <div class="row">
-                <div class="node"><div class="nt">Versioned site tree</div><div class="nm">v1 … vN · immutable per upload<br>current → vN symlink · atomic flip</div></div>
+                <div class="node"><div class="nt">Versioned site tree</div><div class="nm">v1 … vN · one per upload, owned + timestamped<br>current/ is a copied directory · remove + rename</div></div>
                 <div class="node"><div class="nt">Postgres</div><div class="nm">users · sites · versions<br>per-site state &amp; collections</div></div>
               </div>
             </div>
           </div>
         </figure>
-        <p class="fine">Top to bottom: an agent authenticates with the user's key and uploads; the validation gate enforces size caps, the static-extension allowlist, and traversal protection — scripts and binaries die there, before anything touches disk. Accepted content extracts to a new immutable <code>vN/</code>, the <code>current</code> symlink flips atomically. Serving is a separate read-only path: path-safety check, then static bytes. No user code ever runs server-side.</p>
+        <p class="fine">Top to bottom: an agent authenticates with the user's key and uploads; extraction happens in memory and the validation gate enforces size caps, traversal protection and the script-type refusal there — before anything touches disk. Accepted content is written as a new <code>vN/</code> and copied into <code>current/</code>. Serving is a wholly separate read path that never enters the Go process: nginx matches a constrained path regex and returns bytes. No user code ever runs server-side — that is the guarantee, not the extension check.</p>
       </div>
     </section>
 
-    <!-- 02 Trust model -->
+    <!-- 05 Trust model -->
     <section id="trust">
-      <div class="snum">02.</div>
+      <div class="snum">05.</div>
       <div>
         <h2>Trust model</h2>
-        <p class="lede">Every surface is gated; the gates differ in strength. Sites are public on the internet — the protection is that they're static, owned, and revertible.</p>
+        <p class="lede">Every surface is gated; the gates differ in strength, and a few are weaker than they sound. Sites are public on the internet — the protection is that they're static, owned, and revertible.</p>
         <table>
-          <tr class="trow"><td class="tid">T1</td><td class="tk">Deploy &amp; manage sites</td><td class="tv">Per-user <strong>API key</strong>, issued by email magic-link registration. The key authenticates the owner of every upload, rollback, and delete.</td></tr>
-          <tr class="trow"><td class="tid">T2</td><td class="tk">Admin</td><td class="tv">A single admin key held in the service's <strong>environment file</strong> (<code>/etc/simple-host.env</code>, root-owned) — never in code, config, or the repo.</td></tr>
-          <tr class="trow"><td class="tid">T3</td><td class="tk">Viewing sites</td><td class="tv">Public by default. Privacy (view-lock password) is available on a <strong>connected custom domain</strong>: a login page sets a signed cookie that gates the page and its data.</td></tr>
-          <tr class="trow"><td class="tid">T4</td><td class="tk">Per-site state</td><td class="tv"><strong>Reads Origin-checked</strong>; <strong>writes</strong> need a visitor Google/GitHub session (<code>X-SH-CSRF</code>) or the owner's API key. Attribution-grade for reads, not a secret store.</td></tr>
-          <tr class="trow"><td class="tid">T5</td><td class="tk">Create with AI</td><td class="tv"><strong>Sign-in-gated and rate-limited</strong>, per user and per IP. Runs off-box; the platform stores no model credentials on served pages.</td></tr>
-          <tr class="trow"><td class="tid">T6</td><td class="tk">DB &amp; secrets</td><td class="tv">Postgres credentials and keys live in the root-owned env file, read at boot by the non-root service user. Not reachable from any served page.</td></tr>
+          <tr class="trow"><td class="tid">T1</td><td class="tk">Deploy &amp; manage sites</td><td class="tv">Per-user <strong>API key</strong> in <code>X-API-Key</code> (never <code>Authorization: Bearer</code>). Two registration paths mint one: email magic-link / 6-digit code, <em>and</em> owner Google sign-in. The key authenticates the owner of every upload, rollback and delete; each handler re-resolves the site by <code>user_id</code>, so a valid key for another account is a 404, not a leak. The key is stored in the <code>users</code> row as issued and matched by equality — there is no hash step.</td></tr>
+          <tr class="trow"><td class="tid">T2</td><td class="tk">Admin</td><td class="tv">Two independent paths: the <code>ADMIN_API_KEY</code> from the service <strong>environment file</strong> (constant-time compare, synthesises an in-memory admin that has no database row), and an <code>is_admin</code> flag on a real user. Never in code, config, or the repo.</td></tr>
+          <tr class="trow"><td class="tid">T3</td><td class="tk">Viewing sites</td><td class="tv">Public, with no exceptions. There is no password lock and no private mode: anything deployed is readable by anyone who has the address. Its state and collections are readable too, subject only to the Origin gate.</td></tr>
+          <tr class="trow"><td class="tid">T4</td><td class="tk">Per-site state &amp; collections</td><td class="tv"><strong>Reads are Origin-checked</strong> — attribution-grade, not authentication-grade, and documented as such. <strong>Writes</strong> run through <code>WRITE_AUTH_MODE</code>: <code>on</code> requires a visitor session plus <code>X-SH-CSRF: 1</code> or the owner's key; <code>log</code> — <strong>the shipped default</strong> — records the same decision and allows the write anyway; <code>off</code> skips the check. An admin-only per-site <code>allow-anonymous-writes</code> flag overrides even <code>on</code>. Read the mode before you describe this as authenticated.</td></tr>
+          <tr class="trow"><td class="tid">T5</td><td class="tk">Create with AI</td><td class="tv"><strong>Sign-in-gated and rate-limited</strong>, per user (burst 30, +1 per 10 s) and per IP (burst 20, +1 per 12 s), with a separate generous budget for status polling. The endpoint is not registered at all unless a provider key is configured. No model credential is ever emitted into a served page.</td></tr>
+          <tr class="trow"><td class="tid">T6</td><td class="tk">DB &amp; secrets</td><td class="tv">Postgres credentials and every key live in one environment file outside the repo, read at boot by the non-root service user and never reachable from a served page. Postgres itself listens on loopback only.</td></tr>
+          <tr class="trow"><td class="tid">T7</td><td class="tk">Traffic analytics</td><td class="tv">Owner scoping is a <strong><code>WHERE</code> clause in the SQL</strong>, not a filter applied to results, so one owner's traffic cannot appear in another's list. The instance-wide <code>all=1</code> is admin-only and answers <strong>403</strong> to anyone else rather than silently narrowing the scope — a quietly narrowed answer is a lie about what was returned.</td></tr>
         </table>
-        <p class="fine">Known, accepted limitation: the origin check on state <em>reads</em> is attribution-grade, not authentication-grade. Writes go through a visitor session or owner key. Secrets never belong in state.</p>
+        <p class="fine">Two limitations stated plainly, because both have surprised someone. The origin check on state reads is forgeable by anything that is not a browser — never put secrets in state. And every path-model site shares one origin, <code>sites.simple-host.app</code>, so one site's JavaScript can reach a sibling's state and storage: this platform does not offer site-to-site isolation in the browser, and no product copy should imply it.</p>
       </div>
     </section>
 
-    <!-- 03 Little backend -->
+    <!-- 06 Little backend -->
     <section id="backend">
-      <div class="snum">03.</div>
+      <div class="snum">06.</div>
       <div>
         <h2>The little backend</h2>
         <p class="lede">Static hosting is commoditized. The difference here is that every site gets <strong>just enough backend</strong> — with no database to set up.</p>
         <div class="claims">
-          <div class="claim"><div class="ci">3.1</div><p><b>Per-site JSON state.</b> One shared document per site (<code>GET/PUT/PATCH /v1/sites/{site}/state</code>), with atomic ops (set, inc, append, remove) and ETags for cheap polling — counters, votes, saved app state, guestbooks.</p></div>
-          <div class="claim"><div class="ci">3.2</div><p><b>Append-only collections.</b> Growing lists (<code>/collections/{name}</code>) for signups, RSVPs, and form submissions — cheap appends, paginated reads.</p></div>
-          <div class="claim"><div class="ci">3.3</div><p><b>Drop-in widgets &amp; templates.</b> Threaded comments and feedback pins as one script tag each, password-locked private pages on a connected custom domain, and starter templates served from <code>/v1/templates</code>.</p></div>
-          <div class="claim"><div class="ci">3.4</div><p><b>Server-side visitor analytics.</b> Per-site page views and unique visitors with a 30-day trend, computed from access logs — privacy-preserving (IPs hashed with a daily-rotating salt, never stored raw), no tracking script needed.</p></div>
+          <div class="claim"><div class="ci">6.1</div><p><b>Per-site JSON state.</b> One shared document per site (<code>GET/PUT/PATCH /v1/sites/{site}/state</code>, mirrored at <code>/v1/u/{handle}/sites/{site}/state</code>), with atomic ops — set, inc, append, remove, remove-where — applied under a row lock, and ETag / <code>If-Match</code> for cheap polling and optimistic concurrency. Counters, votes, saved app state, guestbooks.</p></div>
+          <div class="claim"><div class="ci">6.2</div><p><b>Append-only collections.</b> Growing lists (<code>/collections/{name}</code>) for signups, RSVPs and form submissions — cheap appends, paginated reads, and an owner-only CSV export.</p></div>
+          <div class="claim"><div class="ci">6.3</div><p><b>Drop-in widgets &amp; templates.</b> Threaded comments and feedback pins as one script tag each — both are just clients of 6.1, so the state document's shape is their wire format. Seven starter templates ship from <code>/v1/templates</code>, and three of them call state or collections on their own.</p></div>
+          <div class="claim"><div class="ci">6.4</div><p><b>Server-side visitor analytics.</b> Per-site views and unique visitors, split into people, bots and monitoring, with an hourly and a daily trend — computed from the edge access log, so <strong>no tracking script</strong> and nothing to embed. IPs are salted-hashed and never stored raw. Section 07 is the whole pipeline.</p></div>
         </div>
-        <p class="fine">All of it is backed by the same single Postgres — no per-site database, no separate service. The store is public to the site's own audience by design; skills tell agents never to put secrets in it.</p>
+        <p class="fine">All of it is backed by the same single Postgres — no per-site database, no separate service. The store is public to the site's own audience by design; the skills tell agents never to put secrets in it. Note that <code>llms.txt</code> prescribes these exact request and response shapes to external models, so every site any LLM has generated from it is a live consumer of this contract.</p>
       </div>
     </section>
 
-    <!-- 04 Create with AI -->
+    <!-- 07 Analytics -->
+    <section id="analytics">
+      <div class="snum">07.</div>
+      <div>
+        <h2>Counting who actually visited</h2>
+        <p class="lede">The headline number is <strong>people</strong>, not requests. Getting those two apart was the entire point of this subsystem.</p>
+        <p>This box runs a directory service that probes every site's <code>/</code> every 30 seconds from <code>127.0.0.1</code> — <strong>2,880 requests per site per day</strong>. Before traffic was classified that was roughly <strong>97.8% of every recorded "view"</strong>, which made the numbers worse than useless: a site with three real readers and a site with none looked identical. So nothing is counted now until it has been labelled.</p>
+        <div class="claims">
+          <div class="claim"><div class="ci">7.1</div><p><b>nginx writes the ledger.</b> Static pages are served straight off disk and the Go process never sees a page view, so the edge log is the only ground truth. A dedicated <code>log_format shanalytics</code> emits tab-separated <code>ts · host · status · method · uri · remote_addr · user_agent</code> into <code>/var/log/simple-host/analytics.log</code>. The directive is <strong>per vhost</strong>: a custom-domain server block added without that one line produces a site that silently records nothing.</p></div>
+          <div class="claim"><div class="ci">7.2</div><p><b>A Go ingester tails it every 5 minutes.</b> It resumes from a persisted <code>(inode, byte offset)</code>, and that offset advances <em>in the same transaction</em> as the counter upserts — so a crash re-reads a batch instead of double-counting one. Each line is attributed to a site by host: content-host path, legacy label, or bound custom domain. Unattributable lines are skipped, never guessed. A run is capped at 200,000 lines and recovers from its own panics, so it can never take the server down.</p></div>
+          <div class="claim"><div class="ci">7.3</div><p><b>Rotation is part of the design, not an afterthought.</b> logrotate uses <code>create</code> plus <code>delaycompress</code>, and both are load-bearing. <code>copytruncate</code> would keep the inode and break offset tracking; and because the ingester drains the previous file as plain <code>.log.1</code> and <strong>cannot read gzip</strong>, compression must be held back a full cycle. Change the logrotate stanza and you are changing the ingester's contract.</p></div>
+          <div class="claim"><div class="ci">7.4</div><p><b>Three classes, and loopback always wins.</b> Every request is labelled <strong>person</strong> (no automation signature), <strong>bot</strong> (crawlers, AI scrapers, SEO suites, security scanners, HTTP libraries — plus exploit paths like <code>/wp-login.php</code> regardless of what the User-Agent claims), or <strong>infra</strong> (loopback probes and hosted uptime checkers). A loopback address is infra whatever it calls itself. <strong>person</strong> is the default, deliberately: an unrecognised crawler inflates the human number rather than hiding real people, which is the safer direction to be wrong in.</p></div>
+          <div class="claim"><div class="ci">7.5</div><p><b>Hourly buckets, split by class.</b> <code>site_view_hourly(site_id, hour, class, views)</code> and <code>site_visitor_hourly(site_id, hour, class, ip_hash)</code> replaced the old date-grained tables. Hourly granularity is what makes "the last 24 hours" answerable at all, and the volume is trivial — a dozen sites × 24 hours × 3 classes is under 900 rows a day, so nothing is rolled up. Aggregates prune at 400 days.</p></div>
+          <div class="claim"><div class="ci">7.6</div><p><b>Visitors are a salted hash, and the salt does not rotate.</b> An IP is stored only as <code>sha256(server-secret salt + ip)</code> truncated to 16 bytes; the raw address is never written and the secret never leaves the box. The salt is <strong>stable on purpose</strong>. A per-day salt makes a returning visitor unlinkable across days, which makes "unique visitors over 30 days" impossible to compute — you are left summing daily uniques, which always overstates the audience. Stable salt is what makes a range total a real number instead of an inflated one.</p></div>
+          <div class="claim"><div class="ci">7.7</div><p><b>The first month is kept, and honestly labelled.</b> The pre-classifier <code>*_daily</code> tables are retained rather than dropped: they are the only surviving record of <strong>2026-07-11 → 2026-08-08</strong>, whose raw logs have rotated away and cannot be rebuilt. The API reads them for any day before <code>classified_from</code> and reports them as a fourth class, <code>unknown</code> — plainly visible on the chart, never quietly folded into the human number.</p></div>
+        </div>
+
+        <p style="margin-top:22px"><code>GET /v1/sites/{name}/analytics</code> returns <code>totals</code>, <code>last_24h</code>, <code>daily</code> and <code>hourly</code>, each as a class split, plus <code>classified_from</code>. The bulk <code>GET /v1/analytics/sites</code> exists because the dashboard must sort sites by traffic <em>before</em> it draws the first card, which one-request-per-site cannot do. A <code>analytics-rebuild</code> command replays the live log and rewrites every aggregate with the current classifier — so improving the classifier improves history, instead of leaving a permanent step in every chart.</p>
+
+        <figure>
+          <div class="figcap">
+            <span class="t">Fig 02 · Analytics pipeline</span>
+            <span class="lg"><span class="dot" style="background:var(--accent)"></span>Platform</span>
+            <span class="lg"><span class="dot" style="background:var(--ok)"></span>Counted</span>
+            <span class="lg"><span class="dot" style="background:var(--bad)"></span>Stripped as infra</span>
+          </div>
+          <div class="diagram">
+            <div class="lane">
+              <span class="lane-label">Edge · nginx</span>
+              <div class="row">
+                <div class="node"><div class="nt">Real site requests</div><div class="nm">content host · legacy host · custom domain<br>served off disk — Go never sees a view</div></div>
+                <div class="node bad"><div class="nt">Loopback probe</div><div class="nm">nginx-directory · 127.0.0.1 · every 30s<br>2,880 hits / site / day</div></div>
+              </div>
+            </div>
+            <div class="arrow">1 · log_format shanalytics · TSV → /var/log/simple-host/analytics.log · logrotate create + delaycompress</div>
+            <div class="lane">
+              <span class="lane-label">Ingester · in-process, every 5 min</span>
+              <div class="row">
+                <div class="node"><div class="nt">Tail &amp; attribute</div><div class="nm">resume at (inode, offset)<br>host → site · 200/304 documents only</div></div>
+                <div class="node"><div class="nt">Classifier</div><div class="nm">loopback → infra, first and always<br>UA + exploit paths → bot · else person</div></div>
+              </div>
+            </div>
+            <div class="arrow ok">2 · one transaction: counter upserts and the offset advance commit together</div>
+            <div class="lane">
+              <span class="lane-label">Postgres · hourly aggregates</span>
+              <div class="row">
+                <div class="node ok"><div class="nt">site_view_hourly</div><div class="nm">(site, hour, class) → views<br>pruned at 400 days</div></div>
+                <div class="node ok"><div class="nt">site_visitor_hourly</div><div class="nm">(site, hour, class) → ip_hash<br>sha256(stable secret + ip)[:16]</div></div>
+              </div>
+              <div class="arrow mut" style="margin-top:14px">site_view_daily · site_visitor_daily — frozen, never dropped, read back as class “unknown”</div>
+            </div>
+            <div class="arrow">3 · totals · last_24h · daily · hourly · classified_from</div>
+            <div class="lane">
+              <span class="lane-label">API &amp; the two surfaces that render it</span>
+              <div class="row">
+                <div class="node"><div class="nt">GET /v1/sites/{name}/analytics</div><div class="nm">index.html → Sites tab card + 24h columns<br>showcase.html → owner Analytics tab</div></div>
+                <div class="node"><div class="nt">GET /v1/analytics/sites</div><div class="nm">owner-scoped in SQL · all=1 admin-only<br>index.html → Sites tab ordering</div></div>
+              </div>
+            </div>
+          </div>
+        </figure>
+        <p class="fine">What this cannot tell you, stated plainly. Identity is an IP hash, so an office behind one NAT reads as a single person and a phone moving from wifi to cellular reads as two. Only <code>200</code> and <code>304</code> responses to document requests count as a view — which means a scanner spraying 404s at <code>/wp-login.php</code> never reaches the bot column at all, because it never loaded anything; the bot number is "bots that actually read a page", which is the comparable figure to put next to people. <code>analytics-rebuild</code> replays only the live log, so anything already rotated out is beyond its reach. And there are no referrers, no geo, no per-path breakdown and no sessions — by choice, not by accident.</p>
+      </div>
+    </section>
+
+    <!-- 08 Create with AI -->
     <section id="ai">
-      <div class="snum">04.</div>
+      <div class="snum">08.</div>
       <div>
         <h2>Create with AI</h2>
-        <p class="lede">The homepage builds a site for you through a chat. The model is called <strong>server-side</strong>, so the provider key stays on the server and never reaches a served page.</p>
-        <p><code>POST /v1/generate</code> keeps the sign-in gate and rate limit on the edge, then runs the turn as a <strong>background job</strong> and answers with a job id you poll. A full build takes a minute or more — far longer than a browser will hold an idle connection open — so nothing depends on one long-lived request. The model only ever returns HTML; it is given no file or shell access. You preview in a sandboxed opaque-origin iframe, then publish through the same authenticated files API.</p>
-        <p>You can <strong>speak</strong> instead of typing — captions appear as you talk and the text stays editable before you send it. Speech is transcribed <strong>on this server</strong>, so recordings are never handed to a third party. You can also <strong>attach</strong> a screenshot, PDF or notes and have the page built from them.</p>
-        <p class="fine">Each job is bound to the user who started it and is not visible to anyone else. Exactly one model provider is configured — the builder runs on Grok — and there is no fallback: if it is down, the build reports an error instead of quietly switching to a different provider.</p>
+        <p class="lede">A chat that builds a site for you. The model is called <strong>server-side</strong>, so the provider key stays on the server and never reaches a served page.</p>
+        <p>There are two builders and they are not the same thing. The <strong>chat builder</strong> lives on the showcase / owner page: it calls <code>POST /v1/generate</code>, which answers with a job id, and the page polls <code>GET /v1/generate/status?id=…</code>. A full build takes a minute or more — far longer than a browser will hold an idle connection open — so the turn runs as a <strong>background job</strong> and nothing depends on one long-lived request. The <strong>dashboard builder</strong> on the home page is deliberately different: it asks you to build in your own AI and paste the files back, then publishes them. Both publish through the same authenticated files API.</p>
+        <p>The sign-in gate and the rate limits are enforced <strong>in the Go handler</strong>, not at the edge — nginx does no auth for this route. The model is given no tools: the request body carries messages and nothing else, no function or tool definitions exist, and the contract is a text sentinel the model emits before a complete self-contained HTML document. It has no file access and no shell. You preview in a sandboxed, opaque-origin iframe — <code>srcdoc</code> with <code>allow-same-origin</code> deliberately absent — and only then publish.</p>
+        <p>You can <strong>speak</strong> instead of typing — captions appear as you talk and the text stays editable before you send. Speech is transcribed <strong>on this box</strong> by a local service on loopback, so recordings are never handed to a third party; the browser's WebSocket authenticates with a short-lived HMAC ticket rather than your API key. You can also <strong>attach</strong> a screenshot or notes and have the page built from them.</p>
+        <p class="fine">Each job is bound to the user who started it: a poll for someone else's id reports "not found" rather than "forbidden", so ids cannot be enumerated. The store is in-process — 8-minute run ceiling, 3 builds in flight per user, 64 in total, and results dropped 10 minutes after they finish. One builder provider is configured, Grok, and there is <strong>no fallback</strong>: if it is down the build fails honestly instead of quietly switching to a metered third-party key. Worth being precise about where it runs — the request goes to an OpenAI-compatible proxy on this same box over loopback, which then relays to the vendor. The inference is off-box; the proxy and its credentials are not.</p>
       </div>
     </section>
 
-    <!-- 05 Runtime -->
+    <!-- 09 Runtime -->
     <section id="runtime">
-      <div class="snum">05.</div>
+      <div class="snum">09.</div>
       <div>
         <h2>Runtime &amp; deployment</h2>
-        <p class="lede">Where this actually runs: <strong>one small VM</strong>, one process, no orchestration.</p>
+        <p class="lede">Where this actually runs: <strong>one box, one process</strong>, no orchestration.</p>
         <div class="claims">
-          <div class="claim"><div class="ci">R1</div><p><b>One process.</b> A single Go binary under systemd — deliberately not a cluster. A <strong>Caddy</strong> edge terminates TLS, serves the content host by path and the dashboard, and issues on-demand certs for connected custom domains.</p></div>
-          <div class="claim"><div class="ci">R2</div><p><b>Hardened &amp; non-root.</b> Runs as a dedicated <code>simplehost</code> user with <code>NoNewPrivileges</code>, <code>ProtectSystem=strict</code>, and write access limited to the sites directory. Liveness (<code>/healthz</code>) and readiness (<code>/readyz</code>, DB-connected) gate traffic.</p></div>
-          <div class="claim"><div class="ci">R3</div><p><b>Small by design.</b> 1 CPU, ~1 GB RAM, 25 GB disk. Static serving and pass-through proxying — no heavy compute in-process.</p></div>
-          <div class="claim"><div class="ci">R4</div><p><b>Hot-swap releases.</b> Build, copy the new binary in, atomic rename over the old one, restart — site data and versioned files untouched. Old binaries kept for instant rollback.</p></div>
-          <div class="claim"><div class="ci">R5</div><p><b>Local state.</b> Postgres on the same box (users, sites, versions, per-site state); the versioned site tree on a local disk. No external object store — small enough not to need one.</p></div>
+          <div class="claim"><div class="ci">R1</div><p><b>One process behind nginx.</b> A single Go binary under systemd, listening on <strong>loopback only</strong> — deliberately not a cluster. <strong>nginx</strong> terminates TLS, serves the content host by path straight off disk, proxies <code>/v1/</code> and <code>/internal/</code> to the app, and fronts every connected custom domain. There is no Caddy in this deployment; the on-demand-TLS endpoint in the code is a leftover from a design that was not adopted.</p></div>
+          <div class="claim"><div class="ci">R2</div><p><b>Certificates are certbot, and issuing one is a human step.</b> Let's Encrypt certs per domain, renewed by a timer twice daily. Connecting a custom domain through the API only records the binding and creates the symlink, then hands back the DNS record to add — an <strong>operator still writes the vhost and issues the cert</strong> before that domain serves anything. Any copy promising instant custom-domain HTTPS is describing a system this is not.</p></div>
+          <div class="claim"><div class="ci">R3</div><p><b>Hardened &amp; non-root.</b> Runs as a dedicated <code>simplehost</code> user with <code>NoNewPrivileges</code>, <code>ProtectSystem=strict</code>, <code>ProtectHome</code>, <code>PrivateTmp</code>, <code>MemoryDenyWriteExecute</code>, an empty capability bounding set, a syscall filter, and exactly one writable path — the sites directory. <code>/healthz</code> and <code>/readyz</code> (the latter pings the database) are real endpoints, but nothing is in front of them: on a single box they are observability, not a traffic gate.</p></div>
+          <div class="claim"><div class="ci">R4</div><p><b>The service is small; the box is not exclusively its own.</b> The process is one static binary doing static serving and pass-through proxying, with no heavy compute in-process. It shares the host with Postgres, the local speech-to-text service, the model proxy, the directory prober and several unrelated services — which is exactly why the analytics classifier had to learn to tell that neighbourhood apart from real readers.</p></div>
+          <div class="claim"><div class="ci">R5</div><p><b>Releases are hand-swapped, and honestly so.</b> Build, copy the binary in, restart; site data and versioned files are untouched. Timestamped <code>simple-host.bak-*</code> copies accumulate next to the live binary for rollback. There is <strong>no deploy script in the repo</strong> — the procedure lives in habit and prose, which is worth knowing before anyone describes it as automated.</p></div>
+          <div class="claim"><div class="ci">R6</div><p><b>Local state, and two background loops.</b> Postgres on the same box, loopback-bound (users, sites, versions, per-site state, collections, analytics); the versioned site tree on local disk; no external object store. Inside the process, two tickers: the <strong>analytics ingester</strong> every 5 minutes, and the <strong>API-metrics flush</strong> every 20 seconds. Both recover from their own panics — neither can take the server down.</p></div>
         </div>
 
         <figure>
-          <div class="figcap"><span class="t">Fig 02 · Runtime — one box, one process</span>
+          <div class="figcap"><span class="t">Fig 03 · Runtime — one box, one process</span>
             <span class="lg"><span class="dot" style="background:var(--accent)"></span>Platform</span>
             <span class="lg"><span class="dot" style="background:var(--ok)"></span>Traffic</span>
           </div>
           <div class="diagram">
             <div class="lane">
-              <span class="lane-label">Edge</span>
-              <div class="node" style="max-width:340px"><div class="nt">Caddy</div><div class="nm">TLS · content host by path + dashboard<br>on-demand certs for custom domains</div></div>
-            </div>
-            <div class="arrow ok">HTTPS</div>
-            <div class="lane">
-              <span class="lane-label">One VM · systemd · non-root</span>
+              <span class="lane-label">Edge · nginx · certbot</span>
               <div class="row">
-                <div class="node"><div class="nt">simple-host · Go</div><div class="nm">static serve · REST API · admin UI<br>/healthz · /readyz · embedded skill</div></div>
-                <div class="node"><div class="nt">Probes &amp; sandbox</div><div class="nm">ProtectSystem=strict · non-root<br>writes only /srv/simple-host/sites</div></div>
+                <div class="node"><div class="nt">nginx</div><div class="nm">TLS · content host by path, served off disk<br>proxies /v1/ + /internal/ to 127.0.0.1</div></div>
+                <div class="node"><div class="nt">Let's Encrypt</div><div class="nm">one cert per domain, issued by hand<br>renewed by certbot.timer</div></div>
+              </div>
+            </div>
+            <div class="arrow ok">HTTPS · and the shanalytics access log</div>
+            <div class="lane">
+              <span class="lane-label">One box · systemd · non-root</span>
+              <div class="row">
+                <div class="node"><div class="nt">simple-host · Go</div><div class="nm">REST API · dashboard · showcase · embedded skills<br>/healthz · /readyz · loopback only</div></div>
+                <div class="node"><div class="nt">Sandbox &amp; loops</div><div class="nm">ProtectSystem=strict · one writable path<br>analytics 5 min · api-metrics 20 s</div></div>
               </div>
             </div>
             <div class="arrow mut">reads / writes</div>
             <div class="lane">
               <span class="lane-label">Local state</span>
               <div class="row">
-                <div class="node"><div class="nt">Postgres</div><div class="nm">users · sites · versions<br>state · collections</div></div>
-                <div class="node"><div class="nt">Versioned disk</div><div class="nm">/srv/simple-host/sites<br>v1 … vN · current symlink</div></div>
+                <div class="node"><div class="nt">Postgres</div><div class="nm">users · sites · versions · state<br>collections · analytics</div></div>
+                <div class="node"><div class="nt">Versioned disk</div><div class="nm">/srv/simple-host/sites<br>v1 … vN · current/ · handle + domain farms</div></div>
               </div>
             </div>
           </div>
@@ -314,16 +775,18 @@
       </div>
     </section>
 
-    <!-- 06 Non-goals -->
+    <!-- 10 Non-goals -->
     <section id="not">
-      <div class="snum">06.</div>
+      <div class="snum">10.</div>
       <div>
         <h2>What it deliberately is not</h2>
         <table>
           <tr class="trow"><td class="tid">N1</td><td class="tk">Not general compute</td><td class="tv">No user-code execution, by construction. No SSR, no backends, no PHP, no processes per site.</td></tr>
           <tr class="trow"><td class="tid">N2</td><td class="tk">Static-only serving</td><td class="tv">HTML/CSS/JS/images/fonts served as bytes. Framework <em>output</em> is welcome; framework <em>servers</em> are not.</td></tr>
           <tr class="trow"><td class="tid">N3</td><td class="tk">Not a secret store</td><td class="tv">Per-site state is readable by the site's audience and documented as such. Skills tell agents never to put credentials in uploads or state.</td></tr>
-          <tr class="trow"><td class="tid">N4</td><td class="tk">Not bypassable by scale</td><td class="tv">Per-site size and state caps are enforced server-side; AI create is rate-limited per user and IP.</td></tr>
+          <tr class="trow"><td class="tid">N4</td><td class="tk">Not browser-level isolation</td><td class="tv">Every path-model site shares one origin, so sites are not sandboxed from each other in the browser. This is a known, accepted trade of the path model — never imply otherwise in product copy.</td></tr>
+          <tr class="trow"><td class="tid">N5</td><td class="tk">Not analytics-as-a-product</td><td class="tv">No referrers, no geo, no per-path breakdown, no sessions, no cross-site identity. Counting people honestly is the whole ambition.</td></tr>
+          <tr class="trow"><td class="tid">N6</td><td class="tk">Not bypassable by scale</td><td class="tv">Per-site size and state caps are enforced server-side; AI create and state writes are rate-limited per user and per IP.</td></tr>
         </table>
       </div>
     </section>
@@ -339,6 +802,45 @@
     function paintIcon(){ document.getElementById('tt-i').innerHTML = document.documentElement.dataset.theme === 'light' ? MOON : SUN; }
     function toggleTheme(){ var t = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'; document.documentElement.dataset.theme = t; try{ localStorage.setItem('sh-theme', t); }catch(e){} paintIcon(); }
     paintIcon();
+
+    // Feature map: substring filter over each card's full text, so searching for
+    // a filename ("showcase.html") or a table ("site_view_hourly") finds every
+    // feature that touches it — that is the lookup this page exists to answer.
+    var FEATS = Array.prototype.slice.call(document.querySelectorAll('.feat'));
+    function setCount(n){
+      var el = document.getElementById('mcount');
+      if (el) el.textContent = n + ' of ' + FEATS.length + ' features';
+    }
+    function mfilter(q){
+      var s = String(q || '').trim().toLowerCase();
+      var shown = 0;
+      FEATS.forEach(function (el) {
+        var hit = !s || el.textContent.toLowerCase().indexOf(s) >= 0;
+        el.hidden = !hit;
+        if (hit) { shown++; if (s) el.open = true; }
+      });
+      setCount(shown);
+    }
+    function mtoggle(){
+      var visible = FEATS.filter(function (el) { return !el.hidden; });
+      var anyClosed = visible.some(function (el) { return !el.open; });
+      visible.forEach(function (el) { el.open = anyClosed; });
+      var btn = document.getElementById('mall');
+      if (btn) btn.textContent = anyClosed ? 'Collapse all' : 'Expand all';
+    }
+    setCount(FEATS.length);
+
+    // Deep link: #map?f=analytics — and expand whatever a plain #hash points at.
+    (function(){
+      var h = location.hash || '';
+      var m = h.match(/[?&]f=([^&]+)/);
+      if (m) {
+        var q = decodeURIComponent(m[1]);
+        var box = document.getElementById('mfilter');
+        if (box) box.value = q;
+        mfilter(q);
+      }
+    })();
   </script>
 </body>
 </html>

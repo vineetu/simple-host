@@ -1,6 +1,6 @@
 ---
 name: connect-domain
-description: Connect a user's own custom domain (subdomain e.g. recipes.brand.com via CNAME, or apex e.g. brand.com via A record) to a site already deployed on simple-host. Use when a user wants their site served from their own domain over HTTPS, or wants a private/password-protected site (privacy is offered only on a connected domain). Drives the bind → DNS → verify → live flow; the agent does the API work and relays the one DNS record the human must add at their registrar.
+description: Connect a user's own custom domain (subdomain e.g. recipes.brand.com via CNAME, or apex e.g. brand.com via A record) to a site already deployed on simple-host. Use when a user wants their site served from their own domain over HTTPS. Drives the bind → DNS → verify → live flow; the agent does the API work and relays the one DNS record the human must add at their registrar.
 ---
 
 # Connect a Custom Domain
@@ -18,9 +18,6 @@ they have none) and — absent your own DNS access — pasting the record are th
 ## When to use this
 
 - The user asks to use their own domain / brand for a site.
-- The user wants a **private** or **password-locked** page: privacy is a property of a
-  *connected domain* (its own isolated origin), not of a path on the shared host. If they want
-  privacy, connect a domain first.
 
 ## Service
 
@@ -91,28 +88,39 @@ subdomain, or the **A record** for an apex. Rules (non-negotiable):
 
 Then tell them what you added and continue to verification.
 
-### 4. Verify — by fetching the domain, NOT by polling status
-**Do not gate on `status: "active"`. It may never change, and waiting on it is the single most
-common way this flow gets stuck.** Nothing in the server transitions a binding out of `pending`
-on its own, so a domain can be fully live and still report `pending` indefinitely.
-
-Verify with an actual request instead:
+### 4. Verify — fetch the domain
+Fetching is the answer, and it's immediate:
 ```
 curl -sS -o /dev/null -w '%{http_code}\n' https://recipes.brand.com/
 ```
-- **200** → done. It's live. Go to step 5, whatever `status` says.
+- **200** → done. It's live. Go to step 5.
+- **404** → DNS and the certificate are fine, but nothing is being served at that domain.
+  Check the bind actually pointed at a site that has content deployed.
 - **Connection/TLS failure, but `http://` returns 301** → DNS and routing are correct and only
   the certificate is missing. **This is not propagation — waiting will not fix it.** See below.
 - **DNS doesn't resolve yet** → that genuinely is propagation. Re-check the record matches the
   bind response exactly, then retry over a few minutes.
 
-The status endpoint is still useful for reading back *what* is bound, just not as a gate:
+The status endpoint reports the same verdict — the server re-checks bound domains in the
+background (every couple of minutes) by resolving them and fetching them, exactly as above:
 ```
 GET /v1/sites/{site}/domain
 X-API-Key: <api_key>
 ```
-Returns `{"domain": "...", "status": "...", "verified_at": ..., "last_error": ...}`. Treat
-`pending` as "no information", and check `last_error` if something looks wrong.
+Returns `{"domain": "...", "status": "...", "verified_at": ..., "last_error": ...}`.
+
+- **`active`** — the domain resolves to us *and* served a page over HTTPS. `verified_at` is when
+  that was last proved. It is re-proved hourly, so a domain that breaks leaves `active` on its own.
+- **`pending`** — not serving yet; `last_error` says which half is missing:
+  `domain does not resolve yet` (propagation, or the record isn't saved),
+  `resolves to <ip>, not to this server` (the record points somewhere else — compare it against
+  the bind response), or `resolves to this server but HTTPS is not answering yet (certificate not
+  issued)` (the DNS half is done; see 4b).
+- **`error`** — it resolves here and HTTPS works, but the site isn't served; `last_error` carries
+  the code, e.g. `HTTPS returned 404`.
+
+A domain you just bound reads `pending` until the first background check runs, so don't take an
+immediate `pending` as a verdict — fetch, and re-read the status a couple of minutes later.
 
 ### 4b. If HTTPS never comes up — the certificate is an operator step
 Certificate issuance is **not** part of the API. It depends on how the deployment's edge is
@@ -123,12 +131,13 @@ The API cannot tell you which you're on — that's why step 4 tests the domain d
 If `http://` redirects but `https://` fails, tell the user plainly that the DNS half is done and
 the certificate is pending an operator step, rather than blaming propagation. If you're the
 operator, the per-domain work is a vhost pointing at that domain's site directory plus a cert for
-it (see `deploy/nginx-customdomain.example.conf`).
+it (see `deploy/prod/nginx-customdomain.example.conf`). Until that is done the status stays
+`pending` with `last_error` naming the certificate — that is the signal to act on.
 
 ### 5. Confirm it's live
 Once `https://recipes.brand.com/` returns 200, it serves the connected site over HTTPS,
-on its **own origin**. This is where private/password-locked pages are available (the site has a
-real isolated origin, unlike a shared path).
+on its **own origin**. The site is still public: a custom domain changes the address, not who
+can read it.
 
 ### Disconnect
 ```
@@ -154,8 +163,10 @@ domain to its own site, so it can't be used to write to a different site.)
 - **Subdomain or apex.** Subdomains (`recipes.brand.com`) use a CNAME — simplest path.
   Apex domains (`brand.com`) work too via the A record returned by the bind. Prefer a
   subdomain when the user has no preference for the bare domain.
-- **Never wait for `status: "active"`.** Nothing flips it, so a live domain can read `pending`
-  forever. Verify by fetching `https://<domain>/` and checking for 200 (step 4).
+- **`status` tracks reality, but it lags.** The server re-checks bound domains every couple of
+  minutes, so `active` means "resolved here and served over HTTPS", not "someone hoped so".
+  Fetching the domain is still the immediate answer; read `last_error` to see which half is
+  missing (step 4).
 - **Users never upload certificates.** But issuance isn't automatic on every deployment — it
   depends on the edge (step 4b). DNS pointing at us is required first either way.
 - **`http://` 301 but `https://` failing is NOT propagation.** DNS is already correct; the

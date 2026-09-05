@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>Analytics · simple·host</title>
+  <script>(function(){try{var s=localStorage.getItem('sh-theme');document.documentElement.dataset.theme=s||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');}catch(e){document.documentElement.dataset.theme='light';}})();</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    [hidden] { display: none !important; }
+
+    :root {
+      --bg: #020617;
+      --surface: #0b1222;
+      --grid: #0f1830;
+      --border: #1e293b;
+      --border-hi: #334155;
+      --text: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --dim: #475569;
+      --accent: #22d3ee;
+      --accent-hover: #67e8f9;
+      --success: #34d399;
+      --error: #fb7185;
+      --radius: 10px;
+      --font: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+      --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+      --header-bg: rgba(2, 6, 23, 0.75);
+      --on-accent: #020617;
+      /* Series colours. People wear the accent; bots and pre-classifier days are
+         the recessive greys. Both greys are picked per mode so the pair lands on
+         the same two hexes (#475569 bots, #94a3b8 earlier) in light AND dark —
+         that is what keeps people-vs-bots apart under deuteranopia (ΔE 16+),
+         which var(--dim) in light mode does not (ΔE 7.8). */
+      --an-bot: var(--dim);
+      --an-earlier: var(--text-secondary);
+    }
+    html[data-theme="light"] {
+      --bg: #f7f8fb;
+      --surface: #ffffff;
+      --grid: #e9edf4;
+      --border: #e2e8f0;
+      --border-hi: #cbd5e1;
+      --text: #0f172a;
+      --text-secondary: #475569;
+      --dim: #94a3b8;
+      --accent: #0891b2;
+      --accent-hover: #0e7490;
+      --success: #059669;
+      --error: #e11d48;
+      --header-bg: rgba(255, 255, 255, 0.82);
+      --on-accent: #ffffff;
+      --an-bot: var(--text-secondary);
+      --an-earlier: var(--dim);
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      background-image:
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+      background-size: 48px 48px;
+    }
+
+    .container { max-width: 860px; margin: 0 auto; padding: 0 24px; }
+
+    header {
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 28px;
+      background: var(--header-bg);
+      backdrop-filter: blur(8px);
+      position: sticky; top: 0; z-index: 10;
+    }
+    header .container { display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-size: 14px; font-weight: 700; letter-spacing: 0.5px; color: var(--text); text-decoration: none; }
+    .logo b { color: var(--accent); }
+    .top-actions { display: flex; align-items: center; gap: 16px; }
+    .theme-toggle {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      border-radius: 8px;
+      width: 32px; height: 30px;
+      padding: 0;
+      cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 14px; line-height: 1;
+    }
+    .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+
+    .page-head { margin-bottom: 24px; }
+    .back-link {
+      font-size: 12px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      display: inline-block;
+      margin-bottom: 10px;
+    }
+    .back-link:hover { color: var(--accent); }
+    .page-head h1 {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      font-family: var(--mono);
+      word-break: break-all;
+      line-height: 1.25;
+    }
+
+    /* Gate: no key, not your site, or the fetch failed. Never an empty shell. */
+    .gate {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      font-size: 13.5px;
+      color: var(--text-secondary);
+    }
+    .gate h2 { font-size: 15px; color: var(--text); font-weight: 600; margin-bottom: 8px; }
+    .gate .why {
+      font-size: 12px;
+      color: var(--dim);
+      margin-top: 10px;
+      word-break: break-word;
+    }
+    .gate a.btn-primary { margin-top: 16px; }
+    .btn-primary {
+      background: var(--accent); color: var(--on-accent); font-weight: 600;
+      font-family: var(--font); font-size: 13px;
+      border: none; border-radius: var(--radius); padding: 8px 16px;
+      text-decoration: none; display: inline-block; cursor: pointer;
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+
+    /* One filter row above everything it scopes. */
+    .an-toolbar {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 12px; margin-bottom: 18px;
+    }
+    .an-scope { font-size: 12px; color: var(--text-secondary); }
+    .range-seg {
+      display: inline-flex;
+      gap: 2px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 3px;
+    }
+    .range-opt {
+      padding: 5px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      background: none;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: var(--font);
+      font-variant-numeric: tabular-nums;
+      transition: all 0.15s;
+    }
+    .range-opt:hover { color: var(--text); }
+    .range-opt.active { color: var(--accent); background: rgba(34, 211, 238, 0.12); }
+    html[data-theme="light"] .range-opt.active { background: rgba(8, 145, 178, 0.10); }
+
+    /* Refetch holds the previous render rather than flashing a skeleton. */
+    #an-content { transition: opacity 0.15s ease; }
+    #an-content.loading { opacity: 0.45; }
+
+    .an-failed { color: var(--error); font-size: 13px; padding: 8px 2px; word-break: break-word; }
+
+    /* Headline figures */
+    .kpi-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+    .kpi {
+      background: var(--surface);
+      padding: 16px 18px;
+      flex: 1 1 130px;
+      min-width: 130px;
+      border-left: 2px solid var(--border);
+    }
+    .kpi.is-people { border-left-color: var(--accent); }
+    .kpi.is-bots { border-left-color: var(--an-bot); }
+    .kpi.is-earlier { border-left-color: var(--an-earlier); }
+    .kpi-k {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--dim);
+    }
+    /* Proportional figures: these are display sizes, not a column to align. */
+    .kpi-v { font-size: 26px; line-height: 1.15; color: var(--text); font-weight: 600; }
+    .kpi.is-people .kpi-v { font-size: 40px; color: var(--accent); }
+    .kpi-s { font-size: 10.5px; color: var(--text-secondary); }
+
+    /* Cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-bottom: 20px;
+    }
+    .card-head {
+      display: flex; align-items: baseline; justify-content: space-between;
+      flex-wrap: wrap; gap: 8px; margin-bottom: 14px;
+    }
+    .card-head h2 { font-size: 13px; font-weight: 600; letter-spacing: -0.2px; }
+    .card-note { font-size: 11px; color: var(--dim); }
+
+    /* Legend — always present for two or more series, and it carries the range
+       totals, so no value is reachable only by hovering. */
+    .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11px; color: var(--text-secondary); }
+    .legend span { display: inline-flex; align-items: center; gap: 5px; }
+    .legend i { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+    .legend b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+    .sw-people { background: var(--accent); }
+    .sw-bots { background: var(--an-bot); }
+    .sw-earlier { background: var(--an-earlier); }
+
+    /* One small plot per series, stacked, each on its own scale and sharing the
+       x-axis below. Stacking them into one chart instead would bury the people
+       line under bots — bots outnumber people several times over on a normal
+       day — and putting two scales on one plot is the dual-axis lie. */
+    .mini-h {
+      display: flex; justify-content: space-between; align-items: baseline;
+      font-size: 9.5px; color: var(--dim);
+      text-transform: uppercase; letter-spacing: 0.08em;
+      margin-top: 12px; margin-bottom: 3px;
+    }
+    .mini-h:first-child { margin-top: 0; }
+    .mini-h b { font-weight: 500; letter-spacing: 0; text-transform: none; font-variant-numeric: tabular-nums; }
+    .cols {
+      display: flex;
+      align-items: flex-end;
+      height: 64px;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .band { flex: 1 1 0; min-width: 0; display: flex; justify-content: center; height: 100%; }
+    .bar {
+      width: 100%; max-width: 24px;
+      display: flex; flex-direction: column; justify-content: flex-end;
+      height: 100%;
+    }
+    .bar i { display: block; width: 100%; border-radius: 2px 2px 0 0; }
+    .seg-people { background: var(--accent); }
+    .seg-bots { background: var(--an-bot); }
+    .seg-earlier { background: var(--an-earlier); }
+    .xaxis {
+      display: flex; justify-content: space-between;
+      font-size: 9.5px; color: var(--dim); padding-top: 6px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Country breakdown */
+    .geo { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .geo th {
+      font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--dim); font-weight: 500; text-align: left;
+      padding: 0 0 8px; border-bottom: 1px solid var(--border);
+    }
+    .geo th.num, .geo td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .geo th.share { width: 45%; padding-left: 14px; }
+    .geo td { padding: 9px 0; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .geo tr:last-child td { border-bottom: none; }
+    .geo td.name { color: var(--text); word-break: break-word; padding-right: 10px; }
+    .geo td.num { color: var(--text); font-weight: 600; padding-right: 4px; white-space: nowrap; }
+    .geo td.share { padding-left: 14px; }
+    .geo tr.is-unknown td.name, .geo tr.is-unknown td.num { color: var(--text-secondary); font-weight: 400; }
+    .share-wrap { display: flex; align-items: center; gap: 8px; }
+    .share-track { flex: 1; min-width: 40px; height: 8px; background: var(--grid); border-radius: 4px; overflow: hidden; }
+    .share-track i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+    .geo tr.is-unknown .share-track i { background: var(--an-earlier); }
+    .share-pct { font-size: 11px; color: var(--text-secondary); font-variant-numeric: tabular-nums; width: 42px; text-align: right; }
+
+    .empty-state { color: var(--text-secondary); font-size: 13px; padding: 18px 2px; }
+
+    footer.site-footer {
+      text-align: center; padding: 40px 24px 56px;
+      font-size: 12px; color: var(--dim);
+    }
+    footer.site-footer a { color: var(--text-secondary); text-decoration: none; }
+    footer.site-footer a:hover { color: var(--accent); }
+
+    @media (max-width: 560px) {
+      .container { padding: 0 16px; }
+      .page-head h1 { font-size: 21px; }
+      .kpi { padding: 13px 14px; flex-basis: 108px; min-width: 108px; }
+      .kpi.is-people .kpi-v { font-size: 32px; }
+      .kpi-v { font-size: 21px; }
+      .card { padding: 14px; }
+      .geo th.share { width: 38%; padding-left: 10px; }
+      .geo td.share { padding-left: 10px; }
+      .share-pct { width: 38px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a class="logo" href="/">simple<b>·</b>host</a>
+      <div class="top-actions">
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle theme"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5.1 5.1l1.4 1.4M17.5 17.5l1.4 1.4M18.9 5.1l-1.4 1.4M6.5 17.5l-1.4 1.4"/></svg></button>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="page-head">
+      <a class="back-link" href="/">← All sites</a>
+      <h1 id="site-title">Analytics</h1>
+    </div>
+
+    <div id="gate" class="gate" hidden></div>
+
+    <div id="report" hidden>
+      <div class="an-toolbar">
+        <div class="an-scope" id="an-scope"></div>
+        <div class="range-seg" id="an-range" role="tablist" aria-label="Analytics range">
+          <button type="button" class="range-opt" data-days="7" role="tab">7d</button>
+          <button type="button" class="range-opt" data-days="14" role="tab">14d</button>
+          <button type="button" class="range-opt active" data-days="30" role="tab">30d</button>
+          <button type="button" class="range-opt" data-days="90" role="tab">90d</button>
+        </div>
+      </div>
+
+      <div id="an-content">
+        <div class="kpi-row" id="kpis"></div>
+
+        <section class="card">
+          <div class="card-head"><h2 id="daily-title">Daily</h2><div class="legend" id="daily-legend"></div></div>
+          <div id="daily-body"></div>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h2>Last 24 hours</h2><div class="legend" id="hourly-legend"></div></div>
+          <div id="hourly-body"></div>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h2>Where your readers are</h2><span class="card-note">People, by country</span></div>
+          <div id="geo-body"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <p><a href="/">simple·host</a></p>
+  </footer>
+
+  <script>
+/* BEGIN web/analytics-parse.js -- generated by scripts/inline-analytics-parser.sh; edit the source, not this copy */
+// Strict parser for the analytics endpoints, shared by index.html,
+// showcase.html and analytics.html. It is INLINED into those pages by
+// scripts/inline-analytics-parser.sh: showcase.html is served from the apex and
+// from the content host, and a <script src="/..."> resolves on one and 404s on
+// the other.
+//
+// It throws instead of defaulting. Defaulting a missing field to 0 is how the
+// four-class response shipped against a page that still read the flat one and
+// rendered "0 views / 0 visitors" for every site without a single error.
+
+function anInt(v, path) {
+  if (typeof v !== 'number' || !Number.isInteger(v) || v < 0) {
+    throw new Error(path + ': expected a non-negative integer, got ' + JSON.stringify(v));
+  }
+  return v;
+}
+
+function anCounts(v, path) {
+  if (!v || typeof v !== 'object') throw new Error(path + ': expected {views, visitors}');
+  return { views: anInt(v.views, path + '.views'), visitors: anInt(v.visitors, path + '.visitors') };
+}
+
+function anSplit(v, path) {
+  if (!v || typeof v !== 'object') throw new Error(path + ': expected a person/bot/infra/unknown split');
+  return {
+    person: anCounts(v.person, path + '.person'),
+    bot: anCounts(v.bot, path + '.bot'),
+    infra: anCounts(v.infra, path + '.infra'),
+    unknown: anCounts(v.unknown, path + '.unknown'),
+  };
+}
+
+// daily[] and hourly[] carry their split inline alongside a day/hour key.
+function anBuckets(v, path, key) {
+  if (!Array.isArray(v)) throw new Error(path + ': expected an array');
+  return v.map(function (b, i) {
+    var at = path + '[' + i + ']';
+    if (!b || typeof b[key] !== 'string' || !b[key]) {
+      throw new Error(at + '.' + key + ': expected a non-empty string');
+    }
+    var out = anSplit(b, at);
+    out[key] = b[key];
+    return out;
+  });
+}
+
+// GET /v1/sites/{sitename}/analytics
+function parseSiteAnalytics(data) {
+  if (!data || typeof data !== 'object') throw new Error('site analytics: expected an object');
+  if (data.classified_from !== undefined && typeof data.classified_from !== 'string') {
+    throw new Error('site analytics.classified_from: expected a string');
+  }
+  return {
+    rangeDays: anInt(data.range_days, 'site analytics.range_days'),
+    // omitempty on the wire: absent means nothing has been classified yet.
+    classifiedFrom: data.classified_from || '',
+    totals: anSplit(data.totals, 'site analytics.totals'),
+    last24h: anSplit(data.last_24h, 'site analytics.last_24h'),
+    daily: anBuckets(data.daily, 'site analytics.daily', 'day'),
+    hourly: anBuckets(data.hourly, 'site analytics.hourly', 'hour'),
+  };
+}
+
+// GET /v1/sites/{sitename}/analytics/geo
+//
+// country is the ISO-3166 code, "XX" for an IP that resolved to nothing;
+// country_name is the display name, "Unknown" for XX. Both are required: a
+// blank name would render as a nameless row that reads like a rendering bug,
+// and defaulting it to the code would quietly invent a country called "XX".
+function parseSiteGeo(data) {
+  if (!data || typeof data !== 'object') throw new Error('site geo: expected an object');
+  if (!Array.isArray(data.countries)) throw new Error('site geo.countries: expected an array');
+  return {
+    rangeDays: anInt(data.range_days, 'site geo.range_days'),
+    countries: data.countries.map(function (c, i) {
+      var at = 'site geo.countries[' + i + ']';
+      if (!c || typeof c.country !== 'string' || !c.country) {
+        throw new Error(at + '.country: expected a non-empty string');
+      }
+      if (typeof c.country_name !== 'string' || !c.country_name) {
+        throw new Error(at + '.country_name: expected a non-empty string');
+      }
+      var out = anSplit(c, at);
+      out.country = c.country;
+      out.countryName = c.country_name;
+      return out;
+    }),
+  };
+}
+
+// GET /v1/analytics/sites
+function parseAnalyticsSummary(data) {
+  if (!data || typeof data !== 'object') throw new Error('analytics summary: expected an object');
+  if (!Array.isArray(data.sites)) throw new Error('analytics summary.sites: expected an array');
+  return {
+    rangeDays: anInt(data.range_days, 'analytics summary.range_days'),
+    sites: data.sites.map(function (s, i) {
+      var at = 'analytics summary.sites[' + i + ']';
+      if (!s || typeof s.name !== 'string' || !s.name) {
+        throw new Error(at + '.name: expected a non-empty string');
+      }
+      var out = anSplit(s, at);
+      out.name = s.name;
+      return out;
+    }),
+  };
+}
+/* END web/analytics-parse.js */
+  </script>
+
+  <script>
+    // /analytics/{sitename} — the site name is the whole input to this page.
+    var SITE = decodeURIComponent((location.pathname.split('/')[2] || '').trim());
+    var apiKey = null;
+    try { apiKey = localStorage.getItem('apiKey'); } catch (e) {}
+
+    var currentRange = 30;
+    var cache = {};   // days -> {a: parsed analytics, geo: parsed geo | null, geoError: message}
+
+    function esc(str) {
+      if (str === null || str === undefined) return '';
+      var d = document.createElement('div');
+      d.textContent = str;
+      return d.innerHTML;
+    }
+
+    function api(path) {
+      return fetch(path, { headers: { 'X-API-Key': apiKey } });
+    }
+
+    // Replaces the whole report with one plain statement. Every exit from load()
+    // that isn't a full set of numbers ends here, so there is no path that
+    // renders a partial page or a zero.
+    function gate(title, body, why) {
+      document.getElementById('report').hidden = true;
+      document.getElementById('an-content').classList.remove('loading');
+      var el = document.getElementById('gate');
+      el.hidden = false;
+      el.innerHTML = '<h2>' + esc(title) + '</h2><div>' + body + '</div>' +
+        (why ? '<div class="why">' + esc(why) + '</div>' : '');
+    }
+
+    var DASHBOARD = '<div><a class="btn-primary" href="/">Go to the dashboard</a></div>';
+
+    function init() {
+      if (!SITE) {
+        gate('No site in the address', 'This page needs a site name in the URL, as <code>/analytics/your-site</code>.');
+        return;
+      }
+      document.title = SITE + ' · analytics · simple·host';
+      document.getElementById('site-title').textContent = SITE;
+      if (!apiKey) {
+        gate('Sign in to see this site’s analytics',
+          'Analytics are private to the account that owns the site. Sign in on the dashboard and come back.' + DASHBOARD);
+        return;
+      }
+      document.querySelectorAll('#an-range .range-opt').forEach(function (o) {
+        o.addEventListener('click', function () {
+          var days = parseInt(o.getAttribute('data-days'), 10) || 30;
+          if (days === currentRange) return;
+          currentRange = days;
+          document.querySelectorAll('#an-range .range-opt').forEach(function (x) {
+            x.classList.toggle('active', x === o);
+          });
+          load(days);
+        });
+      });
+      load(currentRange);
+    }
+
+    async function load(days) {
+      if (cache[days]) { render(days); return; }
+      // Already showing a range: dim it and keep it until the new one lands,
+      // rather than flashing an empty page. Nothing showing yet: say so.
+      if (document.getElementById('report').hidden) {
+        gate('Loading analytics…', 'Fetching the last ' + days + ' days for ' + esc(SITE) + '.');
+      } else {
+        document.getElementById('an-content').classList.add('loading');
+      }
+
+      var res;
+      try {
+        res = await api('/v1/sites/' + encodeURIComponent(SITE) + '/analytics?days=' + days);
+      } catch (e) {
+        gate('Couldn’t load analytics', 'The server could not be reached.', e.message);
+        return;
+      }
+      if (res.status === 401 || res.status === 403) {
+        gate('That key isn’t signed in',
+          'Your saved API key was rejected. Sign in again on the dashboard.' + DASHBOARD,
+          'HTTP ' + res.status);
+        return;
+      }
+      if (res.status === 404) {
+        gate('No site called “' + SITE + '” on your account',
+          'Either the name is wrong or the site belongs to someone else.' + DASHBOARD, 'HTTP 404');
+        return;
+      }
+      var entry = {};
+      try {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        entry.a = parseSiteAnalytics(await res.json());
+      } catch (e) {
+        gate('Couldn’t load analytics',
+          'The server answered, but not with numbers this page can trust — so it is showing you nothing rather than zeros.',
+          e.message);
+        return;
+      }
+
+      // Geography is a second endpoint: it fails on its own, in its own section,
+      // without taking the rest of the page down.
+      try {
+        var gres = await api('/v1/sites/' + encodeURIComponent(SITE) + '/analytics/geo?days=' + days);
+        if (!gres.ok) throw new Error('HTTP ' + gres.status);
+        entry.geo = parseSiteGeo(await gres.json());
+      } catch (e) {
+        entry.geoError = e.message;
+      }
+
+      cache[days] = entry;
+      // Only paint if this range is still the selected one; render() clears the
+      // dimmed state.
+      if (currentRange === days) render(days);
+    }
+
+    function render(days) {
+      var entry = cache[days];
+      document.getElementById('gate').hidden = true;
+      document.getElementById('report').hidden = false;
+      document.getElementById('an-content').classList.remove('loading');
+      document.getElementById('an-scope').textContent = 'Last ' + days + ' days · UTC';
+      document.getElementById('daily-title').textContent = 'Daily · ' + days + ' days';
+      renderKPIs(entry.a);
+      renderDaily(entry.a);
+      renderHourly(entry.a);
+      renderGeo(entry);
+    }
+
+    // Headline. `person` is the audience number and is the only figure given
+    // display size; the rest are context. There is deliberately no combined
+    // "visits" total — adding bots and monitoring to people would overstate the
+    // audience by an order of magnitude on this box.
+    function renderKPIs(a) {
+      var t = a.totals;
+      var cells = [
+        // The range is already stated in the toolbar, so it is not repeated here.
+        kpi('is-people', 'People', t.person.views,
+          t.person.visitors.toLocaleString() + ' visitor' + (t.person.visitors === 1 ? '' : 's'), ''),
+        kpi('is-bots', 'Bots', t.bot.views,
+          t.bot.visitors.toLocaleString() + ' crawler' + (t.bot.visitors === 1 ? '' : 's'), ''),
+      ];
+      if (t.infra.views > 0) {
+        cells.push(kpi('', 'Infra', t.infra.views, 'monitoring',
+          'Uptime probes and health checks pointed at this site — not audience.'));
+      }
+      if (t.unknown.views > 0) {
+        cells.push(kpi('is-earlier', 'Earlier', t.unknown.views, 'unclassified',
+          a.classifiedFrom
+            ? 'Recorded before ' + a.classifiedFrom + ', when traffic was not yet split into people, bots and monitoring. The original logs no longer exist, so this cannot be broken down.'
+            : 'Recorded before traffic was classified; cannot be broken down.'));
+      }
+      document.getElementById('kpis').innerHTML = cells.join('');
+    }
+
+    function kpi(cls, label, value, sub, title) {
+      return '<div class="kpi ' + cls + '"' + (title ? ' title="' + esc(title) + '"' : '') + '>' +
+        '<div class="kpi-k">' + label + '</div>' +
+        '<div class="kpi-v">' + value.toLocaleString() + '</div>' +
+        '<div class="kpi-s">' + esc(sub) + '</div>' +
+        '</div>';
+    }
+
+    function renderDaily(a) {
+      var rows = a.daily.map(function (d) {
+        var label = d.day.slice(5);
+        return {
+          people: d.person.views, bots: d.bot.views, earlier: d.unknown.views,
+          axis: label,
+          title: d.day + ' — ' + d.person.views + ' people, ' + d.bot.views + ' bots' +
+            (d.unknown.views ? ', ' + d.unknown.views + ' unclassified' : ''),
+        };
+      });
+      paint('daily-legend', 'daily-body', rows, 'No traffic recorded in this range.');
+    }
+
+    function renderHourly(a) {
+      var rows = a.hourly.map(function (h) {
+        return {
+          people: h.person.views, bots: h.bot.views, earlier: 0,
+          axis: h.hour.slice(11, 13),
+          title: h.hour.slice(11, 16) + ' UTC — ' + h.person.views + ' people, ' + h.bot.views + ' bots',
+        };
+      });
+      paint('hourly-legend', 'hourly-body', rows, 'Nothing in the last 24 hours.');
+    }
+
+    // One plot per series, each scaled to its own peak, over a shared x-axis.
+    // Pre-classifier days get their own series so they are never silently drawn
+    // as zero. Infra is left out on purpose — it is a flat ~120/hour probe that
+    // would flatten everything else.
+    function paint(legendID, bodyID, rows, emptyMsg) {
+      var sum = function (k) { return rows.reduce(function (t, r) { return t + r[k]; }, 0); };
+      var series = [
+        { key: 'people', cls: 'people', label: 'People', total: sum('people') },
+        { key: 'bots', cls: 'bots', label: 'Bots', total: sum('bots') },
+        { key: 'earlier', cls: 'earlier', label: 'Earlier', total: sum('earlier') },
+      ].filter(function (s) { return s.key !== 'earlier' || s.total > 0; });
+
+      document.getElementById(legendID).innerHTML = series.map(function (s) {
+        return '<span><i class="sw-' + s.cls + '"></i>' + s.label + ' <b>' + s.total.toLocaleString() + '</b></span>';
+      }).join('');
+
+      var grand = series.reduce(function (t, s) { return t + s.total; }, 0);
+      if (!rows.length || grand === 0) {
+        document.getElementById(bodyID).innerHTML = '<div class="empty-state">' + esc(emptyMsg) + '</div>';
+        return;
+      }
+
+      var gap = rows.length > 45 ? 1 : 2;
+      document.getElementById(bodyID).innerHTML = series.map(function (s) {
+        var max = Math.max.apply(null, rows.map(function (r) { return r[s.key]; }));
+        if (!max) return '';
+        var bands = rows.map(function (r) {
+          return '<span class="band" title="' + esc(r.title) + '"><span class="bar">' +
+            (r[s.key] > 0 ? '<i class="seg-' + s.cls + '" style="height:' +
+              ((r[s.key] / max) * 100).toFixed(2) + '%"></i>' : '') +
+            '</span></span>';
+        }).join('');
+        return '<div class="mini-h"><span>' + s.label + '</span><b>peak ' + max.toLocaleString() + '</b></div>' +
+          '<div class="cols" style="gap:' + gap + 'px">' + bands + '</div>';
+      }).join('') +
+        '<div class="xaxis"><span>' + esc(rows[0].axis) + '</span>' +
+          (rows.length > 2 ? '<span>' + esc(rows[Math.floor(rows.length / 2)].axis) + '</span>' : '') +
+          '<span>' + esc(rows[rows.length - 1].axis) + '</span></div>';
+    }
+
+    // Ranked country table with share bars. One colour for every bar: the length
+    // already carries the magnitude, so shading it too would say the same thing
+    // twice. Sorted here as well as on the server, because the order IS the
+    // answer this table gives.
+    function renderGeo(entry) {
+      var body = document.getElementById('geo-body');
+      if (entry.geoError) {
+        body.innerHTML = '<div class="an-failed">Couldn’t load geography — ' + esc(entry.geoError) +
+          '<div style="color:var(--dim);font-size:12px;margin-top:4px;">The numbers above are unaffected.</div></div>';
+        return;
+      }
+      var list = entry.geo.countries.slice().sort(function (x, y) {
+        return (y.person.views - x.person.views) || x.countryName.localeCompare(y.countryName);
+      });
+      var total = list.reduce(function (t, c) { return t + c.person.views; }, 0);
+      if (!total) {
+        body.innerHTML = '<div class="empty-state">No people recorded in this range' +
+          (list.length ? ' — only bots and monitoring.' : '.') + '</div>';
+        return;
+      }
+
+      body.innerHTML = '<table class="geo"><thead><tr>' +
+        '<th>Country</th><th class="num">People</th><th class="share">Share</th>' +
+        '</tr></thead><tbody>' +
+        list.map(function (c) {
+          var share = (c.person.views / total) * 100;
+          var unknown = c.country === 'XX';
+          var title = c.countryName + ' — ' + c.person.views.toLocaleString() + ' people views, ' +
+            c.person.visitors.toLocaleString() + ' visitor' + (c.person.visitors === 1 ? '' : 's') +
+            ', ' + c.bot.views.toLocaleString() + ' bot views';
+          return '<tr class="' + (unknown ? 'is-unknown' : '') + '" title="' + esc(title) +
+              (unknown ? ' (IP addresses that did not resolve to a country)' : '') + '">' +
+            '<td class="name">' + esc(c.countryName) + '</td>' +
+            '<td class="num">' + c.person.views.toLocaleString() + '</td>' +
+            '<td class="share"><span class="share-wrap">' +
+              '<span class="share-track"><i style="width:' + share.toFixed(2) + '%"></i></span>' +
+              '<span class="share-pct">' + share.toFixed(1) + '%</span>' +
+            '</span></td>' +
+          '</tr>';
+        }).join('') + '</tbody></table>';
+    }
+
+    (function theme() {
+      var btn = document.getElementById('theme-toggle');
+      btn.addEventListener('click', function () {
+        var t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+        document.documentElement.dataset.theme = t;
+        try { localStorage.setItem('sh-theme', t); } catch (e) {}
+      });
+    })();
+
+    init();
+  </script>
+</body>
+</html>

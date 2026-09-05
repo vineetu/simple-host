@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"strings"
+	"time"
 )
 
 // SiteDomainInfo is the domain-binding view of a site. Kept separate from the
@@ -111,6 +112,45 @@ func GetSiteByCustomDomain(ctx context.Context, database *sql.DB, domain string)
 		info.Status = status.String
 	}
 	return info, nil
+}
+
+// BoundDomain is one bound custom domain and the status it currently reports.
+type BoundDomain struct {
+	SiteID string
+	Domain string
+	Status string
+}
+
+// ListDomainsToCheck returns bound domains due for verification: every binding
+// that is not "active" on every pass, plus active ones whose last proof is older
+// than activeAge — an active domain that stops serving has to be able to fall
+// back to error/pending, so "active" is a claim with an expiry, not a latch.
+func ListDomainsToCheck(ctx context.Context, database *sql.DB, activeAge time.Duration) ([]BoundDomain, error) {
+	const query = `
+		SELECT id, custom_domain, COALESCE(domain_status, '')
+		FROM sites
+		WHERE custom_domain IS NOT NULL
+		  AND custom_domain <> ''
+		  AND (domain_status IS DISTINCT FROM 'active'
+		       OR domain_verified_at IS NULL
+		       OR domain_verified_at < now() - ($1 * interval '1 second'))
+		ORDER BY custom_domain
+	`
+	rows, err := database.QueryContext(ctx, query, int64(activeAge.Seconds()))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []BoundDomain
+	for rows.Next() {
+		var d BoundDomain
+		if err := rows.Scan(&d.SiteID, &d.Domain, &d.Status); err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
 }
 
 // SetDomainStatus updates domain_status and optional last_error. When status is

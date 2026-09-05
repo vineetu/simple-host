@@ -29,7 +29,7 @@
  * HOW AN AGENT READS THE FEEDBACK BACK
  *     curl -H "Origin: https://sites.<domain>" \
  *       https://sites.<domain>/v1/u/<handle>/sites/<site>/state
- *   → { "_comments": [ { body, author, ts, sel, text, nx, ny, px, py } ] }
+ *   → { "_sh_feedback": [ { body, author, ts, sel, text, nx, ny, px, py } ] }
  *   `sel` is a CSS selector for the element the reviewer tapped, `text` its
  *   visible text (locate it in your source), `nx`/`ny` the position within that
  *   element (0..1). Fix what each note asks, redeploy, done.
@@ -68,7 +68,7 @@
       API = location.origin + "/v1/sites/" + sub + "/state";
     }
   }
-  var KEY = "_comments";
+  var KEY = "_sh_feedback", LEGACY_KEY = "_comments";
 
   var author = localStorage.getItem("sh_feedback_author") || "";
   var comments = [], etag = null;
@@ -225,7 +225,12 @@
 
   // ---- networking (atomic append + cheap live poll) -----------------------------
   function ingest(st) {
-    comments = (st && Array.isArray(st[KEY])) ? st[KEY] : [];
+    st = st && typeof st === "object" ? st : {};
+    var current = Array.isArray(st[KEY]) ? st[KEY] : [];
+    var legacy = Array.isArray(st[LEGACY_KEY]) ? st[LEGACY_KEY].filter(function (c) {
+      return c && typeof c.nx === "number" && typeof c.ny === "number";
+    }) : [];
+    comments = legacy.concat(current);
     render();
   }
   async function load() {

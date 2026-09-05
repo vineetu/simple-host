@@ -1,6 +1,7 @@
 Output ONLY one fenced ```json code block for Simple Host, and nothing else. Use this exact schema:
-{"simpleHost":1,"name":"[YOUR-SITE-NAME]","files":{"index.html":"<the full, self-contained page as escaped text, with inline CSS and JS>"}}
+{"simpleHost":1,"name":"[YOUR-SITE-NAME]","files":{"index.html":"<the full, self-contained page as escaped text, with inline CSS and JS>"},"files_base64":{"assets/example.png":"<optional base64-encoded binary file>"}}
 Relative links only — never a leading slash. index.html must be one self-contained file (inline CSS/JS).
+Omit files_base64 when there are no binary files. A path must not appear in both files and files_base64.
 
 SITE: [Describe your site in plain language here — what it's for, the style/colors/vibe, the font, any headings, and all the real details like names, dates, times, and locations. Say what visitors should be able to do.]
 
@@ -43,5 +44,14 @@ STEP 6 — A PLACE TO VIEW WHAT'S COLLECTED (do this WHENEVER the site saves ent
 - admin.html derives BASE/LIST/STATE from location.pathname the SAME way, then does GET LIST + '?limit=200' and renders EVERY entry in a clean table (all fields, newest first) plus the live total from STATE. Load on open and refresh every 5000ms. Response shape: { items:[ { id, data:{...your fields}, created_at } ], next }.
 - Match the site's visual style. Put <meta name="robots" content="noindex"> in its <head>. Do NOT build a fake password gate (the data is public by URL — say so in one small line rather than pretending it's locked).
 - From index.html, link to it quietly: a small "Organizer view →" link (href="admin.html") in the footer.
+
+ANALYTICS — INFORMATIONAL, BUILD NOTHING FOR IT. Traffic is counted server-side from the access log: never add a hit counter, beacon, or analytics script to the page. Two read-only owner endpoints, X-API-Key, owner-scoped, days defaults to 30 (clamped 1..365):
+GET /v1/sites/<name>/analytics?days=30 → {range_days, classified_from, totals, last_24h, daily:[{day,...}], hourly:[{hour,...}]}. daily is zero-filled dense over the window; hourly is always 24 buckets ending with the hour in progress.
+GET /v1/analytics/sites?days=30 → {range_days, sites:[{name,...}]} — every site you own, ordered by person.views descending. Admins only may add &all=1 for every site on the box; anyone else gets 403.
+PATCH /v1/sites/<name> with {"name":"new-name"} renames a site and moves its files. A custom domain stays attached. The old public URL returns 404; use site_url from the response.
+POST /v1/me/api-key/rotate returns a new api_key and invalidates the old key immediately. Update the agent or CLI with the new key.
+Every bucket (totals, last_24h, each daily, each hourly, each site) is the SAME four-class split — person, bot, infra, unknown — each {views, visitors}. There is NO top-level views or visitors.
+person = no automation signature; READ THIS AS THE AUDIENCE NUMBER. bot = crawlers, AI scrapers, SEO tools, security scanners, HTTP libraries. infra = uptime probes and health checks, usually the biggest number and never audience. unknown = days recorded before traffic was classified; report it separately, never folded into the other three.
+visitors = distinct hashed IPs over the window asked for, so totals.*.visitors is NOT the sum of the daily figures (one person on five days = 1 in totals, 5 in daily). Views count 200/304 GET document responses only, for every class alike.
 
 SELF-CHECK before you answer: (a) zero uses of localStorage/sessionStorage/cookies anywhere; (b) fetch() is actually called three ways — POST to LIST, PATCH to STATE, and GET to STATE; (c) if used, the three comments lines are present verbatim; (d) BASE/STATE/LIST are derived from location.pathname + location.origin and NOT hardcoded; (e) background is a solid color; (f) if the site collects anything, files{} ALSO contains admin.html that GETs LIST and renders the entries, linked from index.html; (g) writes send credentials + X-SH-CSRF; (h) a 401 with code visitor_auth_required keeps the form and offers sign-in; (i) POST-ok / PATCH-fail does not re-POST. If any check fails, fix it before outputting. Output only the JSON block.

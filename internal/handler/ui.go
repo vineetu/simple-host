@@ -67,7 +67,7 @@ var (
 
 func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler) {
 	sub, _ := fs.Sub(staticFiles, "static")
-	fileServer := http.FileServerFS(sub)
+	fileServer := http.FileServerFS(handlerOnlyFS{sub})
 
 	mux.HandleFunc("GET /skills.zip", serveSkillsZip)
 	mux.HandleFunc("GET /skills/version", serveSkillsVersion)
@@ -86,9 +86,42 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// It renders nothing until /v1/admin/users answers, and that IS gated; a
 	// non-admin gets the 404 page instead. See admin.html.
 	mux.Handle("GET /admin", adminUICSP(serveStaticPage("admin.html")))
+	// Feature inventory: what the product actually does today, and where each
+	// capability lives in the UI. Given a clean URL like /admin because it is
+	// linked from the top nav, not just reachable as a file.
+	mux.Handle("GET /features", adminUICSP(serveStaticPage("features.html")))
+	// One site's analytics in full, linked from the dashboard card and from the
+	// showcase Analytics tab. Same public-shell reasoning as /admin: a browser
+	// navigation carries no API key, so the page reads it from localStorage and
+	// says plainly when it is missing or the site is not the caller's. The site
+	// name is a path segment the page reads back off location.pathname, so no
+	// server-side templating is involved.
+	mux.Handle("GET /analytics/{sitename}", adminUICSP(serveStaticPage("analytics.html")))
 	// On the base origin, a bare /<handle> that resolves to a real user renders
 	// that user's owner app; everything else is the landing page / static files.
 	mux.Handle("GET /", adminUICSP(sh.ownerAppOrStatic(fileServer)))
+}
+
+// handlerOnlyPages are hidden from the file server so each is reachable exactly
+// one way: /admin is the only route to the admin UI and it carries the CSP,
+// analytics.html reads its site name out of the /analytics/{sitename} path and
+// has no site to report on if fetched by filename, and notfound.html /
+// showcase.html are templates that are meaningless — literal __SH_MESSAGE__,
+// unparseable script — until a handler substitutes them.
+var handlerOnlyPages = map[string]bool{
+	"admin.html":     true,
+	"analytics.html": true,
+	"notfound.html":  true,
+	"showcase.html":  true,
+}
+
+type handlerOnlyFS struct{ fs.FS }
+
+func (f handlerOnlyFS) Open(name string) (fs.File, error) {
+	if handlerOnlyPages[name] {
+		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
+	}
+	return f.FS.Open(name)
 }
 
 // serveStaticPage serves one embedded HTML page at a fixed route, for pages that

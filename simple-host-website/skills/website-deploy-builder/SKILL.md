@@ -1,6 +1,6 @@
 ---
 name: website-deploy-builder
-description: Plan what to build on Website Deploy (simple-host.app). Helps a user decide whether their idea fits the static + light-backend model, maps it to concrete patterns (shared JSON state with atomic ops, append-only collections, private/password-locked pages on a custom domain, drop-in comments/feedback widgets, localStorage, public APIs), suggests a starter template, and produces a focused prompt for an implementation agent. Use when a user is starting a new site or describes a feature idea and needs help mapping it to what the platform can do.
+description: Plan what to build on Website Deploy (simple-host.app). Helps a user decide whether their idea fits the static + light-backend model, maps it to concrete patterns (shared JSON state with atomic ops, append-only collections, drop-in comments/feedback widgets, localStorage, public APIs), suggests a starter template, and produces a focused prompt for an implementation agent. Use when a user is starting a new site or describes a feature idea and needs help mapping it to what the platform can do.
 ---
 
 # Website Deploy Builder
@@ -17,7 +17,6 @@ Website Deploy is a static-file host at `https://simple-host.app`. Each site is 
 | Per-site JSON state (≤ 1 MB, shared across all visitors) | `GET / PUT /v1/u/<handle>/sites/<sitename>/state` (legacy `/v1/sites/<sitename>/state` still works) |
 | Atomic state updates (concurrent-safe counters, lists, votes) | `PATCH .../state` with `{ops:[inc/append/set/remove/removeWhere]}`; `If-None-Match` ETag for cheap polling |
 | Append-only collections (signups / RSVPs / submissions) | `POST/GET /v1/u/<handle>/sites/<sitename>/collections/<name>` |
-| Private (password-locked) pages | View-lock on a **connected custom domain** (isolated origin) — connect domain first |
 | Custom domain | `connect-domain` skill: bind domain → one CNAME → poll until active |
 | Drop-in widgets | Comments (`comments.js` + `<section id="sh-comments">`); pin-on-page feedback (`feedback.js`) |
 | Starter templates | `GET /v1/templates`, `GET /v1/templates/<id>` → `{files}` ready to deploy |
@@ -148,7 +147,7 @@ Website Deploy serves files. There is no rewrite layer. Because sites live under
 
 ### 8. Custom domains
 
-A user can serve a site from their own domain (e.g. `recipes.brand.com`). This is a distinct flow — use the `connect-domain` skill (`simple-host-website/skills/connect-domain`). Summary: `POST /v1/sites/<sitename>/domain` with `{domain}` → user adds one CNAME → poll `GET /v1/sites/<sitename>/domain` until `active`. Privacy / password-lock is offered on the connected domain's isolated origin, not on a path on the shared host.
+A user can serve a site from their own domain (e.g. `recipes.brand.com`). This is a distinct flow — use the `connect-domain` skill (`simple-host-website/skills/connect-domain`). Summary: `POST /v1/sites/<sitename>/domain` with `{domain}` → user adds one CNAME → poll `GET /v1/sites/<sitename>/domain` until `active`. A custom domain changes the address, not the privacy: the site is still public.
 
 ## Picking a capability mix
 
@@ -157,7 +156,6 @@ A user can serve a site from their own domain (e.g. `recipes.brand.com`). This i
 | "a landing page / portfolio / CV" | static only (or a `/v1/templates` starter) |
 | "a guestbook" | static + per-site JSON state (atomic `append`) |
 | "a waitlist / event RSVP / signup form" | static + append-only collection (+ a live count in state) |
-| "a private page to share (trip, draft, client proof)" | static + custom domain + view-lock (password) |
 | "comments / discussion under a post" | static + `comments.js` widget |
 | "feedback on a mockup" | static + `feedback.js` pin widget |
 | "a tool that runs entirely in the browser" (calculator, drawing app, game) | static + `localStorage` for settings/saves |
@@ -168,7 +166,7 @@ A user can serve a site from their own domain (e.g. `recipes.brand.com`). This i
 | "my own domain / brand.com" | static + `connect-domain` skill |
 | "a slide deck I want to share a link to" | build with Slidev, Reveal.js, or similar and deploy the output |
 
-If the user wants something Website Deploy can't host — per-user accounts that span devices, server-side execution, or a shared SQL database — say so explicitly and stop. Suggest they pair Website Deploy (for the static front-end) with a separate backend host (Vercel functions, Cloudflare Workers, Supabase, etc.) where their server-side logic lives. Custom domains and private (password-locked) pages *are* supported via `connect-domain` + view-lock.
+If the user wants something Website Deploy can't host — per-user accounts that span devices, server-side execution, or a shared SQL database — say so explicitly and stop. Suggest they pair Website Deploy (for the static front-end) with a separate backend host (Vercel functions, Cloudflare Workers, Supabase, etc.) where their server-side logic lives. Custom domains *are* supported via `connect-domain`. Private or password-locked pages are not — every deployed site is public.
 
 ## Generating a prompt for another agent
 
@@ -182,4 +180,4 @@ Mirror this shape for `IndexedDB`, external API calls, routing, etc.
 
 ## Handoff: deploy
 
-Once the user has decided what to build, they need to deploy. Tell them to use the `website-deploy` skill, which handles registration, framework-aware build (with a relative base path), packaging, and upload. The site will be live at `https://sites.simple-host.app/<handle>/<sitename>/`. For a custom domain or private page, follow with the `connect-domain` skill.
+Once the user has decided what to build, they need to deploy. Tell them to use the `website-deploy` skill, which handles registration, framework-aware build (with a relative base path), packaging, and upload. The site will be live at `https://sites.simple-host.app/<handle>/<sitename>/`. For a custom domain, follow with the `connect-domain` skill.

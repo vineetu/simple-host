@@ -474,6 +474,33 @@
       margin-bottom: 16px;
     }
 
+    .section-tools {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .sort-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--dim);
+    }
+    .sort-select {
+      font-family: var(--font);
+      font-size: 12px;
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 8px;
+      cursor: pointer;
+    }
+    .sort-select:hover { border-color: var(--border-hi); }
+    .sort-select:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+
     .section-header h2 {
       font-size: 16px;
       font-weight: 600;
@@ -504,6 +531,15 @@
       margin-bottom: 4px;
       font-family: var(--mono);
     }
+    /* The site name is the way into that site's full analytics page. Dotted at
+       rest because there is no hover on a phone, and a name that only looks
+       clickable under a cursor is not discoverable there at all. */
+    .site-an-link {
+      color: inherit;
+      text-decoration: underline dotted var(--border-hi);
+      text-underline-offset: 3px;
+    }
+    .site-an-link:hover { color: var(--accent); text-decoration: underline solid; }
 
     .site-meta {
       font-size: 12px;
@@ -525,30 +561,86 @@
       color: var(--text-secondary);
       min-height: 0;
     }
-    .site-analytics .an-nums {
-      display: block;
-      font-size: 11px;
-      color: var(--text-secondary);
-      letter-spacing: 0.01em;
+    /* People / bots / infra read side by side, so the human number is never
+       mistaken for total traffic. */
+    .site-analytics .an-split {
+      display: flex;
+      align-items: stretch;
+      gap: 14px;
+      margin-top: 2px;
     }
-    .site-analytics .an-sub {
+    .site-analytics .an-cell {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      padding-left: 8px;
+      border-left: 2px solid var(--border);
+    }
+    .site-analytics .an-cell.is-people { border-left-color: var(--accent); }
+    .site-analytics .an-cell.is-bots { border-left-color: var(--dim); }
+    .site-analytics .an-k {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
       color: var(--dim);
+    }
+    .site-analytics .an-v {
+      font-size: 15px;
+      line-height: 1.1;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+    .site-analytics .an-cell.is-people .an-v { color: var(--accent); }
+    .site-analytics .an-cell.is-muted .an-v {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .site-analytics .an-s {
       font-size: 10px;
+      color: var(--dim);
     }
     .site-analytics .an-empty {
       color: var(--dim);
       font-size: 11px;
     }
-    .site-analytics .an-spark {
+
+    .site-analytics .an-24 {
+      margin-top: 7px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .site-analytics .an-24-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--dim);
+      white-space: nowrap;
+    }
+    .site-analytics .an-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 1px;
+      height: 22px;
+    }
+    /* One column per hour. People sit on the baseline with bots stacked above,
+       so the shape of real traffic stays readable on a crawler-heavy day. */
+    .site-analytics .an-bar {
+      width: 4px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      height: 100%;
+      border-radius: 1px;
+      overflow: hidden;
+      background: var(--grid);
+    }
+    .site-analytics .an-bar i {
       display: block;
-      margin-top: 4px;
-      color: var(--accent);
-      opacity: 0.85;
+      width: 100%;
     }
-    .site-analytics .an-spark .an-base {
-      stroke: var(--border-hi);
-      opacity: 0.6;
-    }
+    .site-analytics .an-bar .an-b-people { background: var(--accent); }
+    .site-analytics .an-bar .an-b-bots { background: var(--dim); }
 
     .site-url {
       font-family: var(--mono);
@@ -1030,6 +1122,7 @@
         <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle theme"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5.1 5.1l1.4 1.4M17.5 17.5l1.4 1.4M18.9 5.1l-1.4 1.4M6.5 17.5l-1.4 1.4"/></svg></button>
         <div class="header-actions" id="user-actions" style="display:none">
           <span class="user-badge" id="username-display"></span>
+          <button class="btn-ghost" onclick="rotateAPIKey()">Rotate API key</button>
           <button class="btn-ghost" onclick="logout()">Sign out</button>
         </div>
       </div>
@@ -1049,7 +1142,7 @@
           <div class="home-cards">
             <div class="home-card"><span class="hc-ico">🌐</span><h3>Anything HTML</h3><p>Portfolios, résumés, landing &amp; coming-soon pages, event RSVPs, menus, docs.</p></div>
             <div class="home-card"><span class="hc-ico">🗄️</span><h3>A free per-site store</h3><p>Forms, counters, polls, votes, guestbooks — no database to set up.</p></div>
-            <div class="home-card"><span class="hc-ico">💬</span><h3>Drop-in widgets</h3><p>Threaded comments, feedback pins, password-protected private pages, ready-made templates.</p></div>
+            <div class="home-card"><span class="hc-ico">💬</span><h3>Drop-in widgets</h3><p>Threaded comments, feedback pins, ready-made templates.</p></div>
             <div class="home-card"><span class="hc-ico">✨</span><h3>Or just describe it</h3><p>Say what you want and watch the page get built. Speak it instead of typing, or attach a screenshot to copy.</p></div>
           </div>
           <p class="auth-lede" style="margin-bottom:10px"><strong>Have an AI already?</strong> Claude, Cursor, ChatGPT — set it up once and deploy by asking it. <a class="btn btn-primary btn-small" href="/install.html" style="margin-left:6px">Set up your AI →</a></p>
@@ -1197,7 +1290,16 @@
         <!-- Sites List -->
         <div class="section-header">
           <h2>Your sites</h2>
-          <button class="btn btn-secondary btn-small" onclick="loadSites()">Refresh</button>
+          <div class="section-tools">
+            <label class="sort-label" for="site-sort">Sort</label>
+            <select id="site-sort" class="sort-select" onchange="setSiteSort(this.value)">
+              <option value="people">Most people</option>
+              <option value="bots">Most bots</option>
+              <option value="traffic">Most traffic (all)</option>
+              <option value="name">Name</option>
+            </select>
+            <button class="btn btn-secondary btn-small" onclick="loadSites()">Refresh</button>
+          </div>
         </div>
         <div id="sites-container">
           <div class="empty-state">
@@ -1227,6 +1329,118 @@
 
   <!-- Toast -->
   <div class="toast" id="toast"></div>
+
+  <script>
+/* BEGIN web/analytics-parse.js -- generated by scripts/inline-analytics-parser.sh; edit the source, not this copy */
+// Strict parser for the analytics endpoints, shared by index.html,
+// showcase.html and analytics.html. It is INLINED into those pages by
+// scripts/inline-analytics-parser.sh: showcase.html is served from the apex and
+// from the content host, and a <script src="/..."> resolves on one and 404s on
+// the other.
+//
+// It throws instead of defaulting. Defaulting a missing field to 0 is how the
+// four-class response shipped against a page that still read the flat one and
+// rendered "0 views / 0 visitors" for every site without a single error.
+
+function anInt(v, path) {
+  if (typeof v !== 'number' || !Number.isInteger(v) || v < 0) {
+    throw new Error(path + ': expected a non-negative integer, got ' + JSON.stringify(v));
+  }
+  return v;
+}
+
+function anCounts(v, path) {
+  if (!v || typeof v !== 'object') throw new Error(path + ': expected {views, visitors}');
+  return { views: anInt(v.views, path + '.views'), visitors: anInt(v.visitors, path + '.visitors') };
+}
+
+function anSplit(v, path) {
+  if (!v || typeof v !== 'object') throw new Error(path + ': expected a person/bot/infra/unknown split');
+  return {
+    person: anCounts(v.person, path + '.person'),
+    bot: anCounts(v.bot, path + '.bot'),
+    infra: anCounts(v.infra, path + '.infra'),
+    unknown: anCounts(v.unknown, path + '.unknown'),
+  };
+}
+
+// daily[] and hourly[] carry their split inline alongside a day/hour key.
+function anBuckets(v, path, key) {
+  if (!Array.isArray(v)) throw new Error(path + ': expected an array');
+  return v.map(function (b, i) {
+    var at = path + '[' + i + ']';
+    if (!b || typeof b[key] !== 'string' || !b[key]) {
+      throw new Error(at + '.' + key + ': expected a non-empty string');
+    }
+    var out = anSplit(b, at);
+    out[key] = b[key];
+    return out;
+  });
+}
+
+// GET /v1/sites/{sitename}/analytics
+function parseSiteAnalytics(data) {
+  if (!data || typeof data !== 'object') throw new Error('site analytics: expected an object');
+  if (data.classified_from !== undefined && typeof data.classified_from !== 'string') {
+    throw new Error('site analytics.classified_from: expected a string');
+  }
+  return {
+    rangeDays: anInt(data.range_days, 'site analytics.range_days'),
+    // omitempty on the wire: absent means nothing has been classified yet.
+    classifiedFrom: data.classified_from || '',
+    totals: anSplit(data.totals, 'site analytics.totals'),
+    last24h: anSplit(data.last_24h, 'site analytics.last_24h'),
+    daily: anBuckets(data.daily, 'site analytics.daily', 'day'),
+    hourly: anBuckets(data.hourly, 'site analytics.hourly', 'hour'),
+  };
+}
+
+// GET /v1/sites/{sitename}/analytics/geo
+//
+// country is the ISO-3166 code, "XX" for an IP that resolved to nothing;
+// country_name is the display name, "Unknown" for XX. Both are required: a
+// blank name would render as a nameless row that reads like a rendering bug,
+// and defaulting it to the code would quietly invent a country called "XX".
+function parseSiteGeo(data) {
+  if (!data || typeof data !== 'object') throw new Error('site geo: expected an object');
+  if (!Array.isArray(data.countries)) throw new Error('site geo.countries: expected an array');
+  return {
+    rangeDays: anInt(data.range_days, 'site geo.range_days'),
+    countries: data.countries.map(function (c, i) {
+      var at = 'site geo.countries[' + i + ']';
+      if (!c || typeof c.country !== 'string' || !c.country) {
+        throw new Error(at + '.country: expected a non-empty string');
+      }
+      if (typeof c.country_name !== 'string' || !c.country_name) {
+        throw new Error(at + '.country_name: expected a non-empty string');
+      }
+      var out = anSplit(c, at);
+      out.country = c.country;
+      out.countryName = c.country_name;
+      return out;
+    }),
+  };
+}
+
+// GET /v1/analytics/sites
+function parseAnalyticsSummary(data) {
+  if (!data || typeof data !== 'object') throw new Error('analytics summary: expected an object');
+  if (!Array.isArray(data.sites)) throw new Error('analytics summary.sites: expected an array');
+  return {
+    rangeDays: anInt(data.range_days, 'analytics summary.range_days'),
+    sites: data.sites.map(function (s, i) {
+      var at = 'analytics summary.sites[' + i + ']';
+      if (!s || typeof s.name !== 'string' || !s.name) {
+        throw new Error(at + '.name: expected a non-empty string');
+      }
+      var out = anSplit(s, at);
+      out.name = s.name;
+      return out;
+    }),
+  };
+}
+/* END web/analytics-parse.js */
+  </script>
 
   <script>
     let apiKey = localStorage.getItem('apiKey');
@@ -1513,6 +1727,44 @@
     }
 
     // Sites
+    //
+    // siteTraffic maps site name -> its 30d class split, fetched in one call so
+    // the list can be ordered by traffic before the first card is drawn. The
+    // per-card lazy fetch still supplies each card's own numbers and 24h chart.
+    let siteTraffic = {};
+    let siteSort = 'people';
+
+    function setSiteSort(mode) {
+      siteSort = mode || 'people';
+      renderSites();
+    }
+
+    // A site absent from the summary drew no traffic in the window, so zero is
+    // its real value here, not a missing one.
+    function siteSortValue(site) {
+      const t = siteTraffic[site.name];
+      if (!t) return 0;
+      switch (siteSort) {
+        case 'bots': return t.bot.views;
+        case 'traffic': return t.person.views + t.bot.views + t.infra.views + t.unknown.views;
+        case 'name': return 0;
+        default: return t.person.views;
+      }
+    }
+
+    function sortSites(list) {
+      const copy = list.slice();
+      if (siteSort === 'name') {
+        copy.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+        return copy;
+      }
+      copy.sort((a, b) => {
+        const d = siteSortValue(b) - siteSortValue(a);
+        return d !== 0 ? d : String(a.name).localeCompare(String(b.name));
+      });
+      return copy;
+    }
+
     async function loadSites() {
       try {
         const res = await api('GET', '/v1/sites');
@@ -1521,9 +1773,25 @@
         // /v1/sites is wrapped as {data:[...],_notice} for callers without an
         // X-Skill-Version header (browsers) — unwrap it.
         sites = Array.isArray(data) ? data : (data && Array.isArray(data.data) ? data.data : []);
+        await loadSiteTraffic();
         renderSites();
       } catch {
         toast('Failed to load sites', 'error');
+      }
+    }
+
+    // Ordering data only, so a failure costs the sort and not the site list --
+    // but it is said out loud, because a silent one is indistinguishable from
+    // every site having no traffic.
+    async function loadSiteTraffic() {
+      siteTraffic = {};
+      try {
+        const isAdmin = currentUser && currentUser.is_admin;
+        const res = await api('GET', `/v1/analytics/sites?days=30${isAdmin ? '&all=1' : ''}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        for (const r of parseAnalyticsSummary(await res.json()).sites) siteTraffic[r.name] = r;
+      } catch (e) {
+        toast(`Couldn't load analytics — sites are in account order (${e.message})`, 'error');
       }
     }
 
@@ -1541,7 +1809,7 @@
             <p>Deploy your first site above</p>
           </div>`;
       } else {
-        myContainer.innerHTML = `<div class="site-list">${ownSites.map(s => renderSiteCard(s, false)).join('')}</div>`;
+        myContainer.innerHTML = `<div class="site-list">${sortSites(ownSites).map(s => renderSiteCard(s, false)).join('')}</div>`;
       }
 
       if (currentUser && currentUser.is_admin) {
@@ -1552,7 +1820,7 @@
               <p>No sites in the system yet</p>
             </div>`;
         } else {
-          adminContainer.innerHTML = `<div class="site-list">${sites.map(s => renderSiteCard(s, true)).join('')}</div>`;
+          adminContainer.innerHTML = `<div class="site-list">${sortSites(sites).map(s => renderSiteCard(s, true)).join('')}</div>`;
         }
       }
       loadAnalytics();
@@ -1567,7 +1835,7 @@
       return `
         <div class="site-card">
           <div class="site-info">
-            <h3>${name}</h3>
+            <h3><a class="site-an-link" href="/analytics/${encodeURIComponent(site.name)}" title="Full analytics for ${name}">${name}</a></h3>
             <div class="site-meta">
               <span><span class="status-dot ${statusClass}"></span>${statusText}</span>
               <span class="version-badge">v${site.active_version}</span>
@@ -1580,6 +1848,7 @@
           <div class="site-actions">
             <button type="button" class="btn-small btn-secondary" onclick="toggleVersions('${name}')">Versions</button>
             <button type="button" class="btn-small btn-secondary" onclick="toggleData('${name}')">Data</button>
+            ${!showOwner || site.user_id === currentUser.id ? `<button type="button" class="btn-small btn-secondary" onclick="renameSite('${name}')">Rename</button>` : ''}
             ${site.custom_domain
               ? `<button type="button" class="btn-small btn-ghost" onclick="disconnectDomain('${name}')">Disconnect ${esc(site.custom_domain)}</button>`
               : `<button type="button" class="btn-small btn-secondary" onclick="connectDomain('${name}')">Connect domain</button>`}
@@ -1602,11 +1871,10 @@
         if (!name) return;
         try {
           const res = await api('GET', `/v1/sites/${encodeURIComponent(name)}/analytics?days=30`);
-          if (!res.ok) return; // leave empty; secondary metric
-          const data = await res.json();
-          el.innerHTML = renderAnalytics(data);
-        } catch {
-          // leave empty
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          el.innerHTML = renderAnalytics(parseSiteAnalytics(await res.json()));
+        } catch (e) {
+          el.innerHTML = `<span class="an-empty" title="${esc(e.message)}">Couldn't load analytics</span>`;
         }
       }
 
@@ -1631,43 +1899,82 @@
       });
     }
 
-    function renderAnalytics(data) {
-      const totals = (data && data.totals) || {};
-      const views = Number.isFinite(Number(totals.views)) ? Math.trunc(Number(totals.views)) : 0;
-      const visitors = Number.isFinite(Number(totals.visitors)) ? Math.trunc(Number(totals.visitors)) : 0;
-      const daily = Array.isArray(data && data.daily) ? data.daily : [];
+    // Takes the parsed shape from parseSiteAnalytics, never a raw response.
+    function renderAnalytics(a) {
+      const { person: people, bot: bots, infra, unknown } = a.totals;
+      const days = a.rangeDays;
+      const from = a.classifiedFrom;
 
-      if (views === 0) {
-        return `<span class="an-empty">No visits yet</span>`;
+      if (people.views === 0 && bots.views === 0 && unknown.views === 0) {
+        // Infra-only traffic is not "visits" -- saying so would repeat exactly
+        // the mistake this whole view exists to correct.
+        return `<span class="an-empty">No visits yet${infra.views ? ' · only monitoring traffic' : ''}</span>`;
       }
 
-      return (
-        `<span class="an-nums">${views.toLocaleString()} views · ${visitors.toLocaleString()} visitors <span class="an-sub">(30d)</span></span>` +
-        renderSparkline(daily)
-      );
+      const cells = [
+        `<div class="an-cell is-people">` +
+          `<span class="an-k">People</span>` +
+          `<span class="an-v">${people.views.toLocaleString()}</span>` +
+          `<span class="an-s">${people.visitors.toLocaleString()} visitor${people.visitors === 1 ? '' : 's'} · ${days}d</span>` +
+        `</div>`,
+        `<div class="an-cell is-bots">` +
+          `<span class="an-k">Bots</span>` +
+          `<span class="an-v">${bots.views.toLocaleString()}</span>` +
+          `<span class="an-s">${bots.visitors.toLocaleString()} crawler${bots.visitors === 1 ? '' : 's'}</span>` +
+        `</div>`,
+      ];
+      if (infra.views > 0) {
+        cells.push(
+          `<div class="an-cell is-muted" title="Uptime probes and health checks pointed at this site — not audience.">` +
+            `<span class="an-k">Infra</span>` +
+            `<span class="an-v">${infra.views.toLocaleString()}</span>` +
+            `<span class="an-s">monitoring</span>` +
+          `</div>`
+        );
+      }
+      if (unknown.views > 0) {
+        // Recorded before traffic was classified, and the source logs are gone —
+        // so these stay a separate series rather than being guessed into one.
+        const t = from
+          ? `Recorded before ${from}, when traffic was not yet split into people, bots and monitoring. The original logs no longer exist, so this cannot be broken down.`
+          : `Recorded before traffic was classified; cannot be broken down.`;
+        cells.push(
+          `<div class="an-cell is-muted" title="${esc(t)}">` +
+            `<span class="an-k">Earlier</span>` +
+            `<span class="an-v">${unknown.views.toLocaleString()}</span>` +
+            `<span class="an-s">unclassified</span>` +
+          `</div>`
+        );
+      }
+
+      return `<div class="an-split">${cells.join('')}</div>` + render24h(a.hourly);
     }
 
-    function renderSparkline(daily) {
-      const w = 120, h = 28, pad = 2;
-      const n = daily.length || 1;
-      const vals = daily.map(d => {
-        const v = d && d.views;
-        const num = Number(v);
-        return Number.isFinite(num) ? Math.max(0, Math.trunc(num)) : 0;
-      });
-      const max = Math.max(1, ...vals);
-      const innerH = h - pad * 2;
-      const innerW = w - pad * 2;
-      const points = vals.map((v, i) => {
-        const x = pad + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
-        const y = pad + innerH - (v / max) * innerH;
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      }).join(' ');
-      const baseY = (h - pad).toFixed(1);
-      return `<svg class="an-spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">` +
-        `<line class="an-base" x1="${pad}" y1="${baseY}" x2="${w - pad}" y2="${baseY}" stroke="currentColor" stroke-width="1"/>` +
-        `<polyline fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" points="${points}"/>` +
-        `</svg>`;
+    // 24 stacked columns, one per hour, people above bots. Infra is deliberately
+    // left out: it is a flat ~120/hour probe that would flatten everything else.
+    function render24h(hourly) {
+      if (!hourly.length) return '';
+      const rows = hourly.map(h => ({ people: h.person.views, bots: h.bot.views, hour: h.hour }));
+      const max = Math.max(1, ...rows.map(r => r.people + r.bots));
+      if (max === 1 && !rows.some(r => r.people + r.bots > 0)) return '';
+
+      const bars = rows.map(r => {
+        const total = r.people + r.bots;
+        const pPct = (r.people / max) * 100;
+        const bPct = (r.bots / max) * 100;
+        const label = r.hour
+          ? `${r.hour.slice(11, 13)}:00 UTC — ${r.people} people, ${r.bots} bots`
+          : `${r.people} people, ${r.bots} bots`;
+        return `<span class="an-bar" title="${esc(label)}">` +
+          (bPct > 0 ? `<i class="an-b-bots" style="height:${bPct.toFixed(1)}%"></i>` : '') +
+          (pPct > 0 ? `<i class="an-b-people" style="height:${pPct.toFixed(1)}%"></i>` : '') +
+          `</span>`;
+      }).join('');
+
+      return `<div class="an-24">` +
+        `<span class="an-24-label">24h</span>` +
+        `<span class="an-bars" role="img" aria-label="Hourly people and bot views over the last 24 hours">${bars}</span>` +
+        `</div>`;
     }
 
     async function toggleVersions(name) {
@@ -1854,6 +2161,34 @@
       }
     }
 
+    async function renameSite(name) {
+      const next = prompt(`Rename "${name}" to:`, name);
+      if (!next || next.trim() === name) return;
+      if (!confirm(`Rename "${name}" to "${next.trim()}"? The old public URL will return 404.`)) return;
+      const res = await api('PATCH', `/v1/sites/${encodeURIComponent(name)}`, { name: next.trim() });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast(body.error || 'Could not rename site', 'error');
+        return;
+      }
+      toast(`Renamed to ${body.name}. The old URL now returns 404.`, 'success');
+      await loadSites();
+    }
+
+    async function rotateAPIKey() {
+      if (!confirm('Rotate your API key? The old key will stop working immediately, and your agent or CLI will need the new key.')) return;
+      const res = await api('POST', '/v1/me/api-key/rotate');
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast(body.error || 'Could not rotate API key', 'error');
+        return;
+      }
+      apiKey = body.api_key;
+      localStorage.setItem('apiKey', apiKey);
+      window.prompt('API key rotated. Copy this now and update your agent or CLI:', apiKey);
+      toast('API key rotated; your agent or CLI needs the new key.', 'success');
+    }
+
     async function connectDomain(name) {
       const d = prompt('Enter the custom domain to connect (e.g. recipes.brand.com):');
       if (!d) return;
@@ -1864,7 +2199,8 @@
           toast(body.error || 'Could not connect domain', 'error');
           return;
         }
-        toast(`Domain pending — add a CNAME: ${body.dns ? body.dns.host + ' -> ' + body.dns.value : ''}`, 'success');
+        const rec = body.dns ? `${body.dns.type} ${body.dns.host} -> ${body.dns.value}` : '';
+        toast(`Domain pending — add this DNS record: ${rec}. It turns active once the domain serves the site over HTTPS.`, 'success');
         await loadSites();
       } catch {
         toast('Could not connect domain', 'error');

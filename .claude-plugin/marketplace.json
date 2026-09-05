@@ -5,7 +5,7 @@
     "url": "https://github.com/vineetu/simple-host"
   },
   "metadata": {
-    "description": "Deploy websites to simple-host.app from your coding agent \u2014 static hosting, a per-site backend (shared JSON state, collections, private pages), connect your own custom domain (subdomain or apex) with automatic HTTPS, and built-in visitor analytics."
+    "description": "Deploy websites to simple-host.app from your coding agent \u2014 static hosting, a per-site backend (shared JSON state, collections), connect your own custom domain (subdomain or apex) with automatic HTTPS, and built-in visitor analytics."
   },
   "plugins": [
     {

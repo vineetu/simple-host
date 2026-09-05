@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,13 +28,13 @@ import (
 // and per IP. Exactly one provider — no fallbacks, no metered API keys.
 // Disabled when LLM_API_KEY / LLM_BASE_URL / LLM_MODEL are unset.
 type GenerateHandler struct {
-	llmKey   string // the single OpenAI-compatible provider (the Grok sidecar)
-	llmBase  string
-	llmModel string
-	visionKey     string // optional vision model used to read image/PDF attachments
-	visionBase    string
-	visionModel   string
-	client        *http.Client
+	llmKey      string // the single OpenAI-compatible provider (the Grok sidecar)
+	llmBase     string
+	llmModel    string
+	visionKey   string // optional vision model used to read image attachments
+	visionBase  string
+	visionModel string
+	client      *http.Client
 	// A generation is one long synchronous call; the shared client's timeout is
 	// sized for quick agent job-starts and status polls, so it gets its own.
 	llmClient     *http.Client
@@ -94,18 +95,19 @@ type generateRequest struct {
 	// can make incremental edits without the whole document living in the chat
 	// transcript.
 	HTML string `json:"html"`
-	// Attachments ride along with the latest user message: images (vision),
-	// PDFs (mentioned but not read), or text files (inlined into the prompt).
+	// Attachments ride along with the latest user message: images (vision) or
+	// text files (inlined into the prompt).
 	Attachments []attachmentIn `json:"attachments"`
 }
 
-// attachmentIn is one user-supplied file from the chat. Images/PDFs carry base64
+// attachmentIn is one user-supplied file from the chat. Images carry base64
 // Data; text files carry plain Text.
 type attachmentIn struct {
-	Kind      string `json:"kind"`      // "image" | "document" | "text"
-	MediaType string `json:"mediaType"` // for image/document
+	Kind      string `json:"kind"`      // "image" | "text"
+	MediaType string `json:"mediaType"` // for image
 	Name      string `json:"name"`
-	Data      string `json:"data"` // base64 (image/document)
+	AssetPath string `json:"assetPath"`
+	Data      string `json:"data"` // base64 (image)
 	Text      string `json:"text"` // text files
 }
 
@@ -140,7 +142,7 @@ func (h *GenerateHandler) generate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req generateRequest
-	// Large cap because attachments (images/PDFs) ride in the JSON as base64.
+	// Large cap because image attachments ride in the JSON as base64.
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32<<20)).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
 		return
@@ -326,6 +328,9 @@ func sanitizeAttachments(in []attachmentIn) ([]attachmentIn, error) {
 			if !allowedImageTypes[a.MediaType] {
 				return nil, fmt.Errorf("unsupported image type %q", a.MediaType)
 			}
+			if !validAssetPath(a.AssetPath, a.MediaType) {
+				return nil, fmt.Errorf("invalid image asset path")
+			}
 			if a.Data == "" {
 				return nil, fmt.Errorf("empty image data")
 			}
@@ -333,19 +338,7 @@ func sanitizeAttachments(in []attachmentIn) ([]attachmentIn, error) {
 				return nil, fmt.Errorf("image %q is too large (5 MB max)", a.Name)
 			}
 			total += len(a.Data)
-			out = append(out, attachmentIn{Kind: "image", MediaType: a.MediaType, Name: a.Name, Data: a.Data})
-		case "document":
-			if a.MediaType != "application/pdf" {
-				return nil, fmt.Errorf("only PDF documents are supported")
-			}
-			if a.Data == "" {
-				return nil, fmt.Errorf("empty document")
-			}
-			if len(a.Data) > 24<<20 {
-				return nil, fmt.Errorf("PDF %q is too large", a.Name)
-			}
-			total += len(a.Data)
-			out = append(out, attachmentIn{Kind: "document", MediaType: "application/pdf", Name: a.Name, Data: a.Data})
+			out = append(out, attachmentIn{Kind: "image", MediaType: a.MediaType, Name: a.Name, AssetPath: a.AssetPath, Data: a.Data})
 		case "text":
 			t := a.Text
 			if len(t) > maxAttachTextChars {
@@ -369,7 +362,7 @@ How to behave:
 - If the request is vague, ask AT MOST 1-2 short clarifying questions (e.g. name? overall vibe? what should it do?). Don't interrogate — as soon as you have enough, build it.
 - When you have enough to build, or the user asks for the site or a change, produce the site.
 - Keep chat replies to a sentence or two, friendly and concrete. NEVER paste site HTML into the chat text. (Help-desk answers — see below — may run longer and may include commands or prompts.)
-- The user may attach images or a PDF. Treat them as reference: replicate a mockup's layout/colors/typography, read text or data out of a screenshot or PDF, match branding. If the user wants an attached IMAGE shown ON the page (a logo, a photo, a hero image), place it with an <img> whose src is EXACTLY the token given for that image in the message (e.g. src="sh-asset-1") — never alter the token, and don't try to recreate the image. Give it sensible alt text and size it with CSS. Only add an image if the user wants it shown. If the user wants an attached PDF available on the site, add a download link — <a href="TOKEN" download="name.pdf">Download</a> — using the exact token given for that PDF; do not embed the PDF in an iframe. Only add it if the user wants it on the page.
+- The user may attach images or plain-text notes. Treat them as reference: replicate a mockup's layout/colors/typography, read text or data out of a screenshot, match branding. Each attached image is listed in the message with its final site path. If the user wants an attached image shown on the page (a logo, photo, or hero image), use that exact relative path as the <img> src. Give it sensible alt text and size it with CSS. Only add an image if the user wants it shown. PDFs are not accepted; if someone asks to attach one, tell them to screenshot it or paste the text.
 
 OUTPUT FORMAT — follow exactly:
 - First write your short conversational reply as plain text.
@@ -387,7 +380,7 @@ YOU ARE ALSO THE PLATFORM'S HELP DESK. Besides building sites, answer questions 
 
 What simple-host can do (say so when asked, plainly):
 - Build and publish a site right here in this chat — nothing to install. Sites go live at sites.simple-host.app/<handle>/<name>/ in about a minute.
-- Deploy from a coding agent via the website-deploy skill; plan sites with website-deploy-builder; connect a custom domain with HTTPS via connect-domain. Password-locked (private) pages are available on a connected custom domain.
+- Deploy from a coding agent via the website-deploy skill; plan sites with website-deploy-builder; connect a custom domain with HTTPS via connect-domain. There is no private or password-locked mode — every published site is readable by anyone with the address; say so plainly if asked.
 - Every site gets a free JSON backend: shared state with atomic ops, append-only collections (sign-ups, RSVPs, guestbooks), a drop-in comments/feedback widget, and Google/GitHub sign-in for visitor writes. Reads are Origin-gated; it is public storage — no secrets.
 - Versioned deploys with one-call rollback, site analytics, templates, voice input in this chat, and a full REST API (X-API-Key) documented at simple-host.app/docs.html.
 
@@ -471,7 +464,7 @@ func finishSplit(reply, html string) (string, string, error) {
 type claudeMessage struct {
 	Role string `json:"role"`
 	// Content is a plain string for normal turns, or a []any of content blocks
-	// (image/document/text) for a user turn that carries attachments.
+	// (image/text) for a user turn that carries attachments.
 	Content any `json:"content"`
 }
 
@@ -893,10 +886,7 @@ func contentToText(c any) string {
 	}
 }
 
-// inlineAttachmentsAsText folds attachments into the user's text. This provider
-// is text-only, so an image cannot be honoured — say so plainly in the prompt
-// rather than dropping it silently and letting the model invent a design the
-// user will think it "saw".
+// inlineAttachmentsAsText folds attachments into the user's text.
 func inlineAttachmentsAsText(content any, atts []attachmentIn, visionDesc string, visionConfigured bool) any {
 	var sb strings.Builder
 	sb.WriteString(contentToText(content))
@@ -907,6 +897,7 @@ func inlineAttachmentsAsText(content any, atts []attachmentIn, visionDesc string
 			sb.WriteString("\n\n--- attached file: " + safeFilename(a.Name) + " ---\n" + a.Text)
 		default:
 			visual = append(visual, safeFilename(a.Name))
+			sb.WriteString("\n\n--- attached image: " + safeFilename(a.Name) + " ---\nFinal site path: " + a.AssetPath)
 		}
 	}
 	if len(visual) == 0 {
@@ -925,12 +916,20 @@ func inlineAttachmentsAsText(content any, atts []attachmentIn, visionDesc string
 	if visionConfigured {
 		why = "it couldn't be read this time"
 	}
-	// Careful wording: the model still can't SEE these, but it can still place
-	// them via the sh-asset tokens, so don't tell it to refuse outright.
 	sb.WriteString("\n\n[The user attached " + strings.Join(visual, ", ") + " but " + why +
 		". You cannot see their contents — don't describe or pretend to have viewed them, and ask what matters " +
-		"about them in words. You may still place them on the page using the exact sh-asset tokens given above.]")
+		"about them in words. You may still place them on the page using the final site paths listed above.]")
 	return sb.String()
+}
+
+func validAssetPath(path, mediaType string) bool {
+	ext := map[string]string{"image/png": ".png", "image/jpeg": ".jpg", "image/gif": ".gif", "image/webp": ".webp"}[mediaType]
+	if ext == "" || !strings.HasPrefix(path, "assets/attachment-") || !strings.HasSuffix(path, ext) {
+		return false
+	}
+	n := strings.TrimSuffix(strings.TrimPrefix(path, "assets/attachment-"), ext)
+	_, err := strconv.ParseUint(n, 10, 64)
+	return n != "" && err == nil
 }
 
 // ---------------------------------------------------------------------------
@@ -950,9 +949,8 @@ No preamble, no opinions, no suggestions. Just the description.`
 const maxVisionTokens = 4000
 
 // describeAttachments sends image attachments to the vision model (the same
-// Grok sidecar) and returns a plain text description. PDFs are not sent — the
-// provider has no document parser — so the text inliner mentions them as
-// unread instead. Returns "" when nothing needed describing.
+// Grok sidecar) and returns a plain text description. Returns "" when nothing
+// needed describing.
 func (h *GenerateHandler) describeAttachments(ctx context.Context, atts []attachmentIn) (string, error) {
 	type part struct {
 		Type     string `json:"type"`
@@ -1022,7 +1020,7 @@ func (h *GenerateHandler) describeAttachments(ctx context.Context, atts []attach
 func safeFilename(n string) string {
 	n = strings.TrimSpace(n)
 	if n == "" {
-		return "document.pdf"
+		return "attachment"
 	}
 	n = strings.Map(func(r rune) rune {
 		if r == '/' || r == '\\' || r < 32 {

@@ -354,8 +354,8 @@
    a visitor session. Anyone who knows the site name can read the leads.
    We therefore only ever RENDER the count, never the addresses, and we
    say so in the small print above. Never put secrets in state or
-   collections. For a genuinely private inbox, pair a collection with a
-   view-locked (password-protected) site — see the simple-host docs.
+   collections. There is no private mode: assume anything a site stores
+   is readable by anyone who knows the site name.
    ===================================================================== */
 
 const LS_KEY = 'nimbus_lead_v1';   // remember this browser already signed up

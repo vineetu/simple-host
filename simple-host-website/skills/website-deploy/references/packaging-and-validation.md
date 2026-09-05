@@ -1,5 +1,8 @@
 # Validate, package, upload, verify
 
+The inline JSON endpoint accepts text in `files` and base64-encoded binary in
+`files_base64`, both keyed by relative site path. Do not put one path in both maps.
+
 Run every check below on **the directory you are about to upload**. For a
 framework project that is the build output (`dist/`, `build/`, `out/`, `public/`,
 `.output/public/`) — not the project root.

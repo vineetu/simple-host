@@ -40,7 +40,7 @@
   <main class="container">
     <div class="eyebrow">Privacy</div>
     <h1>Privacy Policy</h1>
-    <p class="updated">Simple Host (simple-host.app) · last updated 2026-08-14</p>
+    <p class="updated">Simple Host (simple-host.app) · last updated 2026-09-01</p>
 
     <p>Simple Host is a static-website hosting service. This policy covers what data it handles, including when the service is used through an integration such as a ChatGPT GPT, an MCP server, or an AI coding agent.</p>
 
@@ -49,30 +49,50 @@
       <li><strong>Email address</strong> — for sign-in. We collect it when you verify a one-time emailed code, or when Google or GitHub asserts a <em>verified</em> address. That address is your account username. Signing in on someone else's hosted page (an RSVP, a guestbook) creates the same kind of account so we know who wrote — we do <strong>not</strong> email you a key, show you a dashboard, or give that page your API key.</li>
       <li><strong>Provider account id</strong> — Google <code>sub</code> or GitHub numeric id, stored so the same person signing in again is the same account. We also keep a snapshot of the verified email the provider last sent. We do not store your name, picture, or access token.</li>
       <li><strong>Your API key</strong> — a random token that authenticates owner requests (deploy, delete, rollback). Stored to look up your account. It is disclosed only after an owner-intent sign-in (emailed code, or “Sign in with Google” on this dashboard). A session cookie on a hosted site is not an API key and cannot deploy or delete anything.</li>
-      <li><strong>Sites you deploy</strong> — the files you upload, their versions, and the site name. Deployed sites are <strong>served publicly</strong> on the internet at <code>sites.simple-host.app/&lt;handle&gt;/&lt;site&gt;/</code>. Privacy (password lock) is available on a connected custom domain.</li>
+      <li><strong>Sites you deploy</strong> — the files you upload, their versions, and the site name. Deployed sites are <strong>served publicly</strong> on the internet at <code>sites.simple-host.app/&lt;handle&gt;/&lt;site&gt;/</code>. There is no private or password-locked mode — anyone with the address can read a site.</li>
       <li><strong>Per-site state</strong> — any data a site saves via the state/collections API. This is <strong>public to that site's audience</strong> by design; do not put secrets in it.</li>
-      <li><strong>Basic request metadata</strong> — IP address and timestamps, used for rate-limiting and abuse prevention.</li>
+      <li><strong>Visitor analytics</strong> — a count of page loads on hosted sites, taken from the web server's own access log. Details below. Your browser is not tagged for this.</li>
+      <li><strong>Basic request metadata</strong> — IP address and timestamps, used for rate-limiting and abuse prevention. Raw IPs from API calls are also stored for a limited time (see below).</li>
     </ul>
 
     <h2>How we use it</h2>
     <ul>
       <li>To authenticate you, host and serve your sites, and operate the per-site backend. One account is used across every site you sign into and every site you own — we can join those in our database. We do not publish that join to other sites' pages.</li>
+      <li>To show a site's owner, and this instance's admin, how many people and bots loaded that site.</li>
       <li>To enforce rate limits and quotas and to investigate abuse.</li>
       <li>We do <strong>not</strong> sell your data or use it for advertising.</li>
     </ul>
+
+    <h2>Visitor analytics</h2>
+    <p>This section is for people who <em>visit</em> a hosted site — whose loads get counted — not for people deploying one.</p>
+    <p>When you open a page hosted here, Simple Host counts that visit so the person who published the site can see how many people read it.</p>
+    <p>The count is taken entirely on the server, from the web server's own access log. <strong>Nothing is put on the page you load.</strong> There is no analytics script, no beacon, no analytics cookie, and no fingerprint of your browser. Your browser is never touched for this.</p>
+    <p>The access log line for a request includes the time, which host was asked, the HTTP status, the method, the page path, your IP address, and the User-Agent string. Those log lines are rotated off the server after 30 days.</p>
+    <p>What we keep in the analytics database is narrower:</p>
+    <ul>
+      <li><strong>Not your IP address.</strong> Each address is hashed (SHA-256, mixed with a secret that stays on the server, then truncated). Only that hash is stored.</li>
+      <li><strong>That hash is a lasting identifier.</strong> The secret does not change from day to day. The same visitor produces the same hash across days — that is how unique-visitor counts work. Visits can be linked together over time, even though the raw IP is not kept.</li>
+      <li>From counted requests we keep: which site, the hour (not the exact second), a classification of <em>person</em>, <em>bot</em>, or <em>our own monitoring</em>, a count of those loads, and the hashed identifier of each distinct visitor in that hour. The page path and User-Agent are read from the log to decide whether the request counts (images, stylesheets, and API calls do not) and which class it is; they are not stored in the analytics tables.</li>
+      <li>These analytics rows are deleted after <strong>400 days</strong>. If the owner deletes the site, they go with it.</li>
+    </ul>
+    <p>The owner of a site can see view and unique-visitor <em>counts</em> for their own sites. The admin of this Simple Host instance can see those counts for every site on it. Neither is shown your IP address or the hash itself.</p>
+    <p>A hash of an IP is not a person. People on the same office or home network can look like one visitor; a phone moving between wifi and cellular can look like two.</p>
+    <p>There is no opt-out of being counted. Blocking cookies or sending a do-not-track header does not change a server log.</p>
+    <p>Separately from page-view analytics: calls to the API (<code>/v1/…</code>) — including when a hosted page saves data, posts a comment, or submits an RSVP — record the <strong>raw caller IP</strong>, so abuse can be investigated. Those IPs are kept for <strong>30 days</strong>. A country/city/organization lookup for each IP is requested from ip-api.com (the IP only, no request data) and cached with no expiry. Only this instance's admin can see that table. Loading a static page is not an API call and is not stored there.</p>
 
     <h2>Using Simple Host through a GPT or agent</h2>
     <p>When you use Simple Host through a shared ChatGPT GPT or agent, requests are made with the API key configured in that integration. Anything deployed is public and attributable to the account whose key is used. Do not upload confidential information.</p>
 
     <h2>Retention &amp; your choices</h2>
     <ul>
-      <li>You can delete any site you own at any time (via the API or the dashboard); deletions remove the served content.</li>
+      <li>You can delete any site you own at any time (via the API or the dashboard); deletions remove the served content and that site's analytics rows.</li>
       <li>Uploaded versions are retained to enable rollback until the site is deleted.</li>
+      <li>Visitor-analytics rows are kept for 400 days. Raw IPs from API calls are kept for 30 days. There is no self-serve way to un-count a visit.</li>
       <li>To delete your account or data, contact us below.</li>
     </ul>
 
     <h2>Third parties</h2>
-    <p>We use an email provider to send sign-in codes, Google and/or GitHub when you choose those buttons (they see that you signed in here), and a hosting provider to run the service. The optional "Create with AI" feature sends your prompt (and any attachments) to xAI's Grok to generate a site. No other third-party sharing.</p>
+    <p>We use an email provider to send sign-in codes, Google and/or GitHub when you choose those buttons (they see that you signed in here), and a hosting provider to run the service. The optional "Create with AI" feature sends your prompt (and any attachments) to xAI's Grok to generate a site. API caller IPs are sent to ip-api.com for a country/city lookup (the IP only). No other third-party sharing.</p>
 
     <h2>Contact</h2>
     <p>Questions or data requests: <a href="mailto:vineetu@gmail.com">vineetu@gmail.com</a>.</p>

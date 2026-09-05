@@ -53,8 +53,8 @@ else
 fi
 
 # Major capabilities that should be discoverable in the LLM/agent docs. Wording
-# varies across docs (e.g. "view-lock" vs "view-password"), so match the CONCEPT
-# with a regex rather than an exact string.
+# varies across docs, so match the CONCEPT with a regex rather than an exact
+# string.
 #
 # Held as "name<TAB>regex" lines rather than an associative array: macOS still
 # ships bash 3.2, where `declare -A` is a syntax error and `set -u` then aborts
@@ -62,11 +62,11 @@ fi
 echo "== capability coverage (warn-only) =="
 caps='state	state
 collections	collection
-private-pages	view-?lock|view.password
 templates	template
 comments	comments\.js
 feedback	feedback\.js
-visitor-sign-in	visitor.auth|visitor_auth_required|X-SH-CSRF'
+visitor-sign-in	visitor.auth|visitor_auth_required|X-SH-CSRF
+analytics	analytics'
 
 # A skill may be split into SKILL.md + references/*.md; a capability documented in
 # a reference is still discoverable, so search the whole skill directory.
@@ -81,6 +81,77 @@ for doc in "$LLMS" "$SKILL_DEPLOY" "$SKILL_BUILD"; do
     grep -qriE "$pattern" "$scope" || echo "  warn: $label doesn't mention '$name'"
   done <<<"$caps"
 done
+
+echo
+# ── openapi.json must be a byte-for-byte derivative of openapi.yaml ──
+# Both are embedded and both are served (/openapi.yaml and /openapi.json), but
+# only the yaml was ever checked. openapi.json silently fell a whole contract
+# behind — old response shape, two endpoints missing — while this script printed
+# "docs in sync ✓". Anything generating a client from the json got the old shape.
+echo "== openapi.json matches openapi.yaml =="
+OPENAPI_JSON=internal/handler/static/openapi.json
+if [ ! -e "$OPENAPI_JSON" ]; then
+  echo "  FAIL: missing $OPENAPI_JSON"
+  fail=1
+elif ! command -v python3 >/dev/null 2>&1; then
+  echo "  FAIL: python3 unavailable — cannot compare openapi.json to openapi.yaml"
+  fail=1
+else
+  if python3 - "$OPENAPI" "$OPENAPI_JSON" <<'PY'
+import json, sys, yaml
+with open(sys.argv[1]) as f:
+    spec_yaml = yaml.safe_load(f)
+try:
+    with open(sys.argv[2]) as f:
+        spec_json = json.load(f)
+except Exception as exc:
+    print(f"  openapi.json is not valid JSON: {exc}")
+    sys.exit(1)
+if spec_yaml == spec_json:
+    sys.exit(0)
+only_yaml = sorted(set(spec_yaml.get("paths", {})) - set(spec_json.get("paths", {})))
+only_json = sorted(set(spec_json.get("paths", {})) - set(spec_yaml.get("paths", {})))
+for p in only_yaml:
+    print(f"  missing from openapi.json: {p}")
+for p in only_json:
+    print(f"  stale in openapi.json (not in yaml): {p}")
+if not only_yaml and not only_json:
+    print("  paths match but the specs differ (descriptions/schemas out of sync)")
+sys.exit(1)
+PY
+  then
+    echo "  ok — openapi.json is in sync with openapi.yaml"
+  else
+    echo "  regenerate it:"
+    echo "    python3 -c \"import json,yaml; json.dump(yaml.safe_load(open('$OPENAPI')), open('$OPENAPI_JSON','w'), indent=2, ensure_ascii=False)\""
+    fail=1
+  fi
+fi
+
+echo
+# ── the analytics parser inlined in index.html and showcase.html ──
+# showcase.html is served from the apex AND the content host, so the parser is
+# inlined in both pages rather than linked. Two copies only stay identical if
+# divergence breaks something, which is this.
+echo "== inlined analytics parser =="
+if bash scripts/inline-analytics-parser.sh --check; then
+  echo "  ok — both pages carry web/analytics-parse.js verbatim"
+else
+  fail=1
+fi
+if command -v node >/dev/null 2>&1; then
+  if out=$(node web/analytics-parse.test.js 2>&1); then
+    echo "  ok — $(tail -n1 <<<"$out") parser fixture tests"
+  else
+    echo "$out" | sed 's/^/  /'
+    fail=1
+  fi
+else
+  # Fail closed. These fixtures are the regression test for a bug that shipped
+  # silently; "not run" must not read as "passed".
+  echo "  FAIL: node unavailable — parser fixture tests could not run"
+  fail=1
+fi
 
 echo
 if [ "$fail" -ne 0 ]; then

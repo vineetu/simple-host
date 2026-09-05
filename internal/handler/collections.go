@@ -22,8 +22,8 @@ import (
 // Append-only collections: a second backend type, for lists that grow large or
 // take heavy concurrent appends (comments, guestbooks, logs). Unlike the single
 // JSON state document, an append is one INSERT (no document rewrite) and reads
-// are paginated — so it stays cheap as the list grows. Same Origin gate +
-// view-lock + rate limit as state.
+// are paginated — so it stays cheap as the list grows. Same Origin gate and
+// rate limit as state.
 
 var validCollectionName = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
 
@@ -154,9 +154,8 @@ func (h *SiteHandler) optionsCollection(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// collectionGate applies the shared checks: valid name, Origin gate, and the
-// view-lock (so a private page's collections are private too). Writes the error
-// response and returns false when blocked.
+// collectionGate applies the shared checks: valid name and Origin gate. Writes
+// the error response and returns false when blocked.
 func (h *SiteHandler) collectionGate(w http.ResponseWriter, r *http.Request, siteName, coll string) bool {
 	if siteName == "" {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
@@ -168,10 +167,6 @@ func (h *SiteHandler) collectionGate(w http.ResponseWriter, r *http.Request, sit
 	}
 	if !h.authorizeStateOrigin(w, r, siteName) {
 		writeJSON(w, http.StatusForbidden, errorResponse{Error: "forbidden"})
-		return false
-	}
-	if !h.viewSessionOK(r, siteName) {
-		writeJSON(w, http.StatusForbidden, errorResponse{Error: "this site is private — view it first to unlock its data"})
 		return false
 	}
 	return true

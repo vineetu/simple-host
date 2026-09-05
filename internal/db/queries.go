@@ -52,6 +52,21 @@ func GetUserByAPIKey(ctx context.Context, db *sql.DB, apiKey string) (User, erro
 	return user, err
 }
 
+func RotateAPIKey(ctx context.Context, db *sql.DB, userID, currentKey, newKey string) error {
+	res, err := db.ExecContext(ctx, `UPDATE users SET api_key = $1 WHERE id = $2 AND api_key = $3`, newKey, userID, currentKey)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
 func GetUserByUsername(ctx context.Context, q Querier, username string) (User, error) {
 	const query = `
 		SELECT id, username, api_key, is_admin, created_at, handle
@@ -374,6 +389,21 @@ func GetSiteByUser(ctx context.Context, db *sql.DB, userID, name string) (Site, 
 		&site.Visibility,
 	)
 	return site, err
+}
+
+func RenameSite(ctx context.Context, q Querier, siteID, name, siteURL string) error {
+	res, err := q.ExecContext(ctx, `UPDATE sites SET name = $2, site_url = $3, updated_at = now() WHERE id = $1`, siteID, name, siteURL)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 func DeleteSite(ctx context.Context, db Querier, siteID string) error {
@@ -724,37 +754,6 @@ func UpdateSiteStateCASByID(ctx context.Context, db *sql.DB, siteID string, stat
 		return 0, err
 	}
 	return version, nil
-}
-
-// SetViewPasswordHash stores (or with hash="" clears) the bcrypt view-password
-// hash that gates public viewing of a site.
-func SetViewPasswordHash(ctx context.Context, db *sql.DB, siteID, hash string) error {
-	var v any
-	if hash != "" {
-		v = hash
-	}
-	_, err := db.ExecContext(ctx, `UPDATE sites SET view_password_hash = $2, updated_at = now() WHERE id = $1`, siteID, v)
-	return err
-}
-
-// LoadViewLocks returns site name -> bcrypt hash for every view-locked site, for
-// the in-memory cache the nginx auth_request handler consults (so an unlocked
-// page view costs a memory lookup, not a DB hit).
-func LoadViewLocks(ctx context.Context, db *sql.DB) (map[string]string, error) {
-	rows, err := db.QueryContext(ctx, `SELECT name, view_password_hash FROM sites WHERE view_password_hash IS NOT NULL`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := make(map[string]string)
-	for rows.Next() {
-		var name, hash string
-		if err := rows.Scan(&name, &hash); err != nil {
-			return nil, err
-		}
-		out[name] = hash
-	}
-	return out, rows.Err()
 }
 
 // GetSiteStateVersion reads ONLY the state version — cheap, for conditional GET

@@ -285,6 +285,33 @@ func (d *DiskStorage) EnsureHandleLink(handle, userID string) error {
 	return nil
 }
 
+func (d *DiskStorage) RenameSite(userID, oldName, newName, domain string) error {
+	if !validPathKey(userID) || !validPathKey(oldName) || !validPathKey(newName) {
+		return fmt.Errorf("invalid site path")
+	}
+	oldDir := d.SiteDir(userID, oldName)
+	newDir := d.SiteDir(userID, newName)
+	if err := os.Rename(oldDir, newDir); err != nil {
+		return fmt.Errorf("rename site dir: %w", err)
+	}
+	if domain == "" {
+		return nil
+	}
+	linkPath := filepath.Join(d.dataDir, "domains", domain)
+	tmpLink := linkPath + ".rename.tmp"
+	_ = os.Remove(tmpLink)
+	if err := os.Symlink(filepath.Join("..", "by-id", userID, newName), tmpLink); err != nil {
+		_ = os.Rename(newDir, oldDir)
+		return fmt.Errorf("create renamed domain link: %w", err)
+	}
+	if err := os.Rename(tmpLink, linkPath); err != nil {
+		_ = os.Remove(tmpLink)
+		_ = os.Rename(newDir, oldDir)
+		return fmt.Errorf("replace domain link: %w", err)
+	}
+	return nil
+}
+
 // ensureBackCompatSymlink was removed: legacy per-name subdomains
 // (<siteName>.<domain>) are deprecated and are no longer created on deploy. Sites
 // are reachable by path only (sites.<domain>/<handle>/<siteName>/). DeleteSite

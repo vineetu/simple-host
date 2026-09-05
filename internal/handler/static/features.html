@@ -1,0 +1,1482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Features — Simple Host</title>
+  <meta name="description" content="A complete, honest inventory of everything Simple Host does today: every capability, where to find it, and what it will not do.">
+  <script>(function(){try{var s=localStorage.getItem('sh-theme');document.documentElement.dataset.theme=s||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');}catch(e){document.documentElement.dataset.theme='light';}})();</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #020617; --surface: #0b1222; --surface-2: #0d1526;
+      --border: #1e293b; --border-hi: #334155;
+      --text: #f1f5f9; --text-secondary: #94a3b8; --dim: #475569;
+      --accent: #22d3ee; --accent-soft: rgba(34,211,238,.12);
+      --ok: #34d399; --ok-soft: rgba(52,211,153,.10);
+      --bad: #fb7185; --bad-soft: rgba(251,113,133,.10);
+      --amber: #fbbf24; --amber-soft: rgba(251,191,36,.10);
+      --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+      --display: 'Archivo', system-ui, sans-serif;
+      --body: 'Newsreader', Georgia, serif;
+    }
+    html[data-theme="light"] {
+      --bg: #fbfbfd; --surface: #ffffff; --surface-2: #f6f7fb;
+      --border: #e4e7ee; --border-hi: #cbd2de;
+      --text: #0f1e37; --text-secondary: #4a5878; --dim: #8b96ad;
+      --accent: #0e7490; --accent-soft: rgba(14,116,144,.08);
+      --ok: #0f9d6b; --ok-soft: rgba(15,157,107,.08);
+      --bad: #d6455d; --bad-soft: rgba(214,69,93,.07);
+      --amber: #b45309; --amber-soft: rgba(180,83,9,.09);
+    }
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font-family: var(--body); line-height: 1.65; font-size: 17px;
+      -webkit-font-smoothing: antialiased;
+      background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 46px 46px; background-position: center -1px;
+    }
+    html[data-theme="light"] body { background-image: linear-gradient(rgba(15,30,55,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(15,30,55,.035) 1px, transparent 1px); }
+    .wrap { max-width: 940px; margin: 0 auto; padding: 0 28px; }
+    a { color: inherit; }
+
+    /* Header */
+    header { position: sticky; top: 0; z-index: 20; backdrop-filter: blur(9px);
+      background: color-mix(in srgb, var(--bg) 82%, transparent); border-bottom: 1px solid var(--border); }
+    .bar { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; gap: 12px; }
+    .logo { font-family: var(--mono); font-weight: 700; font-size: 14px; letter-spacing: .3px; text-decoration: none; color: var(--text); white-space: nowrap; }
+    .logo b { color: var(--accent); }
+    nav.top { display: flex; flex-wrap: wrap; gap: 8px 18px; font-family: var(--mono); font-size: 12.5px; }
+    nav.top a { color: var(--text-secondary); text-decoration: none; }
+    nav.top a:hover, nav.top a.on { color: var(--accent); }
+    .tt { width: 32px; height: 30px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+    .tt:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Meta / TOC */
+    .toc { display: flex; flex-wrap: wrap; gap: 6px 20px; font-family: var(--mono); font-size: 12px; color: var(--text-secondary); padding: 18px 0 22px; border-bottom: 1px solid var(--border); }
+    .toc a { text-decoration: none; color: var(--text-secondary); }
+    .toc a:hover { color: var(--accent); }
+    .toc b { color: var(--accent); font-weight: 600; }
+
+    /* Sections */
+    section { display: grid; grid-template-columns: 54px 1fr; gap: 0 22px; padding: 44px 0; border-bottom: 1px solid var(--border); }
+    .snum { font-family: var(--mono); font-size: 13px; color: var(--accent); padding-top: 6px; }
+    h1.title { font-family: var(--display); font-weight: 800; letter-spacing: -.02em; line-height: 1.02; font-size: clamp(34px, 6vw, 60px); margin: 6px 0 20px; }
+    h2 { font-family: var(--display); font-weight: 700; letter-spacing: -.02em; line-height: 1.05; font-size: clamp(25px, 4vw, 36px); margin: 0 0 14px; }
+    .lede { font-size: 19px; color: var(--text); margin: 0 0 8px; }
+    p { margin: 0 0 14px; color: var(--text-secondary); }
+    p strong, li strong, dd strong { color: var(--text); font-weight: 500; }
+    .kicker { font-family: var(--mono); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+    .fine { font-family: var(--mono); font-size: 12px; color: var(--dim); letter-spacing: .3px; margin-top: 18px; }
+    code { font-family: var(--mono); font-size: .88em; background: var(--accent-soft); color: var(--accent); padding: 1px 6px; border-radius: 5px; }
+
+    /* Legend */
+    .legend { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 4px 16px; margin: 22px 0 0; }
+    .legend .lrow { display: grid; grid-template-columns: 132px 1fr; gap: 4px 16px; padding: 11px 0; border-top: 1px solid var(--border); align-items: start; }
+    .legend .lrow:first-child { border-top: 0; }
+    .legend .lrow p { margin: 0; font-size: 14.5px; }
+
+    /* Status chips */
+    .st { display: inline-block; font-family: var(--mono); font-size: 10px; letter-spacing: .9px; text-transform: uppercase;
+      padding: 2px 7px; border-radius: 5px; border: 1px solid var(--border-hi); color: var(--text-secondary);
+      background: var(--surface-2); vertical-align: 2px; white-space: nowrap; font-weight: 600; }
+    .st.agent { border-color: color-mix(in srgb, var(--accent) 50%, var(--border-hi)); color: var(--accent); background: var(--accent-soft); }
+    .st.admin { border-color: color-mix(in srgb, var(--accent) 40%, var(--border-hi)); color: var(--text-secondary); }
+    .st.part  { border-color: color-mix(in srgb, var(--amber) 55%, var(--border-hi)); color: var(--amber); background: var(--amber-soft); }
+    .st.no    { border-color: color-mix(in srgb, var(--bad) 55%, var(--border-hi)); color: var(--bad); background: var(--bad-soft); }
+
+    /* Feature rows */
+    .feats { margin: 20px 0 0; }
+    .feat { display: grid; grid-template-columns: 1fr; gap: 0; padding: 18px 0; border-top: 1px solid var(--border); }
+    .fid { font-family: var(--mono); font-size: 11.5px; color: var(--accent); letter-spacing: .2px; word-break: break-word; margin-bottom: 4px; }
+    .feat h3 { font-family: var(--display); font-weight: 600; font-size: 17px; line-height: 1.3; color: var(--text); margin: 0 0 6px; }
+    .feat h3 .st { margin-left: 7px; }
+    .feat p.fw { margin: 0 0 8px; font-size: 15.5px; line-height: 1.6; }
+    dl.fm { margin: 0; display: grid; grid-template-columns: 60px 1fr; gap: 3px 12px; }
+    dl.fm dt { font-family: var(--mono); font-size: 10.5px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--dim); padding-top: 4px; }
+    dl.fm dd { margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--text-secondary); }
+    dl.fm dd.lim { color: var(--text-secondary); }
+    dl.fm dd.lim b { color: var(--amber); font-weight: 600; }
+
+    /* Not-built table */
+    table { width: 100%; border-collapse: collapse; margin-top: 18px; }
+    td { border-top: 1px solid var(--border); padding: 13px 0; vertical-align: top; font-size: 15px; }
+    td.tk { font-family: var(--display); font-weight: 600; color: var(--text); width: 250px; padding-right: 22px; }
+    td.tv { color: var(--text-secondary); }
+
+    footer { padding: 40px 0 60px; font-family: var(--mono); font-size: 12px; color: var(--dim); }
+    footer a { color: var(--text-secondary); text-decoration: none; }
+
+    @media (min-width: 721px) {
+      .feat { grid-template-columns: 196px 1fr; gap: 0 22px; }
+      .fid { padding-top: 3px; margin-bottom: 0; }
+    }
+    @media (max-width: 720px) {
+      body { font-size: 16px; }
+      .wrap { padding: 0 18px; }
+      section { grid-template-columns: 1fr; gap: 0; padding: 34px 0; }
+      .snum { padding: 0 0 8px; }
+      .legend .lrow { grid-template-columns: 1fr; }
+      dl.fm { grid-template-columns: 1fr; gap: 1px 0; }
+      dl.fm dt { padding-top: 7px; }
+      td.tk { width: auto; display: block; padding-bottom: 4px; }
+      td.tv { display: block; }
+      .trow td { display: block; border: 0; padding: 2px 0; }
+      .trow { display: block; border-top: 1px solid var(--border); padding: 12px 0; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap bar">
+      <a class="logo" href="/">simple<b>·</b>host</a>
+      <div style="display:flex;align-items:center;gap:14px">
+        <nav class="top">
+          <a href="/">Home</a>
+          <a href="/install.html">Get started</a>
+          <a href="/features.html" class="on">Features</a>
+          <a href="/docs.html">API</a>
+          <a href="/architecture.html">Architecture</a>
+        </nav>
+        <button class="tt" id="tt" aria-label="Toggle theme" onclick="toggleTheme()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" id="tt-i"></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="toc">
+      <b>Features</b>
+      <a href="#accounts">01 Accounts</a>
+      <a href="#publish">02 Publishing</a>
+      <a href="#manage">03 Managing sites</a>
+      <a href="#state">04 Shared data</a>
+      <a href="#collections">05 Collections</a>
+      <a href="#widgets">06 Widgets</a>
+      <a href="#domains">07 Your own domain</a>
+      <a href="#ai">08 Build with AI</a>
+      <a href="#voice">09 Voice &amp; attachments</a>
+      <a href="#templates">10 Templates</a>
+      <a href="#analytics">11 Traffic</a>
+      <a href="#admin">12 Admin</a>
+      <a href="#agent">13 Your AI agent</a>
+      <a href="#notbuilt">14 Not built</a>
+    </div>
+
+    <!-- 00 What this page is -->
+    <section>
+      <div class="snum">00.</div>
+      <div>
+        <div class="kicker">Feature inventory</div>
+        <h1 class="title">Everything it does.<br>Nothing it doesn't.</h1>
+        <p class="lede">This is the complete list of what Simple Host can do today — one entry per capability, with where you find it and what it will not do. It exists so that "does this already exist?" has an answer you can read, and so a feature can never quietly stop working without someone noticing it is missing from a screen.</p>
+        <p>Entries that are half-built are marked as such rather than left off. A feature that does not finish the job is more expensive than one that was never offered, so the marked ones are the important part of this page.</p>
+
+        <p><strong>Two owner screens exist.</strong> Every entry says which one it lives on:</p>
+        <div class="legend">
+          <div class="lrow"><div><span class="st">Your sites page</span></div><p>Your own address — <code>simple-host.app/your-handle</code>. Signing in takes you here. It has a <strong>Sites</strong> tab, an <strong>Analytics</strong> tab, the AI chat and the setup panel for your AI agent.</p></div>
+          <div class="lrow"><div><span class="st">Main dashboard</span></div><p>The older screen, reached with <strong>＋ New site</strong> from your sites page. It has the paste builder and the site cards, and it is the only place with <strong>Data</strong> and <strong>Connect domain</strong>.</p></div>
+        </div>
+
+        <p style="margin-top:22px"><strong>Status marks used below:</strong></p>
+        <div class="legend">
+          <div class="lrow"><div><span class="st agent">Agent only</span></div><p>Real and working, but there is no button for it. You ask your AI agent and it does it for you.</p></div>
+          <div class="lrow"><div><span class="st admin">Admin only</span></div><p>Only visible to the person who runs the service.</p></div>
+          <div class="lrow"><div><span class="st part">Partial</span></div><p>It exists, but it does not finish the job on its own. The gap is written out in the entry.</p></div>
+          <div class="lrow"><div><span class="st no">Not active</span></div><p>Built, but switched off or not connected up on this instance. It does nothing for you today.</p></div>
+        </div>
+        <div class="fine">Everything unmarked works end to end · last checked against the running service on 1 September 2026</div>
+      </div>
+    </section>
+
+    <!-- 01 Accounts -->
+    <section id="accounts">
+      <div class="snum">01.</div>
+      <div>
+        <h2>Accounts &amp; sign-in</h2>
+        <p class="lede">One account covers everything: publishing your own sites, and signing in as a visitor on somebody else's.</p>
+        <div class="feats">
+
+          <div class="feat" id="signin-email-code">
+            <div class="fid">signin-email-code</div>
+            <div>
+              <h3>Sign in with an emailed code</h3>
+              <p class="fw">Type your email, get a six-digit code, type it back. There is no password to choose or remember, and no separate sign-up step — your first code creates the account.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone starting out, and any visitor who needs to sign in to post on a site.</dd>
+                <dt>Where</dt><dd>The sign-in box on the home page, and inside the AI chat when a visitor tries to build something.</dd>
+                <dt>Limits</dt><dd class="lim">The code expires after <b>15 minutes</b> and you get <b>three</b> tries before you have to ask for a new one.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="signin-magic-link">
+            <div class="fid">signin-magic-link</div>
+            <div>
+              <h3>Sign in by tapping the link in the email</h3>
+              <p class="fw">The same email carries a link. Tapping it signs you in without typing the code at all.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Phone users, mostly — it saves copying digits between apps.</dd>
+                <dt>Where</dt><dd>The email itself. You land back on the site already signed in.</dd>
+                <dt>Limits</dt><dd class="lim">Same 15-minute expiry, and the link only works once.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="signin-google">
+            <div class="fid">signin-google</div>
+            <div>
+              <h3>Sign in with Google</h3>
+              <p class="fw">One tap instead of the email round-trip. It is the same account as the email sign-in when the addresses match, so you will not end up with two.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Site visitors leaving a comment or filling in a form, and owners who would rather not wait for mail.</dd>
+                <dt>Where</dt><dd>Under the email box on the home page, and in the sign-in prompt the comment and feedback widgets show.</dd>
+                <dt>Limits</dt><dd class="lim">The button only appears if the service has been set up for it. It is switched on here.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="signin-github">
+            <div class="fid">signin-github</div>
+            <div>
+              <h3>Sign in with GitHub <span class="st no">Not active</span></h3>
+              <p class="fw">The same one-tap sign-in, using a GitHub account instead.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Developers, and visitors to technical sites.</dd>
+                <dt>Where</dt><dd>Nowhere today — the button is not shown.</dd>
+                <dt>Limits</dt><dd class="lim">Fully built, but <b>not switched on for this instance</b>. Google is the only one-tap option here.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="account-handle">
+            <div class="fid">account-handle</div>
+            <div>
+              <h3>Your handle</h3>
+              <p class="fw">Every account gets a short public name. It is the front of every address you publish and the address of your public profile.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Everyone with an account; it is how visitors tell your sites apart from anyone else's.</dd>
+                <dt>Where</dt><dd>In every site address, and at the top of your sites page.</dd>
+                <dt>Limits</dt><dd class="lim">It is picked for you from your email and <b>cannot be changed from any screen</b>.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="api-key">
+            <div class="fid">api-key</div>
+            <div>
+              <h3>A key for your AI agent</h3>
+              <p class="fw">A personal key that lets your coding agent publish and manage sites for you without you being at the keyboard.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone using a coding agent rather than clicking through screens.</dd>
+                <dt>Where</dt><dd>Your sites page, in the <strong>Set up your AI</strong> panel — <strong>Show key</strong>, then copy.</dd>
+                <dt>Limits</dt><dd class="lim">One key per account. It <b>cannot be rotated or revoked</b> from any screen, so treat it like a password.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="visitor-signin">
+            <div class="fid">visitor-signin</div>
+            <div>
+              <h3>Visitors sign in on your site <span class="st part">Partial</span></h3>
+              <p class="fw">Someone reading one of your pages can sign in right there, so a comment or a form entry carries a real identity rather than being anonymous.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Site authors who want to know who said what, and to make casual spam harder.</dd>
+                <dt>Where</dt><dd>On your published page: the comment box and the feedback panel offer sign-in when it is needed.</dd>
+                <dt>Limits</dt><dd class="lim">Sign-in works, but on this instance it is <b>being measured rather than required</b> — a page that does not sign in can still save data. Do not treat it as a lock yet.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="visitor-signout">
+            <div class="fid">visitor-signout</div>
+            <div>
+              <h3>Visitors can sign out again</h3>
+              <p class="fw">A visitor's sign-in is scoped to the one site they signed in on, and they can end it.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone on a shared or borrowed device.</dd>
+                <dt>Where</dt><dd>Offered by the widget they signed in through.</dd>
+                <dt>Limits</dt><dd class="lim">Signing in on one site does not sign you in on another; each site is separate.</dd>
+              </dl>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- 02 Publishing -->
+    <section id="publish">
+      <div class="snum">02.</div>
+      <div>
+        <h2>Publishing a site</h2>
+        <p class="lede">Three ways in: paste a page in, hand a folder to your agent, or have the AI write it. All three end at the same live address.</p>
+        <div class="feats">
+
+          <div class="feat" id="deploy-inline-files">
+            <div class="fid">deploy-inline-files</div>
+            <div>
+              <h3>Publish a page directly</h3>
+              <p class="fw">Send the page itself — the HTML and anything alongside it — and it is live in seconds. No build step, no upload dialog, no waiting.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone with a finished page, and every AI agent publishing on your behalf.</dd>
+                <dt>Where</dt><dd>The paste builder on the main dashboard, and whatever your agent does when you say "publish this".</dd>
+                <dt>Limits</dt><dd class="lim">Text files only, so <b>images and fonts cannot go this way</b> — for those, use the folder route below. A site must include a home page, and script files are refused.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="deploy-archive">
+            <div class="fid">deploy-archive</div>
+            <div>
+              <h3>Publish a whole folder <span class="st agent">Agent only</span></h3>
+              <p class="fw">Hand over a zipped folder — the output of a normal web build, images and fonts included — and the whole thing goes live at once.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone with a real project rather than a single page: a built site, a portfolio, a documentation folder.</dd>
+                <dt>Where</dt><dd>No screen for it. Point your agent at the folder and it packages and sends it.</dd>
+                <dt>Limits</dt><dd class="lim">Up to <b>100 MB</b> per upload. Script files are refused outright; anything that looks like a stored secret or a hidden settings file is <b>silently left out without telling you</b>.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="deploy-update">
+            <div class="fid">deploy-update</div>
+            <div>
+              <h3>Republish over the same site</h3>
+              <p class="fw">Publishing again to the same name replaces what visitors see, instantly, at the same address.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone iterating — which is everyone, after the first day.</dd>
+                <dt>Where</dt><dd>The paste builder shows <strong>Update site</strong> once it is tied to a live site; agents do it on request.</dd>
+                <dt>Limits</dt><dd class="lim">A republish <b>replaces the whole site</b>, it does not merge. Anything you leave out disappears from the live version — though the old version is still kept.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="site-name">
+            <div class="fid">site-name</div>
+            <div>
+              <h3>You choose the site name</h3>
+              <p class="fw">The name you pick becomes the last part of the address, so it is worth choosing something readable.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone publishing anything.</dd>
+                <dt>Where</dt><dd>The name box in the paste builder, before you press Publish.</dd>
+                <dt>Limits</dt><dd class="lim">Lower-case letters, numbers and dashes only. <b>A site cannot be renamed</b> afterwards — republish under a new name and delete the old one.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="site-url">
+            <div class="fid">site-url</div>
+            <div>
+              <h3>Every site gets a public address</h3>
+              <p class="fw">The moment a site exists it has a working web address you can send to anyone, with HTTPS already on.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Everyone. This is the point of the service.</dd>
+                <dt>Where</dt><dd>Shown on the site card on the main dashboard and next to each site on your sites page.</dd>
+                <dt>Limits</dt><dd class="lim">The address always contains your handle and the site name unless you connect your own domain.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="static-only">
+            <div class="fid">static-only</div>
+            <div>
+              <h3>Pages only — nothing runs on the server</h3>
+              <p class="fw">What you publish is served back exactly as it is. Your page's own scripts run in the visitor's browser as normal; nothing you upload ever executes on the server.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Everyone — it is why an AI-written site is safe to host here without review.</dd>
+                <dt>Where</dt><dd>Not a setting. It is simply how publishing works.</dd>
+                <dt>Limits</dt><dd class="lim">No server-side languages, no databases you install, no background jobs. If your idea needs a server that runs your code, this is <b>not the right home for it</b>.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="site-quota">
+            <div class="fid">site-quota</div>
+            <div>
+              <h3>Up to a hundred sites</h3>
+              <p class="fw">One account can hold up to a hundred separate sites, so throwaway experiments do not need a second account.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone who builds a lot of small things.</dd>
+                <dt>Where</dt><dd>No screen shows your count against the limit; you find out when publishing is refused.</dd>
+                <dt>Limits</dt><dd class="lim"><b>100 sites</b>. Delete something to make room.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="legacy-url-redirect">
+            <div class="fid">legacy-url-redirect</div>
+            <div>
+              <h3>Old addresses still work</h3>
+              <p class="fw">Sites published under the older style of address are forwarded to the current one, so links you have already shared keep working.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone who published before the address format changed.</dd>
+                <dt>Where</dt><dd>Nothing to do — the old link forwards on its own.</dd>
+                <dt>Limits</dt><dd class="lim">Visitors land on the new address, so that is what they will see in the address bar and copy from then on.</dd>
+              </dl>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- 03 Managing sites -->
+    <section id="manage">
+      <div class="snum">03.</div>
+      <div>
+        <h2>Managing your sites</h2>
+        <p class="lede">Everything published stays listed, versioned and reversible. Nothing is ever overwritten so completely that you cannot get it back.</p>
+        <div class="feats">
+
+          <div class="feat" id="site-list">
+            <div class="fid">site-list</div>
+            <div>
+              <h3>See all your sites</h3>
+              <p class="fw">One list of everything you have published, with its address, its current version number, and whether it is live.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone with more than one site.</dd>
+                <dt>Where</dt><dd>Both screens: the <strong>Sites</strong> tab on your sites page, and the site cards on the main dashboard.</dd>
+                <dt>Limits</dt><dd class="lim">The two lists show <b>different buttons</b>. Data and domains are only on the main dashboard; the public/unlisted switch is only on your sites page.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="site-versions">
+            <div class="fid">site-versions</div>
+            <div>
+              <h3>Every publish is kept as a version</h3>
+              <p class="fw">Each time you publish, the previous state is kept intact and numbered, with the date it went live.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone who has ever published something worse than what they had.</dd>
+                <dt>Where</dt><dd><strong>Versions</strong> on the site card (main dashboard) or <strong>Revert</strong> next to the site (your sites page).</dd>
+                <dt>Limits</dt><dd class="lim">Versions are kept, but there is <b>no note or label</b> on them — only a number and a timestamp.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="site-rollback">
+            <div class="fid">site-rollback</div>
+            <div>
+              <h3>Put an earlier version back</h3>
+              <p class="fw">Pick any earlier version and make it the live one again. The switch is immediate.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone who just broke a live page and wants it back now.</dd>
+                <dt>Where</dt><dd><strong>Make active</strong> in the version list, on either screen.</dd>
+                <dt>Limits</dt><dd class="lim">This changes the pages only. <b>Data your visitors saved is not rolled back</b> — it is not part of a version.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="site-delete">
+            <div class="fid">site-delete</div>
+            <div>
+              <h3>Delete a site</h3>
+              <p class="fw">Removes the site, every version of it, and its address.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone clearing out experiments.</dd>
+                <dt>Where</dt><dd><strong>Delete</strong> on the site card or the site row, on either screen. It asks first.</dd>
+                <dt>Limits</dt><dd class="lim"><b>Cannot be undone</b>, and it takes the saved visitor data with it. The name becomes free again.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="site-visibility">
+            <div class="fid">site-visibility</div>
+            <div>
+              <h3>Public or unlisted</h3>
+              <p class="fw">A public site is listed on your profile page. An unlisted one is not — it is reachable only by its link.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone with drafts, client work or personal pages they do not want on a public list.</dd>
+                <dt>Where</dt><dd><strong>Make unlisted</strong> / <strong>Make public</strong> next to the site, on your sites page only.</dd>
+                <dt>Limits</dt><dd class="lim">Unlisted is <b>not private</b>. Anyone with the link can open it, and so can a search engine that finds the link.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="public-profile">
+            <div class="fid">public-profile</div>
+            <div>
+              <h3>A public page listing your sites</h3>
+              <p class="fw">Your handle has its own page showing your public sites, so you can share one link instead of five.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone showing a body of work — a portfolio, a course, a set of demos.</dd>
+                <dt>Where</dt><dd>The link is shown to you on your sites page, under <strong>Your public showcase</strong>.</dd>
+                <dt>Limits</dt><dd class="lim">Only public sites appear. There is <b>no ordering, description or cover image</b> — names and dates only.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="site-notfound-page">
+            <div class="fid">site-notfound-page</div>
+            <div>
+              <h3>A proper "page not found"</h3>
+              <p class="fw">A mistyped address on a site gets a clean, branded page with a way back, instead of a raw server error.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Your visitors, on their worst moment.</dd>
+                <dt>Where</dt><dd>Automatic. Nothing to switch on.</dd>
+                <dt>Limits</dt><dd class="lim"><b>You cannot customise it</b> or point it at your own page.</dd>
+              </dl>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- 04 Shared data -->
+    <section id="state">
+      <div class="snum">04.</div>
+      <div>
+        <h2>Site data — the shared box</h2>
+        <p class="lede">Every site gets a small shared store, with no database to set up. It is what makes a counter, a vote, a poll or a saved game state possible on a static page.</p>
+        <div class="feats">
+
+          <div class="feat" id="state-shared-store">
+            <div class="fid">state-shared-store</div>
+            <div>
+              <h3>One shared box per site</h3>
+              <p class="fw">A single place your page can read and write that every visitor sees. It is the same box for everyone, so it is what makes numbers on the page real rather than personal.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone whose page needs to remember something across visitors — a count, a tally, a list, a setting.</dd>
+                <dt>Where</dt><dd>Used by your page's own code, and by the comment and feedback widgets. Nothing to switch on.</dd>
+                <dt>Limits</dt><dd class="lim">Up to <b>1 MB</b> in total. It is one box, not a database — no queries, no indexes, no per-visitor privacy.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="state-atomic-ops">
+            <div class="fid">state-atomic-ops</div>
+            <div>
+              <h3>Safe simultaneous updates</h3>
+              <p class="fw">A page can add one to a number, add an item to a list, or remove one, without reading the whole box first. Two visitors doing it at the same instant both count.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone with a headcount, a vote, a guestbook or anything else several people touch at once.</dd>
+                <dt>Where</dt><dd>Used by your page's own code; the widgets and the starter templates already use it.</dd>
+                <dt>Limits</dt><dd class="lim">Only the simple moves are supported — set, add-to-a-number, add-to-a-list, remove. Anything cleverer has to be worked out in the page.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="state-live-updates">
+            <div class="fid">state-live-updates</div>
+            <div>
+              <h3>Live numbers without a refresh</h3>
+              <p class="fw">A page can keep checking for changes very cheaply, so a count or a comment thread updates itself while people are looking at it.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anything with a live figure on it — an RSVP headcount, a signup counter, a discussion.</dd>
+                <dt>Where</dt><dd>Built into the widgets; your own page can do the same.</dd>
+                <dt>Limits</dt><dd class="lim">It is polling, not push. Expect a <b>few seconds</b> of lag, not instant.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="state-public">
+            <div class="fid">state-public</div>
+            <div>
+              <h3>The store is public, on purpose</h3>
+              <p class="fw">Anything your page saves can be read by anyone who can reach your site. This is stated plainly because it is the single most important thing to know before you build.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Everyone using the store. It shapes what you should and should not collect.</dd>
+                <dt>Where</dt><dd>Not a setting — it is how the store works.</dd>
+                <dt>Limits</dt><dd class="lim"><b>Never put secrets, passwords, keys or private personal details in it.</b> Collect an email address only if you are comfortable it is readable. Reading it takes a page in a browser — pasting the address into a terminal will be refused, which is a speed bump, not privacy.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="state-write-gate">
+            <div class="fid">state-write-gate</div>
+            <div>
+              <h3>Who is allowed to write <span class="st part">Partial</span></h3>
+              <p class="fw">Saving is meant to require a signed-in visitor, or you as the owner, so a passer-by cannot fill your store with junk.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone collecting entries in public.</dd>
+                <dt>Where</dt><dd>Not a screen — it is applied when a page tries to save.</dd>
+                <dt>Limits</dt><dd class="lim">On this instance the requirement is <b>being recorded rather than enforced</b>: unsigned saves still go through. Build as though a stranger could write, because today one can.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="state-cross-origin">
+            <div class="fid">state-cross-origin</div>
+            <div>
+              <h3>Use the store from a site hosted elsewhere <span class="st agent">Agent only</span></h3>
+              <p class="fw">A page hosted somewhere else entirely can use one of your sites here as its backend, once you have allowed that page's address.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>People whose site already lives on another host but who want a comment box or a form without running a server.</dd>
+                <dt>Where</dt><dd>No screen. Ask your agent to allow the address.</dd>
+                <dt>Limits</dt><dd class="lim">Up to <b>20 addresses</b> per site, and you have to name each one exactly.</dd>
+              </dl>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- 05 Collections -->
+    <section id="collections">
+      <div class="snum">05.</div>
+      <div>
+        <h2>Site data — collections</h2>
+        <p class="lede">Where form entries go. A collection is a growing list — one row per submission — separate from the shared box so it can grow without limit on the page.</p>
+        <div class="feats">
+
+          <div class="feat" id="collection-append">
+            <div class="fid">collection-append</div>
+            <div>
+              <h3>Save what a form collects</h3>
+              <p class="fw">Each submission is added to a named list — RSVPs, signups, orders, messages. Adding stays fast no matter how long the list gets.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone with a form: an event page, a waitlist, a contact form, a survey.</dd>
+                <dt>Where</dt><dd>Your page's own code saves to it. The starter templates already do.</dd>
+                <dt>Limits</dt><dd class="lim">Up to <b>64 KB</b> per entry. Entries are <b>append-only — nothing can edit or delete a single entry</b>, from any screen or by any agent.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="collection-read">
+            <div class="fid">collection-read</div>
+            <div>
+              <h3>Read the entries back on the page</h3>
+              <p class="fw">A page can read its own entries, newest first, so you can build a guest list or a public wall that shows what has come in.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone who wants the results visible rather than hidden behind a login.</dd>
+                <dt>Where</dt><dd>Your page's own code. AI-built sites are told to include a second page for exactly this.</dd>
+                <dt>Limits</dt><dd class="lim"><b>200 entries at a time</b> maximum. Anything a page can read, a visitor can read.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="collection-inventory">
+            <div class="fid">collection-inventory</div>
+            <div>
+              <h3>See what a site has collected</h3>
+              <p class="fw">A panel listing each collection on a site with how many entries it holds and when the last one arrived, and a table view of the entries themselves.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>You, checking whether anyone actually filled the form in.</dd>
+                <dt>Where</dt><dd><strong>Data</strong> on the site card — <strong>main dashboard only</strong>.</dd>
+                <dt>Limits</dt><dd class="lim">Shows the <b>50 most recent</b> entries in the table view. Read-only — you cannot correct or remove an entry here.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="collection-csv">
+            <div class="fid">collection-csv</div>
+            <div>
+              <h3>Download everything as a spreadsheet</h3>
+              <p class="fw">One button gives you the whole collection as a CSV file you can open in any spreadsheet.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone who has to actually use the entries — a guest list to check off, a mailing list to import.</dd>
+                <dt>Where</dt><dd><strong>Download CSV</strong> inside the <strong>Data</strong> panel — main dashboard only.</dd>
+                <dt>Limits</dt><dd class="lim">A snapshot at the moment you press it. No filtering or date range; you get the whole list.</dd>
+              </dl>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- 06 Widgets -->
+    <section id="widgets">
+      <div class="snum">06.</div>
+      <div>
+        <h2>Drop-in widgets</h2>
+        <p class="lede">Two finished pieces of interaction you add to a page in one line, rather than building them. Both use the site's own store, so there is nothing to configure.</p>
+        <div class="feats">
+
+          <div class="feat" id="widget-comments">
+            <div class="fid">widget-comments</div>
+            <div>
+              <h3>Threaded comments</h3>
+              <p class="fw">A full discussion section — write a comment, reply to one, upvote one — added to any page with a single line. It matches light and dark on its own and updates while people are reading.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone publishing something worth discussing: a post, a proposal, a design, a document.</dd>
+                <dt>Where</dt><dd>You add it to the page. Ask your agent for "the comments widget" and it will place it correctly.</dd>
+                <dt>Limits</dt><dd class="lim">Comments are <b>public and cannot be deleted or moderated</b> from any screen. There is no notification when someone replies.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="widget-feedback">
+            <div class="fid">widget-feedback</div>
+            <div>
+              <h3>Tap-to-comment feedback pins</h3>
+              <p class="fw">A floating <strong>Feedback</strong> button turns the page into a review surface: a reviewer taps any part of the design and pins a note to it. Long-press works on a phone. Your agent can read the notes back and act on them, because each note knows what it was attached to.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone circulating a mockup or a draft page for review, especially with non-technical reviewers.</dd>
+                <dt>Where</dt><dd>You add it to the page; the <strong>UI prototype</strong> starter template already has it wired in.</dd>
+                <dt>Limits</dt><dd class="lim">Notes are <b>public and cannot be deleted or resolved</b>. There is no "done" state, no assignee and no notification.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="widget-theming">
+            <div class="fid">widget-theming</div>
+            <div>
+              <h3>Make a widget match your page</h3>
+              <p class="fw">Both widgets take an accent colour, a title, placeholder wording and a light or dark setting, so they do not look bolted on.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone who cares how the page looks — which is the point of using this at all.</dd>
+                <dt>Where</dt><dd>Set alongside the widget when it is added to the page.</dd>
+                <dt>Limits</dt><dd class="lim">The automatic light/dark match needs a <b>solid background colour</b> on the page. On a gradient it guesses wrong.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="widget-remote-host">
+            <div class="fid">widget-remote-host</div>
+            <div>
+              <h3>Use a widget on a site hosted elsewhere</h3>
+              <p class="fw">Both widgets work on a page hosted anywhere, pointed at one of your sites here for storage.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>People whose main site lives on another host and who just want comments on it.</dd>
+                <dt>Where</dt><dd>Added to the page, with the site here named alongside it.</dd>
+                <dt>Limits</dt><dd class="lim">You must first allow that page's address on the site here — see <code>state-cross-origin</code>, which has no screen.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="widget-collision">
+            <div class="fid">widget-collision</div>
+            <div>
+              <h3>The two widgets do not co-exist <span class="st no">Known problem</span></h3>
+              <p class="fw">Comments and feedback pins both save into the same place on a site, so a page carrying both mixes them together and neither displays properly.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone who tries to add both to one page.</dd>
+                <dt>Where</dt><dd>Nothing warns you. It simply looks wrong.</dd>
+                <dt>Limits</dt><dd class="lim"><b>Use one or the other per site</b>, not both.</dd>
+              </dl>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- 07 Domains -->
+    <section id="domains">
+      <div class="snum">07.</div>
+      <div>
+        <h2>Your own domain</h2>
+        <p class="lede">A site can be served from a domain you own, so nothing in the address mentions this service.</p>
+        <div class="feats">
+
+          <div class="feat" id="custom-domain-connect">
+            <div class="fid">custom-domain-connect</div>
+            <div>
+              <h3>Point your own domain at a site</h3>
+              <p class="fw">Attach a domain you own — a subdomain like <code>recipes.yourbrand.com</code> or the bare domain itself — to one of your sites.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone with a brand, a business or a domain already bought.</dd>
+                <dt>Where</dt><dd><strong>Connect domain</strong> on the site card — <strong>main dashboard only</strong>. Your agent can also do it, and there is a skill for exactly this.</dd>
+                <dt>Limits</dt><dd class="lim"><b>One domain per site</b>, and a domain can only be attached to one site across the whole service.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="custom-domain-dns-record">
+            <div class="fid">custom-domain-dns-record</div>
+            <div>
+              <h3>You are told the exact record to add</h3>
+              <p class="fw">Connecting hands back the single DNS record to paste into your registrar — no guessing, no documentation to read.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Whoever has the login to the domain registrar; often not the person building the site.</dd>
+                <dt>Where</dt><dd>Shown when you connect, and repeatable by your agent afterwards.</dd>
+                <dt>Limits</dt><dd class="lim">Adding it at the registrar is <b>yours to do</b>, and changes can take from minutes to a few hours to spread.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="custom-domain-https">
+            <div class="fid">custom-domain-https</div>
+            <div>
+              <h3>HTTPS on your domain <span class="st part">Partial</span></h3>
+              <p class="fw">A connected domain is served over HTTPS with a valid certificate.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Everyone — a browser warning on your own domain is worse than no domain.</dd>
+                <dt>Where</dt><dd>Nothing to press.</dd>
+                <dt>Limits</dt><dd class="lim">The certificate is <b>not issued automatically</b> — it is a manual step by whoever runs the service. Until it is done, your domain will not load. Check by opening it, not by waiting for a status to change.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="custom-domain-status">
+            <div class="fid">custom-domain-status</div>
+            <div>
+              <h3>The connection badge <span class="st part">Partial</span></h3>
+              <p class="fw">The site card shows the domain you attached, with a status next to it.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone checking whether the connection worked.</dd>
+                <dt>Where</dt><dd>On the site card, main dashboard.</dd>
+                <dt>Limits</dt><dd class="lim">The status <b>says "pending" forever</b> — it never turns active, even on a domain that is live and working. <b>Ignore it</b> and open the domain instead.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="custom-domain-disconnect">
+            <div class="fid">custom-domain-disconnect</div>
+            <div>
+              <h3>Disconnect a domain</h3>
+              <p class="fw">Detaches the domain and stops serving your site from it, freeing the domain to be used on another site.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone moving a domain to a different site, or retiring one.</dd>
+                <dt>Where</dt><dd><strong>Disconnect</strong> on the site card, main dashboard.</dd>
+                <dt>Limits</dt><dd class="lim">The DNS record at your registrar is <b>not removed</b> — take it out yourself, or the domain will point at nothing.</dd>
+              </dl>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- 08 Build with AI -->
+    <section id="ai">
+      <div class="snum">08.</div>
+      <div>
+        <h2>Build with AI</h2>
+        <p class="lede">Describe the site you want and watch it appear. There are two routes, and they differ in one important way: only one of them can publish.</p>
+        <div class="feats">
+
+          <div class="feat" id="ai-chat-build">
+            <div class="fid">ai-chat-build</div>
+            <div>
+              <h3>Describe a site in the chat <span class="st part">Partial</span></h3>
+              <p class="fw">Say what you want in plain language — "a landing page for my coffee shop" — and a complete page is built for you, working backend and all.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone without a designer, and anyone starting from nothing on a phone.</dd>
+                <dt>Where</dt><dd>The <strong>Build a site with AI</strong> chat at the top of your sites page.</dd>
+                <dt>Limits</dt><dd class="lim"><b>The chat cannot publish.</b> You can see and open the result, but there is no button to put it live — you have to rebuild it through the paste route below. This is the biggest gap on this page. The chat also only ever builds a <b>single page</b>, never a multi-page site.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="ai-chat-iterate">
+            <div class="fid">ai-chat-iterate</div>
+            <div>
+              <h3>Keep talking to change it</h3>
+              <p class="fw">Ask for a change — different colours, another section, fix the wording — and the same page is revised rather than started over.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone who never gets it right on the first try.</dd>
+                <dt>Where</dt><dd>The same chat, one message after another.</dd>
+                <dt>Limits</dt><dd class="lim">The conversation is <b>lost on reload</b> or on <strong>Start over</strong>, and so is the page it built.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="ai-chat-preview">
+            <div class="fid">ai-chat-preview</div>
+            <div>
+              <h3>See it before anyone else does</h3>
+              <p class="fw">The built page appears live in the chat, and can be opened full-screen in its own tab to judge properly.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Everyone using the chat.</dd>
+                <dt>Where</dt><dd>Below the conversation, plus <strong>Open full page</strong>.</dd>
+                <dt>Limits</dt><dd class="lim">The preview is <b>only for you</b> — the link cannot be shared, and it disappears when you leave.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="ai-paste-build">
+            <div class="fid">ai-paste-build</div>
+            <div>
+              <h3>Build it in any chatbot instead</h3>
+              <p class="fw">Copy a ready-made prompt, paste it into whichever AI you already pay for, and paste the answer back here. It arrives as a working site.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone who already has a favourite AI, or who wants a stronger model than the built-in one.</dd>
+                <dt>Where</dt><dd><strong>Create a site</strong> on the main dashboard — <strong>Copy prompt</strong>, then paste the answer into the box.</dd>
+                <dt>Limits</dt><dd class="lim">Up to <b>200 files</b> and about <b>1.5 MB</b> in one paste. If the chatbot returns anything other than the expected format, it is rejected.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="ai-paste-preview">
+            <div class="fid">ai-paste-preview</div>
+            <div>
+              <h3>Preview the pasted site, full screen</h3>
+              <p class="fw">Before publishing you see the real page, with the file list, and can open it full screen.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone about to put something on the internet under their own name.</dd>
+                <dt>Where</dt><dd>Appears after <strong>Preview it</strong> on the main dashboard.</dd>
+                <dt>Limits</dt><dd class="lim">The preview cannot reach your account, which means <b>anything needing a signed-in visitor will not work until it is published</b>.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="ai-paste-publish">
+            <div class="fid">ai-paste-publish</div>
+            <div>
+              <h3>Publish, then keep editing the same site</h3>
+              <p class="fw">Name it, publish, and it is live. From then on the builder stays tied to that site, so the next paste updates it rather than making a second one — with <strong>Publish as new</strong> if you do want a copy.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone iterating on a live page with a chatbot.</dd>
+                <dt>Where</dt><dd><strong>Publish</strong> / <strong>Update site</strong> on the main dashboard.</dd>
+                <dt>Limits</dt><dd class="lim">The tie is <b>forgotten when you leave the page</b>, so a later paste can create a duplicate under a new name if you are not paying attention.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="ai-single-provider">
+            <div class="fid">ai-single-provider</div>
+            <div>
+              <h3>One model, no silent substitutes</h3>
+              <p class="fw">The chat runs on exactly one AI provider. If it is unavailable you are told the build failed — you are never quietly switched to a different, worse model.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone who needs to trust that two builds an hour apart came from the same thing.</dd>
+                <dt>Where</dt><dd>Visible only as an error message when the provider is down.</dd>
+                <dt>Limits</dt><dd class="lim">No fallback means <b>an outage stops AI building entirely</b>. The paste route still works, because it uses your own chatbot.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="ai-build-queue">
+            <div class="fid">ai-build-queue</div>
+            <div>
+              <h3>Builds run in the background</h3>
+              <p class="fw">A full build takes a minute or more, so it runs behind the scenes and the page keeps showing progress rather than freezing or timing out.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Everyone using the chat, especially on a phone with a flaky connection.</dd>
+                <dt>Where</dt><dd>The progress bubble in the chat.</dd>
+                <dt>Limits</dt><dd class="lim"><b>Three builds at once</b> per person, and a finished build is <b>discarded after ten minutes</b> if you never come back to it.</dd>
+              </dl>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- 09 Voice and attachments -->
+    <section id="voice">
+      <div class="snum">09.</div>
+      <div>
+        <h2>Voice &amp; attachments</h2>
+        <p class="lede">Two ways to describe a site without typing it — both aimed squarely at building from a phone.</p>
+        <div class="feats">
+
+          <div class="feat" id="voice-dictation">
+            <div class="fid">voice-dictation</div>
+            <div>
+              <h3>Speak instead of typing</h3>
+              <p class="fw">Press the microphone, say what you want, and it becomes text in the box. The words stay editable before you send them, so a misheard name is fixable.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone on a phone, and anyone who describes things better out loud than in writing.</dd>
+                <dt>Where</dt><dd>The microphone button in the AI chat on your sites page.</dd>
+                <dt>Limits</dt><dd class="lim">The button <b>only appears if your browser can record</b>. About five minutes of speech at a time.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="voice-live-captions">
+            <div class="fid">voice-live-captions</div>
+            <div>
+              <h3>Captions while you are still talking</h3>
+              <p class="fw">Words appear as you say them, so you can tell immediately that it is hearing you correctly instead of finding out at the end.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone dictating more than a sentence.</dd>
+                <dt>Where</dt><dd>In the message box, while the microphone is on.</dd>
+                <dt>Limits</dt><dd class="lim">If live captions are busy or drop out you are told so, and it <b>falls back to transcribing when you stop</b> — you never lose what you said.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="voice-on-device-privacy">
+            <div class="fid">voice-on-device-privacy</div>
+            <div>
+              <h3>Your recording does not leave the service</h3>
+              <p class="fw">Speech is turned into text on this same machine rather than being sent to an outside company.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone who would rather their voice not be handed to a third party.</dd>
+                <dt>Where</dt><dd>Nothing to switch on.</dd>
+                <dt>Limits</dt><dd class="lim">It is a small machine, so <b>very long recordings queue</b> behind other people's.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="ai-attachments">
+            <div class="fid">ai-attachments</div>
+            <div>
+              <h3>Attach a screenshot or notes</h3>
+              <p class="fw">Add a picture of a design you like, or a page of notes, and have the site built from it instead of described from scratch. Both are genuinely read.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone copying an existing look, or turning something they already have into a page.</dd>
+                <dt>Where</dt><dd>The paperclip button in the AI chat on your sites page.</dd>
+                <dt>Limits</dt><dd class="lim">Images (PNG, JPEG, GIF, WebP) and plain text only — <b>PDFs are not accepted</b>; screenshot the page or paste the text. Up to <b>six</b> attachments a message, images about <b>5 MB</b> each, <b>18 MB</b> in total.</dd>
+              </dl>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- 10 Templates -->
+    <section id="templates">
+      <div class="snum">10.</div>
+      <div>
+        <h2>Starter templates</h2>
+        <p class="lede">Seven complete, working sites to start from rather than a blank page — each with its backend already wired up.</p>
+        <div class="feats">
+
+          <div class="feat" id="templates-catalog">
+            <div class="fid">templates-catalog</div>
+            <div>
+              <h3>Seven ready-made sites <span class="st agent">Agent only</span></h3>
+              <p class="fw">Ask for one by description and you get a finished site you can edit: <strong>event / RSVP</strong>, <strong>waitlist or coming-soon</strong>, <strong>product landing with email capture</strong>, <strong>UI prototype with tap-to-comment review</strong>, <strong>architecture or system-design document</strong>, <strong>group travel itinerary</strong>, and <strong>résumé / CV</strong>.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone who does not want to start from nothing, and anyone unsure what this service is good for.</dd>
+                <dt>Where</dt><dd><b>No screen lists them.</b> Describe what you are making to your agent and it picks and fills one in.</dd>
+                <dt>Limits</dt><dd class="lim">You <b>cannot browse or preview them</b> anywhere in the dashboard. They are a starting point, not a theme you can switch later.</dd>
+              </dl>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- 11 Analytics -->
+    <section id="analytics">
+      <div class="snum">11.</div>
+      <div>
+        <h2>Traffic &amp; analytics</h2>
+        <p class="lede">How many people actually read your site — separated from crawlers and from the service's own monitoring, because on a small site those swamp the real number entirely.</p>
+        <div class="feats">
+
+          <div class="feat" id="analytics-traffic-split">
+            <div class="fid">analytics-traffic-split</div>
+            <div>
+              <h3>People, bots and monitoring counted apart</h3>
+              <p class="fw">Every visit is put in one of four groups — <strong>People</strong>, <strong>Bots</strong>, <strong>Infra</strong> and <strong>Earlier</strong> — and they are never added together into one misleading total.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone who has ever been briefly delighted by a traffic number that turned out to be crawlers.</dd>
+                <dt>Where</dt><dd>The numbers under each site on the main dashboard.</dd>
+                <dt>Limits</dt><dd class="lim">A crawler that hides itself well is counted as a person. The split errs that way <b>on purpose</b>: better to overstate people slightly than to hide real readers.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="analytics-people">
+            <div class="fid">analytics-people</div>
+            <div>
+              <h3>"People" is the audience number</h3>
+              <p class="fw">When you want one figure for how the site is doing, it is <strong>People</strong>. Everything else on the panel is context.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Everyone with a site they care about.</dd>
+                <dt>Where</dt><dd>The first, highlighted figure under each site on the main dashboard; the only figure used on the <strong>Analytics</strong> tab.</dd>
+                <dt>Limits</dt><dd class="lim">It counts <b>page views, not clicks or scrolls</b>. Images, stylesheets and downloads are not counted as visits.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="analytics-infra-separated">
+            <div class="fid">analytics-infra-separated</div>
+            <div>
+              <h3>The service's own monitoring is kept out</h3>
+              <p class="fw">This machine checks every site is still up roughly twice a minute. That is thousands of hits a day per site and it is not audience, so it sits in its own <strong>Infra</strong> figure, out of the way.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone comparing this month with last month and wondering why a dead site has traffic.</dd>
+                <dt>Where</dt><dd>The muted <strong>Infra</strong> figure on a site's numbers, shown only when there is any.</dd>
+                <dt>Limits</dt><dd class="lim">A site with <b>only</b> monitoring traffic is shown as "no visits yet", not as busy. Infra is left out of the hourly chart entirely, because it would flatten everything real.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="analytics-unique-visitors">
+            <div class="fid">analytics-unique-visitors</div>
+            <div>
+              <h3>A real count of distinct visitors</h3>
+              <p class="fw">The visitor figure is how many different people came over the whole period — not the daily figures added up. Someone who visits on five days counts once.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone judging reach rather than activity.</dd>
+                <dt>Where</dt><dd>Next to <strong>People</strong> under each site, and as the visitors total on the <strong>Analytics</strong> tab.</dd>
+                <dt>Limits</dt><dd class="lim">Visitors are told apart by network address, never by a tracking cookie. So <b>an office on one connection reads as one person</b>, and <b>a phone moving from wi-fi to mobile reads as two</b>. These are inherent and will not be fixed.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="analytics-daily-trend">
+            <div class="fid">analytics-daily-trend</div>
+            <div>
+              <h3>The shape of the last month</h3>
+              <p class="fw">A small line per site showing day-by-day readership, so a spike or a decline is visible at a glance without opening anything.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone checking whether something they shared landed.</dd>
+                <dt>Where</dt><dd>Next to each site on the <strong>Analytics</strong> tab of your sites page.</dd>
+                <dt>Limits</dt><dd class="lim">The line plots <b>people only</b>. It has no scale or hover figures — it shows shape, not values.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="analytics-last-24h">
+            <div class="fid">analytics-last-24h</div>
+            <div>
+              <h3>The last 24 hours, hour by hour</h3>
+              <p class="fw">A short bar chart of the last day, with people stacked above bots, so you can see whether something is happening right now.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone who just posted a link somewhere and wants to watch.</dd>
+                <dt>Where</dt><dd>The <strong>24h</strong> strip under each site's numbers on the main dashboard.</dd>
+                <dt>Limits</dt><dd class="lim">Hours are <b>in UTC</b>, not your local time. Monitoring traffic is excluded from this chart.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="analytics-earlier-history">
+            <div class="fid">analytics-earlier-history</div>
+            <div>
+              <h3>Older traffic shown honestly as "Earlier"</h3>
+              <p class="fw">Traffic recorded before <strong>9 August 2026</strong> predates the people-versus-bots split. It is real and it is still shown, but as its own <strong>Earlier</strong> figure rather than being guessed into the other columns.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone with a site older than that comparing it with a newer one.</dd>
+                <dt>Where</dt><dd>An <strong>Earlier</strong> figure on a site's numbers, shown only when there is any. Hover it for the explanation.</dd>
+                <dt>Limits</dt><dd class="lim">It <b>can never be broken down</b> — the original records are gone. Those months are also inflated by monitoring, which is exactly why they are kept separate.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="analytics-site-cards">
+            <div class="fid">analytics-site-cards</div>
+            <div>
+              <h3>Numbers on every site card</h3>
+              <p class="fw">Each site on the main dashboard carries its own last-30-days figures and its 24-hour chart, so you never have to open a separate report.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone scanning several sites at once.</dd>
+                <dt>Where</dt><dd>Under the site name on each card, main dashboard.</dd>
+                <dt>Limits</dt><dd class="lim">Fixed at <b>30 days</b> here. They load as you scroll, so a card just below the fold may be blank for a moment.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="analytics-owner-tab">
+            <div class="fid">analytics-owner-tab</div>
+            <div>
+              <h3>The Analytics tab</h3>
+              <p class="fw">A dedicated screen with your totals across every site and one row per site, most-read first.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone who wants the whole picture rather than site by site.</dd>
+                <dt>Where</dt><dd>The <strong>Analytics</strong> tab on your sites page.</dd>
+                <dt>Limits</dt><dd class="lim">This screen shows <b>people only</b> — bots, monitoring and "Earlier" are not shown here at all. For those, use the site cards on the main dashboard.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="analytics-range">
+            <div class="fid">analytics-range</div>
+            <div>
+              <h3>Choose the period</h3>
+              <p class="fw">Switch the whole Analytics tab between the last 7, 14, 30 or 90 days.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone checking a launch week against a normal one.</dd>
+                <dt>Where</dt><dd>The <strong>7d · 14d · 30d · 90d</strong> selector on the <strong>Analytics</strong> tab. 30 days to start.</dd>
+                <dt>Limits</dt><dd class="lim">Days are <b>UTC calendar days</b>, so today's figure is a partial day. Around <b>13 months</b> of history is kept at most.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="analytics-sort-by-people">
+            <div class="fid">analytics-sort-by-people</div>
+            <div>
+              <h3>Busiest sites first</h3>
+              <p class="fw">Your sites are ordered by how many real people read them, so what is working is at the top instead of whatever you made first. You can also sort by bots, by all traffic, or by name.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone with more than a handful of sites.</dd>
+                <dt>Where</dt><dd>The <strong>Sort</strong> selector above the site list on the main dashboard. The <strong>Analytics</strong> tab is always ordered this way.</dd>
+                <dt>Limits</dt><dd class="lim">Sites with no traffic <b>sort last</b>, not alphabetically among the rest.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="analytics-no-script">
+            <div class="fid">analytics-no-script</div>
+            <div>
+              <h3>Nothing is added to your pages</h3>
+              <p class="fw">There is no tracking script, no tag to install and no cookie banner to add. Counting happens on the service's side, and a visitor's address is never stored as-is.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Everyone — you get the numbers without your visitors paying for them.</dd>
+                <dt>Where</dt><dd>Automatic for every site.</dd>
+                <dt>Limits</dt><dd class="lim">No referrers, no countries, no pages-per-visit, no per-page breakdown. Figures update <b>every few minutes</b>, not instantly.</dd>
+              </dl>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- 12 Admin -->
+    <section id="admin">
+      <div class="snum">12.</div>
+      <div>
+        <h2>Admin</h2>
+        <p class="lede">For whoever runs the service. Everyone else gets an ordinary "not found" page, with no hint that these screens exist.</p>
+        <div class="feats">
+
+          <div class="feat" id="admin-users">
+            <div class="fid">admin-users</div>
+            <div>
+              <h3>Every account and its sites <span class="st admin">Admin only</span></h3>
+              <p class="fw">One card per person: their handle, when they joined, how many sites they have and where each one lives.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Whoever runs the service, checking who is actually using it.</dd>
+                <dt>Where</dt><dd>The admin dashboard, ordered by most sites first.</dd>
+                <dt>Limits</dt><dd class="lim"><b>Read-only.</b> No way to suspend, contact or remove an account from here.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="admin-all-sites">
+            <div class="fid">admin-all-sites</div>
+            <div>
+              <h3>Every site on the service <span class="st admin">Admin only</span></h3>
+              <p class="fw">The full list of sites with their owner shown next to each, using the same cards and buttons as your own.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Whoever runs the service, dealing with a report or a broken site.</dd>
+                <dt>Where</dt><dd>An extra <strong>Admin</strong> tab that appears on the main dashboard for admins.</dd>
+                <dt>Limits</dt><dd class="lim">Full control including delete, so it is easy to remove somebody else's site by accident.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="admin-api-traffic">
+            <div class="fid">admin-api-traffic</div>
+            <div>
+              <h3>What is calling the service, and from where <span class="st admin">Admin only</span></h3>
+              <p class="fw">Today's calls, callers, errors and AI builds, plus two tables: what is being called most, and who is calling — with rough locations and when they were last seen.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Whoever runs the service, investigating load, abuse or a failing agent.</dd>
+                <dt>Where</dt><dd>The <strong>API traffic</strong> section of the admin dashboard.</dd>
+                <dt>Limits</dt><dd class="lim">Whole-day figures only — <b>no hourly view</b>. The section simply <b>stays hidden</b> if it cannot load, rather than reporting a problem.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="admin-all-analytics">
+            <div class="fid">admin-all-analytics</div>
+            <div>
+              <h3>Traffic across every site <span class="st admin">Admin only</span></h3>
+              <p class="fw">The same people-and-bots split, widened from your own sites to every site on the service.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Whoever runs the service, working out what is actually being read.</dd>
+                <dt>Where</dt><dd>Applied automatically to the site ordering on the main dashboard when an admin is signed in.</dd>
+                <dt>Limits</dt><dd class="lim">There is <b>no separate all-sites analytics screen</b> — it only changes the ordering of the list you already see.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="admin-preview-expiry">
+            <div class="fid">admin-preview-expiry</div>
+            <div>
+              <h3>Self-deleting sites for named accounts <span class="st admin">Admin only</span></h3>
+              <p class="fw">Accounts the operator nominates get sites that delete themselves after a set time — for a public demo or a workshop where nobody wants to clean up afterwards.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Whoever runs the service, when handing out a try-it-out account.</dd>
+                <dt>Where</dt><dd>No screen. The operator names the accounts and the lifetime.</dd>
+                <dt>Limits</dt><dd class="lim">Applies to <b>every site those accounts make</b>, and <b>nothing warns the person</b> before their site disappears. Ordinary accounts are unaffected.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="admin-anonymous-writes">
+            <div class="fid">admin-anonymous-writes</div>
+            <div>
+              <h3>Let one site keep accepting unsigned saves <span class="st admin">Admin only</span></h3>
+              <p class="fw">An escape hatch for a single site, so that when visitor sign-in is eventually required an older site does not break on the day it is switched on.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Whoever runs the service, protecting an existing site during the change.</dd>
+                <dt>Where</dt><dd>No screen — set by an admin's agent.</dd>
+                <dt>Limits</dt><dd class="lim">Matters only once sign-in is actually required, which it is not yet on this instance.</dd>
+              </dl>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- 13 Your AI agent -->
+    <section id="agent">
+      <div class="snum">13.</div>
+      <div>
+        <h2>Your AI agent</h2>
+        <p class="lede">Most of this service is designed to be driven by an agent rather than clicked. These are the pieces that teach one how.</p>
+        <div class="feats">
+
+          <div class="feat" id="skill-website-deploy">
+            <div class="fid">skill-website-deploy</div>
+            <div>
+              <h3>The deploy skill</h3>
+              <p class="fw">Teaches your agent the whole job: sign you up, check a site before publishing, publish it, wire up the backend, and confirm the live page really works before saying it is done.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone using a coding agent — this is the main way people use the service.</dd>
+                <dt>Where</dt><dd>Installed once from the <strong>Get started</strong> page, or from the setup panel on your sites page.</dd>
+                <dt>Limits</dt><dd class="lim">Your agent has to support skills. If it does not, the copy-and-paste prompt below is the fallback.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="skill-website-deploy-builder">
+            <div class="fid">skill-website-deploy-builder</div>
+            <div>
+              <h3>The planning skill</h3>
+              <p class="fw">Helps decide whether an idea fits here before any code is written, maps it to what the service can actually do, and says plainly when an idea needs a real server instead.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone starting something new and unsure it will work on a static site.</dd>
+                <dt>Where</dt><dd>Installed alongside the deploy skill.</dd>
+                <dt>Limits</dt><dd class="lim">It plans; it does not build. It hands over a brief for the deploy skill.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="skill-connect-domain">
+            <div class="fid">skill-connect-domain</div>
+            <div>
+              <h3>The domain skill</h3>
+              <p class="fw">Walks your agent through connecting your own domain: attach it, tell you the one record to add, then check the domain itself until it answers.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone attaching a domain, which is the step most likely to go wrong unattended.</dd>
+                <dt>Where</dt><dd>Installed alongside the other two.</dd>
+                <dt>Limits</dt><dd class="lim">It confirms by opening your domain, because the status badge is unreliable — see <code>custom-domain-status</code>.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="skill-install-page">
+            <div class="fid">skill-install-page</div>
+            <div>
+              <h3>A get-started page for whichever tool you use</h3>
+              <p class="fw">Four routes side by side — a coding agent, the Claude app, building here in the browser, or pasting a prompt into any chatbot — with the exact commands for each.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone arriving for the first time.</dd>
+                <dt>Where</dt><dd><strong>Get started</strong> in the top navigation.</dd>
+                <dt>Limits</dt><dd class="lim">On a phone the browser route is deliberately put first, since the others need a computer.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="skill-install-oneline">
+            <div class="fid">skill-install-oneline</div>
+            <div>
+              <h3>One line to install</h3>
+              <p class="fw">A single command installs the skills into your agent, on Mac, Linux or Windows, with no accounts to link and nothing to clone.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone with a terminal, and any agent that can run one command.</dd>
+                <dt>Where</dt><dd><strong>Get started</strong>, and the setup panel on your sites page.</dd>
+                <dt>Limits</dt><dd class="lim">Some agents cache their skills — you may need to restart yours afterwards.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="skill-setup-panel">
+            <div class="fid">skill-setup-panel</div>
+            <div>
+              <h3>Guided setup for your specific tools</h3>
+              <p class="fw">Tick which tools you use and which operating system you are on, and it writes out exactly the commands to run, with your key ready to copy underneath.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone setting up a second machine, or a tool that is not the obvious one.</dd>
+                <dt>Where</dt><dd><strong>Set up your AI</strong> on your sites page, visible only to you.</dd>
+                <dt>Limits</dt><dd class="lim">Covers the tools listed there. Anything else uses the manual instructions on <strong>Get started</strong>.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="skill-help-desk">
+            <div class="fid">skill-help-desk</div>
+            <div>
+              <h3>"I'm stuck — help me"</h3>
+              <p class="fw">A button that opens the AI chat with your tool and operating system already filled in, so you can describe the problem instead of the setup.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone whose install did not work first time.</dd>
+                <dt>Where</dt><dd>In the setup panel on your sites page.</dd>
+                <dt>Limits</dt><dd class="lim">It is the same AI chat, so it can advise but cannot reach into your machine and fix it.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="skill-stale-notice">
+            <div class="fid">skill-stale-notice</div>
+            <div>
+              <h3>Out-of-date agents are told to update</h3>
+              <p class="fw">If your agent is working from an old copy of the instructions, the service tells it so as it works, rather than letting it fail in a confusing way later.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone who installed the skills months ago and forgot.</dd>
+                <dt>Where</dt><dd>Your agent sees it and should mention it to you.</dd>
+                <dt>Limits</dt><dd class="lim">Whether you hear about it is up to your agent — <b>nothing is shown on any screen</b>.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="agent-prompt-llms">
+            <div class="fid">agent-prompt-llms</div>
+            <div>
+              <h3>A prompt for any chatbot</h3>
+              <p class="fw">A ready-written brief you paste into any AI, which makes it produce a site that works here — backend, live counts and all — with no skill installed anywhere.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone with a chatbot but no coding agent. This is the route that works on a phone.</dd>
+                <dt>Where</dt><dd><strong>Copy prompt</strong> in the paste builder, and on <strong>Get started</strong>.</dd>
+                <dt>Limits</dt><dd class="lim">You paste the answer back yourself. If the chatbot adds chatter around the result, it will be rejected — ask it to output only the block.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="api-reference">
+            <div class="fid">api-reference</div>
+            <div>
+              <h3>Full API reference</h3>
+              <p class="fw">Complete, browsable documentation of everything the service can do, for anyone integrating directly rather than through a skill.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Developers, and agents that prefer a specification to prose.</dd>
+                <dt>Where</dt><dd><strong>API</strong> in the top navigation.</dd>
+                <dt>Limits</dt><dd class="lim">A few internal and download addresses are not listed there, and the published rate limits are not given as numbers.</dd>
+              </dl>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- 14 Not built -->
+    <section id="notbuilt">
+      <div class="snum">14.</div>
+      <div>
+        <h2>Not built</h2>
+        <p class="lede">Things people reasonably expect, or have read about somewhere, that do not exist. Listed so nobody spends a morning looking for them.</p>
+        <table>
+          <tr class="trow"><td class="tk">Sharing a site with someone else</td><td class="tv">No collaborators, no second owner, no team. A site belongs to one account.</td></tr>
+          <tr class="trow"><td class="tk">Editing or deleting one saved entry</td><td class="tv">Collections only grow. A mistaken or unwanted submission cannot be removed — not from a screen, not by an agent.</td></tr>
+          <tr class="trow"><td class="tk">Moderating comments</td><td class="tv">Nothing can hide or delete a comment or a feedback note once it is posted.</td></tr>
+          <tr class="trow"><td class="tk">Private or password-protected sites</td><td class="tv">There is no way to put a password on a site, and no encrypted mode. Assume anything published is readable by anyone with the link.</td></tr>
+          <tr class="trow"><td class="tk">Attaching a PDF to the AI chat</td><td class="tv">PDFs are not accepted. Screenshot the page you want copied, or paste the text.</td></tr>
+          <tr class="trow"><td class="tk">Publishing straight from the AI chat</td><td class="tv">The chat builds and previews but cannot put a site live. Use the paste builder on the main dashboard.</td></tr>
+          <tr class="trow"><td class="tk">Browsing the starter templates</td><td class="tv">They exist but no screen lists them. Ask your agent.</td></tr>
+          <tr class="trow"><td class="tk">Renaming a site</td><td class="tv">Publish under the new name and delete the old one. The address changes with it.</td></tr>
+          <tr class="trow"><td class="tk">Rotating your agent key</td><td class="tv">One key per account, with no way to replace or revoke it from any screen.</td></tr>
+          <tr class="trow"><td class="tk">Email when something arrives</td><td class="tv">No notifications of any kind — not for form entries, comments or traffic. You check, or your agent does.</td></tr>
+          <tr class="trow"><td class="tk">Referrers, countries or page-level traffic</td><td class="tv">Traffic is per site: people, bots, monitoring and a trend. Nothing about where visitors came from or which page they read.</td></tr>
+          <tr class="trow"><td class="tk">Anything that runs on the server</td><td class="tv">No server-side code, no scheduled jobs, no image processing, no sending mail from your site. Deliberate, and it is what keeps this safe to host.</td></tr>
+        </table>
+        <p class="fine">If something you need is on this list, say so — the point of writing it down is to make the gap arguable rather than invisible.</p>
+      </div>
+    </section>
+
+    <footer class="wrap">
+      simple·host · feature inventory · <a href="/">Home</a> · <a href="/architecture.html">Architecture</a> · <a href="/docs.html">API reference</a>
+    </footer>
+  </div>
+
+  <script>
+    var SUN = '<circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
+    var MOON = '<path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/>';
+    function paintIcon(){ document.getElementById('tt-i').innerHTML = document.documentElement.dataset.theme === 'light' ? MOON : SUN; }
+    function toggleTheme(){ var t = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'; document.documentElement.dataset.theme = t; try{ localStorage.setItem('sh-theme', t); }catch(e){} paintIcon(); }
+    paintIcon();
+  </script>
+</body>
+</html>

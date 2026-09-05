@@ -52,12 +52,11 @@ It signs you up (magic-link email → API key), builds the site, wires in state 
 - **One-call deploy** — upload a folder, get a live `https://{name}.simple-host.app`. Every deploy is a new immutable version; roll back instantly.
 - **A little backend, free** — per-site JSON state with atomic ops (set / inc / append), plus append-only collections for guestbooks, signups, and submissions. No schema, no database to run yourself.
 - **Drop-in widgets** — threaded comments and a feedback pin, one script tag each, theme-aware.
-- **Private pages** — password-lock any site behind a signed-cookie gate.
 - **See what your site collected** — read and download whatever visitors saved to it.
 - **Starter templates** — RSVP, waitlist, landing, résumé, and more, ready to fill in.
 - **Build with AI** — a chat on the homepage that designs, previews, and publishes a site for you. Describe what you want, watch it being written, then publish.
 - **Talk to it** — dictate your idea instead of typing. Captions appear as you speak, and you can edit the text before sending.
-- **Show it what you mean** — attach screenshots, PDFs, or notes to the chat and it builds from them.
+- **Show it what you mean** — attach screenshots or notes to the chat and it builds from them.
 - **Sign in your way** — a magic link by email, or Google. Visitors to your sites can sign in too, so a page can tell who is writing to it.
 - **Your own admin view** — see every account on your instance and the sites they have made.
 
@@ -114,9 +113,7 @@ All via environment variables. `DB_DSN` and `ADMIN_API_KEY` are required; the re
 | `RESEND_API_KEY` | | Magic-link email via [Resend](https://resend.com); auth is disabled without it |
 | `MAIL_FROM` | | Magic-link sender address |
 | `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` | | The model behind **Build with AI**. Any OpenAI-compatible provider; unset = the feature is off. |
-| `LLM_FALLBACK_API_KEY` / `LLM_FALLBACK_BASE_URL` / `LLM_FALLBACK_MODEL` | | A second provider, used only if the first one fails. Optional. |
 | `TRANSCRIBE_URL` / `TRANSCRIBE_TICKET_SECRET` | | Speech-to-text for the chat mic. Unset = the mic is hidden. |
-| `ANTHROPIC_API_KEY` | | An alternative model backend; unset = disabled |
 | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | | Enables Google sign-in, for owners and for visitors to hosted sites. Both needed, or it stays off. |
 | `WRITE_AUTH_MODE` | | `off` / `log` / `on`. Unset = `log` (anonymous writes succeed and are logged). Never default to `on` in source. |
 

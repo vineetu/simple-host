@@ -190,6 +190,8 @@ Exhaustive against every `authMiddleware(` wrap in this tree (`cmd/server/main.g
 | `GET` | `/v1/sites/{sitename}/versions` | same | Version history. |
 | `PUT` | `/v1/sites/{sitename}/active-version` | same | Rollback. |
 | `GET` | `/v1/sites/{sitename}/analytics` | same | Owner-only traffic counts. |
+| `GET` | `/v1/analytics/sites` | same | Traffic totals for every site the caller owns, in one call. Scoped by `user_id` in SQL; `all=1` (every site on the instance) additionally requires `user.IsAdmin` — non-admins get 403, not a narrowed list. Not under `/v1/sites/…` because that would collide with a site named "analytics". |
+| `GET` | `/v1/admin/api-analytics` | `authMW` in `cmd/server/main.go` | Per-endpoint API call counts with caller geo. `auth.Middleware` then an `IsAdmin` check inside the handler; non-admins get 404, not 403, so the endpoint's existence stays private. |
 | `PUT` | `/v1/sites/{sitename}/visibility` | same | Showcase listing. |
 | `PUT` | `/v1/sites/{sitename}/view-password` | same | Lock the site. |
 | `DELETE` | `/v1/sites/{sitename}/view-password` | same | Unlock the site. |

@@ -53,6 +53,19 @@ already has all the DB queries and the branded UI templates embedded.
 
 ## Verified facts this spec builds on (with file:line refs)
 
+> **Partly superseded — 2026-09-01: the analytics facts below are no longer
+> true.** This is a dated proposal and is kept as written, so nothing here has
+> been rewritten; read the analytics parts as "what was true on 2026-07-14".
+> Since then analytics shipped a v2: the per-site response has **no top-level
+> `views`/`visitors`** — every bucket (`totals`, `last_24h`, each `daily`, each
+> `hourly`) is split four ways into `person` / `bot` / `infra` / `unknown`, each
+> `{views, visitors}` — and a second endpoint `GET /v1/analytics/sites?days=30`
+> (`all=1` admin-only) returns per-site totals for every site the caller owns,
+> ordered by `person.views` descending. The line references have also moved
+> (registration is `internal/handler/site.go:228`, not `:198`). The live
+> contract is `internal/handler/static/openapi.yaml`; do not treat the shapes
+> below as current.
+
 - **Content host is pure nginx.** `sites.simple-host.app` is served by
   `deploy/prod/nginx-sites-content-host.conf` (live copy:
   `/etc/nginx/sites-enabled/sites-content-host`). Locations today:

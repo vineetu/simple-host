@@ -20,20 +20,20 @@ func TestValidateSiteShapeAcceptsExistingNames(t *testing.T) {
 
 func TestValidateSiteShapeRejectsAbuse(t *testing.T) {
 	bad := []string{
-		"",                      // empty
-		"-leading",              // leading hyphen
-		"trailing-",             // trailing hyphen
-		"UPPER",                 // uppercase
-		"under_score",           // underscore
-		"dot.name",              // dot
-		"has space",             // space
-		"evil/../escape",        // slash / traversal
-		"inject\nsecond-line",   // newline (deploy-queue injection)
-		"inject\r",              // carriage return
-		"name;rm -rf",           // shell metacharacters
-		"`backtick`",            // command substitution
-		"$(whoami)",             // command substitution
-		strings64(),             // 64 chars — exceeds DNS label limit
+		"",                    // empty
+		"-leading",            // leading hyphen
+		"trailing-",           // trailing hyphen
+		"UPPER",               // uppercase
+		"under_score",         // underscore
+		"dot.name",            // dot
+		"has space",           // space
+		"evil/../escape",      // slash / traversal
+		"inject\nsecond-line", // newline (deploy-queue injection)
+		"inject\r",            // carriage return
+		"name;rm -rf",         // shell metacharacters
+		"`backtick`",          // command substitution
+		"$(whoami)",           // command substitution
+		strings64(),           // 64 chars — exceeds DNS label limit
 	}
 	for _, name := range bad {
 		if err := validateSiteShape(name); err == nil {

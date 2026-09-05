@@ -72,7 +72,7 @@ openapi.yaml, then llms.txt/skills if it's a user-facing capability.
 deploying). It hard-fails if a registered `/v1` route isn't in openapi.yaml (or
 vice versa) and warns when a major capability is missing from llms.txt/the skills.
 This is what catches "endpoint shipped but undocumented" — exactly how
-collections + view-lock were once missing from llms.txt.
+collections were once missing from llms.txt.
 
 ## Local dev
 
