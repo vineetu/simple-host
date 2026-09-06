@@ -188,7 +188,7 @@
           <div class="lrow"><div><span class="st part">Partial</span></div><p>It exists, but it does not finish the job on its own. The gap is written out in the entry.</p></div>
           <div class="lrow"><div><span class="st no">Not active</span></div><p>Built, but switched off or not connected up on this instance. It does nothing for you today.</p></div>
         </div>
-        <div class="fine">Everything unmarked works end to end · last checked against the running service on 1 September 2026</div>
+        <div class="fine">Everything unmarked works end to end · last checked against the running service on 6 September 2026</div>
       </div>
     </section>
 
@@ -261,7 +261,7 @@
               <p class="fw">A personal key that lets your coding agent publish and manage sites for you without you being at the keyboard.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone using a coding agent rather than clicking through screens.</dd>
-                <dt>Where</dt><dd>Your sites page. <strong>Rotate API key</strong> in the header issues a fresh key and shows it once, for you to copy.</dd>
+                <dt>Where</dt><dd>Main dashboard — <strong>Rotate API key</strong> in the header issues a fresh key and shows it once, for you to copy.</dd>
                 <dt>Limits</dt><dd class="lim">One key per account. Rotating it <b>stops the old key immediately</b>, so update your agent straight after. Treat it like a password.</dd>
               </dl>
             </div>
@@ -352,7 +352,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone publishing anything.</dd>
                 <dt>Where</dt><dd>The name box in the paste builder, before you press Publish.</dd>
-                <dt>Limits</dt><dd class="lim">Lower-case letters, numbers and dashes only. <b>A site cannot be renamed</b> afterwards — republish under a new name and delete the old one.</dd>
+                <dt>Limits</dt><dd class="lim">Lower-case letters, numbers and dashes only. You can <b>rename it later</b> (<b>Rename</b> on the site card); the old address then returns 404.</dd>
               </dl>
             </div>
           </div>
@@ -463,11 +463,11 @@
           <div class="feat" id="site-rename">
             <div class="fid">site-rename</div>
             <div>
-              <h3>Rename a site <span class="st agent">Agent only</span></h3>
+              <h3>Rename a site</h3>
               <p class="fw">Give a site a new name without republishing it. Its versions and its saved data come with it.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone who picked a throwaway name and then kept the site.</dd>
-                <dt>Where</dt><dd>No screen. Ask your agent to rename it.</dd>
+                <dt>Where</dt><dd><strong>Rename</strong> on the site card, main dashboard — or ask your agent.</dd>
                 <dt>Limits</dt><dd class="lim">The address changes with the name, so <b>update any links you have shared</b>. The new name must be free.</dd>
               </dl>
             </div>
@@ -699,7 +699,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone with a brand, a business or a domain already bought.</dd>
                 <dt>Where</dt><dd><strong>Connect domain</strong> on the site card — <strong>main dashboard only</strong>. Your agent can also do it, and there is a skill for exactly this.</dd>
-                <dt>Limits</dt><dd class="lim"><b>One domain per site</b>, and a domain can only be attached to one site across the whole service.</dd>
+                <dt>Limits</dt><dd class="lim"><b>One domain per site.</b> A binding is provisional until DNS proves it: another site can take an unproven one over, and it lapses after 24 hours; only a verified domain is exclusive (<code>409 domain_taken</code>).</dd>
               </dl>
             </div>
           </div>
@@ -733,12 +733,12 @@
           <div class="feat" id="custom-domain-status">
             <div class="fid">custom-domain-status</div>
             <div>
-              <h3>The connection badge <span class="st part">Partial</span></h3>
+              <h3>The connection badge</h3>
               <p class="fw">The site card shows the domain you attached, with a status next to it.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone checking whether the connection worked.</dd>
                 <dt>Where</dt><dd>On the site card, main dashboard.</dd>
-                <dt>Limits</dt><dd class="lim">The status <b>says "pending" forever</b> — it never turns active, even on a domain that is live and working. <b>Ignore it</b> and open the domain instead.</dd>
+                <dt>Limits</dt><dd class="lim">Re-checked about every two minutes: <b>pending</b> until the domain resolves here and answers over HTTPS, then <b>active</b> (or <b>error</b>, with the reason). Opening the domain is still the surest test.</dd>
               </dl>
             </div>
           </div>
@@ -747,7 +747,7 @@
             <div class="fid">custom-domain-disconnect</div>
             <div>
               <h3>Disconnect a domain</h3>
-              <p class="fw">Detaches the domain and stops serving your site from it, freeing the domain to be used on another site.</p>
+              <p class="fw">Detaches the domain and stops serving your site from it, freeing the domain to be used on another site. The shared-host address stops redirecting and serves the site again, saving goes back to the open shared-host model, and links people kept to the domain stop working.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone moving a domain to a different site, or retiring one.</dd>
                 <dt>Where</dt><dd><strong>Disconnect</strong> on the site card, main dashboard.</dd>
@@ -771,12 +771,12 @@
           <div class="feat" id="ai-chat-build">
             <div class="fid">ai-chat-build</div>
             <div>
-              <h3>Describe a site in the chat <span class="st part">Partial</span></h3>
+              <h3>Describe a site in the chat</h3>
               <p class="fw">Say what you want in plain language — "a landing page for my coffee shop" — and a complete page is built for you, working backend and all.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone without a designer, and anyone starting from nothing on a phone.</dd>
                 <dt>Where</dt><dd>The <strong>Build a site with AI</strong> chat at the top of your sites page.</dd>
-                <dt>Limits</dt><dd class="lim"><b>The chat cannot publish.</b> You can see and open the result, but there is no button to put it live — you have to rebuild it through the paste route below. This is the biggest gap on this page. The chat also only ever builds a <b>single page</b>, never a multi-page site.</dd>
+                <dt>Limits</dt><dd class="lim">Name it and press <b>Publish</b> under the preview; the builder stays tied to that site so the next build updates it (<b>Publish as new</b> for a copy). The chat only builds a <b>single page</b>.</dd>
               </dl>
             </div>
           </div>
@@ -1112,7 +1112,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone with a site aimed at a city, a country or a language.</dd>
                 <dt>Where</dt><dd>Open a site's full analytics from its name on the main dashboard; the country table is at the bottom.</dd>
-                <dt>Limits</dt><dd class="lim">Country only — <b>no city, no map</b>. It counts people, not bots, and a visitor whose country cannot be resolved is shown as unknown.</dd>
+                <dt>Limits</dt><dd class="lim">Country only — <b>no city, no map</b>. Ordered by people; bots and infrastructure are shown separately. A visitor whose country cannot be resolved is shown as unknown.</dd>
               </dl>
             </div>
           </div>
@@ -1253,7 +1253,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone attaching a domain, which is the step most likely to go wrong unattended.</dd>
                 <dt>Where</dt><dd>Installed alongside the other two.</dd>
-                <dt>Limits</dt><dd class="lim">It confirms by opening your domain, because the status badge is unreliable — see <code>custom-domain-status</code>.</dd>
+                <dt>Limits</dt><dd class="lim">It confirms by opening your domain rather than waiting on the badge.</dd>
               </dl>
             </div>
           </div>
@@ -1364,7 +1364,6 @@
           <tr class="trow"><td class="tk">Editing or deleting one saved entry</td><td class="tv">Collections only grow. A mistaken or unwanted submission cannot be removed — not from a screen, not by an agent.</td></tr>
           <tr class="trow"><td class="tk">Private or password-protected sites</td><td class="tv">There is no way to put a password on a site, and no encrypted mode. Assume anything published is readable by anyone with the link.</td></tr>
           <tr class="trow"><td class="tk">Attaching a PDF to the AI chat</td><td class="tv">PDFs are not accepted. Screenshot the page you want copied, or paste the text.</td></tr>
-          <tr class="trow"><td class="tk">Publishing straight from the AI chat</td><td class="tv">The chat builds and previews but cannot put a site live. Use the paste builder on the main dashboard.</td></tr>
           <tr class="trow"><td class="tk">Email when something arrives</td><td class="tv">No notifications of any kind — not for form entries or traffic. You check, or your agent does.</td></tr>
           <tr class="trow"><td class="tk">Referrers or page-level traffic</td><td class="tv">Traffic is per site: people, bots, monitoring, a trend and countries. Nothing about which link a visitor came from or which page they read.</td></tr>
           <tr class="trow"><td class="tk">Anything that runs on the server</td><td class="tv">No server-side code, no scheduled jobs, no image processing, no sending mail from your site. Deliberate, and it is what keeps this safe to host.</td></tr>

@@ -146,7 +146,7 @@ func (h *SiteHandler) renderShowcase(w http.ResponseWriter, r *http.Request, han
 	for _, s := range sites {
 		vis := s.Visibility
 		if vis == "" {
-			vis = "public"
+			vis = "unlisted" // never guess "public"
 		}
 		if vis != "public" {
 			continue // public server-render lists public sites only

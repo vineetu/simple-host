@@ -829,6 +829,8 @@
     }
 
     .deploy-callout .callout-hide { margin-left: auto; }
+    /* Collapsed form of the onboarding blocks: one small link each in the
+       "Your sites" header (AI create + agent setup, side by side). */
     .agent-setup-link {
       font-family: var(--font);
       font-size: 12px;
@@ -869,6 +871,7 @@
       padding: 14px 20px; border-bottom: 1px solid var(--border);
     }
     .ai-head h3 { font-size: 15px; font-weight: 600; }
+    .ai-head .grp { display: flex; gap: 8px; align-items: center; }
     .ai-head .spark { color: var(--accent); }
     /* Single column until there's a preview, then split steps | preview. */
     .ai-body { display: grid; grid-template-columns: 1fr; }
@@ -1221,11 +1224,18 @@
           <span class="sb-arrow">↗</span>
         </a>
 
-        <!-- Create a site: build it in your own AI, paste the JSON back -->
+        <!-- Create a site: build it in your own AI, paste the JSON back.
+             Like the deploy callout below, shown in full while the account has
+             no sites, otherwise collapsed to a link in the section header
+             (toggle persisted in localStorage). Collapsing only toggles
+             `hidden` on this container; the builder state inside is untouched. -->
         <div class="ai-create" id="ai-create">
           <div class="ai-head">
             <h3><span class="spark">✦</span> Create a site</h3>
-            <button class="btn-ghost btn-small" id="ai-reset" onclick="resetBuilder()" hidden>Start over</button>
+            <div class="grp">
+              <button class="btn-ghost btn-small" id="ai-reset" onclick="resetBuilder()" hidden>Start over</button>
+              <button type="button" class="btn-ghost btn-small" id="ai-create-hide" onclick="toggleOnboarding('aiCreate', false)" hidden>Hide</button>
+            </div>
           </div>
           <div class="ai-body">
             <div class="ai-steps">
@@ -1294,7 +1304,7 @@
           <div class="callout-actions">
             <a class="btn btn-primary btn-small" href="/install.html">Install the skill →</a>
             <a class="btn btn-ghost btn-small" href="/docs.html">API reference</a>
-            <button type="button" class="btn btn-ghost btn-small callout-hide" id="deploy-callout-hide" onclick="toggleAgentSetup(false)" hidden>Hide</button>
+            <button type="button" class="btn btn-ghost btn-small callout-hide" id="deploy-callout-hide" onclick="toggleOnboarding('agentSetup', false)" hidden>Hide</button>
           </div>
         </div>
 
@@ -1302,7 +1312,8 @@
         <div class="section-header">
           <h2>Your sites</h2>
           <div class="section-tools">
-            <button type="button" class="agent-setup-link" id="agent-setup-link" onclick="toggleAgentSetup(true)" hidden>Set up your coding agent →</button>
+            <button type="button" class="agent-setup-link" id="ai-create-link" onclick="toggleOnboarding('aiCreate', true)" hidden>Build a site with AI →</button>
+            <button type="button" class="agent-setup-link" id="agent-setup-link" onclick="toggleOnboarding('agentSetup', true)" hidden>Set up your coding agent →</button>
             <label class="sort-label" for="site-sort">Sort</label>
             <select id="site-sort" class="sort-select" onchange="setSiteSort(this.value)">
               <option value="people">Most people</option>
@@ -1812,8 +1823,10 @@ function parseAnalyticsSummary(data) {
       const ownSites = currentUser && currentUser.is_admin
         ? sites.filter(s => s.user_id === ownerId)
         : sites;
-      // The agent-setup callout takes the page over only while there is nothing else to show.
-      updateAgentSetup(!ownSites || ownSites.length === 0);
+      // The onboarding blocks (AI create + agent-setup callout) take the page
+      // over only while there is nothing else to show. That is also the only
+      // time the empty state below renders, so its "above" stays accurate.
+      updateOnboarding(!ownSites || ownSites.length === 0);
 
       const myContainer = document.getElementById('sites-container');
       if (!ownSites || ownSites.length === 0) {
@@ -1840,31 +1853,42 @@ function parseAnalyticsSummary(data) {
       loadAnalytics();
     }
 
-    // "Deploy with your coding agent" callout: full-size for an account with
-    // no sites, otherwise collapsed to a link in the section header. The
-    // open/closed choice persists in localStorage under sh_agent_setup_open.
-    const AGENT_SETUP_KEY = 'sh_agent_setup_open';
-    let agentSetupForced = true;
-    function agentSetupOpen() {
-      try { return localStorage.getItem(AGENT_SETUP_KEY) === '1'; } catch (e) { return false; }
+    // Onboarding blocks ("Create a site" builder and the "Deploy with your
+    // coding agent" callout): full-size for an account with no sites,
+    // otherwise each collapses to a link in the "Your sites" header. Each
+    // block's open/closed choice persists in localStorage under its own key.
+    // Collapsing only toggles `hidden` on the container, so the builder's
+    // preview / "Start over" state survives a hide + show.
+    const ONBOARDING_BLOCKS = {
+      aiCreate:   { block: 'ai-create',      link: 'ai-create-link',   hide: 'ai-create-hide',      key: 'sh_ai_create_open' },
+      agentSetup: { block: 'deploy-callout', link: 'agent-setup-link', hide: 'deploy-callout-hide', key: 'sh_agent_setup_open' },
+    };
+    let onboardingForced = true;
+    function onboardingOpen(cfg) {
+      try { return localStorage.getItem(cfg.key) === '1'; } catch (e) { return false; }
     }
-    function updateAgentSetup(noSites) {
-      agentSetupForced = !!noSites;
-      const callout = document.getElementById('deploy-callout');
-      const link = document.getElementById('agent-setup-link');
-      const hide = document.getElementById('deploy-callout-hide');
-      if (!callout || !link || !hide) return;
-      const open = agentSetupForced || agentSetupOpen();
-      callout.hidden = !open;
-      hide.hidden = agentSetupForced;
-      link.hidden = agentSetupForced || open;
+    function updateOnboardingBlock(cfg) {
+      const block = document.getElementById(cfg.block);
+      const link = document.getElementById(cfg.link);
+      const hide = document.getElementById(cfg.hide);
+      if (!block || !link || !hide) return;
+      const open = onboardingForced || onboardingOpen(cfg);
+      block.hidden = !open;
+      hide.hidden = onboardingForced;
+      link.hidden = onboardingForced || open;
     }
-    function toggleAgentSetup(open) {
-      try { localStorage.setItem(AGENT_SETUP_KEY, open ? '1' : '0'); } catch (e) {}
-      updateAgentSetup(agentSetupForced);
+    function updateOnboarding(noSites) {
+      onboardingForced = !!noSites;
+      for (const name in ONBOARDING_BLOCKS) updateOnboardingBlock(ONBOARDING_BLOCKS[name]);
+    }
+    function toggleOnboarding(name, open) {
+      const cfg = ONBOARDING_BLOCKS[name];
+      if (!cfg) return;
+      try { localStorage.setItem(cfg.key, open ? '1' : '0'); } catch (e) {}
+      updateOnboardingBlock(cfg);
       if (open) {
-        const callout = document.getElementById('deploy-callout');
-        if (callout && callout.scrollIntoView) callout.scrollIntoView({ block: 'nearest' });
+        const block = document.getElementById(cfg.block);
+        if (block && block.scrollIntoView) block.scrollIntoView({ block: 'nearest' });
       }
     }
 

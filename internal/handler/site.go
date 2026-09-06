@@ -1549,7 +1549,7 @@ func archiveFilename(siteName string, body []byte) string {
 func toSiteResponse(site db.Site, note string) siteResponse {
 	visibility := site.Visibility
 	if visibility == "" {
-		visibility = "public"
+		visibility = "unlisted" // never guess "public"
 	}
 	return siteResponse{
 		ID:            site.ID,

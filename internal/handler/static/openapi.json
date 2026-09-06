@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Simple Host API",
-    "description": "Static website hosting with a light per-site backend. Deploy a site with one API call \u2014 inline JSON files (LLM-friendly) or a tar.gz/zip archive \u2014 and each site gets shared JSON state (with atomic ops), append-only collections. Sign-in is a 6-digit email code or Google that returns an API key, sent as the `X-API-Key` header. Hosted-page sign-in uses the same account but a site-scoped session cookie on a bound custom domain \u2014 never an API key. Shared-host saving requires an account X-API-Key.",
+    "description": "Static website hosting with a light per-site backend. Deploy a site with one API call \u2014 inline JSON files (LLM-friendly) or a tar.gz/zip archive \u2014 and each site gets shared JSON state (with atomic ops), append-only collections. Sign-in is a 6-digit email code or Google that returns an API key, sent as the `X-API-Key` header. Hosted-page sign-in uses the same account but a site-scoped session cookie on a bound custom domain \u2014 never an API key. On the shared host pages save without sign-in or a key; on a custom domain saves need a visitor session or any account's X-API-Key.",
     "version": "2.0.0"
   },
   "servers": [
@@ -38,7 +38,7 @@
     },
     {
       "name": "Custom domains",
-      "description": "Bind one custom domain per site (CNAME + on-demand TLS)"
+      "description": "Bind one custom domain per site (CNAME or A record; certificate issued by the operator)"
     },
     {
       "name": "Analytics",
@@ -3031,7 +3031,7 @@
       "post": {
         "operationId": "postSitesBySitenameDomain",
         "summary": "Bind a custom domain to this site",
-        "description": "Bind ONE custom domain to the site (status starts as `pending`). Returns the DNS CNAME record the owner must create (host \u2192 platform CNAME target). Once DNS points at us, on-demand TLS issues a cert and the domain is served at its root. Until first verified, a binding is provisional: another site can take it over, and it expires after 24 hours from binding. A domain verified at least once stays exclusive even if later checks fail. Hijacking the platform zone is rejected. Owner only (API key).",
+        "description": "Bind ONE custom domain to the site (status starts as `pending`). Returns the DNS CNAME record the owner must create (host \u2192 platform CNAME target). Once DNS points at us, the operator issues the certificate and the domain is served at its root. Until first verified, a binding is provisional: another site can take it over, and it expires after 24 hours from binding. A domain verified at least once stays exclusive even if later checks fail. Hijacking the platform zone is rejected. Owner only (API key).",
         "tags": [
           "Custom domains"
         ],
