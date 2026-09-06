@@ -83,3 +83,8 @@ Website Deploy skill; humans mostly never touch the API directly.
   wired but unconfigured and is not advertised.
 - **2026-09-05. Keep the story simple.** No "attributable writes" claim (nothing records an
   author), no personal-data rules in the docs; one sentence that sites and their data are public.
+- **2026-09-06. A site with a domain lives only there.** Its shared-host page URL 302s to the
+  domain (same path), and its shared-host API takes no writes at all, key or not; agents use the
+  apex or the domain. Reads stay public. Disconnecting the domain reverses both at once and
+  strands links people saved to the domain; the owner accepts that. Reason: one address, one
+  place to save, one place to sign in, and no back door around per-person writes.

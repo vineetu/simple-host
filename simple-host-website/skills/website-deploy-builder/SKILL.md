@@ -160,7 +160,7 @@ Website Deploy serves files. There is no rewrite layer. Because sites live under
 
 ### 8. Custom domains
 
-A user can serve a site from their own domain (e.g. `recipes.brand.com`). This is a distinct flow — use the `connect-domain` skill (`simple-host-website/skills/connect-domain`). Summary: `POST /v1/sites/<sitename>/domain` with `{domain}` → user adds one DNS record → poll `GET /v1/sites/<sitename>/domain` until `active`. A custom domain changes the address and adds visitor sign-in to saves; it does not change the privacy — the site is still public.
+A user can serve a site from their own domain (e.g. `recipes.brand.com`). This is a distinct flow — use the `connect-domain` skill (`simple-host-website/skills/connect-domain`). Summary: `POST /v1/sites/<sitename>/domain` with `{domain}` → user adds one DNS record → poll `GET /v1/sites/<sitename>/domain` until `active`. A custom domain changes the address and adds visitor sign-in to saves; it does not change the privacy — the site is still public. Once connected, the site lives only on the domain: its `sites.simple-host.app` URL 302s there and the shared-host API takes no writes for it (agents keep writing through the apex `https://simple-host.app/v1/...`).
 
 ## Picking a capability mix
 

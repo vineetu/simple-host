@@ -15,11 +15,15 @@ sign-in exists only there: on the shared host every site is the same origin, so
 a sign-in could never be private to one site. Agents write with an API key on
 any site, shared host included.
 
-Once a site has a custom domain bound, its `sites.simple-host.app` URL stops
-accepting page writes: state and collection writes there answer 401
-`use_custom_domain` (with the `domain`) unless an `X-API-Key` is sent, because
-the site is per-person on its own domain and the shared-host URL must not be a
-back door around that. Sites without a domain are unchanged.
+Once a site has a custom domain bound, it lives only there. Its
+`sites.simple-host.app/<handle>/<site>/...` page URL answers 302 to
+`https://<domain>/...` (same path and query), and its shared-host API takes no
+writes at all: state and collection writes there answer 401
+`use_custom_domain` (with the `domain`) whether or not an `X-API-Key` is sent.
+Reads there stay public. Agents write through the apex
+`https://simple-host.app/v1/...` with a key (what this skill already does) or
+through the domain's own `/v1/` (key or session). Sites without a domain are
+unchanged.
 
 The plain-`fetch` shape that works on both hosts (the `SH` helper below sends
 the same headers for you):
@@ -193,7 +197,7 @@ this.
 | 401 | `{"error":"sign-in required to write","code":"visitor_auth_required","sign_in":"/v1/auth/oauth/providers","retry":true}` | Custom domain: no signed-in visitor and no key. Sign the visitor in, then retry once. Never returned on the shared host. |
 | 403 | `{"error":"missing CSRF header","code":"csrf_required"}` | A session write without `X-SH-CSRF: 1`. The helper always sends it. |
 | 401 | `{"error":"invalid API key","code":"invalid_api_key"}` | Unknown `X-API-Key`. Do not retry with the same key. |
-| 401 | `{"error":"this site saves on its own domain; sign in there","code":"use_custom_domain","domain":"recipes.brand.com"}` | Shared host, site has a custom domain: page writes are only accepted on that domain (a key still works). Link the visitor to the same page on `domain`; do not retry here. |
+| 401 | `{"error":"this site saves on its own domain","code":"use_custom_domain","domain":"recipes.brand.com"}` | Shared host, site has a custom domain: the shared-host API takes no writes for it, key or not (the shared-host page URL itself 302s to the domain). Pages: link the visitor to the same page on `domain`. Agents: write through the apex `https://simple-host.app/v1/...` or the domain's `/v1/`. Do not retry here. |
 | 403 | (reads) | No `Origin` header on a non-browser read. Send one. |
 
 On any of these: keep the form, never claim success, and never re-POST a

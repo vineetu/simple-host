@@ -141,11 +141,18 @@ operator, the per-domain work is a vhost pointing at that domain's site director
 it (see `deploy/prod/nginx-customdomain.example.conf`). Until that is done the status stays
 `pending` with `last_error` naming the certificate — that is the signal to act on.
 
+The redirect from the site's `sites.simple-host.app` URL to the domain needs no extra step: the
+server writes a `domain-redirect` marker file in the site directory on bind and removes it on
+disconnect, and the content-host nginx config tests for that file.
+
 ### 5. Confirm it's live
 Once `https://recipes.brand.com/` returns 200, it serves the connected site over HTTPS,
 on its **own origin**. Pages on it can now sign visitors in (Google or email code), and saves
 to the site's backend need that sign-in. The site is still public: a custom domain changes the
 address, not who can read it — sign-in gates saving, not reading; it is not a private page.
+From now on the site lives only on the domain: its old `sites.simple-host.app/<handle>/<site>/...`
+URL answers 302 to `https://recipes.brand.com/...` (same path and query), and the shared-host API
+stops accepting writes for it (401 `use_custom_domain`, even with a key — reads stay public).
 
 ### Disconnect
 ```
@@ -153,7 +160,10 @@ DELETE /v1/sites/{site}/domain
 X-API-Key: <api_key>
 ```
 Unbinds the domain (the site stays live at its `sites.simple-host.app/<handle>/<site>/` path).
-Tell the user they can also remove the DNS record at their registrar afterward.
+Disconnecting reverses both changes immediately — the shared-host URL stops redirecting and
+accepts writes again (the redirect is a 302, so nothing stays cached) — and any link people saved
+to the domain simply stops working. Tell the user they can also remove the DNS record at their
+registrar afterward.
 
 ## Backend on a connected domain
 
@@ -165,11 +175,13 @@ Writes here need the visitor signed in — Google (more providers later) or an e
 because the site name cannot be derived from a custom-domain URL, set
 `window.SH_CONFIG = { site: "<site>" }` before the tag, then `await SH.requireSignIn()` before
 each save. The same page code works on the shared host for a site without a domain, where that call resolves at once.
-Once a domain is connected, the site's `sites.simple-host.app` URL stops accepting page saves
-(401 `use_custom_domain`, with the `domain`) and points visitors at the domain — `SH.mount()` shows
-"This site saves on <domain>. Sign in there to save." with a link — because the site is per-person on
-its own domain and the shared-host URL must not be a back door around that. Pattern and API: the
-`website-deploy` skill's `references/backend.md`.
+Once a domain is connected, the site lives only there: its `sites.simple-host.app` page URL
+answers 302 to the same path on the domain, and the shared-host API takes no writes for it at all
+(401 `use_custom_domain`, with the `domain`, key or not); `/me` there returns
+`code: use_custom_domain` so `SH.mount()` shows "This site saves on <domain>. Sign in there to
+save." with a link. Agents keep writing through the apex `https://simple-host.app/v1/...` with a
+key, or through the domain's own `/v1/`. Disconnecting reverses both immediately. Pattern and API:
+the `website-deploy` skill's `references/backend.md`.
 
 ## Gotchas
 

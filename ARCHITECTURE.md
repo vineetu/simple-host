@@ -47,6 +47,14 @@ collections. `generate.go` is Create-with-AI.
 "analytics" — the first is per-site visitor traffic, the second is per-endpoint
 API call counts.
 
+`/internal/*` routes are not API: nginx calls them on the localhost side.
+`/internal/tls-ask` is the on-demand TLS check, `/internal/showcase/{handle}`
+and `/internal/notfound` render content-host pages, and
+`/internal/domain-redirect/{handle}/{sitename}/...` (`domains.go`) is what the
+content host proxies to when a site directory carries the `domain-redirect`
+marker — it looks up the bound domain and answers 302 with `Cache-Control:
+no-store`, or clears a stale marker and 404s if the domain is gone.
+
 `static/` holds the web UI as hand-written HTML with inline CSS and JS, embedded
 into the binary. `index.html` is the owner dashboard; `showcase.html` is the
 public profile *and* the owner's Analytics tab. **Both render analytics, and
@@ -70,7 +78,9 @@ request path — it is a background loop.
 ### `internal/storage`
 
 `disk.go` — versioned site files on disk. The only package that writes site
-content.
+content. Also owns the `domain-redirect` marker file in a site directory
+(written on domain bind, removed on disconnect) that nginx tests to send the
+shared-host URL to the custom domain.
 
 ### The leaves
 
@@ -125,6 +135,15 @@ reading code:
   session (every site there is one origin) and writes are simply open — anyone
   can change that data. There is no view-lock, no private page, and no
   per-site opt-out.
+- **A site with a custom domain lives only there.** Its shared-host page URL
+  `sites.simple-host.app/{handle}/{site}/...` answers 302 to the same path on
+  the domain (302, not 301, so disconnecting stops it immediately and nothing
+  stays cached — links people saved to the domain are stranded, by decision),
+  and the shared-host API takes no writes for it at all, key or not (401
+  `use_custom_domain`); reads stay public. Agents write through the apex or
+  the domain's own `/v1/`. The switch is a `domain-redirect` marker file in
+  the site directory: `storage/disk.go` writes it on bind and removes it on
+  disconnect, and the content-host nginx tests for it.
 - **`site_view_daily` and `site_visitor_daily` are never written to, and must
   never be dropped.** They are the only surviving record of traffic from before
   classification existed, and are served as the `unknown` class.
