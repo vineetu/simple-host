@@ -188,6 +188,29 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 		return false
 	}
 
+	mode := h.writeAuthMode
+	if mode == "" {
+		mode = "log"
+	}
+
+	// A site that has its own domain lives there: its shared-host URL takes no
+	// writes at all, key or not (agents use the apex or the domain). Reads stay
+	// public. In log mode this is measured, not enforced.
+	if strings.EqualFold(requestHostName(r), h.contentHost) {
+		if info, ok, _ := db.GetSiteDomainInfo(r.Context(), h.database, siteID); ok && info.Domain != "" {
+			h.logAnonWrite(r, siteID, siteName, route, collection, mode, "use_custom_domain")
+			if mode == "on" && !allowAnon {
+				writeJSON(w, http.StatusUnauthorized, map[string]string{
+					"error":  "this site saves on its own domain",
+					"code":   "use_custom_domain",
+					"domain": info.Domain,
+				})
+				return false
+			}
+			return true
+		}
+	}
+
 	if key := r.Header.Get("X-API-Key"); key != "" {
 		u, ok, resolveErr := h.resolveWriterKey(r.Context(), key)
 		if resolveErr != nil {
@@ -206,10 +229,6 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 		return false
 	}
 
-	mode := h.writeAuthMode
-	if mode == "" {
-		mode = "log"
-	}
 	if mode == "off" {
 		return true
 	}
@@ -220,21 +239,6 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 	// limits and size caps are the only guards. Custom domains keep the
 	// session/key requirement below.
 	if strings.EqualFold(requestHostName(r), h.contentHost) {
-		// A site that has its own domain is per-person there; its shared-host
-		// URL must not be a back door around that. Pages on the shared host
-		// are told to use the domain; agents still write with a key.
-		if info, ok, _ := db.GetSiteDomainInfo(r.Context(), h.database, siteID); ok && info.Domain != "" {
-			h.logAnonWrite(r, siteID, siteName, route, collection, mode, "use_custom_domain")
-			if mode == "on" && !allowAnon {
-				writeJSON(w, http.StatusUnauthorized, map[string]string{
-					"error":  "this site saves on its own domain; sign in there",
-					"code":   "use_custom_domain",
-					"domain": info.Domain,
-				})
-				return false
-			}
-			return true
-		}
 		h.logAnonWrite(r, siteID, siteName, route, collection, mode, "public_host")
 		return true
 	}

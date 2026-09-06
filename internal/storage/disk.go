@@ -402,3 +402,26 @@ func copyDir(src, dst string) error {
 		return nil
 	})
 }
+
+// SetDomainRedirect drops a marker file in the site directory so the shared
+// content host (nginx, which serves pages straight from disk) can tell that
+// this site now lives on its own domain and hand the request to the app for a
+// redirect. The file holds the domain for humans; nginx only tests existence.
+func (d *DiskStorage) SetDomainRedirect(userID, siteName, domain string) error {
+	if !validPathKey(userID) || !validPathKey(siteName) || !validDomainKey(domain) {
+		return fmt.Errorf("invalid domain redirect marker for %q/%q -> %q", userID, siteName, domain)
+	}
+	return os.WriteFile(filepath.Join(d.SiteDir(userID, siteName), "domain-redirect"), []byte(domain+"\n"), 0o644)
+}
+
+// ClearDomainRedirect removes the marker; missing is fine.
+func (d *DiskStorage) ClearDomainRedirect(userID, siteName string) error {
+	if !validPathKey(userID) || !validPathKey(siteName) {
+		return fmt.Errorf("invalid site %q/%q", userID, siteName)
+	}
+	err := os.Remove(filepath.Join(d.SiteDir(userID, siteName), "domain-redirect"))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}

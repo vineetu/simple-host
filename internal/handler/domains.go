@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"regexp"
 	"strings"
@@ -184,6 +185,9 @@ func (h *SiteHandler) bindDomain(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	if err := h.disk.SetDomainRedirect(site.UserID, site.Name, domain); err != nil {
+		log.Printf("domain: redirect marker for %s/%s: %v", site.UserID, site.Name, err)
+	}
 
 	rec := h.dnsRecordFor(domain)
 	writeJSON(w, http.StatusOK, domainResponse{
@@ -281,6 +285,9 @@ func (h *SiteHandler) deleteDomain(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
 		}
+		if err := h.disk.ClearDomainRedirect(info.UserID, info.Name); err != nil {
+			log.Printf("domain: clear redirect marker for %s/%s: %v", info.UserID, info.Name, err)
+		}
 	}
 
 	w.WriteHeader(http.StatusNoContent)
@@ -328,4 +335,36 @@ func (h *SiteHandler) tlsAsk(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("ok"))
+}
+
+// domainRedirect answers GET /internal/domain-redirect/{handle}/{sitename}[/rest]
+// for the shared content host: once a site has its own domain, its shared-host
+// URL only points there (302, so an unbound domain never stays cached).
+func (h *SiteHandler) domainRedirect(w http.ResponseWriter, r *http.Request) {
+	handle := strings.TrimSpace(r.PathValue("handle"))
+	name := strings.TrimSpace(r.PathValue("sitename"))
+	user, err := db.GetUserByHandle(r.Context(), h.database, handle)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, name)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	info, ok, err := db.GetSiteDomainInfo(r.Context(), h.database, site.ID)
+	if err != nil || !ok || info.Domain == "" {
+		// Stale marker: the domain is gone. Clean up and let the next request serve.
+		_ = h.disk.ClearDomainRedirect(user.ID, name)
+		http.NotFound(w, r)
+		return
+	}
+	rest := "/" + strings.TrimPrefix(r.PathValue("rest"), "/")
+	target := "https://" + info.Domain + rest
+	if r.URL.RawQuery != "" {
+		target += "?" + r.URL.RawQuery
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	http.Redirect(w, r, target, http.StatusFound)
 }
