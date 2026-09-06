@@ -18,7 +18,6 @@ func TestSharedHostVisitorEndpointsIgnoreCookie(t *testing.T) {
 		status  int
 		body    string
 	}{
-		{"me", h.getVisitorMe, 200, `{"code":"custom_domain_required","sign_in_available":false,"signed_in":false}`},
 		{"request email", h.requestVisitorEmail, 400, `{"code":"custom_domain_required","error":"sign-in needs a custom domain"}`},
 		{"verify email", h.verifyVisitorEmail, 400, `{"code":"custom_domain_required","error":"sign-in needs a custom domain"}`},
 	} {

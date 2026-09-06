@@ -131,7 +131,17 @@
         if (me.signed_in) return me;
         // Shared host: no sign-in exists and saves are open, so the save
         // proceeds as-is. The same page code works on a custom domain.
-        if (me.sign_in_available === false) return me;
+        if (me.sign_in_available === false) {
+          if (me.domain) {
+            // The site saves on its own domain; a save here would 401.
+            window.dispatchEvent(new CustomEvent("sh:signin-required"));
+            var e = new Error("this site saves on " + me.domain + "; sign in there");
+            e.code = "use_custom_domain";
+            e.domain = me.domain;
+            throw e;
+          }
+          return me;
+        }
         if (mounted) {
           // A sign-in box is on the page: bring it into view instead of leaving
           // the page for Google. Resume the save after inline sign-in.
@@ -222,8 +232,19 @@
       function render() {
         return SH.me().then(function (me) {
           if (me.sign_in_available === false) {
-            box.textContent = "Saves on this site are public. Connect a domain to add sign-in.";
             box.style.cssText = "font:inherit;color:var(--sh-muted,#666)";
+            if (me.domain) {
+              // This site saves on its own domain: send the visitor there.
+              box.textContent = "This site saves on ";
+              var a = document.createElement("a");
+              var rest = location.pathname.replace(/^\/[a-z0-9-]+\/[a-z0-9-]+/, "");
+              a.href = "https://" + me.domain + (rest || "/") + location.search + location.hash;
+              a.textContent = me.domain;
+              box.appendChild(a);
+              box.appendChild(document.createTextNode(". Sign in there to save."));
+              return;
+            }
+            box.textContent = "Saves on this site are public. Connect a domain to add sign-in.";
             return;
           }
           box.textContent = "";

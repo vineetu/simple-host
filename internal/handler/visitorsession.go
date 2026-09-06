@@ -220,6 +220,21 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 	// limits and size caps are the only guards. Custom domains keep the
 	// session/key requirement below.
 	if strings.EqualFold(requestHostName(r), h.contentHost) {
+		// A site that has its own domain is per-person there; its shared-host
+		// URL must not be a back door around that. Pages on the shared host
+		// are told to use the domain; agents still write with a key.
+		if info, ok, _ := db.GetSiteDomainInfo(r.Context(), h.database, siteID); ok && info.Domain != "" {
+			h.logAnonWrite(r, siteID, siteName, route, collection, mode, "use_custom_domain")
+			if mode == "on" && !allowAnon {
+				writeJSON(w, http.StatusUnauthorized, map[string]string{
+					"error":  "this site saves on its own domain; sign in there",
+					"code":   "use_custom_domain",
+					"domain": info.Domain,
+				})
+				return false
+			}
+			return true
+		}
 		h.logAnonWrite(r, siteID, siteName, route, collection, mode, "public_host")
 		return true
 	}
@@ -311,10 +326,6 @@ func (h *SiteHandler) originClass(r *http.Request, siteID string) string {
 // getVisitorMe reports the current site session without extending its lifetime.
 func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "private, no-store")
-	if strings.EqualFold(requestHostName(r), h.contentHost) {
-		writeJSON(w, http.StatusOK, map[string]any{"signed_in": false, "sign_in_available": false, "code": "custom_domain_required"})
-		return
-	}
 	siteName := strings.TrimSpace(r.PathValue("sitename"))
 	if siteName == "" {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
@@ -331,6 +342,17 @@ func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	// Shared host: sign-in is never offered (one origin for every site). If the
+	// site has its own domain, say so, so the page can send the visitor there.
+	if strings.EqualFold(requestHostName(r), h.contentHost) {
+		resp := map[string]any{"signed_in": false, "sign_in_available": false, "code": "custom_domain_required"}
+		if info, ok, _ := db.GetSiteDomainInfo(r.Context(), h.database, siteID); ok && info.Domain != "" {
+			resp["code"] = "use_custom_domain"
+			resp["domain"] = info.Domain
+		}
+		writeJSON(w, http.StatusOK, resp)
 		return
 	}
 	if id, decErr := hex.DecodeString(visitorCookieValue(r)); decErr == nil && len(id) == 32 {
