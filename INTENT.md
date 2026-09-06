@@ -88,3 +88,8 @@ Website Deploy skill; humans mostly never touch the API directly.
   apex or the domain. Reads stay public. Disconnecting the domain reverses both at once and
   strands links people saved to the domain; the owner accepts that. Reason: one address, one
   place to save, one place to sign in, and no back door around per-person writes.
+
+## Open, deliberately parked
+
+- Whether a site that disconnects its domain should be migrated back to a "normal" shared-host site in some
+  guided way, rather than just having the redirect stop. Parked 2026-09-06; revisit when it happens.
