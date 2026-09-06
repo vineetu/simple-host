@@ -88,6 +88,12 @@ Website Deploy skill; humans mostly never touch the API directly.
   apex or the domain. Reads stay public. Disconnecting the domain reverses both at once and
   strands links people saved to the domain; the owner accepts that. Reason: one address, one
   place to save, one place to sign in, and no back door around per-person writes.
+- **2026-09-06. A domain binding is provisional until DNS proves it.** Unproven bindings can be
+  taken over by another site and expire after 24 hours; only a verified binding is exclusive.
+  Reason: a name could otherwise be squatted forever by binding it without owning it.
+- **2026-09-06. The connect-domain skill must carry registrar-specific help** for at least Vercel,
+  GoDaddy and Porkbun, including the API call an agent can make with the user's credentials.
+  Reason: the DNS record is the one step a human has to do, and it is where people get stuck.
 
 ## Open, deliberately parked
 

@@ -23,6 +23,7 @@ CREATE TABLE sites (
   custom_domain      TEXT UNIQUE,   -- one custom domain per site; globally unique
   domain_status      TEXT,          -- pending | active | error (NULL = no domain)
   domain_verified_at TIMESTAMPTZ,
+  domain_bound_at    TIMESTAMPTZ,
   domain_last_error  TEXT,
   -- Per-site JSON datastore. `state_version` backs the atomic set/inc/append
   -- ops and the ETag, so it must exist for the state API to work at all.

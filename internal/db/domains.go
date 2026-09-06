@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strings"
 	"time"
 )
@@ -17,16 +18,19 @@ type SiteDomainInfo struct {
 	Status     string
 	LastError  string
 	VerifiedAt sql.NullTime
+	BoundAt    sql.NullTime
+	Handle     string
 }
 
 // SetCustomDomain binds domain to siteID with status "pending". Clears any prior
 // verification error. Returns a unique-violation error when the domain is
 // already taken (handler maps that to 409 via isUniqueViolation).
-func SetCustomDomain(ctx context.Context, database *sql.DB, siteID, domain string) error {
+func SetCustomDomain(ctx context.Context, database Querier, siteID, domain string) error {
 	const query = `
 		UPDATE sites
 		SET custom_domain = $2,
 		    domain_status = 'pending',
+		    domain_bound_at = now(),
 		    domain_last_error = NULL,
 		    domain_verified_at = NULL
 		WHERE id = $1
@@ -36,11 +40,12 @@ func SetCustomDomain(ctx context.Context, database *sql.DB, siteID, domain strin
 }
 
 // ClearCustomDomain unbinds any custom domain from siteID.
-func ClearCustomDomain(ctx context.Context, database *sql.DB, siteID string) error {
+func ClearCustomDomain(ctx context.Context, database Querier, siteID string) error {
 	const query = `
 		UPDATE sites
 		SET custom_domain = NULL,
 		    domain_status = NULL,
+		    domain_bound_at = NULL,
 		    domain_verified_at = NULL,
 		    domain_last_error = NULL
 		WHERE id = $1
@@ -53,7 +58,7 @@ func ClearCustomDomain(ctx context.Context, database *sql.DB, siteID string) err
 // the site has no custom_domain set (or the site row is missing).
 func GetSiteDomainInfo(ctx context.Context, database *sql.DB, siteID string) (SiteDomainInfo, bool, error) {
 	const query = `
-		SELECT id, user_id, name, custom_domain, domain_status, domain_verified_at, domain_last_error
+		SELECT id, user_id, name, custom_domain, domain_status, domain_verified_at, domain_bound_at, domain_last_error
 		FROM sites
 		WHERE id = $1
 	`
@@ -66,6 +71,7 @@ func GetSiteDomainInfo(ctx context.Context, database *sql.DB, siteID string) (Si
 		&domain,
 		&status,
 		&info.VerifiedAt,
+		&info.BoundAt,
 		&lastErr,
 	)
 	if err != nil {
@@ -91,7 +97,7 @@ func GetSiteDomainInfo(ctx context.Context, database *sql.DB, siteID string) (Si
 // match). Returns sql.ErrNoRows when none.
 func GetSiteByCustomDomain(ctx context.Context, database *sql.DB, domain string) (SiteDomainInfo, error) {
 	const query = `
-		SELECT id, user_id, name, custom_domain, domain_status
+		SELECT id, user_id, name, custom_domain, domain_status, domain_verified_at, domain_bound_at
 		FROM sites
 		WHERE custom_domain = $1
 	`
@@ -104,6 +110,8 @@ func GetSiteByCustomDomain(ctx context.Context, database *sql.DB, domain string)
 		&info.Name,
 		&info.Domain,
 		&status,
+		&info.VerifiedAt,
+		&info.BoundAt,
 	)
 	if err != nil {
 		return SiteDomainInfo{}, err
@@ -165,4 +173,75 @@ func SetDomainStatus(ctx context.Context, database *sql.DB, siteID, status, last
 	`
 	_, err := database.ExecContext(ctx, query, siteID, status, lastErr)
 	return err
+}
+
+// ErrDomainTaken means another site has already proved this domain.
+var ErrDomainTaken = errors.New("domain is connected to another site")
+
+// BindCustomDomain releases an unproven holder and binds the requester atomically.
+// Lock the holder so verification cannot change the takeover decision mid-transaction.
+func BindCustomDomain(ctx context.Context, database *sql.DB, siteID, domain string) (*SiteDomainInfo, error) {
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	// Serialize binds for this name even when no holder row exists yet.
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, domain); err != nil {
+		return nil, err
+	}
+	var holder SiteDomainInfo
+	err = tx.QueryRowContext(ctx, `
+		SELECT s.id, s.user_id, s.name, s.custom_domain, s.domain_verified_at, COALESCE(u.handle, '')
+		FROM sites s JOIN users u ON u.id = s.user_id
+		WHERE s.custom_domain = $1 FOR UPDATE OF s`, domain).Scan(
+		&holder.SiteID, &holder.UserID, &holder.Name, &holder.Domain, &holder.VerifiedAt, &holder.Handle)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+	var released *SiteDomainInfo
+	if err == nil && holder.SiteID != siteID {
+		if holder.VerifiedAt.Valid {
+			return nil, ErrDomainTaken
+		}
+		if err := ClearCustomDomain(ctx, tx, holder.SiteID); err != nil {
+			return nil, err
+		}
+		released = &holder
+	}
+	if err := SetCustomDomain(ctx, tx, siteID, domain); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return released, nil
+}
+
+// ReleaseExpiredDomains clears only bindings that have never been proven.
+func ReleaseExpiredDomains(ctx context.Context, database *sql.DB) ([]SiteDomainInfo, error) {
+	rows, err := database.QueryContext(ctx, `
+		WITH expired AS (
+		SELECT id, user_id, name, custom_domain FROM sites
+		WHERE custom_domain IS NOT NULL AND domain_verified_at IS NULL
+		AND domain_bound_at < now() - interval '24 hours'
+		FOR UPDATE
+		)
+		UPDATE sites s SET custom_domain = NULL, domain_status = NULL,
+		domain_verified_at = NULL, domain_bound_at = NULL, domain_last_error = NULL
+		FROM expired e WHERE s.id = e.id
+		RETURNING e.id, e.user_id, e.name, e.custom_domain`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var released []SiteDomainInfo
+	for rows.Next() {
+		var info SiteDomainInfo
+		if err := rows.Scan(&info.SiteID, &info.UserID, &info.Name, &info.Domain); err != nil {
+			return nil, err
+		}
+		released = append(released, info)
+	}
+	return released, rows.Err()
 }

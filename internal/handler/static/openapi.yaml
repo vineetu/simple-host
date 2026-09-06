@@ -1318,8 +1318,10 @@ paths:
         Bind ONE custom domain to the site (status starts as `pending`). Returns
         the DNS CNAME record the owner must create (host → platform CNAME
         target). Once DNS points at us, on-demand TLS issues a cert and the
-        domain is served at its root. Domains are globally unique; hijacking the
-        platform zone is rejected. Owner only (API key).
+        domain is served at its root. Until first verified, a binding is provisional:
+        another site can take it over, and it expires after 24 hours from binding.
+        A domain verified at least once stays exclusive even if later checks fail.
+        Hijacking the platform zone is rejected. Owner only (API key).
       tags: [Custom domains]
       security: [{ apiKey: [] }]
       parameters: [ { $ref: '#/components/parameters/sitename' } ]
@@ -1340,6 +1342,7 @@ paths:
               schema:
                 type: object
                 properties:
+                  took_over_from: { type: string, description: Previous holder as handle/site; included only on takeover of an unproven binding, example: alice/blog }
                   domain: { type: string, example: www.example.com }
                   status: { type: string, enum: [pending, active, error], example: pending }
                   dns:
@@ -1352,10 +1355,17 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: Domain already taken by another site
+          description: Domain has been verified by another site at least once
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema:
+                type: object
+                required: [error, code]
+                additionalProperties: false
+                properties:
+                  error: { type: string, enum: [domain is connected to another site] }
+                  code: { type: string, enum: [domain_taken] }
+              example: { error: domain is connected to another site, code: domain_taken }
     get:
       operationId: getSitesBySitenameDomain
       summary: Get the custom domain binding for this site
@@ -1376,6 +1386,8 @@ paths:
                 properties:
                   domain: { type: string, nullable: true, example: www.example.com }
                   status: { type: string, nullable: true, enum: [pending, active, error] }
+                  bound_at: { type: string, format: date-time, description: Binding timestamp stored as domain_bound_at; reset on bind }
+                  expires_at: { type: string, format: date-time, description: bound_at plus 24 hours; included only while pending and never verified }
                   verified_at: { type: string, format: date-time, nullable: true }
                   last_error: { type: string }
                   dns:

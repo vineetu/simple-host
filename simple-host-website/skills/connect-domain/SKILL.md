@@ -59,8 +59,15 @@ Response (subdomain example — CNAME):
 ```
 For an apex (`brand.com`), `dns.type` is `A` and `dns.value` is the IP to point at —
 relay whatever the response returns; don't invent the target.
-`409` means the domain is already connected to another site. `400` means the domain is
-malformed or is one of our own hostnames.
+`409` (`domain_taken`) means the domain is connected to another site **and that binding was
+actually verified**. `400` means the domain is malformed or is one of our own hostnames.
+
+**A binding is provisional until DNS proves it.** Until the domain resolves here and serves, the
+bind is just a claim: another site can bind the same domain and take it over, and the claim
+**expires after 24 hours** if it is never proven. `GET .../domain` shows `bound_at` and, while
+unproven, `expires_at`. So do not bind days ahead of the DNS change — bind, get the record
+added, and verify in one sitting; if the human can't add the record today, bind again when they
+can (rebinding is cheap and idempotent for the same site).
 
 ### 3. Relay the DNS record to the human (their only task)
 Give them the record from the `dns` object, in plain terms. Subdomain (CNAME) example:
@@ -79,6 +86,12 @@ For apex, use the returned A record (`Type: A`, host `@` or the bare domain, val
 the IP from the response). Do not ask them to change nameservers or delete anything.
 Only this one record is added.
 
+Ask which registrar (or DNS host) holds the domain's DNS, then give them that section's exact
+menu path and fields from `references/registrars.md` ·
+https://simple-host.app/v1/skills/connect-domain/references/registrars.md (Vercel DNS,
+GoDaddy, Porkbun, and a generic section — including how to check the record landed at the
+authoritative nameserver before trusting a public resolver).
+
 ### 3b. If you can edit the domain's DNS yourself, do it (with permission)
 Instead of handing the record to the human, you MAY add it yourself **if you have a way to manage
 that domain's DNS** (for example an API or an MCP server for wherever the domain is hosted). Work
@@ -92,6 +105,15 @@ subdomain, or the **A record** for an apex. Rules (non-negotiable):
 - Apex **replaces** the domain's current root target, so only do that if the human wants the whole
   domain moved; otherwise use a subdomain, which is purely additive.
 - No tool, or any doubt about what's safe to touch → just give the human the record (step 3).
+- **Credentials are single-use.** If the user hands you a registrar API key, use it for the one
+  write (and a read-back), then forget it. Never store it in the site, the repo, a config file
+  or a message.
+
+Ask which registrar hosts the DNS, then follow that section of `references/registrars.md` ·
+https://simple-host.app/v1/skills/connect-domain/references/registrars.md — it has the
+copy-paste API call (endpoint, auth header, body) for Vercel DNS, GoDaddy and Porkbun, plus the
+per-vendor prerequisites (GoDaddy gates the API by account; Porkbun needs a per-domain "API
+Access" toggle the human must flip).
 
 Then tell them what you added and continue to verification.
 
@@ -202,4 +224,9 @@ the `website-deploy` skill's `references/backend.md`.
   certificate is the missing piece. Saying "it's still propagating" here sends the user away to
   wait for something that will never happen on its own.
 - **Propagation is not instant.** A domain that doesn't resolve at all right after the record is
-  added is normal; give it a few minutes.
+  added is normal; give it a few minutes. Check the registrar's own nameserver first
+  (`references/registrars.md`); a public resolver can hold the old answer for the old TTL.
+- **A bind is provisional until DNS proves it.** An unproven binding can be taken over by
+  another site and expires after 24 hours (`GET .../domain` shows `bound_at` and `expires_at`
+  while unproven). Bind and add the record in the same sitting; `409 domain_taken` only fires
+  against a binding that was actually verified.

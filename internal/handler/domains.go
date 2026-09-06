@@ -129,11 +129,14 @@ type domainBindRequest struct {
 }
 
 type domainResponse struct {
-	Domain     any        `json:"domain"` // string or null
-	Status     any        `json:"status"` // string or null
-	VerifiedAt *time.Time `json:"verified_at,omitempty"`
-	LastError  string     `json:"last_error,omitempty"`
-	DNS        *dnsRecord `json:"dns,omitempty"`
+	Domain       any        `json:"domain"` // string or null
+	Status       any        `json:"status"` // string or null
+	BoundAt      *time.Time `json:"bound_at,omitempty"`
+	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
+	TookOverFrom string     `json:"took_over_from,omitempty"`
+	VerifiedAt   *time.Time `json:"verified_at,omitempty"`
+	LastError    string     `json:"last_error,omitempty"`
+	DNS          *dnsRecord `json:"dns,omitempty"`
 }
 
 // bindDomain POST /v1/sites/{sitename}/domain — bind one custom domain (pending DNS).
@@ -172,18 +175,26 @@ func (h *SiteHandler) bindDomain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := db.SetCustomDomain(r.Context(), h.database, site.ID, domain); err != nil {
-		if isUniqueViolation(err) {
-			writeJSON(w, http.StatusConflict, errorResponse{Error: "domain already taken"})
+	holder, err := db.BindCustomDomain(r.Context(), h.database, site.ID, domain)
+	if err != nil {
+		if errors.Is(err, db.ErrDomainTaken) {
+			writeJSON(w, http.StatusConflict, struct {
+				Error string `json:"error"`
+				Code  string `json:"code"`
+			}{"domain is connected to another site", "domain_taken"})
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
 
+	tookOverFrom := ""
+	if holder != nil {
+		h.releaseDomainFiles(*holder)
+		tookOverFrom = holder.Handle + "/" + holder.Name
+	}
 	if err := h.disk.BindDomain(site.UserID, site.Name, domain); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
+		log.Printf("domain: bind %s for %s/%s: %v", domain, site.UserID, site.Name, err)
 	}
 	if err := h.disk.SetDomainRedirect(site.UserID, site.Name, domain); err != nil {
 		log.Printf("domain: redirect marker for %s/%s: %v", site.UserID, site.Name, err)
@@ -191,9 +202,10 @@ func (h *SiteHandler) bindDomain(w http.ResponseWriter, r *http.Request) {
 
 	rec := h.dnsRecordFor(domain)
 	writeJSON(w, http.StatusOK, domainResponse{
-		Domain: domain,
-		Status: "pending",
-		DNS:    &rec,
+		Domain:       domain,
+		TookOverFrom: tookOverFrom,
+		Status:       "pending",
+		DNS:          &rec,
 	})
 }
 
@@ -238,11 +250,23 @@ func (h *SiteHandler) getDomain(w http.ResponseWriter, r *http.Request) {
 		LastError: info.LastError,
 		DNS:       &rec,
 	}
+	setDomainTimes(&resp, info)
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func setDomainTimes(resp *domainResponse, info db.SiteDomainInfo) {
+	if info.BoundAt.Valid {
+		t := info.BoundAt.Time
+		resp.BoundAt = &t
+		if info.Status == "pending" && !info.VerifiedAt.Valid {
+			expires := t.Add(24 * time.Hour)
+			resp.ExpiresAt = &expires
+		}
+	}
 	if info.VerifiedAt.Valid {
 		t := info.VerifiedAt.Time
 		resp.VerifiedAt = &t
 	}
-	writeJSON(w, http.StatusOK, resp)
 }
 
 // deleteDomain DELETE /v1/sites/{sitename}/domain — unbind custom domain.
@@ -367,4 +391,14 @@ func (h *SiteHandler) domainRedirect(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	http.Redirect(w, r, target, http.StatusFound)
+}
+
+// releaseDomainFiles is best-effort cleanup after a database release.
+func (h *SiteHandler) releaseDomainFiles(info db.SiteDomainInfo) {
+	if err := h.disk.UnbindDomain(info.Domain); err != nil {
+		log.Printf("domain: unbind %s: %v", info.Domain, err)
+	}
+	if err := h.disk.ClearDomainRedirect(info.UserID, info.Name); err != nil {
+		log.Printf("domain: clear redirect marker for %s/%s: %v", info.UserID, info.Name, err)
+	}
 }

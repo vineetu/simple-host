@@ -41,6 +41,16 @@ func (h *SiteHandler) checkBoundDomains() {
 	ctx, cancel := context.WithTimeout(context.Background(), domainPassTimeout)
 	defer cancel()
 
+	released, err := db.ReleaseExpiredDomains(ctx, h.database)
+	if err != nil {
+		log.Printf("domain check: expiry failed: %v", err)
+		return
+	}
+	for _, info := range released {
+		h.releaseDomainFiles(info)
+		log.Printf("domain: released unproven binding %s from %s", info.Domain, info.Name)
+	}
+
 	due, err := db.ListDomainsToCheck(ctx, h.database, domainActiveAge)
 	if err != nil {
 		log.Printf("domain check: list failed: %v", err)
