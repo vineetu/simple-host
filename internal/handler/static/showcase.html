@@ -701,10 +701,12 @@
       <span>Your public showcase: <a id="owner-share-link" href="#" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">#</a></span>
     </div>
 
-    <!-- Install the skill. Owner-only: revealed by updateOnboarding() once the
-         owner's site count is known — in full while the account has no sites,
-         otherwise collapsed to a link in the "Site Inventory" header (toggle
-         persisted in localStorage, same key as the dashboard). Leads the page:
+    <!-- Install the skill. Owner-only: `hidden` in the served HTML and revealed
+         by updateOnboarding() once hydrateOwner() has confirmed the owner and
+         their site count — in full while the account has no sites, otherwise
+         collapsed to a link in the "Site Inventory" header (toggle persisted
+         in localStorage, same key as the dashboard). Public visitors never
+         see it (owner decision 2026-09-06). Leads the page:
          the user's own AI is the primary door; the chat below is the fallback
          builder and the help desk. Guided flow: copy → deploy → proof is the
          site appearing in the list; "I'm stuck" hands off to the chat. -->
@@ -735,11 +737,14 @@
          sidecar (OpenAI-compatible) directly — no separate agent box
          to go missing, which is what broke this before. Leads the page: it is
          the zero-install door, and it doubles as the help desk (install
-         debugging, capabilities, prompts for other agents). Public visitors
-         always see it; for the owner it collapses like the block above once
-         the account has a site. Collapsing only toggles `hidden` on this
+         debugging, capabilities, prompts for other agents). Owner-only, like
+         the block above: `hidden` in the served HTML, revealed only once
+         hydrateOwner() confirms the owner, and collapsed to a header link once
+         the account has a site. Public visitors never see it — the public
+         profile is just the heading and the list of public sites (owner
+         decision 2026-09-06). Collapsing only toggles `hidden` on this
          container — the builder state inside is untouched. -->
-    <div class="ai-create" id="ai-create">
+    <div class="ai-create" id="ai-create" hidden>
       <div class="ai-head">
         <h3><span class="spark">✦</span> Build a site with AI</h3>
         <div class="grp">
@@ -1288,17 +1293,22 @@ function parseAnalyticsSummary(data) {
     }
 
     // Onboarding blocks ("Set up your AI" skill install and the "Build a site
-    // with AI" chat): full-size for an owner with no sites, otherwise each
-    // collapses to a link in the "Site Inventory" header. Each block's
-    // open/closed choice persists in localStorage under the same keys the
-    // dashboard (index.html) uses, so the choice carries over. Collapsing only
-    // toggles `hidden` on the container, so the chat's preview / publish /
-    // "Start over" state survives a hide + show. Same mechanism as index.html.
+    // with AI" chat). OWNER-ONLY (decision 2026-09-06): both ship `hidden` in
+    // the served HTML and nothing un-hides them until hydrateOwner() has
+    // confirmed the visitor owns this handle (updateOnboarding is only reached
+    // via renderInventory, after /v1/me + /v1/sites succeed). Then: full-size
+    // for an owner with no sites, otherwise each collapses to a link in the
+    // "Site Inventory" header. Each block's open/closed choice persists in
+    // localStorage under the same keys the dashboard (index.html) uses, so the
+    // choice carries over. Collapsing only toggles `hidden` on the container,
+    // so the chat's preview / publish / "Start over" state survives a hide +
+    // show. Same mechanism as index.html.
     var ONBOARDING_BLOCKS = {
       aiCreate:   { block: 'ai-create',     link: 'ai-create-link',   hide: 'ai-create-hide',     key: 'sh_ai_create_open' },
       agentSetup: { block: 'skill-install', link: 'agent-setup-link', hide: 'deploy-callout-hide', key: 'sh_agent_setup_open' },
     };
     var onboardingForced = true;
+    var onboardingOwner = false;   // set only by updateOnboarding(), i.e. after owner confirmation
     function onboardingOpen(cfg) {
       try { return localStorage.getItem(cfg.key) === '1'; } catch (e) { return false; }
     }
@@ -1307,18 +1317,20 @@ function parseAnalyticsSummary(data) {
       var link = document.getElementById(cfg.link);
       var hide = document.getElementById(cfg.hide);
       if (!block || !link || !hide) return;
+      if (!onboardingOwner) { block.hidden = true; link.hidden = true; hide.hidden = true; return; }
       var open = onboardingForced || onboardingOpen(cfg);
       block.hidden = !open;
       hide.hidden = onboardingForced;
       link.hidden = onboardingForced || open;
     }
     function updateOnboarding(noSites) {
+      onboardingOwner = true;
       onboardingForced = !!noSites;
       for (var name in ONBOARDING_BLOCKS) updateOnboardingBlock(ONBOARDING_BLOCKS[name]);
     }
     function toggleOnboarding(name, open) {
       var cfg = ONBOARDING_BLOCKS[name];
-      if (!cfg) return;
+      if (!cfg || !onboardingOwner) return;
       try { localStorage.setItem(cfg.key, open ? '1' : '0'); } catch (e) {}
       updateOnboardingBlock(cfg);
       if (open) {
@@ -1326,16 +1338,19 @@ function parseAnalyticsSummary(data) {
         if (block && block.scrollIntoView) block.scrollIntoView({ block: 'nearest' });
       }
     }
-    // Public-visitor state: the chat is always shown, the skill install never,
-    // and the collapsed links / Hide buttons are owner-only. Used to undo the
-    // early boot collapse when the signed-in visitor turns out not to be the owner.
+    // Public-visitor state: no chat, no skill install, no collapsed links or
+    // Hide buttons — the public profile is just the heading and the public
+    // sites. This matches the served markup, so it is a no-op for a visitor
+    // with no key; it also re-locks the blocks if a signed-in visitor turns out
+    // not to own this handle (or hydration fails).
     function resetOnboardingPublic() {
+      onboardingOwner = false;
       for (var name in ONBOARDING_BLOCKS) {
         var cfg = ONBOARDING_BLOCKS[name];
         var block = document.getElementById(cfg.block);
         var link = document.getElementById(cfg.link);
         var hide = document.getElementById(cfg.hide);
-        if (block) block.hidden = (name === 'agentSetup');
+        if (block) block.hidden = true;
         if (link) link.hidden = true;
         if (hide) hide.hidden = true;
       }
@@ -2567,12 +2582,13 @@ function parseAnalyticsSummary(data) {
     // ------------------------------------------------------------------- boot
     renderPublic();
     showPublic();
+    resetOnboardingPublic();
     if (apiKey) {
-      // Server-rendered SHOWCASE.sites lists public sites only, so it is a lower
-      // bound on the owner's count: one or more means "has sites" for sure, and
-      // we collapse the onboarding on first paint instead of after /v1/sites
-      // returns. The exact count (incl. unlisted) is settled in renderInventory.
-      if ((SHOWCASE.sites || []).length) updateOnboarding(false);
+      // The onboarding blocks stay hidden until hydrateOwner() has confirmed
+      // the owner: a key in localStorage is not proof this visitor owns THIS
+      // handle, and a flash of the chat to a non-owner is worse than the
+      // header links appearing a beat late. renderInventory (reached only via
+      // hydrateOwner) calls updateOnboarding with the exact count incl. unlisted.
       hydrateOwner().then(function (isOwner) {
         if (!isOwner) resetOnboardingPublic();
       }).catch(function () { resetOnboardingPublic(); /* stay in public view on any error */ });
