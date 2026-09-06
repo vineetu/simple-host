@@ -779,7 +779,7 @@ paths:
     get:
       operationId: getVisitorMe
       summary: Read the current site visitor session
-      description: On the shared content host returns signed_in false, sign_in_available false and code custom_domain_required without consulting cookies. On custom domains, Origin/Referer-gated. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.
+      description: On the shared content host returns signed_in false, sign_in_available false and code custom_domain_required without consulting cookies; when the site has a custom domain bound the code is use_custom_domain and `domain` names it, so the page can send the visitor to sign in there (that site saves only on its own domain). On custom domains, Origin/Referer-gated. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.
       tags: [State]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -809,7 +809,8 @@ paths:
                     properties:
                       signed_in: { type: boolean, enum: [false] }
                       sign_in_available: { type: boolean, enum: [false] }
-                      code: { type: string, enum: [custom_domain_required] }
+                      code: { type: string, enum: [custom_domain_required, use_custom_domain] }
+                      domain: { type: string, description: The site's bound custom domain; present only with code use_custom_domain }
         '403': { $ref: '#/components/responses/OriginMismatch' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { description: Internal server error }
@@ -865,13 +866,14 @@ paths:
         '200': { description: Saved; echoes the value, headers: { ETag: { schema: { type: string } } }, content: { application/json: { schema: {} } } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401':
-          description: Sign-in required on a custom domain (visitor_auth_required), or invalid account API key (invalid_api_key). Never returned for a shared-host write without a key.
+          description: Sign-in required on a custom domain (visitor_auth_required), invalid account API key (invalid_api_key), or a shared-host write to a site that has a custom domain bound (use_custom_domain, with the domain in `domain`) — such a site saves only on its own domain, where it is per-person, and its shared-host URL is not a back door around that; a valid X-API-Key is still accepted. Never returned for a shared-host write without a key to a site that has no domain.
           content:
             application/json:
-              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean } } }
+              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean }, domain: { type: string, description: The site's bound custom domain (with code use_custom_domain) } } }
               examples:
                 invalidKey: { value: { error: "invalid API key", code: invalid_api_key } }
                 signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
+                useCustomDomain: { value: { error: "this site saves on its own domain; sign in there", code: use_custom_domain, domain: recipes.brand.com } }
         '403': { $ref: '#/components/responses/OriginMismatch' }
         '412': { description: ETag did not match (If-Match) }
         '413': { $ref: '#/components/responses/TooLarge' }
@@ -909,13 +911,14 @@ paths:
         '200': { description: New state, headers: { ETag: { schema: { type: string } } }, content: { application/json: { schema: {} } } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401':
-          description: Sign-in required on a custom domain (visitor_auth_required), or invalid account API key (invalid_api_key). Never returned for a shared-host write without a key.
+          description: Sign-in required on a custom domain (visitor_auth_required), invalid account API key (invalid_api_key), or a shared-host write to a site that has a custom domain bound (use_custom_domain, with the domain in `domain`) — such a site saves only on its own domain, where it is per-person, and its shared-host URL is not a back door around that; a valid X-API-Key is still accepted. Never returned for a shared-host write without a key to a site that has no domain.
           content:
             application/json:
-              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean } } }
+              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean }, domain: { type: string, description: The site's bound custom domain (with code use_custom_domain) } } }
               examples:
                 invalidKey: { value: { error: "invalid API key", code: invalid_api_key } }
                 signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
+                useCustomDomain: { value: { error: "this site saves on its own domain; sign in there", code: use_custom_domain, domain: recipes.brand.com } }
         '403': { $ref: '#/components/responses/OriginMismatch' }
 
   /v1/sites/{sitename}/collections:
@@ -964,13 +967,14 @@ paths:
         '201': { description: Item appended }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401':
-          description: Sign-in required on a custom domain (visitor_auth_required), or invalid account API key (invalid_api_key). Never returned for a shared-host write without a key.
+          description: Sign-in required on a custom domain (visitor_auth_required), invalid account API key (invalid_api_key), or a shared-host write to a site that has a custom domain bound (use_custom_domain, with the domain in `domain`) — such a site saves only on its own domain, where it is per-person, and its shared-host URL is not a back door around that; a valid X-API-Key is still accepted. Never returned for a shared-host write without a key to a site that has no domain.
           content:
             application/json:
-              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean } } }
+              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean }, domain: { type: string, description: The site's bound custom domain (with code use_custom_domain) } } }
               examples:
                 invalidKey: { value: { error: "invalid API key", code: invalid_api_key } }
                 signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
+                useCustomDomain: { value: { error: "this site saves on its own domain; sign in there", code: use_custom_domain, domain: recipes.brand.com } }
         '403': { $ref: '#/components/responses/OriginMismatch' }
     get:
       operationId: getSitesBySitenameCollectionsByColl
@@ -1021,7 +1025,7 @@ paths:
     get:
       operationId: getVisitorMeByHandle
       summary: Read the current site visitor session
-      description: On the shared content host returns signed_in false, sign_in_available false and code custom_domain_required without consulting cookies. On custom domains, Origin/Referer-gated. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.
+      description: On the shared content host returns signed_in false, sign_in_available false and code custom_domain_required without consulting cookies; when the site has a custom domain bound the code is use_custom_domain and `domain` names it, so the page can send the visitor to sign in there (that site saves only on its own domain). On custom domains, Origin/Referer-gated. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.
       tags: [State]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -1052,7 +1056,8 @@ paths:
                     properties:
                       signed_in: { type: boolean, enum: [false] }
                       sign_in_available: { type: boolean, enum: [false] }
-                      code: { type: string, enum: [custom_domain_required] }
+                      code: { type: string, enum: [custom_domain_required, use_custom_domain] }
+                      domain: { type: string, description: The site's bound custom domain; present only with code use_custom_domain }
         '403': { $ref: '#/components/responses/OriginMismatch' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { description: Internal server error }
@@ -1115,13 +1120,14 @@ paths:
         '200': { description: Saved; echoes the value, headers: { ETag: { schema: { type: string } } }, content: { application/json: { schema: {} } } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401':
-          description: Sign-in required on a custom domain (visitor_auth_required), or invalid account API key (invalid_api_key). Never returned for a shared-host write without a key.
+          description: Sign-in required on a custom domain (visitor_auth_required), invalid account API key (invalid_api_key), or a shared-host write to a site that has a custom domain bound (use_custom_domain, with the domain in `domain`) — such a site saves only on its own domain, where it is per-person, and its shared-host URL is not a back door around that; a valid X-API-Key is still accepted. Never returned for a shared-host write without a key to a site that has no domain.
           content:
             application/json:
-              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean } } }
+              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean }, domain: { type: string, description: The site's bound custom domain (with code use_custom_domain) } } }
               examples:
                 invalidKey: { value: { error: "invalid API key", code: invalid_api_key } }
                 signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
+                useCustomDomain: { value: { error: "this site saves on its own domain; sign in there", code: use_custom_domain, domain: recipes.brand.com } }
         '403': { $ref: '#/components/responses/OriginMismatch' }
         '412': { description: ETag did not match (If-Match) }
         '413': { $ref: '#/components/responses/TooLarge' }
@@ -1162,13 +1168,14 @@ paths:
         '200': { description: New state, headers: { ETag: { schema: { type: string } } }, content: { application/json: { schema: {} } } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401':
-          description: Sign-in required on a custom domain (visitor_auth_required), or invalid account API key (invalid_api_key). Never returned for a shared-host write without a key.
+          description: Sign-in required on a custom domain (visitor_auth_required), invalid account API key (invalid_api_key), or a shared-host write to a site that has a custom domain bound (use_custom_domain, with the domain in `domain`) — such a site saves only on its own domain, where it is per-person, and its shared-host URL is not a back door around that; a valid X-API-Key is still accepted. Never returned for a shared-host write without a key to a site that has no domain.
           content:
             application/json:
-              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean } } }
+              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean }, domain: { type: string, description: The site's bound custom domain (with code use_custom_domain) } } }
               examples:
                 invalidKey: { value: { error: "invalid API key", code: invalid_api_key } }
                 signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
+                useCustomDomain: { value: { error: "this site saves on its own domain; sign in there", code: use_custom_domain, domain: recipes.brand.com } }
         '403': { $ref: '#/components/responses/OriginMismatch' }
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}:
@@ -1191,13 +1198,14 @@ paths:
         '201': { description: Item appended }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401':
-          description: Sign-in required on a custom domain (visitor_auth_required), or invalid account API key (invalid_api_key). Never returned for a shared-host write without a key.
+          description: Sign-in required on a custom domain (visitor_auth_required), invalid account API key (invalid_api_key), or a shared-host write to a site that has a custom domain bound (use_custom_domain, with the domain in `domain`) — such a site saves only on its own domain, where it is per-person, and its shared-host URL is not a back door around that; a valid X-API-Key is still accepted. Never returned for a shared-host write without a key to a site that has no domain.
           content:
             application/json:
-              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean } } }
+              schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean }, domain: { type: string, description: The site's bound custom domain (with code use_custom_domain) } } }
               examples:
                 invalidKey: { value: { error: "invalid API key", code: invalid_api_key } }
                 signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
+                useCustomDomain: { value: { error: "this site saves on its own domain; sign in there", code: use_custom_domain, domain: recipes.brand.com } }
         '403': { $ref: '#/components/responses/OriginMismatch' }
     get:
       operationId: getCollectionByHandle

@@ -164,8 +164,12 @@ Writes here need the visitor signed in — Google (more providers later) or an e
 (unlike the shared host, where writes are open): load `https://simple-host.app/auth.js` and,
 because the site name cannot be derived from a custom-domain URL, set
 `window.SH_CONFIG = { site: "<site>" }` before the tag, then `await SH.requireSignIn()` before
-each save. The same page code works on the shared host, where that call resolves at once. Pattern and API: the `website-deploy` skill's
-`references/backend.md`.
+each save. The same page code works on the shared host for a site without a domain, where that call resolves at once.
+Once a domain is connected, the site's `sites.simple-host.app` URL stops accepting page saves
+(401 `use_custom_domain`, with the `domain`) and points visitors at the domain — `SH.mount()` shows
+"This site saves on <domain>. Sign in there to save." with a link — because the site is per-person on
+its own domain and the shared-host URL must not be a back door around that. Pattern and API: the
+`website-deploy` skill's `references/backend.md`.
 
 ## Gotchas
 
