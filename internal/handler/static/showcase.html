@@ -211,6 +211,21 @@
       color: var(--text);
     }
     .section-num .line { flex: 1; height: 1px; background: var(--border); align-self: center; }
+    /* Collapsed form of the onboarding blocks (owner mode only): one small
+       link each in the "Site Inventory" header, same as the dashboard. */
+    .agent-setup-link {
+      font-family: var(--font);
+      font-size: 12px;
+      color: var(--accent);
+      background: none;
+      border: none;
+      padding: 0;
+      margin-right: 8px;
+      cursor: pointer;
+      text-decoration: none;
+      align-self: center;
+    }
+    .agent-setup-link:hover { text-decoration: underline; }
 
     /* Overview stat cards */
     .stats {
@@ -509,6 +524,7 @@
       padding: 14px 20px; border-bottom: 1px solid var(--border);
     }
     .ai-head h3 { font-size: 15px; font-weight: 600; }
+    .ai-head .grp, .skill-install .si-tools { display: inline-flex; align-items: center; gap: 8px; }
     .ai-head .spark { color: var(--accent); }
     .ai-body { display: grid; grid-template-columns: 1fr; }
     .ai-body.has-preview { grid-template-columns: 1fr 1fr; }
@@ -685,15 +701,21 @@
       <span>Your public showcase: <a id="owner-share-link" href="#" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">#</a></span>
     </div>
 
-    <!-- Install the skill. Owner-only: revealed by showOwner(). Leads the page:
+    <!-- Install the skill. Owner-only: revealed by updateOnboarding() once the
+         owner's site count is known — in full while the account has no sites,
+         otherwise collapsed to a link in the "Site Inventory" header (toggle
+         persisted in localStorage, same key as the dashboard). Leads the page:
          the user's own AI is the primary door; the chat below is the fallback
          builder and the help desk. Guided flow: copy → deploy → proof is the
          site appearing in the list; "I'm stuck" hands off to the chat. -->
     <div class="skill-install" id="skill-install" hidden>
       <div class="si-head">
         <h3>Set up your AI — install the <code>website-deploy</code> skill</h3>
-        <div class="si-os" id="si-os" role="group" aria-label="Operating system">
-          <button type="button" data-os="unix" class="on">macOS / Linux</button><button type="button" data-os="win">Windows</button>
+        <div class="si-tools">
+          <div class="si-os" id="si-os" role="group" aria-label="Operating system">
+            <button type="button" data-os="unix" class="on">macOS / Linux</button><button type="button" data-os="win">Windows</button>
+          </div>
+          <button type="button" class="btn btn-ghost btn-small" id="deploy-callout-hide" onclick="toggleOnboarding('agentSetup', false)" hidden>Hide</button>
         </div>
       </div>
       <p class="si-lede"><b>1.</b> Pick what you use, then copy the box into your agent's terminal:</p>
@@ -713,11 +735,17 @@
          sidecar (OpenAI-compatible) directly — no separate agent box
          to go missing, which is what broke this before. Leads the page: it is
          the zero-install door, and it doubles as the help desk (install
-         debugging, capabilities, prompts for other agents). -->
+         debugging, capabilities, prompts for other agents). Public visitors
+         always see it; for the owner it collapses like the block above once
+         the account has a site. Collapsing only toggles `hidden` on this
+         container — the builder state inside is untouched. -->
     <div class="ai-create" id="ai-create">
       <div class="ai-head">
         <h3><span class="spark">✦</span> Build a site with AI</h3>
-        <button class="btn-ghost btn-small" id="ai-reset" type="button" hidden>Start over</button>
+        <div class="grp">
+          <button class="btn-ghost btn-small" id="ai-reset" type="button" hidden>Start over</button>
+          <button type="button" class="btn-ghost btn-small" id="ai-create-hide" onclick="toggleOnboarding('aiCreate', false)" hidden>Hide</button>
+        </div>
       </div>
       <p class="si-lede" style="margin-bottom:12px">No coding agent, or stuck installing? Build right here instead — or ask anything: install help, what the platform can do, or a ready-made prompt for your own AI.</p>
       <div class="ai-body">
@@ -787,7 +815,7 @@
 
       <!-- Sites view (management inventory) -->
       <div class="section" id="owner-sites-view">
-        <div class="section-num"><span class="num">01</span><h2>Site Inventory</h2><span class="line"></span><a class="btn btn-primary btn-small" id="owner-new-site" href="#" target="_self">＋ New site</a></div>
+        <div class="section-num"><span class="num">01</span><h2>Site Inventory</h2><span class="line"></span><button type="button" class="agent-setup-link" id="ai-create-link" onclick="toggleOnboarding('aiCreate', true)" hidden>Build a site with AI →</button><button type="button" class="agent-setup-link" id="agent-setup-link" onclick="toggleOnboarding('agentSetup', true)" hidden>Set up your AI →</button><a class="btn btn-primary btn-small" id="owner-new-site" href="#" target="_self">＋ New site</a></div>
         <div id="inventory"></div>
       </div>
 
@@ -1045,8 +1073,8 @@ function parseAnalyticsSummary(data) {
       }
       var sub = document.getElementById('profile-sub');
       if (sub) sub.textContent = 'Your full site inventory — including unlisted sites.';
-      var si = document.getElementById('skill-install');
-      if (si) si.hidden = false;
+      // The skill-install block is revealed by updateOnboarding() (called from
+      // renderInventory once the owner's site count is known), not here.
     }
 
     // ---- Skill installer: pick agents -> generated command -------------------
@@ -1206,6 +1234,7 @@ function parseAnalyticsSummary(data) {
         if (!ci) return;
         ci.value = 'Help me install the skill. Tool: ' + tools + '. OS: ' + (os === 'win' ? 'Windows' : 'macOS/Linux') + '. What happened: ';
         chatInputGrow({ target: ci });
+        if (ac && ac.hidden) toggleOnboarding('aiCreate', true); // collapsed for an owner with sites
         if (ac) ac.scrollIntoView({ behavior: 'smooth', block: 'start' });
         ci.focus();
         try { ci.setSelectionRange(ci.value.length, ci.value.length); } catch (e) {}
@@ -1258,8 +1287,66 @@ function parseAnalyticsSummary(data) {
       return true;
     }
 
+    // Onboarding blocks ("Set up your AI" skill install and the "Build a site
+    // with AI" chat): full-size for an owner with no sites, otherwise each
+    // collapses to a link in the "Site Inventory" header. Each block's
+    // open/closed choice persists in localStorage under the same keys the
+    // dashboard (index.html) uses, so the choice carries over. Collapsing only
+    // toggles `hidden` on the container, so the chat's preview / publish /
+    // "Start over" state survives a hide + show. Same mechanism as index.html.
+    var ONBOARDING_BLOCKS = {
+      aiCreate:   { block: 'ai-create',     link: 'ai-create-link',   hide: 'ai-create-hide',     key: 'sh_ai_create_open' },
+      agentSetup: { block: 'skill-install', link: 'agent-setup-link', hide: 'deploy-callout-hide', key: 'sh_agent_setup_open' },
+    };
+    var onboardingForced = true;
+    function onboardingOpen(cfg) {
+      try { return localStorage.getItem(cfg.key) === '1'; } catch (e) { return false; }
+    }
+    function updateOnboardingBlock(cfg) {
+      var block = document.getElementById(cfg.block);
+      var link = document.getElementById(cfg.link);
+      var hide = document.getElementById(cfg.hide);
+      if (!block || !link || !hide) return;
+      var open = onboardingForced || onboardingOpen(cfg);
+      block.hidden = !open;
+      hide.hidden = onboardingForced;
+      link.hidden = onboardingForced || open;
+    }
+    function updateOnboarding(noSites) {
+      onboardingForced = !!noSites;
+      for (var name in ONBOARDING_BLOCKS) updateOnboardingBlock(ONBOARDING_BLOCKS[name]);
+    }
+    function toggleOnboarding(name, open) {
+      var cfg = ONBOARDING_BLOCKS[name];
+      if (!cfg) return;
+      try { localStorage.setItem(cfg.key, open ? '1' : '0'); } catch (e) {}
+      updateOnboardingBlock(cfg);
+      if (open) {
+        var block = document.getElementById(cfg.block);
+        if (block && block.scrollIntoView) block.scrollIntoView({ block: 'nearest' });
+      }
+    }
+    // Public-visitor state: the chat is always shown, the skill install never,
+    // and the collapsed links / Hide buttons are owner-only. Used to undo the
+    // early boot collapse when the signed-in visitor turns out not to be the owner.
+    function resetOnboardingPublic() {
+      for (var name in ONBOARDING_BLOCKS) {
+        var cfg = ONBOARDING_BLOCKS[name];
+        var block = document.getElementById(cfg.block);
+        var link = document.getElementById(cfg.link);
+        var hide = document.getElementById(cfg.hide);
+        if (block) block.hidden = (name === 'agentSetup');
+        if (link) link.hidden = true;
+        if (hide) hide.hidden = true;
+      }
+    }
+
     function renderInventory(sitesArr) {
       var inv = document.getElementById('inventory');
+      // The onboarding blocks (skill install + AI builder) take the page over
+      // only while there is nothing else to show; otherwise they collapse to
+      // links in the section header.
+      updateOnboarding(!sitesArr || !sitesArr.length);
       if (!sitesArr || !sitesArr.length) {
         var newUrl = (SHOWCASE.mainUrl || '/').replace(/\/$/, '') + '/?new=1';
         inv.innerHTML = '<div class="empty-state" style="padding:72px 24px;">' +
@@ -1534,6 +1621,8 @@ function parseAnalyticsSummary(data) {
         toast('Deleted ' + name, 'success');
         var row = document.querySelector('.inv-row[data-site="' + cssEsc(name) + '"]');
         if (row) row.remove();
+        ownerSites = ownerSites.filter(function (s) { return s.name !== name; });
+        if (!ownerSites.length) renderInventory(ownerSites); // back to zero: onboarding opens in full
       } catch (e) {
         toast('Could not delete site', 'error');
       }
@@ -2479,7 +2568,14 @@ function parseAnalyticsSummary(data) {
     renderPublic();
     showPublic();
     if (apiKey) {
-      hydrateOwner().catch(function () { /* stay in public view on any error */ });
+      // Server-rendered SHOWCASE.sites lists public sites only, so it is a lower
+      // bound on the owner's count: one or more means "has sites" for sure, and
+      // we collapse the onboarding on first paint instead of after /v1/sites
+      // returns. The exact count (incl. unlisted) is settled in renderInventory.
+      if ((SHOWCASE.sites || []).length) updateOnboarding(false);
+      hydrateOwner().then(function (isOwner) {
+        if (!isOwner) resetOnboardingPublic();
+      }).catch(function () { resetOnboardingPublic(); /* stay in public view on any error */ });
     }
 
     // Theme toggle (light / dark). Initial theme is set pre-paint in <head>.
