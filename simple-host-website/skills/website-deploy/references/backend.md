@@ -7,12 +7,27 @@ server for you to run.
 ## Trust model
 
 Reads are public: anyone with the link can read a site's state and collections.
-Writes need an identity — a visitor signed in on the page, or an `X-API-Key`.
-**Visitor sign-in exists only on a site with its own custom domain.** On the
-shared host `sites.simple-host.app` every site is the same origin, so a sign-in
-there could never be private to one site; pages on the shared host cannot save,
-and the server answers 401 `{"code":"custom_domain_required"}`. Agents write
-with an API key on any site, shared host included.
+**On the shared host `sites.simple-host.app` anyone can write too.** A page
+there saves without sign-in or key, and that data can be changed by anyone.
+**On a site with its own custom domain writes need an identity** — a visitor
+signed in on the page (Google or an emailed code), or an `X-API-Key`. Visitor
+sign-in exists only there: on the shared host every site is the same origin, so
+a sign-in could never be private to one site. Agents write with an API key on
+any site, shared host included.
+
+The plain-`fetch` shape that works on both hosts (the `SH` helper below sends
+the same headers for you):
+
+```js
+const m = location.pathname.match(/^\/([^/]+)\/([^/]+)\//);          // shared host: /<handle>/<site>/
+const API = m ? `/v1/u/${m[1]}/sites/${m[2]}` : '/v1/sites/<sitename>';   // custom domain: same-origin
+await fetch(API + '/state', { method: 'PATCH', credentials: 'include',
+  headers: { 'Content-Type': 'application/json', 'X-SH-CSRF': '1' },
+  body: JSON.stringify({ ops: [{ op: 'inc', path: 'count', by: 1 }] }) });
+await fetch(API + '/collections/entries', { method: 'POST', credentials: 'include',
+  headers: { 'Content-Type': 'application/json', 'X-SH-CSRF': '1' },
+  body: JSON.stringify({ text: 'hello' }) });
+```
 
 Reads are gated on the request `Origin`, which a browser page sends by itself;
 a `curl` or script with no `Origin` gets 403 on reads, so send one:
@@ -70,12 +85,15 @@ put `<meta name="robots" content="noindex">` in its head. Do not build a fake
 password gate: sites and their data are public to anyone with the link, so say
 that in one small line instead.
 
-## Saving from a page (custom domain only)
+## Saving from a page with the hosted helper
 
-The site needs its own domain first — the `connect-domain` skill. Then the page
-loads the hosted helper, offers sign-in next to the form, and signs the visitor
-in before every save. Because a custom-domain URL does not carry the site name,
-set `window.SH_CONFIG` before the script tag.
+The page loads the hosted helper, offers sign-in next to the form, and signs the
+visitor in before every save. The same code works on both hosts: on the shared
+host `SH.mount` renders one muted line ("Saves on this site are public. Connect
+a domain to add sign-in.") and `SH.requireSignIn()` resolves at once, so the
+save just proceeds; on a custom domain (the `connect-domain` skill) it signs the
+visitor in first. Because a custom-domain URL does not carry the site name, set
+`window.SH_CONFIG` before the script tag.
 
 ```html
 <div id="sh-auth"></div>
@@ -114,8 +132,9 @@ The `SH` object:
   Google" button plus an inline email → 6-digit code form; signed in, "Signed in
   as {email} · Sign out". Google (more providers later).
 - `SH.requireSignIn()` → resolves the identity if signed in; otherwise starts
-  sign-in and the promise never resolves. **Put this one call in front of every
-  save.**
+  sign-in and the promise never resolves. On the shared host it resolves
+  immediately (with the `/me` body) so the save proceeds without sign-in.
+  **Put this one call in front of every save.**
 - `SH.signIn({provider, returnTo})`, `SH.email.request(email)`,
   `SH.email.verify(email, code)` (15-minute code, 3 attempts; the account is
   created on first verify), `SH.signOut()`.
@@ -162,8 +181,7 @@ this.
 
 | Status | Body | Meaning |
 |---|---|---|
-| 401 | `{"error":"…","code":"custom_domain_required"}` | A page on the shared host tried to save. Connect a domain; agents use an API key. |
-| 401 | `{"error":"sign-in required to write","code":"visitor_auth_required","sign_in":"/v1/auth/oauth/providers","retry":true}` | No signed-in visitor and no key. Sign the visitor in, then retry once. |
+| 401 | `{"error":"sign-in required to write","code":"visitor_auth_required","sign_in":"/v1/auth/oauth/providers","retry":true}` | Custom domain: no signed-in visitor and no key. Sign the visitor in, then retry once. Never returned on the shared host. |
 | 403 | `{"error":"missing CSRF header","code":"csrf_required"}` | A session write without `X-SH-CSRF: 1`. The helper always sends it. |
 | 401 | `{"error":"invalid API key","code":"invalid_api_key"}` | Unknown `X-API-Key`. Do not retry with the same key. |
 | 403 | (reads) | No `Origin` header on a non-browser read. Send one. |

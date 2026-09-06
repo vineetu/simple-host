@@ -118,11 +118,13 @@ reading code:
   visitors over a range impossible) plus per-day country counts. API caller
   IPs are a different thing: `apimetrics.go` keeps them raw in `api_ip_daily`
   for 30 days, then prunes, and geolocates them via ip-api.com into `ip_geo`.
-- **Writes need an identity; reads are public.** State and collection writes
-  accept any account's `X-API-Key`, or a visitor session — and a visitor
-  session exists only on a site's own custom domain, because every site on the
-  shared content host is one origin. There is no view-lock, no private page,
-  and no per-site opt-out.
+- **Reads are public everywhere; writes are open on the shared host and need
+  an identity on a custom domain.** State and collection writes accept any
+  account's `X-API-Key` anywhere. On a site's own custom domain they also
+  accept a visitor session. On the shared content host there is no visitor
+  session (every site there is one origin) and writes are simply open — anyone
+  can change that data. There is no view-lock, no private page, and no
+  per-site opt-out.
 - **`site_view_daily` and `site_visitor_daily` are never written to, and must
   never be dropped.** They are the only surviving record of traffic from before
   classification existed, and are served as the `unknown` class.

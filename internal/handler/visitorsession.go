@@ -214,23 +214,13 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 		return true
 	}
 
+	// Shared content host: a public scratchpad, anyone can read and write
+	// (owner decision 2026-09-06). Sign-in is not offered there because every
+	// site is the same origin, so the cookie path is skipped entirely; rate
+	// limits and size caps are the only guards. Custom domains keep the
+	// session/key requirement below.
 	if strings.EqualFold(requestHostName(r), h.contentHost) {
-		outcome := "allowed"
-		if mode == "on" {
-			outcome = "rejected"
-			if allowAnon {
-				outcome = "overridden"
-			}
-		}
-		h.logAnonWrite(r, siteID, siteName, route, collection, mode, outcome)
-		if outcome == "rejected" {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{
-				"error": "saving needs a custom domain: connect one and visitors can sign in there",
-				"code":  "custom_domain_required",
-				"docs":  "https://simple-host.app/v1/skills/connect-domain",
-			})
-			return false
-		}
+		h.logAnonWrite(r, siteID, siteName, route, collection, mode, "public_host")
 		return true
 	}
 

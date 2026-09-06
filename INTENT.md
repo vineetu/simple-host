@@ -20,8 +20,9 @@ Website Deploy skill; humans mostly never touch the API directly.
 
 - An agent with the skill installed can ship a working site, including a form that saves, on
   the first try, without the owner intervening.
-- A page can only save data on a site that has its own domain, and there a visitor signs in
-  with Google or an emailed code. Agents save with an API key. Reads stay public.
+- On the shared host anyone can read and write a site's data from the page. On a site with its
+  own domain, a visitor signs in with Google or an emailed code and saves are per-person.
+  Agents save with an API key anywhere.
 - The whole thing keeps running on a 1 CPU / 1 GB box: one binary, one Postgres, one folder.
 
 ## Non-goals
@@ -70,11 +71,12 @@ Website Deploy skill; humans mostly never touch the API directly.
 - **2026-09-05. Email sign-in codes are bound to a purpose and, for hosted pages, to one site.**
   A visitor code cannot be redeemed at the dashboard for an API key or on another site. Reason:
   review found the opposite let a phished guestbook code become a full account credential.
-- **2026-09-05. Visitor sign-in and page saves only on a custom domain.** On the shared host all
-  sites are one origin, so a sign-in there can never be private to one site; rather than fight
-  that, saving is a feature you get by connecting a domain. Agents still write with a key
-  anywhere. Reason: "if you want safe writes you need a domain" is one sentence everyone can
-  understand.
+- **2026-09-05. Visitor sign-in only on a custom domain.** On the shared host all sites are one
+  origin, so a sign-in there can never be private to one site. Reason: "if you want safe writes
+  you need a domain" is one sentence everyone can understand.
+- **2026-09-06. Shared host: anyone can read and write.** Page saves there need no sign-in and
+  no key; it is a public scratchpad guarded by rate limits and size caps. Reason: keep the
+  shared host simple and useful; sign-in remains a feature you get by connecting a domain.
 - **2026-09-05. Widgets and starter templates removed.** Reason: unused, stale, and every extra
   surface is another place the story can drift.
 - **2026-09-05. Say "Google sign-in", never "Google only".** More providers may come; GitHub stays

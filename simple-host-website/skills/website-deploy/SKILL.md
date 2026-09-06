@@ -1,6 +1,6 @@
 ---
 name: website-deploy
-description: Deploy static websites to simple-host.app. Use when an agent needs to guide a user through registration, build/validate a static site, deploy it (inline JSON files OR a tar.gz/zip archive), or wire up the per-site backend — shared JSON state with atomic ops and append-only collections. Reads are public; a page can save only on a site with its own custom domain, where visitors sign in with Google or an emailed code via the hosted auth.js; agents write with an API key anywhere.
+description: Deploy static websites to simple-host.app. Use when an agent needs to guide a user through registration, build/validate a static site, deploy it (inline JSON files OR a tar.gz/zip archive), or wire up the per-site backend — shared JSON state with atomic ops and append-only collections. Reads are public everywhere; on the shared host pages write freely too; on a site with its own custom domain visitors sign in with Google or an emailed code via the hosted auth.js before saving; agents write with an API key anywhere.
 ---
 
 # Website Deploy
@@ -13,7 +13,7 @@ append-only collections) that its own page JavaScript can call.
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.14.0`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.15.0`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -85,19 +85,21 @@ Package the built directory as `.tar.gz` or `.zip` and `POST /v1/sites/<sitename
 Do not upload a source tree for a project that has a build step. Upload the
 production build output.
 
-## Saving from a page needs the site's own domain
+## Saving from a page: open on the shared host, sign-in on a domain
 
-Every site's backend is readable by anyone. Writing needs an identity, and a
-page can only give a visitor one on a site with its **own custom domain**: there,
-visitors sign in with Google or an emailed 6-digit code through the hosted
-helper — `<script src="https://simple-host.app/auth.js" defer></script>`,
+Every site's backend is readable by anyone. On the shared host
+`sites.simple-host.app` anyone can write too: a page there saves with a plain
+`fetch` (send `credentials: 'include'` and `X-SH-CSRF: 1`), no sign-in, no key,
+and that data can be changed by anyone. Want sign-in? Connect a domain. On a
+site with its **own custom domain** visitors sign in with Google or an emailed
+6-digit code through the hosted helper —
+`<script src="https://simple-host.app/auth.js" defer></script>`,
 `SH.mount('#sh-auth')` next to the form, `await SH.requireSignIn()` before
-`SH.state.patch(...)` or `SH.collection(name).append(...)`. On the shared host
-`sites.simple-host.app` every site is the same origin, so a sign-in there could
-never be private to one site; pages there cannot save and the server answers
-401 `{"code":"custom_domain_required"}`. So if the user wants visitors to save
-anything — a form, a counter, a vote, a guestbook — plan for the
-`connect-domain` skill from the start.
+`SH.state.patch(...)` or `SH.collection(name).append(...)`. The helper works on
+both hosts: on the shared host `SH.requireSignIn()` resolves at once and the
+same page code just saves. So if saves should be per-person or protected,
+plan for the `connect-domain` skill from the start; otherwise the shared host
+is fine.
 
 Agents write with an API key (`X-API-Key`) on any site, shared host included.
 An agent acting for a person gets that person's key by email code. Both flows,

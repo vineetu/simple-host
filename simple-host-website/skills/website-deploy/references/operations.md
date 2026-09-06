@@ -88,10 +88,10 @@ These live in the separate `connect-domain` skill
 /v1/sites/<sitename>/domain` with `{domain}` returns one DNS record for the human
 to add at their registrar; poll `GET /v1/sites/<sitename>/domain` until `active`.
 
-A connected domain is also what lets a page save: visitor sign-in (Google or an
-emailed code) exists only on a site's own domain, so a form on the shared host
-cannot write to the backend (see `backend.md`). Agents write with an API key
-anywhere.
+A connected domain is what adds sign-in to saves: visitor sign-in (Google or an
+emailed code) exists only on a site's own domain. On the shared host a form
+writes to the backend freely, with no sign-in, and anyone can change that data
+(see `backend.md`). Agents write with an API key anywhere.
 
 **There is no private or password-locked mode.** Every deployed site is public to
 anyone with its address, on a custom domain or not. If a user asks for privacy,

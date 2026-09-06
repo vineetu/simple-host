@@ -1,5 +1,6 @@
 /*
- * simple-host visitor auth and storage — Google or an emailed code, only on a custom domain.
+ * simple-host visitor auth and storage. Shared host: saves are open, no sign-in.
+ * Custom domain: Google or an emailed code, then saves are per-person.
  * SH.email.request(email) sends a code; SH.email.verify(email, code) signs in.
  * SH.mount(target) offers Google plus an inline email/code form.
  *
@@ -128,12 +129,9 @@
       // Always re-check: a cached answer may be past expiry or signed out elsewhere.
       return SH.me({fresh: true}).then(function (me) {
         if (me.signed_in) return me;
-        if (me.sign_in_available === false) {
-          // The server decides: on the shared host there is no sign-in.
-          var e = new Error("sign-in needs a custom domain");
-          e.code = "custom_domain_required";
-          throw e;
-        }
+        // Shared host: no sign-in exists and saves are open, so the save
+        // proceeds as-is. The same page code works on a custom domain.
+        if (me.sign_in_available === false) return me;
         if (mounted) {
           // A sign-in box is on the page: bring it into view instead of leaving
           // the page for Google. Resume the save after inline sign-in.
@@ -224,7 +222,7 @@
       function render() {
         return SH.me().then(function (me) {
           if (me.sign_in_available === false) {
-            box.textContent = "Saving is available once this site has its own domain.";
+            box.textContent = "Saves on this site are public. Connect a domain to add sign-in.";
             box.style.cssText = "font:inherit;color:var(--sh-muted,#666)";
             return;
           }

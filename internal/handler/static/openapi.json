@@ -30,7 +30,7 @@
     },
     {
       "name": "State",
-      "description": "Per-site shared JSON store (reads Origin-gated; writes need a custom-domain visitor session or any account key)"
+      "description": "Per-site shared JSON store (reads Origin-gated; writes open on the shared host, and on a custom domain need a visitor session or any account key)"
     },
     {
       "name": "Collections",
@@ -1670,7 +1670,7 @@
       "put": {
         "operationId": "putSitesBySitenameState",
         "summary": "Replace per-site JSON state",
-        "description": "Overwrites the whole blob (\u2264 1 MB), last-write-wins. Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. Writes require a visitor session on the site's bound custom domain (`X-SH-CSRF: 1`) or any account's `X-API-Key` (also on the shared host). Shared-host visitor writes return 401 custom_domain_required without consulting cookies. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}.",
+        "description": "Overwrites the whole blob (\u2264 1 MB), last-write-wins. Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. On the shared content host (sites.simple-host.app) writes are open: any page can save without sign-in or key, and the data can be changed by anyone. On a site's bound custom domain writes need a visitor session (`X-SH-CSRF: 1`) or any account's `X-API-Key`; a key is accepted anywhere. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}.",
         "tags": [
           "State"
         ],
@@ -1718,7 +1718,7 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "401": {
-            "description": "Custom domain required (custom_domain_required), sign-in required (visitor_auth_required), or invalid account API key (invalid_api_key).",
+            "description": "Sign-in required on a custom domain (visitor_auth_required), or invalid account API key (invalid_api_key). Never returned for a shared-host write without a key.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1735,20 +1735,10 @@
                     },
                     "retry": {
                       "type": "boolean"
-                    },
-                    "docs": {
-                      "type": "string"
                     }
                   }
                 },
                 "examples": {
-                  "customDomain": {
-                    "value": {
-                      "error": "saving needs a custom domain: connect one and visitors can sign in there",
-                      "code": "custom_domain_required",
-                      "docs": "https://simple-host.app/v1/skills/connect-domain"
-                    }
-                  },
                   "invalidKey": {
                     "value": {
                       "error": "invalid API key",
@@ -1781,7 +1771,7 @@
       "patch": {
         "operationId": "patchSitesBySitenameState",
         "summary": "Atomically update per-site state",
-        "description": "Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. Writes require a visitor session on the site's bound custom domain (`X-SH-CSRF: 1`) or any account's `X-API-Key` (also on the shared host). Shared-host visitor writes return 401 custom_domain_required without consulting cookies. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Ops \u2014 `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match).",
+        "description": "Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. On the shared content host (sites.simple-host.app) writes are open: any page can save without sign-in or key, and the data can be changed by anyone. On a site's bound custom domain writes need a visitor session (`X-SH-CSRF: 1`) or any account's `X-API-Key`; a key is accepted anywhere. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Ops \u2014 `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match).",
         "tags": [
           "State"
         ],
@@ -1873,7 +1863,7 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "401": {
-            "description": "Custom domain required (custom_domain_required), sign-in required (visitor_auth_required), or invalid account API key (invalid_api_key).",
+            "description": "Sign-in required on a custom domain (visitor_auth_required), or invalid account API key (invalid_api_key). Never returned for a shared-host write without a key.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1890,20 +1880,10 @@
                     },
                     "retry": {
                       "type": "boolean"
-                    },
-                    "docs": {
-                      "type": "string"
                     }
                   }
                 },
                 "examples": {
-                  "customDomain": {
-                    "value": {
-                      "error": "saving needs a custom domain: connect one and visitors can sign in there",
-                      "code": "custom_domain_required",
-                      "docs": "https://simple-host.app/v1/skills/connect-domain"
-                    }
-                  },
                   "invalidKey": {
                     "value": {
                       "error": "invalid API key",
@@ -1992,7 +1972,7 @@
       "post": {
         "operationId": "postSitesBySitenameCollectionsByColl",
         "summary": "Append an item to a collection",
-        "description": "Append-only list (O(1) insert). For signups, RSVPs, submissions. Origin-gated. Writes require a visitor session on the site's bound custom domain (`X-SH-CSRF: 1`) or any account's `X-API-Key` (also on the shared host). Shared-host visitor writes return 401 custom_domain_required without consulting cookies. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Each item \u2264 64 KB.",
+        "description": "Append-only list (O(1) insert). For signups, RSVPs, submissions. Origin-gated. On the shared content host (sites.simple-host.app) writes are open: any page can save without sign-in or key, and the data can be changed by anyone. On a site's bound custom domain writes need a visitor session (`X-SH-CSRF: 1`) or any account's `X-API-Key`; a key is accepted anywhere. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Each item \u2264 64 KB.",
         "tags": [
           "Collections"
         ],
@@ -2025,7 +2005,7 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "401": {
-            "description": "Custom domain required (custom_domain_required), sign-in required (visitor_auth_required), or invalid account API key (invalid_api_key).",
+            "description": "Sign-in required on a custom domain (visitor_auth_required), or invalid account API key (invalid_api_key). Never returned for a shared-host write without a key.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2042,20 +2022,10 @@
                     },
                     "retry": {
                       "type": "boolean"
-                    },
-                    "docs": {
-                      "type": "string"
                     }
                   }
                 },
                 "examples": {
-                  "customDomain": {
-                    "value": {
-                      "error": "saving needs a custom domain: connect one and visitors can sign in there",
-                      "code": "custom_domain_required",
-                      "docs": "https://simple-host.app/v1/skills/connect-domain"
-                    }
-                  },
                   "invalidKey": {
                     "value": {
                       "error": "invalid API key",
@@ -2082,7 +2052,7 @@
       "get": {
         "operationId": "getSitesBySitenameCollectionsByColl",
         "summary": "List items in a collection",
-        "description": "Newest-first, paginated. Origin-gated (no API key) for the site's own page, or owner/admin API key for the dashboard. Writes (POST) require a custom-domain visitor session with X-SH-CSRF or any valid account X-API-Key, also accepted on the shared host; Origin gating still applies.",
+        "description": "Newest-first, paginated. Origin-gated (no API key) for the site's own page, or owner/admin API key for the dashboard. Writes (POST) are open on the shared host; on a custom domain they need a visitor session with X-SH-CSRF or any valid account X-API-Key (a key is accepted anywhere). Origin gating still applies.",
         "tags": [
           "Collections"
         ],
@@ -2415,7 +2385,7 @@
       "put": {
         "operationId": "putSiteStateByHandle",
         "summary": "Replace per-site JSON state (v3, by handle)",
-        "description": "Overwrites the whole blob (\u2264 1 MB), last-write-wins. Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. Writes require a visitor session on the site's bound custom domain (`X-SH-CSRF: 1`) or any account's `X-API-Key` (also on the shared host). Shared-host visitor writes return 401 custom_domain_required without consulting cookies. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Overwrites the whole blob (\u2264 1 MB), last-write-wins. Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. On the shared content host (sites.simple-host.app) writes are open: any page can save without sign-in or key, and the data can be changed by anyone. On a site's bound custom domain writes need a visitor session (`X-SH-CSRF: 1`) or any account's `X-API-Key`; a key is accepted anywhere. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "tags": [
           "State"
         ],
@@ -2472,7 +2442,7 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "401": {
-            "description": "Custom domain required (custom_domain_required), sign-in required (visitor_auth_required), or invalid account API key (invalid_api_key).",
+            "description": "Sign-in required on a custom domain (visitor_auth_required), or invalid account API key (invalid_api_key). Never returned for a shared-host write without a key.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2489,20 +2459,10 @@
                     },
                     "retry": {
                       "type": "boolean"
-                    },
-                    "docs": {
-                      "type": "string"
                     }
                   }
                 },
                 "examples": {
-                  "customDomain": {
-                    "value": {
-                      "error": "saving needs a custom domain: connect one and visitors can sign in there",
-                      "code": "custom_domain_required",
-                      "docs": "https://simple-host.app/v1/skills/connect-domain"
-                    }
-                  },
                   "invalidKey": {
                     "value": {
                       "error": "invalid API key",
@@ -2535,7 +2495,7 @@
       "patch": {
         "operationId": "patchSiteStateByHandle",
         "summary": "Atomically update per-site state (v3, by handle)",
-        "description": "Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. Writes require a visitor session on the site's bound custom domain (`X-SH-CSRF: 1`) or any account's `X-API-Key` (also on the shared host). Shared-host visitor writes return 401 custom_domain_required without consulting cookies. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Ops \u2014 `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match). v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. On the shared content host (sites.simple-host.app) writes are open: any page can save without sign-in or key, and the data can be changed by anyone. On a site's bound custom domain writes need a visitor session (`X-SH-CSRF: 1`) or any account's `X-API-Key`; a key is accepted anywhere. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Ops \u2014 `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match). v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "tags": [
           "State"
         ],
@@ -2636,7 +2596,7 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "401": {
-            "description": "Custom domain required (custom_domain_required), sign-in required (visitor_auth_required), or invalid account API key (invalid_api_key).",
+            "description": "Sign-in required on a custom domain (visitor_auth_required), or invalid account API key (invalid_api_key). Never returned for a shared-host write without a key.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2653,20 +2613,10 @@
                     },
                     "retry": {
                       "type": "boolean"
-                    },
-                    "docs": {
-                      "type": "string"
                     }
                   }
                 },
                 "examples": {
-                  "customDomain": {
-                    "value": {
-                      "error": "saving needs a custom domain: connect one and visitors can sign in there",
-                      "code": "custom_domain_required",
-                      "docs": "https://simple-host.app/v1/skills/connect-domain"
-                    }
-                  },
                   "invalidKey": {
                     "value": {
                       "error": "invalid API key",
@@ -2695,7 +2645,7 @@
       "post": {
         "operationId": "postCollectionByHandle",
         "summary": "Append an item to a collection (v3, by handle)",
-        "description": "Append-only list (O(1) insert). For signups, RSVPs, submissions. Origin-gated. Writes require a visitor session on the site's bound custom domain (`X-SH-CSRF: 1`) or any account's `X-API-Key` (also on the shared host). Shared-host visitor writes return 401 custom_domain_required without consulting cookies. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Each item \u2264 64 KB. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Append-only list (O(1) insert). For signups, RSVPs, submissions. Origin-gated. On the shared content host (sites.simple-host.app) writes are open: any page can save without sign-in or key, and the data can be changed by anyone. On a site's bound custom domain writes need a visitor session (`X-SH-CSRF: 1`) or any account's `X-API-Key`; a key is accepted anywhere. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Each item \u2264 64 KB. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "tags": [
           "Collections"
         ],
@@ -2737,7 +2687,7 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "401": {
-            "description": "Custom domain required (custom_domain_required), sign-in required (visitor_auth_required), or invalid account API key (invalid_api_key).",
+            "description": "Sign-in required on a custom domain (visitor_auth_required), or invalid account API key (invalid_api_key). Never returned for a shared-host write without a key.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2754,20 +2704,10 @@
                     },
                     "retry": {
                       "type": "boolean"
-                    },
-                    "docs": {
-                      "type": "string"
                     }
                   }
                 },
                 "examples": {
-                  "customDomain": {
-                    "value": {
-                      "error": "saving needs a custom domain: connect one and visitors can sign in there",
-                      "code": "custom_domain_required",
-                      "docs": "https://simple-host.app/v1/skills/connect-domain"
-                    }
-                  },
                   "invalidKey": {
                     "value": {
                       "error": "invalid API key",
@@ -2794,7 +2734,7 @@
       "get": {
         "operationId": "getCollectionByHandle",
         "summary": "List items in a collection (v3, by handle)",
-        "description": "Newest-first, paginated. Origin-gated (no API key) for the site's own page, or owner/admin API key for the dashboard. Writes (POST) require a custom-domain visitor session with X-SH-CSRF or any valid account X-API-Key, also accepted on the shared host; Origin gating still applies. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Newest-first, paginated. Origin-gated (no API key) for the site's own page, or owner/admin API key for the dashboard. Writes (POST) are open on the shared host; on a custom domain they need a visitor session with X-SH-CSRF or any valid account X-API-Key (a key is accepted anywhere). Origin gating still applies. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "tags": [
           "Collections"
         ],

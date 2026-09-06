@@ -52,7 +52,7 @@ It signs you up (emailed code → API key), builds the site, wires in state if t
 - **One-call deploy** — upload a folder, get a live `https://{name}.simple-host.app`. Every deploy is a new immutable version; roll back instantly.
 - **A little backend, free** — per-site JSON state with atomic ops (set / inc / append), plus append-only collections for guestbooks, signups, and submissions. No schema, no database to run yourself.
 - **See what your site collected** — read and download whatever visitors saved to it.
-- **Connect your own domain** — subdomain or apex. A site on its own domain can also let visitors sign in and save from a page.
+- **Connect your own domain** — subdomain or apex. A site on its own domain also gets visitor sign-in, so saves from a page belong to a signed-in person.
 - **Build with AI** — a chat on the homepage that designs, previews, and publishes a site for you. Describe what you want, watch it being written, then publish.
 - **Talk to it** — dictate your idea instead of typing. Captions appear as you speak, and you can edit the text before sending.
 - **Show it what you mean** — attach screenshots or notes to the chat and it builds from them.
@@ -67,7 +67,7 @@ Three moving parts, and you can hold all of them in your head at once:
 2. A **Postgres** tracks users, sites, and versions.
 3. A **folder on disk** holds the versioned site files.
 
-A wildcard DNS record points `*.simple-host.app` at the binary, which maps each subdomain to its folder. That's the whole system — no object store, no CDN, no build farm, which is exactly why it fits on a 1 GB box. The per-site datastore lives next to the files: reads are public; a page writes only on a site with its own custom domain, after the visitor signs in (Google or an emailed code); agents write with an account's `X-API-Key` anywhere.
+A wildcard DNS record points `*.simple-host.app` at the binary, which maps each subdomain to its folder. That's the whole system — no object store, no CDN, no build farm, which is exactly why it fits on a 1 GB box. The per-site datastore lives next to the files: reads are public; on the shared host writes are open too (anyone can change that data); on a site with its own custom domain a page writes after the visitor signs in (Google or an emailed code); agents write with an account's `X-API-Key` anywhere.
 
 ## Run your own
 
@@ -125,7 +125,7 @@ Everything an agent needs is at [`/llms.txt`](https://simple-host.app/llms.txt),
 | `/v1/sites` | GET | List your sites |
 | `/v1/sites/{name}/files` | POST / PUT | Deploy a site from a JSON `{path: content}` map |
 | `/v1/sites/{name}` | POST / PUT / DELETE | Deploy from a tarball / roll a new version / delete |
-| `/v1/sites/{name}/state` | GET / PUT / PATCH | Per-site JSON state with atomic ops (reads public; writes need a signed-in visitor on a custom domain, or an account's API key) |
+| `/v1/sites/{name}/state` | GET / PUT / PATCH | Per-site JSON state with atomic ops (reads public; writes open on the shared host, on a custom domain need a signed-in visitor or an account's API key) |
 | `/v1/sites/{name}/collections/{coll}` | GET / POST | Append-only collections (POST is a write) |
 | `/v1/sites/{name}/domain` | POST / GET / DELETE | Connect your own domain |
 | `/v1/generate` | POST | Build with AI (when enabled) |
@@ -134,7 +134,7 @@ Everything an agent needs is at [`/llms.txt`](https://simple-host.app/llms.txt),
 
 [`simple-host-website/`](simple-host-website/) is the agent integration that the install commands above pull in. It bundles:
 
-- **Three skills** — `website-deploy` (the deploy workflow, a router plus reference documents under `references/`), `website-deploy-builder` (helping decide what to build that fits a static-plus-light-state model), and `connect-domain` (pointing your own domain at a site, which is also what lets its pages save).
+- **Three skills** — `website-deploy` (the deploy workflow, a router plus reference documents under `references/`), `website-deploy-builder` (helping decide what to build that fits a static-plus-light-state model), and `connect-domain` (pointing your own domain at a site, which is also what adds sign-in to its saves).
 - **An MCP server** (Node) exposing `register`, `deploy`, `status`, and `list` as agent-callable tools.
 
 The plugin is embedded into the Go binary, so a running instance also serves it at `/skills.zip`, `/plugin.zip`, and per-skill ZIPs for manual upload (e.g. Claude.ai). It reports its version on every API call; if the server's bundle is newer, responses carry a `_notice` the agent surfaces so users know to update.

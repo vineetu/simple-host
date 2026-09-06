@@ -275,7 +275,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Site authors collecting anything from visitors: a form, a poll, an RSVP, a guestbook.</dd>
                 <dt>Where</dt><dd>On your published page, once it is served from your own domain. The page loads the hosted sign-in helper (<code>auth.js</code>) and that handles the rest.</dd>
-                <dt>Limits</dt><dd class="lim"><b>Only on a site's own custom domain.</b> On the shared <code>sites.simple-host.app</code> host there is no visitor sign-in and pages cannot save data, because every site there shares one origin. Your agent can still write there with your API key.</dd>
+                <dt>Limits</dt><dd class="lim"><b>Only on a site's own custom domain.</b> On the shared <code>sites.simple-host.app</code> host there is no visitor sign-in, because every site there shares one origin — pages there still save, but anyone can change that data. Connecting a domain is what adds sign-in.</dd>
               </dl>
             </div>
           </div>
@@ -593,11 +593,11 @@
             <div class="fid">state-write-gate</div>
             <div>
               <h3>Who is allowed to write</h3>
-              <p class="fw">Saving requires a signed-in visitor or an API key, so a passer-by cannot fill your store with junk. Reading never requires either.</p>
+              <p class="fw">On the shared host anyone can read and write. On your own domain saving requires a signed-in visitor or an API key, so a passer-by cannot fill your store with junk. Reading never requires either.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone collecting entries in public.</dd>
-                <dt>Where</dt><dd>Not a screen — it is applied when a page tries to save. Visitors sign in on your own domain; your agent sends your API key.</dd>
-                <dt>Limits</dt><dd class="lim">On the shared <code>sites.simple-host.app</code> host there is no visitor sign-in, so <b>pages there cannot save at all</b> — only an agent with a key can write. Connect your own domain to let visitors write.</dd>
+                <dt>Where</dt><dd>Not a screen — it is applied when a page on your own domain tries to save. Visitors sign in there; your agent sends your API key anywhere.</dd>
+                <dt>Limits</dt><dd class="lim">On the shared <code>sites.simple-host.app</code> host there is no visitor sign-in, so <b>writes there are open</b> — anyone can change that data. Connect your own domain to add sign-in.</dd>
               </dl>
             </div>
           </div>

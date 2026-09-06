@@ -1,6 +1,6 @@
 ---
 name: website-deploy-builder
-description: Plan what to build on Website Deploy (simple-host.app). Helps a user decide whether their idea fits the static + light-backend model, maps it to concrete patterns (shared JSON state with atomic ops, append-only collections, localStorage, public APIs), and produces a focused prompt for an implementation agent. Knows the one planning rule that matters - if visitors will save anything, the site needs its own custom domain. Use when a user is starting a new site or describes a feature idea and needs help mapping it to what the platform can do.
+description: Plan what to build on Website Deploy (simple-host.app). Helps a user decide whether their idea fits the static + light-backend model, maps it to concrete patterns (shared JSON state with atomic ops, append-only collections, localStorage, public APIs), and produces a focused prompt for an implementation agent. Knows the one planning rule that matters - saves on the shared host are open to everyone; if saves should be per-person or protected, the site needs its own custom domain. Use when a user is starting a new site or describes a feature idea and needs help mapping it to what the platform can do.
 ---
 
 # Website Deploy Builder
@@ -14,10 +14,10 @@ Website Deploy is a static-file host at `https://simple-host.app`. Each site is 
 | Capability | How |
 |---|---|
 | HTML / CSS / JS / images / fonts served as a site | Deploy files inline as JSON (`/files`) or upload a `.tar.gz`/`.zip` |
-| Per-site JSON state (≤ 1 MB, shared across all visitors) | `GET / PUT /v1/u/<handle>/sites/<sitename>/state` (legacy `/v1/sites/<sitename>/state` still works). Reads public; a page can write only on the site's own custom domain, after the visitor signs in (`auth.js`) |
+| Per-site JSON state (≤ 1 MB, shared across all visitors) | `GET / PUT /v1/u/<handle>/sites/<sitename>/state` (legacy `/v1/sites/<sitename>/state` still works). Reads public; on the shared host a page writes freely; on the site's own custom domain the visitor signs in first (`auth.js`) |
 | Atomic state updates (concurrent-safe counters, lists, votes) | `PATCH .../state` with `{ops:[inc/append/set/remove/removeWhere]}`; `If-None-Match` ETag for cheap polling. A write — same rule as above |
 | Append-only collections (signups / RSVPs / submissions) | `POST/GET /v1/u/<handle>/sites/<sitename>/collections/<name>`. GET public; POST is a write |
-| Custom domain | `connect-domain` skill: bind domain → one DNS record → poll until active. **This is what unlocks visitor sign-in and saving from a page** |
+| Custom domain | `connect-domain` skill: bind domain → one DNS record → poll until active. **This is what adds visitor sign-in to saves from a page** |
 | Agent writing for a person (no browser) | That person's own API key, obtained by email code, as `X-API-Key` — works on any site, shared host included. See "Saving from an agent" in the `website-deploy` skill's `references/backend.md` |
 | Per-visitor state | `localStorage`, `sessionStorage`, `IndexedDB` (in the browser) |
 | External APIs | `fetch()` from the page to any public CORS-enabled API |
@@ -25,7 +25,7 @@ Website Deploy is a static-file host at `https://simple-host.app`. Each site is 
 
 If your idea needs a server you control, a shared SQL database, persistent per-user accounts, or anything that runs server-side, Website Deploy is not the right host. Say so and stop.
 
-**If the user wants visitors to save anything, the site needs its own domain — plan for `connect-domain`.** On the shared host every site is the same origin, so there is no visitor sign-in there and a page cannot write to the backend (the server answers 401 `custom_domain_required`). A guestbook, RSVP form, poll or counter that visitors fill in is therefore always "static + backend + connect-domain". Say this up front, before the page is written, not after the first failed save. Agents saving with an API key are not affected.
+**On the shared host anyone can read and write; if saves should be per-person or protected, plan for `connect-domain`.** On the shared host every site is the same origin, so there is no visitor sign-in there — a page writes to the backend freely, and anyone can change that data. That is fine for a party RSVP or a team lunch poll. A guestbook or vote where each entry should belong to a signed-in person, or data a stranger should not be able to rewrite, is "static + backend + connect-domain": on the site's own domain visitors sign in with Google or an emailed code before saving. Say which one applies up front, before the page is written. Agents saving with an API key are not affected.
 
 **Always pair a form with a viewer.** Any site that COLLECTS data (a signup, RSVP, guestbook, contact form, order) MUST also ship a second page — e.g. `admin.html` — that reads the same collection back (`GET .../collections/<name>?limit=200` → `{items:[{id,data,created_at},…]}`) and lists every entry for the owner, newest first, plus the live total from state. Link it quietly from the main page (a small "Organizer view →" in the footer). A form with nowhere to read the results is only half the feature — and the person you're building for will not think to ask for the viewer, so add it by default. Mark the viewer `<meta name="robots" content="noindex">`; sites and their data are public to anyone with the link, so don't fake a password.
 
@@ -33,7 +33,7 @@ If your idea needs a server you control, a shared SQL database, persistent per-u
 
 1. Ask the user what they're trying to build, in plain language. Don't push capabilities at them — let them describe the idea.
 2. Decide whether it can run as a static site. If parts of it can't, name those parts and either propose a static-friendly substitute or recommend a different host for that piece.
-3. If visitors will save anything, say now that the site needs its own domain and include `connect-domain` in the plan.
+3. If visitors will save anything, say now that shared-host saves are open to everyone; if the saves should be per-person or protected, include `connect-domain` in the plan.
 4. For the part that can run statically, give them: (a) a one-paragraph explanation of how to structure it, (b) any relevant snippet (storage, routing, external API call), (c) the gotchas.
 5. If they're starting from scratch, finish with a "ready to deploy" handoff: tell them to use the `website-deploy` skill, which handles registration, framework-aware build, packaging, and upload.
 6. If they want to wire a capability into a site they've already deployed, generate a focused prompt they can paste into a fresh agent chat (in their site's repo). Include the pattern, the storage shape, and any gotcha — nothing else.
@@ -52,9 +52,9 @@ Gotchas: the site lives under `/<handle>/<sitename>/` on the content host, so **
 
 What it is: a single JSON document (up to 1 MB) scoped to your site. The server stores it in Postgres; your site reads and writes it from the browser. The document is shared across **everyone** who visits — use `PATCH` ops so concurrent writers don't clobber each other.
 
-When to choose: anything you'd want a tiny key-value store for — a shared note, a counter, a vote tally, content the page generated, configuration. Reading is public. **Writing from a page needs the site's own custom domain**: there the page loads `https://simple-host.app/auth.js`, sets `window.SH_CONFIG = { site: "<sitename>" }`, and calls `await SH.requireSignIn()` before each write — the visitor signs in with Google or an emailed code. The session is site-scoped and is not an API key. Sign-in gates writing only — it does not make the page private. If you need per-visitor data, store it under different keys inside the document, keyed on something like `crypto.randomUUID()` saved in `localStorage`.
+When to choose: anything you'd want a tiny key-value store for — a shared note, a counter, a vote tally, content the page generated, configuration. Reading is public. **On the shared host writing from a page is open too** — no sign-in, and anyone can change the data. **On the site's own custom domain writes need sign-in**: the page loads `https://simple-host.app/auth.js`, sets `window.SH_CONFIG = { site: "<sitename>" }`, and calls `await SH.requireSignIn()` before each write — the visitor signs in with Google or an emailed code. The same code works on both hosts (`requireSignIn` resolves at once on the shared host). The session is site-scoped and is not an API key. Sign-in gates writing only — it does not make the page private. If you need per-visitor data, store it under different keys inside the document, keyed on something like `crypto.randomUUID()` saved in `localStorage`.
 
-How to use, from a page on the site's custom domain:
+How to use, from a page on either host:
 
 ```html
 <div id="sh-auth"></div>
@@ -64,7 +64,7 @@ How to use, from a page on the site's custom domain:
 <script src="https://simple-host.app/auth.js" defer></script>
 <script>
 window.addEventListener('DOMContentLoaded', async function () {
-  SH.mount('#sh-auth');                              // Google sign-in + email-code form / "Signed in as …"
+  SH.mount('#sh-auth');                              // custom domain: Google sign-in + email-code form; shared host: one muted line
   const status = document.getElementById('status');
   const form = document.getElementById('f');
 
@@ -75,7 +75,7 @@ window.addEventListener('DOMContentLoaded', async function () {
   // save — sign in first, then write; keep the form on failure
   form.onsubmit = async function (e) {
     e.preventDefault();
-    await SH.requireSignIn();                        // signs the visitor in if needed
+    await SH.requireSignIn();                        // custom domain: signs the visitor in; shared host: resolves at once
     try {
       await SH.state.patch([{ op: 'set', path: 'draft', value: form.draft.value }]);
       status.textContent = 'Saved';
@@ -89,7 +89,7 @@ window.addEventListener('DOMContentLoaded', async function () {
 
 Full `SH` API (`SH.state`, `SH.collection(name).append/list`, `SH.me`, `SH.signOut`) and the error bodies are in the `website-deploy` skill's `references/backend.md`.
 
-Gotchas: sites and their data are public to anyone with the link. Body cap is 1 MB; sending more returns 413. On the shared host a page can read but not write — that is by design, not a bug to work around.
+Gotchas: sites and their data are public to anyone with the link. Body cap is 1 MB; sending more returns 413. On the shared host anyone can change the data — that is by design; connect a domain if it matters.
 
 ### 3. Per-visitor state with `localStorage`
 
@@ -160,16 +160,16 @@ Website Deploy serves files. There is no rewrite layer. Because sites live under
 
 ### 8. Custom domains
 
-A user can serve a site from their own domain (e.g. `recipes.brand.com`). This is a distinct flow — use the `connect-domain` skill (`simple-host-website/skills/connect-domain`). Summary: `POST /v1/sites/<sitename>/domain` with `{domain}` → user adds one DNS record → poll `GET /v1/sites/<sitename>/domain` until `active`. A custom domain changes the address and unlocks visitor sign-in (so pages there can save); it does not change the privacy — the site is still public.
+A user can serve a site from their own domain (e.g. `recipes.brand.com`). This is a distinct flow — use the `connect-domain` skill (`simple-host-website/skills/connect-domain`). Summary: `POST /v1/sites/<sitename>/domain` with `{domain}` → user adds one DNS record → poll `GET /v1/sites/<sitename>/domain` until `active`. A custom domain changes the address and adds visitor sign-in to saves; it does not change the privacy — the site is still public.
 
 ## Picking a capability mix
 
 | User says | Capabilities |
 |---|---|
 | "a landing page / portfolio / CV" | static only |
-| "a guestbook" | static + per-site JSON state (atomic `append`) + `auth.js` sign-in to post + `connect-domain` |
-| "a waitlist / event RSVP / signup form" | static + append-only collection (+ a live count in state) + `auth.js` sign-in to submit + `connect-domain` |
-| "a poll / a vote / a counter" | static + `PATCH` `inc` on state + `auth.js` sign-in + `connect-domain` |
+| "a guestbook" | static + per-site JSON state (atomic `append`); add `auth.js` sign-in + `connect-domain` if each entry should belong to a signed-in person |
+| "a waitlist / event RSVP / signup form" | static + append-only collection (+ a live count in state); add `auth.js` sign-in + `connect-domain` if submissions should be per-person |
+| "a poll / a vote / a counter" | static + `PATCH` `inc` on state; add `auth.js` sign-in + `connect-domain` if votes should be per-person |
 | "a tool that runs entirely in the browser" (calculator, drawing app, game) | static + `localStorage` for settings/saves |
 | "a journal / notes app" | static + `IndexedDB` (single-visitor scope) |
 | "a dashboard pulling from a public API" | static + external `fetch()` |
@@ -188,7 +188,7 @@ Example prompt for "save drafts in localStorage":
 
 > Add draft autosave to this site. On every change to the text input, write `{text, updatedAt}` to `localStorage['mysite.draft']`. On page load, restore the input value from that key if present. Show a small "Draft saved" indicator that fades out after 1 second when the save runs. No external dependencies. Use relative asset links only (sites are path-hosted).
 
-Example prompt for "let visitors sign the guestbook" (site already on its own domain):
+Example prompt for "let visitors sign the guestbook" (site on its own domain, so entries belong to signed-in visitors; on the shared host the same code saves without sign-in):
 
 > Add a guestbook to this site (deployed on simple-host, custom domain `guests.example.com`, sitename `guestbook`). Load `https://simple-host.app/auth.js` with `window.SH_CONFIG = { site: "guestbook" }` set before the tag, mount `SH.mount('#sh-auth')` next to the form, and call `await SH.requireSignIn()` before `SH.collection('entries').append({name, message})`. On a non-2xx keep the form and show "Not saved". Add `admin.html` (noindex) that lists the collection newest-first. Relative asset links only.
 
@@ -196,4 +196,4 @@ Mirror this shape for `IndexedDB`, external API calls, routing, etc.
 
 ## Handoff: deploy
 
-Once the user has decided what to build, they need to deploy. Tell them to use the `website-deploy` skill, which handles registration, framework-aware build (with a relative base path), packaging, and upload. The site will be live at `https://sites.simple-host.app/<handle>/<sitename>/`. If visitors will save anything, or the user wants their own address, follow with the `connect-domain` skill.
+Once the user has decided what to build, they need to deploy. Tell them to use the `website-deploy` skill, which handles registration, framework-aware build (with a relative base path), packaging, and upload. The site will be live at `https://sites.simple-host.app/<handle>/<sitename>/`. If saves should be per-person or protected, or the user wants their own address, follow with the `connect-domain` skill.
