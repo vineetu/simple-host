@@ -78,15 +78,14 @@ scope. `409` = a record with that name/type already exists — list, then delete
 - Name is the label only; `@` means the apex. Save; GoDaddy's own nameservers pick it up in
   under a minute.
 
-**API** — availability depends on the account, so **try once, and on `403` fall back to the UI**.
-GoDaddy's current policy (https://www.godaddy.com/help/how-do-i-access-domain-related-apis-42424,
-read 2026-09-06): the Domains API needs at least one active domain in the account and is capped at
-20,000 calls/month; availability checks need 50+ domains or ≥US$20/month spend. Older accounts
-were cut off in 2024 (the "10 domains or Discount Domain Club" rule) and some still get
-`403 "Authenticated user is not allowed access"` — that is eligibility, not a bad key, and no
-retry fixes it. Auth is now a **Personal Access Token** from developer.godaddy.com
-(`Authorization: Bearer <PAT>`, scope `domains.dns:update`); legacy keys use
-`Authorization: sso-key <KEY>:<SECRET>` and still work on v1.
+**API** — works for any account that holds at least one active domain (GoDaddy policy,
+https://www.godaddy.com/help/how-do-i-access-domain-related-apis-42424, read 2026-09-06): the
+Domains API, which is the DNS one, is capped at 20,000 calls/month; only bulk *availability*
+checks need 50+ domains, and we never use those. Auth is a **Personal Access Token** from
+developer.godaddy.com (`Authorization: Bearer <PAT>`, scope `domains.dns:update`); legacy keys use
+`Authorization: sso-key <KEY>:<SECRET>` and still work on v1. A `403` therefore means the token
+lacks the DNS scope, belongs to a different account, or the domain is not in that account — check
+those, then if it still fails do the record in the UI.
 
 Endpoints verified 2026-09-06 against https://developer.godaddy.com/openapi/domains-v1.json
 (the landing page https://developer.godaddy.com/doc/endpoint/domains now fronts a v3 API whose
