@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simple Host for hackathons</title>
+  <meta name="description" content="A hackathon for people who have never deployed anything. Participants bring an AI agent; every entry is a link.">
+  <script>(function(){try{var s=localStorage.getItem('sh-theme');document.documentElement.dataset.theme=s||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');}catch(e){document.documentElement.dataset.theme='light';}})();</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #020617; --surface: #0b1222; --surface-2: #0d1526;
+      --border: #1e293b; --border-hi: #334155;
+      --text: #f1f5f9; --text-secondary: #94a3b8; --dim: #475569;
+      --accent: #22d3ee; --accent-soft: rgba(34,211,238,.12);
+      --amber: #fbbf24; --amber-soft: rgba(251,191,36,.10);
+      --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+      --display: 'Archivo', system-ui, sans-serif;
+      --body: 'Newsreader', Georgia, serif;
+    }
+    html[data-theme="light"] {
+      --bg: #fbfbfd; --surface: #ffffff; --surface-2: #f6f7fb;
+      --border: #e4e7ee; --border-hi: #cbd2de;
+      --text: #0f1e37; --text-secondary: #4a5878; --dim: #8b96ad;
+      --accent: #0e7490; --accent-soft: rgba(14,116,144,.08);
+      --amber: #b45309; --amber-soft: rgba(180,83,9,.09);
+    }
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font-family: var(--body); line-height: 1.65; font-size: 17px;
+      -webkit-font-smoothing: antialiased;
+      background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 46px 46px; background-position: center -1px;
+    }
+    html[data-theme="light"] body { background-image: linear-gradient(rgba(15,30,55,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(15,30,55,.035) 1px, transparent 1px); }
+    .wrap { max-width: 880px; margin: 0 auto; padding: 0 28px; }
+    a { color: inherit; }
+    header { position: sticky; top: 0; z-index: 20; backdrop-filter: blur(9px);
+      background: color-mix(in srgb, var(--bg) 82%, transparent); border-bottom: 1px solid var(--border); }
+    .bar { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; gap: 12px; }
+    .logo { font-family: var(--mono); font-weight: 700; font-size: 14px; letter-spacing: .3px; text-decoration: none; color: var(--text); white-space: nowrap; }
+    .logo b { color: var(--accent); }
+    nav.top { display: flex; flex-wrap: wrap; gap: 8px 18px; font-family: var(--mono); font-size: 12.5px; }
+    nav.top a { color: var(--text-secondary); text-decoration: none; }
+    nav.top a:hover, nav.top a.on { color: var(--accent); }
+    .tt { width: 32px; height: 30px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+    .tt:hover { border-color: var(--accent); color: var(--accent); }
+    section { display: grid; grid-template-columns: 54px 1fr; gap: 0 22px; padding: 44px 0; border-bottom: 1px solid var(--border); }
+    .snum { font-family: var(--mono); font-size: 13px; color: var(--accent); padding-top: 6px; }
+    h1.title { font-family: var(--display); font-weight: 800; letter-spacing: -.02em; line-height: 1.02; font-size: clamp(34px, 6vw, 60px); margin: 6px 0 20px; }
+    h2 { font-family: var(--display); font-weight: 700; letter-spacing: -.02em; line-height: 1.05; font-size: clamp(25px, 4vw, 36px); margin: 0 0 14px; }
+    h3 { font-family: var(--display); font-weight: 600; font-size: 17px; line-height: 1.3; color: var(--text); margin: 18px 0 6px; }
+    .lede { font-size: 19px; color: var(--text); margin: 0 0 14px; }
+    p { margin: 0 0 14px; color: var(--text-secondary); }
+    p strong, li strong, td strong { color: var(--text); font-weight: 500; }
+    ul, ol { margin: 0 0 14px; padding-left: 22px; color: var(--text-secondary); }
+    li { margin-bottom: 6px; }
+    .kicker { font-family: var(--mono); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+    .fine { font-family: var(--mono); font-size: 12px; color: var(--dim); letter-spacing: .3px; margin-top: 18px; }
+    code { font-family: var(--mono); font-size: .88em; background: var(--accent-soft); color: var(--accent); padding: 1px 6px; border-radius: 5px; }
+    blockquote { margin: 18px 0; padding: 4px 0 4px 18px; border-left: 2px solid var(--accent); color: var(--text); font-size: 18px; }
+    .facts { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 4px 16px; margin: 18px 0; }
+    .facts .row { display: grid; grid-template-columns: 170px 1fr; gap: 4px 16px; padding: 11px 0; border-top: 1px solid var(--border); align-items: start; }
+    .facts .row:first-child { border-top: 0; }
+    .facts .k { font-family: var(--mono); font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--dim); padding-top: 5px; }
+    .facts .v { margin: 0; font-size: 15px; color: var(--text-secondary); }
+    .facts .v strong { color: var(--text); }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    td { border-top: 1px solid var(--border); padding: 12px 0; vertical-align: top; font-size: 15px; }
+    td.tk { font-family: var(--display); font-weight: 600; color: var(--text); width: 240px; padding-right: 22px; }
+    td.tv { color: var(--text-secondary); }
+    .st { display: inline-block; font-family: var(--mono); font-size: 10px; letter-spacing: .9px; text-transform: uppercase; padding: 2px 7px; border-radius: 5px; border: 1px solid color-mix(in srgb, var(--amber) 55%, var(--border-hi)); color: var(--amber); background: var(--amber-soft); vertical-align: 2px; white-space: nowrap; font-weight: 600; margin-left: 7px; }
+    .cta { display: inline-block; font-family: var(--mono); font-size: 13px; font-weight: 600; text-decoration: none; padding: 10px 16px; border-radius: 9px; border: 1px solid var(--accent); color: var(--accent); margin: 6px 10px 6px 0; }
+    .cta.solid { background: var(--accent); color: var(--bg); }
+    .cta:hover { filter: brightness(1.1); }
+    footer { padding: 40px 0 60px; font-family: var(--mono); font-size: 12px; color: var(--dim); }
+    footer a { color: var(--text-secondary); text-decoration: none; }
+    @media (max-width: 720px) {
+      body { font-size: 16px; }
+      .wrap { padding: 0 18px; }
+      section { grid-template-columns: 1fr; gap: 0; padding: 34px 0; }
+      .snum { padding: 0 0 8px; }
+      .facts .row { grid-template-columns: 1fr; }
+      td.tk { width: auto; display: block; padding-bottom: 4px; }
+      td.tv { display: block; border-top: 0; padding-top: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap bar">
+      <a class="logo" href="/">simple<b>·</b>host</a>
+      <div style="display:flex;align-items:center;gap:14px">
+        <nav class="top">
+          <a href="/">Home</a>
+          <a href="/enterprise">For companies</a>
+          <a href="/hackathons" class="on">For hackathons</a>
+          <a href="/features">Features</a>
+          <a href="/docs.html">API</a>
+        </nav>
+        <button class="tt" id="tt" aria-label="Toggle theme" onclick="toggleTheme()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" id="tt-i"></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <section>
+      <div class="snum">00.</div>
+      <div>
+        <div class="kicker">Simple Host for hackathons</div>
+        <h1 class="title">A hackathon for people who have never deployed anything.</h1>
+        <p class="lede">Participants bring an AI agent they already use. Each of them gets a place where what they make goes live, and every entry is a link.</p>
+        <p>Today that place is <a href="/">simple-host.app</a>, which is free to use. Running an event on a server of your own is not ready yet; the gaps are listed at the bottom of this page.</p>
+        <p>
+          <a class="cta solid" href="/install.html">Install the skill</a>
+          <a class="cta" href="https://github.com/vineetu/simple-host">Source on GitHub</a>
+        </p>
+      </div>
+    </section>
+
+    <section id="who">
+      <div class="snum">01.</div>
+      <div>
+        <h2>Who this is for</h2>
+        <p>A company where few people write code for a living but most have Claude Code, Codex, Cursor or Copilot. A college class. A team offsite. Any group whose members have not deployed a website before.</p>
+        <p>A participant needs a browser and an agent that can run a skill. Nothing gets installed on the machine beyond the skill itself.</p>
+      </div>
+    </section>
+
+    <section id="participant">
+      <div class="snum">02.</div>
+      <div>
+        <h2>What a participant does</h2>
+        <ol>
+          <li>Signs in at simple-host.app with an emailed code or Google. That gives them an API key and a profile page.</li>
+          <li>Installs the <strong>Website Deploy</strong> skill from the <a href="/install.html">get-started page</a>. For Claude Code that is one command; other agents have their own steps on the same page.</li>
+          <li>Tells the agent what they want. "A page where people can sign up for a slot." "A quiz about our product." "A dashboard for this spreadsheet."</li>
+          <li>Gets a link. If the page needs to save anything, it has one JSON document of up to 1&nbsp;MB and append-only collections, with no backend work.</li>
+          <li>Changes it. Every deploy is versioned, so an earlier version of the files is one rollback away. Saved data is not versioned.</li>
+        </ol>
+        <p>The deploy itself is one upload. Each account can hold 100 sites, and each site can be public on the profile page or hidden from it.</p>
+      </div>
+    </section>
+
+    <section id="host">
+      <div class="snum">03.</div>
+      <div>
+        <h2>What the organiser does</h2>
+        <div class="facts">
+          <div class="row"><div class="k">Before</div><p class="v">Send the sign-in link and the get-started page. There are no accounts to create. Ask each team to send you their final link, since one account can hold several sites.</p></div>
+          <div class="row"><div class="k">During</div><p class="v">Nothing. Participants deploy as often as they like.</p></div>
+          <div class="row"><div class="k">Judging</div><p class="v">Every entry is a link. Judges open the links. For a first pass by a model, give an agent the list of links and ask it to fetch and summarise each one.</p></div>
+          <div class="row"><div class="k">Traffic</div><p class="v">Each participant's own dashboard shows views and visitors per site, split into people, bots and monitoring, with countries.</p></div>
+        </div>
+        <p><strong>Saved data is open on simple-host.app.</strong> Anyone who can load a page can change that site's JSON document and add to its collections. The files change only with the owner's API key. If an entry's saved data matters for judging, have the team take a copy before judging starts.</p>
+      </div>
+    </section>
+
+    <section id="not">
+      <div class="snum">04.</div>
+      <div>
+        <h2>Not built</h2>
+        <p>Do not plan an event around any of these.</p>
+        <table>
+          <tr><td class="tk">Your own server</td><td class="tv">The code is MIT and the <a href="https://github.com/vineetu/simple-host#readme">README</a> runs it on a laptop. The fresh-server runbook predates the current site layout, and the skill points at simple-host.app rather than your instance. Both are being updated. My workplace instance, on a 1&nbsp;CPU, 1&nbsp;GB box, costs $5 a month, and that is the target for events too.</td></tr>
+          <tr><td class="tk">Docker Compose and Kubernetes</td><td class="tv">Docker is documented for local development only. There is no Compose file or Kubernetes manifest.</td></tr>
+          <tr><td class="tk">Organiser view</td><td class="tv">No screen that lists an event's entries, and no scores or tags. The organiser keeps the list of links.</td></tr>
+          <tr><td class="tk">Per-person saves</td><td class="tv">Sign-in before saving exists only on a site with its own domain. On simple-host.app saved data is open to anyone who loads the page.</td></tr>
+          <tr><td class="tk">AI inside the pages</td><td class="tv">No per-site model allowance. A page that calls a model needs a key from somewhere, and anything in the page is public.</td></tr>
+          <tr><td class="tk">Pre-issued keys</td><td class="tv">No organiser tool for handing out accounts in advance. Everyone signs up with their email or Google.</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <section id="start">
+      <div class="snum">05.</div>
+      <div>
+        <h2>Start</h2>
+        <p>Sign in at <a href="/">simple-host.app</a>, install the skill, and ask your agent for a page. That is the whole participant flow, so try it yourself before the event.</p>
+        <p>
+          <a class="cta solid" href="/install.html">Install the skill</a>
+          <a class="cta" href="https://github.com/vineetu/simple-host">Source on GitHub</a>
+          <a class="cta" href="/enterprise">For companies</a>
+        </p>
+        <p class="fine">I am Vineet Sriram. The $5 a month describes the instance I run at work, as of September 2026.</p>
+      </div>
+    </section>
+
+    <footer>
+      simple·host · for hackathons · <a href="/">Home</a> · <a href="/features">Features</a> · <a href="/architecture.html">Architecture</a> · <a href="/privacy.html">Privacy</a>
+    </footer>
+  </div>
+
+  <script>
+    var SUN = '<circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
+    var MOON = '<path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/>';
+    function paintIcon(){ document.getElementById('tt-i').innerHTML = document.documentElement.dataset.theme === 'light' ? MOON : SUN; }
+    function toggleTheme(){ var t = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'; document.documentElement.dataset.theme = t; try{ localStorage.setItem('sh-theme', t); }catch(e){} paintIcon(); }
+    paintIcon();
+  </script>
+</body>
+</html>

@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simple Host for companies</title>
+  <meta name="description" content="Open-source hosting where employees publish pages from the AI tool they already use. What it does, what it will not do, and how one company uses it.">
+  <script>(function(){try{var s=localStorage.getItem('sh-theme');document.documentElement.dataset.theme=s||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');}catch(e){document.documentElement.dataset.theme='light';}})();</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #020617; --surface: #0b1222; --surface-2: #0d1526;
+      --border: #1e293b; --border-hi: #334155;
+      --text: #f1f5f9; --text-secondary: #94a3b8; --dim: #475569;
+      --accent: #22d3ee; --accent-soft: rgba(34,211,238,.12);
+      --amber: #fbbf24; --amber-soft: rgba(251,191,36,.10);
+      --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+      --display: 'Archivo', system-ui, sans-serif;
+      --body: 'Newsreader', Georgia, serif;
+    }
+    html[data-theme="light"] {
+      --bg: #fbfbfd; --surface: #ffffff; --surface-2: #f6f7fb;
+      --border: #e4e7ee; --border-hi: #cbd2de;
+      --text: #0f1e37; --text-secondary: #4a5878; --dim: #8b96ad;
+      --accent: #0e7490; --accent-soft: rgba(14,116,144,.08);
+      --amber: #b45309; --amber-soft: rgba(180,83,9,.09);
+    }
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font-family: var(--body); line-height: 1.65; font-size: 17px;
+      -webkit-font-smoothing: antialiased;
+      background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 46px 46px; background-position: center -1px;
+    }
+    html[data-theme="light"] body { background-image: linear-gradient(rgba(15,30,55,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(15,30,55,.035) 1px, transparent 1px); }
+    .wrap { max-width: 880px; margin: 0 auto; padding: 0 28px; }
+    a { color: inherit; }
+    header { position: sticky; top: 0; z-index: 20; backdrop-filter: blur(9px);
+      background: color-mix(in srgb, var(--bg) 82%, transparent); border-bottom: 1px solid var(--border); }
+    .bar { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; gap: 12px; }
+    .logo { font-family: var(--mono); font-weight: 700; font-size: 14px; letter-spacing: .3px; text-decoration: none; color: var(--text); white-space: nowrap; }
+    .logo b { color: var(--accent); }
+    nav.top { display: flex; flex-wrap: wrap; gap: 8px 18px; font-family: var(--mono); font-size: 12.5px; }
+    nav.top a { color: var(--text-secondary); text-decoration: none; }
+    nav.top a:hover, nav.top a.on { color: var(--accent); }
+    .tt { width: 32px; height: 30px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+    .tt:hover { border-color: var(--accent); color: var(--accent); }
+    section { display: grid; grid-template-columns: 54px 1fr; gap: 0 22px; padding: 44px 0; border-bottom: 1px solid var(--border); }
+    .snum { font-family: var(--mono); font-size: 13px; color: var(--accent); padding-top: 6px; }
+    h1.title { font-family: var(--display); font-weight: 800; letter-spacing: -.02em; line-height: 1.02; font-size: clamp(34px, 6vw, 60px); margin: 6px 0 20px; }
+    h2 { font-family: var(--display); font-weight: 700; letter-spacing: -.02em; line-height: 1.05; font-size: clamp(25px, 4vw, 36px); margin: 0 0 14px; }
+    h3 { font-family: var(--display); font-weight: 600; font-size: 17px; line-height: 1.3; color: var(--text); margin: 18px 0 6px; }
+    .lede { font-size: 19px; color: var(--text); margin: 0 0 14px; }
+    p { margin: 0 0 14px; color: var(--text-secondary); }
+    p strong, li strong, td strong { color: var(--text); font-weight: 500; }
+    ul, ol { margin: 0 0 14px; padding-left: 22px; color: var(--text-secondary); }
+    li { margin-bottom: 6px; }
+    .kicker { font-family: var(--mono); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+    .fine { font-family: var(--mono); font-size: 12px; color: var(--dim); letter-spacing: .3px; margin-top: 18px; }
+    code { font-family: var(--mono); font-size: .88em; background: var(--accent-soft); color: var(--accent); padding: 1px 6px; border-radius: 5px; }
+    blockquote { margin: 18px 0; padding: 4px 0 4px 18px; border-left: 2px solid var(--accent); color: var(--text); font-size: 18px; }
+    .facts { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 4px 16px; margin: 18px 0; }
+    .facts .row { display: grid; grid-template-columns: 170px 1fr; gap: 4px 16px; padding: 11px 0; border-top: 1px solid var(--border); align-items: start; }
+    .facts .row:first-child { border-top: 0; }
+    .facts .k { font-family: var(--mono); font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--dim); padding-top: 5px; }
+    .facts .v { margin: 0; font-size: 15px; color: var(--text-secondary); }
+    .facts .v strong { color: var(--text); }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    td { border-top: 1px solid var(--border); padding: 12px 0; vertical-align: top; font-size: 15px; }
+    td.tk { font-family: var(--display); font-weight: 600; color: var(--text); width: 240px; padding-right: 22px; }
+    td.tv { color: var(--text-secondary); }
+    .st { display: inline-block; font-family: var(--mono); font-size: 10px; letter-spacing: .9px; text-transform: uppercase; padding: 2px 7px; border-radius: 5px; border: 1px solid color-mix(in srgb, var(--amber) 55%, var(--border-hi)); color: var(--amber); background: var(--amber-soft); vertical-align: 2px; white-space: nowrap; font-weight: 600; margin-left: 7px; }
+    .cta { display: inline-block; font-family: var(--mono); font-size: 13px; font-weight: 600; text-decoration: none; padding: 10px 16px; border-radius: 9px; border: 1px solid var(--accent); color: var(--accent); margin: 6px 10px 6px 0; }
+    .cta.solid { background: var(--accent); color: var(--bg); }
+    .cta:hover { filter: brightness(1.1); }
+    footer { padding: 40px 0 60px; font-family: var(--mono); font-size: 12px; color: var(--dim); }
+    footer a { color: var(--text-secondary); text-decoration: none; }
+    @media (max-width: 720px) {
+      body { font-size: 16px; }
+      .wrap { padding: 0 18px; }
+      section { grid-template-columns: 1fr; gap: 0; padding: 34px 0; }
+      .snum { padding: 0 0 8px; }
+      .facts .row { grid-template-columns: 1fr; }
+      td.tk { width: auto; display: block; padding-bottom: 4px; }
+      td.tv { display: block; border-top: 0; padding-top: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap bar">
+      <a class="logo" href="/">simple<b>·</b>host</a>
+      <div style="display:flex;align-items:center;gap:14px">
+        <nav class="top">
+          <a href="/">Home</a>
+          <a href="/enterprise" class="on">For companies</a>
+          <a href="/hackathons">For hackathons</a>
+          <a href="/features">Features</a>
+          <a href="/docs.html">API</a>
+        </nav>
+        <button class="tt" id="tt" aria-label="Toggle theme" onclick="toggleTheme()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" id="tt-i"></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <section>
+      <div class="snum">00.</div>
+      <div>
+        <div class="kicker">Simple Host for companies</div>
+        <h1 class="title">Give every employee a place to build.</h1>
+        <p class="lede">Simple Host is an open-source server. An employee describes a page to their AI agent, the agent publishes it, and anyone with the link can open it.</p>
+        <p>A page is plain HTML with a small data store attached. That is what my manager's project board is, and it is enough for the sign-up forms, polls and short guides I see colleagues make. Nobody has to stand up a backend first.</p>
+        <p>
+          <a class="cta solid" href="https://github.com/vineetu/simple-host">Source on GitHub</a>
+          <a class="cta" href="/">Try it on simple-host.app</a>
+        </p>
+      </div>
+    </section>
+
+    <section id="story">
+      <div class="snum">01.</div>
+      <div>
+        <h2>Where this came from</h2>
+        <p>In spring 2026 I ran a two-hour AI workshop at work. It was remote, at eight on a Monday morning, and I wanted people to have somewhere to keep going after the call ended. So I put up an internal copy of this: a place where you could describe a page to an AI agent, see it live, change it, and send the link to a colleague.</p>
+        <p>By September 2026 that instance had passed a hundred accounts, most of them people who do not write code for a living. My manager runs his project board on it. The page he built pulls tickets from Jira, draws the timeline, and is the screen we look at in the daily standup. A programme manager tracks a cross-team project on it so he can see who is waiting on whom.</p>
+        <p>The server that runs all of it is a 1&nbsp;CPU, 1&nbsp;GB box and costs $5 a month.</p>
+        <p>I think everyone carries an idea that only they can see. Give them a canvas and a patient collaborator and most of them will build it. The agent is the collaborator. This is the canvas.</p>
+      </div>
+    </section>
+
+    <section id="why">
+      <div class="snum">02.</div>
+      <div>
+        <h2>Why it is this simple</h2>
+        <p class="lede">Agents already write HTML, and they can read and write a JSON document without a schema. Simple Host serves the first and stores the second.</p>
+        <p>Each site gets a folder of files, one JSON document of up to 1&nbsp;MB, and append-only collections whose items are up to 64&nbsp;KB each. A page reads and writes that data from the browser. Every deploy is versioned, so an earlier version of the files is one rollback away. Saved data is not versioned.</p>
+        <p>Cloudflare, Firebase and Supabase all do pieces of this. They still need a developer to connect the pieces. Here an agent with the Website Deploy skill does it from "make a page where the team can vote on lunch".</p>
+        <div class="facts">
+          <div class="row"><div class="k">Per person</div><p class="v">One account, one API key, sign-in by emailed code or Google. A site can be hidden from the person's profile listing; the link still works for anyone who has it. Up to 100 sites per account.</p></div>
+          <div class="row"><div class="k">The agent</div><p class="v">Claude Code, Codex, Cursor and Copilot install the <strong>Website Deploy</strong> skill once. After that the person says "put this online".</p></div>
+          <div class="row"><div class="k">The server</div><p class="v">One Go binary, one Postgres, one folder of files, behind nginx. MIT licence.</p></div>
+          <div class="row"><div class="k">Traffic</div><p class="v">Each owner sees views and unique visitors per site, split into people, bots and monitoring, with countries. It comes from the web server's log; the analytics add no script to any page.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="run">
+      <div class="snum">03.</div>
+      <div>
+        <h2>Running it inside your company</h2>
+        <p>The <a href="https://github.com/vineetu/simple-host#readme">repository README</a> gets it running on a laptop: Postgres in Docker, the server next to it. The nginx configuration that simple-host.app runs in production is in the repository under <code>deploy/prod</code>. There is not yet a tested step-by-step for a fresh server on the current version; see the table below.</p>
+        <ul>
+          <li><strong>Sign-in.</strong> An emailed code through Resend, or Google OAuth. Restrict Google to your Workspace domain on the OAuth client. Emailed codes go to whatever address someone types; the server has no domain allowlist, so keep the instance inside your network or accept open sign-up.</li>
+          <li><strong>Admin view.</strong> The person running the instance sees every account and every site in one list. There is no way to remove an account from that page.</li>
+          <li><strong>Where data goes.</strong> Site files and site data live on your disk and in your Postgres. Sign-in talks to Resend or Google. People's agents see whatever they paste into them.</li>
+          <li><strong>No model on the server.</strong> AI create and voice transcription are off unless you configure them. People keep using the agent they already pay for.</li>
+          <li><strong>Who can write.</strong> Anyone who can load a page can read it. On the shared hostname anyone can also change a site's saved data; the files themselves change only with the owner's API key. Per-person saves, gated by visitor sign-in, exist only on a site that has its own domain.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="not">
+      <div class="snum">04.</div>
+      <div>
+        <h2>What it will not do</h2>
+        <table>
+          <tr><td class="tk">Private pages</td><td class="tv">Anyone who has the link can read a site. If the instance is on the public internet, treat every page as public.</td></tr>
+          <tr><td class="tk">A general backend</td><td class="tv">No queries, no schema, no server-side code. State is one 1&nbsp;MB JSON document plus append-only collections. Past that, this is the wrong host.</td></tr>
+          <tr><td class="tk">Team permissions</td><td class="tv">A site has one owner. Any signed-in visitor on a site's own domain can save; there are no roles.</td></tr>
+          <tr><td class="tk">Single sign-on</td><td class="tv">No SAML or OIDC beyond Google. GitHub sign-in is in the code but not switched on.</td></tr>
+          <tr><td class="tk">Fresh-server runbook <span class="st">Out of date</span></td><td class="tv">The <a href="https://github.com/vineetu/Agent-Deploy">Agent Deploy</a> runbook predates the current site layout, and the bundled skill points at simple-host.app rather than your instance. Both are being updated. Until then, self-hosting means adapting them yourself.</td></tr>
+          <tr><td class="tk">Compose and Kubernetes <span class="st">Not built</span></td><td class="tv">There is no Compose file or Kubernetes manifest.</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <section id="start">
+      <div class="snum">05.</div>
+      <div>
+        <h2>Try it</h2>
+        <p><a href="/">simple-host.app</a> runs the same code. Sign in, install the skill, and ask your agent for a page. If your company wants its own instance, watch the repository; the runbook and the skill's instance setting are the next two things to land.</p>
+        <p>
+          <a class="cta solid" href="https://github.com/vineetu/simple-host">Source on GitHub</a>
+          <a class="cta" href="/install.html">Install the skill</a>
+          <a class="cta" href="/hackathons">For hackathons</a>
+        </p>
+        <p class="fine">I am Vineet Sriram. The account count and the $5 a month describe the instance I run at work, as of September 2026.</p>
+      </div>
+    </section>
+
+    <footer>
+      simple·host · for companies · <a href="/">Home</a> · <a href="/features">Features</a> · <a href="/architecture.html">Architecture</a> · <a href="/privacy.html">Privacy</a>
+    </footer>
+  </div>
+
+  <script>
+    var SUN = '<circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
+    var MOON = '<path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/>';
+    function paintIcon(){ document.getElementById('tt-i').innerHTML = document.documentElement.dataset.theme === 'light' ? MOON : SUN; }
+    function toggleTheme(){ var t = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'; document.documentElement.dataset.theme = t; try{ localStorage.setItem('sh-theme', t); }catch(e){} paintIcon(); }
+    paintIcon();
+  </script>
+</body>
+</html>

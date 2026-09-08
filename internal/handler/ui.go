@@ -90,6 +90,9 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// capability lives in the UI. Given a clean URL like /admin because it is
 	// linked from the top nav, not just reachable as a file.
 	mux.Handle("GET /features", adminUICSP(serveStaticPage("features.html")))
+	// Marketing pages, one per audience, shared as direct links.
+	mux.Handle("GET /enterprise", adminUICSP(serveStaticPage("enterprise.html")))
+	mux.Handle("GET /hackathons", adminUICSP(serveStaticPage("hackathons.html")))
 	// One site's analytics in full, linked from the dashboard card and from the
 	// showcase Analytics tab. Same public-shell reasoning as /admin: a browser
 	// navigation carries no API key, so the page reads it from localStorage and
