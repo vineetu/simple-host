@@ -19,6 +19,7 @@ import (
 	"github.com/vsriram/simple-host/internal/config"
 	dbpkg "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/email"
+	"github.com/vsriram/simple-host/internal/eventdns"
 	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/internal/storage"
 )
@@ -109,6 +110,16 @@ func main() {
 		log.Printf("voice input enabled (/v1/transcribe -> %s)", cfg.TranscribeURL)
 	} else {
 		log.Printf("TRANSCRIBE_URL unset; /v1/transcribe (voice input) disabled")
+	}
+
+	// Event hostnames for hackathon organisers. Off unless a DNS token and at
+	// least one domain are configured, so a self-hosted instance never tries to
+	// hand out names under a domain it does not control.
+	if cfg.EventDNSToken != "" && len(cfg.EventDomains) > 0 {
+		ev := handler.NewEventDomainHandler(db, eventdns.NewVercel(cfg.EventDNSToken, cfg.EventDNSTeamID), cfg.EventDomains)
+		ev.Register(mux, authMW)
+		ev.StartSweep(1 * time.Hour)
+		log.Printf("event hostnames enabled under: %s", strings.Join(cfg.EventDomains, ", "))
 	}
 
 	// Per-endpoint API analytics for the admin page: every /v1/* request is

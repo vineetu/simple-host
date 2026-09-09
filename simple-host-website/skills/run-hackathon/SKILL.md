@@ -16,9 +16,12 @@ transmit them anywhere.
 
 1. **A cloud account with API access.** UpCloud is the tested path. Ask them to
    create an API token in their provider's console and paste it to you.
-2. **A domain they control.** They will add two DNS records. If they have no
-   domain, say so plainly: a free subdomain is planned but not built, so today a
-   domain is required.
+2. **A domain, or not.** Either works:
+   - **No domain**: they get two free hostnames under a domain we run. You claim
+     them; the organiser does nothing. This is the default, and the simplest.
+   - **Their own domain**: they add two DNS records themselves. Choose this if
+     they want their own name on it, or if they want email or Google sign-in
+     later, which need records only they can add.
 3. **Nothing else.** No email provider, no Google project, no Docker, no terminal.
 
 Tell them the cost before creating anything: about five dollars a month, billed
@@ -45,11 +48,27 @@ half at creation so nothing needs a password.
 
 ### 3. Point DNS at it
 
-Two A records, both to the server's IPv4 address. The organiser adds these at
-their registrar. `references/dns.md` has per-registrar instructions.
+Two A records, both to the server's public IPv4 address.
 
-Wait until both names resolve before continuing. Installing first works, but
-certificates will fail and the organiser sees browser warnings.
+**If they have no domain**, claim free hostnames with the organiser's own
+Simple Host account key:
+
+```
+POST https://simple-host.app/v1/events
+{"name": "stanford-cs-2026", "ip": "<server IPv4>"}
+```
+
+The response gives `host` and `content_host`. Names are lowercased, must be 1 to
+40 letters, digits or hyphens, and a name someone else holds answers 409, so ask
+for another. A claim expires after three weeks and re-claiming the same name
+extends it.
+
+**If they have their own domain**, they add the two records at their registrar.
+See `references/dns.md`.
+
+Either way, wait until both names resolve before continuing. Installing first
+works, but certificate issuance fails and the organiser sees browser warnings,
+which is far more alarming than waiting.
 
 ### 4. Install
 
@@ -112,8 +131,16 @@ When the event ends, **delete the server and remove both DNS records**. See
 `references/teardown.md`.
 
 Do not skip the DNS records. A record left pointing at a released cloud address
-means whoever receives that address next is serving content under the
-organiser's domain name.
+means whoever receives that address next is serving content under that domain
+name.
+
+If you claimed free hostnames, release them:
+
+```
+DELETE https://simple-host.app/v1/events/<name>
+```
+
+If the organiser used their own domain, they delete the two records themselves.
 
 Warn them first: deleting the server destroys every entry. If anyone wants to
 keep what they built, they take a copy before you start.
@@ -130,4 +157,6 @@ Say these plainly if asked, rather than working around them:
   stored data. Files change only with the owner's key. If saved data matters for
   judging, have teams copy it before judging starts.
 - **No backups.** A disk failure during the event loses the event.
-- **No free subdomain yet.** The organiser must own a domain.
+- **Free hostnames expire.** A claim lasts three weeks. Re-claim the same name to
+  extend it. After that a sweep removes the records, so a long-running instance
+  should use the organiser's own domain.

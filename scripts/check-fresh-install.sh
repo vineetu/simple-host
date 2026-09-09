@@ -65,6 +65,7 @@ run "pre-classifier history" "SELECT day, views FROM site_view_daily WHERE site_
 run "geo views"             "SELECT country, class, SUM(views) FROM site_geo_daily WHERE site_id='$NIL' GROUP BY 1,2"
 run "geo visitors"          "SELECT country, class, COUNT(DISTINCT ip_hash) FROM site_visitor_hourly WHERE site_id='$NIL' GROUP BY 1,2"
 run "ip-country lookup"     "SELECT country FROM ip_country_ranges WHERE start_ip <= '8.8.8.8'::inet ORDER BY start_ip DESC LIMIT 1"
+run "event domains"        "SELECT name, domain, ip, record_ids, expires_at FROM event_domains WHERE user_id='$NIL'"
 run "ingest checkpoint"     "SELECT offset_bytes, inode FROM analytics_ingest_state WHERE logfile='x'"
 run "admin api metrics"     "SELECT route, status, calls FROM api_request_daily WHERE day=current_date"
 run "admin caller geo"      "SELECT ip, country FROM ip_geo WHERE ip='127.0.0.1'"

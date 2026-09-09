@@ -1,5 +1,27 @@
 # The two DNS records
 
+## The easy path: no domain at all
+
+If the organiser has no domain, claim two hostnames under one we run, using
+their own Simple Host account key:
+
+```bash
+curl -X POST https://simple-host.app/v1/events \
+  -H "X-API-Key: <their simple-host.app key>" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"stanford-cs-2026","ip":"<server IPv4>"}'
+```
+
+Both records are created immediately and the organiser touches nothing. Release
+them at teardown with `DELETE /v1/events/<name>`.
+
+A claim lasts three weeks and re-claiming extends it. Names are lowercased.
+Reserved names such as `sites`, `www` and `api` are refused, as are private
+addresses, because a public record pointing inside somebody's network would fail
+certificate issuance in a way that looks like our bug rather than their typo.
+
+## The other path: their own domain
+
 Both are `A` records pointing at the server's **public IPv4** address.
 
 | Name | Type | Value |

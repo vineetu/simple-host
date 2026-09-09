@@ -3396,6 +3396,185 @@
         }
       }
     },
+    "/v1/events": {
+      "get": {
+        "operationId": "listEventDomains",
+        "summary": "List the event hostnames you have claimed",
+        "description": "Returns every event hostname claimed by the calling account, with the server address it points at and when the claim expires.",
+        "tags": [
+          "Events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Claimed event hostnames",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "host": {
+                            "type": "string",
+                            "example": "stanford-cs-2026.simple-host.app"
+                          },
+                          "content_host": {
+                            "type": "string",
+                            "example": "sites.stanford-cs-2026.simple-host.app"
+                          },
+                          "ip": {
+                            "type": "string",
+                            "example": "85.9.193.170"
+                          },
+                          "expires_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "claimEventDomain",
+        "summary": "Claim two hostnames for an event, pointing at your own server",
+        "description": "Creates <name>.<domain> and sites.<name>.<domain> as A records at the given public IPv4 address, so a hackathon organiser never touches a registrar. The two hostnames are separate on purpose: participant content must not share a browser origin with the admin interface. Re-claiming a name you already own replaces its records and extends the expiry. A name owned by another account answers 409. Claims expire and are swept, because a record left pointing at a released cloud address is a subdomain takeover.",
+        "tags": [
+          "Events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "ip"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "example": "stanford-cs-2026",
+                    "description": "1 to 40 letters, digits or hyphens. Lowercased. Reserved names are refused."
+                  },
+                  "ip": {
+                    "type": "string",
+                    "example": "85.9.193.170",
+                    "description": "Public IPv4 of the organiser's server. Private and loopback addresses are refused."
+                  },
+                  "domain": {
+                    "type": "string",
+                    "example": "simple-host.app",
+                    "description": "One of the instance's configured event domains. Defaults to the first."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Hostnames created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "host": {
+                      "type": "string"
+                    },
+                    "content_host": {
+                      "type": "string"
+                    },
+                    "ip": {
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid name",
+            "address or domain": null
+          },
+          "409": {
+            "description": "That event name belongs to another account"
+          },
+          "502": {
+            "description": "The DNS provider refused the record"
+          }
+        }
+      }
+    },
+    "/v1/events/{name}": {
+      "delete": {
+        "operationId": "releaseEventDomain",
+        "summary": "Release an event's hostnames",
+        "description": "Removes both DNS records and the claim. Safe to retry. Records are deleted before the row, so a partial failure leaves something that still knows what to clean up.",
+        "tags": [
+          "Events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "domain",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Released"
+          },
+          "404": {
+            "description": "Not found",
+            "or not yours": null
+          },
+          "502": {
+            "description": "The DNS provider refused the deletion"
+          }
+        }
+      }
+    },
     "/v1/admin/users": {
       "post": {
         "operationId": "createEventAccounts",

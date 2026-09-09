@@ -31,6 +31,11 @@ services:
       CONTENT_HOST: ${CONTENT_HOST:-sites.localhost}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost}
       ANALYTICS_LOG: /var/log/caddy/access.log
+      # Only the public instance hands out event hostnames; a self-hosted
+      # instance leaves these unset and organisers bring their own domain.
+      EVENT_DNS_TOKEN: ${EVENT_DNS_TOKEN:-}
+      EVENT_DNS_TEAM_ID: ${EVENT_DNS_TEAM_ID:-}
+      EVENT_DOMAINS: ${EVENT_DOMAINS:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       MAIL_FROM: ${MAIL_FROM:-}
     volumes:

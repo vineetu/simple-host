@@ -147,6 +147,10 @@ type Config struct {
 	// Set ANALYTICS_LOG=/var/log/simple-host/analytics.log in production.
 	AnalyticsLog string
 
+	EventDNSToken  string
+	EventDNSTeamID string
+	EventDomains   []string
+
 	// WriteAuthMode gates anonymous state/collections writes: off | log | on.
 	// Unset or any unrecognized value is "log". The source default is never "on".
 	WriteAuthMode string
@@ -207,6 +211,17 @@ func Load() (Config, error) {
 	cfg.CNAMETarget = getEnvOrDefault("CNAME_TARGET", "cname."+cfg.SiteDomain)
 	cfg.CustomDomainIP = os.Getenv("CUSTOM_DOMAIN_IP")
 	cfg.AnalyticsLog = os.Getenv("ANALYTICS_LOG")
+
+	// Event hostnames: handed to a hackathon organiser under a domain we own,
+	// pointing at their server. Unset means the feature is off and organisers
+	// must bring their own domain.
+	cfg.EventDNSToken = os.Getenv("EVENT_DNS_TOKEN")
+	cfg.EventDNSTeamID = os.Getenv("EVENT_DNS_TEAM_ID")
+	for _, d := range strings.Split(os.Getenv("EVENT_DOMAINS"), ",") {
+		if d = strings.ToLower(strings.TrimSpace(d)); d != "" {
+			cfg.EventDomains = append(cfg.EventDomains, d)
+		}
+	}
 
 	cfg.GoogleOAuthClientID = os.Getenv("GOOGLE_OAUTH_CLIENT_ID")
 	cfg.GoogleOAuthClientSecret = os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET")
