@@ -25,7 +25,11 @@ jobs:
       - name: build
         run: |
           mkdir -p dist
-          for pair in linux/amd64 linux/arm64; do
+          # No cgo means every one of these is a flag change on the same
+          # runner. Linux covers every server target including Oracle's free
+          # ARM tier; darwin is there so someone can run it natively on a Mac
+          # while developing rather than needing a container.
+          for pair in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
             os=${pair%/*}; arch=${pair#*/}
             CGO_ENABLED=0 GOOS=$os GOARCH=$arch \
               go build -trimpath -ldflags="-s -w" \

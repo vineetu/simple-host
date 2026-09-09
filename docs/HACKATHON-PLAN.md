@@ -273,6 +273,30 @@ Two things make Oracle harder than UpCloud, and the skill has to handle both:
 - Rewrite the hackathon and enterprise pages once §1 to §6 are true. Until then
   they can only describe simple-host.app honestly.
 
+## 7b. For enterprise, later
+
+The event work is deliberately one server. Enterprise is where that stops being
+enough, and the owner has named the shape he wants: **a Helm chart, so a team
+that already runs Kubernetes installs it in one command.**
+
+What already exists that makes this cheap when we get to it:
+
+- A multi-arch image on ghcr.io, published on every tag. A chart just references it.
+- Only two settings are genuinely required, `DB_DSN` and `ADMIN_API_KEY`, so the
+  values file is short.
+- The content path is a plain directory, so it maps to a PersistentVolumeClaim.
+
+What has to be solved first, and none of it is chart work:
+
+- **Migrations and a version the binary reports.** A chart implies upgrades. An
+  event box is destroyed after a weekend and never upgrades; an enterprise
+  instance has years of data. See section 8.
+- **Where TLS terminates.** On a cluster it is usually an Ingress, not Caddy, so
+  the chart must not assume the compose topology.
+- **Whether the app or an init container applies the schema.** Today the schema
+  is applied out of band by Postgres' entrypoint, which only works on first boot
+  of a fresh database.
+
 ## 8. Deliberately not doing yet
 
 - **Migrations and version reporting.** Needed before anyone upgrades an existing
