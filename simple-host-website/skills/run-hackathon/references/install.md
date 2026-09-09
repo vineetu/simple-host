@@ -5,7 +5,7 @@ One command over SSH, as root, on the fresh box.
 ```bash
 ssh -i ~/.ssh/hackathon_key root@<ip> \
   'curl -fsSL https://raw.githubusercontent.com/vineetu/simple-host/main/deploy/install/install.sh -o /root/install.sh && \
-   bash /root/install.sh --host <event>.<domain> --content sites.<event>.<domain> --image ghcr.io/vineetu/simple-host:0.1.0-rc3'
+   bash /root/install.sh --host <event>.<domain> --content sites.<event>.<domain> --image ghcr.io/vineetu/simple-host:0.1.0'
 ```
 
 **Pin the image.** `latest` moves on every release, so an unattended re-run can
