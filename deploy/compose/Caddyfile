@@ -17,6 +17,23 @@
 #   /<handle>/<site>/<rest>  ->  handles/<handle>/<site>/current/<rest>
 # The app is not in the content path; Caddy serves the bytes off disk.
 {$CONTENT_ADDR} {
+	# Access log for the analytics ingester. Caddy writes JSON; the ingester
+	# reads it directly. Only the content host is logged, because only content
+	# requests are page views.
+	log {
+		output file /var/log/caddy/access.log {
+			# Caddy runs as root in its official image; the server runs as
+			# nonroot. Without an explicit mode the log is created 0600 and the
+			# ingester gets permission denied on every run, which shows up as
+			# every site reporting zero views rather than as an error anyone
+			# would notice.
+			mode 644
+			roll_size 64MiB
+			roll_keep 8
+		}
+		format json
+	}
+
 	@api path /v1/* /internal/*
 	handle @api {
 		reverse_proxy app:8090

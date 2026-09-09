@@ -9,10 +9,13 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -470,26 +473,130 @@ func (i *Ingester) buildAttrMaps(ctx context.Context) (*attrMaps, error) {
 	return m, nil
 }
 
-// parseAndAttribute fails soft: wrong field count, bad ts, non-document, or
-// unresolved host all return ok=false (line skipped).
-func (i *Ingester) parseAndAttribute(line string, maps *attrMaps) (hit, bool) {
-	// Format: ts \t host \t status \t method \t uri \t remote_addr \t user_agent
+// logLine is one access-log record, normalised across the two formats this
+// ingester understands. See parseTSV and parseCaddyJSON.
+type logLine struct {
+	tsStr      string
+	ts         time.Time // set by parseCaddyJSON, which carries a numeric ts
+	host       string
+	status     string
+	method     string
+	uri        string
+	remoteAddr string
+	ua         string
+}
+
+// parseTSV reads the nginx `shanalytics` format:
+//
+//	ts \t host \t status \t method \t request_uri \t remote_addr \t user_agent
+//
+// This is what simple-host.app itself writes and what 400 days of retained log
+// is in, so it must keep parsing exactly as before: an analytics rebuild
+// replays the whole file.
+func parseTSV(line string) (logLine, bool) {
 	fields := strings.Split(line, "\t")
 	if len(fields) < 6 {
-		return hit{}, false
+		return logLine{}, false
 	}
-	tsStr := fields[0]
-	host := strings.ToLower(strings.TrimSpace(fields[1]))
-	status := fields[2]
-	method := fields[3]
-	uri := fields[4]
-	remoteAddr := fields[5]
+	l := logLine{
+		tsStr:      fields[0],
+		host:       fields[1],
+		status:     fields[2],
+		method:     fields[3],
+		uri:        fields[4],
+		remoteAddr: fields[5],
+	}
 	// The user-agent is optional: lines written before the log format grew a
 	// seventh field still parse, they just classify as bot (empty UA).
-	ua := ""
 	if len(fields) >= 7 {
-		ua = fields[6]
+		l.ua = fields[6]
 	}
+	return l, true
+}
+
+// caddyAccess is the subset of Caddy's JSON access log this needs.
+//
+// Event boxes run Caddy rather than nginx, because Caddy obtains certificates
+// by itself. Caddy has no arbitrary log-format template in a stock build, so
+// rather than maintain a custom Caddy image with a third-party encoder, the
+// ingester learns Caddy's own shape. Every field it needs is already there.
+type caddyAccess struct {
+	TS      float64 `json:"ts"`
+	Msg     string  `json:"msg"`
+	Status  int     `json:"status"`
+	Request struct {
+		Method   string              `json:"method"`
+		Host     string              `json:"host"`
+		URI      string              `json:"uri"`
+		RemoteIP string              `json:"remote_ip"`
+		ClientIP string              `json:"client_ip"`
+		Headers  map[string][]string `json:"headers"`
+	} `json:"request"`
+}
+
+func parseCaddyJSON(line string) (logLine, bool) {
+	var a caddyAccess
+	if err := json.Unmarshal([]byte(line), &a); err != nil {
+		return logLine{}, false
+	}
+	// Caddy writes runtime and error records to the same stream shape. Only
+	// access records describe a request.
+	if a.Msg != "handled request" || a.Request.Host == "" {
+		return logLine{}, false
+	}
+	// client_ip is remote_ip resolved through Caddy's trusted-proxy config, so
+	// it is the right choice when one is in front. It is absent on older Caddy,
+	// hence the fallback rather than a hard requirement.
+	remote := a.Request.ClientIP
+	if remote == "" {
+		remote = a.Request.RemoteIP
+	}
+	ua := ""
+	// Header names arrive canonicalised, but a map lookup is cheap insurance
+	// against a future change in casing.
+	for k, v := range a.Request.Headers {
+		if strings.EqualFold(k, "User-Agent") && len(v) > 0 {
+			ua = v[0]
+			break
+		}
+	}
+	sec, frac := math.Modf(a.TS)
+	return logLine{
+		ts:         time.Unix(int64(sec), int64(frac*float64(time.Second))).UTC(),
+		host:       a.Request.Host,
+		status:     strconv.Itoa(a.Status),
+		method:     a.Request.Method,
+		uri:        a.Request.URI,
+		remoteAddr: remote,
+		ua:         ua,
+	}, true
+}
+
+// parseAndAttribute fails soft: unparseable line, bad ts, non-document, or
+// unresolved host all return ok=false (line skipped).
+func (i *Ingester) parseAndAttribute(line string, maps *attrMaps) (hit, bool) {
+	var (
+		l  logLine
+		ok bool
+	)
+	// A JSON object can only be Caddy; anything else is the nginx TSV. Cheap
+	// discrimination, and neither format can be mistaken for the other.
+	if strings.HasPrefix(strings.TrimSpace(line), "{") {
+		l, ok = parseCaddyJSON(line)
+	} else {
+		l, ok = parseTSV(line)
+	}
+	if !ok {
+		return hit{}, false
+	}
+
+	tsStr := l.tsStr
+	host := strings.ToLower(strings.TrimSpace(l.host))
+	status := l.status
+	method := l.method
+	uri := l.uri
+	remoteAddr := l.remoteAddr
+	ua := l.ua
 
 	// Strip optional port from host.
 	if h, _, found := strings.Cut(host, ":"); found {
@@ -510,13 +617,17 @@ func (i *Ingester) parseAndAttribute(line string, maps *attrMaps) (hit, bool) {
 		return hit{}, false
 	}
 
-	ts, err := time.Parse(time.RFC3339, tsStr)
-	if err != nil {
-		// nginx $time_iso8601 sometimes uses +00:00 which RFC3339 accepts;
-		// also try without timezone colon variants.
-		ts, err = time.Parse("2006-01-02T15:04:05-07:00", tsStr)
+	ts := l.ts
+	if ts.IsZero() {
+		var err error
+		ts, err = time.Parse(time.RFC3339, tsStr)
 		if err != nil {
-			return hit{}, false
+			// nginx $time_iso8601 sometimes uses +00:00 which RFC3339 accepts;
+			// also try without timezone colon variants.
+			ts, err = time.Parse("2006-01-02T15:04:05-07:00", tsStr)
+			if err != nil {
+				return hit{}, false
+			}
 		}
 	}
 	ts = ts.UTC()

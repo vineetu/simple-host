@@ -70,11 +70,14 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	sub, _ := fs.Sub(staticFiles, "static")
 	fileServer := http.FileServerFS(handlerOnlyFS{sub})
 
-	// Assets that name the host are served here, with this instance's own
-	// hostnames substituted in, and hidden from the file server below so each
-	// is reachable exactly one way.
-	for _, name := range rewrittenAssets {
-		mux.Handle("GET /"+name, serveRewrittenAsset(name, instanceHosts, skillsModTime))
+	// Assets that name the host are intercepted ONLY on an instance that needs
+	// rewriting. On simple-host.app the file server keeps serving them exactly
+	// as before, down to Last-Modified and Content-Type, so production is
+	// untouched rather than merely equivalent.
+	if instanceHosts != nil {
+		for _, name := range rewrittenAssets {
+			mux.Handle("GET /"+name, serveRewrittenAsset(name, instanceHosts, skillsModTime))
+		}
 	}
 
 	mux.HandleFunc("GET /skills.zip", serveSkillsZip)
@@ -129,7 +132,9 @@ var handlerOnlyPages = map[string]bool{
 type handlerOnlyFS struct{ fs.FS }
 
 func (f handlerOnlyFS) Open(name string) (fs.File, error) {
-	if handlerOnlyPages[name] || slices.Contains(rewrittenAssets, name) {
+	// Hidden only when a handler has actually taken over, so the canonical
+	// instance still serves them straight off the embedded FS.
+	if handlerOnlyPages[name] || (instanceHosts != nil && slices.Contains(rewrittenAssets, name)) {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 	}
 	return f.FS.Open(name)

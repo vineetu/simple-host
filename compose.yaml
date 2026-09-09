@@ -30,10 +30,13 @@ services:
       SITE_DOMAIN: ${SITE_DOMAIN:-localhost}
       CONTENT_HOST: ${CONTENT_HOST:-sites.localhost}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost}
+      ANALYTICS_LOG: /var/log/caddy/access.log
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       MAIL_FROM: ${MAIL_FROM:-}
     volumes:
       - sites:/data/sites
+      # Read-only: the ingester only ever reads the access log Caddy writes.
+      - caddy_logs:/var/log/caddy:ro
 
   web:
     image: caddy:2-alpine
@@ -48,12 +51,14 @@ services:
       ACME_EMAIL: ${ACME_EMAIL:-}
     volumes:
       - ./deploy/compose/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_logs:/var/log/caddy
       - sites:/data/sites:ro
       - caddy_data:/data
       - caddy_config:/config
 
 volumes:
   db:
+  caddy_logs:
   sites:
   caddy_data:
   caddy_config:
