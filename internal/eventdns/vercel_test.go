@@ -47,3 +47,29 @@ func TestValidatePublicIP(t *testing.T) {
 		}
 	}
 }
+
+func TestValidatePublicIPRejectsNonRoutableRanges(t *testing.T) {
+	// Neither private nor routable. A record pointing at one can never work, and
+	// refusing it now is a clearer error than a certificate failure later.
+	for _, bad := range []string{
+		"0.0.0.1",         // "this network"
+		"100.64.0.1",      // carrier-grade NAT
+		"192.0.0.8",       // IETF protocol assignments
+		"192.0.2.10",      // documentation
+		"198.18.0.1",      // benchmarking
+		"198.51.100.7",    // documentation
+		"203.0.113.9",     // documentation
+		"240.0.0.1",       // reserved
+		"::ffff:10.0.0.5", // IPv4-mapped private
+	} {
+		if err := ValidatePublicIP(bad); err == nil {
+			t.Errorf("accepted non-routable %q", bad)
+		}
+	}
+	// Genuinely routable addresses still pass.
+	for _, ok := range []string{"85.9.193.170", "8.8.8.8", "1.1.1.1"} {
+		if err := ValidatePublicIP(ok); err != nil {
+			t.Errorf("rejected routable %q: %v", ok, err)
+		}
+	}
+}

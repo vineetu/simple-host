@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	plugin "github.com/vsriram/simple-host/simple-host-website"
 )
@@ -510,6 +511,13 @@ func copyRewritten(dst io.Writer, src io.Reader) error {
 	if err != nil {
 		return err
 	}
-	_, err = dst.Write(instanceHosts.apply(data))
+	// Only rewrite text. Every file in the skills tree is markdown or JSON
+	// today, but a substitution over a future binary asset would corrupt it
+	// silently, and a corrupted file in a downloaded zip is very hard to trace
+	// back to here.
+	if utf8.Valid(data) && !bytes.ContainsRune(data, 0) {
+		data = instanceHosts.apply(data)
+	}
+	_, err = dst.Write(data)
 	return err
 }

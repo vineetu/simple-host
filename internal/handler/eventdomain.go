@@ -275,18 +275,19 @@ func (h *EventDomainHandler) StartSweep(every time.Duration) {
 
 func (h *EventDomainHandler) sweepOnce(ctx context.Context) {
 	rows, err := h.db.QueryContext(ctx,
-		`SELECT name, domain, record_ids FROM event_domains WHERE expires_at < now()`)
+		`SELECT name, domain, record_ids, expires_at FROM event_domains WHERE expires_at < now()`)
 	if err != nil {
 		return
 	}
 	type expired struct {
 		name, domain string
 		ids          []string
+		expiry       time.Time
 	}
 	var list []expired
 	for rows.Next() {
 		var e expired
-		if err := rows.Scan(&e.name, &e.domain, pq.Array(&e.ids)); err == nil {
+		if err := rows.Scan(&e.name, &e.domain, pq.Array(&e.ids), &e.expiry); err == nil {
 			list = append(list, e)
 		}
 	}
@@ -302,9 +303,25 @@ func (h *EventDomainHandler) sweepOnce(ctx context.Context) {
 		if !ok {
 			continue // keep the row so the next sweep retries
 		}
-		if _, err := h.db.ExecContext(ctx,
-			`DELETE FROM event_domains WHERE name=$1 AND domain=$2`, e.name, e.domain); err == nil {
-			log.Printf("event sweep: released %s.%s", e.name, e.domain)
+		// Delete only if the row is still the one we snapshotted. Deleting the
+		// records takes network calls, and an owner can renew in that window: a
+		// renewal replaces record_ids and pushes expires_at out. Deleting
+		// unconditionally would discard the renewal and leave its freshly
+		// created records live with nothing tracking them, which is exactly the
+		// orphaned-record case this sweep exists to prevent.
+		res, err := h.db.ExecContext(ctx,
+			`DELETE FROM event_domains
+			  WHERE name=$1 AND domain=$2 AND expires_at=$3 AND record_ids=$4`,
+			e.name, e.domain, e.expiry, pq.Array(e.ids))
+		if err != nil {
+			continue
 		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			// Renewed underneath us. The records we just deleted were the old
+			// ones, which the renewal had already replaced, so nothing is lost.
+			log.Printf("event sweep: %s.%s was renewed mid-sweep, left alone", e.name, e.domain)
+			continue
+		}
+		log.Printf("event sweep: released %s.%s", e.name, e.domain)
 	}
 }

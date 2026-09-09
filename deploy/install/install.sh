@@ -50,11 +50,21 @@ mkdir -p "$DIR"
 # Generated once and preserved across re-runs. Regenerating the admin key on a
 # re-run would lock the organiser out of their own instance mid-event, and
 # regenerating the database password would break the running database.
+ADMIN_KEY=""; DB_PASSWORD=""
 if [ -f "$DIR/.env" ]; then
-  say "reusing existing configuration"
   ADMIN_KEY=$(grep '^ADMIN_API_KEY=' "$DIR/.env" | cut -d= -f2-)
   DB_PASSWORD=$(grep '^DB_PASSWORD=' "$DIR/.env" | cut -d= -f2-)
+fi
+# An interrupted first run can leave .env truncated with one or both values
+# missing. Reusing that would rewrite the same broken file on every retry, so
+# the script would never self-heal -- the opposite of the point.
+if [ -n "$ADMIN_KEY" ] && [ -n "$DB_PASSWORD" ]; then
+  say "reusing existing configuration"
 else
+  if [ -f "$DIR/.env" ]; then
+    say "existing configuration is incomplete; regenerating"
+    cp "$DIR/.env" "$DIR/.env.broken.$(date +%s)" 2>/dev/null || true
+  fi
   ADMIN_KEY="sh_admin_$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')"
   DB_PASSWORD=$(head -c 18 /dev/urandom | od -An -tx1 | tr -d ' \n')
 fi
@@ -88,10 +98,19 @@ docker compose pull --quiet
 docker compose up -d --no-build
 
 say "waiting for the instance to answer"
+healthy=0
 for _ in $(seq 1 60); do
-  if curl -fsS -o /dev/null --max-time 3 -H "Host: $HOST" "http://127.0.0.1/healthz" 2>/dev/null; then break; fi
+  if curl -fsS -o /dev/null --max-time 3 -H "Host: $HOST" "http://127.0.0.1/healthz" 2>/dev/null; then healthy=1; break; fi
   sleep 2
 done
+# Never print the success envelope for an instance that did not come up. An
+# agent reading this output would otherwise hand the organiser an admin key for
+# something that is not running.
+if [ "$healthy" -ne 1 ]; then
+  echo "FAILED: the instance did not answer within two minutes." >&2
+  echo "Diagnose with: cd $DIR && docker compose ps && docker compose logs --tail 50" >&2
+  exit 1
+fi
 
 cat <<EOF
 

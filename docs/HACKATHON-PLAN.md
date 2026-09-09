@@ -234,6 +234,15 @@ setup for a weekend.
 a server they control, and obtain a valid certificate for it.** That is a
 phishing surface and it cannot be fully closed while the feature exists at all.
 
+This is deliberate, not an oversight. Requiring `IsAdmin` would mean only the
+operator could ever set up an event, which defeats the feature. But the code
+enforces "any account, bounded", not "organisers only", and the documentation
+must not imply otherwise.
+
+An event's own participants cannot reach it: their keys exist on the event's
+instance, which has no DNS token configured, so `/v1/events` is not even
+registered there. The surface is accounts on the public instance.
+
 What bounds it today:
 
 - **Rate limited** per account, burst of five refilling one every two minutes.
@@ -256,6 +265,11 @@ What is NOT closed, and should be before this is offered widely:
   approval, or restricting the feature to accounts the operator trusts.
 - **Certificates count against the domain.** Every event consumes two of the 50
   weekly certificates for that registered domain, shared with our own renewals.
+- **The wildcard fallback differs between the two domains.** simple-host.app's
+  catch-all resolves to our own production box, so a released name falls back to
+  us. agent-deploy.dev's resolves to Vercel's shared addresses instead. The
+  "falls back to us" argument therefore holds for one domain and not the other;
+  confirm what is served there before relying on it.
 
 ## 6. The provisioning skill
 

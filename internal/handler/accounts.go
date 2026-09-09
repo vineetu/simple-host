@@ -168,12 +168,16 @@ func (h *SiteHandler) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 500, errorResponse{Error: "internal server error"})
 		return
 	}
-	if err = h.disk.DeleteUser(id, handle.String); err != nil {
-		writeJSON(w, 500, errorResponse{Error: "could not remove account files"})
-		return
-	}
 	if err = tx.Commit(); err != nil {
 		writeJSON(w, 500, errorResponse{Error: "internal server error"})
+		return
+	}
+	// Disk comes after the commit, never before. The other order means a commit
+	// failure rolls the row back while the files are already gone, leaving a
+	// live account with a working key whose content has been destroyed. This
+	// way a failure here strands a directory an operator can delete.
+	if err = h.disk.DeleteUser(id, handle.String); err != nil {
+		writeJSON(w, 500, errorResponse{Error: "account removed but its files could not be deleted"})
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

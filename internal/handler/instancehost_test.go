@@ -1,6 +1,9 @@
 package handler
 
-import "testing"
+import (
+	"bytes"
+	"testing"
+)
 
 func TestHostRewriterIsNilOnCanonicalInstance(t *testing.T) {
 	// simple-host.app rewrites to itself, so production must pay nothing and,
@@ -49,5 +52,30 @@ func TestNilRewriterLeavesBytesAlone(t *testing.T) {
 	in := []byte("https://simple-host.app")
 	if got := string(rw.apply(in)); got != string(in) {
 		t.Errorf("nil rewriter changed bytes: %q", got)
+	}
+}
+
+func TestCopyRewrittenLeavesBinaryAlone(t *testing.T) {
+	// A future binary asset in the skills tree must survive the substitution.
+	// Corruption inside a downloaded zip is very hard to trace back here.
+	SetInstanceHosts("hack.example.com", "sites.hack.example.com", "cname.hack.example.com")
+	defer SetInstanceHosts("simple-host.app", "", "")
+
+	binary := []byte{0x89, 'P', 'N', 'G', 0x00, 0x1a, 0xff, 0xfe}
+	var out bytes.Buffer
+	if err := copyRewritten(&out, bytes.NewReader(binary)); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(out.Bytes(), binary) {
+		t.Errorf("binary was altered: % x", out.Bytes())
+	}
+
+	// Text still gets rewritten.
+	out.Reset()
+	if err := copyRewritten(&out, bytes.NewReader([]byte("go to simple-host.app"))); err != nil {
+		t.Fatal(err)
+	}
+	if got := out.String(); got != "go to hack.example.com" {
+		t.Errorf("text not rewritten: %q", got)
 	}
 }

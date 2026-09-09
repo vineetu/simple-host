@@ -140,5 +140,37 @@ func ValidatePublicIP(ip string) error {
 		parsed.IsLinkLocalUnicast() || parsed.IsMulticast() {
 		return fmt.Errorf("ip must be a public address, not %s", parsed)
 	}
+	// Ranges that are neither private nor routable on the internet. Go's
+	// IsPrivate covers only RFC 1918, so these have to be listed. A record
+	// pointing at one can never work, and refusing it now is a clearer error
+	// than a certificate failure twenty minutes later.
+	for _, r := range nonRoutable {
+		if r.Contains(parsed) {
+			return fmt.Errorf("ip must be a public address, not %s (%s is not routable)", parsed, r)
+		}
+	}
 	return nil
 }
+
+// nonRoutable is parsed once at startup; a malformed entry here is a programming
+// error, so MustParseCIDR-style panic behaviour is what we want.
+var nonRoutable = func() []*net.IPNet {
+	var out []*net.IPNet
+	for _, c := range []string{
+		"0.0.0.0/8",       // "this network"
+		"100.64.0.0/10",   // carrier-grade NAT
+		"192.0.0.0/24",    // IETF protocol assignments
+		"192.0.2.0/24",    // documentation
+		"198.18.0.0/15",   // benchmarking
+		"198.51.100.0/24", // documentation
+		"203.0.113.0/24",  // documentation
+		"240.0.0.0/4",     // reserved
+	} {
+		_, n, err := net.ParseCIDR(c)
+		if err != nil {
+			panic("eventdns: bad CIDR " + c)
+		}
+		out = append(out, n)
+	}
+	return out
+}()
