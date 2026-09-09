@@ -216,6 +216,13 @@ setup for a weekend.
 - **Teardown must remove the records with the server.** A record left pointing at
   a released cloud IP is a subdomain takeover: whoever gets that IP next serves
   content on our domain and can obtain a certificate for the name.
+- **Verified 2026-09-09: the blast radius is smaller than feared.** simple-host.app
+  already carries a `*` wildcard A record pointing at the production box. An event
+  subdomain is an explicit record that overrides it, so deleting that record makes
+  the name fall back to our own server rather than going NXDOMAIN or, worse,
+  continuing to answer from a recycled IP. Teardown still has to delete the record,
+  but forgetting one is a stale page on our own box rather than a stranger serving
+  content under our name.
 - An expiry sweep for events where teardown never ran. The codebase already has
   a periodic sweep that deletes expired sites and their files; reuse the pattern.
 - Submit the domain to the Public Suffix List once strangers hold subdomains, so
@@ -272,6 +279,25 @@ Two things make Oracle harder than UpCloud, and the skill has to handle both:
   works today for simple-host.app. It must be templated per instance (see §1).
 - Rewrite the hackathon and enterprise pages once §1 to §6 are true. Until then
   they can only describe simple-host.app honestly.
+
+## Proven end to end, 2026-09-09
+
+A full run on a real UpCloud box, `1xCPU-1GB` Ubuntu 24.04, from nothing to a
+working hackathon and back to nothing. Cost: one cent.
+
+1. `upctl` created the server.
+2. Two A records created at Vercel for `hack-test` and `sites.hack-test`.
+3. `deploy/install/install.sh` on the bare box: installed Docker, wrote config,
+   pulled `ghcr.io/vineetu/simple-host:0.1.0-rc3`, started all three containers,
+   printed the admin key once.
+4. Caddy obtained real Let's Encrypt certificates for both hostnames unattended.
+5. The organiser issued a participant key from a roster of one email.
+6. The participant renamed their handle, then published a site.
+7. The entry served over HTTPS at the event's own content host.
+8. `llms.txt` named the event instance three times and the public instance zero
+   times, which is the host-rewriting fix proven under real conditions.
+9. Analytics on the box reported 6 people and 2 bots, matching what was generated.
+10. Server destroyed with its storage, both DNS records deleted, no orphans.
 
 ## 7b. For enterprise, later
 
