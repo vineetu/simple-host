@@ -59,6 +59,10 @@ func main() {
 	// unaware. Scoped structurally — only routes wrapped via this param
 	// receive it; state endpoints, static serving, skill downloads, and
 	// health probes are deliberately left alone.
+	// Before anything can serve an asset: the skills zips are built once and
+	// cached for the process lifetime, so the rewriter has to exist first.
+	handler.SetInstanceHosts(cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget)
+
 	pluginVersion, err := handler.PluginVersion()
 	if err != nil {
 		log.Fatalf("read plugin.json version: %v", err)

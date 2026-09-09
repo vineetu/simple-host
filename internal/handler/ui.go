@@ -66,15 +66,7 @@ var (
 	pluginVersionErr  error
 )
 
-// instanceHosts rewrites the canonical hostnames baked into served assets to
-// this instance's own. Set once in RegisterUIRoutes and read by the skill
-// handlers, which are package-level singletons with their own caches. Nil on
-// simple-host.app itself, where every substitution is identity.
-var instanceHosts *hostRewriter
-
 func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler) {
-	instanceHosts = newHostRewriter(sh.siteDomain, sh.contentHost, sh.cnameTarget)
-
 	sub, _ := fs.Sub(staticFiles, "static")
 	fileServer := http.FileServerFS(handlerOnlyFS{sub})
 

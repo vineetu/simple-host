@@ -92,3 +92,20 @@ func serveRewrittenAsset(name string, rw *hostRewriter, modTime time.Time) http.
 		http.ServeContent(w, r, name, modTime, bytes.NewReader(body))
 	})
 }
+
+// instanceHosts rewrites the canonical hostnames baked into served assets to
+// this instance's own. Nil on simple-host.app, where every substitution is
+// identity.
+//
+// It is a package var because the skills zip builders are package-level
+// singletons with sync.Once caches: whichever request builds a zip first
+// freezes its contents for the process lifetime. So this must be set before the
+// server accepts a request, and SetInstanceHosts is called from main directly
+// after config load rather than as a side effect of registering routes.
+var instanceHosts *hostRewriter
+
+// SetInstanceHosts configures host rewriting for served assets. Call once, at
+// startup, before serving.
+func SetInstanceHosts(siteDomain, contentHost, cnameTarget string) {
+	instanceHosts = newHostRewriter(siteDomain, contentHost, cnameTarget)
+}
