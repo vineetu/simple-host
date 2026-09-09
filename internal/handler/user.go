@@ -188,19 +188,27 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fresh, err := db.GetUserByID(r.Context(), h.database, user.ID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	user = &fresh
 	writeJSON(w, http.StatusOK, meResponse{
-		ID:       user.ID,
-		Username: user.Username,
-		IsAdmin:  user.IsAdmin,
-		Handle:   user.Handle.String,
+		ID:          user.ID,
+		Username:    user.Username,
+		IsAdmin:     user.IsAdmin,
+		Handle:      user.Handle.String,
+		DisplayName: user.DisplayName.String,
 	})
 }
 
 type meResponse struct {
-	ID       string `json:"id"`
-	Username string `json:"username"`
-	IsAdmin  bool   `json:"is_admin"`
-	Handle   string `json:"handle,omitempty"`
+	DisplayName string `json:"display_name,omitempty"`
+	ID          string `json:"id"`
+	Username    string `json:"username"`
+	IsAdmin     bool   `json:"is_admin"`
+	Handle      string `json:"handle,omitempty"`
 }
 
 func isUniqueViolation(err error) bool {

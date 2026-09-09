@@ -18,7 +18,7 @@ func CreateUser(ctx context.Context, q Querier, username, apiKey string, isAdmin
 	const query = `
 		INSERT INTO users (username, api_key, is_admin)
 		VALUES ($1, $2, $3)
-		RETURNING id, username, api_key, is_admin, created_at, handle
+		RETURNING id, username, api_key, is_admin, created_at, handle, display_name
 	`
 
 	var user User
@@ -29,13 +29,14 @@ func CreateUser(ctx context.Context, q Querier, username, apiKey string, isAdmin
 		&user.IsAdmin,
 		&user.CreatedAt,
 		&user.Handle,
+		&user.DisplayName,
 	)
 	return user, err
 }
 
 func GetUserByAPIKey(ctx context.Context, db *sql.DB, apiKey string) (User, error) {
 	const query = `
-		SELECT id, username, api_key, is_admin, created_at, handle
+		SELECT id, username, api_key, is_admin, created_at, handle, display_name
 		FROM users
 		WHERE api_key = $1
 	`
@@ -48,6 +49,7 @@ func GetUserByAPIKey(ctx context.Context, db *sql.DB, apiKey string) (User, erro
 		&user.IsAdmin,
 		&user.CreatedAt,
 		&user.Handle,
+		&user.DisplayName,
 	)
 	return user, err
 }
@@ -69,7 +71,7 @@ func RotateAPIKey(ctx context.Context, db *sql.DB, userID, currentKey, newKey st
 
 func GetUserByUsername(ctx context.Context, q Querier, username string) (User, error) {
 	const query = `
-		SELECT id, username, api_key, is_admin, created_at, handle
+		SELECT id, username, api_key, is_admin, created_at, handle, display_name
 		FROM users
 		WHERE username = $1
 	`
@@ -82,6 +84,7 @@ func GetUserByUsername(ctx context.Context, q Querier, username string) (User, e
 		&user.IsAdmin,
 		&user.CreatedAt,
 		&user.Handle,
+		&user.DisplayName,
 	)
 	return user, err
 }
@@ -89,7 +92,7 @@ func GetUserByUsername(ctx context.Context, q Querier, username string) (User, e
 // GetUserByID loads a users row by primary key.
 func GetUserByID(ctx context.Context, q Querier, id string) (User, error) {
 	const query = `
-		SELECT id, username, api_key, is_admin, created_at, handle
+		SELECT id, username, api_key, is_admin, created_at, handle, display_name
 		FROM users
 		WHERE id = $1
 	`
@@ -102,6 +105,7 @@ func GetUserByID(ctx context.Context, q Querier, id string) (User, error) {
 		&user.IsAdmin,
 		&user.CreatedAt,
 		&user.Handle,
+		&user.DisplayName,
 	)
 	return user, err
 }
@@ -109,7 +113,7 @@ func GetUserByID(ctx context.Context, q Querier, id string) (User, error) {
 // GetUserByHandle looks up a user by their URL-safe handle.
 func GetUserByHandle(ctx context.Context, db *sql.DB, handle string) (User, error) {
 	const query = `
-		SELECT id, username, api_key, is_admin, created_at, handle
+		SELECT id, username, api_key, is_admin, created_at, handle, display_name
 		FROM users
 		WHERE handle = $1
 	`
@@ -122,6 +126,7 @@ func GetUserByHandle(ctx context.Context, db *sql.DB, handle string) (User, erro
 		&user.IsAdmin,
 		&user.CreatedAt,
 		&user.Handle,
+		&user.DisplayName,
 	)
 	return user, err
 }
@@ -152,12 +157,32 @@ func ClaimHandle(ctx context.Context, q Querier, userID, handle string) (bool, e
 		SET handle = $2, handle_changed_at = now()
 		WHERE id = $1 AND handle IS NULL
 	`
+	// A collision must not abort the signup/bulk transaction before the next candidate.
+	tx, inTx := q.(*sql.Tx)
+	if inTx {
+		if _, err := tx.ExecContext(ctx, "SAVEPOINT claim_handle"); err != nil {
+			return false, err
+		}
+	}
 	res, err := q.ExecContext(ctx, query, userID, handle)
 	if err != nil {
 		if isUniqueViolation(err) {
+			if inTx {
+				if _, rollbackErr := tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT claim_handle"); rollbackErr != nil {
+					return false, rollbackErr
+				}
+				if _, releaseErr := tx.ExecContext(ctx, "RELEASE SAVEPOINT claim_handle"); releaseErr != nil {
+					return false, releaseErr
+				}
+			}
 			return false, nil
 		}
 		return false, err
+	}
+	if inTx {
+		if _, err := tx.ExecContext(ctx, "RELEASE SAVEPOINT claim_handle"); err != nil {
+			return false, err
+		}
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
@@ -470,7 +495,7 @@ func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 // are deliberately NOT selected.
 func ListAllUsers(ctx context.Context, db *sql.DB) ([]User, error) {
 	rows, err := db.QueryContext(ctx, `
-		SELECT id, username, is_admin, created_at, COALESCE(handle, '')
+		SELECT id, username, is_admin, created_at, COALESCE(handle, ''), display_name
 		FROM users
 		ORDER BY created_at ASC`)
 	if err != nil {
@@ -482,7 +507,7 @@ func ListAllUsers(ctx context.Context, db *sql.DB) ([]User, error) {
 	for rows.Next() {
 		var u User
 		var handle string
-		if err := rows.Scan(&u.ID, &u.Username, &u.IsAdmin, &u.CreatedAt, &handle); err != nil {
+		if err := rows.Scan(&u.ID, &u.Username, &u.IsAdmin, &u.CreatedAt, &handle, &u.DisplayName); err != nil {
 			return nil, err
 		}
 		if handle != "" {

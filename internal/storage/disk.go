@@ -425,3 +425,43 @@ func (d *DiskStorage) ClearDomainRedirect(userID, siteName string) error {
 	}
 	return nil
 }
+
+// RemoveHandleLink deletes handles/<handle>. Idempotent, and it refuses to
+// remove anything that is not a symlink: the same reasoning as UnbindDomain,
+// since a real directory there would be someone's site content.
+func (d *DiskStorage) RemoveHandleLink(handle string) error {
+	if handle == "" {
+		return nil
+	}
+	if !validPathKey(handle) {
+		return fmt.Errorf("invalid handle %q", handle)
+	}
+	path := filepath.Join(d.dataDir, "handles", handle)
+	info, err := os.Lstat(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		return fmt.Errorf("handle path is not a symlink")
+	}
+	return os.Remove(path)
+}
+
+// DeleteUser removes an account's content: the handle symlink and the whole
+// by-id directory.
+//
+// The database cascades on user_id, so deleting the row alone takes the site
+// rows with it and leaves the files behind, unreachable and unlistable, filling
+// the volume with content nobody can find to remove.
+func (d *DiskStorage) DeleteUser(userID, handle string) error {
+	if !validPathKey(userID) {
+		return fmt.Errorf("invalid user id %q", userID)
+	}
+	if err := d.RemoveHandleLink(handle); err != nil {
+		return err
+	}
+	return os.RemoveAll(filepath.Join(d.dataDir, "by-id", userID))
+}

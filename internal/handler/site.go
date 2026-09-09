@@ -220,6 +220,9 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("DELETE /v1/sites/{sitename}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.deleteSite))))
 	mux.Handle("PATCH /v1/sites/{sitename}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.renameSite))))
 	mux.Handle("GET /v1/sites", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listSites))))
+	mux.Handle("POST /v1/admin/users", authMiddleware(http.HandlerFunc(h.createAccounts)))
+	mux.Handle("DELETE /v1/admin/users/{id}", authMiddleware(http.HandlerFunc(h.deleteAccount)))
+	mux.Handle("PATCH /v1/me", authMiddleware(http.HandlerFunc(h.patchMe)))
 	mux.Handle("GET /v1/admin/users", authMiddleware(http.HandlerFunc(h.adminUsers)))
 	mux.Handle("GET /v1/sites/{sitename}/versions", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listVersions))))
 	mux.Handle("PUT /v1/sites/{sitename}/active-version", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setActiveVersion))))
@@ -827,6 +830,11 @@ func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user
 	}
 	defer tx.Rollback()
 
+	// Rename and first deploy must agree on the handle before constructing a URL.
+	if err := tx.QueryRowContext(r.Context(), "SELECT handle FROM users WHERE id = $1 FOR UPDATE", user.ID).Scan(&user.Handle); err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
 	var siteURL string
 	if user.Handle.Valid && user.Handle.String != "" {
 		siteURL = fmt.Sprintf("https://%s/%s/%s/", h.contentHost, user.Handle.String, siteName)
@@ -1465,13 +1473,14 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 			list = []map[string]any{}
 		}
 		out = append(out, map[string]any{
-			"id":         u.ID,
-			"username":   u.Username,
-			"handle":     u.Handle.String,
-			"is_admin":   u.IsAdmin,
-			"created_at": u.CreatedAt,
-			"site_count": len(list),
-			"sites":      list,
+			"id":           u.ID,
+			"username":     u.Username,
+			"handle":       u.Handle.String,
+			"display_name": u.DisplayName.String,
+			"is_admin":     u.IsAdmin,
+			"created_at":   u.CreatedAt,
+			"site_count":   len(list),
+			"sites":        list,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"users": out, "user_count": len(out), "site_count": len(sites)})

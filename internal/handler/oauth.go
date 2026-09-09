@@ -85,7 +85,7 @@ func (h *OAuthHandler) listProviders(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.providers["github"]; ok {
 		names = append(names, "github")
 	}
-	writeJSON(w, http.StatusOK, map[string][]string{"providers": names})
+	writeJSON(w, http.StatusOK, map[string]any{"providers": names, "email_enabled": h.cfg.ResendAPIKey != ""})
 }
 
 func (h *OAuthHandler) start(w http.ResponseWriter, r *http.Request) {

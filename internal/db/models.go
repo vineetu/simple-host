@@ -6,12 +6,13 @@ import (
 )
 
 type User struct {
-	ID        string
-	Username  string
-	APIKey    string
-	IsAdmin   bool
-	CreatedAt time.Time
-	Handle    sql.NullString
+	ID          string
+	Username    string
+	APIKey      string
+	IsAdmin     bool
+	CreatedAt   time.Time
+	Handle      sql.NullString
+	DisplayName sql.NullString
 }
 
 type Site struct {

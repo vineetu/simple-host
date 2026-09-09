@@ -189,8 +189,9 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [providers]
+                required: [providers, email_enabled]
                 properties:
+                  email_enabled: { type: boolean, description: Whether email sign-in codes are configured }
                   providers:
                     type: array
                     items: { type: string, enum: [google] }
@@ -345,6 +346,25 @@ paths:
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/me:
+    patch:
+      operationId: patchMe
+      summary: Edit display name or rename an empty account
+      security: [{apiKey: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                display_name: {type: string, maxLength: 100, description: Trimmed; empty clears the name. Never used in URLs.}
+                handle: {type: string, pattern: '^[a-z0-9-]{1,39}$', description: Must not be reserved; editable only with zero sites.}
+      responses:
+        '200': {description: Updated account profile}
+        '400': {description: Invalid profile}
+        '401': {description: API key required}
+        '409': {description: Handle taken or address fixed once something is published}
     get:
       operationId: getMe
       summary: Current user
@@ -360,6 +380,8 @@ paths:
                 properties:
                   id: { type: string, format: uuid }
                   username: { type: string }
+                  handle: { type: string }
+                  display_name: { type: string }
                   is_admin: { type: boolean }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
@@ -1448,6 +1470,61 @@ paths:
         '401': { description: Not signed in }
         '404': { description: Signed in but not an admin }
   /v1/admin/users:
+    post:
+      operationId: createEventAccounts
+      summary: Create up to 200 accounts (admin only)
+      description: Creates accounts from emails or a count and optional prefix (default guest), numbered team-01 through team-30 for count 30 and prefix team. Existing usernames are skipped with a reason and their keys are never disclosed. Non-admin callers receive 404.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [emails]
+                  additionalProperties: false
+                  properties:
+                    emails:
+                      type: array
+                      minItems: 1
+                      maxItems: 200
+                      items: { type: string, format: email }
+                - type: object
+                  required: [count]
+                  additionalProperties: false
+                  properties:
+                    count: { type: integer, minimum: 1, maximum: 200 }
+                    prefix: { type: string, default: guest, pattern: '^[a-z0-9-]{1,39}$' }
+      responses:
+        '201':
+          description: Accounts created and existing usernames skipped
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [created, skipped]
+                properties:
+                  created:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        username: { type: string }
+                        handle: { type: string }
+                        api_key: { type: string }
+                        display_name: { type: string, nullable: true }
+                  skipped:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        username: { type: string }
+                        reason: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
     get:
       operationId: getAdminUsers
       summary: List all users + their sites (admin)
@@ -2187,6 +2264,24 @@ paths:
           description: Missing site name
         '403':
           description: Origin forbidden
+
+  /v1/admin/users/{id}:
+    delete:
+      operationId: deleteEventAccount
+      summary: Delete an account and its files (admin only)
+      description: Deletes the account, cascading database records, its by-id directory and handle symlink. Admin accounts cannot be deleted. Non-admin callers receive 404.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Account deleted }
+        '400': { description: Cannot delete an admin account }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
 components:
   securitySchemes:
