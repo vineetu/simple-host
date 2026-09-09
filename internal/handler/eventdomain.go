@@ -27,17 +27,28 @@ const eventTTL = 21 * 24 * time.Hour
 // recordTTL is deliberately short so teardown takes effect within minutes.
 const recordTTL = 120
 
+// maxClaimsPerAccount caps how many event names one account can hold at once.
+//
+// A name under our domain carrying a valid certificate is a phishing surface,
+// so the number one account can mint is bounded and every claim is
+// attributable. An organiser runs one event at a time; five is generous.
+const maxClaimsPerAccount = 5
+
 // EventDomainHandler hands an organiser two hostnames under a domain we own,
 // pointing at their own server, so they never touch a registrar.
 type EventDomainHandler struct {
-	db       *sql.DB
-	dns      eventdns.Provider
-	domains  []string // the domains we are willing to create names under
-	adminKey string
+	db      *sql.DB
+	dns     eventdns.Provider
+	domains []string // the domains we are willing to create names under
+	limiter *rateLimiter
 }
 
 func NewEventDomainHandler(database *sql.DB, dns eventdns.Provider, domains []string) *EventDomainHandler {
-	return &EventDomainHandler{db: database, dns: dns, domains: domains}
+	// Burst of 5, refilling one every two minutes. A real organiser claims one
+	// name and occasionally re-claims to extend it; anything faster is either a
+	// broken script or someone enumerating names.
+	return &EventDomainHandler{db: database, dns: dns, domains: domains,
+		limiter: newRateLimiter(5, 1.0/120.0)}
 }
 
 func (h *EventDomainHandler) Register(mux *http.ServeMux, authMiddleware func(http.Handler) http.Handler) {
@@ -67,6 +78,10 @@ func (h *EventDomainHandler) claim(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
 		return
 	}
+	if !h.limiter.allow(user.ID) {
+		writeJSON(w, http.StatusTooManyRequests, errorResponse{Error: "too many event claims; wait a few minutes"})
+		return
+	}
 	var req claimRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
@@ -89,6 +104,17 @@ func (h *EventDomainHandler) claim(w http.ResponseWriter, r *http.Request) {
 	if !h.allowed(req.Domain) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{
 			Error: fmt.Sprintf("domain must be one of: %s", strings.Join(h.domains, ", "))})
+		return
+	}
+
+	// Cap concurrent holdings, counting only names this account does not
+	// already hold, so re-claiming to extend an existing event never trips it.
+	var held int
+	if err := h.db.QueryRowContext(r.Context(),
+		`SELECT count(*) FROM event_domains WHERE user_id=$1 AND NOT (name=$2 AND domain=$3)`,
+		user.ID, req.Name, req.Domain).Scan(&held); err == nil && held >= maxClaimsPerAccount {
+		writeJSON(w, http.StatusConflict, errorResponse{
+			Error: fmt.Sprintf("an account may hold %d event names at once; release one first", maxClaimsPerAccount)})
 		return
 	}
 
@@ -148,6 +174,10 @@ func (h *EventDomainHandler) claim(w http.ResponseWriter, r *http.Request) {
 		req.Name, req.Domain, pq.Array(ids)); err != nil {
 		log.Printf("event claim: recording ids: %v", err)
 	}
+
+	// Attributable by design: a name under our domain carrying a valid
+	// certificate is worth being able to trace back to an account.
+	log.Printf("event claim: %s -> %s by user %s", host, req.IP, user.ID)
 
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"host":         host,

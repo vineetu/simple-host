@@ -228,6 +228,35 @@ setup for a weekend.
 - Submit the domain to the Public Suffix List once strangers hold subdomains, so
   cookies and browser reputation are isolated between events.
 
+## 5b. Residual risk in event hostnames, stated on purpose
+
+**Any authenticated account can create a name under a domain we own, pointing at
+a server they control, and obtain a valid certificate for it.** That is a
+phishing surface and it cannot be fully closed while the feature exists at all.
+
+What bounds it today:
+
+- **Rate limited** per account, burst of five refilling one every two minutes.
+- **Capped** at five concurrent names per account. Re-claiming an existing name
+  to extend it does not count against the cap.
+- **Attributable.** Every claim is logged with the hostname, the target address
+  and the account id.
+- **Short-lived.** Claims expire after three weeks and a sweep removes them.
+- **Bounded by name.** Reserved labels are refused, and the name is a single
+  label so nothing can construct a deceptive multi-level hostname.
+
+What is NOT closed, and should be before this is offered widely:
+
+- **No proof the claimer controls the target server.** They can point a name at
+  any public address, including one belonging to somebody else. That does not
+  let them serve content there, but it does attach our domain to a machine that
+  is not theirs.
+- **No name filtering for brand abuse.** Nothing stops a plausible-looking
+  login-page name. A blocklist is a losing game; the honest answers are manual
+  approval, or restricting the feature to accounts the operator trusts.
+- **Certificates count against the domain.** Every event consumes two of the 50
+  weekly certificates for that registered domain, shared with our own renewals.
+
 ## 6. The provisioning skill
 
 ### Providers
