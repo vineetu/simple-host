@@ -1,5 +1,9 @@
 {
-	email {$ACME_EMAIL}
+	# No `email` directive on purpose. Caddy substitutes an unset environment
+	# variable as nothing, and a bare `email` fails to parse, which crash-loops
+	# the container for any organiser who did not set one. Let's Encrypt allows
+	# account registration without an address; it is only used for expiry
+	# notices, and these instances are short-lived.
 	admin off
 }
 

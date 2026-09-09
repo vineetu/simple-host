@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -65,9 +66,24 @@ var (
 	pluginVersionErr  error
 )
 
+// instanceHosts rewrites the canonical hostnames baked into served assets to
+// this instance's own. Set once in RegisterUIRoutes and read by the skill
+// handlers, which are package-level singletons with their own caches. Nil on
+// simple-host.app itself, where every substitution is identity.
+var instanceHosts *hostRewriter
+
 func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler) {
+	instanceHosts = newHostRewriter(sh.siteDomain, sh.contentHost, sh.cnameTarget)
+
 	sub, _ := fs.Sub(staticFiles, "static")
 	fileServer := http.FileServerFS(handlerOnlyFS{sub})
+
+	// Assets that name the host are served here, with this instance's own
+	// hostnames substituted in, and hidden from the file server below so each
+	// is reachable exactly one way.
+	for _, name := range rewrittenAssets {
+		mux.Handle("GET /"+name, serveRewrittenAsset(name, instanceHosts, skillsModTime))
+	}
 
 	mux.HandleFunc("GET /skills.zip", serveSkillsZip)
 	mux.HandleFunc("GET /skills/version", serveSkillsVersion)
@@ -121,7 +137,7 @@ var handlerOnlyPages = map[string]bool{
 type handlerOnlyFS struct{ fs.FS }
 
 func (f handlerOnlyFS) Open(name string) (fs.File, error) {
-	if handlerOnlyPages[name] {
+	if handlerOnlyPages[name] || slices.Contains(rewrittenAssets, name) {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 	}
 	return f.FS.Open(name)
@@ -219,6 +235,9 @@ func serveSkillMarkdown(skillName string) http.HandlerFunc {
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
+		// A skill tells an agent which host to publish to. On a non-canonical
+		// instance that must be this one, or the agent deploys elsewhere.
+		data = instanceHosts.apply(data)
 
 		filename := skillName + "-SKILL.md"
 		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
@@ -377,7 +396,7 @@ func buildSkillsZip() ([]byte, error) {
 				return err
 			}
 
-			_, err = io.Copy(dst, src)
+			err = copyRewritten(dst, src)
 			return err
 		})
 		if err != nil {
@@ -424,7 +443,7 @@ func buildSingleSkillZip(skillName string) ([]byte, error) {
 			return err
 		}
 
-		_, err = io.Copy(dst, src)
+		err = copyRewritten(dst, src)
 		return err
 	})
 	if err != nil {
@@ -465,7 +484,7 @@ func buildPluginZip() ([]byte, error) {
 				return err
 			}
 
-			_, err = io.Copy(dst, src)
+			err = copyRewritten(dst, src)
 			return err
 		})
 		if err != nil {
@@ -482,4 +501,18 @@ func buildPluginZip() ([]byte, error) {
 	})
 
 	return pluginZipBytes, pluginZipErr
+}
+
+// copyRewritten writes src into dst with this instance's hostnames substituted.
+//
+// The skills are text, and small: reading one fully is cheaper than the
+// alternative of streaming and rewriting across chunk boundaries, where a
+// hostname split over two reads would silently survive unrewritten.
+func copyRewritten(dst io.Writer, src io.Reader) error {
+	data, err := io.ReadAll(src)
+	if err != nil {
+		return err
+	}
+	_, err = dst.Write(instanceHosts.apply(data))
+	return err
 }

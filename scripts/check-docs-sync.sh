@@ -150,6 +150,31 @@ else
   fail=1
 fi
 
+# ── served assets that name the host must go through the rewriter ──
+# An instance on another domain has to describe itself. Any static asset that
+# names simple-host.app but is NOT in rewrittenAssets would tell a hackathon's
+# participants to publish to the public instance instead of their own.
+echo "== assets naming the host are rewritten =="
+listed=$(sed -n '/^var rewrittenAssets = \[\]string{/,/^}/p' internal/handler/instancehost.go \
+  | grep -oE '"[^"]+"' | tr -d '"')
+missing=""
+for f in internal/handler/static/*; do
+  base=$(basename "$f")
+  case "$base" in swagger-ui*) continue ;; esac
+  grep -q "simple-host\.app" "$f" 2>/dev/null || continue
+  grep -qxF "$base" <<<"$listed" && continue
+  # Pages served through serveStaticPage are templates, not agent-facing docs;
+  # they are allowed to name the canonical host in prose.
+  case "$base" in admin.html|analytics.html|notfound.html|showcase.html|index.html|features.html|architecture.html|privacy.html|docs.html|enterprise.html|hackathons.html) continue ;; esac
+  missing="$missing $base"
+done
+if [ -n "$missing" ]; then
+  echo "  FAIL: names simple-host.app but is not in rewrittenAssets:$missing"
+  fail=1
+else
+  echo "  ok — every agent-facing asset naming the host is rewritten"
+fi
+
 echo
 if [ "$fail" -ne 0 ]; then
   echo "DRIFT DETECTED — update openapi.yaml (source of truth) to match the routes."
