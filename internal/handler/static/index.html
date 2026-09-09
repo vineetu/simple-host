@@ -1174,6 +1174,21 @@
           </form>
           <div id="oauth-providers" class="auth-oauth" hidden></div>
 
+          <!-- Event instances configure no email sender and no OAuth client, so
+               there is nothing to sign in with. Participants are given a key by
+               their organiser instead. Showing the email form there would be a
+               button that cannot work. -->
+          <form class="auth-form" id="key-form" onsubmit="return handleKey(event)" hidden>
+            <div class="auth-input">
+              <input type="text" id="key-input" placeholder="Paste the key your organiser sent you" autocomplete="off" spellcheck="false" required>
+              <button type="submit" class="arrow-btn" id="key-btn" aria-label="Use this key">
+                <span class="btn-text">Go</span>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7h10M8 3l4 4-4 4"/></svg>
+              </button>
+            </div>
+            <p class="auth-fine">Your key is kept in this browser. It is not sent anywhere else.</p>
+          </form>
+
           <p class="auth-fine" style="margin-top:18px">
             Sites and their data are public to anyone with the link.
             <a href="/install.html#faq">What to know before you publish →</a>
@@ -1492,6 +1507,17 @@ function parseAnalyticsSummary(data) {
     function renderOAuthProviders() {
       fetch('/v1/auth/oauth/providers').then(r => r.json()).then(d => {
         const names = d.providers || [];
+        // An instance with no email sender and no OAuth client cannot sign
+        // anyone in. Offer the key box instead of a form that would silently
+        // fail: a control that does not work is worse than one that is absent.
+        if (d.email_enabled === false && !names.length) {
+          const ef = document.getElementById('email-form');
+          const kf = document.getElementById('key-form');
+          if (ef) ef.hidden = true;
+          if (kf) kf.hidden = false;
+          const lede = document.querySelector('#email-form-wrap .auth-lede');
+          if (lede) lede.textContent = 'Paste the key your organiser gave you.';
+        }
         const wrap = document.getElementById('oauth-providers');
         if (!wrap || !names.length) return;
         wrap.innerHTML = '';
@@ -1611,6 +1637,27 @@ function parseAnalyticsSummary(data) {
       currentUser = { id: data.id, username: data.username, is_admin: data.is_admin, handle: data.handle };
       localStorage.setItem('apiKey', apiKey);
       enterApp();
+    }
+
+    async function handleKey(e) {
+      e.preventDefault();
+      const key = document.getElementById('key-input').value.trim();
+      if (!key) return false;
+      setBtnLoading('key-btn', true);
+      try {
+        const r = await fetch('/v1/me', { headers: { 'X-API-Key': key } });
+        if (!r.ok) { toast('That key was not recognised', 'error'); return false; }
+        const d = await r.json();
+        apiKey = key;
+        currentUser = { id: d.id, username: d.username, is_admin: d.is_admin, handle: d.handle };
+        localStorage.setItem('apiKey', key);
+        enterApp();
+      } catch (err) {
+        toast('Cannot reach server', 'error');
+      } finally {
+        setBtnLoading('key-btn', false);
+      }
+      return false;
     }
 
     function resetAuth() {

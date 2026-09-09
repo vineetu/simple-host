@@ -35,6 +35,18 @@ header .container{display:flex;align-items:center;justify-content:space-between;
 .stat .l{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-top:6px}
 .msg{padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--dim);font-size:13px;margin-top:16px}
 .msg.err{border-color:var(--err);color:var(--err)}
+.panel{border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:22px;background:var(--surface)}
+.panel h2{font-size:15px;margin:0 0 4px}
+.ph{font-size:12.5px;color:var(--faint);margin:0 0 12px}
+.ph.warn{color:var(--amber,#b45309);margin-top:10px}
+.panel textarea,.panel input{width:100%;font:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg);color:var(--text)}
+.panel .row{display:flex;gap:12px;align-items:end;margin-top:10px;flex-wrap:wrap}
+.panel .row label{font-size:11.5px;color:var(--faint);display:flex;flex-direction:column;gap:4px}
+.panel .row input{width:110px}
+.btn{font:inherit;font-size:13px;padding:8px 14px;border-radius:7px;border:1px solid var(--border);background:var(--text);color:var(--bg);cursor:pointer}
+.btn.ghost{background:transparent;color:var(--text)}
+.btn[disabled]{opacity:.5;cursor:default}
+.keycell{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;word-break:break-all}
 .users{margin:12px 0 60px;display:flex;flex-direction:column;gap:12px}
 .user{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px}
 .user-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
@@ -79,6 +91,25 @@ table.apx td.err{color:var(--err)}
     <div class="stat"><div class="n" id="sc">–</div><div class="l">Websites</div></div>
   </div>
   <div id="status" class="msg" hidden></div>
+
+  <!-- Issuing participant accounts is how an event works: no email provider, no
+       OAuth client, no sign-in. Each key is shown once, here, at creation. -->
+  <div class="panel" id="issue" hidden>
+    <h2>Issue participant accounts</h2>
+    <p class="ph">Paste a roster, or ask for a number. Up to 200 at a time. Each key is shown once.</p>
+    <textarea id="roster" rows="3" placeholder="ada@example.edu, alan@example.edu&#10;or leave empty and set a count below"></textarea>
+    <div class="row">
+      <label>Count <input type="number" id="count" min="1" max="200" placeholder="30"></label>
+      <label>Prefix <input type="text" id="prefix" placeholder="team"></label>
+      <button class="btn" id="issue-btn" onclick="issueAccounts()">Create</button>
+      <button class="btn ghost" id="csv-btn" onclick="downloadCSV()" hidden>Download CSV</button>
+    </div>
+    <div id="issued" hidden>
+      <table class="apx"><thead><tr><th>Account</th><th>Address</th><th>Key</th></tr></thead><tbody id="issued-rows"></tbody></table>
+      <p class="ph warn">Copy these now. Keys are never shown again, and re-running will skip these accounts rather than reissue them.</p>
+    </div>
+  </div>
+
   <div class="users" id="users"></div>
 
   <div id="apitraffic" hidden>
@@ -119,6 +150,7 @@ function userCard(u){
   var head='<div class="user-head"><span class="name">'+esc(u.username)+'</span>'+
     (u.handle?'<span class="handle">/'+esc(u.handle)+'</span>':'')+
     (u.is_admin?'<span class="badge admin">admin</span>':'')+
+    (u.is_admin?'':'<button class="btn ghost" style="padding:2px 8px;font-size:11px;margin-left:8px" onclick="deleteAccount(\''+esc(u.id)+'\',\''+esc(u.username)+'\')">Delete</button>')+
     '<span class="badge count">'+u.site_count+' site'+(u.site_count===1?'':'s')+'</span>'+
     '<span class="when">joined '+fmtDate(u.created_at)+'</span></div>';
   var body = sites.length ? '<div class="sites">'+sites.map(siteCard).join('')+'</div>' : '<div class="nosites">No sites yet.</div>';
@@ -130,6 +162,56 @@ function userCard(u){
 // navigation carries no API key, so the server cannot gate it), which makes this
 // the only place the distinction can be drawn. Signing in on the main app is
 // enough: it stores the key under the same 'apiKey' name this reads.
+var lastIssued=[];
+
+async function issueAccounts(){
+  var roster=document.getElementById('roster').value.trim();
+  var count=document.getElementById('count').value.trim();
+  var prefix=document.getElementById('prefix').value.trim();
+  var body;
+  if(roster){
+    // Commas, newlines or both: an organiser pastes whatever their roster is.
+    var emails=roster.split(/[\s,;]+/).filter(Boolean);
+    body={emails:emails};
+  } else if(count){
+    body={count:parseInt(count,10)};
+    if(prefix) body.prefix=prefix;
+  } else { status('Paste a roster or set a count.', true); return; }
+  var btn=document.getElementById('issue-btn'); btn.disabled=true;
+  try{
+    var res=await fetch('/v1/admin/users',{method:'POST',headers:{'X-API-Key':apiKey,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    var d=await res.json();
+    if(!res.ok){ status(d.error||'Could not create accounts', true); return; }
+    lastIssued=d.created||[];
+    document.getElementById('issued-rows').innerHTML=lastIssued.map(function(c){
+      return '<tr><td>'+esc(c.username)+'</td><td>/'+esc(c.handle)+'</td><td class="keycell">'+esc(c.api_key)+'</td></tr>';
+    }).join('');
+    document.getElementById('issued').hidden=lastIssued.length===0;
+    document.getElementById('csv-btn').hidden=lastIssued.length===0;
+    var skipped=(d.skipped||[]).length;
+    status('Created '+lastIssued.length+' account'+(lastIssued.length===1?'':'s')+(skipped?', skipped '+skipped+' that already existed':'')+'.');
+    load();
+  }catch(e){ status('Cannot reach server', true); }
+  finally{ btn.disabled=false; }
+}
+
+function downloadCSV(){
+  var rows=[['account','address','api_key']].concat(lastIssued.map(function(c){return [c.username,c.handle,c.api_key];}));
+  var csv=rows.map(function(r){return r.map(function(v){return '"'+String(v).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download='participants.csv'; a.click(); URL.revokeObjectURL(a.href);
+}
+
+async function deleteAccount(id, username){
+  // Irreversible and it takes their published work with it, so name the person
+  // in the prompt rather than asking "are you sure".
+  if(!confirm('Delete '+username+' and everything they published? This cannot be undone.')) return;
+  var res=await fetch('/v1/admin/users/'+encodeURIComponent(id),{method:'DELETE',headers:{'X-API-Key':apiKey}});
+  if(res.status===204){ status('Deleted '+username+'.'); load(); }
+  else { var d=await res.json().catch(function(){return {};}); status(d.error||'Could not delete', true); }
+}
+
 function renderNotFound(){
   document.title='Not found · simple·host';
   document.body.innerHTML='<div class="container" style="padding-top:80px;text-align:center">'+
@@ -143,6 +225,7 @@ async function load(){
   status('Loading…');
   try{
     var res=await fetch('/v1/admin/users',{headers:{'X-API-Key':apiKey}});
+    if(res.ok){ var ip=document.getElementById('issue'); if(ip) ip.hidden=false; }
     if(res.status===401||res.status===403||res.status===404){ renderNotFound(); return; }
     var data=await res.json().catch(function(){return{};});
     if(!res.ok){ status(data.error||('HTTP '+res.status), true); return; }
