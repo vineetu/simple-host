@@ -1,0 +1,50 @@
+name: check
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # check-docs-sync.sh runs the parser fixture tests under node and compares
+      # openapi.json to openapi.yaml with PyYAML. It fails closed if either is
+      # missing, so both are installed rather than left to the runner image.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - run: pip install pyyaml
+
+      - name: make check
+        env:
+          # check-fresh-install.sh defaults to `sudo -u postgres psql`, which is
+          # how it runs on the server. In CI the database is a service container.
+          PSQL: psql -h 127.0.0.1 -U postgres
+          PGPASSWORD: postgres
+        run: make check

@@ -1,0 +1,29 @@
+{
+	email {$ACME_EMAIL}
+	admin off
+}
+
+# Dashboard, sign-in and API. Separate origin from user content on purpose:
+# participant pages must never share an origin with the admin UI.
+{$SITE_ADDR} {
+	reverse_proxy app:8090
+}
+
+# Content host. Every site is served by PATH under one origin:
+#   /<handle>/<site>/<rest>  ->  handles/<handle>/<site>/current/<rest>
+# The app is not in the content path; Caddy serves the bytes off disk.
+{$CONTENT_ADDR} {
+	@api path /v1/* /internal/*
+	handle @api {
+		reverse_proxy app:8090
+	}
+	handle {
+		@nodir path_regexp nodir ^/([a-z0-9-]{1,39})/([a-z0-9-]{1,63})$
+		redir @nodir {uri}/ 308
+
+		@site path_regexp site ^/([a-z0-9-]{1,39})/([a-z0-9-]{1,63})(/.*)?$
+		rewrite @site /{re.site.1}/{re.site.2}/current{re.site.3}
+		root * /data/sites/handles
+		file_server
+	}
+}
