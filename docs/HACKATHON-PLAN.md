@@ -223,6 +223,31 @@ setup for a weekend.
 
 ## 6. The provisioning skill
 
+### Providers
+
+**UpCloud first** (token verified, `upctl` installed, credit available). One bearer
+token, one CLI, done.
+
+**Oracle Cloud second, and it is the valuable one.** Their always-free tier means
+an event box costs nothing at all, forever, rather than five dollars a month. We
+already publish `linux/arm64`, which is exactly what their free Ampere A1 shape
+runs, so the artifact side needs nothing.
+
+Two things make Oracle harder than UpCloud, and the skill has to handle both:
+
+- **Authentication is not a bearer token.** Oracle signs every request with an RSA
+  key pair, and a call needs the tenancy OCID, the user OCID, the key
+  fingerprint, the region and a compartment OCID. That is five values and a
+  generated key, against UpCloud's one token. Drive it through the `oci` CLI
+  rather than reimplementing request signing.
+- **Free ARM capacity is frequently exhausted.** "Out of host capacity" is a
+  chronic, well-known failure on the free Ampere shape in popular regions. An
+  organiser hitting it on the morning of their event must be told plainly what
+  happened and offered another region or the paid micro shape, not left staring
+  at an error.
+
+
+
 - Idempotent install script: install Docker, write the env file, pull the image,
   `compose up`, wait for health, print the result.
 - Skill: ask which provider, take a token, generate an SSH keypair locally, create
