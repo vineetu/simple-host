@@ -30,19 +30,91 @@ too; DNS must point at the public one.
 Zones: `us-nyc1`, `us-sjo1`, `uk-lon1`, `de-fra1`, `sg-sin1` and others. Pick one
 near the participants.
 
-## Oracle Cloud (not yet tested)
+## Oracle Cloud
 
-Worth it because their always-free Ampere tier makes the box cost nothing. Two
-differences to plan for:
+Worth it because the always-free tier makes the box cost nothing, permanently
+rather than for a trial period. The published image is multi-architecture, so
+their ARM shape needs no change.
 
-- Authentication is an RSA key pair plus tenancy, user, fingerprint, region and
-  compartment identifiers, not a single token. Drive the `oci` CLI rather than
-  signing requests yourself.
-- Free ARM capacity is frequently exhausted. "Out of host capacity" is common.
-  If it happens, tell the organiser plainly and offer another region or the paid
-  micro shape. Do not retry silently.
+**Verified 2026-09-09** against a real tenancy, read-only, without creating
+anything: authentication, availability domains, both free shapes and the ARM
+Ubuntu images all resolve as documented below. A launch has not been run.
 
-The published image is multi-architecture, so their ARM shape needs no change.
+### Authentication
+
+Not a bearer token. The organiser creates an API key in the console under
+Profile, then My profile, then API keys, and downloads the config fragment. It
+gives five values: tenancy OCID, user OCID, key fingerprint, region, and the
+private key file. Put them in `~/.oci/config` and drive the `oci` CLI. Do not
+sign requests yourself.
+
+If you happen to be running on an Oracle instance already, `--auth
+instance_principal` needs no keys at all, but that is not the organiser's case.
+
+### The two always-free shapes
+
+| Shape | Architecture | Free allowance |
+|---|---|---|
+| `VM.Standard.A1.Flex` | ARM (Ampere) | 4 OCPU and 24 GB total across the tenancy |
+| `VM.Standard.E2.1.Micro` | x86 | 2 instances, 1 OCPU and 1 GB each |
+
+Take the ARM shape with 1 OCPU and 6 GB. That is well inside the free allowance
+and far more than the instance needs.
+
+### Finding what a launch needs
+
+```bash
+export C=<compartment OCID>          # the tenancy OCID works for a simple account
+oci iam availability-domain list -c "$C"
+oci compute image list -c "$C" \
+  --operating-system "Canonical Ubuntu" --operating-system-version "24.04" \
+  --shape VM.Standard.A1.Flex --limit 1
+oci network subnet list -c "$C"
+```
+
+The image names look like `Canonical-Ubuntu-24.04-aarch64-2026.08.25-0`. Take the
+newest and use its OCID.
+
+### Launching
+
+```bash
+oci compute instance launch -c "$C" \
+  --availability-domain "<from the list above>" \
+  --shape VM.Standard.A1.Flex \
+  --shape-config '{"ocpus":1,"memoryInGBs":6}' \
+  --image-id <image OCID> --subnet-id <subnet OCID> \
+  --display-name hackathon \
+  --metadata '{"ssh_authorized_keys":"<contents of hackathon_key.pub>"}' \
+  --assign-public-ip true --wait-for-state RUNNING
+```
+
+Then read the public IP:
+
+```bash
+oci compute instance list-vnics --instance-id <instance OCID> \
+  --query 'data[0]."public-ip"' --raw-output
+```
+
+### Two things that will bite
+
+- **Free ARM capacity is frequently exhausted.** "Out of host capacity" is a
+  chronic failure on this shape in popular regions. Tell the organiser plainly
+  what happened and offer another region or the x86 micro shape. Do not retry in
+  a loop; that is how people get rate limited.
+- **A default network may not exist.** A brand-new tenancy often has no VCN or
+  subnet, and the launch fails on the missing subnet OCID rather than on
+  anything to do with this project. If `subnet list` is empty, have the organiser
+  create a VCN with the console's "VCN with internet connectivity" wizard first.
+
+### Teardown
+
+```bash
+oci compute instance terminate --instance-id <instance OCID> \
+  --preserve-boot-volume false --force
+```
+
+`--preserve-boot-volume false` matters. A preserved boot volume survives the
+instance and counts against the free storage allowance.
 
 ## Any other provider
 
