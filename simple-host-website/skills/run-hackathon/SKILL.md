@@ -42,9 +42,15 @@ whoever is viewing it.
 
 ### 2. Create the server
 
-Smallest Ubuntu 24.04 plan. See `references/providers.md` for the exact commands
-per provider, including how to generate an SSH key locally and pass the public
-half at creation so nothing needs a password.
+Smallest Ubuntu 24.04 plan with at least 1 GB of memory.
+`references/providers.md` has the exact calls per provider.
+
+**Do not install a provider CLI.** Every provider except Oracle is driven with a
+bearer token and `curl`, which is already on the organiser's machine. An install
+on somebody else's laptop is a version, a login and a new way to fail.
+
+Generate an SSH key locally and pass the public half at creation, so nothing
+needs a password. Never overwrite a key that already exists.
 
 ### 3. Point DNS at it
 
