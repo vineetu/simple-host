@@ -394,7 +394,7 @@ func buildSkillsZip() ([]byte, error) {
 				return err
 			}
 
-			err = copyRewritten(dst, src)
+			err = copyRewritten(dst, src, controlPlaneSkill(path))
 			return err
 		})
 		if err != nil {
@@ -441,7 +441,7 @@ func buildSingleSkillZip(skillName string) ([]byte, error) {
 			return err
 		}
 
-		err = copyRewritten(dst, src)
+		err = copyRewritten(dst, src, controlPlaneSkill(path))
 		return err
 	})
 	if err != nil {
@@ -482,7 +482,7 @@ func buildPluginZip() ([]byte, error) {
 				return err
 			}
 
-			err = copyRewritten(dst, src)
+			err = copyRewritten(dst, src, controlPlaneSkill(path))
 			return err
 		})
 		if err != nil {
@@ -506,9 +506,18 @@ func buildPluginZip() ([]byte, error) {
 // The skills are text, and small: reading one fully is cheaper than the
 // alternative of streaming and rewriting across chunk boundaries, where a
 // hostname split over two reads would silently survive unrewritten.
-func copyRewritten(dst io.Writer, src io.Reader) error {
+func copyRewritten(dst io.Writer, src io.Reader, skipRewrite bool) error {
 	data, err := io.ReadAll(src)
 	if err != nil {
+		return err
+	}
+	// Never rewrite the hackathon skill. Its /v1/events calls are deliberately
+	// aimed at the PUBLIC instance, which is the only place that endpoint
+	// exists. Rewriting them to the event's own host would make an agent claim
+	// and release names against a box that answers 404, so teardown would
+	// silently leave live records in our zone.
+	if skipRewrite {
+		_, err = dst.Write(data)
 		return err
 	}
 	// Only rewrite text. Every file in the skills tree is markdown or JSON

@@ -24,6 +24,9 @@ import (
 type Provider interface {
 	CreateA(ctx context.Context, domain, name, ip string, ttl int) (recordID string, err error)
 	DeleteRecord(ctx context.Context, domain, recordID string) error
+	// TakenNames returns every label that already has a record on the zone, so a
+	// claim cannot override a name that is already serving something.
+	TakenNames(ctx context.Context, domain string) (map[string]bool, error)
 }
 
 // Vercel talks to the Vercel DNS API. A team-owned domain requires teamId on
@@ -131,14 +134,17 @@ func NormalizeName(name string) (string, error) {
 // A private or loopback address here would create a public record pointing
 // inside someone's network, and certificate issuance would fail in a way that
 // looks like our bug rather than their typo.
-func ValidatePublicIP(ip string) error {
+// ValidatePublicIP returns the canonical dotted-quad form, so a caller cannot
+// validate one string and then send a different one to the DNS API. "::ffff:8.8.8.8"
+// is a valid IPv4 address that a DNS provider will reject as an A record value.
+func ValidatePublicIP(ip string) (string, error) {
 	parsed := net.ParseIP(strings.TrimSpace(ip))
 	if parsed == nil || parsed.To4() == nil {
-		return fmt.Errorf("ip must be a public IPv4 address")
+		return "", fmt.Errorf("ip must be a public IPv4 address")
 	}
 	if parsed.IsLoopback() || parsed.IsPrivate() || parsed.IsUnspecified() ||
 		parsed.IsLinkLocalUnicast() || parsed.IsMulticast() {
-		return fmt.Errorf("ip must be a public address, not %s", parsed)
+		return "", fmt.Errorf("ip must be a public address, not %s", parsed)
 	}
 	// Ranges that are neither private nor routable on the internet. Go's
 	// IsPrivate covers only RFC 1918, so these have to be listed. A record
@@ -146,10 +152,10 @@ func ValidatePublicIP(ip string) error {
 	// than a certificate failure twenty minutes later.
 	for _, r := range nonRoutable {
 		if r.Contains(parsed) {
-			return fmt.Errorf("ip must be a public address, not %s (%s is not routable)", parsed, r)
+			return "", fmt.Errorf("ip must be a public address, not %s (%s is not routable)", parsed, r)
 		}
 	}
-	return nil
+	return parsed.To4().String(), nil
 }
 
 // nonRoutable is parsed once at startup; a malformed entry here is a programming
@@ -174,3 +180,50 @@ var nonRoutable = func() []*net.IPNet {
 	}
 	return out
 }()
+
+// TakenNames lists every label that already holds a record on the zone.
+//
+// A static reserved list cannot know what the zone actually serves. These
+// domains carry a wildcard, so a live product at sf-gog.example or
+// jellyfin.example is answered by that wildcard with no explicit record of its
+// own -- until someone claims that exact name, whose explicit record overrides
+// the wildcard. They could then obtain a certificate and serve content on a
+// hostname belonging to a real product. Asking the zone closes that.
+func (v *Vercel) TakenNames(ctx context.Context, domain string) (map[string]bool, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		"https://api.vercel.com/v4/domains/"+url.PathEscape(domain)+"/records"+v.q(), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+v.Token)
+	res, err := v.HTTP.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode >= 300 {
+		return nil, fmt.Errorf("list records: %s", res.Status)
+	}
+	var out struct {
+		Records []struct {
+			Name string `json:"name"`
+		} `json:"records"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
+		return nil, err
+	}
+	taken := map[string]bool{}
+	for _, r := range out.Records {
+		n := strings.ToLower(strings.TrimSpace(r.Name))
+		if n == "" || n == "@" {
+			continue
+		}
+		// A record at sites.foo means the label foo is in use for our purposes,
+		// because that is exactly the pair a claim would create.
+		taken[n] = true
+		if _, rest, found := strings.Cut(n, "."); found && rest != "" {
+			taken[rest] = true
+		}
+	}
+	return taken, nil
+}

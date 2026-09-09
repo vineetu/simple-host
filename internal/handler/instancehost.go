@@ -109,3 +109,17 @@ var instanceHosts *hostRewriter
 func SetInstanceHosts(siteDomain, contentHost, cnameTarget string) {
 	instanceHosts = newHostRewriter(siteDomain, contentHost, cnameTarget)
 }
+
+// controlPlaneSkills name the public instance on purpose: they drive endpoints
+// that only exist there. Rewriting them to an event's own hostname would point
+// an agent at a box that cannot answer.
+var controlPlaneSkills = []string{"run-hackathon"}
+
+func controlPlaneSkill(path string) bool {
+	for _, name := range controlPlaneSkills {
+		if strings.HasPrefix(path, name+"/") || strings.Contains(path, "/"+name+"/") {
+			return true
+		}
+	}
+	return false
+}

@@ -39,16 +39,22 @@ const maxClaimsPerAccount = 5
 type EventDomainHandler struct {
 	db      *sql.DB
 	dns     eventdns.Provider
+	probe   *eventdns.LiveProbe
 	domains []string // the domains we are willing to create names under
 	limiter *rateLimiter
 }
 
 func NewEventDomainHandler(database *sql.DB, dns eventdns.Provider, domains []string) *EventDomainHandler {
-	// Burst of 5, refilling one every two minutes. A real organiser claims one
-	// name and occasionally re-claims to extend it; anything faster is either a
-	// broken script or someone enumerating names.
+	// Burst of 10, refilling one a minute.
+	//
+	// The limiter runs before validation on purpose, so a rejected request still
+	// costs a token and nobody can enumerate which names are taken for free. That
+	// means typos count too, which is why the burst is not tight: four mistyped
+	// addresses followed by a real attempt must not lock an organiser out. The
+	// hard ceiling on abuse is maxClaimsPerAccount, not this.
 	return &EventDomainHandler{db: database, dns: dns, domains: domains,
-		limiter: newRateLimiter(5, 1.0/120.0)}
+		probe:   eventdns.NewLiveProbe(),
+		limiter: newRateLimiter(10, 1.0/60.0)}
 }
 
 func (h *EventDomainHandler) Register(mux *http.ServeMux, authMiddleware func(http.Handler) http.Handler) {
@@ -91,20 +97,80 @@ func (h *EventDomainHandler) claim(w http.ResponseWriter, r *http.Request) {
 	if req.Domain == "" && len(h.domains) > 0 {
 		req.Domain = h.domains[0]
 	}
-	name, err := eventdns.NormalizeName(req.Name)
+	name, nerr := eventdns.NormalizeName(req.Name)
+	if nerr != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: nerr.Error()})
+		return
+	}
+	req.Name = name
+	canonicalIP, err := eventdns.ValidatePublicIP(req.IP)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
 		return
 	}
-	req.Name = name
-	if err := eventdns.ValidatePublicIP(req.IP); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
-		return
-	}
+	req.IP = canonicalIP
 	if !h.allowed(req.Domain) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{
 			Error: fmt.Sprintf("domain must be one of: %s", strings.Join(h.domains, ", "))})
 		return
+	}
+
+	// A static reserved list cannot know what the zone already serves. Live
+	// products answered by the wildcard have no explicit record of their own, so
+	// without this check anyone could claim one of those exact names, override
+	// the wildcard, obtain a certificate and serve content under it.
+	taken, terr := h.dns.TakenNames(r.Context(), req.Domain)
+	if terr != nil {
+		log.Printf("event claim: listing %s: %v", req.Domain, terr)
+		writeJSON(w, http.StatusBadGateway, errorResponse{Error: "could not check the domain; try again"})
+		return
+	}
+	// The instance knows its own names authoritatively, and they are the ones a
+	// probe is least likely to catch: a handle or a site name may answer no
+	// differently from an unknown host today, yet claiming it would still take
+	// an explicit record over a name this service is responsible for.
+	var ours bool
+	if err := h.db.QueryRowContext(r.Context(), `
+		SELECT EXISTS (SELECT 1 FROM users WHERE handle = $1)
+		    OR EXISTS (SELECT 1 FROM sites WHERE name = $1)`, req.Name).Scan(&ours); err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	if ours {
+		writeJSON(w, http.StatusConflict, errorResponse{Error: "that name belongs to an account or a site on this instance"})
+		return
+	}
+
+	// Listing the zone only sees explicit records. A live product served through
+	// the wildcard by name has none, so it would look free and claiming it would
+	// take a running product off the internet. Ask the internet as well.
+	if !taken[req.Name] && !taken["sites."+req.Name] {
+		if inUse, perr := h.probe.InUse(r.Context(), req.Domain, req.Name); perr != nil || inUse {
+			var mine bool
+			_ = h.db.QueryRowContext(r.Context(),
+				`SELECT true FROM event_domains WHERE name=$1 AND domain=$2 AND user_id=$3`,
+				req.Name, req.Domain, user.ID).Scan(&mine)
+			if !mine {
+				if perr != nil {
+					log.Printf("event claim: probe %s.%s: %v", req.Name, req.Domain, perr)
+					writeJSON(w, http.StatusBadGateway, errorResponse{Error: "could not check that name; try again"})
+					return
+				}
+				writeJSON(w, http.StatusConflict, errorResponse{Error: "that name is already serving something on this domain"})
+				return
+			}
+		}
+	}
+	if taken[req.Name] || taken["sites."+req.Name] {
+		// Unless it is already ours: re-claiming to extend must still work.
+		var mine bool
+		_ = h.db.QueryRowContext(r.Context(),
+			`SELECT true FROM event_domains WHERE name=$1 AND domain=$2 AND user_id=$3`,
+			req.Name, req.Domain, user.ID).Scan(&mine)
+		if !mine {
+			writeJSON(w, http.StatusConflict, errorResponse{Error: "that name is already in use on this domain"})
+			return
+		}
 	}
 
 	// Cap concurrent holdings, counting only names this account does not
@@ -123,15 +189,16 @@ func (h *EventDomainHandler) claim(w http.ResponseWriter, r *http.Request) {
 	// leave one set orphaned in DNS with nothing tracking them.
 	var ownerID string
 	var existingIDs []string
+	var wasNew bool
 	err = h.db.QueryRowContext(r.Context(), `
 		INSERT INTO event_domains (name, domain, user_id, ip, expires_at)
 		VALUES ($1,$2,$3,$4, now() + $5::interval)
 		ON CONFLICT (name, domain) DO UPDATE
 		  SET ip = EXCLUDED.ip, expires_at = EXCLUDED.expires_at
 		  WHERE event_domains.user_id = EXCLUDED.user_id
-		RETURNING user_id, record_ids`,
+		RETURNING user_id, record_ids, (xmax = 0)`,
 		req.Name, req.Domain, user.ID, req.IP, fmt.Sprintf("%d hours", int(eventTTL.Hours())),
-	).Scan(&ownerID, pq.Array(&existingIDs))
+	).Scan(&ownerID, pq.Array(&existingIDs), &wasNew)
 	if errors.Is(err, sql.ErrNoRows) {
 		// The conflict clause refused: the row exists and belongs to somebody else.
 		writeJSON(w, http.StatusConflict, errorResponse{Error: "that event name is taken"})
@@ -162,17 +229,32 @@ func (h *EventDomainHandler) claim(w http.ResponseWriter, r *http.Request) {
 			for _, made := range ids {
 				_ = h.dns.DeleteRecord(r.Context(), req.Domain, made)
 			}
-			_, _ = h.db.ExecContext(r.Context(), `DELETE FROM event_domains WHERE name=$1 AND domain=$2`, req.Name, req.Domain)
+			// Only drop the row if this request created it. A renewal that fails
+			// must leave the existing claim standing, or the organiser's running
+			// event loses its name and anyone can take it.
+			if wasNew {
+				_, _ = h.db.ExecContext(r.Context(), `DELETE FROM event_domains WHERE name=$1 AND domain=$2`, req.Name, req.Domain)
+			}
 			log.Printf("event claim: %v", err)
 			writeJSON(w, http.StatusBadGateway, errorResponse{Error: "could not create DNS records"})
 			return
 		}
 		ids = append(ids, id)
 	}
+	// If this fails the records exist but nothing tracks them, so neither release
+	// nor the sweep would ever remove them. Undo rather than report success.
 	if _, err := h.db.ExecContext(r.Context(),
 		`UPDATE event_domains SET record_ids=$3 WHERE name=$1 AND domain=$2`,
 		req.Name, req.Domain, pq.Array(ids)); err != nil {
 		log.Printf("event claim: recording ids: %v", err)
+		for _, made := range ids {
+			_ = h.dns.DeleteRecord(r.Context(), req.Domain, made)
+		}
+		if wasNew {
+			_, _ = h.db.ExecContext(r.Context(), `DELETE FROM event_domains WHERE name=$1 AND domain=$2`, req.Name, req.Domain)
+		}
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
 	}
 
 	// Attributable by design: a name under our domain carrying a valid

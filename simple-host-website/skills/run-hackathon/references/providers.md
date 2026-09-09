@@ -46,5 +46,13 @@ The published image is multi-architecture, so their ARM shape needs no change.
 
 ## Any other provider
 
-Anything that gives a fresh Ubuntu 24.04 machine with a public IPv4 and root SSH
-works. The install step is provider-agnostic.
+The install step is provider-agnostic: anything giving a fresh Ubuntu 24.04
+machine with a public IPv4 and root SSH will run it.
+
+**But teardown is not.** `references/teardown.md` only documents UpCloud. If you
+create the server anywhere else, you are responsible for knowing the exact
+delete command for that provider before you create anything, and for telling the
+organiser what it is. A server nobody knows how to delete keeps billing.
+
+Never choose a plan larger than the smallest available. The organiser is paying,
+and a hackathon does not need more.

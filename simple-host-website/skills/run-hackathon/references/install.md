@@ -5,13 +5,18 @@ One command over SSH, as root, on the fresh box.
 ```bash
 ssh -i ~/.ssh/hackathon_key root@<ip> \
   'curl -fsSL https://raw.githubusercontent.com/vineetu/simple-host/main/deploy/install/install.sh -o /root/install.sh && \
-   bash /root/install.sh --host <event>.<domain> --content sites.<event>.<domain>'
+   bash /root/install.sh --host <event>.<domain> --content sites.<event>.<domain> --image ghcr.io/vineetu/simple-host:0.1.0-rc3'
 ```
+
+**Pin the image.** `latest` moves on every release, so an unattended re-run can
+pull a build that does not match the compose file it fetched. Use the newest
+published tag from the repository's releases page rather than `latest`, and use
+the same tag if you re-run.
 
 Optional flags:
 
 - `--email you@example.com` — where Let's Encrypt sends expiry notices.
-- `--image ghcr.io/vineetu/simple-host:0.1.0` — pin a version instead of `latest`.
+- `--ref <branch-or-tag>` — where the compose file and schema are fetched from.
 
 ## What it does
 

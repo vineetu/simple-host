@@ -31,7 +31,7 @@ func TestValidateName(t *testing.T) {
 }
 
 func TestValidatePublicIP(t *testing.T) {
-	if err := ValidatePublicIP("85.9.193.170"); err != nil {
+	if _, err := ValidatePublicIP("85.9.193.170"); err != nil {
 		t.Errorf("rejected a public address: %v", err)
 	}
 	// A private or loopback address would publish a record pointing inside
@@ -42,7 +42,7 @@ func TestValidatePublicIP(t *testing.T) {
 		"169.254.1.1", "224.0.0.1", "0.0.0.0",
 		"", "not-an-ip", "2001:db8::1", "85.9.193",
 	} {
-		if err := ValidatePublicIP(bad); err == nil {
+		if _, err := ValidatePublicIP(bad); err == nil {
 			t.Errorf("accepted %q", bad)
 		}
 	}
@@ -62,14 +62,26 @@ func TestValidatePublicIPRejectsNonRoutableRanges(t *testing.T) {
 		"240.0.0.1",       // reserved
 		"::ffff:10.0.0.5", // IPv4-mapped private
 	} {
-		if err := ValidatePublicIP(bad); err == nil {
+		if _, err := ValidatePublicIP(bad); err == nil {
 			t.Errorf("accepted non-routable %q", bad)
 		}
 	}
 	// Genuinely routable addresses still pass.
 	for _, ok := range []string{"85.9.193.170", "8.8.8.8", "1.1.1.1"} {
-		if err := ValidatePublicIP(ok); err != nil {
+		if _, err := ValidatePublicIP(ok); err != nil {
 			t.Errorf("rejected routable %q: %v", ok, err)
 		}
+	}
+}
+
+func TestValidatePublicIPCanonicalises(t *testing.T) {
+	// A mapped form is a valid IPv4 address that a DNS provider will reject as an
+	// A record value, so the caller must send back what was validated.
+	got, err := ValidatePublicIP("::ffff:8.8.8.8")
+	if err != nil || got != "8.8.8.8" {
+		t.Errorf("got %q, %v; want 8.8.8.8", got, err)
+	}
+	if got, _ := ValidatePublicIP("  85.9.193.170 "); got != "85.9.193.170" {
+		t.Errorf("whitespace not trimmed: %q", got)
 	}
 }

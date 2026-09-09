@@ -55,8 +55,13 @@ Simple Host account key:
 
 ```
 POST https://simple-host.app/v1/events
-{"name": "stanford-cs-2026", "ip": "<server IPv4>"}
+{"name": "stanford-cs-2026", "ip": "<server IPv4>", "domain": "simple-host.app"}
 ```
+
+Always send `domain` explicitly and remember which one you used, because release
+needs it too. If the claim is refused because the domain is at its weekly
+certificate limit, retry with `"domain": "agent-deploy.dev"`. If a name is
+already in use, ask for a different one rather than guessing.
 
 The response gives `host` and `content_host`. Names are lowercased, must be 1 to
 40 letters, digits or hyphens, and a name someone else holds answers 409, so ask
@@ -137,8 +142,11 @@ name.
 If you claimed free hostnames, release them:
 
 ```
-DELETE https://simple-host.app/v1/events/<name>
+DELETE https://simple-host.app/v1/events/<name>?domain=<the domain you claimed>
 ```
+
+The `domain` must match the claim. Omitting it targets the default domain, which
+answers 404 and leaves the real records in place.
 
 If the organiser used their own domain, they delete the two records themselves.
 

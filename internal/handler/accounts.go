@@ -164,6 +164,16 @@ func (h *SiteHandler) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, errorResponse{Error: "cannot delete an admin account"})
 		return
 	}
+	// event_domains cascades on user_id, so deleting the row would take the
+	// claim with it and strand live DNS records under our domain that nothing
+	// could then find or remove. Make the operator release them first.
+	var claims int
+	if err = tx.QueryRowContext(r.Context(),
+		`SELECT count(*) FROM event_domains WHERE user_id=$1`, id).Scan(&claims); err == nil && claims > 0 {
+		writeJSON(w, 409, errorResponse{
+			Error: "this account still holds event hostnames; release them first so their DNS records are removed"})
+		return
+	}
 	if _, err = tx.ExecContext(r.Context(), "DELETE FROM users WHERE id=$1", id); err != nil {
 		writeJSON(w, 500, errorResponse{Error: "internal server error"})
 		return

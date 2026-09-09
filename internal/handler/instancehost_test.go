@@ -63,7 +63,7 @@ func TestCopyRewrittenLeavesBinaryAlone(t *testing.T) {
 
 	binary := []byte{0x89, 'P', 'N', 'G', 0x00, 0x1a, 0xff, 0xfe}
 	var out bytes.Buffer
-	if err := copyRewritten(&out, bytes.NewReader(binary)); err != nil {
+	if err := copyRewritten(&out, bytes.NewReader(binary), false); err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(out.Bytes(), binary) {
@@ -72,10 +72,38 @@ func TestCopyRewrittenLeavesBinaryAlone(t *testing.T) {
 
 	// Text still gets rewritten.
 	out.Reset()
-	if err := copyRewritten(&out, bytes.NewReader([]byte("go to simple-host.app"))); err != nil {
+	if err := copyRewritten(&out, bytes.NewReader([]byte("go to simple-host.app")), false); err != nil {
 		t.Fatal(err)
 	}
 	if got := out.String(); got != "go to hack.example.com" {
 		t.Errorf("text not rewritten: %q", got)
+	}
+}
+
+func TestControlPlaneSkillIsNotRewritten(t *testing.T) {
+	// The hackathon skill calls /v1/events on the PUBLIC instance, which is the
+	// only place that endpoint exists. Rewriting it to an event's own host would
+	// send an agent to a box that answers 404, and teardown would then leave
+	// live records in our zone.
+	for _, p := range []string{"run-hackathon/SKILL.md", "skills/run-hackathon/references/dns.md"} {
+		if !controlPlaneSkill(p) {
+			t.Errorf("%s should be exempt from rewriting", p)
+		}
+	}
+	for _, p := range []string{"website-deploy/SKILL.md", "connect-domain/references/registrars.md"} {
+		if controlPlaneSkill(p) {
+			t.Errorf("%s should be rewritten", p)
+		}
+	}
+
+	SetInstanceHosts("hack.example.com", "", "")
+	defer SetInstanceHosts("simple-host.app", "", "")
+	var out bytes.Buffer
+	in := []byte("POST https://simple-host.app/v1/events")
+	if err := copyRewritten(&out, bytes.NewReader(in), true); err != nil {
+		t.Fatal(err)
+	}
+	if out.String() != string(in) {
+		t.Errorf("control-plane URL was rewritten to %q", out.String())
 	}
 }
