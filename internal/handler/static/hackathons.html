@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Simple Host for hackathons</title>
-  <meta name="description" content="A hackathon for people who have never deployed anything. Participants bring an AI agent; every entry is a link.">
+  <meta name="description" content="Run a hackathon for people who have never deployed anything. The organiser's AI agent sets up a private instance on their own cloud account; participants build with the agent they already use.">
   <script>(function(){try{var s=localStorage.getItem('sh-theme');document.documentElement.dataset.theme=s||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');}catch(e){document.documentElement.dataset.theme='light';}})();</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -115,8 +115,8 @@
       <div>
         <div class="kicker">Simple Host for hackathons</div>
         <h1 class="title">A hackathon for people who have never deployed anything.</h1>
-        <p class="lede">Participants bring an AI agent they already use. Each of them gets a place where what they make goes live, and every entry is a link.</p>
-        <p>Today that place is <a href="/">simple-host.app</a>, which is free to use. Running an event on a server of your own is not ready yet; the gaps are listed at the bottom of this page.</p>
+        <p class="lede">The organiser asks their AI agent to set up an event. It creates a server on their own cloud account, gives it a web address, installs everything and issues a key to each participant. Nobody opens a terminal.</p>
+        <p>Participants build with the agent they already use. Every entry is a live link on the organiser's own machine.</p>
         <p>
           <a class="cta solid" href="/install.html">Install the skill</a>
           <a class="cta" href="https://github.com/vineetu/simple-host">Source on GitHub</a>
@@ -129,66 +129,76 @@
       <div>
         <h2>Who this is for</h2>
         <p>A company where few people write code for a living but most have Claude Code, Codex, Cursor or Copilot. A college class. A team offsite. Any group whose members have not deployed a website before.</p>
-        <p>A participant needs a browser and an agent that can run a skill. Nothing gets installed on the machine beyond the skill itself.</p>
+        <p>A participant needs a browser and an agent that can run a skill. The organiser needs a cloud account and about an hour of patience the first time.</p>
+      </div>
+    </section>
+
+    <section id="organiser">
+      <div class="snum">02.</div>
+      <div>
+        <h2>What the organiser does</h2>
+        <p class="lede">Installs the <strong>Run Hackathon</strong> skill and asks their agent to set up an event. The agent does the rest and reports back.</p>
+        <div class="facts">
+          <div class="row"><div class="k">The server</div><p class="v">Smallest Ubuntu plan on the organiser's own cloud account, paid by them. Tested end to end on UpCloud. Around five dollars a month, billed hourly, so a weekend event costs cents.</p></div>
+          <div class="row"><div class="k">The address</div><p class="v">Two hostnames, created for them under a domain we run. Nothing to buy, no DNS to edit. They can use their own domain instead if they want their name on it. HTTPS certificates are obtained automatically.</p></div>
+          <div class="row"><div class="k">The accounts</div><p class="v">Paste a roster or ask for a number, up to 200 at a time. Each participant gets a key. Download the list as a spreadsheet and hand them out however you already talk to people.</p></div>
+          <div class="row"><div class="k">Afterwards</div><p class="v">Ask the agent to tear it down. It deletes the server and removes the hostnames, so nothing keeps billing and no address is left pointing at a machine somebody else now owns.</p></div>
+        </div>
+        <p>Two hostnames rather than one is deliberate. Participant pages must never share a browser origin with the admin screen, or something a participant publishes could act on the dashboard of whoever is looking at it.</p>
       </div>
     </section>
 
     <section id="participant">
-      <div class="snum">02.</div>
+      <div class="snum">03.</div>
       <div>
         <h2>What a participant does</h2>
         <ol>
-          <li>Signs in at simple-host.app with an emailed code or Google. That gives them an API key and a profile page.</li>
-          <li>Installs the <strong>Website Deploy</strong> skill from the <a href="/install.html">get-started page</a>. For Claude Code that is one command; other agents have their own steps on the same page.</li>
-          <li>Tells the agent what they want. "A page where people can sign up for a slot." "A quiz about our product." "A dashboard for this spreadsheet."</li>
-          <li>Gets a link. If the page needs to save anything, it has one JSON document of up to 1&nbsp;MB and append-only collections, with no backend work.</li>
-          <li>Changes it. Every deploy is versioned, so an earlier version of the files is one rollback away. Saved data is not versioned.</li>
+          <li>Gets a key from the organiser. There is no sign-up, no password, no code emailed to them.</li>
+          <li>Pastes one prompt into their agent: read the event's instructions, here is my key, ask me what to build.</li>
+          <li>Describes what they want. "A page where people sign up for a slot." "A quiz about our product." "A dashboard for this spreadsheet."</li>
+          <li>Gets a link. If the page needs to save anything, it has a JSON document of up to 1&nbsp;MB and append-only collections, with no backend to set up.</li>
+          <li>Changes it. Every deploy is versioned, so an earlier version of the files is one rollback away.</li>
         </ol>
-        <p>The deploy itself is one upload. Each account can hold 100 sites, and each site can be public on the profile page or hidden from it.</p>
+        <p>That prompt works in anything that can fetch a URL, so ChatGPT, Claude Code, Codex, Copilot, Cursor and terminal agents all do the same thing. Each participant can hold 100 sites and can pick their own address until they publish.</p>
       </div>
     </section>
 
-    <section id="host">
-      <div class="snum">03.</div>
+    <section id="during">
+      <div class="snum">04.</div>
       <div>
-        <h2>What the organiser does</h2>
-        <div class="facts">
-          <div class="row"><div class="k">Before</div><p class="v">Send the sign-in link and the get-started page. There are no accounts to create. Ask each team to send you their final link, since one account can hold several sites.</p></div>
-          <div class="row"><div class="k">During</div><p class="v">Nothing. Participants deploy as often as they like.</p></div>
-          <div class="row"><div class="k">Judging</div><p class="v">Every entry is a link. Judges open the links. For a first pass by a model, give an agent the list of links and ask it to fetch and summarise each one.</p></div>
-          <div class="row"><div class="k">Traffic</div><p class="v">Each participant's own dashboard shows views and visitors per site, split into people, bots and monitoring, with countries.</p></div>
-        </div>
-        <p><strong>Saved data is open on simple-host.app.</strong> Anyone who can load a page can change that site's JSON document and add to its collections. The files change only with the owner's API key. If an entry's saved data matters for judging, have the team take a copy before judging starts.</p>
+        <h2>During and after</h2>
+        <p>Each participant sees their own traffic, split into people, bots and monitoring, so they can tell whether anyone actually looked.</p>
+        <p><strong>Saved data is open.</strong> Anyone who can load a page can change that site's stored data. The files themselves change only with the owner's key. If saved data matters for judging, have each team take a copy before judging starts.</p>
+        <p>Judges open links. Ask each team which link is their final entry, because one account can hold several sites.</p>
       </div>
     </section>
 
     <section id="not">
-      <div class="snum">04.</div>
+      <div class="snum">05.</div>
       <div>
         <h2>Not built</h2>
-        <p>Do not plan an event around any of these.</p>
+        <p>Say what is missing before the event, not during it.</p>
         <table>
-          <tr><td class="tk">Your own server</td><td class="tv">The code is MIT and the <a href="https://github.com/vineetu/simple-host#readme">README</a> runs it on a laptop. The fresh-server runbook predates the current site layout, and the skill points at simple-host.app rather than your instance. Both are being updated. My workplace instance, on a 1&nbsp;CPU, 1&nbsp;GB box, costs $5 a month, and that is the target for events too.</td></tr>
-          <tr><td class="tk">Docker Compose and Kubernetes</td><td class="tv">Docker is documented for local development only. There is no Compose file or Kubernetes manifest.</td></tr>
-          <tr><td class="tk">Organiser view</td><td class="tv">No screen that lists an event's entries, and no scores or tags. The organiser keeps the list of links.</td></tr>
-          <tr><td class="tk">Per-person saves</td><td class="tv">Sign-in before saving exists only on a site with its own domain. On simple-host.app saved data is open to anyone who loads the page.</td></tr>
+          <tr><td class="tk">Organiser view of entries</td><td class="tv">No screen lists an event's submissions, and there are no scores or tags. You keep the list of links.</td></tr>
+          <tr><td class="tk">Backups</td><td class="tv">A disk failure during the event loses the event. Nothing is backed up anywhere.</td></tr>
+          <tr><td class="tk">Sign-in for participants</td><td class="tv">Keys only. Emailed codes and Google are possible, but only on an instance whose domain the organiser controls, and they are configured separately.</td></tr>
+          <tr><td class="tk">Oracle's free tier <span class="st">Untested</span></td><td class="tv">Their always-free tier would make the server cost nothing, and the software already runs on that architecture. The setup path is written but has not been run.</td></tr>
           <tr><td class="tk">AI inside the pages</td><td class="tv">No per-site model allowance. A page that calls a model needs a key from somewhere, and anything in the page is public.</td></tr>
-          <tr><td class="tk">Pre-issued keys</td><td class="tv">No organiser tool for handing out accounts in advance. Everyone signs up with their email or Google.</td></tr>
         </table>
       </div>
     </section>
 
     <section id="start">
-      <div class="snum">05.</div>
+      <div class="snum">06.</div>
       <div>
         <h2>Start</h2>
-        <p>Sign in at <a href="/">simple-host.app</a>, install the skill, and ask your agent for a page. That is the whole participant flow, so try it yourself before the event.</p>
+        <p>Try it as a participant first, on <a href="/">simple-host.app</a>, which runs the same software and is free. Sign in, install the skill, ask your agent for a page. Then install the hackathon skill and set up an event of your own.</p>
         <p>
           <a class="cta solid" href="/install.html">Install the skill</a>
           <a class="cta" href="https://github.com/vineetu/simple-host">Source on GitHub</a>
           <a class="cta" href="/enterprise">For companies</a>
         </p>
-        <p class="fine">I am Vineet Sriram. The $5 a month describes the instance I run at work, as of September 2026.</p>
+        <p class="fine">I am Vineet Sriram. Everything described here has been run end to end on a real server, from creating it to destroying it.</p>
       </div>
     </section>
 

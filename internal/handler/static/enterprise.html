@@ -155,7 +155,7 @@
       <div class="snum">03.</div>
       <div>
         <h2>Running it inside your company</h2>
-        <p>The <a href="https://github.com/vineetu/simple-host#readme">repository README</a> gets it running on a laptop: Postgres in Docker, the server next to it. The nginx configuration that simple-host.app runs in production is in the repository under <code>deploy/prod</code>. There is not yet a tested step-by-step for a fresh server on the current version; see the table below.</p>
+        <p>One script on a fresh Ubuntu server installs everything: the binary, Postgres and a web server that obtains its own HTTPS certificates. It has been run end to end, from an empty machine to a working instance. Re-running it after a failure is safe. The container image is published for both Intel and ARM, so nothing is ever compiled on your server.</p>
         <ul>
           <li><strong>Sign-in.</strong> An emailed code through Resend, or Google OAuth. Restrict Google to your Workspace domain on the OAuth client. Emailed codes go to whatever address someone types; the server has no domain allowlist, so keep the instance inside your network or accept open sign-up.</li>
           <li><strong>Admin view.</strong> The person running the instance sees every account and every site in one list. There is no way to remove an account from that page.</li>
@@ -175,8 +175,8 @@
           <tr><td class="tk">A general backend</td><td class="tv">No queries, no schema, no server-side code. State is one 1&nbsp;MB JSON document plus append-only collections. Past that, this is the wrong host.</td></tr>
           <tr><td class="tk">Team permissions</td><td class="tv">A site has one owner. Any signed-in visitor on a site's own domain can save; there are no roles.</td></tr>
           <tr><td class="tk">Single sign-on</td><td class="tv">No SAML or OIDC beyond Google. GitHub sign-in is in the code but not switched on.</td></tr>
-          <tr><td class="tk">Fresh-server runbook <span class="st">Out of date</span></td><td class="tv">The <a href="https://github.com/vineetu/Agent-Deploy">Agent Deploy</a> runbook predates the current site layout, and the bundled skill points at simple-host.app rather than your instance. Both are being updated. Until then, self-hosting means adapting them yourself.</td></tr>
-          <tr><td class="tk">Compose and Kubernetes <span class="st">Not built</span></td><td class="tv">There is no Compose file or Kubernetes manifest.</td></tr>
+          <tr><td class="tk">Kubernetes <span class="st">Not built</span></td><td class="tv">Docker Compose is the supported shape. There is no Helm chart yet, and an upgrade path for an existing instance has to come first.</td></tr>
+          <tr><td class="tk">Upgrades <span class="st">Not built</span></td><td class="tv">A fresh install works. Moving an existing instance to a newer version has no tooling: the schema is applied on first boot only, and the server does not report its own version.</td></tr>
         </table>
       </div>
     </section>
@@ -185,7 +185,7 @@
       <div class="snum">05.</div>
       <div>
         <h2>Try it</h2>
-        <p><a href="/">simple-host.app</a> runs the same code. Sign in, install the skill, and ask your agent for a page. If your company wants its own instance, watch the repository; the runbook and the skill's instance setting are the next two things to land.</p>
+        <p><a href="/">simple-host.app</a> runs the same code. Sign in, install the skill, and ask your agent for a page. For an instance of your own, the install script and the published image are in the repository, and an instance serves its own documentation so your people's agents publish to it rather than here.</p>
         <p>
           <a class="cta solid" href="https://github.com/vineetu/simple-host">Source on GitHub</a>
           <a class="cta" href="/install.html">Install the skill</a>
