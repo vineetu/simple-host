@@ -89,10 +89,24 @@ EOF
 chmod 600 "$DIR/.env"
 
 say "fetching compose files"
-curl -fsSL -o "$DIR/compose.yaml" https://raw.githubusercontent.com/vineetu/simple-host/$REF/compose.yaml
+# Every directory first, then every fetch. A transient failure part-way through
+# used to leave a half-populated directory that the next step then failed on
+# for a different reason, which is a miserable thing to debug over SSH.
 mkdir -p "$DIR/deploy/compose" "$DIR/db"
-curl -fsSL -o "$DIR/deploy/compose/Caddyfile" https://raw.githubusercontent.com/vineetu/simple-host/$REF/deploy/compose/Caddyfile
-curl -fsSL -o "$DIR/db/schema.sql" https://raw.githubusercontent.com/vineetu/simple-host/$REF/db/schema.sql
+fetch() {
+  local dest=$1 path=$2
+  for attempt in 1 2 3; do
+    if curl -fsSL --max-time 30 -o "$dest" "https://raw.githubusercontent.com/vineetu/simple-host/$REF/$path"; then
+      return 0
+    fi
+    sleep $((attempt * 2))
+  done
+  echo "FAILED: could not fetch $path after three attempts." >&2
+  exit 1
+}
+fetch "$DIR/compose.yaml" compose.yaml
+fetch "$DIR/deploy/compose/Caddyfile" deploy/compose/Caddyfile
+fetch "$DIR/db/schema.sql" db/schema.sql
 
 # The published image is what runs; nothing is ever compiled on this box.
 say "pulling $IMAGE"
