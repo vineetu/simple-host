@@ -43,6 +43,13 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	// Before anything else touches the database: a build that reads a column the
+	// database does not have fails at the first query, not at startup, which
+	// looks like a 404 on every page rather than a deployment mistake.
+	if err := dbpkg.VerifySchema(context.Background(), db); err != nil {
+		log.Fatalf("schema check: %v", err)
+	}
+
 	// A box installed from a provider's catalog boots knowing nothing about
 	// where it lives. Rather than serve a broken product on an address nobody
 	// configured, it serves one setup page and nothing else until somebody
