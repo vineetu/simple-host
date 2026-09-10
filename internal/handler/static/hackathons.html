@@ -41,10 +41,11 @@
     a { color: inherit; }
     header { position: sticky; top: 0; z-index: 20; backdrop-filter: blur(9px);
       background: color-mix(in srgb, var(--bg) 82%, transparent); border-bottom: 1px solid var(--border); }
-    .bar { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; gap: 12px; }
+    .bar { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 14px 0; gap: 12px; }
+    .header-links { display: contents; }
     .logo { font-family: var(--mono); font-weight: 700; font-size: 14px; letter-spacing: .3px; text-decoration: none; color: var(--text); white-space: nowrap; }
     .logo b { color: var(--accent); }
-    nav.top { display: flex; flex-wrap: wrap; gap: 8px 18px; font-family: var(--mono); font-size: 12.5px; }
+    nav.top { justify-content: flex-end; display: flex; flex-wrap: wrap; gap: 8px 18px; font-family: var(--mono); font-size: 12.5px; }
     nav.top a { color: var(--text-secondary); text-decoration: none; }
     nav.top a:hover, nav.top a.on { color: var(--accent); }
     .tt { width: 32px; height: 30px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex: none; }
@@ -77,11 +78,27 @@
     .cta { display: inline-block; font-family: var(--mono); font-size: 13px; font-weight: 600; text-decoration: none; padding: 10px 16px; border-radius: 9px; border: 1px solid var(--accent); color: var(--accent); margin: 6px 10px 6px 0; }
     .cta.solid { background: var(--accent); color: var(--bg); }
     .cta:hover { filter: brightness(1.1); }
+    .prompt-card { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 16px; margin: 18px 0; }
+    .prompt-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+    .prompt-head h3 { margin: 0; }
+    .copy-prompt { font-family: var(--mono); font-size: 12px; padding: 9px 12px; border: 1px solid var(--accent); border-radius: 9px; background: var(--accent-soft); color: var(--accent); cursor: pointer; }
+    .copy-prompt:hover { background: var(--surface-2); }
+    .copy-prompt:focus-visible, .prompt-text:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+    .prompt-text { white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--mono); font-size: 12.5px; line-height: 1.7; color: var(--text); margin: 14px 0; user-select: text; }
+    .prompt-text mark { background: var(--accent-soft); color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+    .prompt-card p { font-size: 15px; }
+    .prompt-card p:last-child { margin-bottom: 0; }
+    .try-event { font-size: 15px; }
+    #get-started > div { min-width: 0; }
     footer { padding: 40px 0 60px; font-family: var(--mono); font-size: 12px; color: var(--dim); }
     footer a { color: var(--text-secondary); text-decoration: none; }
     @media (max-width: 720px) {
       body { font-size: 16px; }
       .wrap { padding: 0 18px; }
+      .bar { padding: 12px 18px; grid-template-columns: 1fr auto; gap: 10px; }
+      .bar .tt { grid-column: 2; grid-row: 1; }
+      nav.top { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: repeat(3, auto); justify-content: space-between; gap: 0 12px; border-top: 1px solid var(--border); padding-top: 6px; }
+      nav.top a { white-space: nowrap; padding: 7px 0; }
       section { grid-template-columns: 1fr; gap: 0; padding: 34px 0; }
       .snum { padding: 0 0 8px; }
       .facts .row { grid-template-columns: 1fr; }
@@ -94,7 +111,7 @@
   <header>
     <div class="wrap bar">
       <a class="logo" href="/">simple<b>·</b>host</a>
-      <div style="display:flex;align-items:center;gap:14px">
+      <div class="header-links">
         <nav class="top">
           <a href="/">Home</a>
           <a href="/enterprise">For companies</a>
@@ -124,8 +141,38 @@
       </div>
     </section>
 
-    <section id="who">
+    <section id="get-started">
       <div class="snum">01.</div>
+      <div>
+        <h2>Get started</h2>
+        <p class="lede">Copy your prompt into the AI agent you already use. Answer its questions.</p>
+        <div class="prompt-card">
+          <div class="prompt-head">
+            <h3>Organiser · Set up an event</h3>
+            <button class="copy-prompt" type="button" data-prompt="organiser-prompt" aria-label="Copy organiser prompt" aria-live="polite">Copy organiser prompt</button>
+          </div>
+          <pre class="prompt-text" id="organiser-prompt" tabindex="0">Read https://simple-host.app/skills/run-hackathon/SKILL.md and follow it.
+Set up a hackathon instance for me on my own cloud account.</pre>
+          <p>The agent asks which cloud provider you use and for an API token, then creates the server, gives it a web address, installs everything and hands back the keys.</p>
+          <p>About five dollars a month on your own cloud account, billed hourly.</p>
+        </div>
+        <div class="prompt-card">
+          <div class="prompt-head">
+            <h3>Participant · I have a key</h3>
+            <button class="copy-prompt" type="button" data-prompt="participant-prompt" aria-label="Copy participant prompt" aria-live="polite">Copy participant prompt</button>
+          </div>
+          <p>Replace <code>YOUR-EVENT-ADDRESS</code> with your event's address and <code>YOUR-KEY</code> with the key you were given.</p>
+          <pre class="prompt-text" id="participant-prompt" tabindex="0">Read https://<mark>YOUR-EVENT-ADDRESS</mark>/llms.txt and follow it exactly.
+My Simple Host API key is: <mark>YOUR-KEY</mark>
+Ask me what I want to build, then build it and publish it.</pre>
+          <p>Works in any agent that can fetch a URL: ChatGPT, Claude Code, Codex, Copilot, Cursor, Gemini.</p>
+        </div>
+        <p class="try-event">Trying it without an event? Sign in at simple-host.app and use the participant prompt with <code>simple-host.app</code> as the address.</p>
+      </div>
+    </section>
+
+    <section id="who">
+      <div class="snum">02.</div>
       <div>
         <h2>Who this is for</h2>
         <p>A company where few people write code for a living but most have Claude Code, Codex, Cursor or Copilot. A college class. A team offsite. Any group whose members have not deployed a website before.</p>
@@ -134,7 +181,7 @@
     </section>
 
     <section id="organiser">
-      <div class="snum">02.</div>
+      <div class="snum">03.</div>
       <div>
         <h2>What the organiser does</h2>
         <p class="lede">Installs the <strong>Run Hackathon</strong> skill and asks their agent to set up an event. The agent does the rest and reports back.</p>
@@ -149,7 +196,7 @@
     </section>
 
     <section id="participant">
-      <div class="snum">03.</div>
+      <div class="snum">04.</div>
       <div>
         <h2>What a participant does</h2>
         <ol>
@@ -164,7 +211,7 @@
     </section>
 
     <section id="during">
-      <div class="snum">04.</div>
+      <div class="snum">05.</div>
       <div>
         <h2>During and after</h2>
         <p class="lede">The organiser gets one screen listing every entry with its link, filterable, copyable and downloadable as a spreadsheet. That is the list you hand to judges.</p>
@@ -176,7 +223,7 @@
     </section>
 
     <section id="not">
-      <div class="snum">05.</div>
+      <div class="snum">06.</div>
       <div>
         <h2>Not built</h2>
         <p>Say what is missing before the event, not during it.</p>
@@ -191,7 +238,7 @@
     </section>
 
     <section id="start">
-      <div class="snum">06.</div>
+      <div class="snum">07.</div>
       <div>
         <h2>Start</h2>
         <p>Try it as a participant first, on <a href="/">simple-host.app</a>, which runs the same software and is free. Sign in, install the skill, ask your agent for a page. Then install the hackathon skill and set up an event of your own.</p>
@@ -214,6 +261,27 @@
     var MOON = '<path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/>';
     function paintIcon(){ document.getElementById('tt-i').innerHTML = document.documentElement.dataset.theme === 'light' ? MOON : SUN; }
     function toggleTheme(){ var t = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'; document.documentElement.dataset.theme = t; try{ localStorage.setItem('sh-theme', t); }catch(e){} paintIcon(); }
+    document.querySelectorAll('.copy-prompt').forEach(function(button) {
+      var label = button.textContent;
+      var timer;
+      button.addEventListener('click', async function() {
+        clearTimeout(timer);
+        var prompt = document.getElementById(button.dataset.prompt);
+        try {
+          await navigator.clipboard.writeText(prompt.textContent);
+          button.textContent = 'Copied';
+        } catch (error) {
+          prompt.focus();
+          var range = document.createRange();
+          range.selectNodeContents(prompt);
+          var selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          button.textContent = 'Text selected — copy manually';
+        }
+        timer = setTimeout(function() { button.textContent = label; }, 2500);
+      });
+    });
     paintIcon();
   </script>
 </body>
