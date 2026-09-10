@@ -22,10 +22,13 @@ while [ $# -gt 0 ]; do
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
-[ -n "$HOST" ] || { echo "--host is required" >&2; exit 2; }
+# No --host is a real choice, not a mistake: it is how a box installed from a
+# provider's catalog comes up, asking where it lives instead of guessing.
+SETUP_ONLY=0
+[ -n "$HOST" ] || SETUP_ONLY=1
 # Two hostnames, always. Participant pages must never share an origin with the
 # admin interface, or anything a participant publishes could script it.
-[ -n "$CONTENT" ] || CONTENT="sites.$HOST"
+[ -n "$CONTENT" ] || { [ -n "$HOST" ] && CONTENT="sites.$HOST"; } || true
 
 DIR=/opt/simple-host
 say() { echo "==> $*"; }
@@ -100,7 +103,13 @@ docker compose up -d --no-build
 say "waiting for the instance to answer"
 healthy=0
 for _ in $(seq 1 60); do
-  if curl -fsS -o /dev/null --max-time 3 -H "Host: $HOST" "http://127.0.0.1/healthz" 2>/dev/null; then healthy=1; break; fi
+  if [ "$SETUP_ONLY" -eq 1 ]; then
+    # The product is absent until setup finishes, so the setup page is the
+    # only thing that can answer, and answering is what success means here.
+    if curl -fsS -o /dev/null --max-time 3 "http://127.0.0.1/v1/setup/state" 2>/dev/null; then healthy=1; break; fi
+  else
+    if curl -fsS -o /dev/null --max-time 3 -H "Host: $HOST" "http://127.0.0.1/healthz" 2>/dev/null; then healthy=1; break; fi
+  fi
   sleep 2
 done
 # Never print the success envelope for an instance that did not come up. An
@@ -112,9 +121,19 @@ if [ "$healthy" -ne 1 ]; then
   exit 1
 fi
 
-cat <<EOF
+if [ "$SETUP_ONLY" -eq 1 ]; then
+  IP=$(curl -fsS --max-time 5 https://api.ipify.org 2>/dev/null || echo "<this server\'s address>")
+  cat <<EOF
+
+{"setup_url":"http://$IP/","dir":"$DIR"}
+
+Open that address in a browser to finish. It asks where this instance lives.
+EOF
+else
+  cat <<EOF
 
 {"host":"https://$HOST","content_host":"https://$CONTENT","admin_api_key":"$ADMIN_KEY","dir":"$DIR"}
 
 Keep the admin key. It is shown once and nothing else displays it.
 EOF
+fi

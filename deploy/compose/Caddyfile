@@ -9,11 +9,13 @@
 
 # Dashboard, sign-in and API. Separate origin from user content on purpose:
 # participant pages must never share an origin with the admin UI.
-{$SITE_ADDR} {
+{$SITE_ADDR:setup-pending.invalid} {
 	reverse_proxy app:8090
 }
 
-# Setup mode: a box installed from a catalog has no hostname yet, and the person
+# Setup mode. The two blocks above are given an address that can never resolve
+# when their variables are unset, so they are inert rather than a parse error.
+# A box installed from a catalog has no hostname yet, and the person
 # who created it only knows its IP address. Serve that address over plain HTTP
 # so the setup page is reachable before any certificate can exist.
 :80 {
@@ -23,7 +25,7 @@
 # Content host. Every site is served by PATH under one origin:
 #   /<handle>/<site>/<rest>  ->  handles/<handle>/<site>/current/<rest>
 # The app is not in the content path; Caddy serves the bytes off disk.
-{$CONTENT_ADDR} {
+{$CONTENT_ADDR:sites.setup-pending.invalid} {
 	# Access log for the analytics ingester. Caddy writes JSON; the ingester
 	# reads it directly. Only the content host is logged, because only content
 	# requests are page views.
