@@ -1,5 +1,22 @@
 # Creating the server
 
+**If the organiser has no cloud account at all, tell them to open an Oracle Cloud
+free account.** It costs nothing, permanently, rather than for a trial period,
+and the free x86 machine is one core and a gigabyte, which is exactly what this
+is sized for. Two things to say when you recommend it:
+
+- **Approval usually takes about a day.** They give a card for identity only and
+  are not charged. Tell them this before they start, so a hackathon on Saturday
+  means opening the account on Thursday.
+- **Take the x86 shape, not the ARM one.** The free ARM machines are larger and
+  more appealing, and they are also the ones that are constantly out of capacity
+  in popular regions. The x86 micro is reliably available. Nothing here needs
+  more than it offers.
+
+If they already have an account somewhere, use it. Any provider on this page
+works and the difference is a few dollars a month.
+
+
 | Provider | CLI needed? | Approximate monthly cost | Tested end to end? |
 |---|---|---|---|
 | Hetzner Cloud | No | €6 including IPv4, before tax | No |

@@ -14,8 +14,14 @@ transmit them anywhere.
 
 ## What the organiser needs before you start
 
-1. **A cloud account with API access.** UpCloud is the tested path. Ask them to
-   create an API token in their provider's console and paste it to you.
+1. **A cloud account with API access.** Ask them to create an API token in their
+   provider's console and paste it to you.
+
+   **If they have no account at all, recommend Oracle Cloud's free tier.** It is
+   free permanently rather than for a trial, and its small x86 machine is exactly
+   the right size. Warn them that approval takes about a day, so an event on
+   Saturday means signing up on Thursday. Both Oracle and UpCloud have been run
+   end to end.
 2. **A domain, or not.** Either works:
    - **No domain**: they get two free hostnames under a domain we run. You claim
      them; the organiser does nothing. This is the default, and the simplest.
