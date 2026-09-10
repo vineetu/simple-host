@@ -1,15 +1,20 @@
 # Installing
 
-One command over SSH, as root, on the fresh box.
+One command over SSH on the fresh box.
+
+**`<user>` is not always `root`.** UpCloud, Hetzner, DigitalOcean and Vultr give
+you `root`. **Oracle gives you `ubuntu` and refuses root outright**, which is why
+the script is fetched to `/tmp` and run with `sudo`: `/root` is not writable by
+the user you land as.
 
 `StrictHostKeyChecking=accept-new` matters when nobody is watching: the first
 connection to a brand-new machine otherwise stops to ask whether you trust its
 fingerprint, and an unattended agent simply hangs there.
 
 ```bash
-ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/hackathon_key root@<ip> \
-  'curl -fsSL https://raw.githubusercontent.com/vineetu/simple-host/main/deploy/install/install.sh -o /root/install.sh && \
-   bash /root/install.sh --host <event>.<domain> --content sites.<event>.<domain> --image ghcr.io/vineetu/simple-host:0.1.1'
+ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/hackathon_key <user>@<ip> \
+  'curl -fsSL https://raw.githubusercontent.com/vineetu/simple-host/main/deploy/install/install.sh -o /tmp/install.sh && \
+   sudo bash /tmp/install.sh --host <event>.<domain> --content sites.<event>.<domain> --image ghcr.io/vineetu/simple-host:0.1.1'
 ```
 
 **Pin the image.** `latest` moves on every release, so an unattended re-run can
@@ -63,7 +68,7 @@ elsewhere. Check what the name resolves to before touching the server.
 ## If something is wrong
 
 ```bash
-ssh -i ~/.ssh/hackathon_key root@<ip> 'cd /opt/simple-host && docker compose ps && docker compose logs --tail 40'
+ssh -i ~/.ssh/hackathon_key <user>@<ip> 'cd /opt/simple-host && docker compose ps && docker compose logs --tail 40'
 ```
 
 Caddy repeatedly failing to get a certificate almost always means DNS is not

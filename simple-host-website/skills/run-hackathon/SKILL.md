@@ -34,10 +34,15 @@ on their laptop, and let them choose.
    - **Their own domain**: they add two DNS records themselves. Choose this if
      they want their own name on it, or if they want email or Google sign-in
      later, which need records only they can add.
-3. **Nothing else.** No email provider, no Google project, no Docker, no terminal.
+3. **A Simple Host account**, if they want a free hostname rather than using
+   their own domain. Signing in at simple-host.app gives them an account key, and
+   the claim is made with it. It takes a minute and needs no card.
+4. **Nothing else.** No email provider, no Google project, no Docker.
 
-Tell them the cost before creating anything: about five dollars a month, billed
-hourly, so a weekend event is cents. Confirm before you create the server.
+Tell them the cost before creating anything, and get the number right for the
+provider you are actually using. **On Oracle's always-free shape it is nothing.**
+Everywhere else it is about five dollars a month, billed hourly, so a weekend is
+cents. Confirm before you create the server.
 
 ## The flow
 
@@ -57,9 +62,15 @@ whoever is viewing it.
 Smallest Ubuntu 24.04 plan with at least 1 GB of memory.
 `references/providers.md` (https://simple-host.app/v1/skills/run-hackathon/references/providers.md) has the exact calls per provider.
 
-**Do not install a provider CLI.** Every provider except Oracle is driven with a
-bearer token and `curl`, which is already on the organiser's machine. An install
-on somebody else's laptop is a version, a login and a new way to fail.
+**Avoid installing a provider CLI where you can.** Hetzner, DigitalOcean,
+UpCloud, Vultr and Hostinger are all driven with a bearer token and `curl`, which
+is already there. An install on somebody else's laptop is a version, a login and
+a new way to fail.
+
+**Oracle is the exception and it is a real one.** It signs every request with an
+RSA key pair, so it needs the `oci` tool and a config file in a hidden directory,
+which is more than "paste a token". If the organiser cannot face that, point them
+at any of the others; five dollars a month buys a much shorter path.
 
 Generate an SSH key locally and pass the public half at creation, so nothing
 needs a password. Never overwrite a key that already exists.
@@ -110,6 +121,7 @@ With the admin key, from their roster:
 
 ```
 POST https://<event-host>/v1/admin/users
+X-API-Key: <the admin key the install printed>
 {"emails": ["ada@example.edu", "alan@example.edu"]}
 ```
 

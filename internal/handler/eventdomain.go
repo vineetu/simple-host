@@ -357,7 +357,11 @@ func (h *EventDomainHandler) list(w http.ResponseWriter, r *http.Request) {
 			"ip": ip, "expires_at": exp.UTC().Format(time.RFC3339),
 		})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"events": out})
+	// The configured domains ship with the listing so an agent can discover them
+	// by asking rather than by provoking an error. The skill told agents to ask
+	// the instance which domains it offers, and until now the only way to find
+	// out was to submit a bad claim and read the rejection.
+	writeJSON(w, http.StatusOK, map[string]any{"events": out, "domains": h.domains})
 }
 
 // StartSweep deletes records for claims nobody tore down.

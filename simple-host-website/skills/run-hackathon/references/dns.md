@@ -36,6 +36,29 @@ For an event called `builds` on `example.com`, that is `builds.example.com` and
 
 Use a short TTL, 60 to 300 seconds, so teardown takes effect quickly.
 
+## The wildcard will lie to you for half an hour
+
+The domain that hands out free hostnames carries a wildcard record with a
+**30-minute lifetime**, while event records use two minutes. Any resolver that
+looked up the name *before* the claim keeps serving the wildcard until that
+expires.
+
+What that looks like: `https://<event>/healthz` returns **404 behind a valid
+certificate**, because you reached the wildcard's host and it holds a real
+certificate for the domain. It looks exactly like a failed install of a working
+instance. Both walkthroughs of this skill lost time to it.
+
+Check against a public resolver rather than your own, and compare:
+
+```bash
+dig +short <event>.<domain> A @1.1.1.1
+dig +short <event>.<domain> A @8.8.8.8
+```
+
+If those show the server and your own machine disagrees, the instance is fine
+and your resolver is stale. Say so to the organiser rather than debugging the
+server.
+
 ## Wait for them before installing
 
 ```bash

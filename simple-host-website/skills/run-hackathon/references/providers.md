@@ -24,7 +24,7 @@ works and the difference is a few dollars a month.
 | UpCloud | No | €3 / US$3.50 | Yes |
 | Vultr | No | About US$5; confirm current plan price | No |
 | Hostinger | No; immediate deletion is not exposed | US$6.49 promotional; short terms cost more | No |
-| Oracle Cloud | Yes, `oci` | US$0 within Always Free allowance | No |
+| Oracle Cloud | Yes, `oci` | US$0 on the always-free x86 shape | Yes |
 
 Published documentation checked 2026-09-09. Prices vary by region, tax and term.
 UpCloud is the only provider previously used to create, install, use and destroy
@@ -198,7 +198,11 @@ Control Panel → Account → API Tokens → Add new API token → name it `hack
 → expiry after teardown → allow the laptop's public IP → Create API token →
 copy it. [Token instructions](https://upcloud.com/docs/guides/managing-api-tokens/).
 
-`DEV-1xCPU-1GB` and `STARTER-1xCPU-1GB` were both returned by the live API.
+`DEV-1xCPU-1GB` and `STARTER-1xCPU-1GB` were both returned by the live API, but
+**Both refuse `maxiops` storage.** The small plans take `standard` only, and
+asking for anything else answers `TIER_INVALID` with a message naming the tier
+rather than the plan, so it reads as a storage problem when it is really a plan
+one. Use `"tier":"standard"`, exactly as below.
 Use Starter: 1 vCPU, 1 GB RAM, 10 GB Standard disk and public IPv4, about
 €3 / US$3.50 monthly, billed hourly. Published docs now favour Starter over
 Developer plans. [Configurations](https://upcloud.com/docs/products/cloud-servers/configurations/),
@@ -413,22 +417,27 @@ and set `key_file` to the downloaded private key. It contains the tenancy OCID,
 user OCID, fingerprint and region. This API signing key is separate from the
 server's SSH key. [API key setup](https://docs.oracle.com/en-us/iaas/Content/API/Concepts/apisigningkey.htm).
 
-`VM.Standard.A1.Flex` is ARM. Use 1 OCPU and 6 GB RAM, US$0 within the
-Always Free allowance of **4 OCPU and 24 GB across the tenancy**. The x86
-alternative is `VM.Standard.E2.1.Micro`, with two free instances, each 1 OCPU
-and 1 GB. Paid usage outside free allowances is metered; do not assume any
-launch labelled A1 is automatically free. Use an eligible image and the home
-region. [Always Free limits](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm).
+**Use `VM.Standard.E2.1.Micro`.** Two of them are always free, each 1 OCPU and
+1 GB, and that allowance is independent of the ARM pool, so it is free whatever
+else the tenancy is running. One core and a gigabyte is what everything here is
+sized for.
 
-Earlier read-only checks resolved authentication, availability domains, free
-shapes and ARM images. They did not test a launch.
+`VM.Standard.A1.Flex` is the larger, more tempting ARM shape, and it is free
+only within **4 OCPU and 24 GB across the entire tenancy**. Anything else already
+running eats that, and a launch over the line is billed rather than refused. Do
+not reach for it to get a bigger machine without adding up the allowance first,
+and never on an account someone opened because they have no money.
+
+Use an eligible image and the home region. [Always Free limits](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm).
+
+
 
 ```bash
 C='<compartment OCID; tenancy OCID works for a simple account>'
 oci iam availability-domain list -c "$C"
 oci compute image list -c "$C" \
   --operating-system 'Canonical Ubuntu' --operating-system-version '24.04' \
-  --shape VM.Standard.A1.Flex --sort-by TIMECREATED --sort-order DESC --all
+  --shape VM.Standard.E2.1.Micro --sort-by TIMECREATED --sort-order DESC --all
 oci network subnet list -c "$C" --all
 AD='<availability-domain name>'
 IMAGE_ID='<newest compatible Ubuntu 24.04 ARM image OCID>'
@@ -441,8 +450,7 @@ is needed.
 
 ```bash
 oci compute instance launch -c "$C" \
-  --availability-domain "$AD" --shape VM.Standard.A1.Flex \
-  --shape-config '{"ocpus":1,"memoryInGBs":6}' \
+  --availability-domain "$AD" --shape VM.Standard.E2.1.Micro \
   --image-id "$IMAGE_ID" --subnet-id "$SUBNET_ID" \
   --display-name hackathon --ssh-authorized-keys-file ~/.ssh/hackathon_key.pub \
   --assign-public-ip true --wait-for-state RUNNING

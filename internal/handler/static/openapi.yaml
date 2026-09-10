@@ -1506,6 +1506,11 @@ paths:
               schema:
                 type: object
                 properties:
+                  domains:
+                    type: array
+                    description: The event domains this instance can create names under. Ask for these rather than assuming; an instance may offer none.
+                    items: { type: string }
+                    example: [simple-hack.app]
                   events:
                     type: array
                     items:
