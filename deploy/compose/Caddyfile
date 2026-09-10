@@ -5,31 +5,29 @@
 	# account registration without an address; it is only used for expiry
 	# notices, and these instances are short-lived.
 	admin off
+
+	# Certificates are fetched the first time a hostname is asked for, after the
+	# application confirms the name is its own.
+	#
+	# This is what lets a box be installed before it knows where it lives. The
+	# hostname never appears in this file, so setup does not have to rewrite
+	# configuration it cannot reach, and nothing has to be restarted: the
+	# application records the choice, and the next request for that name gets a
+	# certificate.
+	on_demand_tls {
+		ask http://app:8090/internal/tls-ask
+	}
 }
 
-# Dashboard, sign-in and API. Separate origin from user content on purpose:
-# participant pages must never share an origin with the admin UI.
-{$SITE_ADDR:setup-pending.invalid} {
-	reverse_proxy app:8090
-}
+# Every hostname this instance answers to, over HTTPS.
+https:// {
+	tls {
+		on_demand
+	}
 
-# Setup mode. The two blocks above are given an address that can never resolve
-# when their variables are unset, so they are inert rather than a parse error.
-# A box installed from a catalog has no hostname yet, and the person
-# who created it only knows its IP address. Serve that address over plain HTTP
-# so the setup page is reachable before any certificate can exist.
-:80 {
-	reverse_proxy app:8090
-}
-
-# Content host. Every site is served by PATH under one origin:
-#   /<handle>/<site>/<rest>  ->  handles/<handle>/<site>/current/<rest>
-# The app is not in the content path; Caddy serves the bytes off disk.
-{$CONTENT_ADDR:sites.setup-pending.invalid} {
-	# Access log for the analytics ingester. Caddy writes JSON; the ingester
-	# reads it directly. Only the content host is logged, because only content
-	# requests are page views.
 	log {
+		# Access log for the analytics ingester. Caddy writes JSON; the ingester
+		# reads it directly.
 		output file /var/log/caddy/access.log {
 			# Caddy runs as root in its official image; the server runs as
 			# nonroot. Without an explicit mode the log is created 0600 and the
@@ -43,11 +41,17 @@
 		format json
 	}
 
+	# The API belongs to the application on every hostname.
 	@api path /v1/* /internal/*
 	handle @api {
 		reverse_proxy app:8090
 	}
-	handle {
+
+	# Participant content lives on sites.<dashboard>, matched by shape rather
+	# than by name, because the name is not known when this file is written.
+	# Serving it here keeps the application out of the content path.
+	@content host sites.*
+	handle @content {
 		@nodir path_regexp nodir ^/([a-z0-9-]{1,39})/([a-z0-9-]{1,63})$
 		redir @nodir {uri}/ 308
 
@@ -56,4 +60,16 @@
 		root * /data/sites/handles
 		file_server
 	}
+
+	# Everything else is the dashboard, sign-in and, before setup, the setup page.
+	handle {
+		reverse_proxy app:8090
+	}
+}
+
+# Plain HTTP on the raw address. A box installed from a catalog has no hostname
+# yet, and the person who created it only knows its IP, so the setup page has to
+# be reachable before any certificate can exist.
+:80 {
+	reverse_proxy app:8090
 }
