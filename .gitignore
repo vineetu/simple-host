@@ -25,3 +25,8 @@ node_modules/
 # Local env
 .env
 .env.local
+
+# Task briefs handed to a worker; not part of the product.
+SETUP-TASK.md
+PROVIDERS-TASK.md
+REVIEW-hackathon.md
