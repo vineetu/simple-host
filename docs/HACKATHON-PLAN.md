@@ -16,7 +16,12 @@ live link. We never hold anyone's credentials.
   can absolutely use our *domain*: `stanford-cs-2026.<our-domain>` and
   `sites.stanford-cs-2026.<our-domain>`, two A records pointing at their own box.
   Bringing their own domain stays optional and is what unlocks Resend and Google.
-- **2026-09-09. Event subdomains use simple-host.app and agent-deploy.dev, both.**
+- **2026-09-10. Event hostnames live on simple-hack.app, bought for the purpose.**
+  A separate domain keeps event content away from the product's own reputation
+  and its certificate allowance, and it is the domain to put on the Public
+  Suffix List. Verified live: a claim creates both records and they resolve, and
+  a name already serving something on another domain is still refused.
+- **2026-09-09. Superseded. Event subdomains used simple-host.app and agent-deploy.dev.**
   Let's Encrypt allows 50 certificates per registered domain per week and
   subdomains share that budget, but only 2 certificates are in use on
   simple-host.app and 1 on agent-deploy.dev, renewing roughly every 60 days. So

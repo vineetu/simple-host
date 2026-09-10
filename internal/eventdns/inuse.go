@@ -34,28 +34,33 @@ func NewLiveProbe() *LiveProbe {
 }
 
 // InUse fetches https://<name>.<domain>/ and a control hostname on the same
-// domain. A difference in status means the candidate is being served.
+// domain, then compares what happened.
 //
-// Fails closed: if the control cannot be reached the answer is "in use", because
-// allowing a claim on the strength of a failed probe is how a live name gets
-// taken.
+// The comparison is against the control, not against a fixed expectation,
+// because what an unused name does varies by domain. On a domain with a
+// wildcard and a web server behind it, an unused name returns a 404. On a bare
+// domain with nothing attached, an unused name fails to connect at all. Both
+// are "nothing is here", and both must let a claim through.
+//
+// So a failed request is a result, not an error: two failures that match mean
+// the domain serves nothing, which is exactly the state a fresh event domain is
+// in. Only a candidate that behaves DIFFERENTLY from the control is in use.
 func (p *LiveProbe) InUse(ctx context.Context, domain, name string) (bool, error) {
 	control, err := randomLabel()
 	if err != nil {
 		return true, err
 	}
 	controlStatus, controlErr := p.status(ctx, control+"."+domain)
-	if controlErr != nil {
-		return true, controlErr
-	}
+	controlReachable := controlErr == nil
+
 	for _, host := range []string{name + "." + domain, "sites." + name + "." + domain} {
 		status, err := p.status(ctx, host)
-		if err != nil {
-			// Unreachable is not evidence of use; the control proved the path
-			// works, so this is specific to the candidate.
-			continue
+		reachable := err == nil
+		if reachable != controlReachable {
+			// One answers and the other does not. Something is there.
+			return true, nil
 		}
-		if status != controlStatus {
+		if reachable && status != controlStatus {
 			return true, nil
 		}
 	}
