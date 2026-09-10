@@ -110,6 +110,18 @@ table.apx td.err{color:var(--err)}
     </div>
   </div>
 
+  <div class="panel" id="entries" hidden>
+    <h2>Entries</h2>
+    <p class="ph">Every published site, newest first. This is the list to give judges.</p>
+    <div class="row">
+      <input type="text" id="entry-filter" placeholder="Filter by name or account" oninput="renderEntries()">
+      <button class="btn ghost" onclick="downloadEntries()">Download CSV</button>
+      <button class="btn ghost" onclick="copyEntries()">Copy links</button>
+    </div>
+    <table class="apx"><thead><tr><th>Entry</th><th>Account</th><th>Link</th></tr></thead><tbody id="entry-rows"></tbody></table>
+    <p class="ph" id="entry-count"></p>
+  </div>
+
   <div class="users" id="users"></div>
 
   <div id="apitraffic" hidden>
@@ -163,6 +175,56 @@ function userCard(u){
 // the only place the distinction can be drawn. Signing in on the main app is
 // enough: it stores the key under the same 'apiKey' name this reads.
 var lastIssued=[];
+var allEntries=[];
+
+// One row per published site, flattened out of the per-account view. An
+// organiser judging an event needs a list of links, not a list of people.
+function collectEntries(users){
+  allEntries=[];
+  (users||[]).forEach(function(u){
+    (u.sites||[]).forEach(function(s){
+      if(!s.site_url) return;   // never deployed; nothing to judge
+      allEntries.push({name:s.name, account:u.handle||u.username, url:s.site_url, domain:s.custom_domain||''});
+    });
+  });
+  var ep=document.getElementById('entries');
+  if(ep) ep.hidden = allEntries.length===0;
+  renderEntries();
+}
+
+function visibleEntries(){
+  var q=(document.getElementById('entry-filter')||{}).value||'';
+  q=q.trim().toLowerCase();
+  if(!q) return allEntries;
+  return allEntries.filter(function(e){ return (e.name+' '+e.account).toLowerCase().indexOf(q)>=0; });
+}
+
+function renderEntries(){
+  var rows=visibleEntries();
+  var tb=document.getElementById('entry-rows');
+  if(!tb) return;
+  tb.innerHTML=rows.map(function(e){
+    return '<tr><td>'+esc(e.name)+'</td><td>'+esc(e.account)+'</td>'+
+      '<td><a href="'+esc(e.url)+'" target="_blank" rel="noopener">'+esc(e.url)+'</a></td></tr>';
+  }).join('');
+  var c=document.getElementById('entry-count');
+  if(c) c.textContent=rows.length+' of '+allEntries.length+' entries';
+}
+
+function downloadEntries(){
+  var rows=[['entry','account','link','custom_domain']].concat(visibleEntries().map(function(e){return [e.name,e.account,e.url,e.domain];}));
+  var csv=rows.map(function(r){return r.map(function(v){return '"'+String(v).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download='entries.csv'; a.click(); URL.revokeObjectURL(a.href);
+}
+
+function copyEntries(){
+  var text=visibleEntries().map(function(e){return e.name+' — '+e.url;}).join('\n');
+  navigator.clipboard.writeText(text).then(function(){ status('Copied '+visibleEntries().length+' links.'); },
+    function(){ status('Could not copy. Use Download CSV.', true); });
+}
+
 
 async function issueAccounts(){
   var roster=document.getElementById('roster').value.trim();
@@ -237,6 +299,7 @@ async function load(){
     // Most sites first, then newest joiners.
     users.sort(function(a,b){ return (b.site_count-a.site_count) || (new Date(b.created_at)-new Date(a.created_at)); });
     document.getElementById('users').innerHTML = users.map(userCard).join('');
+    collectEntries(users);
     loadTraffic();
   }catch(e){ status('Could not reach the server: '+(e.message||e), true); }
 }

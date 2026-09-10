@@ -1075,6 +1075,48 @@
         }
       }
     },
+    "/v1/sites/{sitename}/export.tar.gz": {
+      "get": {
+        "operationId": "exportSite",
+        "summary": "Download a site as a tar.gz",
+        "description": "Streams the site's published files, its saved JSON state and its collections as one archive. Exists because an event instance is destroyed when the event ends and nothing is backed up, so the person who built something can take it with them. The saved data comes first: the files usually exist somewhere else, the JSON only lives here.",
+        "tags": [
+          "Sites"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sitename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A gzipped tar archive",
+            "content": {
+              "application/gzip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "or not yours": null
+          }
+        }
+      }
+    },
     "/v1/sites/{sitename}/versions": {
       "get": {
         "operationId": "getSitesBySitenameVersions",
