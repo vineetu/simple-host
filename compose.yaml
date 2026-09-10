@@ -27,9 +27,15 @@ services:
     environment:
       DB_DSN: postgres://simplehost:${DB_PASSWORD}@db:5432/simplehost?sslmode=disable
       ADMIN_API_KEY: ${ADMIN_API_KEY:?set ADMIN_API_KEY in .env}
-      SITE_DOMAIN: ${SITE_DOMAIN:-localhost}
-      CONTENT_HOST: ${CONTENT_HOST:-sites.localhost}
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost}
+      # No default. An unset hostname is the signal that this box has just been
+      # installed and does not yet know where it lives, which is what puts it
+      # into setup mode. Defaulting it to anything means a catalog install would
+      # come up pretending to be a working instance on an address nobody chose.
+      SITE_DOMAIN: ${SITE_DOMAIN-}
+      CONTENT_HOST: ${CONTENT_HOST-}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL-}
+      SETUP_PASSWORD: ${SETUP_PASSWORD-}
+      SETUP_PUBLIC_API: ${SETUP_PUBLIC_API-}
       ANALYTICS_LOG: /var/log/caddy/access.log
       # Only the public instance hands out event hostnames; a self-hosted
       # instance leaves these unset and organisers bring their own domain.

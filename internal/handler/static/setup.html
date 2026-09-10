@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set up Simple Host</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:dark;--bg:#020617;--surface:#0b1222;--border:#1e293b;--text:#f1f5f9;--muted:#94a3b8;--accent:#22d3ee;--mono:'JetBrains Mono',monospace;--display:'Archivo',sans-serif;--body:'Newsreader',Georgia,serif}
+*{box-sizing:border-box}body{margin:0;min-height:100svh;display:grid;place-items:center;background:var(--bg);color:var(--text);font:22px/1.5 var(--body);padding:24px;background-image:linear-gradient(#1e293b44 1px,transparent 1px),linear-gradient(90deg,#1e293b44 1px,transparent 1px);background-size:46px 46px}main{width:min(100%,680px);padding:clamp(24px,5vw,48px);border:1px solid var(--border);border-top:3px solid var(--accent);border-radius:14px;background:var(--surface);box-shadow:0 24px 80px #0004}h1{font:800 clamp(28px,6vw,42px)/1.12 var(--display);letter-spacing:-.035em;margin:0 0 26px}p{color:var(--muted);margin:18px 0}label{display:block}input,textarea{width:100%;font:16px/1.6 var(--mono);padding:14px;background:var(--bg);color:var(--text);border:1px solid #334155;border-radius:8px}input{margin:0 0 18px}textarea{resize:vertical;min-height:172px}button,.link{font:600 14px/1.4 var(--display);border:1px solid var(--accent);border-radius:8px;padding:14px 18px;background:var(--accent);color:var(--bg);cursor:pointer;min-height:46px}button:disabled{opacity:.6;cursor:wait}button.secondary{background:transparent;color:var(--accent)}.choices{display:grid;gap:14px}.choices button{text-align:left;padding:24px;font-size:20px}a{color:var(--accent)}:focus-visible{outline:3px solid var(--accent);outline-offset:5px}[hidden]{display:none!important}.error{color:#fb7185;font-size:18px}.table-wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font:12px/1.5 var(--mono)}th{text-align:left;color:var(--muted);font-weight:400}td,th{padding:10px 6px;border-bottom:1px solid var(--border);vertical-align:top}td{overflow-wrap:anywhere}td button{display:block;margin-top:6px;padding:6px 8px;font-size:11px;min-height:36px}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.7 var(--mono)}.key{font:13px/1.7 var(--mono);overflow-wrap:anywhere;padding:12px;background:var(--bg);border-radius:8px}.spinner{height:30px;width:30px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1.2s linear infinite;margin:22px 0}@keyframes spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.spinner{animation:none}}.done-actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:18px}@media(max-width:440px){body{padding:12px}main{padding:22px 16px}td,th{padding:8px 3px}}
+</style>
+</head>
+<body>
+<main>
+<!-- Static screen word counts, including buttons/placeholders, excluding entered
+     values: loading 3; password 5; choice 12; name 8; key 11; domain 7;
+     DNS 29 with two three-cell rows; saving 12 (with retry); certificates 13; configured 10.
+     Done intentionally retains the requested full prompt and key warning:
+     together these required elements exceed the 29-word screen budget. -->
+<section id="loading"><h1 tabindex="-1">Opening setup…</h1><div class="spinner" aria-hidden="true"></div><button id="reload" hidden>Retry</button></section>
+<section id="password" hidden><form><h1><label for="password-input">Your setup password?</label></h1><input id="password-input" type="password" autocomplete="current-password" required><button>Unlock setup</button></form></section>
+<section id="choice" hidden><h1 tabindex="-1">Do you have a domain?</h1><div class="choices"><button id="has-domain">Use my domain</button><button id="needs-domain">Get a free address</button></div></section>
+<section id="name" hidden><form><h1><label for="name-input">What's your event called?</label></h1><input id="name-input" placeholder="stanford-cs-2026" autocapitalize="none" spellcheck="false" required><button>Use this name</button></form></section>
+<section id="account-key" hidden><form><h1><label for="account-key-input">Your simple-host.app key?</label></h1><input id="account-key-input" type="password" autocomplete="off" required><p><a href="https://simple-host.app/" target="_blank" rel="noopener noreferrer">Get your key</a></p><button>Claim free address</button> <button type="button" class="secondary" id="edit-name">Edit name</button></form></section>
+<section id="domain" hidden><form><h1><label for="domain-input">What's your domain?</label></h1><input id="domain-input" placeholder="hack.example.com" autocomplete="url" autocapitalize="none" spellcheck="false" required><button>Show address settings</button></form></section>
+<section id="dns" hidden><h1 tabindex="-1">Connect domain</h1><p>Add in domain provider's DNS (address settings).</p><div class="table-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>Value</th></tr></thead><tbody id="records"></tbody></table></div><p role="status" id="dns-status">Waiting; allow minutes.</p><button class="secondary" id="edit-domain">Edit domain</button></section>
+<section id="saving" hidden><h1 tabindex="-1">Saving your address…</h1><p>Keep this page open for your key.</p><div class="spinner" aria-hidden="true"></div><button id="retry-save" hidden>Retry saving</button></section>
+<section id="certificates" hidden><h1 tabindex="-1">Securing your instance…</h1><div class="spinner" aria-hidden="true"></div><p role="status">Waiting for certificates that secure connections. Keep this page open.</p></section>
+<section id="done" hidden><h1 tabindex="-1">Done</h1><div class="key" id="admin-key"></div><button id="copy-key">Copy admin key</button><p>Save it. It won't be shown again.</p><pre id="prompt"></pre><button id="copy-prompt">Copy participant prompt</button><div class="done-actions"><a id="instance" target="_blank" rel="noopener noreferrer">Open instance</a></div></section>
+<section id="configured" hidden><h1 tabindex="-1">Already set up</h1><p>Open your instance using its chosen domain.</p></section>
+<p id="error" class="error" role="alert" hidden></p>
+</main>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+let screen = 'loading', hosts, timer;
+function show(id) {
+ clearTimeout(timer);
+ document.querySelectorAll('main > section').forEach(s => s.hidden = s.id !== id);
+ screen = id;
+ $('error').hidden = true;
+ const focus = $(id).querySelector('input, h1[tabindex]');
+ if (focus) focus.focus();
+}
+function error(message) { $('error').textContent = message; $('error').hidden = false; }
+async function request(path, body) {
+ let response;
+ try {
+  response = await fetch('/v1/setup/' + path, {method: body === undefined ? 'GET' : 'POST', headers: body === undefined ? {} : {'Content-Type':'application/json'}, body: body === undefined ? undefined : JSON.stringify(body), cache:'no-store', signal:AbortSignal.timeout(45000)});
+ } catch (_) { throw new Error('Check your connection and retry.'); }
+ const text = await response.text();
+ let data;
+ try { data = text ? JSON.parse(text) : {}; } catch (_) { data = {}; }
+ if (!response.ok) throw new Error((data.error || text || 'Request failed.') + ' Try again.');
+ return data;
+}
+function bindForm(id, action) {
+ $(id).querySelector('form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = event.target.querySelector('button');
+  const label = button.textContent;
+  const controls = [...event.target.querySelectorAll('button')];
+  controls.forEach(b => b.disabled = true); button.textContent = 'Working…'; $('error').hidden = true;
+  try { await action(); } catch (e) { error(e.message); }
+  finally { controls.forEach(b => b.disabled = false); button.textContent = label; }
+ });
+}
+// The initial page is HTTP on an IP, where navigator.clipboard is unavailable.
+async function copy(text, button) {
+ const label = button.textContent;
+ button.disabled = true;
+ button.textContent = 'Copying…';
+ try {
+  if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(text);
+  else {
+   const input = document.createElement('textarea');
+   input.value = text; input.style.cssText = 'position:fixed;left:-9999px;top:0';
+   document.body.append(input); input.focus(); input.select(); input.setSelectionRange(0, input.value.length);
+   const copied = document.execCommand('copy'); input.remove();
+   if (!copied) throw new Error();
+  }
+  button.textContent = 'Copied';
+ } catch (_) { error('Select the text and copy it manually.'); }
+ finally { button.disabled = false; button.focus(); setTimeout(() => { button.textContent = label; }, 1500); }
+}
+$('has-domain').onclick = () => show('domain');
+$('needs-domain').onclick = () => show('name');
+$('edit-name').onclick = () => show('name');
+$('edit-domain').onclick = () => show('domain');
+bindForm('password', async () => { await request('verify', {password:$('password-input').value}); $('password-input').value = ''; show('choice'); });
+bindForm('name', async () => show('account-key'));
+bindForm('account-key', async () => {
+ const result = await request('free-name', {name:$('name-input').value.trim(), api_key:$('account-key-input').value.trim()});
+ if (!result.host || result.content_host !== 'sites.' + result.host) throw new Error('Cannot read your address. Retry claiming it.');
+ hosts = result;
+ $('account-key-input').value = ''; // Used once; never saved to browser storage.
+ await finish();
+});
+bindForm('domain', async () => {
+ hosts = await request('own-domain', {domain:$('domain-input').value});
+ $('records').replaceChildren();
+ for (const record of hosts.records) {
+  const row = document.createElement('tr');
+  for (const field of ['name', 'type', 'value']) {
+   const cell = document.createElement('td');
+   const value = document.createElement('span'); value.textContent = record[field]; cell.append(value);
+   const button = document.createElement('button'); button.className = 'secondary'; button.textContent = 'Copy';
+   button.setAttribute('aria-label', 'Copy ' + field + ' ' + record[field]);
+   button.onclick = () => copy(record[field], button); cell.append(button); row.append(cell);
+  }
+  $('records').append(row);
+ }
+ show('dns'); pollDNS();
+});
+async function pollDNS() {
+ const domain = hosts.host;
+ try {
+  const result = await request('dns-check?domain=' + encodeURIComponent(domain));
+  if (screen !== 'dns' || hosts.host !== domain) return;
+  $('error').hidden = true;
+  if (result.host_ok && result.content_ok) { await finish(); return; }
+ } catch (e) { if (screen === 'dns') error(e.message + ' Checking automatically.'); }
+ if (screen === 'dns') timer = setTimeout(pollDNS, 5000);
+}
+async function finish() {
+ show('saving'); $('retry-save').hidden = true;
+ try {
+  const result = await request('finish', {host:hosts.host, content_host:hosts.content_host});
+  $('admin-key').textContent = result.admin_api_key;
+  // Participant keys are created later in admin; never distribute the admin key.
+  const prompt = 'Read https://' + hosts.host + '/llms.txt and follow it exactly.\nMy Simple Host API key is: <their key>\nAsk me what I want to build, then build it and publish it.';
+  $('prompt').textContent = prompt;
+  $('copy-key').onclick = () => copy($('admin-key').textContent, $('copy-key'));
+  $('copy-prompt').onclick = () => copy(prompt, $('copy-prompt'));
+  $('instance').href = 'https://' + hosts.host + '/';
+  show('certificates'); pollCertificates();
+ } catch (e) { error(e.message); $('retry-save').hidden = false; }
+}
+$('retry-save').onclick = finish;
+async function pollCertificates() {
+ try {
+  // Opaque responses permit cross-origin checks from the IP without requiring
+  // CORS on either host. Fetch still verifies each hostname's TLS certificate.
+  await Promise.all([hosts.host, hosts.content_host].map(host => fetch('https://' + host + '/?setup-check=' + Date.now(), {method:'HEAD', mode:'no-cors', credentials:'omit', cache:'no-store', signal:AbortSignal.timeout(12000)})));
+  if (screen === 'certificates') show('done');
+ } catch (_) {
+  if (screen === 'certificates') timer = setTimeout(pollCertificates, 5000);
+ }
+}
+async function start() {
+ $('reload').disabled = true;
+ try { const state = await request('state'); show(state.configured ? 'configured' : state.needs_password ? 'password' : 'choice'); }
+ catch (e) { error(e.message); $('reload').hidden = false; }
+ finally { $('reload').disabled = false; }
+}
+$('reload').onclick = start;
+start();
+</script>
+</body>
+</html>

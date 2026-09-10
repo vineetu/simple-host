@@ -13,6 +13,13 @@
 	reverse_proxy app:8090
 }
 
+# Setup mode: a box installed from a catalog has no hostname yet, and the person
+# who created it only knows its IP address. Serve that address over plain HTTP
+# so the setup page is reachable before any certificate can exist.
+:80 {
+	reverse_proxy app:8090
+}
+
 # Content host. Every site is served by PATH under one origin:
 #   /<handle>/<site>/<rest>  ->  handles/<handle>/<site>/current/<rest>
 # The app is not in the content path; Caddy serves the bytes off disk.

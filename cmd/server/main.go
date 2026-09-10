@@ -43,6 +43,29 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	// A box installed from a provider's catalog boots knowing nothing about
+	// where it lives. Rather than serve a broken product on an address nobody
+	// configured, it serves one setup page and nothing else until somebody
+	// answers. Settings chosen there are read back here on the next start,
+	// ahead of the environment, because the process cannot rewrite a file its
+	// container mounted read-only but can always write to its own database.
+	if savedDomain, savedContent, err := handler.InstanceConfigured(context.Background(), db); err != nil {
+		log.Fatalf("read instance config: %v", err)
+	} else if savedDomain != "" {
+		cfg.SiteDomain, cfg.ContentHost = savedDomain, savedContent
+		cfg.PublicBaseURL = "https://" + savedDomain
+		log.Printf("configured by setup: %s / %s", savedDomain, savedContent)
+	} else if !cfg.SiteDomainSet {
+		setup := handler.NewSetupHandler(db, cfg.SetupPublicAPI, cfg.SetupPassword)
+		setup.Register(mux)
+		log.Printf("SETUP MODE: no hostname configured; serving the setup page on :%s", cfg.Port)
+		srv := &http.Server{Addr: ":" + cfg.Port, Handler: mux}
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("setup server: %v", err)
+		}
+		return
+	}
+
 	// Ensure a real admin user row exists so the admin key can own sites.
 	adminKey, err := auth.GenerateAPIKey()
 	if err != nil {

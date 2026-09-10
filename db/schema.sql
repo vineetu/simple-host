@@ -356,3 +356,9 @@ ALTER TABLE oauth_states
     OR
     (purpose = 'owner' AND site_id IS NULL)
   );
+
+CREATE TABLE IF NOT EXISTS instance_config (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

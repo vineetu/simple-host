@@ -16,9 +16,11 @@ import (
 // is an optional post-activation hook (used to re-register shares on hosts that
 // have one); empty means no hook.
 const (
-	defaultDataDir       = "./data/sites"
-	defaultSiteDomain    = "simple-host.app"
-	defaultPort          = "8090"
+	defaultDataDir    = "./data/sites"
+	defaultSiteDomain = "simple-host.app"
+	defaultPort       = "8090"
+	// canonicalPublicHost is where a fresh box claims a free hostname from.
+	canonicalPublicHost  = "simple-host.app"
 	defaultDeployScript  = ""
 	defaultPublicBaseURL = "https://simple-host.app"
 	defaultMailFrom      = "Simple Host <noreply@simple-host.app>"
@@ -147,6 +149,9 @@ type Config struct {
 	// Set ANALYTICS_LOG=/var/log/simple-host/analytics.log in production.
 	AnalyticsLog string
 
+	SiteDomainSet  bool
+	SetupPublicAPI string
+	SetupPassword  string
 	EventDNSToken  string
 	EventDNSTeamID string
 	EventDomains   []string
@@ -215,6 +220,17 @@ func Load() (Config, error) {
 	// Event hostnames: handed to a hackathon organiser under a domain we own,
 	// pointing at their server. Unset means the feature is off and organisers
 	// must bring their own domain.
+	// Whether an operator actually chose a hostname. SiteDomain itself always
+	// has a value because it falls back to the canonical host, so it cannot
+	// answer this: an unset SITE_DOMAIN and one deliberately set to the
+	// canonical host are indistinguishable by the time it is read.
+	cfg.SiteDomainSet = strings.TrimSpace(os.Getenv("SITE_DOMAIN")) != ""
+
+	// Setup mode: where to claim a free hostname from, and an optional password
+	// supplied through the provider's user-data field at creation.
+	cfg.SetupPublicAPI = getEnvOrDefault("SETUP_PUBLIC_API", "https://"+canonicalPublicHost)
+	cfg.SetupPassword = os.Getenv("SETUP_PASSWORD")
+
 	cfg.EventDNSToken = os.Getenv("EVENT_DNS_TOKEN")
 	cfg.EventDNSTeamID = os.Getenv("EVENT_DNS_TEAM_ID")
 	for _, d := range strings.Split(os.Getenv("EVENT_DOMAINS"), ",") {

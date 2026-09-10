@@ -22,6 +22,7 @@ fail=0
 routes=$(grep -rhoE 'mux\.Handle(Func)?\("[A-Z]+ /v1/[^"]+"' internal/ cmd/ \
   | sed -E 's/.*"([A-Z]+) (\/v1\/[^"]+)"/\1 \2/' \
   | grep -vE '^OPTIONS ' \
+  | grep -vE ' /v1/setup/' \
   | awk '{print $2}' | sort -u)
 
 # Paths documented in openapi.yaml (top-level keys under paths:).
@@ -165,7 +166,7 @@ for f in internal/handler/static/*; do
   grep -qxF "$base" <<<"$listed" && continue
   # Pages served through serveStaticPage are templates, not agent-facing docs;
   # they are allowed to name the canonical host in prose.
-  case "$base" in admin.html|analytics.html|notfound.html|showcase.html|index.html|features.html|architecture.html|privacy.html|docs.html|enterprise.html|hackathons.html) continue ;; esac
+  case "$base" in admin.html|analytics.html|notfound.html|showcase.html|index.html|features.html|architecture.html|privacy.html|docs.html|enterprise.html|hackathons.html|setup.html) continue ;; esac
   missing="$missing $base"
 done
 if [ -n "$missing" ]; then
