@@ -113,40 +113,59 @@ ADMIN=$(grep -oE '"admin_api_key":"[^"]+"' /tmp/e2e-install.log | head -1 | cut 
 [ -n "$ADMIN" ] || { bad "install printed no admin key"; exit 1; }
 ok "installed, admin key issued"
 
+step "the records are visible to the world"
+# Checked against public resolvers, never this machine's. A resolver that looked
+# up the name before the claim keeps serving the domain's wildcard for half an
+# hour, and the wildcard holds a real certificate, so a working instance answers
+# 404 behind a green padlock. That is a stale cache, not a broken server, and a
+# test that cannot tell them apart is worse than no test.
+for _ in $(seq 1 30); do
+  A=$(dig +short "$HOST" A @1.1.1.1 2>/dev/null | head -1)
+  B=$(dig +short "sites.$HOST" A @8.8.8.8 2>/dev/null | head -1)
+  [ "$A" = "$IP" ] && [ "$B" = "$IP" ] && break
+  sleep 8
+done
+[ "$A" = "$IP" ] && ok "both names resolve to $IP" || bad "DNS never propagated (saw '$A' and '$B')"
+
+# Everything below pins the address, so the instance is tested rather than
+# whatever this machine's resolver happens to believe.
+PIN="--resolve $HOST:443:$IP --resolve sites.$HOST:443:$IP"
+
 step "certificates arrive without anyone configuring a hostname"
 for _ in $(seq 1 40); do
-  C=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 8 "https://$HOST/healthz" 2>/dev/null || echo 000)
+  C=$(curl -sS $PIN -o /dev/null -w '%{http_code}' --max-time 8 "https://$HOST/healthz" 2>/dev/null || echo 000)
   [ "$C" = "200" ] && break
   sleep 8
 done
 [ "$C" = "200" ] && ok "https://$HOST answers 200" || bad "no certificate after five minutes (a 404 here means DNS, not the install)"
 
 step "the organiser issues a participant key"
-PKEY=$(curl -sS -X POST -H "X-API-Key: $ADMIN" -H 'Content-Type: application/json' \
+PKEY=$(curl -sS $PIN -X POST -H "X-API-Key: $ADMIN" -H 'Content-Type: application/json' \
   -d '{"count":1,"prefix":"team"}' "https://$HOST/v1/admin/users" \
   | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d["created"][0]["api_key"] if d.get("created") else "")')
 [ -n "$PKEY" ] && ok "key issued" || bad "no participant key"
 
 step "a participant publishes, the way llms.txt tells them to"
-SITEURL=$(curl -sS -X POST -H "X-API-Key: $PKEY" -H 'Content-Type: application/json' \
+SITEURL=$(curl -sS $PIN -X POST -H "X-API-Key: $PKEY" -H 'Content-Type: application/json' \
   -d '{"files":{"index.html":"<h1>e2e</h1>"}}' "https://$HOST/v1/sites/entry/files" \
   | python3 -c 'import json,sys;print(json.load(sys.stdin).get("site_url",""))')
 [ -n "$SITEURL" ] && ok "$SITEURL" || bad "publish failed"
 
 step "the entry is actually reachable"
-BODY=$(curl -sS --max-time 20 "$SITEURL" 2>/dev/null)
+BODY=""
+[ -n "$SITEURL" ] && BODY=$(curl -sS $PIN --max-time 20 "$SITEURL" 2>/dev/null)
 grep -q "e2e" <<<"$BODY" && ok "served the right bytes" || bad "content host did not serve it"
 
 step "the instance describes itself, not the public one"
-LLMS=$(curl -sS --max-time 20 "https://$HOST/llms.txt")
+LLMS=$(curl -sS $PIN --max-time 20 "https://$HOST/llms.txt")
 grep -q "$HOST" <<<"$LLMS" && ok "names this instance" || bad "llms.txt does not name this instance"
 grep -q "/files" <<<"$LLMS" && ok "tells a participant how to publish" || bad "llms.txt never says how to publish"
 
 step "analytics count a real visit"
-for _ in 1 2 3; do curl -sS -o /dev/null -A "Mozilla/5.0 Chrome/140" --max-time 15 "$SITEURL"; done
+[ -n "$SITEURL" ] && for _ in 1 2 3; do curl -sS $PIN -o /dev/null -A "Mozilla/5.0 Chrome/140" --max-time 15 "$SITEURL"; done
 sleep 3
 ssh -o StrictHostKeyChecking=accept-new -i "$KEYFILE" "root@$IP" "cd /opt/simple-host && docker compose restart app >/dev/null 2>&1" || true
 sleep 14
-V=$(curl -sS --max-time 20 -H "X-API-Key: $ADMIN" "https://$HOST/v1/analytics/sites?days=1&all=1" \
+V=$(curl -sS $PIN --max-time 20 -H "X-API-Key: $ADMIN" "https://$HOST/v1/analytics/sites?days=1&all=1" \
   | python3 -c 'import json,sys;d=json.load(sys.stdin);print(sum(s["person"]["views"] for s in d.get("sites",[])))' 2>/dev/null || echo 0)
 [ "${V:-0}" -gt 0 ] && ok "$V views counted" || bad "analytics reported zero"
