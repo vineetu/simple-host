@@ -17,6 +17,33 @@ Use the smallest plan with at least 1 GB RAM and a public IPv4. The 512 MB
 bargain plans are below the reference server's memory. Installation is in
 [install.md](install.md); do not repeat it here.
 
+## Backups: use the provider's, do not build one
+
+Every provider on this page will back the whole machine up on a schedule, for
+roughly 20% of the server price. That is the right answer for an event: it
+captures the database and the files together, it needs nothing installed, and it
+survives the box itself. Offer it to the organiser before creating the server,
+because on some providers it is cheaper to enable at creation than to turn on
+afterwards.
+
+| Provider | How |
+|---|---|
+| UpCloud | a `backup_rule` on the storage device at create: `{"interval":"daily","time":"0300","retention":"7"}` |
+| Hetzner | `POST /v1/servers/{id}/actions/enable_backup` |
+| DigitalOcean | `"backups": true` in the create body, or `POST /v2/droplets/{id}/actions` with `{"type":"enable_backups"}` |
+| Vultr | `POST /v2/instances/{id}/backup-schedule` |
+| Oracle | boot volume backup policy on the volume |
+
+One caveat worth saying out loud rather than discovering later: a snapshot of a
+running machine is crash-consistent, not a clean shutdown. Postgres recovers from
+that on start, the same way it recovers from losing power, so it is fine here.
+It is not a substitute for a database dump if the data ever really matters.
+
+Participants can also take their own work with them at any time, which is a
+different thing and does not depend on the organiser:
+`GET /v1/sites/<name>/export.tar.gz` returns the files, the saved JSON and the
+collections as one archive.
+
 ## Before choosing a provider
 
 Generate a dedicated key on the organiser's laptop, unless it already exists.
