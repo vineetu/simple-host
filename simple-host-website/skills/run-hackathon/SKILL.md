@@ -5,6 +5,10 @@ description: Stand up a private Simple Host instance for a hackathon on the orga
 
 # Run a hackathon
 
+**Reading this over the web?** The reference documents are served under `/v1/`,
+not next to this file. Every mention below carries its full address for that
+reason; a relative path only resolves in an installed copy.
+
 The organiser gets a private instance on **their own cloud account**, paid for by
 them, that you create and later destroy. Participants get an API key each and
 publish with their own coding agent. Nobody signs in.
@@ -49,7 +53,7 @@ whoever is viewing it.
 ### 2. Create the server
 
 Smallest Ubuntu 24.04 plan with at least 1 GB of memory.
-`references/providers.md` has the exact calls per provider.
+`references/providers.md` (https://simple-host.app/v1/skills/run-hackathon/references/providers.md) has the exact calls per provider.
 
 **Do not install a provider CLI.** Every provider except Oracle is driven with a
 bearer token and `curl`, which is already on the organiser's machine. An install
@@ -81,7 +85,7 @@ for another. A claim expires after three weeks and re-claiming the same name
 extends it.
 
 **If they have their own domain**, they add the two records at their registrar.
-See `references/dns.md`.
+See `references/dns.md` (https://simple-host.app/v1/skills/run-hackathon/references/dns.md) (https://simple-host.app/v1/skills/run-hackathon/references/dns.md).
 
 Either way, wait until both names resolve before continuing. Installing first
 works, but certificate issuance fails and the organiser sees browser warnings,
@@ -89,7 +93,7 @@ which is far more alarming than waiting.
 
 ### 4. Install
 
-One command over SSH, from `references/install.md`. It is idempotent: if it
+One command over SSH, from `references/install.md` (https://simple-host.app/v1/skills/run-hackathon/references/install.md). It is idempotent: if it
 fails halfway, run it again. It installs Docker, pulls the published image,
 starts the stack and prints a JSON summary.
 
@@ -145,7 +149,7 @@ not a formality.
 ### 8. Tear it down
 
 When the event ends, **delete the server and remove both DNS records**. See
-`references/teardown.md`.
+`references/teardown.md` (https://simple-host.app/v1/skills/run-hackathon/references/teardown.md).
 
 Do not skip the DNS records. A record left pointing at a released cloud address
 means whoever receives that address next is serving content under that domain

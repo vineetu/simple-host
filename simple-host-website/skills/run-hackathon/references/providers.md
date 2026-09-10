@@ -32,7 +32,7 @@ an actual server. These rewritten commands have not been run against accounts.
 
 Use the smallest plan with at least 1 GB RAM and a public IPv4. The 512 MB
 bargain plans are below the reference server's memory. Installation is in
-[install.md](install.md); do not repeat it here.
+[install.md](https://simple-host.app/v1/skills/run-hackathon/references/install.md); do not repeat it here.
 
 ## Backups: use the provider's, do not build one
 
@@ -82,7 +82,7 @@ Teardown blocks are for the end of the event. They destroy the event's data.
 These examples create no extra volumes, snapshots or reserved IPs unless stated.
 If someone adds those later, record their IDs and delete those event resources
 too. Never delete unrelated account resources. Remove event DNS records as
-described in [teardown.md](teardown.md), using this file for provider deletion.
+described in [teardown.md](https://simple-host.app/v1/skills/run-hackathon/references/teardown.md), using this file for provider deletion.
 
 ## Hetzner Cloud
 

@@ -176,6 +176,29 @@ else
   echo "  ok — every agent-facing asset naming the host is rewritten"
 fi
 
+# ── a skill fetched over the web must be able to reach its own references ──
+# SKILL.md is served at /skills/<name>/SKILL.md but references live under
+# /v1/skills/<name>/references/. An agent resolving a relative path against the
+# first gets a 404, so every reference must also be cited by full URL. Codex
+# following the hackathon skill hit exactly this and could read none of them.
+echo "== skill references are reachable by URL =="
+missing=""
+for skill in simple-host-website/skills/*/; do
+  name=$(basename "$skill")
+  [ -d "$skill/references" ] || continue
+  for ref in "$skill"references/*.md; do
+    base=$(basename "$ref")
+    grep -q "v1/skills/$name/references/$base" "$skill/SKILL.md" "$skill"references/*.md 2>/dev/null \
+      || missing="$missing $name/$base"
+  done
+done
+if [ -n "$missing" ]; then
+  echo "  FAIL: reference cited only by relative path, unreachable over the web:$missing"
+  fail=1
+else
+  echo "  ok — every skill reference is cited by full URL somewhere"
+fi
+
 echo
 if [ "$fail" -ne 0 ]; then
   echo "DRIFT DETECTED — update openapi.yaml (source of truth) to match the routes."

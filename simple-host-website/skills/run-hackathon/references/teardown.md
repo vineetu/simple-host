@@ -10,7 +10,7 @@ If anyone wants to keep what they built, they take a copy before you begin.
 ## 1. Delete the server
 
 The exact calls are per provider and are in
-[providers.md](providers.md); each section ends with its teardown.
+[providers.md](https://simple-host.app/v1/skills/run-hackathon/references/providers.md); each section ends with its teardown.
 
 Two things are true almost everywhere and are the usual way a finished event
 keeps costing money:
