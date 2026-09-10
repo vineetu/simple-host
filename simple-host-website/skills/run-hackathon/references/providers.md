@@ -361,21 +361,29 @@ just because renewal is off. [API reference](https://developers.hostinger.com/).
 
 ## Oracle Cloud
 
-**The `oci` CLI is needed in practice. Untested end to end.** Every API request
+**The `oci` CLI is needed in practice. Tested end to end 2026-09-10.** Every API request
 uses an RSA signature, not a bearer token. Plain curl would require implementing
 request signing. Install `oci` using Oracle's
 [installation instructions](https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/cliinstall.htm).
 
-Verified 2026-09-10 against a real tenancy: authentication, availability
-domains, both always-free shapes, the ARM and x86 Ubuntu images and the network
-all resolve. **The launch itself has not been run**, because the credentials
-available for testing were scoped to `read all-resources`.
+Run end to end on 2026-09-10: launched, installed, hostnames claimed,
+certificates issued, a participant published, analytics counted, terminated.
+On `VM.Standard.E2.1.Micro`, the always-free x86 shape, at no cost.
 
-That matters for a reason beyond bookkeeping. A launch refused for want of
-permission returns `NotAuthorizedOrNotFound`, which reads exactly like a
-mistyped image or subnet id and is neither. If a launch fails that way, check the
-policy before checking anything else. An organiser using the API key from their
-own console will not hit it, because that key carries their own rights.
+Three things that will catch you, in the order they bite:
+
+- **A launch refused for want of permission returns `NotAuthorizedOrNotFound`**,
+  which reads exactly like a mistyped image or subnet id and is neither. Check
+  the policy first. Launching needs `manage instance-family`; `use
+  instance-family` only permits stopping and starting something that exists.
+  Add `use volume-family` for the boot volume and `use virtual-network-family`
+  to attach to a subnet and take a public address.
+- **Oracle instances carry their own firewall, and Ubuntu images ship with it
+  closed.** Opening ports on the subnet's security list is not enough: run
+  `iptables -I INPUT -p tcp --dport 80 -j ACCEPT` and the same for 443 on the
+  instance, then persist it. Nothing else on this page needs that step, and
+  skipping it looks exactly like a DNS problem.
+- **You log in as `ubuntu`, not `root`.** The install script needs `sudo`.
 
 Console → profile icon → My profile → API keys → Add API key → Generate API key
 pair → Download private key → Add → View configuration file. Console labels may
