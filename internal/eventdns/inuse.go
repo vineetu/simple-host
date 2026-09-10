@@ -50,17 +50,26 @@ func (p *LiveProbe) InUse(ctx context.Context, domain, name string) (bool, error
 	if err != nil {
 		return true, err
 	}
-	controlStatus, controlErr := p.status(ctx, control+"."+domain)
-	controlReachable := controlErr == nil
 
-	for _, host := range []string{name + "." + domain, "sites." + name + "." + domain} {
-		status, err := p.status(ctx, host)
-		reachable := err == nil
-		if reachable != controlReachable {
-			// One answers and the other does not. Something is there.
+	// Each candidate is compared against a control of the SAME SHAPE, because
+	// shape alone changes the answer. A wildcard certificate covers one label,
+	// so on a domain fronted by one, <name>.<domain> answers while
+	// sites.<name>.<domain> cannot connect at all -- whether or not anything is
+	// there. Comparing those two against a single control reports every content
+	// host as taken, which is a bug I shipped and this is the fix.
+	pairs := []struct{ candidate, control string }{
+		{name + "." + domain, control + "." + domain},
+		{"sites." + name + "." + domain, "sites." + control + "." + domain},
+	}
+	for _, pair := range pairs {
+		controlStatus, controlErr := p.status(ctx, pair.control)
+		status, err := p.status(ctx, pair.candidate)
+		if (err == nil) != (controlErr == nil) {
+			// One answers and its control does not, or the reverse. Something
+			// specific to this name is there.
 			return true, nil
 		}
-		if reachable && status != controlStatus {
+		if err == nil && status != controlStatus {
 			return true, nil
 		}
 	}
