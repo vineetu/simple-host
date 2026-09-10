@@ -366,6 +366,17 @@ uses an RSA signature, not a bearer token. Plain curl would require implementing
 request signing. Install `oci` using Oracle's
 [installation instructions](https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/cliinstall.htm).
 
+Verified 2026-09-10 against a real tenancy: authentication, availability
+domains, both always-free shapes, the ARM and x86 Ubuntu images and the network
+all resolve. **The launch itself has not been run**, because the credentials
+available for testing were scoped to `read all-resources`.
+
+That matters for a reason beyond bookkeeping. A launch refused for want of
+permission returns `NotAuthorizedOrNotFound`, which reads exactly like a
+mistyped image or subnet id and is neither. If a launch fails that way, check the
+policy before checking anything else. An organiser using the API key from their
+own console will not hit it, because that key carries their own rights.
+
 Console → profile icon → My profile → API keys → Add API key → Generate API key
 pair → Download private key → Add → View configuration file. Console labels may
 vary with the identity-domain view. Save the configuration in `~/.oci/config`
