@@ -53,6 +53,18 @@ mkdir -p "$DIR"
 # Generated once and preserved across re-runs. Regenerating the admin key on a
 # re-run would lock the organiser out of their own instance mid-event, and
 # regenerating the database password would break the running database.
+# A surviving database with a lost .env is unrecoverable by this script: the
+# volume holds a password that only the deleted file knew. Generating a new one
+# produces an instance that cannot authenticate to its own database, and the
+# error it prints blames the password rather than the missing file.
+if [ ! -f "$DIR/.env" ] && docker volume ls -q 2>/dev/null | grep -q '^simple-host_db$'; then
+  echo "FAILED: a database volume exists but $DIR/.env is missing." >&2
+  echo "Its password lived only in that file. Either restore it, or discard the" >&2
+  echo "old instance and its data with:" >&2
+  echo "  docker volume rm simple-host_db simple-host_sites simple-host_caddy_data simple-host_caddy_config" >&2
+  exit 1
+fi
+
 ADMIN_KEY=""; DB_PASSWORD=""
 if [ -f "$DIR/.env" ]; then
   ADMIN_KEY=$(grep '^ADMIN_API_KEY=' "$DIR/.env" | cut -d= -f2-)
