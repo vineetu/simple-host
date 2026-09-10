@@ -9,11 +9,13 @@ their own Simple Host account key:
 curl -X POST https://simple-host.app/v1/events \
   -H "X-API-Key: <their simple-host.app key>" \
   -H 'Content-Type: application/json' \
-  -d '{"name":"stanford-cs-2026","ip":"<server IPv4>"}'
+  -d '{"name":"stanford-cs-2026","ip":"<server IPv4>","domain":"simple-hack.app"}'
 ```
 
-Both records are created immediately and the organiser touches nothing. Release
-them at teardown with `DELETE /v1/events/<name>`.
+Both records are created immediately and the organiser touches nothing. Release them at teardown with
+`DELETE /v1/events/<name>?domain=simple-hack.app`. **The domain must match the
+claim**; omitting it targets a different one, answers 404, and leaves the real
+records in place.
 
 A claim lasts three weeks and re-claiming extends it. Names are lowercased.
 Reserved names such as `sites`, `www` and `api` are refused, as are private

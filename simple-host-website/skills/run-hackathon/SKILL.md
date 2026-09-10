@@ -13,8 +13,10 @@ The organiser gets a private instance on **their own cloud account**, paid for b
 them, that you create and later destroy. Participants get an API key each and
 publish with their own coding agent. Nobody signs in.
 
-**Their credentials never leave their machine.** You use them here and do not
-transmit them anywhere.
+**Their credentials go no further than they have to.** You use them to talk to
+their provider and to this service, and send them nowhere else. Be straight with
+them that an agent running in someone else's cloud is not the same as one running
+on their laptop, and let them choose.
 
 ## What the organiser needs before you start
 
@@ -71,13 +73,14 @@ Simple Host account key:
 
 ```
 POST https://simple-host.app/v1/events
-{"name": "stanford-cs-2026", "ip": "<server IPv4>", "domain": "simple-host.app"}
+{"name": "stanford-cs-2026", "ip": "<server IPv4>", "domain": "simple-hack.app"}
 ```
 
 Always send `domain` explicitly and remember which one you used, because release
-needs it too. If the claim is refused because the domain is at its weekly
-certificate limit, retry with `"domain": "agent-deploy.dev"`. If a name is
-already in use, ask for a different one rather than guessing.
+needs it too. **Ask the instance which domains it offers rather than assuming**:
+a claim with an unconfigured domain is refused, and the error names the ones that
+work. Today it is `simple-hack.app`. If a name is already in use, ask the
+organiser for a different one rather than guessing at variations.
 
 The response gives `host` and `content_host`. Names are lowercased, must be 1 to
 40 letters, digits or hyphens, and a name someone else holds answers 409, so ask
@@ -117,7 +120,8 @@ or, for a walk-up event where you do not have names yet:
 ```
 
 Up to 200 per request. The response gives each participant a username, a handle
-and an **api_key**. Existing accounts are skipped and their keys are never
+and an **api_key**. Keys are bare hexadecimal with no prefix; do not reject one
+for looking wrong. Existing accounts are skipped and their keys are never
 re-disclosed, so re-running is safe but will not recover a lost key.
 
 Offer the organiser the list as CSV so they can paste it into a spreadsheet or a
@@ -126,6 +130,10 @@ mail merge.
 ### 6. Tell participants what to do
 
 Each participant needs two things: their key, and one instruction.
+
+There is also a paste box on the instance's own front page for anyone whose agent
+cannot fetch a URL: they paste their key, then paste a page in. Mention it to the
+organiser as the fallback for the person who gets stuck.
 
 ```
 Read https://<event-host>/llms.txt and follow it exactly.

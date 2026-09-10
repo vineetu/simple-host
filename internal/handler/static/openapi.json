@@ -3525,8 +3525,12 @@
                   },
                   "domain": {
                     "type": "string",
-                    "example": "simple-host.app",
+                    "example": "simple-hack.app",
                     "description": "One of the instance's configured event domains. Defaults to the first."
+                  },
+                  "move": {
+                    "type": "boolean",
+                    "description": "Required to re-point an existing claim at a different address. Without it a re-claim that changes the address is refused, because it would silently move a running event."
                   }
                 }
               }

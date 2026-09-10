@@ -2,10 +2,14 @@
 
 One command over SSH, as root, on the fresh box.
 
+`StrictHostKeyChecking=accept-new` matters when nobody is watching: the first
+connection to a brand-new machine otherwise stops to ask whether you trust its
+fingerprint, and an unattended agent simply hangs there.
+
 ```bash
-ssh -i ~/.ssh/hackathon_key root@<ip> \
+ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/hackathon_key root@<ip> \
   'curl -fsSL https://raw.githubusercontent.com/vineetu/simple-host/main/deploy/install/install.sh -o /root/install.sh && \
-   bash /root/install.sh --host <event>.<domain> --content sites.<event>.<domain> --image ghcr.io/vineetu/simple-host:0.1.0'
+   bash /root/install.sh --host <event>.<domain> --content sites.<event>.<domain> --image ghcr.io/vineetu/simple-host:0.1.1'
 ```
 
 **Pin the image.** `latest` moves on every release, so an unattended re-run can
@@ -51,6 +55,10 @@ curl -sS -o /dev/null -w '%{http_code}\n' https://<event>.<domain>/healthz
 ```
 
 `200` means the instance is live with a valid certificate.
+
+**A `404` here means DNS, not the install.** The request reached something else,
+usually the domain's wildcard, because the records have not propagated or point
+elsewhere. Check what the name resolves to before touching the server.
 
 ## If something is wrong
 

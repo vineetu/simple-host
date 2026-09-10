@@ -1539,7 +1539,8 @@ paths:
               properties:
                 name: { type: string, example: stanford-cs-2026, description: '1 to 40 letters, digits or hyphens. Lowercased. Reserved names are refused.' }
                 ip: { type: string, example: 85.9.193.170, description: 'Public IPv4 of the organiser''s server. Private and loopback addresses are refused.' }
-                domain: { type: string, example: simple-host.app, description: 'One of the instance''s configured event domains. Defaults to the first.' }
+                domain: { type: string, example: simple-hack.app, description: 'One of the instance''s configured event domains. Defaults to the first.' }
+                move: { type: boolean, description: 'Required to re-point an existing claim at a different address. Without it a re-claim that changes the address is refused, because it would silently move a running event.' }
       responses:
         '201':
           description: Hostnames created

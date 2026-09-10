@@ -67,6 +67,12 @@ type claimRequest struct {
 	Name   string `json:"name"`
 	IP     string `json:"ip"`
 	Domain string `json:"domain"`
+	// Move acknowledges that this claim points an existing event at a different
+	// machine. Without it a re-claim with a new address silently repoints a
+	// running event: the organiser's dashboard and every participant's page
+	// start resolving to another server, under a valid certificate, with no
+	// error anywhere to look at.
+	Move bool `json:"move"`
 }
 
 func (h *EventDomainHandler) allowed(domain string) bool {
@@ -171,6 +177,18 @@ func (h *EventDomainHandler) claim(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusConflict, errorResponse{Error: "that name is already in use on this domain"})
 			return
 		}
+	}
+
+	// Refuse to move a live event unless the caller says that is the intent.
+	var currentIP string
+	_ = h.db.QueryRowContext(r.Context(),
+		`SELECT ip FROM event_domains WHERE name=$1 AND domain=$2 AND user_id=$3`,
+		req.Name, req.Domain, user.ID).Scan(&currentIP)
+	if currentIP != "" && currentIP != req.IP && !req.Move {
+		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf(
+			"%s.%s already points at %s. Re-claiming with a different address moves a running event, and anyone using it would silently reach the new machine. Send \"move\": true if that is what you want.",
+			req.Name, req.Domain, currentIP)})
+		return
 	}
 
 	// Cap concurrent holdings, counting only names this account does not

@@ -208,6 +208,10 @@ The bearer-token account, plan and zone GETs were verified on 2026-09-09.
 There were 15 zones, including `us-nyc1`, `us-sjo1`, `de-fra1`, `uk-lon1` and
 `au-syd1`. Read the current template UUID instead of guessing it.
 
+**Two templates match "Ubuntu Server 24.04 LTS".** One of them carries NVIDIA
+drivers and CUDA and needs 20 GB, which will not fit the 10 GB disk this page
+tells you to order. Take the plain one.
+
 ```bash
 UPCLOUD_TOKEN='<pasted token>'
 curl -fsS https://api.upcloud.com/1.3/account -H "Authorization: Bearer $UPCLOUD_TOKEN"
