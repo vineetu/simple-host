@@ -50,7 +50,10 @@ https:// {
 	# Participant content lives on sites.<dashboard>, matched by shape rather
 	# than by name, because the name is not known when this file is written.
 	# Serving it here keeps the application out of the content path.
-	@content host sites.*
+	# A regex, not `host sites.*`: Caddy's host wildcard covers exactly one
+	# label, so `sites.*` matches sites.example but never
+	# sites.event.example.com, which is the shape every event actually uses.
+	@content header_regexp Host ^sites\.
 	handle @content {
 		@nodir path_regexp nodir ^/([a-z0-9-]{1,39})/([a-z0-9-]{1,63})$
 		redir @nodir {uri}/ 308
