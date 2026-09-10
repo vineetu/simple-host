@@ -84,6 +84,12 @@
     .copy-prompt { font-family: var(--mono); font-size: 12px; padding: 9px 12px; border: 1px solid var(--accent); border-radius: 9px; background: var(--accent-soft); color: var(--accent); cursor: pointer; }
     .copy-prompt:hover { background: var(--surface-2); }
     .copy-prompt:focus-visible, .prompt-text:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+    .peek { margin: 10px 0 0; }
+    .peek summary { font-family: var(--mono); font-size: 12px; color: var(--dim); cursor: pointer; list-style: none; padding: 4px 0; }
+    .peek summary::-webkit-details-marker { display: none; }
+    .peek summary::before { content: "+ "; color: var(--accent); }
+    .peek[open] summary::before { content: "\2212 "; }
+    .peek summary:hover { color: var(--accent); }
     .prompt-text { white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--mono); font-size: 12.5px; line-height: 1.7; color: var(--text); margin: 14px 0; user-select: text; }
     .prompt-text mark { background: var(--accent-soft); color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
     .prompt-card p { font-size: 15px; }
@@ -145,29 +151,19 @@
       <div class="snum">01.</div>
       <div>
         <h2>Get started</h2>
-        <p class="lede">Copy your prompt into the AI agent you already use. Answer its questions.</p>
+        <p class="lede">Copy this into the AI agent you already use, and answer its questions.</p>
         <div class="prompt-card">
           <div class="prompt-head">
             <h3>Organiser · Set up an event</h3>
             <button class="copy-prompt" type="button" data-prompt="organiser-prompt" aria-label="Copy organiser prompt" aria-live="polite">Copy organiser prompt</button>
           </div>
+          <details class="peek"><summary>See what it says</summary>
           <pre class="prompt-text" id="organiser-prompt" tabindex="0">Read https://simple-host.app/skills/run-hackathon/SKILL.md and follow it.
-Set up a hackathon instance for me on my own cloud account.</pre>
+Set up a hackathon instance for me on my own cloud account.</pre></details>
           <p>The agent asks which cloud provider you use and for an API token, then creates the server, gives it a web address, installs everything and hands back the keys.</p>
-          <p>About five dollars a month on your own cloud account, billed hourly.</p>
+          <p>About five dollars a month on your own cloud account, billed hourly. A weekend costs cents.</p>
+          <p class="fine">Want to see it work before running an event? Sign in at <a href="/">simple-host.app</a> and build something there first. It is the same software.</p>
         </div>
-        <div class="prompt-card">
-          <div class="prompt-head">
-            <h3>Participant · I have a key</h3>
-            <button class="copy-prompt" type="button" data-prompt="participant-prompt" aria-label="Copy participant prompt" aria-live="polite">Copy participant prompt</button>
-          </div>
-          <p>Replace <code>YOUR-EVENT-ADDRESS</code> with your event's address and <code>YOUR-KEY</code> with the key you were given.</p>
-          <pre class="prompt-text" id="participant-prompt" tabindex="0">Read https://<mark>YOUR-EVENT-ADDRESS</mark>/llms.txt and follow it exactly.
-My Simple Host API key is: <mark>YOUR-KEY</mark>
-Ask me what I want to build, then build it and publish it.</pre>
-          <p>Works in any agent that can fetch a URL: ChatGPT, Claude Code, Codex, Copilot, Cursor, Gemini.</p>
-        </div>
-        <p class="try-event">Trying it without an event? Sign in at simple-host.app and use the participant prompt with <code>simple-host.app</code> as the address.</p>
       </div>
     </section>
 
@@ -206,6 +202,20 @@ Ask me what I want to build, then build it and publish it.</pre>
           <li>Gets a link. If the page needs to save anything, it has a JSON document of up to 1&nbsp;MB and append-only collections, with no backend to set up.</li>
           <li>Changes it. Every deploy is versioned, so an earlier version of the files is one rollback away.</li>
         </ol>
+        <div class="prompt-card">
+          <div class="prompt-head">
+            <h3>What you send each participant</h3>
+            <button class="copy-prompt" type="button" data-prompt="participant-prompt" aria-label="Copy participant prompt" aria-live="polite">Copy participant prompt</button>
+          </div>
+          <p>Replace <code>YOUR-EVENT-ADDRESS</code> with your event's address and <code>YOUR-KEY</code> with their key.</p>
+          <details class="peek"><summary>See what it says</summary>
+          <pre class="prompt-text" id="participant-prompt" tabindex="0">Read https://<mark>YOUR-EVENT-ADDRESS</mark>/llms.txt and follow it exactly.
+My Simple Host API key is: <mark>YOUR-KEY</mark>
+Ask me what I want to build, then build it and publish it.</pre></details>
+          <p>Works in any agent that can fetch a URL: ChatGPT, Claude Code, Codex, Copilot, Cursor, Gemini.</p>
+        </div>
+        <p class="try-event">Trying it without an event? Sign in at simple-host.app and use the participant prompt with <code>simple-host.app</code> as the address.</p>
+      </div>
         <p>That prompt works in anything that can fetch a URL, so ChatGPT, Claude Code, Codex, Copilot, Cursor and terminal agents all do the same thing. Each participant can hold 100 sites and can pick their own address until they publish.</p>
       </div>
     </section>
