@@ -115,26 +115,9 @@ func (h *SiteHandler) createAccounts(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, errorResponse{Error: "invalid request body"})
 		return
 	}
-	// How many this instance can take is a property of its disk, not a number
-	// compiled in here. Ask for ten thousand on a box that holds ten thousand
-	// and you get ten thousand; ask for it on a box that holds three hundred
-	// and you are told the real figure instead of finding out mid-event.
-	asked, err := requestedCount(req)
-	if err != nil {
-		writeJSON(w, 400, errorResponse{Error: err.Error()})
-		return
-	}
-	seatsFree, seatsTotal, seatsUsed, err := h.accountsAvailable(r.Context())
-	if err != nil {
-		writeJSON(w, 500, errorResponse{Error: "could not read this server's capacity"})
-		return
-	}
-	if asked > seatsFree {
-		writeJSON(w, 409, errorResponse{Error: fmt.Sprintf(
-			"this server has room for %d more accounts, not %d. It budgets %d at %d MB per site, and %d already exist. Use a bigger disk, or a smaller per-site limit, or ask for fewer.",
-			seatsFree, asked, seatsTotal, SiteLimit()>>20, seatsUsed)})
-		return
-	}
+	// No ceiling, and nothing here refuses a batch on a projection. What an
+	// instance can hold is whatever fits, and what fits is reported by
+	// /v1/admin/usage from the real disk rather than guessed in advance.
 	names, err := bulkUsernames(req)
 	if err != nil {
 		writeJSON(w, 400, errorResponse{Error: err.Error()})

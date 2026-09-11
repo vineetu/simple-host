@@ -91,25 +91,13 @@ func main() {
 		return
 	}
 
-	// The per-site cap chosen during setup, applied before anything can be
-	// uploaded. Without this a restart returns an instance that was sized for
-	// 2 MB sites to the 100 MB default, and the disk it was sized against is
-	// then one participant away from full.
-	if siteLimit, err := handler.LoadSiteLimit(context.Background(), db); err != nil {
-		log.Fatalf("read per-site limit: %v", err)
-	} else if siteLimit > 0 {
-		handler.SetSiteLimit(siteLimit)
-		log.Printf("per-site limit: %d MB (chosen at setup)", siteLimit>>20)
-	} else if plan, auto := handler.AutoSiteLimit(context.Background(), db, cfg.DataDir); auto {
-		// Recomputed every boot rather than saved. Persisting it would outrank a
-		// later explicit MAX_ARCHIVE_MB, since a stored limit is read before the
-		// environment is consulted — an operator who set a number would find it
-		// silently ignored.
-		handler.SetSiteLimit(plan.SiteBytes())
-		log.Printf("per-site limit: %d MB (sized from disk) — %s", plan.SiteMB, plan.Explanation)
-	} else {
-		log.Printf("per-site limit: %d MB (default)", handler.SiteLimit()>>20)
-	}
+	// Per-site cap. A plain operator setting with a plain default: MAX_ARCHIVE_MB
+	// or 100 MB. It used to be derived from a headcount answered at setup, until
+	// the sites on this instance were measured — median 25 KB against that same
+	// 100 MB cap — and every number derived from the cap turned out to be wrong
+	// by three orders of magnitude. What the disk is really holding is reported
+	// by /v1/admin/usage instead of predicted here.
+	log.Printf("per-site limit: %d MB", handler.SiteLimit()>>20)
 
 	// Ensure a real admin user row exists so the admin key can own sites.
 	adminKey, err := auth.GenerateAPIKey()

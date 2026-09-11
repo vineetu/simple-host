@@ -139,43 +139,24 @@ for _ in $(seq 1 40); do
 done
 [ "$C" = "200" ] && ok "https://$HOST answers 200" || bad "no certificate after five minutes (a 404 here means DNS, not the install)"
 
-step "the server sizes itself against its own disk"
-CAP=$(curl -sS $PIN --max-time 20 -H "X-API-Key: $ADMIN" "https://$HOST/v1/admin/capacity?people=100")
-cap_field() { python3 -c "import json,sys;d=json.load(sys.stdin);print(eval('d'+sys.argv[1]))" "$1" <<<"$CAP" 2>/dev/null || echo 0; }
-INFORCE=$(cap_field "['in_force_mb']")
-SITEMB=$(cap_field "['recommended']['site_mb']")
-MAXP=$(cap_field "['recommended']['max_people']")
-# The numbers must come from this box, not from a default. An event server that
-# reports the 500 MB ceiling, or a headcount of zero, has read nothing.
-[ "${SITEMB:-0}" -ge 1 ] && [ "${SITEMB:-0}" -le 500 ] && ok "recommends ${SITEMB} MB per site" || bad "capacity returned no per-site cap"
-[ "${MAXP:-0}" -ge 100 ] && ok "budgets ${MAXP} people" || bad "capacity says this server cannot hold 100 people"
-# install.sh writes MAX_ARCHIVE_MB=auto, so the box must have sized itself at
-# boot rather than kept the 100 MB default it ships with.
-[ "${INFORCE:-0}" -ge 1 ] && [ "${INFORCE:-0}" -lt 100 ] && ok "sized itself to ${INFORCE} MB at boot" || bad "the box is still on the ${INFORCE} MB default; auto-sizing did not run"
+step "the server reports what it is using"
+USE=$(curl -sS $PIN --max-time 30 -H "X-API-Key: $ADMIN" "https://$HOST/v1/admin/usage")
+use_field() { python3 -c "import json,sys;print(json.load(sys.stdin)[sys.argv[1]])" "$1" <<<"$USE" 2>/dev/null || echo ""; }
+FREE=$(use_field disk_free_bytes)
+PCT=$(use_field disk_used_pct)
+ST=$(use_field status)
+# Real figures from the real filesystem. A fresh event box is nowhere near full,
+# so anything but "ok" here means the measurement is wrong, not the disk.
+[ -n "$FREE" ] && [ "${FREE:-0}" -gt 0 ] && ok "$(python3 -c "print(f'{$FREE/1073741824:.1f} GB free, {$PCT:.1f}% used')")" || bad "usage reported no free space"
+[ "$ST" = "ok" ] && ok "status ok on a fresh box" || bad "a fresh box reports status '$ST'"
 
-step "the cap in force is the one actually enforced"
-# A cap the API quotes but the uploader ignores is the failure this catches.
-# The payload goes through a file: a megabyte of JSON on the command line is
-# past Linux's per-argument limit and fails as "Argument list too long".
-python3 -c 'import json,sys; mb=int(sys.argv[1]); json.dump({"files":{"index.html":"A"*(mb*1024*1024+65536)}}, sys.stdout)' "$INFORCE" > /tmp/e2e-toobig.json
-CODE=$(curl -sS $PIN -o /dev/null -w '%{http_code}' --max-time 120 -X POST -H "X-API-Key: $ADMIN" \
-  -H 'Content-Type: application/json' --data-binary @/tmp/e2e-toobig.json \
-  "https://$HOST/v1/sites/toobig/files" 2>/dev/null || echo 000)
-rm -f /tmp/e2e-toobig.json
-[ "$CODE" = "413" ] && ok "a site over the ${INFORCE} MB cap is refused" || bad "a site over the ${INFORCE} MB cap returned $CODE, not 413"
-
-step "how many accounts fit is the box's answer, not a number in the code"
-# Asking for a million must be refused with this server's real figure, in
-# milliseconds, without creating anything. A compiled-in ceiling used to answer
-# this question; the disk answers it now.
-OVER=$(curl -sS $PIN --max-time 30 -X POST -H "X-API-Key: $ADMIN" -H 'Content-Type: application/json' \
-  -d '{"count":1000000,"prefix":"over"}' "https://$HOST/v1/admin/users")
-grep -q "room for" <<<"$OVER" && ok "refused with the server's own number" || bad "a million accounts was not refused: $(head -c 120 <<<"$OVER")"
-ROOM=$(curl -sS $PIN --max-time 20 -H "X-API-Key: $ADMIN" "https://$HOST/v1/admin/capacity" \
-  | python3 -c 'import json,sys;print(json.load(sys.stdin)["accounts_available"])' 2>/dev/null || echo 0)
-# A ten thousand person event on the smallest plan needs a megabyte a site; the
-# point of the check is that the figure is real, not that it is large.
-[ "${ROOM:-0}" -gt 0 ] && ok "room for ${ROOM} more accounts" || bad "the server reports no room for anyone"
+step "asking for more accounts than anyone needs is not refused by a number"
+# There is no ceiling any more. Ten thousand accounts is a legal request; what
+# limits an instance is its disk, which the step above measures rather than
+# predicts.
+MANY=$(curl -sS $PIN --max-time 300 -o /dev/null -w '%{http_code}' -X POST -H "X-API-Key: $ADMIN" \
+  -H 'Content-Type: application/json' -d '{"count":1200,"prefix":"scale"}' "https://$HOST/v1/admin/users" 2>/dev/null || echo 000)
+[ "$MANY" = "201" ] && ok "1200 accounts created in one request" || bad "a 1200-account request returned $MANY"
 
 step "the organiser issues a participant key"
 PKEY=$(curl -sS $PIN -X POST -H "X-API-Key: $ADMIN" -H 'Content-Type: application/json' \

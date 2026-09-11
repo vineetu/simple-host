@@ -1,180 +1,124 @@
 package capacity
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
 
-const gb = int64(1) << 30
-
-func TestUsableHoldsBackHeadroom(t *testing.T) {
-	// A fifth, once a fifth clears the 2 GB floor.
-	if got, want := Usable(100*gb), 80*gb; got != want {
-		t.Errorf("Usable(100GB) = %d, want %d", got, want)
-	}
-	// The floor wins on small disks: 5 GB free yields 3 GB, not 4 GB.
-	if got, want := Usable(5*gb), 3*gb; got != want {
-		t.Errorf("Usable(5GB) = %d, want %d", got, want)
-	}
-	// A disk with less free space than the floor hands out nothing at all
-	// rather than a negative number that would size an event for -3 people.
-	for _, free := range []int64{0, -1, gb, 2 * gb} {
-		if got := Usable(free); got != 0 {
-			t.Errorf("Usable(%d) = %d, want 0", free, got)
+// writeSite lays out a site the way DiskStorage does: versions plus the live
+// copy, all under by-id/<userID>/<siteName>/.
+func writeSite(t *testing.T, root, userID, name string, versions map[string]int) {
+	t.Helper()
+	for version, size := range versions {
+		dir := filepath.Join(root, "by-id", userID, name, version)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "index.html"), make([]byte, size), 0o644); err != nil {
+			t.Fatal(err)
 		}
 	}
 }
 
-func TestDeployHistoryIsCounted(t *testing.T) {
-	// The trap this package exists to avoid: usable/cap is not the answer,
-	// because a site on disk is its cap times its version history plus the
-	// live copy. At the defaults that is 3 sites x 11 copies = 33x per person.
-	usable := 33 * gb
-	if got, want := PeopleAt(usable, 1<<20, DefaultSitesPerPerson, UnboundedHistoryEstimate), 1024; got != want {
-		t.Errorf("PeopleAt(33GB, 1MB) = %d, want %d", got, want)
-	}
-	// Naive arithmetic would have said 33,792 for the same disk.
-	if naive := usable / (1 << 20); naive <= 33000 {
-		t.Fatalf("guard is wrong: naive figure %d", naive)
-	}
-}
+func TestMeasureCountsEveryCopyOfASite(t *testing.T) {
+	root := t.TempDir()
+	// Versions are full copies, so all of them count. Reporting only the live
+	// one would understate a busy site by its entire history — the thing that
+	// actually fills a small disk.
+	writeSite(t, root, "user-a", "entry", map[string]int{"v1": 1000, "v2": 2000, "current": 2000})
+	writeSite(t, root, "user-b", "quiz", map[string]int{"v1": 500, "current": 500})
 
-func TestForPeoplePicksTheLargestCapThatFits(t *testing.T) {
-	// 100 GB disk, 80 GB usable, 100 people: each person costs cap x 33.
-	// 25 MB x 33 x 100 = 82.5 GB, too much. 10 MB x 33 x 100 = 33 GB, fits.
-	plan := ForPeople(100*gb, 100*gb, 100, 0)
-	if plan.SiteMB != 10 {
-		t.Errorf("SiteMB = %d, want 10", plan.SiteMB)
-	}
-	if !plan.Fits() {
-		t.Errorf("plan should fit 100 people: %+v", plan)
-	}
-	if plan.MaxPeople < 100 {
-		t.Errorf("MaxPeople = %d, want at least 100", plan.MaxPeople)
-	}
-}
-
-func TestForPeopleWithoutAHeadcountSizesForANormalEvent(t *testing.T) {
-	plan := ForPeople(25*gb, 25*gb, 0, 0)
-	if plan.Requested != 0 || plan.People != DefaultPeople {
-		t.Errorf("Requested = %d, People = %d; want 0 and %d", plan.Requested, plan.People, DefaultPeople)
-	}
-	// Not the 1 MB floor: an unstated headcount must not silently hand every
-	// participant the stingiest quota on the ladder.
-	if plan.SiteMB <= MinSiteBytes>>20 {
-		t.Errorf("SiteMB = %d, want a comfortable cap above the floor", plan.SiteMB)
-	}
-	if !plan.Fits() || plan.MaxPeople < DefaultPeople {
-		t.Errorf("a 25 GB disk should hold a normal event: %+v", plan)
-	}
-	if plan.TotalSites != plan.MaxPeople*plan.SitesPerPerson {
-		t.Errorf("TotalSites = %d, inconsistent with MaxPeople = %d", plan.TotalSites, plan.MaxPeople)
-	}
-}
-
-func TestAnImpossibleHeadcountSaysSoRatherThanShrinkingSilently(t *testing.T) {
-	// More people than the smallest cap can hold. The plan must not claim to
-	// fit them; an organiser who is told "fine" here discovers it mid-event.
-	plan := ForPeople(25*gb, 25*gb, 1_000_000, 0)
-	if plan.SiteMB != MinSiteBytes>>20 {
-		t.Errorf("SiteMB = %d, want the floor", plan.SiteMB)
-	}
-	if plan.Fits() {
-		t.Errorf("plan claims to fit a million people on 25 GB: %+v", plan)
-	}
-}
-
-func TestNoDiskAtAllIsReportedNotDividedBy(t *testing.T) {
-	plan := ForPeople(gb, gb, 50, 0)
-	if plan.MaxPeople != 0 || plan.Fits() {
-		t.Errorf("a 1 GB disk should hold nobody: %+v", plan)
-	}
-	if plan.Explanation == "" {
-		t.Error("an unusable server must explain itself")
-	}
-}
-
-func TestSiteBytesStaysInsideWhatTheExtractorAccepts(t *testing.T) {
-	if got := (Plan{SiteMB: 0}).SiteBytes(); got != MinSiteBytes {
-		t.Errorf("SiteBytes() = %d, want the %d floor", got, MinSiteBytes)
-	}
-	if got := (Plan{SiteMB: 100000}).SiteBytes(); got != MaxSiteBytes {
-		t.Errorf("SiteBytes() = %d, want the %d ceiling", got, MaxSiteBytes)
-	}
-}
-
-func TestDiskReadsARealFilesystem(t *testing.T) {
-	total, available, err := Disk(t.TempDir())
+	usage, err := Measure(root, 5)
 	if err != nil {
-		t.Fatalf("Disk: %v", err)
+		t.Fatal(err)
 	}
-	if total <= 0 || available < 0 || available > total {
-		t.Errorf("Disk returned total=%d available=%d", total, available)
+	if usage.Sites != 2 {
+		t.Errorf("Sites = %d, want 2", usage.Sites)
 	}
-	if _, _, err := Disk("/definitely/not/a/path"); err == nil {
-		t.Error("Disk on a missing path should fail, not report zero")
+	if usage.SiteBytes != 6000 {
+		t.Errorf("SiteBytes = %d, want 6000", usage.SiteBytes)
+	}
+	if len(usage.Largest) != 2 || usage.Largest[0].Name != "entry" || usage.Largest[0].Bytes != 5000 {
+		t.Errorf("Largest = %+v, want entry at 5000 first", usage.Largest)
 	}
 }
 
-func TestThousandsGroupsDigits(t *testing.T) {
-	for in, want := range map[int]string{0: "0", 999: "999", 1000: "1,000", 25000: "25,000", 1234567: "1,234,567"} {
-		if got := Thousands(in); got != want {
-			t.Errorf("Thousands(%d) = %q, want %q", in, got, want)
+func TestMeasureIgnoresThingsThatAreNotSiteFiles(t *testing.T) {
+	root := t.TempDir()
+	writeSite(t, root, "user-a", "entry", map[string]int{"current": 100})
+
+	// The symlink farm: handles/<handle> -> ../by-id/<userID>. A symlink reports
+	// the length of its target path, so counting it would attribute bytes to a
+	// site that has none, and following it would count the same files twice.
+	if err := os.MkdirAll(filepath.Join(root, "handles"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join("..", "by-id", "user-a"), filepath.Join(root, "handles", "ada")); err != nil {
+		t.Fatal(err)
+	}
+	// A stray file directly under a user directory belongs to no site.
+	if err := os.WriteFile(filepath.Join(root, "by-id", "user-a", "stray.txt"), make([]byte, 9999), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	usage, err := Measure(root, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if usage.SiteBytes != 100 {
+		t.Errorf("SiteBytes = %d, want 100", usage.SiteBytes)
+	}
+	if usage.Sites != 1 {
+		t.Errorf("Sites = %d, want 1", usage.Sites)
+	}
+}
+
+func TestMeasureOnAnEmptyInstance(t *testing.T) {
+	usage, err := Measure(t.TempDir(), 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if usage.Sites != 0 || usage.SiteBytes != 0 {
+		t.Errorf("empty instance reports %d sites, %d bytes", usage.Sites, usage.SiteBytes)
+	}
+	// The filesystem still has to be described, or the admin screen shows
+	// nothing at all on a brand-new box.
+	if usage.DiskBytes <= 0 {
+		t.Errorf("DiskBytes = %d", usage.DiskBytes)
+	}
+	if usage.Status == "" || usage.Message == "" {
+		t.Error("an empty instance should still describe its disk")
+	}
+}
+
+func TestStatusEscalatesBeforeItIsTooLate(t *testing.T) {
+	cases := []struct {
+		pct    float64
+		status string
+	}{{10, "ok"}, {74.9, "ok"}, {75, "filling"}, {89.9, "filling"}, {90, "full"}, {99.9, "full"}}
+	for _, c := range cases {
+		status, message := describe(Usage{DiskUsedPct: c.pct, DiskBytes: 100 << 30, DiskFreeBytes: 10 << 30})
+		if status != c.status {
+			t.Errorf("%.1f%% -> %q, want %q", c.pct, status, c.status)
+		}
+		if message == "" {
+			t.Errorf("%.1f%% has no message", c.pct)
+		}
+		// A warning that does not say what is left is not actionable.
+		if c.status != "ok" && !strings.Contains(message, "left") {
+			t.Errorf("%.1f%% message does not say what is left: %q", c.pct, message)
 		}
 	}
 }
 
-func TestSiteBytesClampsBeforeShifting(t *testing.T) {
-	// A hand-edited instance_config row. Shifting first wraps this negative and
-	// clamps it to the 1 MB floor — the opposite of what the operator asked for
-	// and, worse, silent.
-	for _, mb := range []int64{1 << 43, 1 << 60, 1<<63 - 1} {
-		if got := (Plan{SiteMB: mb}).SiteBytes(); got != MaxSiteBytes {
-			t.Errorf("SiteMB %d -> %d bytes, want the %d ceiling", mb, got, MaxSiteBytes)
+func TestHumanReadsLikeAnAdminScreen(t *testing.T) {
+	for bytes, want := range map[int64]string{
+		512: "512 bytes", 25 << 10: "25 KB", 5 << 20: "5.0 MB", 3 << 30: "3.0 GB",
+	} {
+		if got := Human(bytes); got != want {
+			t.Errorf("Human(%d) = %q, want %q", bytes, got, want)
 		}
-	}
-	for _, mb := range []int64{-1, -(1 << 60)} {
-		if got := (Plan{SiteMB: mb}).SiteBytes(); got != MinSiteBytes {
-			t.Errorf("SiteMB %d -> %d bytes, want the %d floor", mb, got, MinSiteBytes)
-		}
-	}
-}
-
-func TestExplanationDoesNotPromiseAFloor(t *testing.T) {
-	// Only the per-site cap is enforced. An explanation saying "at least" would
-	// read as a guarantee that the site count and version history do not back.
-	plan := ForPeople(100*gb, 100*gb, 100, 0)
-	if strings.Contains(plan.Explanation, "at least") {
-		t.Errorf("explanation promises a floor it cannot keep: %q", plan.Explanation)
-	}
-	for _, want := range []string{"budgets", "keeping the last 10 deploys"} {
-		if !strings.Contains(plan.Explanation, want) {
-			t.Errorf("explanation is missing %q: %q", want, plan.Explanation)
-		}
-	}
-}
-
-func TestRetentionDominatesTheArithmetic(t *testing.T) {
-	// The whole reason this parameter exists. Same disk, same cap: keeping one
-	// deploy instead of ten holds five and a half times as many people, because
-	// a site costs its cap times its retained history plus the live copy.
-	all := ForPeople(100*gb, 100*gb, 0, 0)
-	one := ForPeople(100*gb, 100*gb, 0, 1)
-
-	if all.KeptVersions != UnboundedHistoryEstimate {
-		t.Errorf("keptVersions 0 should plan with the estimate, got %d", all.KeptVersions)
-	}
-	if one.KeptVersions != 1 {
-		t.Errorf("KeptVersions = %d, want 1", one.KeptVersions)
-	}
-	atSameCap := func(p Plan, mb int64) int {
-		return PeopleAt(p.UsableBytes, mb<<20, p.SitesPerPerson, p.KeptVersions)
-	}
-	wide, narrow := atSameCap(one, 10), atSameCap(all, 10)
-	if narrow == 0 || wide/narrow != 5 {
-		t.Errorf("one-version instance holds %d at 10MB, ten-version holds %d; want ~5.5x", wide, narrow)
-	}
-	if !strings.Contains(one.Explanation, "keeping only the live copy") {
-		t.Errorf("a one-version instance should say so plainly: %q", one.Explanation)
 	}
 }

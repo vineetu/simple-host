@@ -16,7 +16,7 @@
 <main>
 <!-- Static screen word counts, including buttons/placeholders, excluding entered
      values: loading 3; password 5; choice 12; name 8; key 11; domain 7;
-     DNS 29 with two three-cell rows; people 11; saving 12 (with retry); certificates 13; configured 10.
+     DNS 29 with two three-cell rows; saving 12 (with retry); certificates 13; configured 10.
      Done intentionally retains the requested full prompt and key warning:
      together these required elements exceed the 29-word screen budget. -->
 <section id="loading"><h1 tabindex="-1">Opening setup…</h1><div class="spinner" aria-hidden="true"></div><button id="reload" hidden>Retry</button></section>
@@ -26,17 +26,16 @@
 <section id="account-key" hidden><form><h1><label for="account-key-input">Your simple-host.app key?</label></h1><input id="account-key-input" type="password" autocomplete="off" required><p><a href="https://simple-host.app/" target="_blank" rel="noopener noreferrer">Get your key</a></p><button>Claim free address</button> <button type="button" class="secondary" id="edit-name">Edit name</button></form></section>
 <section id="domain" hidden><form><h1><label for="domain-input">What's your domain?</label></h1><input id="domain-input" placeholder="hack.example.com" autocomplete="url" autocapitalize="none" spellcheck="false" required><button>Show address settings</button></form></section>
 <section id="dns" hidden><h1 tabindex="-1">Connect domain</h1><p>Add in domain provider's DNS (address settings).</p><div class="table-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>Value</th></tr></thead><tbody id="records"></tbody></table></div><p role="status" id="dns-status">Waiting; allow minutes.</p><button class="secondary" id="edit-domain">Edit domain</button></section>
-<section id="people" hidden><form><h1><label for="people-input">How many people are coming?</label></h1><input id="people-input" type="number" min="1" max="5000" step="1" inputmode="numeric" placeholder="100"><button>Size the server</button> <button type="button" class="secondary" id="skip-people">Not sure</button></form></section>
 <section id="saving" hidden><h1 tabindex="-1">Saving your address…</h1><p>Keep this page open for your key.</p><div class="spinner" aria-hidden="true"></div><button id="retry-save" hidden>Retry saving</button></section>
 <section id="certificates" hidden><h1 tabindex="-1">Securing your instance…</h1><div class="spinner" aria-hidden="true"></div><p role="status">Waiting for certificates that secure connections. Keep this page open.</p></section>
-<section id="done" hidden><h1 tabindex="-1">Done</h1><div class="key" id="admin-key"></div><button id="copy-key">Copy admin key</button><p>Save it. It won't be shown again.</p><p id="sizing"></p><pre id="prompt"></pre><button id="copy-prompt">Copy participant prompt</button><div class="done-actions"><a id="instance" target="_blank" rel="noopener noreferrer">Open instance</a></div></section>
+<section id="done" hidden><h1 tabindex="-1">Done</h1><div class="key" id="admin-key"></div><button id="copy-key">Copy admin key</button><p>Save it. It won't be shown again.</p><pre id="prompt"></pre><button id="copy-prompt">Copy participant prompt</button><div class="done-actions"><a id="instance" target="_blank" rel="noopener noreferrer">Open instance</a></div></section>
 <section id="configured" hidden><h1 tabindex="-1">Already set up</h1><p>Open your instance using its chosen domain.</p></section>
 <p id="error" class="error" role="alert" hidden></p>
 </main>
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
-let screen = 'loading', hosts, plan, timer;
+let screen = 'loading', hosts, timer;
 function show(id) {
  clearTimeout(timer);
  document.querySelectorAll('main > section').forEach(s => s.hidden = s.id !== id);
@@ -97,7 +96,7 @@ bindForm('account-key', async () => {
  if (!result.host || result.content_host !== 'sites.' + result.host) throw new Error('Cannot read your address. Retry claiming it.');
  hosts = result;
  $('account-key-input').value = ''; // Used once; never saved to browser storage.
- show('people');
+ await finish();
 });
 bindForm('domain', async () => {
  hosts = await request('own-domain', {domain:$('domain-input').value});
@@ -121,25 +120,14 @@ async function pollDNS() {
   const result = await request('dns-check?domain=' + encodeURIComponent(domain));
   if (screen !== 'dns' || hosts.host !== domain) return;
   $('error').hidden = true;
-  if (result.host_ok && result.content_ok) { show('people'); return; }
+  if (result.host_ok && result.content_ok) { await finish(); return; }
  } catch (e) { if (screen === 'dns') error(e.message + ' Checking automatically.'); }
  if (screen === 'dns') timer = setTimeout(pollDNS, 5000);
 }
-bindForm('people', async () => {
- const people = $('people-input').value.trim();
- plan = await request('capacity?people=' + encodeURIComponent(people || '0'));
- await finish();
-});
-$('skip-people').onclick = async () => {
- $('skip-people').disabled = true;
- try { plan = await request('capacity?people=0'); await finish(); }
- catch (e) { error(e.message); }
- finally { $('skip-people').disabled = false; }
-};
 async function finish() {
  show('saving'); $('retry-save').hidden = true;
  try {
-  const result = await request('finish', {host:hosts.host, content_host:hosts.content_host, site_mb:plan ? plan.site_mb : 0});
+  const result = await request('finish', {host:hosts.host, content_host:hosts.content_host});
   $('admin-key').textContent = result.admin_api_key;
   // Participant keys are created later in admin; never distribute the admin key.
   const prompt = 'Read https://' + hosts.host + '/llms.txt and follow it exactly.\nMy Simple Host API key is: <their key>\nAsk me what I want to build, then build it and publish it.';
@@ -147,7 +135,6 @@ async function finish() {
   $('copy-key').onclick = () => copy($('admin-key').textContent, $('copy-key'));
   $('copy-prompt').onclick = () => copy(prompt, $('copy-prompt'));
   $('instance').href = 'https://' + hosts.host + '/';
-  $('sizing').textContent = plan ? plan.explanation : '';
   show('certificates'); pollCertificates();
  } catch (e) { error(e.message); $('retry-save').hidden = false; }
 }

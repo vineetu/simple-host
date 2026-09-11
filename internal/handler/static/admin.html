@@ -5,7 +5,45 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex">
 <title>Admin — simple·host</title>
-<script>(function(){try{var s=localStorage.getItem('sh-theme');document.documentElement.dataset.theme=s||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');}catch(e){document.documentElement.dataset.theme='light';}})();</script>
+<script>(function(){try{var s=localStorage.getItem('sh-theme');document.documentElement.dataset.theme=s||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');}catch(e){document.documentElement.dataset.theme='light';}})();
+// Disk usage. Measured, not predicted: the walk behind this is cached server
+// side, so reloading the page does not re-walk the tree. Failing to read it
+// must never take the rest of the admin page down with it.
+function bytes(n){
+  if(n>=1073741824) return (n/1073741824).toFixed(1)+' GB';
+  if(n>=1048576) return (n/1048576).toFixed(1)+' MB';
+  if(n>=1024) return Math.round(n/1024)+' KB';
+  return n+' B';
+}
+async function loadDisk(){
+  try{
+    var res=await fetch('/v1/admin/usage',{headers:{'X-API-Key':apiKey}});
+    if(!res.ok) return;
+    var d=await res.json();
+    document.getElementById('du').textContent=bytes(d.disk_used_bytes);
+    document.getElementById('df').textContent=bytes(d.disk_free_bytes);
+    var wrap=document.getElementById('disk'), bar=document.querySelector('.bar');
+    var note=document.getElementById('disk-note');
+    wrap.hidden=false;
+    document.getElementById('bar-fill').style.width=Math.min(100,d.disk_used_pct)+'%';
+    bar.className='bar'+(d.status==='ok'?'':' '+d.status);
+    note.className='ph'+(d.status==='ok'?'':' '+d.status);
+    var age='';
+    if(d.measured_at){
+      var secs=Math.max(0,Math.round((Date.now()-new Date(d.measured_at))/1000));
+      age=secs<90?'':' Measured '+Math.round(secs/60)+' minutes ago.';
+    }
+    note.textContent=d.message+' Websites are capped at '+d.site_limit_mb+' MB each.'+age;
+    var top=(d.largest||[]);
+    if(top.length){
+      document.getElementById('disk-rows').innerHTML=top.map(function(t){
+        return '<tr><td>'+esc(t.name)+'</td><td>'+bytes(t.bytes)+'</td></tr>';
+      }).join('');
+      document.getElementById('disk-top').hidden=false;
+    }
+  }catch(e){ /* the disk figure is not worth breaking the page for */ }
+}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -33,6 +71,13 @@ header .container{display:flex;align-items:center;justify-content:space-between;
 .stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;flex:1}
 .stat .n{font-size:26px;font-weight:700;color:var(--accent);line-height:1}
 .stat .l{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-top:6px}
+.bar{height:8px;border-radius:999px;background:var(--surface);border:1px solid var(--border);overflow:hidden;margin-top:4px}
+.bar>div{height:100%;width:0;background:var(--accent);transition:width .3s}
+.bar.filling>div{background:#d97706}
+.bar.full>div{background:var(--err)}
+#disk-note.filling{color:#d97706}
+#disk-note.full{color:var(--err)}
+#disk-top summary{cursor:pointer;font-size:12px;color:var(--dim);margin-top:10px}
 .msg{padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--dim);font-size:13px;margin-top:16px}
 .msg.err{border-color:var(--err);color:var(--err)}
 .panel{border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:22px;background:var(--surface)}
@@ -89,6 +134,17 @@ table.apx td.err{color:var(--err)}
   <div class="stats" id="stats" hidden>
     <div class="stat"><div class="n" id="uc">–</div><div class="l">Users</div></div>
     <div class="stat"><div class="n" id="sc">–</div><div class="l">Websites</div></div>
+    <div class="stat"><div class="n" id="du">–</div><div class="l">Disk used</div></div>
+    <div class="stat"><div class="n" id="df">–</div><div class="l">Disk free</div></div>
+  </div>
+  <!-- The question an organiser actually has, answered from the disk rather
+       than from a projection: what is on it, and how much is left. -->
+  <div id="disk" hidden>
+    <div class="bar"><div id="bar-fill"></div></div>
+    <p class="ph" id="disk-note"></p>
+    <details id="disk-top" hidden><summary>Biggest websites</summary>
+      <table class="apx"><thead><tr><th>Website</th><th>Size</th></tr></thead><tbody id="disk-rows"></tbody></table>
+    </details>
   </div>
   <div id="status" class="msg" hidden></div>
 
@@ -99,7 +155,7 @@ table.apx td.err{color:var(--err)}
     <p class="ph">Paste a roster, or ask for a number. Up to 200 at a time. Each key is shown once.</p>
     <textarea id="roster" rows="3" placeholder="ada@example.edu, alan@example.edu&#10;or leave empty and set a count below"></textarea>
     <div class="row">
-      <label>Count <input type="number" id="count" min="1" max="200" placeholder="30"></label>
+      <label>Count <input type="number" id="count" min="1" placeholder="30"></label>
       <label>Prefix <input type="text" id="prefix" placeholder="team"></label>
       <button class="btn" id="issue-btn" onclick="issueAccounts()">Create</button>
       <button class="btn ghost" id="csv-btn" onclick="downloadCSV()" hidden>Download CSV</button>
@@ -295,6 +351,7 @@ async function load(){
     document.getElementById('stats').hidden=false;
     document.getElementById('uc').textContent=data.user_count;
     document.getElementById('sc').textContent=data.site_count;
+    loadDisk();
     var users=(data.users||[]);
     // Most sites first, then newest joiners.
     users.sort(function(a,b){ return (b.site_count-a.site_count) || (new Date(b.created_at)-new Date(a.created_at)); });
@@ -328,6 +385,44 @@ async function loadTraffic(){
   }catch(e){}
 }
 load();
+
+// Disk usage. Measured, not predicted: the walk behind this is cached server
+// side, so reloading the page does not re-walk the tree. Failing to read it
+// must never take the rest of the admin page down with it.
+function bytes(n){
+  if(n>=1073741824) return (n/1073741824).toFixed(1)+' GB';
+  if(n>=1048576) return (n/1048576).toFixed(1)+' MB';
+  if(n>=1024) return Math.round(n/1024)+' KB';
+  return n+' B';
+}
+async function loadDisk(){
+  try{
+    var res=await fetch('/v1/admin/usage',{headers:{'X-API-Key':apiKey}});
+    if(!res.ok) return;
+    var d=await res.json();
+    document.getElementById('du').textContent=bytes(d.disk_used_bytes);
+    document.getElementById('df').textContent=bytes(d.disk_free_bytes);
+    var wrap=document.getElementById('disk'), bar=document.querySelector('.bar');
+    var note=document.getElementById('disk-note');
+    wrap.hidden=false;
+    document.getElementById('bar-fill').style.width=Math.min(100,d.disk_used_pct)+'%';
+    bar.className='bar'+(d.status==='ok'?'':' '+d.status);
+    note.className='ph'+(d.status==='ok'?'':' '+d.status);
+    var age='';
+    if(d.measured_at){
+      var secs=Math.max(0,Math.round((Date.now()-new Date(d.measured_at))/1000));
+      age=secs<90?'':' Measured '+Math.round(secs/60)+' minutes ago.';
+    }
+    note.textContent=d.message+' Websites are capped at '+d.site_limit_mb+' MB each.'+age;
+    var top=(d.largest||[]);
+    if(top.length){
+      document.getElementById('disk-rows').innerHTML=top.map(function(t){
+        return '<tr><td>'+esc(t.name)+'</td><td>'+bytes(t.bytes)+'</td></tr>';
+      }).join('');
+      document.getElementById('disk-top').hidden=false;
+    }
+  }catch(e){ /* the disk figure is not worth breaking the page for */ }
+}
 </script>
 </body>
 </html>

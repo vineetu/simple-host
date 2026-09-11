@@ -37,12 +37,11 @@ services:
       SETUP_PASSWORD: ${SETUP_PASSWORD-}
       SETUP_PUBLIC_API: ${SETUP_PUBLIC_API-}
       ANALYTICS_LOG: /var/log/caddy/access.log
-      # How big one site may be. "auto" sizes it from this server's own disk at
-      # every boot — the right default for an event box, which is usually the
-      # smallest plan a provider sells and cannot honour the 100 MB a large
-      # instance can. Put a number here to fix it instead; a per-site cap chosen
-      # on the setup page outranks both.
-      MAX_ARCHIVE_MB: ${MAX_ARCHIVE_MB:-auto}
+      # How big one site may be, in megabytes. Default 100, which real sites are
+      # nowhere near — the median site on simple-host is 25 KB. It is a guard
+      # against one upload filling a disk, not a budget anyone is expected to
+      # spend. /v1/admin/usage reports what is actually being used.
+      MAX_ARCHIVE_MB: ${MAX_ARCHIVE_MB:-}
       # How many deploys of a site to keep. Every version is a full copy and the
       # live tree is one more, so history — not sites — is what fills a small
       # disk when an agent redeploys a page a dozen times in an afternoon.

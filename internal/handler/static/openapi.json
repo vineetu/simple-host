@@ -3632,11 +3632,11 @@
         }
       }
     },
-    "/v1/admin/capacity": {
+    "/v1/admin/usage": {
       "get": {
-        "operationId": "getCapacityPlan",
-        "summary": "How many people this server holds (admin only)",
-        "description": "Sizes the instance against its own filesystem. Given a headcount it returns the largest round per-site cap that still holds everyone; given none it sizes for a hundred people. The figures are a budget, not a guarantee: only the per-site cap is enforced, while the site count and the deploy history are assumptions, and nothing prunes old versions. The recommendation and the cap actually in force are reported separately, because this endpoint changes neither. Non-admin callers receive 404.",
+        "operationId": "getInstanceUsage",
+        "summary": "What this instance is using, and what is left (admin only)",
+        "description": "Measured from the filesystem, not projected. There is deliberately no estimate of how many people or sites will fit: the sites on the instance this was built for have a median size of 25 KB against a 100 MB per-site cap, so any figure derived from the cap is wrong by three orders of magnitude. status is ok, filling (75% or more) or full (90% or more). The underlying walk is cached for two minutes. Non-admin callers receive 404.",
         "tags": [
           "Admin"
         ],
@@ -3645,107 +3645,89 @@
             "apiKey": []
           }
         ],
-        "parameters": [
-          {
-            "name": "people",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "description": "Expected number of participants. Omit or pass 0 to size for a typical event."
-          }
-        ],
         "responses": {
           "200": {
-            "description": "A sizing plan for this server",
+            "description": "Current disk usage",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "required": [
-                    "recommended",
-                    "in_force_mb",
-                    "people_at_current_cap",
-                    "accounts_in_use",
-                    "accounts_available",
-                    "fits_now",
-                    "fits_recommended"
+                    "disk_bytes",
+                    "disk_free_bytes",
+                    "disk_used_bytes",
+                    "disk_used_pct",
+                    "site_bytes",
+                    "sites",
+                    "status",
+                    "message"
                   ],
                   "properties": {
-                    "in_force_mb": {
+                    "disk_bytes": {
                       "type": "integer",
-                      "description": "Per-site cap this instance is enforcing right now"
+                      "description": "Size of the filesystem holding site data"
                     },
-                    "people_at_current_cap": {
+                    "disk_free_bytes": {
+                      "type": "integer"
+                    },
+                    "disk_used_bytes": {
                       "type": "integer",
-                      "description": "People the server budgets at the cap in force"
+                      "description": "Everything on that filesystem",
+                      "including Postgres": null,
+                      "logs and the OS": null
                     },
-                    "fits_now": {
-                      "type": "boolean",
-                      "description": "Whether the headcount still fits in the room left on this server. This endpoint changes nothing",
-                      "so this is the answer that describes the running server": null
+                    "disk_used_pct": {
+                      "type": "number"
                     },
-                    "fits_recommended": {
-                      "type": "boolean",
-                      "description": "Whether the headcount would fit at the recommended cap"
-                    },
-                    "accounts_in_use": {
+                    "site_bytes": {
                       "type": "integer",
-                      "description": "Participant accounts this instance already holds"
+                      "description": "Site files specifically",
+                      "every retained version included": null
                     },
-                    "accounts_available": {
+                    "sites": {
+                      "type": "integer"
+                    },
+                    "accounts": {
                       "type": "integer",
-                      "description": "How many more it can take. This is the figure POST /v1/admin/users enforces"
+                      "description": "Participant accounts",
+                      "or -1 if the count could not be read": null
                     },
-                    "recommended": {
-                      "type": "object",
-                      "description": "What the cap would be if it were sized for this headcount. Applying it needs a restart with MAX_ARCHIVE_MB set, or a fresh instance sized at setup.",
-                      "properties": {
-                        "disk_bytes": {
-                          "type": "integer"
-                        },
-                        "available_bytes": {
-                          "type": "integer"
-                        },
-                        "usable_bytes": {
-                          "type": "integer",
-                          "description": "Available space less the headroom the instance keeps for itself"
-                        },
-                        "requested": {
-                          "type": "integer",
-                          "description": "Headcount asked for",
-                          "0 when none was given": null
-                        },
-                        "people": {
-                          "type": "integer",
-                          "description": "Headcount the sizing actually used"
-                        },
-                        "site_mb": {
-                          "type": "integer",
-                          "description": "Recommended per-site cap",
-                          "in megabytes": null
-                        },
-                        "max_people": {
-                          "type": "integer",
-                          "description": "People this server budgets at that cap"
-                        },
-                        "sites_per_person": {
-                          "type": "integer",
-                          "description": "Sites assumed per participant. Assumed",
-                          "not enforced": null
-                        },
-                        "kept_versions": {
-                          "type": "integer",
-                          "description": "Deploy history assumed per site. Nothing prunes old versions",
-                          "so this is an assumption too": null
-                        },
-                        "total_sites": {
-                          "type": "integer"
-                        },
-                        "explanation": {
-                          "type": "string"
+                    "site_limit_mb": {
+                      "type": "integer",
+                      "description": "Per-site cap in force"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "filling",
+                        "full"
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "One sentence for an admin screen"
+                    },
+                    "measured_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "When the walk behind these figures ran. Readings up to two minutes old are served while a refresh runs behind the request"
+                    },
+                    "largest": {
+                      "type": "array",
+                      "description": "The biggest sites, largest first, so a full disk has a visible cause",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "user_id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "bytes": {
+                            "type": "integer"
+                          }
                         }
                       }
                     }
@@ -3761,7 +3743,7 @@
             "description": "Caller is not an admin"
           },
           "500": {
-            "description": "This server's free space could not be read"
+            "description": "This server's disk could not be read"
           }
         }
       }

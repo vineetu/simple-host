@@ -31,8 +31,12 @@ import (
 
 // maxSiteArchiveSize caps the upload body. Default 100 MB; override with
 // MAX_ARCHIVE_MB on an instance you run yourself (a hosted instance has other
-// people's disk to protect, your own does not), or with MAX_ARCHIVE_MB=auto to
-// size it from the server's own disk — see LoadSiteLimit and internal/capacity.
+// people's disk to protect, your own does not).
+//
+// It is a guard against one upload filling a disk, not a budget anyone spends:
+// measured across the sites running on simple-host, the median is 25 KB and
+// nine in ten are under a megabyte. Nothing should be derived from this number
+// — what the disk is really holding is reported by /v1/admin/usage.
 //
 // Raising this alone is not enough to accept a bigger site: any reverse proxy
 // in front needs its own body cap raised to match, or it rejects the request
@@ -44,7 +48,7 @@ var maxSiteArchiveSize int64 = 100 << 20
 const maxSiteStateSize = 1 << 20
 
 func init() {
-	if v := os.Getenv("MAX_ARCHIVE_MB"); v != "" && v != "auto" {
+	if v := os.Getenv("MAX_ARCHIVE_MB"); v != "" {
 		if mb, err := strconv.Atoi(v); err == nil && mb > 0 {
 			SetSiteLimit(int64(mb) << 20)
 		}
@@ -69,6 +73,10 @@ type SiteHandler struct {
 
 	// uploadLocks serializes write+promote per site name (sitename -> *sync.Mutex).
 	uploadLocks sync.Map
+
+	// usage caches the disk measurement behind /v1/admin/usage. Measuring walks
+	// every file under the data directory, so it is not done per request.
+	usage usageCache
 
 	// uploadLimiter throttles create/update uploads per client IP; stateLimiter
 	// throttles per-site state writes (Origin-gated reads; writes also go
@@ -226,8 +234,8 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("DELETE /v1/admin/users/{id}", authMiddleware(http.HandlerFunc(h.deleteAccount)))
 	mux.Handle("PATCH /v1/me", authMiddleware(http.HandlerFunc(h.patchMe)))
 	mux.Handle("GET /v1/admin/users", authMiddleware(http.HandlerFunc(h.adminUsers)))
-	// How many people fit, answered from this server's actual disk.
-	mux.Handle("GET /v1/admin/capacity", authMiddleware(http.HandlerFunc(h.capacityPlan)))
+	// What the disk is actually holding, and how much is left.
+	mux.Handle("GET /v1/admin/usage", authMiddleware(http.HandlerFunc(h.adminUsage)))
 	// Take your work with you. An event box is destroyed when the event ends and
 	// nothing is backed up, so the only honest answer is to make leaving easy.
 	mux.Handle("GET /v1/sites/{sitename}/export.tar.gz", authMiddleware(http.HandlerFunc(h.exportSite)))
