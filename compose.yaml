@@ -43,6 +43,13 @@ services:
       # instance can. Put a number here to fix it instead; a per-site cap chosen
       # on the setup page outranks both.
       MAX_ARCHIVE_MB: ${MAX_ARCHIVE_MB:-auto}
+      # How many deploys of a site to keep. Every version is a full copy and the
+      # live tree is one more, so history — not sites — is what fills a small
+      # disk when an agent redeploys a page a dozen times in an afternoon.
+      # 1 keeps only what is live, which is the right trade for an event: there
+      # is no rollback, and the participant's agent still has the files.
+      # Set 0 to keep every version, as a general instance with room does.
+      KEEP_VERSIONS: ${KEEP_VERSIONS:-1}
       # Only the public instance hands out event hostnames; a self-hosted
       # instance leaves these unset and organisers bring their own domain.
       EVENT_DNS_TOKEN: ${EVENT_DNS_TOKEN:-}

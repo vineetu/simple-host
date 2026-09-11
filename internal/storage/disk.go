@@ -465,3 +465,26 @@ func (d *DiskStorage) DeleteUser(userID, handle string) error {
 	}
 	return os.RemoveAll(filepath.Join(d.dataDir, "by-id", userID))
 }
+
+// DeleteVersion removes one version directory. Used by retention on instances
+// that keep only the last few deploys; the live `current` tree is a separate
+// copy and is never touched here.
+//
+// A missing directory is success, not an error: retention runs after the
+// database rows are already gone, so a retry must be able to finish the job.
+func (d *DiskStorage) DeleteVersion(userID, siteName string, versionNum int) error {
+	if !validPathKey(userID) {
+		return fmt.Errorf("invalid user id %q", userID)
+	}
+	if !validPathKey(siteName) {
+		return fmt.Errorf("invalid site name %q", siteName)
+	}
+	if versionNum < 1 {
+		return fmt.Errorf("invalid version number %d", versionNum)
+	}
+	versionDir := filepath.Join(d.SiteDir(userID, siteName), fmt.Sprintf("v%d", versionNum))
+	if err := os.RemoveAll(versionDir); err != nil {
+		return fmt.Errorf("remove version %d: %w", versionNum, err)
+	}
+	return nil
+}

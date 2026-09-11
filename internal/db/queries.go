@@ -969,3 +969,31 @@ func GetActiveSiteVersion(ctx context.Context, db *sql.DB, siteID string) (Versi
 	)
 	return version, err
 }
+
+// PruneVersions deletes a site's version rows below keepFrom, never touching
+// the active one, and returns the version numbers removed so the caller can
+// delete the matching directories.
+//
+// Rows go first and disk second. The other order leaves rows pointing at
+// directories that are already gone, so a rollback to one of them would serve
+// nothing; this way a failure leaves directories with no rows, which wastes
+// space until the next deploy retries and is otherwise harmless.
+func PruneVersions(ctx context.Context, db *sql.DB, siteID string, keepFrom, activeVersion int) ([]int, error) {
+	rows, err := db.QueryContext(ctx,
+		`DELETE FROM versions
+		  WHERE site_id = $1 AND version_number < $2 AND version_number <> $3
+		  RETURNING version_number`, siteID, keepFrom, activeVersion)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var removed []int
+	for rows.Next() {
+		var n int
+		if err := rows.Scan(&n); err != nil {
+			return nil, err
+		}
+		removed = append(removed, n)
+	}
+	return removed, rows.Err()
+}

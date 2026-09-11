@@ -141,7 +141,7 @@
         <p class="lede">The organiser asks their AI agent to set up the event. It creates a server on their own cloud account, gives it a web address, installs everything and issues a key to each participant.</p>
         <p>Participants paste one prompt into the agent they already use, describe what they want, and get a live link back. Nobody opens a terminal.</p>
         <p>
-          <a class="cta solid" href="/install.html">Install the skill</a>
+          <a class="cta solid" href="#get-started">Get the organiser prompt</a>
           <a class="cta" href="https://github.com/vineetu/simple-host">Source on GitHub</a>
         </p>
       </div>
@@ -151,7 +151,7 @@
       <div class="snum">01.</div>
       <div>
         <h2>Get started</h2>
-        <p class="lede">Copy this into the AI agent you already use, and answer its questions.</p>
+        <p class="lede">Copy this into the AI agent you already use, and answer its questions. There is nothing to install first — the agent reads the instructions from the link.</p>
         <div class="prompt-card">
           <div class="prompt-head">
             <h3>Organiser · Set up an event</h3>
@@ -162,7 +162,7 @@
 Set up a hackathon instance for me on my own cloud account.</pre></details>
           <p>The agent asks which cloud provider you use and for an API token, then creates the server, gives it a web address, installs everything and hands back the keys.</p>
           <p>About five dollars a month on your own cloud account, billed hourly. A weekend costs cents.</p>
-          <p class="fine">Want to see it work before running an event? Sign in at <a href="/">simple-host.app</a> and build something there first. It is the same software.</p>
+          <p class="fine">Want to see it work before running an event? Sign in at <a href="https://simple-host.app/">simple-host.app</a> and build something there first. It is the same software.</p>
         </div>
       </div>
     </section>
@@ -180,7 +180,7 @@ Set up a hackathon instance for me on my own cloud account.</pre></details>
       <div class="snum">03.</div>
       <div>
         <h2>What the organiser does</h2>
-        <p class="lede">Installs the <strong>Run Hackathon</strong> skill and asks their agent to set up an event. The agent does the rest and reports back.</p>
+        <p class="lede">Pastes the prompt above into their agent and answers its questions. The agent reads the <strong>Run Hackathon</strong> instructions, does the rest and reports back.</p>
         <div class="facts">
           <div class="row"><div class="k">The server</div><p class="v">Smallest Ubuntu plan on the organiser's own cloud account, paid by them. Around five dollars a month, billed hourly, so a weekend event costs cents.</p></div>
           <div class="row"><div class="k">The address</div><p class="v">Two hostnames, created for them under a domain we run. Nothing to buy, no DNS to edit. They can use their own domain instead if they want their name on it. HTTPS certificates are obtained automatically.</p></div>
@@ -202,7 +202,7 @@ Set up a hackathon instance for me on my own cloud account.</pre></details>
           <li>Pastes one prompt into their agent: read the event's instructions, here is my key, ask me what to build.</li>
           <li>Describes what they want. It is a hackathon, so this is wide open — a page that takes sign-ups, a quiz about the product, a dashboard over a spreadsheet, whatever they can talk an agent into.</li>
           <li>Gets a link. If the page needs to save anything, it has a JSON document of up to 1&nbsp;MB and append-only collections, with no backend to set up.</li>
-          <li>Changes it. Every deploy is versioned, so an earlier version of the files is one rollback away.</li>
+          <li>Changes it, as many times as they like. Each deploy replaces the last, and their agent still has the files, so going back is a redeploy rather than a restore.</li>
         </ol>
         <div class="prompt-card">
           <div class="prompt-head">
@@ -237,9 +237,9 @@ Ask me what I want to build, then build it and publish it.</pre></details>
       <div class="snum">06.</div>
       <div>
         <h2>Start</h2>
-        <p>Try it as a participant first, on <a href="/">simple-host.app</a>, which runs the same software and is free. Sign in, install the skill, ask your agent for a page. Then install the hackathon skill and set up an event of your own.</p>
+        <p>Try it as a participant first, on <a href="https://simple-host.app/">simple-host.app</a>, which runs the same software and is free. Sign in and ask your agent for a page. Then use the organiser prompt above and set up an event of your own.</p>
         <p>
-          <a class="cta solid" href="/install.html">Install the skill</a>
+          <a class="cta solid" href="#get-started">Get the organiser prompt</a>
           <a class="cta" href="https://github.com/vineetu/simple-host">Source on GitHub</a>
           <a class="cta" href="/enterprise">For companies</a>
         </p>
@@ -287,6 +287,11 @@ Ask me what I want to build, then build it and publish it.</pre></details>
       if (home) { home.href = 'https://simple-host.app/'; home.textContent = 'Simple Host'; }
       var here = document.querySelector('nav.top a.on');
       if (here) { here.remove(); }
+      // Both hosts serve the same skill, so an organiser reading this page on
+      // simple-hack.app should be handed a simple-hack.app link rather than
+      // being sent somewhere they did not ask to go.
+      var op = document.getElementById('organiser-prompt');
+      if (op) { op.textContent = op.textContent.replace('simple-host.app', location.host); }
     }
     paintIcon();
   </script>

@@ -30,7 +30,7 @@ func TestDeployHistoryIsCounted(t *testing.T) {
 	// because a site on disk is its cap times its version history plus the
 	// live copy. At the defaults that is 3 sites x 11 copies = 33x per person.
 	usable := 33 * gb
-	if got, want := PeopleAt(usable, 1<<20, DefaultSitesPerPerson, DefaultKeptVersions), 1024; got != want {
+	if got, want := PeopleAt(usable, 1<<20, DefaultSitesPerPerson, UnboundedHistoryEstimate), 1024; got != want {
 		t.Errorf("PeopleAt(33GB, 1MB) = %d, want %d", got, want)
 	}
 	// Naive arithmetic would have said 33,792 for the same disk.
@@ -42,7 +42,7 @@ func TestDeployHistoryIsCounted(t *testing.T) {
 func TestForPeoplePicksTheLargestCapThatFits(t *testing.T) {
 	// 100 GB disk, 80 GB usable, 100 people: each person costs cap x 33.
 	// 25 MB x 33 x 100 = 82.5 GB, too much. 10 MB x 33 x 100 = 33 GB, fits.
-	plan := ForPeople(100*gb, 100*gb, 100)
+	plan := ForPeople(100*gb, 100*gb, 100, 0)
 	if plan.SiteMB != 10 {
 		t.Errorf("SiteMB = %d, want 10", plan.SiteMB)
 	}
@@ -55,7 +55,7 @@ func TestForPeoplePicksTheLargestCapThatFits(t *testing.T) {
 }
 
 func TestForPeopleWithoutAHeadcountSizesForANormalEvent(t *testing.T) {
-	plan := ForPeople(25*gb, 25*gb, 0)
+	plan := ForPeople(25*gb, 25*gb, 0, 0)
 	if plan.Requested != 0 || plan.People != DefaultPeople {
 		t.Errorf("Requested = %d, People = %d; want 0 and %d", plan.Requested, plan.People, DefaultPeople)
 	}
@@ -75,7 +75,7 @@ func TestForPeopleWithoutAHeadcountSizesForANormalEvent(t *testing.T) {
 func TestAnImpossibleHeadcountSaysSoRatherThanShrinkingSilently(t *testing.T) {
 	// More people than the smallest cap can hold. The plan must not claim to
 	// fit them; an organiser who is told "fine" here discovers it mid-event.
-	plan := ForPeople(25*gb, 25*gb, 1_000_000)
+	plan := ForPeople(25*gb, 25*gb, 1_000_000, 0)
 	if plan.SiteMB != MinSiteBytes>>20 {
 		t.Errorf("SiteMB = %d, want the floor", plan.SiteMB)
 	}
@@ -85,7 +85,7 @@ func TestAnImpossibleHeadcountSaysSoRatherThanShrinkingSilently(t *testing.T) {
 }
 
 func TestNoDiskAtAllIsReportedNotDividedBy(t *testing.T) {
-	plan := ForPeople(gb, gb, 50)
+	plan := ForPeople(gb, gb, 50, 0)
 	if plan.MaxPeople != 0 || plan.Fits() {
 		t.Errorf("a 1 GB disk should hold nobody: %+v", plan)
 	}
@@ -143,13 +143,38 @@ func TestSiteBytesClampsBeforeShifting(t *testing.T) {
 func TestExplanationDoesNotPromiseAFloor(t *testing.T) {
 	// Only the per-site cap is enforced. An explanation saying "at least" would
 	// read as a guarantee that the site count and version history do not back.
-	plan := ForPeople(100*gb, 100*gb, 100)
+	plan := ForPeople(100*gb, 100*gb, 100, 0)
 	if strings.Contains(plan.Explanation, "at least") {
 		t.Errorf("explanation promises a floor it cannot keep: %q", plan.Explanation)
 	}
-	for _, want := range []string{"budgets", "never pruned"} {
+	for _, want := range []string{"budgets", "keeping the last 10 deploys"} {
 		if !strings.Contains(plan.Explanation, want) {
 			t.Errorf("explanation is missing %q: %q", want, plan.Explanation)
 		}
+	}
+}
+
+func TestRetentionDominatesTheArithmetic(t *testing.T) {
+	// The whole reason this parameter exists. Same disk, same cap: keeping one
+	// deploy instead of ten holds five and a half times as many people, because
+	// a site costs its cap times its retained history plus the live copy.
+	all := ForPeople(100*gb, 100*gb, 0, 0)
+	one := ForPeople(100*gb, 100*gb, 0, 1)
+
+	if all.KeptVersions != UnboundedHistoryEstimate {
+		t.Errorf("keptVersions 0 should plan with the estimate, got %d", all.KeptVersions)
+	}
+	if one.KeptVersions != 1 {
+		t.Errorf("KeptVersions = %d, want 1", one.KeptVersions)
+	}
+	atSameCap := func(p Plan, mb int64) int {
+		return PeopleAt(p.UsableBytes, mb<<20, p.SitesPerPerson, p.KeptVersions)
+	}
+	wide, narrow := atSameCap(one, 10), atSameCap(all, 10)
+	if narrow == 0 || wide/narrow != 5 {
+		t.Errorf("one-version instance holds %d at 10MB, ten-version holds %d; want ~5.5x", wide, narrow)
+	}
+	if !strings.Contains(one.Explanation, "keeping only the live copy") {
+		t.Errorf("a one-version instance should say so plainly: %q", one.Explanation)
 	}
 }

@@ -32,7 +32,7 @@ SELF-CHECK before you answer: page writes use fetch with credentials:'include' a
 PUBLISHING — the JSON block above is the site; this is how it goes live. Pick a short lowercase name (letters, digits, hyphens). Create it once with POST, change it afterwards with PUT:
   POST https://simple-host.app/v1/sites/<name>/files   with header X-API-Key: <key>, body {"files":{"index.html":"<the page>"}}
   PUT  https://simple-host.app/v1/sites/<name>/files   same body, for every later change
-A 409 on POST means that name is already yours: use PUT. Binary files go in files_base64 instead, base64-encoded. The response carries site_url, which is the link to share. Every deploy is versioned; GET /v1/sites/<name>/versions lists them and PUT /v1/sites/<name>/active-version rolls back. Take a copy any time with GET /v1/sites/<name>/export.tar.gz.
+A 409 on POST means that name is already yours: use PUT. Binary files go in files_base64 instead, base64-encoded. The response carries site_url, which is the link to share. Every deploy is versioned; GET /v1/sites/<name>/versions lists the versions this instance still holds and PUT /v1/sites/<name>/active-version switches to one of them. An event instance may keep only the live version to save disk, in which case that list has one entry and redeploying is how you go back. Take a copy any time with GET /v1/sites/<name>/export.tar.gz.
 
 AGENT SAVING — POST /v1/auth {"email":"person@example.com"}, then POST /v1/auth/verify with that email and the person's emailed code to receive api_key. Send X-API-Key on state/collections writes to any site, including on the shared host.
 

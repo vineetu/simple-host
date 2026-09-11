@@ -259,7 +259,7 @@ func (h *SetupHandler) capacity(w http.ResponseWriter, r *http.Request) {
 		setupError(w, 500, "Cannot read this server's free space. Try again.")
 		return
 	}
-	plan := capacity.ForPeople(total, available, people)
+	plan := capacity.ForPeople(total, available, people, KeepVersions())
 	if !plan.Fits() {
 		setupError(w, 409, fmt.Sprintf("This server fits about %s people, not %s. %s",
 			capacity.Thousands(plan.MaxPeople), capacity.Thousands(people), plan.Explanation))

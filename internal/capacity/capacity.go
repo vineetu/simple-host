@@ -36,11 +36,16 @@ const (
 	// number and hand every participant a 1 MB quota they did not ask for.
 	DefaultPeople = 100
 
-	// DefaultKeptVersions is the deploy history assumed per site. Every deploy
-	// writes a new version directory and nothing prunes them, so a site on disk
-	// is its cap multiplied by its history — the single fact that makes naive
-	// "disk divided by cap" arithmetic wrong, usually by an order of magnitude.
-	DefaultKeptVersions = 10
+	// UnboundedHistoryEstimate is the deploy history assumed when an instance
+	// keeps every version. There is no true answer, so this is a working figure
+	// for an agent-driven afternoon; pretending the number is 1 would be worse.
+	//
+	// It exists because a site on disk is its cap multiplied by its retained
+	// history plus the live copy — the single fact that makes naive "disk
+	// divided by cap" arithmetic wrong, usually by an order of magnitude. An
+	// instance that keeps a bounded number of versions passes that number in
+	// and gets real arithmetic instead of this estimate.
+	UnboundedHistoryEstimate = 10
 
 	// reserveFloor is held back for Postgres, access logs, the container images
 	// and the temporary copy every deploy makes while promoting a version.
@@ -114,7 +119,12 @@ func PeopleAt(usable, siteBytes int64, sitesPerPerson, keptVersions int) int {
 // people <= 0 means the organiser has not counted heads, and DefaultPeople is
 // used instead of the smallest cap: an unknown event is far more likely to be
 // a normal one than a record-breaking one.
-func ForPeople(diskBytes, availableBytes int64, people int) Plan {
+// keptVersions is how many deploys per site the instance retains; pass 0 or
+// less when it retains all of them and UnboundedHistoryEstimate is used.
+func ForPeople(diskBytes, availableBytes int64, people, keptVersions int) Plan {
+	if keptVersions <= 0 {
+		keptVersions = UnboundedHistoryEstimate
+	}
 	requested := people
 	if people <= 0 {
 		people = DefaultPeople
@@ -126,7 +136,7 @@ func ForPeople(diskBytes, availableBytes int64, people int) Plan {
 		Requested:      requested,
 		People:         people,
 		SitesPerPerson: DefaultSitesPerPerson,
-		KeptVersions:   DefaultKeptVersions,
+		KeptVersions:   keptVersions,
 		SiteMB:         MinSiteBytes >> 20,
 	}
 	// Largest rung that still holds everyone. Falls through to the 1 MB floor
@@ -148,10 +158,14 @@ func explain(plan Plan) string {
 			human(plan.AvailableBytes))
 	}
 	// "Budgets", not "holds at least". Only the per-site cap is enforced; the
-	// site count and the deploy history are assumptions, and nothing prunes old
-	// versions. Calling this a floor would be a promise the server cannot keep.
-	return fmt.Sprintf("%s of usable disk budgets %s people at %d MB per site, assuming %d sites each and %d kept versions. Only the %d MB is enforced — old versions are never pruned, so an unusually busy event can still outgrow this.",
-		human(plan.UsableBytes), Thousands(plan.MaxPeople), plan.SiteMB, plan.SitesPerPerson, plan.KeptVersions, plan.SiteMB)
+	// number of sites a participant creates is an assumption. Calling this a
+	// floor would be a promise the server cannot keep.
+	history := fmt.Sprintf("keeping the last %d deploys of each", plan.KeptVersions)
+	if plan.KeptVersions == 1 {
+		history = "keeping only the live copy of each"
+	}
+	return fmt.Sprintf("%s of usable disk budgets %s people at %d MB per site, assuming %d sites each and %s. Only the %d MB is enforced.",
+		human(plan.UsableBytes), Thousands(plan.MaxPeople), plan.SiteMB, plan.SitesPerPerson, history, plan.SiteMB)
 }
 
 // Fits reports whether a plan actually covers the headcount asked for.

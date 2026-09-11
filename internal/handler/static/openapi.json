@@ -1121,6 +1121,7 @@
       "get": {
         "operationId": "getSitesBySitenameVersions",
         "summary": "List a site's versions",
+        "description": "The versions this instance still holds, newest first. An instance may be configured to keep only the last few deploys, or only the live one, in which case older versions are absent here and from disk. KEEP_VERSIONS controls it; event boxes are installed with 1.",
         "tags": [
           "Sites"
         ],

@@ -1026,6 +1026,11 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 		}
 	}
 
+	// Retention runs last, on the request context, and only ever removes
+	// history. A failure here is logged and nothing else: the deploy is already
+	// committed, promoted and live.
+	h.pruneVersions(r.Context(), site.ID, site.UserID, siteName, versionNumber)
+
 	site.ActiveVersion = versionNumber
 	writeJSON(w, http.StatusOK, toSiteResponse(site, ""))
 }

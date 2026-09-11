@@ -181,6 +181,28 @@ BODY=""
 [ -n "$SITEURL" ] && BODY=$(curl -sS $PIN --max-time 20 "$SITEURL" 2>/dev/null)
 grep -q "e2e" <<<"$BODY" && ok "served the right bytes" || bad "content host did not serve it"
 
+step "redeploys do not accumulate copies of the site"
+# An event box keeps only the live version (KEEP_VERSIONS=1 in install.sh).
+# Nothing pruned history before, and a site on disk cost its size times its
+# whole deploy history — on the smallest plan that history is what fills the
+# disk, not the sites. Redeploy three times and check both halves: the history
+# is gone, and the thing participants actually look at still works.
+for n in 2 3 4; do
+  curl -sS $PIN -o /dev/null -X PUT -H "X-API-Key: $PKEY" -H 'Content-Type: application/json' \
+    -d "{\"files\":{\"index.html\":\"<h1>e2e v$n</h1>\"}}" --max-time 60 \
+    "https://$HOST/v1/sites/entry/files"
+done
+KEPT=$(curl -sS $PIN --max-time 20 -H "X-API-Key: $PKEY" "https://$HOST/v1/sites/entry/versions" \
+  | python3 -c 'import json,sys;d=json.load(sys.stdin);print(len(d.get("versions",[])))' 2>/dev/null || echo 0)
+[ "${KEPT:-0}" = "1" ] && ok "four deploys, one version kept" || bad "four deploys left $KEPT versions; retention did not run"
+BODY=$(curl -sS $PIN --max-time 20 "$SITEURL" 2>/dev/null)
+grep -q "e2e v4" <<<"$BODY" && ok "the live page is the newest deploy" || bad "pruning history broke the live page"
+# Export reads the live tree, not the history, so taking your work with you must
+# survive retention. This is the promise the page makes to every participant.
+EXP=$(curl -sS $PIN --max-time 60 -o /dev/null -w '%{http_code}' -H "X-API-Key: $PKEY" \
+  "https://$HOST/v1/sites/entry/export.tar.gz" 2>/dev/null || echo 000)
+[ "$EXP" = "200" ] && ok "a participant can still export" || bad "export returned $EXP after retention ran"
+
 step "the instance describes itself, not the public one"
 LLMS=$(curl -sS $PIN --max-time 20 "https://$HOST/llms.txt")
 grep -q "$HOST" <<<"$LLMS" && ok "names this instance" || bad "llms.txt does not name this instance"

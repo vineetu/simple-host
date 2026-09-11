@@ -74,7 +74,7 @@ func AutoSiteLimit(ctx context.Context, db *sql.DB, dataDir string) (capacity.Pl
 	if err != nil {
 		return capacity.Plan{}, false
 	}
-	return capacity.ForPeople(total, available, 0), true
+	return capacity.ForPeople(total, available, 0, KeepVersions()), true
 }
 
 // capacityPlan answers "how many people fit on this server, and how big may
@@ -98,7 +98,7 @@ func (h *SiteHandler) capacityPlan(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 500, errorResponse{Error: "could not read this server's free space"})
 		return
 	}
-	plan := capacity.ForPeople(total, available, people)
+	plan := capacity.ForPeople(total, available, people, KeepVersions())
 	inForce := SiteLimit()
 	headcount := plan.People // the sizing's effective headcount, not the raw query
 
