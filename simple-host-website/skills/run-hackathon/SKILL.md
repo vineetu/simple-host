@@ -139,15 +139,24 @@ GET https://<event-host>/v1/admin/capacity?people=250
 X-API-Key: <the admin key>
 ```
 
-It reads the real filesystem and answers with a recommended per-site cap, the
-number of people that cap holds, and one sentence of explanation to repeat to
-the organiser. `fits: false` means the server is too small for that headcount:
-say so and offer a bigger plan rather than creating the accounts anyway.
+It reads the real filesystem. Two fields matter and they are not the same:
+`in_force_mb` is the cap the server is enforcing right now, and `recommended`
+is what it would be if sized for that headcount. `fits_now: false` means this
+server, as it is running, is too small for that many people — say so and offer
+a bigger plan rather than creating the accounts anyway. `recommended.explanation`
+is one sentence to repeat to the organiser.
 
 The response gives each participant a username, a handle
 and an **api_key**. Keys are bare hexadecimal with no prefix; do not reject one
 for looking wrong. Existing accounts are skipped and their keys are never
 re-disclosed, so re-running is safe but will not recover a lost key.
+
+**Create in batches of at most 1000, and save each batch before asking for the
+next.** Keys are shown once. 5000 accounts is roughly six seconds and 750 KB of
+response on a fast machine and several times that on the smallest plan, and a
+connection that drops after the server has committed takes every key in that
+batch with it — the retry skips the accounts as already existing and returns
+nothing you can hand out.
 
 Offer the organiser the list as CSV so they can paste it into a spreadsheet or a
 mail merge.

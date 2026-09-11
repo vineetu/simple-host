@@ -1,6 +1,9 @@
 package capacity
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 const gb = int64(1) << 30
 
@@ -117,6 +120,36 @@ func TestThousandsGroupsDigits(t *testing.T) {
 	for in, want := range map[int]string{0: "0", 999: "999", 1000: "1,000", 25000: "25,000", 1234567: "1,234,567"} {
 		if got := Thousands(in); got != want {
 			t.Errorf("Thousands(%d) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestSiteBytesClampsBeforeShifting(t *testing.T) {
+	// A hand-edited instance_config row. Shifting first wraps this negative and
+	// clamps it to the 1 MB floor — the opposite of what the operator asked for
+	// and, worse, silent.
+	for _, mb := range []int64{1 << 43, 1 << 60, 1<<63 - 1} {
+		if got := (Plan{SiteMB: mb}).SiteBytes(); got != MaxSiteBytes {
+			t.Errorf("SiteMB %d -> %d bytes, want the %d ceiling", mb, got, MaxSiteBytes)
+		}
+	}
+	for _, mb := range []int64{-1, -(1 << 60)} {
+		if got := (Plan{SiteMB: mb}).SiteBytes(); got != MinSiteBytes {
+			t.Errorf("SiteMB %d -> %d bytes, want the %d floor", mb, got, MinSiteBytes)
+		}
+	}
+}
+
+func TestExplanationDoesNotPromiseAFloor(t *testing.T) {
+	// Only the per-site cap is enforced. An explanation saying "at least" would
+	// read as a guarantee that the site count and version history do not back.
+	plan := ForPeople(100*gb, 100*gb, 100)
+	if strings.Contains(plan.Explanation, "at least") {
+		t.Errorf("explanation promises a floor it cannot keep: %q", plan.Explanation)
+	}
+	for _, want := range []string{"budgets", "never pruned"} {
+		if !strings.Contains(plan.Explanation, want) {
+			t.Errorf("explanation is missing %q: %q", want, plan.Explanation)
 		}
 	}
 }

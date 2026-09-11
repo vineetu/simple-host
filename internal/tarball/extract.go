@@ -19,27 +19,51 @@ import (
 // disk cannot honour a 500 MB site, and a cap the server advertises but does not
 // enforce is worse than no cap at all.
 var (
-	maxTotalUncompressedSize int64 = 500 * 1024 * 1024
+	maxTotalUncompressedSize int64 = ceilingBytes
 	maxFileSize              int64 = 100 * 1024 * 1024
+	// maxEntryCount caps the number of files in an archive (defends against
+	// many-tiny-files inode exhaustion, which the byte caps do not catch).
+	maxEntryCount = entryCeiling
+)
+
+const (
+	// ceilingBytes is the largest site this package will ever accept, whatever
+	// an instance asks for. The rest of the pipeline was sized against it.
+	ceilingBytes int64 = 500 * 1024 * 1024
+	// entryCeiling is the absolute file-count cap, and blockSize is the
+	// allocation unit assumed when deriving a smaller one from a byte budget.
+	entryCeiling = 50_000
+	blockSize    = 4096
 )
 
 // SetSiteLimit lowers the extraction caps to a per-site budget in bytes. Call
 // once at startup, before serving. Raising them above the built-in ceiling is
 // refused: the ceiling is what the rest of the pipeline was sized against.
 func SetSiteLimit(bytes int64) {
-	if bytes <= 0 || bytes > 500*1024*1024 {
+	if bytes <= 0 || bytes > ceilingBytes {
 		return
 	}
+	// Both caps are assigned outright rather than only lowered. Lowering-only
+	// leaves the per-file cap stranded at an earlier, smaller value when the
+	// limit is set twice — MAX_ARCHIVE_MB=1 at init followed by a stored 10 MB
+	// at boot would advertise 10 MB while still refusing any file over 1 MB.
 	maxTotalUncompressedSize = bytes
-	if maxFileSize > bytes {
-		maxFileSize = bytes
+	maxFileSize = bytes
+
+	// Entry count follows the byte budget. A filesystem allocates at least one
+	// block per file, so 49,000 one-byte files occupy ~190 MB on a 4K
+	// filesystem while measuring 49 KB — the byte cap alone does not bound what
+	// a site costs on disk. One block per entry makes the budget hold.
+	maxEntryCount = int(bytes / blockSize)
+	if maxEntryCount > entryCeiling {
+		maxEntryCount = entryCeiling
+	}
+	if maxEntryCount < 1 {
+		maxEntryCount = 1
 	}
 }
 
 const (
-	// maxEntryCount caps the number of files in an archive (defends against
-	// many-tiny-files inode exhaustion, which the byte caps do not catch).
-	maxEntryCount = 50_000
 	// maxPathDepth / maxPathLen bound pathological directory nesting and names.
 	maxPathDepth = 32
 	maxPathLen   = 1024
@@ -268,4 +292,17 @@ func shouldSkip(name string) bool {
 // is the part that is easy to half-do and impossible to see from outside.
 func SiteLimitIs(bytes int64) bool {
 	return maxTotalUncompressedSize == bytes && maxFileSize == bytes
+}
+
+// MaxEntries reports the file-count cap currently in force.
+func MaxEntries() int { return maxEntryCount }
+
+// SnapshotLimits captures the current caps and returns a function that puts
+// them back. The caps are package globals, so a test in another package that
+// exercises the wiring into SetSiteLimit would otherwise leave them moved for
+// every test that runs after it — an order-dependent failure, which is the
+// worst kind to debug.
+func SnapshotLimits() func() {
+	total, file, entries := maxTotalUncompressedSize, maxFileSize, maxEntryCount
+	return func() { maxTotalUncompressedSize, maxFileSize, maxEntryCount = total, file, entries }
 }

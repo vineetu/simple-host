@@ -177,33 +177,60 @@ func itoa(i int) string {
 	return string(b[pos:])
 }
 
-func TestSetSiteLimitLowersButNeverRaises(t *testing.T) {
-	totalBefore, fileBefore := maxTotalUncompressedSize, maxFileSize
-	defer func() { maxTotalUncompressedSize, maxFileSize = totalBefore, fileBefore }()
+func restoreLimits(t *testing.T) {
+	t.Helper()
+	total, file, entries := maxTotalUncompressedSize, maxFileSize, maxEntryCount
+	t.Cleanup(func() { maxTotalUncompressedSize, maxFileSize, maxEntryCount = total, file, entries })
+}
+
+func TestSetSiteLimitMovesEveryCapTogether(t *testing.T) {
+	restoreLimits(t)
 
 	SetSiteLimit(4 << 20)
 	if maxTotalUncompressedSize != 4<<20 || maxFileSize != 4<<20 {
 		t.Fatalf("after SetSiteLimit(4MB): total=%d file=%d", maxTotalUncompressedSize, maxFileSize)
 	}
-	// A single file may not exceed the whole-site budget once lowered, or a
-	// 10 MB instance would still accept one 100 MB file.
-	if maxFileSize > maxTotalUncompressedSize {
-		t.Errorf("per-file cap %d exceeds total cap %d", maxFileSize, maxTotalUncompressedSize)
+	// One block per file, so the byte budget also bounds what the site costs on
+	// disk. 4 MB / 4 KB = 1024 files.
+	if maxEntryCount != 1024 {
+		t.Errorf("maxEntryCount = %d, want 1024", maxEntryCount)
+	}
+
+	// Setting it twice must land on the second value in every cap. Lowering-only
+	// used to strand the per-file cap at the smaller of the two, so an instance
+	// advertising 10 MB still refused a 2 MB file.
+	SetSiteLimit(1 << 20)
+	SetSiteLimit(10 << 20)
+	if maxFileSize != 10<<20 || maxTotalUncompressedSize != 10<<20 {
+		t.Errorf("after 1MB then 10MB: total=%d file=%d, want both %d", maxTotalUncompressedSize, maxFileSize, int64(10<<20))
 	}
 
 	// Nonsense and over-ceiling values are ignored rather than applied: the
 	// rest of the pipeline was sized against the 500 MB ceiling.
-	for _, bad := range []int64{0, -1, 501 << 20, 1 << 40} {
+	for _, bad := range []int64{0, -1, 501 << 20, 1 << 40, -1 << 62} {
 		SetSiteLimit(bad)
-		if maxTotalUncompressedSize != 4<<20 {
+		if maxTotalUncompressedSize != 10<<20 {
 			t.Errorf("SetSiteLimit(%d) changed the cap to %d", bad, maxTotalUncompressedSize)
 		}
 	}
 }
 
+func TestEntryCountNeverExceedsTheCeiling(t *testing.T) {
+	restoreLimits(t)
+	// 500 MB / 4 KB is 128,000, well over the inode guard. The guard wins.
+	SetSiteLimit(500 << 20)
+	if maxEntryCount != entryCeiling {
+		t.Errorf("maxEntryCount = %d, want the %d ceiling", maxEntryCount, entryCeiling)
+	}
+	// And a cap smaller than one block still admits one file rather than none.
+	SetSiteLimit(1024)
+	if maxEntryCount != 1 {
+		t.Errorf("maxEntryCount = %d, want 1", maxEntryCount)
+	}
+}
+
 func TestSiteLimitIsActuallyEnforcedOnExtraction(t *testing.T) {
-	totalBefore, fileBefore := maxTotalUncompressedSize, maxFileSize
-	defer func() { maxTotalUncompressedSize, maxFileSize = totalBefore, fileBefore }()
+	restoreLimits(t)
 	SetSiteLimit(1 << 20)
 
 	archive := makeTarGz(t, []tarEntry{{name: "index.html", content: bytes.Repeat([]byte("A"), (1<<20)+1)}})

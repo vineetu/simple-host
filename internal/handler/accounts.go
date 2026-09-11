@@ -14,9 +14,15 @@ import (
 )
 
 // maxBulkAccounts caps one create-accounts call. The number is a guard against
-// a typo turning into a million rows and an hour-long transaction, not a
-// product limit: what an instance can really hold is set by its disk, which
-// internal/capacity works out and the setup page asks about.
+// a typo turning into a million rows, not a product limit: what an instance can
+// really hold is set by its disk, which internal/capacity works out and the
+// setup page asks about.
+//
+// Measured at 5000: six seconds and a 750 KB response against a local Postgres,
+// in one transaction. Comfortable, but a dropped connection after the commit
+// takes every key in the batch with it, because the retry skips the accounts as
+// already existing and never re-discloses a key. The skill tells organisers to
+// ask in batches of a thousand for that reason.
 const maxBulkAccounts = 5000
 
 type bulkUsersRequest struct {

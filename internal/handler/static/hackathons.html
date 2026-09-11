@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Simple Host for hackathons</title>
-  <meta name="description" content="The easiest way to run a hackathon, and the easiest way to be in one. The organiser's AI agent sets up a private instance on their own cloud account; participants build with the agent they already use.">
+  <meta name="description" content="The easiest way to run a hackathon, and the easiest way to join one. The organiser's AI agent sets up a private instance on their own cloud account; participants build with the agent they already use.">
   <script>(function(){try{var s=localStorage.getItem('sh-theme');document.documentElement.dataset.theme=s||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');}catch(e){document.documentElement.dataset.theme='light';}})();</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -137,7 +137,7 @@
       <div class="snum">00.</div>
       <div>
         <div class="kicker">Simple Host for hackathons</div>
-        <h1 class="title">The easiest way to run a hackathon. And the easiest way to be in one.</h1>
+        <h1 class="title">The easiest way to run a hackathon. The easiest way to join one.</h1>
         <p class="lede">The organiser asks their AI agent to set up the event. It creates a server on their own cloud account, gives it a web address, installs everything and issues a key to each participant.</p>
         <p>Participants paste one prompt into the agent they already use, describe what they want, and get a live link back. Nobody opens a terminal.</p>
         <p>
@@ -184,8 +184,8 @@ Set up a hackathon instance for me on my own cloud account.</pre></details>
         <div class="facts">
           <div class="row"><div class="k">The server</div><p class="v">Smallest Ubuntu plan on the organiser's own cloud account, paid by them. Around five dollars a month, billed hourly, so a weekend event costs cents.</p></div>
           <div class="row"><div class="k">The address</div><p class="v">Two hostnames, created for them under a domain we run. Nothing to buy, no DNS to edit. They can use their own domain instead if they want their name on it. HTTPS certificates are obtained automatically.</p></div>
-          <div class="row"><div class="k">The accounts</div><p class="v">Ask the agent for a number of keys, or hand it a list of email addresses. Each participant gets one key, and the whole list downloads as a spreadsheet you hand out however you already talk to people.</p></div>
-          <div class="row"><div class="k">How many fit</div><p class="v">Worked out from the server's disk rather than picked out of the air. The agent asks how big the event is when it sets up, and sizes each site to match. The smallest plan holds <strong>thousands</strong> of sites at 10&nbsp;MB each, and ten times that at 1&nbsp;MB — plenty for a weekend.</p></div>
+          <div class="row"><div class="k">The accounts</div><p class="v">Ask the agent for a number of keys, or hand it a list of email addresses. A key is one person, so a team shares one or each member publishes and you pick the entry. The whole list downloads as a spreadsheet you hand out however you already talk to people.</p></div>
+          <div class="row"><div class="k">How many fit</div><p class="v">Taken from the server's actual free space. The agent asks how big the event is, sizes each site to match and tells you the number before you commit to it. The smallest plan covers a few hundred people; a hackathon site is rarely more than a megabyte.</p></div>
           <div class="row"><div class="k">Afterwards</div><p class="v">Ask the agent to tear it down. It deletes the server and removes the hostnames, so nothing keeps billing and no address is left pointing at a machine somebody else now owns.</p></div>
         </div>
         <p>Two hostnames rather than one is deliberate. Participant pages must never share a browser origin with the admin screen, or something a participant publishes could act on the dashboard of whoever is looking at it.</p>
@@ -200,7 +200,7 @@ Set up a hackathon instance for me on my own cloud account.</pre></details>
         <ol>
           <li>Gets a key from the organiser.</li>
           <li>Pastes one prompt into their agent: read the event's instructions, here is my key, ask me what to build.</li>
-          <li>Describes what they want. It is a hackathon, so this is wide open — a page that takes sign-ups, a quiz about the product, a dashboard over a spreadsheet, a game, a leaderboard, whatever they can talk an agent into.</li>
+          <li>Describes what they want. It is a hackathon, so this is wide open — a page that takes sign-ups, a quiz about the product, a dashboard over a spreadsheet, whatever they can talk an agent into.</li>
           <li>Gets a link. If the page needs to save anything, it has a JSON document of up to 1&nbsp;MB and append-only collections, with no backend to set up.</li>
           <li>Changes it. Every deploy is versioned, so an earlier version of the files is one rollback away.</li>
         </ol>

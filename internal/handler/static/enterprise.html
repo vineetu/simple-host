@@ -177,6 +177,7 @@
           <tr><td class="tk">State, not a database</td><td class="tv">A site keeps one 1&nbsp;MB JSON document plus append-only collections. No queries, no schema, no server-side code. Anything past that shape belongs on a different host.</td></tr>
           <tr><td class="tk">One owner per site</td><td class="tv">A site belongs to one account. On a site with its own domain, any signed-in visitor can save; there are no roles beyond that.</td></tr>
           <tr><td class="tk">Google, or an emailed code</td><td class="tv">Those are the two ways in. Restrict Google to your Workspace domain on the OAuth client. There is no SAML or OIDC beyond Google.</td></tr>
+          <tr><td class="tk">Upgrades are manual</td><td class="tv">Installing is one script, safe to re-run after a failure. Moving a running instance to a newer version has no tooling yet: the schema applies on first boot only, and the server does not report its own version.</td></tr>
           <tr><td class="tk">Docker Compose</td><td class="tv">That is the supported shape, on both Intel and ARM. Running it under Kubernetes is your own exercise; there is no Helm chart.</td></tr>
         </table>
       </div>

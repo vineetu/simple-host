@@ -31,11 +31,25 @@ type SetupHandler struct {
 	client                     *http.Client
 	ipMu                       sync.Mutex
 	ip                         string
+
+	// done is closed once setup succeeds, so the process can leave setup mode.
+	// Settings chosen here are read at startup — the hostnames, and the
+	// per-site cap — and nothing in a running setup-mode process re-reads them,
+	// because the serving routes were never registered on this mux.
+	done     chan struct{}
+	doneOnce sync.Once
 }
+
+// Done is closed once setup has been completed successfully. The caller stops
+// the setup server and exits, and the supervisor starts the process again —
+// this time reading the answers out of the database. Without it an organiser
+// sees "Done", reloads, and gets the setup page back.
+func (h *SetupHandler) Done() <-chan struct{} { return h.done }
 
 func NewSetupHandler(db *sql.DB, publicAPI string, password string, dataDir string) *SetupHandler {
 	return &SetupHandler{db: db, publicAPI: strings.TrimRight(publicAPI, "/"), password: password, dataDir: dataDir,
-		token: rand.Text(), limiter: newRateLimiter(5, 1.0/60), client: &http.Client{Timeout: 30 * time.Second}}
+		token: rand.Text(), limiter: newRateLimiter(5, 1.0/60), client: &http.Client{Timeout: 30 * time.Second},
+		done: make(chan struct{})}
 }
 
 func (h *SetupHandler) Register(mux *http.ServeMux) {
@@ -309,6 +323,9 @@ func (h *SetupHandler) finish(w http.ResponseWriter, r *http.Request) {
 	// separately would allow an instance that is addressable but unsized, which
 	// is the state that silently keeps the 100 MB default.
 	if req.SiteMB > 0 {
+		// Stored, not applied. This process has no upload routes to apply it to,
+		// and writing package globals from a request handler would be a data race
+		// against nothing but itself.
 		sized := capacity.Plan{SiteMB: req.SiteMB}
 		if _, err = tx.ExecContext(r.Context(),
 			`INSERT INTO instance_config (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,
@@ -316,13 +333,15 @@ func (h *SetupHandler) finish(w http.ResponseWriter, r *http.Request) {
 			setupError(w, 500, "Cannot save setup. Try again.")
 			return
 		}
-		SetSiteLimit(sized.SiteBytes())
 	}
 	if err = tx.Commit(); err != nil {
 		setupError(w, 500, "Cannot confirm setup. Reload to check its status.")
 		return
 	}
 	writeJSON(w, 200, map[string]string{"admin_api_key": key})
+	// Only after the key has been written. It is shown exactly once, and an
+	// organiser who loses it is not the administrator of their own instance.
+	h.doneOnce.Do(func() { close(h.done) })
 }
 
 func (h *SetupHandler) publicIPv4(ctx context.Context) (string, error) {

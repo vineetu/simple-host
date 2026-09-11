@@ -147,12 +147,11 @@ func explain(plan Plan) string {
 		return fmt.Sprintf("This server has %s free, which is not enough headroom to run an event. Use a plan with a bigger disk.",
 			human(plan.AvailableBytes))
 	}
-	// "At least" is the whole point. The figure assumes every participant fills
-	// every site to its cap and redeploys the full history, which nobody does.
-	// Quoting it as a floor is what makes it safe to plan against; quoting it as
-	// a prediction would make the server look far smaller than it is.
-	return fmt.Sprintf("%s of usable disk holds at least %s people at %d MB per site, assuming %d sites each, %d kept versions per site, and every one of them full. Real sites are a fraction of their cap, so the practical number is much higher.",
-		human(plan.UsableBytes), Thousands(plan.MaxPeople), plan.SiteMB, plan.SitesPerPerson, plan.KeptVersions)
+	// "Budgets", not "holds at least". Only the per-site cap is enforced; the
+	// site count and the deploy history are assumptions, and nothing prunes old
+	// versions. Calling this a floor would be a promise the server cannot keep.
+	return fmt.Sprintf("%s of usable disk budgets %s people at %d MB per site, assuming %d sites each and %d kept versions. Only the %d MB is enforced — old versions are never pruned, so an unusually busy event can still outgrow this.",
+		human(plan.UsableBytes), Thousands(plan.MaxPeople), plan.SiteMB, plan.SitesPerPerson, plan.KeptVersions, plan.SiteMB)
 }
 
 // Fits reports whether a plan actually covers the headcount asked for.
@@ -160,14 +159,17 @@ func (p Plan) Fits() bool { return p.MaxPeople > 0 && p.MaxPeople >= p.People }
 
 // SiteBytes is the per-site cap in bytes, clamped to what the extractor accepts.
 func (p Plan) SiteBytes() int64 {
-	bytes := p.SiteMB << 20
-	if bytes < MinSiteBytes {
+	// Clamp the megabytes before shifting, not after. This value can come from
+	// a hand-edited instance_config row, and shifting first lets a large enough
+	// number wrap to a negative and clamp to the floor instead of the ceiling.
+	mb := p.SiteMB
+	if mb < MinSiteBytes>>20 {
 		return MinSiteBytes
 	}
-	if bytes > MaxSiteBytes {
+	if mb > MaxSiteBytes>>20 {
 		return MaxSiteBytes
 	}
-	return bytes
+	return mb << 20
 }
 
 // Disk reports the size and free space of the filesystem holding path.

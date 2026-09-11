@@ -58,11 +58,16 @@ func LoadSiteLimit(ctx context.Context, db *sql.DB) (int64, error) {
 // skips setup entirely, and without this it would keep the 100 MB default —
 // five participants taking that literally fill a 25 GB disk between them.
 //
-// Opt-in, via MAX_ARCHIVE_MB=auto. A long-running general instance must not
-// have its limits moved underneath it by an upgrade, so the default is still to
-// change nothing.
-func AutoSiteLimit(dataDir string) (capacity.Plan, bool) {
+// Opt-in, via MAX_ARCHIVE_MB=auto, and only while the instance is still empty.
+// Sizing a box that already holds sites would move the ceiling underneath a
+// running event: someone who deployed a 40 MB site on Friday would find their
+// Saturday deploy refused, by an upgrade they did not ask for.
+func AutoSiteLimit(ctx context.Context, db *sql.DB, dataDir string) (capacity.Plan, bool) {
 	if os.Getenv("MAX_ARCHIVE_MB") != "auto" {
+		return capacity.Plan{}, false
+	}
+	var used bool
+	if err := db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM sites)`).Scan(&used); err != nil || used {
 		return capacity.Plan{}, false
 	}
 	total, available, err := capacity.Disk(dataDir)
@@ -77,6 +82,11 @@ func AutoSiteLimit(dataDir string) (capacity.Plan, bool) {
 // describes the machine, and the headcount of an event is not participant
 // business.
 //
+// It reports the recommendation and the cap actually in force separately,
+// because on a running instance they are usually different — this endpoint
+// changes nothing. Saying "fits" against a cap nobody applied would tell an
+// organiser their event is fine when it is the 100 MB default that is live.
+//
 // GET /v1/admin/capacity?people=120
 func (h *SiteHandler) capacityPlan(w http.ResponseWriter, r *http.Request) {
 	if !accountAdmin(w, r) {
@@ -89,10 +99,16 @@ func (h *SiteHandler) capacityPlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	plan := capacity.ForPeople(total, available, people)
+	inForce := SiteLimit()
+	headcount := plan.People // the sizing's effective headcount, not the raw query
+
+	atCurrentCap := capacity.PeopleAt(plan.UsableBytes, inForce, plan.SitesPerPerson, plan.KeptVersions)
 	writeJSON(w, 200, map[string]any{
-		"plan":         plan,
-		"fits":         plan.Fits(),
-		"in_force_mb":  SiteLimit() >> 20,
-		"max_accounts": maxBulkAccounts,
+		"recommended":           plan,
+		"in_force_mb":           inForce >> 20,
+		"people_at_current_cap": atCurrentCap,
+		"fits_now":              atCurrentCap >= headcount,
+		"fits_recommended":      plan.Fits(),
+		"max_accounts":          maxBulkAccounts,
 	})
 }

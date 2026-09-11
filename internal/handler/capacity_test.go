@@ -9,7 +9,8 @@ import (
 
 func TestSetSiteLimitMovesBothCaps(t *testing.T) {
 	before := maxSiteArchiveSize
-	defer func() { maxSiteArchiveSize = before; tarball.SetSiteLimit(100 << 20) }()
+	restore := tarball.SnapshotLimits()
+	t.Cleanup(func() { maxSiteArchiveSize = before; restore() })
 
 	SetSiteLimit(4 << 20)
 	if SiteLimit() != 4<<20 {
@@ -21,6 +22,11 @@ func TestSetSiteLimitMovesBothCaps(t *testing.T) {
 	// upload that lands as half a gigabyte of files.
 	if !tarball.SiteLimitIs(4 << 20) {
 		t.Error("SetSiteLimit did not lower the extractor's caps")
+	}
+	// The file-count cap follows too. Without it a 4 MB site can still be
+	// 50,000 files, which on a 4K filesystem occupies fifty times its budget.
+	if got, want := tarball.MaxEntries(), (4<<20)/4096; got != want {
+		t.Errorf("MaxEntries() = %d, want %d", got, want)
 	}
 
 	SetSiteLimit(0)

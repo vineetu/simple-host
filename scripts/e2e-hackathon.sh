@@ -141,22 +141,28 @@ done
 
 step "the server sizes itself against its own disk"
 CAP=$(curl -sS $PIN --max-time 20 -H "X-API-Key: $ADMIN" "https://$HOST/v1/admin/capacity?people=100")
-SITEMB=$(python3 -c 'import json,sys;print(json.load(sys.stdin)["plan"]["site_mb"])' <<<"$CAP" 2>/dev/null || echo 0)
-MAXP=$(python3 -c 'import json,sys;print(json.load(sys.stdin)["plan"]["max_people"])' <<<"$CAP" 2>/dev/null || echo 0)
-FITS=$(python3 -c 'import json,sys;print(json.load(sys.stdin)["fits"])' <<<"$CAP" 2>/dev/null || echo False)
-# The numbers must come from this box, not from a default. A 25 GB event server
-# that reports the 500 MB ceiling, or a headcount of zero, has read nothing.
-[ "${SITEMB:-0}" -ge 1 ] && [ "${SITEMB:-0}" -le 500 ] && ok "sized to ${SITEMB} MB per site" || bad "capacity returned no per-site cap"
-[ "${MAXP:-0}" -ge 100 ] && [ "$FITS" = "True" ] && ok "holds at least ${MAXP} people" || bad "capacity says this server cannot hold 100 people"
+cap_field() { python3 -c "import json,sys;d=json.load(sys.stdin);print(eval('d'+sys.argv[1]))" "$1" <<<"$CAP" 2>/dev/null || echo 0; }
+INFORCE=$(cap_field "['in_force_mb']")
+SITEMB=$(cap_field "['recommended']['site_mb']")
+MAXP=$(cap_field "['recommended']['max_people']")
+# The numbers must come from this box, not from a default. An event server that
+# reports the 500 MB ceiling, or a headcount of zero, has read nothing.
+[ "${SITEMB:-0}" -ge 1 ] && [ "${SITEMB:-0}" -le 500 ] && ok "recommends ${SITEMB} MB per site" || bad "capacity returned no per-site cap"
+[ "${MAXP:-0}" -ge 100 ] && ok "budgets ${MAXP} people" || bad "capacity says this server cannot hold 100 people"
+# install.sh writes MAX_ARCHIVE_MB=auto, so the box must have sized itself at
+# boot rather than kept the 100 MB default it ships with.
+[ "${INFORCE:-0}" -ge 1 ] && [ "${INFORCE:-0}" -lt 100 ] && ok "sized itself to ${INFORCE} MB at boot" || bad "the box is still on the ${INFORCE} MB default; auto-sizing did not run"
 
-step "the chosen cap is the one actually enforced"
+step "the cap in force is the one actually enforced"
 # A cap the API quotes but the uploader ignores is the failure this catches.
-BIG=$(python3 -c "print('A'*(($SITEMB*1024*1024)+4096))")
-CODE=$(curl -sS $PIN -o /dev/null -w '%{http_code}' --max-time 60 -X POST -H "X-API-Key: $ADMIN" \
-  -H 'Content-Type: application/json' \
-  -d "$(python3 -c 'import json,sys;print(json.dumps({"files":{"index.html":sys.stdin.read()}}))' <<<"$BIG")" \
+# The payload goes through a file: a megabyte of JSON on the command line is
+# past Linux's per-argument limit and fails as "Argument list too long".
+python3 -c 'import json,sys; mb=int(sys.argv[1]); json.dump({"files":{"index.html":"A"*(mb*1024*1024+65536)}}, sys.stdout)' "$INFORCE" > /tmp/e2e-toobig.json
+CODE=$(curl -sS $PIN -o /dev/null -w '%{http_code}' --max-time 120 -X POST -H "X-API-Key: $ADMIN" \
+  -H 'Content-Type: application/json' --data-binary @/tmp/e2e-toobig.json \
   "https://$HOST/v1/sites/toobig/files" 2>/dev/null || echo 000)
-[ "$CODE" = "413" ] || [ "$CODE" = "400" ] && ok "a site over the cap is refused ($CODE)" || bad "a site over the ${SITEMB} MB cap was accepted ($CODE)"
+rm -f /tmp/e2e-toobig.json
+[ "$CODE" = "413" ] && ok "a site over the ${INFORCE} MB cap is refused" || bad "a site over the ${INFORCE} MB cap returned $CODE, not 413"
 
 step "the organiser issues a participant key"
 PKEY=$(curl -sS $PIN -X POST -H "X-API-Key: $ADMIN" -H 'Content-Type: application/json' \

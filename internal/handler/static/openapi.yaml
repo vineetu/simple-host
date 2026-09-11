@@ -1583,9 +1583,10 @@ paths:
       description: >-
         Sizes the instance against its own filesystem. Given a headcount it returns the largest
         round per-site cap that still holds everyone; given none it sizes for a hundred people.
-        The figures are a floor, not a forecast: they assume every participant fills every site
-        to its cap and keeps a full deploy history, because nothing prunes old versions. Non-admin
-        callers receive 404.
+        The figures are a budget, not a guarantee: only the per-site cap is enforced, while the
+        site count and the deploy history are assumptions, and nothing prunes old versions. The
+        recommendation and the cap actually in force are reported separately, because this endpoint
+        changes neither. Non-admin callers receive 404.
       tags: [Admin]
       security: [{ apiKey: [] }]
       parameters:
@@ -1601,13 +1602,16 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [plan, fits, in_force_mb, max_accounts]
+                required: [recommended, in_force_mb, people_at_current_cap, fits_now, fits_recommended, max_accounts]
                 properties:
-                  fits: { type: boolean, description: Whether the server holds the headcount asked for }
-                  in_force_mb: { type: integer, description: Per-site cap currently enforced, in megabytes }
+                  in_force_mb: { type: integer, description: Per-site cap this instance is enforcing right now }
+                  people_at_current_cap: { type: integer, description: People the server budgets at the cap in force }
+                  fits_now: { type: boolean, description: Whether the headcount fits at the cap in force. This endpoint changes nothing, so this is the answer that describes the running server }
+                  fits_recommended: { type: boolean, description: Whether the headcount would fit at the recommended cap }
                   max_accounts: { type: integer, description: Largest batch POST /v1/admin/users accepts }
-                  plan:
+                  recommended:
                     type: object
+                    description: What the cap would be if it were sized for this headcount. Applying it needs a restart with MAX_ARCHIVE_MB set, or a fresh instance sized at setup.
                     properties:
                       disk_bytes: { type: integer }
                       available_bytes: { type: integer }
@@ -1615,9 +1619,9 @@ paths:
                       requested: { type: integer, description: Headcount asked for, 0 when none was given }
                       people: { type: integer, description: Headcount the sizing actually used }
                       site_mb: { type: integer, description: Recommended per-site cap, in megabytes }
-                      max_people: { type: integer, description: People this server holds at that cap, assuming all of them full }
-                      sites_per_person: { type: integer }
-                      kept_versions: { type: integer }
+                      max_people: { type: integer, description: People this server budgets at that cap }
+                      sites_per_person: { type: integer, description: Sites assumed per participant. Assumed, not enforced }
+                      kept_versions: { type: integer, description: Deploy history assumed per site. Nothing prunes old versions, so this is an assumption too }
                       total_sites: { type: integer }
                       explanation: { type: string }
         '401': { $ref: '#/components/responses/Unauthorized' }

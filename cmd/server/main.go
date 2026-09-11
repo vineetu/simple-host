@@ -67,8 +67,26 @@ func main() {
 		setup.Register(mux)
 		log.Printf("SETUP MODE: no hostname configured; serving the setup page on :%s", cfg.Port)
 		srv := &http.Server{Addr: ":" + cfg.Port, Handler: mux}
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("setup server: %v", err)
+		errs := make(chan error, 1)
+		go func() { errs <- srv.ListenAndServe() }()
+		select {
+		case err := <-errs:
+			if err != nil && err != http.ErrServerClosed {
+				log.Fatalf("setup server: %v", err)
+			}
+		case <-setup.Done():
+			// Setup wrote its answers to the database. This process cannot use
+			// them: it registered the setup page and nothing else, and the
+			// hostnames and per-site cap are read at startup. So it stops, and
+			// the supervisor starts it again into the configured instance.
+			// Without this the organiser is told "Done", reloads, and is handed
+			// the setup page for a second time.
+			log.Printf("setup complete; restarting into the configured instance")
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := srv.Shutdown(shutdownCtx); err != nil {
+				log.Printf("setup server shutdown: %v", err)
+			}
 		}
 		return
 	}
@@ -82,7 +100,7 @@ func main() {
 	} else if siteLimit > 0 {
 		handler.SetSiteLimit(siteLimit)
 		log.Printf("per-site limit: %d MB (chosen at setup)", siteLimit>>20)
-	} else if plan, auto := handler.AutoSiteLimit(cfg.DataDir); auto {
+	} else if plan, auto := handler.AutoSiteLimit(context.Background(), db, cfg.DataDir); auto {
 		// Recomputed every boot rather than saved. Persisting it would outrank a
 		// later explicit MAX_ARCHIVE_MB, since a stored limit is read before the
 		// environment is consulted — an operator who set a number would find it
