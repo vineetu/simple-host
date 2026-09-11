@@ -111,6 +111,11 @@ One command over SSH, from `references/install.md` (https://simple-host.app/v1/s
 fails halfway, run it again. It installs Docker, pulls the published image,
 starts the stack and prints a JSON summary.
 
+Two optional flags set how big a website may be and how many deploys to keep —
+`--max-site-mb` and `--keep-versions`, both covered in `references/install.md`.
+The defaults suit nearly every event. Do not work them out from a headcount;
+a hackathon website is usually tens of kilobytes.
+
 **The summary contains the admin key and it is shown exactly once.** Give it to
 the organiser immediately and tell them to keep it. Nothing else can display it,
 and without it they are not the administrator of their own instance.

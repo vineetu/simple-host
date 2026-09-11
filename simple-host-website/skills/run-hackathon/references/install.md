@@ -73,3 +73,35 @@ ssh -i ~/.ssh/hackathon_key <user>@<ip> 'cd /opt/simple-host && docker compose p
 
 Caddy repeatedly failing to get a certificate almost always means DNS is not
 pointing at this machine yet, or port 80 is blocked.
+
+## Size settings
+
+Two optional flags, both written to `/opt/simple-host/.env`:
+
+| Flag | Default | What it does |
+|---|---|---|
+| `--max-site-mb N` | 100 | How big one website may be. Applies to the upload and to what it expands to on disk. |
+| `--keep-versions N` | 1 | How many deploys of a website to keep. Every version is a full copy. `0` keeps all of them. |
+
+**Do not compute these from a headcount.** A hackathon website is usually a few
+tens of kilobytes — the median across the sites running on simple-host.app is
+25 KB — so anything derived from the per-site cap is wrong by a factor of
+thousands. The defaults are right for almost every event. Raise `--max-site-mb`
+only if the organiser says they are publishing something large, like video.
+
+They survive a re-run: installing again without the flags keeps whatever was
+set before, so retrying a failed install never silently undoes a choice.
+
+### Changing them after the event is running
+
+No reinstall needed. Edit the file and bring the stack back up:
+
+```
+ssh root@<ip> "cd /opt/simple-host && \
+  sed -i 's/^MAX_ARCHIVE_MB=.*/MAX_ARCHIVE_MB=500/' .env && \
+  docker compose up -d"
+```
+
+Sites and data are in named volumes, so this restarts the app without touching
+either. The organiser's admin page shows the value currently in force, along
+with how much disk is used and how much is left.

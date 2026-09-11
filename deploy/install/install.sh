@@ -5,23 +5,51 @@
 # setup skill's job is only to get a box and run this; everything that can go
 # wrong lives here, where it can be tested, rather than in an agent's judgement.
 #
-#   install.sh --host hack.example.com --content sites.hack.example.com [--image REF]
+#   install.sh --host hack.example.com --content sites.hack.example.com
+#              [--image REF] [--email ADDR] [--max-site-mb N] [--keep-versions N]
+#
+# --max-site-mb   how big one website may be, in megabytes. Default 100.
+# --keep-versions how many deploys of a website to keep. Default 1; 0 keeps all.
+#
+# Both are written to /opt/simple-host/.env and preserved when this script is
+# re-run without them, so a value chosen once is not silently reset by a retry.
 #
 # Prints a JSON summary on success. The admin key is generated here and shown
 # exactly once, because nothing else ever displays it.
 set -euo pipefail
 
 HOST=""; CONTENT=""; IMAGE="ghcr.io/vineetu/simple-host:latest"; ACME_EMAIL=""; REF="main"
+MAX_SITE_MB=""; KEEP_VERSIONS=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    --host)    HOST="$2"; shift 2 ;;
-    --content) CONTENT="$2"; shift 2 ;;
-    --image)   IMAGE="$2"; shift 2 ;;
-    --email)   ACME_EMAIL="$2"; shift 2 ;;
-    --ref)     REF="$2"; shift 2 ;;
+    --host)           HOST="$2"; shift 2 ;;
+    --content)        CONTENT="$2"; shift 2 ;;
+    --image)          IMAGE="$2"; shift 2 ;;
+    --email)          ACME_EMAIL="$2"; shift 2 ;;
+    --ref)            REF="$2"; shift 2 ;;
+    --max-site-mb)    MAX_SITE_MB="$2"; shift 2 ;;
+    --keep-versions)  KEEP_VERSIONS="$2"; shift 2 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
+# Reject nonsense here rather than letting the server come up with a setting it
+# will ignore, which looks identical to the setting having been applied. Written
+# as plain ifs on purpose: a `[ x ] && action` guard returns non-zero when the
+# test is false, which under `set -e` is a trap nobody wants in an installer.
+check_number() {
+  local flag=$1 value=$2 minimum=$3
+  if [ -z "$value" ]; then return 0; fi
+  case "$value" in
+    ''|*[!0-9]*) echo "$flag must be a whole number, got: $value" >&2; exit 2 ;;
+  esac
+  if [ "$value" -lt "$minimum" ]; then
+    echo "$flag must be at least $minimum, got: $value" >&2
+    exit 2
+  fi
+}
+check_number --max-site-mb "$MAX_SITE_MB" 1
+check_number --keep-versions "$KEEP_VERSIONS" 0
+
 # No --host is a real choice, not a mistake: it is how a box installed from a
 # provider's catalog comes up, asking where it lives instead of guessing.
 SETUP_ONLY=0
@@ -69,7 +97,17 @@ ADMIN_KEY=""; DB_PASSWORD=""
 if [ -f "$DIR/.env" ]; then
   ADMIN_KEY=$(grep '^ADMIN_API_KEY=' "$DIR/.env" | cut -d= -f2-)
   DB_PASSWORD=$(grep '^DB_PASSWORD=' "$DIR/.env" | cut -d= -f2-)
+  # Settings the operator chose survive a re-run. Rewriting them from the
+  # defaults would mean that retrying a failed install quietly undoes a decision
+  # somebody made deliberately, which is the worst kind of idempotence bug.
+  [ -z "$MAX_SITE_MB" ] && MAX_SITE_MB=$(grep '^MAX_ARCHIVE_MB=' "$DIR/.env" | cut -d= -f2- || true)
+  [ -z "$KEEP_VERSIONS" ] && KEEP_VERSIONS=$(grep '^KEEP_VERSIONS=' "$DIR/.env" | cut -d= -f2- || true)
 fi
+# Defaults for a fresh event box. One kept version because every version is a
+# full copy of the site; 100 MB per site because that is the server's own
+# default and real sites are nowhere near it.
+[ -n "$KEEP_VERSIONS" ] || KEEP_VERSIONS=1
+[ -n "$MAX_SITE_MB" ] || MAX_SITE_MB=100
 # An interrupted first run can leave .env truncated with one or both values
 # missing. Reusing that would rewrite the same broken file on every retry, so
 # the script would never self-heal -- the opposite of the point.
@@ -97,7 +135,8 @@ PUBLIC_BASE_URL=https://$HOST
 ACME_EMAIL=$ACME_EMAIL
 HTTP_PORT=80
 HTTPS_PORT=443
-KEEP_VERSIONS=1
+MAX_ARCHIVE_MB=$MAX_SITE_MB
+KEEP_VERSIONS=$KEEP_VERSIONS
 EOF
 chmod 600 "$DIR/.env"
 

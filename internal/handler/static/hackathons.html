@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Simple Host for hackathons</title>
-  <meta name="description" content="The easiest way to run a hackathon, and the easiest way to join one. The organiser's AI agent sets up a private instance on their own cloud account; participants build with the agent they already use.">
+  <meta name="description" content="Run a hackathon where everyone ships a working website. Your AI agent sets the event up on your own cloud account; each person gets a key and builds with the AI they already use.">
   <script>(function(){try{var s=localStorage.getItem('sh-theme');document.documentElement.dataset.theme=s||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');}catch(e){document.documentElement.dataset.theme='light';}})();</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -137,9 +137,9 @@
       <div class="snum">00.</div>
       <div>
         <div class="kicker">Simple Host for hackathons</div>
-        <h1 class="title">The easiest way to run a hackathon. The easiest way to join one.</h1>
-        <p class="lede">The organiser asks their AI agent to set up the event. It creates a server on their own cloud account, gives it a web address, installs everything and issues a key to each participant.</p>
-        <p>Participants paste one prompt into the agent they already use, describe what they want, and get a live link back. Nobody opens a terminal.</p>
+        <h1 class="title">The easiest way to run a hackathon.</h1>
+        <p class="lede">Everyone who turns up ships a working website, whatever they do for a living. They describe what they want to the AI they already use, and get a live link back.</p>
+        <p>You set it up by pasting one prompt into your own agent. It creates a server on your cloud account, gives it a web address, installs everything and hands you a key for each person. Nobody opens a terminal.</p>
         <p>
           <a class="cta solid" href="#get-started">Get the organiser prompt</a>
           <a class="cta" href="https://github.com/vineetu/simple-host">Source on GitHub</a>
@@ -150,8 +150,8 @@
     <section id="get-started">
       <div class="snum">01.</div>
       <div>
-        <h2>Get started</h2>
-        <p class="lede">Copy this into the AI agent you already use, and answer its questions. There is nothing to install first — the agent reads the instructions from the link.</p>
+        <h2>Set up an event</h2>
+        <p class="lede">Copy this into the AI agent you already use, and answer its questions. There is nothing to install first.</p>
         <div class="prompt-card">
           <div class="prompt-head">
             <h3>Organiser · Set up an event</h3>
@@ -160,87 +160,69 @@
           <details class="peek"><summary>See what it says</summary>
           <pre class="prompt-text" id="organiser-prompt" tabindex="0">Read https://simple-host.app/skills/run-hackathon/SKILL.md and follow it.
 Set up a hackathon instance for me on my own cloud account.</pre></details>
-          <p>The agent asks which cloud provider you use and for an API token, then creates the server, gives it a web address, installs everything and hands back the keys.</p>
-          <p>About five dollars a month on your own cloud account, billed hourly. A weekend costs cents.</p>
-          <p class="fine">Want to see it work before running an event? Sign in at <a href="https://simple-host.app/">simple-host.app</a> and build something there first. It is the same software.</p>
+          <p>It asks which cloud you use and for an API token, then does the rest and reports back. About an hour of patience the first time, and most of that is waiting.</p>
+          <p class="fine">Claude Code, Codex, Cursor, Copilot — anything that can read a page and run commands.</p>
         </div>
       </div>
     </section>
 
-    <section id="who">
+    <section id="yours">
       <div class="snum">02.</div>
       <div>
-        <h2>Who this is for</h2>
-        <p>A company where few people write code for a living but most have Claude Code, Codex, Cursor or Copilot. A college class. A team offsite. Any group whose members have not deployed a website before.</p>
-        <p>A participant needs a browser and an agent that can run a skill. The organiser needs a cloud account and about an hour of patience the first time.</p>
+        <h2>It runs on your own cloud account</h2>
+        <p class="lede">Not on ours. You own the server, the bill and the work on it, and you switch it off when the event ends.</p>
+        <div class="facts">
+          <div class="row"><div class="k">The server</div><p class="v">The smallest Ubuntu plan any cloud sells. Around <strong>five dollars a month</strong>, billed by the hour, so a weekend costs cents. Hetzner, DigitalOcean, UpCloud, Vultr, Hostinger and Oracle all work, and UpCloud gives new accounts free credit that covers an event several times over. We are not affiliated with any of them.</p></div>
+          <div class="row"><div class="k">The address</div><p class="v">Two web addresses, created for you under a domain we run. Nothing to buy and no DNS to edit. Bring your own domain instead if you want your name on it. HTTPS is automatic either way.</p></div>
+          <div class="row"><div class="k">The keys</div><p class="v">Ask for as many as you need, or hand over a list of email addresses. One key per person, downloadable as a spreadsheet, given out however you already talk to your people.</p></div>
+          <div class="row"><div class="k">Afterwards</div><p class="v">Ask your agent to tear it down. The server is deleted and the addresses released, so nothing keeps billing and no link is left pointing at a machine somebody else now owns.</p></div>
+        </div>
+        <p class="fine">Two addresses rather than one is deliberate: what participants publish must never share a browser origin with your dashboard.</p>
       </div>
     </section>
 
-    <section id="organiser">
+    <section id="participants">
       <div class="snum">03.</div>
       <div>
-        <h2>What the organiser does</h2>
-        <p class="lede">Pastes the prompt above into their agent and answers its questions. The agent reads the <strong>Run Hackathon</strong> instructions, does the rest and reports back.</p>
-        <div class="facts">
-          <div class="row"><div class="k">The server</div><p class="v">Smallest Ubuntu plan on the organiser's own cloud account, paid by them. Around five dollars a month, billed hourly, so a weekend event costs cents.</p></div>
-          <div class="row"><div class="k">The address</div><p class="v">Two hostnames, created for them under a domain we run. Nothing to buy, no DNS to edit. They can use their own domain instead if they want their name on it. HTTPS certificates are obtained automatically.</p></div>
-          <div class="row"><div class="k">The accounts</div><p class="v">Ask the agent for as many keys as you need, or hand it a list of email addresses. A key is one person, so a team shares one or each member publishes and you pick the entry. The whole list downloads as a spreadsheet you hand out however you already talk to people.</p></div>
-          <div class="row"><div class="k">Space</div><p class="v">No limit on how many people, and nothing to size up front. Across the sites running on simple-host today the median is 25&nbsp;KB and nine in ten are under a megabyte, so the smallest plan has room for a great many. The admin screen shows what is used and what is free, and says so early if it is filling.</p></div>
-          <div class="row"><div class="k">Afterwards</div><p class="v">Ask the agent to tear it down. It deletes the server and removes the hostnames, so nothing keeps billing and no address is left pointing at a machine somebody else now owns.</p></div>
-        </div>
-        <p>Two hostnames rather than one is deliberate. Participant pages must never share a browser origin with the admin screen, or something a participant publishes could act on the dashboard of whoever is looking at it.</p>
-        <p class="fine">Any cloud that rents a Ubuntu box works. The skill knows Hetzner, DigitalOcean, UpCloud, Vultr, Hostinger and Oracle Cloud by name, and asks for a token. UpCloud gives new accounts free credit, which covers an event several times over; we are not affiliated with them, and the server is on your account either way.</p>
-      </div>
-    </section>
-
-    <section id="participant">
-      <div class="snum">04.</div>
-      <div>
-        <h2>What a participant does</h2>
-        <ol>
-          <li>Gets a key from the organiser.</li>
-          <li>Pastes one prompt into their agent: read the event's instructions, here is my key, ask me what to build.</li>
-          <li>Describes what they want. It is a hackathon, so this is wide open — a page that takes sign-ups, a quiz about the product, a dashboard over a spreadsheet, whatever they can talk an agent into.</li>
-          <li>Gets a link. If the page needs to save anything, it has a JSON document of up to 1&nbsp;MB and append-only collections, with no backend to set up.</li>
-          <li>Changes it, as many times as they like. Each deploy replaces the last, and their agent still has the files, so going back is a redeploy rather than a restore.</li>
-        </ol>
+        <h2>What you hand each person</h2>
+        <p class="lede">Their key, and this. That is the whole onboarding.</p>
         <div class="prompt-card">
           <div class="prompt-head">
-            <h3>What you send each participant</h3>
+            <h3>Participant · Build and publish</h3>
             <button class="copy-prompt" type="button" data-prompt="participant-prompt" aria-label="Copy participant prompt" aria-live="polite">Copy participant prompt</button>
           </div>
-          <p>Replace <code>YOUR-EVENT-ADDRESS</code> with your event's address and <code>YOUR-KEY</code> with their key.</p>
+          <p>Fill in your event's address and their key before you send it.</p>
           <details class="peek"><summary>See what it says</summary>
           <pre class="prompt-text" id="participant-prompt" tabindex="0">Read https://<mark>YOUR-EVENT-ADDRESS</mark>/llms.txt and follow it exactly.
 My Simple Host API key is: <mark>YOUR-KEY</mark>
 Ask me what I want to build, then build it and publish it.</pre></details>
-          <p>Works in any agent that can fetch a URL: ChatGPT, Claude Code, Codex, Copilot, Cursor, Gemini.</p>
+          <p>Works in anything that can fetch a link: ChatGPT, Claude, Codex, Copilot, Cursor, Gemini.</p>
         </div>
-        <p>Each participant can hold 100 sites and can pick their own address until they publish, so trying three ideas and keeping the best one costs nothing.</p>
-        <p class="try-event">Trying it without an event? Sign in at simple-host.app and use the participant prompt with <code>simple-host.app</code> as the address.</p>
+        <p>They are asked what they want to build, and it is a hackathon, so that is wide open — a page that takes sign-ups, a quiz, a dashboard over a spreadsheet, whatever they can talk an agent into. If a page needs to remember something, it can, without anyone setting up a database.</p>
+        <p>The key is the account. They are building within a minute of receiving it.</p>
       </div>
     </section>
 
-    <section id="during">
-      <div class="snum">05.</div>
+    <section id="judging">
+      <div class="snum">04.</div>
       <div>
-        <h2>During and after</h2>
-        <p class="lede">The organiser gets one screen listing every entry with its link, filterable, copyable and downloadable as a spreadsheet. That is the list you hand to judges.</p>
-        <p>Each participant sees their own traffic, split into people, bots and monitoring, so they can tell whether anyone actually looked.</p>
-        <p><strong>Backups are the provider's.</strong> Every one of those clouds will back the whole machine up on a schedule for around a fifth of the server price. Turn it on when you create the server, before anyone has built anything worth losing.</p>
-        <p><strong>Everyone can take their work with them.</strong> A participant downloads their site as one archive at any time, files and saved data together, without asking the organiser. Nothing is stranded when the server is deleted.</p>
-        <p><strong>Saved data is open.</strong> Anyone who can load a page can change that site's stored data. The files themselves change only with the owner's key. If saved data matters for judging, have each team take a copy before judging starts.</p>
+        <h2>Judging, and the day after</h2>
+        <p class="lede">One screen lists every entry with its link, filterable and downloadable as a spreadsheet. That is the list you hand your judges.</p>
+        <p>Each person can see whether anyone actually visited what they made, split into real people, bots and monitoring.</p>
+        <p><strong>Everyone keeps their work.</strong> Anyone can download their site as a single file at any time, the pages and anything saved in them together, without asking you. Nothing is lost when you delete the server.</p>
+        <p><strong>Turn on the provider's backups when you create the server</strong>, before anyone has built something worth losing. Every cloud on the list will do it for about a fifth of the server price.</p>
+        <p><strong>One thing to know before judging.</strong> Anything a page saves can be changed by anyone who can open that page. The pages themselves can only be changed by the person who owns them. If saved entries count towards a score, have each team take their copy before judging starts.</p>
       </div>
     </section>
 
     <section id="start">
-      <div class="snum">06.</div>
+      <div class="snum">05.</div>
       <div>
-        <h2>Start</h2>
-        <p>Try it as a participant first, on <a href="https://simple-host.app/">simple-host.app</a>, which runs the same software and is free. Sign in and ask your agent for a page. Then use the organiser prompt above and set up an event of your own.</p>
+        <h2>Try it before you commit to an event</h2>
+        <p><a href="https://simple-host.app/">simple-host.app</a> runs the same software and is free. Sign in, ask your agent for a page, and see the whole thing work in a few minutes. Then come back and set up an event of your own.</p>
         <p>
           <a class="cta solid" href="#get-started">Get the organiser prompt</a>
-          <a class="cta" href="https://github.com/vineetu/simple-host">Source on GitHub</a>
+          <a class="cta" href="https://simple-host.app/">Try it free</a>
           <a class="cta" href="/enterprise">For companies</a>
         </p>
         <p class="fine">Everything described here has been run end to end on a real server, from creating it to deleting it.</p>
