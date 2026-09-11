@@ -278,6 +278,16 @@ Ask me what I want to build, then build it and publish it.</pre></details>
         timer = setTimeout(function() { button.textContent = label; }, 2500);
       });
     });
+    // This page is served at two addresses: /hackathons on simple-host.app, and
+    // the homepage of simple-hack.app. On the latter, "Home" pointing at "/"
+    // would be a link back to this page, and "For hackathons" beside it a second
+    // one. Point Home at the main product instead, and drop the duplicate.
+    if (location.hostname.indexOf('simple-hack.') === 0) {
+      var home = document.querySelector('nav.top a[href="/"]');
+      if (home) { home.href = 'https://simple-host.app/'; home.textContent = 'Simple Host'; }
+      var here = document.querySelector('nav.top a.on');
+      if (here) { here.remove(); }
+    }
     paintIcon();
   </script>
 </body>
