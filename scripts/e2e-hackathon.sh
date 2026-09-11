@@ -139,6 +139,25 @@ for _ in $(seq 1 40); do
 done
 [ "$C" = "200" ] && ok "https://$HOST answers 200" || bad "no certificate after five minutes (a 404 here means DNS, not the install)"
 
+step "the server sizes itself against its own disk"
+CAP=$(curl -sS $PIN --max-time 20 -H "X-API-Key: $ADMIN" "https://$HOST/v1/admin/capacity?people=100")
+SITEMB=$(python3 -c 'import json,sys;print(json.load(sys.stdin)["plan"]["site_mb"])' <<<"$CAP" 2>/dev/null || echo 0)
+MAXP=$(python3 -c 'import json,sys;print(json.load(sys.stdin)["plan"]["max_people"])' <<<"$CAP" 2>/dev/null || echo 0)
+FITS=$(python3 -c 'import json,sys;print(json.load(sys.stdin)["fits"])' <<<"$CAP" 2>/dev/null || echo False)
+# The numbers must come from this box, not from a default. A 25 GB event server
+# that reports the 500 MB ceiling, or a headcount of zero, has read nothing.
+[ "${SITEMB:-0}" -ge 1 ] && [ "${SITEMB:-0}" -le 500 ] && ok "sized to ${SITEMB} MB per site" || bad "capacity returned no per-site cap"
+[ "${MAXP:-0}" -ge 100 ] && [ "$FITS" = "True" ] && ok "holds at least ${MAXP} people" || bad "capacity says this server cannot hold 100 people"
+
+step "the chosen cap is the one actually enforced"
+# A cap the API quotes but the uploader ignores is the failure this catches.
+BIG=$(python3 -c "print('A'*(($SITEMB*1024*1024)+4096))")
+CODE=$(curl -sS $PIN -o /dev/null -w '%{http_code}' --max-time 60 -X POST -H "X-API-Key: $ADMIN" \
+  -H 'Content-Type: application/json' \
+  -d "$(python3 -c 'import json,sys;print(json.dumps({"files":{"index.html":sys.stdin.read()}}))' <<<"$BIG")" \
+  "https://$HOST/v1/sites/toobig/files" 2>/dev/null || echo 000)
+[ "$CODE" = "413" ] || [ "$CODE" = "400" ] && ok "a site over the cap is refused ($CODE)" || bad "a site over the ${SITEMB} MB cap was accepted ($CODE)"
+
 step "the organiser issues a participant key"
 PKEY=$(curl -sS $PIN -X POST -H "X-API-Key: $ADMIN" -H 'Content-Type: application/json' \
   -d '{"count":1,"prefix":"team"}' "https://$HOST/v1/admin/users" \

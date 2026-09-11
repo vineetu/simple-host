@@ -8,14 +8,17 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/capacity"
 	"github.com/vsriram/simple-host/internal/eventdns"
 )
 
@@ -23,14 +26,15 @@ import (
 type SetupHandler struct {
 	db                         *sql.DB
 	publicAPI, password, token string
+	dataDir                    string
 	limiter                    *rateLimiter
 	client                     *http.Client
 	ipMu                       sync.Mutex
 	ip                         string
 }
 
-func NewSetupHandler(db *sql.DB, publicAPI string, password string) *SetupHandler {
-	return &SetupHandler{db: db, publicAPI: strings.TrimRight(publicAPI, "/"), password: password,
+func NewSetupHandler(db *sql.DB, publicAPI string, password string, dataDir string) *SetupHandler {
+	return &SetupHandler{db: db, publicAPI: strings.TrimRight(publicAPI, "/"), password: password, dataDir: dataDir,
 		token: rand.Text(), limiter: newRateLimiter(5, 1.0/60), client: &http.Client{Timeout: 30 * time.Second}}
 }
 
@@ -41,6 +45,7 @@ func (h *SetupHandler) Register(mux *http.ServeMux) {
 	mux.Handle("POST /v1/setup/own-domain", h.authorize(h.ownDomain))
 	mux.Handle("GET /v1/setup/dns-check", h.authorize(h.dnsCheck))
 	mux.Handle("POST /v1/setup/free-name", h.authorize(h.freeName))
+	mux.Handle("GET /v1/setup/capacity", h.authorize(h.capacity))
 	mux.Handle("POST /v1/setup/finish", h.authorize(h.finish))
 }
 
@@ -223,10 +228,37 @@ func (h *SetupHandler) freeName(w http.ResponseWriter, r *http.Request) {
 	io.Copy(w, resp.Body)
 }
 
+// capacity sizes the instance against its own disk. This is the one question
+// setup asks that has nothing to do with addresses: a box whose per-site cap was
+// never chosen keeps the 100 MB default, and ten participants who take it
+// literally fill a 25 GB disk between them.
+//
+// GET /v1/setup/capacity?people=120
+func (h *SetupHandler) capacity(w http.ResponseWriter, r *http.Request) {
+	people, _ := strconv.Atoi(r.URL.Query().Get("people"))
+	if people > maxBulkAccounts {
+		setupError(w, 400, fmt.Sprintf("Enter a number up to %d.", maxBulkAccounts))
+		return
+	}
+	total, available, err := capacity.Disk(h.dataDir)
+	if err != nil {
+		setupError(w, 500, "Cannot read this server's free space. Try again.")
+		return
+	}
+	plan := capacity.ForPeople(total, available, people)
+	if !plan.Fits() {
+		setupError(w, 409, fmt.Sprintf("This server fits about %s people, not %s. %s",
+			capacity.Thousands(plan.MaxPeople), capacity.Thousands(people), plan.Explanation))
+		return
+	}
+	writeJSON(w, 200, plan)
+}
+
 func (h *SetupHandler) finish(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Host        string `json:"host"`
 		ContentHost string `json:"content_host"`
+		SiteMB      int64  `json:"site_mb"`
 	}
 	if !setupDecode(w, r, &req) {
 		return
@@ -272,6 +304,19 @@ func (h *SetupHandler) finish(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		setupError(w, 500, "Cannot save setup. Try again.")
 		return
+	}
+	// The per-site cap rides the same transaction as the hostnames. Saving it
+	// separately would allow an instance that is addressable but unsized, which
+	// is the state that silently keeps the 100 MB default.
+	if req.SiteMB > 0 {
+		sized := capacity.Plan{SiteMB: req.SiteMB}
+		if _, err = tx.ExecContext(r.Context(),
+			`INSERT INTO instance_config (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,
+			siteLimitKey, strconv.FormatInt(sized.SiteBytes()>>20, 10)); err != nil {
+			setupError(w, 500, "Cannot save setup. Try again.")
+			return
+		}
+		SetSiteLimit(sized.SiteBytes())
 	}
 	if err = tx.Commit(); err != nil {
 		setupError(w, 500, "Cannot confirm setup. Reload to check its status.")

@@ -117,7 +117,7 @@ and without it they are not the administrator of their own instance.
 
 ### 5. Create participant accounts
 
-With the admin key, from their roster:
+With the admin key, from the organiser's list of participants:
 
 ```
 POST https://<event-host>/v1/admin/users
@@ -131,7 +131,20 @@ or, for a walk-up event where you do not have names yet:
 {"count": 30, "prefix": "team"}
 ```
 
-Up to 200 per request. The response gives each participant a username, a handle
+Up to 5000 per request. That ceiling guards against a typo, not against
+capacity — ask the server what it actually holds before issuing a large batch:
+
+```
+GET https://<event-host>/v1/admin/capacity?people=250
+X-API-Key: <the admin key>
+```
+
+It reads the real filesystem and answers with a recommended per-site cap, the
+number of people that cap holds, and one sentence of explanation to repeat to
+the organiser. `fits: false` means the server is too small for that headcount:
+say so and offer a bigger plan rather than creating the accounts anyway.
+
+The response gives each participant a username, a handle
 and an **api_key**. Keys are bare hexadecimal with no prefix; do not reject one
 for looking wrong. Existing accounts are skipped and their keys are never
 re-disclosed, so re-running is safe but will not recover a lost key.

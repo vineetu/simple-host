@@ -3631,11 +3631,127 @@
         }
       }
     },
+    "/v1/admin/capacity": {
+      "get": {
+        "operationId": "getCapacityPlan",
+        "summary": "How many people this server holds (admin only)",
+        "description": "Sizes the instance against its own filesystem. Given a headcount it returns the largest round per-site cap that still holds everyone; given none it sizes for a hundred people. The figures are a floor, not a forecast: they assume every participant fills every site to its cap and keeps a full deploy history, because nothing prunes old versions. Non-admin callers receive 404.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "people",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000
+            },
+            "description": "Expected number of participants. Omit or pass 0 to size for a typical event."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A sizing plan for this server",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "plan",
+                    "fits",
+                    "in_force_mb",
+                    "max_accounts"
+                  ],
+                  "properties": {
+                    "fits": {
+                      "type": "boolean",
+                      "description": "Whether the server holds the headcount asked for"
+                    },
+                    "in_force_mb": {
+                      "type": "integer",
+                      "description": "Per-site cap currently enforced",
+                      "in megabytes": null
+                    },
+                    "max_accounts": {
+                      "type": "integer",
+                      "description": "Largest batch POST /v1/admin/users accepts"
+                    },
+                    "plan": {
+                      "type": "object",
+                      "properties": {
+                        "disk_bytes": {
+                          "type": "integer"
+                        },
+                        "available_bytes": {
+                          "type": "integer"
+                        },
+                        "usable_bytes": {
+                          "type": "integer",
+                          "description": "Available space less the headroom the instance keeps for itself"
+                        },
+                        "requested": {
+                          "type": "integer",
+                          "description": "Headcount asked for",
+                          "0 when none was given": null
+                        },
+                        "people": {
+                          "type": "integer",
+                          "description": "Headcount the sizing actually used"
+                        },
+                        "site_mb": {
+                          "type": "integer",
+                          "description": "Recommended per-site cap",
+                          "in megabytes": null
+                        },
+                        "max_people": {
+                          "type": "integer",
+                          "description": "People this server holds at that cap",
+                          "assuming all of them full": null
+                        },
+                        "sites_per_person": {
+                          "type": "integer"
+                        },
+                        "kept_versions": {
+                          "type": "integer"
+                        },
+                        "total_sites": {
+                          "type": "integer"
+                        },
+                        "explanation": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "Caller is not an admin"
+          },
+          "500": {
+            "description": "This server's free space could not be read"
+          }
+        }
+      }
+    },
     "/v1/admin/users": {
       "post": {
         "operationId": "createEventAccounts",
-        "summary": "Create up to 200 accounts (admin only)",
-        "description": "Creates accounts from emails or a count and optional prefix (default guest), numbered team-01 through team-30 for count 30 and prefix team. Existing usernames are skipped with a reason and their keys are never disclosed. Non-admin callers receive 404.",
+        "summary": "Create up to 5000 accounts (admin only)",
+        "description": "Creates accounts from emails or a count and optional prefix (default guest), numbered team-01 through team-30 for count 30 and prefix team. The 5000 ceiling guards against a typo, not against capacity — what the instance can really hold depends on its disk, which GET /v1/admin/capacity reports. Existing usernames are skipped with a reason and their keys are never disclosed. Non-admin callers receive 404.",
         "tags": [
           "Admin"
         ],
@@ -3660,7 +3776,7 @@
                       "emails": {
                         "type": "array",
                         "minItems": 1,
-                        "maxItems": 200,
+                        "maxItems": 5000,
                         "items": {
                           "type": "string",
                           "format": "email"
@@ -3678,7 +3794,7 @@
                       "count": {
                         "type": "integer",
                         "minimum": 1,
-                        "maximum": 200
+                        "maximum": 5000
                       },
                       "prefix": {
                         "type": "string",

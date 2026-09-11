@@ -161,6 +161,7 @@
           <li><strong>Admin view.</strong> The person running the instance sees every account and every site in one list. There is no way to remove an account from that page.</li>
           <li><strong>Where data goes.</strong> Site files and site data live on your disk and in your Postgres. Sign-in talks to Resend or Google. People's agents see whatever they paste into them.</li>
           <li><strong>No model on the server.</strong> AI create and voice transcription are off unless you configure them. People keep using the agent they already pay for.</li>
+          <li><strong>Installing and upgrading.</strong> Installing is one script, and re-running it after a failure is safe. Moving an already-running instance to a newer version is a manual job today: the schema is applied on first boot, and the server does not report its own version.</li>
           <li><strong>Who can write.</strong> Anyone who can load a page can read it. On the shared hostname anyone can also change a site's saved data; the files themselves change only with the owner's API key. Per-person saves, gated by visitor sign-in, exist only on a site that has its own domain.</li>
         </ul>
       </div>
@@ -169,14 +170,14 @@
     <section id="not">
       <div class="snum">04.</div>
       <div>
-        <h2>What it will not do</h2>
+        <h2>How it is scoped</h2>
+        <p>Knowing the shape of it up front is what makes it safe to point people at.</p>
         <table>
-          <tr><td class="tk">Private pages</td><td class="tv">Anyone who has the link can read a site. If the instance is on the public internet, treat every page as public.</td></tr>
-          <tr><td class="tk">A general backend</td><td class="tv">No queries, no schema, no server-side code. State is one 1&nbsp;MB JSON document plus append-only collections. Past that, this is the wrong host.</td></tr>
-          <tr><td class="tk">Team permissions</td><td class="tv">A site has one owner. Any signed-in visitor on a site's own domain can save; there are no roles.</td></tr>
-          <tr><td class="tk">Single sign-on</td><td class="tv">No SAML or OIDC beyond Google. GitHub sign-in is in the code but not switched on.</td></tr>
-          <tr><td class="tk">Kubernetes <span class="st">Not built</span></td><td class="tv">Docker Compose is the supported shape. There is no Helm chart yet, and an upgrade path for an existing instance has to come first.</td></tr>
-          <tr><td class="tk">Upgrades <span class="st">Not built</span></td><td class="tv">A fresh install works. Moving an existing instance to a newer version has no tooling: the schema is applied on first boot only, and the server does not report its own version.</td></tr>
+          <tr><td class="tk">Every page is public</td><td class="tv">Anyone who has the link can read a site. If the instance is on the public internet, treat everything published on it as public.</td></tr>
+          <tr><td class="tk">State, not a database</td><td class="tv">A site keeps one 1&nbsp;MB JSON document plus append-only collections. No queries, no schema, no server-side code. Anything past that shape belongs on a different host.</td></tr>
+          <tr><td class="tk">One owner per site</td><td class="tv">A site belongs to one account. On a site with its own domain, any signed-in visitor can save; there are no roles beyond that.</td></tr>
+          <tr><td class="tk">Google, or an emailed code</td><td class="tv">Those are the two ways in. Restrict Google to your Workspace domain on the OAuth client. There is no SAML or OIDC beyond Google.</td></tr>
+          <tr><td class="tk">Docker Compose</td><td class="tv">That is the supported shape, on both Intel and ARM. Running it under Kubernetes is your own exercise; there is no Helm chart.</td></tr>
         </table>
       </div>
     </section>

@@ -31,20 +31,22 @@ import (
 
 // maxSiteArchiveSize caps the upload body. Default 100 MB; override with
 // MAX_ARCHIVE_MB on an instance you run yourself (a hosted instance has other
-// people's disk to protect, your own does not).
+// people's disk to protect, your own does not), or with MAX_ARCHIVE_MB=auto to
+// size it from the server's own disk — see LoadSiteLimit and internal/capacity.
 //
-// Raising this alone is not enough to accept a bigger site: tarball extraction
-// independently enforces maxTotalUncompressedSize (500 MB) and maxFileSize
-// (100 MB per file), and any reverse proxy in front needs its own body cap
-// raised to match, or it rejects the request before Go ever sees it.
+// Raising this alone is not enough to accept a bigger site: any reverse proxy
+// in front needs its own body cap raised to match, or it rejects the request
+// before Go ever sees it. Lowering it goes through SetSiteLimit, which moves
+// the extractor's uncompressed caps with it; setting this variable on its own
+// would bound compressed bytes and nothing else.
 var maxSiteArchiveSize int64 = 100 << 20
 
 const maxSiteStateSize = 1 << 20
 
 func init() {
-	if v := os.Getenv("MAX_ARCHIVE_MB"); v != "" {
+	if v := os.Getenv("MAX_ARCHIVE_MB"); v != "" && v != "auto" {
 		if mb, err := strconv.Atoi(v); err == nil && mb > 0 {
-			maxSiteArchiveSize = int64(mb) << 20
+			SetSiteLimit(int64(mb) << 20)
 		}
 	}
 }
@@ -224,6 +226,8 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("DELETE /v1/admin/users/{id}", authMiddleware(http.HandlerFunc(h.deleteAccount)))
 	mux.Handle("PATCH /v1/me", authMiddleware(http.HandlerFunc(h.patchMe)))
 	mux.Handle("GET /v1/admin/users", authMiddleware(http.HandlerFunc(h.adminUsers)))
+	// How many people fit, answered from this server's actual disk.
+	mux.Handle("GET /v1/admin/capacity", authMiddleware(http.HandlerFunc(h.capacityPlan)))
 	// Take your work with you. An event box is destroyed when the event ends and
 	// nothing is backed up, so the only honest answer is to make leaving easy.
 	mux.Handle("GET /v1/sites/{sitename}/export.tar.gz", authMiddleware(http.HandlerFunc(h.exportSite)))

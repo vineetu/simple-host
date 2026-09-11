@@ -135,7 +135,7 @@ func TestExtractRejectsDuplicates(t *testing.T) {
 }
 
 func TestExtractRejectsOversizeFile(t *testing.T) {
-	big := bytes.Repeat([]byte("A"), maxFileSize+1)
+	big := bytes.Repeat([]byte("A"), int(maxFileSize)+1)
 	data := makeTarGz(t, []tarEntry{{name: "big.bin", content: big}})
 	_, err := Extract(bytes.NewReader(data), "site.tar.gz")
 	if err == nil || !strings.Contains(err.Error(), "size limit") {
@@ -175,4 +175,39 @@ func itoa(i int) string {
 		i /= 10
 	}
 	return string(b[pos:])
+}
+
+func TestSetSiteLimitLowersButNeverRaises(t *testing.T) {
+	totalBefore, fileBefore := maxTotalUncompressedSize, maxFileSize
+	defer func() { maxTotalUncompressedSize, maxFileSize = totalBefore, fileBefore }()
+
+	SetSiteLimit(4 << 20)
+	if maxTotalUncompressedSize != 4<<20 || maxFileSize != 4<<20 {
+		t.Fatalf("after SetSiteLimit(4MB): total=%d file=%d", maxTotalUncompressedSize, maxFileSize)
+	}
+	// A single file may not exceed the whole-site budget once lowered, or a
+	// 10 MB instance would still accept one 100 MB file.
+	if maxFileSize > maxTotalUncompressedSize {
+		t.Errorf("per-file cap %d exceeds total cap %d", maxFileSize, maxTotalUncompressedSize)
+	}
+
+	// Nonsense and over-ceiling values are ignored rather than applied: the
+	// rest of the pipeline was sized against the 500 MB ceiling.
+	for _, bad := range []int64{0, -1, 501 << 20, 1 << 40} {
+		SetSiteLimit(bad)
+		if maxTotalUncompressedSize != 4<<20 {
+			t.Errorf("SetSiteLimit(%d) changed the cap to %d", bad, maxTotalUncompressedSize)
+		}
+	}
+}
+
+func TestSiteLimitIsActuallyEnforcedOnExtraction(t *testing.T) {
+	totalBefore, fileBefore := maxTotalUncompressedSize, maxFileSize
+	defer func() { maxTotalUncompressedSize, maxFileSize = totalBefore, fileBefore }()
+	SetSiteLimit(1 << 20)
+
+	archive := makeTarGz(t, []tarEntry{{name: "index.html", content: bytes.Repeat([]byte("A"), (1<<20)+1)}})
+	if _, err := Extract(bytes.NewReader(archive), "site.tar.gz"); err == nil {
+		t.Fatal("a 1 MB instance accepted a site over 1 MB")
+	}
 }

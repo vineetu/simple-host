@@ -11,11 +11,32 @@ import (
 	"strings"
 )
 
+// maxTotalUncompressedSize caps the sum of all extracted file contents, and
+// maxFileSize caps any single one. These are the ceiling the package will ever
+// accept; SetSiteLimit lowers them to whatever the instance sized itself for.
+//
+// They are variables rather than constants because a hackathon box with a 25 GB
+// disk cannot honour a 500 MB site, and a cap the server advertises but does not
+// enforce is worse than no cap at all.
+var (
+	maxTotalUncompressedSize int64 = 500 * 1024 * 1024
+	maxFileSize              int64 = 100 * 1024 * 1024
+)
+
+// SetSiteLimit lowers the extraction caps to a per-site budget in bytes. Call
+// once at startup, before serving. Raising them above the built-in ceiling is
+// refused: the ceiling is what the rest of the pipeline was sized against.
+func SetSiteLimit(bytes int64) {
+	if bytes <= 0 || bytes > 500*1024*1024 {
+		return
+	}
+	maxTotalUncompressedSize = bytes
+	if maxFileSize > bytes {
+		maxFileSize = bytes
+	}
+}
+
 const (
-	// maxTotalUncompressedSize caps the sum of all extracted file contents.
-	maxTotalUncompressedSize = 500 * 1024 * 1024
-	// maxFileSize caps any single extracted file.
-	maxFileSize = 100 * 1024 * 1024
 	// maxEntryCount caps the number of files in an archive (defends against
 	// many-tiny-files inode exhaustion, which the byte caps do not catch).
 	maxEntryCount = 50_000
@@ -151,7 +172,7 @@ func extractZip(r io.Reader) (map[string][]byte, error) {
 // budget, plus one byte to detect overflow. It never trusts any self-declared
 // entry size — the limit is enforced on bytes actually read.
 func readCapped(r io.Reader, alreadyRead int64) ([]byte, error) {
-	limit := int64(maxFileSize)
+	limit := maxFileSize
 	if remaining := maxTotalUncompressedSize - alreadyRead; remaining < limit {
 		limit = remaining
 	}
@@ -240,4 +261,11 @@ func normalizePath(name string) string {
 func shouldSkip(name string) bool {
 	base := filepath.Base(name)
 	return base == ".DS_Store" || strings.HasPrefix(base, "._")
+}
+
+// SiteLimitIs reports whether both extraction caps sit at bytes. Exported for
+// the handler's test: the wiring between the upload cap and the extractor cap
+// is the part that is easy to half-do and impossible to see from outside.
+func SiteLimitIs(bytes int64) bool {
+	return maxTotalUncompressedSize == bytes && maxFileSize == bytes
 }

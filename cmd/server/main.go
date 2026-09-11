@@ -63,7 +63,7 @@ func main() {
 		cfg.PublicBaseURL = "https://" + savedDomain
 		log.Printf("configured by setup: %s / %s", savedDomain, savedContent)
 	} else if !cfg.SiteDomainSet {
-		setup := handler.NewSetupHandler(db, cfg.SetupPublicAPI, cfg.SetupPassword)
+		setup := handler.NewSetupHandler(db, cfg.SetupPublicAPI, cfg.SetupPassword, cfg.DataDir)
 		setup.Register(mux)
 		log.Printf("SETUP MODE: no hostname configured; serving the setup page on :%s", cfg.Port)
 		srv := &http.Server{Addr: ":" + cfg.Port, Handler: mux}
@@ -71,6 +71,26 @@ func main() {
 			log.Fatalf("setup server: %v", err)
 		}
 		return
+	}
+
+	// The per-site cap chosen during setup, applied before anything can be
+	// uploaded. Without this a restart returns an instance that was sized for
+	// 2 MB sites to the 100 MB default, and the disk it was sized against is
+	// then one participant away from full.
+	if siteLimit, err := handler.LoadSiteLimit(context.Background(), db); err != nil {
+		log.Fatalf("read per-site limit: %v", err)
+	} else if siteLimit > 0 {
+		handler.SetSiteLimit(siteLimit)
+		log.Printf("per-site limit: %d MB (chosen at setup)", siteLimit>>20)
+	} else if plan, auto := handler.AutoSiteLimit(cfg.DataDir); auto {
+		// Recomputed every boot rather than saved. Persisting it would outrank a
+		// later explicit MAX_ARCHIVE_MB, since a stored limit is read before the
+		// environment is consulted — an operator who set a number would find it
+		// silently ignored.
+		handler.SetSiteLimit(plan.SiteBytes())
+		log.Printf("per-site limit: %d MB (sized from disk) — %s", plan.SiteMB, plan.Explanation)
+	} else {
+		log.Printf("per-site limit: %d MB (default)", handler.SiteLimit()>>20)
 	}
 
 	// Ensure a real admin user row exists so the admin key can own sites.

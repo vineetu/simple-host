@@ -13,6 +13,12 @@ import (
 	"github.com/vsriram/simple-host/internal/db"
 )
 
+// maxBulkAccounts caps one create-accounts call. The number is a guard against
+// a typo turning into a million rows and an hour-long transaction, not a
+// product limit: what an instance can really hold is set by its disk, which
+// internal/capacity works out and the setup page asks about.
+const maxBulkAccounts = 5000
+
 type bulkUsersRequest struct {
 	Emails *[]string `json:"emails"`
 	Count  *int      `json:"count"`
@@ -24,8 +30,8 @@ func bulkUsernames(req bulkUsersRequest) ([]string, error) {
 		return nil, errors.New("provide exactly one of emails or count with optional prefix")
 	}
 	if req.Emails != nil {
-		if len(*req.Emails) == 0 || len(*req.Emails) > 200 {
-			return nil, errors.New("emails must contain 1 to 200 accounts")
+		if len(*req.Emails) == 0 || len(*req.Emails) > maxBulkAccounts {
+			return nil, fmt.Errorf("emails must contain 1 to %d accounts", maxBulkAccounts)
 		}
 		names := make([]string, len(*req.Emails))
 		for i, email := range *req.Emails {
@@ -37,8 +43,8 @@ func bulkUsernames(req bulkUsersRequest) ([]string, error) {
 		}
 		return names, nil
 	}
-	if *req.Count < 1 || *req.Count > 200 {
-		return nil, errors.New("count must be between 1 and 200 accounts")
+	if *req.Count < 1 || *req.Count > maxBulkAccounts {
+		return nil, fmt.Errorf("count must be between 1 and %d accounts", maxBulkAccounts)
 	}
 	prefix := "guest"
 	if req.Prefix != nil {

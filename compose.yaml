@@ -37,6 +37,12 @@ services:
       SETUP_PASSWORD: ${SETUP_PASSWORD-}
       SETUP_PUBLIC_API: ${SETUP_PUBLIC_API-}
       ANALYTICS_LOG: /var/log/caddy/access.log
+      # How big one site may be. "auto" sizes it from this server's own disk at
+      # every boot — the right default for an event box, which is usually the
+      # smallest plan a provider sells and cannot honour the 100 MB a large
+      # instance can. Put a number here to fix it instead; a per-site cap chosen
+      # on the setup page outranks both.
+      MAX_ARCHIVE_MB: ${MAX_ARCHIVE_MB:-auto}
       # Only the public instance hands out event hostnames; a self-hosted
       # instance leaves these unset and organisers bring their own domain.
       EVENT_DNS_TOKEN: ${EVENT_DNS_TOKEN:-}
