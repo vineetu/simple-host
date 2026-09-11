@@ -131,20 +131,24 @@ or, for a walk-up event where you do not have names yet:
 {"count": 30, "prefix": "team"}
 ```
 
-Up to 5000 per request. That ceiling guards against a typo, not against
-capacity — ask the server what it actually holds before issuing a large batch:
+There is no fixed limit on how many. Ten thousand is fine if the server has room
+for ten thousand; what decides it is the disk and the per-site size, not a
+number in the code. Ask the server before issuing a large batch:
 
 ```
 GET https://<event-host>/v1/admin/capacity?people=250
 X-API-Key: <the admin key>
 ```
 
-It reads the real filesystem. Two fields matter and they are not the same:
-`in_force_mb` is the cap the server is enforcing right now, and `recommended`
-is what it would be if sized for that headcount. `fits_now: false` means this
-server, as it is running, is too small for that many people — say so and offer
-a bigger plan rather than creating the accounts anyway. `recommended.explanation`
-is one sentence to repeat to the organiser.
+It reads the real filesystem. `accounts_available` is how many more people this
+server can take, and creating accounts beyond it is refused with a 409 carrying
+the same number. `in_force_mb` is the per-site cap being enforced right now, and
+`recommended` is what it would be if sized for that headcount — a smaller
+per-site size holds proportionally more people. `recommended.explanation` is one
+sentence to repeat to the organiser.
+
+If the organiser needs more people than fit, the two honest answers are a bigger
+disk or a smaller per-site limit. Say which, with the numbers.
 
 The response gives each participant a username, a handle
 and an **api_key**. Keys are bare hexadecimal with no prefix; do not reject one
@@ -156,7 +160,8 @@ next.** Keys are shown once. 5000 accounts is roughly six seconds and 750 KB of
 response on a fast machine and several times that on the smallest plan, and a
 connection that drops after the server has committed takes every key in that
 batch with it — the retry skips the accounts as already existing and returns
-nothing you can hand out.
+nothing you can hand out. This is about surviving a dropped connection, not
+about a limit: the total is however many the server holds.
 
 Offer the organiser the list as CSV so they can paste it into a spreadsheet or a
 mail merge.

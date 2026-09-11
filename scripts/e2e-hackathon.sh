@@ -164,6 +164,19 @@ CODE=$(curl -sS $PIN -o /dev/null -w '%{http_code}' --max-time 120 -X POST -H "X
 rm -f /tmp/e2e-toobig.json
 [ "$CODE" = "413" ] && ok "a site over the ${INFORCE} MB cap is refused" || bad "a site over the ${INFORCE} MB cap returned $CODE, not 413"
 
+step "how many accounts fit is the box's answer, not a number in the code"
+# Asking for a million must be refused with this server's real figure, in
+# milliseconds, without creating anything. A compiled-in ceiling used to answer
+# this question; the disk answers it now.
+OVER=$(curl -sS $PIN --max-time 30 -X POST -H "X-API-Key: $ADMIN" -H 'Content-Type: application/json' \
+  -d '{"count":1000000,"prefix":"over"}' "https://$HOST/v1/admin/users")
+grep -q "room for" <<<"$OVER" && ok "refused with the server's own number" || bad "a million accounts was not refused: $(head -c 120 <<<"$OVER")"
+ROOM=$(curl -sS $PIN --max-time 20 -H "X-API-Key: $ADMIN" "https://$HOST/v1/admin/capacity" \
+  | python3 -c 'import json,sys;print(json.load(sys.stdin)["accounts_available"])' 2>/dev/null || echo 0)
+# A ten thousand person event on the smallest plan needs a megabyte a site; the
+# point of the check is that the figure is real, not that it is large.
+[ "${ROOM:-0}" -gt 0 ] && ok "room for ${ROOM} more accounts" || bad "the server reports no room for anyone"
+
 step "the organiser issues a participant key"
 PKEY=$(curl -sS $PIN -X POST -H "X-API-Key: $ADMIN" -H 'Content-Type: application/json' \
   -d '{"count":1,"prefix":"team"}' "https://$HOST/v1/admin/users" \

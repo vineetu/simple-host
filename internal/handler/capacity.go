@@ -77,6 +77,37 @@ func AutoSiteLimit(ctx context.Context, db *sql.DB, dataDir string) (capacity.Pl
 	return capacity.ForPeople(total, available, 0, KeepVersions()), true
 }
 
+// countAccounts counts the participant accounts an instance already holds.
+// Admins are excluded: an organiser's own account is not one of the seats the
+// disk was sized for.
+func countAccounts(ctx context.Context, db *sql.DB) (int, error) {
+	var n int
+	err := db.QueryRowContext(ctx, `SELECT count(*) FROM users WHERE NOT is_admin`).Scan(&n)
+	return n, err
+}
+
+// AccountsAvailable reports how many more participants this instance can take,
+// from its own disk and its own account count. There is no compiled-in ceiling:
+// how many people fit is a property of the machine, so a bigger box takes more
+// and a smaller per-site cap takes more again.
+func (h *SiteHandler) accountsAvailable(ctx context.Context) (available, capacityTotal, inUse int, err error) {
+	total, free, err := capacity.Disk(h.disk.DataDir())
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	plan := capacity.ForPeople(total, free, 0, KeepVersions())
+	capacityTotal = capacity.PeopleAt(plan.UsableBytes, SiteLimit(), plan.SitesPerPerson, plan.KeptVersions)
+	inUse, err = countAccounts(ctx, h.database)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	available = capacityTotal - inUse
+	if available < 0 {
+		available = 0
+	}
+	return available, capacityTotal, inUse, nil
+}
+
 // capacityPlan answers "how many people fit on this server, and how big may
 // each site be" from the real filesystem, not from a guess. Admin-only: it
 // describes the machine, and the headcount of an event is not participant
@@ -93,22 +124,26 @@ func (h *SiteHandler) capacityPlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	people, _ := strconv.Atoi(r.URL.Query().Get("people"))
-	total, available, err := capacity.Disk(h.disk.DataDir())
+	diskBytes, freeBytes, err := capacity.Disk(h.disk.DataDir())
 	if err != nil {
 		writeJSON(w, 500, errorResponse{Error: "could not read this server's free space"})
 		return
 	}
-	plan := capacity.ForPeople(total, available, people, KeepVersions())
+	plan := capacity.ForPeople(diskBytes, freeBytes, people, KeepVersions())
 	inForce := SiteLimit()
-	headcount := plan.People // the sizing's effective headcount, not the raw query
 
-	atCurrentCap := capacity.PeopleAt(plan.UsableBytes, inForce, plan.SitesPerPerson, plan.KeptVersions)
+	seatsFree, seatsTotal, seatsUsed, err := h.accountsAvailable(r.Context())
+	if err != nil {
+		writeJSON(w, 500, errorResponse{Error: "could not read this server's capacity"})
+		return
+	}
 	writeJSON(w, 200, map[string]any{
 		"recommended":           plan,
 		"in_force_mb":           inForce >> 20,
-		"people_at_current_cap": atCurrentCap,
-		"fits_now":              atCurrentCap >= headcount,
+		"people_at_current_cap": seatsTotal,
+		"accounts_in_use":       seatsUsed,
+		"accounts_available":    seatsFree,
+		"fits_now":              seatsFree >= plan.People,
 		"fits_recommended":      plan.Fits(),
-		"max_accounts":          maxBulkAccounts,
 	})
 }

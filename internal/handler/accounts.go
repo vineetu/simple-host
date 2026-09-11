@@ -13,17 +13,12 @@ import (
 	"github.com/vsriram/simple-host/internal/db"
 )
 
-// maxBulkAccounts caps one create-accounts call. The number is a guard against
-// a typo turning into a million rows, not a product limit: what an instance can
-// really hold is set by its disk, which internal/capacity works out and the
-// setup page asks about.
-//
-// Measured at 5000: six seconds and a 750 KB response against a local Postgres,
-// in one transaction. Comfortable, but a dropped connection after the commit
-// takes every key in the batch with it, because the retry skips the accounts as
-// already existing and never re-discloses a key. The skill tells organisers to
-// ask in batches of a thousand for that reason.
-const maxBulkAccounts = 5000
+// maxAccountsBody bounds the request body, not the number of accounts. An
+// emails array is the only unbounded thing a caller sends here, and 8 MB holds
+// something like two hundred thousand addresses — far past any real event. It
+// exists so a malformed body cannot be read into memory without limit, and for
+// no other reason.
+const maxAccountsBody = 8 << 20
 
 type bulkUsersRequest struct {
 	Emails *[]string `json:"emails"`
@@ -31,13 +26,26 @@ type bulkUsersRequest struct {
 	Prefix *string   `json:"prefix"`
 }
 
+// requestedCount reports how many accounts a request asks for, validating its
+// shape but generating nothing. The capacity check runs on this number before
+// bulkUsernames allocates a slice the size of the answer.
+func requestedCount(req bulkUsersRequest) (int, error) {
+	if (req.Emails == nil) == (req.Count == nil) || (req.Emails != nil && req.Prefix != nil) {
+		return 0, errors.New("provide exactly one of emails or count with optional prefix")
+	}
+	if req.Emails != nil {
+		return len(*req.Emails), nil
+	}
+	return *req.Count, nil
+}
+
 func bulkUsernames(req bulkUsersRequest) ([]string, error) {
 	if (req.Emails == nil) == (req.Count == nil) || (req.Emails != nil && req.Prefix != nil) {
 		return nil, errors.New("provide exactly one of emails or count with optional prefix")
 	}
 	if req.Emails != nil {
-		if len(*req.Emails) == 0 || len(*req.Emails) > maxBulkAccounts {
-			return nil, fmt.Errorf("emails must contain 1 to %d accounts", maxBulkAccounts)
+		if len(*req.Emails) == 0 {
+			return nil, errors.New("emails must contain at least one address")
 		}
 		names := make([]string, len(*req.Emails))
 		for i, email := range *req.Emails {
@@ -49,8 +57,8 @@ func bulkUsernames(req bulkUsersRequest) ([]string, error) {
 		}
 		return names, nil
 	}
-	if *req.Count < 1 || *req.Count > maxBulkAccounts {
-		return nil, fmt.Errorf("count must be between 1 and %d accounts", maxBulkAccounts)
+	if *req.Count < 1 {
+		return nil, errors.New("count must be at least 1")
 	}
 	prefix := "guest"
 	if req.Prefix != nil {
@@ -101,9 +109,30 @@ func (h *SiteHandler) createAccounts(w http.ResponseWriter, r *http.Request) {
 	if !accountAdmin(w, r) {
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxAccountsBody)
 	var req bulkUsersRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, 400, errorResponse{Error: "invalid request body"})
+		return
+	}
+	// How many this instance can take is a property of its disk, not a number
+	// compiled in here. Ask for ten thousand on a box that holds ten thousand
+	// and you get ten thousand; ask for it on a box that holds three hundred
+	// and you are told the real figure instead of finding out mid-event.
+	asked, err := requestedCount(req)
+	if err != nil {
+		writeJSON(w, 400, errorResponse{Error: err.Error()})
+		return
+	}
+	seatsFree, seatsTotal, seatsUsed, err := h.accountsAvailable(r.Context())
+	if err != nil {
+		writeJSON(w, 500, errorResponse{Error: "could not read this server's capacity"})
+		return
+	}
+	if asked > seatsFree {
+		writeJSON(w, 409, errorResponse{Error: fmt.Sprintf(
+			"this server has room for %d more accounts, not %d. It budgets %d at %d MB per site, and %d already exist. Use a bigger disk, or a smaller per-site limit, or ask for fewer.",
+			seatsFree, asked, seatsTotal, SiteLimit()>>20, seatsUsed)})
 		return
 	}
 	names, err := bulkUsernames(req)

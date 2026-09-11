@@ -250,10 +250,6 @@ func (h *SetupHandler) freeName(w http.ResponseWriter, r *http.Request) {
 // GET /v1/setup/capacity?people=120
 func (h *SetupHandler) capacity(w http.ResponseWriter, r *http.Request) {
 	people, _ := strconv.Atoi(r.URL.Query().Get("people"))
-	if people > maxBulkAccounts {
-		setupError(w, 400, fmt.Sprintf("Enter a number up to %d.", maxBulkAccounts))
-		return
-	}
 	total, available, err := capacity.Disk(h.dataDir)
 	if err != nil {
 		setupError(w, 500, "Cannot read this server's free space. Try again.")
