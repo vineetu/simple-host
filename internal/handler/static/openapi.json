@@ -3752,7 +3752,7 @@
       "post": {
         "operationId": "createEventAccounts",
         "summary": "Create participant accounts (admin only)",
-        "description": "Creates accounts from emails or a count and optional prefix (default guest), numbered team-01 through team-30 for count 30 and prefix team. There is no fixed ceiling: ask for ten thousand and you get ten thousand, if the server has room for them. How many that is comes from its disk and its per-site limit, and GET /v1/admin/capacity reports it. A request beyond that room is refused with 409 and the real number rather than part-filled. Existing usernames are skipped with a reason and their keys are never disclosed. Non-admin callers receive 404.",
+        "description": "Creates accounts from emails or a count and optional prefix (default guest), numbered team-01 through team-30 for count 30 and prefix team. There is no fixed ceiling: ask for ten thousand and you get ten thousand, if the server has room for them. How many that is comes from its disk and its per-site limit, and GET /v1/admin/usage reports what is being used. A request beyond that room is refused with 409 and the real number rather than part-filled. Existing usernames are skipped with a reason and their keys are never disclosed. Non-admin callers receive 404.",
         "tags": [
           "Admin"
         ],

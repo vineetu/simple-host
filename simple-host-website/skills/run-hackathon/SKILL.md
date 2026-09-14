@@ -191,9 +191,13 @@ organiser's server.
 Every entry is a link of the form
 `https://sites.<event>.<their-domain>/<handle>/<project>/`.
 
-There is no organiser screen listing them. Ask each team for their final link.
-One account can hold several sites, so "their final link" is a real question,
-not a formality.
+The organiser's admin page lists them: open `https://<event-host>/admin` with
+the admin key. Entries shows every published site newest first, filterable, with
+the links copyable and downloadable as a spreadsheet. That is the list for the
+judges.
+
+One account can hold several sites, so if a team built more than one, ask which
+is the entry — the list shows everything published, not everything submitted.
 
 ### 8. Tear it down
 
@@ -222,7 +226,6 @@ keep what they built, they take a copy before you start.
 
 Say these plainly if asked, rather than working around them:
 
-- **No organiser view of entries.** You keep the list of links.
 - **No sign-in for participants.** Keys only. Email codes and Google are
   possible on an instance whose domain the organiser controls, but they are
   configured separately and are not part of this flow.
