@@ -3,7 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Simple Host</title>
+  <title>Simple Host — describe a website, your AI builds it and puts it online</title>
+  <meta name="description" content="Tell ChatGPT, Claude, Gemini or the coding agent you already use what you want. It builds the site and publishes it. Pages can save RSVPs, votes and guestbooks without a database. Free.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Simple Host">
+  <meta property="og:url" content="https://simple-host.app/">
+  <meta property="og:title" content="Describe a website. Your AI builds it and puts it online.">
+  <meta property="og:description" content="Free hosting with a small backend built in — RSVPs, votes, guestbooks, counters. Works with the AI you already use.">
+  <meta property="og:image" content="https://simple-host.app/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <script>(function(){try{var s=localStorage.getItem('sh-theme');document.documentElement.dataset.theme=s||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');}catch(e){document.documentElement.dataset.theme='light';}})();</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -83,6 +92,16 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      /* Without these the logo and the first nav link render as one word at
+         390px, and the theme toggle hangs 19px past the viewport, so the whole
+         page scrolls sideways on the device shared links arrive on. */
+      flex-wrap: wrap;
+      gap: 10px 14px;
+    }
+
+    .auth-fine a, .auth-note a {
+      color: var(--accent);
+      text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
     }
 
     .logo {
@@ -1150,16 +1169,16 @@
   <div id="auth-view" class="view active">
     <div class="auth-screen">
       <div class="auth-card">
-        <div class="auth-eyebrow"><span>Sign in</span></div>
+        <div class="auth-eyebrow"><span>Free to start</span></div>
 
         <!-- Step 1: enter email -->
         <div id="email-form-wrap">
-          <h1 class="auth-display">A static site —<br><em>with a backend when you need it.</em></h1>
-          <p class="auth-lede">Your assistant reads the spec, so you don't have to.</p>
+          <h1 class="auth-display">Describe a website.<br><em>Your AI builds it and puts it online.</em></h1>
+          <p class="auth-lede">Works with ChatGPT, Claude, Gemini, or the coding agent you already use. Free, and your site stays up.</p>
           <div class="home-cards">
-            <div class="home-card"><span class="hc-ico">🌐</span><h3>Anything HTML</h3><p>Portfolios, résumés, landing &amp; coming-soon pages, event RSVPs, menus, docs.</p></div>
-            <div class="home-card"><span class="hc-ico">🗄️</span><h3>A free per-site store</h3><p>Forms, counters, polls, votes, guestbooks — no database to set up.</p></div>
-            <div class="home-card"><span class="hc-ico">✨</span><h3>Build it in chat</h3><p>Copy a prompt into ChatGPT, Claude or Gemini, paste back what it returns, preview and publish.</p></div>
+            <div class="home-card"><span class="hc-ico">🌐</span><h3>Any kind of page</h3><p>Portfolios, résumés, landing &amp; coming-soon pages, event RSVPs, menus, docs.</p></div>
+            <div class="home-card"><span class="hc-ico">🗄️</span><h3>Pages that remember things</h3><p>RSVPs, votes, guestbooks, counters — your page saves them, and they are still there when you come back.</p></div>
+            <div class="home-card"><span class="hc-ico">✨</span><h3>Build it in chat</h3><p>Say what you want and watch it appear, or hand it to the coding agent you already use.</p></div>
           </div>
 
           <form class="auth-form" id="email-form" onsubmit="return handleAuth(event)">
@@ -1186,7 +1205,7 @@
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7h10M8 3l4 4-4 4"/></svg>
               </button>
             </div>
-            <p class="auth-fine">Your key is kept in this browser. It is not sent anywhere else.</p>
+            <p class="auth-fine">Your key is kept in this browser so you do not have to paste it again.</p>
           </form>
 
           <p class="auth-fine" style="margin-top:18px">

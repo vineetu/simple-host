@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Simple Host for companies</title>
-  <meta name="description" content="Open-source hosting where employees publish pages from the AI tool they already use. What it does, what it will not do, and how one company uses it.">
+  <meta name="description" content="Open-source hosting where employees publish pages from the AI tool they already use. What it is, how it runs inside your company, and how one company uses it.">
   <script>(function(){try{var s=localStorage.getItem('sh-theme');document.documentElement.dataset.theme=s||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');}catch(e){document.documentElement.dataset.theme='light';}})();</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -119,7 +119,7 @@
         <p>A page is plain HTML with a small data store attached. That is what my manager's project board is, and it is enough for the sign-up forms, polls and short guides I see colleagues make. Nobody has to stand up a backend first.</p>
         <p>
           <a class="cta solid" href="https://github.com/vineetu/simple-host">Source on GitHub</a>
-          <a class="cta" href="/">Try it on simple-host.app</a>
+          <a class="cta" href="https://simple-host.app/">Try it on simple-host.app</a>
         </p>
       </div>
     </section>
@@ -140,12 +140,12 @@
       <div>
         <h2>Why it is this simple</h2>
         <p class="lede">Agents already write HTML, and they can read and write a JSON document without a schema. Simple Host serves the first and stores the second.</p>
-        <p>Each site gets a folder of files, one JSON document of up to 1&nbsp;MB, and append-only collections whose items are up to 64&nbsp;KB each. A page reads and writes that data from the browser. Every deploy is versioned, so an earlier version of the files is one rollback away. Saved data is not versioned.</p>
+        <p>Each site gets a folder of files, one JSON document of up to 1&nbsp;MB, and append-only collections whose items are up to 64&nbsp;KB each. A page reads and writes that data from the browser. Every deploy is versioned. How much history to keep is yours to set: the install script keeps one, <code>--keep-versions 10</code> keeps ten, <code>0</code> keeps them all. Going back is an API call, not a button. Saved data is not versioned.</p>
         <p>Cloudflare, Firebase and Supabase all do pieces of this. They still need a developer to connect the pieces. Here an agent with the Website Deploy skill does it from "make a page where the team can vote on lunch".</p>
         <div class="facts">
           <div class="row"><div class="k">Per person</div><p class="v">One account, one API key, sign-in by emailed code or Google. A site can be hidden from the person's profile listing; the link still works for anyone who has it. Up to 100 sites per account.</p></div>
           <div class="row"><div class="k">The agent</div><p class="v">Claude Code, Codex, Cursor and Copilot install the <strong>Website Deploy</strong> skill once. After that the person says "put this online".</p></div>
-          <div class="row"><div class="k">The server</div><p class="v">One Go binary, one Postgres, one folder of files, behind nginx. MIT licence.</p></div>
+          <div class="row"><div class="k">The server</div><p class="v">One Go binary, one Postgres, one folder of files, behind Caddy, which obtains its own certificates. MIT licence.</p></div>
           <div class="row"><div class="k">Traffic</div><p class="v">Each owner sees views and unique visitors per site, split into people, bots and monitoring, with countries. It comes from the web server's log; the analytics add no script to any page.</p></div>
         </div>
       </div>
@@ -155,10 +155,11 @@
       <div class="snum">03.</div>
       <div>
         <h2>Running it inside your company</h2>
-        <p>One script on a fresh Ubuntu server installs everything: the binary, Postgres and a web server that obtains its own HTTPS certificates. It has been run end to end, from an empty machine to a working instance. Re-running it after a failure is safe. The container image is published for both Intel and ARM, so nothing is ever compiled on your server.</p>
+        <p>One script on a fresh Ubuntu server installs Docker, then runs the published image alongside Postgres and Caddy, which obtains its own HTTPS certificates. It has been run end to end, from an empty machine to a working instance. Re-running it after a failure is safe. The container image is published for both Intel and ARM, so nothing is ever compiled on your server.</p>
         <ul>
-          <li><strong>Sign-in.</strong> An emailed code through Resend, or Google OAuth. Restrict Google to your Workspace domain on the OAuth client. Emailed codes go to whatever address someone types; the server has no domain allowlist, so keep the instance inside your network or accept open sign-up.</li>
-          <li><strong>Admin view.</strong> The person running the instance sees every account and every site in one list. There is no way to remove an account from that page.</li>
+          <li><strong>Sign-in.</strong> An emailed code through Resend, or Google OAuth. The install script does not ask for either, so add them to <code>/opt/simple-host/.env</code> afterwards — and note it rewrites that file if you run it again. Restrict Google to your Workspace domain on the OAuth client. Emailed codes go to whatever address someone types; the server has no domain allowlist, so keep the instance inside your network or accept open sign-up.</li>
+          <li><strong>Admin view.</strong> Whoever runs the instance sees every account and every site in one list, and can remove an account along with everything it published.</li>
+          <li><strong>Every site on an instance shares one hostname.</strong> Any page can read and write any other site's stored data. Anything that must be separate from its neighbours needs its own domain, which also switches on per-person sign-in. Plan this before you point a department at one instance.</li>
           <li><strong>Where data goes.</strong> Site files and site data live on your disk and in your Postgres. Sign-in talks to Resend or Google. People's agents see whatever they paste into them.</li>
           <li><strong>No model on the server.</strong> AI create and voice transcription are off unless you configure them. People keep using the agent they already pay for.</li>
           <li><strong>Installing and upgrading.</strong> Installing is one script, and re-running it after a failure is safe. Moving an already-running instance to a newer version is a manual job today: the schema is applied on first boot, and the server does not report its own version.</li>

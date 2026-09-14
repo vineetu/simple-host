@@ -283,7 +283,7 @@ npx skills add vineetu/simple-host -g -a github-copilot -s connect-domain --copy
                 <tr><td>Hermes</td><td><code>~/.hermes/skills/</code></td><td><code>$env:USERPROFILE\.hermes\skills\</code></td></tr>
                 <tr><td>OpenClaw</td><td><code>~/.openclaw/skills/</code></td><td><code>$env:USERPROFILE\.openclaw\skills\</code></td></tr>
                 <tr><td>Anything else</td><td colspan="2">Point it at the skills directory it reads — the files are identical.</td></tr>
-                <tr><td>Claude app<br>(claude.ai / desktop)</td><td colspan="2">Not a skills folder — the skills are uploaded in Settings. See <b>“Upload the skills to Claude”</b> above.</td></tr>
+                <tr><td>Claude app<br>(claude.ai / desktop)</td><td colspan="2">Not a skills folder — the skills are uploaded in Settings. See <b>“Upload the skills to Claude”</b> below.</td></tr>
               </tbody>
             </table>
 
@@ -366,7 +366,7 @@ Expand-Archive "$env:TEMP\sh-skills.zip" "$env:USERPROFILE\.claude\skills" -Forc
             <div>
               <div class="eyebrow">In a browser chat · ChatGPT on the web, Gemini, Copilot</div>
               <h2>Copy a prompt, paste back the result.</h2>
-              <p>For a chat that can't touch your files. Copy the prompt below, paste it into the chat, and it hands you a ready-to-publish site as one block. Paste that back at <span class="inline-code">simple-host.app</span> and hit Publish. <span class="dim">(One 6-digit email code to publish — no password.)</span></p>
+              <p>For a chat that can't touch your files. Copy the prompt below, paste it into the chat, and it hands you a ready-to-publish site as one block. Paste that back at <span class="inline-code">simple-host.app/?new=1</span> and hit Publish. <span class="dim">(One 6-digit email code to publish — no password.)</span></p>
             </div>
           </div>
           <button class="copy-btn wide" id="copy-llms" type="button">Copy the prompt</button>

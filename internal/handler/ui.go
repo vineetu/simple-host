@@ -382,6 +382,16 @@ func buildSkillsZip() ([]byte, error) {
 			if path == "." || d.IsDir() {
 				return nil
 			}
+			// The bundle is what a participant installs. A control-plane skill
+			// provisions cloud servers with the operator's own credentials and
+			// has no business in a participant's agent — and shipping it here
+			// also made the Get Started page wrong, since it tells people to
+			// expect three folders. Organisers do not need the bundle: the
+			// organiser prompt has their agent read the skill from its URL, and
+			// /skills/run-hackathon.zip is still there for an explicit download.
+			if controlPlaneSkill(path) {
+				return nil
+			}
 
 			src, err := skillsRoot.Open(path)
 			if err != nil {
