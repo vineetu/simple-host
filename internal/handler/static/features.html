@@ -163,7 +163,7 @@
       <a href="#analytics">09 Traffic</a>
       <a href="#admin">10 Admin</a>
       <a href="#agent">11 Your AI agent</a>
-      <a href="#notbuilt">12 Limits</a>
+      <a href="#limits">12 Limits</a>
     </div>
 
     <!-- 00 What this page is -->
@@ -173,7 +173,7 @@
         <div class="kicker">Feature inventory</div>
         <h1 class="title">Everything it does.<br>Nothing it doesn't.</h1>
         <p class="lede">This is the complete list of what Simple Host can do today — one entry per capability, with where you find it and what it will not do. It exists so that "does this already exist?" has an answer you can read, and so a feature can never quietly stop working without someone noticing it is missing from a screen.</p>
-        <p>Entries that are half-built are marked as such rather than left off. A feature that does not finish the job is more expensive than one that was never offered, so the marked ones are the important part of this page.</p>
+        <p>Each entry says what it does, where it stops, and whether it is a screen or something your agent does for you.</p>
 
         <p><strong>Two owner screens exist.</strong> Every entry says which one it lives on:</p>
         <div class="legend">
@@ -249,7 +249,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Everyone with an account; it is how visitors tell your sites apart from anyone else's.</dd>
                 <dt>Where</dt><dd>In every site address, and at the top of your sites page.</dd>
-                <dt>Limits</dt><dd class="lim">It is picked for you from your email and <b>cannot be changed from any screen</b>.</dd>
+                <dt>Limits</dt><dd class="lim">It is picked for you from your email. No screen changes it; your agent can, but only before you publish anything — once a site exists the address is fixed.</dd>
               </dl>
             </div>
           </div>
@@ -313,7 +313,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone with a finished page, and every AI agent publishing on your behalf.</dd>
                 <dt>Where</dt><dd>The paste builder on the main dashboard, and whatever your agent does when you say "publish this".</dd>
-                <dt>Limits</dt><dd class="lim">Text files only, so <b>images and fonts cannot go this way</b> — for those, use the folder route below. A site must include a home page, and script files are refused.</dd>
+                <dt>Limits</dt><dd class="lim">Text files go in <code>files</code>; images, fonts and other binaries go base64-encoded in <code>files_base64</code> in the same request. A site must include a home page, and script files are refused.</dd>
               </dl>
             </div>
           </div>
@@ -558,7 +558,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone with a headcount, a vote, a guestbook or anything else several people touch at once.</dd>
                 <dt>Where</dt><dd>Used by your page's own code.</dd>
-                <dt>Limits</dt><dd class="lim">Only the simple moves are supported — set, add-to-a-number, add-to-a-list, remove. Anything cleverer has to be worked out in the page.</dd>
+                <dt>Limits</dt><dd class="lim">Five moves are supported — set, add-to-a-number, add-to-a-list, remove, and remove-where — up to 100 in one request. Anything cleverer has to be worked out in the page.</dd>
               </dl>
             </div>
           </div>
@@ -952,7 +952,7 @@
             <div class="fid">analytics-traffic-split</div>
             <div>
               <h3>People, bots and monitoring counted apart</h3>
-              <p class="fw">Every visit is put in one of four groups — <strong>People</strong>, <strong>Bots</strong>, <strong>Infra</strong> and <strong>Earlier</strong> — and they are never added together into one misleading total.</p>
+              <p class="fw">Every visit is put in one of three groups — <strong>People</strong>, <strong>Bots</strong> and <strong>Infra</strong> — and they are never added together into one misleading total. A fourth figure, <strong>Earlier</strong>, is history from before the split; nothing new ever lands there.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone who has ever been briefly delighted by a traffic number that turned out to be crawlers.</dd>
                 <dt>Where</dt><dd>The numbers under each site on the main dashboard.</dd>
@@ -1137,7 +1137,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Whoever runs the service, checking who is actually using it.</dd>
                 <dt>Where</dt><dd>The admin dashboard, ordered by most sites first.</dd>
-                <dt>Limits</dt><dd class="lim"><b>Read-only.</b> No way to suspend, contact or remove an account from here.</dd>
+                <dt>Limits</dt><dd class="lim">Accounts can be created in bulk and deleted from here, and deleting takes everything that account published with it. There is no way to suspend or contact an account.</dd>
               </dl>
             </div>
           </div>
@@ -1354,7 +1354,7 @@
     </section>
 
     <!-- 12 Limits -->
-    <section id="notbuilt">
+    <section id="limits">
       <div class="snum">12.</div>
       <div>
         <h2>Limits</h2>
