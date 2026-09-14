@@ -406,8 +406,19 @@ Three things that will catch you, in the order they bite:
 - **Oracle instances carry their own firewall, and Ubuntu images ship with it
   closed.** Opening ports on the subnet's security list is not enough: run
   `iptables -I INPUT -p tcp --dport 80 -j ACCEPT` and the same for 443 on the
-  instance, then persist it. Nothing else on this page needs that step, and
-  skipping it looks exactly like a DNS problem.
+  instance, then persist them so a reboot does not silently close the event:
+
+  ```bash
+  ssh -i ~/.ssh/hackathon_key ubuntu@<ip> \
+    'sudo iptables -I INPUT -p tcp --dport 80 -j ACCEPT && \
+     sudo iptables -I INPUT -p tcp --dport 443 -j ACCEPT && \
+     sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq iptables-persistent && \
+     sudo netfilter-persistent save'
+  ```
+
+  Nothing else on this page needs that step, and skipping it looks exactly like
+  a DNS problem. It is separate from the subnet rules above: Oracle blocks in
+  two places and you have to open both.
 - **You log in as `ubuntu`, not `root`.** The install script needs `sudo`.
 
 Console → profile icon → My profile → API keys → Add API key → Generate API key
@@ -440,13 +451,24 @@ oci compute image list -c "$C" \
   --shape VM.Standard.E2.1.Micro --sort-by TIMECREATED --sort-order DESC --all
 oci network subnet list -c "$C" --all
 AD='<availability-domain name>'
-IMAGE_ID='<newest compatible Ubuntu 24.04 ARM image OCID>'
+IMAGE_ID='<newest Ubuntu 24.04 image OCID from the list above>'
 SUBNET_ID='<public subnet OCID>'
 ```
 
-ARM images have names like `Canonical-Ubuntu-24.04-aarch64-2026.08.25-0`.
-The published application image supports ARM. No separate SSH-key registration
-is needed.
+Take the image from that list and no other. The list is already filtered to the
+shape, so it returns x86 images for `VM.Standard.E2.1.Micro`. An `aarch64` name
+like `Canonical-Ubuntu-24.04-aarch64-2026.08.25-0` is an ARM image: it will not
+boot on the micro shape, and the launch fails with an error that reads like a
+mistyped OCID. The published application image supports both. No separate
+SSH-key registration is needed.
+
+The compartment is the tenancy for a new account, and its OCID is already in
+the config file the console generated:
+
+```bash
+C=$(oci iam compartment list --query 'data[0]."compartment-id"' --raw-output 2>/dev/null \
+    || awk -F= '/^tenancy=/{print $2}' ~/.oci/config)
+```
 
 ```bash
 oci compute instance launch -c "$C" \
@@ -460,7 +482,38 @@ oci compute instance list-vnics --instance-id "$SERVER_ID" \
 ```
 
 Ubuntu uses SSH user `ubuntu`, with `sudo` for root work.
-The subnet needs an internet gateway route and ingress for SSH, HTTP and HTTPS.
+
+**Open 80 and 443 on the subnet before installing.** The VCN wizard creates a
+security list that admits SSH and nothing else, so HTTP and HTTPS are refused
+before they reach the machine. Certificates then fail and the site is
+unreachable, which looks exactly like DNS not having propagated. This is the
+single most common way an Oracle event stalls.
+
+```bash
+SL_ID=$(oci network subnet get --subnet-id "$SUBNET_ID" \
+  --query 'data."security-list-ids"[0]' --raw-output)
+# Read the existing rules, append 80 and 443, write the whole list back:
+# security-list update replaces the rule set rather than adding to it, so
+# sending only the new rules would remove SSH and lock you out of the box.
+oci network security-list get --security-list-id "$SL_ID" \
+  --query 'data."ingress-security-rules"' > /tmp/ingress.json
+python3 - <<'RULES' > /tmp/ingress-new.json
+import json
+rules = json.load(open('/tmp/ingress.json'))
+have = {(r.get('protocol'), (r.get('tcp-options') or {}).get('destination-port-range', {}).get('min'))
+        for r in rules}
+for port in (80, 443):
+    if ('6', port) in have:
+        continue
+    rules.append({"protocol": "6", "source": "0.0.0.0/0", "is-stateless": False,
+                  "tcp-options": {"destination-port-range": {"min": port, "max": port}}})
+json.dump(rules, open('/tmp/ingress-new.json', 'w'))
+RULES
+oci network security-list update --security-list-id "$SL_ID" \
+  --ingress-security-rules file:///tmp/ingress-new.json --force
+```
+
+The subnet also needs an internet gateway route, which the VCN wizard creates.
 
 **The catch: free ARM capacity is frequently exhausted.** On “Out of host
 capacity”, explain the failure and consider another eligible availability domain
