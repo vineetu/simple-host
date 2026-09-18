@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Simple Host for companies — everyone gets a place to build</title>
-  <meta name="description" content="Run it on your own Kubernetes cluster against your own Postgres, storage and identity provider. People sign in with their company account, their AI agent publishes, and every change and visit is written down.">
+  <meta name="description" content="Run it on your own Kubernetes cluster against your own Postgres, object storage and identity provider. People sign in with their company account, their AI agent publishes, and every change and visit is written down.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Simple Host">
   <meta property="og:url" content="https://simple-host.app/enterprise">
@@ -124,7 +124,7 @@
         <div class="kicker">Simple Host for companies</div>
         <h1 class="title">Give everyone in the company a place to build.</h1>
         <p class="lede">Someone signs in with your company account, describes a page to the AI agent they already use, and it is live at their own address a minute later. No ticket, no repository, no one to ask.</p>
-        <p>You run it. One service on your own Kubernetes cluster, against your own database, your own storage and your own identity provider. Nothing leaves your network, and every change and every visit is written down.</p>
+        <p>You run it. One service on your own Kubernetes cluster, against your own database, your own storage and your own identity provider — on whichever cloud you are already on. Nothing leaves your network, and every change and every visit is written down.</p>
         <p>
           <a class="cta solid" href="#install">How to install it</a>
           <a class="cta" href="https://github.com/vineetu/simple-host-enterprise">Source on GitHub</a>
@@ -174,10 +174,10 @@
       <div class="snum">04.</div>
       <div>
         <h2>What it runs on</h2>
-        <p class="lede">Your cluster, your Postgres, your bucket, your identity provider. The package is the manifests to do it.</p>
+        <p class="lede">Your cluster, your Postgres, your object storage, your identity provider. The package is the manifests to do it.</p>
         <div class="facts">
-          <div class="row"><div class="k">Kubernetes</div><p class="v">Kustomize manifests: a base, and overlays for bringing your own managed services or running everything in-cluster to evaluate it. Ingress and certificates are the cluster's normal ones.</p></div>
-          <div class="row"><div class="k">Postgres and a bucket</div><p class="v">Any managed Postgres and any S3-compatible storage. The service refuses to start unless the database connection verifies the server's certificate in full and the bucket endpoint is HTTPS, unless you deliberately opt out for a local evaluation.</p></div>
+          <div class="row"><div class="k">Kubernetes</div><p class="v">Kustomize manifests: a base, and overlays for bringing your own managed services or running everything in-cluster to evaluate it. Any conformant cluster — managed or your own. Ingress and certificates are the cluster's normal ones.</p></div>
+          <div class="row"><div class="k">Postgres and object storage</div><p class="v">Any managed Postgres, and your cloud's object storage — Amazon S3, Google Cloud Storage, Oracle Object Storage, MinIO or anything else that speaks the same API. The service refuses to start unless the database connection verifies the server's certificate in full and the storage endpoint is HTTPS, unless you deliberately opt out to evaluate it locally.</p></div>
           <div class="row"><div class="k">Your identity provider</div><p class="v">Anything that speaks OIDC. Which claim marks an administrator, and which email domains may sign in at all, are yours to set. There is no master key anywhere in the system — an admin is a real person who signed in.</p></div>
           <div class="row"><div class="k">Least privilege</div><p class="v">The service connects to the database as a role that cannot alter the schema. Migrations run as the owner, separately, as their own step.</p></div>
         </div>
@@ -191,8 +191,8 @@
         <h2>Upgrading, backing up, getting it back</h2>
         <div class="facts">
           <div class="row"><div class="k">Upgrades</div><p class="v">The schema is a numbered chain, applied by an init container before the new version serves. Rolling forward is deploying the new image; the migration runs itself.</p></div>
-          <div class="row"><div class="k">Backups</div><p class="v">A scheduled job syncs every site's assets to your bucket, written with server-side encryption. You can add a key of your own so objects are encrypted before they ever reach the bucket, which puts a leaked backup out of reach without the key.</p></div>
-          <div class="row"><div class="k">Restore</div><p class="v">A command that rebuilds a site and its assets from the bucket. It is part of the binary, not a runbook someone has to write.</p></div>
+          <div class="row"><div class="k">Backups</div><p class="v">A scheduled job syncs every site's assets to your own storage, written with server-side encryption. You can add a key of your own so objects are encrypted before they ever leave the cluster, which puts a leaked backup out of reach without it.</p></div>
+          <div class="row"><div class="k">Restore</div><p class="v">A command that rebuilds a site and its assets from that storage. It is part of the binary, not a runbook someone has to write.</p></div>
           <div class="row"><div class="k">Checking it works</div><p class="v">A smoke test ships with it: signs in, moves a session between hosts, publishes, restricts a site, reads and writes state and assets. Run it after every rollout.</p></div>
         </div>
       </div>
@@ -203,8 +203,8 @@
       <div>
         <h2>Install it</h2>
         <p class="lede">A local cluster first, on your own machine, in about five minutes.</p>
-        <p>Docker Desktop with Kubernetes turned on, or minikube. One command brings up ingress, certificates, Postgres, storage and a test identity provider alongside the app, and prints two accounts to sign in with. When you have seen it work, the same manifests point at your real database, bucket and provider.</p>
-        <p>The package documents every setting and what happens when it is wrong, gives a per-cloud checklist for AWS, GKE and AKS, and ships its security review: the threat model, what closes each finding, the penetration tests that were run against it, and the limitations that are accepted rather than solved.</p>
+        <p>Docker Desktop with Kubernetes turned on, or minikube. One command brings up ingress, certificates, Postgres, storage and a test identity provider alongside the app, and prints two accounts to sign in with. When you have seen it work, the same manifests point at your real database, storage and provider.</p>
+        <p>The package documents every setting and what happens when it is wrong, gives a checklist per cloud for the pieces a real install needs, and ships its security review: the threat model, what closes each finding, the penetration tests that were run against it, and the limitations that are accepted rather than solved.</p>
         <p>
           <a class="cta solid" href="https://github.com/vineetu/simple-host-enterprise">Source on GitHub</a>
           <a class="cta" href="https://simple-host.app/">Try the hosted one</a>
