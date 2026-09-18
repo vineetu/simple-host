@@ -3,8 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Simple Host for companies</title>
-  <meta name="description" content="Open-source hosting where employees publish pages from the AI tool they already use. What it is, how it runs inside your company, and how one company uses it.">
+  <title>Simple Host for companies — everyone gets a place to build</title>
+  <meta name="description" content="Run it on your own Kubernetes cluster against your own Postgres, storage and identity provider. People sign in with their company account, their AI agent publishes, and every change and visit is written down.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Simple Host">
+  <meta property="og:url" content="https://simple-host.app/enterprise">
+  <meta property="og:title" content="Give everyone in the company a place to build">
+  <meta property="og:description" content="One service on your own cluster. Company sign-in, a hostname per person, pages that can be restricted to named people, and an audit trail of every change and every visit.">
+  <meta property="og:image" content="https://simple-host.app/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <script>(function(){try{var s=localStorage.getItem('sh-theme');document.documentElement.dataset.theme=s||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');}catch(e){document.documentElement.dataset.theme='light';}})();</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -114,87 +122,95 @@
       <div class="snum">00.</div>
       <div>
         <div class="kicker">Simple Host for companies</div>
-        <h1 class="title">Give every employee a place to build.</h1>
-        <p class="lede">Simple Host is an open-source server. An employee describes a page to their AI agent, the agent publishes it, and anyone with the link can open it.</p>
-        <p>A page is plain HTML with a small data store attached. That is what my manager's project board is, and it is enough for the sign-up forms, polls and short guides I see colleagues make. Nobody has to stand up a backend first.</p>
+        <h1 class="title">Give everyone in the company a place to build.</h1>
+        <p class="lede">Someone signs in with your company account, describes a page to the AI agent they already use, and it is live at their own address a minute later. No ticket, no repository, no one to ask.</p>
+        <p>You run it. One service on your own Kubernetes cluster, against your own database, your own storage and your own identity provider. Nothing leaves your network, and every change and every visit is written down.</p>
         <p>
-          <a class="cta solid" href="https://github.com/vineetu/simple-host">Source on GitHub</a>
-          <a class="cta" href="https://simple-host.app/">Try it on simple-host.app</a>
+          <a class="cta solid" href="#install">How to install it</a>
+          <a class="cta" href="https://github.com/vineetu/simple-host-enterprise">Source on GitHub</a>
         </p>
       </div>
     </section>
 
-    <section id="story">
+    <section id="person">
       <div class="snum">01.</div>
       <div>
-        <h2>Where this came from</h2>
-        <p>In spring 2026 I ran a two-hour AI workshop at work. It was remote, at eight on a Monday morning, and I wanted people to have somewhere to keep going after the call ended. So I put up an internal copy of this: a place where you could describe a page to an AI agent, see it live, change it, and send the link to a colleague.</p>
-        <p>By September 2026 that instance had passed a hundred accounts, most of them people who do not write code for a living. My manager runs his project board on it. The page he built pulls tickets from Jira, draws the timeline, and is the screen we look at in the daily standup. A programme manager tracks a cross-team project on it so he can see who is waiting on whom.</p>
-        <p>The server that runs all of it is a 1&nbsp;CPU, 1&nbsp;GB box and costs $5 a month.</p>
-        <p>I think everyone carries an idea that only they can see. Give them a canvas and a patient collaborator and most of them will build it. The agent is the collaborator. This is the canvas.</p>
-      </div>
-    </section>
-
-    <section id="why">
-      <div class="snum">02.</div>
-      <div>
-        <h2>Why it is this simple</h2>
-        <p class="lede">Agents already write HTML, and they can read and write a JSON document without a schema. Simple Host serves the first and stores the second.</p>
-        <p>Each site gets a folder of files, one JSON document of up to 1&nbsp;MB, and append-only collections whose items are up to 64&nbsp;KB each. A page reads and writes that data from the browser. Every deploy is versioned. How much history to keep is yours to set: the install script keeps one, <code>--keep-versions 10</code> keeps ten, <code>0</code> keeps them all. Going back is an API call, not a button. Saved data is not versioned.</p>
-        <p>Cloudflare, Firebase and Supabase all do pieces of this. They still need a developer to connect the pieces. Here an agent with the Website Deploy skill does it from "make a page where the team can vote on lunch".</p>
+        <h2>What a person gets</h2>
+        <p class="lede">An address of their own, and somewhere for a page to keep what it collects.</p>
         <div class="facts">
-          <div class="row"><div class="k">Per person</div><p class="v">One account, one API key, sign-in by emailed code or Google. A site can be hidden from the person's profile listing; the link still works for anyone who has it. Up to 100 sites per account.</p></div>
-          <div class="row"><div class="k">The agent</div><p class="v">Claude Code, Codex, Cursor and Copilot install the <strong>Website Deploy</strong> skill once. After that the person says "put this online".</p></div>
-          <div class="row"><div class="k">The server</div><p class="v">One Go binary, one Postgres, one folder of files, behind Caddy, which obtains its own certificates. MIT licence.</p></div>
-          <div class="row"><div class="k">Traffic</div><p class="v">Each owner sees views and unique visitors per site, split into people, bots and monitoring, with countries. It comes from the web server's log; the analytics add no script to any page.</p></div>
+          <div class="row"><div class="k">Their own hostname</div><p class="v">Every person gets one label under your base domain, so their pages sit at an address that is theirs rather than a path on a shared one. A page they publish runs on their origin and no colleague's.</p></div>
+          <div class="row"><div class="k">Pages that hold data</div><p class="v">A folder of files, a JSON document the page reads and writes without a schema, and an asset store for the things that are too big to sit in a document. Enough for a sign-up form, a poll, a project board that pulls from Jira and draws its own timeline.</p></div>
+          <div class="row"><div class="k">The agent does it</div><p class="v">Claude Code, Codex, Cursor, Copilot. They install one skill, or connect to the instance's MCP endpoint and reach every operation as a tool — publish, roll back, share, search, manage a team.</p></div>
+          <div class="row"><div class="k">Nothing to learn</div><p class="v">Signing in is your normal company sign-in. There is no second password, no API key to keep somewhere, and no account for anyone to create or approve.</p></div>
         </div>
       </div>
     </section>
 
-    <section id="run">
+    <section id="who-sees">
+      <div class="snum">02.</div>
+      <div>
+        <h2>Who can see what</h2>
+        <p class="lede">A page is visible to everyone signed in, or to the people named on it. That choice belongs to whoever made it.</p>
+        <div class="facts">
+          <div class="row"><div class="k">Restricted pages</div><p class="v">Name the people who may read it and the page moves to an address of its own. Everyone else gets a 404 — not a sign-in prompt, not a permission error. Somebody who should not know it exists cannot tell that it does.</p></div>
+          <div class="row"><div class="k">Editors</div><p class="v">Someone else can be given the right to publish to a site without owning it, and the right can be taken back. The audit trail records which of them did what.</p></div>
+          <div class="row"><div class="k">Teams</div><p class="v">Group people once and share with the group, rather than maintaining the same list on eleven pages.</p></div>
+          <div class="row"><div class="k">Leavers</div><p class="v">Access follows your identity provider. When somebody's company account stops working, so does everything here — sessions included, not just future sign-ins.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="records">
       <div class="snum">03.</div>
       <div>
-        <h2>Running it inside your company</h2>
-        <p>One script on a fresh Ubuntu server installs Docker, then runs the published image alongside Postgres and Caddy, which obtains its own HTTPS certificates. It has been run end to end, from an empty machine to a working instance. Re-running it after a failure is safe. The container image is published for both Intel and ARM, so nothing is ever compiled on your server.</p>
-        <ul>
-          <li><strong>Sign-in.</strong> An emailed code through Resend, or Google OAuth. The install script does not ask for either, so add them to <code>/opt/simple-host/.env</code> afterwards — and note it rewrites that file if you run it again. Restrict Google to your Workspace domain on the OAuth client. Emailed codes go to whatever address someone types; the server has no domain allowlist, so keep the instance inside your network or accept open sign-up.</li>
-          <li><strong>Admin view.</strong> Whoever runs the instance sees every account and every site in one list, and can remove an account along with everything it published.</li>
-          <li><strong>Every site on an instance shares one hostname.</strong> Any page can read and write any other site's stored data. Anything that must be separate from its neighbours needs its own domain, which also switches on per-person sign-in. Plan this before you point a department at one instance.</li>
-          <li><strong>Where data goes.</strong> Site files and site data live on your disk and in your Postgres. Sign-in talks to Resend or Google. People's agents see whatever they paste into them.</li>
-          <li><strong>No model on the server.</strong> AI create and voice transcription are off unless you configure them. People keep using the agent they already pay for.</li>
-          <li><strong>Installing and upgrading.</strong> Installing is one script, and re-running it after a failure is safe. Moving an already-running instance to a newer version is a manual job today: the schema is applied on first boot, and the server does not report its own version.</li>
-          <li><strong>Who can write.</strong> Anyone who can load a page can read it. On the shared hostname anyone can also change a site's saved data; the files themselves change only with the owner's API key. Per-person saves, gated by visitor sign-in, exist only on a site that has its own domain.</li>
-        </ul>
+        <h2>What it writes down</h2>
+        <p class="lede">Every change and every visit, kept where you can read them back.</p>
+        <p>The action log records who published, who rolled back, who was given access to what, and who took it away. The access log records what was visited and by whom. An owner reads their own; an admin reads all of it; both export.</p>
+        <p>Both are partitioned and pruned on a schedule you set, by a job that runs under the database's owning credential rather than the application's own — so the service that writes the audit trail is not the service that can delete it.</p>
       </div>
     </section>
 
-    <section id="not">
+    <section id="runs">
       <div class="snum">04.</div>
       <div>
-        <h2>How it is scoped</h2>
-        <p>Knowing the shape of it up front is what makes it safe to point people at.</p>
-        <table>
-          <tr><td class="tk">Every page is public</td><td class="tv">Anyone who has the link can read a site. If the instance is on the public internet, treat everything published on it as public.</td></tr>
-          <tr><td class="tk">State, not a database</td><td class="tv">A site keeps one 1&nbsp;MB JSON document plus append-only collections. No queries, no schema, no server-side code. Anything past that shape belongs on a different host.</td></tr>
-          <tr><td class="tk">One owner per site</td><td class="tv">A site belongs to one account. On a site with its own domain, any signed-in visitor can save; there are no roles beyond that.</td></tr>
-          <tr><td class="tk">Google, or an emailed code</td><td class="tv">Those are the two ways in. Restrict Google to your Workspace domain on the OAuth client. There is no SAML or OIDC beyond Google.</td></tr>
-          <tr><td class="tk">Upgrades are manual</td><td class="tv">Installing is one script, safe to re-run after a failure. Moving a running instance to a newer version has no tooling yet: the schema applies on first boot only, and the server does not report its own version.</td></tr>
-          <tr><td class="tk">Docker Compose</td><td class="tv">That is the supported shape, on both Intel and ARM. Running it under Kubernetes is your own exercise; there is no Helm chart.</td></tr>
-        </table>
+        <h2>What it runs on</h2>
+        <p class="lede">Your cluster, your Postgres, your bucket, your identity provider. The package is the manifests to do it.</p>
+        <div class="facts">
+          <div class="row"><div class="k">Kubernetes</div><p class="v">Kustomize manifests: a base, and overlays for bringing your own managed services or running everything in-cluster to evaluate it. Ingress and certificates are the cluster's normal ones.</p></div>
+          <div class="row"><div class="k">Postgres and a bucket</div><p class="v">Any managed Postgres and any S3-compatible storage. The service refuses to start unless the database connection verifies the server's certificate in full and the bucket endpoint is HTTPS, unless you deliberately opt out for a local evaluation.</p></div>
+          <div class="row"><div class="k">Your identity provider</div><p class="v">Anything that speaks OIDC. Which claim marks an administrator, and which email domains may sign in at all, are yours to set. There is no master key anywhere in the system — an admin is a real person who signed in.</p></div>
+          <div class="row"><div class="k">Least privilege</div><p class="v">The service connects to the database as a role that cannot alter the schema. Migrations run as the owner, separately, as their own step.</p></div>
+        </div>
+        <p class="fine">Nothing that identifies an installation has a default. If a required setting is missing the process will not start, and it tells you which ones.</p>
       </div>
     </section>
 
-    <section id="start">
+    <section id="operating">
       <div class="snum">05.</div>
       <div>
-        <h2>Try it</h2>
-        <p><a href="/">simple-host.app</a> runs the same code. Sign in, install the skill, and ask your agent for a page. For an instance of your own, the install script and the published image are in the repository, and an instance serves its own documentation so your people's agents publish to it rather than here.</p>
+        <h2>Upgrading, backing up, getting it back</h2>
+        <div class="facts">
+          <div class="row"><div class="k">Upgrades</div><p class="v">The schema is a numbered chain, applied by an init container before the new version serves. Rolling forward is deploying the new image; the migration runs itself.</p></div>
+          <div class="row"><div class="k">Backups</div><p class="v">A scheduled job syncs every site's assets to your bucket, written with server-side encryption. You can add a key of your own so objects are encrypted before they ever reach the bucket, which puts a leaked backup out of reach without the key.</p></div>
+          <div class="row"><div class="k">Restore</div><p class="v">A command that rebuilds a site and its assets from the bucket. It is part of the binary, not a runbook someone has to write.</p></div>
+          <div class="row"><div class="k">Checking it works</div><p class="v">A smoke test ships with it: signs in, moves a session between hosts, publishes, restricts a site, reads and writes state and assets. Run it after every rollout.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="install">
+      <div class="snum">06.</div>
+      <div>
+        <h2>Install it</h2>
+        <p class="lede">A local cluster first, on your own machine, in about five minutes.</p>
+        <p>Docker Desktop with Kubernetes turned on, or minikube. One command brings up ingress, certificates, Postgres, storage and a test identity provider alongside the app, and prints two accounts to sign in with. When you have seen it work, the same manifests point at your real database, bucket and provider.</p>
+        <p>The package documents every setting and what happens when it is wrong, gives a per-cloud checklist for AWS, GKE and AKS, and ships its security review: the threat model, what closes each finding, the penetration tests that were run against it, and the limitations that are accepted rather than solved.</p>
         <p>
-          <a class="cta solid" href="https://github.com/vineetu/simple-host">Source on GitHub</a>
-          <a class="cta" href="/install.html">Install the skill</a>
+          <a class="cta solid" href="https://github.com/vineetu/simple-host-enterprise">Source on GitHub</a>
+          <a class="cta" href="https://simple-host.app/">Try the hosted one</a>
           <a class="cta" href="/hackathons">For hackathons</a>
         </p>
-        <p class="fine">I am Vineet Sriram. The account count and the $5 a month describe the instance I run at work, as of September 2026.</p>
+        <p class="fine">Built and verified end to end on a local cluster, including a penetration-test pass against the finished package. It has not yet run inside a company; if yours is the first, I would like to hear how it goes.</p>
       </div>
     </section>
 
