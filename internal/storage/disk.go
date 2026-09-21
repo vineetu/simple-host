@@ -32,6 +32,14 @@ func (d *DiskStorage) SiteDir(userID, siteName string) string {
 	return filepath.Join(d.dataDir, "by-id", userID, siteName)
 }
 
+// VersionDir returns the directory for a retained version, or "" for invalid keys.
+func (d *DiskStorage) VersionDir(userID, siteName string, versionNum int) string {
+	if !validPathKey(userID) || !validPathKey(siteName) || versionNum < 1 {
+		return ""
+	}
+	return filepath.Join(d.SiteDir(userID, siteName), fmt.Sprintf("v%d", versionNum))
+}
+
 // validPathKey rejects empty / "." / ".." / absolute / multi-segment path keys
 // used as userID or siteName so they cannot escape the data dir.
 func validPathKey(key string) bool {

@@ -29,7 +29,9 @@ func NoticeMiddleware(serverVersion string) func(http.Handler) http.Handler {
 			clientVer := r.Header.Get("X-Skill-Version")
 			stale := skillIsStale(clientVer, serverVersion)
 
-			if !stale {
+			// Version files are raw owner content, including JSON. Never buffer
+			// or inject notices into this route's response.
+			if !stale || r.Pattern == "GET /v1/sites/{sitename}/versions/{version}/files/{path...}" {
 				next.ServeHTTP(w, r)
 				return
 			}

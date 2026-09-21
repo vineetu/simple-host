@@ -587,6 +587,69 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /v1/sites/{sitename}/versions/{version}/files:
+    get:
+      operationId: getSitesBySitenameVersionFiles
+      summary: List files in a retained version
+      description: Owner only. Walks the version directory; paths are relative, use forward slashes, and are sorted. Pruned versions return 404.
+      tags: [Sites]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/version' }
+      responses:
+        '200':
+          description: Version metadata and files
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [version_number, is_active, created_at, files]
+                properties:
+                  version_number: { type: integer }
+                  is_active: { type: boolean }
+                  created_at: { type: string, format: date-time }
+                  files:
+                    type: array
+                    items:
+                      type: object
+                      required: [path, size]
+                      properties:
+                        path: { type: string, example: index.html }
+                        size: { type: integer, format: int64, description: Size in bytes }
+        '400': { description: Invalid version, empty site name, or invalid file path }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Site not found or version not found (including pruned versions) }
+
+  /v1/sites/{sitename}/versions/{version}/files/{path}:
+    get:
+      operationId: getSitesBySitenameVersionFile
+      summary: Read a file from a retained version
+      description: >-
+        Owner only. Streams raw bytes with a Content-Type based on the file extension
+        (application/octet-stream fallback; HTML uses UTF-8). Directories return 404.
+        Paths containing '..', leading slashes, backslashes, NUL, or symlinks escaping
+        the version directory are rejected. Pruned versions return 404.
+      tags: [Sites]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/version' }
+        - { $ref: '#/components/parameters/path' }
+      responses:
+        '200':
+          description: Raw file bytes
+          headers:
+            Cache-Control: { schema: { type: string, enum: ['private, no-store'] } }
+            X-Content-Type-Options: { schema: { type: string, enum: [nosniff] } }
+            Content-Security-Policy: { schema: { type: string, enum: [sandbox] } }
+          content:
+            '*/*':
+              schema: { type: string, format: binary }
+        '400': { description: Invalid version, empty site name, or invalid path }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Site not found, version not found, or file not found }
+
   /v1/sites/{sitename}/active-version:
     put:
       operationId: putSitesBySitenameActiveVersion
@@ -2451,6 +2514,8 @@ components:
     apiKey: { type: apiKey, in: header, name: X-API-Key }
 
   parameters:
+    version: { name: version, in: path, required: true, schema: { type: integer, minimum: 1 }, example: 2 }
+    path: { name: path, in: path, required: true, description: Relative file path (may contain forward slashes), schema: { type: string }, example: assets/style.css }
     sitename: { name: sitename, in: path, required: true, schema: { type: string }, example: my-cool-site }
     coll: { name: coll, in: path, required: true, schema: { type: string }, example: signups }
     csrf: { name: X-SH-CSRF, in: header, required: false, schema: { type: string, enum: ['1'] }, description: Required on cookie-authenticated writes }

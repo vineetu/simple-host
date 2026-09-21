@@ -32,6 +32,20 @@ X-API-Key: <api_key>
 
 There is **no** `.../activate` and no `.../version/<n>` endpoint. This is the one.
 
+### Reading an old version
+
+Preview a retained version before restoring it (owner API key required):
+
+```bash
+curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.16.0"
+curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.16.0"
+```
+
+The first call returns version metadata and files sorted by relative path with byte
+sizes. The second streams the file with sandbox CSP. Pruned versions return 404.
+
 ## Delete
 
 ```

@@ -19,11 +19,11 @@ SKILL_BUILD=simple-host-website/skills/website-deploy-builder/SKILL.md
 fail=0
 
 # Registered /v1 routes from the Go source (method+path), minus OPTIONS preflight.
-routes=$(grep -rhoE 'mux\.Handle(Func)?\("[A-Z]+ /v1/[^"]+"' internal/ cmd/ \
+routes=$(grep -rh --exclude='*_test.go' -oE 'mux\.Handle(Func)?\("[A-Z]+ /v1/[^"]+"' internal/ cmd/ \
   | sed -E 's/.*"([A-Z]+) (\/v1\/[^"]+)"/\1 \2/' \
   | grep -vE '^OPTIONS ' \
   | grep -vE ' /v1/setup/' \
-  | awk '{print $2}' | sort -u)
+  | awk '{print $2}' | sed -E 's/\{([[:alnum:]_]+)\.\.\.\}/{\1}/g' | sort -u)
 
 # Paths documented in openapi.yaml (top-level keys under paths:).
 documented=$(grep -oE '^  /v1/[^:]+:' "$OPENAPI" | sed -E 's/^  (\/v1\/[^:]+):/\1/' | sort -u)
@@ -43,7 +43,7 @@ done <<<"$documented"
 # must be wrapped with auth.Middleware. A missed wrap is how a site session
 # cookie on a custom domain would escalate (UNIFY.md credential boundary).
 echo "== owner routes wrapped with authMiddleware =="
-unwrapped=$(grep -rhoE 'mux\.Handle(Func)?\("[A-Z]+ /v1/sites/[^"]+"[^)]*' internal/handler \
+unwrapped=$(grep -rh --exclude='*_test.go' -oE 'mux\.Handle(Func)?\("[A-Z]+ /v1/sites/[^"]+"[^)]*' internal/handler \
   | grep -vE '/state"|/me"|/visitor/auth|/collections/\{coll\}"' \
   | grep -v authMiddleware || true)
 if [ -n "$unwrapped" ]; then
