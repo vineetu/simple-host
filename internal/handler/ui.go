@@ -112,6 +112,12 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// name is a path segment the page reads back off location.pathname, so no
 	// server-side templating is involved.
 	mux.Handle("GET /analytics/{sitename}", adminUICSP(serveStaticPage("analytics.html")))
+	// Signing in has its own address, so the landing page can stay the landing
+	// page for everybody (owner decision 2026-09-23). It serves the same shell:
+	// with a session it goes straight through to the owner's app, without one it
+	// is the sign-in screen. index.html is not in rewrittenAssets, so serving it
+	// raw here matches what the file server would hand back at "/".
+	mux.Handle("GET /dashboard", adminUICSP(serveStaticPage("index.html")))
 	// On the base origin, a bare /<handle> that resolves to a real user renders
 	// that user's owner app; everything else is the landing page / static files.
 	mux.Handle("GET /", adminUICSP(sh.ownerAppOrStatic(fileServer)))
