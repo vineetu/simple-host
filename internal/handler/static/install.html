@@ -188,6 +188,22 @@
             </div>
           </div>
 
+          <div class="app" id="copilot">
+            <h3><button class="app-btn" type="button" id="b-copilot" aria-expanded="false" aria-controls="p-copilot">
+              <span class="app-text"><span class="app-name">GitHub Copilot</span><span class="app-sub">In VS Code</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </button></h3>
+            <div class="app-panel" id="p-copilot" role="region" aria-labelledby="b-copilot" hidden>
+              <ol class="steps">
+                <li>In VS Code, open the Command Palette and run <b>MCP: Add Server</b>, then choose <b>HTTP</b>.</li>
+                <li>Paste this address and name it <b>simple-host</b>:
+                  <div class="copyrow"><code id="mcp-copilot">https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-copilot">Copy</button></div>
+                </li>
+                <li>Sign in once in the window that opens, then ask Copilot Chat for a site.</li>
+              </ol>
+            </div>
+          </div>
+
           <div class="app" id="coding-agents">
             <h3><button class="app-btn" type="button" id="b-code" aria-expanded="false" aria-controls="p-code">
               <span class="app-text"><span class="app-name">Claude Code, Codex and other coding agents</span><span class="app-sub">One command</span></span>
