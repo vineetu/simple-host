@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>How Simple Host Enterprise is built</title>
+  <meta name="description" content="The security architecture of Simple Host Enterprise: sign-in through your identity provider, a hostname per person, files that never execute on the server, and a small Kubernetes footprint.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Simple Host">
+  <meta property="og:url" content="https://simple-host.app/enterprise/architecture">
+  <meta property="og:title" content="How Simple Host Enterprise is built">
+  <meta property="og:description" content="Sign-in through your identity provider, a hostname per person, and files that never execute on the server.">
+  <meta property="og:image" content="https://simple-host.app/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <!--sh:head-->
+  <script>
+    // This page is light only. The head partial may have picked dark from a
+    // saved preference or the OS; put it back, and keep it back if the header
+    // script or another tab changes it.
+    (function () {
+      var root = document.documentElement;
+      var light = function () { if (root.dataset.theme !== 'light') root.dataset.theme = 'light'; };
+      light();
+      try { new MutationObserver(light).observe(root, { attributes: true, attributeFilter: ['data-theme'] }); } catch (e) {}
+    })();
+  </script>
+  <style>
+    /* Tokens, base type and the header/footer live in /site.css. This page
+       adds its own light-only document style on top. */
+    #theme-toggle { display: none !important; }
+    html { color-scheme: light; }
+    .arch {
+      --navy: #17336b;
+      --navy-ink: #0e2250;
+      --navy-soft: #eaf0f8;
+      --ink: #0f172a;
+      --ink-soft: #334155;
+      --muted: #5f6b7c;
+      --hair: #d8dde5;
+      --paper: #fbfcfd;
+      --bg: #f4f6f9;
+      --teal: #0f8a7a;
+      --amber: #c27400;
+      --slate: #5b6b7d;
+      --a-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+      --a-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--a-sans);
+      font-size: 16px;
+      line-height: 1.6;
+    }
+    .arch * { box-sizing: border-box; }
+    .arch .wrap { max-width: 920px; margin: 0 auto; padding: 0 24px; }
+    .arch a { color: var(--navy); text-underline-offset: 3px; }
+    .arch a:hover { color: var(--navy-ink); }
+
+    .arch .back { font-family: var(--a-mono); font-size: 12.5px; letter-spacing: .02em; display: flex; flex-wrap: wrap; gap: 6px 20px; padding-top: 28px; }
+    .arch .back a { text-decoration: none; color: var(--ink-soft); }
+    .arch .back a:hover { color: var(--navy); }
+
+    .arch .hero { padding: 36px 0 36px; }
+    .arch .eyebrow { font-family: var(--a-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--navy); display: flex; align-items: center; gap: 10px; margin: 0 0 14px; }
+    .arch .eyebrow::before { content: ""; display: inline-block; width: 36px; height: 1px; background: var(--navy); flex: none; }
+    .arch h1 { font-size: clamp(32px, 5vw, 50px); font-weight: 650; line-height: 1.08; letter-spacing: -.02em; color: var(--ink); margin: 0 0 18px; }
+    .arch .lede { font-size: 17.5px; line-height: 1.65; color: var(--ink-soft); margin: 0 0 16px; max-width: 700px; }
+    .arch .meta { font-family: var(--a-mono); font-size: 12px; letter-spacing: .04em; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 0; margin-top: 18px; }
+    .arch .meta span + span::before { content: "·"; margin: 0 12px; }
+
+    .arch section { padding: 48px 0; border-top: 1px solid var(--hair); background: var(--bg); }
+    .arch section:nth-of-type(even) { background: var(--paper); }
+    .arch .sec { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 14px; }
+    .arch .num { font-family: var(--a-mono); font-size: 13px; letter-spacing: .06em; color: var(--muted); padding-top: 9px; }
+    .arch .col { min-width: 0; }
+    .arch h2 { font-size: clamp(26px, 4vw, 36px); font-weight: 650; line-height: 1.12; letter-spacing: -.015em; color: var(--ink); margin: 0 0 14px; }
+    .arch p { margin: 0 0 14px; color: var(--ink-soft); }
+    .arch p strong, .arch li strong { color: var(--ink); font-weight: 600; }
+    .arch p.lead { color: var(--ink); font-size: 17px; }
+    .arch code { font-family: var(--a-mono); font-size: .86em; background: #eceff4; color: var(--ink); padding: 1px 5px; border: 1px solid var(--hair); border-radius: 2px; overflow-wrap: anywhere; }
+
+    /* Numbered points: 1.1, 1.2 … */
+    .arch ol.pts { list-style: none; margin: 18px 0 0; padding: 0; border-top: 1px solid var(--ink); }
+    .arch ol.pts li { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--hair); color: var(--ink-soft); }
+    .arch ol.pts li:last-child { border-bottom-color: var(--ink); }
+    .arch ol.pts .t { font-family: var(--a-mono); font-size: 12px; color: var(--navy); letter-spacing: .04em; padding-top: 3px; }
+
+    /* Key / value table */
+    .arch .tbl { width: 100%; border-collapse: collapse; margin-top: 18px; border-top: 1px solid var(--ink); font-size: 15.5px; }
+    .arch .tbl th, .arch .tbl td { text-align: left; vertical-align: top; padding: 15px 12px; border-bottom: 1px solid var(--hair); }
+    .arch .tbl th { width: 190px; font-weight: 600; color: var(--ink); padding-left: 0; }
+    .arch .tbl td { color: var(--ink-soft); padding-right: 0; }
+    .arch .tbl .tag { width: 44px; font-family: var(--a-mono); font-size: 11.5px; font-weight: 400; color: var(--navy); letter-spacing: .04em; padding-top: 18px; }
+    .arch .tbl tr:last-child th, .arch .tbl tr:last-child td { border-bottom: 1px solid var(--ink); }
+
+    /* Figures */
+    .arch .fig { margin: 30px auto 6px; max-width: 1080px; padding: 0 24px; }
+    .arch .fig-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 18px; padding: 0 0 12px; font-family: var(--a-mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .arch .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+    .arch .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+    .arch .legend .p i { background: var(--navy); }
+    .arch .legend .e i { background: var(--slate); }
+    .arch .legend .g i { background: var(--teal); }
+    .arch .legend .r i { background: var(--amber); }
+    .arch .fig-box { border: 1px solid var(--hair); background: #fff; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .arch .fig-box svg { display: block; width: 100%; min-width: 760px; height: auto; }
+    .arch .fig-hint { display: none; font-family: var(--a-mono); font-size: 11px; color: var(--muted); margin: 8px 0 0; text-align: right; }
+    .arch .fig-cap { font-family: var(--a-mono); font-size: 12px; line-height: 1.6; color: var(--muted); max-width: 700px; margin: 14px auto 0; text-align: center; }
+
+    /* SVG element styles */
+    .arch .band { fill: #fff; stroke: var(--hair); stroke-width: 1; }
+    .arch .band-soft { fill: #f7f9fb; stroke: var(--hair); stroke-width: 1; }
+    .arch .edge { fill: var(--navy-soft); fill-opacity: .5; stroke: var(--navy); stroke-width: 1.3; stroke-dasharray: 7 5; }
+    .arch .lbl { font-family: var(--a-mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; fill: var(--muted); }
+    .arch .lbl-host { font-family: var(--a-mono); font-size: 10.5px; letter-spacing: .02em; fill: var(--ink-soft); }
+    .arch .lbl-edge { font-family: var(--a-mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; font-weight: 600; fill: var(--navy); }
+    .arch .node { fill: #fff; stroke: #1f2937; stroke-width: 1; }
+    .arch .node.p { stroke: var(--navy); stroke-width: 1.4; }
+    .arch .node.e { stroke: var(--slate); stroke-width: 1.2; }
+    .arch .node.r { stroke: var(--amber); stroke-width: 1.2; }
+    .arch .nt { font-family: var(--a-sans); font-size: 13.5px; font-weight: 600; fill: var(--ink); }
+    .arch .ns { font-family: var(--a-mono); font-size: 10.5px; fill: var(--muted); }
+    .arch .wire { fill: none; stroke: #94a3b8; stroke-width: 1.1; }
+    .arch .wire.d { stroke-dasharray: 3 3; }
+    .arch .wire.g { stroke: var(--teal); stroke-width: 1.3; }
+    .arch .wire.r { stroke: var(--amber); stroke-width: 1.3; }
+    .arch .tg { font-family: var(--a-mono); font-size: 10.5px; font-weight: 600; letter-spacing: .04em; fill: var(--navy); }
+    .arch .wl { font-family: var(--a-mono); font-size: 10px; fill: var(--muted); }
+    .arch .wl.g { fill: var(--teal); }
+    .arch .wl.r { fill: var(--amber); }
+    .arch .wl.i { fill: #8b95a5; font-style: italic; }
+    .arch .ah { fill: #94a3b8; }
+    .arch .ah.g { fill: var(--teal); }
+    .arch .ah.r { fill: var(--amber); }
+
+    .arch .end { padding: 40px 0 56px; border-top: 1px solid var(--hair); background: var(--bg); }
+    .arch .end .back { padding-top: 0; }
+
+    @media (max-width: 640px) {
+      .arch .wrap, .arch .fig { padding: 0 16px; }
+      .arch .hero { padding-top: 24px; }
+      .arch section { padding: 36px 0; }
+      .arch .sec { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+      .arch .num { padding-top: 0; }
+      .arch ol.pts li { grid-template-columns: 38px minmax(0, 1fr); gap: 8px; }
+      .arch .tbl th, .arch .tbl td { display: block; width: auto; padding: 0 0 12px; border-bottom: 0; }
+      .arch .tbl th { padding-top: 14px; padding-bottom: 4px; }
+      .arch .tbl tr { display: block; border-bottom: 1px solid var(--hair); }
+      .arch .tbl tr:last-child { border-bottom: 1px solid var(--ink); }
+      .arch .tbl tr:last-child th, .arch .tbl tr:last-child td { border-bottom: 0; }
+      .arch .tbl .tag { padding: 14px 0 0; }
+      .arch .fig-hint { display: block; }
+    }
+  </style>
+</head>
+<body>
+  <!--sh:header-->
+
+  <main class="arch">
+    <div class="wrap">
+      <nav class="back" aria-label="Enterprise">
+        <a href="/enterprise/brief">← Back to the brief</a>
+        <a href="/enterprise">Simple Host for companies</a>
+      </nav>
+      <div class="hero">
+        <p class="eyebrow">Simple Host Enterprise / Architecture</p>
+        <h1>How Simple Host Enterprise is built</h1>
+        <p class="lede">Simple Host Enterprise is one Go service that runs in your own Kubernetes cluster. It serves static pages plus the data those pages save. Each person's pages live on their own hostname, so one person's page cannot read another's. Everyone signs in through your identity provider. Uploaded files are stored and served as bytes; they never execute on the server.</p>
+        <div class="meta"><span>One service</span><span>Your cluster</span><span>Your Postgres</span><span>Your bucket</span><span>Your identity provider</span></div>
+      </div>
+    </div>
+
+    <!-- ─────────────────────────── 01 Identity ─────────────────────────── -->
+    <section id="identity">
+      <div class="wrap">
+        <div class="sec">
+          <div class="num">01.</div>
+          <div class="col">
+            <h2>Identity and addresses</h2>
+            <p class="lead">Every request says who is asking, and every person's pages sit on their own browser origin.</p>
+            <ol class="pts">
+              <li><span class="t">1.1</span><div><strong>One sign-in, yours.</strong> People sign in through your identity provider — any OIDC provider: Okta, Entra ID, Google and others. There are no local accounts and no admin key. Admins are real signed-in people, named by an email list or a claim from your provider.</div></li>
+              <li><span class="t">1.2</span><div><strong>A hostname per person.</strong> Each person's sites live under their own hostname, as paths: <code>layla-hassan.&lt;your domain&gt;/tracker/</code>. Different people are different browser origins, so one person's page cannot read another person's pages, storage or cookies.</div></li>
+              <li><span class="t">1.3</span><div><strong>Restricted sites get their own hostname.</strong> A site with named viewers is served at <code>&lt;owner&gt;--&lt;site&gt;.&lt;your domain&gt;</code>, for example <code>oliver-bennett--roadmap.&lt;your domain&gt;</code>. It is then apart from its owner's other sites too.</div></li>
+              <li><span class="t">1.4</span><div><strong>Management stays on the base address.</strong> The dashboard, the API and the MCP endpoint are served on <code>&lt;your domain&gt;</code>. No hosted page is ever served there.</div></li>
+              <li><span class="t">1.5</span><div><strong>Moving between addresses.</strong> The browser signs in once, at the base address. Opening a person's hostname hands the session over with a one-time code that expires after 60 seconds. Each host then holds its own <code>__Host-</code> cookie (Secure, HttpOnly), signed for that host and refused on any other.</div></li>
+              <li><span class="t">1.6</span><div><strong>Changes need the right Origin.</strong> A change made with a browser cookie must carry the Origin of the address it was sent to. A page on one address cannot make changes on another.</div></li>
+              <li><span class="t">1.7</span><div><strong>Agents use keys.</strong> A coding agent calls the API or the MCP endpoint with an API key. Only a signed-in person can create a key. Keys are stored as a hash and can be revoked.</div></li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
+      <figure class="fig" aria-labelledby="fig1-cap">
+        <div class="fig-head">
+          <span>FIG 01 · Identity and one origin per person</span>
+          <span class="legend"><span class="p"><i></i>Simple Host</span><span class="e"><i></i>People &amp; yours</span><span class="g"><i></i>Signed-in request</span></span>
+        </div>
+        <div class="fig-box">
+          <svg viewBox="0 0 1000 520" role="img" aria-label="An employee's browser signs in through your identity provider, then visits each person's own hostname. A coding agent reaches the management API on the base address with an API key.">
+            <defs>
+              <marker id="f1a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+              <marker id="f1g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah g" d="M0,0 L10,5 L0,10 z"/></marker>
+            </defs>
+
+            <rect class="band" x="20" y="20" width="960" height="130"/>
+            <text class="lbl" x="36" y="42">People, agents &amp; your identity provider</text>
+
+            <rect class="node e" x="40" y="58" width="290" height="76"/>
+            <text class="nt" x="56" y="82">Employee's browser</text>
+            <text class="ns" x="56" y="102">signs in once, at the base address</text>
+            <text class="ns" x="56" y="118">one __Host- cookie per host · HttpOnly</text>
+
+            <rect class="node e" x="380" y="58" width="260" height="76"/>
+            <text class="nt" x="396" y="82">Your identity provider</text>
+            <text class="ns" x="396" y="102">any OIDC: Okta, Entra ID, Google…</text>
+            <text class="ns" x="396" y="118">decides who can sign in</text>
+
+            <rect class="node e" x="690" y="58" width="270" height="76"/>
+            <text class="nt" x="706" y="82">Coding agent</text>
+            <text class="ns" x="706" y="102">MCP or REST · X-API-Key</text>
+            <text class="ns" x="706" y="118">key made by its person, signed in</text>
+
+            <path class="wire g" d="M330,96 L378,96" marker-end="url(#f1g)"/>
+            <text class="wl g" x="334" y="88">OIDC</text>
+
+            <!-- origin bands -->
+            <rect class="band-soft" x="20" y="210" width="220" height="270"/>
+            <text class="lbl-host" x="32" y="230">layla-hassan.&lt;your domain&gt;</text>
+            <rect class="node p" x="32" y="244" width="196" height="222"/>
+            <text class="nt" x="46" y="268">Layla's sites</text>
+            <text class="ns" x="46" y="288">/tracker/ · /notes/ · …</text>
+            <text class="ns" x="46" y="312">her pages' JavaScript</text>
+            <text class="ns" x="46" y="327">runs on this origin only</text>
+            <text class="ns" x="46" y="351">saved data + files API</text>
+            <text class="ns" x="46" y="366">served on this host</text>
+            <text class="ns" x="46" y="390">every view needs a</text>
+            <text class="ns" x="46" y="405">signed-in session</text>
+            <text class="ns" x="46" y="429">unlisted until shared</text>
+
+            <rect class="band-soft" x="256" y="210" width="220" height="270"/>
+            <text class="lbl-host" x="268" y="230">oliver-bennett.&lt;your domain&gt;</text>
+            <rect class="node p" x="268" y="244" width="196" height="222"/>
+            <text class="nt" x="282" y="268">Oliver's sites</text>
+            <text class="ns" x="282" y="288">/launch/ · /budget/ · …</text>
+            <text class="ns" x="282" y="312">his pages' JavaScript</text>
+            <text class="ns" x="282" y="327">runs on this origin only</text>
+            <text class="ns" x="282" y="351">saved data + files API</text>
+            <text class="ns" x="282" y="366">served on this host</text>
+            <text class="ns" x="282" y="390">every view needs a</text>
+            <text class="ns" x="282" y="405">signed-in session</text>
+            <text class="ns" x="282" y="429">unlisted until shared</text>
+
+            <rect class="band-soft" x="492" y="210" width="236" height="270"/>
+            <text class="lbl-host" x="502" y="230">oliver-bennett--roadmap.&lt;…&gt;</text>
+            <rect class="node p" x="504" y="244" width="212" height="222"/>
+            <text class="nt" x="518" y="268">A restricted site</text>
+            <text class="ns" x="518" y="288">its own hostname</text>
+            <text class="ns" x="518" y="312">named viewers only:</text>
+            <text class="ns" x="518" y="327">people or teams</text>
+            <text class="ns" x="518" y="351">everyone else gets 404</text>
+            <text class="ns" x="518" y="375">apart from the owner's</text>
+            <text class="ns" x="518" y="390">other sites as well</text>
+
+            <rect class="band-soft" x="744" y="210" width="236" height="270"/>
+            <text class="lbl-host" x="756" y="230">&lt;your domain&gt; · base address</text>
+            <rect class="node p" x="756" y="244" width="212" height="222"/>
+            <text class="nt" x="770" y="268">Management + API</text>
+            <text class="ns" x="770" y="288">dashboard · keys · deploy</text>
+            <text class="ns" x="770" y="303">MCP endpoint at /mcp</text>
+            <text class="ns" x="770" y="327">no hosted pages here</text>
+            <text class="ns" x="770" y="351">cookie-signed changes</text>
+            <text class="ns" x="770" y="366">must carry this address</text>
+            <text class="ns" x="770" y="381">as their Origin</text>
+            <text class="ns" x="770" y="405">agents use an API key</text>
+
+            <!-- wires -->
+            <path class="wire g" d="M130,134 L130,208" marker-end="url(#f1g)"/>
+            <text class="wl g" x="138" y="176">one-time hand-off,</text>
+            <text class="wl g" x="138" y="190">then visits</text>
+            <path class="wire g" d="M240,134 C250,180 340,180 366,208" marker-end="url(#f1g)"/>
+            <path class="wire g" d="M290,134 C340,180 580,170 610,208" marker-end="url(#f1g)"/>
+            <path class="wire g" d="M320,124 C520,150 820,150 850,208" marker-end="url(#f1g)"/>
+            <path class="wire" d="M900,134 L900,208" marker-end="url(#f1a)"/>
+            <text class="wl" x="908" y="176">X-API-Key</text>
+
+            <text class="wl i" x="500" y="505" text-anchor="middle">a page on one origin cannot read another · the browser withholds every cross-origin response</text>
+          </svg>
+        </div>
+        <p class="fig-hint">Scroll the figure sideways →</p>
+        <figcaption class="fig-cap" id="fig1-cap">One sign-in through your provider, then a separate origin per person. A restricted site gets one more of its own. Management lives on the base address, where no hosted page runs.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ─────────────────────────── 02 File safety ─────────────────────────── -->
+    <section id="files">
+      <div class="wrap">
+        <div class="sec">
+          <div class="num">02.</div>
+          <div class="col">
+            <h2>File safety</h2>
+            <p class="lead">Uploaded files are data. JavaScript can run in a viewer's browser; nothing uploaded runs on the server.</p>
+            <ol class="pts">
+              <li><span class="t">2.1</span><div><strong>No server-side execution path.</strong> Published files are stored and served as bytes with a content type. The server never evaluates them.</div></li>
+              <li><span class="t">2.2</span><div><strong>Four archive limits.</strong> A publish request is capped at 100 MiB. Each file may be up to 500 MiB once extracted, the whole archive up to 500 MiB, and an archive may hold at most 50,000 entries. Each entry's size is checked before it is read. Files sent inline through MCP are capped at 8 MiB.</div></li>
+              <li><span class="t">2.3</span><div><strong>Broad acceptance, small denylist.</strong> Any regular file is accepted, including ZIP and DMG downloads. Refused extensions: <code>.sh</code> <code>.bash</code> <code>.zsh</code> <code>.fish</code> <code>.bat</code> <code>.cmd</code> <code>.ps1</code> <code>.py</code> <code>.pyc</code> <code>.rb</code> <code>.pl</code> <code>.go</code> <code>.php</code> <code>.exe</code>.</div></li>
+              <li><span class="t">2.4</span><div><strong>Two confinement layers.</strong> Every path is reduced to a canonical relative path, and anything unsafe (<code>../</code>, an absolute path, a backslash) is refused. Separately, all file access is confined with Go's <code>os.Root</code>, so nothing can reach outside its site's directory.</div></li>
+              <li><span class="t">2.5</span><div><strong>Files a page uploads are checked by their bytes.</strong> The files API accepts images, audio, video, PDF, plain text, JSON, CSV and archives, judged from the content, not the name. Nothing is ever stored or served as HTML. Defaults: 25 MiB per file, 500 MiB and 5,000 files per site.</div></li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
+      <figure class="fig" aria-labelledby="fig2-cap">
+        <div class="fig-head">
+          <span>FIG 02 · Upload, validation and serving</span>
+          <span class="legend"><span class="p"><i></i>Simple Host</span><span class="e"><i></i>People</span><span class="g"><i></i>Accepted</span><span class="r"><i></i>Refused</span></span>
+        </div>
+        <div class="fig-box">
+          <svg viewBox="0 0 1000 560" role="img" aria-label="A coding agent publishes an archive. It passes the upload API and a validation gate, which refuses unsafe paths, oversized content and denied extensions. Accepted files are written under os.Root and served back to a viewer's browser as bytes.">
+            <defs>
+              <marker id="f2a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+              <marker id="f2g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah g" d="M0,0 L10,5 L0,10 z"/></marker>
+              <marker id="f2r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah r" d="M0,0 L10,5 L0,10 z"/></marker>
+            </defs>
+
+            <rect class="band" x="20" y="20" width="960" height="112"/>
+            <text class="lbl" x="36" y="42">People &amp; agents</text>
+            <rect class="node e" x="60" y="54" width="290" height="64"/>
+            <text class="nt" x="76" y="78">Coding agent</text>
+            <text class="ns" x="76" y="98">publishes a .tar.gz or .zip · 100 MiB max</text>
+            <rect class="node e" x="650" y="54" width="290" height="64"/>
+            <text class="nt" x="666" y="78">Viewer's browser</text>
+            <text class="ns" x="666" y="98">GET /tracker/ · JavaScript may run here</text>
+
+            <rect class="band" x="20" y="168" width="960" height="232"/>
+            <text class="lbl" x="36" y="190">Validation &amp; serving</text>
+            <rect class="node p" x="60" y="202" width="290" height="50"/>
+            <text class="nt" x="76" y="224">Upload API</text>
+            <text class="ns" x="76" y="242">request body capped at 100 MiB</text>
+            <rect class="node p" x="60" y="284" width="290" height="100"/>
+            <text class="nt" x="76" y="306">Validation gate</text>
+            <text class="ns" x="76" y="326">canonical relative paths only</text>
+            <text class="ns" x="76" y="341">500 MiB per file · 500 MiB total</text>
+            <text class="ns" x="76" y="356">50,000 entries at most</text>
+            <text class="ns" x="76" y="371">small extension denylist</text>
+            <rect class="node r" x="400" y="302" width="210" height="64"/>
+            <text class="nt" x="416" y="326">Refused</text>
+            <text class="ns" x="416" y="344">unsafe path · over a limit</text>
+            <text class="ns" x="416" y="358">denied extension</text>
+            <rect class="node p" x="650" y="202" width="290" height="50"/>
+            <text class="nt" x="666" y="224">Path check</text>
+            <text class="ns" x="666" y="242">owner and site segments validated</text>
+            <rect class="node p" x="650" y="284" width="290" height="100"/>
+            <text class="nt" x="666" y="306">Static file serve</text>
+            <text class="ns" x="666" y="326">opens the live version under os.Root</text>
+            <text class="ns" x="666" y="341">sends bytes + content type</text>
+            <text class="ns" x="666" y="356">browser JavaScript only</text>
+            <text class="ns" x="666" y="371">server execution: never</text>
+
+            <rect class="band" x="20" y="436" width="960" height="104"/>
+            <text class="lbl" x="36" y="458">Confined file access</text>
+            <rect class="node p" x="60" y="468" width="290" height="58"/>
+            <text class="nt" x="76" y="492">Accepted files</text>
+            <text class="ns" x="76" y="511">written as a new version</text>
+            <rect class="node e" x="440" y="468" width="230" height="58"/>
+            <text class="nt" x="456" y="492">Site-data volume</text>
+            <text class="ns" x="456" y="511">one os.Root per site</text>
+
+            <path class="wire g" d="M205,118 L205,200" marker-end="url(#f2g)"/>
+            <text class="wl g" x="213" y="164">1 · upload</text>
+            <path class="wire g" d="M205,252 L205,282" marker-end="url(#f2g)"/>
+            <text class="wl g" x="213" y="272">2 · validate</text>
+            <path class="wire r" d="M350,334 L398,334" marker-end="url(#f2r)"/>
+            <path class="wire g" d="M205,384 L205,466" marker-end="url(#f2g)"/>
+            <text class="wl g" x="213" y="424">3 · accept</text>
+            <path class="wire g" d="M350,497 L438,497" marker-end="url(#f2g)"/>
+            <text class="wl g" x="362" y="489">4 · write</text>
+            <path class="wire" d="M795,118 L795,200" marker-end="url(#f2a)"/>
+            <text class="wl" x="803" y="164">GET site path</text>
+            <path class="wire" d="M795,252 L795,282" marker-end="url(#f2a)"/>
+            <path class="wire d" d="M670,497 L795,497 L795,386" marker-end="url(#f2a)"/>
+            <text class="wl i" x="682" y="489">read-only bytes</text>
+          </svg>
+        </div>
+        <p class="fig-hint">Scroll the figure sideways →</p>
+        <figcaption class="fig-cap" id="fig2-cap">Files go in through four limits and a canonical path check, are written under <code>os.Root</code>, and come back out as bytes. JavaScript runs in the viewer's browser, never on the server.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ─────────────────────────── 03 Access ─────────────────────────── -->
+    <section id="access">
+      <div class="wrap">
+        <div class="sec">
+          <div class="num">03.</div>
+          <div class="col">
+            <h2>Who can see what</h2>
+            <p class="lead">Nobody sees anything without signing in. Beyond that, the owner decides.</p>
+            <table class="tbl">
+              <tr><th>Signed in, always</th><td>Every view of a hosted page needs a signed-in session. There are no anonymous visitors.</td></tr>
+              <tr><th>Unlisted by default</th><td>A new site is not listed anywhere. Anyone signed in who has the link can open it, so unlisted is not private.</td></tr>
+              <tr><th>Shared</th><td>When the owner shares a site, it appears on their hostname's index page, in the showcase and in search, credited to them.</td></tr>
+              <tr><th>Named viewers</th><td>A site can list the people or teams allowed to see it. It moves to its own hostname, and everyone else gets a 404, the same answer as a site that does not exist.</td></tr>
+              <tr><th>Editors</th><td>The owner can add editors to a site. An editor can publish new versions of it.</td></tr>
+              <tr><th>Teams</th><td>A team is a namespace, like a person. Every member can publish and manage its sites.</td></tr>
+              <tr><th>Saved data</th><td>A site's saved data follows the site: anyone who can open it can read and write its data, as themselves. Every write is recorded with who made it.</td></tr>
+              <tr><th>Leavers</th><td>Once your identity provider stops an account, that person cannot sign in again. Open sessions end within the session lifetime: 12 hours, or 1 hour idle, by default. An admin can disable the account, which ends every session and revokes every API key at once.</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────── 04 Records ─────────────────────────── -->
+    <section id="records">
+      <div class="wrap">
+        <div class="sec">
+          <div class="num">04.</div>
+          <div class="col">
+            <h2>Records</h2>
+            <p class="lead">Every change and every visit is on record.</p>
+            <table class="tbl">
+              <tr><th>Audit log</th><td>Every change: publishing, updating, deleting and rolling back a site, changing who can see or edit it, team changes, saved-data writes, file uploads and deletions, sign-in and sign-out, API keys created and revoked, and admin actions. A site change and its audit row are written in the same database transaction.</td></tr>
+              <tr><th>Access log</th><td>One row for every hosted page served, the owner's and editors' own visits included.</td></tr>
+              <tr><th>Who reads them</th><td>An owner reads the records for their own sites and their teams' sites. An admin reads everything and can export it. The access log can be limited to admins.</td></tr>
+              <tr><th>Append-only</th><td>The database role the service runs as can add rows to both logs but cannot delete them.</td></tr>
+              <tr><th>Retention</th><td>By default, 400 days for the audit log and 90 days for the access log. A monthly job drops expired partitions.</td></tr>
+              <tr><th>Request log</th><td>One JSON line per request on standard output, with an ID returned as <code>X-Request-Id</code>.</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────── 05 Runtime ─────────────────────────── -->
+    <section id="runtime">
+      <div class="wrap">
+        <div class="sec">
+          <div class="num">05.</div>
+          <div class="col">
+            <h2>Runtime</h2>
+            <p class="lead">One Deployment, one volume and two scheduled jobs in your cluster. Postgres, the bucket and sign-in are yours.</p>
+            <table class="tbl">
+              <tr><td class="tag">R1</td><th>Deployment</th><td>One replica with the <code>Recreate</code> strategy, because the site volume is ReadWriteOnce.</td></tr>
+              <tr><td class="tag">R2</td><th>Schema step</th><td>An init container, <code>migrate</code>, runs the same image, applies the schema as the database's owning role, and exits. The server refuses to start unless the schema is exactly the one it expects.</td></tr>
+              <tr><td class="tag">R3</td><th>Least-privilege role</th><td>The server connects as <code>simplehost_app</code>, which can read and write application data but cannot change the schema or truncate tables.</td></tr>
+              <tr><td class="tag">R4</td><th>Hardening</th><td>The namespace enforces the restricted Pod Security profile. Every container runs as a non-root user with a read-only root filesystem, all capabilities dropped and the default seccomp profile. No Kubernetes API token is mounted.</td></tr>
+              <tr><td class="tag">R5</td><th>Storage</th><td>One ReadWriteOnce volume holds every site's files and uploads. <code>/tmp</code> is an empty scratch volume.</td></tr>
+              <tr><td class="tag">R6</td><th>Ingress</th><td>The base address and a wildcard beneath it, on one TLS certificate, to one ClusterIP Service.</td></tr>
+              <tr><td class="tag">R7</td><th>Scheduled jobs</th><td><code>backup-assets</code> runs hourly, mounts the volume read-only and copies uploaded files to the bucket. <code>prune</code> runs monthly and drops expired log partitions.</td></tr>
+              <tr><td class="tag">R8</td><th>Yours</th><td>Postgres over TLS with <code>sslmode=verify-full</code>. An S3-compatible bucket over HTTPS, which receives a backup of every published version, with a server-side-encryption header and an optional client-side envelope. Your OIDC provider. The service refuses to start if the database or bucket connection is not secured.</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <figure class="fig" aria-labelledby="fig3-cap">
+        <div class="fig-head">
+          <span>FIG 03 · Runtime in your cluster</span>
+          <span class="legend"><span class="p"><i></i>Simple Host</span><span class="e"><i></i>Yours</span><span class="g"><i></i>Read / write path</span></span>
+        </div>
+        <div class="fig-box">
+          <svg viewBox="0 0 1000 600" role="img" aria-label="The simple-host namespace holds an ingress, a one-replica Deployment with a migrate init container and the simple-host container, a site-data volume, and two CronJobs. The service talks to your Postgres, your S3-compatible bucket and your OIDC provider.">
+            <defs>
+              <marker id="f3a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+              <marker id="f3g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah g" d="M0,0 L10,5 L0,10 z"/></marker>
+            </defs>
+
+            <rect class="edge" x="20" y="20" width="650" height="560"/>
+            <text class="lbl-edge" x="36" y="42">Namespace simple-host · pod security: restricted</text>
+
+            <rect class="node p" x="44" y="58" width="602" height="56"/>
+            <text class="nt" x="60" y="80">Ingress → Service :80</text>
+            <text class="ns" x="60" y="100">&lt;your domain&gt; and *.&lt;your domain&gt; · one wildcard TLS certificate</text>
+            <text class="tg" x="626" y="80" text-anchor="end">R6</text>
+
+            <rect class="band" x="44" y="146" width="602" height="236"/>
+            <text class="lbl" x="60" y="168">Deployment · 1 replica · Recreate</text>
+            <text class="tg" x="626" y="168" text-anchor="end">R1</text>
+
+            <rect class="node p" x="60" y="184" width="266" height="96"/>
+            <text class="nt" x="76" y="208">init: migrate</text>
+            <text class="ns" x="76" y="228">same image, other mode</text>
+            <text class="ns" x="76" y="243">applies the schema to Postgres</text>
+            <text class="ns" x="76" y="258">as the owning role, then exits</text>
+            <text class="tg" x="310" y="208" text-anchor="end">R2</text>
+
+            <rect class="node p" x="364" y="184" width="266" height="96"/>
+            <text class="nt" x="380" y="208">simple-host</text>
+            <text class="ns" x="380" y="228">serves every host on :8080</text>
+            <text class="ns" x="380" y="243">DB role simplehost_app</text>
+            <text class="ns" x="380" y="258">no schema changes</text>
+            <text class="tg" x="614" y="208" text-anchor="end">R3</text>
+
+            <text class="tg" x="464" y="306">R4</text>
+            <text class="ns" x="486" y="306">every container:</text>
+            <text class="ns" x="486" y="321">non-root user</text>
+            <text class="ns" x="486" y="336">read-only root filesystem</text>
+            <text class="ns" x="486" y="351">all capabilities dropped</text>
+            <text class="ns" x="486" y="366">seccomp · no API token</text>
+            <text class="ns" x="76" y="306">/tmp: emptyDir</text>
+
+            <rect class="node e" x="60" y="416" width="266" height="70"/>
+            <text class="nt" x="76" y="440">PVC simple-host-site-data</text>
+            <text class="ns" x="76" y="460">ReadWriteOnce</text>
+            <text class="ns" x="76" y="475">site files + uploaded files</text>
+            <text class="tg" x="310" y="440" text-anchor="end">R5</text>
+
+            <rect class="band" x="348" y="404" width="298" height="160"/>
+            <text class="lbl" x="364" y="426">CronJobs</text>
+            <text class="tg" x="626" y="426" text-anchor="end">R7</text>
+            <rect class="node p" x="364" y="438" width="266" height="54"/>
+            <text class="nt" x="380" y="460">backup-assets · hourly</text>
+            <text class="ns" x="380" y="478">volume read-only → bucket</text>
+            <rect class="node p" x="364" y="502" width="266" height="54"/>
+            <text class="nt" x="380" y="524">prune · monthly</text>
+            <text class="ns" x="380" y="542">drops expired log partitions</text>
+
+            <!-- yours -->
+            <rect class="band" x="700" y="20" width="280" height="560"/>
+            <text class="lbl" x="716" y="42">Yours · R8</text>
+            <rect class="node e" x="716" y="62" width="248" height="80"/>
+            <text class="nt" x="732" y="86">Your identity provider</text>
+            <text class="ns" x="732" y="106">any OIDC provider</text>
+            <text class="ns" x="732" y="121">discovery + keys at startup</text>
+            <rect class="node e" x="716" y="196" width="248" height="96"/>
+            <text class="nt" x="732" y="220">Postgres</text>
+            <text class="ns" x="732" y="240">TLS · sslmode=verify-full</text>
+            <text class="ns" x="732" y="255">users, sites, saved data,</text>
+            <text class="ns" x="732" y="270">audit and access logs</text>
+            <rect class="node e" x="716" y="420" width="248" height="96"/>
+            <text class="nt" x="732" y="444">S3-compatible bucket</text>
+            <text class="ns" x="732" y="464">HTTPS only</text>
+            <text class="ns" x="732" y="479">version backups + file copies</text>
+            <text class="ns" x="732" y="494">SSE header · optional envelope</text>
+
+            <!-- wires -->
+            <path class="wire g" d="M497,114 L497,182" marker-end="url(#f3g)"/>
+            <path class="wire g" d="M630,200 C675,180 680,110 714,104" marker-end="url(#f3g)"/>
+            <path class="wire g" d="M630,236 L714,236" marker-end="url(#f3g)"/>
+            <path class="wire g" d="M630,262 C690,300 670,440 714,452" marker-end="url(#f3g)"/>
+            <path class="wire g" d="M420,280 C420,360 193,340 193,414" marker-end="url(#f3g)"/>
+            <text class="wl g" x="206" y="400">read / write</text>
+            <path class="wire d" d="M326,451 L362,461" marker-start="url(#f3a)"/>
+            <path class="wire" d="M630,465 L714,465" marker-end="url(#f3a)"/>
+            <path class="wire" d="M630,529 L686,529 L686,276 L714,276" marker-end="url(#f3a)"/>
+            <text class="wl" x="694" y="398" transform="rotate(-90 694 398)">owning role</text>
+          </svg>
+        </div>
+        <p class="fig-hint">Scroll the figure sideways →</p>
+        <figcaption class="fig-cap" id="fig3-cap">Tags match the rows above. The server and the prune job reach Postgres under different roles: the server as <code>simplehost_app</code>, the schema step and prune as the owning role.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ─────────────────────────── 06 Boundaries ─────────────────────────── -->
+    <section id="boundaries">
+      <div class="wrap">
+        <div class="sec">
+          <div class="num">06.</div>
+          <div class="col">
+            <h2>Boundaries</h2>
+            <ol class="pts">
+              <li><span class="t">N1</span><div><strong>Not a server-side compute platform.</strong> Pages can run JavaScript in the browser. Nothing uploaded runs on the server.</div></li>
+              <li><span class="t">N2</span><div><strong>Not a secrets store.</strong> Anyone who can open a page can read what it saves. Keep secrets out of pages and saved data.</div></li>
+              <li><span class="t">N3</span><div><strong>Not a content scanner.</strong> Files are checked for size, path, extension and type, not for what they contain. The source is yours to extend if you want a scanner.</div></li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="end">
+      <div class="wrap">
+        <nav class="back" aria-label="Enterprise">
+          <a href="/enterprise/brief">← Back to the brief</a>
+          <a href="/enterprise">Simple Host for companies</a>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <!--sh:footer-->
+</body>
+</html>

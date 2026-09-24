@@ -100,6 +100,8 @@ func TestChromeOnEveryMainOriginPage(t *testing.T) {
 		{"/dashboard", "/dashboard"},
 		{"/features", "/features"},
 		{"/enterprise", "/enterprise"},
+		{"/enterprise/brief", "/enterprise"},
+		{"/enterprise/architecture", "/enterprise"},
 		{"/hackathons", "/hackathons"},
 		{"/admin", ""},
 		{"/analytics/my-site", ""},

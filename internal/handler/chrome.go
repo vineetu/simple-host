@@ -65,21 +65,22 @@ type chromeData struct {
 
 // navKeys maps a request path to the chrome link that names it.
 var navKeys = map[string]string{
-	"/":                  "home",
-	"/install.html":      "install",
-	"/dashboard":         "dashboard",
-	"/enterprise":        "enterprise",
-	"/enterprise.html":   "enterprise",
-	"/enterprise/brief":  "enterprise",
-	"/hackathons":        "hackathons",
-	"/hackathons.html":   "hackathons",
-	"/features":          "features",
-	"/features.html":     "features",
-	"/docs.html":         "docs",
-	"/architecture.html": "architecture",
-	"/privacy.html":      "privacy",
-	"/terms":             "terms",
-	"/support":           "support",
+	"/":                        "home",
+	"/install.html":            "install",
+	"/dashboard":               "dashboard",
+	"/enterprise":              "enterprise",
+	"/enterprise.html":         "enterprise",
+	"/enterprise/brief":        "enterprise",
+	"/enterprise/architecture": "enterprise",
+	"/hackathons":              "hackathons",
+	"/hackathons.html":         "hackathons",
+	"/features":                "features",
+	"/features.html":           "features",
+	"/docs.html":               "docs",
+	"/architecture.html":       "architecture",
+	"/privacy.html":            "privacy",
+	"/terms":                   "terms",
+	"/support":                 "support",
 }
 
 // chromeDataFor derives the chrome for one request. base is "" for pages on

@@ -105,6 +105,7 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// Marketing pages, one per audience, shared as direct links.
 	mux.Handle("GET /enterprise", adminUICSP(serveStaticPage("enterprise.html")))
 	mux.Handle("GET /enterprise/brief", adminUICSP(serveStaticPage("enterprise-brief.html")))
+	mux.Handle("GET /enterprise/architecture", adminUICSP(serveStaticPage("enterprise-architecture.html")))
 	mux.Handle("GET /hackathons", adminUICSP(serveStaticPage("hackathons.html")))
 	// Terms of service and support, linked from plugin directory listings, so
 	// each needs a clean, stable URL.

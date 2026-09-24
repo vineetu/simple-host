@@ -169,7 +169,7 @@ for f in internal/handler/static/*; do
   grep -qxF "$base" <<<"$listed" && continue
   # Pages served through serveStaticPage are templates, not agent-facing docs;
   # they are allowed to name the canonical host in prose.
-  case "$base" in admin.html|analytics.html|notfound.html|showcase.html|index.html|features.html|architecture.html|privacy.html|terms.html|support.html|docs.html|enterprise.html|enterprise-brief.html|hackathons.html|setup.html) continue ;; esac
+  case "$base" in admin.html|analytics.html|notfound.html|showcase.html|index.html|features.html|architecture.html|privacy.html|terms.html|support.html|docs.html|enterprise.html|enterprise-brief.html|enterprise-architecture.html|hackathons.html|setup.html) continue ;; esac
   missing="$missing $base"
 done
 if [ -n "$missing" ]; then
