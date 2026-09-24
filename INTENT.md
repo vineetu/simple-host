@@ -151,3 +151,12 @@ What follows from that, and is not negotiable without changing the line above:
   in chat apps the skill has no lasting sign-in, so every new chat asks for an email and a code.
   A sign-in that persists (the plugin/connector route) is required for this path to feel
   seamless.
+- **2026-09-24. In AI chat apps, you sign in once and stay signed in.** Simple Host becomes a
+  connector: a remote MCP endpoint behind OAuth, reusing the normal sign-in page (Google or an
+  emailed code). The person adds it once in their AI app, signs in once in a browser window,
+  and every later chat is already signed in. The skill stays as the know-how; the connector
+  carries identity and actions. Reason: asking for an email and a code in every new chat is the
+  biggest friction on the main path. Coding agents (Claude Code, Codex) already persist the key
+  in a config file and keep working as they do. Order: after the page overhaul, before the Get
+  started rebuild, so Get started ends with "add the connector". Port the MCP adapter from the
+  enterprise repo (`internal/mcp`); the OAuth server is new and gets a security review.
