@@ -2152,10 +2152,21 @@ function parseAnalyticsSummary(data) {
       var btn = document.getElementById('ai-email-btn');
       btn.disabled = true;
       try {
+        // Bind the emailed sign-in link to this browser: the dashboard redeems
+        // it only where this nonce is held (login-CSRF fix). The typed code
+        // works anywhere.
+        var authBody = { email: email };
+        try {
+          var raw = new Uint8Array(32); crypto.getRandomValues(raw);
+          var b64 = function (u) { var t = ''; u.forEach(function (x) { t += String.fromCharCode(x); }); return btoa(t).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+          var n = b64(raw);
+          localStorage.setItem('sh-email-nonce', JSON.stringify({ n: n, exp: Date.now() + 15 * 60 * 1000 }));
+          authBody.nonce_hash = b64(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(n))));
+        } catch (e) {}
         var res = await fetch('/v1/auth', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email })
+          body: JSON.stringify(authBody)
         });
         var data = await res.json().catch(function () { return {}; });
         if (res.ok) {

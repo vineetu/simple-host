@@ -1037,6 +1037,7 @@
               </button>
             </div>
             <p class="auth-fine">We'll email a 6-digit code. Expires in 15 minutes.</p>
+            <p class="auth-fine" id="link-elsewhere" role="status" hidden>Open this link on the device where you asked for it, or type the 6-digit code from the email.</p>
           </form>
           <div id="oauth-providers" class="auth-oauth" hidden></div>
 
@@ -1368,6 +1369,58 @@ function parseAnalyticsSummary(data) {
       document.getElementById(map[name]).style.display = 'block';
     }
 
+    // ---- Sign-in links belong to the browser that asked for them --------------
+    // A sign-in token arriving in the URL is redeemed only when this browser
+    // holds the nonce whose SHA-256 (cn) came with it: the email-code request
+    // keeps one in localStorage (the email link usually opens a new tab), and
+    // Google sign-in keeps one in this tab's sessionStorage. A link anyone else
+    // made cannot carry our nonce, so it can never sign this browser into
+    // their account. The server also refuses a link token without its nonce.
+    const EMAIL_NONCE = 'sh-email-nonce', GOOGLE_NONCE = 'sh-google-nonce';
+    function b64url(bytes) {
+      let s = '';
+      bytes.forEach(b => { s += String.fromCharCode(b); });
+      return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+    function newNonce() { const r = new Uint8Array(32); crypto.getRandomValues(r); return b64url(r); }
+    async function nonceHash(n) { return b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(n)))); }
+    async function emailNonceHash() {
+      const n = newNonce();
+      try { localStorage.setItem(EMAIL_NONCE, JSON.stringify({ n, exp: Date.now() + 15 * 60 * 1000 })); } catch (e) { return ''; }
+      return nonceHash(n);
+    }
+    // The nonce (email or Google) that hashes to cn, or '' — and either way
+    // the stored nonces are single-use.
+    async function takeNonceFor(cn) {
+      const candidates = [];
+      try {
+        const g = sessionStorage.getItem(GOOGLE_NONCE);
+        if (g) candidates.push(g);
+        const e = JSON.parse(localStorage.getItem(EMAIL_NONCE) || 'null');
+        if (e && e.n && e.exp > Date.now()) candidates.push(e.n);
+      } catch (err) {}
+      if (!cn) return '';
+      for (const n of candidates) {
+        if ((await nonceHash(n)) === cn) {
+          try { sessionStorage.removeItem(GOOGLE_NONCE); } catch (err) {}
+          try { const e = JSON.parse(localStorage.getItem(EMAIL_NONCE) || 'null'); if (e && e.n === n) localStorage.removeItem(EMAIL_NONCE); } catch (err) {}
+          return n;
+        }
+      }
+      return '';
+    }
+    async function startGoogle(name) {
+      const n = newNonce();
+      try { sessionStorage.setItem(GOOGLE_NONCE, n); } catch (e) { toast('This browser is blocking storage sign-in needs. Use the emailed code.', 'error'); return; }
+      const ret = location.origin + '/?cn=' + (await nonceHash(n));
+      location.assign('/v1/auth/oauth/' + encodeURIComponent(name) + '?return_to=' + encodeURIComponent(ret));
+    }
+    function showLinkElsewhere() {
+      showAuthStep('email');
+      const note = document.getElementById('link-elsewhere');
+      if (note) { note.hidden = false; note.scrollIntoView({ block: 'center' }); }
+    }
+
     function renderOAuthProviders() {
       fetch('/v1/auth/oauth/providers').then(r => r.json()).then(d => {
         const names = d.providers || [];
@@ -1385,12 +1438,12 @@ function parseAnalyticsSummary(data) {
         const wrap = document.getElementById('oauth-providers');
         if (!wrap || !names.length) return;
         wrap.innerHTML = '';
-        const ret = encodeURIComponent(location.origin + '/');
         const label = { google: 'Sign in with Google' };
         names.forEach(name => {
           const a = document.createElement('a');
           a.className = 'auth-oauth-btn';
-          a.href = '/v1/auth/oauth/' + encodeURIComponent(name) + '?return_to=' + ret;
+          a.href = '#';
+          a.addEventListener('click', e => { e.preventDefault(); startGoogle(name); });
           a.textContent = label[name] || ('Sign in with ' + name);
           wrap.appendChild(a);
         });
@@ -1402,10 +1455,17 @@ function parseAnalyticsSummary(data) {
     (function init() {
       const params = new URLSearchParams(location.search);
       const token = params.get('token');
+      const cn = params.get('cn');
+      if (token !== null || cn !== null) {
+        // Never leave a sign-in token in the address bar or history.
+        history.replaceState({}, '', location.pathname);
+      }
       if (token) {
         showAuthStep('verifying');
-        verifyMagicLink(token);
-        history.replaceState({}, '', location.pathname);
+        takeNonceFor(cn).then(nonce => {
+          if (!nonce) { renderOAuthProviders(); showLinkElsewhere(); return; }
+          verifyMagicLink(token, nonce);
+        });
         return;
       }
       renderOAuthProviders();
@@ -1429,10 +1489,11 @@ function parseAnalyticsSummary(data) {
 
       setBtnLoading('auth-btn', true);
       try {
+        const nonce_hash = await emailNonceHash();
         const res = await fetch('/v1/auth', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email })
+          body: JSON.stringify(nonce_hash ? { email, nonce_hash } : { email })
         });
         const data = await res.json();
 
@@ -1476,12 +1537,12 @@ function parseAnalyticsSummary(data) {
     }
 
     // Step 2b: verify a token from a magic link
-    async function verifyMagicLink(token) {
+    async function verifyMagicLink(token, nonce) {
       try {
         const res = await fetch('/v1/auth/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token })
+          body: JSON.stringify({ token, nonce })
         });
         const data = await res.json();
         if (res.ok) {

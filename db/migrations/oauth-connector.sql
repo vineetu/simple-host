@@ -86,3 +86,11 @@ CREATE TABLE IF NOT EXISTS oauth_tokens (
 );
 CREATE INDEX IF NOT EXISTS oauth_tokens_grant_idx ON oauth_tokens (grant_id);
 CREATE INDEX IF NOT EXISTS oauth_tokens_expires_idx ON oauth_tokens (expires_at);
+
+-- Sign-in links are bound to the browser that asked for them (login-CSRF fix,
+-- same review). The page that requests an emailed code, or starts Google
+-- sign-in, keeps a random nonce and sends its SHA-256 (base64url); the link
+-- token is stored with that hash and /v1/auth/verify redeems a token only
+-- together with the nonce itself. A link token without a hash is never
+-- redeemable; the typed 6-digit code is unaffected.
+ALTER TABLE auth_tokens ADD COLUMN IF NOT EXISTS nonce_hash TEXT;

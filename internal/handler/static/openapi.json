@@ -198,6 +198,10 @@
                     "type": "string",
                     "format": "email",
                     "example": "you@example.com"
+                  },
+                  "nonce_hash": {
+                    "type": "string",
+                    "description": "Browser pages only. base64url SHA-256 of a random nonce the page keeps. With it the email also carries a sign-in link, redeemable only together with that nonce (so only in that browser). Without it the email carries the code alone."
                   }
                 }
               }
@@ -240,7 +244,7 @@
       "post": {
         "operationId": "postAuthVerify",
         "summary": "Verify the code and get an API key",
-        "description": "Exchange `{email, code}` (CLI/agent) or a magic-link `{token}` (browser) for an API key. The first successful email-code verify creates the account. Dashboard Google also redeems through this endpoint (`/?token=`). Visitor-issued codes are not accepted here. The code expires in 15 minutes and allows 3 attempts.",
+        "description": "Exchange `{email, code}` (CLI/agent) or a magic-link `{token}` (browser) for an API key. The first successful email-code verify creates the account. Dashboard Google also redeems through this endpoint (`/?token=&cn=`). A link token is redeemed only with the `nonce` whose hash it was issued with, so a sign-in link works only in the browser that asked for it. Visitor-issued codes are not accepted here. The code expires in 15 minutes and allows 3 attempts.",
         "tags": [
           "Auth"
         ],
@@ -262,6 +266,10 @@
                   "token": {
                     "type": "string",
                     "description": "magic-link token (alternative to email+code)"
+                  },
+                  "nonce": {
+                    "type": "string",
+                    "description": "required with token \u2014 the nonce whose hash was sent when the link was requested"
                   }
                 }
               }

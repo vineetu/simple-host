@@ -41,6 +41,10 @@ type UserHandler struct {
 
 type authRequest struct {
 	Email string `json:"email"`
+	// NonceHash is base64url(SHA-256(nonce)) of a nonce the requesting page
+	// keeps. With it, the email carries a sign-in link that works only in
+	// that browser; without it, the email carries the code alone.
+	NonceHash string `json:"nonce_hash"`
 }
 
 type authChallengeResponse struct {
@@ -53,6 +57,9 @@ type verifyRequest struct {
 	Email string `json:"email"`
 	Code  string `json:"code"`
 	Token string `json:"token"`
+	// Nonce accompanies Token: the browser's nonce whose hash the token was
+	// issued with.
+	Nonce string `json:"nonce"`
 }
 
 type authResponse struct {
@@ -145,7 +152,12 @@ func (h *UserHandler) requestSignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	email, expires, status, body := issueEmailCode(r.Context(), h.database, h.mailer, h.emailLimiter, req.Email, h.publicBaseURL, "dashboard", sql.NullString{})
+	nonceHash, ok := nonceHashParam(req.NonceHash)
+	if !ok {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "nonce_hash must be base64url SHA-256 (43 characters)"})
+		return
+	}
+	email, expires, status, body := issueEmailCode(r.Context(), h.database, h.mailer, h.emailLimiter, req.Email, h.publicBaseURL, "dashboard", sql.NullString{}, nonceHash)
 	if status != 0 {
 		writeEmailCodeError(w, status, body)
 		return

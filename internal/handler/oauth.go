@@ -198,7 +198,9 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 			writeOAuthHTMLError(w, http.StatusBadGateway)
 			return
 		}
-		if err := db.CreateAuthToken(r.Context(), tx, user.Username, code, linkToken, time.Now().Add(authTokenTTL), "dashboard", sql.NullString{}); err != nil {
+		// The one-time token is bound to the nonce of the tab that started
+		// this sign-in (cn in its return_to), so only that tab can redeem it.
+		if err := db.CreateAuthToken(r.Context(), tx, user.Username, code, linkToken, time.Now().Add(authTokenTTL), "dashboard", sql.NullString{}, returnToNonceHash(st.ReturnTo)); err != nil {
 			log.Printf("oauth: owner auth token: %v", err)
 			writeOAuthHTMLError(w, http.StatusBadGateway)
 			return
@@ -359,7 +361,7 @@ func (h *OAuthHandler) sanitizeReturnTo(ctx context.Context, raw string) (string
 		return "", sql.NullString{}, "", "", errInvalidReturnTo
 	}
 
-	if ownerReturnToOK(parsed, h.cfg.PublicBaseURL) {
+	if dashboardReturnToOK(parsed, h.cfg.PublicBaseURL) {
 		return parsed.String(), sql.NullString{}, "", "owner", nil
 	}
 	if connectReturnToOK(parsed, h.cfg.PublicBaseURL) {
@@ -477,16 +479,29 @@ func ownerReturnToOK(parsed *url.URL, publicBaseURL string) bool {
 	return true
 }
 
-// connectReturnToOK admits the connector's consent page as an owner sign-in
-// destination: this origin, path exactly /oauth/authorize, no fragment, no
-// sign-in token already in the query, and exactly one `cn` parameter.
-//
-// cn is the SHA-256 (base64url) of a random nonce the consent page generated
-// and kept in its own tab's sessionStorage before starting Google sign-in. The
-// page honours the one-time token this flow appends only when that tab still
-// holds the nonce whose hash is cn. A link someone else crafted — carrying a
-// token for their own account — cannot carry the victim tab's nonce, so it
-// cannot sign the victim in as them (login CSRF).
+// Owner Google sign-in returns to one of two pages, and in both the return
+// address carries cn: the SHA-256 (base64url) of a random nonce the page kept
+// in its own tab's sessionStorage before starting. The one-time token this
+// flow issues is stored with that hash and redeemable only with the nonce
+// itself, so a link someone else crafted — carrying a token for their own
+// account — cannot sign a victim's browser in as them (login CSRF).
+
+// dashboardReturnToOK: this origin, path "/", and a query of exactly one cn.
+func dashboardReturnToOK(parsed *url.URL, publicBaseURL string) bool {
+	if parsed == nil || parsed.Fragment != "" {
+		return false
+	}
+	q := parsed.Query()
+	if len(q) != 1 || len(q["cn"]) != 1 || !nonceHashRe.MatchString(q.Get("cn")) {
+		return false
+	}
+	same := *parsed
+	same.RawQuery = ""
+	return ownerReturnToOK(&same, publicBaseURL)
+}
+
+// connectReturnToOK: this origin, path exactly /oauth/authorize, no fragment,
+// no sign-in token already in the query, and exactly one cn.
 func connectReturnToOK(parsed *url.URL, publicBaseURL string) bool {
 	if parsed == nil || parsed.User != nil || parsed.Fragment != "" || parsed.Path != "/oauth/authorize" {
 		return false
@@ -495,7 +510,7 @@ func connectReturnToOK(parsed *url.URL, publicBaseURL string) bool {
 	if _, has := q["token"]; has {
 		return false
 	}
-	if cn := q["cn"]; len(cn) != 1 || !connectNonceHashRe.MatchString(cn[0]) {
+	if cn := q["cn"]; len(cn) != 1 || !nonceHashRe.MatchString(cn[0]) {
 		return false
 	}
 	same := *parsed
@@ -503,19 +518,36 @@ func connectReturnToOK(parsed *url.URL, publicBaseURL string) bool {
 	return ownerReturnToOK(&same, publicBaseURL)
 }
 
-var connectNonceHashRe = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)
+// returnToNonceHash is the cn a validated owner return_to carries.
+func returnToNonceHash(returnTo string) sql.NullString {
+	u, err := url.Parse(returnTo)
+	if err != nil {
+		return sql.NullString{}
+	}
+	h, ok := nonceHashParam(u.Query().Get("cn"))
+	if !ok {
+		return sql.NullString{}
+	}
+	return h
+}
 
 // ownerLandingURL is where an owner Google sign-in lands with its one-time
-// link token: the connector consent page it started from (which checks cn
-// against its own tab before using the token), or the dashboard.
+// token: the page it started from, with the token appended next to cn.
 func ownerLandingURL(returnTo, publicBaseURL, linkToken string) string {
-	if u, err := url.Parse(returnTo); err == nil && connectReturnToOK(u, publicBaseURL) {
-		base, _ := url.Parse(strings.TrimRight(publicBaseURL, "/"))
+	base, _ := url.Parse(strings.TrimRight(publicBaseURL, "/"))
+	origin := base.Scheme + "://" + base.Host
+	u, err := url.Parse(returnTo)
+	if err == nil && connectReturnToOK(u, publicBaseURL) {
 		q := u.Query()
 		q.Set("token", linkToken)
-		return base.Scheme + "://" + base.Host + "/oauth/authorize?" + q.Encode()
+		return origin + "/oauth/authorize?" + q.Encode()
 	}
-	return strings.TrimRight(publicBaseURL, "/") + "/?token=" + url.QueryEscape(linkToken)
+	if err == nil && dashboardReturnToOK(u, publicBaseURL) {
+		return origin + "/?token=" + url.QueryEscape(linkToken) + "&cn=" + url.QueryEscape(u.Query().Get("cn"))
+	}
+	// Unreachable for a return_to that passed sanitizeReturnTo; a token
+	// without a nonce cannot be redeemed anyway.
+	return origin + "/"
 }
 
 func isSchemeDefaultPort(scheme, port string) bool {

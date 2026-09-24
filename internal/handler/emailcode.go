@@ -2,10 +2,14 @@ package handler
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"log"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -24,9 +28,11 @@ func writeEmailCodeError(w http.ResponseWriter, status int, body errorResponse) 
 	writeJSON(w, status, body)
 }
 
-// issueEmailCode normalizes the address and sends a challenge. An empty linkBase
-// sends only the code; dashboard callers supply their public base URL.
-func issueEmailCode(ctx context.Context, database *sql.DB, mailer email.Sender, limiter *rateLimiter, address, linkBase string, purpose string, siteID sql.NullString) (string, int, int, errorResponse) {
+// issueEmailCode normalizes the address and sends a challenge. The email
+// carries a sign-in link only for a dashboard request that sent a nonce hash
+// (the link then works only in the browser holding that nonce); otherwise it
+// carries the code alone.
+func issueEmailCode(ctx context.Context, database *sql.DB, mailer email.Sender, limiter *rateLimiter, address, linkBase string, purpose string, siteID, nonceHash sql.NullString) (string, int, int, errorResponse) {
 	address = strings.TrimSpace(strings.ToLower(address))
 	if address == "" || !validEmail.MatchString(address) {
 		return "", 0, http.StatusBadRequest, errorResponse{Error: "valid email is required"}
@@ -52,14 +58,17 @@ func issueEmailCode(ctx context.Context, database *sql.DB, mailer email.Sender, 
 	}
 
 	expiresAt := time.Now().Add(authTokenTTL)
-	if err := db.CreateAuthToken(ctx, database, address, code, linkToken, expiresAt, purpose, siteID); err != nil {
+	if purpose != "dashboard" {
+		nonceHash = sql.NullString{}
+	}
+	if err := db.CreateAuthToken(ctx, database, address, code, linkToken, expiresAt, purpose, siteID, nonceHash); err != nil {
 		log.Printf("auth: CreateAuthToken: %v", err)
 		return "", 0, http.StatusInternalServerError, errorResponse{Error: "internal server error"}
 	}
 
 	link := ""
-	if purpose == "dashboard" && linkBase != "" {
-		link = linkBase + "/?token=" + linkToken
+	if purpose == "dashboard" && linkBase != "" && nonceHash.Valid {
+		link = linkBase + "/?token=" + linkToken + "&cn=" + nonceHash.String
 	}
 	if err := mailer.SendSignInCode(address, code, link); err != nil {
 		// Don't expose details to the caller, but log loudly — this is the
@@ -82,7 +91,7 @@ func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter
 	var err error
 
 	switch {
-	case req.Token != "":
+	case req.Token != "" && purpose == "dashboard":
 		tok, err = db.GetAuthTokenByLink(ctx, database, req.Token)
 	case req.Email != "" && req.Code != "":
 		tok, err = db.GetLatestAuthTokenForEmail(ctx, database, req.Email, purpose, siteID)
@@ -100,6 +109,17 @@ func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter
 
 	if tok.Attempts >= maxCodeAttempts {
 		return db.User{}, false, http.StatusUnauthorized, errorResponse{Error: "too many attempts, request a new code"}
+	}
+
+	// A sign-in link works only in the browser that asked for it: the token
+	// is redeemed together with the nonce whose hash was stored with it. A
+	// link someone else forwards (their own token, to sign a victim into
+	// their account) or copies is useless without that browser's nonce.
+	if req.Token != "" {
+		if !tok.NonceHash.Valid || !nonceMatches(req.Nonce, tok.NonceHash.String) {
+			_ = db.IncrementAuthTokenAttempts(ctx, database, tok.ID)
+			return db.User{}, false, http.StatusUnauthorized, errorResponse{Error: errLinkOtherBrowser}
+		}
 	}
 
 	// For code-entry path, compare submitted code against the stored value.
@@ -170,4 +190,33 @@ func emailLimiterKey(address string) string {
 	}
 	local, _, _ = strings.Cut(local, "+")
 	return local + "@" + domain
+}
+
+// errLinkOtherBrowser is shown when a sign-in link is opened where it was not
+// requested.
+const errLinkOtherBrowser = "Open this link on the device where you asked for it, or type the 6-digit code from the email."
+
+// nonceHashRe is the shape of a SHA-256 digest in unpadded base64url.
+var nonceHashRe = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)
+
+// nonceHashParam validates an optional nonce hash sent by a sign-in page.
+func nonceHashParam(s string) (sql.NullString, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return sql.NullString{}, true
+	}
+	if !nonceHashRe.MatchString(s) {
+		return sql.NullString{}, false
+	}
+	return sql.NullString{String: s, Valid: true}, true
+}
+
+// nonceMatches reports whether base64url(SHA-256(nonce)) equals hash, in
+// constant time.
+func nonceMatches(nonce, hash string) bool {
+	if nonce == "" || len(nonce) > 256 {
+		return false
+	}
+	sum := sha256.Sum256([]byte(nonce))
+	return subtle.ConstantTimeCompare([]byte(base64.RawURLEncoding.EncodeToString(sum[:])), []byte(hash)) == 1
 }

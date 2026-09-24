@@ -583,12 +583,15 @@ func scanSiteRows(rows *sql.Rows) ([]Site, error) {
 }
 
 // CreateAuthToken inserts a new verification token row.
-func CreateAuthToken(ctx context.Context, q Querier, email, code, linkToken string, expiresAt time.Time, purpose string, siteID sql.NullString) error {
+// nonceHash binds the link token to the browser that asked for it: the token
+// is redeemable only together with the nonce that hashes to it (see
+// verifyEmailCode). Null means the link token can never be redeemed.
+func CreateAuthToken(ctx context.Context, q Querier, email, code, linkToken string, expiresAt time.Time, purpose string, siteID, nonceHash sql.NullString) error {
 	const query = `
-		INSERT INTO auth_tokens (email, code, link_token, expires_at, purpose, site_id)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO auth_tokens (email, code, link_token, expires_at, purpose, site_id, nonce_hash)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
-	_, err := q.ExecContext(ctx, query, email, code, linkToken, expiresAt, purpose, siteID)
+	_, err := q.ExecContext(ctx, query, email, code, linkToken, expiresAt, purpose, siteID, nonceHash)
 	return err
 }
 
@@ -603,19 +606,20 @@ type AuthToken struct {
 	ExpiresAt time.Time
 	UsedAt    sql.NullTime
 	Attempts  int
+	NonceHash sql.NullString
 }
 
 // GetAuthTokenByLink returns the active (unused, not expired) token for a
 // magic-link sign-in. Returns sql.ErrNoRows if none.
 func GetAuthTokenByLink(ctx context.Context, db *sql.DB, linkToken string) (AuthToken, error) {
 	const query = `
-		SELECT id, email, code, link_token, expires_at, used_at, attempts, purpose, site_id
+		SELECT id, email, code, link_token, expires_at, used_at, attempts, purpose, site_id, nonce_hash
 		FROM auth_tokens
 		WHERE link_token = $1 AND purpose = 'dashboard' AND used_at IS NULL AND expires_at > now()
 	`
 	var t AuthToken
 	err := db.QueryRowContext(ctx, query, linkToken).Scan(
-		&t.ID, &t.Email, &t.Code, &t.LinkToken, &t.ExpiresAt, &t.UsedAt, &t.Attempts, &t.Purpose, &t.SiteID,
+		&t.ID, &t.Email, &t.Code, &t.LinkToken, &t.ExpiresAt, &t.UsedAt, &t.Attempts, &t.Purpose, &t.SiteID, &t.NonceHash,
 	)
 	return t, err
 }

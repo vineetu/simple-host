@@ -211,7 +211,16 @@
       var email = el('email').value.trim().toLowerCase();
       el('email-btn').disabled = true;
       try {
-        var r = await post('/v1/auth', { email: email });
+        // Bind the emailed link to this browser (the dashboard redeems it
+        // only where this nonce is held).
+        var body = { email: email };
+        try {
+          var raw = new Uint8Array(32); crypto.getRandomValues(raw);
+          var n = b64url(raw);
+          localStorage.setItem('sh-email-nonce', JSON.stringify({ n: n, exp: Date.now() + 15 * 60 * 1000 }));
+          body.nonce_hash = await nonceHash(n);
+        } catch (e2) {}
+        var r = await post('/v1/auth', body);
         if (!r.ok) { el('signin-msg').textContent = r.body.error || 'Could not send a code. Try again.'; return; }
         pendingEmail = email;
         el('code-email').textContent = email;
@@ -284,7 +293,7 @@
     // same way the dashboard does, then carry on.
     tokenIsOurs().then(function (ours) {
       if (!ours) { enter(); return; }
-      post('/v1/auth/verify', { token: linkToken }).then(function (r) {
+      post('/v1/auth/verify', { token: linkToken, nonce: ownNonce }).then(function (r) {
         if (r.ok && r.body.api_key) setKey(r.body.api_key);
         enter();
       }).catch(enter);

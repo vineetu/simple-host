@@ -12,6 +12,10 @@
 //      in and lets the person Allow.
 //   3. The typed 6-digit code path works end to end, through Allow, the token
 //      endpoint and a /mcp tool call.
+//   4. The dashboard applies the same rule to ?token=: an attacker's link
+//      neither signs a signed-out victim in nor replaces a signed-in victim's
+//      key; our own email link signs in in the same browser (new tab) but not
+//      in a fresh profile, where the typed code does; Google still works.
 //
 // Needs a running server started with GOOGLE_OAUTH_CLIENT_ID/SECRET set to any
 // values (so the Google button shows; Google itself is never contacted),
@@ -39,11 +43,14 @@ function check(cond, label, extra = '') {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const b64url = (buf) => buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const sql = (q) => execFileSync('psql', [PSQL_URL, '-tAc', q]).toString().trim();
-function linkTokenFor(email) {
+// A sign-in link token as the server issues it: bound to the SHA-256 of the
+// requesting browser's nonce.
+function linkTokenFor(email, hash) {
   const t = randomBytes(24).toString('hex');
-  sql(`INSERT INTO auth_tokens (email, code, link_token, expires_at) VALUES ('${email}', '000000', '${t}', now() + interval '15 minutes')`);
+  sql(`INSERT INTO auth_tokens (email, code, link_token, expires_at, nonce_hash) VALUES ('${email}', '000000', '${t}', now() + interval '15 minutes', '${hash}')`);
   return t;
 }
+const hashOf = (nonce) => b64url(createHash('sha256').update(nonce).digest());
 
 async function api(method, path, body, headers = {}) {
   const res = await fetch(BASE + path, { method, headers: { 'Content-Type': 'application/json', ...headers }, body: body && JSON.stringify(body), redirect: 'manual' });
@@ -99,19 +106,26 @@ const Q = new URLSearchParams({ response_type: 'code', client_id: clientId, redi
   code_challenge_method: 'S256', state: 'st', scope: 'sites', resource: BASE + '/mcp' }).toString();
 const AUTHZ = BASE + '/oauth/authorize?' + Q;
 
-const profile = mkdtempSync(join(tmpdir(), 'sh-consent-'));
-const port = 9300 + Math.floor(Math.random() * 500);
-const chrome = spawn(CHROME, ['--headless=new', '--no-sandbox', '--disable-gpu', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' });
-process.on('exit', () => { chrome.kill(); rmSync(profile, { recursive: true, force: true }); });
-for (let i = 0; i < 50; i++) { try { await fetch(`http://127.0.0.1:${port}/json/version`); break; } catch { await sleep(100); } }
+// One browser profile = one "device".
+async function launchBrowser() {
+  const profile = mkdtempSync(join(tmpdir(), 'sh-consent-'));
+  const port = 9300 + Math.floor(Math.random() * 600);
+  const chrome = spawn(CHROME, ['--headless=new', '--no-sandbox', '--disable-gpu', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' });
+  process.on('exit', () => { chrome.kill(); try { rmSync(profile, { recursive: true, force: true }); } catch {} });
+  for (let i = 0; i < 50; i++) { try { await fetch(`http://127.0.0.1:${port}/json/version`); break; } catch { await sleep(100); } }
+  return port;
+}
+const port = await launchBrowser();
 
 // ---- 1. login CSRF: another account's token in the URL -------------------------
 {
   const page = await Page.open(port);
   await page.goto(BASE + '/privacy.html', 800);
   await page.eval(`localStorage.setItem('apiKey', ${JSON.stringify(victim.api_key)})`);
-  const attackerToken = linkTokenFor(attacker.username);
-  const fakeHash = b64url(createHash('sha256').update('attacker-nonce').digest());
+  // The attacker asked for a link for their OWN account, from their own
+  // browser, so they hold the nonce; the victim's browser does not.
+  const fakeHash = hashOf('attacker-nonce');
+  const attackerToken = linkTokenFor(attacker.username, fakeHash);
   for (const extra of [`&token=${attackerToken}`, `&cn=${fakeHash}&token=${attackerToken}`]) {
     await page.goto(AUTHZ + extra, 2000);
     check(await page.eval(`localStorage.getItem('apiKey')`) === victim.api_key, `signed-in victim: localStorage unchanged (${extra.startsWith('&cn') ? 'with forged cn' : 'bare token'})`);
@@ -119,17 +133,17 @@ for (let i = 0; i < 50; i++) { try { await fetch(`http://127.0.0.1:${port}/json/
     check(!(await page.eval(`location.search.includes('token=')`)), 'token stripped from the address bar');
   }
   // The attacker's token was never redeemed by the page: it still works.
-  const still = await api('POST', '/v1/auth/verify', { token: attackerToken });
+  const still = await api('POST', '/v1/auth/verify', { token: attackerToken, nonce: 'attacker-nonce' });
   check(still.status === 200 && still.json.username === attacker.username, 'the page never sent the foreign token to /v1/auth/verify');
   // Signed-out victim.
   await page.eval(`localStorage.clear(); sessionStorage.clear()`);
-  const t2 = linkTokenFor(attacker.username);
+  const t2 = linkTokenFor(attacker.username, fakeHash);
   await page.goto(AUTHZ + `&cn=${fakeHash}&token=${t2}`, 2000);
   check(await page.eval(`localStorage.getItem('apiKey')`) === null, 'signed-out victim: localStorage stays empty');
   check(await page.eval(visibleStep) === 'signin', 'signed-out victim sees the sign-in step, not consent');
   // Even a victim tab that holds a nonce is safe: the hash has to match it.
   await page.eval(`sessionStorage.setItem('sh-connect-nonce', 'victims-own-nonce')`);
-  const t3 = linkTokenFor(attacker.username);
+  const t3 = linkTokenFor(attacker.username, fakeHash);
   await page.goto(AUTHZ + `&cn=${fakeHash}&token=${t3}`, 2000);
   check(await page.eval(`localStorage.getItem('apiKey')`) === null, 'a tab with its own nonce ignores a token bound to another nonce');
   page.close();
@@ -163,7 +177,7 @@ for (let i = 0; i < 50; i++) { try { await fetch(`http://127.0.0.1:${port}/json/
   check(seen.some((u) => u.startsWith('https://accounts.google.com/')), 'server accepted that return_to and redirected to Google');
   // Stand in for Google + the callback: the callback's landing URL is return_to
   // plus the one-time token for the account Google vouched for.
-  const lt = linkTokenFor(victim.username);
+  const lt = linkTokenFor(victim.username, cn); // what the callback issues
   await page.goto(returnTo + '&token=' + lt, 2500);
   check(await page.eval(`localStorage.getItem('apiKey')`) === victim.api_key, 'Google landing in the same tab signs in');
   check(await page.eval(visibleStep) === 'consent', 'and shows the consent step');
@@ -215,6 +229,90 @@ for (let i = 0; i < 50; i++) { try { await fetch(`http://127.0.0.1:${port}/json/
   const who = await api('POST', '/mcp', { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'who_am_i', arguments: {} } },
     { Authorization: 'Bearer ' + tok.access_token, 'MCP-Protocol-Version': '2025-06-18' });
   check(who.json.result.structuredContent.email === email, '/mcp acts as the person who signed in');
+  page.close();
+}
+
+// ---- 4. dashboard (index.html): same rule for ?token= ---------------------------
+const noteShown = `!document.getElementById('link-elsewhere').hidden`;
+const latestToken = (email) => sql(`SELECT link_token || ' ' || COALESCE(nonce_hash, '') || ' ' || code FROM auth_tokens WHERE email = '${email}' ORDER BY created_at DESC LIMIT 1`).split(' ');
+async function requestCodeIn(page, email) {
+  await page.goto(BASE + '/dashboard', 1500);
+  await page.eval(`document.getElementById('email-input').value = ${JSON.stringify(email)}; document.getElementById('email-form').requestSubmit()`);
+  await sleep(2500); // the server stores the token before it tries to send mail
+  return latestToken(email);
+}
+{
+  const page = await Page.open(port);
+  // Attacker's own link (attacker holds the nonce) sent to a signed-out victim.
+  await page.goto(BASE + '/privacy.html', 800);
+  await page.eval(`localStorage.clear(); sessionStorage.clear()`);
+  const aHash = hashOf('attacker-dash-nonce');
+  const aTok = linkTokenFor(attacker.username, aHash);
+  await page.goto(`${BASE}/?token=${aTok}&cn=${aHash}`, 2500);
+  check(await page.eval(`localStorage.getItem('apiKey')`) === null, 'dashboard: attacker link does not sign a signed-out victim in');
+  check(await page.eval(noteShown), 'dashboard: shows "open this link on the device where you asked for it"');
+  check(!(await page.eval(`location.search.includes('token')`)), 'dashboard: token stripped from the address bar');
+  // Signed-in victim.
+  await page.eval(`localStorage.setItem('apiKey', ${JSON.stringify(victim.api_key)})`);
+  await page.goto(`${BASE}/dashboard?token=${aTok}&cn=${aHash}`, 2500);
+  check(await page.eval(`localStorage.getItem('apiKey')`) === victim.api_key, "dashboard: attacker link does not replace a signed-in victim's key");
+  check((await api('POST', '/v1/auth/verify', { token: aTok, nonce: 'attacker-dash-nonce' })).status === 200, 'dashboard: the attacker token was never redeemed by the page');
+  // A copied link token without the nonce is refused by the server too.
+  const copied = linkTokenFor(victim.username, hashOf('victims-nonce'));
+  check((await api('POST', '/v1/auth/verify', { token: copied })).status === 401, 'server: a link token without its nonce is refused');
+
+  // Legitimate email link, same browser.
+  await page.eval(`localStorage.clear(); sessionStorage.clear()`);
+  const dashEmail = `dash-${run}@example.com`;
+  const [lt, hash] = await requestCodeIn(page, dashEmail);
+  check(hash && hash.length === 43, 'email request sent a nonce hash and the server stored it with the link');
+  const tab2 = await Page.open(port); // the email link opens in a new tab
+  await tab2.goto(`${BASE}/?token=${lt}&cn=${hash}`, 3000);
+  check(!!(await tab2.eval(`localStorage.getItem('apiKey')`)), 'dashboard: our own email link signs in (new tab, same browser)');
+  check(await tab2.eval(`localStorage.getItem('sh-email-nonce')`) === null, 'dashboard: email nonce is single-use');
+  tab2.close();
+
+  // Link requested here, opened on another device; the typed code works there.
+  await page.eval(`localStorage.clear(); sessionStorage.clear()`);
+  const otherEmail = `other-${run}@example.com`;
+  const [lt2, hash2] = await requestCodeIn(page, otherEmail);
+  const port2 = await launchBrowser();
+  const other = await Page.open(port2);
+  await other.goto(`${BASE}/?token=${lt2}&cn=${hash2}`, 3000);
+  check(await other.eval(`localStorage.getItem('apiKey')`) === null, 'dashboard: our link opened in a fresh profile does not sign in');
+  check(await other.eval(noteShown), 'dashboard: fresh profile is told to type the code');
+  // Let POST /v1/auth reach the server (it stores the code), then stand in for
+  // a successful mail send in the response the page sees.
+  await other.send('Fetch.enable', { patterns: [{ urlPattern: BASE + '/v1/auth', requestStage: 'Response' }] });
+  other.on((m) => {
+    if (m.method === 'Fetch.requestPaused') other.send('Fetch.fulfillRequest', { requestId: m.params.requestId, responseCode: 202,
+      responseHeaders: [{ name: 'Content-Type', value: 'application/json' }],
+      body: Buffer.from(JSON.stringify({ message: 'sent', email: otherEmail, expires_in_seconds: 900 })).toString('base64') });
+  });
+  await other.eval(`document.getElementById('email-input').value = ${JSON.stringify(otherEmail)}; document.getElementById('email-form').requestSubmit()`);
+  await sleep(2500);
+  const [, , code] = latestToken(otherEmail);
+  await other.eval(`document.getElementById('code-input').value = '${code}'; document.getElementById('code-form').requestSubmit()`);
+  check(await other.waitFor(`!!localStorage.getItem('apiKey')`), 'dashboard: the typed code signs in on the other device');
+  other.close();
+
+  // Google, back to the dashboard.
+  await page.eval(`localStorage.clear(); sessionStorage.clear()`);
+  const seen = [];
+  page.on((m) => { if (m.method === 'Network.requestWillBeSent') seen.push(m.params.request.url); });
+  await page.send('Fetch.enable', { patterns: [{ urlPattern: 'https://accounts.google.com/*' }] });
+  page.on((m) => { if (m.method === 'Fetch.requestPaused') page.send('Fetch.fulfillRequest', { requestId: m.params.requestId, responseCode: 200, body: Buffer.from('stub').toString('base64') }); });
+  await page.goto(BASE + '/dashboard', 1500);
+  check(await page.waitFor(`!!document.querySelector('#oauth-providers a')`), 'dashboard: Google button offered');
+  await page.eval(`document.querySelector('#oauth-providers a').click()`);
+  await sleep(1500);
+  const start = seen.find((u) => u.startsWith(BASE + '/v1/auth/oauth/google?'));
+  const ret = start && new URL(new URL(start).searchParams.get('return_to'));
+  check(ret && ret.pathname === '/' && ret.searchParams.get('cn'), 'dashboard: Google return_to carries the tab nonce hash');
+  check(seen.some((u) => u.startsWith('https://accounts.google.com/')), 'dashboard: server accepted it and redirected to Google');
+  const gTok = linkTokenFor(victim.username, ret.searchParams.get('cn')); // what the callback issues
+  await page.goto(`${BASE}/?token=${gTok}&cn=${ret.searchParams.get('cn')}`, 3000);
+  check(await page.eval(`localStorage.getItem('apiKey')`) === victim.api_key, 'dashboard: Google landing in the same tab signs in');
   page.close();
 }
 

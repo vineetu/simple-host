@@ -56,7 +56,7 @@ run "per-site state"        "SELECT COALESCE(state,'null'::jsonb), state_version
 run "private pages"         "SELECT view_password_hash FROM sites WHERE name='x'"
 run "collections"           "SELECT id, data FROM collection_items WHERE site_id='$NIL' AND collection='c' ORDER BY id DESC"
 run "custom domains"        "SELECT custom_domain, domain_status FROM sites WHERE custom_domain='x'"
-run "auth tokens"           "SELECT id, email, code, link_token FROM auth_tokens WHERE link_token='x'"
+run "auth tokens"           "SELECT id, email, code, link_token, nonce_hash FROM auth_tokens WHERE link_token='x'"
 run "visitor sessions"      "SELECT id, user_id, site_id, host FROM visitor_sessions WHERE id='x'"
 run "oauth identities"      "SELECT provider, provider_user_id FROM oauth_identities WHERE provider_user_id='x'"
 run "site analytics"        "SELECT class, SUM(views) FROM site_view_hourly WHERE site_id='$NIL' GROUP BY 1"

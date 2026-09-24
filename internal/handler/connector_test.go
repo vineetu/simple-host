@@ -124,12 +124,21 @@ func TestConnectReturnTo(t *testing.T) {
 	if got != "https://simple-host.app/oauth/authorize?client_id=x&cn="+cn+"&token=TOK" {
 		t.Errorf("landing %q", got)
 	}
-	// Without a nonce hash the token never lands on the consent page.
-	if got := ownerLandingURL("https://simple-host.app/oauth/authorize?client_id=x", base, "TOK"); got != "https://simple-host.app/?token=TOK" {
-		t.Errorf("unbound landing %q", got)
+	// Without a nonce hash no token lands anywhere.
+	for _, rt := range []string{"https://simple-host.app/oauth/authorize?client_id=x", "https://simple-host.app/"} {
+		if got := ownerLandingURL(rt, base, "TOK"); got != "https://simple-host.app/" {
+			t.Errorf("unbound landing for %s: %q", rt, got)
+		}
 	}
-	if got := ownerLandingURL("https://simple-host.app/", base, "TOK"); got != "https://simple-host.app/?token=TOK" {
+	if got := ownerLandingURL("https://simple-host.app/?cn="+cn, base, "TOK"); got != "https://simple-host.app/?token=TOK&cn="+cn {
 		t.Errorf("dashboard landing %q", got)
+	}
+	d := func(s string) bool { u, _ := url.Parse(s); return dashboardReturnToOK(u, base) }
+	if !d("https://simple-host.app/?cn="+cn) || d("https://simple-host.app/") || d("https://simple-host.app/?cn="+cn+"&x=1") || d("https://simple-host.app/x?cn="+cn) {
+		t.Error("dashboardReturnToOK rules")
+	}
+	if !nonceMatches("abc", "ungWv48Bz-pBQUDeXa4iI7ADYaOWF3qctBD_YfIAFa0") || nonceMatches("abd", "ungWv48Bz-pBQUDeXa4iI7ADYaOWF3qctBD_YfIAFa0") || nonceMatches("", "") {
+		t.Error("nonceMatches")
 	}
 }
 
@@ -786,5 +795,45 @@ func TestConnectorConfidentialClientForGPTActions(t *testing.T) {
 	q2 := url.Values{"response_type": {"code"}, "client_id": {pub}, "redirect_uri": {testRedirect}, "state": {"s"}}
 	if r := a.do(t, http.MethodGet, "/oauth/authorize?"+q2.Encode(), nil, nil); r.status != http.StatusFound || !strings.Contains(r.header.Get("Location"), "error=invalid_request") {
 		t.Fatalf("public client without PKCE: %d %s", r.status, r.header.Get("Location"))
+	}
+}
+
+// A sign-in link token is redeemable only with the nonce of the browser that
+// asked for it (login-CSRF fix); the typed code needs no nonce.
+func TestSignInLinkNeedsTheRequestingBrowsersNonce(t *testing.T) {
+	a := newConnectorApp(t)
+	ann := a.newPerson(t, "ann")
+	nonce := "the-requesting-browsers-nonce"
+	sum := sha256.Sum256([]byte(nonce))
+	hash := base64.RawURLEncoding.EncodeToString(sum[:])
+	issue := func(h sql.NullString, code string) string {
+		lt, _ := auth.GenerateAPIKey()
+		if err := db.CreateAuthToken(context.Background(), a.database, ann.email, code, lt, time.Now().Add(time.Minute), "dashboard", sql.NullString{}, h); err != nil {
+			t.Fatal(err)
+		}
+		return lt
+	}
+	verify := func(body map[string]string) resp {
+		return a.do(t, http.MethodPost, "/v1/auth/verify", jsonBody(body), map[string]string{"Content-Type": "application/json"})
+	}
+	bound := issue(sql.NullString{String: hash, Valid: true}, "111111")
+	if r := verify(map[string]string{"token": bound}); r.status != http.StatusUnauthorized {
+		t.Fatalf("link token redeemed without a nonce: %d", r.status)
+	}
+	if r := verify(map[string]string{"token": bound, "nonce": "someone-elses-nonce"}); r.status != http.StatusUnauthorized {
+		t.Fatalf("link token redeemed with the wrong nonce: %d", r.status)
+	}
+	if r := verify(map[string]string{"token": bound, "nonce": nonce}); r.status != http.StatusOK || r.json(t)["api_key"] != ann.key {
+		t.Fatalf("link token refused with its nonce: %d %s", r.status, r.body)
+	}
+	unbound := issue(sql.NullString{}, "222222")
+	if r := verify(map[string]string{"token": unbound, "nonce": nonce}); r.status != http.StatusUnauthorized {
+		t.Fatalf("unbound link token redeemed: %d", r.status)
+	}
+	if r := verify(map[string]string{"email": ann.email, "code": "222222"}); r.status != http.StatusOK {
+		t.Fatalf("typed code refused: %d %s", r.status, r.body)
+	}
+	if r := a.do(t, http.MethodPost, "/v1/auth", jsonBody(map[string]string{"email": ann.email, "nonce_hash": "not-a-hash"}), map[string]string{"Content-Type": "application/json"}); r.status != http.StatusBadRequest {
+		t.Fatalf("malformed nonce_hash accepted: %d", r.status)
 	}
 }

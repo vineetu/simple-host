@@ -24,7 +24,7 @@ paths do not expand a literal `~`, and `%USERPROFILE%` expands only in `cmd`.
 
    Success is `202` with
    `{"message": "Check your email for a sign-in code.", "email": "...", "expires_in_seconds": 900}`.
-   The server has now emailed a 6-digit code and a magic link.
+   The server has now emailed a 6-digit code.
 
 3. **Ask the user to read their inbox and paste the code.** Accept `123456` or
    `123-456`; strip non-digits before sending.

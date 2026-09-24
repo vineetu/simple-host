@@ -39,9 +39,14 @@ func TestOAuthSharedHostReturnRejected(t *testing.T) {
 	if err != errInvalidReturnTo {
 		t.Fatalf("got %v", err)
 	}
-	_, _, _, purpose, err := h.sanitizeReturnTo(context.Background(), "https://simple-host.app/")
+	cn := strings.Repeat("A", 43)
+	_, _, _, purpose, err := h.sanitizeReturnTo(context.Background(), "https://simple-host.app/?cn="+cn)
 	if err != nil || purpose != "owner" {
 		t.Fatalf("owner: %q %v", purpose, err)
+	}
+	// The dashboard return must carry the tab's nonce hash (login-CSRF fix).
+	if _, _, _, _, err := h.sanitizeReturnTo(context.Background(), "https://simple-host.app/"); err != errInvalidReturnTo {
+		t.Fatalf("bare dashboard return accepted: %v", err)
 	}
 }
 
