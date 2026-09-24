@@ -167,14 +167,10 @@ CREATE TABLE IF NOT EXISTS api_ip_daily (
   PRIMARY KEY (day, ip)
 );
 
--- Lazily resolved geo per caller IP.
-CREATE TABLE IF NOT EXISTS ip_geo (
-  ip          TEXT PRIMARY KEY,
-  country     TEXT NOT NULL DEFAULT '',
-  city        TEXT NOT NULL DEFAULT '',
-  org         TEXT NOT NULL DEFAULT '',
-  resolved_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+-- Caller geo (country/city/network) is NOT stored: it is resolved on this box
+-- from local DB-IP Lite files when the admin page asks (internal/geoip). The
+-- old ip_geo cache table is gone from fresh installs; see
+-- db/migrations/local-geo.sql for existing databases.
 
 -- Current analytics storage: hourly buckets, split by who was asking.
 -- Every read path in internal/db/analytics.go targets these two tables, so a

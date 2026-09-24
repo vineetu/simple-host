@@ -3646,7 +3646,7 @@
       "get": {
         "operationId": "getAdminApiAnalytics",
         "summary": "Per-endpoint API call analytics with caller geo (admin)",
-        "description": "Admin-only. Aggregated API traffic for the retention window: call counts for today and the trailing week, today's error count, distinct caller IPs, AI build counts, a per-route breakdown and a per-IP breakdown with geo. Served from small day-granular aggregate tables, so it is cheap to poll. A signed-in non-admin gets 404, not 403 \u2014 same rule as /v1/admin/users, so the endpoint does not confirm it exists to anyone who may not use it.",
+        "description": "Admin-only. Aggregated API traffic for the retention window: call counts for today and the trailing week, today's error count, distinct caller IPs, AI build counts, a per-route breakdown and a per-IP breakdown with geo. Served from small day-granular aggregate tables, so it is cheap to poll. Geo (`where`, `org`) is resolved on the server from a local copy of DB-IP Lite \u2014 no caller IP is sent to a geolocation service \u2014 and is blank when that database is not installed. \"IP Geolocation by DB-IP\" (https://db-ip.com), CC BY 4.0. A signed-in non-admin gets 404, not 403 \u2014 same rule as /v1/admin/users, so the endpoint does not confirm it exists to anyone who may not use it.",
         "tags": [
           "Admin"
         ],

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -149,6 +150,14 @@ type Config struct {
 	// Set ANALYTICS_LOG=/var/log/simple-host/analytics.log in production.
 	AnalyticsLog string
 
+	// GeoIPDir holds the DB-IP Lite databases (dbip-city-lite.mmdb,
+	// dbip-asn-lite.mmdb) used to show where API callers are, resolved on this
+	// box. GEOIP_DIR overrides; the default is a "geoip" directory beside
+	// DATA_DIR (so /srv/simple-host/geoip when DATA_DIR=/srv/simple-host/sites),
+	// deliberately NOT inside it, where it would sit among the served sites.
+	// Missing files mean blank locations, never a network lookup.
+	GeoIPDir string
+
 	SiteDomainSet  bool
 	SetupPublicAPI string
 	SetupPassword  string
@@ -216,6 +225,7 @@ func Load() (Config, error) {
 	cfg.CNAMETarget = getEnvOrDefault("CNAME_TARGET", "cname."+cfg.SiteDomain)
 	cfg.CustomDomainIP = os.Getenv("CUSTOM_DOMAIN_IP")
 	cfg.AnalyticsLog = os.Getenv("ANALYTICS_LOG")
+	cfg.GeoIPDir = getEnvOrDefault("GEOIP_DIR", filepath.Join(filepath.Dir(filepath.Clean(cfg.DataDir)), "geoip"))
 
 	// Event hostnames: handed to a hackathon organiser under a domain we own,
 	// pointing at their server. Unset means the feature is off and organisers
