@@ -702,7 +702,7 @@
       "post": {
         "operationId": "postMeApiKeyRotate",
         "summary": "Rotate your API key",
-        "description": "Replaces the authenticated owner's API key and returns the new key. The old key stops working immediately.",
+        "description": "Replaces the authenticated owner's API key and returns the new key. The old key stops working immediately, and every connected app (see /v1/me/connections) is disconnected.",
         "tags": [
           "Auth"
         ],
@@ -736,6 +736,106 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/me/connections": {
+      "get": {
+        "operationId": "getMeConnections",
+        "summary": "List connected apps",
+        "description": "The AI apps (ChatGPT, Claude, Grok, a GPT Action) this account has connected through the Simple Host connector (OAuth at /oauth/authorize, MCP at /mcp). Each is listed once, however many times it was connected.",
+        "tags": [
+          "Auth"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Connected apps, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "connections"
+                  ],
+                  "properties": {
+                    "connections": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "client_id",
+                          "name",
+                          "connected_at",
+                          "last_used_at"
+                        ],
+                        "properties": {
+                          "client_id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "The name the app registered with"
+                          },
+                          "connected_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "last_used_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/me/connections/{client_id}": {
+      "delete": {
+        "operationId": "deleteMeConnection",
+        "summary": "Disconnect an app",
+        "description": "Revokes every token this account granted to the app. It has to be connected again, with a fresh sign-in, to be used.",
+        "tags": [
+          "Auth"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Disconnected"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No connected app with that id"
           }
         }
       }
@@ -5613,6 +5713,20 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key"
+      },
+      "connector": {
+        "type": "oauth2",
+        "description": "Per-person OAuth 2.1 (authorization code; PKCE S256 required for every self-registered client). An access token sent as `Authorization: Bearer` acts exactly as that person's X-API-Key on every route here. Discovery at /.well-known/oauth-authorization-server.",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://simple-host.app/oauth/authorize",
+            "tokenUrl": "https://simple-host.app/oauth/token",
+            "refreshUrl": "https://simple-host.app/oauth/token",
+            "scopes": {
+              "sites": "Publish and manage your sites and their data"
+            }
+          }
+        }
       }
     },
     "parameters": {
