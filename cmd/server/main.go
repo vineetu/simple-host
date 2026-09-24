@@ -25,6 +25,12 @@ import (
 )
 
 func main() {
+	// `simple-host oauth-client ...` manages hand-registered connector clients
+	// (a ChatGPT GPT Action) and exits; it needs only DB_DSN.
+	if len(os.Args) > 1 && os.Args[1] == "oauth-client" {
+		os.Exit(runOAuthClientCommand(os.Args[2:]))
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("load config: %v", err)
@@ -145,6 +151,12 @@ func main() {
 	siteHandler := handler.NewSiteHandler(db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID, mailer, userHandler.EmailLimiter())
 	siteHandler.Register(mux, authMW, noticeMW)
 	handler.NewOAuthHandler(db, cfg).Register(mux)
+	// The connector: OAuth 2.1 authorization server + remote MCP endpoint.
+	// Tool calls are served into the bare mux, as the person, so they meet the
+	// same checks as the REST call they stand for.
+	connector := handler.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, mux)
+	connector.Register(mux, authMW)
+	connector.StartSweep(time.Hour)
 	handler.RegisterUIRoutes(mux, cfg.PublicBaseURL, siteHandler)
 	handler.RegisterSkillsHub(mux, cfg.PublicBaseURL)
 
@@ -193,7 +205,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           handler.LegacyHostRedirect(cfg.SiteDomain, cfg.ContentHost, db, handler.SecurityHeaders(handler.CORS(apiMetrics.Wrap(mux)))),
+		Handler:           handler.LegacyHostRedirect(cfg.SiteDomain, cfg.ContentHost, db, handler.SecurityHeaders(handler.CORS(apiMetrics.Wrap(connector.BearerAuth(mux))))),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
