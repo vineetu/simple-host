@@ -14,7 +14,7 @@ Look at the websites real people actually build: a portfolio, a wedding RSVP, a 
 
 Today that one sliver is absurdly expensive. To store a single list of RSVPs you're told to stand up a separate backend service, run a database, register a domain, and thread environment variables through a build pipeline. The backend ends up heavier than the website it serves.
 
-**Simple Host folds both halves into one tiny binary.** Static hosting *and* a lightweight per-site datastore — lighter than Supabase, no schema, no separate service — in the same upload. Your agent ships the HTML and the data layer together, the site goes live at `https://yourname.simple-host.app`, and it just works.
+**Simple Host folds both halves into one tiny binary.** Static hosting *and* a lightweight per-site datastore — lighter than Supabase, no schema, no separate service — in the same upload. Your agent ships the HTML and the data layer together, the site goes live at `https://sites.simple-host.app/<handle>/<site>/` (or on your own domain), and it just works.
 
 And because it stays small, it runs small. Simple Host serves all of its sites from a box with **1 CPU and 1 GB of RAM** — no CDN, no object store, no orchestration. One binary, one Postgres, one folder on disk. Most of the websites everyday people need, hosted on hardware you could forget under your desk.
 
@@ -49,7 +49,7 @@ It signs you up (emailed code → API key), builds the site, wires in state if t
 
 ## What you get
 
-- **One-call deploy** — upload a folder, get a live `https://{name}.simple-host.app`. Every deploy is a new immutable version; roll back instantly.
+- **One-call deploy** — upload a folder, get a live `https://sites.simple-host.app/{handle}/{site}/`. Every deploy is a new immutable version; roll back instantly.
 - **A little backend, free** — per-site JSON state with atomic ops (set / inc / append), plus append-only collections for guestbooks, signups, and submissions. No schema, no database to run yourself.
 - **See what your site collected** — read and download whatever visitors saved to it.
 - **Connect your own domain** — subdomain or apex. A site on its own domain also gets visitor sign-in, so saves from a page belong to a signed-in person.
@@ -67,7 +67,7 @@ Three moving parts, and you can hold all of them in your head at once:
 2. A **Postgres** tracks users, sites, and versions.
 3. A **folder on disk** holds the versioned site files.
 
-A wildcard DNS record points `*.simple-host.app` at the binary, which maps each subdomain to its folder. That's the whole system — no object store, no CDN, no build farm, which is exactly why it fits on a 1 GB box. The per-site datastore lives next to the files: reads are public; on the shared host writes are open too (anyone can change that data); on a site with its own custom domain a page writes after the visitor signs in (Google or an emailed code); agents write with an account's `X-API-Key` anywhere.
+Every site is served from one content host, `sites.simple-host.app/{handle}/{site}/`, which maps each path to its folder on disk; a connected custom domain serves the same folder. That's the whole system — no object store, no CDN, no build farm, which is exactly why it fits on a 1 GB box. The per-site datastore lives next to the files: reads are public; on the shared host writes are open too (anyone can change that data); on a site with its own custom domain a page writes after the visitor signs in (Google or an emailed code); agents write with an account's `X-API-Key` anywhere.
 
 ## Run your own
 
