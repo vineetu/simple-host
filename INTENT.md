@@ -138,3 +138,16 @@ What follows from that, and is not negotiable without changing the line above:
   to a sentence rather than a decision about whether the sentence belonged. A capacity
   calculator, an account ceiling and a paragraph of file-size statistics all reached the live
   site that way. See "The hackathon product, and the page that sells it" above.
+- **2026-09-24. The paste-back flow is removed.** Asking ChatGPT, Claude or Gemini in a browser
+  to return a JSON blob and pasting it back into the page is no longer a way to build a site.
+  The primary way to build is the person's own AI app — ChatGPT, Claude, Grok, Claude Code,
+  Codex — with the Simple Host skill installed; the in-app AI is secondary. Reason: a newcomer was being asked to choose between three routes before they knew
+  what any of them meant, and the third one asked non-technical people to handle JSON. The
+  pages, the in-app AI's instructions (`generate.go`) and the run-hackathon skill all point at
+  it today and change with the rebuild.
+- **2026-09-24. The main way anyone uses Simple Host is a skill in their own AI app** (ChatGPT,
+  Claude, Grok, Claude Code, Codex, and the like). Pages, onboarding and support are designed
+  around getting the skill into that app, not around the in-app builder. Open problem, to fix:
+  in chat apps the skill has no lasting sign-in, so every new chat asks for an email and a code.
+  A sign-in that persists (the plugin/connector route) is required for this path to feel
+  seamless.
