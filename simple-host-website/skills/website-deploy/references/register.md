@@ -1,5 +1,7 @@
 # Register a user and get an API key
 
+Skip this if the Simple Host tools are available in the session.
+
 Registration is a **two-step email verification** flow. The user proves they own
 the address before the server hands out an API key. You cannot skip the round
 trip through their inbox.

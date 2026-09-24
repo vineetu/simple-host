@@ -1,9 +1,21 @@
 ---
 name: website-deploy
-description: Deploy static websites to simple-host.app. Use when an agent needs to guide a user through registration, build/validate a static site, deploy it (inline JSON files OR a tar.gz/zip archive), or wire up the per-site backend — shared JSON state with atomic ops and append-only collections. Reads are public everywhere; on the shared host pages write freely too; on a site with its own custom domain visitors sign in with Google or an emailed code via the hosted auth.js before saving; agents write with an API key anywhere.
+description: Deploy static websites to simple-host.app. Use when an agent needs to build/validate a static site, deploy it (inline JSON files OR a tar.gz/zip archive), or wire up the per-site backend — shared JSON state with atomic ops and append-only collections. Reads are public everywhere; on the shared host pages write freely too; on a site with its own custom domain visitors sign in with Google or an emailed code via the hosted auth.js before saving; agents write with the Simple Host connector or, without it, an API key from email-code registration.
 ---
 
 # Website Deploy
+
+**First rule: use the Simple Host tools when you have them.** If the Simple Host
+connector's tools are available in this session (`who_am_i`, `list_sites`,
+`create_site` / `update_site` (`deploy_site` on older connections), `get_state`,
+`connect_domain`, …), use them for everything and never ask the person for an
+email, a code or an API key — the connector is already signed in as them. Sign-in
+itself is unchanged: when the person connects Simple Host in their AI app, a
+Simple Host sign-in window opens, they sign in with Google or the emailed code,
+then choose Allow, and every chat after that is signed in. If a tool reports the
+connection is not signed in, ask them to reconnect Simple Host in their app's
+settings. Only when those tools are not available (e.g. a coding agent without
+the connector) use the email-code and API-key flow below.
 
 Website Deploy hosts static websites on simple-host.app. There is no server-side
 execution, but every site gets a small server-backed backend (shared JSON state,
@@ -13,7 +25,7 @@ append-only collections) that its own page JavaScript can call.
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.16.0`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.16.1`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -43,11 +55,11 @@ some install methods fetch only `SKILL.md` — fetch the URL instead.
 
 | Operation | Reference |
 |---|---|
-| Register a user / get an API key | `references/register.md` · https://simple-host.app/v1/skills/website-deploy/references/register.md |
+| Register a user / get an API key (skip with the connector) | `references/register.md` · https://simple-host.app/v1/skills/website-deploy/references/register.md |
 | Detect a framework and build it for path hosting | `references/frameworks.md` · https://simple-host.app/v1/skills/website-deploy/references/frameworks.md |
 | Validate, package, upload, verify | `references/packaging-and-validation.md` · https://simple-host.app/v1/skills/website-deploy/references/packaging-and-validation.md |
-| Shared state, collections, saving from a page or an agent | `references/backend.md` · https://simple-host.app/v1/skills/website-deploy/references/backend.md |
-| Versions, rollback, delete, analytics | `references/operations.md` · https://simple-host.app/v1/skills/website-deploy/references/operations.md |
+| Shared state, collections, saving from a page or an agent (connector: `get_state`, `update_state`, `read_collection`, `add_to_collection`) | `references/backend.md` · https://simple-host.app/v1/skills/website-deploy/references/backend.md |
+| Versions, rollback, delete, analytics (connector: `list_versions`, `rollback_site`, `delete_site`, `site_analytics`) | `references/operations.md` · https://simple-host.app/v1/skills/website-deploy/references/operations.md |
 | A custom domain | the `connect-domain` skill · https://simple-host.app/v1/skills/connect-domain |
 
 Typical combinations:
@@ -60,6 +72,9 @@ Typical combinations:
   you write the page.
 
 ## Two ways to deploy
+
+With the connector: `create_site` for a new site, `update_site` for an existing one
+(`deploy_site` on older connections). Without it:
 
 **A. Inline JSON — use this when you built the site yourself.** No archiving.
 
@@ -102,7 +117,8 @@ plan for the `connect-domain` skill from the start; otherwise the shared host
 is fine.
 
 Agents write with an API key (`X-API-Key`) on any site, shared host included.
-An agent acting for a person gets that person's key by email code. Both flows,
+An agent acting for a person uses the connector if it has one; otherwise it gets
+that person's key by email code. Both flows,
 the `SH` API and the error bodies: `references/backend.md`.
 
 Sign-in identifies the visitor; it does not make the page private. There is no
