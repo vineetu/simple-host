@@ -62,6 +62,11 @@ func (h *SiteHandler) checkBoundDomains() {
 
 	ours := h.serverAddrs(ctx)
 	for _, d := range due {
+		// A claimed <name>.<SITE_DOMAIN> is ours by construction (wildcard DNS
+		// and certificate); there is nothing outside to re-prove.
+		if h.isPlatformSubdomainHost(d.Domain) {
+			continue
+		}
 		status, reason := h.verifyDomain(ctx, d.Domain, ours)
 		if err := db.SetDomainStatus(ctx, h.database, d.SiteID, status, reason); err != nil {
 			log.Printf("domain check %s: %v", d.Domain, err)

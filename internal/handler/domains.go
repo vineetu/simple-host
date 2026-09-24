@@ -83,6 +83,22 @@ func (h *SiteHandler) normalizeDomain(raw string) (string, error) {
 	return s, nil
 }
 
+// domainCandidate lowercases raw and strips a scheme, path, port and trailing
+// dot — the same clean-up normalizeDomain starts with — without validating.
+func domainCandidate(raw string) string {
+	s := strings.TrimSpace(raw)
+	if i := strings.Index(s, "://"); i >= 0 {
+		s = s[i+3:]
+	}
+	if i := strings.IndexByte(s, '/'); i >= 0 {
+		s = s[:i]
+	}
+	if i := strings.IndexByte(s, ':'); i >= 0 {
+		s = s[:i]
+	}
+	return strings.ToLower(strings.TrimSuffix(strings.TrimSpace(s), "."))
+}
+
 // isApexDomain reports whether domain is its own registrable apex (eTLD+1),
 // i.e. it has no subdomain label (agent-deploy.dev -> true, x.agent-deploy.dev -> false).
 func isApexDomain(domain string) bool {
@@ -169,6 +185,12 @@ func (h *SiteHandler) bindDomain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A free <name>.<SITE_DOMAIN> address: claimed, not proven (we own the zone).
+	if cand := domainCandidate(req.Domain); isOwnHost(cand, h.siteDomain) && !strings.EqualFold(cand, h.siteDomain) {
+		h.bindPlatformSubdomain(w, r, site, cand)
+		return
+	}
+
 	domain, err := h.normalizeDomain(req.Domain)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
@@ -243,12 +265,14 @@ func (h *SiteHandler) getDomain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rec := h.dnsRecordFor(info.Domain)
 	resp := domainResponse{
 		Domain:    info.Domain,
 		Status:    info.Status,
 		LastError: info.LastError,
-		DNS:       &rec,
+	}
+	if !h.isPlatformSubdomainHost(info.Domain) {
+		rec := h.dnsRecordFor(info.Domain)
+		resp.DNS = &rec
 	}
 	setDomainTimes(&resp, info)
 	writeJSON(w, http.StatusOK, resp)

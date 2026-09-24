@@ -55,6 +55,7 @@ run "sites + versions"      "SELECT id, name, active_version, visibility FROM si
 run "per-site state"        "SELECT COALESCE(state,'null'::jsonb), state_version FROM sites WHERE name='x'"
 run "private pages"         "SELECT view_password_hash FROM sites WHERE name='x'"
 run "collections"           "SELECT id, data FROM collection_items WHERE site_id='$NIL' AND collection='c' ORDER BY id DESC"
+run "private collections"   "SELECT s.private, i.submitted_by FROM collection_settings s LEFT JOIN collection_items i ON i.site_id = s.site_id AND i.collection = s.collection WHERE s.site_id='$NIL'"
 run "custom domains"        "SELECT custom_domain, domain_status FROM sites WHERE custom_domain='x'"
 run "auth tokens"           "SELECT id, email, code, link_token, nonce_hash FROM auth_tokens WHERE link_token='x'"
 run "visitor sessions"      "SELECT id, user_id, site_id, host FROM visitor_sessions WHERE id='x'"

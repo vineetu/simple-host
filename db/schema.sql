@@ -60,11 +60,24 @@ CREATE TABLE IF NOT EXISTS collection_items (
   site_id    UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
   collection TEXT NOT NULL,
   data       JSONB NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now()
+  created_at TIMESTAMPTZ DEFAULT now(),
+  -- Who submitted an item to a PRIVATE collection (server-set; NULL otherwise).
+  submitted_by UUID REFERENCES users(id) ON DELETE SET NULL
 );
 -- id DESC: reads are newest-first within one site's collection.
 CREATE INDEX IF NOT EXISTS idx_collection_items
   ON collection_items (site_id, collection, id DESC);
+
+-- Private collections (2026-09-24; mirrors db/migrations/private-collections.sql).
+-- No row = public, the default. submitted_by is set by the server from the
+-- visitor session on a private collection, never from the request body.
+CREATE TABLE IF NOT EXISTS collection_settings (
+  site_id    UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  collection TEXT NOT NULL,
+  private    BOOLEAN NOT NULL DEFAULT false,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (site_id, collection)
+);
 
 -- Frozen legacy per-site hostnames (e.g. mysite.simple-host.app) bound to a
 -- site_id. Populated by a later backfill; not wired into request paths yet.

@@ -50,6 +50,17 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	// A private list has its own, stricter write rule (privatecollections.go);
+	// it never falls back to the public-write gate below.
+	private, err := db.IsCollectionPrivate(r.Context(), h.database, siteID, coll)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	if private {
+		h.appendPrivate(w, r, siteID, siteName, coll)
+		return
+	}
 	if !h.visitorWriteOK(w, r, siteID, siteName, writeRouteCollectionPost, coll) {
 		return
 	}
@@ -99,8 +110,9 @@ func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
 	// site by owner (not the legacy oldest-name lookup) so two same-named
 	// sites cannot leak each other's rows.
 	var siteID string
+	ownerKey := false
 	if id, ok := h.ownerSiteIDFromKey(r, siteName); ok {
-		siteID = id
+		siteID, ownerKey = id, true
 	} else if !h.collectionGate(w, r, siteName, coll) {
 		return
 	} else {
@@ -112,6 +124,26 @@ func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return
+		}
+	}
+
+	// Private list: the owner's key reads everything (except through the
+	// shared host, where private lists do not exist); a browser needs the
+	// owner's or a submitter's visitor session on the site's own domain.
+	private, err := db.IsCollectionPrivate(r.Context(), h.database, siteID, coll)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	if private {
+		w.Header().Set("Cache-Control", "private, no-store")
+		if ownerKey {
+			if strings.EqualFold(requestHostName(r), h.contentHost) {
+				writePrivateNotFound(w)
+				return
+			}
+		} else if !h.ownerBrowserRead(w, r, siteID) {
 			return
 		}
 	}
@@ -139,7 +171,11 @@ func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
 		n := items[len(items)-1].ID
 		next = &n
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": items, "next": next})
+	resp := map[string]any{"items": items, "next": next}
+	if private {
+		resp["private"] = true
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (h *SiteHandler) optionsCollection(w http.ResponseWriter, r *http.Request) {
@@ -281,6 +317,12 @@ func (h *SiteHandler) exportCollectionCSV(w http.ResponseWriter, r *http.Request
 		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
+	}
+	if strings.EqualFold(requestHostName(r), h.contentHost) {
+		if private, err := db.IsCollectionPrivate(r.Context(), h.database, siteID, coll); err != nil || private {
+			writePrivateNotFound(w)
+			return
+		}
 	}
 	exists, err := db.CollectionExistsByID(r.Context(), h.database, siteID, coll)
 	if err != nil {

@@ -413,6 +413,9 @@ func domainSummary(site string, body []byte) map[string]any {
 	if d.LastError != "" {
 		out["last_check"] = d.LastError
 	}
+	if d.Status != nil && *d.Status == "active" {
+		out["url"] = "https://" + *d.Domain + "/"
+	}
 	if d.Status != nil && *d.Status == "pending" {
 		out["note"] = "Add the DNS record at the domain's registrar within 24 hours; until DNS proves it, the binding is provisional."
 	}
@@ -863,7 +866,7 @@ func Tools() []Tool {
 		{
 			Name:        "list_collections",
 			Title:       "List a site's collections",
-			Description: "List the append-only collections a site has saved into (sign-ups, RSVPs, messages…) with how many items each holds.",
+			Description: "List the append-only collections a site has saved into (sign-ups, RSVPs, messages…) with how many items each holds and whether each is private (only the owner can read it).",
 			InputSchema: object(map[string]any{"site": str(siteDesc)}, "site"),
 			Annotations: readOnly(),
 			run: func(c *call, args map[string]any) (output, error) {
@@ -877,14 +880,15 @@ func Tools() []Tool {
 				}
 				var parsed struct {
 					Collections []struct {
-						Name  string `json:"name"`
-						Count int64  `json:"count"`
+						Name    string `json:"name"`
+						Count   int64  `json:"count"`
+						Private bool   `json:"private"`
 					} `json:"collections"`
 				}
 				_ = json.Unmarshal(res.body, &parsed)
 				colls := make([]any, 0, len(parsed.Collections))
 				for _, col := range parsed.Collections {
-					colls = append(colls, map[string]any{"name": col.Name, "items": col.Count})
+					colls = append(colls, map[string]any{"name": col.Name, "items": col.Count, "private": col.Private})
 				}
 				out := map[string]any{"site": name, "collections": colls}
 				return output{Text: jsonText(out), Structured: out}, nil
@@ -893,7 +897,7 @@ func Tools() []Tool {
 		{
 			Name:        "read_collection",
 			Title:       "Read a site's collection",
-			Description: "Read items a site's pages have saved into a collection, newest first. Pass `before` with the returned `next` to page back. This data is public.",
+			Description: "Read items a site's pages have saved into a collection, newest first. Pass `before` with the returned `next` to page back. A public collection can be read by anyone; a private one (`private: true`) only by the owner — you, here — and its items carry `_submitted_by` (the visitor's verified email) and `_submitted_at`, stamped by the server.",
 			InputSchema: object(map[string]any{
 				"site":       str(siteDesc),
 				"collection": str("Collection name, e.g. `rsvps`."),
@@ -937,7 +941,8 @@ func Tools() []Tool {
 						Data      json.RawMessage `json:"data"`
 						CreatedAt string          `json:"created_at"`
 					} `json:"items"`
-					Next *int64 `json:"next"`
+					Next    *int64 `json:"next"`
+					Private bool   `json:"private"`
 				}
 				_ = json.Unmarshal(res.body, &page)
 				// Each item is what the page saved plus when it was saved (an
@@ -949,7 +954,7 @@ func Tools() []Tool {
 					_ = json.Unmarshal(it.Data, &data)
 					items = append(items, map[string]any{"data": data, "saved_at": it.CreatedAt})
 				}
-				out := map[string]any{"site": name, "collection": coll, "items": items}
+				out := map[string]any{"site": name, "collection": coll, "private": page.Private, "items": items}
 				if page.Next != nil {
 					out["next"] = strconv.FormatInt(*page.Next, 10)
 				}
@@ -959,7 +964,7 @@ func Tools() []Tool {
 		{
 			Name:        "add_to_collection",
 			Title:       "Add an item to a collection",
-			Description: "Append one JSON object to a site's collection (at most 64 KB), exactly as a page would. Appends are never undone, so do not retry one that may have succeeded.",
+			Description: "Append one JSON object to a site's public collection (at most 64 KB), exactly as a page would. Appends are never undone, so do not retry one that may have succeeded. A private collection takes items only from visitors signed in on the site's own domain; this tool cannot add to one.",
 			InputSchema: object(map[string]any{
 				"site":       str(siteDesc),
 				"collection": str("Collection name, e.g. `rsvps`."),
@@ -995,13 +1000,60 @@ func Tools() []Tool {
 			},
 		},
 		{
+			Name:  "set_collection_privacy",
+			Title: "Make a collection private or public",
+			Description: "Make one of a site's collections private (only the owner can read it) or public again. Use private for anything with personal details: orders, RSVPs, survey answers, sign-ups. " +
+				"A private collection takes submissions only from visitors signed in on the site's own domain (every item is stamped with their verified email as `_submitted_by`), and only the owner reads it: here with read_collection, in the dashboard, or on an admin page of the site while signed in on its domain. " +
+				"Needs the site on its own domain first: connect_domain with a free `<name>.simple-host.app` address (active at once) or the person's own domain. It can be set before anything is saved. " +
+				"Setting private=false makes everything already in the list readable by anyone; confirm with the person before doing that.",
+			InputSchema: object(map[string]any{
+				"site":       str(siteDesc),
+				"collection": str("Collection name, e.g. `orders`."),
+				"private":    map[string]any{"type": "boolean", "description": "true = only the owner can read it; false = public (anyone can read it)."},
+			}, "site", "collection", "private"),
+			// Changes a setting and deletes nothing. Making a list public puts
+			// its contents in front of the public internet, so open world.
+			Annotations: writes(false, true, true),
+			run: func(c *call, args map[string]any) (output, error) {
+				name, err := siteArg(args)
+				if err != nil {
+					return output{}, err
+				}
+				coll, err := stringArg(args, "collection")
+				if err != nil {
+					return output{}, err
+				}
+				private, ok := args["private"].(bool)
+				if !ok {
+					return output{}, errors.New("private must be true or false")
+				}
+				body, _ := json.Marshal(map[string]bool{"private": private})
+				res := c.do(http.MethodPut, "/v1/sites/"+url.PathEscape(name)+"/collections/"+url.PathEscape(coll)+"/privacy", body, nil)
+				if !res.ok() {
+					return output{}, restError("set_collection_privacy", res)
+				}
+				var parsed map[string]any
+				_ = json.Unmarshal(res.body, &parsed)
+				out := map[string]any{"site": name, "collection": coll, "private": private}
+				if d, ok := parsed["domain"].(string); ok && d != "" {
+					out["domain"] = d
+				}
+				text, _ := parsed["message"].(string)
+				if text == "" {
+					text = jsonText(out)
+				}
+				return output{Text: text, Structured: out}, nil
+			},
+		},
+		{
 			Name:  "connect_domain",
 			Title: "Connect a custom domain",
-			Description: "Start connecting the person's own domain (e.g. `rsvp.example.com` or `example.com`) to a site. Returns the one DNS record they must add at their domain registrar; relay it exactly. " +
-				"Then check with domain_status until it is active. A domain also turns on visitor sign-in for saves on that site. Once active the site lives only at the domain.",
+			Description: "Give a site its own address. Either a free `<name>.simple-host.app` address (e.g. `clay-studio.simple-host.app`): active at once, no DNS step, first come first served. " +
+				"Or the person's own domain (e.g. `rsvp.example.com` or `example.com`): returns the one DNS record they must add at their domain registrar; relay it exactly, then check with domain_status until it is active. " +
+				"Either one turns on visitor sign-in on that site and allows private collections (set_collection_privacy). Once active the site lives only at that address.",
 			InputSchema: object(map[string]any{
 				"site":   str(siteDesc),
-				"domain": str("The domain or subdomain, without https://, e.g. `rsvp.example.com`."),
+				"domain": str("The address without https://: a free `<name>.simple-host.app`, or the person's own domain or subdomain, e.g. `rsvp.example.com`."),
 			}, "site", "domain"),
 			// Reaches an arbitrary outside domain and, once DNS proves it,
 			// serves the site there. Nothing is deleted.

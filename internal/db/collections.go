@@ -117,22 +117,31 @@ func ListCollectionItemsByID(ctx context.Context, db *sql.DB, siteID, collection
 }
 
 // CollectionSummary is one named collection on a site: how many rows it
-// holds and when the most recent write landed.
+// holds, when the most recent write landed (null for a private collection that
+// has nothing in it yet) and whether it is private.
 type CollectionSummary struct {
-	Name   string    `json:"name"`
-	Count  int64     `json:"count"`
-	LastAt time.Time `json:"last_at"`
+	Name    string     `json:"name"`
+	Count   int64      `json:"count"`
+	LastAt  *time.Time `json:"last_at"`
+	Private bool       `json:"private"`
 }
 
-// ListCollectionSummariesByID returns every collection that has at least
-// one item for siteID, busiest first. Empty site → empty slice (not nil).
+// ListCollectionSummariesByID returns every collection that has at least one
+// item for siteID, plus every collection marked private (even while empty, so
+// the owner sees the setting took), busiest first. Empty site → empty slice.
 func ListCollectionSummariesByID(ctx context.Context, db *sql.DB, siteID string) ([]CollectionSummary, error) {
 	const q = `
-		SELECT collection, count(*), max(created_at)
-		FROM collection_items
-		WHERE site_id = $1
-		GROUP BY collection
-		ORDER BY 2 DESC`
+		WITH counts AS (
+			SELECT collection, count(*) AS n, max(created_at) AS last_at
+			FROM collection_items
+			WHERE site_id = $1
+			GROUP BY collection
+		), private AS (
+			SELECT collection FROM collection_settings WHERE site_id = $1 AND private
+		)
+		SELECT COALESCE(c.collection, p.collection), COALESCE(c.n, 0), c.last_at, p.collection IS NOT NULL
+		FROM counts c FULL OUTER JOIN private p ON p.collection = c.collection
+		ORDER BY 2 DESC, 1`
 	rows, err := db.QueryContext(ctx, q, siteID)
 	if err != nil {
 		return nil, err
@@ -141,12 +150,57 @@ func ListCollectionSummariesByID(ctx context.Context, db *sql.DB, siteID string)
 	out := make([]CollectionSummary, 0)
 	for rows.Next() {
 		var s CollectionSummary
-		if err := rows.Scan(&s.Name, &s.Count, &s.LastAt); err != nil {
+		var last sql.NullTime
+		if err := rows.Scan(&s.Name, &s.Count, &last, &s.Private); err != nil {
 			return nil, err
+		}
+		if last.Valid {
+			t := last.Time
+			s.LastAt = &t
 		}
 		out = append(out, s)
 	}
 	return out, rows.Err()
+}
+
+// IsCollectionPrivate reports whether the owner marked this collection
+// private. No settings row means public (the default).
+func IsCollectionPrivate(ctx context.Context, db *sql.DB, siteID, collection string) (bool, error) {
+	var private bool
+	err := db.QueryRowContext(ctx,
+		`SELECT private FROM collection_settings WHERE site_id = $1 AND collection = $2`,
+		siteID, collection).Scan(&private)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return private, err
+}
+
+// SetCollectionPrivate records the owner's privacy choice for one collection.
+// The collection need not have any items yet (set it before the form goes live).
+func SetCollectionPrivate(ctx context.Context, db *sql.DB, siteID, collection string, private bool) error {
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO collection_settings (site_id, collection, private, updated_at)
+		VALUES ($1, $2, $3, now())
+		ON CONFLICT (site_id, collection) DO UPDATE SET private = EXCLUDED.private, updated_at = now()`,
+		siteID, collection, private)
+	return err
+}
+
+// AppendSubmittedItemByID appends to a private collection, recording which
+// account submitted it. submitterID comes from the visitor session, never the
+// request body.
+func AppendSubmittedItemByID(ctx context.Context, db *sql.DB, siteID, collection string, data json.RawMessage, submitterID string) (CollectionItem, error) {
+	const q = `
+		INSERT INTO collection_items (site_id, collection, data, submitted_by)
+		SELECT id, $2, $3::jsonb, $4 FROM sites WHERE id = $1
+		RETURNING id, data, created_at`
+	var it CollectionItem
+	err := db.QueryRowContext(ctx, q, siteID, collection, string(data), submitterID).Scan(&it.ID, &it.Data, &it.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return it, sql.ErrNoRows
+	}
+	return it, err
 }
 
 // CollectionExistsByID reports whether siteID has any rows in collection.

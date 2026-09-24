@@ -310,6 +310,8 @@ func TestAnnotationsMatchBehaviour(t *testing.T) {
 		"update_state":      {false, true, true},
 		"add_to_collection": {false, true, true},
 		"connect_domain":    {false, false, true},
+
+		"set_collection_privacy": {false, false, true},
 	}
 	tools := Tools()
 	if len(tools) != len(want) {

@@ -289,6 +289,9 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// them so a site owner can see (and download) what the site saved.
 	mux.Handle("GET /v1/sites/{sitename}/collections", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listSiteCollections))))
 	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}/export.csv", authMiddleware(http.HandlerFunc(h.exportCollectionCSV)))
+	// Owner-only: make one list private (owner-only reads, signed-in
+	// submissions on the site's own domain) or public again.
+	mux.Handle("PUT /v1/sites/{sitename}/collections/{coll}/privacy", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setCollectionPrivacy))))
 	mux.HandleFunc("GET /v1/sites/{sitename}/collections/{coll}", h.listCollection)
 	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection)))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/collections/{coll}", h.optionsCollection)
@@ -501,6 +504,15 @@ func (h *SiteHandler) resolveSiteID(r *http.Request, siteName string) (string, e
 		}
 		return s.ID, nil
 	}
+	// On a site's own domain (custom or a claimed <name>.<SITE_DOMAIN>) the
+	// host names the site: /v1/sites/<its name> there is that site, even when
+	// an older site elsewhere has the same name (the legacy lookup below would
+	// pick the oldest). Any other name falls through unchanged.
+	if host := requestHostName(r); host != "" && !strings.EqualFold(host, h.contentHost) && !h.isVisitorApexHost(host) {
+		if info, err := db.GetSiteByCustomDomain(r.Context(), h.database, host); err == nil && info.Name == siteName {
+			return info.SiteID, nil
+		}
+	}
 	return db.GetSiteIDByName(r.Context(), h.database, siteName)
 }
 
@@ -529,6 +541,14 @@ func (h *SiteHandler) originIsBoundDomainID(ctx context.Context, siteID, host st
 		return false
 	}
 	return strings.EqualFold(info.Domain, host)
+}
+
+// hostIsClaimed reports whether some site has bound host as its own domain.
+// A claimed <name>.<SITE_DOMAIN> belongs to that site alone, so the retired
+// legacy rule (the oldest site named <name> trusts that origin) must not apply.
+func (h *SiteHandler) hostIsClaimed(ctx context.Context, host string) bool {
+	_, err := db.GetSiteByCustomDomain(ctx, h.database, host)
+	return err == nil
 }
 
 // isLegacyOwner reports whether siteID is the deterministic oldest owner of
@@ -580,7 +600,7 @@ func (h *SiteHandler) authorizeStateOrigin(w http.ResponseWriter, r *http.Reques
 	// origins, the co-tenant content host, and the bound domain.
 	want := h.originHostForSite(siteName)
 	if parsed.Host != h.contentHost &&
-		!(parsed.Host == want && h.isLegacyOwner(r.Context(), siteName, siteID)) &&
+		!(parsed.Host == want && h.isLegacyOwner(r.Context(), siteName, siteID) && !h.hostIsClaimed(r.Context(), want)) &&
 		!h.originIsBoundDomainID(r.Context(), siteID, parsed.Host) &&
 		!h.originAllowedForSiteID(r.Context(), siteID, origin) {
 		return false

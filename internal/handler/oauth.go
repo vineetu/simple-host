@@ -368,6 +368,17 @@ func (h *OAuthHandler) sanitizeReturnTo(ctx context.Context, raw string) (string
 		return parsed.String(), sql.NullString{}, "", "owner", nil
 	}
 
+	// A claimed <name>.<SITE_DOMAIN> address is a site's own domain: sign-in
+	// returns there like to a custom domain. The platform owns that zone, so
+	// the binding itself is the proof (no DNS lookup).
+	if h.isClaimedPlatformSubdomain(host) {
+		info, err := db.GetSiteByCustomDomain(ctx, h.database, host)
+		if err != nil || !info.VerifiedAt.Valid || !strings.EqualFold(info.Domain, host) {
+			return "", sql.NullString{}, "", "", errInvalidReturnTo
+		}
+		return parsed.String(), sql.NullString{String: info.SiteID, Valid: true}, host, "site", nil
+	}
+
 	if isRejectedPlatformHost(host, h.cfg.SiteDomain, h.cfg.ContentHost, publicBaseHost(h.cfg.PublicBaseURL)) {
 		return "", sql.NullString{}, "", "", errInvalidReturnTo
 	}
@@ -386,6 +397,20 @@ func (h *OAuthHandler) sanitizeReturnTo(ctx context.Context, raw string) (string
 }
 
 var errInvalidReturnTo = errors.New("invalid return_to")
+
+// isClaimedPlatformSubdomain: host is a single-label <name>.<SITE_DOMAIN> that
+// is not one of the platform's own hosts. Whether a site holds it is the
+// caller's lookup.
+func (h *OAuthHandler) isClaimedPlatformSubdomain(host string) bool {
+	label, ok := platformSubdomainLabel(host, h.cfg.SiteDomain)
+	if !ok || label == "www" || reservedSubdomainSet[label] {
+		return false
+	}
+	host = strings.ToLower(host)
+	return !strings.EqualFold(host, h.cfg.ContentHost) &&
+		!strings.EqualFold(host, strings.TrimSuffix(h.cfg.CNAMETarget, ".")) &&
+		!strings.EqualFold(host, publicBaseHost(h.cfg.PublicBaseURL))
+}
 
 func parseAbsoluteReturnTo(raw, publicBaseURL string) (*url.URL, error) {
 	raw = strings.TrimSpace(raw)

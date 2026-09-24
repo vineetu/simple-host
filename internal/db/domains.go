@@ -245,3 +245,37 @@ func ReleaseExpiredDomains(ctx context.Context, database *sql.DB) ([]SiteDomainI
 	}
 	return released, rows.Err()
 }
+
+// ClaimPlatformSubdomain binds a free <name>.<SITE_DOMAIN> address to siteID,
+// verified at once (the platform owns the zone, so there is nothing to prove).
+// First come, first served: any other site holding the name, proven or not,
+// makes this fail with ErrDomainTaken — a platform name is never taken over.
+func ClaimPlatformSubdomain(ctx context.Context, database *sql.DB, siteID, host string) error {
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, host); err != nil {
+		return err
+	}
+	var holder string
+	err = tx.QueryRowContext(ctx, `SELECT id FROM sites WHERE custom_domain = $1 FOR UPDATE`, host).Scan(&holder)
+	switch {
+	case err == nil && holder != siteID:
+		return ErrDomainTaken
+	case err != nil && !errors.Is(err, sql.ErrNoRows):
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE sites
+		SET custom_domain = $2,
+		    domain_status = 'active',
+		    domain_bound_at = now(),
+		    domain_verified_at = now(),
+		    domain_last_error = NULL
+		WHERE id = $1`, siteID, host); err != nil {
+		return err
+	}
+	return tx.Commit()
+}

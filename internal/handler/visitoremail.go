@@ -17,6 +17,13 @@ func (h *SiteHandler) visitorEmailSite(w http.ResponseWriter, r *http.Request) (
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "sign-in needs a custom domain", "code": "custom_domain_required"})
 		return "", false
 	}
+	// On a claimed <name>.<SITE_DOMAIN>, sign-in must come from a page on that
+	// very host: its siblings are "same-site" to the browser, so without this a
+	// page there could sign a visitor in as someone else (login CSRF).
+	if h.isPlatformSubdomainHost(requestHostName(r)) && !sameOriginRequest(r) {
+		writeJSON(w, http.StatusForbidden, errorResponse{Error: "forbidden"})
+		return "", false
+	}
 	name := strings.TrimSpace(r.PathValue("sitename"))
 	if !h.authorizeStateOrigin(w, r, name) {
 		writeJSON(w, http.StatusForbidden, errorResponse{Error: "forbidden"})

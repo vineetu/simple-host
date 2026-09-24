@@ -220,9 +220,13 @@ func main() {
 		log.Printf("analytics ingester enabled: %s", cfg.AnalyticsLog)
 	}
 
+	// A claimed <name>.<SITE_DOMAIN> is served like a custom domain (its files
+	// at the root, /v1 same-origin); every other single-label name keeps the
+	// legacy 301 to its path URL.
+	app := handler.SecurityHeaders(handler.CORS(apiMetrics.Wrap(connector.BearerAuth(mux))))
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           handler.LegacyHostRedirect(cfg.SiteDomain, cfg.ContentHost, db, handler.SecurityHeaders(handler.CORS(apiMetrics.Wrap(connector.BearerAuth(mux))))),
+		Handler:           siteHandler.BoundSubdomains(app, handler.LegacyHostRedirect(cfg.SiteDomain, cfg.ContentHost, db, app)),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

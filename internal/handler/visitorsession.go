@@ -89,6 +89,22 @@ func visitorCookieValue(r *http.Request) string {
 	return ""
 }
 
+// sessionCookieFor is the visitor cookie a state/collections/me request may
+// use. On a claimed <name>.<SITE_DOMAIN> host it is stricter: every such host
+// and the shared host are the same "site" to a browser, so SameSite=Lax would
+// let a page on any of them send this host's cookie along. There only the
+// __Host- cookie counts (a sibling can plant a plain one, never a __Host- one)
+// and only on a same-origin request.
+func (h *SiteHandler) sessionCookieFor(r *http.Request) string {
+	if h.isPlatformSubdomainHost(requestHostName(r)) {
+		if !sameOriginRequest(r) {
+			return ""
+		}
+		return strictVisitorCookie(r)
+	}
+	return visitorCookieValue(r)
+}
+
 func hasVisitorCSRF(r *http.Request) bool {
 	if r.Header.Get(visitorCSRFHeader) == visitorCSRFValue {
 		return true
@@ -243,7 +259,7 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 		return true
 	}
 
-	if raw := visitorCookieValue(r); raw != "" {
+	if raw := h.sessionCookieFor(r); raw != "" {
 		if id, decErr := hex.DecodeString(raw); decErr == nil && len(id) == 32 {
 			sess, sessErr := db.GetVisitorSession(r.Context(), h.database, id)
 			if sessErr == nil {
@@ -359,7 +375,7 @@ func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, resp)
 		return
 	}
-	if id, decErr := hex.DecodeString(visitorCookieValue(r)); decErr == nil && len(id) == 32 {
+	if id, decErr := hex.DecodeString(h.sessionCookieFor(r)); decErr == nil && len(id) == 32 {
 		sess, sessErr := db.GetVisitorSession(r.Context(), h.database, id)
 		if sessErr == nil {
 			now := time.Now()
