@@ -105,6 +105,10 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// Marketing pages, one per audience, shared as direct links.
 	mux.Handle("GET /enterprise", adminUICSP(serveStaticPage("enterprise.html")))
 	mux.Handle("GET /hackathons", adminUICSP(serveStaticPage("hackathons.html")))
+	// Terms of service and support, linked from plugin directory listings, so
+	// each needs a clean, stable URL.
+	mux.Handle("GET /terms", adminUICSP(serveStaticPage("terms.html")))
+	mux.Handle("GET /support", adminUICSP(serveStaticPage("support.html")))
 	// One site's analytics in full, linked from the dashboard card and from the
 	// showcase Analytics tab. Same public-shell reasoning as /admin: a browser
 	// navigation carries no API key, so the page reads it from localStorage and
