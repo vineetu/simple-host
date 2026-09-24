@@ -1,15 +1,11 @@
-# OpenAI plugin submission kit — Website Deploy 0.3.0 (Simple Host)
+# OpenAI plugin submission kit — Simple Host 0.3.0
 
 Everything to paste into the plugin portal (https://platform.openai.com/plugins), in portal
 order, plus the steps only the owner can do. Checked against the OpenAI docs as of 2026-09-24:
 build/plugins, deploy/submission, deploy/app-review, app-guidelines, build/mcp-server,
 build/auth, deploy/submission-errors, guides/submit-claude-plugin.
 
-This is an **update of the existing listing**, shown in ChatGPT as "Website Deploy" (package
-name `website-deploy-toolkit`, published 0.1.0 as Skills only), not a new plugin. It keeps the
-package name, the display name "Website Deploy" and the three skill names (`website-deploy`, `website-deploy-builder`,
-`connect-domain`), bumps the version to 0.3.0, fixes the publisher fields (the published
-manifest still says developer "Neon", author "Personal"), and adds the Simple Host MCP server.
+This is a **new plugin, created with "With MCP"**, named **Simple Host** (package name `simple-host`). It replaces the old Skills-only listing "Website Deploy" (`website-deploy-toolkit`), which cannot carry an MCP server: an uploaded zip is always skills only, and the MCP server is entered by URL in the MCP tab. Owner decision 2026-09-24: publish as Simple Host; once it is approved, publish a last "moved to Simple Host" version of Website Deploy, then remove it.
 
 Build the upload files with `bash scripts/build-openai-plugin.sh` (add `FALLBACK=1` for the
 fallback zip). They land in `dist/`.
@@ -66,29 +62,17 @@ fallback zip). They land in `dist/`.
 
 ---
 
-## 1. Create the new version
+## 1. Create the plugin
 
-Portal → the existing plugin **Website Deploy** (`website-deploy-toolkit`) → create a new version draft. The docs
-say a new version is how "submitted plugin information or imported skills" change; the package
-`name` must stay `website-deploy-toolkit` (`plugin_name_mismatch` otherwise).
-
-**If the portal does not let this Skills-only listing gain an MCP server** (the docs do not
-say either way), you have two choices; which one is yours to make:
-- Keep the listing and submit 0.3.0 as **Skills only** with
-  `dist/website-deploy-toolkit-skills-only-fallback.zip` (the repo's own skills: connector
-  first, email-code fallback; a Skills-only upload must not contain `mcp.json`). ChatGPT users
-  keep the email-code flow.
-- Or create a new plugin with **With MCP** and a new name (for example `simple-host`, display
-  name "Simple Host"): change `name` in `plugin.json`, rebuild, and follow the rest of this
-  kit. The old listing can then be unpublished.
+Portal → **Create plugin** → **With MCP**. Package name `simple-host` (it must match `name` in `plugin.json`).
 
 ## 2. Info tab
 
 | Field | Value |
 |---|---|
-| Plugin name (display name) | Website Deploy |
-| Short description (≤30) | Build and publish websites |
-| Long description | copy `extensions.com.openai.interface.longDescription` from `plugin.json` (823 chars) |
+| Plugin name (display name) | Simple Host |
+| Short description (≤30) | Describe a site. It's online. |
+| Long description | Tell ChatGPT the website you want (a portfolio, an event page with RSVPs, a small shop, a sign-up form, a survey) and Simple Host puts it online at an address you can share straight away. Every site can save what people send it: RSVPs, orders, votes and survey answers are kept, and you can download them as a spreadsheet. Orders, RSVPs and survey answers can go in a private list that only you can read, once the site has its own address; a free name.simple-host.app address takes one step. Sign in once and ChatGPT remembers you in every chat after that. Change a site any time by asking for it, and go back to any earlier version if you don't like the change. Pages are public to anyone with the link, so keep private information in private lists. Free to start. |
 | Developer identity | the verified identity from step 0.3 |
 | Logo | `openai-plugin/assets/logo.png` (512×512) · composer icon `assets/icon.png` (256×256) |
 | Category | Productivity |
@@ -97,9 +81,6 @@ say either way), you have two choices; which one is yours to make:
 | Privacy policy URL | https://simple-host.app/privacy.html |
 | Terms of service URL | https://simple-host.app/terms |
 
-The display name stays "Website Deploy", the name people already see in ChatGPT (owner
-decision 2026-09-24). The guidelines warn against generic names not tied to a brand; if a
-reviewer objects, "Simple Host" is the fallback.
 
 ## 3. MCP tab
 
@@ -232,11 +213,11 @@ governing-law clause names one jurisdiction, start there.
 
 ## 8. Release notes
 
-> Version 0.3.0 of Website Deploy (Simple Host). Adds the Simple Host remote MCP server
+> Simple Host 0.3.0, the successor to the Skills-only "Website Deploy" listing. Adds the Simple Host remote MCP server
 > (https://simple-host.app/mcp, OAuth 2.1 with dynamic client registration and PKCE), so
 > people sign in once and every conversation can publish and manage their sites without email
 > codes or API keys. The three skills now use the MCP tools instead of an email-code and curl
-> flow. Publisher details corrected (the 0.1.0 manifest carried template values). Reviewer
+> flow. Reviewer
 > access: on the Simple Host sign-in page choose "Reviewer sign-in" and use the demo
 > credentials provided; the account is pre-loaded with three sample sites (garden-party-rsvp,
 > feedback-survey, pickle-shop) and their data. Pages are public by design; orders, RSVPs and

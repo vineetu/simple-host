@@ -1,6 +1,6 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-  "name": "website-deploy-toolkit",
+  "name": "simple-host",
   "version": "0.3.0",
   "description": "Plan, build and publish websites on Simple Host (simple-host.app) from a conversation, with a small built-in backend so forms, RSVPs, surveys, votes and orders save and can be read back, and connect a custom domain.",
   "author": {
@@ -23,9 +23,9 @@
   "extensions": {
     "com.openai": {
       "interface": {
-        "displayName": "Website Deploy",
-        "shortDescription": "Build and publish websites",
-        "longDescription": "Describe the website you want and it goes online on Simple Host (simple-host.app) at a public address you can share right away: a landing page, a portfolio, an event page, a small shop, a sign-up form or a survey.\n\nEvery site comes with a small built-in backend, so the things people submit are saved: RSVPs, survey answers, votes, guestbook entries and orders. Ask for a results or admin page and you get one that lists what was collected. Later you can ask to change a page, see who responded, check how many people visited, roll back to an earlier version, or connect your own domain.\n\nYou sign in to Simple Host once (with Google or an emailed code); after that every conversation can publish and update your sites. Pages are public to anyone with the link. Orders, RSVPs and survey answers can go in a private list that only you can read, once the site has its own address (a free name.simple-host.app address takes one step). Simple Host is free.",
+        "displayName": "Simple Host",
+        "shortDescription": "Describe a site. It's online.",
+        "longDescription": "Tell ChatGPT the website you want (a portfolio, an event page with RSVPs, a small shop, a sign-up form, a survey) and Simple Host puts it online at an address you can share straight away. Every site can save what people send it: RSVPs, orders, votes and survey answers are kept, and you can download them as a spreadsheet. Orders, RSVPs and survey answers can go in a private list that only you can read, once the site has its own address; a free name.simple-host.app address takes one step. Sign in once and ChatGPT remembers you in every chat after that. Change a site any time by asking for it, and go back to any earlier version if you don't like the change. Pages are public to anyone with the link, so keep private information in private lists. Free to start.",
         "developerName": "Vineet Sriram",
         "category": "Productivity",
         "capabilities": [
@@ -41,12 +41,12 @@
         "privacyPolicyURL": "https://simple-host.app/privacy.html",
         "termsOfServiceURL": "https://simple-host.app/terms",
         "defaultPrompt": [
-          "Build a small shop page for my homemade pickles, with an order form and a page that lists the orders",
-          "Make a beautiful RSVP page for my garden party on October 12, with an admin page showing who is coming",
-          "Create a customer feedback survey with a results page that tallies the answers"
+          "Make a small shop for my pottery studio with a private order form, on its own simple-host.app address",
+          "Make a beautiful RSVP page for my garden party on October 12, with a private guest list only I can see",
+          "Create a customer feedback survey that keeps answers private and shows me the totals"
         ],
-        "brandColor": "#0891B2",
-        "brandColorDark": "#22D3EE",
+        "brandColor": "#428AF6",
+        "brandColorDark": "#6BA4FF",
         "composerIcon": "./assets/icon.png",
         "logo": "./assets/logo.png"
       }
