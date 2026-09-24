@@ -5,170 +5,119 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Get started — Simple Host</title>
   <!--sh:head-->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    :root {
-      --bg: #020617;
-      --grid: #0f1830;
-      --panel: rgba(15, 23, 42, 0.7);
-      --panel-solid: #0b1222;
-      --border: #1e293b;
-      --border-hi: #334155;
-      --text: #f1f5f9;
-      --muted: #94a3b8;
-      --dim: #475569;
-      --cyan: #22d3ee;
-      --emerald: #34d399;
-      --violet: #a78bfa;
-      --amber: #fbbf24;
-      --rose: #fb7185;
-      --radius: 12px;
-      --header-bg: rgba(2, 6, 23, 0.75);
-      --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
-    }
-    html[data-theme="light"] {
-      --bg: #f7f8fb;
-      --grid: #e9edf4;
-      --panel: rgba(15, 23, 42, 0.04);
-      --panel-solid: #ffffff;
-      --border: #e2e8f0;
-      --border-hi: #cbd5e1;
-      --text: #0f172a;
-      --muted: #475569;
-      --dim: #94a3b8;
-      --cyan: #0891b2;
-      --emerald: #059669;
-      --header-bg: rgba(255, 255, 255, 0.82);
-    }
+    /* Tokens, base type and the header/footer live in /site.css. */
 
-    body {
-      font-family: var(--mono);
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.6;
-      min-height: 100vh;
-      -webkit-font-smoothing: antialiased;
-      background-image:
-        linear-gradient(var(--grid) 1px, transparent 1px),
-        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-      background-size: 48px 48px;
-      background-position: center top;
-    }
+    body { min-height: 100vh; }
 
-    .container { max-width: 1080px; margin: 0 auto; padding: 0 28px; }
+    .container { max-width: 800px; margin: 0 auto; padding: 0 24px; }
 
-    main { padding: 60px 0 96px; }
+    main { padding: 48px 0 88px; }
 
-    .eyebrow {
-      font-size: 12px; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase;
-      color: var(--cyan); margin-bottom: 16px;
-    }
+    .eyebrow { font-size: 13px; font-weight: 400; color: var(--text-secondary); margin-bottom: 10px; }
 
     h1 {
-      font-size: clamp(34px, 5vw, 52px); font-weight: 700;
-      letter-spacing: -1px; line-height: 1.05; margin-bottom: 20px;
+      font-size: clamp(30px, 5vw, 44px); font-weight: 700; color: var(--text);
+      letter-spacing: -0.025em; line-height: 1.08; margin-bottom: 18px;
     }
-    h1 .accent { color: var(--cyan); }
+    h1 .accent { color: inherit; }
 
-    .lede { color: var(--muted); font-size: 16px; line-height: 1.7; max-width: 620px; }
-    .lede b { color: var(--text); font-weight: 500; }
+    .lede { color: var(--text-secondary); font-size: 17px; line-height: 1.6; max-width: 620px; }
+    .lede b { color: var(--text); font-weight: 600; }
 
-    /* Hero is purely typographic — no decorative panel. The headline is the thesis. */
-
-    /* three paths */
-    .paths { display: flex; flex-direction: column; gap: 18px; margin-top: 46px; }
-    .path {
-      background: var(--panel); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 24px 26px; transition: border-color .15s;
-    }
-    .path:hover { border-color: var(--border-hi); }
-    .path-head { display: flex; gap: 15px; align-items: flex-start; margin-bottom: 16px; }
-    .p-ic { font-size: 22px; line-height: 1.3; flex-shrink: 0; }
-    .path .eyebrow { margin-bottom: 7px; }
-    .path h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; margin: 0 0 8px; }
-    .path p { color: var(--muted); font-size: 14px; line-height: 1.65; max-width: 62ch; }
-    .path .dim { color: var(--dim); }
+    /* The ways in: hairlines between them, not boxes. */
+    .paths { display: flex; flex-direction: column; margin-top: 40px; border-top: 1px solid var(--border); }
+    .path { border-bottom: 1px solid var(--border); padding: 32px 0; }
+    .path-head { margin-bottom: 18px; }
+    .path .eyebrow { margin-bottom: 6px; }
+    .path h2 { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.3; margin: 0 0 8px; }
+    .path p { color: var(--text-secondary); font-size: 16px; line-height: 1.6; max-width: 66ch; }
+    .path p b { color: var(--text); font-weight: 600; }
+    .path .dim, .path p.dim { color: var(--text-secondary); font-size: 15px; }
 
     .cta {
-      display: inline-block; background: var(--cyan); color: #04121a;
-      font-family: var(--mono); font-weight: 700; font-size: 14px; text-decoration: none;
-      padding: 11px 22px; border-radius: 9px; transition: filter .15s;
+      display: inline-block; background: var(--accent); color: var(--on-accent);
+      font-family: var(--font); font-weight: 600; font-size: 15px; text-decoration: none;
+      padding: 10px 20px; border-radius: 8px; transition: background .15s;
     }
-    .cta:hover { filter: brightness(1.08); }
+    .cta:hover { background: var(--accent-hover); }
 
     pre {
-      background: #0b1222; border: 1px solid #1e293b; border-radius: 8px;
-      padding: 12px 14px; margin: 0; font-family: var(--mono); font-size: 12.5px;
-      line-height: 1.6; color: #e2e8f0;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px 14px; margin: 0 0 18px; font-family: var(--mono); font-size: 13px;
+      line-height: 1.6; color: var(--text);
       white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word;
     }
     .code-head {
       display: flex; align-items: center; justify-content: space-between; gap: 12px;
-      margin-bottom: 8px; font-size: 12px; color: var(--muted);
+      margin: 18px 0 8px; font-size: 13px; color: var(--text-secondary);
     }
     .copy-btn {
-      display: inline-flex; align-items: center; justify-content: center; min-height: 30px;
-      border: 1px solid var(--border-hi); border-radius: 8px; background: var(--panel-solid);
-      color: var(--text); font-family: var(--mono); font-size: 12px; font-weight: 600;
-      padding: 5px 12px; cursor: pointer; transition: all .15s;
+      display: inline-flex; align-items: center; justify-content: center; min-height: 32px; flex-shrink: 0;
+      border: 1px solid var(--border-hi); border-radius: 8px; background: transparent;
+      color: var(--text); font-family: var(--font); font-size: 13px; font-weight: 500;
+      padding: 5px 14px; cursor: pointer; transition: border-color .15s, color .15s;
     }
-    .copy-btn:hover { border-color: var(--cyan); color: var(--cyan); }
-    .copy-btn.wide { width: 100%; padding: 11px; font-size: 13px; }
+    .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .copy-btn.wide {
+      width: 100%; min-height: 44px; padding: 10px; font-size: 15px; font-weight: 600;
+      background: var(--accent); color: var(--on-accent); border-color: var(--accent);
+    }
+    .copy-btn.wide:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--on-accent); }
 
+    code, .inline-code { font-family: var(--mono); font-size: 0.88em; }
     .inline-code {
-      color: var(--cyan); background: rgba(34, 211, 238, 0.08);
-      border: 1px solid rgba(34, 211, 238, 0.2); padding: 1px 6px; border-radius: 5px; font-size: 12.5px;
+      color: var(--text); background: var(--surface);
+      border: 1px solid var(--border); padding: 1px 5px; border-radius: 5px;
     }
-    .dl { display: inline-block; color: var(--cyan); border: 1px solid var(--border-hi);
-          border-radius: 7px; padding: 4px 10px; font-size: 12px; text-decoration: none; margin: 2px 4px 2px 0; }
-    .dl:hover { border-color: var(--cyan); text-decoration: none; }
+    .dl {
+      display: inline-block; color: var(--text); border: 1px solid var(--border-hi);
+      border-radius: 8px; padding: 6px 12px; font-size: 15px; text-decoration: none; margin: 4px 6px 4px 0;
+    }
+    .dl:hover { border-color: var(--accent); color: var(--accent); }
 
     /* the collapsed "everything else" for the skill path */
-    details.more { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 14px; }
+    details.more { margin-top: 20px; border-top: 1px solid var(--border); padding-top: 16px; }
     details.more summary {
-      cursor: pointer; color: var(--cyan); font-size: 13px; font-weight: 600;
+      cursor: pointer; color: var(--accent); font-size: 15px; font-weight: 500;
       list-style: none; user-select: none;
     }
     details.more summary::-webkit-details-marker { display: none; }
     details.more summary::before { content: "▸ "; }
     details.more[open] summary::before { content: "▾ "; }
-    details.more > *:not(summary) { margin-top: 14px; }
 
-    .insttbl { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .insttbl th, .insttbl td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
-    .insttbl th { color: var(--muted); font-weight: 600; font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; }
-    .insttbl td code { color: var(--cyan); font-size: 12px; }
+    .insttbl { width: 100%; border-collapse: collapse; font-size: 15px; margin: 16px 0 8px; }
+    .insttbl th, .insttbl td { text-align: left; padding: 10px 12px 10px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .insttbl th { color: var(--text-secondary); font-weight: 500; font-size: 13px; }
+    .insttbl td { color: var(--text-secondary); }
+    .insttbl td code { color: var(--text); font-size: 13px; }
     .insttbl tr:last-child td { border-bottom: 0; }
     .insttbl td:first-child { white-space: nowrap; color: var(--text); }
 
     /* FAQ — collapsed by default so the page still leads with the three paths. */
-    .faq { margin-top: 56px; border-top: 1px solid var(--border); padding-top: 34px; }
-    .faq-title {
-      font-size: 12px; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase;
-      color: var(--cyan); margin-bottom: 18px;
-    }
+    .faq { margin-top: 56px; }
+    .faq-title { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); margin-bottom: 8px; }
     .faq-q { border-bottom: 1px solid var(--border); }
     .faq-q summary {
       cursor: pointer; list-style: none; user-select: none;
-      font-size: 15px; font-weight: 600; color: var(--text);
+      font-size: 17px; font-weight: 600; color: var(--text);
       padding: 14px 0 14px 22px; position: relative;
     }
     .faq-q summary::-webkit-details-marker { display: none; }
-    .faq-q summary::before { content: "▸"; position: absolute; left: 0; color: var(--cyan); }
+    .faq-q summary::before { content: "▸"; position: absolute; left: 0; color: var(--text-secondary); }
     .faq-q[open] summary::before { content: "▾"; }
-    .faq-q summary:hover { color: var(--cyan); }
+    .faq-q summary:hover { color: var(--accent); }
     .faq-q p {
-      color: var(--muted); font-size: 14px; line-height: 1.7;
+      color: var(--text-secondary); font-size: 16px; line-height: 1.6;
       margin: 0 0 14px 22px; max-width: 68ch;
     }
     .faq-q p b { color: var(--text); }
 
-    .note { color: var(--dim); font-size: 13px; margin-top: 22px; }
-    .note a, .path p a { color: var(--cyan); text-decoration: none; }
+    .note { color: var(--text-secondary); font-size: 15px; line-height: 1.6; margin-top: 24px; }
+    .note b { color: var(--text); font-weight: 600; }
+    .note a, .path p a { color: var(--accent); text-decoration: none; }
     .note a:hover, .path p a:hover { text-decoration: underline; }
 
     /* DEVICE FLIP: on a phone the "build with AI" path leads (you can't install a
@@ -176,13 +125,13 @@
     @media (max-width: 640px) { .path-chat { order: -1; } }
 
     @media (max-width: 640px) {
-      .container { padding: 0 16px; }
-      h1 { font-size: 32px; }
-      .path { padding: 20px 18px; }
-      .insttbl { font-size: 12px; }
-      .insttbl th, .insttbl td { padding: 8px 8px; }
+      .container { padding: 0 20px; }
+      main { padding-top: 36px; }
+      .path { padding: 28px 0; }
+      .insttbl { font-size: 13px; }
+      .insttbl th, .insttbl td { padding: 8px 8px 8px 0; }
       .insttbl td:first-child { white-space: normal; }
-      .insttbl td code { font-size: 11px; word-break: break-all; }
+      .insttbl td code { font-size: 12px; word-break: break-all; }
     }
   </style>
 </head>
@@ -200,7 +149,6 @@
         <!-- ===== SKILL (leads on desktop) ===== -->
         <section class="path path-skill">
           <div class="path-head">
-            <span class="p-ic">⌨️</span>
             <div>
               <div class="eyebrow">In a coding agent</div>
               <h2>Add the skill to your agent.</h2>
@@ -283,7 +231,6 @@ Expand-Archive "$env:TEMP\sh-skills.zip" "$env:USERPROFILE\.claude\skills" -Forc
         <!-- ===== CLAUDE APP (skills are uploaded, not installed from a terminal) ===== -->
         <section class="path path-claudeapp">
           <div class="path-head">
-            <span class="p-ic">🅰️</span>
             <div>
               <div class="eyebrow">In the Claude app · desktop, web or mobile</div>
               <h2>Upload the skills to Claude.</h2>
@@ -303,7 +250,6 @@ Expand-Archive "$env:TEMP\sh-skills.zip" "$env:USERPROFILE\.claude\skills" -Forc
         <!-- ===== BUILD WITH AI (leads on mobile) ===== -->
         <section class="path path-chat">
           <div class="path-head">
-            <span class="p-ic">💬</span>
             <div>
               <div class="eyebrow">Easiest · works on your phone</div>
               <h2>Build it right here.</h2>
@@ -316,7 +262,6 @@ Expand-Archive "$env:TEMP\sh-skills.zip" "$env:USERPROFILE\.claude\skills" -Forc
         <!-- ===== CHATGPT / PASTE ===== -->
         <section class="path path-paste">
           <div class="path-head">
-            <span class="p-ic">📋</span>
             <div>
               <div class="eyebrow">In a browser chat · ChatGPT on the web, Gemini, Copilot</div>
               <h2>Copy a prompt, paste back the result.</h2>
@@ -424,7 +369,7 @@ Expand-Archive "$env:TEMP\sh-skills.zip" "$env:USERPROFILE\.claude\skills" -Forc
         ta.remove();
       };
       var flash = function () {
-        var o = btn.textContent; btn.textContent = 'Copied ✓'; btn.disabled = true;
+        var o = btn.textContent; btn.textContent = 'Copied'; btn.disabled = true;
         setTimeout(function () { btn.textContent = o; btn.disabled = false; }, 1500);
       };
       var put = function (text) {
