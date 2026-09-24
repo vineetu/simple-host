@@ -167,7 +167,7 @@ table.apx td.err{color:var(--error)}
       <button class="btn ghost" onclick="downloadEntries()">Download CSV</button>
       <button class="btn ghost" onclick="copyEntries()">Copy links</button>
     </div>
-    <table class="apx"><thead><tr><th>Entry</th><th>Account</th><th>Link</th></tr></thead><tbody id="entry-rows"></tbody></table>
+    <table class="apx"><thead><tr><th>Entry</th><th>Account</th><th>Link</th><th>Analytics</th></tr></thead><tbody id="entry-rows"></tbody></table>
     <p class="ph" id="entry-count"></p>
   </div>
 
@@ -235,7 +235,7 @@ function collectEntries(users){
   (users||[]).forEach(function(u){
     (u.sites||[]).forEach(function(s){
       if(!s.site_url) return;   // never deployed; nothing to judge
-      allEntries.push({name:s.name, account:u.handle||u.username, url:s.site_url, domain:s.custom_domain||''});
+      allEntries.push({name:s.name, account:u.handle||u.username, handle:u.handle||'', url:s.site_url, domain:s.custom_domain||''});
     });
   });
   var ep=document.getElementById('entries');
@@ -256,7 +256,9 @@ function renderEntries(){
   if(!tb) return;
   tb.innerHTML=rows.map(function(e){
     return '<tr><td>'+esc(e.name)+'</td><td>'+esc(e.account)+'</td>'+
-      '<td><a href="'+esc(e.url)+'" target="_blank" rel="noopener">'+esc(e.url)+'</a></td></tr>';
+      '<td><a href="'+esc(e.url)+'" target="_blank" rel="noopener">'+esc(e.url)+'</a></td>'+
+      // Same page the owner sees; ?owner= is honoured for the admin only.
+      '<td>'+(e.handle?'<a href="/analytics/'+encodeURIComponent(e.name)+'?owner='+encodeURIComponent(e.handle)+'" target="_blank" rel="noopener">Analytics</a>':'')+'</td></tr>';
   }).join('');
   var c=document.getElementById('entry-count');
   if(c) c.textContent=rows.length+' of '+allEntries.length+' entries';

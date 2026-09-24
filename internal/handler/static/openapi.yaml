@@ -840,6 +840,15 @@ paths:
           required: false
           description: Number of UTC days to include (default 30, clamp 1..365)
           schema: { type: integer, minimum: 1, maximum: 365, default: 30 }
+        - name: owner
+          in: query
+          required: false
+          description: >-
+            Handle of the account that owns the site. Omit it (or pass your own
+            handle) for your own site. Any other handle is honoured for the
+            platform admin only; for everyone else it answers 404, the same as a
+            site that does not exist.
+          schema: { type: string }
       responses:
         '200':
           description: Analytics for the site
@@ -918,6 +927,15 @@ paths:
           required: false
           description: Number of UTC days to include (default 30, clamp 1..365)
           schema: { type: integer, minimum: 1, maximum: 365, default: 30 }
+        - name: owner
+          in: query
+          required: false
+          description: >-
+            Handle of the account that owns the site. Omit it (or pass your own
+            handle) for your own site. Any other handle is honoured for the
+            platform admin only; for everyone else it answers 404, the same as a
+            site that does not exist.
+          schema: { type: string }
       responses:
         '200':
           description: Per-country traffic, most real people first.

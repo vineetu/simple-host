@@ -5,14 +5,16 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/vsriram/simple-host/internal/analytics"
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
 )
 
-// getSiteAnalytics serves GET /v1/sites/{sitename}/analytics?days=30
+// getSiteAnalytics serves GET /v1/sites/{sitename}/analytics?days=30[&owner=<handle>]
 // Owner-scoped: resolves the site via the caller's user_id (not global name).
+// `owner` lets the platform admin read another account's site (see analyticsSite).
 func (h *SiteHandler) getSiteAnalytics(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -20,14 +22,8 @@ func (h *SiteHandler) getSiteAnalytics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	siteName := r.PathValue("sitename")
-	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+	site, ok := h.analyticsSite(w, r, user)
+	if !ok {
 		return
 	}
 
@@ -65,13 +61,8 @@ func (h *SiteHandler) getSiteGeoAnalytics(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, r.PathValue("sitename"))
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+	site, ok := h.analyticsSite(w, r, user)
+	if !ok {
 		return
 	}
 
@@ -99,6 +90,43 @@ func (h *SiteHandler) getSiteGeoAnalytics(w http.ResponseWriter, r *http.Request
 		"range_days": days,
 		"countries":  countries,
 	})
+}
+
+// analyticsSite resolves the site the analytics endpoints report on, or writes
+// the answer and returns ok=false. Without ?owner= (or with the caller's own
+// handle) it is the caller's own site by name, exactly as before. Any other
+// owner is honoured for the platform admin only; for everyone else it is the
+// same 404 as a site that does not exist, so the parameter cannot be used to
+// learn which handles or sites exist.
+func (h *SiteHandler) analyticsSite(w http.ResponseWriter, r *http.Request, user *db.User) (db.Site, bool) {
+	ownerID := user.ID
+	if owner := strings.TrimSpace(r.URL.Query().Get("owner")); owner != "" && !strings.EqualFold(owner, user.Handle.String) {
+		if !user.IsAdmin {
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			return db.Site{}, false
+		}
+		u, err := db.GetUserByHandle(r.Context(), h.database, owner)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+				return db.Site{}, false
+			}
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return db.Site{}, false
+		}
+		ownerID = u.ID
+	}
+
+	site, err := db.GetSiteByUser(r.Context(), h.database, ownerID, r.PathValue("sitename"))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			return db.Site{}, false
+		}
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return db.Site{}, false
+	}
+	return site, true
 }
 
 // analyticsDays reads ?days=: default 30, clamped to 365, anything that is not
