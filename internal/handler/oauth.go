@@ -208,7 +208,7 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 			writeOAuthHTMLError(w, http.StatusBadGateway)
 			return
 		}
-		dest := strings.TrimRight(h.cfg.PublicBaseURL, "/") + "/?token=" + url.QueryEscape(linkToken)
+		dest := ownerLandingURL(st.ReturnTo, h.cfg.PublicBaseURL, linkToken)
 		http.Redirect(w, r, dest, http.StatusFound)
 		return
 	}
@@ -362,6 +362,9 @@ func (h *OAuthHandler) sanitizeReturnTo(ctx context.Context, raw string) (string
 	if ownerReturnToOK(parsed, h.cfg.PublicBaseURL) {
 		return parsed.String(), sql.NullString{}, "", "owner", nil
 	}
+	if connectReturnToOK(parsed, h.cfg.PublicBaseURL) {
+		return parsed.String(), sql.NullString{}, "", "owner", nil
+	}
 
 	if isRejectedPlatformHost(host, h.cfg.SiteDomain, h.cfg.ContentHost, publicBaseHost(h.cfg.PublicBaseURL)) {
 		return "", sql.NullString{}, "", "", errInvalidReturnTo
@@ -472,6 +475,34 @@ func ownerReturnToOK(parsed *url.URL, publicBaseURL string) bool {
 		return false
 	}
 	return true
+}
+
+// connectReturnToOK admits the connector's consent page as an owner sign-in
+// destination: this origin, path exactly /oauth/authorize, no fragment, and no
+// sign-in token already in the query (a link carrying someone else's token
+// would sign the person in as them).
+func connectReturnToOK(parsed *url.URL, publicBaseURL string) bool {
+	if parsed == nil || parsed.User != nil || parsed.Fragment != "" || parsed.Path != "/oauth/authorize" {
+		return false
+	}
+	if _, has := parsed.Query()["token"]; has {
+		return false
+	}
+	same := *parsed
+	same.Path, same.RawQuery, same.RawPath = "/", "", ""
+	return ownerReturnToOK(&same, publicBaseURL)
+}
+
+// ownerLandingURL is where an owner Google sign-in lands with its one-time
+// link token: the connector consent page it started from, or the dashboard.
+func ownerLandingURL(returnTo, publicBaseURL, linkToken string) string {
+	if u, err := url.Parse(returnTo); err == nil && connectReturnToOK(u, publicBaseURL) {
+		base, _ := url.Parse(strings.TrimRight(publicBaseURL, "/"))
+		q := u.Query()
+		q.Set("token", linkToken)
+		return base.Scheme + "://" + base.Host + "/oauth/authorize?" + q.Encode()
+	}
+	return strings.TrimRight(publicBaseURL, "/") + "/?token=" + url.QueryEscape(linkToken)
 }
 
 func isSchemeDefaultPort(scheme, port string) bool {

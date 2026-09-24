@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>Connect an app — Simple Host</title>
+  <!--sh:head-->
+  <style>
+    /* Tokens, base type and the header/footer live in /site.css. */
+    main.connect { max-width: 440px; margin: 0 auto; padding: 56px 24px 8px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 28px; }
+    h1 { font-size: 24px; line-height: 1.25; font-weight: 700; letter-spacing: -.01em; margin: 0 0 12px; color: var(--text); overflow-wrap: anywhere; }
+    p { margin: 0 0 14px; color: var(--text-secondary); font-size: 16px; line-height: 1.55; }
+    p.small { font-size: 14px; }
+    strong { color: var(--text); font-weight: 600; }
+    ul.can { margin: 0 0 18px; padding: 0 0 0 20px; color: var(--text-secondary); }
+    ul.can li { margin: 0 0 6px; }
+    .who { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+           padding: 10px 12px; margin: 0 0 20px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; color: var(--text-secondary); }
+    .who b { color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
+    .actions { display: flex; gap: 10px; margin-top: 8px; }
+    .actions button { flex: 1; }
+    button, .button { font: inherit; font-size: 15px; font-weight: 600; padding: 11px 16px; border-radius: 10px; cursor: pointer;
+                      border: 1px solid var(--border-hi); background: transparent; color: var(--text); text-align: center; text-decoration: none; display: inline-block; }
+    button:hover, .button:hover { border-color: var(--accent); }
+    button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+    button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+    button[disabled] { opacity: .5; cursor: default; }
+    button.link { border: 0; padding: 0; background: none; color: var(--accent); font-weight: 500; font-size: 14px; }
+    .google { display: block; width: 100%; margin: 0 0 16px; }
+    .or { display: flex; align-items: center; gap: 12px; margin: 4px 0 16px; font-size: 13px; color: var(--dim); }
+    .or::before, .or::after { content: ""; flex: 1; border-top: 1px solid var(--border); }
+    label { display: block; font-size: 14px; color: var(--text-secondary); margin: 0 0 6px; }
+    input { width: 100%; font: inherit; font-size: 16px; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--border-hi);
+            background: var(--bg); color: var(--text); margin: 0 0 12px; }
+    input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
+    form button { width: 100%; }
+    .msg { min-height: 1.4em; margin: 12px 0 0; font-size: 14px; color: var(--error); }
+    .fine { margin: 18px 0 0; font-size: 13px; color: var(--text-secondary); }
+    @media (max-width: 640px) {
+      main.connect { padding: 32px 16px 8px; }
+      .card { padding: 22px 18px; }
+      h1 { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <!--sh:header-->
+  <main class="connect">
+    <div class="card">
+      <section id="step-loading"><p>One moment…</p></section>
+
+      <section id="step-error" hidden>
+        <h1>This link can't be used</h1>
+        <p id="error-text"></p>
+      </section>
+
+      <section id="step-signin" hidden>
+        <h1>Sign in to connect <span class="app-name"></span></h1>
+        <p><span class="app-name"></span> wants to use your Simple Host account. Sign in first. You'll stay signed in, so you won't need to do this again.</p>
+        <a class="button google" id="google-btn" href="#" hidden>Continue with Google</a>
+        <div class="or" id="or-line" hidden>or</div>
+        <form id="email-form" hidden>
+          <label for="email">Your email</label>
+          <input id="email" type="email" autocomplete="email" required placeholder="you@example.com">
+          <button class="primary" type="submit" id="email-btn">Email me a sign-in code</button>
+        </form>
+        <form id="code-form" hidden>
+          <p class="small">We sent a 6-digit code to <strong id="code-email"></strong>.</p>
+          <label for="code">Code</label>
+          <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required placeholder="123456">
+          <button class="primary" type="submit" id="code-btn">Sign in</button>
+          <p class="fine"><button class="link" type="button" id="code-back">Use a different email</button></p>
+        </form>
+        <form id="key-form" hidden>
+          <label for="key">Your Simple Host key</label>
+          <input id="key" autocomplete="off" required>
+          <button class="primary" type="submit" id="key-btn">Sign in</button>
+        </form>
+        <p class="msg" id="signin-msg" role="alert"></p>
+      </section>
+
+      <section id="step-consent" hidden>
+        <h1>Let <span class="app-name"></span> use your Simple Host account?</h1>
+        <div class="who"><span>Signed in as <b id="who-email"></b></span><button class="link" type="button" id="switch-btn">Not you?</button></div>
+        <p>If you allow it, <span class="app-name"></span> can:</p>
+        <ul class="can">
+          <li>publish new websites for you</li>
+          <li>change, rename and delete your sites</li>
+          <li>read and change what your sites save</li>
+        </ul>
+        <p class="small">Everything it publishes is public, like any Simple Host site. You can disconnect it at any time from your sites page. After you choose, you'll go back to <strong id="redirect-host"></strong>.</p>
+        <div class="actions">
+          <button type="button" id="cancel-btn">Cancel</button>
+          <button type="button" class="primary" id="allow-btn">Allow</button>
+        </div>
+        <p class="msg" id="consent-msg" role="alert"></p>
+      </section>
+
+      <section id="step-done" hidden>
+        <h1>Taking you back…</h1>
+        <p>You can close this window if it doesn't close by itself.</p>
+      </section>
+    </div>
+  </main>
+  <!--sh:footer-->
+  <!--sh:connect-data-->
+  <script>
+  (function () {
+    var el = function (id) { return document.getElementById(id); };
+    var dataEl = el('connect-data');
+    var data = {};
+    try { data = JSON.parse(dataEl ? dataEl.textContent : '{}'); } catch (e) {}
+
+    function show(step) {
+      ['loading', 'error', 'signin', 'consent', 'done'].forEach(function (s) { el('step-' + s).hidden = s !== step; });
+    }
+    function fail(text) { el('error-text').textContent = text; show('error'); }
+    function getKey() { try { return localStorage.getItem('apiKey') || ''; } catch (e) { return ''; } }
+    function setKey(k) { try { if (k) localStorage.setItem('apiKey', k); else localStorage.removeItem('apiKey'); } catch (e) {} }
+
+    if (!data.ok) { fail(data.error || 'Go back to the app you came from and try connecting again.'); return; }
+    Array.prototype.forEach.call(document.querySelectorAll('.app-name'), function (n) { n.textContent = data.client_name; });
+    el('redirect-host').textContent = data.redirect_host;
+
+    // The request as the app sent it, minus a sign-in token this page consumes.
+    var params = new URLSearchParams(location.search);
+    var linkToken = params.get('token');
+    params.delete('token');
+    var query = params.toString();
+    if (linkToken) history.replaceState(null, '', location.pathname + '?' + query);
+
+    async function post(path, body, headers) {
+      var h = Object.assign({ 'Content-Type': 'application/json' }, headers || {});
+      var res = await fetch(path, { method: 'POST', headers: h, body: JSON.stringify(body), credentials: 'same-origin' });
+      var json = {};
+      try { json = await res.json(); } catch (e) {}
+      return { ok: res.ok, status: res.status, body: json };
+    }
+
+    async function me(key) {
+      try {
+        var res = await fetch('/v1/me', { headers: { 'X-API-Key': key } });
+        if (res.ok) return await res.json();
+        if (res.status === 401) setKey('');
+      } catch (e) {}
+      return null;
+    }
+
+    async function enter() {
+      var key = getKey();
+      var who = key ? await me(key) : null;
+      if (who) {
+        el('who-email').textContent = who.username || '';
+        show('consent');
+        el('allow-btn').focus();
+        return;
+      }
+      showSignIn();
+    }
+
+    function showSignIn() {
+      show('signin');
+      fetch('/v1/auth/oauth/providers').then(function (r) { return r.json(); }).then(function (d) {
+        var providers = d.providers || [];
+        var google = providers.indexOf('google') >= 0;
+        if (google) {
+          var ret = location.origin + location.pathname + '?' + query;
+          el('google-btn').href = '/v1/auth/oauth/google?return_to=' + encodeURIComponent(ret);
+          el('google-btn').hidden = false;
+        }
+        var email = d.email_enabled !== false;
+        el('email-form').hidden = !email;
+        el('or-line').hidden = !(google && email);
+        // An instance with neither way to sign in (a private event box): the
+        // organiser hands out keys, so ask for one.
+        el('key-form').hidden = google || email;
+      }).catch(function () { el('email-form').hidden = false; });
+    }
+
+    var pendingEmail = '';
+    el('email-form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      el('signin-msg').textContent = '';
+      var email = el('email').value.trim().toLowerCase();
+      el('email-btn').disabled = true;
+      try {
+        var r = await post('/v1/auth', { email: email });
+        if (!r.ok) { el('signin-msg').textContent = r.body.error || 'Could not send a code. Try again.'; return; }
+        pendingEmail = email;
+        el('code-email').textContent = email;
+        el('email-form').hidden = true; el('google-btn').hidden = true; el('or-line').hidden = true;
+        el('code-form').hidden = false;
+        el('code').focus();
+      } catch (err) { el('signin-msg').textContent = 'Could not reach Simple Host. Check your connection.'; }
+      finally { el('email-btn').disabled = false; }
+    });
+    el('code-back').addEventListener('click', function () {
+      el('code-form').hidden = true; el('code').value = ''; el('signin-msg').textContent = '';
+      showSignIn();
+    });
+    el('code-form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      el('signin-msg').textContent = '';
+      var code = el('code').value.replace(/[^0-9]/g, '');
+      el('code-btn').disabled = true;
+      try {
+        var r = await post('/v1/auth/verify', { email: pendingEmail, code: code });
+        if (!r.ok || !r.body.api_key) { el('signin-msg').textContent = r.body.error || 'That code did not work.'; return; }
+        setKey(r.body.api_key);
+        el('code-form').hidden = true;
+        enter();
+      } catch (err) { el('signin-msg').textContent = 'Could not reach Simple Host. Check your connection.'; }
+      finally { el('code-btn').disabled = false; }
+    });
+    el('key-form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var key = el('key').value.trim();
+      if (await me(key)) { setKey(key); enter(); }
+      else el('signin-msg').textContent = 'That key was not recognised.';
+    });
+    el('switch-btn').addEventListener('click', function () { setKey(''); showSignIn(); });
+
+    async function decide(decision) {
+      el('consent-msg').textContent = '';
+      el('allow-btn').disabled = el('cancel-btn').disabled = true;
+      try {
+        var r = await post('/oauth/authorize/decision', { query: query, csrf: data.csrf, decision: decision }, { 'X-API-Key': getKey() });
+        if (r.ok && r.body.redirect_to) { show('done'); location.replace(r.body.redirect_to); return; }
+        if (r.status === 401) { setKey(''); showSignIn(); return; }
+        el('consent-msg').textContent = r.body.error || 'Something went wrong. Try again.';
+      } catch (err) { el('consent-msg').textContent = 'Could not reach Simple Host. Check your connection.'; }
+      el('allow-btn').disabled = el('cancel-btn').disabled = false;
+    }
+    el('allow-btn').addEventListener('click', function () { decide('allow'); });
+    el('cancel-btn').addEventListener('click', function () { decide('deny'); });
+
+    // Arrived from Google sign-in: trade the one-time token for the key, the
+    // same way the dashboard does, then carry on.
+    if (linkToken) {
+      post('/v1/auth/verify', { token: linkToken }).then(function (r) {
+        if (r.ok && r.body.api_key) setKey(r.body.api_key);
+        enter();
+      }).catch(enter);
+    } else {
+      enter();
+    }
+  })();
+  </script>
+</body>
+</html>

@@ -21,6 +21,8 @@ type OAuthClient struct {
 	Name                    string
 	RedirectURIs            []string
 	TokenEndpointAuthMethod string
+	PKCERequired            bool
+	Dynamic                 bool
 	CreatedAt               time.Time
 }
 
@@ -64,19 +66,63 @@ var ErrOAuthCodeUsed = errors.New("authorization code already used")
 
 func InsertOAuthClient(ctx context.Context, q Querier, c OAuthClient) error {
 	_, err := q.ExecContext(ctx, `
-		INSERT INTO oauth_clients (client_id, client_secret_hash, client_name, redirect_uris, token_endpoint_auth_method)
-		VALUES ($1, $2, $3, $4, $5)`,
-		c.ClientID, c.SecretHash, c.Name, pq.Array(c.RedirectURIs), c.TokenEndpointAuthMethod)
+		INSERT INTO oauth_clients (client_id, client_secret_hash, client_name, redirect_uris, token_endpoint_auth_method, pkce_required, dynamic)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		c.ClientID, c.SecretHash, c.Name, pq.Array(c.RedirectURIs), c.TokenEndpointAuthMethod, c.PKCERequired, c.Dynamic)
 	return err
 }
 
 func GetOAuthClient(ctx context.Context, q Querier, clientID string) (OAuthClient, error) {
 	var c OAuthClient
 	err := q.QueryRowContext(ctx, `
-		SELECT client_id, client_secret_hash, client_name, redirect_uris, token_endpoint_auth_method, created_at
+		SELECT client_id, client_secret_hash, client_name, redirect_uris, token_endpoint_auth_method, pkce_required, dynamic, created_at
 		  FROM oauth_clients WHERE client_id = $1`, clientID).
-		Scan(&c.ClientID, &c.SecretHash, &c.Name, pq.Array(&c.RedirectURIs), &c.TokenEndpointAuthMethod, &c.CreatedAt)
+		Scan(&c.ClientID, &c.SecretHash, &c.Name, pq.Array(&c.RedirectURIs), &c.TokenEndpointAuthMethod, &c.PKCERequired, &c.Dynamic, &c.CreatedAt)
 	return c, err
+}
+
+// ListOperatorOAuthClients returns the clients the operator created by hand.
+func ListOperatorOAuthClients(ctx context.Context, database *sql.DB) ([]OAuthClient, error) {
+	rows, err := database.QueryContext(ctx, `
+		SELECT client_id, client_secret_hash, client_name, redirect_uris, token_endpoint_auth_method, pkce_required, dynamic, created_at
+		  FROM oauth_clients WHERE NOT dynamic ORDER BY created_at`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []OAuthClient
+	for rows.Next() {
+		var c OAuthClient
+		if err := rows.Scan(&c.ClientID, &c.SecretHash, &c.Name, pq.Array(&c.RedirectURIs), &c.TokenEndpointAuthMethod, &c.PKCERequired, &c.Dynamic, &c.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// SetOAuthClientRedirectURIs replaces an operator client's redirect URIs. A
+// GPT's callback URL is only known after its OAuth settings are first saved,
+// so it is added afterwards.
+func SetOAuthClientRedirectURIs(ctx context.Context, q Querier, clientID string, uris []string) error {
+	res, err := q.ExecContext(ctx, `UPDATE oauth_clients SET redirect_uris = $2 WHERE client_id = $1 AND NOT dynamic`, clientID, pq.Array(uris))
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+// DeleteOAuthClient removes a client and, by cascade, every connection to it.
+func DeleteOAuthClient(ctx context.Context, q Querier, clientID string) (bool, error) {
+	res, err := q.ExecContext(ctx, `DELETE FROM oauth_clients WHERE client_id = $1`, clientID)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n == 1, err
 }
 
 // TouchOAuthClient records use, at most once a minute, so the sweep can tell
@@ -240,7 +286,7 @@ func SweepOAuth(ctx context.Context, database *sql.DB) error {
 		`DELETE FROM oauth_tokens WHERE expires_at < now() - interval '1 day'`,
 		`DELETE FROM oauth_grants g WHERE g.created_at < now() - interval '1 day'
 		   AND NOT EXISTS (SELECT 1 FROM oauth_tokens t WHERE t.grant_id = g.id)`,
-		`DELETE FROM oauth_clients c WHERE c.created_at < now() - interval '30 days'
+		`DELETE FROM oauth_clients c WHERE c.dynamic AND c.created_at < now() - interval '30 days'
 		   AND COALESCE(c.last_used_at, c.created_at) < now() - interval '30 days'
 		   AND NOT EXISTS (SELECT 1 FROM oauth_grants g WHERE g.client_id = c.client_id)`,
 	} {

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"log"
 	"math/big"
 	"net/http"
 	"regexp"
@@ -109,9 +110,19 @@ func (h *UserHandler) rotateAPIKey(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	// Whoever held the old key could have connected an app with it (the
+	// consent screen signs in with the key), and a connection must not
+	// outlive the key it was made with. Rotating is the "my key leaked"
+	// button, so it disconnects every app; the person reconnects the ones
+	// they meant to keep.
+	if err := db.DeleteOAuthGrantsForUser(r.Context(), h.database, user.ID); err != nil {
+		log.Printf("rotate key: disconnect apps user_id=%s: %v", user.ID, err)
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "key rotated, but connected apps could not be disconnected; try again"})
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]string{
 		"api_key": newKey,
-		"message": "API key rotated. The old key no longer works; update your agent or CLI with this new key.",
+		"message": "API key rotated. The old key no longer works; update your agent or CLI with this new key. Connected apps (ChatGPT, Claude, Grok) were disconnected; reconnect the ones you use.",
 	})
 }
 

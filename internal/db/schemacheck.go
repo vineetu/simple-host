@@ -25,7 +25,7 @@ var requiredColumns = map[string][]string{
 	"collection_items": {"id", "site_id", "collection", "data"},
 	"site_view_hourly": {"site_id", "hour", "class", "views"},
 	"instance_config":  {"key", "value"},
-	"oauth_clients":    {"client_id", "client_secret_hash", "client_name", "redirect_uris", "token_endpoint_auth_method"},
+	"oauth_clients":    {"client_id", "client_secret_hash", "client_name", "redirect_uris", "token_endpoint_auth_method", "pkce_required", "dynamic"},
 	"oauth_grants":     {"id", "user_id", "client_id", "scope", "resource", "last_used_at"},
 	"oauth_codes":      {"code_hash", "client_id", "user_id", "redirect_uri", "code_challenge", "resource", "expires_at", "used_at", "grant_id"},
 	"oauth_tokens":     {"token_hash", "grant_id", "kind", "expires_at", "used_at"},

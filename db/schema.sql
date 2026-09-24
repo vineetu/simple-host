@@ -371,12 +371,21 @@ CREATE TABLE IF NOT EXISTS oauth_clients (
   client_name                TEXT NOT NULL,
   redirect_uris              TEXT[] NOT NULL,
   token_endpoint_auth_method TEXT NOT NULL DEFAULT 'none',
+  -- FALSE only for an operator-registered confidential client whose platform
+  -- cannot send PKCE (ChatGPT GPT Actions). Every self-registered client and
+  -- every public client must use PKCE S256.
+  pkce_required              BOOLEAN NOT NULL DEFAULT TRUE,
+  -- TRUE for RFC 7591 self-registration; FALSE for clients created by the
+  -- operator (`simple-host oauth-client create`), which the sweep never removes.
+  dynamic                    BOOLEAN NOT NULL DEFAULT TRUE,
   created_at                 TIMESTAMPTZ NOT NULL DEFAULT now(),
   last_used_at               TIMESTAMPTZ,
   CONSTRAINT oauth_clients_auth_method_check
     CHECK (token_endpoint_auth_method IN ('none', 'client_secret_post', 'client_secret_basic')),
   CONSTRAINT oauth_clients_secret_shape
-    CHECK ((token_endpoint_auth_method = 'none') = (client_secret_hash IS NULL))
+    CHECK ((token_endpoint_auth_method = 'none') = (client_secret_hash IS NULL)),
+  CONSTRAINT oauth_clients_pkce_check
+    CHECK (pkce_required OR (client_secret_hash IS NOT NULL AND NOT dynamic))
 );
 CREATE INDEX IF NOT EXISTS oauth_clients_created_idx ON oauth_clients (created_at);
 

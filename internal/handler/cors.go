@@ -8,7 +8,12 @@ import (
 // corsAllowHeaders are the request headers a cross-origin caller may send to the
 // management API: the API key, JSON/archive content type, the optional upload
 // integrity digest, and the skill-version hint.
-const corsAllowHeaders = "Content-Type, X-API-Key, X-Content-Digest, X-Skill-Version"
+const corsAllowHeaders = "Content-Type, X-API-Key, X-Content-Digest, X-Skill-Version, Authorization, " +
+	"MCP-Protocol-Version, Mcp-Session-Id, Mcp-Method, Mcp-Name, Last-Event-ID"
+
+// corsExposeHeaders lets a browser-based MCP client read the auth challenge
+// (it carries the metadata address) and the transport headers.
+const corsExposeHeaders = "WWW-Authenticate, Mcp-Session-Id, ETag"
 
 // CORS makes the management API callable from any website's browser JS so that,
 // e.g., a web tool can deploy a site given the user's API key.
@@ -33,9 +38,21 @@ func CORS(next http.Handler) http.Handler {
 			return
 		}
 
+		// The consent screen's decision endpoint is same-origin only: it is
+		// the one place a signed-in person's click mints a code, so no other
+		// origin gets a CORS grant to call it.
+		if strings.HasPrefix(r.URL.Path, "/oauth/authorize") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		// Open to any origin. Safe without credentials (header auth, not cookies).
+		// That includes the connector's metadata, registration, token and /mcp
+		// endpoints, which browser-based MCP clients call cross-origin with a
+		// bearer token (never a cookie).
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Add("Vary", "Origin")
+		w.Header().Set("Access-Control-Expose-Headers", corsExposeHeaders)
 
 		if r.Method == http.MethodOptions {
 			// Preflight: answer here, never reaching auth/handlers.

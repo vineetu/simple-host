@@ -131,6 +131,7 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 // unparseable script — until a handler substitutes them.
 var handlerOnlyPages = map[string]bool{
 	"admin.html":     true,
+	"connect.html":   true,
 	"analytics.html": true,
 	"notfound.html":  true,
 	"showcase.html":  true,
