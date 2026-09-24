@@ -298,7 +298,7 @@ func resolveUser(ctx context.Context, q db.Querier, ident oauth.Identity) (db.Us
 	created := false
 	switch {
 	case err == nil:
-		if user.Username == "admin" || user.IsAdmin {
+		if user.Username == "admin" {
 			log.Printf("oauth: refused admin link provider=%s", ident.Provider)
 			return db.User{}, false, errOAuthAdminRefused
 		}
@@ -318,7 +318,7 @@ func resolveUser(ctx context.Context, q db.Querier, ident oauth.Identity) (db.Us
 		} else {
 			created = true
 		}
-		if user.Username == "admin" || user.IsAdmin {
+		if user.Username == "admin" {
 			log.Printf("oauth: refused admin link provider=%s", ident.Provider)
 			return db.User{}, false, errOAuthAdminRefused
 		}

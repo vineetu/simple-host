@@ -77,6 +77,8 @@ var navKeys = map[string]string{
 	"/docs.html":         "docs",
 	"/architecture.html": "architecture",
 	"/privacy.html":      "privacy",
+	"/terms":             "terms",
+	"/support":           "support",
 }
 
 // chromeDataFor derives the chrome for one request. base is "" for pages on

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Survey results · Linden Café</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="masthead wrap wide">
+    <p class="brand">
+      <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+        <path d="M5 11h15v5a6 6 0 0 1-6 6h-3a6 6 0 0 1-6-6v-5Z"/>
+        <path d="M20 12.5h1.5a2.5 2.5 0 0 1 0 5H20"/>
+        <path d="M10 4.5c-1 1.2 1 2.3 0 3.5M14.5 4.5c-1 1.2 1 2.3 0 3.5"/>
+      </svg>
+      Linden Café
+    </p>
+    <h1>Survey results</h1>
+    <p class="intro">Anyone with this page's address can open it, so share it only with the team.</p>
+  </header>
+
+  <main class="wrap wide">
+    <div class="summary">
+      <p id="count" aria-live="polite">Loading responses…</p>
+      <button type="button" class="secondary" id="csv" hidden>Download CSV</button>
+    </div>
+    <div id="state" class="state-msg" role="status">Loading responses…</div>
+    <div class="results" id="results"></div>
+  </main>
+
+  <footer class="wrap wide">
+    <p><a href="index.html">Back to the survey</a></p>
+  </footer>
+
+  <script src="questions.js"></script>
+  <script>window.SH_CONFIG = { site: "feedback-survey" };</script>
+  <script src="https://simple-host.app/auth.js" defer></script>
+  <script>
+  window.addEventListener('DOMContentLoaded', function () {
+    var QUESTIONS = window.SURVEY_QUESTIONS || [];
+    var stateEl = document.getElementById('state');
+    var countEl = document.getElementById('count');
+    var results = document.getElementById('results');
+    var csvBtn = document.getElementById('csv');
+    var dateFmt = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    var all = [];
+
+    function el(tag, cls, text) {
+      var n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (text != null) n.textContent = text;
+      return n;
+    }
+
+    async function loadAll(name) {
+      var items = [], before;
+      do {
+        var page = await SH.collection(name).list(before ? { limit: 200, before: before } : { limit: 200 });
+        items.push.apply(items, (page && page.items) || []);
+        before = page && page.next;
+        countEl.textContent = 'Loading… ' + items.length + ' so far';
+      } while (before && items.length < 2000);
+      return items;
+    }
+
+    function barRows(counts, options, denom) {
+      var ul = el('ul', 'rows');
+      options.forEach(function (o) {
+        var n = counts[o] || 0;
+        var pct = denom ? Math.round(n / denom * 100) : 0;
+        var li = el('li');
+        var top = el('div', 'row-top');
+        top.appendChild(el('span', null, o));
+        top.appendChild(el('span', null, n + ' · ' + pct + '%'));
+        var track = el('div', 'track');
+        var fill = el('div', 'fill');
+        fill.style.width = pct + '%';
+        track.appendChild(fill);
+        li.appendChild(top);
+        li.appendChild(track);
+        ul.appendChild(li);
+      });
+      return ul;
+    }
+
+    function render(items) {
+      results.textContent = '';
+      var total = items.length;
+      QUESTIONS.forEach(function (q, qi) {
+        var card = el('section', q.type === 'text' ? 'r-card span' : 'r-card');
+        card.setAttribute('aria-labelledby', 'r-' + q.id);
+        var h = el('h2', null, (qi + 1) + '. ' + q.label);
+        h.id = 'r-' + q.id;
+        card.appendChild(h);
+        var answers = items.map(function (it) { return (it.data || {})[q.id]; });
+
+        if (q.type === 'choice' || q.type === 'multi') {
+          var counts = {}, answered = 0;
+          answers.forEach(function (a) {
+            var list = Array.isArray(a) ? a : (a == null || a === '' ? [] : [a]);
+            if (list.length) answered++;
+            list.forEach(function (v) { counts[v] = (counts[v] || 0) + 1; });
+          });
+          card.appendChild(el('p', 'meta', answered + ' answered' + (q.type === 'multi' ? ' · people could pick more than one' : '')));
+          card.appendChild(barRows(counts, q.options, answered));
+        } else if (q.type === 'scale') {
+          var nums = answers.map(Number).filter(function (n) { return n >= 1 && n <= 5; });
+          var dist = {};
+          nums.forEach(function (n) { dist[String(n)] = (dist[String(n)] || 0) + 1; });
+          var avg = el('p', 'avg');
+          avg.appendChild(el('b', null, nums.length ? (nums.reduce(function (a, b) { return a + b; }, 0) / nums.length).toFixed(1) : '–'));
+          avg.appendChild(el('span', null, 'average out of 5, from ' + nums.length + ' answers'));
+          card.appendChild(avg);
+          var labels = ['5', '4', '3', '2', '1'];
+          var rows = barRows(dist, labels, nums.length);
+          rows.querySelectorAll('.row-top span:first-child').forEach(function (s, i) {
+            var v = labels[i];
+            s.textContent = v + (v === '5' ? ' · ' + q.high : v === '1' ? ' · ' + q.low : '');
+          });
+          card.appendChild(rows);
+        } else {
+          var texts = items.filter(function (it) { return it.data && typeof it.data[q.id] === 'string' && it.data[q.id].trim(); });
+          card.appendChild(el('p', 'meta', texts.length + ' written answers' + (texts.length > 10 ? ', latest 10 shown' : '')));
+          if (!texts.length) {
+            card.appendChild(el('p', 'meta', 'Nobody has written anything here yet.'));
+          } else {
+            var ul = el('ul', 'quotes');
+            texts.slice(0, 10).forEach(function (it) {
+              var li = el('li');
+              li.appendChild(el('p', null, it.data[q.id]));
+              var d = new Date(it.created_at);
+              if (!isNaN(d)) {
+                var t = el('time', null, dateFmt.format(d));
+                t.setAttribute('datetime', it.created_at);
+                li.appendChild(t);
+              }
+              ul.appendChild(li);
+            });
+            card.appendChild(ul);
+          }
+        }
+        results.appendChild(card);
+      });
+    }
+
+    function csvCell(v) {
+      if (Array.isArray(v)) v = v.join('; ');
+      v = v == null ? '' : String(v);
+      if (/^[=+\-@]/.test(v)) v = "'" + v;
+      return '"' + v.replace(/"/g, '""') + '"';
+    }
+    csvBtn.addEventListener('click', function () {
+      var head = ['received'].concat(QUESTIONS.map(function (q) { return q.id; }));
+      var lines = [head.map(csvCell).join(',')];
+      all.forEach(function (it) {
+        var d = it.data || {};
+        lines.push([it.created_at].concat(QUESTIONS.map(function (q) { return d[q.id]; })).map(csvCell).join(','));
+      });
+      var url = URL.createObjectURL(new Blob([lines.join('\r\n')], { type: 'text/csv' }));
+      var a = el('a');
+      a.href = url;
+      a.download = 'linden-cafe-feedback.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    });
+
+    (async function () {
+      try {
+        if (!window.SH) throw new Error('helper not loaded');
+        all = await loadAll('responses');
+        if (!all.length) {
+          countEl.textContent = 'No responses yet';
+          stateEl.textContent = 'No responses yet. Answers will be counted here as soon as the first one arrives.';
+          return;
+        }
+        stateEl.hidden = true;
+        var latest = new Date(all[0].created_at);
+        countEl.textContent = '';
+        countEl.appendChild(el('strong', null, all.length + (all.length === 1 ? ' response' : ' responses')));
+        if (!isNaN(latest)) countEl.appendChild(document.createTextNode(' · latest ' + dateFmt.format(latest)));
+        csvBtn.hidden = false;
+        render(all);
+      } catch (err) {
+        countEl.textContent = '';
+        stateEl.className = 'state-msg error';
+        stateEl.textContent = !window.SH
+          ? 'Could not load the saving service. Check your connection and reload.'
+          : 'Could not load responses (' + ((err && (err.code || err.status)) || 'no connection') + '). Reload the page to try again.';
+      }
+    })();
+  });
+  </script>
+</body>
+</html>

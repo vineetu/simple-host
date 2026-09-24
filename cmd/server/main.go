@@ -35,6 +35,9 @@ func main() {
 	// `simple-host geoip-verify FILE...` — used by scripts/geoip-refresh.sh to
 	// check a freshly downloaded database opens and answers before it is
 	// swapped into place. Needs no config or database.
+	if len(os.Args) > 1 && os.Args[1] == "review-account" {
+		os.Exit(runReviewAccountCommand(os.Args[2:]))
+	}
 	if len(os.Args) > 1 && os.Args[1] == "geoip-verify" {
 		os.Exit(geoipVerify(os.Args[2:]))
 	}
@@ -164,6 +167,8 @@ func main() {
 	// same checks as the REST call they stand for.
 	connector := handler.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, mux)
 	connector.Register(mux, authMW)
+	connector.EnableReviewerSignIn(cfg.ReviewAccountEmail, cfg.ReviewAccountPasswordHash)
+	handler.RegisterOpenAIAppsChallenge(mux, cfg.OpenAIAppsChallenge)
 	connector.StartSweep(time.Hour)
 	handler.RegisterUIRoutes(mux, cfg.PublicBaseURL, siteHandler)
 	handler.RegisterSkillsHub(mux, cfg.PublicBaseURL)

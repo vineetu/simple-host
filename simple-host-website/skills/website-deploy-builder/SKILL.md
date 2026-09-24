@@ -5,6 +5,18 @@ description: Plan what to build on Website Deploy (simple-host.app). Helps a use
 
 # Website Deploy Builder
 
+**First rule: use the Simple Host tools when you have them.** If the Simple Host
+connector's tools are available in this session (`who_am_i`, `list_sites`,
+`create_site` / `update_site` (`deploy_site` on older connections), `get_state`,
+`connect_domain`, …), use them for everything and never ask the person for an
+email, a code or an API key — the connector is already signed in as them. Sign-in
+itself is unchanged: when the person connects Simple Host in their AI app, a
+Simple Host sign-in window opens, they sign in with Google or the emailed code,
+then choose Allow, and every chat after that is signed in. If a tool reports the
+connection is not signed in, ask them to reconnect Simple Host in their app's
+settings. Only when those tools are not available (e.g. a coding agent without
+the connector) use the email-code and API-key flow the `website-deploy` skill describes.
+
 Use this skill when a user wants help deciding what to build on Website Deploy, or how to scope an idea they already have. After the user picks an approach, hand off to the `website-deploy` skill for deploy.
 
 ## What Website Deploy gives you
@@ -13,12 +25,12 @@ Website Deploy is a static-file host at `https://simple-host.app`. Each site is 
 
 | Capability | How |
 |---|---|
-| HTML / CSS / JS / images / fonts served as a site | Deploy files inline as JSON (`/files`) or upload a `.tar.gz`/`.zip` |
+| HTML / CSS / JS / images / fonts served as a site | Deploy files inline as JSON (`/files`) or upload a `.tar.gz`/`.zip`. With the connector: `create_site` / `update_site` (`deploy_site` on older connections) |
 | Per-site JSON state (≤ 1 MB, shared across all visitors) | `GET / PUT /v1/u/<handle>/sites/<sitename>/state` (legacy `/v1/sites/<sitename>/state` still works). Reads public; on the shared host a page writes freely; on the site's own custom domain the visitor signs in first (`auth.js`) |
 | Atomic state updates (concurrent-safe counters, lists, votes) | `PATCH .../state` with `{ops:[inc/append/set/remove/removeWhere]}`; `If-None-Match` ETag for cheap polling. A write — same rule as above |
 | Append-only collections (signups / RSVPs / submissions) | `POST/GET /v1/u/<handle>/sites/<sitename>/collections/<name>`. GET public; POST is a write |
 | Custom domain | `connect-domain` skill: bind domain → one DNS record → poll until active. **This is what adds visitor sign-in to saves from a page** |
-| Agent writing for a person (no browser) | That person's own API key, obtained by email code, as `X-API-Key` — works on any site, shared host included. See "Saving from an agent" in the `website-deploy` skill's `references/backend.md` |
+| Agent writing for a person (no browser) | The connector (`update_state`, `add_to_collection`) if present; otherwise that person's own API key, obtained by email code, as `X-API-Key` — works on any site, shared host included. See "Saving from an agent" in the `website-deploy` skill's `references/backend.md` |
 | Per-visitor state | `localStorage`, `sessionStorage`, `IndexedDB` (in the browser) |
 | External APIs | `fetch()` from the page to any public CORS-enabled API |
 | Routing | Static files only — path-relative directories with `index.html`; SPA routing via the framework's hash router or `404.html` fallback |
@@ -35,7 +47,7 @@ If your idea needs a server you control, a shared SQL database, persistent per-u
 2. Decide whether it can run as a static site. If parts of it can't, name those parts and either propose a static-friendly substitute or recommend a different host for that piece.
 3. If visitors will save anything, say now that shared-host saves are open to everyone; if the saves should be per-person or protected, include `connect-domain` in the plan.
 4. For the part that can run statically, give them: (a) a one-paragraph explanation of how to structure it, (b) any relevant snippet (storage, routing, external API call), (c) the gotchas.
-5. If they're starting from scratch, finish with a "ready to deploy" handoff: tell them to use the `website-deploy` skill, which handles registration, framework-aware build, packaging, and upload.
+5. If they're starting from scratch, finish with a "ready to deploy" handoff: tell them to use the `website-deploy` skill, which handles registration (only without the connector), framework-aware build, packaging, and upload.
 6. If they want to wire a capability into a site they've already deployed, generate a focused prompt they can paste into a fresh agent chat (in their site's repo). Include the pattern, the storage shape, and any gotcha — nothing else.
 
 ## Capability tree
@@ -160,7 +172,7 @@ Website Deploy serves files. There is no rewrite layer. Because sites live under
 
 ### 8. Custom domains
 
-A user can serve a site from their own domain (e.g. `recipes.brand.com`). This is a distinct flow — use the `connect-domain` skill (`simple-host-website/skills/connect-domain`). Summary: `POST /v1/sites/<sitename>/domain` with `{domain}` → user adds one DNS record → poll `GET /v1/sites/<sitename>/domain` until `active`. A custom domain changes the address and adds visitor sign-in to saves; it does not change the privacy — the site is still public. Once connected, the site lives only on the domain: its `sites.simple-host.app` URL 302s there and the shared-host API takes no writes for it (agents keep writing through the apex `https://simple-host.app/v1/...`).
+A user can serve a site from their own domain (e.g. `recipes.brand.com`). This is a distinct flow — use the `connect-domain` skill (`simple-host-website/skills/connect-domain`). Summary: `POST /v1/sites/<sitename>/domain` with `{domain}` → user adds one DNS record → poll `GET /v1/sites/<sitename>/domain` until `active` (with the connector: `connect_domain`, then `domain_status`). A custom domain changes the address and adds visitor sign-in to saves; it does not change the privacy — the site is still public. Once connected, the site lives only on the domain: its `sites.simple-host.app` URL 302s there and the shared-host API takes no writes for it (agents keep writing through the apex `https://simple-host.app/v1/...`).
 
 ## Picking a capability mix
 
@@ -196,4 +208,4 @@ Mirror this shape for `IndexedDB`, external API calls, routing, etc.
 
 ## Handoff: deploy
 
-Once the user has decided what to build, they need to deploy. Tell them to use the `website-deploy` skill, which handles registration, framework-aware build (with a relative base path), packaging, and upload. The site will be live at `https://sites.simple-host.app/<handle>/<sitename>/`. If saves should be per-person or protected, or the user wants their own address, follow with the `connect-domain` skill.
+Once the user has decided what to build, they need to deploy. Tell them to use the `website-deploy` skill, which handles registration (only when the Simple Host connector is not available), framework-aware build (with a relative base path), packaging, and upload. The site will be live at `https://sites.simple-host.app/<handle>/<sitename>/`. If saves should be per-person or protected, or the user wants their own address, follow with the `connect-domain` skill.

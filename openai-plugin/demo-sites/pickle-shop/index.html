@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Brine &amp; Barrel · Small-batch pickles</title>
+  <meta name="description" content="Six small-batch pickles, fermented and packed by hand. Order online, pay on pickup.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Young+Serif&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap">
+      <a class="mark" href="index.html">Brine &amp; Barrel</a>
+      <a class="cart-link" href="#cart">Your order <b id="cart-count">0</b><span class="visually-hidden" id="cart-count-label"> jars</span></a>
+    </div>
+  </header>
+
+  <main>
+    <section class="intro wrap" aria-labelledby="intro-title">
+      <h1 id="intro-title">Small-batch pickles, packed on Saturdays.</h1>
+      <p>Everything is fermented or brined by hand in small runs, then jarred the weekend you order. Pick what you like, send the order, and we will get in touch to arrange pickup and payment.</p>
+      <ul class="facts">
+        <li>Pickup Sundays</li>
+        <li>Pay when you collect</li>
+        <li>Jars back for $1 off</li>
+      </ul>
+    </section>
+
+    <div class="shop wrap">
+      <section aria-labelledby="jars-title">
+        <h2 id="jars-title">This week's jars</h2>
+        <ul class="grid" id="grid"></ul>
+      </section>
+
+      <aside class="cart" id="cart" aria-labelledby="cart-title">
+        <div id="cart-view">
+          <h2 id="cart-title">Your order</h2>
+          <p class="sub">No payment now. You pay when you collect.</p>
+          <ul class="lines" id="lines"></ul>
+          <p class="empty" id="empty">Nothing here yet. Add a jar or two from the list.</p>
+          <p class="total" id="total-row" hidden><span>Total</span><span id="total">$0.00</span></p>
+
+          <form id="checkout" novalidate hidden>
+            <div id="sh-auth"></div>
+            <div class="field">
+              <label for="c-name">Your name <span class="req">(required)</span></label>
+              <input type="text" id="c-name" name="name" autocomplete="name" maxlength="120" required>
+            </div>
+            <div class="field">
+              <label for="c-contact">Email or phone <span class="req">(required)</span></label>
+              <input type="text" id="c-contact" name="contact" autocomplete="email" maxlength="120" required aria-describedby="c-contact-hint">
+              <p class="hint" id="c-contact-hint">So we can arrange pickup. We use it for this order only.</p>
+            </div>
+            <button type="submit" class="place" id="place">Send order</button>
+            <p class="status" id="status" role="status" aria-live="polite"></p>
+            <p class="pay-note">Orders on this page can be seen by the shop and by anyone with the orders page address, so we only ask for a name and a way to reach you.</p>
+          </form>
+        </div>
+
+        <div class="done" id="done" hidden tabindex="-1">
+          <h2>Order received</h2>
+          <p id="done-text"></p>
+          <button type="button" class="link-btn" id="new-order">Start a new order</button>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <footer class="wrap">
+    <p>Brine &amp; Barrel is a home kitchen. Questions: hello@example.com. <a href="orders.html">Orders</a></p>
+  </footer>
+
+  <script>window.SH_CONFIG = { site: "pickle-shop" };</script>
+  <script src="https://simple-host.app/auth.js" defer></script>
+  <script>
+  var PRODUCTS = [
+    { id: 'dill-spears', name: 'Garlic Dill Spears', line: 'Whole garlic cloves, fresh dill and a slow cold ferment. Crunchy to the last one.', size: '16 oz', price: 9, fill: 'spears' },
+    { id: 'bread-butter', name: 'Bread & Butter Chips', line: 'Sweet and sharp, with mustard seed and thin-sliced onion.', size: '16 oz', price: 8, fill: 'coins' },
+    { id: 'red-onions', name: 'Quick Red Onions', line: 'Bright pink and lime-sharp. For tacos, toast and grain bowls.', size: '12 oz', price: 7, fill: 'rings' },
+    { id: 'spicy-carrots', name: 'Spicy Carrot Sticks', line: 'Carrots with jalapeño, cumin and a slow build of heat.', size: '16 oz', price: 9, fill: 'sticks' },
+    { id: 'beet-fennel', name: 'Beet & Fennel', line: 'Earthy beets with shaved fennel and orange peel.', size: '16 oz', price: 10, fill: 'coins' },
+    { id: 'half-sours', name: 'Half-Sours', line: 'Barely fermented, still green and snappy. Best within two weeks.', size: '32 oz', price: 14, fill: 'spears' }
+  ];
+
+  window.addEventListener('DOMContentLoaded', function () {
+    var CART_KEY = 'pickle-shop:cart';
+    var MAX_QTY = 12;
+    var money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+    var byId = {};
+    PRODUCTS.forEach(function (p) { byId[p.id] = p; });
+
+    var grid = document.getElementById('grid');
+    var linesEl = document.getElementById('lines');
+    var form = document.getElementById('checkout');
+    var nameInput = document.getElementById('c-name');
+    var contactInput = document.getElementById('c-contact');
+    var placeBtn = document.getElementById('place');
+    var statusEl = document.getElementById('status');
+    var mounted = false;
+
+    function store(fn) { try { return fn(); } catch (e) { return null; } }
+    function el(tag, attrs, text) {
+      var n = document.createElement(tag);
+      if (attrs) Object.keys(attrs).forEach(function (k) { n.setAttribute(k, attrs[k]); });
+      if (text != null) n.textContent = text;
+      return n;
+    }
+
+    var cart = store(function () { return JSON.parse(localStorage.getItem(CART_KEY) || '{}'); }) || {};
+    Object.keys(cart).forEach(function (id) {
+      var q = Math.floor(Number(cart[id]));
+      if (!byId[id] || !(q > 0)) delete cart[id]; else cart[id] = Math.min(q, MAX_QTY);
+    });
+    function save() { store(function () { localStorage.setItem(CART_KEY, JSON.stringify(cart)); }); }
+    function setQty(id, q) {
+      q = Math.max(0, Math.min(MAX_QTY, q));
+      if (q) cart[id] = q; else delete cart[id];
+      save();
+      render();
+    }
+
+    // A simple jar drawing, with contents that hint at what is inside.
+    var NS = 'http://www.w3.org/2000/svg';
+    function svg(tag, attrs) {
+      var n = document.createElementNS(NS, tag);
+      Object.keys(attrs).forEach(function (k) { n.setAttribute(k, attrs[k]); });
+      return n;
+    }
+    function jar(kind) {
+      var s = svg('svg', { viewBox: '0 0 200 132', 'class': 'jar', 'aria-hidden': 'true', focusable: 'false' });
+      var g = svg('g', { fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+      g.appendChild(svg('rect', { x: '78', y: '14', width: '44', height: '12', rx: '2' }));
+      g.appendChild(svg('path', { d: 'M80 26h40v6c8 4 12 10 12 18v62a8 8 0 0 1-8 8H76a8 8 0 0 1-8-8V50c0-8 4-14 12-18v-6Z', fill: '#ffffff' }));
+      g.appendChild(svg('path', { d: 'M70 58h60v54a6 6 0 0 1-6 6H76a6 6 0 0 1-6-6V58Z', fill: 'currentColor', 'fill-opacity': '0.10', stroke: 'none' }));
+      var c = svg('g', { 'stroke-width': '1.6' });
+      if (kind === 'spears') {
+        [82, 94, 106, 118].forEach(function (x, i) { c.appendChild(svg('rect', { x: String(x - 4), y: String(46 + (i % 2) * 6), width: '8', height: '64', rx: '4' })); });
+      } else if (kind === 'sticks') {
+        [80, 89, 98, 107, 116].forEach(function (x, i) { c.appendChild(svg('rect', { x: String(x), y: String(50 + (i % 3) * 4), width: '5', height: '60', rx: '2.5' })); });
+      } else if (kind === 'rings') {
+        [[86, 70], [110, 74], [96, 92], [116, 100], [84, 104]].forEach(function (p) {
+          c.appendChild(svg('ellipse', { cx: String(p[0]), cy: String(p[1]), rx: '11', ry: '7' }));
+          c.appendChild(svg('ellipse', { cx: String(p[0]), cy: String(p[1]), rx: '5', ry: '3' }));
+        });
+      } else {
+        [[86, 72], [108, 68], [98, 88], [120, 90], [84, 100], [106, 106]].forEach(function (p) {
+          c.appendChild(svg('circle', { cx: String(p[0]), cy: String(p[1]), r: '9' }));
+        });
+      }
+      g.appendChild(c);
+      g.appendChild(svg('line', { x1: '70', y1: '58', x2: '130', y2: '58', 'stroke-dasharray': '3 4' }));
+      s.appendChild(g);
+      return s;
+    }
+
+    function stepper(p, qty, compact) {
+      var wrap = el('div', { 'class': 'qty', role: 'group', 'aria-label': 'Quantity of ' + p.name });
+      var minus = el('button', { type: 'button', 'aria-label': (qty === 1 ? 'Remove ' : 'One less ') + p.name }, '−');
+      var out = el('output', { 'aria-live': 'polite' }, String(qty));
+      var plus = el('button', { type: 'button', 'aria-label': 'One more ' + p.name }, '+');
+      if (qty >= MAX_QTY) plus.disabled = true;
+      minus.onclick = function () { setQty(p.id, qty - 1); refocus(p.id, compact ? 'line' : 'card', 'minus'); };
+      plus.onclick = function () { setQty(p.id, qty + 1); refocus(p.id, compact ? 'line' : 'card', 'plus'); };
+      minus.setAttribute('data-role', 'minus');
+      plus.setAttribute('data-role', 'plus');
+      wrap.appendChild(minus); wrap.appendChild(out); wrap.appendChild(plus);
+      return wrap;
+    }
+    // Keep keyboard focus in a sensible place after re-rendering.
+    function refocus(id, where, role) {
+      var scope = document.querySelector('[data-' + where + '="' + id + '"]');
+      var target = scope && (scope.querySelector('[data-role="' + role + '"]') || scope.querySelector('button'));
+      if (!target && where === 'line') target = document.querySelector('[data-card="' + id + '"] button');
+      if (target) target.focus();
+    }
+
+    function renderGrid() {
+      grid.textContent = '';
+      PRODUCTS.forEach(function (p) {
+        var li = el('li', { 'class': 'product', 'data-card': p.id });
+        li.appendChild(jar(p.fill));
+        li.appendChild(el('h3', null, p.name));
+        li.appendChild(el('p', null, p.line));
+        var buy = el('div', { 'class': 'buy' });
+        var price = el('span', { 'class': 'price' }, money.format(p.price));
+        price.appendChild(el('small', null, p.size));
+        buy.appendChild(price);
+        var qty = cart[p.id] || 0;
+        if (qty) {
+          buy.appendChild(stepper(p, qty, false));
+        } else {
+          var add = el('button', { type: 'button', 'class': 'add', 'aria-label': 'Add ' + p.name + ' to order' }, 'Add');
+          add.onclick = function () { setQty(p.id, 1); refocus(p.id, 'card', 'plus'); };
+          buy.appendChild(add);
+        }
+        li.appendChild(buy);
+        grid.appendChild(li);
+      });
+    }
+
+    function cartLines() {
+      return PRODUCTS.filter(function (p) { return cart[p.id]; }).map(function (p) {
+        return { id: p.id, name: p.name, size: p.size, price: p.price, qty: cart[p.id] };
+      });
+    }
+    function totalOf(lines) { return lines.reduce(function (s, l) { return s + l.price * l.qty; }, 0); }
+
+    function renderCart() {
+      var lines = cartLines();
+      var count = lines.reduce(function (s, l) { return s + l.qty; }, 0);
+      document.getElementById('cart-count').textContent = count;
+      document.getElementById('cart-count-label').textContent = count === 1 ? ' jar' : ' jars';
+      linesEl.textContent = '';
+      lines.forEach(function (l) {
+        var li = el('li', { 'data-line': l.id });
+        li.appendChild(el('span', { 'class': 'ln-name' }, l.name));
+        li.appendChild(stepper(byId[l.id], l.qty, true));
+        li.appendChild(el('span', { 'class': 'ln-sub' }, l.qty + ' × ' + money.format(l.price) + ' = ' + money.format(l.qty * l.price)));
+        linesEl.appendChild(li);
+      });
+      var has = lines.length > 0;
+      linesEl.hidden = !has;
+      document.getElementById('empty').hidden = has;
+      document.getElementById('total-row').hidden = !has;
+      document.getElementById('total').textContent = money.format(totalOf(lines));
+      form.hidden = !has;
+      if (has && !mounted && window.SH) {
+        mounted = true;
+        try { Promise.resolve(SH.mount('#sh-auth')).catch(function () {}); } catch (e) {}
+      }
+    }
+
+    function render() { renderGrid(); renderCart(); }
+    render();
+
+    function setStatus(text, isError) {
+      statusEl.textContent = text;
+      statusEl.className = 'status' + (isError ? ' error' : '');
+    }
+    function explain(err) {
+      if (!window.SH) return 'The order service did not load. Check your connection and try again.';
+      var code = err && err.code, status = err && err.status;
+      if (code === 'use_custom_domain' && err.domain) {
+        statusEl.className = 'status error';
+        statusEl.textContent = 'Orders are taken on ';
+        statusEl.appendChild(el('a', { href: 'https://' + err.domain + '/' }, err.domain));
+        statusEl.appendChild(document.createTextNode('. Please order there.'));
+        return null;
+      }
+      if (code === 'visitor_auth_required' || status === 401) return 'Please sign in above, then send the order again.';
+      if (status === 429) return 'Lots of orders at once. Wait a moment, then send again.';
+      return 'Your order was not sent (' + (code || status || 'no connection') + '). Your cart is still here; please try again.';
+    }
+    function looksReachable(v) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || v.replace(/\D/g, '').length >= 7;
+    }
+
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var name = nameInput.value.trim();
+      var contact = contactInput.value.trim();
+      if (!name) { setStatus('Please add your name.', true); nameInput.focus(); return; }
+      if (!looksReachable(contact)) { setStatus('Please add an email address or a phone number we can reach.', true); contactInput.focus(); return; }
+      var lines = cartLines();
+      if (!lines.length) { setStatus('Your order is empty.', true); return; }
+      var order = {
+        name: name,
+        contact: contact,
+        lines: lines,
+        total: totalOf(lines),
+        currency: 'USD'
+      };
+      placeBtn.disabled = true;
+      placeBtn.textContent = 'Sending…';
+      setStatus('', false);
+      try {
+        if (!window.SH) throw new Error('helper not loaded');
+        await SH.requireSignIn();
+        await SH.collection('orders').append(order);
+        cart = {};
+        save();
+        form.reset();
+        render();
+        document.getElementById('done-text').textContent = 'Thanks, ' + name + '. Your order for ' + money.format(order.total) +
+          ' is in. We will be in touch at ' + contact + ' within a day to arrange pickup and payment.';
+        document.getElementById('cart-view').hidden = true;
+        var done = document.getElementById('done');
+        done.hidden = false;
+        done.focus();
+      } catch (err) {
+        var msg = explain(err);
+        if (msg) setStatus(msg, true);
+      } finally {
+        placeBtn.disabled = false;
+        placeBtn.textContent = 'Send order';
+      }
+    });
+
+    document.getElementById('new-order').addEventListener('click', function () {
+      document.getElementById('done').hidden = true;
+      document.getElementById('cart-view').hidden = false;
+      setStatus('', false);
+      var first = grid.querySelector('button');
+      if (first) first.focus();
+    });
+
+    // Keep tabs in step if the cart changes in another tab.
+    window.addEventListener('storage', function (e) {
+      if (e.key !== CART_KEY) return;
+      cart = store(function () { return JSON.parse(e.newValue || '{}'); }) || {};
+      render();
+    });
+  });
+  </script>
+</body>
+</html>

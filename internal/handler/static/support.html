@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Support — Simple Host</title>
+  <!--sh:head-->
+  <style>
+    /* Tokens, base type and the header/footer live in /site.css. */
+    .container { max-width: 768px; margin: 0 auto; padding: 0 24px; }
+    main.container { padding-top: 48px; padding-bottom: 24px; }
+    .eyebrow { font-size: 13px; color: var(--text-secondary); margin: 0 0 10px; }
+    h1 { font-size: clamp(30px, 5vw, 44px); font-weight: 700; line-height: 1.1; letter-spacing: -.02em; color: var(--text); margin: 0 0 8px; }
+    .updated { font-size: 13px; color: var(--text-secondary); margin: 0 0 32px; }
+    h2 { font-size: 21px; font-weight: 700; line-height: 1.3; color: var(--text); margin: 0 0 12px; padding-top: 28px; border-top: 1px solid var(--border); }
+    * + h2 { margin-top: 28px; }
+    p, li { color: var(--text-secondary); font-size: 16px; line-height: 1.6; }
+    p { margin: 0 0 14px; }
+    ul { margin: 0 0 14px; padding-left: 20px; }
+    li { margin-bottom: 8px; }
+    strong { color: var(--text); font-weight: 600; }
+    a { color: var(--accent); text-underline-offset: 3px; }
+    a:hover { color: var(--accent-hover); }
+    code { font-family: var(--mono); font-size: .9em; color: var(--text); background: color-mix(in srgb, var(--accent) 10%, transparent); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+    @media (max-width: 640px) {
+      .container { padding: 0 20px; }
+      main.container { padding-top: 36px; }
+    }
+  </style>
+</head>
+<body>
+  <!--sh:header-->
+  <main class="container">
+    <div class="eyebrow">Support</div>
+    <h1>Support</h1>
+    <p class="updated">Simple Host (simple-host.app) · last updated 2026-09-24</p>
+
+    <!-- OWNER: replace [support email] with the real support address and make it a mailto link -->
+    <p>Email <strong>[support email]</strong>.</p>
+    <p>It helps to include:</p>
+    <ul>
+      <li>the email you sign in with;</li>
+      <li>the site's address, for example <code>sites.simple-host.app/you/my-site</code>;</li>
+      <li>what you asked your AI app to do;</li>
+      <li>what happened instead.</li>
+    </ul>
+
+    <h2>Common fixes</h2>
+    <p><strong>My AI app says Simple Host isn't connected, or asks me to sign in again.</strong><br>Open the app's connector or plugin settings and reconnect Simple Host. You will sign in once more on simple-host.app.</p>
+    <p><strong>I want to disconnect an app.</strong><br>Sign in at <a href="https://simple-host.app/dashboard">simple-host.app/dashboard</a>. Under <strong>Connected apps</strong> on your sites page, choose <strong>Disconnect</strong> next to the app.</p>
+    <p><strong>I need to remove a site.</strong><br>Delete it from the dashboard, or ask your AI app to delete it. Deleting removes every version and all of its saved data.</p>
+    <p><strong>I want to delete my account.</strong><br>Email support from the address you sign in with.</p>
+    <p><strong>A site hosted here is abusive.</strong><br>Email support with the site's address and what is wrong with it.</p>
+
+    <h2>More</h2>
+    <p><a href="/privacy.html">Privacy Policy</a> · <a href="/terms">Terms of Service</a></p>
+  </main>
+  <!--sh:footer-->
+</body>
+</html>

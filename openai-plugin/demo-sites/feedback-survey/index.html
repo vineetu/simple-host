@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tell us about your visit · Linden Café</title>
+  <meta name="description" content="Seven quick questions about your visit to Linden Café. Takes about a minute.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="masthead wrap">
+    <p class="brand">
+      <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+        <path d="M5 11h15v5a6 6 0 0 1-6 6h-3a6 6 0 0 1-6-6v-5Z"/>
+        <path d="M20 12.5h1.5a2.5 2.5 0 0 1 0 5H20"/>
+        <path d="M10 4.5c-1 1.2 1 2.3 0 3.5M14.5 4.5c-1 1.2 1 2.3 0 3.5"/>
+      </svg>
+      Linden Café
+    </p>
+    <h1>How was your visit?</h1>
+    <p class="intro">Seven short questions, about a minute. We read every answer and use them to decide what to change. No names or email needed.</p>
+  </header>
+
+  <main class="survey wrap">
+    <div id="sh-auth"></div>
+
+    <form id="survey" novalidate>
+      <div class="progress" id="progress" hidden>
+        <p id="progress-text" aria-live="polite"></p>
+        <div class="bar" aria-hidden="true"><span id="progress-bar"></span></div>
+      </div>
+
+      <div id="questions"></div>
+
+      <div class="nav">
+        <button type="button" class="secondary" id="back" hidden>Back</button>
+        <button type="button" class="primary" id="next" hidden>Next</button>
+        <button type="submit" class="primary" id="submit">Send feedback</button>
+      </div>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+    </form>
+
+    <section class="thanks" id="thanks" hidden tabindex="-1" aria-labelledby="thanks-title">
+      <h2 id="thanks-title">Thank you, that is saved.</h2>
+      <p>Your answers went straight to the café team. If something needs putting right, tell whoever is at the counter next time; they will want to know.</p>
+      <button type="button" class="secondary" id="another">Answer again for another visit</button>
+    </section>
+  </main>
+
+  <footer class="wrap">
+    <p>Linden Café · hello@example.com · <a href="results.html">Results</a></p>
+  </footer>
+
+  <script src="questions.js"></script>
+  <script>window.SH_CONFIG = { site: "feedback-survey" };</script>
+  <script src="https://simple-host.app/auth.js" defer></script>
+  <script>
+  window.addEventListener('DOMContentLoaded', function () {
+    var QUESTIONS = window.SURVEY_QUESTIONS || [];
+    var DRAFT_KEY = 'feedback-survey:draft';
+    var form = document.getElementById('survey');
+    var box = document.getElementById('questions');
+    var backBtn = document.getElementById('back');
+    var nextBtn = document.getElementById('next');
+    var submitBtn = document.getElementById('submit');
+    var statusEl = document.getElementById('status');
+    var progress = document.getElementById('progress');
+    var phone = window.matchMedia('(max-width: 699px)');
+    var step = 0;
+
+    if (window.SH) {
+      try { Promise.resolve(SH.mount('#sh-auth')).catch(function () {}); } catch (e) {}
+    }
+
+    function store(fn) { try { return fn(); } catch (e) { return null; } }
+    function el(tag, attrs, text) {
+      var n = document.createElement(tag);
+      if (attrs) Object.keys(attrs).forEach(function (k) { n.setAttribute(k, attrs[k]); });
+      if (text != null) n.textContent = text;
+      return n;
+    }
+
+    // Render every question from the array.
+    QUESTIONS.forEach(function (q, i) {
+      var wrap, title;
+      var tag = q.required ? null : '(optional)';
+      if (q.type === 'text') {
+        wrap = el('div', { 'class': 'q', 'data-id': q.id });
+        title = el('label', { 'class': 'qlabel', 'for': 'q-' + q.id });
+      } else {
+        wrap = el('fieldset', { 'class': 'q', 'data-id': q.id });
+        title = el('legend');
+      }
+      title.appendChild(el('span', { 'class': 'num', 'aria-hidden': 'true' }, (i + 1) + '.'));
+      title.appendChild(document.createTextNode(q.label));
+      if (tag) title.appendChild(el('span', { 'class': 'tag' }, tag));
+      wrap.appendChild(title);
+      if (q.hint) wrap.appendChild(el('p', { 'class': 'hint', id: 'h-' + q.id }, q.hint));
+
+      if (q.type === 'choice' || q.type === 'multi') {
+        var opts = el('div', { 'class': 'opts' });
+        q.options.forEach(function (o) {
+          var lab = el('label', { 'class': 'opt' });
+          var input = el('input', { type: q.type === 'multi' ? 'checkbox' : 'radio', name: q.id, value: o });
+          lab.appendChild(input);
+          lab.appendChild(document.createTextNode(o));
+          opts.appendChild(lab);
+        });
+        wrap.appendChild(opts);
+      } else if (q.type === 'scale') {
+        var scale = el('div', { 'class': 'scale' });
+        for (var v = 1; v <= 5; v++) {
+          var sl = el('label');
+          var si = el('input', { type: 'radio', name: q.id, value: String(v),
+            'aria-label': v + (v === 1 ? ', ' + q.low : v === 5 ? ', ' + q.high : '') });
+          sl.appendChild(si);
+          sl.appendChild(el('span', { 'aria-hidden': 'true' }, String(v)));
+          scale.appendChild(sl);
+        }
+        wrap.appendChild(scale);
+        var ends = el('div', { 'class': 'ends', 'aria-hidden': 'true' });
+        ends.appendChild(el('span', null, '1 · ' + q.low));
+        ends.appendChild(el('span', null, q.high + ' · 5'));
+        wrap.appendChild(ends);
+      } else {
+        var ta = el('textarea', { id: 'q-' + q.id, name: q.id, maxlength: '2000' });
+        if (q.hint) ta.setAttribute('aria-describedby', 'h-' + q.id);
+        wrap.appendChild(ta);
+      }
+      box.appendChild(wrap);
+    });
+    var cards = Array.prototype.slice.call(box.querySelectorAll('.q'));
+
+    function answerOf(q) {
+      if (q.type === 'multi') {
+        return Array.prototype.map.call(form.querySelectorAll('input[name="' + q.id + '"]:checked'), function (i) { return i.value; });
+      }
+      if (q.type === 'text') return document.getElementById('q-' + q.id).value.trim();
+      var c = form.querySelector('input[name="' + q.id + '"]:checked');
+      if (!c) return null;
+      return q.type === 'scale' ? Number(c.value) : c.value;
+    }
+    function collect() {
+      var out = {};
+      QUESTIONS.forEach(function (q) { out[q.id] = answerOf(q); });
+      return out;
+    }
+    function restore(data) {
+      QUESTIONS.forEach(function (q) {
+        var v = data[q.id];
+        if (v == null) return;
+        if (q.type === 'text') { document.getElementById('q-' + q.id).value = v; return; }
+        var list = Array.isArray(v) ? v : [String(v)];
+        form.querySelectorAll('input[name="' + q.id + '"]').forEach(function (i) { i.checked = list.indexOf(i.value) !== -1; });
+      });
+    }
+
+    function isAnswered(q) {
+      var v = answerOf(q);
+      return !(v == null || v === '' || (Array.isArray(v) && !v.length));
+    }
+    function markInvalid(i, on) {
+      var card = cards[i];
+      var err = card.querySelector('.err');
+      card.classList.toggle('invalid', on);
+      if (on && !err) card.appendChild(el('p', { 'class': 'err' }, 'Please choose an answer.'));
+      if (!on && err) err.remove();
+    }
+    function validate(i) {
+      var q = QUESTIONS[i];
+      var ok = !q.required || isAnswered(q);
+      markInvalid(i, !ok);
+      return ok;
+    }
+    function focusCard(i) {
+      var first = cards[i].querySelector('input, textarea');
+      if (first) first.focus({ preventScroll: true });
+      cards[i].scrollIntoView({ block: 'nearest' });
+    }
+
+    function layout() {
+      var stepped = phone.matches;
+      form.classList.toggle('stepped', stepped);
+      progress.hidden = !stepped;
+      cards.forEach(function (c, i) { c.classList.toggle('current', i === step); });
+      if (stepped) {
+        var last = step === cards.length - 1;
+        backBtn.hidden = step === 0;
+        nextBtn.hidden = last;
+        submitBtn.hidden = !last;
+        document.getElementById('progress-text').textContent = 'Question ' + (step + 1) + ' of ' + cards.length;
+        document.getElementById('progress-bar').style.width = ((step + 1) / cards.length * 100) + '%';
+      } else {
+        backBtn.hidden = nextBtn.hidden = true;
+        submitBtn.hidden = false;
+      }
+    }
+    function go(i) { step = Math.max(0, Math.min(cards.length - 1, i)); layout(); focusCard(step); }
+
+    nextBtn.addEventListener('click', function () { if (validate(step)) go(step + 1); });
+    backBtn.addEventListener('click', function () { go(step - 1); });
+    if (phone.addEventListener) phone.addEventListener('change', layout);
+
+    form.addEventListener('change', function (e) {
+      var card = e.target.closest('.q');
+      var i = cards.indexOf(card);
+      if (i !== -1 && card.classList.contains('invalid')) validate(i);
+    });
+    form.addEventListener('input', function () {
+      store(function () { localStorage.setItem(DRAFT_KEY, JSON.stringify(collect())); });
+    });
+
+    var draft = store(function () { return JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); });
+    if (draft) restore(draft);
+    layout();
+
+    function setStatus(text, isError) {
+      statusEl.textContent = text;
+      statusEl.className = 'status' + (isError ? ' error' : '');
+    }
+    function explain(err) {
+      if (!window.SH) return 'The survey service did not load. Check your connection and try again.';
+      var code = err && err.code, status = err && err.status;
+      if (code === 'use_custom_domain' && err.domain) {
+        statusEl.className = 'status error';
+        statusEl.textContent = 'This survey saves on ';
+        var a = el('a', { href: 'https://' + err.domain + '/' }, err.domain);
+        statusEl.appendChild(a);
+        statusEl.appendChild(document.createTextNode('. Please answer there.'));
+        return null;
+      }
+      if (code === 'visitor_auth_required' || status === 401) return 'Please sign in above, then send again.';
+      if (status === 413) return 'That is a little long for us. Please shorten your last answer and send again.';
+      if (status === 429) return 'Lots of answers arriving at once. Wait a moment, then send again.';
+      return 'Not sent (' + (code || status || 'no connection') + '). Your answers are still here; please try again.';
+    }
+
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var firstBad = -1;
+      QUESTIONS.forEach(function (q, i) { if (!validate(i) && firstBad === -1) firstBad = i; });
+      if (firstBad !== -1) {
+        setStatus('A few questions still need an answer.', true);
+        if (phone.matches) go(firstBad); else focusCard(firstBad);
+        return;
+      }
+      var item = collect();
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Sending…';
+      setStatus('', false);
+      try {
+        if (!window.SH) throw new Error('helper not loaded');
+        await SH.requireSignIn();
+        await SH.collection('responses').append(item);
+        store(function () { localStorage.removeItem(DRAFT_KEY); });
+        form.reset();
+        form.hidden = true;
+        var thanks = document.getElementById('thanks');
+        thanks.hidden = false;
+        thanks.focus();
+      } catch (err) {
+        var msg = explain(err);
+        if (msg) setStatus(msg, true);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Send feedback';
+      }
+    });
+
+    document.getElementById('another').addEventListener('click', function () {
+      document.getElementById('thanks').hidden = true;
+      form.hidden = false;
+      setStatus('', false);
+      go(0);
+    });
+  });
+  </script>
+</body>
+</html>

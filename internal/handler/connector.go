@@ -78,6 +78,10 @@ type ConnectorHandler struct {
 	// clicking Allow again.
 	consentKey []byte
 
+	// reviewer is the plugin-directory reviewer's password sign-in; nil
+	// (off) unless the operator configures it. See reviewer.go.
+	reviewer *reviewerSignIn
+
 	registerLimiter  *rateLimiter
 	authorizeLimiter *rateLimiter
 	tokenLimiter     *rateLimiter
@@ -156,6 +160,8 @@ func (h *ConnectorHandler) Register(mux *http.ServeMux, authMiddleware func(http
 	mux.Handle("POST /oauth/register", rateLimitByIP(h.registerLimiter, http.HandlerFunc(h.register)))
 	mux.Handle("GET /oauth/authorize", rateLimitByIP(h.authorizeLimiter, http.HandlerFunc(h.authorize)))
 	mux.Handle("POST /oauth/authorize/decision", rateLimitByIP(h.authorizeLimiter, http.HandlerFunc(h.decide)))
+	// Answers 404 unless the reviewer account is configured.
+	mux.HandleFunc("POST /oauth/reviewer-signin", h.reviewerSignInHandler)
 	mux.Handle("POST /oauth/token", rateLimitByIP(h.tokenLimiter, http.HandlerFunc(h.token)))
 	mux.Handle("POST /oauth/revoke", rateLimitByIP(h.tokenLimiter, http.HandlerFunc(h.revoke)))
 
@@ -624,6 +630,9 @@ func (h *ConnectorHandler) authorize(w http.ResponseWriter, r *http.Request) {
 		data["client_name"] = req.Client.Name
 		data["redirect_host"] = host
 		data["csrf"] = h.consentCSRF(req, h.now().Unix())
+		if h.reviewer != nil {
+			data["reviewer_signin"] = true
+		}
 	}
 	h.renderConsent(w, r, status, data)
 }
@@ -660,8 +669,11 @@ func (h *ConnectorHandler) resolveConsentUser(ctx context.Context, key string) (
 		}
 		return db.User{}, http.StatusInternalServerError, "internal server error"
 	}
-	if user.IsAdmin {
-		return db.User{}, http.StatusForbidden, "Admin accounts cannot connect apps. Sign in with a personal account."
+	// The built-in admin-key account is not a person and never connects an
+	// app. A person who happens to be an admin connects like anyone else
+	// (owner decision 2026-09-24).
+	if user.Username == "admin" {
+		return db.User{}, http.StatusForbidden, "This account cannot connect apps. Sign in with a personal account."
 	}
 	return user, 0, ""
 }
@@ -887,7 +899,7 @@ func (h *ConnectorHandler) redeemCode(w http.ResponseWriter, r *http.Request, cl
 		}
 	}
 	user, err := db.GetUserByID(r.Context(), tx, stored.UserID)
-	if err != nil || user.IsAdmin {
+	if err != nil || user.Username == "admin" {
 		fail("account unavailable")
 		return
 	}
@@ -962,7 +974,7 @@ func (h *ConnectorHandler) refresh(w http.ResponseWriter, r *http.Request, clien
 		}
 	}
 	user, err := db.GetUserByID(r.Context(), tx, tok.UserID)
-	if err != nil || user.IsAdmin {
+	if err != nil || user.Username == "admin" {
 		oauthError(w, http.StatusBadRequest, "invalid_grant", "account unavailable")
 		return
 	}
@@ -1055,7 +1067,7 @@ func (h *ConnectorHandler) userForAccessToken(ctx context.Context, token string,
 		return db.User{}, false
 	}
 	user, err := db.GetUserByID(ctx, h.database, tok.UserID)
-	if err != nil || user.IsAdmin || user.APIKey == "" {
+	if err != nil || user.Username == "admin" || user.APIKey == "" {
 		return db.User{}, false
 	}
 	_ = db.TouchOAuthGrant(ctx, h.database, tok.GrantID)

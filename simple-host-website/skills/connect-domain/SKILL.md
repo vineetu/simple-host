@@ -5,6 +5,18 @@ description: Connect a user's own custom domain (subdomain e.g. recipes.brand.co
 
 # Connect a Custom Domain
 
+**First rule: use the Simple Host tools when you have them.** If the Simple Host
+connector's tools are available in this session (`who_am_i`, `list_sites`,
+`create_site` / `update_site` (`deploy_site` on older connections), `get_state`,
+`connect_domain`, …), use them for everything and never ask the person for an
+email, a code or an API key — the connector is already signed in as them. Sign-in
+itself is unchanged: when the person connects Simple Host in their AI app, a
+Simple Host sign-in window opens, they sign in with Google or the emailed code,
+then choose Allow, and every chat after that is signed in. If a tool reports the
+connection is not signed in, ask them to reconnect Simple Host in their app's
+settings. Only when those tools are not available (e.g. a coding agent without
+the connector) use the email-code and API-key flow and the `X-API-Key` calls below.
+
 A site deployed on simple-host is already live at
 `https://sites.simple-host.app/<handle>/<site>/`. This skill connects the user's **own
 domain** — a subdomain (e.g. `recipes.brand.com`) or an apex (e.g. `brand.com`) — so the
@@ -29,19 +41,20 @@ they have none) and — absent your own DNS access — pasting the record are th
 ## Service
 
 - Base URL: `https://simple-host.app`
-- Auth header: `X-API-Key: <api_key>` (the key from deploying the site)
+- Auth header: `X-API-Key: <api_key>` (the key from deploying the site; not needed with the connector)
 - One domain per site; a domain can be connected to only one site.
 
 ## The flow
 
 ### 1. Confirm the site exists and pick the domain
-The site must already be deployed. Ask the user for the exact domain they want.
+The site must already be deployed (with the connector: `list_sites`). Ask the user for the exact domain they want.
 **Subdomains** (`recipes.brand.com`) are the simplest path (CNAME). **Apex domains**
 (`brand.com`) are fully supported too — the bind returns an A record instead of a
 CNAME. Prefer a subdomain when the user has no strong preference; use apex when
 they want the bare domain.
 
 ### 2. Bind the domain
+With the connector: `connect_domain` (it returns the same `dns` record). Without it:
 ```
 POST /v1/sites/{site}/domain
 X-API-Key: <api_key>
@@ -130,7 +143,7 @@ curl -sS -o /dev/null -w '%{http_code}\n' https://recipes.brand.com/
 - **DNS doesn't resolve yet** → that genuinely is propagation. Re-check the record matches the
   bind response exactly, then retry over a few minutes.
 
-The status endpoint reports the same verdict — the server re-checks bound domains in the
+The status endpoint (with the connector: `domain_status`) reports the same verdict — the server re-checks bound domains in the
 background (every couple of minutes) by resolving them and fetching them, exactly as above:
 ```
 GET /v1/sites/{site}/domain

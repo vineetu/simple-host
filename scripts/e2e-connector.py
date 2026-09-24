@@ -4,7 +4,7 @@
 Usage: BASE=http://localhost:18080 CONTENT=<static server over DATA_DIR/handles> ADMIN_API_KEY=... BIN=<server binary> python3 scripts/e2e-connector.py
 
 Discovery -> DCR -> authorize page -> consent decision (as the page's JS does)
--> code -> token (PKCE) -> /mcp initialize, tools/list, deploy_site -> fetch the
+-> code -> token (PKCE) -> /mcp initialize, tools/list, create_site -> fetch the
 published page from disk-served content -> refresh rotation + reuse detection
 -> revocation -> REST /v1 with the bearer token.
 """
@@ -161,24 +161,24 @@ st, _, _ = req("POST", "/mcp", {"jsonrpc": "2.0", "method": "notifications/initi
 check(st == 202, "notifications/initialized -> 202")
 st, r = rpc("tools/list")
 names = [t["name"] for t in r["result"]["tools"]]
-check({"who_am_i", "list_sites", "deploy_site", "delete_site", "get_state", "update_state", "read_collection"} <= set(names), "tools/list: " + ", ".join(names))
+check({"who_am_i", "list_sites", "create_site", "update_site", "delete_site", "get_state", "update_state", "read_collection"} <= set(names), "tools/list: " + ", ".join(names))
 st, r = rpc("tools/call", {"name": "who_am_i", "arguments": {}})
 check(r["result"]["structuredContent"]["email"] == carol["username"], "who_am_i is the consenting person")
 
 html = "<!DOCTYPE html><html><head><title>E2E</title><link rel=stylesheet href=css/s.css></head><body><h1>Hello from the connector</h1></body></html>"
-st, r = rpc("tools/call", {"name": "deploy_site", "arguments": {"site": ESITE, "mode": "create", "files": {"index.html": html, "css/s.css": "h1{color:teal}"}}})
+st, r = rpc("tools/call", {"name": "create_site", "arguments": {"site": ESITE, "files": {"index.html": html, "css/s.css": "h1{color:teal}"}}})
 res = r["result"]
-check(not res["isError"] and res["structuredContent"]["active_version"] == 1, "deploy_site created the site: " + res["content"][0]["text"])
+check(not res["isError"] and res["structuredContent"]["active_version"] == 1, "create_site created the site: " + res["content"][0]["text"])
 url = res["structuredContent"]["url"]
 path = urllib.parse.urlparse(url).path  # /<handle>/<site>/
 handle, site = path.strip("/").split("/")
 st, _, body = req("GET", CONTENT + "/" + handle + "/" + site + "/current/index.html")
 check(st == 200 and b"Hello from the connector" in body, "published page is on disk and served: " + url)
 
-st, r = rpc("tools/call", {"name": "deploy_site", "arguments": {"site": ESITE, "mode": "create", "files": {"index.html": html}}})
-check(r["result"]["isError"] and "409" in r["result"]["content"][0]["text"], "mode=create refuses to overwrite")
-st, r = rpc("tools/call", {"name": "deploy_site", "arguments": {"site": ESITE, "files": {"index.html": html.replace("Hello", "Hello again")}}})
-check(r["result"]["structuredContent"]["active_version"] == 2, "mode=auto publishes v2")
+st, r = rpc("tools/call", {"name": "create_site", "arguments": {"site": ESITE, "files": {"index.html": html}}})
+check(r["result"]["isError"] and "already has a site" in r["result"]["content"][0]["text"], "create_site refuses to overwrite")
+st, r = rpc("tools/call", {"name": "update_site", "arguments": {"site": ESITE, "files": {"index.html": html.replace("Hello", "Hello again")}}})
+check(r["result"]["structuredContent"]["active_version"] == 2, "update_site publishes v2")
 st, r = rpc("tools/call", {"name": "read_site_file", "arguments": {"site": ESITE, "path": "index.html"}})
 check("Hello again" in r["result"]["content"][0]["text"], "read_site_file reads the live version")
 st, r = rpc("tools/call", {"name": "rollback_site", "arguments": {"site": ESITE, "version": 1}})
@@ -197,7 +197,7 @@ st, _, b = req("POST", "/v1/sites/"+DSITE+"/files", {"files": {"index.html": "<p
 check(st == 201, "dave deploys daves-site over REST")
 st, r = rpc("tools/call", {"name": "delete_site", "arguments": {"site": DSITE, "confirm_name": DSITE}})
 check(r["result"]["isError"] and "404" in r["result"]["content"][0]["text"], "delete_site on another person's site refused (404, as REST)")
-st, r = rpc("tools/call", {"name": "deploy_site", "arguments": {"site": DSITE, "mode": "replace", "files": {"index.html": "x"}}})
+st, r = rpc("tools/call", {"name": "update_site", "arguments": {"site": DSITE, "files": {"index.html": "x"}}})
 check(r["result"]["isError"], "replace on another person's site refused")
 st, _, b = req("DELETE", "/v1/sites/"+DSITE+"", None, {"X-API-Key": carol["api_key"]})
 check(st == 404, "(same refusal over REST with carol's key)")

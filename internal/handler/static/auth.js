@@ -28,8 +28,16 @@
     // the visitor cookie is host-only, so the apex would never see it. A page
     // hosted elsewhere (backend-anywhere) must set base explicitly.
     var base = (_cfg.base || location.origin).replace(/\/+$/, "");
-    if (_cfg.handle) {
-      API_BASE = base + "/v1/u/" + _cfg.handle + "/sites/" + _cfg.site;
+    // On the shared address a site name alone is ambiguous — two accounts can
+    // own the same name, and /v1/sites/<site> would resolve to whichever was
+    // created first, so one person's page would read and write another's
+    // data. When no handle is given and the page is served from the shared
+    // host itself, the owner is the first segment of the page's own path.
+    var ownPath = location.pathname.match(/^\/([a-z0-9-]{1,39})\//);
+    var handle = _cfg.handle ||
+      (contentHost && !_cfg.base && ownPath ? ownPath[1] : "");
+    if (handle) {
+      API_BASE = base + "/v1/u/" + handle + "/sites/" + _cfg.site;
     } else {
       API_BASE = base + "/v1/sites/" + _cfg.site;
     }

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Guest list · Maya &amp; Theo's garden party</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,500&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="admin-head wrap wide">
+    <p class="eyebrow"><a href="index.html">Garden party</a> / Guest list</p>
+    <h1>Who is coming</h1>
+    <p>Anyone with this page's address can open it, so share it only with people who need it.</p>
+  </header>
+
+  <main class="wrap wide">
+    <section aria-labelledby="totals-title">
+      <h2 id="totals-title" class="visually-hidden">Totals</h2>
+      <dl class="stats" id="stats" aria-busy="true">
+        <div><dt>Said yes</dt><dd id="t-yes">–</dd></div>
+        <div><dt>Headcount</dt><dd id="t-guests">–</dd></div>
+        <div><dt>Said no</dt><dd id="t-no">–</dd></div>
+      </dl>
+    </section>
+
+    <section aria-labelledby="list-title">
+      <div class="list-head">
+        <h2 id="list-title">Replies</h2>
+        <p id="shown" aria-live="polite"></p>
+      </div>
+
+      <div id="list-state" class="state-msg" role="status">Loading replies…</div>
+
+      <table id="table" hidden>
+        <thead>
+          <tr><th scope="col">Name</th><th scope="col">Reply</th><th scope="col">Guests</th><th scope="col">Food note</th><th scope="col">Received</th></tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+
+      <div class="more" id="more-wrap" hidden>
+        <button type="button" class="secondary" id="more">Load more</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap">
+    <p><a href="index.html">Back to the invitation</a></p>
+  </footer>
+
+  <script>window.SH_CONFIG = { site: "garden-party-rsvp" };</script>
+  <script src="https://simple-host.app/auth.js" defer></script>
+  <script>
+  window.addEventListener('DOMContentLoaded', function () {
+    var PAGE = 50;
+    var rows = document.getElementById('rows');
+    var table = document.getElementById('table');
+    var listState = document.getElementById('list-state');
+    var moreWrap = document.getElementById('more-wrap');
+    var moreBtn = document.getElementById('more');
+    var shown = document.getElementById('shown');
+    var next = null, count = 0;
+    var when = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+
+    function num(v) { v = Number(v); return isFinite(v) ? v : 0; }
+
+    function problem(err) {
+      if (!window.SH) return 'Could not load the saving service. Check your connection and reload.';
+      return 'Could not load (' + ((err && (err.code || err.status)) || 'no connection') + '). Reload the page to try again.';
+    }
+
+    // Counts from state.
+    (window.SH ? SH.state.get() : Promise.reject(new Error('no helper'))).then(function (res) {
+      var t = (res && res.data && res.data.totals) || {};
+      document.getElementById('t-yes').textContent = num(t.yes);
+      document.getElementById('t-no').textContent = num(t.no);
+      document.getElementById('t-guests').textContent = num(t.guests);
+    }).catch(function () {
+      ['t-yes', 't-no', 't-guests'].forEach(function (id) { document.getElementById(id).textContent = '–'; });
+    }).then(function () { document.getElementById('stats').removeAttribute('aria-busy'); });
+
+    function cell(tr, label, content, cls) {
+      var td = document.createElement('td');
+      td.setAttribute('data-label', label);
+      if (cls) td.className = cls;
+      if (content instanceof Node) td.appendChild(content); else td.textContent = content;
+      tr.appendChild(td);
+    }
+
+    function addRow(entry) {
+      var d = entry.data || {};
+      var tr = document.createElement('tr');
+      cell(tr, 'Name', String(d.name || '(no name)'));
+      var pill = document.createElement('span');
+      var yes = d.attending === 'yes';
+      pill.className = 'pill ' + (yes ? 'yes' : 'no');
+      pill.textContent = yes ? 'Coming' : 'Not coming';
+      cell(tr, 'Reply', pill);
+      cell(tr, 'Guests', yes ? String(num(d.guests)) : '–', 'num');
+      cell(tr, 'Food note', d.dietary ? String(d.dietary) : '–');
+      var t = entry.created_at ? new Date(entry.created_at) : null;
+      cell(tr, 'Received', t && !isNaN(t) ? when.format(t) : '–', 'when');
+      rows.appendChild(tr);
+    }
+
+    function load() {
+      moreBtn.disabled = true;
+      moreBtn.textContent = 'Loading…';
+      var q = next ? { limit: PAGE, before: next } : { limit: PAGE };
+      (window.SH ? SH.collection('rsvps').list(q) : Promise.reject(new Error('no helper'))).then(function (page) {
+        var items = (page && page.items) || [];
+        items.forEach(addRow);
+        count += items.length;
+        next = page && page.next ? page.next : null;
+        if (count === 0) {
+          listState.className = 'state-msg';
+          listState.textContent = 'No RSVPs yet. Replies will appear here as they come in.';
+          listState.hidden = false;
+          table.hidden = true;
+        } else {
+          listState.hidden = true;
+          table.hidden = false;
+        }
+        shown.textContent = count ? (count + (next ? ' shown, newest first' : (count === 1 ? ' reply' : ' replies') + ', newest first')) : '';
+        moreWrap.hidden = !next;
+      }).catch(function (err) {
+        if (count === 0) {
+          listState.className = 'state-msg error';
+          listState.textContent = problem(err);
+          listState.hidden = false;
+        } else {
+          shown.textContent = 'Could not load more. Try again.';
+        }
+      }).then(function () {
+        moreBtn.disabled = false;
+        moreBtn.textContent = 'Load more';
+      });
+    }
+
+    moreBtn.addEventListener('click', load);
+    load();
+  });
+  </script>
+</body>
+</html>
