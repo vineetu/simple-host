@@ -127,12 +127,37 @@
     Array.prototype.forEach.call(document.querySelectorAll('.app-name'), function (n) { n.textContent = data.client_name; });
     el('redirect-host').textContent = data.redirect_host;
 
-    // The request as the app sent it, minus a sign-in token this page consumes.
+    // The request as the app sent it. A `token` in the URL is a one-time
+    // sign-in from the Google flow this tab started; `cn` is the hash of the
+    // nonce this tab kept for it. Both are removed from the request and the
+    // address bar straight away.
     var params = new URLSearchParams(location.search);
     var linkToken = params.get('token');
+    var returnedHash = params.get('cn');
     params.delete('token');
+    params.delete('cn');
     var query = params.toString();
-    if (linkToken) history.replaceState(null, '', location.pathname + '?' + query);
+    if (linkToken !== null || returnedHash !== null) history.replaceState(null, '', location.pathname + '?' + query);
+    var NONCE_KEY = 'sh-connect-nonce';
+    var ownNonce = null;
+    try { ownNonce = sessionStorage.getItem(NONCE_KEY); sessionStorage.removeItem(NONCE_KEY); } catch (e) {}
+
+    function b64url(bytes) {
+      var s = '';
+      bytes.forEach(function (b) { s += String.fromCharCode(b); });
+      return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+    async function nonceHash(nonce) {
+      var digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(nonce));
+      return b64url(new Uint8Array(digest));
+    }
+    // A token is used only if this tab started the sign-in that produced it:
+    // a link someone else made cannot carry the nonce this tab holds, so it
+    // can never sign this browser into their account.
+    async function tokenIsOurs() {
+      if (!linkToken || !returnedHash || !ownNonce) return false;
+      try { return (await nonceHash(ownNonce)) === returnedHash; } catch (e) { return false; }
+    }
 
     async function post(path, body, headers) {
       var h = Object.assign({ 'Content-Type': 'application/json' }, headers || {});
@@ -169,11 +194,7 @@
       fetch('/v1/auth/oauth/providers').then(function (r) { return r.json(); }).then(function (d) {
         var providers = d.providers || [];
         var google = providers.indexOf('google') >= 0;
-        if (google) {
-          var ret = location.origin + location.pathname + '?' + query;
-          el('google-btn').href = '/v1/auth/oauth/google?return_to=' + encodeURIComponent(ret);
-          el('google-btn').hidden = false;
-        }
+        if (google) el('google-btn').hidden = false;
         var email = d.email_enabled !== false;
         el('email-form').hidden = !email;
         el('or-line').hidden = !(google && email);
@@ -224,6 +245,20 @@
       if (await me(key)) { setKey(key); enter(); }
       else el('signin-msg').textContent = 'That key was not recognised.';
     });
+    // Google sign-in: a fresh nonce for this tab, its hash in the address the
+    // sign-in returns to.
+    el('google-btn').addEventListener('click', async function (e) {
+      e.preventDefault();
+      var raw = new Uint8Array(32);
+      crypto.getRandomValues(raw);
+      var nonce = b64url(raw);
+      try { sessionStorage.setItem(NONCE_KEY, nonce); } catch (err) {
+        el('signin-msg').textContent = 'Your browser is blocking storage this sign-in needs. Use the emailed code instead.';
+        return;
+      }
+      var ret = location.origin + location.pathname + '?' + query + '&cn=' + (await nonceHash(nonce));
+      location.assign('/v1/auth/oauth/google?return_to=' + encodeURIComponent(ret));
+    });
     el('switch-btn').addEventListener('click', function () {
       setKey('');
       var dash = el('dash-link');
@@ -247,14 +282,13 @@
 
     // Arrived from Google sign-in: trade the one-time token for the key, the
     // same way the dashboard does, then carry on.
-    if (linkToken) {
+    tokenIsOurs().then(function (ours) {
+      if (!ours) { enter(); return; }
       post('/v1/auth/verify', { token: linkToken }).then(function (r) {
         if (r.ok && r.body.api_key) setKey(r.body.api_key);
         enter();
       }).catch(enter);
-    } else {
-      enter();
-    }
+    });
   })();
   </script>
 </body>

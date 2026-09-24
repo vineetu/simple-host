@@ -478,14 +478,24 @@ func ownerReturnToOK(parsed *url.URL, publicBaseURL string) bool {
 }
 
 // connectReturnToOK admits the connector's consent page as an owner sign-in
-// destination: this origin, path exactly /oauth/authorize, no fragment, and no
-// sign-in token already in the query (a link carrying someone else's token
-// would sign the person in as them).
+// destination: this origin, path exactly /oauth/authorize, no fragment, no
+// sign-in token already in the query, and exactly one `cn` parameter.
+//
+// cn is the SHA-256 (base64url) of a random nonce the consent page generated
+// and kept in its own tab's sessionStorage before starting Google sign-in. The
+// page honours the one-time token this flow appends only when that tab still
+// holds the nonce whose hash is cn. A link someone else crafted — carrying a
+// token for their own account — cannot carry the victim tab's nonce, so it
+// cannot sign the victim in as them (login CSRF).
 func connectReturnToOK(parsed *url.URL, publicBaseURL string) bool {
 	if parsed == nil || parsed.User != nil || parsed.Fragment != "" || parsed.Path != "/oauth/authorize" {
 		return false
 	}
-	if _, has := parsed.Query()["token"]; has {
+	q := parsed.Query()
+	if _, has := q["token"]; has {
+		return false
+	}
+	if cn := q["cn"]; len(cn) != 1 || !connectNonceHashRe.MatchString(cn[0]) {
 		return false
 	}
 	same := *parsed
@@ -493,8 +503,11 @@ func connectReturnToOK(parsed *url.URL, publicBaseURL string) bool {
 	return ownerReturnToOK(&same, publicBaseURL)
 }
 
+var connectNonceHashRe = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)
+
 // ownerLandingURL is where an owner Google sign-in lands with its one-time
-// link token: the connector consent page it started from, or the dashboard.
+// link token: the connector consent page it started from (which checks cn
+// against its own tab before using the token), or the dashboard.
 func ownerLandingURL(returnTo, publicBaseURL, linkToken string) string {
 	if u, err := url.Parse(returnTo); err == nil && connectReturnToOK(u, publicBaseURL) {
 		base, _ := url.Parse(strings.TrimRight(publicBaseURL, "/"))

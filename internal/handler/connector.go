@@ -694,7 +694,8 @@ func (h *ConnectorHandler) decide(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request"})
 		return
 	}
-	q.Del("token") // the sign-in link token, if the page still carried it
+	q.Del("token") // sign-in plumbing of the consent page, not part of the request
+	q.Del("cn")
 	req, aerr := h.parseAuthorize(r.Context(), q)
 	if aerr != nil && !aerr.redirect {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: aerr.description})

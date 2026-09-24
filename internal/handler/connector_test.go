@@ -101,24 +101,32 @@ func TestCleanClientName(t *testing.T) {
 
 func TestConnectReturnTo(t *testing.T) {
 	base := "https://simple-host.app"
+	cn := strings.Repeat("A", 43)
 	ok := func(s string) bool { u, _ := url.Parse(s); return connectReturnToOK(u, base) }
-	if !ok("https://simple-host.app/oauth/authorize?client_id=x&state=y") {
+	if !ok("https://simple-host.app/oauth/authorize?client_id=x&state=y&cn=" + cn) {
 		t.Error("consent page refused")
 	}
 	for _, s := range []string{
-		"https://evil.example/oauth/authorize?x=1",
-		"https://simple-host.app/oauth/authorize?token=abc",
-		"https://simple-host.app/oauth/authorize#frag",
-		"https://simple-host.app/oauth/authorizeX",
-		"http://simple-host.app/oauth/authorize",
+		"https://simple-host.app/oauth/authorize?client_id=x",             // no nonce hash
+		"https://simple-host.app/oauth/authorize?cn=short",                // malformed
+		"https://simple-host.app/oauth/authorize?cn=" + cn + "&cn=" + cn,  // repeated
+		"https://evil.example/oauth/authorize?cn=" + cn,                   // other host
+		"https://simple-host.app/oauth/authorize?cn=" + cn + "&token=abc", // pre-loaded token
+		"https://simple-host.app/oauth/authorize?cn=" + cn + "#frag",      // fragment
+		"https://simple-host.app/oauth/authorizeX?cn=" + cn,               // other path
+		"http://simple-host.app/oauth/authorize?cn=" + cn,                 // other scheme
 	} {
 		if ok(s) {
 			t.Errorf("accepted %q", s)
 		}
 	}
-	got := ownerLandingURL("https://simple-host.app/oauth/authorize?client_id=x", base, "TOK")
-	if got != "https://simple-host.app/oauth/authorize?client_id=x&token=TOK" {
+	got := ownerLandingURL("https://simple-host.app/oauth/authorize?client_id=x&cn="+cn, base, "TOK")
+	if got != "https://simple-host.app/oauth/authorize?client_id=x&cn="+cn+"&token=TOK" {
 		t.Errorf("landing %q", got)
+	}
+	// Without a nonce hash the token never lands on the consent page.
+	if got := ownerLandingURL("https://simple-host.app/oauth/authorize?client_id=x", base, "TOK"); got != "https://simple-host.app/?token=TOK" {
+		t.Errorf("unbound landing %q", got)
 	}
 	if got := ownerLandingURL("https://simple-host.app/", base, "TOK"); got != "https://simple-host.app/?token=TOK" {
 		t.Errorf("dashboard landing %q", got)
