@@ -112,6 +112,11 @@
 
     /* Owner sections */
     .section { margin-bottom: 56px; }
+    .conn-note { margin: 0 0 12px; color: var(--text-secondary); font-size: 14px; }
+    .conn-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+                padding: 12px 0; border-top: 1px solid var(--border); }
+    .conn-row b { color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
+    .conn-row small { display: block; color: var(--text-secondary); font-size: 13px; }
     .section-num {
       display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
       margin-bottom: 16px;
@@ -707,6 +712,14 @@
         <div id="inventory"></div>
       </div>
 
+      <!-- Apps connected through the Simple Host connector (ChatGPT, Claude,
+           Grok). Shown only when there is at least one. -->
+      <div class="section" id="owner-connections" hidden>
+        <div class="section-num"><h2>Connected apps</h2><span class="line"></span></div>
+        <p class="conn-note">These apps can publish and manage your sites for you. Disconnect one and it has to ask you again.</p>
+        <div id="connections-list"></div>
+      </div>
+
       <!-- Analytics view (dedicated screen) -->
       <div class="section" id="owner-analytics-view" hidden>
         <div class="section-num"><h2>Analytics</h2><span class="line"></span></div>
@@ -955,8 +968,35 @@ function parseAnalyticsSummary(data) {
       }
       var sub = document.getElementById('profile-sub');
       if (sub) sub.textContent = 'Your full site inventory — including unlisted sites.';
+      loadConnections();
       // The skill-install block is revealed by updateOnboarding() (called from
       // renderInventory once the owner's site count is known), not here.
+    }
+
+    // ---- Connected apps --------------------------------------------------------
+    async function loadConnections() {
+      var box = document.getElementById('owner-connections');
+      var list = document.getElementById('connections-list');
+      if (!box || !list) return;
+      var conns = [];
+      try {
+        var res = await api('GET', '/v1/me/connections');
+        if (res.ok) conns = (await res.json()).connections || [];
+      } catch (e) {}
+      box.hidden = conns.length === 0;
+      list.innerHTML = conns.map(function (c, i) {
+        return '<div class="conn-row"><span><b>' + esc(c.name) + '</b><small>Connected ' + fmtDate(c.connected_at) +
+          ' · last used ' + fmtDate(c.last_used_at) + '</small></span>' +
+          '<button type="button" class="btn btn-ghost btn-small" data-disconnect="' + i + '">Disconnect</button></div>';
+      }).join('');
+      Array.prototype.forEach.call(list.querySelectorAll('[data-disconnect]'), function (btn) {
+        btn.addEventListener('click', async function () {
+          btn.disabled = true;
+          var c = conns[Number(btn.getAttribute('data-disconnect'))];
+          try { await api('DELETE', '/v1/me/connections/' + encodeURIComponent(c.client_id)); } catch (e) {}
+          loadConnections();
+        });
+      });
     }
 
     // ---- Skill installer: pick agents -> generated command -------------------

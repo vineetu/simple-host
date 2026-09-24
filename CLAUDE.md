@@ -20,6 +20,7 @@ There is no separate object store, CDN, build pipeline, or microservices. Everyt
 - `internal/tarball` — extracts and validates uploaded archives (path traversal guards, size limits, extension denylist for source-script types only).
 - `internal/handler/*.go` — one file per feature area. Treat them as separate apps that happen to share a `*sql.DB` and the same `mux`.
 - `internal/handler/static/` — embedded HTML/CSS/fonts for the landing page, admin UI, docs page, OpenAPI spec.
+- `internal/handler/connector.go` + `internal/mcp/` — the Simple Host connector: an OAuth 2.1 authorization server (`/.well-known/oauth-*`, `/oauth/register|authorize|token|revoke`, consent page `static/connect.html`) protecting a Streamable HTTP MCP endpoint at `/mcp`. Tools are served in process into the bare mux with the person's own `X-API-Key`, so they meet exactly the REST checks. Access tokens are also accepted as `Authorization: Bearer` on `/v1` (`BearerAuth`, converted to the key). Tables: `oauth_clients`, `oauth_grants`, `oauth_codes`, `oauth_tokens` (hashes only). `simple-host oauth-client create …` registers a confidential client by hand (GPT Actions).
 - `internal/handler/notice_middleware.go` — wraps responses on agent-facing routes with a `_notice` field when the caller's `X-Skill-Version` header is missing or stale. NOT applied to state endpoints, static serving, or skill downloads.
 - `simple-host-website/` — the Website Deploy plugin. Embedded into the Go binary via `embed.go` so `/skills.zip`, `/plugin.zip`, `/install.sh` work out of the box.
 

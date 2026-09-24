@@ -33,7 +33,7 @@
   <main class="container">
     <div class="eyebrow">Privacy</div>
     <h1>Privacy Policy</h1>
-    <p class="updated">Simple Host (simple-host.app) · last updated 2026-09-01</p>
+    <p class="updated">Simple Host (simple-host.app) · last updated 2026-09-24</p>
 
     <p>Simple Host is a static-website hosting service. This policy covers what data it handles, including when the service is used through an integration such as a ChatGPT GPT, an MCP server, or an AI coding agent.</p>
 
@@ -74,7 +74,8 @@
     <p>Separately from page-view analytics: calls to the API (<code>/v1/…</code>) — including when a hosted page saves data, posts a comment, or submits an RSVP — record the <strong>raw caller IP</strong>, so abuse can be investigated. Those IPs are kept for <strong>30 days</strong>. A country/city/organization lookup for each IP is requested from ip-api.com (the IP only, no request data) and cached with no expiry. Only this instance's admin can see that table. Loading a static page is not an API call and is not stored there.</p>
 
     <h2>Using Simple Host through a GPT or agent</h2>
-    <p>When you use Simple Host through a shared ChatGPT GPT or agent, requests are made with the API key configured in that integration. Anything deployed is public and belongs to the account whose key is used. Sites and their data are public to anyone with the link.</p>
+    <p>When you connect Simple Host to an AI app (ChatGPT, Claude, Grok, or a GPT), you sign in once on simple-host.app and choose Allow. The app then receives a token that acts as your account: it can publish, change and delete your sites and read and change their data, and nothing else. We store only a one-way hash of each token. Access tokens last an hour and are renewed by the app; a connection lasts until you disconnect it on your sites page, rotate your API key, or leave it unused for 90 days. We record which app you connected and when it was last used, not what you asked it.</p>
+    <p>When you use Simple Host through an agent with an API key, requests are made with that key. Anything deployed is public and belongs to the account whose key or connection is used. Sites and their data are public to anyone with the link.</p>
 
     <h2>Retention &amp; your choices</h2>
     <ul>
