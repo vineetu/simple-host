@@ -19,12 +19,9 @@ fallback zip). They land in `dist/`.
    sign-in, the challenge endpoint, `/terms` and `/support`. Diff the running binary first, as
    usual. The auth change (reviewer sign-in) should get its security pass before it ships.
 2. **Fill the placeholders**
-   - `internal/handler/static/support.html`: done (hello@vineetsriram.com, branch
+   - `internal/handler/static/support.html`: done (support@simple-host.app, branch
      `legal/terms-review`).
-   - `internal/handler/static/terms.html`: fill `[governing law]`, `[courts for disputes]` and
-     the `[DMCA designated agent registration: pending]` line, read the draft, then remove the
-     "Draft. Not yet in effect." box (an HTML comment marks it). The portal requires terms that
-     are in effect.
+   - `internal/handler/static/terms.html`: done 2026-09-24 (California law and courts, contact support@simple-host.app, draft box removed). Still to do: register the DMCA designated agent and put its details in the copyright section.
    - Optional: add Terms and Support to the shared footer (`static/partials/footer.html`); left
      out because another change was editing the partials.
 3. **Identity and access** (Platform settings): complete **individual verification** as
