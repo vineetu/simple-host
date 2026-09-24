@@ -84,6 +84,9 @@ type Server struct {
 	cfg    Config
 	tools  []Tool
 	byName map[string]Tool
+	// preOutputSchemaTools is the listing for a client that declared
+	// 2025-03-26, the one supported revision without Tool.outputSchema.
+	preOutputSchemaTools []Tool
 }
 
 func NewServer(cfg Config) *Server {
@@ -95,7 +98,26 @@ func NewServer(cfg Config) *Server {
 	for _, tool := range tools {
 		byName[tool.Name] = tool
 	}
-	return &Server{cfg: cfg, tools: tools, byName: byName}
+	bare := make([]Tool, len(tools))
+	for i, tool := range tools {
+		tool.OutputSchema = nil
+		bare[i] = tool
+	}
+	return &Server{cfg: cfg, tools: tools, byName: byName, preOutputSchemaTools: bare}
+}
+
+// toolsFor is the tool listing in the idiom of the revision a request
+// declares. outputSchema arrived in 2025-06-18, so a client that explicitly
+// declared 2025-03-26 gets tools without it. A request that declares no
+// version still gets it: the 2025-06-18 transport says to assume 2025-03-26
+// then, but some newer clients omit the header, an older client ignores a
+// field it does not know, and structuredContent (which the schema describes)
+// is sent to every revision anyway.
+func (s *Server) toolsFor(version string) []Tool {
+	if version == "2025-03-26" {
+		return s.preOutputSchemaTools
+	}
+	return s.tools
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -326,7 +348,7 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 				"cacheScope": "private",
 			}))
 		}
-		return result(req.ID, map[string]any{"tools": s.tools})
+		return result(req.ID, map[string]any{"tools": s.toolsFor(requestedVersion(r, req))})
 
 	// Nothing but tools is offered. Some clients list these regardless of
 	// the declared capabilities; an empty list is the true answer and keeps
