@@ -70,6 +70,7 @@ var navKeys = map[string]string{
 	"/dashboard":         "dashboard",
 	"/enterprise":        "enterprise",
 	"/enterprise.html":   "enterprise",
+	"/enterprise/brief":  "enterprise",
 	"/hackathons":        "hackathons",
 	"/hackathons.html":   "hackathons",
 	"/features":          "features",

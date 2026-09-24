@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simple Host for companies — a brief</title>
+  <meta name="description" content="Stateful static websites hosted inside your network: an address per person, shared saved data, no server-side code, and the company in control.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Simple Host">
+  <meta property="og:url" content="https://simple-host.app/enterprise/brief">
+  <meta property="og:title" content="Stateful static websites, hosted inside your network">
+  <meta property="og:description" content="An address per person, shared saved data, no server-side code, and the company in control.">
+  <meta property="og:image" content="https://simple-host.app/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <!--sh:head-->
+  <style>
+    /* Tokens, base type and the header/footer live in /site.css. */
+    .wrap { max-width: 768px; margin: 0 auto; padding: 0 24px; }
+    a { color: var(--accent); text-underline-offset: 3px; }
+    a:hover { color: var(--accent-hover); }
+    section { padding: 28px 0; border-bottom: 1px solid var(--border); }
+    section:first-child { padding-top: 48px; }
+    section:last-child { border-bottom: 0; }
+    section > div { min-width: 0; }
+    h1.title { font-size: clamp(30px, 5vw, 44px); font-weight: 700; line-height: 1.1; letter-spacing: -.02em; color: var(--text); margin: 0 0 18px; }
+    h2 { font-size: 28px; font-weight: 700; line-height: 1.2; letter-spacing: -.015em; color: var(--text); margin: 0 0 12px; }
+    h3 { font-size: 17px; font-weight: 600; line-height: 1.35; color: var(--text); margin: 18px 0 6px; }
+    .lede { font-size: 17px; color: var(--text); margin: 0 0 14px; }
+    p { margin: 0 0 14px; color: var(--text-secondary); }
+    p strong, li strong { color: var(--text); font-weight: 600; }
+    .kicker { font-size: 13px; color: var(--text-secondary); margin: 0 0 10px; }
+    .fine { font-size: 13px; color: var(--text-secondary); margin-top: 18px; }
+    code { font-family: var(--mono); font-size: .9em; background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--text); padding: 1px 5px; border-radius: 5px; }
+    /* Key / value rows separated by hairlines, no box. */
+    .facts { margin: 18px 0; border-top: 1px solid var(--border); }
+    .facts .row { display: grid; grid-template-columns: 180px 1fr; gap: 4px 20px; padding: 14px 0; border-bottom: 1px solid var(--border); align-items: start; }
+    .facts .row:last-child { border-bottom: 0; }
+    .facts .k { font-size: 15px; font-weight: 600; line-height: 1.5; color: var(--text); }
+    .facts .v { margin: 0; font-size: 15px; line-height: 1.6; color: var(--text-secondary); }
+    .facts .v strong { color: var(--text); }
+    .cta { display: inline-block; font-family: var(--font); font-size: 15px; font-weight: 600; line-height: 1.2; text-decoration: none; padding: 11px 18px; border-radius: 8px; border: 1px solid var(--border-hi); background: transparent; color: var(--text); margin: 6px 8px 6px 0; }
+    .cta:hover { border-color: var(--accent); color: var(--accent); }
+    .cta.solid { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+    .cta.solid:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--on-accent); }
+    @media (max-width: 640px) {
+      .wrap { padding: 0 20px; }
+      section:first-child { padding-top: 36px; }
+      .facts .row { grid-template-columns: 1fr; gap: 2px; }
+    }
+  /* Browser address bar examples. */
+  .urls { display: grid; gap: 10px; margin: 18px 0 6px; }
+  .bar { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px; background: color-mix(in srgb, var(--text) 3%, transparent); font-family: var(--mono); font-size: 14px; color: var(--text-secondary); }
+  .bar .dots { display: flex; gap: 5px; flex: none; }
+  .bar .dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--border-hi); display: block; }
+  .bar .u { overflow-wrap: anywhere; min-width: 0; }
+  .bar .u b { color: var(--text); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <!--sh:header-->
+
+  <div class="wrap">
+    <section>
+      <div>
+        <div class="kicker">Simple Host for companies · a brief</div>
+        <h1 class="title">Stateful static websites, hosted inside your network.</h1>
+        <p class="lede">Your people already make prototypes, dashboards and trackers with AI. Simple Host gives each of them an address inside your network to host them, with shared saved data and no server-side code, and gives the company control over all of it.</p>
+      </div>
+    </section>
+
+    <section id="problem">
+      <div>
+        <h2>The problem</h2>
+        <p>What people make in ChatGPT, Claude and other AI tools ends up as links with random IDs on hosts outside the company. They are hard to find again, hard to tell apart, and nobody owns the list.</p>
+      </div>
+    </section>
+
+    <section id="addresses">
+      <div>
+        <h2>What the addresses look like</h2>
+        <p>Each person's work sits under their own name, on your domain, so it reads like a portfolio rather than a list of IDs.</p>
+        <div class="urls">
+          <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="u"><b>alex-kim</b>.your-internal-domain.com/<b>sales-dashboard</b></span></div>
+          <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="u"><b>alex-kim</b>.your-internal-domain.com/<b>onboarding-checklist</b></span></div>
+          <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="u"><b>maria-lopez</b>.your-internal-domain.com/<b>offsite-signup</b></span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features">
+      <div>
+        <h2>What it is</h2>
+        <div class="facts">
+          <div class="row"><div class="k">An address per person</div><p class="v">Everyone gets their own hostname, and each thing they make gets a readable address under it. Colleagues find it by the author's name.</p></div>
+          <div class="row"><div class="k">Pages that keep data</div><p class="v">Saved data is shared between the people using a page, survives restarts, and works from any browser or phone. Several people can edit it.</p></div>
+          <div class="row"><div class="k">No server-side code</div><p class="v">Pages run in the reader's browser. The server stores pages and data and runs nothing that people publish.</p></div>
+          <div class="row"><div class="k">Inside your network</div><p class="v">You run it on your own servers, behind your VPN, with your own sign-in: Okta or anything that speaks OIDC.</p></div>
+          <div class="row"><div class="k">Access</div><p class="v">Pages are unlisted by default: only people with the link can open them. Name specific people when a page must be closed to everyone else.</p></div>
+          <div class="row"><div class="k">Governance</div><p class="v">Admins see every site, who made it, and who can open it. Every change and every visit is recorded.</p></div>
+          <div class="row"><div class="k">Light to run</div><p class="v">One small service, a Postgres database and file storage. Hosting something that already works takes the AI a single short step, so it costs few tokens.</p></div>
+          <div class="row"><div class="k">Yours to extend</div><p class="v">Your engineers have the code. Add what you need, for example scanning pages for confidential data.</p></div>
+        </div>
+        <p>
+          <a class="cta solid" href="https://github.com/vineetu/simple-host-enterprise">Source and install guide</a>
+          <a class="cta" href="/enterprise">The full details</a>
+        </p>
+      </div>
+    </section>
+
+    <section id="note">
+      <div>
+        <h2>Before you rely on it</h2>
+        <p>Simple Host is a side project built by one person. Evaluate it the way you would any open-source software: review the code and run your own security review before you depend on it.</p>
+      </div>
+    </section>
+  </div>
+
+  <!--sh:footer-->
+</body>
+</html>
