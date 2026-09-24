@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "simple-host": {
+      "type": "http",
+      "url": "https://simple-host.app/mcp"
+    }
+  }
+}

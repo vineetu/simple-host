@@ -10,4 +10,5 @@ check:
 	bash scripts/check-html.sh
 	bash scripts/check-layering.sh
 	bash scripts/check-docs-sync.sh
+	bash scripts/check-claude-plugin.sh
 	bash scripts/check-fresh-install.sh

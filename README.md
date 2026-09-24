@@ -28,12 +28,14 @@ If you found this on GitHub, you almost certainly already have an agent — Clau
 npx skills add vineetu/simple-host
 ```
 
-On Claude Code you can also install via the bundled marketplace:
+**Install in Claude:** the [Simple Host plugin](plugins/simple-host/) bundles the skills and the Simple Host connector (`https://simple-host.app/mcp`, you sign in once when Claude first uses it). On Claude Code:
 
 ```bash
 /plugin marketplace add vineetu/simple-host
-/plugin install website-deploy@simple-host
+/plugin install simple-host@simple-host
 ```
+
+The older skills-only `website-deploy@simple-host` plugin still installs and updates, but is superseded by `simple-host`.
 
 Using **Hermes** or **OpenClaw**? The skills are plain `SKILL.md`, so they install natively too — e.g. Hermes: `hermes skills install https://simple-host.app/skills/website-deploy/SKILL.md --name website-deploy`. That fetches one file; `website-deploy`'s SKILL.md routes to reference documents, and cites each by full URL as well as relative path so a single-file install can still fetch them (`https://simple-host.app/v1/skills/website-deploy/references/<name>.md`). Per-agent paths are under "Install the skills manually" on the [API page](https://simple-host.app/docs.html#install-skills).
 
@@ -136,6 +138,8 @@ Everything an agent needs is at [`/llms.txt`](https://simple-host.app/llms.txt),
 
 - **Three skills** — `website-deploy` (the deploy workflow, a router plus reference documents under `references/`), `website-deploy-builder` (helping decide what to build that fits a static-plus-light-state model), and `connect-domain` (pointing your own domain at a site, which is also what adds sign-in to its saves).
 - **An MCP server** (Node) exposing `register`, `deploy`, `status`, and `list` as agent-callable tools.
+
+For Claude, [`plugins/simple-host/`](plugins/simple-host/) packages the same three skills with the hosted connector as the `simple-host` plugin. Its skills are generated copies — edit `simple-host-website/skills/` and run `bash scripts/sync-claude-plugin.sh`; `scripts/check-claude-plugin.sh` (part of `make check`) fails if the copy or version drifts.
 
 The plugin is embedded into the Go binary, so a running instance also serves it at `/skills.zip`, `/plugin.zip`, and per-skill ZIPs for manual upload (e.g. Claude.ai). It reports its version on every API call; if the server's bundle is newer, responses carry a `_notice` the agent surfaces so users know to update.
 

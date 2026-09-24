@@ -22,6 +22,7 @@ There is no separate object store, CDN, build pipeline, or microservices. Everyt
 - `internal/handler/static/` — embedded HTML/CSS/fonts for the landing page, admin UI, docs page, OpenAPI spec.
 - `internal/handler/connector.go` + `internal/mcp/` — the Simple Host connector: an OAuth 2.1 authorization server (`/.well-known/oauth-*`, `/oauth/register|authorize|token|revoke`, consent page `static/connect.html`) protecting a Streamable HTTP MCP endpoint at `/mcp`. Tools are served in process into the bare mux with the person's own `X-API-Key`, so they meet exactly the REST checks. Access tokens are also accepted as `Authorization: Bearer` on `/v1` (`BearerAuth`, converted to the key). Tables: `oauth_clients`, `oauth_grants`, `oauth_codes`, `oauth_tokens` (hashes only). `simple-host oauth-client create …` registers a confidential client by hand (GPT Actions).
 - `internal/handler/notice_middleware.go` — wraps responses on agent-facing routes with a `_notice` field when the caller's `X-Skill-Version` header is missing or stale. NOT applied to state endpoints, static serving, or skill downloads.
+- `plugins/simple-host/` — the `simple-host` Claude plugin (directory submission): `.claude-plugin/plugin.json`, `.mcp.json` (remote HTTP server `https://simple-host.app/mcp`, OAuth discovered from the server) and generated copies of three skills. Never edit its `skills/` by hand.
 - `simple-host-website/` — the Website Deploy plugin. Embedded into the Go binary via `embed.go` so `/skills.zip`, `/plugin.zip`, `/install.sh` work out of the box.
 
 ## Architecture conventions
@@ -50,7 +51,7 @@ Uploads are *append-only*. Each upload writes `<DATA_DIR>/<site>/v<n>/` and upda
 
 `internal/handler/notice_middleware.go` reads the embedded `plugin.json` version at boot. For routes wrapped with the middleware, if the request's `X-Skill-Version` header is missing or mismatched, the JSON response body gets a `_notice` field injected (top-level for objects, `{data:[...], _notice}` for arrays). The MCP server in `simple-host-website/mcp-server/` reads `plugin.json` at module load, sends `X-Skill-Version` on every API call, and surfaces `_notice` as a `NOTICE:` text block in the tool result so the agent can relay it to the user.
 
-When you bump the plugin, update `simple-host-website/.claude-plugin/plugin.json`'s `version`. The middleware reads it from the embedded FS — no separate constant to update.
+When you bump the plugin, update `simple-host-website/.claude-plugin/plugin.json`'s `version`. The middleware reads it from the embedded FS — no separate constant to update. Then run `bash scripts/sync-claude-plugin.sh`: `plugins/simple-host/` (the Claude directory plugin — same skills plus the `/mcp` connector) carries generated copies of `website-deploy`, `website-deploy-builder` and `connect-domain` at that version, and `scripts/check-claude-plugin.sh` fails `make check` if they drift.
 
 ## Things that look weird but are intentional
 

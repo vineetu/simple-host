@@ -9,11 +9,19 @@
   },
   "plugins": [
     {
+      "name": "simple-host",
+      "displayName": "Simple Host",
+      "source": "./plugins/simple-host",
+      "version": "0.17.1",
+      "homepage": "https://simple-host.app",
+      "description": "Describe a website and it goes online at its own address. Claude builds the site and publishes it to simple-host.app through the Simple Host connector: pages, a small shared backend for saves and sign-ups, visitor analytics, and your own domain when you want one."
+    },
+    {
       "name": "website-deploy",
       "source": "./simple-host-website",
       "version": "0.17.1",
       "homepage": "https://simple-host.app",
-      "description": "Deploy static websites to simple-host.app from your coding agent (inline JSON or tar.gz/zip). Each site gets a per-site backend (shared JSON state with atomic ops, append-only collections) and built-in server-side visitor analytics, and can be connected to your own custom domain \u2014 subdomain via CNAME or apex via A record. Pages and public lists are readable by anyone; on the shared host pages write freely too; on a site with its own address (a free <name>.simple-host.app or a custom domain) visitors sign in with Google or an emailed code before saving, and a collection can be made private so only the owner reads it; agents write with an API key anywhere. Bundles a builder skill (plan what to build) and a connect-domain skill."
+      "description": "Superseded by the simple-host plugin (Simple Host) \u2014 install that one instead; it bundles these same skills plus the Simple Host connector. Kept so existing installs keep updating. Deploy static websites to simple-host.app from your coding agent (inline JSON or tar.gz/zip). Each site gets a per-site backend (shared JSON state with atomic ops, append-only collections) and built-in server-side visitor analytics, and can be connected to your own custom domain \u2014 subdomain via CNAME or apex via A record. Pages and public lists are readable by anyone; on the shared host pages write freely too; on a site with its own address (a free <name>.simple-host.app or a custom domain) visitors sign in with Google or an emailed code before saving, and a collection can be made private so only the owner reads it; agents write with an API key anywhere. Bundles a builder skill (plan what to build) and a connect-domain skill."
     }
   ]
 }
