@@ -205,7 +205,7 @@ func TestEveryToolIsWellFormed(t *testing.T) {
 			t.Errorf("tool %s is incomplete", tool.Name)
 		}
 	}
-	for _, want := range []string{"who_am_i", "list_sites", "deploy_site", "get_site", "list_versions", "rollback_site", "delete_site", "set_visibility", "get_state", "update_state", "read_collection"} {
+	for _, want := range []string{"who_am_i", "list_sites", "create_site", "update_site", "get_site", "list_versions", "rollback_site", "delete_site", "set_visibility", "get_state", "update_state", "read_collection"} {
 		if !seen[want] {
 			t.Errorf("missing tool %s", want)
 		}
@@ -238,39 +238,162 @@ func TestToolsCallUpstreamAsTheCaller(t *testing.T) {
 	}
 }
 
-func TestDeployModes(t *testing.T) {
+func TestCreateAndUpdateSite(t *testing.T) {
 	created := func() (int, string) {
-		return 201, `{"name":"blog","active_version":1,"site_url":"https://sites.simple-host.app/ann/blog/"}`
+		return 201, `{"id":"9b1c","user_id":"u-1","name":"blog","active_version":1,"site_url":"https://sites.simple-host.app/ann/blog/","created_at":"2026-09-24T10:00:00Z","updated_at":"2026-09-24T10:00:00Z"}`
 	}
 	exists := func() (int, string) { return 409, `{"error":"site already exists"}` }
+	missing := func() (int, string) { return 404, `{"error":"site not found"}` }
 	updated := func() (int, string) {
-		return 200, `{"name":"blog","active_version":4,"site_url":"https://sites.simple-host.app/ann/blog/"}`
+		return 200, `{"id":"9b1c","user_id":"u-1","name":"blog","active_version":4,"site_url":"https://sites.simple-host.app/ann/blog/","updated_at":"2026-09-24T10:00:00Z"}`
 	}
 	files := map[string]any{"index.html": "<h1>hi</h1>"}
 
-	// auto: create, and fall back to replace only on 409.
+	// create_site: POST only, and never falls back to overwriting.
 	up := &recordingUpstream{answers: map[string]func() (int, string){"POST /v1/sites/blog/files": exists, "PUT /v1/sites/blog/files": updated}}
-	text, structured, isErr := resultOf(t, send(t, newTestServer(up), toolCall("deploy_site", map[string]any{"site": "blog", "files": files}), nil, true))
-	if isErr || structured["active_version"].(float64) != 4 || structured["created"] != false || !strings.Contains(text, "https://sites.simple-host.app/ann/blog/") {
-		t.Fatalf("auto: %s", text)
-	}
-	var sent map[string]any
-	_ = json.Unmarshal([]byte(up.bodies[1]), &sent)
-	if sent["files"].(map[string]any)["index.html"] != "<h1>hi</h1>" {
-		t.Errorf("files not forwarded: %s", up.bodies[1])
-	}
-
-	// create: never falls back.
-	up = &recordingUpstream{answers: map[string]func() (int, string){"POST /v1/sites/blog/files": exists, "PUT /v1/sites/blog/files": updated}}
-	text, _, isErr = resultOf(t, send(t, newTestServer(up), toolCall("deploy_site", map[string]any{"site": "blog", "mode": "create", "files": files}), nil, true))
-	if !isErr || len(up.requests) != 1 || !strings.Contains(text, "409") {
+	text, _, isErr := resultOf(t, send(t, newTestServer(up), toolCall("create_site", map[string]any{"site": "blog", "files": files}), nil, true))
+	if !isErr || len(up.requests) != 1 || !strings.Contains(text, "update_site") {
 		t.Fatalf("create overwrote or retried: %s (%d requests)", text, len(up.requests))
 	}
-
 	up = &recordingUpstream{answers: map[string]func() (int, string){"POST /v1/sites/blog/files": created}}
-	_, structured, isErr = resultOf(t, send(t, newTestServer(up), toolCall("deploy_site", map[string]any{"site": "blog", "mode": "create", "files": files}), nil, true))
-	if isErr || structured["created"] != true {
-		t.Fatalf("create: %v", structured)
+	rec := send(t, newTestServer(up), toolCall("create_site", map[string]any{"site": "blog", "files": files}), nil, true)
+	text, structured, isErr := resultOf(t, rec)
+	if isErr || structured["active_version"].(float64) != 1 || !strings.Contains(text, "https://sites.simple-host.app/ann/blog/") {
+		t.Fatalf("create: %s", text)
+	}
+	var sent map[string]any
+	_ = json.Unmarshal([]byte(up.bodies[0]), &sent)
+	if sent["files"].(map[string]any)["index.html"] != "<h1>hi</h1>" {
+		t.Errorf("files not forwarded: %s", up.bodies[0])
+	}
+	// Internal identifiers and bookkeeping times never reach the model.
+	for _, leak := range []string{"9b1c", "u-1", "2026-09-24T10:00:00Z", "user_id", "updated_at"} {
+		if strings.Contains(rec.Body.String(), leak) {
+			t.Errorf("create_site result carries %q: %s", leak, rec.Body.String())
+		}
+	}
+
+	// update_site: PUT only, and never creates.
+	up = &recordingUpstream{answers: map[string]func() (int, string){"PUT /v1/sites/blog/files": missing, "POST /v1/sites/blog/files": created}}
+	text, _, isErr = resultOf(t, send(t, newTestServer(up), toolCall("update_site", map[string]any{"site": "blog", "files": files}), nil, true))
+	if !isErr || len(up.requests) != 1 || !strings.Contains(text, "create_site") {
+		t.Fatalf("update created or retried: %s (%d requests)", text, len(up.requests))
+	}
+	up = &recordingUpstream{answers: map[string]func() (int, string){"PUT /v1/sites/blog/files": updated}}
+	_, structured, isErr = resultOf(t, send(t, newTestServer(up), toolCall("update_site", map[string]any{"site": "blog", "files": files}), nil, true))
+	if isErr || structured["active_version"].(float64) != 4 {
+		t.Fatalf("update: %v", structured)
+	}
+}
+
+// Every tool states all three hints the plugin directory reviews, and the
+// values are the ones justified in openai-plugin/SUBMISSION.md.
+func TestAnnotationsMatchBehaviour(t *testing.T) {
+	type hints struct{ readOnly, destructive, openWorld bool }
+	want := map[string]hints{
+		"who_am_i":          {true, false, false},
+		"list_sites":        {true, false, false},
+		"get_site":          {true, false, false},
+		"read_site_file":    {true, false, false},
+		"list_versions":     {true, false, false},
+		"get_state":         {true, false, false},
+		"list_collections":  {true, false, false},
+		"read_collection":   {true, false, false},
+		"domain_status":     {true, false, false},
+		"site_analytics":    {true, false, false},
+		"create_site":       {false, false, true},
+		"update_site":       {false, true, true},
+		"rollback_site":     {false, false, true},
+		"delete_site":       {false, true, false},
+		"rename_site":       {false, false, true},
+		"set_visibility":    {false, false, true},
+		"update_state":      {false, true, true},
+		"add_to_collection": {false, true, true},
+		"connect_domain":    {false, false, true},
+	}
+	tools := Tools()
+	if len(tools) != len(want) {
+		t.Errorf("%d tools, %d with expected hints: update both lists and SUBMISSION.md", len(tools), len(want))
+	}
+	for _, tool := range tools {
+		w, ok := want[tool.Name]
+		if !ok {
+			t.Errorf("%s: no expected hints", tool.Name)
+			continue
+		}
+		for key, v := range map[string]bool{"readOnlyHint": w.readOnly, "destructiveHint": w.destructive, "openWorldHint": w.openWorld} {
+			got, present := tool.Annotations[key].(bool)
+			if !present || got != v {
+				t.Errorf("%s: %s = %v (present %v), want %v", tool.Name, key, tool.Annotations[key], present, v)
+			}
+		}
+	}
+}
+
+// Tool results carry what a person needs, not the server's bookkeeping.
+func TestToolResultsCarryNoInternalIdentifiers(t *testing.T) {
+	up := &recordingUpstream{answers: map[string]func() (int, string){
+		"GET /v1/me": func() (int, string) {
+			return 200, `{"id":"u-123","username":"a@example.com","handle":"ann","is_admin":false}`
+		},
+		"GET /v1/sites": func() (int, string) {
+			return 200, `[{"id":"s-9","user_id":"u-123","name":"blog","active_version":2,"site_url":"https://sites.simple-host.app/ann/blog/","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-02T00:00:00Z","visibility":"public","owner_username":"a@example.com"}]`
+		},
+		"GET /v1/sites/blog/versions": func() (int, string) {
+			return 200, `[{"version_number":1,"status":"ready","created_at":"2026-01-01T00:00:00Z","is_active":false,"id":"v-1","site_id":"s-9"},{"version_number":2,"status":"ready","created_at":"2026-01-02T00:00:00Z","is_active":true}]`
+		},
+		"GET /v1/sites/blog/collections": func() (int, string) {
+			return 200, `{"collections":[{"name":"rsvps","count":3,"last_at":"2026-01-03T00:00:00Z"}]}`
+		},
+		"GET /v1/u/ann/sites/blog/collections/rsvps": func() (int, string) {
+			return 200, `{"items":[{"id":4411,"data":{"name":"Ann"},"created_at":"2026-01-03T00:00:00Z"}],"next":4411}`
+		},
+		"POST /v1/u/ann/sites/blog/collections/rsvps": func() (int, string) {
+			return 201, `{"id":4412,"data":{"name":"Bo"},"created_at":"2026-01-04T00:00:00Z"}`
+		},
+		"GET /v1/sites/blog/domain": func() (int, string) {
+			return 200, `{"domain":"rsvp.example.com","status":"pending","bound_at":"2026-01-05T00:00:00Z","expires_at":"2026-01-06T00:00:00Z","took_over_from":"other-site","dns":{"type":"CNAME","host":"rsvp.example.com","value":"sites.simple-host.app"}}`
+		},
+	}}
+	s := newTestServer(up)
+	calls := []struct {
+		tool string
+		args map[string]any
+	}{
+		{"who_am_i", map[string]any{}},
+		{"list_sites", map[string]any{}},
+		{"list_versions", map[string]any{"site": "blog"}},
+		{"list_collections", map[string]any{"site": "blog"}},
+		{"read_collection", map[string]any{"site": "blog", "collection": "rsvps"}},
+		{"add_to_collection", map[string]any{"site": "blog", "collection": "rsvps", "item": map[string]any{"name": "Bo"}}},
+		{"domain_status", map[string]any{"site": "blog"}},
+	}
+	for _, c := range calls {
+		rec := send(t, s, toolCall(c.tool, c.args), nil, true)
+		var envelope struct {
+			Result json.RawMessage `json:"result"`
+		}
+		_ = json.Unmarshal(rec.Body.Bytes(), &envelope)
+		body := string(envelope.Result) // the JSON-RPC envelope's own "id" is not the tool's
+		if _, _, isErr := resultOf(t, rec); isErr {
+			t.Errorf("%s failed: %s", c.tool, body)
+			continue
+		}
+		for _, leak := range []string{"u-123", "s-9", "v-1", `"id"`, "user_id", "site_id", "4412", "updated_at", "last_at", "bound_at", "expires_at", "other-site", "is_admin", "owner_username"} {
+			if strings.Contains(body, leak) {
+				t.Errorf("%s result carries %q: %s", c.tool, leak, body)
+			}
+		}
+	}
+	// What a person needs is still there.
+	_, structured, _ := resultOf(t, send(t, s, toolCall("read_collection", map[string]any{"site": "blog", "collection": "rsvps"}), nil, true))
+	items := structured["items"].([]any)
+	if items[0].(map[string]any)["data"].(map[string]any)["name"] != "Ann" || structured["next"] != "4411" {
+		t.Errorf("read_collection lost the data or the paging cursor: %v", structured)
+	}
+	_, structured, _ = resultOf(t, send(t, s, toolCall("domain_status", map[string]any{"site": "blog"}), nil, true))
+	if structured["status"] != "pending" || structured["dns_record"].(map[string]any)["value"] != "sites.simple-host.app" {
+		t.Errorf("domain_status lost the DNS record: %v", structured)
 	}
 }
 
@@ -280,9 +403,9 @@ func TestArgumentValidationHappensBeforeAnyRequest(t *testing.T) {
 		args map[string]any
 		want string
 	}{
-		{"deploy_site", map[string]any{"site": "blog", "files": map[string]any{"about.html": "x"}}, "index.html"},
-		{"deploy_site", map[string]any{"site": "Bad Name!", "files": map[string]any{"index.html": "x"}}, "not a valid site name"},
-		{"deploy_site", map[string]any{"site": "blog", "files": map[string]any{"index.html": "x"}, "mode": "overwrite"}, "mode must be"},
+		{"create_site", map[string]any{"site": "blog", "files": map[string]any{"about.html": "x"}}, "index.html"},
+		{"update_site", map[string]any{"site": "Bad Name!", "files": map[string]any{"index.html": "x"}}, "not a valid site name"},
+		{"create_site", map[string]any{"site": "blog", "files": map[string]any{"index.html": "x"}, "mode": "replace"}, "unexpected argument"},
 		{"delete_site", map[string]any{"site": "blog", "confirm_name": "blogg"}, "nothing was deleted"},
 		{"rollback_site", map[string]any{"site": "blog", "version": 1.5}, "whole number"},
 		{"update_state", map[string]any{"site": "blog"}, "exactly one of ops or replace"},

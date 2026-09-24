@@ -167,6 +167,7 @@ type connectorApp struct {
 	srv      *httptest.Server
 	database *sql.DB
 	admin    string
+	conn     *ConnectorHandler
 }
 
 // newConnectorApp wires the server the way cmd/server/main.go does. It needs
@@ -216,6 +217,7 @@ func newConnectorApp(t *testing.T) *connectorApp {
 	sites.Register(mux, authMW, noticeMW)
 	conn := NewConnectorHandler(database, app.srv.URL, adminKey, "simple-host.test", "sites.simple-host.test", "1.0.0", mux)
 	conn.Register(mux, authMW)
+	app.conn = conn
 	root = CORS(conn.BearerAuth(mux))
 	return app
 }
@@ -477,14 +479,14 @@ func TestConnectorHappyPathPublishesThroughMCP(t *testing.T) {
 		t.Fatalf("initialize: %s", init.body)
 	}
 	list := a.rpc(t, access, "tools/list", map[string]any{})
-	if !strings.Contains(string(list.body), `"deploy_site"`) {
+	if !strings.Contains(string(list.body), `"create_site"`) {
 		t.Fatalf("tools/list: %s", list.body)
 	}
-	text, s, isErr := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": "deploy_site", "arguments": map[string]any{
-		"site": "hello-connector", "mode": "create", "files": map[string]any{"index.html": "<h1>hi</h1>"},
+	text, s, isErr := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": "create_site", "arguments": map[string]any{
+		"site": "hello-connector", "files": map[string]any{"index.html": "<h1>hi</h1>"},
 	}}))
 	if isErr || s["active_version"].(float64) != 1 || !strings.Contains(s["url"].(string), "/hello-connector/") {
-		t.Fatalf("deploy_site: %s", text)
+		t.Fatalf("create_site: %s", text)
 	}
 	text, s, isErr = toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": "who_am_i", "arguments": map[string]any{}}))
 	if isErr || s["email"] != ann.email {
@@ -731,7 +733,7 @@ func TestConnectorToolsHaveRESTPermissions(t *testing.T) {
 	access := a.connect(t, ann, clientID, testRedirect)["access_token"].(string)
 	for _, call := range []map[string]any{
 		{"name": "delete_site", "arguments": map[string]any{"site": "bobs-page", "confirm_name": "bobs-page"}},
-		{"name": "deploy_site", "arguments": map[string]any{"site": "bobs-page", "mode": "replace", "files": map[string]any{"index.html": "ann was here"}}},
+		{"name": "update_site", "arguments": map[string]any{"site": "bobs-page", "files": map[string]any{"index.html": "ann was here"}}},
 		{"name": "rollback_site", "arguments": map[string]any{"site": "bobs-page", "version": 1}},
 		{"name": "read_site_file", "arguments": map[string]any{"site": "bobs-page", "path": "index.html", "version": 1}},
 		{"name": "set_visibility", "arguments": map[string]any{"site": "bobs-page", "visibility": "public"}},

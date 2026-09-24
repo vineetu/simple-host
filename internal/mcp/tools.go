@@ -107,7 +107,7 @@ func (c *call) ownHandle() (string, error) {
 	}
 	_ = json.Unmarshal(me.body, &body)
 	if body.Handle == "" {
-		return "", errors.New("this account has no sites yet, so it has no site data to read or change; deploy a site first with deploy_site")
+		return "", errors.New("this account has no sites yet, so it has no site data to read or change; publish a site first with create_site")
 	}
 	c.handle = body.Handle
 	return c.handle, nil
@@ -159,7 +159,7 @@ func restError(tool string, u upstreamResult) error {
 	case u.status == http.StatusNotFound:
 		hint = "Check the name against list_sites (and version numbers against list_versions)."
 	case u.status == http.StatusConflict:
-		hint = "A site of that name already exists in this account. Use mode \"replace\" to publish a new version of it, or pick another name."
+		hint = "A site of that name already exists in this account. Use update_site to publish a new version of it, or pick another name."
 	case u.status == http.StatusBadRequest:
 		hint = "The request was rejected as invalid; correct the arguments rather than retrying the same call."
 	case u.status == http.StatusRequestEntityTooLarge:
@@ -201,12 +201,28 @@ func str(description string) map[string]any {
 	return map[string]any{"type": "string", "description": description}
 }
 
+// Annotations follow the plugin directory's definitions, and every tool sets
+// all three hints explicitly (a missing hint is a review failure):
+//
+//   - readOnlyHint: true only when the tool fetches and changes nothing.
+//   - openWorldHint: true when the tool publishes to the public internet or
+//     reaches an open-ended outside party (an arbitrary domain). Reading the
+//     person's own account is a bounded workspace: false.
+//   - destructiveHint: true when the tool can delete or overwrite something,
+//     in any mode or through its defaults, even if a copy can be restored.
+//
+// The justification for each tool's values is in openai-plugin/SUBMISSION.md;
+// keep the two in step.
+
+// readOnly is a lookup in the person's own account.
 func readOnly() map[string]any {
 	return map[string]any{"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
 }
 
-func writes(destructive, idempotent bool) map[string]any {
-	return map[string]any{"readOnlyHint": false, "destructiveHint": destructive, "idempotentHint": idempotent, "openWorldHint": true}
+// writes is a change. public says whether it puts something in front of the
+// public (publishes, relists, re-addresses) or reaches an outside party.
+func writes(destructive, idempotent, public bool) map[string]any {
+	return map[string]any{"readOnlyHint": false, "destructiveHint": destructive, "idempotentHint": idempotent, "openWorldHint": public}
 }
 
 func stringArg(args map[string]any, key string) (string, error) {
@@ -312,7 +328,6 @@ type restSite struct {
 	Name          string `json:"name"`
 	ActiveVersion int    `json:"active_version"`
 	SiteURL       string `json:"site_url"`
-	UpdatedAt     string `json:"updated_at"`
 	CustomDomain  string `json:"custom_domain"`
 	DomainStatus  string `json:"domain_status"`
 	Visibility    string `json:"visibility"`
@@ -333,9 +348,6 @@ func (s restSite) summary() map[string]any {
 		"url":            s.liveURL(),
 		"active_version": s.ActiveVersion,
 		"listed":         s.Visibility == "public",
-	}
-	if s.UpdatedAt != "" {
-		m["updated_at"] = s.UpdatedAt
 	}
 	if s.CustomDomain != "" {
 		m["custom_domain"] = s.CustomDomain
@@ -367,6 +379,44 @@ func (c *call) findSite(name string) (restSite, error) {
 		}
 	}
 	return restSite{}, fmt.Errorf("no site named %q in this account. Call list_sites for the exact names; a site owned by someone else cannot be changed from here", name)
+}
+
+// domainSummary is what a person needs about a site's custom domain: which
+// domain, whether it is live, the one DNS record to add, and why it is not live
+// yet. Binding times and the name of any site a pending binding was taken over
+// from are the server's bookkeeping and stay out.
+func domainSummary(site string, body []byte) map[string]any {
+	var d struct {
+		Domain    *string `json:"domain"`
+		Status    *string `json:"status"`
+		LastError string  `json:"last_error"`
+		DNS       *struct {
+			Type  string `json:"type"`
+			Host  string `json:"host"`
+			Value string `json:"value"`
+		} `json:"dns"`
+	}
+	_ = json.Unmarshal(body, &d)
+	out := map[string]any{"site": site}
+	if d.Domain == nil || *d.Domain == "" {
+		out["domain"] = nil
+		out["status"] = "none"
+		return out
+	}
+	out["domain"] = *d.Domain
+	if d.Status != nil {
+		out["status"] = *d.Status
+	}
+	if d.DNS != nil {
+		out["dns_record"] = map[string]any{"type": d.DNS.Type, "host": d.DNS.Host, "value": d.DNS.Value}
+	}
+	if d.LastError != "" {
+		out["last_check"] = d.LastError
+	}
+	if d.Status != nil && *d.Status == "pending" {
+		out["note"] = "Add the DNS record at the domain's registrar within 24 hours; until DNS proves it, the binding is provisional."
+	}
+	return out
 }
 
 func jsonText(v any) string {
@@ -432,7 +482,7 @@ func Tools() []Tool {
 				}
 				out := map[string]any{"sites": items, "count": len(items)}
 				if len(items) == 0 {
-					return output{Text: "This account has no sites yet. Publish one with deploy_site.", Structured: out}, nil
+					return output{Text: "This account has no sites yet. Publish one with create_site.", Structured: out}, nil
 				}
 				return output{Text: jsonText(out), Structured: out}, nil
 			},
@@ -478,7 +528,7 @@ func Tools() []Tool {
 			Name:  "read_site_file",
 			Title: "Read a file from a site",
 			Description: "Return the contents of one file of a site (the live version unless `version` is given). Use it to edit an existing site: read the file, change it, and deploy the full set of files again. " +
-				"Text files come back as text; binary files (images, fonts) are only described, since deploy_site keeps nothing you do not resend — resend a binary file only if you have its bytes.",
+				"Text files come back as text; binary files (images, fonts) are only described, since update_site keeps nothing you do not resend — resend a binary file only if you have its bytes.",
 			InputSchema: object(map[string]any{
 				"site":    str(siteDesc),
 				"path":    str("Path of the file from the site root, e.g. `index.html` or `css/style.css`."),
@@ -534,33 +584,34 @@ func Tools() []Tool {
 			},
 		},
 		{
-			Name:  "deploy_site",
-			Title: "Publish a site",
-			Description: "Publish a website from files given inline. Creates the site, or publishes a new version of an existing one. " +
-				"The files you send are the COMPLETE new version: anything not included stops existing on the live site, so to change one page of an existing site, read the others with read_site_file and send them all again. " +
+			Name:  "create_site",
+			Title: "Publish a new site",
+			Description: "Publish a NEW website from files given inline, at a public address. Fails if this account already has a site of that name, so it never overwrites anything; to change an existing site use update_site. " +
 				"`index.html` is required. Use relative links only (`css/style.css`, never `/css/style.css`), because sites live under a path. " +
-				"Earlier versions are kept and can be restored with rollback_site. The site is public at the returned URL as soon as this returns.",
+				"The site is public to anyone with the returned URL as soon as this returns.",
 			InputSchema: object(map[string]any{
-				"site": str(siteDesc + " New sites: pick a short, descriptive name."),
-				"files": map[string]any{
-					"type":                 "object",
-					"description":          "Map of file path → text content, e.g. {\"index.html\": \"<!DOCTYPE html>…\", \"css/style.css\": \"body{…}\"}. Paths are relative, no leading slash, no `..`.",
-					"additionalProperties": map[string]any{"type": "string"},
-				},
-				"files_base64": map[string]any{
-					"type":                 "object",
-					"description":          "Optional map of file path → base64 content, for binary files such as images. A path must not appear in both maps.",
-					"additionalProperties": map[string]any{"type": "string"},
-				},
-				"mode": map[string]any{
-					"type": "string",
-					"enum": []string{"auto", "create", "replace"},
-					"description": "`create` only makes a new site and fails if the name is taken; `replace` only updates a site that exists; `auto` (default) does whichever applies. " +
-						"Use `create` when the person asked for a new site, so an existing site is never overwritten by accident.",
-				},
+				"site":         str(siteDesc + " Pick a short, descriptive name."),
+				"files":        filesSchema(),
+				"files_base64": filesBase64Schema(),
 			}, "site", "files"),
-			Annotations: writes(false, false),
-			run:         deploySite,
+			// Publishes to the public web; creates only, so nothing is lost.
+			Annotations: writes(false, false, true),
+			run:         func(c *call, args map[string]any) (output, error) { return deploySite(c, args, "create") },
+		},
+		{
+			Name:  "update_site",
+			Title: "Publish a new version of a site",
+			Description: "Replace the live files of an EXISTING site with a new version, at its public address. The files you send are the COMPLETE new version: anything not included stops being served, so to change one page read the others with read_site_file and send them all again. " +
+				"`index.html` is required; use relative links only. The previous version is kept and can be made live again with rollback_site. Fails if there is no site of that name (use create_site).",
+			InputSchema: object(map[string]any{
+				"site":         str(siteDesc),
+				"files":        filesSchema(),
+				"files_base64": filesBase64Schema(),
+			}, "site", "files"),
+			// Overwrites what is live (destructive, even though rollback_site
+			// can restore it) and publishes to the public web.
+			Annotations: writes(true, false, true),
+			run:         func(c *call, args map[string]any) (output, error) { return deploySite(c, args, "replace") },
 		},
 		{
 			Name:        "list_versions",
@@ -577,13 +628,20 @@ func Tools() []Tool {
 				if !res.ok() {
 					return output{}, restError("list_versions", res)
 				}
-				var versions []map[string]any
-				_ = json.Unmarshal(res.body, &versions)
-				sort.SliceStable(versions, func(i, j int) bool {
-					a, _ := versions[i]["version_number"].(float64)
-					b, _ := versions[j]["version_number"].(float64)
-					return a > b
-				})
+				var raw []struct {
+					VersionNumber int    `json:"version_number"`
+					CreatedAt     string `json:"created_at"`
+					IsActive      bool   `json:"is_active"`
+				}
+				_ = json.Unmarshal(res.body, &raw)
+				sort.SliceStable(raw, func(i, j int) bool { return raw[i].VersionNumber > raw[j].VersionNumber })
+				// When each version was published is what a person picks a
+				// rollback by ("the one from yesterday"), so it stays; nothing
+				// else about the stored version is shown.
+				versions := make([]any, 0, len(raw))
+				for _, v := range raw {
+					versions = append(versions, map[string]any{"version": v.VersionNumber, "live": v.IsActive, "published_at": v.CreatedAt})
+				}
 				out := map[string]any{"site": name, "versions": versions}
 				return output{Text: jsonText(out), Structured: out}, nil
 			},
@@ -596,7 +654,9 @@ func Tools() []Tool {
 				"site":    str(siteDesc),
 				"version": map[string]any{"type": "integer", "description": "The version number to make live, from list_versions."},
 			}, "site", "version"),
-			Annotations: writes(false, true),
+			// Changes what the public sees; nothing is deleted and the
+			// version it replaces can be made live again the same way.
+			Annotations: writes(false, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
 				if err != nil {
@@ -626,7 +686,9 @@ func Tools() []Tool {
 				"site":         str(siteDesc),
 				"confirm_name": str("The same site name again, typed out, as confirmation."),
 			}, "site", "confirm_name"),
-			Annotations: writes(true, true),
+			// Irreversible. Acts only inside the person's own account and
+			// publishes nothing, so it is not open-world.
+			Annotations: writes(true, true, false),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
 				if err != nil {
@@ -654,7 +716,9 @@ func Tools() []Tool {
 				"site":     str(siteDesc),
 				"new_name": str("The new site name: lowercase letters, numbers and hyphens."),
 			}, "site", "new_name"),
-			Annotations: writes(false, false),
+			// Serves the site at a new public address. Nothing is deleted and
+			// renaming back restores the old address.
+			Annotations: writes(false, false, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
 				if err != nil {
@@ -683,7 +747,8 @@ func Tools() []Tool {
 				"site":       str(siteDesc),
 				"visibility": map[string]any{"type": "string", "enum": []string{"public", "unlisted"}, "description": "`public` lists it on the public page; `unlisted` leaves it off (still reachable by its address)."},
 			}, "site", "visibility"),
-			Annotations: writes(false, true),
+			// Adds a site to, or removes it from, a public listing page.
+			Annotations: writes(false, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
 				if err != nil {
@@ -751,7 +816,9 @@ func Tools() []Tool {
 				"replace":  map[string]any{"type": "object", "description": "A whole new state document. Use instead of ops."},
 				"if_match": str("Only with replace: the etag from get_state."),
 			}, "site"),
-			Annotations: writes(false, false),
+			// remove/removeWhere/set and replace overwrite or delete saved
+			// data with no undo; the data is public and shown on live pages.
+			Annotations: writes(true, false, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
 				if err != nil {
@@ -808,19 +875,18 @@ func Tools() []Tool {
 				if !res.ok() {
 					return output{}, restError("list_collections", res)
 				}
-				var parsed any
-				_ = json.Unmarshal(res.body, &parsed)
-				out := map[string]any{"site": name}
-				switch v := parsed.(type) {
-				case map[string]any:
-					for k, val := range v {
-						if k != "_notice" {
-							out[k] = val
-						}
-					}
-				case []any:
-					out["collections"] = v
+				var parsed struct {
+					Collections []struct {
+						Name  string `json:"name"`
+						Count int64  `json:"count"`
+					} `json:"collections"`
 				}
+				_ = json.Unmarshal(res.body, &parsed)
+				colls := make([]any, 0, len(parsed.Collections))
+				for _, col := range parsed.Collections {
+					colls = append(colls, map[string]any{"name": col.Name, "items": col.Count})
+				}
+				out := map[string]any{"site": name, "collections": colls}
 				return output{Text: jsonText(out), Structured: out}, nil
 			},
 		},
@@ -866,11 +932,27 @@ func Tools() []Tool {
 				if !res.ok() {
 					return output{}, restError("read_collection", res)
 				}
-				var out map[string]any
-				if err := json.Unmarshal(res.body, &out); err != nil || out == nil {
-					out = map[string]any{}
+				var page struct {
+					Items []struct {
+						Data      json.RawMessage `json:"data"`
+						CreatedAt string          `json:"created_at"`
+					} `json:"items"`
+					Next *int64 `json:"next"`
 				}
-				out["site"], out["collection"] = name, coll
+				_ = json.Unmarshal(res.body, &page)
+				// Each item is what the page saved plus when it was saved (an
+				// RSVP's or a survey answer's time is part of the answer). The
+				// row number stays internal; only the paging cursor carries it.
+				items := make([]any, 0, len(page.Items))
+				for _, it := range page.Items {
+					var data any
+					_ = json.Unmarshal(it.Data, &data)
+					items = append(items, map[string]any{"data": data, "saved_at": it.CreatedAt})
+				}
+				out := map[string]any{"site": name, "collection": coll, "items": items}
+				if page.Next != nil {
+					out["next"] = strconv.FormatInt(*page.Next, 10)
+				}
 				return output{Text: jsonText(out), Structured: out}, nil
 			},
 		},
@@ -883,7 +965,10 @@ func Tools() []Tool {
 				"collection": str("Collection name, e.g. `rsvps`."),
 				"item":       map[string]any{"type": "object", "description": "The item to append."},
 			}, "site", "collection", "item"),
-			Annotations: writes(false, false),
+			// Nothing existing is changed, but an appended item cannot be
+			// removed afterwards (no tool or API deletes one): an
+			// irreversible, public side effect, so destructive.
+			Annotations: writes(true, false, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
 				if err != nil {
@@ -905,8 +990,7 @@ func Tools() []Tool {
 				if !res.ok() {
 					return output{}, restError("add_to_collection", res)
 				}
-				var out map[string]any
-				_ = json.Unmarshal(res.body, &out)
+				out := map[string]any{"site": name, "collection": coll, "added": true}
 				return output{Text: "Added to " + coll + ".", Structured: out}, nil
 			},
 		},
@@ -919,7 +1003,9 @@ func Tools() []Tool {
 				"site":   str(siteDesc),
 				"domain": str("The domain or subdomain, without https://, e.g. `rsvp.example.com`."),
 			}, "site", "domain"),
-			Annotations: writes(false, true),
+			// Reaches an arbitrary outside domain and, once DNS proves it,
+			// serves the site there. Nothing is deleted.
+			Annotations: writes(false, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
 				if err != nil {
@@ -934,8 +1020,7 @@ func Tools() []Tool {
 				if !res.ok() {
 					return output{}, restError("connect_domain", res)
 				}
-				var out map[string]any
-				_ = json.Unmarshal(res.body, &out)
+				out := domainSummary(name, res.body)
 				return output{Text: jsonText(out), Structured: out}, nil
 			},
 		},
@@ -954,8 +1039,7 @@ func Tools() []Tool {
 				if !res.ok() {
 					return output{}, restError("domain_status", res)
 				}
-				var out map[string]any
-				_ = json.Unmarshal(res.body, &out)
+				out := domainSummary(name, res.body)
 				return output{Text: jsonText(out), Structured: out}, nil
 			},
 		},
@@ -995,7 +1079,29 @@ func Tools() []Tool {
 	}
 }
 
-func deploySite(c *call, args map[string]any) (output, error) {
+func filesSchema() map[string]any {
+	return map[string]any{
+		"type":                 "object",
+		"description":          "Map of file path → text content, e.g. {\"index.html\": \"<!DOCTYPE html>…\", \"css/style.css\": \"body{…}\"}. Paths are relative, no leading slash, no `..`.",
+		"additionalProperties": map[string]any{"type": "string"},
+	}
+}
+
+func filesBase64Schema() map[string]any {
+	return map[string]any{
+		"type":                 "object",
+		"description":          "Optional map of file path → base64 content, for binary files such as images. A path must not appear in both maps.",
+		"additionalProperties": map[string]any{"type": "string"},
+	}
+}
+
+// deploySite publishes the given files. mode is "create" (a new site only,
+// never overwriting) or "replace" (an existing site only).
+func deploySite(c *call, args map[string]any, mode string) (output, error) {
+	tool := "create_site"
+	if mode == "replace" {
+		tool = "update_site"
+	}
 	name, err := siteArg(args)
 	if err != nil {
 		return output{}, err
@@ -1016,17 +1122,6 @@ func deploySite(c *call, args map[string]any) (output, error) {
 			return output{}, errors.New("files must include index.html at the site root")
 		}
 	}
-	mode, err := optionalString(args, "mode")
-	if err != nil {
-		return output{}, err
-	}
-	switch mode {
-	case "":
-		mode = "auto"
-	case "auto", "create", "replace":
-	default:
-		return output{}, fmt.Errorf("mode must be auto, create or replace, got %q", mode)
-	}
 	payload := map[string]any{"files": files}
 	if len(binary) > 0 {
 		payload["files_base64"] = binary
@@ -1038,31 +1133,26 @@ func deploySite(c *call, args map[string]any) (output, error) {
 	path := "/v1/sites/" + url.PathEscape(name) + "/files"
 
 	var res upstreamResult
-	created := false
-	switch mode {
-	case "create":
-		res, created = c.do(http.MethodPost, path, body, nil), true
-	case "replace":
+	if mode == "create" {
+		res = c.do(http.MethodPost, path, body, nil)
+	} else {
 		res = c.do(http.MethodPut, path, body, nil)
-	default:
-		res, created = c.do(http.MethodPost, path, body, nil), true
-		if res.status == http.StatusConflict {
-			res, created = c.do(http.MethodPut, path, body, nil), false
-		}
 	}
 	if !res.ok() {
-		if res.status == http.StatusNotFound && mode == "replace" {
-			return output{}, fmt.Errorf("deploy_site failed: there is no site named %q in this account to replace. Use mode \"create\" for a new site, or list_sites for existing names", name)
+		switch {
+		case res.status == http.StatusNotFound && mode == "replace":
+			return output{}, fmt.Errorf("update_site failed: there is no site named %q in this account. Use create_site for a new site, or list_sites for existing names", name)
+		case res.status == http.StatusConflict && mode == "create":
+			return output{}, fmt.Errorf("create_site failed: this account already has a site named %q, and create_site never overwrites. To change it, use update_site (read its files first); for a separate site, pick another name", name)
 		}
-		return output{}, restError("deploy_site", res)
+		return output{}, restError(tool, res)
 	}
 	var site restSite
 	_ = json.Unmarshal(res.body, &site)
 	out := site.summary()
-	out["created"] = created
 	out["file_count"] = len(files) + len(binary)
 	verb := "Published a new version of"
-	if created {
+	if mode == "create" {
 		verb = "Created"
 	}
 	text := fmt.Sprintf("%s %s (version %d). Live at %s", verb, name, site.ActiveVersion, site.liveURL())

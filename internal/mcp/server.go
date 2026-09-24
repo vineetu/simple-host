@@ -372,6 +372,9 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		params.Arguments = map[string]any{}
 	}
 
+	if err := unexpectedArgument(tool, params.Arguments); err != nil {
+		return toolResult(req.ID, err.Error(), nil, true, modern)
+	}
 	c := &call{server: s, orig: r, caller: caller}
 	out, err := tool.run(c, params.Arguments)
 	if err != nil {
@@ -381,6 +384,20 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		return toolResult(req.ID, err.Error(), nil, true, modern)
 	}
 	return toolResult(req.ID, out.Text, out.Structured, false, modern)
+}
+
+// unexpectedArgument refuses an argument the tool's schema does not declare.
+// Every schema is closed (additionalProperties: false), and ignoring a stray
+// argument would let a call quietly mean something other than what the model
+// asked (e.g. a mode it thought it was choosing).
+func unexpectedArgument(tool Tool, args map[string]any) error {
+	props, _ := tool.InputSchema["properties"].(map[string]any)
+	for key := range args {
+		if _, ok := props[key]; !ok {
+			return fmt.Errorf("unexpected argument %q for %s; it takes only the arguments in its schema", key, tool.Name)
+		}
+	}
+	return nil
 }
 
 func toolResult(id json.RawMessage, text string, structured map[string]any, isError, modern bool) response {
