@@ -41,9 +41,9 @@
         "privacyPolicyURL": "https://simple-host.app/privacy.html",
         "termsOfServiceURL": "https://simple-host.app/terms",
         "defaultPrompt": [
-          "Make a small shop for my pottery studio with a private order form, on its own simple-host.app address",
-          "Make a beautiful RSVP page for my garden party on October 12, with a private guest list only I can see",
-          "Create a customer feedback survey that keeps answers private and shows me the totals"
+          "Build a small shop for my spice pantry on its own simple-host.app address, with a private order form only I can read",
+          "Make a site for my home cleaning business on its own simple-host.app address, with a booking form that saves privately",
+          "Create a resource hub for local families with a sign-up form, on its own simple-host.app address, and show me who signed up"
         ],
         "brandColor": "#428AF6",
         "brandColorDark": "#6BA4FF",
