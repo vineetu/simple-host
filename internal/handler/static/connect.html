@@ -91,6 +91,7 @@
           <label for="rv-password">Password</label>
           <input id="rv-password" type="password" autocomplete="current-password" required>
           <button class="primary" type="submit" id="rv-btn">Sign in</button>
+          <p class="fine"><button class="link" type="button" id="rv-back">Other ways to sign in</button></p>
         </form>
         <p class="msg" id="signin-msg" role="alert"></p>
       </section>
@@ -283,9 +284,12 @@
     });
     el('reviewer-link').addEventListener('click', function () {
       el('reviewer-line').hidden = true;
+      el('email-form').hidden = true; el('google-btn').hidden = true; el('or-line').hidden = true; el('key-form').hidden = true;
+      el('signin-msg').textContent = '';
       el('reviewer-form').hidden = false;
       el('rv-email').focus();
     });
+    el('rv-back').addEventListener('click', function () { el('signin-msg').textContent = ''; showSignIn(); });
     el('reviewer-form').addEventListener('submit', async function (e) {
       e.preventDefault();
       el('signin-msg').textContent = '';
