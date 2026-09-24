@@ -1602,8 +1602,7 @@ function parseAnalyticsSummary(data) {
       // everybody. Recognising a signed-in visitor changes the header — Sign
       // in becomes Your sites — and nothing else. It used to redirect them
       // off the homepage before they ever saw it.
-      const dashLink = document.getElementById('dash-link');
-      if (dashLink) dashLink.textContent = 'Your sites';
+      if (window.shAuthRender) window.shAuthRender();
       if (isLandingPath()) return;
       // /dashboard is the entrance. An owner with a handle has their app at
       // /<handle>; anyone else gets the apex dashboard below.
@@ -1652,6 +1651,7 @@ function parseAnalyticsSummary(data) {
           // the saved session and fall back to the login screen.
           apiKey = null;
           localStorage.removeItem('apiKey');
+          if (window.shAuthRender) window.shAuthRender();
           return;
         }
         // Non-2xx, non-401 — likely transient (deploy, brief 5xx).
@@ -1668,20 +1668,10 @@ function parseAnalyticsSummary(data) {
       }
     }
 
+    // One sign-out for every page: the header's (partials/header.html) clears
+    // the key and any half-finished sign-in, then lands on "/" signed out.
     function logout() {
-      apiKey = null;
-      currentUser = null;
-      localStorage.removeItem('apiKey');
-      document.body.classList.remove('authed');
-      document.getElementById('showcase-banner').hidden = true;
-      document.getElementById('user-actions').style.display = 'none';
-      document.getElementById('admin-tab').style.display = 'none';
-      const dashLinkOut = document.getElementById('dash-link');
-      if (dashLinkOut) dashLinkOut.textContent = 'Sign in';
-      switchTab('sites');
-      showView('auth-view');
-      document.getElementById('email-input').value = '';
-      resetAuth();
+      window.shSignOut();
     }
 
     // Skill version is fetched once and cached, then sent on every API

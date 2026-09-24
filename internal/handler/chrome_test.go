@@ -52,6 +52,12 @@ func assertChrome(t *testing.T, label, body, wantCurrentHref string) {
 		{`<footer`, 1},
 		{`id="dash-link"`, 1},
 		{`id="theme-toggle"`, 1},
+		// Sign out: one implementation, reachable inline (desktop) and from
+		// the phone account menu.
+		{`window.shSignOut = function`, 1},
+		{`data-sh-signout>`, 2},
+		{`id="sh-acct-menu"`, 1},
+		{`localStorage.removeItem(k)`, 1},
 		{`/site.css?v=` + siteCSSVersion, 1},
 		{`With thanks to Jacob Cole and Tejas D Channappa.`, 1},
 	} {
@@ -132,7 +138,7 @@ func TestChromeOnShowcaseAndNotFound(t *testing.T) {
 		t.Error("notfound: template placeholder left unsubstituted")
 	}
 	// Off the main origin, chrome links must name the main site.
-	for _, want := range []string{`href="https://simple-host.app/install.html"`, `href="https://simple-host.app/site.css?v=`, `href="https://simple-host.app/dashboard"`} {
+	for _, want := range []string{`href="https://simple-host.app/install.html"`, `href="https://simple-host.app/site.css?v=`, `href="https://simple-host.app/dashboard"`, `location.replace('https:\/\/simple-host.app/')`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("notfound on the content host: missing %s", want)
 		}

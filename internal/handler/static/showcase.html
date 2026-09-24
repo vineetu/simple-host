@@ -569,7 +569,7 @@
     .toast.error { background: var(--error); }
   </style>
 </head>
-<body>
+<body data-sh-account>
   <!--sh:header-->
 
   <div class="container">
@@ -2203,6 +2203,7 @@ function parseAnalyticsSummary(data) {
           apiKey = data.api_key;
           // This page is on the base origin (simple-host.app), so storing is safe.
           try { localStorage.setItem('apiKey', apiKey); } catch (e2) {}
+          if (window.shAuthRender) window.shAuthRender();
           hideAiAuth();
           toast('Signed in — building your site…', 'success');
           var text = pendingAuthText; pendingAuthText = null; pendingAuthEmail = null;

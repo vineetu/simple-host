@@ -150,6 +150,69 @@ code, kbd, samp, pre { font-family: var(--mono); }
 }
 .sh-header .sh-signin:hover,
 .sh-header .sh-signin[aria-current="page"] { border-color: var(--accent); color: var(--accent); }
+/* Signed in: "Your sites" plus a quiet "Sign out" beside it. On a phone they
+   fold into one "Your sites" menu (.sh-acct) so the bar keeps to one line.
+   The header script sets .sh-authed from localStorage before first paint. */
+.sh-header .sh-signout,
+.sh-header .sh-acct { display: none; }
+.sh-header.sh-authed .sh-signout {
+  display: inline-block;
+  margin: 0;
+  padding: 6px 4px;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.2;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.sh-header.sh-authed .sh-signout:hover { color: var(--text); }
+.sh-header .sh-acct { position: relative; }
+.sh-header .sh-acct-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.sh-header .sh-acct-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+.sh-header .sh-acct-btn svg { display: block; flex: none; }
+.sh-header .sh-acct-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  min-width: 160px;
+  margin: 0;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border-hi);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.18);
+}
+.sh-header .sh-acct-menu[hidden] { display: none; }
+.sh-header .sh-acct-menu a,
+.sh-header .sh-acct-menu button {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 10px 12px;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 14.5px;
+  line-height: 1.2;
+  text-align: left;
+  text-decoration: none;
+  color: var(--text);
+  cursor: pointer;
+}
+.sh-header .sh-acct-menu a:hover,
+.sh-header .sh-acct-menu button:hover { background: var(--grid); }
+.sh-header .sh-acct-menu button { color: var(--text-secondary); }
 .sh-header .sh-theme {
   flex: none;
   width: 32px;
@@ -221,9 +284,19 @@ code, kbd, samp, pre { font-family: var(--mono); }
   .sh-header .sh-nav { gap: 14px; margin-right: 2px; }
   .sh-header .sh-nav a { font-size: 13.5px; }
   .sh-header .sh-signin { padding: 6px 10px; font-size: 13.5px; }
+  .sh-header.sh-authed #dash-link,
+  .sh-header.sh-authed .sh-signout { display: none; }
+  .sh-header.sh-authed .sh-acct { display: block; }
   .sh-footer { margin-top: 48px; }
   .sh-footer .sh-foot { padding: 20px 16px 32px; }
   .sh-footer .sh-foot-links { gap: 6px 16px; }
+}
+/* Narrow phones (iPhone mini/SE, small Androids): tighten so the signed-in
+   "Your sites" menu still fits beside the toggle. */
+@media (max-width: 389px) {
+  .sh-header .sh-bar { gap: 8px; padding: 12px 14px; }
+  .sh-header .sh-nav { gap: 10px; margin-right: 0; }
+  .sh-header .sh-acct-btn { padding: 6px 8px; gap: 3px; }
 }
 @media (max-width: 359px) {
   .sh-header .sh-bar { gap: 8px; padding: 12px 12px; }
