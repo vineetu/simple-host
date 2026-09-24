@@ -78,6 +78,10 @@ type ConnectorHandler struct {
 	// clicking Allow again.
 	consentKey []byte
 
+	// reviewer is the plugin-directory reviewer's password sign-in; nil
+	// (off) unless the operator configures it. See reviewer.go.
+	reviewer *reviewerSignIn
+
 	registerLimiter  *rateLimiter
 	authorizeLimiter *rateLimiter
 	tokenLimiter     *rateLimiter
@@ -156,6 +160,8 @@ func (h *ConnectorHandler) Register(mux *http.ServeMux, authMiddleware func(http
 	mux.Handle("POST /oauth/register", rateLimitByIP(h.registerLimiter, http.HandlerFunc(h.register)))
 	mux.Handle("GET /oauth/authorize", rateLimitByIP(h.authorizeLimiter, http.HandlerFunc(h.authorize)))
 	mux.Handle("POST /oauth/authorize/decision", rateLimitByIP(h.authorizeLimiter, http.HandlerFunc(h.decide)))
+	// Answers 404 unless the reviewer account is configured.
+	mux.HandleFunc("POST /oauth/reviewer-signin", h.reviewerSignInHandler)
 	mux.Handle("POST /oauth/token", rateLimitByIP(h.tokenLimiter, http.HandlerFunc(h.token)))
 	mux.Handle("POST /oauth/revoke", rateLimitByIP(h.tokenLimiter, http.HandlerFunc(h.revoke)))
 
@@ -624,6 +630,9 @@ func (h *ConnectorHandler) authorize(w http.ResponseWriter, r *http.Request) {
 		data["client_name"] = req.Client.Name
 		data["redirect_host"] = host
 		data["csrf"] = h.consentCSRF(req, h.now().Unix())
+		if h.reviewer != nil {
+			data["reviewer_signin"] = true
+		}
 	}
 	h.renderConsent(w, r, status, data)
 }

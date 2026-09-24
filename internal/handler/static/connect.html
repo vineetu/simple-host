@@ -81,6 +81,17 @@
           <input id="key" autocomplete="off" required>
           <button class="primary" type="submit" id="key-btn">Sign in</button>
         </form>
+        <!-- Plugin-directory reviewers only: shown when the operator has set
+             up the one reviewer account (REVIEW_ACCOUNT_EMAIL). -->
+        <p class="fine" id="reviewer-line" hidden><button class="link" type="button" id="reviewer-link">Reviewer sign-in</button></p>
+        <form id="reviewer-form" hidden>
+          <p class="small">For app-directory reviewers using the demo account.</p>
+          <label for="rv-email">Reviewer email</label>
+          <input id="rv-email" type="email" autocomplete="username" required>
+          <label for="rv-password">Password</label>
+          <input id="rv-password" type="password" autocomplete="current-password" required>
+          <button class="primary" type="submit" id="rv-btn">Sign in</button>
+        </form>
         <p class="msg" id="signin-msg" role="alert"></p>
       </section>
 
@@ -191,6 +202,8 @@
 
     function showSignIn() {
       show('signin');
+      el('reviewer-form').hidden = true;
+      el('reviewer-line').hidden = !data.reviewer_signin;
       fetch('/v1/auth/oauth/providers').then(function (r) { return r.json(); }).then(function (d) {
         var providers = d.providers || [];
         var google = providers.indexOf('google') >= 0;
@@ -267,6 +280,25 @@
       }
       var ret = location.origin + location.pathname + '?' + query + '&cn=' + (await nonceHash(nonce));
       location.assign('/v1/auth/oauth/google?return_to=' + encodeURIComponent(ret));
+    });
+    el('reviewer-link').addEventListener('click', function () {
+      el('reviewer-line').hidden = true;
+      el('reviewer-form').hidden = false;
+      el('rv-email').focus();
+    });
+    el('reviewer-form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      el('signin-msg').textContent = '';
+      el('rv-btn').disabled = true;
+      try {
+        var r = await post('/oauth/reviewer-signin', { email: el('rv-email').value.trim(), password: el('rv-password').value });
+        if (!r.ok || !r.body.api_key) { el('signin-msg').textContent = r.body.error || 'That did not work.'; return; }
+        setKey(r.body.api_key);
+        el('rv-password').value = '';
+        el('reviewer-form').hidden = true;
+        enter();
+      } catch (err) { el('signin-msg').textContent = 'Could not reach Simple Host. Check your connection.'; }
+      finally { el('rv-btn').disabled = false; }
     });
     el('switch-btn').addEventListener('click', function () {
       setKey('');

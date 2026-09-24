@@ -174,6 +174,15 @@ type Config struct {
 	GoogleOAuthClientSecret string
 	GitHubOAuthClientID     string
 	GitHubOAuthClientSecret string
+
+	// OpenAIAppsChallenge is the OpenAI plugin portal's domain-verification
+	// token, served verbatim at /.well-known/openai-apps-challenge. Unset: 404.
+	OpenAIAppsChallenge string
+	// ReviewAccountEmail and ReviewAccountPasswordHash turn on the plugin
+	// reviewer's password sign-in for that one account on the connector's
+	// consent page. Both or neither; see internal/handler/reviewer.go.
+	ReviewAccountEmail        string
+	ReviewAccountPasswordHash string
 }
 
 func Load() (Config, error) {
@@ -249,6 +258,9 @@ func Load() (Config, error) {
 		}
 	}
 
+	cfg.OpenAIAppsChallenge = strings.TrimSpace(os.Getenv("OPENAI_APPS_CHALLENGE"))
+	cfg.ReviewAccountEmail = os.Getenv("REVIEW_ACCOUNT_EMAIL")
+	cfg.ReviewAccountPasswordHash = os.Getenv("REVIEW_ACCOUNT_PASSWORD_HASH")
 	cfg.GoogleOAuthClientID = os.Getenv("GOOGLE_OAUTH_CLIENT_ID")
 	cfg.GoogleOAuthClientSecret = os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET")
 	cfg.GitHubOAuthClientID = os.Getenv("GITHUB_OAUTH_CLIENT_ID")
