@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS api_ip_daily (
 );
 
 -- One-time geo cache per IP, resolved lazily in the background (ip-api.com).
+-- SUPERSEDED: caller geo is now resolved locally at read time (internal/geoip)
+-- and this table is no longer read or written. See local-geo.sql.
 CREATE TABLE IF NOT EXISTS ip_geo (
   ip          TEXT PRIMARY KEY,
   country     TEXT NOT NULL DEFAULT '',

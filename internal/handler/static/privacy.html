@@ -71,7 +71,7 @@
     <p>The owner of a site can see view and unique-visitor <em>counts</em> for their own sites. The admin of this Simple Host instance can see those counts for every site on it. Neither is shown your IP address or the hash itself.</p>
     <p>A hash of an IP is not a person. People on the same office or home network can look like one visitor; a phone moving between wifi and cellular can look like two.</p>
     <p>There is no opt-out of being counted. Blocking cookies or sending a do-not-track header does not change a server log.</p>
-    <p>Separately from page-view analytics: calls to the API (<code>/v1/…</code>) — including when a hosted page saves data, posts a comment, or submits an RSVP — record the <strong>raw caller IP</strong>, so abuse can be investigated. Those IPs are kept for <strong>30 days</strong>. A country/city/organization lookup for each IP is requested from ip-api.com (the IP only, no request data) and cached with no expiry. Only this instance's admin can see that table. Loading a static page is not an API call and is not stored there.</p>
+    <p>Separately from page-view analytics: calls to the API (<code>/v1/…</code>) — including when a hosted page saves data, posts a comment, or submits an RSVP — record the <strong>raw caller IP</strong>, so abuse can be investigated. Those IPs are kept for <strong>30 days</strong>. The country, city and network operator shown for each IP are looked up on the server itself, in a local copy of a public IP-location database (<a href="https://db-ip.com">IP Geolocation by DB-IP</a>, CC BY 4.0) that is refreshed monthly. No IP leaves the server for this lookup, and the result is not stored. Only this instance's admin can see that table. Loading a static page is not an API call and is not stored there.</p>
 
     <h2>Using Simple Host through a GPT or agent</h2>
     <p>When you use Simple Host through a shared ChatGPT GPT or agent, requests are made with the API key configured in that integration. Anything deployed is public and belongs to the account whose key is used. Sites and their data are public to anyone with the link.</p>
@@ -85,7 +85,7 @@
     </ul>
 
     <h2>Third parties</h2>
-    <p>We use an email provider to send sign-in codes, Google when you choose that button (Google sees that you signed in here; more providers later), and a hosting provider to run the service. The optional "Create with AI" feature sends your prompt (and any attachments) to xAI's Grok to generate a site. API caller IPs are sent to ip-api.com for a country/city lookup (the IP only). No other third-party sharing.</p>
+    <p>We use an email provider to send sign-in codes, Google when you choose that button (Google sees that you signed in here; more providers later), and a hosting provider to run the service. The optional "Create with AI" feature sends your prompt (and any attachments) to xAI's Grok to generate a site. No IP address is sent to any geolocation service; locations are looked up on the server. No other third-party sharing.</p>
 
     <h2>Contact</h2>
     <p>Questions or data requests: <a href="mailto:vineetu@gmail.com">vineetu@gmail.com</a>.</p>

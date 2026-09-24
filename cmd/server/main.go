@@ -20,11 +20,19 @@ import (
 	dbpkg "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/eventdns"
+	"github.com/vsriram/simple-host/internal/geoip"
 	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/internal/storage"
 )
 
 func main() {
+	// `simple-host geoip-verify FILE...` — used by scripts/geoip-refresh.sh to
+	// check a freshly downloaded database opens and answers before it is
+	// swapped into place. Needs no config or database.
+	if len(os.Args) > 1 && os.Args[1] == "geoip-verify" {
+		os.Exit(geoipVerify(os.Args[2:]))
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("load config: %v", err)
@@ -180,7 +188,11 @@ func main() {
 
 	// Per-endpoint API analytics for the admin page: every /v1/* request is
 	// counted (route, status, caller IP + geo) into daily aggregates.
-	apiMetrics := handler.NewAPIMetrics(db)
+	// Caller location comes from local DB-IP files only (no network lookup);
+	// the watcher picks up the monthly refresh without a restart.
+	geo := geoip.Open(cfg.GeoIPDir)
+	geo.Watch(time.Minute)
+	apiMetrics := handler.NewAPIMetrics(db, geo)
 	mux.Handle("GET /v1/admin/api-analytics", authMW(http.HandlerFunc(apiMetrics.AdminSummary)))
 
 	// Server-side visitor analytics: tail the nginx analytics log into daily
@@ -229,4 +241,20 @@ func main() {
 		}
 		os.Exit(1)
 	}
+}
+
+func geoipVerify(files []string) int {
+	if len(files) == 0 {
+		log.Printf("usage: simple-host geoip-verify FILE.mmdb...")
+		return 2
+	}
+	for _, f := range files {
+		kind, err := geoip.Verify(f)
+		if err != nil {
+			log.Printf("geoip-verify: %s: %v", f, err)
+			return 1
+		}
+		log.Printf("geoip-verify: %s ok (%s)", f, kind)
+	}
+	return 0
 }

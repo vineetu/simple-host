@@ -1,0 +1,38 @@
+# Monthly refresh of the local IP-geolocation databases (DB-IP Lite City + ASN)
+# that the admin page uses to show where API callers are. Downloads, verifies
+# with `simple-host geoip-verify`, then renames into place; the running server
+# reloads the files by itself. Triggered by simple-host-geoip-refresh.timer.
+#
+# Install (see scripts/geoip-refresh.sh):
+#   sudo install -m 0755 scripts/geoip-refresh.sh /usr/local/bin/simple-host-geoip-refresh
+#   sudo install -m 0644 deploy/prod/simple-host-geoip-refresh.{service,timer} /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now simple-host-geoip-refresh.timer
+[Unit]
+Description=Refresh simple-host's local IP geolocation databases (DB-IP Lite)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=simplehost
+Group=simplehost
+Environment=GEOIP_DIR=/srv/simple-host/geoip
+Environment=SIMPLE_HOST_BIN=/usr/local/bin/simple-host
+ExecStart=/usr/local/bin/simple-host-geoip-refresh
+Nice=10
+IOSchedulingClass=idle
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/simple-host/geoip
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+CapabilityBoundingSet=
+UMask=0022

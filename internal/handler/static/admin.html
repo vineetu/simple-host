@@ -190,6 +190,7 @@ table.apx td.err{color:var(--error)}
       <thead><tr><th>Who's calling</th><th>From</th><th class="num">Today</th><th class="num">7 days</th><th>Last seen</th></tr></thead>
       <tbody id="ax-ipsrows"></tbody>
     </table>
+    <div class="secnote geo-credit">Locations are looked up on this server; no IP is sent anywhere. <a href="https://db-ip.com">IP Geolocation by DB-IP</a></div>
   </div>
 </div>
 
@@ -375,7 +376,7 @@ async function loadTraffic(){
     }).join('')||'<tr><td colspan="4" style="color:var(--dim)">Nothing yet — data appears as calls come in.</td></tr>';
     document.getElementById('ax-ipsrows').innerHTML=(d.ips||[]).map(function(x){
       var who=esc(x.ip)+(x.org?'<div class="sub">'+esc(x.org)+'</div>':'');
-      var from=esc(x.where||'…')+'<div class="sub">'+esc(x.last_route||'')+'</div>';
+      var from=esc(x.where||'—')+'<div class="sub">'+esc(x.last_route||'')+'</div>';
       return '<tr><td>'+who+'</td><td>'+from+'</td><td class="num">'+x.today+'</td><td class="num">'+x.week+
         '</td><td>'+esc(fmtWhen(x.last_seen))+'</td></tr>';
     }).join('')||'<tr><td colspan="5" style="color:var(--dim)">Nothing yet.</td></tr>';

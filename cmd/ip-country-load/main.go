@@ -1,9 +1,9 @@
 // Command ip-country-load fills ip_country_ranges, the table that turns a
 // visitor's address into a country ON THIS BOX.
 //
-// The lookup is local on purpose. The privacy page says only API-caller IPs
-// ever reach a third party; sending visitor addresses to a geolocation service
-// would make that false. The ingester resolves each address in memory and
+// The lookup is local on purpose. The privacy page says no IP address is ever
+// sent to a geolocation service; sending visitor addresses to one would make
+// that false. The ingester resolves each address in memory and
 // stores only the two-letter code.
 //
 // Default source is DB-IP's IP-to-Country Lite database: CC BY 4.0 (so it can

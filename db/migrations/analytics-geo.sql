@@ -1,9 +1,9 @@
 -- Analytics geo: per-country visitor counts (additive; safe to re-run).
 --
 -- Country is resolved ON THIS BOX from a local range table. Visitor IPs are
--- never sent anywhere: the published privacy page says only API-caller IPs
--- reach a third party, and a lookup service for visitor addresses would make
--- that false. The raw IP still leaves no trace in the database -- it is
+-- never sent anywhere: the published privacy page says no IP address is sent
+-- to a geolocation service, and a lookup service for visitor addresses would
+-- make that false.
 -- resolved in memory during ingest and only the two-letter country survives.
 --
 -- Applying this file is safe against the running server: the new column has a

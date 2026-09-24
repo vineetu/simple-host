@@ -68,7 +68,6 @@ run "ip-country lookup"     "SELECT country FROM ip_country_ranges WHERE start_i
 run "event domains"        "SELECT name, domain, ip, record_ids, expires_at FROM event_domains WHERE user_id='$NIL'"
 run "ingest checkpoint"     "SELECT offset_bytes, inode FROM analytics_ingest_state WHERE logfile='x'"
 run "admin api metrics"     "SELECT route, status, calls FROM api_request_daily WHERE day=current_date"
-run "admin caller geo"      "SELECT ip, country FROM ip_geo WHERE ip='127.0.0.1'"
 
 echo
 if [ "$fail" -ne 0 ]; then

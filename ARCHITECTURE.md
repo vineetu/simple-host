@@ -127,7 +127,10 @@ reading code:
   hash (stable salt, not per-day, because a rotating salt makes counting unique
   visitors over a range impossible) plus per-day country counts. API caller
   IPs are a different thing: `apimetrics.go` keeps them raw in `api_ip_daily`
-  for 30 days, then prunes, and geolocates them via ip-api.com into `ip_geo`.
+  for 30 days, then prunes. Their location is resolved on this box, when the
+  admin page asks, from local DB-IP Lite files (`internal/geoip`, files in
+  `GEOIP_DIR`, refreshed monthly by `scripts/geoip-refresh.sh`). No caller IP
+  is ever sent to a geolocation service, and results are not stored.
 - **Reads are public everywhere; writes are open on the shared host and need
   an identity on a custom domain.** State and collection writes accept any
   account's `X-API-Key` anywhere. On a site's own custom domain they also

@@ -1,10 +1,8 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
-	"encoding/json"
 	"log"
 	"net"
 	"net/http"
@@ -13,6 +11,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
+	"github.com/vsriram/simple-host/internal/geoip"
 )
 
 // APIMetrics counts every /v1/* request into per-day aggregates so the admin
@@ -26,12 +25,15 @@ import (
 //   - Raw caller IPs are kept — this exists to spot abuse — but only for
 //     retentionDays, then pruned.
 //
-// Geo lookups go to ip-api.com (free, keyless, batch endpoint) from a slow
-// background worker with results cached forever in ip_geo. Only the IP is
-// sent — no request data — and lookups are best-effort: an outage just leaves
-// the "where" column blank until the next tick.
+// "Where" and "org" come from a local database on this box (internal/geoip,
+// DB-IP Lite) at the moment the admin page asks. No caller IP ever leaves the
+// server for this. There is no cache table: a lookup costs microseconds, the
+// page shows at most 20 IPs, and resolving live means the monthly data refresh
+// applies to every row and nothing outlives the 30-day IP retention. If the
+// database files are missing, the columns are simply blank.
 type APIMetrics struct {
-	db *sql.DB
+	db  *sql.DB
+	geo *geoip.DB // nil = no geo at all (blank columns)
 
 	mu     sync.Mutex
 	routes map[routeKey]int64
@@ -50,14 +52,14 @@ type ipAgg struct {
 
 const metricsRetentionDays = 30
 
-func NewAPIMetrics(db *sql.DB) *APIMetrics {
+func NewAPIMetrics(db *sql.DB, geo *geoip.DB) *APIMetrics {
 	m := &APIMetrics{
 		db:     db,
+		geo:    geo,
 		routes: make(map[routeKey]int64),
 		ips:    make(map[string]*ipAgg),
 	}
 	go m.flushLoop()
-	go m.geoLoop()
 	return m
 }
 
@@ -195,92 +197,28 @@ func (m *APIMetrics) pruneOld() {
 }
 
 // ---------------------------------------------------------------------------
-// Geo resolution (ip-api.com batch, keyless, cached in ip_geo)
+// Geo resolution — local only (see internal/geoip)
 // ---------------------------------------------------------------------------
 
-func (m *APIMetrics) geoLoop() {
-	tick := time.NewTicker(90 * time.Second)
-	for range tick.C {
-		m.resolvePendingGeo()
+// locate answers "where / whose network" for one caller IP. Private and
+// loopback addresses are this server talking to itself (health checks, the
+// Grok sidecar, local tooling) and are labelled as such without a lookup.
+func (m *APIMetrics) locate(ip string) (where, org string) {
+	if isPrivateIP(ip) {
+		return "this box", "local"
 	}
-}
-
-func (m *APIMetrics) resolvePendingGeo() {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	rows, err := m.db.QueryContext(ctx, `
-		SELECT DISTINCT d.ip FROM api_ip_daily d
-		LEFT JOIN ip_geo g ON g.ip = d.ip
-		WHERE g.ip IS NULL
-		LIMIT 50`)
-	if err != nil {
-		log.Printf("api metrics geo (select): %v", err)
-		return
+	if m.geo == nil {
+		return "", ""
 	}
-	var pending []string
-	for rows.Next() {
-		var ip string
-		if rows.Scan(&ip) == nil {
-			pending = append(pending, ip)
-		}
+	g := m.geo.Lookup(ip)
+	var loc []string
+	if g.City != "" {
+		loc = append(loc, g.City)
 	}
-	rows.Close()
-	if len(pending) == 0 {
-		return
+	if g.Country != "" {
+		loc = append(loc, g.Country)
 	}
-
-	var lookup []string
-	for _, ip := range pending {
-		if isPrivateIP(ip) {
-			m.saveGeo(ctx, ip, "this box", "", "local")
-			continue
-		}
-		lookup = append(lookup, ip)
-	}
-	if len(lookup) == 0 {
-		return
-	}
-
-	body, _ := json.Marshal(lookup)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		"http://ip-api.com/batch?fields=status,country,city,org,query", bytes.NewReader(body))
-	if err != nil {
-		return
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := (&http.Client{Timeout: 20 * time.Second}).Do(req)
-	if err != nil {
-		log.Printf("api metrics geo (lookup): %v", err)
-		return
-	}
-	defer resp.Body.Close()
-	var results []struct {
-		Status  string `json:"status"`
-		Country string `json:"country"`
-		City    string `json:"city"`
-		Org     string `json:"org"`
-		Query   string `json:"query"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&results); err != nil {
-		log.Printf("api metrics geo (decode): %v", err)
-		return
-	}
-	for _, g := range results {
-		if g.Status != "success" {
-			m.saveGeo(ctx, g.Query, "unknown", "", "")
-			continue
-		}
-		m.saveGeo(ctx, g.Query, g.Country, g.City, g.Org)
-	}
-}
-
-func (m *APIMetrics) saveGeo(ctx context.Context, ip, country, city, org string) {
-	if _, err := m.db.ExecContext(ctx, `
-		INSERT INTO ip_geo (ip, country, city, org) VALUES ($1, $2, $3, $4)
-		ON CONFLICT (ip) DO NOTHING`, ip, country, city, org); err != nil {
-		log.Printf("api metrics geo (save): %v", err)
-	}
+	return strings.Join(loc, ", "), g.Org
 }
 
 func isPrivateIP(s string) bool {
@@ -379,29 +317,20 @@ func (m *APIMetrics) AdminSummary(w http.ResponseWriter, r *http.Request) {
 
 	rows, err = m.db.QueryContext(ctx, `
 		SELECT d.ip,
-			COALESCE(g.city, ''), COALESCE(g.country, ''), COALESCE(g.org, ''),
 			COALESCE(SUM(d.calls) FILTER (WHERE d.day = CURRENT_DATE), 0) AS today,
 			SUM(d.calls) AS week,
 			MAX(d.last_seen) AS last_seen,
 			(ARRAY_AGG(d.last_route ORDER BY d.last_seen DESC))[1] AS last_route
-		FROM api_ip_daily d LEFT JOIN ip_geo g ON g.ip = d.ip
+		FROM api_ip_daily d
 		WHERE d.day > CURRENT_DATE - 7
-		GROUP BY d.ip, g.city, g.country, g.org
+		GROUP BY d.ip
 		ORDER BY week DESC LIMIT 20`)
 	if err == nil {
 		for rows.Next() {
 			var ip apiAnalyticsIP
-			var city, country string
 			var lastSeen time.Time
-			if rows.Scan(&ip.IP, &city, &country, &ip.Org, &ip.Today, &ip.Week, &lastSeen, &ip.LastPath) == nil {
-				var loc []string
-				if city != "" {
-					loc = append(loc, city)
-				}
-				if country != "" {
-					loc = append(loc, country)
-				}
-				ip.Where = strings.Join(loc, ", ")
+			if rows.Scan(&ip.IP, &ip.Today, &ip.Week, &lastSeen, &ip.LastPath) == nil {
+				ip.Where, ip.Org = m.locate(ip.IP)
 				ip.LastSeen = lastSeen.UTC().Format(time.RFC3339)
 				out.IPs = append(out.IPs, ip)
 			}

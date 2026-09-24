@@ -1,0 +1,12 @@
+# DB-IP publishes new Lite files on the 1st of each month; run on the 3rd so
+# the files are reliably up. Persistent= catches up after downtime.
+[Unit]
+Description=Monthly refresh of simple-host's local IP geolocation databases
+
+[Timer]
+OnCalendar=*-*-03 04:30:00
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

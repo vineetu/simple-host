@@ -1,0 +1,15 @@
+-- Local caller geo (no schema change required; nothing here runs by default).
+--
+-- API caller locations used to come from ip-api.com and were cached forever in
+-- ip_geo. They are now resolved on this box, at read time, from DB-IP Lite
+-- files in GEOIP_DIR (internal/geoip), so the new binary neither reads nor
+-- writes ip_geo. Deploying needs no migration: the old table just sits unused.
+--
+-- The table does still hold every caller IP ever geolocated, with no expiry,
+-- while the privacy page promises raw API caller IPs are kept 30 days. Once the
+-- new binary is live and the admin page shows locations, drop it:
+--
+--   DROP TABLE IF EXISTS ip_geo;
+--
+-- (Left commented on purpose: dropping data is the operator's call, and the
+-- old binary needs the table, so do it only after the new one is deployed.)
