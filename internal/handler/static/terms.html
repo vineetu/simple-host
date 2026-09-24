@@ -12,17 +12,22 @@
     .eyebrow { font-size: 13px; color: var(--text-secondary); margin: 0 0 10px; }
     h1 { font-size: clamp(30px, 5vw, 44px); font-weight: 700; line-height: 1.1; letter-spacing: -.02em; color: var(--text); margin: 0 0 8px; }
     .updated { font-size: 13px; color: var(--text-secondary); margin: 0 0 32px; }
-    h2 { font-size: 21px; font-weight: 700; line-height: 1.3; color: var(--text); margin: 0 0 12px; padding-top: 28px; border-top: 1px solid var(--border); }
+    h2 { font-size: 21px; font-weight: 700; line-height: 1.3; color: var(--text); margin: 0 0 12px; padding-top: 28px; border-top: 1px solid var(--border); scroll-margin-top: 16px; }
     * + h2 { margin-top: 28px; }
+    h3 { font-size: 17px; font-weight: 600; line-height: 1.4; color: var(--text); margin: 20px 0 8px; }
     p, li { color: var(--text-secondary); font-size: 16px; line-height: 1.6; }
     p { margin: 0 0 14px; }
-    ul { margin: 0 0 14px; padding-left: 20px; }
+    ul, ol { margin: 0 0 14px; padding-left: 20px; }
     li { margin-bottom: 8px; }
     strong { color: var(--text); font-weight: 600; }
-    a { color: var(--accent); text-underline-offset: 3px; }
+    a { color: var(--accent); text-underline-offset: 3px; overflow-wrap: anywhere; }
     a:hover { color: var(--accent-hover); }
     code { font-family: var(--mono); font-size: .9em; color: var(--text); background: color-mix(in srgb, var(--accent) 10%, transparent); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
     .note { border: 1px solid var(--border-hi); border-left: 3px solid var(--accent); border-radius: var(--radius); background: var(--surface); padding: 12px 16px; margin: 0 0 28px; color: var(--text); font-size: 15px; line-height: 1.5; }
+    .note p, .note li { color: var(--text); font-size: 15px; line-height: 1.5; }
+    .note ul { margin: 8px 0 0; }
+    .note li { margin-bottom: 4px; }
+    .note p:last-child, .note ul:last-child { margin-bottom: 0; }
     @media (max-width: 640px) {
       .container { padding: 0 20px; }
       main.container { padding-top: 36px; }
@@ -36,57 +41,208 @@
     <h1>Terms of Service</h1>
     <p class="updated">Simple Host (simple-host.app) · last updated 2026-09-24</p>
 
-    <p class="note"><strong>Draft — pending review by the operator. Not yet in effect.</strong></p>
+    <!-- OWNER: fill every [bracketed] item on this page, then delete this whole note to put the terms into effect. -->
+    <div class="note">
+      <p><strong>Draft. Not yet in effect.</strong> The operator still has to fill in:</p>
+      <ul>
+        <li>the governing law and the courts for disputes (under “Disputes and governing law”);</li>
+        <li>the copyright agent registration (under “Copyright complaints”).</li>
+      </ul>
+    </div>
 
-    <p>These terms cover your use of Simple Host at simple-host.app. Simple Host is operated by Vineet Sriram (“we”, “us”). By using the service you agree to them.</p>
+    <div class="note">
+      <p><strong>The short version.</strong> This summary is here to help you read. The full terms below are what count.</p>
+      <ul>
+        <li>Simple Host is free. It comes as it is, with no promises, and it can change or stop.</li>
+        <li>What you publish is yours, and so is the responsibility for it. That includes what your sites collect from visitors.</li>
+        <li>No illegal content, no stolen work, no scams, no malware, no abuse of children. We remove it and may close your account.</li>
+        <li>To report a site, email <a href="mailto:hello@vineetsriram.com">hello@vineetsriram.com</a> with its address and what is wrong.</li>
+        <li>Keep your own copies. Sites and data can be lost.</li>
+      </ul>
+    </div>
 
-    <h2>What Simple Host is</h2>
-    <p>Simple Host is free hosting for static websites, with a small data store for each site so a page can save things like RSVPs, votes or comments. You can use it from the web dashboard, from an AI app through the Simple Host connector or plugin (ChatGPT, Codex, Claude and others), or through the API.</p>
+    <h2 id="who">Who we are and what these terms cover</h2>
+    <p>Simple Host is run by Vineet Sriram, an individual (“we”, “us”). These terms are an agreement between you and us.</p>
+    <p>They cover the service at simple-host.app. That includes sites at <code>sites.simple-host.app</code>, free <code>&lt;name&gt;.simple-host.app</code> addresses, sites on your own domain served by us, the dashboard, the API, and the Simple Host connector for AI apps.</p>
+    <p>By using the service you agree to these terms and to our <a href="/privacy.html">Privacy Policy</a>. If you do not agree, do not use Simple Host.</p>
+    <p>Simple Host is also open-source software. These terms do not cover copies of it that other people run themselves, such as a private instance for a hackathon. Whoever runs that copy is responsible for it.</p>
 
-    <h2>It is free</h2>
-    <p>There are no paid plans. We do not promise it will stay free forever, and we may add or change limits on how much you can host or how often you can save.</p>
+    <h2 id="service">What Simple Host is</h2>
+    <p>Simple Host publishes static websites. Each site can also save small amounts of data, such as RSVPs, votes, comments or orders.</p>
+    <p>You can use it from the dashboard, from an AI app through the Simple Host connector (ChatGPT, Claude, Grok and others), from a coding agent with an API key, or through the API.</p>
 
-    <h2>Your account</h2>
-    <p>You sign in with Google or with a code we email you. You are responsible for everything done with your account, including by AI apps you connect to it. A connected app can publish, change and delete your sites and their data. You can disconnect an app at any time from your sites page.</p>
+    <h2 id="free">It is free, and it can change</h2>
+    <p>There are no paid plans. We do not promise it will stay free.</p>
+    <p>We may change, limit or stop any part of the service at any time. That includes limits on how much you can host or save. We will try to give notice of big changes, but we do not have to.</p>
 
-    <h2>Everything is public</h2>
-    <p>Every site and all the data it saves can be read by anyone who has the link. There are no private or password-protected pages. Do not put passwords, secrets or sensitive personal information in a site or in the data it saves.</p>
-    <p>If your site saves information from its visitors (RSVPs, survey answers, orders), you are responsible for telling those visitors that what they submit is public.</p>
-
-    <h2>Content rules</h2>
-    <p>You may not use Simple Host to host or send:</p>
+    <h2 id="account">Your account</h2>
     <ul>
-      <li>anything illegal;</li>
-      <li>malware, phishing, or pages that collect other people's passwords or payment details;</li>
-      <li>content that impersonates a person or organisation;</li>
-      <li>spam;</li>
-      <li>content that infringes someone else's copyright, trademark or other rights;</li>
-      <li>sexual content involving minors;</li>
-      <li>harassment or threats;</li>
-      <li>sites that sell goods or services that are illegal or prohibited.</li>
+      <li>You sign in with Google or with a code we email you.</li>
+      <li>You must be at least 13 years old. If your country sets a higher age for using online services without a parent's consent, you must be at least that age.</li>
+      <li>If you are under 18, or not old enough to make a contract where you live, a parent or guardian must agree to these terms for you.</li>
+      <li>Keep your sign-in email, API key and connected apps secure. You are responsible for everything done with your account.</li>
+      <li>If you think someone else is using your account, rotate your API key and tell us.</li>
     </ul>
-    <p>You may not try to break, overload or get around the limits of the service, or interfere with other people's sites. Rate limits and size caps apply to everyone.</p>
-    <p>We may remove content or suspend accounts that break these rules, with or without notice.</p>
 
-    <h2>Your content</h2>
-    <p>What you publish stays yours. You give us the permission we need to store, copy and serve it so the service works, for as long as it is hosted here. You confirm you have the right to publish it.</p>
+    <h2 id="ai">AI apps and AI-built sites</h2>
+    <p>When you connect an AI app, it acts for you. It can publish, change and delete your sites and their data. Everything it does counts as done by you. You can disconnect an app at any time from your sites page.</p>
+    <p>AI makes mistakes. A site an AI builds may contain wrong facts, broken features, content that belongs to someone else, or forms that collect more than you meant. <strong>Review every site before you publish it and before you share it.</strong> You are responsible for it exactly as if you had written it yourself.</p>
 
-    <h2>Sites built by AI apps</h2>
-    <p>A site an AI app builds or changes for you is published under your account, exactly as if you had uploaded it. Review what it publishes; you are responsible for it.</p>
+    <h2 id="public">What is public</h2>
+    <ul>
+      <li><strong>Every page is public.</strong> Anyone with the link can see it. There are no password-protected pages.</li>
+      <li><strong>Saved data is public by default.</strong> Anyone can read the lists and data a site saves.</li>
+      <li><strong>Private lists are the one exception.</strong> On a site with its own address (your own domain or a free <code>&lt;name&gt;.simple-host.app</code>), you can mark a list private. Only you and the Simple Host operator can read it.</li>
+    </ul>
+    <p>Do not put passwords, secrets or sensitive personal information in a page or in public data.</p>
 
-    <h2>No warranty</h2>
-    <p>Simple Host is provided “as is”, without warranties of any kind. It may have outages, lose data, or be changed or shut down. Keep your own copies of anything you care about.</p>
-    <p>To the extent the law allows, we are not liable for any indirect or consequential loss, or for any loss of data, revenue or profit, arising from your use of the service.</p>
+    <h2 id="rules">Acceptable use: what you may not do</h2>
+    <p>You may not use Simple Host to publish, store, link to or send anything that:</p>
+    <ul>
+      <li>is illegal where you are, or in the United States, or helps someone break the law;</li>
+      <li>infringes someone else's copyright, trademark, privacy or other rights;</li>
+      <li>contains malware, viruses or harmful code, or tries to trick people into downloading it;</li>
+      <li>is phishing, a scam or fraud, or collects other people's sign-in details;</li>
+      <li>pretends to be another person, company or organisation, or suggests a connection that does not exist;</li>
+      <li>harasses, threatens, bullies, or encourages violence against anyone;</li>
+      <li>shares someone's private information or intimate images without their consent;</li>
+      <li>sexually exploits or endangers children in any way (see below);</li>
+      <li>is spam, or is used to send or advertise spam;</li>
+      <li>sells or promotes goods or services that are illegal or need a licence you do not have.</li>
+    </ul>
+    <p><strong>Sensitive data.</strong> Your sites may not collect:</p>
+    <ul>
+      <li>payment card numbers or bank details;</li>
+      <li>health or medical information;</li>
+      <li>government ID numbers, such as Social Security, passport or driver's licence numbers;</li>
+      <li>passwords for any service.</li>
+    </ul>
+    <p>Simple Host is not built to protect that kind of data. Use a service made for it, such as a payment provider.</p>
+    <p><strong>Names and addresses.</strong> Do not choose a handle, site name or free <code>&lt;name&gt;.simple-host.app</code> address that is misleading. That includes names of brands, companies, banks, government bodies or people you are not, or names that are offensive.</p>
+    <p><strong>The service itself.</strong> Do not try to break, overload, probe or get around Simple Host's security or limits. Do not interfere with other people's sites or accounts. Do not use automated means to create accounts in bulk. Rate limits and size caps apply to everyone.</p>
 
-    <h2>Ending things</h2>
-    <p>You can delete any of your sites at any time. To delete your account, <a href="/support">contact support</a>. We may suspend or close accounts that break these terms.</p>
+    <h2 id="children">Child sexual abuse material: zero tolerance</h2>
+    <p>We do not allow any content that sexually exploits children, including drawn, AI-generated or edited images. When we find it or are told about it, we remove it, close the account, keep the evidence the law requires, and report it to the National Center for Missing &amp; Exploited Children (NCMEC) and to law enforcement. We do not warn the account first.</p>
 
-    <h2>Changes and governing law</h2>
-    <p>We may update these terms. The date at the top shows the latest version; continuing to use the service after a change means you accept it.</p>
-    <p>These terms are governed by [governing law — operator to fill].</p>
+    <h2 id="your-content">Your content</h2>
+    <ul>
+      <li><strong>You own it.</strong> What you publish stays yours.</li>
+      <li><strong>You give us permission to run it.</strong> You let us store, copy, back up, process and serve your content, worldwide and free of charge. We use this only to run, secure and improve the service, and to enforce these terms. It ends when your content is deleted from the service and from our backups.</li>
+      <li><strong>You have the rights.</strong> You confirm you own your content or have permission to publish it, and that it follows these terms and the law.</li>
+      <li><strong>You are responsible for it.</strong> We do not check what people publish before it goes live, and we do not have to. We are not responsible for content that users publish.</li>
+    </ul>
 
-    <h2>Contact</h2>
-    <p>Questions about these terms: see <a href="/support">Support</a>. How we handle your data: <a href="/privacy.html">Privacy Policy</a>.</p>
+    <h2 id="visitor-data">Data your sites collect from visitors</h2>
+    <p>If your site asks visitors for anything (names, emails, RSVPs, survey answers, orders), you are the one collecting it. You decide what to collect and why. We store it for you.</p>
+    <ul>
+      <li>Follow the privacy and consumer laws that apply to you and your visitors. Depending on where they are, this may include laws such as the GDPR in Europe or state privacy laws in the US.</li>
+      <li>Tell visitors what you collect, why, who can see it, and how to ask you to delete it. If what they submit will be public, say so plainly.</li>
+      <li>Collect only what you need. Do not collect the sensitive data listed above.</li>
+      <li>Handle visitors' requests to see or delete their data. You can edit or delete items in private lists yourself.</li>
+      <li>Private lists record the verified email of each visitor who submits. You see that email. Use it only for the reason you collected it.</li>
+    </ul>
+    <p>We are not responsible for how you use data your site collects.</p>
+
+    <h2 id="report">Reporting a site</h2>
+    <p>If a site hosted here is illegal, abusive, a scam, or breaks these terms, email <a href="mailto:hello@vineetsriram.com">hello@vineetsriram.com</a>. Include:</p>
+    <ul>
+      <li>the full address (URL) of the site or page;</li>
+      <li>what is wrong with it, and why;</li>
+      <li>how to reach you, if you want an answer.</li>
+    </ul>
+    <p>For copyright complaints, follow <a href="#copyright">the copyright section below</a> instead.</p>
+    <p><strong>What happens next.</strong></p>
+    <ol>
+      <li>We look at every report we receive.</li>
+      <li>If content looks clearly harmful, such as child sexual abuse material, active phishing or a credible threat, we take it down at once.</li>
+      <li>Otherwise we decide what to do. We may remove content, limit a site, suspend the account, or do nothing if we find no problem.</li>
+      <li>Where it is safe and lawful, we tell the site owner what we did and why. They can reply to ask us to look again.</li>
+    </ol>
+    <p>We try to act quickly. Simple Host is run by one person, so we cannot promise a response time.</p>
+
+    <h2 id="copyright">Copyright complaints (notice and takedown)</h2>
+    <p>We respond to notices of copyright infringement under the US Digital Millennium Copyright Act (DMCA) and similar laws.</p>
+    <p>[DMCA designated agent registration: pending]</p>
+    <h3>To report infringement</h3>
+    <p>Email <a href="mailto:hello@vineetsriram.com">hello@vineetsriram.com</a> with the subject “Copyright notice”. Your notice must include:</p>
+    <ol>
+      <li>your physical or electronic signature (typing your full name is enough);</li>
+      <li>the work you say is infringed, or a list if there are several;</li>
+      <li>the exact URL of each page or file you want removed;</li>
+      <li>your name, postal address, phone number and email;</li>
+      <li>a statement that you believe in good faith that the use is not authorised by the copyright owner, its agent, or the law;</li>
+      <li>a statement that the information in your notice is accurate and, under penalty of perjury, that you are the copyright owner or are authorised to act for them.</li>
+    </ol>
+    <p>We may ignore a notice that is missing any of this. We may send a copy of it, including your name and contact details, to the person whose content you reported. Knowingly false claims can make you liable for damages.</p>
+    <h3>If your content was removed (counter-notice)</h3>
+    <p>If you believe we removed your content by mistake, or you have permission to use it, email a counter-notice to <a href="mailto:hello@vineetsriram.com">hello@vineetsriram.com</a>. It must include:</p>
+    <ol>
+      <li>your physical or electronic signature;</li>
+      <li>what was removed and the URL where it appeared;</li>
+      <li>a statement, under penalty of perjury, that you believe in good faith it was removed by mistake or misidentification;</li>
+      <li>your name, postal address and phone number;</li>
+      <li>a statement that you consent to the jurisdiction of the federal court for your district (or, if you are outside the US, any judicial district where Simple Host may be found), and that you will accept service of process from the person who sent the original notice.</li>
+    </ol>
+    <p>We send your counter-notice to the person who complained. Unless they tell us within 10 business days that they have gone to court, we may restore the content within 10 to 14 business days.</p>
+    <h3>Repeat infringers</h3>
+    <p>We close the accounts of people who repeatedly infringe copyright.</p>
+
+    <h2 id="enforcement">What we may do</h2>
+    <p>To keep the service safe and legal, we may, at our discretion and with or without notice:</p>
+    <ul>
+      <li>remove, hide or disable any content or data;</li>
+      <li>suspend or close any account or site;</li>
+      <li>take back a handle, site name or free <code>&lt;name&gt;.simple-host.app</code> address, for example if it is misleading, infringes a trademark, or is needed by the platform;</li>
+      <li>read any content or data on the service, including private lists, when we need to for moderation, security, support or the law;</li>
+      <li>keep and share information with police, courts or authorities when we believe the law requires it, or to protect people or the service.</li>
+    </ul>
+    <p>We have no duty to monitor content or to host anything. We are not liable to you for removing content or closing accounts under these terms.</p>
+
+    <h2 id="data-loss">Keep your own copies</h2>
+    <p>Sites and saved data can be lost through outages, bugs, mistakes, or the service closing. Keep your own copies of anything you care about. You can download a whole site, with its saved data, through the API, and any list as a CSV.</p>
+
+    <h2 id="warranty">No warranty</h2>
+    <p>Simple Host is provided “as is” and “as available”, without warranties of any kind, express or implied. That includes any warranty that it is fit for a particular purpose, secure, error-free, always available, or that data will be kept. Some places do not allow these exclusions. There, they apply as far as the law allows.</p>
+
+    <h2 id="liability">Limit on our liability</h2>
+    <p>As far as the law allows:</p>
+    <ul>
+      <li>We are not liable for indirect, incidental, special, consequential or punitive losses, or for lost profits, revenue, data, goodwill or business, even if we knew they were possible.</li>
+      <li>Our total liability to you for all claims about Simple Host is limited to the greater of the amount you paid us in the 12 months before the claim (which, while the service is free, is zero) or US $50.</li>
+    </ul>
+    <p>These limits apply whatever the legal theory. Nothing in these terms limits liability that the law does not allow to be limited, such as for fraud or, in some countries, for death or personal injury caused by negligence.</p>
+
+    <h2 id="indemnity">You cover claims caused by your use</h2>
+    <p>If someone makes a claim against us because of your content, your sites, the data your sites collect, your AI apps' actions, your breach of these terms, or your breaking the law, you will defend us and pay the costs. That includes reasonable legal fees, damages and settlements. We will tell you about the claim and may choose to handle our own defence.</p>
+
+    <h2 id="ending">Ending things</h2>
+    <ul>
+      <li>You can delete any of your sites at any time. Deleting removes every version and its saved data. Copies in our backups are gone within about 14 days.</li>
+      <li>To close your account, email <a href="mailto:hello@vineetsriram.com">hello@vineetsriram.com</a> from the address you sign in with.</li>
+      <li>We may suspend or close your account at any time, including if you break these terms or we stop the service.</li>
+      <li>If we stop the service entirely, we will try to give notice so you can save your content.</li>
+    </ul>
+    <p>The sections on your content licence, visitor data, no warranty, limit on liability, indemnity, and disputes continue after your account ends.</p>
+
+    <h2 id="changes">Changes to these terms</h2>
+    <p>We may update these terms. The date at the top shows the latest version. For significant changes, we will try to give notice on the site or by email. If you keep using Simple Host after a change takes effect, you accept the new terms. If you do not agree, stop using the service.</p>
+
+    <h2 id="law">Disputes and governing law</h2>
+    <p>These terms are governed by the laws of [governing law], without regard to conflict-of-law rules. Any dispute will be decided only in the courts of [courts for disputes], and you and we agree to their jurisdiction. If you are a consumer, you keep any protections the law of your country gives you that cannot be waived.</p>
+    <p>Before going to court, please email us so we can try to sort it out.</p>
+
+    <h2 id="general">General</h2>
+    <ul>
+      <li><strong>Entire agreement.</strong> These terms and the <a href="/privacy.html">Privacy Policy</a> are the whole agreement between you and us about Simple Host.</li>
+      <li><strong>Severability.</strong> If any part is found unenforceable, it is limited as little as needed, and the rest stays in force.</li>
+      <li><strong>No waiver.</strong> If we do not enforce a term right away, we can still enforce it later.</li>
+      <li><strong>Transfer.</strong> You may not transfer these terms. We may transfer them, for example to a company that takes over the service.</li>
+      <li><strong>Feedback.</strong> If you send ideas or suggestions, we may use them freely, without paying you.</li>
+      <li><strong>No other rights.</strong> These terms do not create a partnership, employment or agency, and give no rights to anyone else.</li>
+    </ul>
+
+    <h2 id="contact">Contact</h2>
+    <p>Email <a href="mailto:hello@vineetsriram.com">hello@vineetsriram.com</a> for questions about these terms, reports, and copyright notices. For help using the service, see <a href="/support">Support</a>. How we handle personal data is in the <a href="/privacy.html">Privacy Policy</a>.</p>
   </main>
   <!--sh:footer-->
 </body>

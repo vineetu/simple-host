@@ -19,11 +19,12 @@ fallback zip). They land in `dist/`.
    sign-in, the challenge endpoint, `/terms` and `/support`. Diff the running binary first, as
    usual. The auth change (reviewer sign-in) should get its security pass before it ships.
 2. **Fill the placeholders**
-   - `internal/handler/static/support.html`: replace `[support email]` with the real address and
-     make it a `mailto:` link (an HTML comment marks the spot).
-   - `internal/handler/static/terms.html`: fill `[governing law — operator to fill]`, read the
-     draft, then remove the "Draft — pending review" box. The portal requires terms that are in
-     effect.
+   - `internal/handler/static/support.html`: done (hello@vineetsriram.com, branch
+     `legal/terms-review`).
+   - `internal/handler/static/terms.html`: fill `[governing law]`, `[courts for disputes]` and
+     the `[DMCA designated agent registration: pending]` line, read the draft, then remove the
+     "Draft. Not yet in effect." box (an HTML comment marks it). The portal requires terms that
+     are in effect.
    - Optional: add Terms and Support to the shared footer (`static/partials/footer.html`); left
      out because another change was editing the partials.
 3. **Identity and access** (Platform settings): complete **individual verification** as

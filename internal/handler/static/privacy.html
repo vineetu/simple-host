@@ -12,16 +12,22 @@
     .eyebrow { font-size: 13px; color: var(--text-secondary); margin: 0 0 10px; }
     h1 { font-size: clamp(30px, 5vw, 44px); font-weight: 700; line-height: 1.1; letter-spacing: -.02em; color: var(--text); margin: 0 0 8px; }
     .updated { font-size: 13px; color: var(--text-secondary); margin: 0 0 32px; }
-    h2 { font-size: 21px; font-weight: 700; line-height: 1.3; color: var(--text); margin: 0 0 12px; padding-top: 28px; border-top: 1px solid var(--border); }
+    h2 { font-size: 21px; font-weight: 700; line-height: 1.3; color: var(--text); margin: 0 0 12px; padding-top: 28px; border-top: 1px solid var(--border); scroll-margin-top: 16px; }
     * + h2 { margin-top: 28px; }
+    h3 { font-size: 17px; font-weight: 600; line-height: 1.4; color: var(--text); margin: 20px 0 8px; }
     p, li { color: var(--text-secondary); font-size: 16px; line-height: 1.6; }
     p { margin: 0 0 14px; }
     ul { margin: 0 0 14px; padding-left: 20px; }
     li { margin-bottom: 8px; }
     strong { color: var(--text); font-weight: 600; }
-    a { color: var(--accent); text-underline-offset: 3px; }
+    a { color: var(--accent); text-underline-offset: 3px; overflow-wrap: anywhere; }
     a:hover { color: var(--accent-hover); }
     code { font-family: var(--mono); font-size: .9em; color: var(--text); background: color-mix(in srgb, var(--accent) 10%, transparent); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+    .note { border: 1px solid var(--border-hi); border-left: 3px solid var(--accent); border-radius: var(--radius); background: var(--surface); padding: 12px 16px; margin: 0 0 28px; }
+    .note p, .note li { color: var(--text); font-size: 15px; line-height: 1.5; }
+    .note ul { margin: 8px 0 0; }
+    .note li { margin-bottom: 4px; }
+    .note p:last-child, .note ul:last-child { margin-bottom: 0; }
     @media (max-width: 640px) {
       .container { padding: 0 20px; }
       main.container { padding-top: 36px; }
@@ -35,74 +41,136 @@
     <h1>Privacy Policy</h1>
     <p class="updated">Simple Host (simple-host.app) · last updated 2026-09-24</p>
 
-    <p>Simple Host is a static-website hosting service. This policy covers what data it handles, including when the service is used from an AI app through the Simple Host connector, or by an AI coding agent with an API key.</p>
+    <div class="note">
+      <p><strong>The short version.</strong></p>
+      <ul>
+        <li>We collect what we need to sign you in, host your sites and stop abuse.</li>
+        <li>We do not sell your data, show ads, or use tracking scripts or advertising cookies.</li>
+        <li>Pages and most saved data are public. Private lists can be read only by the site's owner and by us.</li>
+        <li>Data a site collects from its visitors belongs to that site's owner, who is responsible for it.</li>
+        <li>Questions or deletion requests: <a href="mailto:hello@vineetsriram.com">hello@vineetsriram.com</a>.</li>
+      </ul>
+    </div>
 
-    <h2>What we collect</h2>
+    <h2 id="who">Who we are</h2>
+    <p>Simple Host is run by Vineet Sriram, an individual (“we”, “us”). This policy explains what personal data the service at simple-host.app handles, why, and what you can do about it. It applies to people who publish sites, to people who visit them, and to people who use Simple Host from an AI app.</p>
+    <p>The rules for using the service are in the <a href="/terms">Terms of Service</a>.</p>
+
+    <h2 id="collect">What we collect when you have an account</h2>
     <ul>
-      <li><strong>Email address</strong> — for sign-in. We collect it when you verify a one-time emailed code, or when Google (more providers later) asserts a <em>verified</em> address. That address is your account username. Signing in on someone else's site (an RSVP, a guestbook — on that site's own domain) creates the same kind of account; the sign-in gates saving, and nothing on the site records who wrote what — we do <strong>not</strong> email you a key, show you a dashboard, or give that page your API key.</li>
-      <li><strong>Provider account id</strong> — the provider's stable id for you (Google <code>sub</code>), stored so the same person signing in again is the same account. We also keep a snapshot of the verified email the provider last sent. We do not store your name, picture, or access token.</li>
-      <li><strong>Your API key</strong> — a random token that authenticates owner requests (deploy, delete, rollback). Stored to look up your account. It is disclosed only after an owner-intent sign-in (emailed code, or “Sign in with Google” on this dashboard). A session cookie on a hosted site is not an API key and cannot deploy or delete anything.</li>
-      <li><strong>Sites you deploy</strong> — the files you upload, their versions, and the site name. Deployed sites are <strong>served publicly</strong> on the internet at <code>sites.simple-host.app/&lt;handle&gt;/&lt;site&gt;/</code>. There is no private or password-locked mode — anyone with the address can read a site.</li>
-      <li><strong>Per-site state</strong> — any data a site saves via the state/collections API. This is <strong>public to that site's audience</strong> by design; do not put secrets in it.</li>
-      <li><strong>Visitor analytics</strong> — a count of page loads on hosted sites, taken from the web server's own access log. Details below. Your browser is not tagged for this.</li>
-      <li><strong>Basic request metadata</strong> — IP address and timestamps, used for rate-limiting and abuse prevention. Raw IPs from API calls are also stored for a limited time (see below).</li>
+      <li><strong>Email address.</strong> Used to sign you in. We get it when you enter a code we emailed you, or when Google confirms a verified address. It is your account name.</li>
+      <li><strong>Google account ID.</strong> If you use Google, we keep Google's ID for you and the verified email it last sent, so you land in the same account next time. We do not keep your name, picture or Google password, or any access to your Google account.</li>
+      <li><strong>Profile details you choose.</strong> Your handle and display name, if you set them.</li>
+      <li><strong>API key and connection tokens.</strong> Used to prove requests come from you. We store tokens for AI apps only as one-way hashes.</li>
+      <li><strong>Your sites.</strong> The files you upload, each version, the site name, and any domain or free <code>&lt;name&gt;.simple-host.app</code> address you connect.</li>
+      <li><strong>Data your sites save.</strong> Lists and state that your pages or your AI app save.</li>
+      <li><strong>Request records.</strong> IP addresses and times of requests, used for rate limits, security and investigating abuse. See <a href="#retention">how long we keep things</a>.</li>
     </ul>
 
-    <h2>How we use it</h2>
+    <h2 id="visitors">If you visit a site hosted here</h2>
+    <p>Sites on Simple Host are made by their owners, not by us. The owner decides what the site shows and what it asks you for.</p>
+    <h3>What the site asks you for</h3>
     <ul>
-      <li>To authenticate you, host and serve your sites, and operate the per-site backend. One account is used across every site you sign into and every site you own — we can join those in our database. We do not publish that join to other sites' pages.</li>
-      <li>To show a site's owner, and this instance's admin, how many people and bots loaded that site.</li>
-      <li>To enforce rate limits and quotas and to investigate abuse.</li>
-      <li>We do <strong>not</strong> sell your data or use it for advertising.</li>
+      <li><strong>It belongs to the site's owner.</strong> Anything you type into a site (an RSVP, a comment, a survey answer, an order) is collected by that site's owner. We store it for them. Ask the owner how they use it, or ask them to delete it.</li>
+      <li><strong>Most saved data is public.</strong> Unless a list is private, anyone can read what you submit. Do not submit anything you would not want public.</li>
+      <li><strong>Private lists.</strong> On a site with its own address, the owner can make a list private. Only the owner and the Simple Host operator can read it. The operator reads private lists only when needed for moderation, security, support or the law.</li>
+      <li><strong>Your email goes with private submissions.</strong> To add to a private list you sign in, and your verified email is saved with what you submit. The site owner sees it.</li>
+    </ul>
+    <h3>Signing in on a site</h3>
+    <p>Some sites ask you to sign in with Google or an emailed code before you save. That creates a Simple Host account under your email. The site gets a sign-in cookie for its own address, which lasts up to 30 days. The page never gets your API key, and nothing records your name on public lists.</p>
+    <p>One account is used for every site you sign in to. We can see that link. We do not show it to the sites.</p>
+    <h3 id="visitor-analytics">Visit counts</h3>
+    <p>When you open a page hosted here, we count the visit so the site's owner can see how many people read it.</p>
+    <ul>
+      <li><strong>Nothing is added to the page.</strong> There is no analytics script, no tracking cookie and no browser fingerprint. The count comes from our web server's own log.</li>
+      <li><strong>The server log</strong> records the time, the address asked for, the result, your IP address and your browser's User-Agent. Log files are deleted after 30 days.</li>
+      <li><strong>The analytics database does not keep your IP address.</strong> It keeps a scrambled version (a hash made with a secret key that stays on our server), the country your IP is in, the site, the hour, and whether the visit looks like a person, a bot or our own monitoring. The page path and User-Agent are not kept there.</li>
+      <li><strong>The hash is a lasting identifier.</strong> The same connection produces the same hash on different days. That is how unique visitors are counted, and it means visits can be linked over time.</li>
+      <li><strong>Countries are looked up on our server</strong>, using a local copy of a public database (<a href="https://db-ip.com">IP Geolocation by DB-IP</a>, CC BY 4.0). Your IP is not sent anywhere for this.</li>
+      <li><strong>Who sees counts.</strong> Site owners see visit counts and countries for their own sites. We see them for all sites. Nobody is shown your IP address or the hash.</li>
+      <li>Analytics records are deleted after 400 days, or when the site is deleted. There is no opt-out, because blocking cookies or sending do-not-track does not change a server log.</li>
+    </ul>
+    <p>When a page saves data (a comment, an RSVP), that is an API call. API calls record the raw IP address for 30 days, so abuse can be investigated. Only we can see those records.</p>
+
+    <h2 id="ai-apps">Using Simple Host from an AI app</h2>
+    <p>The Simple Host connector (also called a plugin; address <code>https://simple-host.app/mcp</code>) lets an AI app such as ChatGPT, Claude or Grok work on your sites for you.</p>
+    <ul>
+      <li><strong>Signing in.</strong> You sign in on simple-host.app and choose Allow. The app gets an access token that lasts one hour and a refresh token that it uses to get new ones. A refresh token is replaced each time it is used and expires after 90 days without use. Together they can publish, change and delete your sites and their data, and nothing else. We store only one-way hashes of them.</li>
+      <li><strong>What we receive.</strong> Only what the app sends when it uses a Simple Host tool: site names, files, data to save, domain names and similar. We do not receive your chat history or the rest of your conversation.</li>
+      <li><strong>What we send back.</strong> Depending on the tool: your account email, handle and display name; your sites, files, versions and addresses; a site's domain and its status; saved data (including private lists you own); and visit counts. We do not send internal IDs, IP addresses or visitor hashes. The app then handles that data under its own privacy policy.</li>
+      <li><strong>What we keep.</strong> Connector requests are logged like other API calls, including the IP for 30 days. We keep a record of each connection (which app, when you connected, when it was last used) until you disconnect it. We do not record what you asked the app.</li>
+      <li><strong>Disconnecting.</strong> Sign in at <a href="/dashboard">simple-host.app/dashboard</a> and choose Disconnect under Connected apps. Rotating your API key also disconnects every app.</li>
+    </ul>
+    <p>A coding agent that uses your API key works the same way: its requests are made as you.</p>
+
+    <h2 id="builder">Building with the AI in Simple Host</h2>
+    <ul>
+      <li><strong>Create with AI.</strong> If you use the builder on simple-host.app, your prompt and any files you attach are sent to xAI's Grok to write the site. xAI handles them under its own terms and privacy policy. We do not save your prompt in our database.</li>
+      <li><strong>Voice input.</strong> If you speak a prompt, the recording is turned into text on our own server and deleted straight after. It is not sent to anyone else.</li>
     </ul>
 
-    <h2 id="visitor-analytics">Visitor analytics</h2>
-    <p>This section is for people who <em>visit</em> a hosted site — whose loads get counted — not for people deploying one.</p>
-    <p>When you open a page hosted here, Simple Host counts that visit so the person who published the site can see how many people read it.</p>
-    <p>The count is taken entirely on the server, from the web server's own access log. <strong>Nothing is put on the page you load.</strong> There is no analytics script, no beacon, no analytics cookie, and no fingerprint of your browser. Your browser is never touched for this.</p>
-    <p>The access log line for a request includes the time, which host was asked, the HTTP status, the method, the page path, your IP address, and the User-Agent string. Those log lines are rotated off the server after 30 days.</p>
-    <p>What we keep in the analytics database is narrower:</p>
+    <h2 id="use">How we use it</h2>
     <ul>
-      <li><strong>Not your IP address.</strong> Each address is hashed (SHA-256, mixed with a secret that stays on the server, then truncated). Only that hash is stored.</li>
-      <li><strong>That hash is a lasting identifier.</strong> The secret does not change from day to day. The same visitor produces the same hash across days — that is how unique-visitor counts work. Visits can be linked together over time, even though the raw IP is not kept.</li>
-      <li>From counted requests we keep: which site, the hour (not the exact second), a classification of <em>person</em>, <em>bot</em>, or <em>our own monitoring</em>, a count of those loads, and the hashed identifier of each distinct visitor in that hour. The page path and User-Agent are read from the log to decide whether the request counts (images, stylesheets, and API calls do not) and which class it is; they are not stored in the analytics tables.</li>
-      <li>These analytics rows are deleted after <strong>400 days</strong>. If the owner deletes the site, they go with it.</li>
+      <li>To sign you in, host and serve sites, and run the data each site saves.</li>
+      <li>To show site owners, and us, how many people and bots visit.</li>
+      <li>To enforce limits, keep the service secure, and investigate and act on abuse and reports.</li>
+      <li>To answer your emails and handle requests.</li>
+      <li>To follow the law and respond to lawful requests.</li>
     </ul>
-    <p>The owner of a site can see view and unique-visitor <em>counts</em> for their own sites. The admin of this Simple Host instance can see those counts for every site on it. Neither is shown your IP address or the hash itself.</p>
-    <p>A hash of an IP is not a person. People on the same office or home network can look like one visitor; a phone moving between wifi and cellular can look like two.</p>
-    <p>There is no opt-out of being counted. Blocking cookies or sending a do-not-track header does not change a server log.</p>
-    <p>Separately from page-view analytics: calls to the API (<code>/v1/…</code>) — including when a hosted page saves data, posts a comment, or submits an RSVP — record the <strong>raw caller IP</strong>, so abuse can be investigated. Those IPs are kept for <strong>30 days</strong>. The country, city and network operator shown for each IP are looked up on the server itself, in a local copy of a public IP-location database (<a href="https://db-ip.com">IP Geolocation by DB-IP</a>, CC BY 4.0) that is refreshed monthly. No IP leaves the server for this lookup, and the result is not stored. Only this instance's admin can see that table. Loading a static page is not an API call and is not stored there.</p>
+    <p>We do <strong>not</strong> sell personal data, share it for advertising, or use it to build advertising profiles. We do not send marketing email.</p>
+    <p>If privacy laws such as the GDPR apply to you, our legal bases are: running the service you asked for (contract), keeping it secure and free of abuse (legitimate interests), and meeting legal duties.</p>
 
-    <h2>Using Simple Host from an AI app</h2>
-    <p>The Simple Host connector (also called a plugin; its address is <code>https://simple-host.app/mcp</code>) lets an AI app such as ChatGPT, Codex or Claude work on your sites for you.</p>
-    <p><strong>Signing in.</strong> When you add the connector, the app sends you to simple-host.app, where you sign in with Google or an emailed code and choose Allow. The app then receives an access token, which lasts one hour, and a refresh token, which it uses to get new access tokens. Each refresh token is replaced every time it is used and expires after 90 days without use. Together they act as your account: they can publish, change and delete your sites and read and change their data, and nothing else. We store only a one-way hash of each token.</p>
-    <p><strong>What we receive.</strong> The connector receives only what the app sends to it when it calls a tool: site names, file contents, data to save, domain names and similar details of the request. Simple Host does not receive your chat history or the rest of your conversation.</p>
-    <p><strong>What we send back to the app.</strong> Depending on the tool, results can include:</p>
+    <h2 id="sharing">Who we share it with</h2>
     <ul>
-      <li>your account email, handle, display name and the address of your public page;</li>
-      <li>your sites' names, addresses, version numbers and when each version was published, file lists and file contents;</li>
-      <li>a site's custom domain and whether it is connected yet;</li>
-      <li>a site's saved state and collection items with when each was saved, which are already public;</li>
-      <li>visit counts, split into people, bots and monitoring.</li>
+      <li><strong>Resend</strong>, our email provider, which sends sign-in codes. It gets your email address and the code.</li>
+      <li><strong>Google</strong>, when you choose “Sign in with Google”. Google learns that you signed in to Simple Host.</li>
+      <li><strong>xAI</strong>, only when you use Create with AI, as described above.</li>
+      <li><strong>Our hosting and backup providers.</strong> The service runs on rented cloud servers. Backups are encrypted before they are stored with a cloud storage provider, so it cannot read them.</li>
+      <li><strong>Site owners</strong> get what visitors submit to their sites, as described above.</li>
+      <li><strong>Authorities.</strong> We may share information when we believe the law requires it, or to protect people or the service. We report child sexual abuse material as the law requires.</li>
+      <li><strong>A new operator.</strong> If the service is transferred, for example to a company, your data goes with it under this policy.</li>
     </ul>
-    <p>Results do not include internal account or site IDs, IP addresses, or visitor hashes. Whatever the app receives is then handled under that app's own privacy policy.</p>
-    <p><strong>What we log and keep.</strong> Connector requests are logged like other API requests, including the raw caller IP for 30 days (see <a href="#visitor-analytics">Visitor analytics</a>). We keep a record of each connection — which app, when you connected it and when it was last used — until you disconnect it. We do not record what you asked the app.</p>
-    <p><strong>Disconnecting.</strong> Sign in at <a href="/dashboard">simple-host.app/dashboard</a> and choose Disconnect under Connected apps on your sites page. Rotating your API key also disconnects every app.</p>
-    <p>When you use Simple Host through an agent with an API key instead, requests are made with that key. Either way, anything deployed is public and belongs to the account whose key or connection is used.</p>
+    <p>No IP address is sent to any geolocation service. There are no other third parties.</p>
 
-    <h2>Retention &amp; your choices</h2>
+    <h2 id="cookies">Cookies</h2>
+    <p>We use only cookies that are needed to sign you in, on simple-host.app and on sites where you sign in. There are no analytics or advertising cookies. The dashboard may also keep your sign-in in your browser's storage.</p>
+
+    <h2 id="retention">How long we keep things</h2>
     <ul>
-      <li>You can delete any site you own at any time (via the API or the dashboard); deletions remove the served content and that site's analytics rows.</li>
-      <li>Uploaded versions are retained to enable rollback until the site is deleted.</li>
-      <li>Visitor-analytics rows are kept for 400 days. Raw IPs from API calls are kept for 30 days. There is no self-serve way to un-count a visit.</li>
-      <li>To delete your account or data, contact us below.</li>
+      <li><strong>Account:</strong> until you ask us to delete it.</li>
+      <li><strong>Sites, versions and saved data:</strong> until you delete the site. Earlier versions are kept so you can roll back. Items in a private list can also be edited or deleted one by one by the owner.</li>
+      <li><strong>Server logs:</strong> 30 days.</li>
+      <li><strong>Raw IP addresses from API calls:</strong> 30 days.</li>
+      <li><strong>Analytics records:</strong> 400 days, or until the site is deleted.</li>
+      <li><strong>AI app connections:</strong> until you disconnect. Unused refresh tokens expire after 90 days.</li>
+      <li><strong>Sign-in cookies on sites:</strong> up to 30 days.</li>
+      <li><strong>Backups:</strong> deleted data can stay in encrypted backups for about 14 days.</li>
+      <li><strong>Removed for abuse:</strong> we may keep content and account records longer when we must for legal reasons or to deal with abuse.</li>
     </ul>
 
-    <h2>Third parties</h2>
-    <p>We use an email provider to send sign-in codes, Google when you choose that button (Google sees that you signed in here; more providers later), and a hosting provider to run the service. The optional "Create with AI" feature sends your prompt (and any attachments) to xAI's Grok to generate a site. No IP address is sent to any geolocation service; locations are looked up on the server. No other third-party sharing.</p>
+    <h2 id="rights">Your choices and rights</h2>
+    <ul>
+      <li><strong>Delete a site</strong> yourself at any time, from the dashboard or your AI app. This removes its files, saved data and analytics.</li>
+      <li><strong>Delete your account, or ask what we hold about you:</strong> email <a href="mailto:hello@vineetsriram.com">hello@vineetsriram.com</a> from the address you sign in with. We may need to confirm it is you.</li>
+      <li><strong>Correct your details:</strong> email us and we will fix them.</li>
+      <li><strong>Data a site collected from you:</strong> ask that site's owner first. If you cannot reach them, or the site is abusive, email us with the site's address.</li>
+    </ul>
+    <p>Depending on where you live, you may have more rights, such as to get a copy of your data, object to how it is used, or complain to your data protection authority. Email us to use them. We answer within the time the law requires.</p>
 
-    <h2>Contact</h2>
-    <p>Questions or data requests: <a href="mailto:vineetu@gmail.com">vineetu@gmail.com</a>, or see <a href="/support">Support</a>. The rules for using the service are in the <a href="/terms">Terms of Service</a>.</p>
+    <h2 id="security">Security</h2>
+    <p>We use HTTPS everywhere, store keys and tokens as hashes where we can, and limit access to the operator. No system is perfectly secure. Do not use Simple Host for sensitive data such as payment cards, health information, government ID numbers or passwords.</p>
+
+    <h2 id="international">Where data is processed</h2>
+    <p>Our servers are in the United States. Your data may be processed in the United States and in other countries where our providers work, which may have different privacy laws from yours.</p>
+
+    <h2 id="children">Children</h2>
+    <p>Simple Host is not directed at children under 13, or under the higher age your country sets. We do not knowingly collect their personal data. If you believe a child has given us personal data, email us and we will delete it.</p>
+
+    <h2 id="changes">Changes to this policy</h2>
+    <p>We may update this policy. The date at the top shows the latest version. For significant changes, we will try to give notice on the site or by email.</p>
+
+    <h2 id="contact">Contact</h2>
+    <p>Questions, data requests, or reports: <a href="mailto:hello@vineetsriram.com">hello@vineetsriram.com</a>. For help using the service, see <a href="/support">Support</a>.</p>
   </main>
   <!--sh:footer-->
 </body>
