@@ -13,7 +13,7 @@
   <meta property="og:image" content="https://simple-hack.app/og-hack.png">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <script>(function(){try{var s=localStorage.getItem('sh-theme');document.documentElement.dataset.theme=s||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');}catch(e){document.documentElement.dataset.theme='light';}})();</script>
+  <!--sh:head-->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
@@ -47,17 +47,7 @@
     html[data-theme="light"] body { background-image: linear-gradient(rgba(15,30,55,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(15,30,55,.035) 1px, transparent 1px); }
     .wrap { max-width: 880px; margin: 0 auto; padding: 0 28px; }
     a { color: inherit; }
-    header { position: sticky; top: 0; z-index: 20; backdrop-filter: blur(9px);
-      background: color-mix(in srgb, var(--bg) 82%, transparent); border-bottom: 1px solid var(--border); }
-    .bar { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 14px 0; gap: 12px; }
-    .header-links { display: contents; }
-    .logo { font-family: var(--mono); font-weight: 700; font-size: 14px; letter-spacing: .3px; text-decoration: none; color: var(--text); white-space: nowrap; }
-    .logo b { color: var(--accent); }
-    nav.top { justify-content: flex-end; display: flex; flex-wrap: wrap; gap: 8px 18px; font-family: var(--mono); font-size: 12.5px; }
-    nav.top a { color: var(--text-secondary); text-decoration: none; }
-    nav.top a:hover, nav.top a.on { color: var(--accent); }
-    .tt { width: 32px; height: 30px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex: none; }
-    .tt:hover { border-color: var(--accent); color: var(--accent); }
+    /* The header and footer are the shared chrome: /site.css. */
     section { display: grid; grid-template-columns: 54px 1fr; gap: 0 22px; padding: 44px 0; border-bottom: 1px solid var(--border); }
     .snum { font-family: var(--mono); font-size: 13px; color: var(--accent); padding-top: 6px; }
     h1.title { font-family: var(--display); font-weight: 800; letter-spacing: -.02em; line-height: 1.02; font-size: clamp(34px, 6vw, 60px); margin: 6px 0 20px; }
@@ -104,15 +94,9 @@
     .prompt-card p:last-child { margin-bottom: 0; }
     .try-event { font-size: 15px; }
     #get-started > div { min-width: 0; }
-    footer { padding: 40px 0 60px; font-family: var(--mono); font-size: 12px; color: var(--dim); }
-    footer a { color: var(--text-secondary); text-decoration: none; }
     @media (max-width: 720px) {
       body { font-size: 16px; }
       .wrap { padding: 0 18px; }
-      .bar { padding: 12px 18px; grid-template-columns: 1fr auto; gap: 10px; }
-      .bar .tt { grid-column: 2; grid-row: 1; }
-      nav.top { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: repeat(3, auto); justify-content: space-between; gap: 0 12px; border-top: 1px solid var(--border); padding-top: 6px; }
-      nav.top a { white-space: nowrap; padding: 7px 0; }
       section { grid-template-columns: 1fr; gap: 0; padding: 34px 0; }
       .snum { padding: 0 0 8px; }
       .facts .row { grid-template-columns: 1fr; }
@@ -122,23 +106,7 @@
   </style>
 </head>
 <body>
-  <header>
-    <div class="wrap bar">
-      <a class="logo" href="/">simple<b>·</b>host</a>
-      <div class="header-links">
-        <nav class="top">
-          <a href="/">Home</a>
-          <a href="/enterprise">For companies</a>
-          <a href="/hackathons" class="on">For hackathons</a>
-          <a href="/features">Features</a>
-          <a href="/docs.html">API</a>
-        </nav>
-        <button class="tt" id="tt" aria-label="Toggle theme" onclick="toggleTheme()">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" id="tt-i"></svg>
-        </button>
-      </div>
-    </div>
-  </header>
+  <!--sh:header-->
 
   <div class="wrap">
     <section>
@@ -237,16 +205,11 @@ Ask me what I want to build, then build it and publish it.</pre></details>
       </div>
     </section>
 
-    <footer>
-      simple·host · for hackathons · <a href="/">Home</a> · <a href="/features">Features</a> · <a href="/architecture.html">Architecture</a> · <a href="/privacy.html">Privacy</a>
-    </footer>
   </div>
 
+  <!--sh:footer-->
+
   <script>
-    var SUN = '<circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
-    var MOON = '<path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/>';
-    function paintIcon(){ document.getElementById('tt-i').innerHTML = document.documentElement.dataset.theme === 'light' ? MOON : SUN; }
-    function toggleTheme(){ var t = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'; document.documentElement.dataset.theme = t; try{ localStorage.setItem('sh-theme', t); }catch(e){} paintIcon(); }
     document.querySelectorAll('.copy-prompt').forEach(function(button) {
       var label = button.textContent;
       var timer;
@@ -269,21 +232,15 @@ Ask me what I want to build, then build it and publish it.</pre></details>
       });
     });
     // This page is served at two addresses: /hackathons on simple-host.app, and
-    // the homepage of simple-hack.app. On the latter, "Home" pointing at "/"
-    // would be a link back to this page, and "For hackathons" beside it a second
-    // one. Point Home at the main product instead, and drop the duplicate.
+    // the homepage of simple-hack.app. The server corrects the header and footer
+    // for the latter (chromeData.HackHome in chrome.go).
     if (location.hostname.indexOf('simple-hack.') === 0) {
-      var home = document.querySelector('nav.top a[href="/"]');
-      if (home) { home.href = 'https://simple-host.app/'; home.textContent = 'Simple Host'; }
-      var here = document.querySelector('nav.top a.on');
-      if (here) { here.remove(); }
       // Both hosts serve the same skill, so an organiser reading this page on
       // simple-hack.app should be handed a simple-hack.app link rather than
       // being sent somewhere they did not ask to go.
       var op = document.getElementById('organiser-prompt');
       if (op) { op.textContent = op.textContent.replace('simple-host.app', location.host); }
     }
-    paintIcon();
   </script>
 </body>
 </html>

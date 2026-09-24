@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex">
 <title>Admin — simple·host</title>
-<script>(function(){try{var s=localStorage.getItem('sh-theme');document.documentElement.dataset.theme=s||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');}catch(e){document.documentElement.dataset.theme='light';}})();
+<!--sh:head-->
+<script>
 // Disk usage. Measured, not predicted: the walk behind this is cached server
 // side, so reloading the page does not re-walk the tree. Failing to read it
 // must never take the rest of the admin page down with it.
@@ -62,11 +63,8 @@ html[data-theme="light"]{
 body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;
   background-image:linear-gradient(var(--surface2) 1px,transparent 1px),linear-gradient(90deg,var(--surface2) 1px,transparent 1px);background-size:48px 48px;}
 .container{max-width:960px;margin:0 auto;padding:0 20px}
-header{border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:10}
-header .container{display:flex;align-items:center;justify-content:space-between;height:56px}
-.brand{font-size:14px;font-weight:700}.brand b{color:var(--accent)}.brand .tag{color:var(--faint);font-weight:500;margin-left:8px}
-.icon-btn{background:transparent;border:1px solid var(--border);color:var(--dim);border-radius:8px;height:30px;padding:0 10px;cursor:pointer;font-family:var(--font);font-size:12px}
-.icon-btn:hover{border-color:var(--accent);color:var(--accent)}
+/* The header and footer are the shared chrome (/site.css); this names the page under it. */
+.page-tag{font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-top:22px}
 .stats{display:flex;gap:16px;margin:22px 0 8px}
 .stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;flex:1}
 .stat .n{font-size:26px;font-weight:700;color:var(--accent);line-height:1}
@@ -122,15 +120,10 @@ table.apx td.err{color:var(--err)}
 </style>
 </head>
 <body>
-<header><div class="container">
-  <div class="brand">simple<b>·</b>host <span class="tag">admin</span></div>
-  <div style="display:flex;gap:8px">
-    <button class="icon-btn" onclick="location.href='/'">← App</button>
-    <button class="icon-btn" onclick="toggleTheme()">◑</button>
-  </div>
-</div></header>
+<!--sh:header-->
 
-<div class="container">
+<div class="container" id="admin-main">
+  <p class="page-tag">Admin</p>
   <div class="stats" id="stats" hidden>
     <div class="stat"><div class="n" id="uc">–</div><div class="l">Users</div></div>
     <div class="stat"><div class="n" id="sc">–</div><div class="l">Websites</div></div>
@@ -200,9 +193,10 @@ table.apx td.err{color:var(--err)}
   </div>
 </div>
 
+<!--sh:footer-->
+
 <script>
 var apiKey = localStorage.getItem('apiKey') || '';
-function toggleTheme(){ var t=document.documentElement.dataset.theme==='dark'?'light':'dark'; document.documentElement.dataset.theme=t; try{localStorage.setItem('sh-theme',t);}catch(e){} }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 function fmtDate(s){ try{ return new Date(s).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}); }catch(e){ return ''; } }
 function status(msg, err){ var s=document.getElementById('status'); s.hidden=false; s.className='msg'+(err?' err':''); s.textContent=msg; }
@@ -332,7 +326,10 @@ async function deleteAccount(id, username){
 
 function renderNotFound(){
   document.title='Not found · simple·host';
-  document.body.innerHTML='<div class="container" style="padding-top:80px;text-align:center">'+
+  // Only the page body is swapped: the shared header and footer stay, as they
+  // do on the real 404.
+  var main=document.getElementById('admin-main'); if(!main) return;
+  main.outerHTML='<div class="container" style="padding-top:80px;text-align:center">'+
     '<div style="font-size:44px;font-weight:600;letter-spacing:-1px">404</div>'+
     '<p style="color:var(--dim);margin-top:8px">That page does not exist.</p>'+
     '<p style="margin-top:22px"><a href="/" style="color:var(--dim)">← simple·host</a></p></div>';

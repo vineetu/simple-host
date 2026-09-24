@@ -120,7 +120,7 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	mux.Handle("GET /dashboard", adminUICSP(serveStaticPage("index.html")))
 	// On the base origin, a bare /<handle> that resolves to a real user renders
 	// that user's owner app; everything else is the landing page / static files.
-	mux.Handle("GET /", adminUICSP(sh.ownerAppOrStatic(fileServer)))
+	mux.Handle("GET /", adminUICSP(sh.ownerAppOrStatic(chromeFileServer(handlerOnlyFS{sub}, fileServer))))
 }
 
 // handlerOnlyPages are hidden from the file server so each is reachable exactly
@@ -140,18 +140,20 @@ type handlerOnlyFS struct{ fs.FS }
 
 func (f handlerOnlyFS) Open(name string) (fs.File, error) {
 	// Hidden only when a handler has actually taken over, so the canonical
-	// instance still serves them straight off the embedded FS.
-	if handlerOnlyPages[name] || (instanceHosts != nil && slices.Contains(rewrittenAssets, name)) {
+	// instance still serves them straight off the embedded FS. The chrome
+	// partials are fragments for chrome.go, never pages in their own right.
+	if handlerOnlyPages[name] || name == "partials" || strings.HasPrefix(name, "partials/") || (instanceHosts != nil && slices.Contains(rewrittenAssets, name)) {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 	}
 	return f.FS.Open(name)
 }
 
 // serveStaticPage serves one embedded HTML page at a fixed route, for pages that
-// need a clean URL rather than the .html the file server would expose.
+// need a clean URL rather than the .html the file server would expose. The
+// shared chrome is filled in here; see chrome.go.
 func serveStaticPage(name string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := staticFiles.ReadFile("static/" + name)
+		body, err := chromePage(name, chromeDataFor(r, ""))
 		if err != nil {
 			http.NotFound(w, r)
 			return

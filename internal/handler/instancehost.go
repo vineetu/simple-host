@@ -80,7 +80,14 @@ var assetContentTypes = map[string]string{
 // hostnames substituted in.
 func serveRewrittenAsset(name string, rw *hostRewriter, modTime time.Time) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := staticFiles.ReadFile("static/" + name)
+		var body []byte
+		var err error
+		if strings.HasSuffix(name, ".html") {
+			// A page gets the shared chrome first, so the rewrite covers it too.
+			body, err = chromePage(name, chromeDataFor(r, ""))
+		} else {
+			body, err = staticFiles.ReadFile("static/" + name)
+		}
 		if err != nil {
 			http.NotFound(w, r)
 			return

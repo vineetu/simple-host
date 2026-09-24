@@ -1,0 +1,15 @@
+<footer class="sh-footer">
+    <div class="sh-foot">
+      <nav class="sh-foot-links" aria-label="More">
+        <a href="{{.Base}}/enterprise"{{if eq .Current "enterprise"}} aria-current="page"{{end}}>For companies</a>
+        {{- if not .HackHome}}
+        <a href="{{.Base}}/hackathons"{{if eq .Current "hackathons"}} aria-current="page"{{end}}>For hackathons</a>
+        {{- end}}
+        <a href="{{.Base}}/features"{{if eq .Current "features"}} aria-current="page"{{end}}>Features</a>
+        <a href="{{.Base}}/docs.html"{{if eq .Current "docs"}} aria-current="page"{{end}}>API</a>
+        <a href="{{.Base}}/architecture.html"{{if eq .Current "architecture"}} aria-current="page"{{end}}>Architecture</a>
+        <a href="{{.Base}}/privacy.html"{{if eq .Current "privacy"}} aria-current="page"{{end}}>Privacy</a>
+      </nav>
+      <p class="sh-credit">With thanks to Jacob Cole and Tejas D Channappa.</p>
+    </div>
+  </footer>

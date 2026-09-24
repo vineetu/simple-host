@@ -159,27 +159,36 @@ func (h *SiteHandler) renderShowcase(w http.ResponseWriter, r *http.Request, han
 		})
 	}
 
-	tmpl, err := staticFiles.ReadFile("static/showcase.html")
+	page, err := showcasePage(chromeDataFor(r, h.chromeBase(r)), data)
 	if err != nil {
 		h.renderServiceError(w)
 		return
 	}
-	// json.Marshal HTML-escapes <, >, & by default, so the injected blob cannot
-	// break out of the <script> even if a value somehow contained markup.
-	blob, err := json.Marshal(data)
-	if err != nil {
-		h.renderServiceError(w)
-		return
-	}
-
-	page := strings.ReplaceAll(string(tmpl), "__SH_HANDLE__", handle)
-	page = strings.Replace(page, "/*__SHOWCASE_DATA__*/", string(blob), 1)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Robots-Tag", "index")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(page))
+	_, _ = w.Write(page)
+}
+
+// showcasePage assembles the showcase template: the shared chrome, then the
+// handle and the page data. Kept apart from the database work so the served
+// markup can be tested on its own.
+func showcasePage(d chromeData, data showcaseData) ([]byte, error) {
+	tmpl, err := chromePage("showcase.html", d)
+	if err != nil {
+		return nil, err
+	}
+	// json.Marshal HTML-escapes <, >, & by default, so the injected blob cannot
+	// break out of the <script> even if a value somehow contained markup.
+	blob, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+	page := strings.ReplaceAll(string(tmpl), "__SH_HANDLE__", data.Handle)
+	page = strings.Replace(page, "/*__SHOWCASE_DATA__*/", string(blob), 1)
+	return []byte(page), nil
 }
 
 // notFound is the nginx error_page fallback. nginx sends file misses here and
@@ -225,7 +234,7 @@ func (h *SiteHandler) renderNotFound(w http.ResponseWriter, r *http.Request, ori
 		}
 	}
 
-	tmpl, err := staticFiles.ReadFile("static/notfound.html")
+	tmpl, err := chromePage("notfound.html", chromeDataFor(r, h.chromeBase(r)))
 	if err != nil {
 		// Last-resort inline 404 so a miss never falls through to nginx's default.
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")

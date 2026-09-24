@@ -1,0 +1,232 @@
+/* Simple Host — the one shared stylesheet.
+ *
+ * Holds the design tokens, the base typography and the site chrome (header and
+ * footer). Every page links it through the <!--sh:head--> marker, which the
+ * server fills from partials/head.html; see chrome.go.
+ *
+ * Tokens keep the names the homepage has always used so a page's own styles
+ * keep resolving. A page may still redefine a token in its own <style> while
+ * its body waits to be restyled, and that must never reach the chrome, so the
+ * token blocks below are applied to the header and footer elements as well as
+ * to the root: the chrome reads its own copy, not the page's.
+ *
+ * No third-party font or script is loaded from here, or anywhere in the chrome:
+ * a visitor's IP must never go to a third party. The body face is the system
+ * sans stack; --mono is for code and keys only, and names JetBrains Mono first
+ * only so pages that still load it keep their look.
+ */
+
+:root,
+.sh-header,
+.sh-footer {
+  color-scheme: dark;
+  --bg: #020617;
+  --surface: #0b1222;
+  --grid: #0f1830;
+  --border: #1e293b;
+  --border-hi: #334155;
+  --text: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --dim: #475569;
+  --accent: #22d3ee;
+  --accent-hover: #67e8f9;
+  --success: #34d399;
+  --error: #fb7185;
+  --radius: 10px;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --header-bg: rgba(2, 6, 23, 0.75);
+  --on-accent: #020617;
+}
+
+html[data-theme="light"],
+html[data-theme="light"] .sh-header,
+html[data-theme="light"] .sh-footer {
+  color-scheme: light;
+  --bg: #f7f8fb;
+  --surface: #ffffff;
+  --grid: #e9edf4;
+  --border: #e2e8f0;
+  --border-hi: #cbd5e1;
+  --text: #0f172a;
+  --text-secondary: #475569;
+  --dim: #94a3b8;
+  --accent: #0891b2;
+  --accent-hover: #0e7490;
+  --success: #059669;
+  --error: #e11d48;
+  --header-bg: rgba(255, 255, 255, 0.82);
+  --on-accent: #ffffff;
+}
+
+/* ---- Base ---------------------------------------------------------------- */
+
+*, *::before, *::after { box-sizing: border-box; }
+/* Author display rules otherwise beat the UA [hidden]{display:none}. */
+[hidden] { display: none !important; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.6;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+code, kbd, samp, pre { font-family: var(--mono); }
+
+/* ---- Header -------------------------------------------------------------- */
+/* Selectors are two classes deep on purpose: every page still carries its own
+   element rules (a, p, nav a, button …) until it is restyled, and those must
+   not be able to reach into the chrome. */
+
+.sh-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  margin: 0;
+  background: var(--header-bg);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font);
+  color: var(--text);
+}
+.sh-header .sh-bar {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.sh-header .sh-logo {
+  margin: 0 auto 0 0;
+  padding: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  line-height: 1.2;
+  color: var(--text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sh-header .sh-logo b { color: var(--accent); font-weight: 700; }
+.sh-header .sh-nav {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin: 0 8px 0 0;
+  padding: 0;
+}
+.sh-header .sh-nav a {
+  margin: 0;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1.2;
+  color: var(--text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sh-header .sh-nav a:hover { color: var(--text); }
+.sh-header .sh-nav a[aria-current="page"] { color: var(--text); font-weight: 600; }
+/* The entrance: a bordered control rather than another nav link, because it
+   is the one thing a first-time visitor should press. */
+.sh-header .sh-signin {
+  margin: 0;
+  padding: 6px 12px;
+  border: 1px solid var(--border-hi);
+  border-radius: 8px;
+  background: transparent;
+  font-size: 14px;
+  line-height: 1.2;
+  color: var(--text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sh-header .sh-signin:hover,
+.sh-header .sh-signin[aria-current="page"] { border-color: var(--accent); color: var(--accent); }
+.sh-header .sh-theme {
+  flex: none;
+  width: 32px;
+  height: 30px;
+  margin: 0;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  transition: none;
+}
+.sh-header .sh-theme:hover { border-color: var(--accent); color: var(--accent); }
+.sh-header .sh-theme svg { display: block; }
+
+/* ---- Footer -------------------------------------------------------------- */
+
+.sh-footer {
+  margin: 64px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+  font-family: var(--font);
+  color: var(--text-secondary);
+  background: transparent;
+}
+.sh-footer .sh-foot {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 22px 24px 40px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.sh-footer .sh-foot-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin: 0;
+  padding: 0;
+}
+.sh-footer .sh-foot-links a {
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sh-footer .sh-foot-links a:hover { color: var(--text); }
+.sh-footer .sh-foot-links a[aria-current="page"] { color: var(--text); }
+.sh-footer .sh-credit {
+  margin: 10px 0 0;
+  padding: 0;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  opacity: 0.8;
+}
+
+/* ---- Phones -------------------------------------------------------------- */
+/* Logo, two links, the entrance and the toggle stay on one line at 390px. */
+@media (max-width: 640px) {
+  .sh-header .sh-bar { padding: 12px 16px; gap: 10px; }
+  .sh-header .sh-logo { font-size: 14px; }
+  .sh-header .sh-nav { gap: 14px; margin-right: 2px; }
+  .sh-header .sh-nav a { font-size: 13.5px; }
+  .sh-header .sh-signin { padding: 6px 10px; font-size: 13.5px; }
+  .sh-footer { margin-top: 48px; }
+  .sh-footer .sh-foot { padding: 20px 16px 32px; }
+  .sh-footer .sh-foot-links { gap: 6px 16px; }
+}
+@media (max-width: 359px) {
+  .sh-header .sh-bar { gap: 8px; padding: 12px 12px; }
+  .sh-header .sh-nav { gap: 10px; }
+  .sh-header .sh-nav a, .sh-header .sh-signin { font-size: 13px; }
+}
