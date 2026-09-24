@@ -160,3 +160,8 @@ What follows from that, and is not negotiable without changing the line above:
   in a config file and keep working as they do. Order: after the page overhaul, before the Get
   started rebuild, so Get started ends with "add the connector". Port the MCP adapter from the
   enterprise repo (`internal/mcp`); the OAuth server is new and gets a security review.
+- **2026-09-24. No per-person subdomains.** Sites stay at `sites.simple-host.app/<handle>/<site>`.
+  A person who wants their own origin brings their own domain; a Simple Host subdomain can be
+  given on request but is not offered or advertised. Consequence: on the shared host, what a
+  page saves stays readable by anyone, so anything private (an RSVP list, survey answers,
+  orders) needs the site on its own domain. Reason: owner's call — keep the shared host as is.
