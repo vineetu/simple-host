@@ -95,6 +95,10 @@ Portal → **Create plugin** → **With MCP**. Package name `simple-host` (it mu
 
 Then **Scan Tools**. Expect 22 tools, no UI templates, the server `instructions`, no imported
 skills (the server does not offer the skills extension; skills are uploaded instead).
+Every tool declares an `outputSchema` describing its `structuredContent`
+(`internal/mcp/outputs.go`), so the scan should raise no "Add an outputSchema" recommendation.
+The schemas are pinned against real results by `TestEveryToolResultMatchesItsOutputSchema`
+(`internal/mcp`) and `TestOutputSchemasMatchRealResults` (`internal/handler`).
 
 ### Annotation justifications (paste one per tool)
 

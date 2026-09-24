@@ -22,7 +22,10 @@ type Tool struct {
 	Title       string         `json:"title,omitempty"`
 	Description string         `json:"description"`
 	InputSchema map[string]any `json:"inputSchema"`
-	Annotations map[string]any `json:"annotations,omitempty"`
+	// OutputSchema describes structuredContent on a successful call (see
+	// outputs.go). It is not sent to clients of 2025-03-26, which predates it.
+	OutputSchema map[string]any `json:"outputSchema,omitempty"`
+	Annotations  map[string]any `json:"annotations,omitempty"`
 
 	run func(c *call, args map[string]any) (output, error)
 }
@@ -464,7 +467,7 @@ const maxFileText = 200 << 10
 
 // Tools is the callable surface, in the order a first-time agent needs it.
 func Tools() []Tool {
-	return []Tool{
+	tools := []Tool{
 		{
 			Name:        "who_am_i",
 			Title:       "Who am I signed in as",
@@ -1242,6 +1245,11 @@ func Tools() []Tool {
 			},
 		},
 	}
+	schemas := outputSchemas()
+	for i := range tools {
+		tools[i].OutputSchema = schemas[tools[i].Name]
+	}
+	return tools
 }
 
 func filesSchema() map[string]any {
