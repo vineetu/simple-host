@@ -529,7 +529,7 @@ func TestPrivateCollectionsEndToEnd(t *testing.T) {
 	if text, s, isErr = call("update_collection_item", map[string]any{"site": "shop", "collection": "orders", "id": itoa(vicItem), "fields": map[string]any{"status": "shipped", "_submitted_by": "nope"}}); isErr || s["data"].(map[string]any)["_submitted_by"] != vic.email || s["data"].(map[string]any)["status"] != "shipped" {
 		t.Fatalf("update_collection_item: %s", text)
 	}
-	if text, _, isErr = call("delete_collection_item", map[string]any{"site": "shop", "collection": "orders", "id": itoa(vicItem), "confirm_id": "1"}); !isErr {
+	if text, _, isErr = call("delete_collection_item", map[string]any{"site": "shop", "collection": "orders", "id": itoa(vicItem), "confirm_id": itoa(vicItem + 1000)}); !isErr {
 		t.Fatalf("delete without matching confirm: %s", text)
 	}
 	if text, _, isErr = call("delete_collection_item", map[string]any{"site": "shop", "collection": "orders", "id": itoa(vicItem), "confirm_id": itoa(vicItem)}); isErr {
@@ -649,4 +649,27 @@ func (a *privateApp) connectResource(t *testing.T, p person, resource string) st
 func itoa(n int64) string {
 	b, _ := json.Marshal(n)
 	return string(b)
+}
+
+// A visitor-supplied value must never reach the owner's spreadsheet as a
+// formula: text starting with = + - @ tab or CR is neutralised, numbers are not.
+func TestCSVSafeNeutralisesFormulas(t *testing.T) {
+	cases := map[string]string{
+		`"=cmd|'/C calc'!A1"`:        `'=cmd|'/C calc'!A1`,
+		`"+HYPERLINK(\"http://x\")"`: `'+HYPERLINK("http://x")`,
+		`"-2+3"`:                     `'-2+3`,
+		`"@SUM(A1)"`:                 `'@SUM(A1)`,
+		`"\t=1+1"`:                   "'\t=1+1",
+		`"hello"`:                    `hello`,
+		`-5`:                         `-5`,
+		`""`:                         ``,
+	}
+	for in, want := range cases {
+		if got := jsonCSVCell([]byte(in)); got != want {
+			t.Errorf("jsonCSVCell(%s) = %q, want %q", in, got, want)
+		}
+	}
+	if got := csvSafe("=bad-header"); got != "'=bad-header" {
+		t.Errorf("csvSafe header = %q", got)
+	}
 }

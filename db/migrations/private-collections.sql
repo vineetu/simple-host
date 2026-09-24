@@ -1,7 +1,7 @@
 -- Private collections (owner decision 2026-09-24): a collection can be marked
 -- private by the site owner. Only a signed-in visitor on the site's own domain
 -- can submit to it, each item is stamped server-side with who sent it, and only
--- the owner can read it (a submitter may read back their own items).
+-- the owner (and the platform admin) can read it; a submitter cannot read items back.
 --
 -- Apply once to an existing database, as the table owner, BEFORE deploying the
 -- build that reads it (the server refuses to start without these columns):

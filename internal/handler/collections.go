@@ -364,7 +364,9 @@ func (h *SiteHandler) exportCollectionCSV(w http.ResponseWriter, r *http.Request
 	cw := csv.NewWriter(w)
 	header := make([]string, 0, 2+len(keys))
 	header = append(header, "id", "created_at")
-	header = append(header, keys...)
+	for _, k := range keys {
+		header = append(header, csvSafe(k))
+	}
 	if err := cw.Write(header); err != nil {
 		return
 	}
@@ -418,7 +420,7 @@ func jsonCSVCell(raw json.RawMessage) string {
 	case '"':
 		var s string
 		if err := json.Unmarshal(raw, &s); err == nil {
-			return s
+			return csvSafe(s)
 		}
 	case '{', '[':
 		var v any
@@ -430,4 +432,20 @@ func jsonCSVCell(raw json.RawMessage) string {
 		}
 	}
 	return string(raw)
+}
+
+// csvSafe stops a visitor-supplied value being read as a formula when the
+// owner opens the export in Excel, Sheets or Numbers. A text cell that starts
+// with = + - @, a tab or a carriage return gets a leading apostrophe, which
+// spreadsheets show as plain text. JSON numbers never reach here, so a
+// negative number stays a number.
+func csvSafe(s string) string {
+	if s == "" {
+		return s
+	}
+	switch s[0] {
+	case '=', '+', '-', '@', '\t', '\r':
+		return "'" + s
+	}
+	return s
 }
