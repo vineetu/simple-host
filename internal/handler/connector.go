@@ -159,7 +159,12 @@ func (h *ConnectorHandler) Register(mux *http.ServeMux, authMiddleware func(http
 	mux.Handle("POST /oauth/token", rateLimitByIP(h.tokenLimiter, http.HandlerFunc(h.token)))
 	mux.Handle("POST /oauth/revoke", rateLimitByIP(h.tokenLimiter, http.HandlerFunc(h.revoke)))
 
-	mux.HandleFunc("/mcp", h.serveMCP)
+	// POST carries every message. GET and DELETE are answered 405 by the MCP
+	// server (no standalone stream, no sessions), after authentication, so an
+	// unauthenticated probe of any method learns where to sign in.
+	for _, m := range []string{"POST", "GET", "DELETE"} {
+		mux.HandleFunc(m+" /mcp", h.serveMCP)
+	}
 
 	mux.Handle("GET /v1/me/connections", authMiddleware(http.HandlerFunc(h.listConnections)))
 	mux.Handle("DELETE /v1/me/connections/{client_id}", authMiddleware(http.HandlerFunc(h.deleteConnection)))
@@ -498,17 +503,22 @@ func (h *ConnectorHandler) parseAuthorize(ctx context.Context, q url.Values) (au
 	req.Client, req.RedirectURI = client, redirectURI
 
 	// From here on the redirect URI is trusted, and errors go back to the app.
+	if len(q["state"]) == 1 && len(q.Get("state")) <= 2000 {
+		req.State = q.Get("state")
+	}
 	for k, v := range q {
 		if len(v) > 1 {
 			return req, &authzError{redirect: true, code: "invalid_request", description: "parameter " + k + " is repeated"}
 		}
 	}
-	if q.Get("response_type") != "code" {
-		return req, &authzError{redirect: true, code: "unsupported_response_type", description: "response_type must be code"}
-	}
+	// state first, so every error below carries it back to the app.
 	req.State = q.Get("state")
 	if len(req.State) > 2000 {
+		req.State = ""
 		return req, &authzError{redirect: true, code: "invalid_request", description: "state is too long"}
+	}
+	if q.Get("response_type") != "code" {
+		return req, &authzError{redirect: true, code: "unsupported_response_type", description: "response_type must be code"}
 	}
 	challenge, method := q.Get("code_challenge"), q.Get("code_challenge_method")
 	switch {
@@ -825,7 +835,7 @@ func (h *ConnectorHandler) redeemCode(w http.ResponseWriter, r *http.Request, cl
 				log.Printf("connector: revoke on code reuse: %v", derr)
 			}
 		}
-		log.Printf("connector: authorization code reused client_id=%s; grant revoked", stored.ClientID)
+		log.Printf("connector: authorization code reused client_id=%s", stored.ClientID)
 		oauthError(w, http.StatusBadRequest, "invalid_grant", "code already used")
 		return
 	}
