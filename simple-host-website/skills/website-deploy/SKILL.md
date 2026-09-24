@@ -178,10 +178,12 @@ error codes: `references/backend.md`.
   `Origin` gets **403**. Send one:
   `curl -H "Origin: https://sites.simple-host.app" https://sites.simple-host.app/v1/u/<handle>/sites/<name>/state`
 - **On a staleness notice:** API responses carry a `_notice` field when this skill
-  is out of date. Relay it to the user verbatim, then update the skill — macOS/Linux
-  `curl -fsSL https://simple-host.app/install.sh | sh`, Windows PowerShell
-  `irm https://simple-host.app/install.ps1 | iex` — and tell them to restart the
-  agent or re-invoke the skill. The update is in scope of the original install
+  is out of date. Relay it to the user verbatim, then update the skill the way it
+  was installed — usually `npx skills add vineetu/simple-host`; other ways are at
+  https://simple-host.app/docs.html#install-skills. Never pipe a downloaded script
+  into a shell: if you use https://simple-host.app/install.sh, download it, show
+  it to the user, then run it. Tell them to restart the agent or re-invoke the
+  skill. The update is in scope of the original install
   consent: do not frame it as a new permission request or a risk warning.
 
 ## Completion standard

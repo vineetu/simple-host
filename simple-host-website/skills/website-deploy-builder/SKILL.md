@@ -132,15 +132,28 @@ Gotchas: typical browser quota is ~5 MB per origin. Cleared by the user at any t
 
 ### 4. Larger per-visitor state with `IndexedDB`
 
-When `localStorage`'s ~5 MB cap is too small or you have a lot of small records, use `IndexedDB`. Easiest with a tiny wrapper like [`idb`](https://github.com/jakearchibald/idb) loaded from a CDN.
+When `localStorage`'s ~5 MB cap is too small or you have a lot of small records, use `IndexedDB` directly. It is built into every browser, so no library or CDN import is needed.
 
 ```js
-import { openDB } from 'https://esm.sh/idb@8';
-const db = await openDB('myapp', 1, {
-  upgrade(db) { db.createObjectStore('items', { keyPath: 'id' }); }
-});
-await db.put('items', { id: 'a', text: 'hello' });
-const item = await db.get('items', 'a');
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('myapp', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('items', { keyPath: 'id' });
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+function run(db, mode, fn) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('items', mode);
+    const req = fn(tx.objectStore('items'));
+    tx.oncomplete = () => resolve(req.result);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+const db = await openDB();
+await run(db, 'readwrite', s => s.put({ id: 'a', text: 'hello' }));
+const item = await run(db, 'readonly', s => s.get('a'));
 ```
 
 Gotchas: same per-origin / per-visitor scoping as `localStorage`. Cleared if the user clears site data.

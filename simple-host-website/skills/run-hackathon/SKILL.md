@@ -172,10 +172,6 @@ mail merge.
 
 Each participant needs two things: their key, and one instruction.
 
-There is also a paste box on the instance's own front page for anyone whose agent
-cannot fetch a URL: they paste their key, then paste a page in. Mention it to the
-organiser as the fallback for the person who gets stuck.
-
 ```
 Read https://<event-host>/llms.txt and follow it exactly.
 My Simple Host API key is: <their key>
@@ -185,6 +181,16 @@ Ask me what I want to build, then build it and publish it.
 That works in any agent that can fetch a URL. The instance's own `llms.txt`
 names the event's hostnames, not simple-host.app, so their site lands on the
 organiser's server.
+
+A participant who only has a chat app (ChatGPT, Claude or Grok in a browser)
+adds the event as a connector instead, once: the address is
+`https://<event-host>/mcp` — the instance's own, never simple-host.app. The
+event's sign-in window opens and, on an instance with no email provider or
+Google sign-in, asks for the key the organiser handed out; after **Allow**,
+every chat can build and publish to the event. The steps for each chat app are
+on the instance's own `https://<event-host>/install.html`. ChatGPT and Grok
+allow custom connectors only on paid plans, so mention that to the organiser;
+anyone without one uses the prompt above in an agent that can fetch a URL.
 
 ### 7. Collect the entries
 

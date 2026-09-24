@@ -3,8 +3,8 @@
 Skip this if the Simple Host tools are available in the session.
 
 Registration is a **two-step email verification** flow. The user proves they own
-the address before the server hands out an API key. You cannot skip the round
-trip through their inbox.
+the address before the server hands out an API key. You never open or read the
+user's email: they check it themselves and give you the code.
 
 Config file: `~/.website-deploy/config.json`. Resolve `~` to the OS home
 directory yourself — `$HOME/.website-deploy/config.json` on macOS/Linux,
@@ -28,8 +28,9 @@ paths do not expand a literal `~`, and `%USERPROFILE%` expands only in `cmd`.
    `{"message": "Check your email for a sign-in code.", "email": "...", "expires_in_seconds": 900}`.
    The server has now emailed a 6-digit code.
 
-3. **Ask the user to read their inbox and paste the code.** Accept `123456` or
-   `123-456`; strip non-digits before sending.
+3. **Ask the user for the code.** They open the email themselves and paste the
+   6-digit code into the chat; do not try to read their mailbox. Accept `123456`
+   or `123-456`; strip non-digits before sending.
 
 4. **Verify:**
 
