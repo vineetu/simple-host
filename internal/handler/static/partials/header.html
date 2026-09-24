@@ -1,0 +1,54 @@
+<header class="sh-header">
+    <div class="sh-bar">
+      <a class="sh-logo" href="{{.Base}}/">simple<b>·</b>host</a>
+      <nav class="sh-nav" aria-label="Main">
+        {{- if .HackHome}}
+        <a href="https://simple-host.app/">Simple Host</a>
+        {{- else}}
+        <a href="{{.Base}}/"{{if eq .Current "home"}} aria-current="page"{{end}}>Home</a>
+        {{- end}}
+        <a href="{{.Base}}/install.html"{{if eq .Current "install"}} aria-current="page"{{end}}>Get started</a>
+      </nav>
+      <a class="sh-signin" id="dash-link" href="{{.Base}}/dashboard"{{if eq .Current "dashboard"}} aria-current="page"{{end}}>Sign in</a>
+      <button class="sh-theme" id="theme-toggle" type="button" aria-label="Toggle theme"></button>
+    </div>
+  </header>
+  <script>
+    (function () {
+      var root = document.documentElement;
+      // "Sign in" reads "Your sites" for anyone who is signed in, on every page.
+      try {
+        if (localStorage.getItem('apiKey')) document.getElementById('dash-link').textContent = 'Your sites';
+      } catch (e) {}
+      // Theme toggle. The initial theme is set pre-paint by the head partial.
+      var btn = document.getElementById('theme-toggle');
+      var SUN = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5.1 5.1l1.4 1.4M17.5 17.5l1.4 1.4M18.9 5.1l-1.4 1.4M6.5 17.5l-1.4 1.4"/></svg>';
+      var MOON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+      var paint = function () { btn.innerHTML = root.dataset.theme === 'dark' ? SUN : MOON; };
+      var set = function (t) {
+        root.dataset.theme = t;
+        paint();
+        try { document.dispatchEvent(new CustomEvent('sh-theme', { detail: t })); } catch (e) {}
+      };
+      paint();
+      btn.addEventListener('click', function () {
+        var t = root.dataset.theme === 'dark' ? 'light' : 'dark';
+        try { localStorage.setItem('sh-theme', t); } catch (e) {}
+        set(t);
+      });
+      // Another open tab changed it.
+      window.addEventListener('storage', function (e) {
+        if (e.key === 'sh-theme' && e.newValue) set(e.newValue);
+      });
+      // Follow the OS live, but only while the visitor has not picked one.
+      if (window.matchMedia) {
+        var mq = window.matchMedia('(prefers-color-scheme: dark)');
+        var follow = function (e) {
+          try { if (localStorage.getItem('sh-theme')) return; } catch (_) {}
+          set(e.matches ? 'dark' : 'light');
+        };
+        if (mq.addEventListener) mq.addEventListener('change', follow);
+        else if (mq.addListener) mq.addListener(follow);
+      }
+    })();
+  </script>

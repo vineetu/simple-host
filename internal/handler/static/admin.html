@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex">
 <title>Admin — simple·host</title>
-<script>(function(){try{var s=localStorage.getItem('sh-theme');document.documentElement.dataset.theme=s||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');}catch(e){document.documentElement.dataset.theme='light';}})();
+<!--sh:head-->
+<script>
 // Disk usage. Measured, not predicted: the walk behind this is cached server
 // side, so reloading the page does not re-walk the tree. Failing to read it
 // must never take the rest of the admin page down with it.
@@ -44,93 +45,85 @@ async function loadDisk(){
   }catch(e){ /* the disk figure is not worth breaking the page for */ }
 }
 </script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 [hidden]{display:none!important}
-:root{
-  --bg:#020617;--surface:#0b1222;--surface2:#0f1830;--border:#1e293b;--border-hi:#334155;
-  --text:#f1f5f9;--dim:#94a3b8;--faint:#475569;--accent:#22d3ee;--ok:#34d399;--err:#fb7185;--on-accent:#020617;
-  --font:'JetBrains Mono',ui-monospace,Menlo,monospace;
-}
-html[data-theme="light"]{
-  --bg:#f7f8fb;--surface:#fff;--surface2:#eef2f8;--border:#e2e8f0;--border-hi:#cbd5e1;
-  --text:#0f172a;--dim:#475569;--faint:#94a3b8;--accent:#0891b2;--ok:#059669;--err:#e11d48;--on-accent:#fff;
-}
-body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;
-  background-image:linear-gradient(var(--surface2) 1px,transparent 1px),linear-gradient(90deg,var(--surface2) 1px,transparent 1px);background-size:48px 48px;}
+/* Tokens, base type and the header/footer live in /site.css. */
+body{min-height:100vh}
 .container{max-width:960px;margin:0 auto;padding:0 20px}
-header{border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:10}
-header .container{display:flex;align-items:center;justify-content:space-between;height:56px}
-.brand{font-size:14px;font-weight:700}.brand b{color:var(--accent)}.brand .tag{color:var(--faint);font-weight:500;margin-left:8px}
-.icon-btn{background:transparent;border:1px solid var(--border);color:var(--dim);border-radius:8px;height:30px;padding:0 10px;cursor:pointer;font-family:var(--font);font-size:12px}
-.icon-btn:hover{border-color:var(--accent);color:var(--accent)}
-.stats{display:flex;gap:16px;margin:22px 0 8px}
-.stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;flex:1}
-.stat .n{font-size:26px;font-weight:700;color:var(--accent);line-height:1}
-.stat .l{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-top:6px}
-.bar{height:8px;border-radius:999px;background:var(--surface);border:1px solid var(--border);overflow:hidden;margin-top:4px}
+/* The header and footer are the shared chrome (/site.css); this names the page under it. */
+.page-tag{font-size:28px;font-weight:700;letter-spacing:-.01em;line-height:1.25;color:var(--text);margin-top:40px}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0 24px;margin:24px 0 16px}
+@media (max-width:640px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.stat{border-top:1px solid var(--border);padding:12px 0 8px;min-width:0}
+.stat .n{font-size:28px;font-weight:700;color:var(--text);line-height:1.15;font-variant-numeric:tabular-nums}
+.stat .l{font-size:13px;color:var(--text-secondary);margin-top:4px}
+.bar{height:8px;border-radius:999px;background:var(--border);overflow:hidden;margin-top:4px}
 .bar>div{height:100%;width:0;background:var(--accent);transition:width .3s}
 .bar.filling>div{background:#d97706}
-.bar.full>div{background:var(--err)}
+.bar.full>div{background:var(--error)}
 #disk-note.filling{color:#d97706}
-#disk-note.full{color:var(--err)}
-#disk-top summary{cursor:pointer;font-size:12px;color:var(--dim);margin-top:10px}
-.msg{padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--dim);font-size:13px;margin-top:16px}
-.msg.err{border-color:var(--err);color:var(--err)}
-.panel{border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:22px;background:var(--surface)}
-.panel h2{font-size:15px;margin:0 0 4px}
-.ph{font-size:12.5px;color:var(--faint);margin:0 0 12px}
+#disk-note.full{color:var(--error)}
+#disk-top summary{cursor:pointer;font-size:13px;color:var(--text-secondary);margin-top:10px}
+.msg{padding:12px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:15px;margin-top:16px}
+.msg.err{color:var(--error)}
+.panel{border-top:1px solid var(--border);padding-top:20px;margin:40px 0 56px}
+.panel h2{font-size:21px;font-weight:700;letter-spacing:-.01em;margin:0 0 4px}
+.ph{font-size:15px;color:var(--text-secondary);margin:6px 0 12px}
 .ph.warn{color:var(--amber,#b45309);margin-top:10px}
-.panel textarea,.panel input{width:100%;font:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg);color:var(--text)}
-.panel .row{display:flex;gap:12px;align-items:end;margin-top:10px;flex-wrap:wrap}
-.panel .row label{font-size:11.5px;color:var(--faint);display:flex;flex-direction:column;gap:4px}
-.panel .row input{width:110px}
-.btn{font:inherit;font-size:13px;padding:8px 14px;border-radius:7px;border:1px solid var(--border);background:var(--text);color:var(--bg);cursor:pointer}
-.btn.ghost{background:transparent;color:var(--text)}
+.panel textarea,.panel input{width:100%;font:inherit;font-size:15px;padding:8px 12px;border:1px solid var(--border-hi);border-radius:8px;background:var(--bg);color:var(--text)}
+.panel textarea:focus,.panel input:focus{outline:none;border-color:var(--accent)}
+.panel .row{display:flex;gap:12px;align-items:end;margin-top:12px;flex-wrap:wrap}
+.panel .row > input{flex:1 1 220px;width:auto}
+.panel .row label{font-size:13px;color:var(--text-secondary);display:flex;flex-direction:column;gap:4px}
+.panel .row label input{width:110px}
+.btn{font:inherit;font-size:15px;font-weight:600;padding:8px 16px;border-radius:8px;border:1px solid transparent;background:var(--accent);color:var(--on-accent);cursor:pointer}
+.btn:hover{background:var(--accent-hover)}
+.btn.ghost{background:transparent;color:var(--text);border-color:var(--border-hi);font-weight:500}
+.btn.ghost:hover{background:transparent;border-color:var(--text-secondary)}
 .btn[disabled]{opacity:.5;cursor:default}
-.keycell{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;word-break:break-all}
-.users{margin:12px 0 60px;display:flex;flex-direction:column;gap:12px}
-.user{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px}
-.user-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-.user-head .name{font-size:15px;font-weight:600}
-.badge{font-size:10.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--border-hi);color:var(--dim)}
+.keycell{font-family:var(--mono);font-size:13px;word-break:break-all}
+.users{margin:12px 0 56px;display:flex;flex-direction:column;border-top:1px solid var(--border)}
+.user{border-bottom:1px solid var(--border);padding:16px 0}
+.user-head{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap}
+.user-head .name{font-size:17px;font-weight:600;overflow-wrap:anywhere;min-width:0}
+.badge{font-size:13px;line-height:1.4;padding:0 8px;border-radius:999px;border:1px solid var(--border-hi);color:var(--text-secondary)}
 .badge.admin{color:var(--accent);border-color:var(--accent)}
-.badge.count{color:var(--text)}
-.user-head .when{margin-left:auto;font-size:11px;color:var(--faint)}
-.handle{color:var(--faint);font-size:12px}
-.sites{margin-top:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
-.site{border:1px solid var(--border);border-radius:9px;padding:9px 11px;background:var(--surface2);min-width:0}
-.site .sn{font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:6px}
-.dot{width:6px;height:6px;border-radius:50%;flex:none}.dot.live{background:var(--ok)}.dot.pending{background:var(--faint)}
-.site a{color:var(--accent);font-size:11px;text-decoration:none;display:block;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge.count{color:var(--text);font-variant-numeric:tabular-nums}
+.user-head .when{margin-left:auto;font-size:13px;color:var(--text-secondary)}
+.handle{color:var(--text-secondary);font-size:15px}
+.sites{margin-top:8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:4px 24px}
+.site{padding:6px 0;min-width:0}
+.site .sn{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px;min-width:0;overflow-wrap:anywhere}
+.dot{width:6px;height:6px;border-radius:50%;flex:none}.dot.live{background:var(--success)}.dot.pending{background:var(--dim)}
+.site a{color:var(--accent);font-size:13px;text-decoration:none;display:block;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .site a:hover{text-decoration:underline}
-.site .cd{font-size:10.5px;color:var(--dim);margin-top:3px}
-.nosites{font-size:11.5px;color:var(--faint);margin-top:10px}
-.sec{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin:36px 0 4px}
-.secnote{font-size:11.5px;color:var(--faint);margin-bottom:12px}
-table.apx{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;font-size:12px;margin:10px 0 18px}
-table.apx th{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);text-align:left;padding:8px 12px;border-bottom:1px solid var(--border)}
-table.apx td{padding:7px 12px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:top}
+.site .cd{font-size:13px;color:var(--text-secondary);margin-top:2px;display:flex;align-items:center;gap:6px;min-width:0;overflow-wrap:anywhere}
+.site .cd .ico{width:14px;height:14px;flex-shrink:0}
+.nosites{font-size:13px;color:var(--text-secondary);margin-top:6px}
+.sec{font-size:21px;font-weight:700;letter-spacing:-.01em;color:var(--text);border-top:1px solid var(--border);padding-top:20px;margin:0 0 4px}
+.secnote{font-size:15px;color:var(--text-secondary);margin-bottom:12px}
+table.apx{width:100%;border-collapse:collapse;font-size:15px;margin:12px 0 24px;font-variant-numeric:tabular-nums}
+table.apx th{font-size:13px;font-weight:500;color:var(--text-secondary);text-align:left;padding:8px 12px 8px 0;border-bottom:1px solid var(--border)}
+table.apx td{padding:9px 12px 9px 0;border-bottom:1px solid var(--border);color:var(--text);vertical-align:top;overflow-wrap:anywhere}
 table.apx tr:last-child td{border-bottom:none}
-table.apx td.num{text-align:right;font-variant-numeric:tabular-nums}
+table.apx th:last-child,table.apx td:last-child{padding-right:0}
+table.apx td.num{text-align:right}
 table.apx th.num{text-align:right}
-table.apx td .sub{color:var(--faint);font-size:10.5px;margin-top:2px}
-table.apx td.err{color:var(--err)}
+table.apx td a{color:var(--accent);text-decoration:none}
+table.apx td a:hover{text-decoration:underline}
+table.apx td .sub{color:var(--text-secondary);font-size:13px;margin-top:2px}
+table.apx td.err{color:var(--error)}
+#ax-routes-t td:first-child,#ax-ips-t td:first-child{font-family:var(--mono);font-size:13px}
+#ax-ips-t td:first-child .sub{font-family:var(--font)}
+@media (max-width:640px){#ax-ips-t,#ax-routes-t{display:block;overflow-x:auto}}
 </style>
 </head>
 <body>
-<header><div class="container">
-  <div class="brand">simple<b>·</b>host <span class="tag">admin</span></div>
-  <div style="display:flex;gap:8px">
-    <button class="icon-btn" onclick="location.href='/'">← App</button>
-    <button class="icon-btn" onclick="toggleTheme()">◑</button>
-  </div>
-</div></header>
+<!--sh:header-->
 
-<div class="container">
+<div class="container" id="admin-main">
+  <p class="page-tag">Admin</p>
   <div class="stats" id="stats" hidden>
     <div class="stat"><div class="n" id="uc">–</div><div class="l">Users</div></div>
     <div class="stat"><div class="n" id="sc">–</div><div class="l">Websites</div></div>
@@ -200,9 +193,10 @@ table.apx td.err{color:var(--err)}
   </div>
 </div>
 
+<!--sh:footer-->
+
 <script>
 var apiKey = localStorage.getItem('apiKey') || '';
-function toggleTheme(){ var t=document.documentElement.dataset.theme==='dark'?'light':'dark'; document.documentElement.dataset.theme=t; try{localStorage.setItem('sh-theme',t);}catch(e){} }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 function fmtDate(s){ try{ return new Date(s).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}); }catch(e){ return ''; } }
 function status(msg, err){ var s=document.getElementById('status'); s.hidden=false; s.className='msg'+(err?' err':''); s.textContent=msg; }
@@ -211,14 +205,14 @@ function siteCard(s){
   var live=!!s.site_url;
   return '<div class="site"><div class="sn"><span class="dot '+(live?'live':'pending')+'"></span>'+esc(s.name)+'</div>'+
     (live?'<a href="'+esc(s.site_url)+'" target="_blank" rel="noopener">'+esc(s.site_url)+'</a>':'<span class="cd">not live yet</span>')+
-    (s.custom_domain?'<div class="cd">🌐 '+esc(s.custom_domain)+'</div>':'')+'</div>';
+    (s.custom_domain?'<div class="cd"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15 15 0 0 1 0 20a15 15 0 0 1 0-20z"/></svg><span>'+esc(s.custom_domain)+'</span></div>':'')+'</div>';
 }
 function userCard(u){
   var sites=(u.sites||[]);
   var head='<div class="user-head"><span class="name">'+esc(u.username)+'</span>'+
     (u.handle?'<span class="handle">/'+esc(u.handle)+'</span>':'')+
     (u.is_admin?'<span class="badge admin">admin</span>':'')+
-    (u.is_admin?'':'<button class="btn ghost" style="padding:2px 8px;font-size:11px;margin-left:8px" onclick="deleteAccount(\''+esc(u.id)+'\',\''+esc(u.username)+'\')">Delete</button>')+
+    (u.is_admin?'':'<button class="btn ghost" style="padding:1px 8px;font-size:13px" onclick="deleteAccount(\''+esc(u.id)+'\',\''+esc(u.username)+'\')">Delete</button>')+
     '<span class="badge count">'+u.site_count+' site'+(u.site_count===1?'':'s')+'</span>'+
     '<span class="when">joined '+fmtDate(u.created_at)+'</span></div>';
   var body = sites.length ? '<div class="sites">'+sites.map(siteCard).join('')+'</div>' : '<div class="nosites">No sites yet.</div>';
@@ -332,10 +326,13 @@ async function deleteAccount(id, username){
 
 function renderNotFound(){
   document.title='Not found · simple·host';
-  document.body.innerHTML='<div class="container" style="padding-top:80px;text-align:center">'+
+  // Only the page body is swapped: the shared header and footer stay, as they
+  // do on the real 404.
+  var main=document.getElementById('admin-main'); if(!main) return;
+  main.outerHTML='<div class="container" style="padding-top:80px;text-align:center">'+
     '<div style="font-size:44px;font-weight:600;letter-spacing:-1px">404</div>'+
-    '<p style="color:var(--dim);margin-top:8px">That page does not exist.</p>'+
-    '<p style="margin-top:22px"><a href="/" style="color:var(--dim)">← simple·host</a></p></div>';
+    '<p style="color:var(--text-secondary);margin-top:8px">That page does not exist.</p>'+
+    '<p style="margin-top:22px"><a href="/" style="color:var(--text-secondary)">← simple·host</a></p></div>';
 }
 
 async function load(){
@@ -375,13 +372,13 @@ async function loadTraffic(){
     document.getElementById('ax-routes').innerHTML=(d.routes||[]).map(function(r){
       return '<tr><td>'+esc(r.route)+'</td><td class="num">'+r.today+'</td><td class="num">'+r.week+
         '</td><td class="num'+(r.errors_week>0?' err':'')+'">'+(r.errors_week||'')+'</td></tr>';
-    }).join('')||'<tr><td colspan="4" style="color:var(--faint)">Nothing yet — data appears as calls come in.</td></tr>';
+    }).join('')||'<tr><td colspan="4" style="color:var(--dim)">Nothing yet — data appears as calls come in.</td></tr>';
     document.getElementById('ax-ipsrows').innerHTML=(d.ips||[]).map(function(x){
       var who=esc(x.ip)+(x.org?'<div class="sub">'+esc(x.org)+'</div>':'');
       var from=esc(x.where||'…')+'<div class="sub">'+esc(x.last_route||'')+'</div>';
       return '<tr><td>'+who+'</td><td>'+from+'</td><td class="num">'+x.today+'</td><td class="num">'+x.week+
         '</td><td>'+esc(fmtWhen(x.last_seen))+'</td></tr>';
-    }).join('')||'<tr><td colspan="5" style="color:var(--faint)">Nothing yet.</td></tr>';
+    }).join('')||'<tr><td colspan="5" style="color:var(--dim)">Nothing yet.</td></tr>';
   }catch(e){}
 }
 load();

@@ -13,113 +13,48 @@
   <meta property="og:image" content="https://simple-host.app/og.png">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <script>(function(){try{var s=localStorage.getItem('sh-theme');document.documentElement.dataset.theme=s||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');}catch(e){document.documentElement.dataset.theme='light';}})();</script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+  <!--sh:head-->
   <style>
-    :root {
-      --bg: #020617; --surface: #0b1222; --surface-2: #0d1526;
-      --border: #1e293b; --border-hi: #334155;
-      --text: #f1f5f9; --text-secondary: #94a3b8; --dim: #475569;
-      --accent: #22d3ee; --accent-soft: rgba(34,211,238,.12);
-      --amber: #fbbf24; --amber-soft: rgba(251,191,36,.10);
-      --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
-      --display: 'Archivo', system-ui, sans-serif;
-      --body: 'Newsreader', Georgia, serif;
-    }
-    html[data-theme="light"] {
-      --bg: #fbfbfd; --surface: #ffffff; --surface-2: #f6f7fb;
-      --border: #e4e7ee; --border-hi: #cbd2de;
-      --text: #0f1e37; --text-secondary: #4a5878; --dim: #8b96ad;
-      --accent: #0e7490; --accent-soft: rgba(14,116,144,.08);
-      --amber: #b45309; --amber-soft: rgba(180,83,9,.09);
-    }
-    * { box-sizing: border-box; }
-    html { -webkit-text-size-adjust: 100%; }
-    body {
-      margin: 0; background: var(--bg); color: var(--text);
-      font-family: var(--body); line-height: 1.65; font-size: 17px;
-      -webkit-font-smoothing: antialiased;
-      background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
-      background-size: 46px 46px; background-position: center -1px;
-    }
-    html[data-theme="light"] body { background-image: linear-gradient(rgba(15,30,55,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(15,30,55,.035) 1px, transparent 1px); }
-    .wrap { max-width: 880px; margin: 0 auto; padding: 0 28px; }
-    a { color: inherit; }
-    header { position: sticky; top: 0; z-index: 20; backdrop-filter: blur(9px);
-      background: color-mix(in srgb, var(--bg) 82%, transparent); border-bottom: 1px solid var(--border); }
-    .bar { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; gap: 12px; }
-    .logo { font-family: var(--mono); font-weight: 700; font-size: 14px; letter-spacing: .3px; text-decoration: none; color: var(--text); white-space: nowrap; }
-    .logo b { color: var(--accent); }
-    nav.top { display: flex; flex-wrap: wrap; gap: 8px 18px; font-family: var(--mono); font-size: 12.5px; }
-    nav.top a { color: var(--text-secondary); text-decoration: none; }
-    nav.top a:hover, nav.top a.on { color: var(--accent); }
-    .tt { width: 32px; height: 30px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex: none; }
-    .tt:hover { border-color: var(--accent); color: var(--accent); }
-    section { display: grid; grid-template-columns: 54px 1fr; gap: 0 22px; padding: 44px 0; border-bottom: 1px solid var(--border); }
-    .snum { font-family: var(--mono); font-size: 13px; color: var(--accent); padding-top: 6px; }
-    h1.title { font-family: var(--display); font-weight: 800; letter-spacing: -.02em; line-height: 1.02; font-size: clamp(34px, 6vw, 60px); margin: 6px 0 20px; }
-    h2 { font-family: var(--display); font-weight: 700; letter-spacing: -.02em; line-height: 1.05; font-size: clamp(25px, 4vw, 36px); margin: 0 0 14px; }
-    h3 { font-family: var(--display); font-weight: 600; font-size: 17px; line-height: 1.3; color: var(--text); margin: 18px 0 6px; }
-    .lede { font-size: 19px; color: var(--text); margin: 0 0 14px; }
+    /* Tokens, base type and the header/footer live in /site.css. */
+    .wrap { max-width: 768px; margin: 0 auto; padding: 0 24px; }
+    a { color: var(--accent); text-underline-offset: 3px; }
+    a:hover { color: var(--accent-hover); }
+    section { padding: 28px 0; border-bottom: 1px solid var(--border); }
+    section:first-child { padding-top: 48px; }
+    section:last-child { border-bottom: 0; }
+    section > div { min-width: 0; }
+    h1.title { font-size: clamp(30px, 5vw, 44px); font-weight: 700; line-height: 1.1; letter-spacing: -.02em; color: var(--text); margin: 0 0 18px; }
+    h2 { font-size: 28px; font-weight: 700; line-height: 1.2; letter-spacing: -.015em; color: var(--text); margin: 0 0 12px; }
+    h3 { font-size: 17px; font-weight: 600; line-height: 1.35; color: var(--text); margin: 18px 0 6px; }
+    .lede { font-size: 17px; color: var(--text); margin: 0 0 14px; }
     p { margin: 0 0 14px; color: var(--text-secondary); }
-    p strong, li strong, td strong { color: var(--text); font-weight: 500; }
-    ul, ol { margin: 0 0 14px; padding-left: 22px; color: var(--text-secondary); }
-    li { margin-bottom: 6px; }
-    .kicker { font-family: var(--mono); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
-    .fine { font-family: var(--mono); font-size: 12px; color: var(--dim); letter-spacing: .3px; margin-top: 18px; }
-    code { font-family: var(--mono); font-size: .88em; background: var(--accent-soft); color: var(--accent); padding: 1px 6px; border-radius: 5px; }
-    blockquote { margin: 18px 0; padding: 4px 0 4px 18px; border-left: 2px solid var(--accent); color: var(--text); font-size: 18px; }
-    .facts { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 4px 16px; margin: 18px 0; }
-    .facts .row { display: grid; grid-template-columns: 170px 1fr; gap: 4px 16px; padding: 11px 0; border-top: 1px solid var(--border); align-items: start; }
-    .facts .row:first-child { border-top: 0; }
-    .facts .k { font-family: var(--mono); font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--dim); padding-top: 5px; }
-    .facts .v { margin: 0; font-size: 15px; color: var(--text-secondary); }
+    p strong, li strong { color: var(--text); font-weight: 600; }
+    .kicker { font-size: 13px; color: var(--text-secondary); margin: 0 0 10px; }
+    .fine { font-size: 13px; color: var(--text-secondary); margin-top: 18px; }
+    code { font-family: var(--mono); font-size: .9em; background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--text); padding: 1px 5px; border-radius: 5px; }
+    /* Key / value rows separated by hairlines, no box. */
+    .facts { margin: 18px 0; border-top: 1px solid var(--border); }
+    .facts .row { display: grid; grid-template-columns: 180px 1fr; gap: 4px 20px; padding: 14px 0; border-bottom: 1px solid var(--border); align-items: start; }
+    .facts .row:last-child { border-bottom: 0; }
+    .facts .k { font-size: 15px; font-weight: 600; line-height: 1.5; color: var(--text); }
+    .facts .v { margin: 0; font-size: 15px; line-height: 1.6; color: var(--text-secondary); }
     .facts .v strong { color: var(--text); }
-    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-    td { border-top: 1px solid var(--border); padding: 12px 0; vertical-align: top; font-size: 15px; }
-    td.tk { font-family: var(--display); font-weight: 600; color: var(--text); width: 240px; padding-right: 22px; }
-    td.tv { color: var(--text-secondary); }
-    .st { display: inline-block; font-family: var(--mono); font-size: 10px; letter-spacing: .9px; text-transform: uppercase; padding: 2px 7px; border-radius: 5px; border: 1px solid color-mix(in srgb, var(--amber) 55%, var(--border-hi)); color: var(--amber); background: var(--amber-soft); vertical-align: 2px; white-space: nowrap; font-weight: 600; margin-left: 7px; }
-    .cta { display: inline-block; font-family: var(--mono); font-size: 13px; font-weight: 600; text-decoration: none; padding: 10px 16px; border-radius: 9px; border: 1px solid var(--accent); color: var(--accent); margin: 6px 10px 6px 0; }
-    .cta.solid { background: var(--accent); color: var(--bg); }
-    .cta:hover { filter: brightness(1.1); }
-    footer { padding: 40px 0 60px; font-family: var(--mono); font-size: 12px; color: var(--dim); }
-    footer a { color: var(--text-secondary); text-decoration: none; }
-    @media (max-width: 720px) {
-      body { font-size: 16px; }
-      .wrap { padding: 0 18px; }
-      section { grid-template-columns: 1fr; gap: 0; padding: 34px 0; }
-      .snum { padding: 0 0 8px; }
-      .facts .row { grid-template-columns: 1fr; }
-      td.tk { width: auto; display: block; padding-bottom: 4px; }
-      td.tv { display: block; border-top: 0; padding-top: 0; }
+    .cta { display: inline-block; font-family: var(--font); font-size: 15px; font-weight: 600; line-height: 1.2; text-decoration: none; padding: 11px 18px; border-radius: 8px; border: 1px solid var(--border-hi); background: transparent; color: var(--text); margin: 6px 8px 6px 0; }
+    .cta:hover { border-color: var(--accent); color: var(--accent); }
+    .cta.solid { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+    .cta.solid:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--on-accent); }
+    @media (max-width: 640px) {
+      .wrap { padding: 0 20px; }
+      section:first-child { padding-top: 36px; }
+      .facts .row { grid-template-columns: 1fr; gap: 2px; }
     }
   </style>
 </head>
 <body>
-  <header>
-    <div class="wrap bar">
-      <a class="logo" href="/">simple<b>·</b>host</a>
-      <div style="display:flex;align-items:center;gap:14px">
-        <nav class="top">
-          <a href="/">Home</a>
-          <a href="/enterprise" class="on">For companies</a>
-          <a href="/hackathons">For hackathons</a>
-          <a href="/features">Features</a>
-          <a href="/docs.html">API</a>
-        </nav>
-        <button class="tt" id="tt" aria-label="Toggle theme" onclick="toggleTheme()">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" id="tt-i"></svg>
-        </button>
-      </div>
-    </div>
-  </header>
+  <!--sh:header-->
 
   <div class="wrap">
     <section>
-      <div class="snum">00.</div>
       <div>
         <div class="kicker">Simple Host for companies</div>
         <h1 class="title">Give everyone in the company a place to build.</h1>
@@ -133,7 +68,6 @@
     </section>
 
     <section id="person">
-      <div class="snum">01.</div>
       <div>
         <h2>What a person gets</h2>
         <p class="lede">An address of their own, and somewhere for a page to keep what it collects.</p>
@@ -147,7 +81,6 @@
     </section>
 
     <section id="who-sees">
-      <div class="snum">02.</div>
       <div>
         <h2>Who can see what</h2>
         <p class="lede">A page is visible to everyone signed in, or to the people named on it. That choice belongs to whoever made it.</p>
@@ -161,7 +94,6 @@
     </section>
 
     <section id="records">
-      <div class="snum">03.</div>
       <div>
         <h2>What it writes down</h2>
         <p class="lede">Every change and every visit, kept where you can read them back.</p>
@@ -171,7 +103,6 @@
     </section>
 
     <section id="runs">
-      <div class="snum">04.</div>
       <div>
         <h2>What it runs on</h2>
         <p class="lede">Your cluster, your Postgres, your object storage, your identity provider. The package is the manifests to do it.</p>
@@ -186,7 +117,6 @@
     </section>
 
     <section id="operating">
-      <div class="snum">05.</div>
       <div>
         <h2>Upgrading, backing up, getting it back</h2>
         <div class="facts">
@@ -199,7 +129,6 @@
     </section>
 
     <section id="install">
-      <div class="snum">06.</div>
       <div>
         <h2>Install it</h2>
         <p class="lede">A local cluster first, on your own machine, in about five minutes.</p>
@@ -214,17 +143,11 @@
       </div>
     </section>
 
-    <footer>
-      simple·host · for companies · <a href="/">Home</a> · <a href="/features">Features</a> · <a href="/architecture.html">Architecture</a> · <a href="/privacy.html">Privacy</a>
-    </footer>
   </div>
 
+  <!--sh:footer-->
+
   <script>
-    var SUN = '<circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
-    var MOON = '<path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/>';
-    function paintIcon(){ document.getElementById('tt-i').innerHTML = document.documentElement.dataset.theme === 'light' ? MOON : SUN; }
-    function toggleTheme(){ var t = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'; document.documentElement.dataset.theme = t; try{ localStorage.setItem('sh-theme', t); }catch(e){} paintIcon(); }
-    paintIcon();
   </script>
 </body>
 </html>

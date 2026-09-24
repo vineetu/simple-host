@@ -5,170 +5,110 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Features — Simple Host</title>
   <meta name="description" content="A complete, honest inventory of everything Simple Host does today: every capability, where to find it, and what it will not do.">
-  <script>(function(){try{var s=localStorage.getItem('sh-theme');document.documentElement.dataset.theme=s||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');}catch(e){document.documentElement.dataset.theme='light';}})();</script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+  <!--sh:head-->
   <style>
-    :root {
-      --bg: #020617; --surface: #0b1222; --surface-2: #0d1526;
-      --border: #1e293b; --border-hi: #334155;
-      --text: #f1f5f9; --text-secondary: #94a3b8; --dim: #475569;
-      --accent: #22d3ee; --accent-soft: rgba(34,211,238,.12);
-      --ok: #34d399; --ok-soft: rgba(52,211,153,.10);
-      --bad: #fb7185; --bad-soft: rgba(251,113,133,.10);
-      --amber: #fbbf24; --amber-soft: rgba(251,191,36,.10);
-      --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
-      --display: 'Archivo', system-ui, sans-serif;
-      --body: 'Newsreader', Georgia, serif;
-    }
-    html[data-theme="light"] {
-      --bg: #fbfbfd; --surface: #ffffff; --surface-2: #f6f7fb;
-      --border: #e4e7ee; --border-hi: #cbd2de;
-      --text: #0f1e37; --text-secondary: #4a5878; --dim: #8b96ad;
-      --accent: #0e7490; --accent-soft: rgba(14,116,144,.08);
-      --ok: #0f9d6b; --ok-soft: rgba(15,157,107,.08);
-      --bad: #d6455d; --bad-soft: rgba(214,69,93,.07);
-      --amber: #b45309; --amber-soft: rgba(180,83,9,.09);
-    }
-    * { box-sizing: border-box; }
-    html { -webkit-text-size-adjust: 100%; }
-    body {
-      margin: 0; background: var(--bg); color: var(--text);
-      font-family: var(--body); line-height: 1.65; font-size: 17px;
-      -webkit-font-smoothing: antialiased;
-      background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
-      background-size: 46px 46px; background-position: center -1px;
-    }
-    html[data-theme="light"] body { background-image: linear-gradient(rgba(15,30,55,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(15,30,55,.035) 1px, transparent 1px); }
-    .wrap { max-width: 940px; margin: 0 auto; padding: 0 28px; }
-    a { color: inherit; }
+    /* Tokens, base type and the header/footer live in /site.css. */
+    :root { --amber: #fbbf24; }
+    html[data-theme="light"] { --amber: #b45309; }
 
-    /* Header */
-    header { position: sticky; top: 0; z-index: 20; backdrop-filter: blur(9px);
-      background: color-mix(in srgb, var(--bg) 82%, transparent); border-bottom: 1px solid var(--border); }
-    .bar { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; gap: 12px; }
-    .logo { font-family: var(--mono); font-weight: 700; font-size: 14px; letter-spacing: .3px; text-decoration: none; color: var(--text); white-space: nowrap; }
-    .logo b { color: var(--accent); }
-    nav.top { display: flex; flex-wrap: wrap; gap: 8px 18px; font-family: var(--mono); font-size: 12.5px; }
-    nav.top a { color: var(--text-secondary); text-decoration: none; }
-    nav.top a:hover, nav.top a.on { color: var(--accent); }
-    .tt { width: 32px; height: 30px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex: none; }
-    .tt:hover { border-color: var(--accent); color: var(--accent); }
+    .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
+    a { color: var(--accent); text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent); text-underline-offset: 2px; }
+    a:hover { color: var(--accent-hover); }
 
-    /* Meta / TOC */
-    .toc { display: flex; flex-wrap: wrap; gap: 6px 20px; font-family: var(--mono); font-size: 12px; color: var(--text-secondary); padding: 18px 0 22px; border-bottom: 1px solid var(--border); }
+    /* Contents */
+    .toc { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; line-height: 1.5; color: var(--text-secondary); padding: 18px 0; border-bottom: 1px solid var(--border); }
     .toc a { text-decoration: none; color: var(--text-secondary); }
-    .toc a:hover { color: var(--accent); }
-    .toc b { color: var(--accent); font-weight: 600; }
+    .toc a:hover { color: var(--text); }
+    .toc b { color: var(--text); font-weight: 600; }
 
     /* Sections */
-    section { display: grid; grid-template-columns: 54px 1fr; gap: 0 22px; padding: 44px 0; border-bottom: 1px solid var(--border); }
-    .snum { font-family: var(--mono); font-size: 13px; color: var(--accent); padding-top: 6px; }
-    h1.title { font-family: var(--display); font-weight: 800; letter-spacing: -.02em; line-height: 1.02; font-size: clamp(34px, 6vw, 60px); margin: 6px 0 20px; }
-    h2 { font-family: var(--display); font-weight: 700; letter-spacing: -.02em; line-height: 1.05; font-size: clamp(25px, 4vw, 36px); margin: 0 0 14px; }
-    .lede { font-size: 19px; color: var(--text); margin: 0 0 8px; }
+    section { padding: 56px 0; border-bottom: 1px solid var(--border); }
+    section:last-child { border-bottom: 0; }
+    h1.title { font-weight: 700; letter-spacing: -.02em; line-height: 1.1; font-size: clamp(30px, 5vw, 44px); color: var(--text); margin: 0 0 18px; }
+    h2 { font-weight: 700; letter-spacing: -.015em; line-height: 1.2; font-size: 28px; color: var(--text); margin: 0 0 12px; }
+    .lede { font-size: 17px; color: var(--text); margin: 0 0 12px; }
     p { margin: 0 0 14px; color: var(--text-secondary); }
-    p strong, li strong, dd strong { color: var(--text); font-weight: 500; }
-    .kicker { font-family: var(--mono); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
-    .fine { font-family: var(--mono); font-size: 12px; color: var(--dim); letter-spacing: .3px; margin-top: 18px; }
-    code { font-family: var(--mono); font-size: .88em; background: var(--accent-soft); color: var(--accent); padding: 1px 6px; border-radius: 5px; }
+    p strong, li strong, dd strong { color: var(--text); font-weight: 600; }
+    .kicker { font-size: 13px; color: var(--text-secondary); margin: 0 0 10px; }
+    .fine { font-size: 13px; color: var(--text-secondary); margin-top: 18px; }
+    code { font-family: var(--mono); font-size: .88em; color: var(--text); background: var(--surface); border: 1px solid var(--border); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
 
-    /* Legend */
-    .legend { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 4px 16px; margin: 22px 0 0; }
-    .legend .lrow { display: grid; grid-template-columns: 132px 1fr; gap: 4px 16px; padding: 11px 0; border-top: 1px solid var(--border); align-items: start; }
-    .legend .lrow:first-child { border-top: 0; }
-    .legend .lrow p { margin: 0; font-size: 14.5px; }
+    /* Legend: hairline rows, no box */
+    .legend { margin: 18px 0 0; border-top: 1px solid var(--border); }
+    .legend .lrow { display: grid; grid-template-columns: 140px 1fr; gap: 6px 16px; padding: 12px 0; border-bottom: 1px solid var(--border); align-items: start; }
+    .legend .lrow p { margin: 0; font-size: 15px; }
+    .legend + p { margin-top: 28px; }
 
-    /* Status chips */
-    .st { display: inline-block; font-family: var(--mono); font-size: 10px; letter-spacing: .9px; text-transform: uppercase;
-      padding: 2px 7px; border-radius: 5px; border: 1px solid var(--border-hi); color: var(--text-secondary);
-      background: var(--surface-2); vertical-align: 2px; white-space: nowrap; font-weight: 600; }
-    .st.agent { border-color: color-mix(in srgb, var(--accent) 50%, var(--border-hi)); color: var(--accent); background: var(--accent-soft); }
-    .st.admin { border-color: color-mix(in srgb, var(--accent) 40%, var(--border-hi)); color: var(--text-secondary); }
-    .st.part  { border-color: color-mix(in srgb, var(--amber) 55%, var(--border-hi)); color: var(--amber); background: var(--amber-soft); }
-    .st.no    { border-color: color-mix(in srgb, var(--bad) 55%, var(--border-hi)); color: var(--bad); background: var(--bad-soft); }
+    /* Status pills */
+    .st { display: inline-block; font-size: 12px; font-weight: 600; line-height: 1.5;
+      padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border-hi); color: var(--text-secondary);
+      background: transparent; vertical-align: 2px; white-space: nowrap; }
+    .st.agent { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); color: var(--accent); }
+    .st.admin { color: var(--text-secondary); }
+    .st.part  { border-color: color-mix(in srgb, var(--amber) 55%, var(--border)); color: var(--amber); }
+    .st.no    { border-color: color-mix(in srgb, var(--error) 55%, var(--border)); color: var(--error); }
 
     /* Feature rows */
-    .feats { margin: 20px 0 0; }
-    .feat { display: grid; grid-template-columns: 1fr; gap: 0; padding: 18px 0; border-top: 1px solid var(--border); }
-    .fid { font-family: var(--mono); font-size: 11.5px; color: var(--accent); letter-spacing: .2px; word-break: break-word; margin-bottom: 4px; }
-    .feat h3 { font-family: var(--display); font-weight: 600; font-size: 17px; line-height: 1.3; color: var(--text); margin: 0 0 6px; }
-    .feat h3 .st { margin-left: 7px; }
-    .feat p.fw { margin: 0 0 8px; font-size: 15.5px; line-height: 1.6; }
-    dl.fm { margin: 0; display: grid; grid-template-columns: 60px 1fr; gap: 3px 12px; }
-    dl.fm dt { font-family: var(--mono); font-size: 10.5px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--dim); padding-top: 4px; }
-    dl.fm dd { margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--text-secondary); }
-    dl.fm dd.lim { color: var(--text-secondary); }
+    .feats { margin: 24px 0 0; }
+    .feat { display: grid; grid-template-columns: 1fr; gap: 0; padding: 20px 0; border-top: 1px solid var(--border); scroll-margin-top: 72px; }
+    .fid { font-family: var(--mono); font-size: 12px; color: var(--text-secondary); word-break: break-word; margin-bottom: 4px; }
+    .feat h3 { font-weight: 600; font-size: 17px; line-height: 1.35; color: var(--text); margin: 0 0 6px; }
+    .feat h3 .st { margin-left: 6px; }
+    .feat p.fw { margin: 0 0 10px; font-size: 16px; line-height: 1.6; }
+    dl.fm { margin: 0; display: grid; grid-template-columns: 64px 1fr; gap: 4px 12px; }
+    dl.fm dt { font-size: 13px; font-weight: 600; color: var(--text-secondary); padding-top: 1px; }
+    dl.fm dd { margin: 0; font-size: 15px; line-height: 1.55; color: var(--text-secondary); }
     dl.fm dd.lim b { color: var(--amber); font-weight: 600; }
 
-    /* Not-built table */
-    table { width: 100%; border-collapse: collapse; margin-top: 18px; }
-    td { border-top: 1px solid var(--border); padding: 13px 0; vertical-align: top; font-size: 15px; }
-    td.tk { font-family: var(--display); font-weight: 600; color: var(--text); width: 250px; padding-right: 22px; }
+    /* Limits table */
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    td { border-top: 1px solid var(--border); padding: 14px 0; vertical-align: top; font-size: 15px; line-height: 1.55; }
+    tr:last-child td { border-bottom: 1px solid var(--border); }
+    td.tk { font-weight: 600; color: var(--text); width: 250px; padding-right: 22px; }
     td.tv { color: var(--text-secondary); }
 
-    footer { padding: 40px 0 60px; font-family: var(--mono); font-size: 12px; color: var(--dim); }
-    footer a { color: var(--text-secondary); text-decoration: none; }
-
     @media (min-width: 721px) {
-      .feat { grid-template-columns: 196px 1fr; gap: 0 22px; }
+      .feat { grid-template-columns: 200px 1fr; gap: 0 24px; }
       .fid { padding-top: 3px; margin-bottom: 0; }
     }
     @media (max-width: 720px) {
-      body { font-size: 16px; }
-      .wrap { padding: 0 18px; }
-      section { grid-template-columns: 1fr; gap: 0; padding: 34px 0; }
-      .snum { padding: 0 0 8px; }
+      .wrap { padding: 0 20px; }
+      section { padding: 44px 0; }
+      h2 { font-size: 24px; }
       .legend .lrow { grid-template-columns: 1fr; }
-      dl.fm { grid-template-columns: 1fr; gap: 1px 0; }
-      dl.fm dt { padding-top: 7px; }
+      dl.fm { grid-template-columns: 1fr; gap: 0; }
+      dl.fm dt { padding-top: 8px; }
       td.tk { width: auto; display: block; padding-bottom: 4px; }
       td.tv { display: block; }
       .trow td { display: block; border: 0; padding: 2px 0; }
       .trow { display: block; border-top: 1px solid var(--border); padding: 12px 0; }
+      tr.trow:last-child { border-bottom: 1px solid var(--border); }
+      tr:last-child td { border-bottom: 0; }
     }
   </style>
 </head>
 <body>
-  <header>
-    <div class="wrap bar">
-      <a class="logo" href="/">simple<b>·</b>host</a>
-      <div style="display:flex;align-items:center;gap:14px">
-        <nav class="top">
-          <a href="/">Home</a>
-          <a href="/install.html">Get started</a>
-          <a href="/features.html" class="on">Features</a>
-          <a href="/docs.html">API</a>
-          <a href="/architecture.html">Architecture</a>
-        </nav>
-        <button class="tt" id="tt" aria-label="Toggle theme" onclick="toggleTheme()">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" id="tt-i"></svg>
-        </button>
-      </div>
-    </div>
-  </header>
+  <!--sh:header-->
 
   <div class="wrap">
     <div class="toc">
       <b>Features</b>
-      <a href="#accounts">01 Accounts</a>
-      <a href="#publish">02 Publishing</a>
-      <a href="#manage">03 Managing sites</a>
-      <a href="#state">04 Shared data</a>
-      <a href="#collections">05 Collections</a>
-      <a href="#domains">06 Your own domain</a>
-      <a href="#ai">07 Build with AI</a>
-      <a href="#voice">08 Voice &amp; attachments</a>
-      <a href="#analytics">09 Traffic</a>
-      <a href="#admin">10 Admin</a>
-      <a href="#agent">11 Your AI agent</a>
-      <a href="#limits">12 Limits</a>
+      <a href="#accounts">Accounts</a>
+      <a href="#publish">Publishing</a>
+      <a href="#manage">Managing sites</a>
+      <a href="#state">Shared data</a>
+      <a href="#collections">Collections</a>
+      <a href="#domains">Your own domain</a>
+      <a href="#ai">Build with AI</a>
+      <a href="#voice">Voice &amp; attachments</a>
+      <a href="#analytics">Traffic</a>
+      <a href="#admin">Admin</a>
+      <a href="#agent">Your AI agent</a>
+      <a href="#limits">Limits</a>
     </div>
 
     <!-- 00 What this page is -->
     <section>
-      <div class="snum">00.</div>
       <div>
         <div class="kicker">Feature inventory</div>
         <h1 class="title">Everything it does.<br>Nothing it doesn't.</h1>
@@ -181,7 +121,7 @@
           <div class="lrow"><div><span class="st">Main dashboard</span></div><p>The older screen, reached with <strong>＋ New site</strong> from your sites page. It has the paste builder and the site cards, and it is the only place with <strong>Data</strong> and <strong>Connect domain</strong>.</p></div>
         </div>
 
-        <p style="margin-top:22px"><strong>Status marks used below:</strong></p>
+        <p><strong>Status marks used below:</strong></p>
         <div class="legend">
           <div class="lrow"><div><span class="st agent">Agent only</span></div><p>Real and working, but there is no button for it. You ask your AI agent and it does it for you.</p></div>
           <div class="lrow"><div><span class="st admin">Admin only</span></div><p>Only visible to the person who runs the service.</p></div>
@@ -194,7 +134,6 @@
 
     <!-- 01 Accounts -->
     <section id="accounts">
-      <div class="snum">01.</div>
       <div>
         <h2>Accounts &amp; sign-in</h2>
         <p class="lede">One account covers everything: publishing your own sites, and signing in as a visitor on somebody else's.</p>
@@ -299,7 +238,6 @@
 
     <!-- 02 Publishing -->
     <section id="publish">
-      <div class="snum">02.</div>
       <div>
         <h2>Publishing a site</h2>
         <p class="lede">Three ways in: paste a page in, hand a folder to your agent, or have the AI write it. All three end at the same live address.</p>
@@ -415,7 +353,6 @@
 
     <!-- 03 Managing sites -->
     <section id="manage">
-      <div class="snum">03.</div>
       <div>
         <h2>Managing your sites</h2>
         <p class="lede">Everything published stays listed, and you can always take a copy. How much history an instance keeps is its own setting: simple-host.app keeps every version, and an event instance is usually set up to keep only the live one.</p>
@@ -531,7 +468,6 @@
 
     <!-- 04 Shared data -->
     <section id="state">
-      <div class="snum">04.</div>
       <div>
         <h2>Site data — the shared box</h2>
         <p class="lede">Every site gets a small shared store, with no database to set up. It is what makes a counter, a vote, a poll or a saved game state possible on a static page.</p>
@@ -621,7 +557,6 @@
 
     <!-- 05 Collections -->
     <section id="collections">
-      <div class="snum">05.</div>
       <div>
         <h2>Site data — collections</h2>
         <p class="lede">Where form entries go. A collection is a growing list — one row per submission — separate from the shared box so it can grow without limit on the page.</p>
@@ -685,7 +620,6 @@
 
     <!-- 06 Domains -->
     <section id="domains">
-      <div class="snum">06.</div>
       <div>
         <h2>Your own domain</h2>
         <p class="lede">A site can be served from a domain you own, so nothing in the address mentions this service.</p>
@@ -762,7 +696,6 @@
 
     <!-- 07 Build with AI -->
     <section id="ai">
-      <div class="snum">07.</div>
       <div>
         <h2>Build with AI</h2>
         <p class="lede">Describe the site you want and watch it appear. There are two routes, and they differ in one important way: only one of them can publish.</p>
@@ -878,7 +811,6 @@
 
     <!-- 08 Voice and attachments -->
     <section id="voice">
-      <div class="snum">08.</div>
       <div>
         <h2>Voice &amp; attachments</h2>
         <p class="lede">Two ways to describe a site without typing it — both aimed squarely at building from a phone.</p>
@@ -942,7 +874,6 @@
 
     <!-- 09 Analytics -->
     <section id="analytics">
-      <div class="snum">09.</div>
       <div>
         <h2>Traffic &amp; analytics</h2>
         <p class="lede">How many people actually read your site — separated from crawlers and from the service's own monitoring, because on a small site those swamp the real number entirely.</p>
@@ -1123,7 +1054,6 @@
 
     <!-- 10 Admin -->
     <section id="admin">
-      <div class="snum">10.</div>
       <div>
         <h2>Admin</h2>
         <p class="lede">For whoever runs the service. Everyone else gets an ordinary "not found" page, with no hint that these screens exist.</p>
@@ -1213,7 +1143,6 @@
 
     <!-- 11 Your AI agent -->
     <section id="agent">
-      <div class="snum">11.</div>
       <div>
         <h2>Your AI agent</h2>
         <p class="lede">Most of this service is designed to be driven by an agent rather than clicked. These are the pieces that teach one how.</p>
@@ -1355,7 +1284,6 @@
 
     <!-- 12 Limits -->
     <section id="limits">
-      <div class="snum">12.</div>
       <div>
         <h2>Limits</h2>
         <p class="lede">Where the product stops. Written down so you can plan around it rather than discover it halfway through building something.</p>
@@ -1372,17 +1300,11 @@
       </div>
     </section>
 
-    <footer class="wrap">
-      simple·host · feature inventory · <a href="/">Home</a> · <a href="/architecture.html">Architecture</a> · <a href="/docs.html">API reference</a>
-    </footer>
   </div>
 
+  <!--sh:footer-->
+
   <script>
-    var SUN = '<circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
-    var MOON = '<path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/>';
-    function paintIcon(){ document.getElementById('tt-i').innerHTML = document.documentElement.dataset.theme === 'light' ? MOON : SUN; }
-    function toggleTheme(){ var t = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'; document.documentElement.dataset.theme = t; try{ localStorage.setItem('sh-theme', t); }catch(e){} paintIcon(); }
-    paintIcon();
   </script>
 </body>
 </html>
