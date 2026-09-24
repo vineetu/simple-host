@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Orders · Brine &amp; Barrel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Young+Serif&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap narrow">
+      <a class="mark" href="index.html">Brine &amp; Barrel</a>
+    </div>
+  </header>
+
+  <main class="wrap narrow">
+    <div class="orders-head">
+      <h1>Orders</h1>
+      <p>Newest first. Anyone with this page's address can open it, so keep the link to yourself.</p>
+    </div>
+
+    <p class="tally" id="tally" aria-live="polite"></p>
+    <div id="state" class="state-msg" role="status">Loading orders…</div>
+    <ol class="orders" id="orders" hidden></ol>
+    <div class="more" id="more-wrap" hidden>
+      <button type="button" class="secondary" id="more">Load more</button>
+    </div>
+  </main>
+
+  <footer class="wrap narrow page-foot">
+    <p><a href="index.html">Back to the shop</a></p>
+  </footer>
+
+  <script>window.SH_CONFIG = { site: "pickle-shop" };</script>
+  <script src="https://simple-host.app/auth.js" defer></script>
+  <script>
+  window.addEventListener('DOMContentLoaded', function () {
+    var PAGE = 50;
+    var list = document.getElementById('orders');
+    var stateEl = document.getElementById('state');
+    var tally = document.getElementById('tally');
+    var moreWrap = document.getElementById('more-wrap');
+    var moreBtn = document.getElementById('more');
+    var money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+    var when = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    var next = null, count = 0, sum = 0;
+
+    function el(tag, cls, text) {
+      var n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (text != null) n.textContent = text;
+      return n;
+    }
+    function num(v) { v = Number(v); return isFinite(v) ? v : 0; }
+
+    function addOrder(entry) {
+      var d = entry.data || {};
+      var lines = Array.isArray(d.lines) ? d.lines : [];
+      var total = d.total != null ? num(d.total) : lines.reduce(function (s, l) { return s + num(l.price) * num(l.qty); }, 0);
+      sum += total;
+
+      var li = el('li', 'order');
+      var top = el('div', 'order-top');
+      top.appendChild(el('h2', null, String(d.name || 'No name given')));
+      var t = new Date(entry.created_at);
+      if (!isNaN(t)) {
+        var time = el('time', null, when.format(t));
+        time.setAttribute('datetime', entry.created_at);
+        top.appendChild(time);
+      }
+      li.appendChild(top);
+      li.appendChild(el('p', 'contact', d.contact ? String(d.contact) : 'No contact given'));
+
+      var table = el('table');
+      var cap = el('caption', 'visually-hidden', 'Items in this order');
+      table.appendChild(cap);
+      var body = el('tbody');
+      lines.forEach(function (l) {
+        var tr = el('tr');
+        tr.appendChild(el('td', null, num(l.qty) + ' × ' + String(l.name || l.id || 'Item') + (l.size ? ' (' + l.size + ')' : '')));
+        tr.appendChild(el('td', null, money.format(num(l.qty) * num(l.price))));
+        body.appendChild(tr);
+      });
+      table.appendChild(body);
+      var foot = el('tfoot');
+      var ftr = el('tr');
+      var th = el('th', null, 'Total');
+      th.setAttribute('scope', 'row');
+      ftr.appendChild(th);
+      ftr.appendChild(el('td', null, money.format(total)));
+      foot.appendChild(ftr);
+      table.appendChild(foot);
+      li.appendChild(table);
+      list.appendChild(li);
+    }
+
+    function updateTally() {
+      tally.textContent = '';
+      if (!count) return;
+      var a = el('span');
+      a.appendChild(el('b', null, String(count)));
+      a.appendChild(document.createTextNode(count === 1 ? ' order' : ' orders' + (next ? ' shown' : '')));
+      var b = el('span');
+      b.appendChild(el('b', null, money.format(sum)));
+      b.appendChild(document.createTextNode(' in total'));
+      tally.appendChild(a);
+      tally.appendChild(b);
+    }
+
+    function load() {
+      moreBtn.disabled = true;
+      moreBtn.textContent = 'Loading…';
+      var q = next ? { limit: PAGE, before: next } : { limit: PAGE };
+      (window.SH ? SH.collection('orders').list(q) : Promise.reject(new Error('no helper'))).then(function (page) {
+        var items = (page && page.items) || [];
+        items.forEach(addOrder);
+        count += items.length;
+        next = page && page.next ? page.next : null;
+        if (!count) {
+          stateEl.className = 'state-msg';
+          stateEl.textContent = 'No orders yet. They will show up here as soon as someone sends one.';
+        } else {
+          stateEl.hidden = true;
+          list.hidden = false;
+        }
+        updateTally();
+        moreWrap.hidden = !next;
+      }).catch(function (err) {
+        if (!count) {
+          stateEl.className = 'state-msg error';
+          stateEl.textContent = !window.SH
+            ? 'Could not load the saving service. Check your connection and reload.'
+            : 'Could not load orders (' + ((err && (err.code || err.status)) || 'no connection') + '). Reload the page to try again.';
+        } else {
+          tally.appendChild(el('span', null, 'Could not load more. Try again.'));
+        }
+      }).then(function () {
+        moreBtn.disabled = false;
+        moreBtn.textContent = 'Load more';
+      });
+    }
+
+    moreBtn.addEventListener('click', load);
+    load();
+  });
+  </script>
+</body>
+</html>

@@ -1,0 +1,260 @@
+{
+  "garden-party-rsvp": {
+    "collections": {
+      "rsvps": [
+        {
+          "name": "Jonah B.",
+          "attending": "yes",
+          "guests": 2,
+          "dietary": "One of us is vegetarian."
+        },
+        {
+          "name": "Ruth and Sam K.",
+          "attending": "yes",
+          "guests": 2,
+          "dietary": ""
+        },
+        {
+          "name": "Adaeze O.",
+          "attending": "yes",
+          "guests": 1,
+          "dietary": "Tree nut allergy, please."
+        },
+        {
+          "name": "The Lindqvist family",
+          "attending": "yes",
+          "guests": 4,
+          "dietary": "Two kids, no allergies, very keen on cider."
+        },
+        {
+          "name": "Marco D.",
+          "attending": "no",
+          "guests": 0,
+          "dietary": ""
+        },
+        {
+          "name": "Hana T.",
+          "attending": "yes",
+          "guests": 3,
+          "dietary": "Gluten-free for one of us."
+        },
+        {
+          "name": "Oliver P.",
+          "attending": "no",
+          "guests": 0,
+          "dietary": ""
+        }
+      ]
+    },
+    "state": {
+      "totals": {
+        "yes": 5,
+        "no": 2,
+        "guests": 12
+      }
+    }
+  },
+  "feedback-survey": {
+    "collections": {
+      "responses": [
+        {
+          "visit": "Sat in",
+          "ordered": [
+            "Coffee or espresso",
+            "Pastry or cake"
+          ],
+          "taste": 5,
+          "service": 4,
+          "wait": "Under 5 minutes",
+          "again": "Yes",
+          "improve": "More plug sockets near the window seats."
+        },
+        {
+          "visit": "Took it away",
+          "ordered": [
+            "Coffee or espresso"
+          ],
+          "taste": 4,
+          "service": 5,
+          "wait": "Under 5 minutes",
+          "again": "Yes",
+          "improve": ""
+        },
+        {
+          "visit": "Sat in",
+          "ordered": [
+            "Breakfast",
+            "Tea"
+          ],
+          "taste": 4,
+          "service": 3,
+          "wait": "5 to 10 minutes",
+          "again": "Maybe",
+          "improve": "Breakfast took a while on a busy Saturday. A number on the table would help."
+        },
+        {
+          "visit": "Ordered ahead for pickup",
+          "ordered": [
+            "Lunch"
+          ],
+          "taste": 5,
+          "service": 5,
+          "wait": "Under 5 minutes",
+          "again": "Yes",
+          "improve": "Keep the lentil soup on the menu, please."
+        },
+        {
+          "visit": "Sat in",
+          "ordered": [
+            "Coffee or espresso",
+            "Lunch"
+          ],
+          "taste": 3,
+          "service": 4,
+          "wait": "More than 10 minutes",
+          "again": "Maybe",
+          "improve": "The music was a bit loud for a conversation."
+        },
+        {
+          "visit": "Took it away",
+          "ordered": [
+            "Tea",
+            "Pastry or cake"
+          ],
+          "taste": 5,
+          "service": 4,
+          "wait": "Under 5 minutes",
+          "again": "Yes",
+          "improve": ""
+        },
+        {
+          "visit": "Sat in",
+          "ordered": [
+            "Coffee or espresso",
+            "Breakfast",
+            "Pastry or cake"
+          ],
+          "taste": 4,
+          "service": 4,
+          "wait": "5 to 10 minutes",
+          "again": "Yes",
+          "improve": "An oat milk option that is not an extra charge."
+        },
+        {
+          "visit": "Took it away",
+          "ordered": [
+            "Something else"
+          ],
+          "taste": 2,
+          "service": 3,
+          "wait": "5 to 10 minutes",
+          "again": "No",
+          "improve": "My smoothie was mostly ice."
+        }
+      ]
+    },
+    "state": {}
+  },
+  "pickle-shop": {
+    "collections": {
+      "orders": [
+        {
+          "name": "Nadia R.",
+          "contact": "nadia@example.com",
+          "lines": [
+            {
+              "id": "dill-spears",
+              "name": "Garlic Dill Spears",
+              "size": "16 oz",
+              "price": 9,
+              "qty": 2
+            },
+            {
+              "id": "red-onions",
+              "name": "Quick Red Onions",
+              "size": "12 oz",
+              "price": 7,
+              "qty": 1
+            }
+          ],
+          "total": 25,
+          "currency": "USD"
+        },
+        {
+          "name": "Tom W.",
+          "contact": "555-0142",
+          "lines": [
+            {
+              "id": "half-sours",
+              "name": "Half-Sours",
+              "size": "32 oz",
+              "price": 14,
+              "qty": 1
+            }
+          ],
+          "total": 14,
+          "currency": "USD"
+        },
+        {
+          "name": "Keiko S.",
+          "contact": "keiko.s@example.com",
+          "lines": [
+            {
+              "id": "bread-butter",
+              "name": "Bread & Butter Chips",
+              "size": "16 oz",
+              "price": 8,
+              "qty": 1
+            },
+            {
+              "id": "spicy-carrots",
+              "name": "Spicy Carrot Sticks",
+              "size": "16 oz",
+              "price": 9,
+              "qty": 1
+            },
+            {
+              "id": "beet-fennel",
+              "name": "Beet & Fennel",
+              "size": "16 oz",
+              "price": 10,
+              "qty": 1
+            }
+          ],
+          "total": 27,
+          "currency": "USD"
+        },
+        {
+          "name": "Luis A.",
+          "contact": "555-0187",
+          "lines": [
+            {
+              "id": "dill-spears",
+              "name": "Garlic Dill Spears",
+              "size": "16 oz",
+              "price": 9,
+              "qty": 1
+            },
+            {
+              "id": "spicy-carrots",
+              "name": "Spicy Carrot Sticks",
+              "size": "16 oz",
+              "price": 9,
+              "qty": 2
+            },
+            {
+              "id": "red-onions",
+              "name": "Quick Red Onions",
+              "size": "12 oz",
+              "price": 7,
+              "qty": 2
+            }
+          ],
+          "total": 41,
+          "currency": "USD"
+        }
+      ]
+    },
+    "state": {}
+  }
+}

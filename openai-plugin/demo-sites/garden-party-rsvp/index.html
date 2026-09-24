@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Maya &amp; Theo's garden party · RSVP</title>
+  <meta name="description" content="Saturday, October 10, 2026, 4 to 8 pm at 14 Linden Row. Please let us know if you can come.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,500&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="invite wrap">
+    <svg class="sprig" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+      <path d="M32 58V14"/>
+      <path d="M32 22c-6-1-11-6-12-12 6 1 11 6 12 12Z"/>
+      <path d="M32 22c6-1 11-6 12-12-6 1-11 6-12 12Z"/>
+      <path d="M32 36c-7-1-13-7-14-14 7 1 13 7 14 14Z"/>
+      <path d="M32 36c7-1 13-7 14-14-7 1-13 7-14 14Z"/>
+      <path d="M32 50c-7-1-13-7-14-14 7 1 13 7 14 14Z"/>
+      <path d="M32 50c7-1 13-7 14-14-7 1-13 7-14 14Z"/>
+    </svg>
+    <p class="eyebrow">You are invited</p>
+    <h1>Maya &amp; Theo's <em>garden party</em></h1>
+    <p class="lede">The apple tree finally came through. Come for cider, long tables under the string lights, and an early autumn evening outside.</p>
+
+    <dl class="details">
+      <div><dt>When</dt><dd>Saturday, October 10</dd></div>
+      <div><dt>Time</dt><dd>4 to 8 pm</dd></div>
+      <div><dt>Where</dt><dd>14 Linden Row</dd></div>
+    </dl>
+    <p class="note">Come through the side gate. Children and well-behaved dogs are welcome; bring a layer for after sunset.</p>
+  </header>
+
+  <main class="rsvp wrap">
+    <section class="card" aria-labelledby="rsvp-title">
+      <div id="form-view">
+        <h2 id="rsvp-title">Will you join us?</h2>
+        <p class="sub">Please reply by Friday, October 2, so we know how many chairs to borrow.</p>
+
+        <div id="sh-auth"></div>
+
+        <form id="rsvp-form" novalidate>
+          <div class="field">
+            <label for="name">Your name <span class="req">(required)</span></label>
+            <input type="text" id="name" name="name" autocomplete="name" maxlength="120" required>
+          </div>
+
+          <fieldset class="field">
+            <legend>Can you come? <span class="req">(required)</span></legend>
+            <div class="choice">
+              <label><input type="radio" name="attending" value="yes" required> Yes, gladly</label>
+              <label><input type="radio" name="attending" value="no"> Sadly, no</label>
+            </div>
+          </fieldset>
+
+          <div class="field" id="guests-field">
+            <label for="guests">How many of you, including yourself?</label>
+            <select id="guests" name="guests">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+            </select>
+          </div>
+
+          <div class="field" id="dietary-field">
+            <label for="dietary">Anything we should know about food? <span class="opt">(optional)</span></label>
+            <textarea id="dietary" name="dietary" maxlength="500" aria-describedby="dietary-hint"></textarea>
+            <p class="hint" id="dietary-hint">Allergies, vegetarian, no alcohol, that sort of thing.</p>
+          </div>
+
+          <div class="actions">
+            <button type="submit" class="primary">Send RSVP</button>
+            <p class="status" id="status" role="status" aria-live="polite"></p>
+          </div>
+        </form>
+      </div>
+
+      <div id="done-view" class="done" hidden tabindex="-1">
+        <h2 id="done-title">Thank you</h2>
+        <p id="done-text"></p>
+        <button type="button" class="link" id="again">Send another RSVP</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap">
+    <p>Questions? Write to hello@example.com. <a href="admin.html">Guest list</a></p>
+  </footer>
+
+  <script>window.SH_CONFIG = { site: "garden-party-rsvp" };</script>
+  <script src="https://simple-host.app/auth.js" defer></script>
+  <script>
+  window.addEventListener('DOMContentLoaded', function () {
+    var DRAFT_KEY = 'garden-party-rsvp:draft';
+    var form = document.getElementById('rsvp-form');
+    var nameInput = document.getElementById('name');
+    var guestsInput = document.getElementById('guests');
+    var dietaryInput = document.getElementById('dietary');
+    var statusEl = document.getElementById('status');
+    var btn = form.querySelector('button[type=submit]');
+    var guestsField = document.getElementById('guests-field');
+    var formView = document.getElementById('form-view');
+    var doneView = document.getElementById('done-view');
+
+    if (window.SH) {
+      try { Promise.resolve(SH.mount('#sh-auth')).catch(function () {}); } catch (e) {}
+    }
+
+    function store(fn) { try { return fn(); } catch (e) { return null; } }
+
+    function attendingValue() {
+      var r = form.querySelector('input[name=attending]:checked');
+      return r ? r.value : '';
+    }
+    function syncGuests() {
+      var no = attendingValue() === 'no';
+      guestsField.hidden = no;
+    }
+
+    // Restore a draft on this device.
+    var draft = store(function () { return JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); });
+    if (draft) {
+      nameInput.value = draft.name || '';
+      dietaryInput.value = draft.dietary || '';
+      if (draft.guests) guestsInput.value = String(draft.guests);
+      if (draft.attending) {
+        var r = form.querySelector('input[name=attending][value="' + draft.attending + '"]');
+        if (r) r.checked = true;
+      }
+    }
+    syncGuests();
+
+    form.addEventListener('input', function () {
+      syncGuests();
+      store(function () {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({
+          name: nameInput.value, attending: attendingValue(),
+          guests: guestsInput.value, dietary: dietaryInput.value
+        }));
+      });
+    });
+    form.addEventListener('change', syncGuests);
+
+    function setStatus(text, isError) {
+      statusEl.textContent = text;
+      statusEl.className = 'status' + (isError ? ' error' : '');
+    }
+
+    function explain(err) {
+      if (!window.SH) return 'The RSVP service did not load. Check your connection and try again.';
+      var code = err && err.code, status = err && err.status;
+      if (code === 'use_custom_domain' && err.domain) {
+        statusEl.className = 'status error';
+        statusEl.textContent = 'RSVPs are saved on ';
+        var a = document.createElement('a');
+        a.href = 'https://' + err.domain + '/';
+        a.textContent = err.domain;
+        statusEl.appendChild(a);
+        statusEl.appendChild(document.createTextNode('. Please reply there.'));
+        return null;
+      }
+      if (code === 'visitor_auth_required' || status === 401) return 'Please sign in above, then send again.';
+      if (status === 413) return 'That note is too long. Please shorten it and send again.';
+      if (status === 429) return 'Too many replies at once. Wait a moment, then send again.';
+      return 'Your RSVP was not saved (' + (code || status || 'no connection') + '). Your answers are still here; please try again.';
+    }
+
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var name = nameInput.value.trim();
+      var attending = attendingValue();
+      if (!name) { setStatus('Please add your name.', true); nameInput.focus(); return; }
+      if (!attending) { setStatus('Please choose yes or no.', true); form.querySelector('input[name=attending]').focus(); return; }
+
+      var guests = attending === 'yes' ? Math.min(6, Math.max(1, Number(guestsInput.value) || 1)) : 0;
+      var item = { name: name, attending: attending, guests: guests, dietary: dietaryInput.value.trim() };
+
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      setStatus('', false);
+      var appended = false;
+      try {
+        if (!window.SH) throw new Error('helper not loaded');
+        await SH.requireSignIn();
+        await SH.collection('rsvps').append(item);
+        appended = true;
+        var ops = [{ op: 'inc', path: 'totals.' + attending, by: 1 }];
+        if (guests) ops.push({ op: 'inc', path: 'totals.guests', by: guests });
+        await SH.state.patch(ops);
+        finish(item, false);
+      } catch (err) {
+        if (appended) {
+          finish(item, true);
+        } else {
+          var msg = explain(err);
+          if (msg) setStatus(msg, true);
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Send RSVP';
+      }
+    });
+
+    function finish(item, countLagging) {
+      store(function () { localStorage.removeItem(DRAFT_KEY); });
+      form.reset();
+      syncGuests();
+      setStatus('', false);
+      var text = item.attending === 'yes'
+        ? 'We have you down for ' + item.guests + (item.guests === 1 ? ' person' : ' people') + ', ' + item.name + '. See you on the 10th.'
+        : 'Thanks for letting us know, ' + item.name + '. We will miss you.';
+      if (countLagging) text += ' (Your reply is saved; the running total will catch up shortly.)';
+      document.getElementById('done-text').textContent = text;
+      formView.hidden = true;
+      doneView.hidden = false;
+      doneView.focus();
+    }
+
+    document.getElementById('again').addEventListener('click', function () {
+      doneView.hidden = true;
+      formView.hidden = false;
+      nameInput.focus();
+    });
+  });
+  </script>
+</body>
+</html>
