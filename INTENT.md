@@ -165,3 +165,11 @@ What follows from that, and is not negotiable without changing the line above:
   given on request but is not offered or advertised. Consequence: on the shared host, what a
   page saves stays readable by anyone, so anything private (an RSVP list, survey answers,
   orders) needs the site on its own domain. Reason: owner's call — keep the shared host as is.
+- **2026-09-24. Shared address: anyone can view, only signed-in people can save.** Reverses
+  2026-09-06 ("anyone can read and write"). On `sites.simple-host.app`, reading a site and its
+  data stays open; every save from a page (state and collections: comments, RSVPs, votes)
+  requires a visitor signed in with Google or an emailed code; the owner's agent saves with its
+  key or the connector as before. Accepted limit: all sites share one origin, so a hostile site
+  there could save something in a signed-in visitor's name; it cannot read anything private
+  because nothing there is private. Sites on their own domain keep full protection. Reason: stop
+  anonymous spam and tie every write to a real account. Built after the connector ships.
