@@ -1,0 +1,322 @@
+{
+  "$schema": "https://developers.openai.com/plugins/schemas/chatgpt-app-submission.v1.json",
+  "schema_version": 1,
+  "app_info": {
+    "display_name": "Simple Host",
+    "subtitle": "Describe a site. It's online.",
+    "description": "Tell ChatGPT the website you want (a portfolio, an event page with RSVPs, a small shop, a sign-up form, a survey) and Simple Host puts it online at an address you can share straight away. Every site can save what people send it: RSVPs, orders, votes and survey answers are kept, and you can download them as a spreadsheet. Orders, RSVPs and survey answers can go in a private list that only you can read, once the site has its own address; a free name.simple-host.app address takes one step. Sign in once and ChatGPT remembers you in every chat after that. Change a site any time by asking for it, and go back to any earlier version if you don't like the change. Pages are public to anyone with the link, so keep private information in private lists. Free to start.",
+    "category": "PRODUCTIVITY"
+  },
+  "tools": {
+    "who_am_i": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It only returns the signed-in account's email, handle and public page address; it changes nothing.",
+        "open_world_justification": "It reads the person's own account on Simple Host; it does not reach the public internet or any third-party system.",
+        "destructive_justification": "Nothing is created, changed or deleted."
+      }
+    },
+    "list_sites": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It only lists the person's sites with their address and live version; it changes nothing.",
+        "open_world_justification": "It reads the person's own account data; nothing is published or sent anywhere.",
+        "destructive_justification": "Nothing is created, changed or deleted."
+      }
+    },
+    "get_site": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It only returns one site's details and file list; it changes nothing.",
+        "open_world_justification": "It reads the person's own site; nothing is published or sent anywhere.",
+        "destructive_justification": "Nothing is created, changed or deleted."
+      }
+    },
+    "read_site_file": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It only returns the contents of one file from the person's site; it changes nothing.",
+        "open_world_justification": "It reads the person's own site; nothing is published or sent anywhere.",
+        "destructive_justification": "Nothing is created, changed or deleted."
+      }
+    },
+    "create_site": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It publishes a new website, so it creates data.",
+        "open_world_justification": "The new site is published to the public internet at a public address anyone can open.",
+        "destructive_justification": "It only creates: it fails if a site with that name already exists, so nothing is overwritten or deleted."
+      }
+    },
+    "update_site": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "It replaces a site's live files, so it changes data.",
+        "open_world_justification": "The change is published to a public website anyone can open.",
+        "destructive_justification": "It overwrites the site's live files. The previous version is kept and can be restored with rollback_site, but the overwrite itself is marked destructive."
+      }
+    },
+    "list_versions": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It only lists a site's kept versions and which one is live; it changes nothing.",
+        "open_world_justification": "It reads the person's own site; nothing is published or sent anywhere.",
+        "destructive_justification": "Nothing is created, changed or deleted."
+      }
+    },
+    "rollback_site": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It changes which version of a site is live, so it modifies data.",
+        "open_world_justification": "It changes what the public sees on a public website.",
+        "destructive_justification": "Nothing is deleted: the replaced version is kept and can be made live again the same way."
+      }
+    },
+    "delete_site": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "It deletes a site, so it modifies data.",
+        "open_world_justification": "It acts only inside the person's own account and publishes nothing to the internet or any third party.",
+        "destructive_justification": "It permanently deletes the site, all its versions and its saved data, with no undo. It requires the site name to be repeated as confirmation."
+      }
+    },
+    "rename_site": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It changes a site's name and address, so it modifies data.",
+        "open_world_justification": "The site is served at a new public address on the internet.",
+        "destructive_justification": "Nothing is deleted; renaming it back restores the old address."
+      }
+    },
+    "set_visibility": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It changes whether a site is listed, so it modifies data.",
+        "open_world_justification": "It adds a site to, or removes it from, the person's public listing page on the internet.",
+        "destructive_justification": "Nothing is deleted and the change is fully reversible."
+      }
+    },
+    "get_state": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It only reads a site's saved data; it changes nothing.",
+        "open_world_justification": "It reads the person's own site; nothing is published or sent anywhere.",
+        "destructive_justification": "Nothing is created, changed or deleted."
+      }
+    },
+    "update_state": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "It writes a site's saved data, so it modifies data.",
+        "open_world_justification": "The saved data is shown on a public website.",
+        "destructive_justification": "Some operations overwrite or remove saved values, and there is no undo."
+      }
+    },
+    "list_collections": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It only lists a site's collections and how many items each holds; it changes nothing.",
+        "open_world_justification": "It reads the person's own site; nothing is published or sent anywhere.",
+        "destructive_justification": "Nothing is created, changed or deleted."
+      }
+    },
+    "read_collection": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It only reads items a site has saved (such as RSVPs or orders); it changes nothing.",
+        "open_world_justification": "It reads the person's own site, including their private lists; nothing is published or sent anywhere.",
+        "destructive_justification": "Nothing is created, changed or deleted."
+      }
+    },
+    "add_to_collection": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "It adds an item to a site's list, so it creates data.",
+        "open_world_justification": "The item is added to a public list shown on a public website.",
+        "destructive_justification": "An item added to a public list cannot be removed afterwards, which is an irreversible side effect."
+      }
+    },
+    "set_collection_privacy": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It changes a list's privacy setting, so it modifies data.",
+        "open_world_justification": "Making a list public puts its contents on the public internet.",
+        "destructive_justification": "It only changes a setting and deletes nothing; setting it again restores the previous state."
+      }
+    },
+    "update_collection_item": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "It edits an item in a private list (for example marking an order done), so it modifies data.",
+        "open_world_justification": "The list is private to the site owner; nothing is published or sent to any third party.",
+        "destructive_justification": "It overwrites or removes field values in the item, with no undo."
+      }
+    },
+    "delete_collection_item": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "It deletes an item from a private list, so it modifies data.",
+        "open_world_justification": "The list is private to the site owner; nothing is published or sent to any third party.",
+        "destructive_justification": "It permanently removes the item, with no undo. It requires the item id to be repeated as confirmation."
+      }
+    },
+    "connect_domain": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It gives a site a new address, so it modifies data.",
+        "open_world_justification": "The site is served at a new public address: a free name.simple-host.app address or a domain the person owns on the internet.",
+        "destructive_justification": "Nothing is deleted; the site's existing address and content are unchanged."
+      }
+    },
+    "domain_status": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It only reports whether a site's domain is connected; it changes nothing.",
+        "open_world_justification": "It reads the person's own site settings; nothing is published or sent anywhere.",
+        "destructive_justification": "Nothing is created, changed or deleted."
+      }
+    },
+    "site_analytics": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It only returns visit totals for one of the person's sites; it changes nothing.",
+        "open_world_justification": "It reads the person's own site statistics; nothing is published or sent anywhere.",
+        "destructive_justification": "Nothing is created, changed or deleted."
+      }
+    }
+  },
+  "test_cases": [
+    {
+      "description": "Publish a new website from a description.",
+      "user_prompt": "Make a one-page site for a neighbourhood book swap on Saturday at 10am in Linden Park, and publish it.",
+      "tools_triggered": "create_site",
+      "expected_output": "A new site is published and its public address is returned (https://sites.simple-host.app/openai-review/...). Opening it shows the event details."
+    },
+    {
+      "description": "Read what a site has collected, using the sample garden party RSVP site in the demo account.",
+      "user_prompt": "Who has RSVPed to my garden party so far, and how many guests in total?",
+      "tools_triggered": "read_collection",
+      "expected_output": "The 7 sample RSVPs with names and whether they are coming, plus the total guest count."
+    },
+    {
+      "description": "Change a live site, then undo the change, using the sample feedback survey in the demo account.",
+      "user_prompt": "On my feedback survey, change the heading to \"Tell us how we did\". Then, in the same chat: Actually, undo that.",
+      "tools_triggered": "read_site_file, update_site, list_versions, rollback_site",
+      "expected_output": "The live survey shows the new heading; after the undo the previous version is live again with the original heading."
+    },
+    {
+      "description": "Give a site its own free address and make its orders private, using the sample pickle shop in the demo account.",
+      "user_prompt": "Put my pickle shop on its own address pickle-shop-demo.simple-host.app and make its orders private.",
+      "tools_triggered": "connect_domain, set_collection_privacy",
+      "expected_output": "The shop is live at https://pickle-shop-demo.simple-host.app/ immediately (no DNS step) and its orders list is marked private, readable only by the owner."
+    },
+    {
+      "description": "See how many people visited a site.",
+      "user_prompt": "How many people visited my pickle shop in the last 30 days?",
+      "tools_triggered": "site_analytics",
+      "expected_output": "Visit totals for the period, split into people and bots, with views and unique visitors."
+    }
+  ],
+  "negative_test_cases": [
+    {
+      "description": "Brainstorming only; nothing is being built or published, so Simple Host should not be used.",
+      "user_prompt": "Help me brainstorm a name and a domain for my new bakery."
+    },
+    {
+      "description": "Deploying a server application with a database is outside what Simple Host does (it hosts websites).",
+      "user_prompt": "Deploy my Node.js API with a Postgres database to production."
+    },
+    {
+      "description": "Reading or summarising someone else's website is not something Simple Host does.",
+      "user_prompt": "Summarize what's on https://example.com for me."
+    }
+  ]
+}
