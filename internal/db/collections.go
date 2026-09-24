@@ -268,3 +268,47 @@ func ForEachCollectionItemByID(ctx context.Context, db *sql.DB, siteID, collecti
 	}
 	return rows.Err()
 }
+
+// UpdateCollectionItemByID rewrites one item's data inside a transaction: fn
+// gets the stored JSON and returns the new JSON. Returns sql.ErrNoRows when
+// the item is not in that site's collection.
+func UpdateCollectionItemByID(ctx context.Context, db *sql.DB, siteID, collection string, id int64, fn func(json.RawMessage) (json.RawMessage, error)) (CollectionItem, error) {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return CollectionItem{}, err
+	}
+	defer tx.Rollback()
+	var old json.RawMessage
+	err = tx.QueryRowContext(ctx, `
+		SELECT data FROM collection_items
+		WHERE id = $1 AND site_id = $2 AND collection = $3
+		FOR UPDATE`, id, siteID, collection).Scan(&old)
+	if err != nil {
+		return CollectionItem{}, err
+	}
+	next, err := fn(old)
+	if err != nil {
+		return CollectionItem{}, err
+	}
+	var it CollectionItem
+	err = tx.QueryRowContext(ctx, `
+		UPDATE collection_items SET data = $4::jsonb
+		WHERE id = $1 AND site_id = $2 AND collection = $3
+		RETURNING id, data, created_at`, id, siteID, collection, string(next)).Scan(&it.ID, &it.Data, &it.CreatedAt)
+	if err != nil {
+		return CollectionItem{}, err
+	}
+	return it, tx.Commit()
+}
+
+// DeleteCollectionItemByID removes one item for good. ok=false when it was not
+// in that site's collection.
+func DeleteCollectionItemByID(ctx context.Context, db *sql.DB, siteID, collection string, id int64) (bool, error) {
+	res, err := db.ExecContext(ctx, `
+		DELETE FROM collection_items WHERE id = $1 AND site_id = $2 AND collection = $3`, id, siteID, collection)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}

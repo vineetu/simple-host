@@ -59,8 +59,9 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Non-goals
 
-- Private or password-locked pages. Sign-in gates writing, nothing gates reading. There is no
-  implementation of a view-lock; docs must not advertise one.
+- Private or password-locked pages. Pages are always public; there is no view-lock and docs
+  must not advertise one. The one thing that can be private is a collection on a site's own
+  domain (decision 2026-09-24, "Private collections"); every other read stays open.
 - A general-purpose backend. No schema, no queries, no server-side code for site authors.
 - Metered third-party AI keys. AI create runs on the local Grok sidecar only.
 - Starter templates and drop-in widgets. Removed 2026-09-05; agents build pages themselves.
@@ -165,6 +166,8 @@ What follows from that, and is not negotiable without changing the line above:
   given on request but is not offered or advertised. Consequence: on the shared host, what a
   page saves stays readable by anyone, so anything private (an RSVP list, survey answers,
   orders) needs the site on its own domain. Reason: owner's call — keep the shared host as is.
+  Partly superseded 2026-09-24: sites may now claim a free `<name>.simple-host.app` address
+  themselves (see "Free <name>.simple-host.app addresses" below).
 - **2026-09-24. Shared address: anyone can view, only signed-in people can save.** Reverses
   2026-09-06 ("anyone can read and write"). On `sites.simple-host.app`, reading a site and its
   data stays open; every save from a page (state and collections: comments, RSVPs, votes)
@@ -173,3 +176,16 @@ What follows from that, and is not negotiable without changing the line above:
   there could save something in a signed-in visitor's name; it cannot read anything private
   because nothing there is private. Sites on their own domain keep full protection. Reason: stop
   anonymous spam and tie every write to a real account. Built after the connector ships.
+- **2026-09-24. Private collections on a site's own domain.** The owner can mark a collection
+  private: only signed-in visitors on the site's own domain submit (the server stamps their
+  verified email), and only the owner reads it (key, connector, CSV, dashboard, or signed in on
+  the domain); everyone else gets 404, and the shared host refuses them. Reverses the non-goal
+  "Sign-in gates writing, nothing gates reading" for private collections on the site's own
+  domain. The Simple Host operator can also read them, for moderation. The owner (and the
+  operator) can edit or delete items in a private list; public lists stay append-only. Owner
+  request. Reason: orders, RSVPs and surveys need owner-only reads.
+- **2026-09-24. Free <name>.simple-host.app addresses.** A site may self-serve a free
+  `<name>.simple-host.app` address: first come, first served, verified at once, reserved names
+  refused; it behaves exactly like a custom domain. Replaces "a Simple Host subdomain can be
+  given on request but is not offered or advertised" for sites that need privacy; the skills
+  offer it first when a site collects anything personal.

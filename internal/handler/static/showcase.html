@@ -321,6 +321,37 @@
     .version-row .version-active-tag { color: var(--success); font-weight: 500; }
     .versions-status { color: var(--text-secondary); font-size: 13px; padding: 6px 0; }
 
+    /* Private lists (owner only; filled lazily by loadPrivateLists) */
+    .plists { margin-top: 14px; }
+    .plists-head { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+    .plist-row { flex-wrap: wrap; row-gap: 8px; }
+    .plist-row .plist-name { font-family: var(--mono); font-weight: 600; overflow-wrap: anywhere; }
+    .plist-row .plist-meta { color: var(--text-secondary); flex: 1; min-width: 140px; }
+    .plist-row .plist-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+    .plist-view { padding: 4px 0 12px; }
+    .plist-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--border); border-radius: 6px; }
+    .plist-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .plist-table th, .plist-table td {
+      text-align: left; padding: 6px 10px; vertical-align: top;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis;
+    }
+    .plist-table tr:last-child td { border-bottom: 0; }
+    .plist-table th { color: var(--text-secondary); font-weight: 500; background: var(--surface); }
+    .plist-table td.plist-acts { width: 1%; }
+    .plist-table td.plist-acts .btn-small { padding-top: 2px; padding-bottom: 2px; }
+    .plist-edit { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+    .plist-edit label { font-size: 13px; color: var(--text-secondary); overflow-wrap: anywhere; }
+    .plist-edit textarea {
+      width: 100%; min-height: 140px; resize: vertical;
+      padding: 8px 10px; font-family: var(--mono); font-size: 13px; line-height: 1.45;
+      border: 1px solid var(--border-hi); border-radius: 8px;
+      background: var(--bg); color: var(--text); outline: none;
+    }
+    .plist-edit textarea:focus { border-color: var(--accent); }
+    .plist-edit .plist-edit-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+    .plist-edit .plist-err { color: var(--error); font-size: 13px; }
+
     /* Owner sign-in affordance */
     #manage-cta { text-align: center; padding: 8px 20px 56px; }
     #manage-cta .btn-primary { font-size: 15px; padding: 10px 18px; }
@@ -1290,6 +1321,262 @@ function parseAnalyticsSummary(data) {
       inv.innerHTML = '<div class="inv-list">' + sitesArr.map(function (s) {
         return renderInvRow(s);
       }).join('') + '</div>';
+      observePrivateLists(inv);
+    }
+
+    // ------------------------------------------------------- PRIVATE LISTS
+    // OWNER ONLY: reached solely via renderInventory(), i.e. after
+    // hydrateOwner() confirmed this visitor owns the handle. Lazy: a site's
+    // lists are fetched once, when its row first scrolls into view, so the
+    // page does not fire one request per site on load. A site with no private
+    // list shows nothing. Everything inside a list is visitor-supplied, so
+    // every value goes through esc()/escAttr() and names travel in data-
+    // attributes, never inside inline JS.
+    function escAttr(v) {
+      return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    var plistObserver = null;
+    function observePrivateLists(inv) {
+      var rows = inv.querySelectorAll('.inv-row[data-site]');
+      if (plistObserver) plistObserver.disconnect();
+      if (!('IntersectionObserver' in window)) {
+        Array.prototype.forEach.call(rows, function (r) { loadPrivateLists(r.getAttribute('data-site')); });
+        return;
+      }
+      plistObserver = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (!e.isIntersecting) return;
+          plistObserver.unobserve(e.target);
+          loadPrivateLists(e.target.getAttribute('data-site'));
+        });
+      }, { rootMargin: '200px 0px' });
+      Array.prototype.forEach.call(rows, function (r) { plistObserver.observe(r); });
+      if (!inv.getAttribute('data-plist-wired')) {
+        inv.setAttribute('data-plist-wired', '1');
+        inv.addEventListener('click', onPrivateListClick);
+      }
+    }
+    async function loadPrivateLists(name) {
+      var box = document.querySelector('[data-plists="' + cssEsc(name) + '"]');
+      if (!box || box.getAttribute('data-loaded')) return;
+      box.setAttribute('data-loaded', '1');
+      var lists;
+      try {
+        var res = await api('GET', '/v1/sites/' + encodeURIComponent(name) + '/collections');
+        if (!res.ok) return;
+        var body = await res.json();
+        lists = (body && Array.isArray(body.collections) ? body.collections : [])
+          .filter(function (c) { return c && c.private === true; });
+      } catch (e) { return; }
+      if (!lists.length) return;
+      box.innerHTML = '<div class="plists-head">Private lists</div>' +
+        '<div class="versions-list">' + lists.map(function (c) {
+          var coll = String(c.name || '');
+          var count = Number.isFinite(Number(c.count)) ? Math.trunc(Number(c.count)) : 0;
+          var meta = plistMeta(count, c.last_at);
+          var a = ' data-site="' + escAttr(name) + '" data-coll="' + escAttr(coll) + '"';
+          return '<div class="plist">' +
+            '<div class="version-row plist-row">' +
+              '<span class="plist-name">' + esc(coll) + '</span>' +
+              '<span class="plist-meta" data-count="' + count + '" data-last="' + escAttr(c.last_at || '') + '">' + meta + '</span>' +
+              '<span class="plist-btns">' +
+                (count ? '<button type="button" class="btn-small btn-secondary" data-plist-view' + a + ' aria-expanded="false">View items</button>' : '') +
+                (count ? '<button type="button" class="btn-small btn-secondary" data-plist-csv' + a + '>Download spreadsheet</button>' : '') +
+              '</span>' +
+            '</div>' +
+            '<div class="plist-view" hidden></div>' +
+          '</div>';
+        }).join('') + '</div>';
+      box.hidden = false;
+    }
+    function plistMeta(count, lastAt) {
+      return count + (count === 1 ? ' item' : ' items') +
+        (lastAt ? ' · last saved ' + esc(new Date(lastAt).toLocaleString()) : '');
+    }
+    function onPrivateListClick(e) {
+      var t = e.target && e.target.closest ? e.target.closest('[data-plist-view],[data-plist-csv],[data-plist-act]') : null;
+      if (!t) return;
+      if (t.hasAttribute('data-plist-act')) { onPrivateItemAction(t); return; }
+      var name = t.getAttribute('data-site'), coll = t.getAttribute('data-coll');
+      if (t.hasAttribute('data-plist-csv')) downloadPrivateList(name, coll, t);
+      else togglePrivateList(t, name, coll);
+    }
+    function plistCell(v) {
+      if (v == null) return '';
+      if (typeof v === 'object') return esc(JSON.stringify(v));
+      return esc(String(v));
+    }
+    var PLIST_STAMPS = ['_submitted_by', '_submitted_at'];
+    // Per open list: {name, coll, items, next}. Kept on the view element so an
+    // edit or delete re-renders from memory without refetching.
+    async function togglePrivateList(btn, name, coll) {
+      var wrap = btn.closest('.plist');
+      var view = wrap && wrap.querySelector('.plist-view');
+      if (!view) return;
+      if (!view.hidden) { view.hidden = true; btn.textContent = 'View items'; btn.setAttribute('aria-expanded', 'false'); return; }
+      view.innerHTML = '<div class="versions-status">Loading…</div>';
+      view.hidden = false;
+      btn.textContent = 'Hide items';
+      btn.setAttribute('aria-expanded', 'true');
+      try {
+        var res = await api('GET', '/v1/sites/' + encodeURIComponent(name) + '/collections/' + encodeURIComponent(coll) + '?limit=50');
+        if (!res.ok) { view.innerHTML = '<div class="versions-status">Could not load items</div>'; return; }
+        var body = await res.json();
+        view._plist = { name: name, coll: coll, items: (body && Array.isArray(body.items)) ? body.items : [], next: body && body.next };
+        renderPrivateItems(view);
+      } catch (e) {
+        view.innerHTML = '<div class="versions-status">Could not load items</div>';
+      }
+    }
+    function plistData(it) {
+      return (it && it.data && typeof it.data === 'object' && !Array.isArray(it.data)) ? it.data : {};
+    }
+    function renderPrivateItems(view) {
+      var st = view._plist;
+      var items = st.items;
+      if (!items.length) { view.innerHTML = '<div class="versions-status">No items</div>'; return; }
+      var keySet = {};
+      items.forEach(function (it) { Object.keys(plistData(it)).forEach(function (k) { keySet[k] = true; }); });
+      var keys = Object.keys(keySet).filter(function (k) { return PLIST_STAMPS.indexOf(k) < 0; }).sort()
+        .concat(PLIST_STAMPS.filter(function (k) { return keySet[k]; }));
+      var saved = !keySet._submitted_at; // older items without the stamp: show when they were saved
+      var head = '<th></th>' + keys.map(function (k) { return '<th>' + esc(k) + '</th>'; }).join('') + (saved ? '<th>saved</th>' : '');
+      var rows = items.map(function (it) {
+        var d = plistData(it);
+        var id = escAttr(it.id);
+        return '<tr>' +
+          '<td class="plist-acts"><span class="plist-btns">' +
+            '<button type="button" class="btn-small btn-secondary" data-plist-act="edit" data-id="' + id + '">Edit</button>' +
+            '<button type="button" class="btn-small btn-ghost" data-plist-act="delete" data-id="' + id + '">Delete</button>' +
+          '</span></td>' +
+          keys.map(function (k) {
+            var raw = d[k] == null ? '' : (typeof d[k] === 'object' ? JSON.stringify(d[k]) : d[k]);
+            return '<td title="' + escAttr(raw) + '">' + plistCell(d[k]) + '</td>';
+          }).join('') +
+          (saved ? '<td>' + (it.created_at ? esc(new Date(it.created_at).toLocaleString()) : '') + '</td>' : '') +
+          '</tr>';
+      }).join('');
+      view.innerHTML = '<div class="plist-table-wrap"><table class="plist-table"><thead><tr>' + head +
+        '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
+        (st.next ? '<div class="versions-status">Latest 50 shown. The spreadsheet has every item.</div>' : '') +
+        '<div class="plist-edit" hidden></div>';
+    }
+    function plistItemPath(st, id) {
+      return '/v1/sites/' + encodeURIComponent(st.name) + '/collections/' + encodeURIComponent(st.coll) + '/items/' + encodeURIComponent(id);
+    }
+    async function plistError(res, fallback) {
+      var err = await res.json().catch(function () { return null; });
+      return (err && err.error) || fallback;
+    }
+    function plistSetCount(view, delta) {
+      var meta = view.closest('.plist') && view.closest('.plist').querySelector('.plist-meta');
+      if (!meta) return;
+      var n = Math.max(0, (parseInt(meta.getAttribute('data-count'), 10) || 0) + delta);
+      meta.setAttribute('data-count', String(n));
+      meta.innerHTML = plistMeta(n, meta.getAttribute('data-last'));
+    }
+    async function onPrivateItemAction(t) {
+      var view = t.closest('.plist-view');
+      var st = view && view._plist;
+      if (!st) return;
+      var act = t.getAttribute('data-plist-act');
+      var editor = view.querySelector('.plist-edit');
+      if (act === 'cancel') { editor.hidden = true; editor.innerHTML = ''; return; }
+      var id = t.getAttribute('data-id');
+      var idx = -1;
+      st.items.forEach(function (it, i) { if (String(it.id) === id) idx = i; });
+      if (idx < 0) return;
+      var item = st.items[idx];
+      if (act === 'edit') {
+        var editable = {};
+        var d = plistData(item);
+        Object.keys(d).forEach(function (k) { if (PLIST_STAMPS.indexOf(k) < 0) editable[k] = d[k]; });
+        editor.innerHTML = '<label for="plist-ta-' + escAttr(id) + '">Edit item ' + esc(id) +
+            (d._submitted_by ? ' from ' + esc(d._submitted_by) : '') + '</label>' +
+          '<textarea id="plist-ta-' + escAttr(id) + '" spellcheck="false">' + esc(JSON.stringify(editable, null, 2)) + '</textarea>' +
+          '<div class="plist-err" hidden></div>' +
+          '<div class="plist-edit-btns">' +
+            '<button type="button" class="btn-small btn-primary" data-plist-act="save" data-id="' + escAttr(id) + '">Save</button>' +
+            '<button type="button" class="btn-small btn-secondary" data-plist-act="cancel">Cancel</button>' +
+          '</div>';
+        editor.hidden = false;
+        var ta = editor.querySelector('textarea');
+        ta.focus();
+        if (editor.scrollIntoView) editor.scrollIntoView({ block: 'nearest' });
+        return;
+      }
+      if (act === 'save') {
+        var errEl = editor.querySelector('.plist-err');
+        var showErr = function (msg) { errEl.textContent = msg; errEl.hidden = false; };
+        var next;
+        try { next = JSON.parse(editor.querySelector('textarea').value); } catch (e) { showErr('That is not valid JSON: ' + e.message); return; }
+        if (!next || typeof next !== 'object' || Array.isArray(next)) { showErr('The item must be one JSON object, like {"name": "…"}.'); return; }
+        // Merge semantics: send every field; a field that was removed goes as null.
+        var patch = {};
+        Object.keys(next).forEach(function (k) { if (PLIST_STAMPS.indexOf(k) < 0) patch[k] = next[k]; });
+        Object.keys(plistData(item)).forEach(function (k) {
+          if (PLIST_STAMPS.indexOf(k) < 0 && !Object.prototype.hasOwnProperty.call(next, k)) patch[k] = null;
+        });
+        t.disabled = true;
+        try {
+          var res = await api('PATCH', plistItemPath(st, id), patch);
+          if (!res.ok) { showErr(await plistError(res, 'Could not save the item')); return; }
+          var saved = await res.json().catch(function () { return null; });
+          if (saved && saved.data) st.items[idx] = saved;
+          renderPrivateItems(view);
+          toast('Saved', 'success');
+        } catch (e) {
+          showErr('Could not save the item');
+        } finally {
+          t.disabled = false;
+        }
+        return;
+      }
+      if (act === 'delete') {
+        var who = plistData(item)._submitted_by;
+        if (!confirm('Delete item ' + id + (who ? ' from ' + who : '') + '? This cannot be undone.')) return;
+        t.disabled = true;
+        try {
+          var dres = await api('DELETE', plistItemPath(st, id));
+          if (!dres.ok && dres.status !== 204) { toast(await plistError(dres, 'Could not delete the item'), 'error'); t.disabled = false; return; }
+          st.items.splice(idx, 1);
+          renderPrivateItems(view);
+          plistSetCount(view, -1);
+          toast('Deleted', 'success');
+        } catch (e) {
+          toast('Could not delete the item', 'error');
+          t.disabled = false;
+        }
+      }
+    }
+    async function downloadPrivateList(name, coll, btn) {
+      if (btn) btn.disabled = true;
+      try {
+        var res = await api('GET', '/v1/sites/' + encodeURIComponent(name) + '/collections/' + encodeURIComponent(coll) + '/export.csv');
+        if (!res.ok) {
+          var err = await res.json().catch(function () { return null; });
+          toast((err && err.error) || 'Could not download the spreadsheet', 'error');
+          return;
+        }
+        var blob = await res.blob();
+        var filename = name + '-' + coll + '.csv';
+        var cd = res.headers.get('Content-Disposition');
+        var m = cd && cd.match(/filename="([^"]+)"/);
+        if (m) filename = m[1];
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      } catch (e) {
+        toast('Could not download the spreadsheet', 'error');
+      } finally {
+        if (btn) btn.disabled = false;
+      }
     }
 
     function siteOpenUrl(s) {
@@ -1319,6 +1606,7 @@ function parseAnalyticsSummary(data) {
           '<button type="button" class="btn-small btn-ghost" onclick="confirmDelete(\'' + name + '\')">Delete</button>' +
         '</div>' +
         '<div class="versions-panel" data-versions="' + name + '" hidden></div>' +
+        '<div class="plists" data-plists="' + name + '" hidden></div>' +
       '</div>';
     }
 

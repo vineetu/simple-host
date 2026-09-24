@@ -6,7 +6,9 @@ server for you to run.
 
 ## Trust model
 
-Reads are public: anyone with the link can read a site's state and collections.
+Reads are public: anyone with the link can read a site's state and its public
+collections. The one exception is a **private collection** (see "Private
+collections" below): visitors add to it, only the site owner reads it.
 **On the shared host `sites.simple-host.app` anyone can write too.** A page
 there saves without sign-in or key, and that data can be changed by anyone.
 **On a site with its own custom domain writes need an identity** — a visitor
@@ -23,7 +25,8 @@ writes at all: state and collection writes there answer 401
 Reads there stay public. Agents write through the apex
 `https://simple-host.app/v1/...` with a key (what this skill already does) or
 through the domain's own `/v1/` (key or session). Sites without a domain are
-unchanged.
+unchanged. A free `<name>.simple-host.app` address counts as the site's own
+domain here, exactly like a custom one.
 
 The plain-`fetch` shape that works on both hosts (the `SH` helper below sends
 the same headers for you):
@@ -92,8 +95,9 @@ only the patch — never re-append.
 is half a feature. Add a second page (e.g. `admin.html`) that GETs the collection
 and lists every entry newest-first, link to it quietly from the main page, and
 put `<meta name="robots" content="noindex">` in its head. Do not build a fake
-password gate: sites and their data are public to anyone with the link, so say
-that in one small line instead.
+password gate: a public collection is readable by anyone with the link, so say
+that in one small line instead. If the entries hold personal details, use a
+private collection and an owner page instead (below).
 
 ## Saving from a page with the hosted helper
 
@@ -133,7 +137,8 @@ window.addEventListener('DOMContentLoaded', function () {
 </script>
 ```
 
-Reads need no sign-in: `const { data, etag } = await SH.state.get();` and
+Reads of state and public collections need no sign-in:
+`const { data, etag } = await SH.state.get();` and
 `await SH.collection('entries').list({ limit: 50 })`.
 
 The `SH` object:
@@ -153,7 +158,12 @@ The `SH` object:
   created on first verify), `SH.signOut()`.
 - `SH.state.get()` → `{data, etag}`; `SH.state.patch(ops)`;
   `SH.state.put(obj, {ifMatch})`.
-- `SH.collection(name).append(item)`; `SH.collection(name).list(query)`.
+- `SH.collection(name).append(item)` → the stored item `{id, data, created_at}`;
+  `SH.collection(name).list(query)` → `{items, next}` (plus `private: true` on a
+  private list, which only the owner can read).
+- Private lists, owner only: `SH.collection(name).update(id, fields)` → the
+  updated item; `SH.collection(name).remove(id)`. `id` is `items[].id` from
+  `list()`.
 
 Every write sends `credentials:"include"`, `Content-Type: application/json` and
 `X-SH-CSRF: 1` for you. A non-2xx rejects with an `Error` carrying `.status`,
@@ -165,10 +175,217 @@ Raw `fetch` without the helper works too: send `credentials:'include'` and
 navigate to `https://simple-host.app/v1/auth/oauth/google?return_to=` +
 `encodeURIComponent(location.href)`.
 
+## Private collections (orders, RSVPs, anything personal)
+
+Use a private collection when a form collects orders, RSVPs, survey answers,
+sign-ups, or anything with names, emails, phone numbers or addresses. Visitors
+signed in on the site's own address add to it. Only the site owner — and the
+Simple Host operator, for moderation — can read it. Everyone else gets 404.
+Pages stay public; only the list is private.
+
+Public lists (a guestbook, votes, public comments) stay public. Say so plainly
+when you build one.
+
+### 1. Give the site its own address
+
+Offer the free `<name>.simple-host.app` first. It is one call, active at once,
+with no DNS step. With the connector: `connect_domain` with
+`clay-studio.simple-host.app`. Without it:
+
+```
+POST /v1/sites/<sitename>/domain
+X-API-Key: <api_key>
+{"domain": "clay-studio.simple-host.app"}
+```
+
+It answers 200 with `"status": "active"`. Names are first come, first served:
+409 `domain_taken` means another site has it, 400 `name_reserved` means the
+name is kept for the platform, 400 `invalid_name` means it is not one DNS label
+(letters, digits, hyphens). Pick another name and retry. The person's own domain
+is the alternative (the `connect-domain` skill, one DNS record). Either way the
+site now lives at that address and its old shared URL 302s there.
+
+### 2. Make the collection private
+
+Do this before the form goes live. It works before any item exists.
+With the connector: `set_collection_privacy`. Without it:
+
+```
+PUT /v1/sites/<sitename>/collections/orders/privacy
+X-API-Key: <api_key>
+{"private": true}
+```
+
+It answers 200 with `"private": true`, the `domain` and a one-line `message`.
+It answers 409 `custom_domain_required` when the site has no active own address
+yet (a custom domain still waiting on DNS does not count); do step 1 first.
+
+`{"private": false}` makes the list public again, and everything already saved
+in it becomes readable by anyone. Confirm with the owner before sending it.
+
+### 3. The form page
+
+The visitor signs in, then adds one JSON object. The server stamps
+`_submitted_by` (the visitor's verified email) and `_submitted_at` (server time)
+on every item, replacing anything the page sent under those keys. The 201 answer
+is the stored item; show it back to the visitor as their confirmation. Visitors
+cannot read their own submissions later, so this answer is the receipt.
+
+```html
+<div id="sh-auth"></div>
+<form id="order">
+  <input name="name" required placeholder="Name">
+  <input name="phone" required placeholder="Phone">
+  <input name="item" required placeholder="What would you like?">
+  <button>Place order</button>
+</form>
+<p id="status"></p>
+<script>window.SH_CONFIG = { site: "<sitename>" };</script>
+<script src="https://simple-host.app/auth.js" defer></script>
+<script>
+window.addEventListener('DOMContentLoaded', function () {
+  SH.mount('#sh-auth');
+  const status = document.getElementById('status');
+  document.getElementById('order').onsubmit = async function (e) {
+    e.preventDefault();
+    const f = e.target;
+    await SH.requireSignIn();                        // signs the visitor in if needed
+    try {
+      const saved = await SH.collection('orders').append({ name: f.name.value, phone: f.phone.value, item: f.item.value });
+      f.reset();
+      status.textContent = 'Order received: ' + saved.data.item + ' for ' + saved.data.name + ' (' + saved.data._submitted_by + ')';
+    } catch (err) {
+      status.textContent = 'Not sent: ' + (err.code || err.status);   // keep the form, never claim success
+    }
+  };
+});
+</script>
+```
+
+### 4. The owner page
+
+Add a page on the site, e.g. `orders.html`, that signs in, lists the
+collection, and lets the owner mark an order done or delete it. It works only
+when the owner's own account is signed in on that domain; anyone else gets 404
+`not_found`. Link it quietly or not at all, and mark it `noindex`.
+
+```html
+<meta name="robots" content="noindex">
+<div id="sh-auth"></div>
+<p id="status">Loading…</p>
+<table id="orders" hidden>
+  <thead><tr><th>When</th><th>From</th><th>Name</th><th>Phone</th><th>Item</th><th>Status</th><th></th></tr></thead>
+  <tbody></tbody>
+</table>
+<script>window.SH_CONFIG = { site: "<sitename>" };</script>
+<script src="https://simple-host.app/auth.js" defer></script>
+<script>
+window.addEventListener('DOMContentLoaded', async function () {
+  SH.mount('#sh-auth');
+  const status = document.getElementById('status');
+  const orders = SH.collection('orders');
+  function button(label, onclick) {
+    const b = document.createElement('button'); b.textContent = label; b.onclick = onclick; return b;
+  }
+  await SH.requireSignIn();
+  try {
+    const { items } = await orders.list({ limit: 200 });
+    const body = document.querySelector('#orders tbody');
+    for (const { id, data } of items) {
+      const tr = body.insertRow();
+      for (const v of [data._submitted_at, data._submitted_by, data.name, data.phone, data.item, data.status]) tr.insertCell().textContent = v || '';
+      const actions = tr.insertCell();
+      actions.append(
+        button('Mark done', async function () {
+          try { const saved = await orders.update(id, { status: 'done' }); tr.cells[5].textContent = saved.data.status; }
+          catch (err) { status.textContent = 'Not updated: ' + (err.code || err.status); }
+        }),
+        button('Delete', async function () {
+          if (!confirm('Delete this order for good?')) return;
+          try { await orders.remove(id); tr.remove(); }
+          catch (err) { status.textContent = 'Not deleted: ' + (err.code || err.status); }
+        })
+      );
+    }
+    document.getElementById('orders').hidden = false;
+    status.textContent = items.length + ' orders, newest first';
+  } catch (err) {
+    status.textContent = err.status === 404 ? "Sign in with the owner's account to see orders." : 'Could not load: ' + (err.code || err.status);
+  }
+});
+</script>
+```
+
+Use `textContent`, never `innerHTML`, for submitted values.
+
+### Editing and deleting items (private lists, owner only)
+
+```
+PATCH  /v1/sites/<sitename>/collections/<name>/items/<id>    # merge fields into the item
+DELETE /v1/sites/<sitename>/collections/<name>/items/<id>    # delete the item for everyone
+```
+
+The `/v1/u/<handle>/sites/<sitename>/...` twins work too. `<id>` is
+`items[].id` from a list read.
+
+- **PATCH** takes one JSON object of fields to merge. A field sent as `null` is
+  removed. `_submitted_by` and `_submitted_at` can never be set, changed or
+  removed (ignored if sent), and `created_at` never changes. Answers 200 with the
+  item `{id, data, created_at}`. 400 if the body is not an object, 413 if the
+  item is over 64 KB after the merge.
+- **DELETE** answers 204. The item is gone for good; confirm with the owner first.
+- **Who:** the site owner — with `X-API-Key`, the connector
+  (`update_collection_item`, `delete_collection_item`), or the owner's own
+  sign-in on the site's own address from a page there (send `X-SH-CSRF: 1`; the
+  helper does) — and the Simple Host operator, for moderation. Everyone else,
+  including the visitor who submitted the item, gets 404 `not_found`.
+- **Public lists stay append-only:** these calls on a public list answer 409
+  `append_only`.
+
+### Reading as the owner, outside the page
+
+Only the site owner — and the Simple Host operator, for moderation — can read a
+private list.
+
+
+- The dashboard shows the list, with a spreadsheet download.
+- `read_collection` with the connector. Without it,
+  `GET /v1/sites/<sitename>/collections/orders` with `X-API-Key`; the answer
+  adds `"private": true`.
+- `GET /v1/sites/<sitename>/collections` lists every collection; each entry has
+  `"private": true|false`. A private list shows even while empty, with
+  `last_at: null`.
+- `GET /v1/sites/<sitename>/collections/orders/export.csv` with `X-API-Key`
+  downloads a CSV; `_submitted_by` and `_submitted_at` are columns like any
+  other key.
+
+Reads through the shared host `sites.simple-host.app` answer 404 for a private
+list, even with a key; use the apex `https://simple-host.app/v1/...`.
+
+### Errors when adding to a private list
+
+| Status | Code | Meaning |
+|---|---|---|
+| 401 | `visitor_auth_required` | Not signed in. `SH.requireSignIn()` handles it. |
+| 403 | `csrf_required` | Missing `X-SH-CSRF: 1`. The helper always sends it. |
+| 403 | `private_visitor_only` | Sent with an API key, or by an agent (`add_to_collection`). Agents cannot add to a private list; only signed-in visitors can. |
+| 403 | `private_needs_own_domain` | Sent from anywhere other than the site's own address. |
+| 401 | `use_custom_domain` (+ `domain`) | Sent through the shared host. Link the visitor to the same page on `domain`. |
+| 400 | — | The item is not one JSON object. |
+| 413 | — | The item is over 64 KB. |
+
+### On the shared address
+
+On `sites.simple-host.app/<handle>/<sitename>/` private lists are not offered,
+and anything saved is public. Do not collect personal details there. Suggest
+an email-order flow instead (a `mailto:` link, "email us to order"), or claim
+the free `<name>.simple-host.app` address (one call) and use a private list.
+
 ## Saving from an agent (API key)
 
-Any account's API key writes to any site's state and collections, on the shared
-host too. Send `X-API-Key: <key>` on `PUT`/`PATCH /v1/sites/<sitename>/state`
+Any account's API key writes to any site's state and public collections, on
+the shared host too. A private collection takes no writes from a key or an
+agent (403 `private_visitor_only`). Send `X-API-Key: <key>` on `PUT`/`PATCH /v1/sites/<sitename>/state`
 and `POST /v1/sites/<sitename>/collections/<name>` (or the
 `/v1/u/<handle>/sites/<sitename>/...` twins).
 

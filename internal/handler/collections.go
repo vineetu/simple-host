@@ -232,6 +232,22 @@ func (h *SiteHandler) ownerSiteIDFromKey(r *http.Request, siteName string) (stri
 		}
 		user = &u
 	}
+	// With a {handle} route the site is named exactly: an owner key must own
+	// that handle's site, and the admin gets that site (not whichever
+	// same-named site is oldest).
+	if handle := strings.TrimSpace(r.PathValue("handle")); handle != "" {
+		if user.IsAdmin && user.ID == "" {
+			id, err := h.resolveSiteID(r, siteName)
+			return id, err == nil
+		}
+		if !strings.EqualFold(handle, user.Handle.String) {
+			if !user.IsAdmin {
+				return "", false
+			}
+			id, err := h.resolveSiteID(r, siteName)
+			return id, err == nil
+		}
+	}
 	id, err := h.ownedSiteID(r, user, siteName)
 	if err != nil {
 		return "", false

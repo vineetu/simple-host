@@ -12,6 +12,9 @@
  *
  * Before saving: await SH.requireSignIn(); then await SH.state.patch([{op:"inc",path:"count",by:1}])
  * or await SH.collection('entries').append(item). Never automatically re-POST.
+ * Private lists (owner-only reads; set by the owner, own domain only): submit the
+ * same way while signed in; the owner's admin page on the domain reads them with
+ * SH.collection(name).list() and edits with .update(id, fields) / .remove(id).
  * Auto-derives the API from sites.<domain>/<handle>/<site>/ or the first host label.
  * Custom domain: set window.SH_CONFIG = {site:'my-site'} (same-origin API).
  * authBase optionally overrides the apex. me() returns the server response.
@@ -212,13 +215,38 @@
     },
     collection: function (name) {
       var url = API_BASE + "/collections/" + encodeURIComponent(name);
+      // A private list (owner-only reads) answers 404 to everyone but its
+      // owner signed in on the site's own domain; say what that means.
+      function explain(e) {
+        if (e && e.status === 404 && e.code === "not_found") {
+          e.message = "Not found. If this is a private list, only the site owner can read or change it, signed in on the site's own domain.";
+        }
+        throw e;
+      }
+      function itemURL(id) {
+        if (!/^[0-9]+$/.test(String(id))) return null;
+        return url + "/items/" + String(id);
+      }
       return {
         append: function (item) { return write(url, "POST", item); },
         list: function (query) {
           var params = Object.keys(query || {}).map(function (key) {
             return encodeURIComponent(key) + "=" + encodeURIComponent(query[key]);
           });
-          return request(url + (params.length ? "?" + params.join("&") : ""));
+          return request(url + (params.length ? "?" + params.join("&") : "")).catch(explain);
+        },
+        // Private lists only, site owner only: merge fields into one item
+        // (null removes a field; _submitted_by/_submitted_at never change)
+        // and delete one item. Public lists are append-only.
+        update: function (id, fields) {
+          var u = itemURL(id);
+          if (!u) return Promise.reject(new Error("update(id, fields): id is the item's number from list()"));
+          return write(u, "PATCH", fields || {}).catch(explain);
+        },
+        remove: function (id) {
+          var u = itemURL(id);
+          if (!u) return Promise.reject(new Error("remove(id): id is the item's number from list()"));
+          return request(u, {method: "DELETE", headers: {"X-SH-CSRF": "1"}}).catch(explain);
         }
       };
     },

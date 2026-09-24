@@ -292,6 +292,13 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// Owner-only: make one list private (owner-only reads, signed-in
 	// submissions on the site's own domain) or public again.
 	mux.Handle("PUT /v1/sites/{sitename}/collections/{coll}/privacy", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setCollectionPrivacy))))
+	// Private lists only: the owner or the platform admin edits or deletes one
+	// item (key, connector token, or the owner's session on the site's own
+	// domain). Public lists stay append-only.
+	mux.Handle("PATCH /v1/sites/{sitename}/collections/{coll}/items/{id}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.updatePrivateItem)))
+	mux.Handle("DELETE /v1/sites/{sitename}/collections/{coll}/items/{id}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.deletePrivateItem)))
+	mux.Handle("PATCH /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.updatePrivateItem)))
+	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.deletePrivateItem)))
 	mux.HandleFunc("GET /v1/sites/{sitename}/collections/{coll}", h.listCollection)
 	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection)))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/collections/{coll}", h.optionsCollection)

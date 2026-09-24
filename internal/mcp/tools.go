@@ -427,6 +427,33 @@ func jsonText(v any) string {
 	return string(b)
 }
 
+// itemArgs reads site, collection and a positive whole-number item id.
+func itemArgs(args map[string]any) (site, coll, id string, err error) {
+	if site, err = siteArg(args); err != nil {
+		return
+	}
+	if coll, err = stringArg(args, "collection"); err != nil {
+		return
+	}
+	var raw any = args["id"]
+	switch v := raw.(type) {
+	case float64:
+		if v != math.Trunc(v) || v <= 0 {
+			return "", "", "", errors.New("id must be the item id from read_collection")
+		}
+		id = strconv.FormatInt(int64(v), 10)
+	default:
+		if id, err = stringArg(args, "id"); err != nil {
+			return
+		}
+		id = strings.TrimSpace(id)
+	}
+	if n, perr := strconv.ParseInt(id, 10, 64); perr != nil || n <= 0 {
+		return "", "", "", errors.New("id must be the item id from read_collection")
+	}
+	return site, coll, id, nil
+}
+
 // ---- the tools ---------------------------------------------------------------
 
 const siteDesc = "The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens."
@@ -897,7 +924,7 @@ func Tools() []Tool {
 		{
 			Name:        "read_collection",
 			Title:       "Read a site's collection",
-			Description: "Read items a site's pages have saved into a collection, newest first. Pass `before` with the returned `next` to page back. A public collection can be read by anyone; a private one (`private: true`) only by the owner — you, here — and its items carry `_submitted_by` (the visitor's verified email) and `_submitted_at`, stamped by the server.",
+			Description: "Read items a site's pages have saved into a collection, newest first. Pass `before` with the returned `next` to page back. A public collection can be read by anyone; a private one (`private: true`) only by the owner — you, here — and its items carry `_submitted_by` (the visitor's verified email) and `_submitted_at`, stamped by the server, plus an `id` for update_collection_item and delete_collection_item.",
 			InputSchema: object(map[string]any{
 				"site":       str(siteDesc),
 				"collection": str("Collection name, e.g. `rsvps`."),
@@ -938,6 +965,7 @@ func Tools() []Tool {
 				}
 				var page struct {
 					Items []struct {
+						ID        int64           `json:"id"`
 						Data      json.RawMessage `json:"data"`
 						CreatedAt string          `json:"created_at"`
 					} `json:"items"`
@@ -948,11 +976,18 @@ func Tools() []Tool {
 				// Each item is what the page saved plus when it was saved (an
 				// RSVP's or a survey answer's time is part of the answer). The
 				// row number stays internal; only the paging cursor carries it.
+				// In a private list the owner can edit and delete items, which
+				// needs the item's id; a public list is append-only, so its
+				// ids stay out.
 				items := make([]any, 0, len(page.Items))
 				for _, it := range page.Items {
 					var data any
 					_ = json.Unmarshal(it.Data, &data)
-					items = append(items, map[string]any{"data": data, "saved_at": it.CreatedAt})
+					item := map[string]any{"data": data, "saved_at": it.CreatedAt}
+					if page.Private {
+						item["id"] = strconv.FormatInt(it.ID, 10)
+					}
+					items = append(items, item)
 				}
 				out := map[string]any{"site": name, "collection": coll, "private": page.Private, "items": items}
 				if page.Next != nil {
@@ -1043,6 +1078,84 @@ func Tools() []Tool {
 					text = jsonText(out)
 				}
 				return output{Text: text, Structured: out}, nil
+			},
+		},
+		{
+			Name:  "update_collection_item",
+			Title: "Change an item in a private collection",
+			Description: "Change fields of one item in a PRIVATE collection, e.g. mark an order done ({\"status\": \"done\"}) or fix a typo. The fields sent are merged into the item; a field sent as null is removed. " +
+				"`_submitted_by` and `_submitted_at` are stamped by the server and never change. Public collections are append-only and cannot be edited. Take `id` from read_collection.",
+			InputSchema: object(map[string]any{
+				"site":       str(siteDesc),
+				"collection": str("Collection name, e.g. `orders`."),
+				"id":         str("The item's id from read_collection."),
+				"fields":     map[string]any{"type": "object", "description": "Fields to set (merged into the item); a null value removes that field."},
+			}, "site", "collection", "id", "fields"),
+			// Overwrites (or removes) field values with no undo, so
+			// destructive; the list is private to the owner, so nothing is
+			// published.
+			Annotations: writes(true, true, false),
+			run: func(c *call, args map[string]any) (output, error) {
+				name, coll, id, err := itemArgs(args)
+				if err != nil {
+					return output{}, err
+				}
+				fields, ok := args["fields"].(map[string]any)
+				if !ok {
+					return output{}, errors.New("fields must be a JSON object")
+				}
+				body, _ := json.Marshal(fields)
+				res, err := c.siteData(http.MethodPatch, name, "/collections/"+url.PathEscape(coll)+"/items/"+url.PathEscape(id), body, nil)
+				if err != nil {
+					return output{}, err
+				}
+				if !res.ok() {
+					return output{}, restError("update_collection_item", res)
+				}
+				var it struct {
+					Data json.RawMessage `json:"data"`
+				}
+				_ = json.Unmarshal(res.body, &it)
+				var data any
+				_ = json.Unmarshal(it.Data, &data)
+				out := map[string]any{"site": name, "collection": coll, "id": id, "data": data}
+				return output{Text: jsonText(out), Structured: out}, nil
+			},
+		},
+		{
+			Name:  "delete_collection_item",
+			Title: "Delete an item from a private collection",
+			Description: "DESTRUCTIVE AND IRREVERSIBLE: deletes one item from a PRIVATE collection (e.g. spam or a cancelled order). " +
+				"Only call this after the person has explicitly confirmed, in this conversation, that they want this specific item deleted. Pass the item id twice: as `id` and as `confirm_id`. Public collections are append-only.",
+			InputSchema: object(map[string]any{
+				"site":       str(siteDesc),
+				"collection": str("Collection name, e.g. `orders`."),
+				"id":         str("The item's id from read_collection."),
+				"confirm_id": str("The same id again, typed out, as confirmation."),
+			}, "site", "collection", "id", "confirm_id"),
+			// Irreversible; inside the owner's private data, publishes nothing.
+			Annotations: writes(true, true, false),
+			run: func(c *call, args map[string]any) (output, error) {
+				name, coll, id, err := itemArgs(args)
+				if err != nil {
+					return output{}, err
+				}
+				confirm, err := stringArg(args, "confirm_id")
+				if err != nil {
+					return output{}, err
+				}
+				if strings.TrimSpace(confirm) != id {
+					return output{}, fmt.Errorf("confirm_id %q does not match id %q; nothing was deleted", confirm, id)
+				}
+				res, err := c.siteData(http.MethodDelete, name, "/collections/"+url.PathEscape(coll)+"/items/"+url.PathEscape(id), nil, nil)
+				if err != nil {
+					return output{}, err
+				}
+				if !res.ok() {
+					return output{}, restError("delete_collection_item", res)
+				}
+				out := map[string]any{"site": name, "collection": coll, "deleted": id}
+				return output{Text: "Deleted item " + id + " from " + coll + ".", Structured: out}, nil
 			},
 		},
 		{

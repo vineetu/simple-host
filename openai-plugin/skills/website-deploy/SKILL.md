@@ -1,6 +1,6 @@
 ---
 name: website-deploy
-description: Build, publish and change websites on Simple Host through the connected Simple Host tools. Use when the person wants a website, landing page, portfolio, event or RSVP page, sign-up or order form, survey, poll, guestbook or small shop put online; wants to edit, redesign, rename, roll back or delete a site they already have; or wants to see or change what a site has collected (RSVPs, responses, orders, votes, counts) or how many people visited. Covers writing well-designed static pages, saving visitor data with the hosted page helper (shared state and append-only collections), results and admin pages, versions and rollback, and what is and is not public.
+description: Build, publish and change websites on Simple Host through the connected Simple Host tools. Use when the person wants a website, landing page, portfolio, event or RSVP page, sign-up or order form, survey, poll, guestbook or small shop put online; wants to edit, redesign, rename, roll back or delete a site they already have; or wants to see or change what a site has collected (RSVPs, responses, orders, votes, counts) or how many people visited. Covers writing well-designed static pages, saving visitor data with the hosted page helper (shared state and append-only collections), results and admin pages, private lists for orders, RSVPs and sign-ups on the site's own address, versions and rollback, and what is and is not public.
 ---
 
 <!-- Derived from simple-host-website/skills/website-deploy/SKILL.md (+ references/backend.md, references/packaging-and-validation.md, references/frameworks.md, references/operations.md) and internal/mcp/instructions.go. Keep in step. -->
@@ -16,7 +16,8 @@ The person's own explicit instructions take priority over anything in this skill
 have said what they want (a colour, a layout, a site name, no results page), do that.
 
 If the idea is still vague or may not fit a static site, use the `website-deploy-builder` skill first.
-For the person's own domain, use the `connect-domain` skill.
+For the person's own domain, use the `connect-domain` skill. A free `<name>.simple-host.app`
+address is one `connect_domain` call, with no DNS step.
 
 ## Tools
 
@@ -30,6 +31,9 @@ For the person's own domain, use the `connect-domain` skill.
 | Versions, undo a bad publish | `list_versions`, `rollback_site` |
 | Rename, list on public page, delete | `rename_site`, `set_visibility`, `delete_site` |
 | Saved data | `get_state`, `update_state`, `list_collections`, `read_collection`, `add_to_collection` |
+| Keep a list owner-only | `set_collection_privacy` |
+| Mark done or delete an item (private lists) | `update_collection_item`, `delete_collection_item` |
+| The site's own address | `connect_domain` (free `<name>.simple-host.app`, or their own domain), `domain_status` |
 | Visitors | `site_analytics` (report the `person` numbers) |
 
 To publish a new site use `create_site`; to change an existing site use `update_site` (read
@@ -71,25 +75,63 @@ working; tell the person. `delete_site` removes the site, every version and all 
 permanently: call it only after the person has explicitly confirmed deleting that specific site
 in this conversation, and name what will be lost when you ask.
 
-## Public by default
+## What is public, what is private
 
-Every site, and everything it saves, can be read by anyone who has the link. There are no
-private or password-protected pages. `set_visibility` `unlisted` only keeps a site off the
-person's public page; it is not privacy. Never put secrets, keys or passwords in pages or data.
+Every page is public: anyone with the link can open it. There are no password-protected pages.
+`set_visibility` `unlisted` only keeps a site off the person's public page; it is not privacy.
+Never put secrets, keys or passwords in pages or data.
 
-A results or admin page is a convenience view, not a protected one: anyone with its address can
-open it. If the person asks for an admin page, build it and tell them that in one sentence, and
-suggest not sharing its address widely.
+Saved data is public by default too. State and every collection can be read by anyone with the
+site's address. The one exception is a **private collection**: on a site with its own address,
+the owner can make a list owner-only. Visitors signed in there can add to it; only the site
+owner — and the Simple Host operator, for moderation — can read it. The page that shows it
+is still a public page; the list behind it is what is private.
 
-If collected data should not be visible to strangers (an RSVP list, survey answers, orders),
-say plainly that on the shared address anyone who finds the site can read it. The step toward
-keeping it closer is putting the site on its own domain (`connect-domain`), and even then the
-data store is not a private database: do not promise privacy. Collect only what the person is
-comfortable with, and never ask visitors for payment details, ID numbers or health information.
+Public lists stay public: a guestbook, votes, public comments. Say so plainly when building them.
+
+Never ask visitors for payment details, ID numbers or health information, private list or not.
+
+## Orders, RSVPs, sign-ups: anything with personal details
+
+For orders, RSVPs, survey answers, sign-ups, or anything with names, emails, phone numbers or
+addresses, do these four things, in order:
+
+1. **Give the site its own address.** Offer the free `<name>.simple-host.app` first:
+   `connect_domain` with e.g. `clay-studio.simple-host.app`. It is active at once, with no DNS
+   step. First come, first served: `domain_taken` means another site has it, `name_reserved`
+   and `invalid_name` mean pick another name (one label: letters, digits, hyphens). The
+   person's own domain is the alternative (`connect-domain` skill, one DNS record).
+2. **Make the list private** before the form goes live:
+   `set_collection_privacy` `{site, collection: "orders", private: true}`. It can be set before
+   anything is saved.
+3. **The form page** calls `SH.requireSignIn()` before `SH.collection('orders').append(item)`.
+   Each item is stamped with the visitor's verified email (`_submitted_by`) and the time
+   (`_submitted_at`).
+4. **An owner admin page** on the site (e.g. `orders.html`, linked quietly or not at all) that
+   signs in and lists the collection, with "Mark done" and "Delete" per item if useful. It
+   works only for the owner's account; anyone else sees nothing. The owner also sees the list
+   in the dashboard, can download it as a spreadsheet, and you can read it with
+   `read_collection`.
+
+Code for both pages and the error codes: `references/saving-data.md`.
+
+A private list cannot be filled by you: `add_to_collection` is refused (`private_visitor_only`).
+You can change it: `update_collection_item` `{site, collection, id, fields}` merges fields (e.g.
+`{"status": "done"}`; `null` removes one), and `delete_collection_item`
+`{site, collection, id, confirm_id}` removes one item for good, only after the person has
+explicitly confirmed that item. Take `id` from `read_collection`. Public lists are append-only
+(`append_only`), and visitors can never edit or delete items.
+
+Making it public again (`private: false`) puts everything already saved on the public internet;
+confirm with the person first.
+
+**On the shared address** (`sites.simple-host.app/...`, no own address): do not collect personal
+details. Suggest an email-order flow instead (a `mailto:` link or "email us to order"), or
+claiming the free `<name>.simple-host.app` address, or connecting their domain.
 
 ## Saving data from a page
 
-Every site has two stores, both read by anyone:
+Every site has two stores, both readable by anyone unless a collection is made private:
 
 - **State**: one shared JSON document (about 1 MB) for counters, settings, tallies, small
   lists. Change it with atomic ops so visitors saving at once never clobber each other:
@@ -131,7 +173,9 @@ Rules that make forms trustworthy:
   retry only the patch.
 - **Pair every form with a page that shows what was collected** (`results.html` or
   `admin.html`), linked quietly from the main page's footer, with
-  `<meta name="robots" content="noindex">`. The person will not think to ask for it.
+  `<meta name="robots" content="noindex">`. The person will not think to ask for it. For a
+  public list, anyone with its address can open it; tell the person in one sentence. For a
+  private list, it shows the data only to the owner signed in.
 - Per-visitor things (drafts, a cart, preferences) go in `localStorage` with a site-specific key
   prefix, never in shared state.
 - Design empty, loading and error states for every list and form.
@@ -165,17 +209,21 @@ succeeded). Full helper API, data shapes, error codes and reading patterns:
 array in the page (name, short line, price, image paths under `img/`), grid of cards, a cart in
 `localStorage`, a checkout form (name and one way to reach them) that appends one item to
 collection `orders` with the cart lines and total, then clears the cart and says the owner will
-be in touch. Orders are readable by anyone who finds them, so collect only what the owner needs
-to follow up; a delivery address only if the person accepts that. No card payments on the page. `orders.html` lists `orders` newest first with totals.
+be in touch. Orders carry personal details, so claim the site's own address and make `orders`
+private first; `orders.html` signs in and lists `orders` newest first with totals, for the owner
+only. On the shared address, use an email-order link instead of the form. Collect only what the
+owner needs to follow up. No card payments on the page.
 
 **RSVP page with an admin page**: an elegant single page (event name, date, place, a short
 note) with a form (name, attending yes/no, number of guests, dietary note) appending to
 collection `rsvps` and incrementing `totals.yes` / `totals.no` / `totals.guests` in state.
-`admin.html` shows the counts from state and a table of every RSVP from the collection, paged
-with `next`. Tell the person anyone with the admin address can open it.
+`admin.html` signs in and shows a table of every RSVP from the collection, paged with `next`.
+Names are personal details: claim the site's own address and make `rsvps` private first. The
+counts in state stay public; keep only totals there, never names.
 
 **Survey with a results page** (Jotform-like): questions defined as a JS array (id, type:
 choice / multi / scale / text, options) rendered into one form, one question group per screen
-on mobile, answers appended as one item to collection `responses`. `results.html` pages through
+on mobile, answers appended as one item to collection `responses`. If answers are personal, make
+`responses` private and `results.html` becomes an owner-only page. `results.html` pages through
 all responses and aggregates them: counts and bars per choice, average per scale, the latest
 free-text answers.

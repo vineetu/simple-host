@@ -1,6 +1,6 @@
 ---
 name: website-deploy
-description: Deploy static websites to simple-host.app. Use when an agent needs to build/validate a static site, deploy it (inline JSON files OR a tar.gz/zip archive), or wire up the per-site backend — shared JSON state with atomic ops and append-only collections. Reads are public everywhere; on the shared host pages write freely too; on a site with its own custom domain visitors sign in with Google or an emailed code via the hosted auth.js before saving; agents write with the Simple Host connector or, without it, an API key from email-code registration.
+description: Deploy static websites to simple-host.app. Use when an agent needs to build/validate a static site, deploy it (inline JSON files OR a tar.gz/zip archive), or wire up the per-site backend — shared JSON state with atomic ops and append-only collections. Pages and public lists are readable by anyone; on the shared host pages write freely too; on a site with its own address (a free <name>.simple-host.app or the person's own domain) visitors sign in with Google or an emailed code via the hosted auth.js before saving, and a collection can be made private so only the owner reads it (orders, RSVPs, sign-ups, anything with personal details); agents write with the Simple Host connector or, without it, an API key from email-code registration.
 ---
 
 # Website Deploy
@@ -25,7 +25,7 @@ append-only collections) that its own page JavaScript can call.
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.16.1`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.17.0`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -60,7 +60,8 @@ some install methods fetch only `SKILL.md` — fetch the URL instead.
 | Validate, package, upload, verify | `references/packaging-and-validation.md` · https://simple-host.app/v1/skills/website-deploy/references/packaging-and-validation.md |
 | Shared state, collections, saving from a page or an agent (connector: `get_state`, `update_state`, `read_collection`, `add_to_collection`) | `references/backend.md` · https://simple-host.app/v1/skills/website-deploy/references/backend.md |
 | Versions, rollback, delete, analytics (connector: `list_versions`, `rollback_site`, `delete_site`, `site_analytics`) | `references/operations.md` · https://simple-host.app/v1/skills/website-deploy/references/operations.md |
-| A custom domain | the `connect-domain` skill · https://simple-host.app/v1/skills/connect-domain |
+| Private collections (orders, RSVPs, sign-ups, anything personal; connector: `set_collection_privacy`) | `references/backend.md` · https://simple-host.app/v1/skills/website-deploy/references/backend.md |
+| An own address: a free `<name>.simple-host.app` or a custom domain | the `connect-domain` skill · https://simple-host.app/v1/skills/connect-domain |
 
 Typical combinations:
 
@@ -70,6 +71,8 @@ Typical combinations:
   validation.
 - **Site where visitors save something:** backend, then connect-domain, before
   you write the page.
+- **Site that collects personal details** (orders, RSVPs, sign-ups): own address
+  first, then a private collection, then the form and an owner page (below).
 
 ## Two ways to deploy
 
@@ -121,8 +124,35 @@ An agent acting for a person uses the connector if it has one; otherwise it gets
 that person's key by email code. Both flows,
 the `SH` API and the error bodies: `references/backend.md`.
 
-Sign-in identifies the visitor; it does not make the page private. There is no
-private or password-locked page feature.
+Sign-in identifies the visitor; it does not make the page private. Pages are
+always public. There is no password-locked page feature.
+
+## Personal details go in a private collection
+
+For orders, RSVPs, survey answers, sign-ups, or anything with names, emails,
+phone numbers or addresses, use a **private collection**. Visitors add to it;
+only the site owner — and the Simple Host operator, for moderation — can read it. The steps, in order:
+
+1. **Give the site its own address.** Offer the free `<name>.simple-host.app`
+   first: one call (`connect_domain` with `clay-studio.simple-host.app`, or
+   `POST /v1/sites/<sitename>/domain`), active at once, no DNS. The person's own
+   domain (the `connect-domain` skill) is the alternative.
+2. **Make the collection private** before the form goes live:
+   `set_collection_privacy`, or `PUT /v1/sites/<sitename>/collections/<name>/privacy`
+   with `{"private": true}`.
+3. **The form page** calls `await SH.requireSignIn()` before
+   `SH.collection('orders').append({...})`.
+4. **An owner page** on the site (e.g. `orders.html`) signs in and lists the
+   collection, with buttons to mark an item done (`SH.collection('orders').update(id, {status:'done'})`)
+   or delete it (`.remove(id)`). It works only for the owner's account. The owner also sees the
+   list in the dashboard and can download it as a spreadsheet; the agent reads it
+   with `read_collection`.
+
+On the shared address (no own address) private lists are not offered and
+anything saved is public. Do not collect personal details there: suggest an
+"email us to order" `mailto:` link, or claiming the free address. Public lists
+(a guestbook, votes, public comments) stay public; say so plainly. Full code and
+error codes: `references/backend.md`.
 
 ## Rules that always apply
 
@@ -136,7 +166,8 @@ private or password-locked page feature.
   fonts, audio, video, `.pdf`, `.wasm`, and binary downloads are all fine.
 - **Uploads are append-only.** Re-uploading creates a new version and activates
   it; older versions stay on disk. Rollback re-points at an existing version.
-- **Sites and their data are public to anyone with the link.** The visitor
+- **Sites and their data are public to anyone with the link**, except a private
+  collection, which only the owner reads. The visitor
   session is site-scoped and is **not** an API key — it cannot deploy or delete.
   On a failed write keep the form, never claim success on a non-2xx, and never
   re-POST a collection item after a partial write. Pair every form with a page

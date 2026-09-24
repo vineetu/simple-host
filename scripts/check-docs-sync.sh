@@ -42,9 +42,12 @@ done <<<"$documented"
 # Owner /v1/sites/{sitename} routes (except public state/collections/me and OPTIONS)
 # must be wrapped with auth.Middleware. A missed wrap is how a site session
 # cookie on a custom domain would escalate (UNIFY.md credential boundary).
+# .../collections/{coll}/items/{id} (private-list edit/delete) is excluded on
+# purpose: privateManager authorizes it itself (owner or admin key, or the
+# owner's own visitor session on the site's own domain; 404 for anyone else).
 echo "== owner routes wrapped with authMiddleware =="
 unwrapped=$(grep -rh --exclude='*_test.go' -oE 'mux\.Handle(Func)?\("[A-Z]+ /v1/sites/[^"]+"[^)]*' internal/handler \
-  | grep -vE '/state"|/me"|/visitor/auth|/collections/\{coll\}"' \
+  | grep -vE '/state"|/me"|/visitor/auth|/collections/\{coll\}"|/collections/\{coll\}/items/\{id\}"' \
   | grep -v authMiddleware || true)
 if [ -n "$unwrapped" ]; then
   echo "$unwrapped" | sed 's/^/  FAIL: owner route missing authMiddleware: /'

@@ -38,9 +38,9 @@ Preview a retained version before restoring it (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.16.1"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.17.0"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.16.1"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.17.0"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte
@@ -95,19 +95,40 @@ question nobody asked.
     }
   ```
 
-## Custom domains
+## Own address: a free name or a custom domain
 
 These live in the separate `connect-domain` skill
-(https://simple-host.app/v1/skills/connect-domain). In short: `POST
-/v1/sites/<sitename>/domain` with `{domain}` returns one DNS record for the human
-to add at their registrar; poll `GET /v1/sites/<sitename>/domain` until `active`.
+(https://simple-host.app/v1/skills/connect-domain). In short:
+`POST /v1/sites/<sitename>/domain` with `{domain}`.
 
-A connected domain is what adds sign-in to saves: visitor sign-in (Google or an
-emailed code) exists only on a site's own domain. On the shared host a form
-writes to the backend freely, with no sign-in, and anyone can change that data
-(see `backend.md`). Agents write with an API key anywhere.
+- A free `<name>.simple-host.app` (`{"domain":"clay-studio.simple-host.app"}`)
+  answers `active` at once. No DNS step.
+- The person's own domain returns one DNS record for the human to add at their
+  registrar; poll `GET /v1/sites/<sitename>/domain` until `active`.
 
-**There is no private or password-locked mode.** Every deployed site is public to
-anyone with its address, on a custom domain or not. If a user asks for privacy,
-say so plainly rather than suggesting a workaround. Sign-in gates saving, not
-reading — do not present it as a private page.
+An own address is what adds sign-in to saves and allows private collections:
+visitor sign-in (Google or an emailed code) exists only on a site's own
+address. On the shared host a form writes to the backend freely, with no
+sign-in, and anyone can change that data (see `backend.md`). Agents write with
+an API key anywhere.
+
+## Private collections
+
+`PUT /v1/sites/<sitename>/collections/<name>/privacy` with `{"private": true}`
+(connector: `set_collection_privacy`) makes one collection owner-only: visitors
+signed in on the site's own address add to it; only the site owner — and the
+Simple Host operator, for moderation — can read it. It
+answers 409 `custom_domain_required` until the site has an active own address.
+`{"private": false}` makes it public again, including everything already in it,
+so confirm with the user first. The owner reads it with
+`GET /v1/sites/<sitename>/collections/<name>`, lists all with
+`GET /v1/sites/<sitename>/collections` (each entry has `private`), and downloads
+`GET /v1/sites/<sitename>/collections/<name>/export.csv`. The owner edits or
+deletes one item with `PATCH` / `DELETE /v1/sites/<sitename>/collections/<name>/items/<id>`
+(public lists stay append-only: 409 `append_only`). Full flow: `backend.md`.
+
+**Pages are always public.** There is no password-locked page. Every deployed
+page is public to anyone with its address, on an own address or not. If a user
+asks for a private page, say so plainly rather than suggesting a workaround.
+Sign-in gates saving, not reading pages; only a private collection is
+owner-only.

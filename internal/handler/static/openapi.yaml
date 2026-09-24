@@ -1091,8 +1091,10 @@ paths:
       operationId: getSitesBySitenameCollections
       summary: List collections a site has saved
       description: >-
-        Owner-only inventory of named collections on this site, with row count
-        and most-recent write. Empty site returns `{collections:[]}`.
+        Owner-only inventory of named collections on this site, with row count,
+        most-recent write and whether the list is private. A private list is
+        listed even while empty (then `count` is 0 and `last_at` is null).
+        Empty site returns `{collections:[]}`.
       tags: [Collections]
       security: [{ apiKey: [] }]
       parameters: [ { $ref: '#/components/parameters/sitename' } ]
@@ -1111,7 +1113,8 @@ paths:
                       properties:
                         name: { type: string, example: rsvps }
                         count: { type: integer, example: 7 }
-                        last_at: { type: string, format: date-time }
+                        last_at: { type: string, format: date-time, nullable: true, description: Time of the newest item; null for a private list with no items yet }
+                        private: { type: boolean, example: false, description: "true when only the owner can read it (see PUT .../collections/{coll}/privacy)" }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
@@ -1122,6 +1125,7 @@ paths:
       description: >-
         Append-only list (O(1) insert). For signups, RSVPs, submissions.
         Origin-gated. On the shared content host (sites.simple-host.app) writes are open: any page can save without sign-in or key, and the data can be changed by anyone. On a site's bound custom domain writes need a visitor session (`X-SH-CSRF: 1`) or any account's `X-API-Key`; a key is accepted anywhere except on the shared host of a site that has a domain bound, which takes no writes at all (401 use_custom_domain). WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB.
+        PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own domain (a custom domain or a claimed <name>.simple-host.app), from a page on that domain, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other host answers 403 private_needs_own_domain (401 use_custom_domain on the shared host of a site with a domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.
       tags: [Collections]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -1129,10 +1133,22 @@ paths:
         - { $ref: '#/components/parameters/csrf' }
       requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
       responses:
-        '201': { description: Item appended }
-        '400': { $ref: '#/components/responses/BadRequest' }
+        '201':
+          description: Item appended. The stored item; on a private list `data` carries the server stamps `_submitted_by` and `_submitted_at`.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer, example: 42 }
+                  data: { type: object, example: { item: "2 jars", _submitted_by: ana@example.com, _submitted_at: "2026-09-24T18:02:11Z" } }
+                  created_at: { type: string, format: date-time }
+        '400':
+          description: Invalid body (not JSON; on a private list, not one JSON object)
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '413': { $ref: '#/components/responses/TooLarge' }
         '401':
-          description: Sign-in required on a custom domain (visitor_auth_required), invalid account API key (invalid_api_key), or a shared-host write to a site that has a custom domain bound (use_custom_domain, with the domain in `domain`) — such a site lives only on its own domain, and its shared-host API takes no writes for it, key or not; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads on the shared host stay public. Never returned for a site that has no domain.
+          description: Sign-in required on a custom domain (visitor_auth_required), invalid account API key (invalid_api_key), or a shared-host write to a site that has a custom domain bound (use_custom_domain, with the domain in `domain`) — such a site lives only on its own domain, and its shared-host API takes no writes for it, key or not; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads on the shared host stay public. use_custom_domain is never returned for a site that has no domain. A private list answers visitor_auth_required whenever no visitor is signed in on the site's own domain.
           content:
             application/json:
               schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean }, domain: { type: string, description: The site's bound custom domain (with code use_custom_domain) } } }
@@ -1140,13 +1156,25 @@ paths:
                 invalidKey: { value: { error: "invalid API key", code: invalid_api_key } }
                 signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
                 useCustomDomain: { value: { error: "this site saves on its own domain", code: use_custom_domain, domain: recipes.brand.com } }
-        '403': { $ref: '#/components/responses/OriginMismatch' }
+        '403':
+          description: Origin/Referer does not match the site; missing `X-SH-CSRF` with a visitor session (csrf_required); or, on a private list, an API key was sent (private_visitor_only) or the request did not come through the site's own domain (private_needs_own_domain).
+          content:
+            application/json:
+              schema: { type: object, properties: { error: { type: string }, code: { type: string, enum: [csrf_required, private_visitor_only, private_needs_own_domain] } } }
+              examples:
+                csrf: { value: { error: "missing CSRF header", code: csrf_required } }
+                privateVisitorOnly: { value: { error: "this list is private: only visitors signed in on the site's own domain can add to it; API keys cannot", code: private_visitor_only } }
+                privateNeedsOwnDomain: { value: { error: "this list is private: it takes submissions only on the site's own domain, from a signed-in visitor", code: private_needs_own_domain } }
+        '404':
+          description: Site not found
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
     get:
       operationId: getSitesBySitenameCollectionsByColl
       summary: List items in a collection
       description: >-
         Newest-first, paginated. Origin-gated (no API key) for the site's own
         page, or owner/admin API key for the dashboard. Writes (POST) are open on the shared host; on a custom domain they need a visitor session with X-SH-CSRF or any valid account X-API-Key (a key is accepted anywhere except on the shared host of a site that has a domain bound, which takes no writes at all — 401 use_custom_domain). Origin gating still applies.
+        A PRIVATE list is readable only by its owner — and by the Simple Host operator (platform admin key), for moderation: with the owner's `X-API-Key` or connector token (not through the shared host sites.simple-host.app), or by the owner's own account signed in as a visitor on the site's own domain (so an admin page on the site can list it). Each item carries its `id`, which the owner uses to edit or delete it (PATCH/DELETE .../items/{id}). Everyone else — anonymous, other signed-in visitors, other sites, anything through the shared host — gets 404 `{"error":"not found","code":"not_found"}`. Visitors cannot read back their own submissions. The answer for a private list adds `"private": true`.
       tags: [Collections]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -1161,8 +1189,16 @@ paths:
               schema:
                 type: object
                 properties:
-                  items: { type: array, items: { type: object } }
+                  items: { type: array, items: { type: object, properties: { id: { type: integer }, data: { description: the item as saved }, created_at: { type: string, format: date-time } } } }
+                  next: { type: integer, nullable: true, description: cursor for the next page (pass as `before`) }
+                  private: { type: boolean, description: present and true only for a private list }
         '403': { $ref: '#/components/responses/OriginMismatch' }
+        '404':
+          description: Site not found, or a private list and the caller is not its owner (code not_found)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: not found, code: not_found }
 
   /v1/sites/{sitename}/collections/{coll}/export.csv:
     get:
@@ -1171,7 +1207,8 @@ paths:
       description: >-
         Owner-only. Streams the whole collection (not capped at the public
         200-row read limit). Columns are `id`, `created_at`, then the sorted
-        union of JSON keys across all rows.
+        union of JSON keys across all rows (on a private list that includes
+        `_submitted_by` and `_submitted_at`).
       tags: [Collections]
       security: [{ apiKey: [] }]
       parameters:
@@ -1185,6 +1222,146 @@ paths:
               schema: { type: string }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/sites/{sitename}/collections/{coll}/privacy:
+    put:
+      operationId: putSitesBySitenameCollectionsByCollPrivacy
+      summary: Make a collection private or public
+      description: >-
+        Owner only (X-API-Key, or a connector token as `Authorization: Bearer`).
+        `{"private": true}` makes the list private: only visitors signed in on the
+        site's own domain can add to it (each item stamped with their verified email),
+        and only the owner can read it (key, connector, CSV export, dashboard, or the
+        owner signed in on the domain) — plus the Simple Host operator, for
+        moderation. Everyone else gets 404. The owner can edit or delete its items
+        (PATCH/DELETE .../items/{id}); public lists stay append-only. Needs the site on its
+        own proven domain first — a claimed <name>.simple-host.app address or a
+        verified custom domain (one still pending DNS does not count); otherwise 409
+        custom_domain_required. Can be set before any item exists.
+        `{"private": false}` makes it public again, and everything already in it
+        becomes readable by anyone. Idempotent; deletes nothing.
+      tags: [Collections]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [private]
+              properties:
+                private: { type: boolean, example: true }
+      responses:
+        '200':
+          description: Privacy set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  site: { type: string, example: pickle-shop }
+                  collection: { type: string, example: orders }
+                  private: { type: boolean, example: true }
+                  domain: { type: string, description: The site's own domain; present when private is true, example: pickle-shop.simple-host.app }
+                  message: { type: string, example: "Private: visitors signed in on https://pickle-shop.simple-host.app can add to it; only you can read it." }
+        '400':
+          description: 'Invalid collection name, or the body is not {"private": true} or {"private": false}'
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: The site has no proven domain of its own (custom_domain_required)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                  code: { type: string, enum: [custom_domain_required] }
+              example: { error: "private lists need the site on its own domain — connect one first (a free <name>.simple-host.app address works, or your own domain)", code: custom_domain_required }
+
+  /v1/sites/{sitename}/collections/{coll}/items/{id}:
+    patch:
+      operationId: patchCollectionItem
+      summary: Change fields of an item in a private list
+      description: >-
+        Merges the JSON object sent into the item. A field sent as null is
+        removed. `_submitted_by` and `_submitted_at` can never be set, changed or
+        removed (ignored if sent), and the item's `created_at` never changes.
+        Only for items in a PRIVATE list. Allowed for the site owner (X-API-Key,
+        connector token as `Authorization: Bearer`, or the owner's own visitor
+        session on the site's own domain from a same-origin page with
+        `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key),
+        for moderation. Everyone else — visitors including the one who submitted
+        the item, other accounts, anything through the shared host — gets 404
+        not_found. Public lists stay append-only: 409 append_only.
+      tags: [Collections]
+      parameters:
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+        - { name: id, in: path, required: true, schema: { type: integer }, description: "the item's id (items[].id in the list answer)" }
+        - { $ref: '#/components/parameters/csrf' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, example: { status: done } }
+      responses:
+        '200':
+          description: The updated item
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer, example: 42 }
+                  data: { type: object, example: { item: "2 jars", status: done, _submitted_by: ana@example.com, _submitted_at: "2026-09-24T18:02:11Z" } }
+                  created_at: { type: string, format: date-time }
+        '400':
+          description: The body is not one JSON object
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '403':
+          description: A visitor session without `X-SH-CSRF` (csrf_required)
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '404':
+          description: No such item, or the caller is not the owner or operator (not_found)
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: not found, code: not_found } } }
+        '409':
+          description: The list is public and so append-only (append_only), or the stored item is not a JSON object
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: "public lists are append-only; only items in a private list can be edited or deleted", code: append_only } } }
+        '413': { $ref: '#/components/responses/TooLarge' }
+    delete:
+      operationId: deleteCollectionItem
+      summary: Delete an item from a private list
+      description: >-
+        Removes the item for everyone. There is no undo.
+        Only for items in a PRIVATE list. Allowed for the site owner (X-API-Key,
+        connector token as `Authorization: Bearer`, or the owner's own visitor
+        session on the site's own domain from a same-origin page with
+        `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key),
+        for moderation. Everyone else — visitors including the one who submitted
+        the item, other accounts, anything through the shared host — gets 404
+        not_found. Public lists stay append-only: 409 append_only.
+      tags: [Collections]
+      parameters:
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+        - { name: id, in: path, required: true, schema: { type: integer }, description: "the item's id (items[].id in the list answer)" }
+        - { $ref: '#/components/parameters/csrf' }
+      responses:
+        '204': { description: Item deleted }
+        '403':
+          description: A visitor session without `X-SH-CSRF` (csrf_required)
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '404':
+          description: No such item, or the caller is not the owner or operator (not_found)
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: not found, code: not_found } } }
+        '409':
+          description: The list is public and so append-only (append_only)
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: "public lists are append-only; only items in a private list can be edited or deleted", code: append_only } } }
 
   /v1/u/{handle}/sites/{sitename}/me:
     get:
@@ -1350,6 +1527,7 @@ paths:
       description: >-
         Append-only list (O(1) insert). For signups, RSVPs, submissions.
         Origin-gated. On the shared content host (sites.simple-host.app) writes are open: any page can save without sign-in or key, and the data can be changed by anyone. On a site's bound custom domain writes need a visitor session (`X-SH-CSRF: 1`) or any account's `X-API-Key`; a key is accepted anywhere except on the shared host of a site that has a domain bound, which takes no writes at all (401 use_custom_domain). WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB.
+        PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own domain (a custom domain or a claimed <name>.simple-host.app), from a page on that domain, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other host answers 403 private_needs_own_domain (401 use_custom_domain on the shared host of a site with a domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.
         v3 user-scoped, path-model-canonical variant: resolves the site by
         (handle -> user_id) + (user_id, name).
       tags: [Collections]
@@ -1360,10 +1538,22 @@ paths:
         - { $ref: '#/components/parameters/csrf' }
       requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
       responses:
-        '201': { description: Item appended }
-        '400': { $ref: '#/components/responses/BadRequest' }
+        '201':
+          description: Item appended. The stored item; on a private list `data` carries the server stamps `_submitted_by` and `_submitted_at`.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer, example: 42 }
+                  data: { type: object, example: { item: "2 jars", _submitted_by: ana@example.com, _submitted_at: "2026-09-24T18:02:11Z" } }
+                  created_at: { type: string, format: date-time }
+        '400':
+          description: Invalid body (not JSON; on a private list, not one JSON object)
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '413': { $ref: '#/components/responses/TooLarge' }
         '401':
-          description: Sign-in required on a custom domain (visitor_auth_required), invalid account API key (invalid_api_key), or a shared-host write to a site that has a custom domain bound (use_custom_domain, with the domain in `domain`) — such a site lives only on its own domain, and its shared-host API takes no writes for it, key or not; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads on the shared host stay public. Never returned for a site that has no domain.
+          description: Sign-in required on a custom domain (visitor_auth_required), invalid account API key (invalid_api_key), or a shared-host write to a site that has a custom domain bound (use_custom_domain, with the domain in `domain`) — such a site lives only on its own domain, and its shared-host API takes no writes for it, key or not; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads on the shared host stay public. use_custom_domain is never returned for a site that has no domain. A private list answers visitor_auth_required whenever no visitor is signed in on the site's own domain.
           content:
             application/json:
               schema: { type: object, properties: { error: { type: string }, code: { type: string }, sign_in: { type: string }, retry: { type: boolean }, domain: { type: string, description: The site's bound custom domain (with code use_custom_domain) } } }
@@ -1371,13 +1561,25 @@ paths:
                 invalidKey: { value: { error: "invalid API key", code: invalid_api_key } }
                 signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
                 useCustomDomain: { value: { error: "this site saves on its own domain", code: use_custom_domain, domain: recipes.brand.com } }
-        '403': { $ref: '#/components/responses/OriginMismatch' }
+        '403':
+          description: Origin/Referer does not match the site; missing `X-SH-CSRF` with a visitor session (csrf_required); or, on a private list, an API key was sent (private_visitor_only) or the request did not come through the site's own domain (private_needs_own_domain).
+          content:
+            application/json:
+              schema: { type: object, properties: { error: { type: string }, code: { type: string, enum: [csrf_required, private_visitor_only, private_needs_own_domain] } } }
+              examples:
+                csrf: { value: { error: "missing CSRF header", code: csrf_required } }
+                privateVisitorOnly: { value: { error: "this list is private: only visitors signed in on the site's own domain can add to it; API keys cannot", code: private_visitor_only } }
+                privateNeedsOwnDomain: { value: { error: "this list is private: it takes submissions only on the site's own domain, from a signed-in visitor", code: private_needs_own_domain } }
+        '404':
+          description: Site not found
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
     get:
       operationId: getCollectionByHandle
       summary: List items in a collection (v3, by handle)
       description: >-
         Newest-first, paginated. Origin-gated (no API key) for the site's own
         page, or owner/admin API key for the dashboard. Writes (POST) are open on the shared host; on a custom domain they need a visitor session with X-SH-CSRF or any valid account X-API-Key (a key is accepted anywhere except on the shared host of a site that has a domain bound, which takes no writes at all — 401 use_custom_domain). Origin gating still applies.
+        A PRIVATE list is readable only by its owner — and by the Simple Host operator (platform admin key), for moderation: with the owner's `X-API-Key` or connector token (not through the shared host sites.simple-host.app), or by the owner's own account signed in as a visitor on the site's own domain (so an admin page on the site can list it). Each item carries its `id`, which the owner uses to edit or delete it (PATCH/DELETE .../items/{id}). Everyone else — anonymous, other signed-in visitors, other sites, anything through the shared host — gets 404 `{"error":"not found","code":"not_found"}`. Visitors cannot read back their own submissions. The answer for a private list adds `"private": true`.
         v3 user-scoped, path-model-canonical variant: resolves the site by
         (handle -> user_id) + (user_id, name).
       tags: [Collections]
@@ -1395,8 +1597,98 @@ paths:
               schema:
                 type: object
                 properties:
-                  items: { type: array, items: { type: object } }
+                  items: { type: array, items: { type: object, properties: { id: { type: integer }, data: { description: the item as saved }, created_at: { type: string, format: date-time } } } }
+                  next: { type: integer, nullable: true, description: cursor for the next page (pass as `before`) }
+                  private: { type: boolean, description: present and true only for a private list }
         '403': { $ref: '#/components/responses/OriginMismatch' }
+        '404':
+          description: Site not found, or a private list and the caller is not its owner (code not_found)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: not found, code: not_found }
+
+  /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}:
+    patch:
+      operationId: patchCollectionItemByHandle
+      summary: Change fields of an item in a private list (v3, by handle)
+      description: >-
+        Merges the JSON object sent into the item. A field sent as null is
+        removed. `_submitted_by` and `_submitted_at` can never be set, changed or
+        removed (ignored if sent), and the item's `created_at` never changes.
+        Only for items in a PRIVATE list. Allowed for the site owner (X-API-Key,
+        connector token as `Authorization: Bearer`, or the owner's own visitor
+        session on the site's own domain from a same-origin page with
+        `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key),
+        for moderation. Everyone else — visitors including the one who submitted
+        the item, other accounts, anything through the shared host — gets 404
+        not_found. Public lists stay append-only: 409 append_only.
+      tags: [Collections]
+      parameters:
+        - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's URL-safe handle" }
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+        - { name: id, in: path, required: true, schema: { type: integer }, description: "the item's id (items[].id in the list answer)" }
+        - { $ref: '#/components/parameters/csrf' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, example: { status: done } }
+      responses:
+        '200':
+          description: The updated item
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer, example: 42 }
+                  data: { type: object, example: { item: "2 jars", status: done, _submitted_by: ana@example.com, _submitted_at: "2026-09-24T18:02:11Z" } }
+                  created_at: { type: string, format: date-time }
+        '400':
+          description: The body is not one JSON object
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '403':
+          description: A visitor session without `X-SH-CSRF` (csrf_required)
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '404':
+          description: No such item, or the caller is not the owner or operator (not_found)
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: not found, code: not_found } } }
+        '409':
+          description: The list is public and so append-only (append_only), or the stored item is not a JSON object
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: "public lists are append-only; only items in a private list can be edited or deleted", code: append_only } } }
+        '413': { $ref: '#/components/responses/TooLarge' }
+    delete:
+      operationId: deleteCollectionItemByHandle
+      summary: Delete an item from a private list (v3, by handle)
+      description: >-
+        Removes the item for everyone. There is no undo.
+        Only for items in a PRIVATE list. Allowed for the site owner (X-API-Key,
+        connector token as `Authorization: Bearer`, or the owner's own visitor
+        session on the site's own domain from a same-origin page with
+        `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key),
+        for moderation. Everyone else — visitors including the one who submitted
+        the item, other accounts, anything through the shared host — gets 404
+        not_found. Public lists stay append-only: 409 append_only.
+      tags: [Collections]
+      parameters:
+        - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's URL-safe handle" }
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+        - { name: id, in: path, required: true, schema: { type: integer }, description: "the item's id (items[].id in the list answer)" }
+        - { $ref: '#/components/parameters/csrf' }
+      responses:
+        '204': { description: Item deleted }
+        '403':
+          description: A visitor session without `X-SH-CSRF` (csrf_required)
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '404':
+          description: No such item, or the caller is not the owner or operator (not_found)
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: not found, code: not_found } } }
+        '409':
+          description: The list is public and so append-only (append_only)
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: "public lists are append-only; only items in a private list can be edited or deleted", code: append_only } } }
 
   /v1/sites/{sitename}/allow-anonymous-writes:
     put:
@@ -1478,9 +1770,21 @@ paths:
   /v1/sites/{sitename}/domain:
     post:
       operationId: postSitesBySitenameDomain
-      summary: Bind a custom domain to this site
+      summary: Give this site its own address (free <name>.simple-host.app or a custom domain)
       description: >-
-        Bind ONE custom domain to the site (status starts as `pending`). Returns
+        A free address: send `{"domain": "<name>.simple-host.app"}` (one DNS label:
+        lowercase letters, digits and hyphens, not at the start or end, up to 63
+        characters). It is active at once with no DNS step — the answer has
+        `status: active` and `verified_at`, and no `dns`. First come, first served:
+        409 domain_taken if another site holds it; reserved names (www, sites, api,
+        admin, mail, cname and the platform's own hosts) get 400 name_reserved;
+        anything else malformed gets 400 invalid_name. Once claimed it behaves
+        exactly like a custom domain: the site is served at its root with a
+        same-origin /v1 API and visitor sign-in, its shared-host URL 302s there, and
+        it counts as the site's own domain for private collections. A site has one
+        own address: claiming one replaces a custom domain and vice versa. DELETE
+        releases it.
+        A custom domain: bind ONE domain to the site (status starts as `pending`). Returns
         the DNS CNAME record the owner must create (host → platform CNAME
         target). Once DNS points at us, the operator issues the certificate and the
         domain is served at its root. Until first verified, a binding is provisional:
@@ -1501,7 +1805,7 @@ paths:
                 domain: { type: string, example: www.example.com }
       responses:
         '200':
-          description: Domain bound (pending DNS)
+          description: Domain bound — pending DNS for a custom domain, active at once for a free <name>.simple-host.app address
           content:
             application/json:
               schema:
@@ -1510,17 +1814,27 @@ paths:
                   took_over_from: { type: string, description: Previous holder as handle/site; included only on takeover of an unproven binding, example: alice/blog }
                   domain: { type: string, example: www.example.com }
                   status: { type: string, enum: [pending, active, error], example: pending }
+                  bound_at: { type: string, format: date-time }
+                  verified_at: { type: string, format: date-time, nullable: true, description: Set at once for a free <name>.simple-host.app address }
                   dns:
+                    description: The record to add at the registrar; absent for a free <name>.simple-host.app address
                     type: object
                     properties:
                       type: { type: string, example: CNAME }
                       host: { type: string, example: www.example.com }
                       value: { type: string, example: cname.simple-host.app }
-        '400': { $ref: '#/components/responses/BadRequest' }
+        '400':
+          description: Invalid domain. For a <name>.simple-host.app address, `code` is name_reserved or invalid_name.
+          content:
+            application/json:
+              schema: { type: object, properties: { error: { type: string }, code: { type: string, enum: [name_reserved, invalid_name] } } }
+              examples:
+                reserved: { value: { error: "that name is reserved; pick another", code: name_reserved } }
+                invalid: { value: { error: "the name may use lowercase letters, numbers and hyphens (not at the start or end), up to 63 characters", code: invalid_name } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: Domain has been verified by another site at least once
+          description: Domain has been verified by another site at least once, or the <name>.simple-host.app address is held by another site
           content:
             application/json:
               schema:
@@ -1528,7 +1842,7 @@ paths:
                 required: [error, code]
                 additionalProperties: false
                 properties:
-                  error: { type: string, enum: [domain is connected to another site] }
+                  error: { type: string, enum: [domain is connected to another site, "that address is taken by another site; pick another name"] }
                   code: { type: string, enum: [domain_taken] }
               example: { error: domain is connected to another site, code: domain_taken }
     get:

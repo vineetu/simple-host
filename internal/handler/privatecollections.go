@@ -1,13 +1,17 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"net/url"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -315,4 +319,177 @@ func (h *SiteHandler) setCollectionPrivacy(w http.ResponseWriter, r *http.Reques
 		resp["message"] = "Public: anyone can read this list again, including everything already in it."
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// privateStampKeys are set by the server on submission and can never be set,
+// changed or removed by anyone afterwards, owner included.
+var privateStampKeys = []string{"_submitted_by", "_submitted_at"}
+
+// privateManager authorizes an edit or delete of one item in a private list:
+// the site owner (API key, connector token, or their visitor session on the
+// site's own domain with X-SH-CSRF) or the platform admin (admin key or an
+// is_admin account's key). It returns the site id, or ok=false after writing
+// the answer — 404 for everyone else, so nothing is revealed.
+func (h *SiteHandler) privateManager(w http.ResponseWriter, r *http.Request, siteName string) (string, bool) {
+	if strings.EqualFold(requestHostName(r), h.contentHost) {
+		writePrivateNotFound(w)
+		return "", false
+	}
+	if key := r.Header.Get("X-API-Key"); key != "" {
+		u, ok, err := h.resolveWriterKey(r.Context(), key)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return "", false
+		}
+		if !ok {
+			writePrivateNotFound(w)
+			return "", false
+		}
+		if u.IsAdmin {
+			// Moderation: the platform admin may act on any site. With a
+			// {handle} route the site is exact; otherwise the name lookup.
+			id, err := h.resolveSiteID(r, siteName)
+			if err != nil {
+				writePrivateNotFound(w)
+				return "", false
+			}
+			log.Printf("admin_private_edit user_id=%s site_id=%s route=%s %s", u.ID, id, r.Method, r.URL.Path)
+			return id, true
+		}
+		site, err := db.GetSiteByUser(r.Context(), h.database, u.ID, siteName)
+		if err != nil {
+			writePrivateNotFound(w)
+			return "", false
+		}
+		if handle := strings.TrimSpace(r.PathValue("handle")); handle != "" && !strings.EqualFold(handle, u.Handle.String) {
+			writePrivateNotFound(w)
+			return "", false
+		}
+		return site.ID, true
+	}
+	siteID, err := h.resolveSiteID(r, siteName)
+	if err != nil {
+		writePrivateNotFound(w)
+		return "", false
+	}
+	if !h.ownerBrowserRead(w, r, siteID) {
+		return "", false
+	}
+	if r.Header.Get(visitorCSRFHeader) != visitorCSRFValue {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "missing CSRF header", "code": "csrf_required"})
+		return "", false
+	}
+	return siteID, true
+}
+
+// privateItemTarget resolves and authorizes {sitename}/{coll}/{id} for an edit
+// or delete. Public lists stay append-only.
+func (h *SiteHandler) privateItemTarget(w http.ResponseWriter, r *http.Request) (siteID, coll string, id int64, ok bool) {
+	w.Header().Set("Cache-Control", "private, no-store")
+	siteName := strings.TrimSpace(r.PathValue("sitename"))
+	coll = strings.TrimSpace(r.PathValue("coll"))
+	if siteName == "" || !validCollectionName.MatchString(coll) {
+		writePrivateNotFound(w)
+		return "", "", 0, false
+	}
+	siteID, ok = h.privateManager(w, r, siteName)
+	if !ok {
+		return "", "", 0, false
+	}
+	private, err := db.IsCollectionPrivate(r.Context(), h.database, siteID, coll)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return "", "", 0, false
+	}
+	if !private {
+		writeJSON(w, http.StatusConflict, map[string]string{
+			"error": "public lists are append-only; only items in a private list can be edited or deleted",
+			"code":  "append_only",
+		})
+		return "", "", 0, false
+	}
+	id, err = strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || id <= 0 {
+		writePrivateNotFound(w)
+		return "", "", 0, false
+	}
+	return siteID, coll, id, true
+}
+
+// updatePrivateItem is PATCH .../collections/{coll}/items/{id}: merge the
+// fields sent into the item (a field sent as null is removed). The server
+// stamps (_submitted_by, _submitted_at) and the item's time never change.
+func (h *SiteHandler) updatePrivateItem(w http.ResponseWriter, r *http.Request) {
+	siteID, coll, id, ok := h.privateItemTarget(w, r)
+	if !ok {
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxCollectionItemSize)
+	var patch map[string]json.RawMessage
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(&patch); err != nil || patch == nil || dec.More() {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large"})
+			return
+		}
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `send a JSON object of the fields to change, e.g. {"status": "done"}`})
+		return
+	}
+	errTooLarge := errors.New("too large")
+	errNotObject := errors.New("not an object")
+	item, err := db.UpdateCollectionItemByID(r.Context(), h.database, siteID, coll, id, func(old json.RawMessage) (json.RawMessage, error) {
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(old, &fields); err != nil || fields == nil {
+			return nil, errNotObject
+		}
+		for k, v := range patch {
+			if slices.Contains(privateStampKeys, k) {
+				continue // never settable, whatever was sent
+			}
+			if string(bytes.TrimSpace(v)) == "null" {
+				delete(fields, k)
+				continue
+			}
+			fields[k] = v
+		}
+		next, err := json.Marshal(fields)
+		if err != nil {
+			return nil, err
+		}
+		if len(next) > maxCollectionItemSize {
+			return nil, errTooLarge
+		}
+		return next, nil
+	})
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		writePrivateNotFound(w)
+	case errors.Is(err, errTooLarge):
+		writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large"})
+	case errors.Is(err, errNotObject):
+		writeJSON(w, http.StatusConflict, errorResponse{Error: "this item is not a JSON object, so it has no fields to change; delete it instead"})
+	case err != nil:
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+	default:
+		writeJSON(w, http.StatusOK, item)
+	}
+}
+
+// deletePrivateItem is DELETE .../collections/{coll}/items/{id}: gone for good.
+func (h *SiteHandler) deletePrivateItem(w http.ResponseWriter, r *http.Request) {
+	siteID, coll, id, ok := h.privateItemTarget(w, r)
+	if !ok {
+		return
+	}
+	found, err := db.DeleteCollectionItemByID(r.Context(), h.database, siteID, coll, id)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	if !found {
+		writePrivateNotFound(w)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

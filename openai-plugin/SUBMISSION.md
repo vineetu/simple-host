@@ -1,4 +1,4 @@
-# OpenAI plugin submission kit — Website Deploy 0.2.0 (Simple Host)
+# OpenAI plugin submission kit — Website Deploy 0.3.0 (Simple Host)
 
 Everything to paste into the plugin portal (https://platform.openai.com/plugins), in portal
 order, plus the steps only the owner can do. Checked against the OpenAI docs as of 2026-09-24:
@@ -8,7 +8,7 @@ build/auth, deploy/submission-errors, guides/submit-claude-plugin.
 This is an **update of the existing listing**, shown in ChatGPT as "Website Deploy" (package
 name `website-deploy-toolkit`, published 0.1.0 as Skills only), not a new plugin. It keeps the
 package name, the display name "Website Deploy" and the three skill names (`website-deploy`, `website-deploy-builder`,
-`connect-domain`), bumps the version to 0.2.0, fixes the publisher fields (the published
+`connect-domain`), bumps the version to 0.3.0, fixes the publisher fields (the published
 manifest still says developer "Neon", author "Personal"), and adds the Simple Host MCP server.
 
 Build the upload files with `bash scripts/build-openai-plugin.sh` (add `FALLBACK=1` for the
@@ -74,7 +74,7 @@ say a new version is how "submitted plugin information or imported skills" chang
 
 **If the portal does not let this Skills-only listing gain an MCP server** (the docs do not
 say either way), you have two choices; which one is yours to make:
-- Keep the listing and submit 0.2.0 as **Skills only** with
+- Keep the listing and submit 0.3.0 as **Skills only** with
   `dist/website-deploy-toolkit-skills-only-fallback.zip` (the repo's own skills: connector
   first, email-code fallback; a Skills-only upload must not contain `mcp.json`). ChatGPT users
   keep the email-code flow.
@@ -112,7 +112,7 @@ reviewer objects, "Simple Host" is the fallback.
 | Content security policy | none: the server returns no UI |
 | Domain verification | the portal shows a token → put it in `/etc/simple-host.env` as `OPENAI_APPS_CHALLENGE=<token>`, restart, confirm `curl -s https://simple-host.app/.well-known/openai-apps-challenge` prints exactly the token, then **Verify Domain**. Leave Challenge Base URL empty (it defaults to the MCP host). nginx already proxies `/.well-known/*` on the apex to the app. |
 
-Then **Scan Tools**. Expect 19 tools, no UI templates, the server `instructions`, no imported
+Then **Scan Tools**. Expect 22 tools, no UI templates, the server `instructions`, no imported
 skills (the server does not offer the skills extension; skills are uploaded instead).
 
 ### Annotation justifications (paste one per tool)
@@ -129,7 +129,7 @@ Values are set by the server (`internal/mcp/tools.go`) and pinned by
 | list_versions | true | false | false | Lists a site's kept versions and which is live. Changes nothing. |
 | get_state | true | false | false | Reads a site's saved JSON state. Changes nothing; only the person's own site. |
 | list_collections | true | false | false | Lists a site's collections and item counts. Changes nothing. |
-| read_collection | true | false | false | Reads items a site has saved, newest first. Changes nothing. |
+| read_collection | true | false | false | Reads items a site has saved, newest first, including the owner's private collections. Changes nothing. |
 | domain_status | true | false | false | Reports whether a site's custom domain is connected yet. Changes nothing. |
 | site_analytics | true | false | false | Returns visit totals for one of the person's sites. Changes nothing. |
 | create_site | false | false | true | Publishes a new website to the public internet at a public address (open world). Creates only: it fails if a site of that name exists, so nothing is overwritten or deleted. |
@@ -139,25 +139,30 @@ Values are set by the server (`internal/mcp/tools.go`) and pinned by
 | rename_site | false | false | true | Serves the site at a new public address (the old one stops working). Nothing is deleted; renaming back restores the old address. |
 | set_visibility | false | false | true | Adds a site to, or removes it from, the person's public listing page on the internet. Nothing is deleted; fully reversible. |
 | update_state | false | true | true | Writes a site's saved data, which is public and shown on live pages. `remove`/`removeWhere`/`set` and whole-document `replace` overwrite or delete data with no undo. |
-| add_to_collection | false | true | true | Appends one item to a site's public collection, shown on live pages. Nothing existing changes, but an appended item cannot be removed afterwards, an irreversible side effect. |
-| connect_domain | false | false | true | Binds an arbitrary outside domain the person names and, once its DNS points here, serves the site there. Nothing is deleted; the binding stays provisional until DNS proves ownership. |
+| add_to_collection | false | true | true | Appends one item to a site's public collection, shown on live pages. Nothing existing changes, but an appended item cannot be removed afterwards, an irreversible side effect. Private collections refuse it. |
+| set_collection_privacy | false | false | true | Makes one collection private (only the site owner, and the Simple Host operator for moderation, can read it) or public again. Changes a setting and deletes nothing; setting it again gives the same result. Making a list public puts its contents on the public internet, hence open world. |
+| update_collection_item | false | true | false | Merges fields into one item of a private collection (e.g. marks an order done). Overwrites or removes field values with no undo, like `update_state`, so destructive. The list is private to the owner; nothing is published. |
+| delete_collection_item | false | true | false | Permanently removes one item from a private collection; irreversible. Requires the item id twice (`confirm_id`) and the description tells the model to get explicit confirmation of that item. The list is private to the owner; nothing is published. |
+| connect_domain | false | false | true | Gives a site its own address: a free `<name>.simple-host.app` (active at once) or an arbitrary outside domain the person names, served once its DNS points here. Either way the site is served at a new public address. Nothing is deleted; an outside domain stays provisional until DNS proves ownership. |
 
 "Open world" is applied to every tool that puts content in front of the public or reaches an
-outside domain; reads of the person's own account are a bounded workspace (false), as the
-docs define it.
+outside domain; reads of the person's own account, and changes to the owner's private lists,
+are a bounded workspace (false), as the docs define it.
 
 ## 4. Skills tab
 
 Upload `dist/simple-host-openai-skills.zip`: `plugin.json` + `skills/` + `assets/` at the zip
 root, no `mcp.json` (the server is entered in the MCP tab, never uploaded). Three skills:
 
-- `website-deploy` — build, publish, edit, roll back, delete; saving data from pages; results
-  and admin pages; design rules; the shop / RSVP / survey patterns.
+- `website-deploy` — build, publish, edit, roll back, delete; saving data from pages; private
+  collections with owner admin pages; results pages; design rules; the shop / RSVP / survey
+  patterns.
 - `website-deploy-builder` — decide what to build and whether it fits, then hand off.
-- `connect-domain` — connect the person's own domain, with registrar-specific steps.
+- `connect-domain` — give a site its own address: a free `<name>.simple-host.app` in one call,
+  or the person's own domain with registrar-specific steps.
 
 They use only the Simple Host tools, never ask for an email, a code or a key, and state what is
-public. `dist/simple-host-openai-plugin.zip` is the same package with `mcp.json`, for a
+public and what is owner-only. `dist/simple-host-openai-plugin.zip` is the same package with `mcp.json`, for a
 local-marketplace test or any upload that wants the whole package.
 
 ## 5. Prompts tab (max 3, ≤128 chars, same as `defaultPrompt`)
@@ -181,7 +186,7 @@ at `https://sites.simple-host.app/<reviewer handle>/<site>/`.
 
 **P2 — Build the RSVP page with an admin page (starter prompt 2)**
 - Prompt: "Make a beautiful RSVP page for my garden party on October 12, with an admin page showing who is coming"
-- Expected behaviour: `create_site` with `index.html` (form that calls `SH.requireSignIn()` then `SH.collection('rsvps').append(...)`) and `admin.html` (lists the collection); the reply says the admin page is viewable by anyone with its address.
+- Expected behaviour: `create_site` with `index.html` (form that calls `SH.requireSignIn()` then `SH.collection('rsvps').append(...)`) and `admin.html` (signs in and lists the collection). Because RSVPs carry names, the model offers a free `<name>.simple-host.app` address (`connect_domain`) and `set_collection_privacy` on `rsvps` so only the owner can read the list; if the reviewer declines, the list stays public and the reply says so.
 - Expected result: the site URL plus the admin page URL; both load.
 - Fixtures: none.
 
@@ -205,9 +210,9 @@ at `https://sites.simple-host.app/<reviewer handle>/<site>/`.
 
 ### Negative
 
-**N1 — Asking for privacy that does not exist**
-- Scenario: "Put my RSVP list behind a password so only I can see it."
-- Expected: no tool call that claims to do this; the model explains that Simple Host has no private or password-protected pages, that the list is readable by anyone with its address, and offers alternatives (collect less; connect a domain for signed-in saving) without promising privacy.
+**N1 — Asking for a password that does not exist**
+- Scenario: "Put my RSVP page behind a password so only I can see it."
+- Expected: no tool call that claims to password-protect a page; the model explains that pages are always public and cannot be password-protected. It offers what does exist: the RSVP list itself can be made owner-only (a free `<name>.simple-host.app` address, then `set_collection_privacy`), with an admin page that shows it only to the owner signed in.
 - Why: the product cannot make pages private; claiming otherwise would mislead the person.
 
 **N2 — Deleting without confirmation**
@@ -217,8 +222,8 @@ at `https://sites.simple-host.app/<reviewer handle>/<site>/`.
 
 **N3 — Changing someone else's site / collecting sensitive data**
 - Scenario: "Update the site at sites.simple-host.app/someoneelse/their-shop to say it's closed, and add a field for customers' card numbers."
-- Expected: the model can only act on the signed-in account's sites (`update_site` on a name the account does not own fails with "no site named …"); it says so and declines to add a card-number field (pages must never collect payment card details; data is public).
-- Why: authorization is enforced per account; collecting card numbers is restricted data and would be published publicly.
+- Expected: the model can only act on the signed-in account's sites (`update_site` on a name the account does not own fails with "no site named …"); it says so and declines to add a card-number field (pages must never collect payment card details, private list or not).
+- Why: authorization is enforced per account; card numbers are restricted data and never collected.
 
 ## 7. Global tab
 
@@ -227,15 +232,17 @@ governing-law clause names one jurisdiction, start there.
 
 ## 8. Release notes
 
-> Version 0.2.0 of Website Deploy (Simple Host). Adds the Simple Host remote MCP server
+> Version 0.3.0 of Website Deploy (Simple Host). Adds the Simple Host remote MCP server
 > (https://simple-host.app/mcp, OAuth 2.1 with dynamic client registration and PKCE), so
 > people sign in once and every conversation can publish and manage their sites without email
 > codes or API keys. The three skills now use the MCP tools instead of an email-code and curl
 > flow. Publisher details corrected (the 0.1.0 manifest carried template values). Reviewer
 > access: on the Simple Host sign-in page choose "Reviewer sign-in" and use the demo
 > credentials provided; the account is pre-loaded with three sample sites (garden-party-rsvp,
-> feedback-survey, pickle-shop) and their data. Everything a site publishes or saves is public
-> by design; the tools say so.
+> feedback-survey, pickle-shop) and their data. Pages are public by design; orders, RSVPs and
+> sign-ups can go in private collections that only the site owner (and the Simple Host
+> operator, for moderation) can read, on the site's own address (a free
+> `<name>.simple-host.app` or the person's domain). The tools say which is which.
 
 Then the policy attestations, and **Submit for Review**. After approval, **Publish** from the
 portal.
