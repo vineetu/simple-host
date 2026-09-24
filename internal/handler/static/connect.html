@@ -16,8 +16,10 @@
     strong { color: var(--text); font-weight: 600; }
     ul.can { margin: 0 0 18px; padding: 0 0 0 20px; color: var(--text-secondary); }
     ul.can li { margin: 0 0 6px; }
-    .who { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    .who { display: flex; align-items: center; justify-content: space-between; gap: 12px;
            padding: 10px 12px; margin: 0 0 20px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; color: var(--text-secondary); }
+    .who > span { flex: 1 1 auto; min-width: 0; }
+    .who > button { flex: none; }
     .who b { color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
     .actions { display: flex; gap: 10px; margin-top: 8px; }
     .actions button { flex: 1; }
@@ -36,7 +38,8 @@
             background: var(--bg); color: var(--text); margin: 0 0 12px; }
     input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
     form button { width: 100%; }
-    .msg { min-height: 1.4em; margin: 12px 0 0; font-size: 14px; color: var(--error); }
+    .msg { margin: 12px 0 0; font-size: 14px; color: var(--error); }
+    .msg:empty { display: none; }
     .fine { margin: 18px 0 0; font-size: 13px; color: var(--text-secondary); }
     @media (max-width: 640px) {
       main.connect { padding: 32px 16px 8px; }
@@ -153,8 +156,9 @@
       var who = key ? await me(key) : null;
       if (who) {
         el('who-email').textContent = who.username || '';
+        var dash = el('dash-link');
+        if (dash) dash.textContent = 'Your sites';
         show('consent');
-        el('allow-btn').focus();
         return;
       }
       showSignIn();
@@ -220,7 +224,12 @@
       if (await me(key)) { setKey(key); enter(); }
       else el('signin-msg').textContent = 'That key was not recognised.';
     });
-    el('switch-btn').addEventListener('click', function () { setKey(''); showSignIn(); });
+    el('switch-btn').addEventListener('click', function () {
+      setKey('');
+      var dash = el('dash-link');
+      if (dash) dash.textContent = 'Sign in';
+      showSignIn();
+    });
 
     async function decide(decision) {
       el('consent-msg').textContent = '';
