@@ -69,6 +69,10 @@ run "event domains"        "SELECT name, domain, ip, record_ids, expires_at FROM
 run "ingest checkpoint"     "SELECT offset_bytes, inode FROM analytics_ingest_state WHERE logfile='x'"
 run "admin api metrics"     "SELECT route, status, calls FROM api_request_daily WHERE day=current_date"
 run "admin caller geo"      "SELECT ip, country FROM ip_geo WHERE ip='127.0.0.1'"
+run "connector clients"   "SELECT client_id, client_secret_hash, redirect_uris, token_endpoint_auth_method FROM oauth_clients WHERE client_id='x'"
+run "connector grants"    "SELECT g.id, g.user_id, g.client_id, c.client_name FROM oauth_grants g JOIN oauth_clients c USING (client_id) WHERE g.user_id='$NIL'"
+run "connector codes"     "SELECT client_id, user_id, redirect_uri, code_challenge, resource, grant_id FROM oauth_codes WHERE code_hash='x' AND used_at IS NULL"
+run "connector tokens"    "SELECT t.kind, t.expires_at, g.user_id FROM oauth_tokens t JOIN oauth_grants g ON g.id = t.grant_id WHERE t.token_hash='x'"
 
 echo
 if [ "$fail" -ne 0 ]; then
