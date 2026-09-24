@@ -6,155 +6,128 @@
   <title>Architecture — Simple Host</title>
   <meta name="description" content="How Simple Host works: one Go service, one Postgres, one disk — static sites that can never execute, safe by construction.">
   <!--sh:head-->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
   <style>
-    :root {
-      --bg: #020617; --surface: #0b1222; --surface-2: #0d1526;
-      --border: #1e293b; --border-hi: #334155;
-      --text: #f1f5f9; --text-secondary: #94a3b8; --dim: #475569;
-      --accent: #22d3ee; --accent-soft: rgba(34,211,238,.12);
-      --ok: #34d399; --ok-soft: rgba(52,211,153,.10);
-      --bad: #fb7185; --bad-soft: rgba(251,113,133,.10);
-      --amber: #fbbf24;
-      --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
-      --display: 'Archivo', system-ui, sans-serif;
-      --body: 'Newsreader', Georgia, serif;
-    }
-    html[data-theme="light"] {
-      --bg: #fbfbfd; --surface: #ffffff; --surface-2: #f6f7fb;
-      --border: #e4e7ee; --border-hi: #cbd2de;
-      --text: #0f1e37; --text-secondary: #4a5878; --dim: #8b96ad;
-      --accent: #0e7490; --accent-soft: rgba(14,116,144,.08);
-      --ok: #0f9d6b; --ok-soft: rgba(15,157,107,.08);
-      --bad: #d6455d; --bad-soft: rgba(214,69,93,.07);
-      --amber: #b45309;
-    }
-    * { box-sizing: border-box; }
-    html { -webkit-text-size-adjust: 100%; }
-    body {
-      margin: 0; background: var(--bg); color: var(--text);
-      font-family: var(--body); line-height: 1.65; font-size: 17px;
-      -webkit-font-smoothing: antialiased;
-      background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
-      background-size: 46px 46px; background-position: center -1px;
-    }
-    html[data-theme="light"] body { background-image: linear-gradient(rgba(15,30,55,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(15,30,55,.035) 1px, transparent 1px); }
-    .wrap { max-width: 940px; margin: 0 auto; padding: 0 28px; }
-    a { color: inherit; }
+    /* Tokens, base type and the header/footer live in /site.css. */
+    :root { --amber: #fbbf24; }
+    html[data-theme="light"] { --amber: #b45309; }
 
-    /* Header */
-    /* The header and footer are the shared chrome: /site.css. */
+    .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
+    a { color: var(--accent); text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent); text-underline-offset: 2px; }
+    a:hover { color: var(--accent-hover); }
 
-    /* Meta / TOC */
-    .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--text-secondary); }
-    .toc { display: flex; flex-wrap: wrap; gap: 6px 20px; font-family: var(--mono); font-size: 12px; color: var(--text-secondary); padding: 18px 0 22px; border-bottom: 1px solid var(--border); }
+    /* Contents */
+    .toc { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; line-height: 1.5; color: var(--text-secondary); padding: 18px 0; border-bottom: 1px solid var(--border); }
     .toc a { text-decoration: none; color: var(--text-secondary); }
-    .toc a:hover { color: var(--accent); }
-    .toc b { color: var(--accent); font-weight: 600; }
+    .toc a:hover { color: var(--text); }
+    .toc b { color: var(--text); font-weight: 600; }
 
     /* Sections */
-    section { display: grid; grid-template-columns: 54px 1fr; gap: 0 22px; padding: 48px 0; border-bottom: 1px solid var(--border); }
-    .snum { font-family: var(--mono); font-size: 13px; color: var(--accent); padding-top: 6px; }
-    h1.title { font-family: var(--display); font-weight: 800; letter-spacing: -.02em; line-height: 1.02; font-size: clamp(34px, 6vw, 60px); margin: 6px 0 20px; }
-    h2 { font-family: var(--display); font-weight: 700; letter-spacing: -.02em; line-height: 1.05; font-size: clamp(26px, 4vw, 38px); margin: 0 0 14px; }
-    .lede { font-size: 19px; color: var(--text); margin: 0 0 8px; }
+    section { padding: 56px 0; border-bottom: 1px solid var(--border); }
+    section:last-child { border-bottom: 0; }
+    h1.title { font-weight: 700; letter-spacing: -.02em; line-height: 1.1; font-size: clamp(30px, 5vw, 44px); color: var(--text); margin: 0 0 18px; }
+    h2 { font-weight: 700; letter-spacing: -.015em; line-height: 1.2; font-size: 28px; color: var(--text); margin: 0 0 12px; }
+    .lede { font-size: 17px; color: var(--text); margin: 0 0 12px; }
     p { margin: 0 0 14px; color: var(--text-secondary); }
-    p strong, li strong { color: var(--text); font-weight: 500; }
-    .kicker { font-family: var(--mono); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
-    .fine { font-family: var(--mono); font-size: 12px; color: var(--dim); letter-spacing: .3px; margin-top: 18px; }
+    p strong, li strong { color: var(--text); font-weight: 600; }
+    .kicker { font-size: 13px; color: var(--text-secondary); margin: 0 0 10px; }
+    .fine { font-size: 13px; color: var(--text-secondary); margin-top: 18px; }
+    .spaced { margin-top: 22px; }
+    code { font-family: var(--mono); font-size: .88em; color: var(--text); background: var(--surface); border: 1px solid var(--border); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
 
-    /* Numbered claims */
+    /* Labelled claims (X1, 4.1, R5 …) */
     .claims { margin: 22px 0 0; }
-    .claim { display: grid; grid-template-columns: 46px 1fr; gap: 16px; padding: 16px 0; border-top: 1px solid var(--border); }
-    .claim .ci { font-family: var(--mono); font-size: 12.5px; color: var(--accent); padding-top: 3px; }
-    .claim p { margin: 0; font-size: 15.5px; line-height: 1.6; }
-    .claim b { color: var(--text); font-family: var(--display); font-weight: 600; }
+    .claim { display: grid; grid-template-columns: 40px 1fr; gap: 14px; padding: 16px 0; border-top: 1px solid var(--border); }
+    .claim .ci { font-size: 13px; font-weight: 600; color: var(--text-secondary); padding-top: 2px; font-variant-numeric: tabular-nums; }
+    .claim p { margin: 0; font-size: 15px; line-height: 1.6; }
+    .claim b { color: var(--text); font-weight: 600; }
 
-    /* Figure */
-    figure { margin: 26px 0 4px; }
-    .figcap { font-family: var(--mono); font-size: 11.5px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-secondary); display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; margin-bottom: 14px; }
-    .figcap .t { color: var(--text); }
-    .lg { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; letter-spacing: .5px; }
+    /* Figures */
+    figure { margin: 32px 0 4px; }
+    .figcap { font-size: 13px; color: var(--text-secondary); display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; margin-bottom: 14px; }
+    .figcap .t { color: var(--text); font-weight: 600; }
+    .lg { display: inline-flex; align-items: center; gap: 6px; }
     .dot { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
-    .diagram { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); padding: 16px; }
-    .lane { border: 1px dashed var(--border-hi); border-radius: 10px; padding: 26px 14px 14px; margin: 0 0 30px; position: relative; }
+    .diagram { padding: 10px 0 0; }
+    .lane { border: 1px dashed var(--border-hi); border-radius: 10px; padding: 24px 14px 14px; margin: 0 0 30px; position: relative; }
     .lane:last-child { margin-bottom: 0; }
-    .lane-label { position: absolute; top: -9px; left: 14px; background: var(--surface); padding: 0 8px; font-family: var(--mono); font-size: 10.5px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-secondary); }
+    .lane-label { position: absolute; top: -10px; left: 12px; background: var(--bg); padding: 0 8px; font-size: 13px; font-weight: 600; line-height: 20px; color: var(--text-secondary); }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-    .node { border: 1px solid var(--border-hi); border-radius: 9px; background: var(--surface-2); padding: 12px 13px; }
-    .node.ok { border-color: color-mix(in srgb, var(--ok) 55%, var(--border-hi)); }
-    .node.bad { border-color: color-mix(in srgb, var(--bad) 55%, var(--border-hi)); background: var(--bad-soft); }
-    .node .nt { font-family: var(--display); font-weight: 600; font-size: 14px; color: var(--text); margin-bottom: 5px; }
-    .node .nm { font-family: var(--mono); font-size: 11px; line-height: 1.65; color: var(--text-secondary); }
-    .arrow { text-align: center; font-family: var(--mono); font-size: 10.5px; letter-spacing: .5px; color: var(--accent); padding: 7px 0; }
-    .arrow.ok { color: var(--ok); } .arrow.bad { color: var(--bad); } .arrow.mut { color: var(--dim); }
+    .node { border: 1px solid var(--border-hi); border-radius: 8px; background: var(--surface); padding: 12px 13px; }
+    .node.ok { border-color: color-mix(in srgb, var(--success) 60%, var(--border-hi)); }
+    .node.bad { border-color: color-mix(in srgb, var(--error) 60%, var(--border-hi)); }
+    .node .nt { font-weight: 600; font-size: 15px; color: var(--text); margin-bottom: 4px; }
+    .node .nm { font-size: 13px; line-height: 1.6; color: var(--text-secondary); overflow-wrap: anywhere; }
+    .arrow { text-align: center; font-size: 13px; line-height: 1.5; color: var(--accent); padding: 7px 0; }
+    .arrow.ok { color: var(--success); } .arrow.bad { color: var(--error); } .arrow.mut, .arrow .mut { color: var(--text-secondary); }
     .arrow::before { content: "↓ "; }
     .arrow.up::before { content: "↑ "; }
 
-    /* Table (trust / not) */
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    td { border-top: 1px solid var(--border); padding: 14px 0; vertical-align: top; font-size: 15px; }
-    td.tid { font-family: var(--mono); font-size: 12.5px; color: var(--accent); width: 42px; padding-right: 14px; white-space: nowrap; }
-    td.tk { font-family: var(--display); font-weight: 600; color: var(--text); width: 200px; padding-right: 22px; }
+    /* Tables (who renders what, trust, non-goals) */
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; border-bottom: 1px solid var(--border); }
+    td { border-top: 1px solid var(--border); padding: 14px 0; vertical-align: top; font-size: 15px; line-height: 1.55; }
+    td.tid { font-size: 13px; font-weight: 600; color: var(--text-secondary); width: 44px; padding-right: 12px; padding-top: 16px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    td.tk { font-weight: 600; color: var(--text); width: 220px; padding-right: 22px; }
     td.tv { color: var(--text-secondary); }
-    code { font-family: var(--mono); font-size: .88em; background: var(--accent-soft); color: var(--accent); padding: 1px 6px; border-radius: 5px; }
+    #consumers td.tk { font-family: var(--mono); font-size: 13.5px; font-weight: 500; width: 300px; overflow-wrap: anywhere; }
+    #consumers td.tk .badge { font-family: var(--font); }
 
     /* Feature map — tools */
     .mtools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 24px 0 16px; }
-    .mfilter { flex: 1 1 210px; min-width: 0; font-family: var(--mono); font-size: 13px; padding: 10px 12px;
-      border: 1px solid var(--border-hi); border-radius: 9px; background: var(--surface); color: var(--text); }
+    .mfilter { flex: 1 1 210px; min-width: 0; font-family: var(--font); font-size: 15px; padding: 9px 12px;
+      border: 1px solid var(--border-hi); border-radius: 8px; background: var(--surface); color: var(--text); }
     .mfilter::placeholder { color: var(--dim); }
     .mfilter:focus { outline: none; border-color: var(--accent); }
-    .mbtn { font-family: var(--mono); font-size: 12px; padding: 10px 13px; border: 1px solid var(--border-hi);
-      border-radius: 9px; background: var(--surface); color: var(--text-secondary); cursor: pointer; }
+    .mbtn { font-family: var(--font); font-size: 15px; padding: 9px 14px; border: 1px solid var(--border-hi);
+      border-radius: 8px; background: transparent; color: var(--text); cursor: pointer; }
     .mbtn:hover { border-color: var(--accent); color: var(--accent); }
-    .mcount { font-family: var(--mono); font-size: 11.5px; color: var(--dim); flex: 1 1 100%; }
+    .mcount { font-size: 13px; color: var(--text-secondary); flex: 1 1 100%; }
 
-    /* Feature map — one card per feature */
-    .feat { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); margin-bottom: 12px; }
-    .feat[open] { border-color: var(--border-hi); }
-    .feat > summary { cursor: pointer; list-style: none; padding: 14px 16px; display: flex; gap: 4px 11px; align-items: baseline; flex-wrap: wrap; }
+    /* Feature map — one row per feature, hairlines between */
+    .feat { border-top: 1px solid var(--border); }
+    .feat:last-of-type { border-bottom: 1px solid var(--border); }
+    .feat > summary { cursor: pointer; list-style: none; padding: 14px 0; display: flex; gap: 2px 10px; align-items: baseline; flex-wrap: wrap; }
     .feat > summary::-webkit-details-marker { display: none; }
-    .feat > summary::before { content: "+"; font-family: var(--mono); font-size: 13px; color: var(--accent); }
+    .feat > summary::before { content: "+"; width: 12px; font-size: 16px; font-weight: 600; color: var(--accent); }
     .feat[open] > summary::before { content: "–"; }
     .feat > summary:hover .fname { color: var(--accent); }
-    .fname { font-family: var(--display); font-weight: 600; font-size: 16.5px; color: var(--text); }
-    .fid { font-family: var(--mono); font-size: 10.5px; letter-spacing: .6px; color: var(--dim); }
-    .fsum { flex: 1 1 100%; margin: 2px 0 0; font-size: 14.5px; color: var(--text-secondary); padding-left: 19px; }
-    .fbody { padding: 4px 16px 16px; }
-    .frow { display: grid; grid-template-columns: 104px 1fr; gap: 4px 14px; padding: 9px 0; border-top: 1px solid var(--border); }
-    .fk { font-family: var(--mono); font-size: 10.5px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-secondary); padding-top: 4px; }
-    .fv { font-family: var(--mono); font-size: 12.5px; line-height: 1.8; color: var(--text-secondary); overflow-wrap: anywhere; }
+    .feat > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+    .fname { font-weight: 600; font-size: 17px; color: var(--text); }
+    .fid { font-family: var(--mono); font-size: 12px; color: var(--text-secondary); }
+    .fsum { flex: 1 1 100%; margin: 2px 0 0; font-size: 15px; color: var(--text-secondary); padding-left: 22px; }
+    .fbody { padding: 0 0 18px 22px; }
+    .frow { display: grid; grid-template-columns: 96px 1fr; gap: 4px 14px; padding: 10px 0; border-top: 1px solid var(--border); }
+    .fk { font-size: 13px; font-weight: 600; color: var(--text-secondary); padding-top: 1px; }
+    .fv { font-size: 14px; line-height: 1.7; color: var(--text-secondary); overflow-wrap: anywhere; }
+    /* Go and Routes rows are file paths and routes: real code, so mono. */
+    .fbody > .frow:nth-child(-n+2) .fv { font-family: var(--mono); font-size: 13px; }
+    .fbody > .frow:nth-child(-n+2) .fv em { font-family: var(--font); font-size: 14px; }
     .fv b { color: var(--text); font-weight: 600; }
     .fv em { color: var(--dim); font-style: normal; }
     .fv .none { color: var(--dim); }
-    /* The UI column is the one people forget — it gets the accent. */
+    /* The UI row is the one people forget — it gets the accent. */
     .frow.ui .fk, .frow.ui .fv b { color: var(--accent); }
-    .frow.blast { border-top: 0; margin-top: 10px; padding: 12px 13px; border-radius: 9px;
-      background: var(--bad-soft); border: 1px solid color-mix(in srgb, var(--bad) 32%, transparent); }
-    .frow.blast .fk { color: var(--bad); }
-    .frow.blast .fv { font-family: var(--body); font-size: 14.5px; line-height: 1.6; color: var(--text); }
-    .badge { font-family: var(--mono); font-size: 9.5px; letter-spacing: .9px; text-transform: uppercase;
-      padding: 2px 7px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+    .frow.blast { margin-top: 10px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--error) 40%, var(--border)); border-radius: 10px; }
+    .frow.blast .fk { color: var(--error); }
+    .frow.blast .fv { font-size: 15px; line-height: 1.6; color: var(--text); }
+    .badge { display: inline-block; font-size: 12px; font-weight: 600; line-height: 1.5;
+      padding: 0 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; vertical-align: 1px; }
     .badge.multi { color: var(--amber); }
-    .badge.solo { color: var(--dim); }
-
+    .badge.solo { color: var(--text-secondary); }
 
     @media (max-width: 720px) {
-      body { font-size: 16px; }
-      section { grid-template-columns: 1fr; gap: 0; padding: 38px 0; }
-      .snum { padding: 0 0 8px; }
+      .wrap { padding: 0 20px; }
+      section { padding: 44px 0; }
+      h2 { font-size: 24px; }
       .row { grid-template-columns: 1fr; }
-      .claim { grid-template-columns: 40px 1fr; gap: 12px; }
+      .claim { grid-template-columns: 34px 1fr; gap: 10px; }
       td.tk { width: auto; display: block; padding-bottom: 4px; }
       td.tv { display: block; }
       .trow td { display: block; border: 0; padding: 2px 0; }
+      .trow td.tid { padding: 0 0 2px; }
       .trow { display: block; border-top: 1px solid var(--border); padding: 12px 0; }
-      .frow { grid-template-columns: 1fr; gap: 3px; }
-      .fk { padding-top: 0; }
+      .frow { grid-template-columns: 1fr; gap: 2px; }
       .fsum { padding-left: 0; }
+      .fbody { padding-left: 0; }
     }
   </style>
 </head>
@@ -164,21 +137,20 @@
   <div class="wrap">
     <div class="toc">
       <b>Architecture</b>
-      <a href="#map">01 Feature map</a>
-      <a href="#consumers">02 Who renders what</a>
-      <a href="#traps">03 Traps</a>
-      <a href="#safety">04 Safety property</a>
-      <a href="#trust">05 Trust model</a>
-      <a href="#backend">06 The little backend</a>
-      <a href="#analytics">07 Counting visitors</a>
-      <a href="#ai">08 Create with AI</a>
-      <a href="#runtime">09 Runtime</a>
-      <a href="#not">10 Non-goals</a>
+      <a href="#map">Feature map</a>
+      <a href="#consumers">Who renders what</a>
+      <a href="#traps">Traps</a>
+      <a href="#safety">Safety property</a>
+      <a href="#trust">Trust model</a>
+      <a href="#backend">The little backend</a>
+      <a href="#analytics">Counting visitors</a>
+      <a href="#ai">Create with AI</a>
+      <a href="#runtime">Runtime</a>
+      <a href="#not">Non-goals</a>
     </div>
 
     <!-- 00 Overview -->
     <section>
-      <div class="snum">00.</div>
       <div>
         <div class="kicker">Architecture brief · blast-radius map</div>
         <h1 class="title">Every place<br>a feature lives.</h1>
@@ -191,12 +163,11 @@
 
     <!-- 01 Feature map -->
     <section id="map">
-      <div class="snum">01.</div>
       <div>
         <h2>Feature map</h2>
         <p class="lede">One card per feature. Open it and you have every file, route, screen, table and document that feature touches — and the line that says what else you must change with it.</p>
-        <p>The <strong style="color:var(--accent)">UI</strong> row is the one that matters most, and it is the one that gets skipped. It names the file <em>and</em> the tab inside it, because "I updated the dashboard" is exactly the sentence that shipped the analytics bug — there are two dashboards, and a third at <code>/admin</code>.</p>
-        <p>Each card's <strong>Product</strong> row links to the plain-language entries on the <a href="/features.html" style="color:var(--accent)">features page</a>. That is the other half of the same job: this page says where a feature lives, that one says what it promises — and a change usually invalidates both.</p>
+        <p>The <strong>UI</strong> row is the one that matters most, and it is the one that gets skipped. It names the file <em>and</em> the tab inside it, because "I updated the dashboard" is exactly the sentence that shipped the analytics bug — there are two dashboards, and a third at <code>/admin</code>.</p>
+        <p>Each card's <strong>Product</strong> row links to the plain-language entries on the <a href="/features.html">features page</a>. That is the other half of the same job: this page says where a feature lives, that one says what it promises — and a change usually invalidates both.</p>
 
         <div class="mtools">
           <input class="mfilter" id="mfilter" type="search" placeholder="Filter — try: analytics, state, showcase.html…" oninput="mfilter(this.value)" aria-label="Filter features">
@@ -461,7 +432,6 @@
 
     <!-- 02 Consumers -->
     <section id="consumers">
-      <div class="snum">02.</div>
       <div>
         <h2>Who renders what</h2>
         <p class="lede">The inverse of the map: pick an endpoint, see every screen that would go blank if you changed its shape. Rows marked <span class="badge multi">multi</span> have more than one consumer — those are the ones that bite.</p>
@@ -488,7 +458,6 @@
 
     <!-- 03 Traps -->
     <section id="traps">
-      <div class="snum">03.</div>
       <div>
         <h2>Traps that have already bitten</h2>
         <p class="lede">Not hypotheticals. Each of these has cost someone real time here.</p>
@@ -508,7 +477,6 @@
 
     <!-- 04 Safety property -->
     <section id="safety">
-      <div class="snum">04.</div>
       <div>
         <h2>The core safety property</h2>
         <p class="lede">The defining constraint: user uploads are <strong>data, never code</strong> — they can never execute on the server. That is what makes agent-generated ("vibe-coded") sites safe to host.</p>
@@ -524,8 +492,8 @@
           <div class="figcap">
             <span class="t">Fig 01 · Upload, validation &amp; serve pipeline</span>
             <span class="lg"><span class="dot" style="background:var(--accent)"></span>Platform</span>
-            <span class="lg"><span class="dot" style="background:var(--ok)"></span>Accepted</span>
-            <span class="lg"><span class="dot" style="background:var(--bad)"></span>Rejected</span>
+            <span class="lg"><span class="dot" style="background:var(--success)"></span>Accepted</span>
+            <span class="lg"><span class="dot" style="background:var(--error)"></span>Rejected</span>
           </div>
           <div class="diagram">
             <div class="lane">
@@ -565,7 +533,6 @@
 
     <!-- 05 Trust model -->
     <section id="trust">
-      <div class="snum">05.</div>
       <div>
         <h2>Trust model</h2>
         <p class="lede">Every surface is gated; the gates differ in strength, and a few are weaker than they sound. Sites are public on the internet — the protection is that they're static, owned, and revertible.</p>
@@ -584,7 +551,6 @@
 
     <!-- 06 Little backend -->
     <section id="backend">
-      <div class="snum">06.</div>
       <div>
         <h2>The little backend</h2>
         <p class="lede">Static hosting is commoditized. The difference here is that every site gets <strong>just enough backend</strong> — with no database to set up.</p>
@@ -600,7 +566,6 @@
 
     <!-- 07 Analytics -->
     <section id="analytics">
-      <div class="snum">07.</div>
       <div>
         <h2>Counting who actually visited</h2>
         <p class="lede">The headline number is <strong>people</strong>, not requests. Getting those two apart was the entire point of this subsystem.</p>
@@ -615,14 +580,14 @@
           <div class="claim"><div class="ci">7.7</div><p><b>The first month is kept, and honestly labelled.</b> The pre-classifier <code>*_daily</code> tables are retained rather than dropped: they are the only surviving record of <strong>2026-07-11 → 2026-08-08</strong>, whose raw logs have rotated away and cannot be rebuilt. The API reads them for any day before <code>classified_from</code> and reports them as a fourth class, <code>unknown</code> — plainly visible on the chart, never quietly folded into the human number.</p></div>
         </div>
 
-        <p style="margin-top:22px"><code>GET /v1/sites/{name}/analytics</code> returns <code>totals</code>, <code>last_24h</code>, <code>daily</code> and <code>hourly</code>, each as a class split, plus <code>classified_from</code>. The bulk <code>GET /v1/analytics/sites</code> exists because the dashboard must sort sites by traffic <em>before</em> it draws the first card, which one-request-per-site cannot do. A <code>analytics-rebuild</code> command replays the live log and rewrites every aggregate with the current classifier — so improving the classifier improves history, instead of leaving a permanent step in every chart.</p>
+        <p class="spaced"><code>GET /v1/sites/{name}/analytics</code> returns <code>totals</code>, <code>last_24h</code>, <code>daily</code> and <code>hourly</code>, each as a class split, plus <code>classified_from</code>. The bulk <code>GET /v1/analytics/sites</code> exists because the dashboard must sort sites by traffic <em>before</em> it draws the first card, which one-request-per-site cannot do. A <code>analytics-rebuild</code> command replays the live log and rewrites every aggregate with the current classifier — so improving the classifier improves history, instead of leaving a permanent step in every chart.</p>
 
         <figure>
           <div class="figcap">
             <span class="t">Fig 02 · Analytics pipeline</span>
             <span class="lg"><span class="dot" style="background:var(--accent)"></span>Platform</span>
-            <span class="lg"><span class="dot" style="background:var(--ok)"></span>Counted</span>
-            <span class="lg"><span class="dot" style="background:var(--bad)"></span>Stripped as infra</span>
+            <span class="lg"><span class="dot" style="background:var(--success)"></span>Counted</span>
+            <span class="lg"><span class="dot" style="background:var(--error)"></span>Stripped as infra</span>
           </div>
           <div class="diagram">
             <div class="lane">
@@ -665,7 +630,6 @@
 
     <!-- 08 Create with AI -->
     <section id="ai">
-      <div class="snum">08.</div>
       <div>
         <h2>Create with AI</h2>
         <p class="lede">A chat that builds a site for you. The model is called <strong>server-side</strong>, so the provider key stays on the server and never reaches a served page.</p>
@@ -678,7 +642,6 @@
 
     <!-- 09 Runtime -->
     <section id="runtime">
-      <div class="snum">09.</div>
       <div>
         <h2>Runtime &amp; deployment</h2>
         <p class="lede">Where this actually runs: <strong>one box, one process</strong>, no orchestration.</p>
@@ -694,7 +657,7 @@
         <figure>
           <div class="figcap"><span class="t">Fig 03 · Runtime — one box, one process</span>
             <span class="lg"><span class="dot" style="background:var(--accent)"></span>Platform</span>
-            <span class="lg"><span class="dot" style="background:var(--ok)"></span>Traffic</span>
+            <span class="lg"><span class="dot" style="background:var(--success)"></span>Traffic</span>
           </div>
           <div class="diagram">
             <div class="lane">
@@ -727,7 +690,6 @@
 
     <!-- 10 Non-goals -->
     <section id="not">
-      <div class="snum">10.</div>
       <div>
         <h2>What it deliberately is not</h2>
         <table>
