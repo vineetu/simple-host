@@ -1121,12 +1121,10 @@ function parseAnalyticsSummary(data) {
 
         if (sel.some(function (a) { return a.claudeapp; })) {
           if (out.length) out.push('');
-          out.push('Claude app (claude.ai / desktop / mobile) — no terminal. In the app:');
-          out.push('  Settings → Skills → “+ Create skill”, then upload each ZIP separately:');
-          SKILLS.forEach(function (s) {
-            out.push('  https://simple-host.app/skills/' + s + '.zip');
-          });
-          out.push('  (Paid plan with Code execution switched on. Claude Code is the terminal one — pick it above instead.)');
+          out.push('Claude app (claude.ai / desktop / phone) — nothing to install. Add the connector once:');
+          out.push('  Customize → Connectors → + → Add custom connector, name it Simple Host, address:');
+          out.push('  https://simple-host.app/mcp');
+          out.push('  Sign in in the window that opens, then Allow. (Claude Code is the terminal one — pick it above instead.)');
         }
         return out.join('\n');
       }
@@ -1920,7 +1918,7 @@ function parseAnalyticsSummary(data) {
     }
 
     // ------------------------------------------------------------- PUBLISHING
-    // Same rules as the paste builder on the apex dashboard: the first publish
+    // The first publish
     // BINDS this chat to one site, and every publish after that updates THAT
     // site instead of making a second copy of it. "Publish as new" unbinds.
     var publishedSite = null;

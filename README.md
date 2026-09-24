@@ -35,7 +35,7 @@ On Claude Code you can also install via the bundled marketplace:
 /plugin install website-deploy@simple-host
 ```
 
-Using **Hermes** or **OpenClaw**? The skills are plain `SKILL.md`, so they install natively too — e.g. Hermes: `hermes skills install https://simple-host.app/skills/website-deploy/SKILL.md --name website-deploy`. That fetches one file; `website-deploy`'s SKILL.md routes to reference documents, and cites each by full URL as well as relative path so a single-file install can still fetch them (`https://simple-host.app/v1/skills/website-deploy/references/<name>.md`). Per-agent paths are on the [get-started page](https://simple-host.app/install.html).
+Using **Hermes** or **OpenClaw**? The skills are plain `SKILL.md`, so they install natively too — e.g. Hermes: `hermes skills install https://simple-host.app/skills/website-deploy/SKILL.md --name website-deploy`. That fetches one file; `website-deploy`'s SKILL.md routes to reference documents, and cites each by full URL as well as relative path so a single-file install can still fetch them (`https://simple-host.app/v1/skills/website-deploy/references/<name>.md`). Per-agent paths are under "Install the skills manually" on the [API page](https://simple-host.app/docs.html#install-skills).
 
 Then just talk to your agent:
 
@@ -45,7 +45,7 @@ Then just talk to your agent:
 
 It signs you up (emailed code → API key), builds the site, wires in state if the page needs it, and deploys. No terminal, no dashboard, no config files.
 
-**On the web instead?** ChatGPT, Gemini, and Copilot can do it too — paste [simple-host.app/llms.txt](https://simple-host.app/llms.txt) into the chat, describe what you want, and it hands you a site to publish. Or use the **Build with AI** chat right on [simple-host.app](https://simple-host.app), which builds and previews a site for you on the box itself.
+**In ChatGPT, Claude or Grok instead?** Add Simple Host as a connector once — `https://simple-host.app/mcp`, sign in in the window that opens — and every chat after that can build and publish sites. Steps for each app are on the [get-started page](https://simple-host.app/install.html).
 
 ## What you get
 

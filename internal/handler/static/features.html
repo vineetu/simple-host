@@ -118,7 +118,7 @@
         <p><strong>Two owner screens exist.</strong> Every entry says which one it lives on:</p>
         <div class="legend">
           <div class="lrow"><div><span class="st">Your sites page</span></div><p>Your own address — <code>simple-host.app/your-handle</code>. Signing in takes you here. It has a <strong>Sites</strong> tab, an <strong>Analytics</strong> tab, the AI chat and the setup panel for your AI agent.</p></div>
-          <div class="lrow"><div><span class="st">Main dashboard</span></div><p>The older screen, reached with <strong>＋ New site</strong> from your sites page. It has the paste builder and the site cards, and it is the only place with <strong>Data</strong> and <strong>Connect domain</strong>.</p></div>
+          <div class="lrow"><div><span class="st">Main dashboard</span></div><p>The older screen, reached with <strong>＋ New site</strong> from your sites page. It has the site cards, and it is the only place with <strong>Data</strong> and <strong>Connect domain</strong>.</p></div>
         </div>
 
         <p><strong>Status marks used below:</strong></p>
@@ -240,7 +240,7 @@
     <section id="publish">
       <div>
         <h2>Publishing a site</h2>
-        <p class="lede">Three ways in: paste a page in, hand a folder to your agent, or have the AI write it. All three end at the same live address.</p>
+        <p class="lede">Two ways in: ask your own AI (with Simple Host added to it) to publish, or have the AI chat write it. Both end at the same live address.</p>
         <div class="feats">
 
           <div class="feat" id="deploy-inline-files">
@@ -250,7 +250,7 @@
               <p class="fw">Send the page itself — the HTML and anything alongside it — and it is live in seconds. No build step, no upload dialog, no waiting.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone with a finished page, and every AI agent publishing on your behalf.</dd>
-                <dt>Where</dt><dd>The paste builder on the main dashboard, and whatever your agent does when you say "publish this".</dd>
+                <dt>Where</dt><dd>Whatever your AI does when you say "publish this".</dd>
                 <dt>Limits</dt><dd class="lim">Text files go in <code>files</code>; images, fonts and other binaries go base64-encoded in <code>files_base64</code> in the same request. A site must include a home page, and script files are refused.</dd>
               </dl>
             </div>
@@ -276,7 +276,7 @@
               <p class="fw">Publishing again to the same name replaces what visitors see, instantly, at the same address.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone iterating — which is everyone, after the first day.</dd>
-                <dt>Where</dt><dd>The paste builder shows <strong>Update site</strong> once it is tied to a live site; agents do it on request.</dd>
+                <dt>Where</dt><dd>Your AI does it when you ask for a change.</dd>
                 <dt>Limits</dt><dd class="lim">A republish <b>replaces the whole site</b>, it does not merge. Anything you leave out disappears from the live version — though the old version is still kept.</dd>
               </dl>
             </div>
@@ -289,7 +289,7 @@
               <p class="fw">The name you pick becomes the last part of the address, so it is worth choosing something readable.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone publishing anything.</dd>
-                <dt>Where</dt><dd>The name box in the paste builder, before you press Publish.</dd>
+                <dt>Where</dt><dd>Your AI asks or picks one when it publishes; ask it for a different one any time.</dd>
                 <dt>Limits</dt><dd class="lim">Lower-case letters, numbers and dashes only. You can <b>rename it later</b> (<b>Rename</b> on the site card); the old address then returns 404.</dd>
               </dl>
             </div>
@@ -740,45 +740,6 @@
             </div>
           </div>
 
-          <div class="feat" id="ai-paste-build">
-            <div class="fid">ai-paste-build</div>
-            <div>
-              <h3>Build it in any chatbot instead</h3>
-              <p class="fw">Copy a ready-made prompt, paste it into whichever AI you already pay for, and paste the answer back here. It arrives as a working site.</p>
-              <dl class="fm">
-                <dt>Who</dt><dd>Anyone who already has a favourite AI, or who wants a stronger model than the built-in one.</dd>
-                <dt>Where</dt><dd><strong>Create a site</strong> on the main dashboard — <strong>Copy prompt</strong>, then paste the answer into the box.</dd>
-                <dt>Limits</dt><dd class="lim">Up to <b>200 files</b> and about <b>1.5 MB</b> in one paste. If the chatbot returns anything other than the expected format, it is rejected.</dd>
-              </dl>
-            </div>
-          </div>
-
-          <div class="feat" id="ai-paste-preview">
-            <div class="fid">ai-paste-preview</div>
-            <div>
-              <h3>Preview the pasted site, full screen</h3>
-              <p class="fw">Before publishing you see the real page, with the file list, and can open it full screen.</p>
-              <dl class="fm">
-                <dt>Who</dt><dd>Anyone about to put something on the internet under their own name.</dd>
-                <dt>Where</dt><dd>Appears after <strong>Preview it</strong> on the main dashboard.</dd>
-                <dt>Limits</dt><dd class="lim">The preview cannot reach your account, which means <b>anything needing a signed-in visitor will not work until it is published</b>.</dd>
-              </dl>
-            </div>
-          </div>
-
-          <div class="feat" id="ai-paste-publish">
-            <div class="fid">ai-paste-publish</div>
-            <div>
-              <h3>Publish, then keep editing the same site</h3>
-              <p class="fw">Name it, publish, and it is live. From then on the builder stays tied to that site, so the next paste updates it rather than making a second one — with <strong>Publish as new</strong> if you do want a copy.</p>
-              <dl class="fm">
-                <dt>Who</dt><dd>Anyone iterating on a live page with a chatbot.</dd>
-                <dt>Where</dt><dd><strong>Publish</strong> / <strong>Update site</strong> on the main dashboard.</dd>
-                <dt>Limits</dt><dd class="lim">The tie is <b>forgotten when you leave the page</b>, so a later paste can create a duplicate under a new name if you are not paying attention.</dd>
-              </dl>
-            </div>
-          </div>
-
           <div class="feat" id="ai-single-provider">
             <div class="fid">ai-single-provider</div>
             <div>
@@ -787,7 +748,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone who needs to trust that two builds an hour apart came from the same thing.</dd>
                 <dt>Where</dt><dd>Visible only as an error message when the provider is down.</dd>
-                <dt>Limits</dt><dd class="lim">No fallback means <b>an outage stops AI building entirely</b>. The paste route still works, because it uses your own chatbot.</dd>
+                <dt>Limits</dt><dd class="lim">No fallback means <b>an outage stops the AI chat entirely</b>. Your own AI, with Simple Host added, still works.</dd>
               </dl>
             </div>
           </div>
@@ -1156,7 +1117,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone using a coding agent — this is the main way people use the service.</dd>
                 <dt>Where</dt><dd>Installed once from the <strong>Get started</strong> page, or from the setup panel on your sites page.</dd>
-                <dt>Limits</dt><dd class="lim">Your agent has to support skills. If it does not, the copy-and-paste prompt below is the fallback.</dd>
+                <dt>Limits</dt><dd class="lim">Your agent has to support skills. Chat apps without them (ChatGPT, Claude, Grok) add the Simple Host connector instead, from <strong>Get started</strong>.</dd>
               </dl>
             </div>
           </div>
@@ -1191,11 +1152,11 @@
             <div class="fid">skill-install-page</div>
             <div>
               <h3>A get-started page for whichever tool you use</h3>
-              <p class="fw">Four routes side by side — a coding agent, the Claude app, building here in the browser, or pasting a prompt into any chatbot — with the exact commands for each.</p>
+              <p class="fw">Pick your AI — ChatGPT, Claude, Grok or a coding agent — and it opens to the two or three steps that add Simple Host to it, with the address or command ready to copy.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone arriving for the first time.</dd>
                 <dt>Where</dt><dd><strong>Get started</strong> in the top navigation.</dd>
-                <dt>Limits</dt><dd class="lim">On a phone the browser route is deliberately put first, since the others need a computer.</dd>
+                <dt>Limits</dt><dd class="lim">ChatGPT and Grok need a paid plan for this; the coding-agent route needs a terminal. Manual installs are on the API page.</dd>
               </dl>
             </div>
           </div>
@@ -1221,7 +1182,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone setting up a second machine, or a tool that is not the obvious one.</dd>
                 <dt>Where</dt><dd><strong>Set up your AI</strong> on your sites page, visible only to you.</dd>
-                <dt>Limits</dt><dd class="lim">Covers the tools listed there. Anything else uses the manual instructions on <strong>Get started</strong>.</dd>
+                <dt>Limits</dt><dd class="lim">Covers the tools listed there. Anything else uses the manual instructions on the <strong>API</strong> page.</dd>
               </dl>
             </div>
           </div>
@@ -1248,19 +1209,6 @@
                 <dt>Who</dt><dd>Anyone who installed the skills months ago and forgot.</dd>
                 <dt>Where</dt><dd>Your agent sees it and should mention it to you.</dd>
                 <dt>Limits</dt><dd class="lim">Whether you hear about it is up to your agent — <b>nothing is shown on any screen</b>.</dd>
-              </dl>
-            </div>
-          </div>
-
-          <div class="feat" id="agent-prompt-llms">
-            <div class="fid">agent-prompt-llms</div>
-            <div>
-              <h3>A prompt for any chatbot</h3>
-              <p class="fw">A ready-written brief you paste into any AI, which makes it produce a site that works here — backend, live counts and all — with no skill installed anywhere.</p>
-              <dl class="fm">
-                <dt>Who</dt><dd>Anyone with a chatbot but no coding agent. This is the route that works on a phone.</dd>
-                <dt>Where</dt><dd><strong>Copy prompt</strong> in the paste builder, and on <strong>Get started</strong>.</dd>
-                <dt>Limits</dt><dd class="lim">You paste the answer back yourself. If the chatbot adds chatter around the result, it will be rejected — ask it to output only the block.</dd>
               </dl>
             </div>
           </div>

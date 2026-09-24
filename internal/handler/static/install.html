@@ -4,134 +4,125 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Get started — Simple Host</title>
+  <meta name="description" content="Add Simple Host to ChatGPT, Claude, Grok or your coding agent once. Then ask for a site and it goes online.">
   <!--sh:head-->
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     /* Tokens, base type and the header/footer live in /site.css. */
 
     body { min-height: 100vh; }
-
-    .container { max-width: 800px; margin: 0 auto; padding: 0 24px; }
-
+    .container { max-width: 680px; margin: 0 auto; padding: 0 24px; }
     main { padding: 48px 0 88px; }
-
-    .eyebrow { font-size: 13px; font-weight: 400; color: var(--text-secondary); margin-bottom: 10px; }
 
     h1 {
       font-size: clamp(30px, 5vw, 44px); font-weight: 700; color: var(--text);
-      letter-spacing: -0.025em; line-height: 1.08; margin-bottom: 18px;
+      letter-spacing: -0.025em; line-height: 1.1; margin: 0 0 14px;
     }
-    h1 .accent { color: inherit; }
+    .lede { color: var(--text-secondary); font-size: 18px; line-height: 1.55; margin: 0; }
 
-    .lede { color: var(--text-secondary); font-size: 17px; line-height: 1.6; max-width: 620px; }
-    .lede b { color: var(--text); font-weight: 600; }
-
-    /* The ways in: hairlines between them, not boxes. */
-    .paths { display: flex; flex-direction: column; margin-top: 40px; border-top: 1px solid var(--border); }
-    .path { border-bottom: 1px solid var(--border); padding: 32px 0; }
-    .path-head { margin-bottom: 18px; }
-    .path .eyebrow { margin-bottom: 6px; }
-    .path h2 { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.3; margin: 0 0 8px; }
-    .path p { color: var(--text-secondary); font-size: 16px; line-height: 1.6; max-width: 66ch; }
-    .path p b { color: var(--text); font-weight: 600; }
-    .path .dim, .path p.dim { color: var(--text-secondary); font-size: 15px; }
-
-    .cta {
-      display: inline-block; background: var(--accent); color: var(--on-accent);
-      font-family: var(--font); font-weight: 600; font-size: 15px; text-decoration: none;
-      padding: 10px 20px; border-radius: 8px; transition: background .15s;
+    section { margin-top: 48px; }
+    h2 {
+      font-size: 13px; font-weight: 600; color: var(--text-secondary);
+      text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 12px;
     }
-    .cta:hover { background: var(--accent-hover); }
+    a { color: var(--accent); }
 
-    pre {
+    /* ── Pick your AI: one list, each row opens in place ── */
+    .apps { border-top: 1px solid var(--border); }
+    .app { border-bottom: 1px solid var(--border); }
+    .app h3 { margin: 0; font-size: inherit; font-weight: inherit; }
+    .app-btn {
+      width: 100%; min-height: 64px; display: flex; align-items: center; gap: 12px;
+      padding: 14px 4px; background: none; border: 0; cursor: pointer;
+      font-family: var(--font); color: var(--text); text-align: left;
+    }
+    .app-btn:hover .app-name { color: var(--accent); }
+    .app-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+    .app-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .app-name { font-size: 19px; font-weight: 650; line-height: 1.3; }
+    .app-sub { font-size: 14px; color: var(--text-secondary); line-height: 1.4; }
+    .chev {
+      flex: 0 0 auto; width: 10px; height: 10px; margin-right: 6px;
+      border-right: 2px solid var(--text-secondary); border-bottom: 2px solid var(--text-secondary);
+      transform: rotate(45deg); transition: transform .15s;
+    }
+    .app-btn[aria-expanded="true"] .chev { transform: translateY(3px) rotate(-135deg); }
+
+    .app-panel { padding: 0 4px 22px; }
+    .steps { margin: 0; padding: 0; list-style: none; counter-reset: s; }
+    .steps li {
+      counter-increment: s; position: relative; padding-left: 38px;
+      margin: 0 0 14px; font-size: 16px; line-height: 1.55; color: var(--text);
+    }
+    .steps li:last-child { margin-bottom: 0; }
+    .steps li::before {
+      content: counter(s); position: absolute; left: 0; top: 0;
+      width: 26px; height: 26px; border-radius: 50%;
+      background: var(--surface); border: 1px solid var(--border-hi);
+      color: var(--text); font-size: 13px; font-weight: 600;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .steps b { font-weight: 600; }
+    .hint { color: var(--text-secondary); font-size: 14px; margin: 14px 0 0 38px; line-height: 1.5; }
+
+    /* A value to copy: the text and its button on one line, wrapping on a phone. */
+    .copyrow {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 8px;
       background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
-      padding: 12px 14px; margin: 0 0 18px; font-family: var(--mono); font-size: 13px;
-      line-height: 1.6; color: var(--text);
-      white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word;
+      padding: 8px 8px 8px 14px;
     }
-    .code-head {
-      display: flex; align-items: center; justify-content: space-between; gap: 12px;
-      margin: 18px 0 8px; font-size: 13px; color: var(--text-secondary);
+    .copyrow code {
+      flex: 1 1 auto; font-size: 14px; color: var(--text); white-space: nowrap;
     }
     .copy-btn {
-      display: inline-flex; align-items: center; justify-content: center; min-height: 32px; flex-shrink: 0;
-      border: 1px solid var(--border-hi); border-radius: 8px; background: transparent;
-      color: var(--text); font-family: var(--font); font-size: 13px; font-weight: 500;
-      padding: 5px 14px; cursor: pointer; transition: border-color .15s, color .15s;
+      flex: 0 0 auto; min-height: 36px; min-width: 72px;
+      border: 1px solid var(--border-hi); border-radius: 8px; background: var(--bg);
+      color: var(--text); font-family: var(--font); font-size: 14px; font-weight: 500;
+      padding: 6px 14px; cursor: pointer; transition: border-color .15s, color .15s;
     }
     .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
-    .copy-btn.wide {
-      width: 100%; min-height: 44px; padding: 10px; font-size: 15px; font-weight: 600;
-      background: var(--accent); color: var(--on-accent); border-color: var(--accent);
-    }
-    .copy-btn.wide:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--on-accent); }
+    .copy-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-    code, .inline-code { font-family: var(--mono); font-size: 0.88em; }
-    .inline-code {
-      color: var(--text); background: var(--surface);
-      border: 1px solid var(--border); padding: 1px 5px; border-radius: 5px;
+    /* ── Try one of these ── */
+    .prompts { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
+    .prompt {
+      display: flex; align-items: flex-start; gap: 12px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 16px 12px 16px 18px;
     }
-    .dl {
-      display: inline-block; color: var(--text); border: 1px solid var(--border-hi);
-      border-radius: 8px; padding: 6px 12px; font-size: 15px; text-decoration: none; margin: 4px 6px 4px 0;
+    .nw { white-space: nowrap; }
+    .prompt p { flex: 1; min-width: 0; margin: 0; font-size: 16px; line-height: 1.5; color: var(--text); }
+
+    .live { font-size: 17px; line-height: 1.55; color: var(--text); margin: 0; }
+
+    /* ── Questions ── */
+    .qs { border-top: 1px solid var(--border); }
+    .q { border-bottom: 1px solid var(--border); }
+    .q summary {
+      cursor: pointer; list-style: none; min-height: 52px; display: flex; align-items: center; gap: 12px;
+      font-size: 17px; font-weight: 600; color: var(--text); padding: 12px 4px;
     }
-    .dl:hover { border-color: var(--accent); color: var(--accent); }
-
-    /* the collapsed "everything else" for the skill path */
-    details.more { margin-top: 20px; border-top: 1px solid var(--border); padding-top: 16px; }
-    details.more summary {
-      cursor: pointer; color: var(--accent); font-size: 15px; font-weight: 500;
-      list-style: none; user-select: none;
+    .q summary::-webkit-details-marker { display: none; }
+    .q summary::after {
+      content: ""; margin-left: auto; margin-right: 6px; width: 9px; height: 9px; flex: 0 0 auto;
+      border-right: 2px solid var(--text-secondary); border-bottom: 2px solid var(--text-secondary);
+      transform: rotate(45deg); transition: transform .15s;
     }
-    details.more summary::-webkit-details-marker { display: none; }
-    details.more summary::before { content: "▸ "; }
-    details.more[open] summary::before { content: "▾ "; }
-
-    .insttbl { width: 100%; border-collapse: collapse; font-size: 15px; margin: 16px 0 8px; }
-    .insttbl th, .insttbl td { text-align: left; padding: 10px 12px 10px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
-    .insttbl th { color: var(--text-secondary); font-weight: 500; font-size: 13px; }
-    .insttbl td { color: var(--text-secondary); }
-    .insttbl td code { color: var(--text); font-size: 13px; }
-    .insttbl tr:last-child td { border-bottom: 0; }
-    .insttbl td:first-child { white-space: nowrap; color: var(--text); }
-
-    /* FAQ — collapsed by default so the page still leads with the three paths. */
-    .faq { margin-top: 56px; }
-    .faq-title { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); margin-bottom: 8px; }
-    .faq-q { border-bottom: 1px solid var(--border); }
-    .faq-q summary {
-      cursor: pointer; list-style: none; user-select: none;
-      font-size: 17px; font-weight: 600; color: var(--text);
-      padding: 14px 0 14px 22px; position: relative;
-    }
-    .faq-q summary::-webkit-details-marker { display: none; }
-    .faq-q summary::before { content: "▸"; position: absolute; left: 0; color: var(--text-secondary); }
-    .faq-q[open] summary::before { content: "▾"; }
-    .faq-q summary:hover { color: var(--accent); }
-    .faq-q p {
-      color: var(--text-secondary); font-size: 16px; line-height: 1.6;
-      margin: 0 0 14px 22px; max-width: 68ch;
-    }
-    .faq-q p b { color: var(--text); }
-
-    .note { color: var(--text-secondary); font-size: 15px; line-height: 1.6; margin-top: 24px; }
-    .note b { color: var(--text); font-weight: 600; }
-    .note a, .path p a { color: var(--accent); text-decoration: none; }
-    .note a:hover, .path p a:hover { text-decoration: underline; }
-
-    /* DEVICE FLIP: on a phone the "build with AI" path leads (you can't install a
-       skill on mobile); on desktop the skill path stays first. */
-    @media (max-width: 640px) { .path-chat { order: -1; } }
+    .q[open] summary::after { transform: translateY(3px) rotate(-135deg); }
+    .q summary:hover { color: var(--accent); }
+    .q summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+    .q p { margin: 0 4px 16px; color: var(--text-secondary); font-size: 16px; line-height: 1.6; }
 
     @media (max-width: 640px) {
-      .container { padding: 0 20px; }
-      main { padding-top: 36px; }
-      .path { padding: 28px 0; }
-      .insttbl { font-size: 13px; }
-      .insttbl th, .insttbl td { padding: 8px 8px 8px 0; }
-      .insttbl td:first-child { white-space: normal; }
-      .insttbl td code { font-size: 12px; word-break: break-all; }
+      .container { padding: 0 16px; }
+      main { padding-top: 32px; }
+      .lede { font-size: 17px; }
+      section { margin-top: 40px; }
+      .steps li { padding-left: 36px; }
+      .hint { margin-left: 36px; }
+      .prompt { padding: 14px 10px 14px 14px; }
+      .copyrow { padding-left: 12px; }
+      .copyrow code { font-size: 12.5px; }
+      .copy-btn { min-width: 64px; padding: 6px 12px; }
     }
   </style>
 </head>
@@ -140,201 +131,111 @@
 
   <main>
     <div class="container">
-      <div class="eyebrow">Get started</div>
-      <h1>Ship a website by<br>talking to your <span class="accent">AI</span>.</h1>
-      <p class="lede">Describe what you want — an AI builds it and it's live in about a minute. <b>Pick the way that fits where you are:</b></p>
+      <h1>Build websites by talking to the AI you already use.</h1>
+      <p class="lede">Add Simple Host to your AI once. Then ask for a site and it goes online.</p>
 
-      <div class="paths">
+      <!-- Pick your AI. One row open at a time; each opens in place. -->
+      <section aria-labelledby="pick">
+        <h2 id="pick">Pick your AI</h2>
+        <div class="apps">
 
-        <!-- ===== SKILL (leads on desktop) ===== -->
-        <section class="path path-skill">
-          <div class="path-head">
-            <div>
-              <div class="eyebrow">In a coding agent</div>
-              <h2>Add the skill to your agent.</h2>
-              <p>Works with Claude Code, the ChatGPT desktop app, Cursor, Codex CLI, opencode, GitHub Copilot — anything that can read and write files on your machine. One line teaches your agent the whole platform (deploy, state &amp; collections, visitor sign-in on your own domain). Then just say <em>“deploy this folder”</em> or <em>“build me a waitlist page.”</em> The installer knows each agent's skills folder (and the right Windows paths), so you don't have to.</p>
-              <p class="dim" style="font-size:13px; margin-top:8px">ChatGPT: this needs the <b>desktop app</b>, in the mode that can open a folder and edit files. A plain ChatGPT chat in a browser can't install anything — use the last option below instead.</p>
-              <p class="dim" style="font-size:13px; margin-top:8px">Using the <b>Claude app</b> rather than Claude Code? It doesn't install from your terminal — see the next option.</p>
+          <div class="app" id="chatgpt">
+            <h3><button class="app-btn" type="button" id="b-chatgpt" aria-expanded="false" aria-controls="p-chatgpt">
+              <span class="app-text"><span class="app-name">ChatGPT</span><span class="app-sub">On the web, paid plans</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </button></h3>
+            <div class="app-panel" id="p-chatgpt" role="region" aria-labelledby="b-chatgpt" hidden>
+              <ol class="steps">
+                <li>In ChatGPT, open <b>Settings</b> and turn on <b>Developer mode</b>. It's under <b>Security and login</b>.</li>
+                <li>In ChatGPT's app settings, add a new app called <b>Simple Host</b>. Paste this address, choose <b>OAuth</b>, and leave the advanced fields empty.
+                  <div class="copyrow"><code id="mcp-chatgpt">https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-chatgpt">Copy</button></div>
+                </li>
+                <li>A Simple Host window opens. Sign in with Google or a code we email you, then choose <b>Allow</b>.</li>
+              </ol>
+              <p class="hint">Once it's approved, Simple Host will also be in ChatGPT's app directory.</p>
             </div>
           </div>
-          <div class="code-head">
-            <span>Any agent · one line (auto-detects your agent)</span>
-            <button class="copy-btn" type="button" data-copy-target="cmd-npx">Copy</button>
+
+          <div class="app" id="claude">
+            <h3><button class="app-btn" type="button" id="b-claude" aria-expanded="false" aria-controls="p-claude">
+              <span class="app-text"><span class="app-name">Claude</span><span class="app-sub">Web, desktop and phone</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </button></h3>
+            <div class="app-panel" id="p-claude" role="region" aria-labelledby="b-claude" hidden>
+              <ol class="steps">
+                <li>On claude.ai or in the Claude desktop app, open <b>Customize</b>, then <b>Connectors</b>. Tap <b>+</b> and choose <b>Add custom connector</b>.</li>
+                <li>Call it <b>Simple Host</b> and paste this address:
+                  <div class="copyrow"><code id="mcp-claude">https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-claude">Copy</button></div>
+                </li>
+                <li>Sign in once in the window that opens, then choose <b>Allow</b>. It works in the Claude phone app too.</li>
+              </ol>
+            </div>
           </div>
-          <pre id="cmd-npx">npx skills add vineetu/simple-host</pre>
 
-          <p class="note" style="margin-top:12px"><b>GitHub Copilot CLI:</b> Copilot can't unzip skills into its own sandboxed <code class="inline-code">~/.copilot</code> folder, so install them from your terminal with the universal installer — name the agent and use <code class="inline-code">--copy</code> (Windows symlinks need admin), adding each skill:</p>
-          <div class="code-head">
-            <span>GitHub Copilot · one skill per line</span>
-            <button class="copy-btn" type="button" data-copy-target="cmd-npx-copilot">Copy</button>
+          <div class="app" id="grok">
+            <h3><button class="app-btn" type="button" id="b-grok" aria-expanded="false" aria-controls="p-grok">
+              <span class="app-text"><span class="app-name">Grok</span><span class="app-sub">Paid plans</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </button></h3>
+            <div class="app-panel" id="p-grok" role="region" aria-labelledby="b-grok" hidden>
+              <ol class="steps">
+                <li>Go to <a href="https://grok.com/connectors" target="_blank" rel="noopener">grok.com/connectors</a>, choose <b>New Connector</b>, then <b>Custom</b>.</li>
+                <li>Paste this address:
+                  <div class="copyrow"><code id="mcp-grok">https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-grok">Copy</button></div>
+                </li>
+                <li>Sign in once in the window that opens.</li>
+              </ol>
+            </div>
           </div>
-          <pre id="cmd-npx-copilot">npx skills add vineetu/simple-host -g -a github-copilot -s website-deploy --copy -y
-npx skills add vineetu/simple-host -g -a github-copilot -s website-deploy-builder --copy -y
-npx skills add vineetu/simple-host -g -a github-copilot -s connect-domain --copy -y</pre>
 
-          <details class="more">
-            <summary>Other tools · manual install · Windows</summary>
-
-            <table class="insttbl">
-              <thead><tr><th>Tool</th><th>Skills folder · macOS / Linux</th><th>Windows · PowerShell</th></tr></thead>
-              <tbody>
-                <tr><td>Claude Code</td><td><code>~/.claude/skills/</code></td><td><code>$env:USERPROFILE\.claude\skills\</code></td></tr>
-                <tr><td>ChatGPT desktop<br>Codex CLI</td><td><code>~/.agents/skills/</code></td><td><code>$env:USERPROFILE\.agents\skills\</code></td></tr>
-                <tr><td>Cursor</td><td><code>~/.cursor/skills/</code></td><td><code>$env:USERPROFILE\.cursor\skills\</code></td></tr>
-                <tr><td>opencode</td><td><code>~/.config/opencode/skills/</code></td><td><code>$env:USERPROFILE\.config\opencode\skills\</code></td></tr>
-                <tr><td>Hermes</td><td><code>~/.hermes/skills/</code></td><td><code>$env:USERPROFILE\.hermes\skills\</code></td></tr>
-                <tr><td>OpenClaw</td><td><code>~/.openclaw/skills/</code></td><td><code>$env:USERPROFILE\.openclaw\skills\</code></td></tr>
-                <tr><td>Anything else</td><td colspan="2">Point it at the skills directory it reads — the files are identical.</td></tr>
-                <tr><td>Claude app<br>(claude.ai / desktop)</td><td colspan="2">Not a skills folder — the skills are uploaded in Settings. See <b>“Upload the skills to Claude”</b> below.</td></tr>
-              </tbody>
-            </table>
-
-            <div class="code-head">
-              <span>Tell your agent (file-based agents: Claude Code, Codex, opencode…)</span>
-              <button class="copy-btn" type="button" data-copy-target="p-agentinstall">Copy</button>
+          <div class="app" id="coding-agents">
+            <h3><button class="app-btn" type="button" id="b-code" aria-expanded="false" aria-controls="p-code">
+              <span class="app-text"><span class="app-name">Claude Code, Codex and other coding agents</span><span class="app-sub">One command</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </button></h3>
+            <div class="app-panel" id="p-code" role="region" aria-labelledby="b-code" hidden>
+              <ol class="steps">
+                <li>Run this in your terminal:
+                  <div class="copyrow"><code id="cmd-npx">npx skills add vineetu/simple-host</code><button class="copy-btn" type="button" data-copy-target="cmd-npx">Copy</button></div>
+                </li>
+                <li>Ask your agent for a site. The first time, it signs you in with a code we email you.</li>
+              </ol>
+              <p class="hint"><a href="/docs.html#install-skills">Other ways to install</a></p>
             </div>
-            <pre id="p-agentinstall">Download https://simple-host.app/skills.zip and unzip it into your skills folder — create it if it doesn't exist. Use the one folder that matches whichever agent you are:
-   • Claude Code                  &lt;home&gt;/.claude/skills/
-   • ChatGPT desktop, Codex CLI   &lt;home&gt;/.agents/skills/
-   • Cursor                       &lt;home&gt;/.cursor/skills/
-   • opencode                     &lt;home&gt;/.config/opencode/skills/
+          </div>
 
-Work out &lt;home&gt; from the shell you are actually in: $HOME on macOS, Linux, and in PowerShell; %USERPROFILE% only in cmd. Put the three skill folders straight in, with no extra folder wrapped around them. Then list your skills, confirm website-deploy, website-deploy-builder and connect-domain all appear, and ask me what I'd like to build.</pre>
-            <p class="note" style="margin-top:8px"><b>GitHub Copilot CLI</b> sandboxes its own <code class="inline-code">~/.copilot</code> folder, so a download-and-unzip can't reach it — add each skill by URL with Copilot's own command instead:</p>
-            <div class="code-head">
-              <span>GitHub Copilot CLI</span>
-              <button class="copy-btn" type="button" data-copy-target="cmd-copilot">Copy</button>
-            </div>
-            <pre id="cmd-copilot">copilot skill add https://simple-host.app/skills/website-deploy/SKILL.md
-copilot skill add https://simple-host.app/skills/website-deploy-builder/SKILL.md
-copilot skill add https://simple-host.app/skills/connect-domain/SKILL.md</pre>
-            <p class="note" style="margin-top:8px">These fetch one file each. <code class="inline-code">website-deploy</code>'s SKILL.md points at reference documents for framework builds, packaging, and the backend; it cites each one by full URL as well as by relative path, so an agent installed this way can still fetch them on demand.</p>
+        </div>
+      </section>
 
-            <div class="code-head">
-              <span>Manual · macOS / Linux (Claude Code shown)</span>
-              <button class="copy-btn" type="button" data-copy-target="cmd-unix">Copy</button>
-            </div>
-            <pre id="cmd-unix">mkdir -p ~/.claude/skills && curl -fsSL https://simple-host.app/skills.zip -o /tmp/sh-skills.zip && unzip -o /tmp/sh-skills.zip -d ~/.claude/skills</pre>
+      <section aria-labelledby="try">
+        <h2 id="try">Try one of these</h2>
+        <ul class="prompts">
+          <li class="prompt"><p id="ex-1">Build a small shop for my spice pantry on its own <span class="nw">simple-host.app</span> address, with a private order form only I can read</p><button class="copy-btn" type="button" data-copy-target="ex-1">Copy</button></li>
+          <li class="prompt"><p id="ex-2">Make a site for my home cleaning business on its own <span class="nw">simple-host.app</span> address, with a booking form that saves privately</p><button class="copy-btn" type="button" data-copy-target="ex-2">Copy</button></li>
+          <li class="prompt"><p id="ex-3">Create a resource hub for local families with a sign-up form, on its own <span class="nw">simple-host.app</span> address, and show me who signed up</p><button class="copy-btn" type="button" data-copy-target="ex-3">Copy</button></li>
+        </ul>
+      </section>
 
-            <div class="code-head">
-              <span>Manual · Windows · PowerShell</span>
-              <button class="copy-btn" type="button" data-copy-target="cmd-win">Copy</button>
-            </div>
-            <pre id="cmd-win">New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\skills" | Out-Null
-Invoke-WebRequest https://simple-host.app/skills.zip -OutFile "$env:TEMP\sh-skills.zip"
-Expand-Archive "$env:TEMP\sh-skills.zip" "$env:USERPROFILE\.claude\skills" -Force</pre>
+      <section aria-labelledby="live">
+        <h2 id="live">It's live</h2>
+        <p class="live">Your site is online at its own address, and it shows up under <a href="/dashboard">Your sites</a>.</p>
+      </section>
 
-            <p class="note" style="margin-top:12px">There's also <code class="inline-code">curl -fsSL https://simple-host.app/install.sh | sh</code> (macOS/Linux) — it only does the unzip above; <a href="/install.sh">read it first</a> if you prefer. <b>Hermes</b> installs from the URL directly: <code class="inline-code">hermes skills install https://simple-host.app/skills/website-deploy/SKILL.md --name website-deploy</code>. <b>OpenClaw</b> auto-discovers any <code class="inline-code">SKILL.md</code> under <code class="inline-code">~/.openclaw/skills/</code>.</p>
+      <section id="faq" aria-label="Questions">
+        <div class="qs">
+          <details class="q">
+            <summary>Who can see my site?</summary>
+            <p>Anyone with the link can see its pages. Private lists, like orders or sign-ups, can only be read by you, on the site's own address.</p>
           </details>
-        </section>
-
-        <!-- ===== CLAUDE APP (skills are uploaded, not installed from a terminal) ===== -->
-        <section class="path path-claudeapp">
-          <div class="path-head">
-            <div>
-              <div class="eyebrow">In the Claude app · desktop, web or mobile</div>
-              <h2>Upload the skills to Claude.</h2>
-              <p>The Claude app can't reach your terminal, so the one-line installer doesn't apply here — you upload the three skills once and Claude keeps them. After that, ask it to <em>“build me a waitlist page and put it online”</em> in an ordinary chat.</p>
-              <p class="dim" style="font-size:13px; margin-top:8px">Needs a paid plan with <b>Code execution</b> switched on. This is the Claude app — <b>Claude Code</b> is the terminal one, and it uses the option above.</p>
-            </div>
-          </div>
-          <p class="note"><b>Settings → Skills → “+ Create skill”</b>, then upload each file below. Three separate uploads — one skill per ZIP.</p>
-          <p style="margin-top:10px">
-            <a class="dl" href="/skills/website-deploy.zip" download>website-deploy.zip</a>
-            <a class="dl" href="/skills/website-deploy-builder.zip" download>website-deploy-builder.zip</a>
-            <a class="dl" href="/skills/connect-domain.zip" download>connect-domain.zip</a>
-          </p>
-          <p class="note" style="margin-top:12px"><span class="dim">Only want one? <code class="inline-code">website-deploy</code> is the one that publishes sites. The builder helps plan what to make, and connect-domain points your own domain at it.</span></p>
-        </section>
-
-        <!-- ===== BUILD WITH AI (leads on mobile) ===== -->
-        <section class="path path-chat">
-          <div class="path-head">
-            <div>
-              <div class="eyebrow">Easiest · works on your phone</div>
-              <h2>Build it right here.</h2>
-              <p>Describe your site in the chat and it builds and previews it in seconds. Nothing to install, nothing to download — great from a phone.</p>
-            </div>
-          </div>
-          <a class="cta" href="/">Open the AI builder →</a>
-        </section>
-
-        <!-- ===== CHATGPT / PASTE ===== -->
-        <section class="path path-paste">
-          <div class="path-head">
-            <div>
-              <div class="eyebrow">In a browser chat · ChatGPT on the web, Gemini, Copilot</div>
-              <h2>Copy a prompt, paste back the result.</h2>
-              <p>For a chat that can't touch your files. Copy the prompt below, paste it into the chat, and it hands you a ready-to-publish site as one block. Paste that back at <span class="inline-code">simple-host.app/?new=1</span> and hit Publish. <span class="dim">(One 6-digit email code to publish — no password.)</span></p>
-            </div>
-          </div>
-          <button class="copy-btn wide" id="copy-llms" type="button">Copy the prompt</button>
-        </section>
-
-      </div>
-
-      <p class="note">Curious what you can build? Static pages with a real backend when you need it — forms, counters, guestbooks, comments. <a href="/docs.html">See the full reference →</a></p>
-
-      <!-- ===== FAQ =====
-           Written because none of this was stated anywhere a human reads. The
-           visibility and the shared-store answers in particular were documented
-           only inside the agent skill. -->
-      <section class="faq" id="faq">
-        <h2 class="faq-title">Before you publish</h2>
-
-        <details class="faq-q">
-          <summary>Who can see my site?</summary>
-          <p>Anyone with the link. Sites are served on the public internet at
-          <code class="inline-code">sites.simple-host.app/&lt;you&gt;/&lt;site&gt;/</code> — there is
-          no sign-in in front of them. A site can be unlisted from your profile
-          page, but treat a link as public. There is no way to put a password on a site — if a page must
-          not be readable by strangers, do not publish it here.</p>
-        </details>
-
-        <details class="faq-q">
-          <summary>Is the data my site collects private?</summary>
-          <p><b>No.</b> Sites and their data are public to anyone with the link.
-          The per-site store — shared state and collections, which is what powers
-          RSVP forms, counters and guestbooks — can be read by anyone who can
-          reach the site. On the shared
-          <code class="inline-code">sites.simple-host.app</code> host anyone can
-          write to it too: a page there saves without any sign-in, and that data
-          can be changed by anyone. Connect your own domain and saving gets
-          sign-in — visitors sign in with Google, or a 6-digit code emailed to
-          them, and the page saves on their behalf. A connected site is served
-          only on its domain: the old shared-host link redirects there, and
-          saving happens only there. Your agent can write anywhere
-          with your API key.</p>
-          <p>The practical version: a sign-up form on a Simple Host site is fine
-          for a party or a team lunch. It is not fine for anything you would mind
-          a stranger reading.</p>
-        </details>
-
-        <details class="faq-q">
-          <summary>Can someone else change my site?</summary>
-          <p>Not the files. Deploying a new version needs your API key, and today
-          every site has exactly one owner — there is no way to grant a colleague
-          deploy access yet. The <em>data</em> your site collects is a different
-          story: see the answer above.</p>
-        </details>
-
-        <details class="faq-q">
-          <summary>What is this actually good for?</summary>
-          <p>Anything that is a page: a portfolio, a résumé, an event invite, a
-          launch or coming-soon page, docs, a menu, a mockup you want notes
-          on. Add the backend when the page needs to remember something
-          across visitors — an RSVP list, a vote, a counter, a guestbook.</p>
-          <p>What it is not: nothing runs on the server. No PHP, no Node, no
-          Python, no database you control, no server-side rendering. If your idea
-          needs a login system or private records, it needs a different host.</p>
-        </details>
-
-        <details class="faq-q">
-          <summary>How much does it cost, and what happens to my site?</summary>
-          <p>Nothing, and it stays up until you delete it. The server keeps recent
-          versions of each site so you can roll back. Deleting a site removes its
-          files, every version, and its stored data — that is not reversible.</p>
-        </details>
+          <details class="q">
+            <summary>Is it free?</summary>
+            <p>Yes.</p>
+          </details>
+          <details class="q">
+            <summary>Can I use my own domain?</summary>
+            <p>Yes. Or pick a free <b>name</b>.simple-host.app address.</p>
+          </details>
+        </div>
       </section>
     </div>
   </main>
@@ -342,68 +243,47 @@ Expand-Archive "$env:TEMP\sh-skills.zip" "$env:USERPROFILE\.claude\skills" -Forc
   <!--sh:footer-->
 
   <script>
-    // Rewrite command URLs to match the domain actually serving this page.
+    // Pick your AI: one row open at a time. Buttons carry aria-expanded, so
+    // Enter and Space work and screen readers hear the state.
     (function () {
-      var host = location.host;
-      if (host && host !== 'simple-host.app') {
-        document.querySelectorAll('pre').forEach(function (el) {
-          el.textContent = el.textContent.split('simple-host.app').join(host);
-        });
+      var buttons = Array.prototype.slice.call(document.querySelectorAll('.app-btn'));
+      function set(btn, open) {
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        document.getElementById(btn.getAttribute('aria-controls')).hidden = !open;
       }
-    })();
-
-
-    // "Copy the prompt" — copies the full deploy instructions so the user can
-    // paste them into any web chat. Prefetched on load; falls back to fetch on
-    // click, then to the bare URL if even that fails.
-    (function () {
-      var btn = document.getElementById('copy-llms');
-      if (!btn) return;
-      var cache = null;
-      fetch('/llms.txt').then(function (r) { return r.text(); }).then(function (t) { cache = t; }).catch(function () {});
-      var stash = function (text) {
-        var ta = document.createElement('textarea');
-        ta.value = text; ta.style.position = 'fixed'; ta.style.top = '-1000px';
-        document.body.appendChild(ta); ta.select();
-        try { document.execCommand('copy'); } catch (e) {}
-        ta.remove();
-      };
-      var flash = function () {
-        var o = btn.textContent; btn.textContent = 'Copied'; btn.disabled = true;
-        setTimeout(function () { btn.textContent = o; btn.disabled = false; }, 1500);
-      };
-      var put = function (text) {
-        if (navigator.clipboard && window.isSecureContext) {
-          navigator.clipboard.writeText(text).then(flash).catch(function () { stash(text); flash(); });
-        } else { stash(text); flash(); }
-      };
-      btn.addEventListener('click', function () {
-        if (cache) { put(cache); return; }
-        fetch('/llms.txt').then(function (r) { return r.text(); })
-          .then(function (t) { cache = t; put(t); })
-          .catch(function () { put(location.origin + '/llms.txt'); });
+      buttons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var open = btn.getAttribute('aria-expanded') !== 'true';
+          buttons.forEach(function (b) { set(b, false); });
+          set(btn, open);
+        });
       });
+      // /install.html#claude opens that row.
+      var row = location.hash && document.getElementById(location.hash.slice(1));
+      var btn = row && row.querySelector('.app-btn');
+      if (btn) set(btn, true);
     })();
 
-    // Generic copy buttons (command blocks inside the skill path).
+    // Copy buttons.
     document.querySelectorAll('[data-copy-target]').forEach(function (button) {
       button.addEventListener('click', function () {
         var target = document.getElementById(button.dataset.copyTarget);
         if (!target) return;
         var text = target.textContent.trim();
         var done = function () {
-          var o = button.textContent; button.textContent = 'Copied'; button.disabled = true;
-          setTimeout(function () { button.textContent = o; button.disabled = false; }, 1200);
+          button.textContent = 'Copied';
+          setTimeout(function () { button.textContent = 'Copy'; }, 1500);
         };
-        if (navigator.clipboard && window.isSecureContext) {
-          navigator.clipboard.writeText(text).then(done).catch(done);
-        } else {
+        var fallback = function () {
           var ta = document.createElement('textarea'); ta.value = text;
           ta.style.position = 'fixed'; ta.style.top = '-1000px';
           document.body.appendChild(ta); ta.select();
           try { document.execCommand('copy'); } catch (e) {}
           ta.remove(); done();
-        }
+        };
+        if (navigator.clipboard && window.isSecureContext) {
+          navigator.clipboard.writeText(text).then(done).catch(fallback);
+        } else fallback();
       });
     });
   </script>

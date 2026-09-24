@@ -27,6 +27,24 @@
     .page-intro p a { color: var(--accent); font-family: var(--mono); font-size: 14px; text-decoration: none; }
     .page-intro p a:hover { text-decoration: underline; }
 
+    /* ── Install the skills manually ── */
+    .install { border-bottom: 1px solid var(--border); padding: 20px 0; }
+    .install summary { cursor: pointer; font-size: 17px; font-weight: 600; color: var(--text); list-style: none; }
+    .install summary::-webkit-details-marker { display: none; }
+    .install summary::before { content: "▸ "; color: var(--text-secondary); }
+    .install[open] summary::before { content: "▾ "; }
+    .install h3 { font-size: 15px; font-weight: 600; color: var(--text); margin: 22px 0 6px; }
+    .install p, .install li { color: var(--text-secondary); font-size: 15px; line-height: 1.6; }
+    .install p { margin: 6px 0; }
+    .install ul { margin: 6px 0; padding-left: 20px; }
+    .install code { font-family: var(--mono); font-size: 13px; color: var(--text); }
+    .install pre {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px 14px; margin: 8px 0 12px; font-size: 13px; line-height: 1.6; color: var(--text);
+      white-space: pre-wrap; overflow-wrap: anywhere;
+    }
+    .install a { color: var(--accent); }
+
     /* ── Swagger UI container ── */
     #swagger-ui { padding: 24px 0 0; }
     .topbar { display: none !important; }
@@ -269,6 +287,46 @@
         <h1>Simple Host REST API</h1>
         <p>Full machine-readable spec: <a href="/openapi.yaml">/openapi.yaml</a> &middot; <a href="/openapi.json">/openapi.json</a> &middot; <a href="/llms.txt">/llms.txt</a></p>
       </div>
+      <details class="install" id="install-skills">
+        <summary>Install the skills manually</summary>
+        <p>Most coding agents take one command: <code>npx skills add vineetu/simple-host</code>. It finds your agent's skills folder by itself. Chat apps (ChatGPT, Claude, Grok) add the connector instead: see <a href="/install.html">Get started</a>. The rest is for when neither fits.</p>
+
+        <h3>Skills folders</h3>
+        <ul>
+          <li>Claude Code: <code>~/.claude/skills/</code> · Windows <code>$env:USERPROFILE\.claude\skills\</code></li>
+          <li>ChatGPT desktop, Codex CLI: <code>~/.agents/skills/</code> · Windows <code>$env:USERPROFILE\.agents\skills\</code></li>
+          <li>Cursor: <code>~/.cursor/skills/</code> · Windows <code>$env:USERPROFILE\.cursor\skills\</code></li>
+          <li>opencode: <code>~/.config/opencode/skills/</code> · Windows <code>$env:USERPROFILE\.config\opencode\skills\</code></li>
+          <li>Hermes: <code>~/.hermes/skills/</code> · Windows <code>$env:USERPROFILE\.hermes\skills\</code></li>
+          <li>OpenClaw: <code>~/.openclaw/skills/</code> · Windows <code>$env:USERPROFILE\.openclaw\skills\</code></li>
+          <li>Anything else: the skills folder it reads. The files are the same.</li>
+        </ul>
+        <p>Put the three skill folders (website-deploy, website-deploy-builder, connect-domain) straight into the skills folder, with no extra folder around them.</p>
+
+        <h3>macOS / Linux (Claude Code shown)</h3>
+        <pre>mkdir -p ~/.claude/skills &amp;&amp; curl -fsSL https://simple-host.app/skills.zip -o /tmp/sh-skills.zip &amp;&amp; unzip -o /tmp/sh-skills.zip -d ~/.claude/skills</pre>
+        <p><a href="/install.sh">install.sh</a> does the same download and unzip. Read it, then run it with <code>sh</code>.</p>
+
+        <h3>Windows PowerShell</h3>
+        <pre>New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\skills" | Out-Null
+Invoke-WebRequest https://simple-host.app/skills.zip -OutFile "$env:TEMP\sh-skills.zip"
+Expand-Archive "$env:TEMP\sh-skills.zip" "$env:USERPROFILE\.claude\skills" -Force</pre>
+        <p>A symlink error on Windows means the installer needs admin rights: add <code>--copy</code> to the npx command instead.</p>
+
+        <h3>GitHub Copilot CLI</h3>
+        <p>Copilot sandboxes its own <code>~/.copilot</code> folder, so add each skill by address:</p>
+        <pre>copilot skill add https://simple-host.app/skills/website-deploy/SKILL.md
+copilot skill add https://simple-host.app/skills/website-deploy-builder/SKILL.md
+copilot skill add https://simple-host.app/skills/connect-domain/SKILL.md</pre>
+        <p>or with the universal installer:</p>
+        <pre>npx skills add vineetu/simple-host -g -a github-copilot -s website-deploy --copy -y
+npx skills add vineetu/simple-host -g -a github-copilot -s website-deploy-builder --copy -y
+npx skills add vineetu/simple-host -g -a github-copilot -s connect-domain --copy -y</pre>
+
+        <h3>Hermes and OpenClaw</h3>
+        <pre>hermes skills install https://simple-host.app/skills/website-deploy/SKILL.md --name website-deploy</pre>
+        <p>OpenClaw finds any <code>SKILL.md</code> under <code>~/.openclaw/skills/</code>. A single-file install still works: website-deploy's SKILL.md cites each of its reference documents by full address.</p>
+      </details>
       <div id="swagger-ui"></div>
     </div>
   </main>
@@ -277,6 +335,15 @@
 
   <script src="/swagger-ui-bundle.js"></script>
   <script>
+    // docs.html is not host-rewritten, so name this instance's own address.
+    (function () {
+      var d = document.getElementById('install-skills');
+      if (d && location.hash === '#install-skills') d.open = true;
+      if (location.host === 'simple-host.app') return;
+      document.querySelectorAll('#install-skills pre').forEach(function (el) {
+        el.textContent = el.textContent.split('https://simple-host.app').join(location.origin);
+      });
+    })();
     SwaggerUIBundle({
       url: '/openapi.yaml',
       dom_id: '#swagger-ui',
