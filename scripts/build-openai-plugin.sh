@@ -11,7 +11,7 @@
 #   dist/simple-host-openai-plugin.zip   plugin.json, mcp.json, skills/, assets/
 #       The whole portable package: the reference artifact, and what a local
 #       marketplace install or any upload that takes a full package uses.
-#   dist/simple-host-openai-skills.zip   plugin.json, skills/, assets/ (no mcp.json)
+#   dist/simple-host-openai-skills.zip   skills/<name>/SKILL.md only (the portal Skills tab upload)
 #       The skill bundle for the With MCP draft's Skills tab. The MCP server
 #       itself is entered in the portal's MCP tab by URL, never uploaded, and a
 #       skills upload must not carry MCP configuration
@@ -125,8 +125,9 @@ trap 'rm -rf "$STAGE"' EXIT
 mkdir -p "$STAGE/full" "$STAGE/skills"
 cp "$SRC/plugin.json" "$SRC/mcp.json" "$STAGE/full/"
 cp -R "$SRC/skills" "$SRC/assets" "$STAGE/full/"
-cp "$SRC/plugin.json" "$STAGE/skills/"
-cp -R "$SRC/skills" "$SRC/assets" "$STAGE/skills/"
+# The portal's Skills tab takes only skill folders: "one skill root or one
+# directory of skill roots". No plugin.json or assets alongside them.
+cp -R "$SRC/skills" "$STAGE/skills/"
 build_zip "$OUT/simple-host-openai-plugin.zip" "$STAGE/full"
 build_zip "$OUT/simple-host-openai-skills.zip" "$STAGE/skills"
 
@@ -138,7 +139,7 @@ if [ "${FALLBACK:-}" = 1 ]; then
   build_zip "$OUT/website-deploy-toolkit-skills-only-fallback.zip" "$STAGE/fallback"
 fi
 
-for z in "$OUT"/simple-host-openai-plugin.zip "$OUT"/simple-host-openai-skills.zip; do
+for z in "$OUT"/simple-host-openai-plugin.zip; do
   python3 - "$z" <<'PY'
 import sys, zipfile
 z = zipfile.ZipFile(sys.argv[1])
