@@ -152,6 +152,36 @@ func GetHandleBySiteName(ctx context.Context, db *sql.DB, name string) (string, 
 // success, (false,nil) if the handle is taken (unique violation) so the caller can try
 // the next candidate, (false,err) on other errors.
 func ClaimHandle(ctx context.Context, q Querier, userID, handle string) (bool, error) {
+	// The handle is also the account's address, <handle>.<SITE_DOMAIN>: it
+	// must not land on a name a site has claimed or a retired name-subdomain.
+	if currentPlatformDomain() != "" {
+		switch qq := q.(type) {
+		case *sql.Tx:
+			ok, err := HandleAvailable(ctx, qq, userID, handle)
+			if err != nil || !ok {
+				return false, err
+			}
+		case *sql.DB:
+			tx, err := qq.BeginTx(ctx, nil)
+			if err != nil {
+				return false, err
+			}
+			defer tx.Rollback()
+			ok, err := HandleAvailable(ctx, tx, userID, handle)
+			if err != nil || !ok {
+				return false, err
+			}
+			claimed, err := claimHandleIn(ctx, tx, userID, handle)
+			if err != nil || !claimed {
+				return false, err
+			}
+			return true, tx.Commit()
+		}
+	}
+	return claimHandleIn(ctx, q, userID, handle)
+}
+
+func claimHandleIn(ctx context.Context, q Querier, userID, handle string) (bool, error) {
 	const query = `
 		UPDATE users
 		SET handle = $2, handle_changed_at = now()
@@ -395,7 +425,8 @@ func GetSiteIDByName(ctx context.Context, db *sql.DB, name string) (string, erro
 
 func GetSiteByUser(ctx context.Context, db *sql.DB, userID, name string) (Site, error) {
 	const query = `
-		SELECT id, user_id, name, active_version, site_url, created_at, updated_at, custom_domain, domain_status, visibility
+		SELECT id, user_id, name, active_version, COALESCE(site_url, ''), created_at, updated_at, custom_domain, domain_status, visibility,
+		       (SELECT COALESCE(u.handle, '') FROM users u WHERE u.id = sites.user_id)
 		FROM sites
 		WHERE user_id = $1 AND name = $2
 	`
@@ -412,6 +443,7 @@ func GetSiteByUser(ctx context.Context, db *sql.DB, userID, name string) (Site, 
 		&site.CustomDomain,
 		&site.DomainStatus,
 		&site.Visibility,
+		&site.OwnerHandle,
 	)
 	return site, err
 }
@@ -453,7 +485,7 @@ func DeleteSite(ctx context.Context, db Querier, siteID string) error {
 
 func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 	const query = `
-		SELECT s.id, s.user_id, s.name, s.active_version, s.site_url, s.created_at, s.updated_at, s.custom_domain, s.domain_status, s.visibility, u.username
+		SELECT s.id, s.user_id, s.name, s.active_version, COALESCE(s.site_url, ''), s.created_at, s.updated_at, s.custom_domain, s.domain_status, s.visibility, u.username, COALESCE(u.handle, '')
 		FROM sites s
 		INNER JOIN users u ON u.id = s.user_id
 		ORDER BY s.created_at ASC, s.name ASC
@@ -480,6 +512,7 @@ func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 			&site.DomainStatus,
 			&site.Visibility,
 			&site.OwnerUsername,
+			&site.OwnerHandle,
 		); err != nil {
 			return nil, err
 		}
@@ -520,7 +553,8 @@ func ListAllUsers(ctx context.Context, db *sql.DB) ([]User, error) {
 
 func ListSitesByUser(ctx context.Context, db *sql.DB, userID string) ([]Site, error) {
 	const query = `
-		SELECT id, user_id, name, active_version, site_url, created_at, updated_at, custom_domain, domain_status, visibility
+		SELECT id, user_id, name, active_version, COALESCE(site_url, ''), created_at, updated_at, custom_domain, domain_status, visibility,
+		       (SELECT COALESCE(u.handle, '') FROM users u WHERE u.id = sites.user_id)
 		FROM sites
 		WHERE user_id = $1
 		ORDER BY created_at ASC, name ASC
@@ -568,6 +602,7 @@ func scanSiteRows(rows *sql.Rows) ([]Site, error) {
 			&site.CustomDomain,
 			&site.DomainStatus,
 			&site.Visibility,
+			&site.OwnerHandle,
 		); err != nil {
 			return nil, err
 		}

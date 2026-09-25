@@ -94,12 +94,12 @@ func assignHandle(ctx context.Context, q db.Querier, userID, email string) {
 
 	// Candidates: base, base-2 … base-20, then base-<first8(userID)>.
 	candidates := make([]string, 0, 22)
-	if !reservedHandles[base] {
+	if !labelReserved(base) {
 		candidates = append(candidates, base)
 	}
 	for n := 2; n <= 20; n++ {
 		c := base + "-" + strconv.Itoa(n)
-		if !reservedHandles[c] {
+		if !labelReserved(c) {
 			candidates = append(candidates, c)
 		}
 	}
@@ -108,7 +108,7 @@ func assignHandle(ctx context.Context, q db.Querier, userID, email string) {
 		suffix = suffix[:8]
 	}
 	fallback := base + "-" + suffix
-	if !reservedHandles[fallback] {
+	if !labelReserved(fallback) {
 		candidates = append(candidates, fallback)
 	}
 

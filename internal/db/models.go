@@ -29,6 +29,9 @@ type Site struct {
 
 	// OwnerUsername is populated only by ListAllSites (admin view).
 	OwnerUsername string
+	// OwnerHandle is the owner's handle ("" if none), populated by the
+	// queries that answer the API so a site's address is computed on read.
+	OwnerHandle string
 }
 
 type Version struct {

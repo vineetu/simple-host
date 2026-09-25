@@ -256,8 +256,26 @@ func ClaimPlatformSubdomain(ctx context.Context, database *sql.DB, siteID, host 
 		return err
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, host); err != nil {
+	if err := lockPlatformName(ctx, tx, host); err != nil {
 		return err
+	}
+	// One namespace: an account's own address or a retired name-subdomain of
+	// another site is not free to claim.
+	if label, _, ok := strings.Cut(host, "."); ok {
+		isHandle, err := platformNameIsHandle(ctx, tx, label)
+		if err != nil {
+			return err
+		}
+		if isHandle {
+			return ErrNameIsAccountAddress
+		}
+	}
+	var legacyOther bool
+	if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM legacy_hostnames WHERE lower(hostname) = lower($1) AND site_id::text <> $2)`, host, siteID).Scan(&legacyOther); err != nil {
+		return err
+	}
+	if legacyOther {
+		return ErrDomainTaken
 	}
 	var holder string
 	err = tx.QueryRowContext(ctx, `SELECT id FROM sites WHERE custom_domain = $1 FOR UPDATE`, host).Scan(&holder)

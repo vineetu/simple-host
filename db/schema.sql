@@ -81,6 +81,13 @@ CREATE TABLE IF NOT EXISTS collection_settings (
 
 -- Frozen legacy per-site hostnames (e.g. mysite.simple-host.app) bound to a
 -- site_id. Populated by a later backfill; not wired into request paths yet.
+-- Old handles kept after an operator rename, so links naming them resolve.
+CREATE TABLE IF NOT EXISTS handle_aliases (
+  handle     TEXT PRIMARY KEY,
+  user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE legacy_hostnames (
   hostname   TEXT PRIMARY KEY,
   site_id    UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,

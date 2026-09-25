@@ -47,13 +47,26 @@ var reservedSubdomainLabels = []string{
 	"sf-fog", "gods-eye", "paragliding-beginners-map", "lab",
 }
 
+// reservedSubdomainSet is every reserved name in the one shared namespace
+// (owner decision 2026-09-25): the labels above plus every reserved handle,
+// since a handle is also an address (<handle>.<SITE_DOMAIN>) and a claimed
+// name is also a path segment on the legacy content host.
 var reservedSubdomainSet = func() map[string]bool {
-	m := make(map[string]bool, len(reservedSubdomainLabels))
+	m := make(map[string]bool, len(reservedSubdomainLabels)+len(reservedHandles))
 	for _, l := range reservedSubdomainLabels {
+		m[l] = true
+	}
+	for l := range reservedHandles {
 		m[l] = true
 	}
 	return m
 }()
+
+// labelReserved reports whether a name is reserved in the shared namespace:
+// no account may take it as a handle and no site may claim it.
+func labelReserved(label string) bool {
+	return reservedSubdomainSet[strings.ToLower(label)]
+}
 
 // platformSubdomainLabel reports whether host is exactly one DNS label under
 // siteDomain (e.g. "clay" for clay.simple-host.app) and returns that label.
@@ -128,6 +141,10 @@ func (h *SiteHandler) bindPlatformSubdomain(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if err := db.ClaimPlatformSubdomain(r.Context(), h.database, site.ID, host); err != nil {
+		if errors.Is(err, db.ErrNameIsAccountAddress) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "that name is someone's own address; pick another name", "code": "domain_taken"})
+			return
+		}
 		if errors.Is(err, db.ErrDomainTaken) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": "that address is taken by another site; pick another name", "code": "domain_taken"})
 			return
@@ -191,7 +208,7 @@ func (h *SiteHandler) BoundSubdomains(api, fallback http.Handler) http.Handler {
 			return
 		}
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		h.serveSiteFile(w, r, info)
+		h.serveSiteFileRel(w, r, info.UserID, info.Name, r.URL.Path)
 	})
 }
 
@@ -199,20 +216,30 @@ func (h *SiteHandler) BoundSubdomains(api, fallback http.Handler) http.Handler {
 // `try_files $uri $uri/ =404` with `index index.html`: no directory listings,
 // nothing outside the site's current directory (os.Root refuses escapes,
 // symlinks included), GET and HEAD only.
-func (h *SiteHandler) serveSiteFile(w http.ResponseWriter, r *http.Request, info db.SiteDomainInfo) {
+//
+// rel is the path inside the site ("/" is its root); a directory without its
+// trailing slash redirects to the request's own path plus "/", so it works for
+// a site served at a host's root and for one served under /<site>/.
+func (h *SiteHandler) serveSiteFileRel(w http.ResponseWriter, r *http.Request, userID, siteName, rel string) {
+	h.serveSiteFile(w, r, userID, siteName, rel, r.URL.EscapedPath())
+}
+
+// serveSiteFile is serveSiteFileRel with the (escaped, server-built) public
+// path a directory redirect appends its "/" to.
+func (h *SiteHandler) serveSiteFile(w http.ResponseWriter, r *http.Request, userID, siteName, rel, publicPath string) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		w.Header().Set("Allow", "GET, HEAD")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	root, err := os.OpenRoot(h.disk.SiteDir(info.UserID, info.Name) + "/current")
+	root, err := os.OpenRoot(h.disk.SiteDir(userID, siteName) + "/current")
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
 	defer root.Close()
 
-	name := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
+	name := strings.TrimPrefix(path.Clean("/"+rel), "/")
 	if name == "" {
 		name = "."
 	}
@@ -232,7 +259,8 @@ func (h *SiteHandler) serveSiteFile(w http.ResponseWriter, r *http.Request, info
 		// A directory without its trailing slash: redirect so relative links
 		// resolve, as nginx does.
 		if !strings.HasSuffix(r.URL.Path, "/") {
-			target := r.URL.Path + "/"
+			// Only ever a path on this host: "//x" would leave it.
+			target := "/" + strings.TrimLeft(publicPath, "/") + "/"
 			if r.URL.RawQuery != "" {
 				target += "?" + r.URL.RawQuery
 			}

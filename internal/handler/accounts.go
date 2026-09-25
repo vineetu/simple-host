@@ -75,10 +75,16 @@ func bulkUsernames(req bulkUsersRequest) ([]string, error) {
 }
 
 func validateHandle(handle string) error {
-	if !visitorHandleRe.MatchString(handle) || reservedHandles[handle] {
-		return errors.New("handle must contain 1 to 39 lowercase letters, digits or hyphens and must not be reserved")
+	if !visitorHandleRe.MatchString(handle) || labelReserved(handle) || !handleIsLabel(handle) {
+		return errors.New("handle must contain 1 to 39 lowercase letters, digits or hyphens (not at the start or end) and must not be reserved")
 	}
 	return nil
+}
+
+// handleIsLabel: the handle is usable as a DNS label, since it is also the
+// account's address (<handle>.<SITE_DOMAIN>).
+func handleIsLabel(handle string) bool {
+	return handle != "" && handle[0] != '-' && handle[len(handle)-1] != '-' && !strings.HasPrefix(handle, "xn--")
 }
 
 func normalizeDisplayName(name string) (string, error) {
@@ -257,6 +263,15 @@ func (h *SiteHandler) patchMe(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 409, errorResponse{Error: "the address is fixed once something is published"})
 			return
 		}
+		free, nsErr := db.HandleAvailable(r.Context(), tx, user.ID, *req.Handle)
+		if nsErr != nil {
+			writeJSON(w, 500, errorResponse{Error: "internal server error"})
+			return
+		}
+		if !free {
+			writeJSON(w, 409, errorResponse{Error: "handle already taken"})
+			return
+		}
 		_, err = tx.ExecContext(r.Context(), "UPDATE users SET handle=$2, handle_changed_at=now() WHERE id=$1", user.ID, *req.Handle)
 		if isUniqueViolation(err) {
 			writeJSON(w, 409, errorResponse{Error: "handle already taken"})
@@ -286,7 +301,7 @@ func (h *SiteHandler) patchMe(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 500, errorResponse{Error: "internal server error"})
 		return
 	}
-	writeJSON(w, 200, meResponse{ID: updated.ID, Username: updated.Username, IsAdmin: updated.IsAdmin, Handle: updated.Handle.String, DisplayName: updated.DisplayName.String})
+	writeJSON(w, 200, meResponse{ID: updated.ID, Username: updated.Username, IsAdmin: updated.IsAdmin, Handle: updated.Handle.String, DisplayName: updated.DisplayName.String, PublicPage: h.PersonPageURL(updated.Handle.String)})
 }
 
 type profileRequest struct {
