@@ -20,9 +20,9 @@ Website Deploy skill; humans mostly never touch the API directly.
 
 - An agent with the skill installed can ship a working site, including a form that saves, on
   the first try, without the owner intervening.
-- On the shared host anyone can read and write a site's data from the page. On a site with its
-  own domain, a visitor signs in with Google or an emailed code and saves are per-person.
-  Agents save with an API key anywhere.
+- Every site lives on its owner's own address, `https://<handle>.simple-host.app/<site>/`
+  (or on a domain of its own). There a visitor signs in with Google or an emailed code and
+  saves are per-person. Agents save with an API key anywhere.
 - The whole thing keeps running on a 1 CPU / 1 GB box: one binary, one Postgres, one folder.
 
 ## The hackathon product, and the page that sells it
@@ -61,12 +61,13 @@ What follows from that, and is not negotiable without changing the line above:
 
 - Private or password-locked pages. Pages are always public; there is no view-lock and docs
   must not advertise one. The one thing that can be private is a collection on a site's own
-  domain (decision 2026-09-24, "Private collections"); every other read stays open.
+  address (decisions 2026-09-24 "Private collections" and 2026-09-25); every other read stays open.
 - A general-purpose backend. No schema, no queries, no server-side code for site authors.
 - Metered third-party AI keys. AI create runs on the local Grok sidecar only.
 - Starter templates and drop-in widgets. Removed 2026-09-05; agents build pages themselves.
-- Isolating sites from each other on the shared host. Every site there is one origin. Anything
-  that needs privacy between sites, including visitor sign-in, lives on a custom domain.
+- Isolating one person's sites from each other. All of a person's sites share their address
+  (`<handle>.simple-host.app`), so a sign-in there covers all of them; a site that needs an
+  origin of its own takes a free `<name>.simple-host.app` address or a custom domain.
 
 ## Constraints
 
@@ -106,7 +107,8 @@ What follows from that, and is not negotiable without changing the line above:
   review found the opposite let a phished guestbook code become a full account credential.
 - **2026-09-05. Visitor sign-in only on a custom domain.** On the shared host all sites are one
   origin, so a sign-in there can never be private to one site. Reason: "if you want safe writes
-  you need a domain" is one sentence everyone can understand.
+  you need a domain" is one sentence everyone can understand. Superseded 2026-09-25: a person's
+  own address counts as the site's own origin (see "Per-person subdomains").
 - **2026-09-06. Shared host: anyone can read and write.** Page saves there need no sign-in and
   no key; it is a public scratchpad guarded by rate limits and size caps. Reason: keep the
   shared host simple and useful; sign-in remains a feature you get by connecting a domain.
@@ -161,14 +163,18 @@ What follows from that, and is not negotiable without changing the line above:
   in a config file and keep working as they do. Order: after the page overhaul, before the Get
   started rebuild, so Get started ends with "add the connector". Port the MCP adapter from the
   enterprise repo (`internal/mcp`); the OAuth server is new and gets a security review.
-- **2026-09-24. No per-person subdomains.** Sites stay at `sites.simple-host.app/<handle>/<site>`.
+- **2026-09-24. No per-person subdomains.** Reversed 2026-09-25 (see "Per-person subdomains").
+  Sites stay at `sites.simple-host.app/<handle>/<site>`.
   A person who wants their own origin brings their own domain; a Simple Host subdomain can be
   given on request but is not offered or advertised. Consequence: on the shared host, what a
   page saves stays readable by anyone, so anything private (an RSVP list, survey answers,
   orders) needs the site on its own domain. Reason: owner's call — keep the shared host as is.
   Partly superseded 2026-09-24: sites may now claim a free `<name>.simple-host.app` address
   themselves (see "Free <name>.simple-host.app addresses" below).
-- **2026-09-24. Shared address: anyone can view, only signed-in people can save.** Reverses
+- **2026-09-24. Shared address: anyone can view, only signed-in people can save.** Rewritten
+  2026-09-25: sites now live on their owner's address, where every page save already needs a
+  signed-in visitor; this entry now only governs the old shared address while it still serves.
+  Reverses
   2026-09-06 ("anyone can read and write"). On `sites.simple-host.app`, reading a site and its
   data stays open; every save from a page (state and collections: comments, RSVPs, votes)
   requires a visitor signed in with Google or an emailed code; the owner's agent saves with its
@@ -176,7 +182,9 @@ What follows from that, and is not negotiable without changing the line above:
   there could save something in a signed-in visitor's name; it cannot read anything private
   because nothing there is private. Sites on their own domain keep full protection. Reason: stop
   anonymous spam and tie every write to a real account. Built after the connector ships.
-- **2026-09-24. Private collections on a site's own domain.** The owner can mark a collection
+- **2026-09-24. Private collections on a site's own domain.** Rewritten 2026-09-25: "own domain"
+  now includes the owner's own address, so any site can have private lists without a domain.
+  The owner can mark a collection
   private: only signed-in visitors on the site's own domain submit (the server stamps their
   verified email), and only the owner reads it (key, connector, CSV, dashboard, or signed in on
   the domain); everyone else gets 404, and the shared host refuses them. Reverses the non-goal
@@ -184,8 +192,26 @@ What follows from that, and is not negotiable without changing the line above:
   domain. The Simple Host operator can also read them, for moderation. The owner (and the
   operator) can edit or delete items in a private list; public lists stay append-only. Owner
   request. Reason: orders, RSVPs and surveys need owner-only reads.
-- **2026-09-24. Free <name>.simple-host.app addresses.** A site may self-serve a free
+- **2026-09-24. Free <name>.simple-host.app addresses.** Rewritten 2026-09-25: still offered and
+  unchanged, but no longer needed for sign-in or privacy (the owner's address gives both); it is
+  a shorter address of the site's own, and it shares one namespace with handles. A site may self-serve a free
   `<name>.simple-host.app` address: first come, first served, verified at once, reserved names
   refused; it behaves exactly like a custom domain. Replaces "a Simple Host subdomain can be
   given on request but is not offered or advertised" for sites that need privacy; the skills
   offer it first when a site collects anything personal.
+- **2026-09-25. Per-person subdomains.** Reverses "2026-09-24. No per-person subdomains". Every
+  account's handle is its own address: `https://<handle>.simple-host.app/` lists the person's
+  public sites, and each site lives at `https://<handle>.simple-host.app/<site>/` — the address
+  every tool, page and skill hands out. All existing sites moved automatically. Old
+  `sites.simple-host.app/<handle>/<site>/` links keep working (they will redirect once the
+  nginx step ships); claimed `<name>.simple-host.app` addresses and custom domains are
+  unchanged, and a site with one of those lives there (its person-address URL redirects to it).
+  The person address is that person's own origin, so visitors sign in there, every page save
+  there needs a signed-in visitor, and private collections work there. Handles, claimed names,
+  reserved names and retired per-name hostnames are one first-come namespace, checked both ways.
+  The operator account's handle `admin` became `simple-host-team` (old links keep resolving
+  through an alias); no other handle changed. Accepted cost: what a page kept in the browser
+  (localStorage) starts empty at the new address; server-saved data moves with the site. Event
+  and self-hosted instances keep the path model (`PERSON_HOSTS=off`). simple-host.app goes to the
+  Public Suffix List so person addresses become separate sites to browsers too. Reason: owner's
+  call — every person gets an address of their own, and sign-in and privacy stop needing a domain.
