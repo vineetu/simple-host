@@ -138,7 +138,7 @@ func (h *SiteHandler) renderShowcase(w http.ResponseWriter, r *http.Request, han
 	data := showcaseData{
 		Handle:            handle,
 		SitesBaseURL:      contentBase,
-		PublicShowcaseURL: contentBase + "/" + handle,
+		PublicShowcaseURL: h.PersonPageURL(handle),
 		OwnerAppURL:       h.mainSiteURL() + "/" + handle,
 		MainURL:           h.mainSiteURL(),
 		Sites:             []showcaseSite{},
@@ -153,7 +153,7 @@ func (h *SiteHandler) renderShowcase(w http.ResponseWriter, r *http.Request, han
 		}
 		data.Sites = append(data.Sites, showcaseSite{
 			Name:       s.Name,
-			URL:        contentBase + "/" + handle + "/" + s.Name + "/",
+			URL:        h.SiteURL(handle, s.Name),
 			CreatedAt:  s.CreatedAt,
 			Visibility: vis,
 		})
@@ -228,12 +228,20 @@ func (h *SiteHandler) renderNotFound(w http.ResponseWriter, r *http.Request, ori
 			if _, err := db.GetUserByHandle(r.Context(), h.database, handle); err == nil {
 				message = "That page isn’t here"
 				subtext = "This site or page doesn’t exist under @" + handle + "."
-				backURL = base + "/" + handle
+				backURL = h.PersonPageURL(handle)
+				if backURL == "" {
+					backURL = base + "/" + handle
+				}
 				backLabel = "Back to @" + handle + "’s sites"
 			}
 		}
 	}
 
+	h.renderNotFoundPage(w, r, message, subtext, backURL, backLabel)
+}
+
+// renderNotFoundPage writes the branded 404 with the given words and way back.
+func (h *SiteHandler) renderNotFoundPage(w http.ResponseWriter, r *http.Request, message, subtext, backURL, backLabel string) {
 	tmpl, err := chromePage("notfound.html", chromeDataFor(r, h.chromeBase(r)))
 	if err != nil {
 		// Last-resort inline 404 so a miss never falls through to nginx's default.

@@ -105,6 +105,27 @@ func (h *SiteHandler) sessionCookieFor(r *http.Request) string {
 	return visitorCookieValue(r)
 }
 
+// sessionValidFor reports whether sess, read from this request's cookie, lets
+// its visitor act on siteID here: same host, not expired, and either the site
+// it was signed in on or — on a person host — any site of that person. All of
+// one person's sites share that origin, so a per-site sign-in could never be
+// kept apart there; the host binding still keeps it off every other host.
+func (h *SiteHandler) sessionValidFor(r *http.Request, sess db.VisitorSession, siteID string) bool {
+	now := time.Now()
+	if !strings.EqualFold(sess.Host, requestHostName(r)) || now.After(sess.ExpiresAt) || now.After(sess.IdleExpiresAt) {
+		return false
+	}
+	if sess.SiteID == siteID {
+		return true
+	}
+	owner, ok := h.personHostOwner(r.Context(), sess.Host)
+	if !ok {
+		return false
+	}
+	_, siteOwner, _, err := db.GetSiteOwner(r.Context(), h.database, siteID)
+	return err == nil && siteOwner == owner.ID
+}
+
 func hasVisitorCSRF(r *http.Request) bool {
 	if r.Header.Get(visitorCSRFHeader) == visitorCSRFValue {
 		return true
@@ -212,6 +233,18 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 	// A site that has its own domain lives there: its shared-host URL takes no
 	// writes at all, key or not (agents use the apex or the domain). Reads stay
 	// public. In log mode this is measured, not enforced.
+	if domain, elsewhere := h.livesOnDomainElsewhere(r, siteID); elsewhere {
+		h.logAnonWrite(r, siteID, siteName, route, collection, mode, "use_custom_domain")
+		if mode == "on" && !allowAnon {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{
+				"error":  "this site saves on its own domain",
+				"code":   "use_custom_domain",
+				"domain": domain,
+			})
+			return false
+		}
+		return true
+	}
 	if strings.EqualFold(requestHostName(r), h.contentHost) {
 		if info, ok, _ := db.GetSiteDomainInfo(r.Context(), h.database, siteID); ok && info.Domain != "" {
 			h.logAnonWrite(r, siteID, siteName, route, collection, mode, "use_custom_domain")
@@ -263,11 +296,7 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 		if id, decErr := hex.DecodeString(raw); decErr == nil && len(id) == 32 {
 			sess, sessErr := db.GetVisitorSession(r.Context(), h.database, id)
 			if sessErr == nil {
-				now := time.Now()
-				hostOK := strings.EqualFold(sess.Host, requestHostName(r))
-				siteOK := sess.SiteID == siteID
-				fresh := !now.After(sess.ExpiresAt) && !now.After(sess.IdleExpiresAt)
-				if hostOK && siteOK && fresh {
+				if h.sessionValidFor(r, sess, siteID) {
 					if r.Header.Get(visitorCSRFHeader) == visitorCSRFValue {
 						_ = db.TouchVisitorSession(r.Context(), h.database, id)
 						return true
@@ -371,18 +400,23 @@ func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 		if info, ok, _ := db.GetSiteDomainInfo(r.Context(), h.database, siteID); ok && info.Domain != "" {
 			resp["code"] = "use_custom_domain"
 			resp["domain"] = info.Domain
+		} else if h.personHostsCanonical() {
+			// The site's own address, where visitors sign in.
+			if handle, _, name, err := db.GetSiteOwner(r.Context(), h.database, siteID); err == nil && h.personAddressFor(handle, name) {
+				resp["address"] = h.SiteURL(handle, name)
+			}
 		}
 		writeJSON(w, http.StatusOK, resp)
+		return
+	}
+	if domain, elsewhere := h.livesOnDomainElsewhere(r, siteID); elsewhere {
+		writeJSON(w, http.StatusOK, map[string]any{"signed_in": false, "sign_in_available": false, "code": "use_custom_domain", "domain": domain})
 		return
 	}
 	if id, decErr := hex.DecodeString(h.sessionCookieFor(r)); decErr == nil && len(id) == 32 {
 		sess, sessErr := db.GetVisitorSession(r.Context(), h.database, id)
 		if sessErr == nil {
-			now := time.Now()
-			hostOK := strings.EqualFold(sess.Host, requestHostName(r))
-			siteOK := sess.SiteID == siteID
-			fresh := !now.After(sess.ExpiresAt) && !now.After(sess.IdleExpiresAt)
-			if hostOK && siteOK && fresh {
+			if h.sessionValidFor(r, sess, siteID) {
 				expires := sess.ExpiresAt
 				if sess.IdleExpiresAt.Before(expires) {
 					expires = sess.IdleExpiresAt

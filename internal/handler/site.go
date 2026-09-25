@@ -97,6 +97,9 @@ type SiteHandler struct {
 	// writers, and the public collection GET (which also accepts an owner key).
 	adminAPIKey string
 	adminUserID string
+
+	// personHosts is PERSON_HOSTS (personhost.go).
+	personHosts personHostMode
 }
 
 // lockSite acquires the per-site upload mutex and returns its unlock func.
@@ -281,6 +284,10 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// Per-user public showcase + branded 404s, reached only via the content-host
 	// nginx block (single-segment /<handle> -> showcase; file misses -> notfound).
 	mux.HandleFunc("GET /internal/showcase/{handle}", h.showcase)
+	// Old content-host addresses, once nginx hands them over (personhost.go).
+	mux.HandleFunc("GET /internal/site-redirect/{handle}", h.contentHostRedirect)
+	mux.HandleFunc("GET /internal/site-redirect/{handle}/{sitename}", h.contentHostRedirect)
+	mux.HandleFunc("GET /internal/site-redirect/{handle}/{sitename}/{rest...}", h.contentHostRedirect)
 	mux.HandleFunc("GET /internal/notfound", h.notFound)
 
 	// Append-only collections (second backend type): cheap O(1) appends +
@@ -383,8 +390,11 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	oldURL := site.SiteURL
-	newURL := fmt.Sprintf("https://%s/%s/%s/", h.contentHost, user.Handle.String, newName)
+	oldURL := h.siteURLFor(site)
+	newURL := h.SiteURL(user.Handle.String, newName)
+	if newURL == "" {
+		newURL = fmt.Sprintf("https://%s/%s/%s/", h.contentHost, user.Handle.String, newName)
+	}
 	domain := ""
 	if site.CustomDomain.Valid {
 		domain = site.CustomDomain.String
@@ -408,12 +418,6 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request) {
 		"message":                 "Site renamed. The old URL no longer works and returns 404; use the new URL.",
 		"custom_domain_unchanged": domain != "",
 	})
-}
-
-// originHostForSite returns the expected hostname for state CORS, e.g.
-// "mysite.simple-host.app".
-func (h *SiteHandler) originHostForSite(siteName string) string {
-	return siteName + "." + h.siteDomain
 }
 
 // setAllowedOrigins lets a site owner list extra origins (scheme://host) that may
@@ -496,14 +500,22 @@ func (h *SiteHandler) setAllowAnonymousWrites(w http.ResponseWriter, r *http.Req
 
 // resolveSiteID resolves the target site's id. When the route carries a {handle} path
 // value (the v3 user-scoped routes), it resolves handle->user_id then (user_id,name)->site
-// so the lookup is unambiguous even after UNIQUE(name) is dropped. Otherwise it falls back
-// to the legacy global name lookup. Returns sql.ErrNoRows if not found (caller maps to 404).
+// so the lookup is unambiguous even after UNIQUE(name) is dropped; an old handle kept as
+// an alias still resolves. The request's host binds the lookup: on a person host
+// (<handle>.<SITE_DOMAIN>) only that person's sites exist, and on a site's own domain
+// only that site does. Elsewhere (apex, content host) a bare name falls back to the
+// legacy global lookup. Returns sql.ErrNoRows if not found (caller maps to 404).
 func (h *SiteHandler) resolveSiteID(r *http.Request, siteName string) (string, error) {
+	host := requestHostName(r)
+	owner, onPerson := h.personHostOwner(r.Context(), host)
 	handle := strings.TrimSpace(r.PathValue("handle"))
 	if handle != "" {
-		u, err := db.GetUserByHandle(r.Context(), h.database, handle)
+		u, err := db.GetUserByHandleOrAlias(r.Context(), h.database, handle)
 		if err != nil {
 			return "", err
+		}
+		if onPerson && u.ID != owner.ID {
+			return "", sql.ErrNoRows
 		}
 		s, err := db.GetSiteByUser(r.Context(), h.database, u.ID, siteName)
 		if err != nil {
@@ -511,13 +523,24 @@ func (h *SiteHandler) resolveSiteID(r *http.Request, siteName string) (string, e
 		}
 		return s.ID, nil
 	}
+	if onPerson {
+		s, err := db.GetSiteByUser(r.Context(), h.database, owner.ID, siteName)
+		if err != nil {
+			return "", err
+		}
+		return s.ID, nil
+	}
 	// On a site's own domain (custom or a claimed <name>.<SITE_DOMAIN>) the
-	// host names the site: /v1/sites/<its name> there is that site, even when
-	// an older site elsewhere has the same name (the legacy lookup below would
-	// pick the oldest). Any other name falls through unchanged.
-	if host := requestHostName(r); host != "" && !strings.EqualFold(host, h.contentHost) && !h.isVisitorApexHost(host) {
-		if info, err := db.GetSiteByCustomDomain(r.Context(), h.database, host); err == nil && info.Name == siteName {
-			return info.SiteID, nil
+	// host names the site: /v1/sites/<its name> there is that site (as is the
+	// claimed name itself, which is what auth.js derives from the host), and
+	// no other name resolves there.
+	if host != "" && !strings.EqualFold(host, h.contentHost) && !h.isVisitorApexHost(host) {
+		if info, err := db.GetSiteByCustomDomain(r.Context(), h.database, host); err == nil {
+			label, isPlatform := platformSubdomainLabel(host, h.siteDomain)
+			if info.Name == siteName || (isPlatform && label == siteName) {
+				return info.SiteID, nil
+			}
+			return "", sql.ErrNoRows
 		}
 	}
 	return db.GetSiteIDByName(r.Context(), h.database, siteName)
@@ -550,23 +573,18 @@ func (h *SiteHandler) originIsBoundDomainID(ctx context.Context, siteID, host st
 	return strings.EqualFold(info.Domain, host)
 }
 
-// hostIsClaimed reports whether some site has bound host as its own domain.
-// A claimed <name>.<SITE_DOMAIN> belongs to that site alone, so the retired
-// legacy rule (the oldest site named <name> trusts that origin) must not apply.
-func (h *SiteHandler) hostIsClaimed(ctx context.Context, host string) bool {
-	_, err := db.GetSiteByCustomDomain(ctx, h.database, host)
-	return err == nil
-}
-
-// isLegacyOwner reports whether siteID is the deterministic oldest owner of
-// siteName — i.e. the site that the legacy <name>.<siteDomain> host actually
-// serves. Only that site may be authorized by the name-subdomain Origin.
-func (h *SiteHandler) isLegacyOwner(ctx context.Context, siteName, siteID string) bool {
-	legacyID, err := db.GetSiteIDByName(ctx, h.database, siteName)
-	if err != nil {
+// originIsPersonHostID reports whether host is the person address of the
+// site's owner: a page served there may use the site's API from anywhere
+// (the apex, the content host, or its own host), like a bound domain.
+func (h *SiteHandler) originIsPersonHostID(ctx context.Context, siteID, host string) bool {
+	if !h.personHostsOn() {
 		return false
 	}
-	return legacyID == siteID
+	handle, _, name, err := db.GetSiteOwner(ctx, h.database, siteID)
+	if err != nil || !h.personAddressFor(handle, name) {
+		return false
+	}
+	return strings.EqualFold(host, h.personHostFor(handle))
 }
 
 // authorizeStateOrigin checks Origin/Referer and, on a match, sets the CORS
@@ -599,15 +617,14 @@ func (h *SiteHandler) authorizeStateOrigin(w http.ResponseWriter, r *http.Reques
 		return false
 	}
 	// Accept the shared v3 content host (sites.<SITE_DOMAIN> — all path-model
-	// pages share this Origin), the legacy <name>.<domain> host only when this
-	// site is the oldest same-named owner (the one that host actually serves),
-	// this site's own bound custom domain, OR any origin the owner has
-	// explicitly allowed for THIS site_id. A browser cannot forge Origin, so
-	// this is the same attribution-grade gate, just widened to owner-approved
-	// origins, the co-tenant content host, and the bound domain.
-	want := h.originHostForSite(siteName)
-	if parsed.Host != h.contentHost &&
-		!(parsed.Host == want && h.isLegacyOwner(r.Context(), siteName, siteID) && !h.hostIsClaimed(r.Context(), want)) &&
+	// pages share this Origin), this site's owner's person address, this
+	// site's own bound custom domain, OR any origin the owner has explicitly
+	// allowed for THIS site_id. A browser cannot forge Origin, so this is the
+	// same attribution-grade gate, just widened to owner-approved origins, the
+	// co-tenant content host, and the site's own hosts. (The retired
+	// <name>.<SITE_DOMAIN> host only redirects, so it serves no page to trust.)
+	if !strings.EqualFold(parsed.Host, h.contentHost) &&
+		!h.originIsPersonHostID(r.Context(), siteID, parsed.Host) &&
 		!h.originIsBoundDomainID(r.Context(), siteID, parsed.Host) &&
 		!h.originAllowedForSiteID(r.Context(), siteID, origin) {
 		return false
@@ -879,6 +896,8 @@ func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	// Stored for the record only: the address answered is computed on read
+	// (siteURLFor), so it follows PERSON_HOSTS.
 	var siteURL string
 	if user.Handle.Valid && user.Handle.String != "" {
 		siteURL = fmt.Sprintf("https://%s/%s/%s/", h.contentHost, user.Handle.String, siteName)
@@ -943,6 +962,7 @@ func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user
 	}
 
 	site.ActiveVersion = versionNumber
+	site.OwnerHandle = user.Handle.String
 
 	// Queue for cortex-share registration (processed by deploy-watcher)
 	if h.deployScript != "" {
@@ -952,7 +972,7 @@ func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user
 		}
 	}
 
-	writeJSON(w, http.StatusCreated, toSiteResponse(site, ""))
+	writeJSON(w, http.StatusCreated, h.toSiteResponse(site, ""))
 }
 
 func (h *SiteHandler) updateSite(w http.ResponseWriter, r *http.Request) {
@@ -1069,7 +1089,7 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 	h.pruneVersions(r.Context(), site.ID, site.UserID, siteName, versionNumber)
 
 	site.ActiveVersion = versionNumber
-	writeJSON(w, http.StatusOK, toSiteResponse(site, ""))
+	writeJSON(w, http.StatusOK, h.toSiteResponse(site, ""))
 }
 
 // filesRequest is the JSON deploy body: a map of relative path -> file contents.
@@ -1307,7 +1327,7 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if site.ActiveVersion == req.VersionNumber {
-		writeJSON(w, http.StatusOK, toSiteResponse(site, ""))
+		writeJSON(w, http.StatusOK, h.toSiteResponse(site, ""))
 		return
 	}
 
@@ -1339,7 +1359,7 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	site.ActiveVersion = req.VersionNumber
-	writeJSON(w, http.StatusOK, toSiteResponse(site, ""))
+	writeJSON(w, http.StatusOK, h.toSiteResponse(site, ""))
 }
 
 func (h *SiteHandler) deleteSite(w http.ResponseWriter, r *http.Request) {
@@ -1470,7 +1490,7 @@ func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 
 	response := make([]siteResponse, 0, len(sites))
 	for _, site := range sites {
-		response = append(response, toSiteResponse(site, ""))
+		response = append(response, h.toSiteResponse(site, ""))
 	}
 
 	writeJSON(w, http.StatusOK, response)
@@ -1508,7 +1528,7 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 	for _, s := range sites {
 		byUser[s.UserID] = append(byUser[s.UserID], map[string]any{
 			"name":           s.Name,
-			"site_url":       s.SiteURL,
+			"site_url":       h.siteURLFor(s),
 			"active_version": s.ActiveVersion,
 			"custom_domain":  s.CustomDomain.String,
 			"created_at":     s.CreatedAt,
@@ -1604,7 +1624,7 @@ func archiveFilename(siteName string, body []byte) string {
 	return siteName + ".tar.gz"
 }
 
-func toSiteResponse(site db.Site, note string) siteResponse {
+func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
 	visibility := site.Visibility
 	if visibility == "" {
 		visibility = "unlisted" // never guess "public"
@@ -1614,7 +1634,7 @@ func toSiteResponse(site db.Site, note string) siteResponse {
 		UserID:        site.UserID,
 		Name:          site.Name,
 		ActiveVersion: site.ActiveVersion,
-		SiteURL:       site.SiteURL,
+		SiteURL:       h.siteURLFor(site),
 		CreatedAt:     site.CreatedAt,
 		UpdatedAt:     site.UpdatedAt,
 		CustomDomain:  site.CustomDomain.String,

@@ -109,12 +109,7 @@ func (h *SiteHandler) strictVisitorSession(r *http.Request, siteID string) (db.V
 		return db.VisitorSession{}, false
 	}
 	sess, err := db.GetVisitorSession(r.Context(), h.database, id)
-	if err != nil {
-		return db.VisitorSession{}, false
-	}
-	now := time.Now()
-	if !strings.EqualFold(sess.Host, requestHostName(r)) || sess.SiteID != siteID ||
-		now.After(sess.ExpiresAt) || now.After(sess.IdleExpiresAt) {
+	if err != nil || !h.sessionValidFor(r, sess, siteID) {
 		return db.VisitorSession{}, false
 	}
 	return sess, true
@@ -138,14 +133,14 @@ func visitorEmail(ctx context.Context, database *sql.DB, userID string) (string,
 	return u.Username, nil
 }
 
-// onOwnDomain: this request arrived on the site's proven own domain. Returns
-// the binding (for the owner's user id).
-func (h *SiteHandler) onOwnDomain(r *http.Request, siteID string) (db.SiteDomainInfo, bool, error) {
-	info, ok, err := h.siteOwnDomain(r.Context(), siteID)
+// onOwnDomain: this request arrived on the site's own origin — its proven own
+// domain, else its owner's person address (siteHomeFor). Returns that home.
+func (h *SiteHandler) onOwnDomain(r *http.Request, siteID string) (siteHome, bool, error) {
+	home, ok, err := h.siteHomeFor(r.Context(), siteID)
 	if err != nil || !ok {
-		return db.SiteDomainInfo{}, false, err
+		return home, false, err
 	}
-	return info, strings.EqualFold(info.Domain, requestHostName(r)), nil
+	return home, strings.EqualFold(home.Host, requestHostName(r)), nil
 }
 
 // ownerBrowserRead decides a non-key read of a private collection: only the
@@ -172,7 +167,7 @@ func (h *SiteHandler) ownerBrowserRead(w http.ResponseWriter, r *http.Request, s
 		return false
 	}
 	sess, ok := h.strictVisitorSession(r, siteID)
-	if !ok || sess.UserID != info.UserID {
+	if !ok || sess.UserID != info.OwnerID {
 		writePrivateNotFound(w)
 		return false
 	}
@@ -189,9 +184,9 @@ func (h *SiteHandler) appendPrivate(w http.ResponseWriter, r *http.Request, site
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	if onShared && info.Domain != "" {
+	if info.IsDomain && !here && (onShared || h.isPersonHost(r.Context(), requestHostName(r))) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{
-			"error": "this site saves on its own domain", "code": "use_custom_domain", "domain": info.Domain,
+			"error": "this site saves on its own domain", "code": "use_custom_domain", "domain": info.Host,
 		})
 		return
 	}
@@ -204,7 +199,7 @@ func (h *SiteHandler) appendPrivate(w http.ResponseWriter, r *http.Request, site
 	}
 	if !here {
 		writeJSON(w, http.StatusForbidden, map[string]string{
-			"error": "this list is private: it takes submissions only on the site's own domain, from a signed-in visitor",
+			"error": "this list is private: it takes submissions only on the site's own address, from a signed-in visitor",
 			"code":  "private_needs_own_domain",
 		})
 		return
@@ -295,12 +290,12 @@ func (h *SiteHandler) setCollectionPrivacy(w http.ResponseWriter, r *http.Reques
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	info, hasDomain, err := h.siteOwnDomain(r.Context(), siteID)
+	home, hasHome, err := h.siteHomeFor(r.Context(), siteID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	if *req.Private && !hasDomain {
+	if *req.Private && !hasHome {
 		writeJSON(w, http.StatusConflict, map[string]string{
 			"error": strings.Replace(privateListNeedsDomain, "%s", h.siteDomain, 1),
 			"code":  "custom_domain_required",
@@ -313,8 +308,8 @@ func (h *SiteHandler) setCollectionPrivacy(w http.ResponseWriter, r *http.Reques
 	}
 	resp := map[string]any{"site": siteName, "collection": coll, "private": *req.Private}
 	if *req.Private {
-		resp["domain"] = info.Domain
-		resp["message"] = "Private: visitors signed in on https://" + info.Domain + " can add to it; only you can read it."
+		resp["domain"] = home.Host
+		resp["message"] = "Private: visitors signed in on https://" + home.Host + " can add to it; only you can read it."
 	} else {
 		resp["message"] = "Public: anyone can read this list again, including everything already in it."
 	}

@@ -37,7 +37,13 @@ type UserHandler struct {
 	// (mail-bomb + code-grinding defense). See ratelimit.go.
 	ipLimiter    *rateLimiter
 	emailLimiter *rateLimiter
+
+	// publicPage builds an account's public page address (SiteHandler.PersonPageURL).
+	publicPage func(handle string) string
 }
+
+// SetPublicPage sets how GET /v1/me names the account's public page.
+func (h *UserHandler) SetPublicPage(f func(handle string) string) { h.publicPage = f }
 
 type authRequest struct {
 	Email string `json:"email"`
@@ -217,13 +223,17 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user = &fresh
-	writeJSON(w, http.StatusOK, meResponse{
+	resp := meResponse{
 		ID:          user.ID,
 		Username:    user.Username,
 		IsAdmin:     user.IsAdmin,
 		Handle:      user.Handle.String,
 		DisplayName: user.DisplayName.String,
-	})
+	}
+	if h.publicPage != nil && user.Handle.String != "" {
+		resp.PublicPage = h.publicPage(user.Handle.String)
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 type meResponse struct {
@@ -232,6 +242,9 @@ type meResponse struct {
 	Username    string `json:"username"`
 	IsAdmin     bool   `json:"is_admin"`
 	Handle      string `json:"handle,omitempty"`
+	// PublicPage is the account's public page: https://<handle>.<SITE_DOMAIN>/
+	// (or the path address when person hosts are not the canonical address).
+	PublicPage string `json:"public_page,omitempty"`
 }
 
 func isUniqueViolation(err error) bool {

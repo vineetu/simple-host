@@ -40,6 +40,10 @@ var (
 )
 
 type OAuthHandler struct {
+	// personSite resolves a return_to on a person host to its site
+	// (SiteHandler.PersonReturnSite); nil when person hosts are not wired.
+	personSite func(ctx context.Context, host, path string) (string, bool)
+
 	database    *sql.DB
 	cfg         config.Config
 	providers   map[string]oauth.Provider
@@ -68,6 +72,11 @@ func NewOAuthHandler(database *sql.DB, cfg config.Config) *OAuthHandler {
 	}
 	h.startVisitorAuthSweep(time.Hour)
 	return h
+}
+
+// SetPersonSiteResolver lets sign-in return to a site on a person host.
+func (h *OAuthHandler) SetPersonSiteResolver(f func(ctx context.Context, host, path string) (string, bool)) {
+	h.personSite = f
 }
 
 func (h *OAuthHandler) Register(mux *http.ServeMux) {
@@ -366,6 +375,15 @@ func (h *OAuthHandler) sanitizeReturnTo(ctx context.Context, raw string) (string
 	}
 	if connectReturnToOK(parsed, h.cfg.PublicBaseURL) {
 		return parsed.String(), sql.NullString{}, "", "owner", nil
+	}
+
+	// A person host (<handle>.<SITE_DOMAIN>) is that person's own origin: the
+	// site is the first path segment and must be theirs. The platform owns the
+	// zone, so the account's handle is the proof (no DNS lookup).
+	if h.personSite != nil {
+		if siteID, ok := h.personSite(ctx, host, parsed.Path); ok {
+			return parsed.String(), sql.NullString{String: siteID, Valid: true}, host, "site", nil
+		}
 	}
 
 	// A claimed <name>.<SITE_DOMAIN> address is a site's own domain: sign-in

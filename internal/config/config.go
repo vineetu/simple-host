@@ -169,6 +169,13 @@ type Config struct {
 	// Unset or any unrecognized value is "log". The source default is never "on".
 	WriteAuthMode string
 
+	// PersonHosts is off | serve | canonical (owner decision 2026-09-25).
+	// off: sites live only at <content host>/<handle>/<site>/ (the default, and
+	// what event and self-hosted instances keep). serve: <handle>.<SITE_DOMAIN>
+	// answers too, but every address the product hands out is still the path
+	// URL. canonical: person hosts answer and are the address handed out.
+	PersonHosts string
+
 	// Visitor OAuth. A provider is enabled only when BOTH of its vars are set.
 	GoogleOAuthClientID     string
 	GoogleOAuthClientSecret string
@@ -280,6 +287,16 @@ func Load() (Config, error) {
 	default:
 		log.Printf("warning: invalid WRITE_AUTH_MODE %q; treating as log", mode)
 		cfg.WriteAuthMode = "log"
+	}
+
+	switch mode := strings.ToLower(strings.TrimSpace(os.Getenv("PERSON_HOSTS"))); mode {
+	case "off", "serve", "canonical":
+		cfg.PersonHosts = mode
+	case "":
+		cfg.PersonHosts = "off"
+	default:
+		log.Printf("warning: invalid PERSON_HOSTS %q; treating as off", mode)
+		cfg.PersonHosts = "off"
 	}
 
 	cfg.PreviewAccounts = map[string]bool{}

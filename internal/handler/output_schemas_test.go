@@ -81,7 +81,7 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	call("read_collection", map[string]any{"site": "shop", "collection": "rsvps"})
 
 	// A free address is active at once; a custom domain waits for DNS.
-	dom := handle + ".simple-host.test"
+	dom := "shop-" + handle + ".simple-host.test"
 	if s := call("connect_domain", map[string]any{"site": "shop", "domain": dom}); s["status"] != "active" {
 		t.Fatalf("free address not active: %v", s)
 	}

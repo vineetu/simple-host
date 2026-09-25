@@ -1,6 +1,7 @@
 /*
- * simple-host visitor auth and storage. Shared host: saves are open, no sign-in.
- * Custom domain: Google or an emailed code, then saves are per-person.
+ * simple-host visitor auth and storage. On a site's own address (the owner's
+ * <handle>.simple-host.app, or the site's own domain): Google or an emailed
+ * code, then saves are per-person. Old shared address: saves are open.
  * SH.email.request(email) sends a code; SH.email.verify(email, code) signs in.
  * SH.mount(target) offers Google plus an inline email/code form.
  *
@@ -12,10 +13,11 @@
  *
  * Before saving: await SH.requireSignIn(); then await SH.state.patch([{op:"inc",path:"count",by:1}])
  * or await SH.collection('entries').append(item). Never automatically re-POST.
- * Private lists (owner-only reads; set by the owner, own domain only): submit the
- * same way while signed in; the owner's admin page on the domain reads them with
+ * Private lists (owner-only reads; set by the owner): submit the same way while
+ * signed in on the site's own address; the owner's admin page there reads them with
  * SH.collection(name).list() and edits with .update(id, fields) / .remove(id).
- * Auto-derives the API from sites.<domain>/<handle>/<site>/ or the first host label.
+ * Auto-derives the API from <handle>.<domain>/<site>/, sites.<domain>/<handle>/<site>/
+ * or the first host label.
  * Custom domain: set window.SH_CONFIG = {site:'my-site'} (same-origin API).
  * authBase optionally overrides the apex. me() returns the server response.
  * Theme the status box with --sh-accent, --sh-muted and --sh-radius.
@@ -26,6 +28,9 @@
   var contentHost = location.hostname.indexOf("sites.") === 0;
   var _cfg = window.SH_CONFIG || {};
   var API_BASE, noBackend = false;
+  // When the API base has to be asked for (see below), URLs are built on this
+  // token and request() swaps in the answer once it is known.
+  var BASE_TOKEN = "\u0001sh-api", baseReady = null;
   if (_cfg.site) {
     // Same-origin by default: on a custom domain /v1/ is proxied to the API and
     // the visitor cookie is host-only, so the apex would never see it. A page
@@ -51,10 +56,24 @@
       noBackend = true;
     }
     var m = path.match(/^\/([a-z0-9-]{1,39})\/([a-z0-9-]{1,63})(?:\/|$)/);
-    if (host.split(".")[0] === "sites" && m) {
+    var sub = host.split(".")[0];
+    var seg = path.match(/^\/([a-z0-9-]{1,63})(?:\/|$)/);
+    var apexHost = authApex().replace(/^https?:\/\//, "").replace(/[:\/].*$/, "");
+    var oneLabel = host.slice(-(apexHost.length + 1)) === "." + apexHost &&
+      host.split(".").length === apexHost.split(".").length + 1 && sub !== "www";
+    if (sub === "sites" && m) {
       API_BASE = location.origin + "/v1/u/" + m[1] + "/sites/" + m[2];
+    } else if (oneLabel && seg) {
+      // <handle>.<apex>/<site>/...: a person's own address, where the site is
+      // the first path segment. A <name>.<apex> a site has claimed serves that
+      // site at its root instead. Ask the host once which it is.
+      var bySeg = location.origin + "/v1/sites/" + seg[1];
+      var byLabel = location.origin + "/v1/sites/" + sub;
+      API_BASE = BASE_TOKEN;
+      baseReady = fetch(bySeg + "/me", {credentials: "include", cache: "no-store"}).then(
+        function (r) { return r.ok ? bySeg : byLabel; },
+        function () { return byLabel; });
     } else {
-      var sub = host.split(".")[0];
       API_BASE = location.origin + "/v1/sites/" + sub;
     }
   }
@@ -65,7 +84,7 @@
     return "https://simple-host.app";
   }
   var APEX = authApex(), providers = null, providerPromise, meCache, mounted = null;
-  var API_ORIGIN = API_BASE.replace(/^(https?:\/\/[^\/]+).*$/, "$1");
+  var API_ORIGIN = baseReady ? location.origin : API_BASE.replace(/^(https?:\/\/[^\/]+).*$/, "$1");
   function unavailable() {
     var e = new Error("no backend configured");
     e.code = "no_backend";
@@ -73,6 +92,11 @@
   }
   function request(url, options, withETag, anonymous) {
     if (noBackend) return unavailable();
+    if (baseReady && url.indexOf(BASE_TOKEN) === 0) {
+      return baseReady.then(function (base) {
+        return request(base + url.slice(BASE_TOKEN.length), options, withETag, anonymous);
+      });
+    }
     options = options || {};
     // The apex answers with "*" CORS, which browsers reject for credentialed
     // requests; only the site's own API calls carry the visitor cookie.
@@ -216,10 +240,10 @@
     collection: function (name) {
       var url = API_BASE + "/collections/" + encodeURIComponent(name);
       // A private list (owner-only reads) answers 404 to everyone but its
-      // owner signed in on the site's own domain; say what that means.
+      // owner signed in on the site's own address; say what that means.
       function explain(e) {
         if (e && e.status === 404 && e.code === "not_found") {
-          e.message = "Not found. If this is a private list, only the site owner can read or change it, signed in on the site's own domain.";
+          e.message = "Not found. If this is a private list, only the site owner can read or change it, signed in on the site's own address.";
         }
         throw e;
       }
@@ -273,14 +297,24 @@
               // This site saves on its own domain: send the visitor there.
               box.textContent = "This site saves on ";
               var a = document.createElement("a");
-              var rest = location.pathname.replace(/^\/[a-z0-9-]+\/[a-z0-9-]+/, "");
+              var rest = location.pathname.replace(contentHost ? /^\/[a-z0-9-]+\/[a-z0-9-]+/ : /^\/[a-z0-9-]+/, "");
               a.href = "https://" + me.domain + (rest || "/") + location.search + location.hash;
               a.textContent = me.domain;
               box.appendChild(a);
               box.appendChild(document.createTextNode(". Sign in there to save."));
               return;
             }
-            box.textContent = "Saves on this site are public. Connect a domain to add sign-in.";
+            if (me.address) {
+              // The old shared address: sign-in lives on the site's own address.
+              box.textContent = "Saves at this address are public. To sign in, open ";
+              var own = document.createElement("a");
+              own.href = me.address;
+              own.textContent = me.address.replace(/^https?:\/\//, "").replace(/\/$/, "");
+              box.appendChild(own);
+              box.appendChild(document.createTextNode("."));
+              return;
+            }
+            box.textContent = "Saves at this address are public.";
             return;
           }
           box.textContent = "";

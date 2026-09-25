@@ -42,6 +42,10 @@ func (h *SiteHandler) visitorEmailSite(w http.ResponseWriter, r *http.Request) (
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "not available on this host"})
 		return "", false
 	}
+	if domain, elsewhere := h.livesOnDomainElsewhere(r, id); elsewhere {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "this site signs visitors in on its own domain", "code": "use_custom_domain", "domain": domain})
+		return "", false
+	}
 	return id, true
 }
 
