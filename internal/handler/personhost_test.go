@@ -96,6 +96,9 @@ func TestPersonHostsServeAndCanonical(t *testing.T) {
 	if r := a.at(t, "GET", host, "//evil.example/shop/sub", nil, nil); strings.HasPrefix(r.header.Get("Location"), "//") {
 		t.Fatalf("protocol-relative redirect: %q", r.header.Get("Location"))
 	}
+	if r := a.at(t, "GET", pcContentHost, "/%69nternal/site-redirect/"+strings.ToUpper(oh)+"/shop/sub", nil, nil); r.status != http.StatusMovedPermanently || r.header.Get("Location") != "/"+oh+"/shop/sub/" {
+		t.Fatalf("encoded route dir redirect: %d %q", r.status, r.header.Get("Location"))
+	}
 	// Serve mode: addresses handed out are still the path URL.
 	if r := a.at(t, "GET", apex, "/v1/sites", nil, okey); !strings.Contains(string(r.body), "https://"+pcContentHost+"/"+oh+"/shop/") {
 		t.Fatalf("serve: site_url: %s", r.body)
