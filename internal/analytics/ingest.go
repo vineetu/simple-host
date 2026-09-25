@@ -676,12 +676,28 @@ func (i *Ingester) attribute(host, uri string, maps *attrMaps) string {
 		return maps.userNameToID[userID+"/"+siteName]
 	}
 
-	// legacy: <label>.<siteDomain>
+	// <label>.<siteDomain>: a claimed site address first (it is a domain like
+	// any other), then a person host (<handle>.<siteDomain>/<site>/...), then
+	// the retired per-name host.
 	suffix := "." + i.siteDomain
 	if strings.HasSuffix(host, suffix) {
 		label := strings.TrimSuffix(host, suffix)
 		// single label only (no dots)
 		if label != "" && !strings.Contains(label, ".") {
+			if id := maps.domainToID[host]; id != "" {
+				return id
+			}
+			if userID, ok := maps.handleToUser[label]; ok {
+				p := uri
+				if q := strings.IndexByte(p, '?'); q >= 0 {
+					p = p[:q]
+				}
+				seg, _, _ := strings.Cut(strings.TrimPrefix(p, "/"), "/")
+				if seg == "" {
+					return ""
+				}
+				return maps.userNameToID[userID+"/"+seg]
+			}
 			return maps.nameToOldest[label]
 		}
 	}
