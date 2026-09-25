@@ -63,7 +63,6 @@
     .arch .hero { padding: 36px 0 36px; }
     .arch .eyebrow { font-family: var(--a-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--navy); display: flex; align-items: center; gap: 10px; margin: 0 0 14px; }
     .arch .eyebrow::before { content: ""; display: inline-block; width: 36px; height: 1px; background: var(--navy); flex: none; }
-    .arch p.status { font-family: var(--a-mono); font-size: 12px; letter-spacing: .02em; color: var(--muted); margin: -4px 0 16px; }
     .arch h1 { font-size: clamp(32px, 5vw, 50px); font-weight: 650; line-height: 1.08; letter-spacing: -.02em; color: var(--ink); margin: 0 0 18px; }
     .arch .lede { font-size: 17.5px; line-height: 1.65; color: var(--ink-soft); margin: 0 0 16px; max-width: 700px; }
     .arch .meta { font-family: var(--a-mono); font-size: 12px; letter-spacing: .04em; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 0; margin-top: 18px; }
@@ -165,7 +164,6 @@
       </nav>
       <div class="hero">
         <p class="eyebrow">Simple Host Enterprise / Architecture</p>
-        <p class="status">Describes release v1.1.0, coming soon. The current release on GitHub is v1.0.0.</p>
         <h1>How Simple Host Enterprise is built</h1>
         <p class="lede">Simple Host Enterprise is one Go service that runs in your own Kubernetes cluster. It serves static pages plus the data those pages save. Each person's pages live on their own hostname, so one person's page cannot read another's. Everyone signs in through your identity provider, unless an admin has opened a site to the whole network. Uploaded files are stored and served as bytes; they never execute on the server.</p>
         <div class="meta"><span>One service</span><span>Your cluster</span><span>Your Postgres</span><span>Your bucket</span><span>Your identity provider</span></div>
