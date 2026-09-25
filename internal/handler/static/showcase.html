@@ -2487,8 +2487,10 @@ function parseAnalyticsSummary(data) {
         var data = await res.json().catch(function () { return {}; });
         if (res.ok && data.api_key) {
           apiKey = data.api_key;
-          // This page is on the base origin (simple-host.app), so storing is safe.
-          try { localStorage.setItem('apiKey', apiKey); } catch (e2) {}
+          // Stored only on the base origin (simple-host.app). This page is also
+          // a person's page on <handle>.simple-host.app, whose storage their
+          // hosted sites share: a key never goes there.
+          if (onBaseApp) { try { localStorage.setItem('apiKey', apiKey); } catch (e2) {} }
           if (window.shAuthRender) window.shAuthRender();
           hideAiAuth();
           toast('Signed in — building your site…', 'success');

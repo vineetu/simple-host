@@ -56,11 +56,15 @@ func newHostRewriter(siteDomain, contentHost, cnameTarget string) *hostRewriter 
 		// The hosted instance hands out per-person addresses; an instance on
 		// another domain keeps the path model (PERSON_HOSTS defaults to off),
 		// so its docs describe the path address instead.
+		"<handle>."+canonicalSiteDomain+"/v1", contentHost+"/v1",
+		"<handle>."+canonicalSiteDomain+"/<sitename>", contentHost+"/<handle>/<sitename>",
 		"<handle>."+canonicalSiteDomain+"/<site>", contentHost+"/<handle>/<site>",
 		"<handle>."+canonicalSiteDomain+"/<name>", contentHost+"/<handle>/<name>",
-		"<handle>."+canonicalSiteDomain+"/<site-name>", contentHost+"/<handle>/<site-name>",
 		"<handle>."+canonicalSiteDomain+"/", contentHost+"/<handle>/",
 		"<handle>."+canonicalSiteDomain, contentHost+"/<handle>",
+		"&lt;handle&gt;."+canonicalSiteDomain+"/&lt;site&gt;", contentHost+"/&lt;handle&gt;/&lt;site&gt;",
+		"&lt;handle&gt;."+canonicalSiteDomain+"/", contentHost+"/&lt;handle&gt;/",
+		"&lt;handle&gt;."+canonicalSiteDomain, contentHost+"/&lt;handle&gt;",
 		"sites."+canonicalSiteDomain, contentHost,
 		"cname."+canonicalSiteDomain, cnameTarget,
 		canonicalSiteDomain, siteDomain,

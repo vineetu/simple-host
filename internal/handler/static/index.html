@@ -1419,7 +1419,7 @@ function parseAnalyticsSummary(data) {
         if (!r.ok) { toast('That key was not recognised', 'error'); return false; }
         const d = await r.json();
         apiKey = key;
-        currentUser = { id: d.id, username: d.username, is_admin: d.is_admin, handle: d.handle };
+        currentUser = { id: d.id, username: d.username, is_admin: d.is_admin, handle: d.handle, public_page: d.public_page };
         localStorage.setItem('apiKey', key);
         enterApp();
       } catch (err) {
@@ -1469,17 +1469,17 @@ function parseAnalyticsSummary(data) {
       loadSites();
     }
 
-    // Show a link to the user's public showcase (sites.<apex>/<handle>).
-    // Only rendered when signed in AND currentUser.handle is present; hidden otherwise.
+    // Show a link to the user's public page (public_page from /v1/me:
+    // https://<handle>.<apex>/). Only rendered when signed in AND the account
+    // has a handle; hidden otherwise.
     function updateShowcaseBanner() {
       const banner = document.getElementById('showcase-banner');
       if (!banner) return;
       const handle = currentUser && currentUser.handle;
       if (!handle) { banner.hidden = true; return; }
-      const contentHost = 'sites.' + location.hostname.replace(/^www\./, '');
-      const showcaseUrl = location.protocol + '//' + contentHost + '/' + handle;
+      const showcaseUrl = currentUser.public_page || (location.origin + '/' + handle);
       banner.href = showcaseUrl;
-      document.getElementById('showcase-label').textContent = contentHost + '/' + handle;
+      document.getElementById('showcase-label').textContent = showcaseUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
       banner.hidden = false;
     }
 

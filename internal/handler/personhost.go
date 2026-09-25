@@ -372,7 +372,10 @@ func (h *SiteHandler) contentHostRedirect(w http.ResponseWriter, r *http.Request
 	}
 	// A directory redirect must name the public address (/<handle>/<site>/...),
 	// never this internal route; it is rebuilt from validated parts only.
-	escRest := strings.TrimPrefix(r.URL.EscapedPath(), "/internal/site-redirect/"+handle+"/"+name)
+	escRest := ""
+	if parts := strings.SplitN(strings.TrimPrefix(r.URL.EscapedPath(), "/internal/site-redirect/"), "/", 3); len(parts) == 3 {
+		escRest = "/" + parts[2]
+	}
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	h.serveSiteFile(w, r, site.UserID, site.Name, rest, "/"+handle+"/"+name+escRest)
 }

@@ -471,7 +471,7 @@ func Tools() []Tool {
 		{
 			Name:        "who_am_i",
 			Title:       "Who am I signed in as",
-			Description: "Return the Simple Host account this connection acts as: its email, its handle (the part of site addresses after sites.simple-host.app/) and its public page listing its sites.",
+			Description: "Return the Simple Host account this connection acts as: its email, its handle (the <handle> in its address https://<handle>.simple-host.app/) and its public page listing its sites.",
 			InputSchema: noArgs(),
 			Annotations: readOnly(),
 			run: func(c *call, _ map[string]any) (output, error) {
@@ -483,12 +483,16 @@ func Tools() []Tool {
 					Username    string `json:"username"`
 					Handle      string `json:"handle"`
 					DisplayName string `json:"display_name"`
+					PublicPage  string `json:"public_page"`
 				}
 				_ = json.Unmarshal(res.body, &me)
 				out := map[string]any{"email": me.Username}
 				text := "Signed in to Simple Host as " + me.Username + "."
 				if me.Handle != "" {
-					page := c.server.cfg.ContentOrigin + "/" + me.Handle
+					page := me.PublicPage
+					if page == "" {
+						page = c.server.cfg.ContentOrigin + "/" + me.Handle
+					}
 					out["handle"], out["public_page"] = me.Handle, page
 					text += " Handle: " + me.Handle + ". Public page: " + page
 				}
@@ -774,7 +778,7 @@ func Tools() []Tool {
 		{
 			Name:  "set_visibility",
 			Title: "Show or hide a site on my public page",
-			Description: "Choose whether a site is listed on the account's public page (sites.simple-host.app/<handle>). " +
+			Description: "Choose whether a site is listed on the account's public page (https://<handle>.simple-host.app/). " +
 				"This is NOT privacy: an unlisted site is still public to anyone with its address. Simple Host has no private or password-protected sites; never describe unlisted as private.",
 			InputSchema: object(map[string]any{
 				"site":       str(siteDesc),
@@ -1002,7 +1006,7 @@ func Tools() []Tool {
 		{
 			Name:        "add_to_collection",
 			Title:       "Add an item to a collection",
-			Description: "Append one JSON object to a site's public collection (at most 64 KB), exactly as a page would. Appends are never undone, so do not retry one that may have succeeded. A private collection takes items only from visitors signed in on the site's own domain; this tool cannot add to one.",
+			Description: "Append one JSON object to a site's public collection (at most 64 KB), exactly as a page would. Appends are never undone, so do not retry one that may have succeeded. A private collection takes items only from visitors signed in on the site's own address; this tool cannot add to one.",
 			InputSchema: object(map[string]any{
 				"site":       str(siteDesc),
 				"collection": str("Collection name, e.g. `rsvps`."),
@@ -1041,8 +1045,8 @@ func Tools() []Tool {
 			Name:  "set_collection_privacy",
 			Title: "Make a collection private or public",
 			Description: "Make one of a site's collections private (only the owner can read it) or public again. Use private for anything with personal details: orders, RSVPs, survey answers, sign-ups. " +
-				"A private collection takes submissions only from visitors signed in on the site's own domain (every item is stamped with their verified email as `_submitted_by`), and only the owner reads it: here with read_collection, in the dashboard, or on an admin page of the site while signed in on its domain. " +
-				"Needs the site on its own domain first: connect_domain with a free `<name>.simple-host.app` address (active at once) or the person's own domain. It can be set before anything is saved. " +
+				"A private collection takes submissions only from visitors signed in on the site's own address (every item is stamped with their verified email as `_submitted_by`), and only the owner reads it: here with read_collection, in the dashboard, or on an admin page of the site while signed in there. " +
+				"Any site can have one; no domain is needed. It can be set before anything is saved. " +
 				"Setting private=false makes everything already in the list readable by anyone; confirm with the person before doing that.",
 			InputSchema: object(map[string]any{
 				"site":       str(siteDesc),
@@ -1164,9 +1168,9 @@ func Tools() []Tool {
 		{
 			Name:  "connect_domain",
 			Title: "Connect a custom domain",
-			Description: "Give a site its own address. Either a free `<name>.simple-host.app` address (e.g. `clay-studio.simple-host.app`): active at once, no DNS step, first come first served. " +
+			Description: "Give a site a nicer address (optional: every site already has its own at https://<handle>.simple-host.app/<site>/). Either a free `<name>.simple-host.app` address (e.g. `clay-studio.simple-host.app`): active at once, no DNS step, first come first served. " +
 				"Or the person's own domain (e.g. `rsvp.example.com` or `example.com`): returns the one DNS record they must add at their domain registrar; relay it exactly, then check with domain_status until it is active. " +
-				"Either one turns on visitor sign-in on that site and allows private collections (set_collection_privacy). Once active the site lives only at that address.",
+				"Once active the site lives only at that address, its old address redirects there, and visitors sign in and save there.",
 			InputSchema: object(map[string]any{
 				"site":   str(siteDesc),
 				"domain": str("The address without https://: a free `<name>.simple-host.app`, or the person's own domain or subdomain, e.g. `rsvp.example.com`."),
