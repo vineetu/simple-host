@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
 )
 
@@ -199,8 +200,10 @@ func InsertEstablishToken(ctx context.Context, q Querier, once string, sessionID
 	return err
 }
 
-// ConsumeEstablishToken marks a token used iff it is unused, unexpired, and
-// bound to host. Returns sql.ErrNoRows otherwise.
+// ConsumeEstablishToken marks a token used iff it is unused and unexpired,
+// whatever host it is presented on, then checks the bound host. A token
+// presented on the wrong host is burned and rejected, so it cannot be replayed
+// on the right one. Returns sql.ErrNoRows on any failure.
 func ConsumeEstablishToken(ctx context.Context, q Querier, once, host string) (EstablishToken, error) {
 	const query = `
 		UPDATE visitor_establish_tokens
@@ -208,13 +211,18 @@ func ConsumeEstablishToken(ctx context.Context, q Querier, once, host string) (E
 		WHERE once = $1
 		  AND used_at IS NULL
 		  AND expires_at > now()
-		  AND lower(host) = lower($2)
 		RETURNING once, session_id, host, return_to, created_at, expires_at, used_at`
 	var t EstablishToken
-	err := q.QueryRowContext(ctx, query, once, host).Scan(
+	err := q.QueryRowContext(ctx, query, once).Scan(
 		&t.Once, &t.SessionID, &t.Host, &t.ReturnTo, &t.CreatedAt, &t.ExpiresAt, &t.UsedAt,
 	)
-	return t, err
+	if err != nil {
+		return EstablishToken{}, err
+	}
+	if !strings.EqualFold(t.Host, host) {
+		return EstablishToken{}, sql.ErrNoRows
+	}
+	return t, nil
 }
 
 // GetSiteWriteGate returns the owning user_id and the admin override flag

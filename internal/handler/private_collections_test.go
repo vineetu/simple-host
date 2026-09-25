@@ -673,3 +673,55 @@ func TestCSVSafeNeutralisesFormulas(t *testing.T) {
 		t.Errorf("csvSafe header = %q", got)
 	}
 }
+
+// An establish code presented on the wrong host is burned: it cannot then be
+// replayed on the host it was issued for. The normal hand-off still works once.
+func TestEstablishTokenWrongHostBurns(t *testing.T) {
+	a := newPrivateApp(t)
+	olive, vic := a.newPerson(t, "olive"), a.newPerson(t, "vic")
+	a.deploy(t, olive, "clay")
+	a.deploy(t, olive, "pots")
+	const dom, other = "burn-clay.simple-host.test", "burn-pots.simple-host.test"
+	for site, d := range map[string]string{"clay": dom, "pots": other} {
+		if r := a.at(t, "POST", "simple-host.test", "/v1/sites/"+site+"/domain", map[string]string{"domain": d}, map[string]string{"X-API-Key": olive.key}); r.status != 200 {
+			t.Fatalf("claim %s: %d %s", d, r.status, r.body)
+		}
+	}
+	siteID := a.siteID(t, olive, "clay")
+	uid, _ := a.userID(t, vic)
+	ctx := context.Background()
+	now := time.Now()
+	issue := func(sidByte, once string) {
+		sid, _ := hex.DecodeString(strings.Repeat(sidByte, 32))
+		if err := db.InsertVisitorSession(ctx, a.database, sid, uid, siteID, dom, now.Add(time.Hour), now.Add(time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = db.DeleteVisitorSession(ctx, a.database, sid) })
+		if err := db.InsertEstablishToken(ctx, a.database, once, sid, dom, "https://"+dom+"/", now.Add(time.Minute)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	establish := func(host, once string) resp {
+		return a.at(t, "GET", host, "/v1/visitor/establish?once="+once, nil, nil)
+	}
+
+	// Wrong host: rejected, then the right host is rejected too (burned).
+	burn := "burn-" + uid
+	issue("cd", burn)
+	if r := establish(other, burn); r.status != http.StatusBadRequest || len(r.header.Values("Set-Cookie")) != 0 {
+		t.Fatalf("wrong host accepted: %d %v", r.status, r.header.Values("Set-Cookie"))
+	}
+	if r := establish(dom, burn); r.status != http.StatusBadRequest || len(r.header.Values("Set-Cookie")) != 0 {
+		t.Fatalf("burned code replayed on right host: %d %v", r.status, r.header.Values("Set-Cookie"))
+	}
+
+	// Normal flow: right host works once, then the code is spent.
+	good := "good-" + uid
+	issue("ef", good)
+	if r := establish(strings.ToUpper(dom), good); r.status != http.StatusFound || len(r.header.Values("Set-Cookie")) != 1 {
+		t.Fatalf("normal establish: %d %v", r.status, r.header.Values("Set-Cookie"))
+	}
+	if r := establish(dom, good); r.status != http.StatusBadRequest {
+		t.Fatalf("code reused: %d", r.status)
+	}
+}
