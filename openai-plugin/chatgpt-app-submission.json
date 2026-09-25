@@ -4,7 +4,7 @@
   "app_info": {
     "display_name": "Simple Host",
     "subtitle": "Describe a site. It's online.",
-    "description": "Tell ChatGPT the website you want (a portfolio, an event page with RSVPs, a small shop, a sign-up form, a survey) and Simple Host puts it online at an address you can share straight away. Every site can save what people send it: RSVPs, orders, votes and survey answers are kept, and you can download them as a spreadsheet. Orders, RSVPs and survey answers can go in a private list that only you can read, once the site has its own address; a free name.simple-host.app address takes one step. Sign in once and ChatGPT remembers you in every chat after that. Change a site any time by asking for it, and go back to any earlier version if you don't like the change. Pages are public to anyone with the link, so keep private information in private lists. Free to start.",
+    "description": "Tell ChatGPT the website you want (a portfolio, an event page with RSVPs, a small shop, a sign-up form, a survey) and Simple Host puts it online at an address you can share straight away. Every site can save what people send it: RSVPs, orders, votes and survey answers are kept, and you can download them as a spreadsheet. Orders, RSVPs and survey answers can go in a private list that only you can read. For a nicer address, take a free name.simple-host.app or connect your own domain. Sign in once and ChatGPT remembers you in every chat after that. Change a site any time by asking for it, and go back to any earlier version if you don't like the change. Pages are public to anyone with the link, so keep private information in private lists. Free to start.",
     "category": "PRODUCTIVITY"
   },
   "tools": {
@@ -278,7 +278,7 @@
       "description": "Publish a new website from a description.",
       "user_prompt": "Make a one-page site for a neighbourhood book swap on Saturday at 10am in Linden Park, and publish it.",
       "tools_triggered": "create_site",
-      "expected_output": "A new site is published and its public address is returned (https://sites.simple-host.app/openai-review/...). Opening it shows the event details."
+      "expected_output": "A new site is published and its public address is returned (https://openai-review.simple-host.app/...). Opening it shows the event details."
     },
     {
       "description": "Read what a site has collected, using the sample garden party RSVP site in the demo account.",

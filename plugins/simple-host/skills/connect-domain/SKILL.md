@@ -1,6 +1,6 @@
 ---
 name: connect-domain
-description: Connect a user's own custom domain (subdomain e.g. recipes.brand.com via CNAME, or apex e.g. brand.com via A record) to a site already deployed on simple-host. Also covers the free <name>.simple-host.app address (one call, active at once, no DNS). Use when a user wants their site served from their own address over HTTPS, wants sign-in on saves from a page, or needs a private collection for orders, RSVPs or sign-ups (an own address is what adds sign-in and private collections; on the shared host anyone can read and write). Drives the bind → DNS → verify → live flow; the agent does the API work and relays the one DNS record the human must add at their registrar.
+description: Give a site already deployed on simple-host a nicer address — the user's own custom domain (subdomain e.g. recipes.brand.com via CNAME, or apex e.g. brand.com via A record) or a free <name>.simple-host.app (one call, active at once, no DNS). Use when a user wants their site served from their own domain or a short name over HTTPS. Optional: every site already has its own address, https://<handle>.simple-host.app/<site>/, where visitor sign-in and private collections work. Drives the bind → DNS → verify → live flow; the agent does the API work and relays the one DNS record the human must add at their registrar.
 ---
 
 # Connect a Custom Domain
@@ -17,22 +17,17 @@ connection is not signed in, ask them to reconnect Simple Host in their app's
 settings. Only when those tools are not available (e.g. a coding agent without
 the connector) use the email-code and API-key flow and the `X-API-Key` calls below.
 
-A site deployed on simple-host is already live at
-`https://sites.simple-host.app/<handle>/<site>/`. This skill connects the user's **own
-domain** — a subdomain (e.g. `recipes.brand.com`) or an apex (e.g. `brand.com`) — so the
-site is served from it over HTTPS.
-
-A domain is what adds **sign-in** to saves and allows **private collections**
-(orders, RSVPs, sign-ups: visitors add, only the site owner — and the Simple Host operator,
-for moderation — can read them). Visitors sign in with Google or an emailed code
-only on a site's own domain; on the shared host every site is the same origin, so a sign-in
-there could never be private to one site — pages there save freely, and anyone can change that
-data. This is the reason most people connect one.
+Every account gets its own address, `https://<handle>.simple-host.app/`, and each site lives at
+`https://<handle>.simple-host.app/<site>/`. Visitor sign-in (Google or an emailed code) and
+private collections already work there. This skill gives a site a nicer address: the user's
+**own domain** — a subdomain (e.g. `recipes.brand.com`) or an apex (e.g. `brand.com`) — or a
+free `<name>.simple-host.app`, served over HTTPS at the root. The site moves there and its
+previous address redirects.
 
 ## The free address: `<name>.simple-host.app`
 
-No domain to buy and no DNS step. Offer this first when the person has no domain, or just
-needs sign-in or a private collection. One call (with the connector: `connect_domain` with the
+No domain to buy and no DNS step. Offer this first when the person wants a short name and has
+no domain. One call (with the connector: `connect_domain` with the
 same value):
 
 ```
@@ -50,11 +45,12 @@ to confirm, and you are done; skip steps 3 and 4 below.
 - First come, first served. 409 `domain_taken`: another site has it. 400 `name_reserved`: kept
   for the platform (`www`, `api`, `admin`, …). 400 `invalid_name`: not a valid label. Pick
   another name and retry.
-- It behaves exactly like a custom domain: the site is served at the root, its old
-  `sites.simple-host.app/<handle>/<site>/` URL 302s there, visitors can sign in, and
-  collections can be made private.
+- It behaves exactly like a custom domain: the site is served at the root, its
+  `<handle>.simple-host.app/<site>/` address (and any old `sites.simple-host.app` link) 302s
+  there, and sign-in and private collections work there.
+- Handles and free names share one namespace, so a free name cannot be someone's handle.
 - `DELETE /v1/sites/{site}/domain` releases it.
-- A site has one own address. Claiming a free name replaces a custom domain, and connecting a
+- A site has one connected address. Claiming a free name replaces a custom domain, and connecting a
   custom domain replaces the free name.
 
 **This is agent-driven.** You do every API call and compute the exact DNS record. Then either
@@ -65,16 +61,16 @@ they have none) and — absent your own DNS access — pasting the record are th
 ## When to use this
 
 - The user asks to use their own domain / brand for a site.
-- The user wants saves from a page (a guestbook, RSVP, poll, counter) to be per-person or
-  protected by sign-in. The `website-deploy` skill sends you here for that.
-- The site will collect personal details (orders, RSVPs, sign-ups) and needs a private
-  collection. The free `<name>.simple-host.app` is usually the fastest route.
+- The user wants a shorter address than `<handle>.simple-host.app/<site>/`. The free
+  `<name>.simple-host.app` is the fastest route.
+
+Sign-in and private collections do not need this skill; they work on the site's own address.
 
 ## Service
 
 - Base URL: `https://simple-host.app`
 - Auth header: `X-API-Key: <api_key>` (the key from deploying the site; not needed with the connector)
-- One own address per site (a custom domain or a free `<name>.simple-host.app`); an address can
+- One connected address per site (a custom domain or a free `<name>.simple-host.app`); an address can
   be connected to only one site.
 
 ## The flow
@@ -209,29 +205,30 @@ operator, the per-domain work is a vhost pointing at that domain's site director
 it (see `deploy/prod/nginx-customdomain.example.conf`). Until that is done the status stays
 `pending` with `last_error` naming the certificate — that is the signal to act on.
 
-The redirect from the site's `sites.simple-host.app` URL to the domain needs no extra step: the
-server writes a `domain-redirect` marker file in the site directory on bind and removes it on
-disconnect, and the content-host nginx config tests for that file.
+The redirect from the site's `<handle>.simple-host.app/<site>/` address (and its old
+`sites.simple-host.app` path) to the domain needs no extra step: the server starts it on bind
+and stops it on disconnect.
 
 ### 5. Confirm it's live
 Once `https://recipes.brand.com/` returns 200, it serves the connected site over HTTPS,
-on its **own origin**. Pages on it can now sign visitors in (Google or email code), and saves
-to the site's backend need that sign-in. The site is still public: a custom domain changes the
-address, not who can read it — sign-in gates saving, not reading; it is not a private page.
-Collections can now be made private (`set_collection_privacy`); the `website-deploy` skill's
-`references/backend.md` has the full flow.
-From now on the site lives only on the domain: its old `sites.simple-host.app/<handle>/<site>/...`
-URL answers 302 to `https://recipes.brand.com/...` (same path and query), and the shared-host API
-stops accepting writes for it (401 `use_custom_domain`, even with a key — reads stay public).
+on its **own origin**. Sign-in and saves now happen on the domain: pages there sign visitors in
+(Google or email code), and saves from a page need that sign-in. The site is still public: a
+custom domain changes the address, not who can read it — sign-in gates saving, not reading; it
+is not a private page. Private collections carry over and work on the domain; the
+`website-deploy` skill's `references/backend.md` has the full flow.
+From now on the site lives only on the domain: its `<handle>.simple-host.app/<site>/...` address
+(and the old `sites.simple-host.app` path, which redirects too) answers 302 to
+`https://recipes.brand.com/...` (same path and query), and the API there stops accepting writes
+for it (401 `use_custom_domain`, even with a key — reads stay public).
 
 ### Disconnect
 ```
 DELETE /v1/sites/{site}/domain
 X-API-Key: <api_key>
 ```
-Unbinds the domain (the site stays live at its `sites.simple-host.app/<handle>/<site>/` path).
-Disconnecting reverses both changes immediately — the shared-host URL stops redirecting and
-accepts writes again (the redirect is a 302, so nothing stays cached) — and any link people saved
+Unbinds the domain (the site stays live at `https://<handle>.simple-host.app/<site>/`).
+Disconnecting reverses both changes immediately — that address stops redirecting and
+accepts saves again (the redirect is a 302, so nothing stays cached) — and any link people saved
 to the domain simply stops working. Tell the user they can also remove the DNS record at their
 registrar afterward.
 
@@ -240,13 +237,14 @@ registrar afterward.
 The per-site backend (shared JSON state, collections) works from the connected domain
 **same-origin** — a page at `https://recipes.brand.com/` calls `/v1/sites/<site>/state` directly.
 (The server ties the domain to its own site, so it can't be used to write to a different site.)
-Writes here need the visitor signed in — Google (more providers later) or an emailed code
-(unlike the shared host, where writes are open): load `https://simple-host.app/auth.js` and,
-because the site name cannot be derived from a custom-domain URL, set
-`window.SH_CONFIG = { site: "<site>" }` before the tag, then `await SH.requireSignIn()` before
-each save. The same page code works on the shared host for a site without a domain, where that call resolves at once.
-Once a domain is connected, the site lives only there: its `sites.simple-host.app` page URL
-answers 302 to the same path on the domain, and the shared-host API takes no writes for it at all
+Writes here need the visitor signed in — Google (more providers later) or an emailed code,
+just as on the site's `<handle>.simple-host.app/<site>/` address: load
+`https://simple-host.app/auth.js` and, because the site name cannot be derived from a
+custom-domain URL, set `window.SH_CONFIG = { site: "<site>" }` before the tag, then
+`await SH.requireSignIn()` before each save. The same page code works on the person address.
+Once a domain is connected, the site lives only there: its person-address page URL (and the old
+`sites.simple-host.app` path, which redirects too) answers 302 to the same path on the domain,
+and the API there takes no writes for it at all
 (401 `use_custom_domain`, with the `domain`, key or not); `/me` there returns
 `code: use_custom_domain` so `SH.mount()` shows "This site saves on <domain>. Sign in there to
 save." with a link. Agents keep writing through the apex `https://simple-host.app/v1/...` with a

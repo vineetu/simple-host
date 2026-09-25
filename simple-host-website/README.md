@@ -27,9 +27,9 @@ The AI will guide you through registration, validate your site, and deploy it.
 
 ## What is Website Deploy?
 
-Website Deploy serves **static files only** — HTML, CSS, JavaScript, images, and fonts. Your site will be live at `https://sites.simple-host.app/{handle}/{sitename}/`. Every site gets built-in traffic analytics, computed server-side from access logs with nothing to add to your pages. Views and unique visitors are split by who was asking — `person`, `bot` and `infra` (uptime probes) — so `person` is the number that means real audience. Custom domains work too — subdomain or apex (e.g. `recipes.brand.com` / `brand.com`) — see the `connect-domain` skill.
+Website Deploy serves **static files only** — HTML, CSS, JavaScript, images, and fonts. Your site will be live at `https://{handle}.simple-host.app/{sitename}/`. Every site gets built-in traffic analytics, computed server-side from access logs with nothing to add to your pages. Views and unique visitors are split by who was asking — `person`, `bot` and `infra` (uptime probes) — so `person` is the number that means real audience. Want a nicer address? Take a free `<name>.simple-host.app` or connect your own domain — subdomain or apex (e.g. `recipes.brand.com` / `brand.com`) — see the `connect-domain` skill.
 
-Every site also gets a small JSON backend (shared state, append-only collections) that its own pages can call. Reading it is public. On the shared host pages write to it freely too (anyone can change that data). On a site with its own custom domain visitors sign in with Google (more providers later) or an emailed code via the hosted `https://simple-host.app/auth.js` helper before saving; agents write with an API key on any site. The `website-deploy` skill covers the pattern and `connect-domain` covers the domain.
+Every site also gets a small JSON backend (shared state, append-only collections) that its own pages can call. Reading it is public. Visitors sign in with Google (more providers later) or an emailed code on the site's own address via the hosted `https://simple-host.app/auth.js` helper; every save from a page needs a signed-in visitor, and a collection can be made private so only you can read it. Agents write with an API key on any site. The `website-deploy` skill covers the pattern and `connect-domain` covers the optional domain.
 
 ### What works
 

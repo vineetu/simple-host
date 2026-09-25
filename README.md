@@ -14,7 +14,7 @@ Look at the websites real people actually build: a portfolio, a wedding RSVP, a 
 
 Today that one sliver is absurdly expensive. To store a single list of RSVPs you're told to stand up a separate backend service, run a database, register a domain, and thread environment variables through a build pipeline. The backend ends up heavier than the website it serves.
 
-**Simple Host folds both halves into one tiny binary.** Static hosting *and* a lightweight per-site datastore — lighter than Supabase, no schema, no separate service — in the same upload. Your agent ships the HTML and the data layer together, the site goes live at `https://sites.simple-host.app/<handle>/<site>/` (or on your own domain), and it just works.
+**Simple Host folds both halves into one tiny binary.** Static hosting *and* a lightweight per-site datastore — lighter than Supabase, no schema, no separate service — in the same upload. Your agent ships the HTML and the data layer together, the site goes live at `https://<handle>.simple-host.app/<site>/` (or on your own domain), and it just works.
 
 And because it stays small, it runs small. Simple Host serves all of its sites from a box with **1 CPU and 1 GB of RAM** — no CDN, no object store, no orchestration. One binary, one Postgres, one folder on disk. Most of the websites everyday people need, hosted on hardware you could forget under your desk.
 
@@ -51,14 +51,14 @@ It signs you up (emailed code → API key), builds the site, wires in state if t
 
 ## What you get
 
-- **One-call deploy** — upload a folder, get a live `https://sites.simple-host.app/{handle}/{site}/`. Every deploy is a new immutable version; roll back instantly.
+- **One-call deploy** — upload a folder, get a live `https://{handle}.simple-host.app/{site}/`. Every deploy is a new immutable version; roll back instantly.
 - **A little backend, free** — per-site JSON state with atomic ops (set / inc / append), plus append-only collections for guestbooks, signups, and submissions. No schema, no database to run yourself.
 - **See what your site collected** — read and download whatever visitors saved to it.
-- **Connect your own domain** — subdomain or apex. A site on its own domain also gets visitor sign-in, so saves from a page belong to a signed-in person.
+- **Connect your own domain** — subdomain or apex, or take a free `<name>.simple-host.app`. Optional: every account already has its own address, `https://<handle>.simple-host.app/`.
 - **Build with AI** — a chat on the homepage that designs, previews, and publishes a site for you. Describe what you want, watch it being written, then publish.
 - **Talk to it** — dictate your idea instead of typing. Captions appear as you speak, and you can edit the text before sending.
 - **Show it what you mean** — attach screenshots or notes to the chat and it builds from them.
-- **Sign in your way** — an emailed code, or Google (more providers later). On a site with its own domain, visitors can sign in the same way so a page can save on their behalf.
+- **Sign in your way** — an emailed code, or Google (more providers later). Visitors to a site sign in the same way, on the site's own address, so a page can save on their behalf; a collection can be made private so only the owner reads it.
 - **Your own admin view** — see every account on your instance and the sites they have made.
 
 ## How it works
@@ -69,7 +69,7 @@ Three moving parts, and you can hold all of them in your head at once:
 2. A **Postgres** tracks users, sites, and versions.
 3. A **folder on disk** holds the versioned site files.
 
-Every site is served from one content host, `sites.simple-host.app/{handle}/{site}/`, which maps each path to its folder on disk; a connected custom domain serves the same folder. That's the whole system — no object store, no CDN, no build farm, which is exactly why it fits on a 1 GB box. The per-site datastore lives next to the files: reads are public; on the shared host writes are open too (anyone can change that data); on a site with its own custom domain a page writes after the visitor signs in (Google or an emailed code); agents write with an account's `X-API-Key` anywhere.
+Every account has its own address, `{handle}.simple-host.app`, and each site is served at `{handle}.simple-host.app/{site}/`, which maps each path to its folder on disk; a connected custom domain serves the same folder. Old `sites.simple-host.app/{handle}/{site}/` links keep working. That's the whole system — no object store, no CDN, no build farm, which is exactly why it fits on a 1 GB box. The per-site datastore lives next to the files: reads are public (except private collections, which only the owner reads); a page writes after the visitor signs in on the site's own address (Google or an emailed code); agents write with an account's `X-API-Key`.
 
 ## Run your own
 
@@ -115,7 +115,7 @@ All via environment variables. `DB_DSN` and `ADMIN_API_KEY` are required; the re
 | `MAIL_FROM` | | Magic-link sender address |
 | `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` | | The model behind **Build with AI**. Any OpenAI-compatible provider; unset = the feature is off. |
 | `TRANSCRIBE_URL` / `TRANSCRIBE_TICKET_SECRET` | | Speech-to-text for the chat mic. Unset = the mic is hidden. |
-| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | | Enables Google sign-in, for owners and for visitors to sites on a custom domain. Both needed, or it stays off. |
+| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | | Enables Google sign-in, for owners and for visitors to sites. Both needed, or it stays off. |
 
 ## API
 
@@ -127,7 +127,7 @@ Everything an agent needs is at [`/llms.txt`](https://simple-host.app/llms.txt),
 | `/v1/sites` | GET | List your sites |
 | `/v1/sites/{name}/files` | POST / PUT | Deploy a site from a JSON `{path: content}` map |
 | `/v1/sites/{name}` | POST / PUT / DELETE | Deploy from a tarball / roll a new version / delete |
-| `/v1/sites/{name}/state` | GET / PUT / PATCH | Per-site JSON state with atomic ops (reads public; writes open on the shared host, on a custom domain need a signed-in visitor or an account's API key) |
+| `/v1/sites/{name}/state` | GET / PUT / PATCH | Per-site JSON state with atomic ops (reads public; writes need a signed-in visitor on the site's own address or an account's API key) |
 | `/v1/sites/{name}/collections/{coll}` | GET / POST | Append-only collections (POST is a write) |
 | `/v1/sites/{name}/domain` | POST / GET / DELETE | Connect your own domain |
 | `/v1/generate` | POST | Build with AI (when enabled) |
@@ -136,7 +136,7 @@ Everything an agent needs is at [`/llms.txt`](https://simple-host.app/llms.txt),
 
 [`simple-host-website/`](simple-host-website/) is the agent integration that the install commands above pull in. It bundles:
 
-- **Three skills** — `website-deploy` (the deploy workflow, a router plus reference documents under `references/`), `website-deploy-builder` (helping decide what to build that fits a static-plus-light-state model), and `connect-domain` (pointing your own domain at a site, which is also what adds sign-in to its saves).
+- **Three skills** — `website-deploy` (the deploy workflow, a router plus reference documents under `references/`), `website-deploy-builder` (helping decide what to build that fits a static-plus-light-state model), and `connect-domain` (giving a site a nicer address: your own domain or a free `<name>.simple-host.app`).
 - **An MCP server** (Node) exposing `register`, `deploy`, `status`, and `list` as agent-callable tools.
 
 For Claude, [`plugins/simple-host/`](plugins/simple-host/) packages the same three skills with the hosted connector as the `simple-host` plugin. Its skills are generated copies — edit `simple-host-website/skills/` and run `bash scripts/sync-claude-plugin.sh`; `scripts/check-claude-plugin.sh` (part of `make check`) fails if the copy or version drifts.

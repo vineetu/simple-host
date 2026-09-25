@@ -68,7 +68,7 @@ The response includes `active_version` and `site_url`.
 
 ## Verify — this step is not optional
 
-1. The public URL is `https://sites.simple-host.app/<handle>/<sitename>/`, also
+1. The public URL is `https://<handle>.simple-host.app/<sitename>/`, also
    returned as `site_url`.
 2. Open it. Confirm the entrypoint renders and that assets, navigation, and
    styling are intact. Check for 404s in the network panel — broken CSS or JS

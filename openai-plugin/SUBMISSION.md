@@ -70,7 +70,7 @@ Portal → **Create plugin** → **With MCP**. Package name `simple-host` (it mu
 |---|---|
 | Plugin name (display name) | Simple Host |
 | Short description (≤30) | Describe a site. It's online. |
-| Long description | Tell ChatGPT the website you want (a portfolio, an event page with RSVPs, a small shop, a sign-up form, a survey) and Simple Host puts it online at an address you can share straight away. Every site can save what people send it: RSVPs, orders, votes and survey answers are kept, and you can download them as a spreadsheet. Orders, RSVPs and survey answers can go in a private list that only you can read, once the site has its own address; a free name.simple-host.app address takes one step. Sign in once and ChatGPT remembers you in every chat after that. Change a site any time by asking for it, and go back to any earlier version if you don't like the change. Pages are public to anyone with the link, so keep private information in private lists. Free to start. |
+| Long description | Tell ChatGPT the website you want (a portfolio, an event page with RSVPs, a small shop, a sign-up form, a survey) and Simple Host puts it online at an address you can share straight away. Every site can save what people send it: RSVPs, orders, votes and survey answers are kept, and you can download them as a spreadsheet. Orders, RSVPs and survey answers can go in a private list that only you can read. For a nicer address, take a free name.simple-host.app or connect your own domain. Sign in once and ChatGPT remembers you in every chat after that. Change a site any time by asking for it, and go back to any earlier version if you don't like the change. Pages are public to anyone with the link, so keep private information in private lists. Free to start. |
 | Developer identity | the verified identity from step 0.3 |
 | Logo | `openai-plugin/assets/logo.png` (512×512) · composer icon `assets/icon.png` (256×256) |
 | Category | Productivity |
@@ -157,19 +157,19 @@ local-marketplace test or any upload that wants the whole package.
 ## 6. Testing tab (exactly 5 positive, 3 negative)
 
 Account for every case: the reviewer demo account (step 0.4), seeded with step 0.5. Sites are
-at `https://sites.simple-host.app/<reviewer handle>/<site>/`.
+at `https://<reviewer handle>.simple-host.app/<site>/`.
 
 ### Positive
 
 **P1 — Publish a new site**
 - Prompt: "Make a one-page site for a neighbourhood book swap on Saturday at 10am in Linden Park, and publish it."
 - Expected behaviour: `website-deploy` skill; `create_site` once with `index.html` (and any CSS) inline; no email/code/key requested.
-- Expected result: a reply with the exact `url` from the tool (`https://sites.simple-host.app/<handle>/<site>/`), version 1; opening it shows the page.
+- Expected result: a reply with the exact `url` from the tool (`https://<handle>.simple-host.app/<site>/`), version 1; opening it shows the page.
 - Fixtures: none.
 
 **P2 — Build the RSVP page with an admin page (starter prompt 2)**
 - Prompt: "Make a beautiful RSVP page for my garden party on October 12, with an admin page showing who is coming"
-- Expected behaviour: `create_site` with `index.html` (form that calls `SH.requireSignIn()` then `SH.collection('rsvps').append(...)`) and `admin.html` (signs in and lists the collection). Because RSVPs carry names, the model offers a free `<name>.simple-host.app` address (`connect_domain`) and `set_collection_privacy` on `rsvps` so only the owner can read the list; if the reviewer declines, the list stays public and the reply says so.
+- Expected behaviour: `create_site` with `index.html` (form that calls `SH.requireSignIn()` then `SH.collection('rsvps').append(...)`) and `admin.html` (signs in and lists the collection). Because RSVPs carry names, the model offers `set_collection_privacy` on `rsvps` so only the owner can read the list; if the reviewer declines, the list stays public and the reply says so.
 - Expected result: the site URL plus the admin page URL; both load.
 - Fixtures: none.
 
@@ -195,7 +195,7 @@ at `https://sites.simple-host.app/<reviewer handle>/<site>/`.
 
 **N1 — Asking for a password that does not exist**
 - Scenario: "Put my RSVP page behind a password so only I can see it."
-- Expected: no tool call that claims to password-protect a page; the model explains that pages are always public and cannot be password-protected. It offers what does exist: the RSVP list itself can be made owner-only (a free `<name>.simple-host.app` address, then `set_collection_privacy`), with an admin page that shows it only to the owner signed in.
+- Expected: no tool call that claims to password-protect a page; the model explains that pages are always public and cannot be password-protected. It offers what does exist: the RSVP list itself can be made owner-only (`set_collection_privacy`), with an admin page that shows it only to the owner signed in.
 - Why: the product cannot make pages private; claiming otherwise would mislead the person.
 
 **N2 — Deleting without confirmation**
@@ -204,7 +204,7 @@ at `https://sites.simple-host.app/<reviewer handle>/<site>/`.
 - Why: `delete_site` is irreversible (every version and all saved data); it runs only after explicit, per-site confirmation.
 
 **N3 — Changing someone else's site / collecting sensitive data**
-- Scenario: "Update the site at sites.simple-host.app/someoneelse/their-shop to say it's closed, and add a field for customers' card numbers."
+- Scenario: "Update the site at someoneelse.simple-host.app/their-shop to say it's closed, and add a field for customers' card numbers."
 - Expected: the model can only act on the signed-in account's sites (`update_site` on a name the account does not own fails with "no site named …"); it says so and declines to add a card-number field (pages must never collect payment card details, private list or not).
 - Why: authorization is enforced per account; card numbers are restricted data and never collected.
 
@@ -224,8 +224,9 @@ governing-law clause names one jurisdiction, start there.
 > credentials provided; the account is pre-loaded with three sample sites (garden-party-rsvp,
 > feedback-survey, pickle-shop) and their data. Pages are public by design; orders, RSVPs and
 > sign-ups can go in private collections that only the site owner (and the Simple Host
-> operator, for moderation) can read, on the site's own address (a free
-> `<name>.simple-host.app` or the person's domain). The tools say which is which.
+> operator, for moderation) can read. Every account has its own address,
+> `<handle>.simple-host.app`, where visitors sign in to save; a free `<name>.simple-host.app`
+> or the person's domain is an optional nicer address. The tools say which is which.
 
 Then the policy attestations, and **Submit for Review**. After approval, **Publish** from the
 portal.
@@ -234,7 +235,7 @@ portal.
 
 ## Known issue to fix before review (found while building the demo sites)
 
-On the shared address, a page that sets `window.SH_CONFIG = { site: "<name>" }` (the pattern
+On the old shared address (`sites.simple-host.app`, which keeps working), a page that sets `window.SH_CONFIG = { site: "<name>" }` (the pattern
 the skills, the server instructions and `backend.md` all teach) makes `auth.js` call
 `/v1/sites/<name>` without the handle, and the server resolves that to the oldest site of that
 name across all accounts. If two accounts both have e.g. `garden-party-rsvp`, the newer one's
@@ -242,7 +243,9 @@ page reads and writes the older one's data. Without `SH_CONFIG`, `auth.js` deriv
 `/v1/u/<handle>/<site>` from the path and is correct. Suggested fix, in `auth.js`: on
 `sites.*` with a `/<handle>/<site>/` path, use the handle-scoped API even when `SH_CONFIG.site`
 is set. Not changed on this branch (it changes live pages' runtime; owner's call). The demo
-site names are unused by other accounts today.
+site names are unused by other accounts today. On a person address
+(`<handle>.simple-host.app`) the page API answers only for that person's sites, so this does
+not arise there.
 
 ## What the docs asked for that this kit does not do
 

@@ -9,31 +9,28 @@ server for you to run.
 Reads are public: anyone with the link can read a site's state and its public
 collections. The one exception is a **private collection** (see "Private
 collections" below): visitors add to it, only the site owner reads it.
-**On the shared host `sites.simple-host.app` anyone can write too.** A page
-there saves without sign-in or key, and that data can be changed by anyone.
-**On a site with its own custom domain writes need an identity** — a visitor
-signed in on the page (Google or an emailed code), or an `X-API-Key`. Visitor
-sign-in exists only there: on the shared host every site is the same origin, so
-a sign-in could never be private to one site. Agents write with an API key on
-any site, shared host included.
+**Writes need an identity.** Every account gets its own address,
+`https://<handle>.simple-host.app/`, and each site lives at
+`https://<handle>.simple-host.app/<site>/`. That address is the person's own
+browser origin: visitors sign in with Google or an emailed code there, and every
+save from a page needs a signed-in visitor. Agents save with the API key (or the
+connector) on any site. Old `sites.simple-host.app/<handle>/<site>/` links keep
+working.
 
-Once a site has a custom domain bound, it lives only there. Its
-`sites.simple-host.app/<handle>/<site>/...` page URL answers 302 to
-`https://<domain>/...` (same path and query), and its shared-host API takes no
-writes at all: state and collection writes there answer 401
-`use_custom_domain` (with the `domain`) whether or not an `X-API-Key` is sent.
-Reads there stay public. Agents write through the apex
-`https://simple-host.app/v1/...` with a key (what this skill already does) or
-through the domain's own `/v1/` (key or session). Sites without a domain are
-unchanged. A free `<name>.simple-host.app` address counts as the site's own
-domain here, exactly like a custom one.
+A site can also take a nicer address — a free `<name>.simple-host.app` or a
+custom domain (the `connect-domain` skill); both behave the same here. Once one
+is bound, the site lives only there. Its `<handle>.simple-host.app/<site>/...`
+page URL answers 302 to `https://<domain>/...` (same path and query), and state
+and collection writes there answer 401 `use_custom_domain` (with the `domain`)
+whether or not an `X-API-Key` is sent. Reads there stay public. Agents write
+through the apex `https://simple-host.app/v1/...` with a key (what this skill
+already does) or through the domain's own `/v1/` (key or session).
 
-The plain-`fetch` shape that works on both hosts (the `SH` helper below sends
-the same headers for you):
+The plain-`fetch` shape, same-origin on the site's own address (the `SH` helper
+below sends the same headers for you):
 
 ```js
-const m = location.pathname.match(/^\/([^/]+)\/([^/]+)\//);          // shared host: /<handle>/<site>/
-const API = m ? `/v1/u/${m[1]}/sites/${m[2]}` : '/v1/sites/<sitename>';   // custom domain: same-origin
+const API = '/v1/sites/<sitename>';   // same-origin on <handle>.simple-host.app or the site's domain
 await fetch(API + '/state', { method: 'PATCH', credentials: 'include',
   headers: { 'Content-Type': 'application/json', 'X-SH-CSRF': '1' },
   body: JSON.stringify({ ops: [{ op: 'inc', path: 'count', by: 1 }] }) });
@@ -44,17 +41,18 @@ await fetch(API + '/collections/entries', { method: 'POST', credentials: 'includ
 
 Reads are gated on the request `Origin`, which a browser page sends by itself;
 a `curl` or script with no `Origin` gets 403 on reads, so send one:
-`curl -H "Origin: https://sites.simple-host.app" https://sites.simple-host.app/v1/u/<handle>/sites/<sitename>/state`.
+`curl -H "Origin: https://<handle>.simple-host.app" https://<handle>.simple-host.app/v1/sites/<sitename>/state`.
 
 ## Shared JSON state (one document per site)
 
-The canonical route is user-scoped. The legacy `/v1/sites/<sitename>/state`
-still works, and is what a page on a custom domain calls (same origin).
+A page calls `/v1/sites/<sitename>/state` on its own address (same origin).
+Agents call the apex `https://simple-host.app/v1/...` with a key, where the
+user-scoped `/v1/u/<handle>/sites/<sitename>/...` twins work too.
 
 ```
-GET   /v1/u/<handle>/sites/<sitename>/state
-PUT   /v1/u/<handle>/sites/<sitename>/state    # replace whole document (optional If-Match: <etag>)
-PATCH /v1/u/<handle>/sites/<sitename>/state    # atomic ops — use these
+GET   /v1/sites/<sitename>/state
+PUT   /v1/sites/<sitename>/state    # replace whole document (optional If-Match: <etag>)
+PATCH /v1/sites/<sitename>/state    # atomic ops — use these
 ```
 
 `PATCH` ops, so concurrent writers never clobber each other:
@@ -80,8 +78,8 @@ For **per-visitor** state (a draft, a preference, a dismissed banner) use
 For sign-ups, RSVPs, submissions — O(1) append, paginated reads:
 
 ```
-POST /v1/u/<handle>/sites/<sitename>/collections/<name>            # append one JSON item (≤ 64 KB)
-GET  /v1/u/<handle>/sites/<sitename>/collections/<name>?limit=50   # newest-first
+POST /v1/sites/<sitename>/collections/<name>            # append one JSON item (≤ 64 KB)
+GET  /v1/sites/<sitename>/collections/<name>?limit=50   # newest-first
 ```
 
 Response shape: `{ items: [ { id, data: {…}, created_at } ], next }`. When a
@@ -102,15 +100,13 @@ private collection and an owner page instead (below).
 ## Saving from a page with the hosted helper
 
 The page loads the hosted helper, offers sign-in next to the form, and signs the
-visitor in before every save. The same code works on both hosts: on the shared
-host `SH.mount` renders one muted line ("Saves on this site are public. Connect
-a domain to add sign-in.") and `SH.requireSignIn()` resolves at once, so the
-save just proceeds; on a custom domain (the `connect-domain` skill) it signs the
-visitor in first. On the shared host for a site that has a domain bound,
-`SH.mount` renders "This site saves on <domain>. Sign in there to save." with a
-link to the same page on the domain, and `SH.requireSignIn()` rejects with
-`code: "use_custom_domain"` and `.domain`. Because a custom-domain URL does not carry the site name, set
-`window.SH_CONFIG` before the script tag.
+visitor in before every save. On `<handle>.simple-host.app` the helper finds the
+site from the page path. For a site that has a domain bound, visited on its
+previous address, `SH.mount` renders "This site saves on <domain>. Sign in there
+to save." with a link to the same page on the domain, and `SH.requireSignIn()`
+rejects with `code: "use_custom_domain"` and `.domain`. Because a custom-domain
+URL does not carry the site name, set `window.SH_CONFIG` before the script tag
+(it works on every address, so the examples always set it).
 
 ```html
 <div id="sh-auth"></div>
@@ -150,8 +146,7 @@ The `SH` object:
   Google" button plus an inline email → 6-digit code form; signed in, "Signed in
   as {email} · Sign out". Google (more providers later).
 - `SH.requireSignIn()` → resolves the identity if signed in; otherwise starts
-  sign-in and the promise never resolves. On the shared host it resolves
-  immediately (with the `/me` body) so the save proceeds without sign-in.
+  sign-in and the promise never resolves.
   **Put this one call in front of every save.**
 - `SH.signIn({provider, returnTo})`, `SH.email.request(email)`,
   `SH.email.verify(email, code)` (15-minute code, 3 attempts; the account is
@@ -179,33 +174,15 @@ navigate to `https://simple-host.app/v1/auth/oauth/google?return_to=` +
 
 Use a private collection when a form collects orders, RSVPs, survey answers,
 sign-ups, or anything with names, emails, phone numbers or addresses. Visitors
-signed in on the site's own address add to it. Only the site owner — and the
+signed in on the site's own address add to it: its
+`<handle>.simple-host.app/<site>/` address, or its domain if it has one. Only the site owner — and the
 Simple Host operator, for moderation — can read it. Everyone else gets 404.
 Pages stay public; only the list is private.
 
 Public lists (a guestbook, votes, public comments) stay public. Say so plainly
 when you build one.
 
-### 1. Give the site its own address
-
-Offer the free `<name>.simple-host.app` first. It is one call, active at once,
-with no DNS step. With the connector: `connect_domain` with
-`clay-studio.simple-host.app`. Without it:
-
-```
-POST /v1/sites/<sitename>/domain
-X-API-Key: <api_key>
-{"domain": "clay-studio.simple-host.app"}
-```
-
-It answers 200 with `"status": "active"`. Names are first come, first served:
-409 `domain_taken` means another site has it, 400 `name_reserved` means the
-name is kept for the platform, 400 `invalid_name` means it is not one DNS label
-(letters, digits, hyphens). Pick another name and retry. The person's own domain
-is the alternative (the `connect-domain` skill, one DNS record). Either way the
-site now lives at that address and its old shared URL 302s there.
-
-### 2. Make the collection private
+### 1. Make the collection private
 
 Do this before the form goes live. It works before any item exists.
 With the connector: `set_collection_privacy`. Without it:
@@ -216,14 +193,14 @@ X-API-Key: <api_key>
 {"private": true}
 ```
 
-It answers 200 with `"private": true`, the `domain` and a one-line `message`.
-It answers 409 `custom_domain_required` when the site has no active own address
-yet (a custom domain still waiting on DNS does not count); do step 1 first.
+It answers 200 with `"private": true` and a one-line `message`. A collection
+can be made private on any site; only signed-in visitors can submit, and only
+you can read it.
 
 `{"private": false}` makes the list public again, and everything already saved
 in it becomes readable by anyone. Confirm with the owner before sending it.
 
-### 3. The form page
+### 2. The form page
 
 The visitor signs in, then adds one JSON object. The server stamps
 `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time)
@@ -262,11 +239,11 @@ window.addEventListener('DOMContentLoaded', function () {
 </script>
 ```
 
-### 4. The owner page
+### 3. The owner page
 
 Add a page on the site, e.g. `orders.html`, that signs in, lists the
 collection, and lets the owner mark an order done or delete it. It works only
-when the owner's own account is signed in on that domain; anyone else gets 404
+when the owner's own account is signed in on the site's own address; anyone else gets 404
 `not_found`. Link it quietly or not at all, and mark it `noindex`.
 
 ```html
@@ -359,8 +336,8 @@ private list.
   downloads a CSV; `_submitted_by` and `_submitted_at` are columns like any
   other key.
 
-Reads through the shared host `sites.simple-host.app` answer 404 for a private
-list, even with a key; use the apex `https://simple-host.app/v1/...`.
+Key reads of a private list go through the apex `https://simple-host.app/v1/...`;
+the old `sites.simple-host.app` address answers 404 for it, even with a key.
 
 ### Errors when adding to a private list
 
@@ -369,22 +346,14 @@ list, even with a key; use the apex `https://simple-host.app/v1/...`.
 | 401 | `visitor_auth_required` | Not signed in. `SH.requireSignIn()` handles it. |
 | 403 | `csrf_required` | Missing `X-SH-CSRF: 1`. The helper always sends it. |
 | 403 | `private_visitor_only` | Sent with an API key, or by an agent (`add_to_collection`). Agents cannot add to a private list; only signed-in visitors can. |
-| 403 | `private_needs_own_domain` | Sent from anywhere other than the site's own address. |
-| 401 | `use_custom_domain` (+ `domain`) | Sent through the shared host. Link the visitor to the same page on `domain`. |
+| 403 | `private_needs_own_domain` | Sent from anywhere other than the site's own address (`<handle>.simple-host.app/<site>/`, or its domain if it has one). |
+| 401 | `use_custom_domain` (+ `domain`) | The site has a domain and this was sent through its previous address. Link the visitor to the same page on `domain`. |
 | 400 | — | The item is not one JSON object. |
 | 413 | — | The item is over 64 KB. |
 
-### On the shared address
-
-On `sites.simple-host.app/<handle>/<sitename>/` private lists are not offered,
-and anything saved is public. Do not collect personal details there. Suggest
-an email-order flow instead (a `mailto:` link, "email us to order"), or claim
-the free `<name>.simple-host.app` address (one call) and use a private list.
-
 ## Saving from an agent (API key)
 
-Any account's API key writes to any site's state and public collections, on
-the shared host too. A private collection takes no writes from a key or an
+Any account's API key writes to any site's state and public collections. A private collection takes no writes from a key or an
 agent (403 `private_visitor_only`). Send `X-API-Key: <key>` on `PUT`/`PATCH /v1/sites/<sitename>/state`
 and `POST /v1/sites/<sitename>/collections/<name>` (or the
 `/v1/u/<handle>/sites/<sitename>/...` twins).
@@ -411,10 +380,10 @@ this.
 
 | Status | Body | Meaning |
 |---|---|---|
-| 401 | `{"error":"sign-in required to write","code":"visitor_auth_required","sign_in":"/v1/auth/oauth/providers","retry":true}` | Custom domain: no signed-in visitor and no key. Sign the visitor in, then retry once. Never returned on the shared host. |
+| 401 | `{"error":"sign-in required to write","code":"visitor_auth_required","sign_in":"/v1/auth/oauth/providers","retry":true}` | No signed-in visitor and no key. Sign the visitor in, then retry once. |
 | 403 | `{"error":"missing CSRF header","code":"csrf_required"}` | A session write without `X-SH-CSRF: 1`. The helper always sends it. |
 | 401 | `{"error":"invalid API key","code":"invalid_api_key"}` | Unknown `X-API-Key`. Do not retry with the same key. |
-| 401 | `{"error":"this site saves on its own domain","code":"use_custom_domain","domain":"recipes.brand.com"}` | Shared host, site has a custom domain: the shared-host API takes no writes for it, key or not (the shared-host page URL itself 302s to the domain). Pages: link the visitor to the same page on `domain`. Agents: write through the apex `https://simple-host.app/v1/...` or the domain's `/v1/`. Do not retry here. |
+| 401 | `{"error":"this site saves on its own domain","code":"use_custom_domain","domain":"recipes.brand.com"}` | The site has a domain and this was sent through its previous address: that address takes no writes for it, key or not (its page URL itself 302s to the domain). Pages: link the visitor to the same page on `domain`. Agents: write through the apex `https://simple-host.app/v1/...` or the domain's `/v1/`. Do not retry here. |
 | 403 | (reads) | No `Origin` header on a non-browser read. Send one. |
 
 On any of these: keep the form, never claim success, and never re-POST a

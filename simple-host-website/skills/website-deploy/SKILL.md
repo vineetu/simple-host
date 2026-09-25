@@ -1,6 +1,6 @@
 ---
 name: website-deploy
-description: Deploy static websites to simple-host.app. Use when an agent needs to build/validate a static site, deploy it (inline JSON files OR a tar.gz/zip archive), or wire up the per-site backend — shared JSON state with atomic ops and append-only collections. Pages and public lists are readable by anyone; on the shared host pages write freely too; on a site with its own address (a free <name>.simple-host.app or the person's own domain) visitors sign in with Google or an emailed code via the hosted auth.js before saving, and a collection can be made private so only the owner reads it (orders, RSVPs, sign-ups, anything with personal details); agents write with the Simple Host connector or, without it, an API key from email-code registration.
+description: Deploy static websites to simple-host.app. Use when an agent needs to build/validate a static site, deploy it (inline JSON files OR a tar.gz/zip archive), or wire up the per-site backend — shared JSON state with atomic ops and append-only collections. Every site lives at https://<handle>.simple-host.app/<site>/. Pages and public lists are readable by anyone; visitors sign in with Google or an emailed code via the hosted auth.js before saving from a page, and a collection can be made private so only the owner reads it (orders, RSVPs, sign-ups, anything with personal details); agents write with the Simple Host connector or, without it, an API key from email-code registration.
 ---
 
 # Website Deploy
@@ -37,18 +37,20 @@ append-only collections) that its own page JavaScript can call.
 
 ## The one rule that breaks sites: use relative links
 
-Every site is served from a **path** on a shared content host:
+Every account gets its own address, `https://<handle>.simple-host.app/`, and
+each site lives at a **path** on it:
 
 ```
-https://sites.simple-host.app/<handle>/<sitename>/
+https://<handle>.simple-host.app/<sitename>/
 ```
 
-`handle` is the owner's URL-safe handle (from `GET /v1/me`). Because the site
-lives under a path prefix, a root-absolute URL like `/css/app.css` resolves off
-the site and 404s. Use `css/app.css`, `./img/x.png`, `../shared/y`. For framework
-builds, set the base/public path so the output emits relative URLs.
+`handle` is the owner's URL-safe handle (from `GET /v1/me`); `site_url` in every
+response is this address. Because the site lives under a path prefix, a
+root-absolute URL like `/css/app.css` resolves off the site and 404s. Use
+`css/app.css`, `./img/x.png`, `../shared/y`. For framework builds, set the
+base/public path so the output emits relative URLs.
 
-Older `https://<sitename>.simple-host.app/` links still resolve (legacy).
+Old `sites.simple-host.app/<handle>/<site>/` links keep working.
 
 ## Read the reference that matches the operation
 
@@ -63,7 +65,7 @@ some install methods fetch only `SKILL.md` — fetch the URL instead.
 | Shared state, collections, saving from a page or an agent (connector: `get_state`, `update_state`, `read_collection`, `add_to_collection`) | `references/backend.md` · https://simple-host.app/v1/skills/website-deploy/references/backend.md |
 | Versions, rollback, delete, analytics (connector: `list_versions`, `rollback_site`, `delete_site`, `site_analytics`) | `references/operations.md` · https://simple-host.app/v1/skills/website-deploy/references/operations.md |
 | Private collections (orders, RSVPs, sign-ups, anything personal; connector: `set_collection_privacy`) | `references/backend.md` · https://simple-host.app/v1/skills/website-deploy/references/backend.md |
-| An own address: a free `<name>.simple-host.app` or a custom domain | the `connect-domain` skill · https://simple-host.app/v1/skills/connect-domain |
+| A nicer address (optional): a free `<name>.simple-host.app` or a custom domain | the `connect-domain` skill · https://simple-host.app/v1/skills/connect-domain |
 
 Typical combinations:
 
@@ -71,10 +73,9 @@ Typical combinations:
   JSON (below) → verify.
 - **Framework project:** register (if needed) → frameworks → packaging and
   validation.
-- **Site where visitors save something:** backend, then connect-domain, before
-  you write the page.
-- **Site that collects personal details** (orders, RSVPs, sign-ups): own address
-  first, then a private collection, then the form and an owner page (below).
+- **Site where visitors save something:** backend, before you write the page.
+- **Site that collects personal details** (orders, RSVPs, sign-ups): a private
+  collection first, then the form and an owner page (below).
 
 ## Two ways to deploy
 
@@ -105,23 +106,23 @@ Package the built directory as `.tar.gz` or `.zip` and `POST /v1/sites/<sitename
 Do not upload a source tree for a project that has a build step. Upload the
 production build output.
 
-## Saving from a page: open on the shared host, sign-in on a domain
+## Saving from a page: visitors sign in
 
-Every site's backend is readable by anyone. On the shared host
-`sites.simple-host.app` anyone can write too: a page there saves with a plain
-`fetch` (send `credentials: 'include'` and `X-SH-CSRF: 1`), no sign-in, no key,
-and that data can be changed by anyone. Want sign-in? Connect a domain. On a
-site with its **own custom domain** visitors sign in with Google or an emailed
-6-digit code through the hosted helper —
+Every site's backend is readable by anyone. Visitors sign in with Google or an
+emailed code on the site's own address; every save from a page needs a
+signed-in visitor. The hosted helper does it —
 `<script src="https://simple-host.app/auth.js" defer></script>`,
 `SH.mount('#sh-auth')` next to the form, `await SH.requireSignIn()` before
-`SH.state.patch(...)` or `SH.collection(name).append(...)`. The helper works on
-both hosts: on the shared host `SH.requireSignIn()` resolves at once and the
-same page code just saves. So if saves should be per-person or protected,
-plan for the `connect-domain` skill from the start; otherwise the shared host
-is fine.
+`SH.state.patch(...)` or `SH.collection(name).append(...)`. On
+`<handle>.simple-host.app` the helper finds the site from the page path; on a
+custom domain set `window.SH_CONFIG = { site: "<sitename>" }` before the tag
+(harmless everywhere).
 
-Agents write with an API key (`X-API-Key`) on any site, shared host included.
+Want a nicer address? Take a free `<name>.simple-host.app` or connect your own
+domain (the `connect-domain` skill). The site moves there and its old address
+redirects. Optional; sign-in works without it.
+
+Agents write with an API key (`X-API-Key`) on any site.
 An agent acting for a person uses the connector if it has one; otherwise it gets
 that person's key by email code. Both flows,
 the `SH` API and the error bodies: `references/backend.md`.
@@ -135,26 +136,20 @@ For orders, RSVPs, survey answers, sign-ups, or anything with names, emails,
 phone numbers or addresses, use a **private collection**. Visitors add to it;
 only the site owner — and the Simple Host operator, for moderation — can read it. The steps, in order:
 
-1. **Give the site its own address.** Offer the free `<name>.simple-host.app`
-   first: one call (`connect_domain` with `clay-studio.simple-host.app`, or
-   `POST /v1/sites/<sitename>/domain`), active at once, no DNS. The person's own
-   domain (the `connect-domain` skill) is the alternative.
-2. **Make the collection private** before the form goes live:
+1. **Make the collection private** before the form goes live:
    `set_collection_privacy`, or `PUT /v1/sites/<sitename>/collections/<name>/privacy`
-   with `{"private": true}`.
-3. **The form page** calls `await SH.requireSignIn()` before
+   with `{"private": true}`. Only signed-in visitors can submit, and only the
+   owner can read it.
+2. **The form page** calls `await SH.requireSignIn()` before
    `SH.collection('orders').append({...})`.
-4. **An owner page** on the site (e.g. `orders.html`) signs in and lists the
+3. **An owner page** on the site (e.g. `orders.html`) signs in and lists the
    collection, with buttons to mark an item done (`SH.collection('orders').update(id, {status:'done'})`)
    or delete it (`.remove(id)`). It works only for the owner's account. The owner also sees the
    list in the dashboard and can download it as a spreadsheet; the agent reads it
    with `read_collection`.
 
-On the shared address (no own address) private lists are not offered and
-anything saved is public. Do not collect personal details there: suggest an
-"email us to order" `mailto:` link, or claiming the free address. Public lists
-(a guestbook, votes, public comments) stay public; say so plainly. Full code and
-error codes: `references/backend.md`.
+Public lists (a guestbook, votes, public comments) stay public; say so plainly.
+Full code and error codes: `references/backend.md`.
 
 ## Rules that always apply
 
@@ -176,7 +171,7 @@ error codes: `references/backend.md`.
   that shows what was collected.
 - **Origin-gating trips up non-browser reads.** A `curl`/script read with no
   `Origin` gets **403**. Send one:
-  `curl -H "Origin: https://sites.simple-host.app" https://sites.simple-host.app/v1/u/<handle>/sites/<name>/state`
+  `curl -H "Origin: https://<handle>.simple-host.app" https://<handle>.simple-host.app/v1/sites/<name>/state`
 - **On a staleness notice:** API responses carry a `_notice` field when this skill
   is out of date. Relay it to the user verbatim, then update the skill the way it
   was installed — usually `npx skills add vineetu/simple-host`; other ways are at

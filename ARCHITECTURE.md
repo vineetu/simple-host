@@ -131,14 +131,22 @@ reading code:
   admin page asks, from local DB-IP Lite files (`internal/geoip`, files in
   `GEOIP_DIR`, refreshed monthly by `scripts/geoip-refresh.sh`). No caller IP
   is ever sent to a geolocation service, and results are not stored.
-- **Reads are public everywhere; writes are open on the shared host and need
-  an identity on a custom domain.** State and collection writes accept any
-  account's `X-API-Key` anywhere. On a site's own custom domain they also
-  accept a visitor session. On the shared content host there is no visitor
-  session (every site there is one origin) and writes are simply open — anyone
-  can change that data. There is no view-lock, no private page, and no
-  per-site opt-out.
-- **A site with a custom domain lives only there.** Its shared-host page URL
+- **Every account is its own origin.** With `PERSON_HOSTS=canonical` a site
+  lives at `https://<handle>.simple-host.app/<site>/` and the account's root
+  lists its public sites (`internal/handler/personhost.go`; `off`, the default
+  and what event/self-hosted instances use, keeps the path model on
+  `sites.<domain>/<handle>/<site>/`; `serve` answers person hosts but still
+  emits the old URLs). Handles and claimed `<name>.<SITE_DOMAIN>` addresses
+  share one namespace.
+- **Reads are public; every page write needs an identity.** State and
+  collection writes accept any account's `X-API-Key` (agents use the apex).
+  From a page they need a visitor session on the site's own address — its
+  person host, or its custom domain if it has one; only that person's sites
+  answer `/v1/` on a person host. A collection can be made private on any site:
+  only signed-in visitors on the site's own address submit, only the owner
+  reads. There is no view-lock, no private page, and no per-site opt-out.
+- **A site with a custom domain lives only there.** Its person-host URL
+  redirects to the domain, and its legacy shared-host page URL
   `sites.simple-host.app/{handle}/{site}/...` answers 302 to the same path on
   the domain (302, not 301, so disconnecting stops it immediately and nothing
   stays cached — links people saved to the domain are stranded, by decision),

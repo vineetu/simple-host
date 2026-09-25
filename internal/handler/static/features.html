@@ -98,7 +98,7 @@
       <a href="#manage">Managing sites</a>
       <a href="#state">Shared data</a>
       <a href="#collections">Collections</a>
-      <a href="#domains">Your own domain</a>
+      <a href="#domains">A nicer address</a>
       <a href="#ai">Build with AI</a>
       <a href="#voice">Voice &amp; attachments</a>
       <a href="#analytics">Traffic</a>
@@ -117,7 +117,7 @@
 
         <p><strong>Two owner screens exist.</strong> Every entry says which one it lives on:</p>
         <div class="legend">
-          <div class="lrow"><div><span class="st">Your sites page</span></div><p>Your own address — <code>simple-host.app/your-handle</code>. Signing in takes you here. It has a <strong>Sites</strong> tab, an <strong>Analytics</strong> tab, the AI chat and the setup panel for your AI agent.</p></div>
+          <div class="lrow"><div><span class="st">Your sites page</span></div><p>At <code>simple-host.app/your-handle</code>. Signing in takes you here. It has a <strong>Sites</strong> tab, an <strong>Analytics</strong> tab, the AI chat and the setup panel for your AI agent.</p></div>
           <div class="lrow"><div><span class="st">Main dashboard</span></div><p>The older screen, reached with <strong>＋ New site</strong> from your sites page. It has the site cards, and it is the only place with <strong>Data</strong> and <strong>Connect domain</strong>.</p></div>
         </div>
 
@@ -171,8 +171,8 @@
               <h3>Sign in with Google</h3>
               <p class="fw">One tap instead of the email round-trip. It is the same account as the email sign-in when the addresses match, so you will not end up with two.</p>
               <dl class="fm">
-                <dt>Who</dt><dd>Site visitors saving something on a site that has its own domain, and owners who would rather not wait for mail.</dd>
-                <dt>Where</dt><dd>Under the email box on the home page, and on your site — on your own domain — through the hosted sign-in helper.</dd>
+                <dt>Who</dt><dd>Site visitors saving something on a site, and owners who would rather not wait for mail.</dd>
+                <dt>Where</dt><dd>Under the email box on the home page, and on your site, on the site's own address, through the hosted sign-in helper.</dd>
                 <dt>Limits</dt><dd class="lim">Google is the provider today; more providers later.</dd>
               </dl>
             </div>
@@ -213,8 +213,8 @@
               <p class="fw">Someone reading one of your pages can sign in right there — with Google, or with a 6-digit code emailed to them — and the page can then save on their behalf.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Site authors collecting anything from visitors: a form, a poll, an RSVP, a guestbook.</dd>
-                <dt>Where</dt><dd>On your published page, once it is served from your own domain. The page loads the hosted sign-in helper (<code>auth.js</code>) and that handles the rest.</dd>
-                <dt>Limits</dt><dd class="lim"><b>Only on a site's own custom domain.</b> On the shared <code>sites.simple-host.app</code> host there is no visitor sign-in, because every site there shares one origin — pages there still save, but anyone can change that data. Connecting a domain is what adds sign-in.</dd>
+                <dt>Where</dt><dd>On your published page, at the site's own address. The page loads the hosted sign-in helper (<code>auth.js</code>) and that handles the rest.</dd>
+                <dt>Limits</dt><dd class="lim">Every save from a page needs a signed-in visitor. Your agent saves with your API key (or the connector) instead.</dd>
               </dl>
             </div>
           </div>
@@ -223,11 +223,11 @@
             <div class="fid">visitor-signout</div>
             <div>
               <h3>Visitors can sign out again</h3>
-              <p class="fw">A visitor's sign-in is scoped to the one site they signed in on, and they can end it.</p>
+              <p class="fw">A visitor's sign-in is scoped to the address they signed in on, and they can end it.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone on a shared or borrowed device.</dd>
                 <dt>Where</dt><dd>Offered by the sign-in helper on the page they signed in on.</dd>
-                <dt>Limits</dt><dd class="lim">Signing in on one site does not sign you in on another; each site is separate.</dd>
+                <dt>Limits</dt><dd class="lim">Signing in on one person's sites does not sign you in on anyone else's; each address is separate.</dd>
               </dl>
             </div>
           </div>
@@ -303,7 +303,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Everyone. This is the point of the service.</dd>
                 <dt>Where</dt><dd>Shown on the site card on the main dashboard and next to each site on your sites page.</dd>
-                <dt>Limits</dt><dd class="lim">The address always contains your handle and the site name unless you connect your own domain.</dd>
+                <dt>Limits</dt><dd class="lim">Every account gets its own address, <code>https://&lt;handle&gt;.simple-host.app/</code>, and each site lives at <code>https://&lt;handle&gt;.simple-host.app/&lt;site&gt;/</code>. For a nicer address, take a free <code>&lt;name&gt;.simple-host.app</code> or connect your own domain.</dd>
               </dl>
             </div>
           </div>
@@ -338,7 +338,7 @@
             <div class="fid">legacy-url-redirect</div>
             <div>
               <h3>Old addresses still work</h3>
-              <p class="fw">Sites published under the older style of address are forwarded to the current one, so links you have already shared keep working.</p>
+              <p class="fw">Sites published under the older style of address are forwarded to the current one, so links you have already shared keep working. Old <code>sites.simple-host.app/&lt;handle&gt;/&lt;site&gt;/</code> links keep working too.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone who published before the address format changed.</dd>
                 <dt>Where</dt><dd>Nothing to do — the old link forwards on its own.</dd>
@@ -440,7 +440,7 @@
             <div class="fid">public-profile</div>
             <div>
               <h3>A public page listing your sites</h3>
-              <p class="fw">Your handle has its own page showing your public sites, so you can share one link instead of five.</p>
+              <p class="fw">Your handle has its own page showing your public sites, at the root of your address, <code>https://&lt;handle&gt;.simple-host.app/</code>, so you can share one link instead of five.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone showing a body of work — a portfolio, a course, a set of demos.</dd>
                 <dt>Where</dt><dd>The link is shown to you on your sites page, under <strong>Your public showcase</strong>.</dd>
@@ -529,11 +529,11 @@
             <div class="fid">state-write-gate</div>
             <div>
               <h3>Who is allowed to write</h3>
-              <p class="fw">On the shared host anyone can read and write. On your own domain saving requires a signed-in visitor or an API key, so a passer-by cannot fill your store with junk. Reading never requires either.</p>
+              <p class="fw">Every save from a page needs a signed-in visitor, so a passer-by cannot fill your store with junk. Your agent saves with your API key (or the connector). Reading never requires either.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone collecting entries in public.</dd>
-                <dt>Where</dt><dd>Not a screen — it is applied when a page on your own domain tries to save. Visitors sign in there; your agent sends your API key anywhere.</dd>
-                <dt>Limits</dt><dd class="lim">On the shared <code>sites.simple-host.app</code> host there is no visitor sign-in, so <b>writes there are open</b> — anyone can change that data. Connect your own domain to add sign-in.</dd>
+                <dt>Where</dt><dd>Not a screen — it is applied when a page tries to save. Visitors sign in on the site's own address; your agent sends your API key.</dd>
+                <dt>Limits</dt><dd class="lim">Signing in stops strangers writing anonymously, but any signed-in visitor can still save. Anything that must stay private goes in a private collection.</dd>
               </dl>
             </div>
           </div>
@@ -570,7 +570,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone with a form: an event page, a waitlist, a contact form, a survey.</dd>
                 <dt>Where</dt><dd>Your page's own code saves to it.</dd>
-                <dt>Limits</dt><dd class="lim">Up to <b>64 KB</b> per entry. Entries are <b>append-only — nothing can edit or delete a single entry</b>, from any screen or by any agent.</dd>
+                <dt>Limits</dt><dd class="lim">Up to <b>64 KB</b> per entry. Entries in a public list are <b>append-only — nothing can edit or delete a single entry</b>, from any screen or by any agent.</dd>
               </dl>
             </div>
           </div>
@@ -614,6 +614,19 @@
             </div>
           </div>
 
+          <div class="feat" id="collection-private">
+            <div class="fid">collection-private</div>
+            <div>
+              <h3>Private collections <span class="st agent">Agent only</span></h3>
+              <p class="fw">A collection can be made private: only signed-in visitors can submit, and only you can read it. Each entry is stamped with the visitor's verified email and the time.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone collecting personal details: orders, RSVPs, sign-ups.</dd>
+                <dt>Where</dt><dd>Your agent marks the collection private. Visitors submit on the site's own address; you read the entries on an owner page on the site, in the <strong>Data</strong> panel, or as a CSV.</dd>
+                <dt>Limits</dt><dd class="lim">Making a private collection public again shows everything already in it, so your agent asks first.</dd>
+              </dl>
+            </div>
+          </div>
+
         </div>
       </div>
     </section>
@@ -621,15 +634,15 @@
     <!-- 06 Domains -->
     <section id="domains">
       <div>
-        <h2>Your own domain</h2>
-        <p class="lede">A site can be served from a domain you own, so nothing in the address mentions this service.</p>
+        <h2>A nicer address</h2>
+        <p class="lede">Want a nicer address? Take a free <code>&lt;name&gt;.simple-host.app</code>, or connect your own domain so nothing in the address mentions this service. The site moves there and its old address redirects. It is optional: sign-in and private collections already work on every site's own address.</p>
         <div class="feats">
 
           <div class="feat" id="custom-domain-connect">
             <div class="fid">custom-domain-connect</div>
             <div>
               <h3>Point your own domain at a site</h3>
-              <p class="fw">Attach a domain you own — a subdomain like <code>recipes.yourbrand.com</code> or the bare domain itself — to one of your sites. Once connected, the site is served only on your domain: the old <code>sites.simple-host.app</code> link redirects there, and saving happens only there.</p>
+              <p class="fw">Attach a domain you own — a subdomain like <code>recipes.yourbrand.com</code> or the bare domain itself — to one of your sites. Once connected, the site is served only on your domain: its <code>&lt;handle&gt;.simple-host.app</code> address redirects there, and visitors sign in and save there.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone with a brand, a business or a domain already bought.</dd>
                 <dt>Where</dt><dd><strong>Connect domain</strong> on the site card — <strong>main dashboard only</strong>. Your agent can also do it, and there is a skill for exactly this.</dd>
@@ -681,7 +694,7 @@
             <div class="fid">custom-domain-disconnect</div>
             <div>
               <h3>Disconnect a domain</h3>
-              <p class="fw">Detaches the domain and stops serving your site from it, freeing the domain to be used on another site. The shared-host address stops redirecting and serves the site again, saving goes back to the open shared-host model, and links people kept to the domain stop working.</p>
+              <p class="fw">Detaches the domain and stops serving your site from it, freeing the domain to be used on another site. The site's <code>&lt;handle&gt;.simple-host.app</code> address stops redirecting and serves the site again, with sign-in and saving there, and links people kept to the domain stop working.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone moving a domain to a different site, or retiring one.</dd>
                 <dt>Where</dt><dd><strong>Disconnect</strong> on the site card, main dashboard.</dd>
@@ -1237,7 +1250,7 @@
         <p class="lede">Where the product stops. Written down so you can plan around it rather than discover it halfway through building something.</p>
         <table>
           <tr class="trow"><td class="tk">Sharing a site with someone else</td><td class="tv">No collaborators, no second owner, no team. A site belongs to one account.</td></tr>
-          <tr class="trow"><td class="tk">Editing or deleting one saved entry</td><td class="tv">Collections only grow. A mistaken or unwanted submission cannot be removed — not from a screen, not by an agent.</td></tr>
+          <tr class="trow"><td class="tk">Editing or deleting one saved entry</td><td class="tv">Public collections only grow. A mistaken or unwanted submission cannot be removed — not from a screen, not by an agent.</td></tr>
           <tr class="trow"><td class="tk">Private or password-protected sites</td><td class="tv">There is no way to put a password on a site, and no encrypted mode. Assume anything published is readable by anyone with the link.</td></tr>
           <tr class="trow"><td class="tk">Attaching a PDF to the AI chat</td><td class="tv">PDFs are not accepted. Screenshot the page you want copied, or paste the text.</td></tr>
           <tr class="trow"><td class="tk">Email when something arrives</td><td class="tv">No notifications of any kind — not for form entries or traffic. You check, or your agent does.</td></tr>

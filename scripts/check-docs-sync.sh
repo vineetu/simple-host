@@ -44,7 +44,7 @@ done <<<"$documented"
 # cookie on a custom domain would escalate (UNIFY.md credential boundary).
 # .../collections/{coll}/items/{id} (private-list edit/delete) is excluded on
 # purpose: privateManager authorizes it itself (owner or admin key, or the
-# owner's own visitor session on the site's own domain; 404 for anyone else).
+# owner's own visitor session on the site's own address; 404 for anyone else).
 echo "== owner routes wrapped with authMiddleware =="
 unwrapped=$(grep -rh --exclude='*_test.go' -oE 'mux\.Handle(Func)?\("[A-Z]+ /v1/sites/[^"]+"[^)]*' internal/handler \
   | grep -vE '/state"|/me"|/visitor/auth|/collections/\{coll\}"|/collections/\{coll\}/items/\{id\}"' \
@@ -200,6 +200,25 @@ if [ -n "$missing" ]; then
   fail=1
 else
   echo "  ok — every skill reference is cited by full URL somewhere"
+fi
+
+# ── the canonical docs give the person address, not the old shared one ──
+# Owner decision 2026-09-25: a site's address is https://<handle>.simple-host.app/<site>/.
+# The old path form sites.simple-host.app/<handle>/<site>/ still works (it
+# redirects), so a line may name it only while saying so: it must also contain
+# "old", "legacy" or "redirect". run-hackathon is exempt — event instances keep
+# the path model on sites.<their-domain>/<handle>/<project>/.
+echo "== docs use the person address =="
+old_addr='sites\.(simple-host\.app|<[^>/]+>|\{[^}/]+\}|&lt;[^/]+&gt;)/(<|\{|&lt;)'
+offending=$(grep -rnE "$old_addr" \
+    simple-host-website/skills "$LLMS" "$OPENAPI" internal/handler/static/*.html 2>/dev/null \
+  | grep -v '^simple-host-website/skills/run-hackathon/' \
+  | grep -viE 'old|legacy|redirect' || true)
+if [ -n "$offending" ]; then
+  echo "$offending" | cut -c1-200 | sed 's/^/  FAIL: old address form (say "old"\/"legacy"\/"redirect" or use <handle>.simple-host.app): /'
+  fail=1
+else
+  echo "  ok — no canonical doc presents sites.simple-host.app/<handle> as the address"
 fi
 
 echo
