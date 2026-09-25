@@ -409,7 +409,7 @@
               <tr><th>Listed</th><td>Anyone in the company, and the site appears in the company showcase and in search, credited to its owner.</td></tr>
               <tr><th>Anyone on the network</th><td>No sign-in. The owner asks for it with a reason, and the site keeps its level until an admin approves. Visitors who are not signed in can read its pages, files and saved data, and change nothing. The owner can lower the level at any time, and an admin can revoke it.</td></tr>
               <tr><th>Teams</th><td>A team is a namespace, like a person. Every member can publish and manage its sites, which is how people work on a site together.</td></tr>
-              <tr><th>Saved data</th><td>Anyone who can open a site can read and write its saved data, as themselves. Writes go into the audit log under the person who made them. The last 20 versions are kept, and the owner or a team member can restore one.</td></tr>
+              <tr><th>Saved data</th><td>Anyone who can open a site can read and write its saved data, as themselves. Writes go into the audit log under the person who made them.</td></tr>
               <tr><th>Leavers</th><td>Once your identity provider stops an account, that person cannot sign in again. Open sessions end within the session lifetime: 12 hours, or 1 hour idle, by default. An admin can disable the account, which ends every session and revokes every API key and connected app at once.</td></tr>
             </table>
           </div>
@@ -426,7 +426,7 @@
             <h2>Records</h2>
             <p class="lead">Changes and visits are written down, where an owner or admin can read them back.</p>
             <table class="tbl">
-              <tr><th>Audit log</th><td>Changes to sites and access: publishing, updating, deleting and rolling back a site, access-level changes and network requests, approvals and declines, named viewers, team changes, saved-data writes and restores, and file uploads and deletions. Also sign-in, refused sign-ins and sign-out, API keys created and revoked, and admin actions. A site change and its audit row are written in the same database transaction, and the row's time comes from the database clock.</td></tr>
+              <tr><th>Audit log</th><td>Changes to sites and access: publishing, updating, deleting and rolling back a site, access-level changes and network requests, approvals and declines, named viewers, team changes, saved-data writes, and file uploads and deletions. Also sign-in, refused sign-ins and sign-out, API keys created and revoked, and admin actions. A site change and its audit row are written in the same database transaction, and the row's time comes from the database clock.</td></tr>
               <tr><th>Access log</th><td>One row for every hosted page served, the owner's and team members' own visits included.</td></tr>
               <tr><th>Who reads them</th><td>An owner reads the audit log for their own sites and their teams' sites. From the access log they see views per day and how many different people visited, not who. An admin sees who, reads everything and can export it. A setting can instead show owners each visit, or hide the access log from everyone but admins.</td></tr>
               <tr><th>Append-only</th><td>The database role the service runs as can add rows to both logs but cannot change or delete them. The service refuses to start if its role could change the audit log.</td></tr>
