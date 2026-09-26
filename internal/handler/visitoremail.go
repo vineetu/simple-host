@@ -14,7 +14,7 @@ import (
 
 func (h *SiteHandler) visitorEmailSite(w http.ResponseWriter, r *http.Request) (string, bool) {
 	if strings.EqualFold(requestHostName(r), h.contentHost) {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "sign-in needs a custom domain", "code": "custom_domain_required"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "sign in on the site's own address, not the shared address", "code": "custom_domain_required"})
 		return "", false
 	}
 	// On a claimed <name>.<SITE_DOMAIN>, sign-in must come from a page on that

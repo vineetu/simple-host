@@ -18,8 +18,8 @@ func TestSharedHostVisitorEndpointsIgnoreCookie(t *testing.T) {
 		status  int
 		body    string
 	}{
-		{"request email", h.requestVisitorEmail, 400, `{"code":"custom_domain_required","error":"sign-in needs a custom domain"}`},
-		{"verify email", h.verifyVisitorEmail, 400, `{"code":"custom_domain_required","error":"sign-in needs a custom domain"}`},
+		{"request email", h.requestVisitorEmail, 400, `{"code":"custom_domain_required","error":"sign in on the site's own address, not the shared address"}`},
+		{"verify email", h.verifyVisitorEmail, 400, `{"code":"custom_domain_required","error":"sign in on the site's own address, not the shared address"}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := httptest.NewRequest("POST", "https://SITES.simple-host.app:443/v1/sites/demo/me", nil)
