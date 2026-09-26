@@ -282,17 +282,25 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 		return true
 	}
 
-	// Shared content host: a public scratchpad, anyone can read and write
-	// (owner decision 2026-09-06). Sign-in is not offered there because every
-	// site is the same origin, so the cookie path is skipped entirely; rate
-	// limits and size caps are the only guards. Custom domains keep the
-	// session/key requirement below.
-	if strings.EqualFold(requestHostName(r), h.contentHost) {
+	// Shared content host. With PERSON_HOSTS=canonical every page lives on its
+	// person address and the old shared URLs redirect there, so the shared
+	// host is no longer an open scratchpad (INTENT 2026-09-24: anyone can view,
+	// only signed-in can save). Visitor sign-in is never offered there (every
+	// site shares that origin), so a cookie is not even looked at: a write
+	// there needs an API key (above) and anything else gets the same
+	// visitor_auth_required as everywhere else.
+	//
+	// Without canonical person addresses (event and self-hosted instances,
+	// PERSON_HOSTS=off/serve) the shared host is still where pages live and it
+	// stays open (owner decision 2026-09-06; run-hackathon "Saved data is
+	// open"); rate limits and size caps are the only guards there.
+	onContentHost := strings.EqualFold(requestHostName(r), h.contentHost)
+	if onContentHost && !h.personHostsCanonical() {
 		h.logAnonWrite(r, siteID, siteName, route, collection, mode, "public_host")
 		return true
 	}
 
-	if raw := h.sessionCookieFor(r); raw != "" {
+	if raw := h.sessionCookieFor(r); raw != "" && !onContentHost {
 		if id, decErr := hex.DecodeString(raw); decErr == nil && len(id) == 32 {
 			sess, sessErr := db.GetVisitorSession(r.Context(), h.database, id)
 			if sessErr == nil {

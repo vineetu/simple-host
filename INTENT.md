@@ -112,6 +112,8 @@ What follows from that, and is not negotiable without changing the line above:
 - **2026-09-06. Shared host: anyone can read and write.** Page saves there need no sign-in and
   no key; it is a public scratchpad guarded by rate limits and size caps. Reason: keep the
   shared host simple and useful; sign-in remains a feature you get by connecting a domain.
+  Reversed for simple-host.app on 2026-09-24 (built 2026-09-26); still holds on event and
+  self-hosted instances, where the shared host is where pages live (`PERSON_HOSTS=off`).
 - **2026-09-05. Widgets and starter templates removed.** Reason: unused, stale, and every extra
   surface is another place the story can drift.
 - **2026-09-05. Say "Google sign-in", never "Google only".** More providers may come; GitHub stays
@@ -181,7 +183,10 @@ What follows from that, and is not negotiable without changing the line above:
   key or the connector as before. Accepted limit: all sites share one origin, so a hostile site
   there could save something in a signed-in visitor's name; it cannot read anything private
   because nothing there is private. Sites on their own domain keep full protection. Reason: stop
-  anonymous spam and tie every write to a real account. Built after the connector ships.
+  anonymous spam and tie every write to a real account. **Built 2026-09-26.** Pages there now
+  302 to the person address, so sign-in is not offered on the shared host at all: a write there
+  needs the owner's key or the connector, and anything else gets 401 `visitor_auth_required`.
+  Applies only with `PERSON_HOSTS=canonical`; event and self-hosted instances keep 2026-09-06.
 - **2026-09-24. Private collections on a site's own domain.** Rewritten 2026-09-25: "own domain"
   now includes the owner's own address, so any site can have private lists without a domain.
   The owner can mark a collection

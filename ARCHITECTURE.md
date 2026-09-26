@@ -54,7 +54,9 @@ below has been live since 2026-09-25 16:26 UTC. A path with a
 `vineetu/eb2-wait` is still served from disk here because it calls the content host's
 `/eb2-api/*` sidecar proxies (`contentHostOnlySites` in `personhost.go` and the nginx block
 agree on it). `/<handle>` redirects to the person page. `/v1/` on this host is kept for
-good: old pages call it. The 302 becomes 301 after a quiet soak
+good: old pages and agents call it. Reads there stay open; writes need an API key (no visitor
+sign-in is offered on a host every site shares) when `PERSON_HOSTS=canonical`. The 302 becomes
+301 after a quiet soak
 (`docs/designs/per-person-subdomains-nginx.md`).
 
 **Claimed `<name>.simple-host.app`** (`platformsubdomain.go`). A site claims a free name with
@@ -96,8 +98,9 @@ saving; `GET /v1/sites/{site}/me` reports the session without extending it.
 
 **Writes and reads.** State (`stateops.go`) and collections (`collections.go`) are readable by
 anyone (GETs are Origin/Referer-gated). Writes pass `visitorWriteOK`: any account's API key, or
-a visitor session plus `X-SH-CSRF: 1` on the site's own address; the old shared host is still an
-open scratchpad (INTENT 2026-09-24 decided to close it). Private collections
+a visitor session plus `X-SH-CSRF: 1` on the site's own address. On the old shared host a key
+is the only way in when `PERSON_HOSTS=canonical`; on event and self-hosted instances
+(`off`/`serve`) the shared host is where pages live and its writes stay open. Private collections
 (`privatecollections.go`): only signed-in visitors on the site's address submit, only the owner
 or admin reads, everyone else gets 404.
 

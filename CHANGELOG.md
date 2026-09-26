@@ -4,6 +4,7 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 ## 2026-09-26
 
+- The old shared address `sites.simple-host.app` no longer takes anonymous saves: reading stays open, writing needs the owner's key or the connector (event and self-hosted instances unchanged).
 - Security: account API keys are stored only as SHA-256 hashes (each sign-in issues a new key, rotate replaces all); the connector acts through a per-request in-process credential instead of the key.
 - Security: apex pages and the connector consent page run scripts only by per-response nonce, with no inline handlers.
 - Privacy: API caller IPs are stored truncated (/24 or /48), the analytics log drops query strings, legacy daily analytics are pruned after 400 days, and expired sign-in codes are purged; new `ANALYTICS_SALT` and `BIND_ADDR` settings (production binds to 127.0.0.1).

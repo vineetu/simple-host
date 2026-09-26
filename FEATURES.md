@@ -94,9 +94,12 @@ lives only there; its other addresses redirect. **Status: live.**
 
 One JSON document per site: read by anyone, written with atomic ops. On a site's own origin
 (person host, claimed name, custom domain) writes need a signed-in visitor (cookie + `X-SH-CSRF`)
-or any valid API key; the old shared content host stays an open scratchpad (sign-in required
-there is **planned**, INTENT 2026-09-24); a site with its own domain takes no writes on its
-shared URL. **Status: live** (`WRITE_AUTH_MODE=on`).
+or any valid API key. On the old shared content host (`sites.simple-host.app`) reads stay open
+and writes need an API key or the connector: sign-in is never offered there, so an anonymous or
+cookie write gets 401 `visitor_auth_required` (INTENT 2026-09-24, built 2026-09-26; only when
+`PERSON_HOSTS=canonical`: event and self-hosted instances keep the shared host open, logged as
+`outcome=public_host`). A site with its own domain takes no writes on its shared URL.
+**Status: live** (`WRITE_AUTH_MODE=on`).
 
 | Surface | Details |
 |---|---|
@@ -320,7 +323,7 @@ listings; public contact is support@simple-host.app. Go: `h/ui.go`.
 | Per-IP token buckets | `h/ratelimit.go`; instances listed in each section (upload 30 burst/0.1 s⁻¹, state 60/1 s⁻¹, auth 20/0.2, email 5/0.02, connector, generate, transcribe, events, setup, reviewer) |
 | Size caps | per-site archive `MAX_ARCHIVE_MB` (default 100 MB, `h/usage.go`), tarball total/file/path caps (`internal/tarball/extract.go`), state 1 MB, collection item 64 KB, ≤100 PATCH ops |
 | Blocked upload types | `internal/tarball/validate.go` `blockedExtensions` |
-| Write auth | `WRITE_AUTH_MODE`, `visitorWriteOK`, admin-only `allow_anonymous_writes` hatch (`PUT /v1/sites/{sitename}/allow-anonymous-writes`) |
+| Write auth | `WRITE_AUTH_MODE`, `visitorWriteOK` (shared host key-only when `PERSON_HOSTS=canonical`), admin-only `allow_anonymous_writes` hatch (`PUT /v1/sites/{sitename}/allow-anonymous-writes`) |
 | Origin checks | `authorizeStateOrigin`, `allowed_origins` (`PUT /v1/sites/{sitename}/allowed-origins`), `h/cors.go` |
 | Headers / CSP | `SecurityHeaders`; apex nonce CSP `adminUICSP`; consent page `consentHeaders` |
 | Reserved names | `h/handles.go` (handles), `h/platformsubdomain.go` `reservedSubdomainLabels`, `internal/db/namespace.go` |

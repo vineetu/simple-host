@@ -242,3 +242,65 @@ func TestPersonHostsServeAndCanonical(t *testing.T) {
 		t.Fatalf("taking someone's alias: %d %s", r.status, r.body)
 	}
 }
+
+// INTENT 2026-09-24 "Shared address: anyone can view, only signed-in can
+// save": once person addresses are canonical, the old shared content host
+// takes no anonymous writes (state or collections); a key still writes and
+// reads stay open. Without canonical person addresses (event and self-hosted
+// instances) the shared host is where pages live and stays open.
+func TestSharedHostWriteGate(t *testing.T) {
+	a := newPersonApp(t, "canonical")
+	olive := a.newPerson(t, "olive")
+	a.deploy(t, olive, "shop")
+	_, oh := a.userID(t, olive)
+	stateURL := "/v1/u/" + oh + "/sites/shop/state"
+	collURL := "/v1/u/" + oh + "/sites/shop/collections/notes"
+	patch := map[string]any{"ops": []any{map[string]any{"op": "inc", "path": "n", "by": 1}}}
+	anon := browser(pcContentHost, "")
+	type write struct {
+		method, path string
+		body         any
+	}
+	writes := []write{
+		{"PATCH", stateURL, patch},
+		{"PUT", stateURL, map[string]any{"n": 5}},
+		{"POST", collURL, map[string]any{"msg": "hi"}},
+	}
+	for _, w := range writes {
+		r := a.at(t, w.method, pcContentHost, w.path, w.body, anon)
+		if r.status != http.StatusUnauthorized || r.json(t)["code"] != "visitor_auth_required" {
+			t.Fatalf("anonymous %s %s on shared host: %d %s", w.method, w.path, r.status, r.body)
+		}
+	}
+	// A visitor cookie minted for the shared host is never honoured there.
+	cookie := a.session(t, olive, a.siteID(t, olive, "shop"), pcContentHost)
+	if r := a.at(t, "PATCH", pcContentHost, stateURL, patch, browser(pcContentHost, cookie)); r.status != http.StatusUnauthorized {
+		t.Fatalf("cookie write on shared host: %d %s", r.status, r.body)
+	}
+	// The owner's key still writes there.
+	keyed := map[string]string{"X-API-Key": olive.key, "Origin": "https://" + pcContentHost}
+	if r := a.at(t, "PATCH", pcContentHost, stateURL, patch, keyed); r.status != http.StatusOK {
+		t.Fatalf("key state write on shared host: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "POST", pcContentHost, collURL, map[string]any{"msg": "agent"}, keyed); r.status != http.StatusCreated {
+		t.Fatalf("key collection write on shared host: %d %s", r.status, r.body)
+	}
+	// Reads stay open.
+	if r := a.at(t, "GET", pcContentHost, stateURL, nil, map[string]string{"Origin": "https://" + pcContentHost}); r.status != 200 || r.json(t)["n"] == nil {
+		t.Fatalf("shared host state read: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "GET", pcContentHost, collURL, nil, map[string]string{"Origin": "https://" + pcContentHost}); r.status != 200 || len(itemsOf(t, r)) != 1 {
+		t.Fatalf("shared host collection read: %d %s", r.status, r.body)
+	}
+
+	// Event and self-hosted instances: the shared host is where pages live.
+	for _, mode := range []string{"off", "serve"} {
+		a.sites.SetPersonHosts(mode)
+		for _, w := range writes {
+			r := a.at(t, w.method, pcContentHost, w.path, w.body, anon)
+			if r.status != http.StatusOK && r.status != http.StatusCreated {
+				t.Fatalf("%s: anonymous %s %s on shared host: %d %s", mode, w.method, w.path, r.status, r.body)
+			}
+		}
+	}
+}
