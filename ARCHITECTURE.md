@@ -41,8 +41,9 @@ here with `X-API-Key` or a connector bearer token.
 is its own origin: `SiteHosts` serves the site's live files at the root, `/v1/` answers for that
 one site only, and visitor sign-in, sessions and private collections are bound to that host. A
 two-label name needs its own certificate, `*.<handle>.simple-host.app`: the app drops
-`SITE_CERT_DIR/requests/<handle>`, a root-owned issuer (`deploy/site-certs/`, systemd timer every
-10 min, weekly budget 40, certbot DNS-01 through the Vercel hooks in
+`SITE_CERT_DIR/requests/<handle>`, a root-owned issuer (`deploy/site-certs/`, run by a path
+unit when a request lands and a 10-minute timer; at most 40 new certificates per rolling week and
+12 per day, certbot DNS-01 through the Vercel hooks in
 `/usr/local/lib/certbot-vercel/`) issues it, copies it for nginx and writes
 `SITE_CERT_DIR/ready/<handle>`; the nginx server for `<site>.<person>.simple-host.app` loads the
 cert by variable. The app never hands out or redirects to a site host before its ready marker
@@ -241,3 +242,5 @@ Tables (`db/schema.sql`):
 `make check` runs gofmt, build, vet, `go test ./...` and `scripts/check-html.sh`,
 `check-layering.sh`, `check-docs-sync.sh`, `check-claude-plugin.sh`,
 `check-fresh-install.sh`. The Makefile is what executes; this list is prose.
+`scripts/check-features.sh` (every route and MCP tool is placed in `FEATURES.md`) and
+`scripts/check-reserved-subdomains.sh` run on their own.

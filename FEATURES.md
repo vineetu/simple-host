@@ -2,7 +2,7 @@
 
 The one map to read **before changing anything**: every feature area, and every surface it
 touches (routes, MCP tools, skill sections, pages, Go files, tables, env, outside services).
-Derived from the code on `feat/capacity-and-hackathon-page` @ 8c479d2, not from older docs.
+Derived from the code on `feat/capacity-and-hackathon-page` (last checked @ 5f03e6e), not from older docs.
 Why the product works this way lives in `INTENT.md`; how it is built lives in `ARCHITECTURE.md`.
 
 **Update this file in the same commit as any feature change**: a new or removed route, tool,
@@ -30,8 +30,8 @@ Conventions:
 - Owner auth = `X-API-Key` via `authMiddleware` (`internal/auth/middleware.go`), or a connector
   Bearer token that `connector.BearerAuth` turns into a per-request internal key.
 - Cross-cutting on every request: `SecurityHeaders` → `CORS` (`h/cors.go`) → `apiMetrics.Wrap`
-  → `connector.BearerAuth` → mux, behind `BoundSubdomains` → `PersonHosts` →
-  `LegacyHostRedirect` host routing (`cmd/server/main.go`). JSON owner routes also go through
+  → `connector.BearerAuth` → mux, behind `BoundSubdomains` → `SiteHosts` →
+  `PersonHosts` → `LegacyHostRedirect` host routing (`cmd/server/main.go`). JSON owner routes also go through
   `NoticeMiddleware` (stale-skill `_notice`, `h/notice_middleware.go`).
 
 ---
@@ -60,7 +60,7 @@ root, `/v1/` for that site only, sign-in, per-person saves and private collectio
 host; a sign-in covers that one site). Every handle is a host too:
 `https://<handle>.simple-host.app/` lists that person's public sites. Each person gets a
 certificate for `*.<handle>.simple-host.app`, issued automatically (usually within ~10 minutes of
-their first site; brand-new accounts may queue behind a weekly budget); until it exists their
+their first site; brand-new accounts may queue behind the weekly and daily issuance caps); until it exists their
 sites keep the person-path form `<handle>.simple-host.app/<site>/`, and every URL handed out is
 whichever address is live. Old `<handle>.simple-host.app/<site>/…` and
 `sites.simple-host.app/<handle>/<site>/…` links 302 to the site host (path and query kept).
@@ -76,7 +76,7 @@ whichever address is live. Old `<handle>.simple-host.app/<site>/…` and
 | Go | `h/sitehost.go` (`SITE_HOSTS` off/serve/canonical, site-host routing, certificate requests and readiness), `h/personhost.go` (`PERSON_HOSTS` off/serve/canonical, `PersonPageURL`, `PersonReturnSite`, `contentHostRedirect`), `h/legacyhost.go`, `h/handles.go` (reserved handles, `assignHandle`), `internal/db/namespace.go` (one namespace for handles, claimed names, reserved and retired names; `RenameHandle`, aliases), `h/instancehost.go` |
 | DB | `users.handle`, `handle_aliases` (e.g. `admin` → `simple-host-team`), `legacy_hostnames` |
 | Env | `PERSON_HOSTS`, `SITE_HOSTS` (needs `PERSON_HOSTS` on), `SITE_CERT_DIR` (e.g. `/var/lib/simple-host-site-certs`: `requests/<handle>` written by the app, `ready/<handle>` by the issuer), `SITE_DOMAIN`, `CONTENT_HOST` |
-| External | live nginx `/etc/nginx/sites-enabled/sites-content-host` (rewrites to `/internal/site-redirect/*`) and `simple-host` (wildcard `*.simple-host.app` → app; a server for `<site>.<person>.simple-host.app` loads the per-person cert by variable); wildcard cert; per-person certs from the root-owned issuer in `deploy/site-certs/` (systemd timer every 10 min, weekly budget 40, certbot DNS-01 via the Vercel hooks in `/usr/local/lib/certbot-vercel/`); Public Suffix List entry is **planned** |
+| External | live nginx `/etc/nginx/sites-enabled/sites-content-host` (rewrites to `/internal/site-redirect/*`) and `simple-host` (wildcard `*.simple-host.app` → app; a server for `<site>.<person>.simple-host.app` loads the per-person cert by variable); wildcard cert; per-person certs from the root-owned issuer in `deploy/site-certs/` (path unit on each request plus a 10-minute timer; at most 40 new certificates per rolling week and 12 per day; certbot DNS-01 via the Vercel hooks in `/usr/local/lib/certbot-vercel/`); Public Suffix List entry is **planned** |
 
 ## 3. Claimed `<name>.simple-host.app` and custom domains
 
@@ -135,7 +135,7 @@ only the owner (or operator) reads, and the owner may edit/delete items. **Statu
 | Go | `h/collections.go`, `h/privatecollections.go` (`onOwnDomain`, `strictVisitorSession`, `appendPrivate`, `privateManager`), `internal/db/collections.go`, `h/export.go` (collections in site export) |
 | DB | `collection_items`, `collection_settings` (privacy flag) |
 | Env | `WRITE_AUTH_MODE` |
-| Limits | 64 KB per item; page size 50 default / 200 max; `stateLimiter`; without an own origin, privacy returns 409 `custom_domain_required`; CSV export is formula-safe |
+| Limits | 64 KB per item; page size 50 default / 200 max; `stateLimiter`; a site with no address of its own (only on instances with `PERSON_HOSTS=off` and no domain) gets 409 `custom_domain_required` for privacy; CSV export is formula-safe |
 
 ## 6. Visitor sign-in (Google, emailed code)
 
@@ -159,8 +159,9 @@ GitHub is wired but unconfigured. **Status: live** (Google configured).
 
 One account model. Sign in by emailed code (6 digits + dashboard-only magic link, 15 min, 3
 tries) or Google (`owner` purpose → one-time token → `/v1/auth/verify`); each sign-in issues a
-new API key, stored only as SHA-256 in `api_keys` (8c479d2); rotate replaces all keys and
-disconnects all connector grants. The dashboard keeps the key in `localStorage['apiKey']`;
+new API key, stored only as SHA-256 in `api_keys` (8c479d2), and keys from earlier sign-ins keep
+working; a stored key can never be shown again. Rotate replaces all keys and disconnects all
+connector grants. The dashboard keeps the key in `localStorage['apiKey']`;
 there is no owner cookie session. **Status: live.**
 
 | Surface | Details |
@@ -198,7 +199,7 @@ as the person, so they meet the same checks as REST. Connector tokens are stored
 ## 9. Skills and plugin distribution
 
 Skills source is `simple-host-website/skills/` (embedded via `simple-host-website/embed.go`) at
-version **0.19.0**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
+version **0.19.1**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live**
 (ChatGPT and Claude directory listings submitted 2026-09-24, pending).
 
@@ -208,7 +209,7 @@ standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: 
 | Skills | `website-deploy` (SKILL.md + references `backend.md`, `operations.md`, `packaging-and-validation.md`, `register.md`, `frameworks.md`), `website-deploy-builder`, `connect-domain` (+ `references/registrars.md`), `run-hackathon` (source only; not in the plugin or `/skills.zip`) |
 | Pages | `st/install.html`, `st/llms.txt`, `st/openapi.yaml` / `st/openapi.json`, `st/docs.html` (Swagger UI) |
 | Go | `h/ui.go` (zips, install scripts, `PluginVersion`), `h/skillshub.go` (catalog; not host-rewritten), `h/instancehost.go` (`rewrittenAssets`, `controlPlaneSkills`), `h/notice_middleware.go` (`X-Skill-Version` → `_notice`), `h/openaichallenge.go`, `simple-host-website/embed.go` |
-| Packaging | `plugins/simple-host/` (Claude plugin: `.claude-plugin/plugin.json`, `.mcp.json` → `https://simple-host.app/mcp`), `.claude-plugin/marketplace.json`, `openai-plugin/` (plugin.json 0.3.0, mcp.json, skills rewrite, assets, demo-sites, SUBMISSION.md), `dist/*.zip`, `simple-host-website/` (legacy plugin, `mcp-server/` Node stdio MCP, `setup.sh`, `template/`) |
+| Packaging | `plugins/simple-host/` (Claude plugin: `.claude-plugin/plugin.json`, `.mcp.json` → `https://simple-host.app/mcp`), `.claude-plugin/marketplace.json`, `openai-plugin/` (plugin.json 0.4.0, mcp.json, skills rewrite, assets, demo-sites, SUBMISSION.md), `dist/*.zip`, `simple-host-website/` (legacy plugin, `mcp-server/` Node stdio MCP, `setup.sh`, `template/`) |
 | Scripts | `scripts/sync-claude-plugin.sh` (copy source → plugin, stamp version), `scripts/check-claude-plugin.sh` (drift + `X-Skill-Version` literals), `scripts/publish-claude-plugin-repo.sh` (→ github.com/vineetu/simple-host-plugin, tag `v$V`), `scripts/build-openai-plugin.sh`, `scripts/check-docs-sync.sh` (routes ↔ openapi ↔ llms.txt ↔ skills) |
 | Env | `PUBLIC_BASE_URL`, `SITE_DOMAIN`, `CONTENT_HOST`, `CNAME_TARGET` (host rewriting), `OPENAI_APPS_CHALLENGE` |
 | External | Claude plugin directory, OpenAI apps portal, GitHub `vineetu/simple-host-plugin`, skills CLI (`npx skills`) |
@@ -261,8 +262,10 @@ with country from local IP-range data; per-endpoint API metrics for admin. No cl
 
 ## 13. Showcase / person index
 
-Public page listing a person's `public` sites (each linked at its own address): at `<handle>.simple-host.app/` (person host) and
-`sites.simple-host.app/<handle>` (content host, via nginx). **Status: live.** See §2 and §10 for
+Public page listing a person's `public` sites (each linked at its own address) at
+`<handle>.simple-host.app/` (person host); old `sites.simple-host.app/<handle>` links 302 there
+(`/internal/site-redirect/{handle}`; `/internal/showcase/{handle}` still renders it for
+instances without person hosts). **Status: live.** See §2 and §10 for
 routes (`GET /internal/showcase/{handle}`, host-routed person root). Go: `h/showcase.go`,
 `h/personhost.go`, `h/sitehost.go`. Page: `st/showcase.html`. DB: `sites.visibility`. MCP: `set_visibility`.
 
@@ -277,7 +280,7 @@ app is primary. **Status: live, flag-gated.**
 | Routes | `POST /v1/generate` · `GET /v1/generate/status` (only when `LLM_API_KEY` set) · `POST /v1/transcribe` · `POST /v1/transcribe/ticket` (only when `TRANSCRIBE_URL` set) · `/v1/transcribe/stream` is **nginx-only** (WebSocket straight to the speech service on :8103, signed ticket in the query) |
 | Pages | `st/showcase.html` (builder chat, attachments, mic) |
 | Go | `h/generate.go` (prompt/instructions, attachments ≤18 MB), `h/generate_jobs.go`, `h/transcribe.go` (audio ≤25 MB, ticket signing) |
-| Env | `LLM_PROVIDER`, `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, `VISION_PROVIDER`, `VISION_API_KEY`, `VISION_BASE_URL`, `VISION_MODEL`, `TRANSCRIBE_URL`, `TRANSCRIBE_TICKET_SECRET` |
+| Env | `LLM_PROVIDER` (default `grok`), `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, `VISION_PROVIDER`, `VISION_API_KEY`, `VISION_BASE_URL`, `VISION_MODEL`, `TRANSCRIBE_URL`, `TRANSCRIBE_TICKET_SECRET` |
 | External | Grok via the local CLIProxy sidecar (`/opt/cliproxy`, `127.0.0.1:8102/v1`) only, no fallbacks; Moonshine speech-to-text (`/opt/moonshine`, :8100 HTTP, :8103 stream) |
 | Limits | generate 20 burst +1/12 s per IP, 30 burst +1/10 s per user, status 240/4 s⁻¹; transcribe 60 burst +1/3 s per IP and per user |
 
@@ -350,7 +353,7 @@ notice.
 | Startup | `internal/db/schemacheck.go` `VerifySchema` (fails fast on missing columns); `db/schema.sql` + `db/migrations/*.sql` |
 | CLI subcommands | `simple-host oauth-client`, `simple-host review-account`, `simple-host geoip-verify` (`cmd/server/`); `cmd/analytics-rebuild`, `cmd/ip-country-load` |
 | Env | `DB_DSN`, `PORT`, `BIND_ADDR`, `DATA_DIR`, `SITE_DOMAIN`, `PUBLIC_BASE_URL`, `CONTENT_HOST`; dev-only `CHROME_SERVE_ADDR`, `CHROME_SERVE_FOR`; migration-only `UNIFY_KEEP` |
-| Deploy | `/usr/local/bin/simple-host` as `simple-host.service`, env `/etc/simple-host.env`; `deploy/prod/*`, `Dockerfile`, `compose.yaml`, `Makefile`; checks `scripts/check-{docs-sync,html,layering,claude-plugin,reserved-subdomains,fresh-install}.sh` |
+| Deploy | `/usr/local/bin/simple-host` as `simple-host.service`, env `/etc/simple-host.env`; `deploy/prod/*`, `Dockerfile`, `compose.yaml`, `Makefile`; checks `scripts/check-{docs-sync,features,html,layering,claude-plugin,reserved-subdomains,fresh-install}.sh` |
 
 ## 21. MCP tool index (`internal/mcp/tools.go`, 22 tools)
 

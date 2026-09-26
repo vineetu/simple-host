@@ -4,6 +4,7 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 ## 2026-09-26
 
+- Docs, pages and skills brought in line with per-site addresses: sign-in covers one site, Google sign-in is tied to the browser that starts it, each sign-in adds an API key (older ones keep working, none can be shown again), shortened IPs in API records; privacy page names the sign-in cookies. Skills 0.19.1.
 - Security: visitor Google sign-in is tied to the browser that started it. It now starts on the site's own address, which sets a short-lived cookie there, and the final hand-off signs in only that browser; a sign-in link someone finished elsewhere can no longer sign a visitor in as them (login CSRF).
 - Every site now has its own address, `https://<site>.<handle>.simple-host.app/`, and is its own browser origin: visitors sign in there and a sign-in covers that site only. The person page stays at `https://<handle>.simple-host.app/`; old `<handle>.simple-host.app/<site>/` and `sites.simple-host.app/<handle>/<site>/` links redirect. Each person's certificate is issued automatically (usually within ~10 minutes of their first site); until then their sites keep the person-path address. What a page kept in the browser starts fresh at the new address; server-saved data moves with the site. New `SITE_HOSTS` and `SITE_CERT_DIR` settings (event and self-hosted instances unchanged).
 - Skills 0.19.0.

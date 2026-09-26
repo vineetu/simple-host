@@ -53,8 +53,9 @@ and restart.
 
 - `curl -s -o /dev/null -w '%{http_code}\n' https://simple-host.app/healthz` → 200
 - the page or route you changed, with `curl`, as a visitor would hit it
-- a person host (`https://vineetu.simple-host.app/`) and a legacy link
-  (`curl -sI https://sites.simple-host.app/vineetu/madurai-idly/` → 302 to the person address)
+- a site host (`https://madurai-idly.vineetu.simple-host.app/`), a person host
+  (`https://vineetu.simple-host.app/`) and a legacy link
+  (`curl -sI https://sites.simple-host.app/vineetu/madurai-idly/` → 302 to `https://madurai-idly.vineetu.simple-host.app/`)
 - the neighbours on the same nginx and binary: `https://simple-hack.app/`,
   `https://vineetsriram.com/`, `https://sf-fog.today/` → 200
 - `journalctl -u simple-host -n 50` for boot errors
@@ -89,7 +90,8 @@ Never report branch work as fixed; only what a client can see is shipped.
 - One `http.ServeMux`, no router library. New endpoint = a `mux.Handle` line in a handler's
   `Register` (grep `mux.Handle` to find any route).
 - `site_view_daily` and `site_visitor_daily` are never written and must never be dropped.
-- `PERSON_HOSTS` defaults to `off` so event and self-hosted instances keep the path model.
+- `PERSON_HOSTS` and `SITE_HOSTS` default to `off` so event and self-hosted instances keep the
+  path model. simple-host.app runs both as `canonical`.
 
 ### Skill staleness notice
 

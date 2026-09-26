@@ -1,4 +1,4 @@
-> **Status: Done (2026-09-25)** — person addresses live (`internal/handler/personhost.go`, `PERSON_HOSTS=canonical`) and old `sites.simple-host.app` links 302 to them; the 301 soak and the eb2-wait move are tracked in `per-person-subdomains-nginx.md`. Site addresses superseded 2026-09-26 by `per-site-subdomains.md` (sites now at `<site>.<handle>.simple-host.app`; the person host keeps the person page).
+> **Status: Superseded (2026-09-26)** by `per-site-subdomains.md` — sites now live at `https://<site>.<handle>.simple-host.app/` (`internal/handler/sitehost.go`, `SITE_HOSTS=canonical`). What this plan built still stands: the person page at `https://<handle>.simple-host.app/` (`internal/handler/personhost.go`, `PERSON_HOSTS=canonical`, done 2026-09-25), the one namespace, and old links redirecting; the 301 soak and the eb2-wait move are tracked in `per-person-subdomains-nginx.md`.
 
 # Plan: per-person subdomains for hosted Simple Host (2026-09-25, not started)
 

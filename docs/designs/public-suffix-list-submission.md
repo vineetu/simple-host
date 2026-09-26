@@ -1,8 +1,8 @@
-> **Status: Planned (2026-09-25)** — prepared, not submitted; `simple-host.app` is not on the Public Suffix List as of 2026-09-26.
+> **Status: Planned (2026-09-26)** — prepared, not submitted; `simple-host.app` is not on the Public Suffix List as of 2026-09-26. Since sites moved to `<site>.<handle>.simple-host.app` (2026-09-26) the listing also lifts the certificate cap: Let's Encrypt counts every `*.<handle>.simple-host.app` certificate against the one registered domain `simple-host.app` (50 a week), so the issuer holds new people to 40 a week and 12 a day; once listed, each `<handle>.simple-host.app` is its own registered domain.
 
 # Public Suffix List: submitting simple-host.app (prepared 2026-09-25, NOT submitted)
 
-Why: every account now has its own address, `<handle>.simple-host.app`. Browsers treat all of
+Why: every account now has its own address, `<handle>.simple-host.app`, and every site its own `<site>.<handle>.simple-host.app`. Browsers treat all of
 them as one "site" until `simple-host.app` is on the Public Suffix List, so cookies set with
 `Domain=simple-host.app` and SameSite=Lax requests cross between people's addresses. The app
 already defends against that (host-only `__Host-` visitor cookies; cookie-authenticated calls

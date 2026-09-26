@@ -14,7 +14,7 @@ Look at the websites real people actually build: a portfolio, a wedding RSVP, a 
 
 Today that one sliver is absurdly expensive. To store a single list of RSVPs you're told to stand up a separate backend service, run a database, register a domain, and thread environment variables through a build pipeline. The backend ends up heavier than the website it serves.
 
-**Simple Host folds both halves into one tiny binary.** Static hosting *and* a lightweight per-site datastore — lighter than Supabase, no schema, no separate service — in the same upload. Your agent ships the HTML and the data layer together, the site goes live at `https://<handle>.simple-host.app/<site>/` (or on your own domain), and it just works.
+**Simple Host folds both halves into one tiny binary.** Static hosting *and* a lightweight per-site datastore — lighter than Supabase, no schema, no separate service — in the same upload. Your agent ships the HTML and the data layer together, the site goes live at `https://<site>.<handle>.simple-host.app/` (or on your own domain), and it just works.
 
 And because it stays small, it runs small. Simple Host serves all of its sites from a box with **1 CPU and 1 GB of RAM** — no CDN, no object store, no orchestration. One binary, one Postgres, one folder on disk. Most of the websites everyday people need, hosted on hardware you could forget under your desk.
 
@@ -113,9 +113,15 @@ All via environment variables. `DB_DSN` and `ADMIN_API_KEY` are required; the re
 | `PORT` | | HTTP listen port (default `8090`) |
 | `RESEND_API_KEY` | | Magic-link email via [Resend](https://resend.com); auth is disabled without it |
 | `MAIL_FROM` | | Magic-link sender address |
-| `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` | | The model behind **Build with AI**. Any OpenAI-compatible provider; unset = the feature is off. |
+| `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` | | The model behind **Build with AI**, an OpenAI-compatible endpoint (simple-host.app uses a local Grok sidecar); unset = the feature is off. |
 | `TRANSCRIBE_URL` / `TRANSCRIBE_TICKET_SECRET` | | Speech-to-text for the chat mic. Unset = the mic is hidden. |
 | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | | Enables Google sign-in, for owners and for visitors to sites. Both needed, or it stays off. |
+| `BIND_ADDR` | | Interface to listen on (e.g. `127.0.0.1` behind nginx). Empty = all interfaces, which Docker needs. |
+| `WRITE_AUTH_MODE` | | `on` makes every page save need a signed-in visitor or a key; `log` (default) only logs; `off` |
+| `PERSON_HOSTS` | | `canonical` gives each account `https://<handle>.<SITE_DOMAIN>/`; `off` (default) keeps sites at `sites.<SITE_DOMAIN>/<handle>/<site>/` |
+| `SITE_HOSTS` | | `canonical` gives each site its own origin, `https://<site>.<handle>.<SITE_DOMAIN>/` (needs `PERSON_HOSTS` and a `*.<handle>` certificate per person); `off` (default) |
+| `SITE_CERT_DIR` | | Where the app asks for and finds those per-person certificates |
+| `ANALYTICS_SALT` | | Salt for the hashed visitor IP in site analytics. Empty = derived from `ADMIN_API_KEY`. |
 
 ## API
 

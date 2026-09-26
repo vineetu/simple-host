@@ -12,8 +12,8 @@ Website Deploy skill; humans mostly never touch the API directly.
 
 - A person telling their coding agent "put this online". The agent registers, builds, deploys.
 - The agent itself, reading `llms.txt`, the OpenAPI spec and the skills to wire up saves.
-- Visitors of the hosted sites: reading pages, and signing in with Google when a page saves
-  something on their behalf.
+- Visitors of the hosted sites: reading pages, and signing in (Google or an emailed code) on the
+  site's own address when a page saves something on their behalf.
 - The owner (vineetu) as operator and admin of the live instance at simple-host.app.
 
 ## What success looks like
@@ -108,7 +108,8 @@ What follows from that, and is not negotiable without changing the line above:
 - **2026-09-05. Visitor sign-in only on a custom domain.** On the shared host all sites are one
   origin, so a sign-in there can never be private to one site. Reason: "if you want safe writes
   you need a domain" is one sentence everyone can understand. Superseded 2026-09-25: a person's
-  own address counts as the site's own origin (see "Per-person subdomains").
+  own address counts as the site's own origin (see "Per-person subdomains"); since 2026-09-26
+  every site's own address is (see "Per-site subdomains").
 - **2026-09-06. Shared host: anyone can read and write.** Page saves there need no sign-in and
   no key; it is a public scratchpad guarded by rate limits and size caps. Reason: keep the
   shared host simple and useful; sign-in remains a feature you get by connecting a domain.
@@ -132,11 +133,6 @@ What follows from that, and is not negotiable without changing the line above:
   GoDaddy and Porkbun, including the API call an agent can make with the user's credentials.
   Reason: the DNS record is the one step a human has to do, and it is where people get stuck.
 
-## Open, deliberately parked
-
-- Whether a site that disconnects its domain should be migrated back to a "normal" shared-host site in some
-  guided way, rather than just having the redirect stop. Parked 2026-09-06; revisit when it happens.
-
 - **2026-09-11. simple-hack.app is an organiser's page with one call to action.** Audience is the
   organiser alone; the action is pasting the organiser prompt. Reason: the page had been edited
   for a day without anyone able to say what it was for, so every note about it produced a repair
@@ -149,13 +145,13 @@ What follows from that, and is not negotiable without changing the line above:
   Codex — with the Simple Host skill installed; the in-app AI is secondary. Reason: a newcomer was being asked to choose between three routes before they knew
   what any of them meant, and the third one asked non-technical people to handle JSON. The
   pages, the in-app AI's instructions (`generate.go`) and the run-hackathon skill all point at
-  it today and change with the rebuild.
+  it today and change with the rebuild. Done 2026-09-24 (Get started rebuilt, flow removed).
 - **2026-09-24. The main way anyone uses Simple Host is a skill in their own AI app** (ChatGPT,
   Claude, Grok, Claude Code, Codex, and the like). Pages, onboarding and support are designed
   around getting the skill into that app, not around the in-app builder. Open problem, to fix:
   in chat apps the skill has no lasting sign-in, so every new chat asks for an email and a code.
   A sign-in that persists (the plugin/connector route) is required for this path to feel
-  seamless.
+  seamless. Solved 2026-09-24 by the connector (next entry); coding agents keep their key.
 - **2026-09-24. In AI chat apps, you sign in once and stay signed in.** Simple Host becomes a
   connector: a remote MCP endpoint behind OAuth, reusing the normal sign-in page (Google or an
   emailed code). The person adds it once in their AI app, signs in once in a browser window,
@@ -165,6 +161,7 @@ What follows from that, and is not negotiable without changing the line above:
   in a config file and keep working as they do. Order: after the page overhaul, before the Get
   started rebuild, so Get started ends with "add the connector". Port the MCP adapter from the
   enterprise repo (`internal/mcp`); the OAuth server is new and gets a security review.
+  Built 2026-09-24 (`https://simple-host.app/mcp`).
 - **2026-09-24. No per-person subdomains.** Reversed 2026-09-25 (see "Per-person subdomains").
   Sites stay at `sites.simple-host.app/<handle>/<site>`.
   A person who wants their own origin brings their own domain; a Simple Host subdomain can be
@@ -188,7 +185,8 @@ What follows from that, and is not negotiable without changing the line above:
   needs the owner's key or the connector, and anything else gets 401 `visitor_auth_required`.
   Applies only with `PERSON_HOSTS=canonical`; event and self-hosted instances keep 2026-09-06.
 - **2026-09-24. Private collections on a site's own domain.** Rewritten 2026-09-25: "own domain"
-  now includes the owner's own address, so any site can have private lists without a domain.
+  now includes the owner's own address (since 2026-09-26, the site's own address), so any site
+  can have private lists without a domain.
   The owner can mark a collection
   private: only signed-in visitors on the site's own domain submit (the server stamps their
   verified email), and only the owner reads it (key, connector, CSV, dashboard, or signed in on
@@ -198,7 +196,7 @@ What follows from that, and is not negotiable without changing the line above:
   operator) can edit or delete items in a private list; public lists stay append-only. Owner
   request. Reason: orders, RSVPs and surveys need owner-only reads.
 - **2026-09-24. Free <name>.simple-host.app addresses.** Rewritten 2026-09-25: still offered and
-  unchanged, but no longer needed for sign-in or privacy (the owner's address gives both); it is
+  unchanged, but no longer needed for sign-in or privacy (the site's own address gives both); it is
   a shorter address of the site's own, and it shares one namespace with handles. A site may self-serve a free
   `<name>.simple-host.app` address: first come, first served, verified at once, reserved names
   refused; it behaves exactly like a custom domain. Replaces "a Simple Host subdomain can be
@@ -233,4 +231,20 @@ What follows from that, and is not negotiable without changing the line above:
   site: a visitor signs in on the site's host and that covers that site only. What a page kept in
   the browser starts empty at the new address; server-saved data moves with the site. Event and
   self-hosted instances keep their current model (`SITE_HOSTS=off`). Reason: an origin of its own
-  for every site, and nicer addresses. Owner approved 2026-09-26.
+  for every site, and nicer addresses. Owner approved 2026-09-26. Built and live 2026-09-26
+  (`SITE_HOSTS=canonical`). Certificates are capped at 40 new per week and 12 per day (Let's
+  Encrypt counts every `*.simple-host.app` certificate against one limit); the Public Suffix
+  List entry, still planned, would lift that cap as well as separating sites for browsers.
+- **2026-09-26. API keys are stored only as hashes.** Each sign-in (email code or Google) issues
+  a new key and shows it once; keys from earlier sign-ins keep working until the person rotates,
+  which replaces them all and disconnects connected apps. A lost key cannot be shown again: sign
+  in again for a new one. Reason: a leaked database must not hand out working keys.
+- **2026-09-26. Visitor Google sign-in starts on the site's own address.** It sets a
+  short-lived cookie there, and the final step signs in only the browser holding it. Reason: a
+  sign-in finished in someone else's browser must not sign a visitor in as them (login CSRF).
+  Email-code sign-in already had no cross-browser step.
+
+## Open, deliberately parked
+
+- Whether a site that disconnects its domain should be migrated back to a "normal" shared-host site in some
+  guided way, rather than just having the redirect stop. Parked 2026-09-06; revisit when it happens.
