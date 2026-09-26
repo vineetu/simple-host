@@ -27,8 +27,18 @@ The platform wildcard `*.simple-host.app` covers one label only, so each person 
 1. The app drops an empty `SITE_CERT_DIR/requests/<handle>` (on first site, and a sweep every
    10 minutes). `SITE_CERT_DIR` is e.g. `/var/lib/simple-host-site-certs`.
 2. A root-owned issuer (`deploy/site-certs/`, systemd timer every 10 minutes) runs certbot DNS-01
-   with the Vercel hooks in `/usr/local/lib/certbot-vercel/`, within a weekly budget of 40 new
-   certificates (Let's Encrypt limits); requests past the budget wait for the next week.
+   with the Vercel hooks in `/usr/local/lib/certbot-vercel/`, within a budget of 40 new
+   certificates per rolling week and 12 per rolling day (Let's Encrypt allows 50 per registered
+   domain per week; the daily cap keeps a burst of sign-ups from spending the week), 6 per run.
+   Requests past the budget wait in the queue (FIFO); renewals are plain `certbot renew`.
+   A path unit also starts a run when a request lands.
+   Before issuing it makes sure `<handle>` and `*.<handle>` have explicit A records at Vercel.
+   Why: the DNS-01 TXT record `_acme-challenge.<handle>` makes `<handle>.simple-host.app` an
+   empty non-terminal, and per RFC 4592 the zone wildcard `*.simple-host.app` then no longer
+   answers for `<handle>` or anything under it (verified: `lab.simple-host.app`, which only has
+   `*.lab` beneath it, answers NODATA). Without the explicit records, the person's address would
+   stop resolving during every issuance and renewal (and for good if a TXT record were left
+   behind).
 3. It copies the certificate where nginx reads it and writes `SITE_CERT_DIR/ready/<handle>`.
 4. nginx has one server for `~^(?<site>[a-z0-9-]+)\.(?<person>[a-z0-9-]+)\.simple-host\.app$`
    that loads the per-person certificate by variable and proxies to the app.
@@ -61,6 +71,13 @@ Without `SITE_CERT_DIR` every person counts as ready (for instances with their o
 - `/v1/` on a site host resolves every lookup to that one site; no fallback to a global name.
 - Private collections accept submissions only on the site's own address.
 - Hosted pages still never hold an API key.
+- Open, pre-existing (not made worse): the OAuth `state` is not tied to the browser that
+  started sign-in, and a `/v1/visitor/establish?once=` link can be handed to a victim within its
+  60 s life (login CSRF: the victim ends up signed in as the attacker on that one site). On a
+  site host the blast radius is one site instead of all of a person's sites. Fix: a site-host
+  `/v1/visitor/oauth/{provider}` hop that sets a `__Host-` binding cookie and passes its hash
+  through the OAuth state to the establish token (needs a column on `oauth_states` and
+  `visitor_establish_tokens`, and an auth.js change). Not done here.
 - All `<site>.<handle>` hosts are same-site with each other and the apex until simple-host.app is
   on the Public Suffix List (`public-suffix-list-submission.md`); cookies are host-only and writes
   require `X-SH-CSRF`, so that gap does not open cross-site writes.
