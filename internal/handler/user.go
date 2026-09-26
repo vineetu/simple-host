@@ -110,8 +110,9 @@ func (h *UserHandler) rotateAPIKey(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
 		return
 	}
-	if user.APIKey == "" {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "the server admin key cannot be rotated through this endpoint"})
+	if user.KeyHash == "" {
+		// The env admin key, or a connected app acting for the person.
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "only an account API key can be rotated through this endpoint"})
 		return
 	}
 	newKey, err := auth.GenerateAPIKey()
@@ -119,7 +120,7 @@ func (h *UserHandler) rotateAPIKey(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	if err := db.RotateAPIKey(r.Context(), h.database, user.ID, user.APIKey, newKey); err != nil {
+	if err := db.RotateAPIKey(r.Context(), h.database, user.ID, user.KeyHash, newKey); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
@@ -200,10 +201,21 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Keys are stored only as hashes, so each sign-in hands out a new key;
+	// keys from earlier sign-ins keep working until the person rotates.
+	apiKey, err := auth.GenerateAPIKey()
+	if err == nil {
+		err = db.AddAPIKey(r.Context(), h.database, user.ID, apiKey)
+	}
+	if err != nil {
+		log.Printf("auth: issue key after verify: %v", err)
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
 	writeJSON(w, http.StatusOK, authResponse{
 		ID:       user.ID,
 		Username: user.Username,
-		APIKey:   user.APIKey,
+		APIKey:   apiKey,
 		IsAdmin:  user.IsAdmin,
 		Created:  created,
 		Handle:   user.Handle.String,

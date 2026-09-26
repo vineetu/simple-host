@@ -170,8 +170,8 @@
         <p>Each card's <strong>Product</strong> row links to the plain-language entries on the <a href="/features.html">features page</a>. That is the other half of the same job: this page says where a feature lives, that one says what it promises — and a change usually invalidates both.</p>
 
         <div class="mtools">
-          <input class="mfilter" id="mfilter" type="search" placeholder="Filter — try: analytics, state, showcase.html…" oninput="mfilter(this.value)" aria-label="Filter features">
-          <button class="mbtn" id="mall" onclick="mtoggle()">Expand all</button>
+          <input class="mfilter" id="mfilter" type="search" placeholder="Filter — try: analytics, state, showcase.html…" aria-label="Filter features">
+          <button class="mbtn" id="mall" type="button">Expand all</button>
           <span class="mcount" id="mcount"></span>
         </div>
 
@@ -735,6 +735,11 @@
       if (btn) btn.textContent = anyClosed ? 'Collapse all' : 'Expand all';
     }
     setCount(FEATS.length);
+    // Wired here, not with on*= attributes: the apex CSP blocks inline handlers.
+    var mfilterBox = document.getElementById('mfilter');
+    if (mfilterBox) mfilterBox.addEventListener('input', function () { mfilter(this.value); });
+    var mallBtn = document.getElementById('mall');
+    if (mallBtn) mallBtn.addEventListener('click', mtoggle);
 
     // Deep link: #map?f=analytics — and expand whatever a plain #hash points at.
     (function(){

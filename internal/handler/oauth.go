@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/oauth"
@@ -312,11 +311,7 @@ func resolveUser(ctx context.Context, q db.Querier, ident oauth.Identity) (db.Us
 			return db.User{}, false, errOAuthAdminRefused
 		}
 	case errors.Is(err, sql.ErrNoRows):
-		apiKey, kerr := auth.GenerateAPIKey()
-		if kerr != nil {
-			return db.User{}, false, kerr
-		}
-		user, err = db.CreateUser(ctx, q, email, apiKey, false)
+		user, err = db.CreateUser(ctx, q, email, "", false)
 		if err != nil {
 			if isUniqueViolation(err) {
 				user, err = db.GetUserByUsername(ctx, q, email)

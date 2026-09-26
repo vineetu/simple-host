@@ -144,10 +144,13 @@ func (h *SiteHandler) createAccounts(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var id string
-		err = tx.QueryRowContext(r.Context(), `INSERT INTO users (username, api_key) VALUES ($1,$2) ON CONFLICT (username) DO NOTHING RETURNING id`, name, key).Scan(&id)
+		err = tx.QueryRowContext(r.Context(), `INSERT INTO users (username) VALUES ($1) ON CONFLICT (username) DO NOTHING RETURNING id`, name).Scan(&id)
 		if errors.Is(err, sql.ErrNoRows) {
 			skipped = append(skipped, map[string]string{"username": name, "reason": "account already exists"})
 			continue
+		}
+		if err == nil {
+			err = db.AddAPIKey(r.Context(), tx, id, key)
 		}
 		if err != nil {
 			writeJSON(w, 500, errorResponse{Error: "internal server error"})

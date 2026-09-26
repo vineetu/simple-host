@@ -11,12 +11,11 @@ import (
 // EnsureAdminUser makes sure a real `admin` row exists (so the admin identity
 // has a genuine UUID and can own sites — the synthetic ID:"admin" used to
 // violate the sites.user_id foreign key). Idempotent; returns the admin UUID.
-// apiKey is only used on first creation (the admin authenticates via the env
-// ADMIN_API_KEY, not this row).
-func EnsureAdminUser(ctx context.Context, db *sql.DB, apiKey string) (string, error) {
+// The row holds no API key: the admin authenticates via the env ADMIN_API_KEY.
+func EnsureAdminUser(ctx context.Context, db *sql.DB) (string, error) {
 	if _, err := db.ExecContext(ctx,
-		`INSERT INTO users (username, api_key, is_admin) VALUES ('admin', $1, true)
-		 ON CONFLICT (username) DO NOTHING`, apiKey); err != nil {
+		`INSERT INTO users (username, is_admin) VALUES ('admin', true)
+		 ON CONFLICT (username) DO NOTHING`); err != nil {
 		return "", err
 	}
 	var id string

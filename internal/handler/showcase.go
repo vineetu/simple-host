@@ -169,7 +169,7 @@ func (h *SiteHandler) renderShowcase(w http.ResponseWriter, r *http.Request, han
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Robots-Tag", "index")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(page)
+	_, _ = w.Write(stampNonce(r, page))
 }
 
 // showcasePage assembles the showcase template: the shared chrome, then the
@@ -251,7 +251,7 @@ func (h *SiteHandler) renderNotFoundPage(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	page := string(tmpl)
+	page := string(stampNonce(r, tmpl))
 	page = strings.ReplaceAll(page, "__SH_MESSAGE__", message)
 	page = strings.ReplaceAll(page, "__SH_SUBTEXT__", subtext)
 	page = strings.ReplaceAll(page, "__SH_BACKLINK_URL__", backURL)

@@ -243,13 +243,17 @@ func SetAllowAnonymousWrites(ctx context.Context, q Querier, siteID string, allo
 	return err
 }
 
-// SweepVisitorAuth deletes expired OAuth states, establish tokens, and sessions.
-// oauth_identities is durable and is not swept.
+// SweepVisitorAuth deletes expired OAuth states, establish tokens, sessions,
+// and email sign-in codes (a day past expiry). oauth_identities is durable and
+// is not swept.
 func SweepVisitorAuth(ctx context.Context, database *sql.DB) error {
 	if _, err := database.ExecContext(ctx, `DELETE FROM oauth_states WHERE expires_at < now()`); err != nil {
 		return err
 	}
 	if _, err := database.ExecContext(ctx, `DELETE FROM visitor_establish_tokens WHERE expires_at < now()`); err != nil {
+		return err
+	}
+	if _, err := database.ExecContext(ctx, `DELETE FROM auth_tokens WHERE expires_at < now() - interval '1 day'`); err != nil {
 		return err
 	}
 	_, err := database.ExecContext(ctx, `DELETE FROM visitor_sessions WHERE expires_at < now() OR idle_expires_at < now()`)

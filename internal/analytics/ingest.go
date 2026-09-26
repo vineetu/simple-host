@@ -46,7 +46,7 @@ var assetExt = map[string]struct{}{
 type Ingester struct {
 	db          *sql.DB
 	logPath     string
-	saltSecret  string
+	salt        string // visitor ip_hash salt, used verbatim (see visitorSalt)
 	contentHost string
 	siteDomain  string
 }
@@ -57,10 +57,20 @@ func NewIngester(db *sql.DB, logPath, saltSecret, contentHost, siteDomain string
 	return &Ingester{
 		db:          db,
 		logPath:     logPath,
-		saltSecret:  saltSecret,
+		salt:        visitorSalt(saltSecret),
 		contentHost: strings.ToLower(strings.TrimSpace(contentHost)),
 		siteDomain:  strings.ToLower(strings.TrimSpace(siteDomain)),
 	}
+}
+
+// WithSalt replaces the salt derived from saltSecret with an explicit one
+// (ANALYTICS_SALT). Empty keeps the derived salt. Passing the derived value
+// itself, hex(sha256(saltSecret + "|visitor")), yields identical hashes.
+func (i *Ingester) WithSalt(salt string) *Ingester {
+	if salt != "" {
+		i.salt = salt
+	}
+	return i
 }
 
 // Start launches the background ingest loop. A panic in any run is recovered
@@ -387,6 +397,15 @@ func (i *Ingester) pruneOld(ctx context.Context) {
 		`DELETE FROM site_geo_daily WHERE day < $1::date`, cutoff[:len("2006-01-02")]); err != nil {
 		log.Printf("analytics prune geo: %v", err)
 	}
+	// Legacy pre-split daily tables: no longer written, same retention.
+	if _, err := i.db.ExecContext(ctx,
+		`DELETE FROM site_view_daily WHERE day < $1::date`, cutoff[:len("2006-01-02")]); err != nil {
+		log.Printf("analytics prune daily views: %v", err)
+	}
+	if _, err := i.db.ExecContext(ctx,
+		`DELETE FROM site_visitor_daily WHERE day < $1::date`, cutoff[:len("2006-01-02")]); err != nil {
+		log.Printf("analytics prune daily visitors: %v", err)
+	}
 }
 
 func (i *Ingester) loadState(ctx context.Context) (offset, inode int64, err error) {
@@ -643,7 +662,7 @@ func (i *Ingester) parseAndAttribute(line string, maps *attrMaps) (hit, bool) {
 			hour:   ts.Truncate(time.Hour).Format(time.RFC3339),
 			class:  Classify(remoteAddr, ua, uri),
 		},
-		ipHash: hashIP(i.saltSecret, remoteAddr),
+		ipHash: hashIP(i.salt, remoteAddr),
 		ip:     remoteAddr,
 	}, true
 }
@@ -767,9 +786,10 @@ func visitorSalt(secret string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// hashIP returns sha256(visitorSalt + remoteAddr)[:16].
-func hashIP(secret, remoteAddr string) []byte {
-	sum := sha256.Sum256([]byte(visitorSalt(secret) + remoteAddr))
+// hashIP returns sha256(salt + remoteAddr)[:16], salt being visitorSalt's
+// output or an explicit ANALYTICS_SALT.
+func hashIP(salt, remoteAddr string) []byte {
+	sum := sha256.Sum256([]byte(salt + remoteAddr))
 	out := make([]byte, 16)
 	copy(out, sum[:16])
 	return out

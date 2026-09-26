@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -82,8 +83,8 @@ func main() {
 	} else if !cfg.SiteDomainSet {
 		setup := handler.NewSetupHandler(db, cfg.SetupPublicAPI, cfg.SetupPassword, cfg.DataDir)
 		setup.Register(mux)
-		log.Printf("SETUP MODE: no hostname configured; serving the setup page on :%s", cfg.Port)
-		srv := &http.Server{Addr: ":" + cfg.Port, Handler: mux}
+		log.Printf("SETUP MODE: no hostname configured; serving the setup page on %s", net.JoinHostPort(cfg.BindAddr, cfg.Port))
+		srv := &http.Server{Addr: net.JoinHostPort(cfg.BindAddr, cfg.Port), Handler: mux}
 		errs := make(chan error, 1)
 		go func() { errs <- srv.ListenAndServe() }()
 		select {
@@ -117,11 +118,7 @@ func main() {
 	log.Printf("per-site limit: %d MB", handler.SiteLimit()>>20)
 
 	// Ensure a real admin user row exists so the admin key can own sites.
-	adminKey, err := auth.GenerateAPIKey()
-	if err != nil {
-		log.Fatalf("generate admin row key: %v", err)
-	}
-	adminUserID, err := dbpkg.EnsureAdminUser(context.Background(), db, adminKey)
+	adminUserID, err := dbpkg.EnsureAdminUser(context.Background(), db)
 	if err != nil {
 		log.Fatalf("ensure admin user: %v", err)
 	}
@@ -222,6 +219,7 @@ func main() {
 	// aggregates. Off unless ANALYTICS_LOG is set (safe default for local dev).
 	if cfg.AnalyticsLog != "" {
 		analytics.NewIngester(db, cfg.AnalyticsLog, cfg.AdminAPIKey, cfg.ContentHost, cfg.SiteDomain).
+			WithSalt(cfg.AnalyticsSalt).
 			Start(5 * time.Minute)
 		log.Printf("analytics ingester enabled: %s", cfg.AnalyticsLog)
 	}
@@ -232,7 +230,7 @@ func main() {
 	// keeps the legacy 301 to its path URL.
 	app := handler.SecurityHeaders(handler.CORS(apiMetrics.Wrap(connector.BearerAuth(mux))))
 	server := &http.Server{
-		Addr:              ":" + cfg.Port,
+		Addr:              net.JoinHostPort(cfg.BindAddr, cfg.Port),
 		Handler:           siteHandler.BoundSubdomains(app, siteHandler.PersonHosts(app, handler.LegacyHostRedirect(cfg.SiteDomain, cfg.ContentHost, db, app))),
 		ReadHeaderTimeout: 5 * time.Second,
 	}

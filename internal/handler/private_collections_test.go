@@ -58,8 +58,7 @@ func newPrivateApp(t *testing.T) *privateApp {
 		t.Fatal(err)
 	}
 	adminKey, _ := auth.GenerateAPIKey()
-	rowKey, _ := auth.GenerateAPIKey()
-	adminID, err := db.EnsureAdminUser(context.Background(), database, rowKey)
+	adminID, err := db.EnsureAdminUser(context.Background(), database)
 	if err != nil {
 		t.Fatal(err)
 	}

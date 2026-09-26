@@ -179,7 +179,7 @@ func chromeFileServer(fsys fs.FS, next http.Handler) http.Handler {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		// A zero modtime, as the embedded FS reports, so no Last-Modified —
 		// exactly what the file server sent for these pages before.
-		http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(body))
+		http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(stampNonce(r, body)))
 	})
 }
 

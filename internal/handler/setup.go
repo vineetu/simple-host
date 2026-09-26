@@ -122,7 +122,7 @@ func (h *SetupHandler) verify(w http.ResponseWriter, r *http.Request) {
 		setupError(w, 401, "Check your setup password and try again.")
 		return
 	}
-	http.SetCookie(w, &http.Cookie{Name: "sh_setup", Value: h.token, Path: "/v1/setup", HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: r.TLS != nil})
+	http.SetCookie(w, &http.Cookie{Name: "sh_setup", Value: h.token, Path: "/v1/setup", HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: requestIsHTTPS(r)})
 	w.WriteHeader(http.StatusNoContent)
 }
 

@@ -2,7 +2,9 @@ package db
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -14,18 +16,29 @@ import (
 // in between). Callers should re-read and retry.
 var ErrStateVersionConflict = errors.New("state version conflict")
 
+// CreateUser inserts an account. When apiKey is not empty it also becomes one
+// of the account's keys; only its SHA-256 is stored (see api_keys).
 func CreateUser(ctx context.Context, q Querier, username, apiKey string, isAdmin bool) (User, error) {
 	const query = `
-		INSERT INTO users (username, api_key, is_admin)
-		VALUES ($1, $2, $3)
-		RETURNING id, username, api_key, is_admin, created_at, handle, display_name
+		WITH u AS (
+			INSERT INTO users (username, is_admin)
+			VALUES ($1, $3)
+			RETURNING id, username, is_admin, created_at, handle, display_name
+		), k AS (
+			INSERT INTO api_keys (key_hash, user_id)
+			SELECT $2, id FROM u WHERE $2 <> ''
+		)
+		SELECT id, username, is_admin, created_at, handle, display_name FROM u
 	`
+	keyHash := ""
+	if apiKey != "" {
+		keyHash = HashAPIKey(apiKey)
+	}
 
 	var user User
-	err := q.QueryRowContext(ctx, query, username, apiKey, isAdmin).Scan(
+	err := q.QueryRowContext(ctx, query, username, keyHash, isAdmin).Scan(
 		&user.ID,
 		&user.Username,
-		&user.APIKey,
 		&user.IsAdmin,
 		&user.CreatedAt,
 		&user.Handle,
@@ -34,44 +47,77 @@ func CreateUser(ctx context.Context, q Querier, username, apiKey string, isAdmin
 	return user, err
 }
 
+// HashAPIKey is how an account key is stored and looked up: hex SHA-256.
+// A fast hash is right here because keys are 256 random bits, not passwords.
+func HashAPIKey(key string) string {
+	sum := sha256.Sum256([]byte(key))
+	return hex.EncodeToString(sum[:])
+}
+
+// AddAPIKey stores one more key for an account. Every sign-in hands out a new
+// key this way, because a stored hash cannot be handed back; the keys an
+// account already holds keep working until the person rotates.
+func AddAPIKey(ctx context.Context, q Querier, userID, apiKey string) error {
+	_, err := q.ExecContext(ctx, `INSERT INTO api_keys (key_hash, user_id) VALUES ($1, $2)`, HashAPIKey(apiKey), userID)
+	return err
+}
+
+// GetUserByAPIKey resolves a presented key: a stored key by its hash, or an
+// in-process internal credential (see IssueInternalKey).
 func GetUserByAPIKey(ctx context.Context, db *sql.DB, apiKey string) (User, error) {
+	if strings.HasPrefix(apiKey, internalKeyPrefix) {
+		userID, ok := lookupInternalKey(apiKey)
+		if !ok {
+			return User{}, sql.ErrNoRows
+		}
+		return GetUserByID(ctx, db, userID)
+	}
 	const query = `
-		SELECT id, username, api_key, is_admin, created_at, handle, display_name
-		FROM users
-		WHERE api_key = $1
+		SELECT u.id, u.username, u.is_admin, u.created_at, u.handle, u.display_name, k.key_hash
+		FROM api_keys k JOIN users u ON u.id = k.user_id
+		WHERE k.key_hash = $1
 	`
 
 	var user User
-	err := db.QueryRowContext(ctx, query, apiKey).Scan(
+	err := db.QueryRowContext(ctx, query, HashAPIKey(apiKey)).Scan(
 		&user.ID,
 		&user.Username,
-		&user.APIKey,
 		&user.IsAdmin,
 		&user.CreatedAt,
 		&user.Handle,
 		&user.DisplayName,
+		&user.KeyHash,
 	)
 	return user, err
 }
 
-func RotateAPIKey(ctx context.Context, db *sql.DB, userID, currentKey, newKey string) error {
-	res, err := db.ExecContext(ctx, `UPDATE users SET api_key = $1 WHERE id = $2 AND api_key = $3`, newKey, userID, currentKey)
+// RotateAPIKey replaces every key the account holds with newKey, but only if
+// the key the request was made with (currentKeyHash) is still one of them, so
+// two concurrent rotations cannot both succeed.
+func RotateAPIKey(ctx context.Context, db *sql.DB, userID, currentKeyHash, newKey string) error {
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	n, err := res.RowsAffected()
-	if err != nil {
+	defer tx.Rollback()
+	var one int
+	if err := tx.QueryRowContext(ctx,
+		`SELECT 1 FROM api_keys WHERE key_hash = $1 AND user_id = $2 FOR UPDATE`,
+		currentKeyHash, userID).Scan(&one); err != nil {
 		return err
 	}
-	if n == 0 {
-		return sql.ErrNoRows
+	if _, err := tx.ExecContext(ctx, `DELETE FROM api_keys WHERE user_id = $1`, userID); err != nil {
+		return err
 	}
-	return nil
+	if err := AddAPIKey(ctx, tx, userID, newKey); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func GetUserByUsername(ctx context.Context, q Querier, username string) (User, error) {
 	const query = `
-		SELECT id, username, api_key, is_admin, created_at, handle, display_name
+		SELECT id, username, is_admin, created_at, handle, display_name
 		FROM users
 		WHERE username = $1
 	`
@@ -80,7 +126,6 @@ func GetUserByUsername(ctx context.Context, q Querier, username string) (User, e
 	err := q.QueryRowContext(ctx, query, username).Scan(
 		&user.ID,
 		&user.Username,
-		&user.APIKey,
 		&user.IsAdmin,
 		&user.CreatedAt,
 		&user.Handle,
@@ -92,7 +137,7 @@ func GetUserByUsername(ctx context.Context, q Querier, username string) (User, e
 // GetUserByID loads a users row by primary key.
 func GetUserByID(ctx context.Context, q Querier, id string) (User, error) {
 	const query = `
-		SELECT id, username, api_key, is_admin, created_at, handle, display_name
+		SELECT id, username, is_admin, created_at, handle, display_name
 		FROM users
 		WHERE id = $1
 	`
@@ -101,7 +146,6 @@ func GetUserByID(ctx context.Context, q Querier, id string) (User, error) {
 	err := q.QueryRowContext(ctx, query, id).Scan(
 		&user.ID,
 		&user.Username,
-		&user.APIKey,
 		&user.IsAdmin,
 		&user.CreatedAt,
 		&user.Handle,
@@ -113,7 +157,7 @@ func GetUserByID(ctx context.Context, q Querier, id string) (User, error) {
 // GetUserByHandle looks up a user by their URL-safe handle.
 func GetUserByHandle(ctx context.Context, db *sql.DB, handle string) (User, error) {
 	const query = `
-		SELECT id, username, api_key, is_admin, created_at, handle, display_name
+		SELECT id, username, is_admin, created_at, handle, display_name
 		FROM users
 		WHERE handle = $1
 	`
@@ -122,7 +166,6 @@ func GetUserByHandle(ctx context.Context, db *sql.DB, handle string) (User, erro
 	err := db.QueryRowContext(ctx, query, handle).Scan(
 		&user.ID,
 		&user.Username,
-		&user.APIKey,
 		&user.IsAdmin,
 		&user.CreatedAt,
 		&user.Handle,

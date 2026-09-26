@@ -121,3 +121,19 @@ func TestAPIMetricsMakesNoOutboundCalls(t *testing.T) {
 		return true
 	})
 }
+
+func TestTruncateIP(t *testing.T) {
+	for in, want := range map[string]string{
+		"203.0.113.77":         "203.0.113.0",
+		"2001:db8:1:2:3:4:5:6": "2001:db8:1::",
+		"::ffff:198.51.100.9":  "198.51.100.0",
+		"127.0.0.1":            "127.0.0.1",
+		"::1":                  "::1",
+		"10.1.2.3":             "10.1.2.0",
+		"not-an-ip":            "not-an-ip",
+	} {
+		if got := truncateIP(in); got != want {
+			t.Errorf("truncateIP(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

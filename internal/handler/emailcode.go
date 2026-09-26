@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/email"
 )
@@ -73,7 +72,7 @@ func issueEmailCode(ctx context.Context, database *sql.DB, mailer email.Sender, 
 	if err := mailer.SendSignInCode(address, code, link); err != nil {
 		// Don't expose details to the caller, but log loudly — this is the
 		// most likely failure mode in production (Resend misconfig, DNS, etc).
-		log.Printf("auth: mailer.SendSignInCode(%s): %v", address, err)
+		log.Printf("auth: mailer.SendSignInCode(%s): %v", redactEmail(address), err)
 		return "", 0, http.StatusInternalServerError, errorResponse{Error: "could not send verification email"}
 	}
 
@@ -140,12 +139,8 @@ func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter
 	created := false
 	user, err := db.GetUserByUsername(ctx, database, tok.Email)
 	if errors.Is(err, sql.ErrNoRows) {
-		apiKey, kerr := auth.GenerateAPIKey()
-		if kerr != nil {
-			log.Printf("auth: GenerateAPIKey: %v", kerr)
-			return db.User{}, false, http.StatusInternalServerError, errorResponse{Error: "internal server error"}
-		}
-		user, err = db.CreateUser(ctx, database, tok.Email, apiKey, false)
+		// No key yet: a key is issued only where one is handed out.
+		user, err = db.CreateUser(ctx, database, tok.Email, "", false)
 		if err != nil {
 			if isUniqueViolation(err) {
 				// Concurrent verify won the race — re-fetch the existing row.

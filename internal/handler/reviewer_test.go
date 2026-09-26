@@ -172,9 +172,17 @@ func TestReviewerSignInEndToEnd(t *testing.T) {
 		t.Fatalf("create_site as the reviewer: %s", text)
 	}
 
-	// A second sign-in returns the same account, not a new one.
-	if again := a.reviewerSignIn(t, reviewer, reviewerTestPassword, nil); again.status != http.StatusOK || again.json(t)["api_key"] != key {
+	// A second sign-in returns the same account, not a new one. Keys are
+	// stored hashed, so it hands out a new key and the first keeps working.
+	again := a.reviewerSignIn(t, reviewer, reviewerTestPassword, nil)
+	if again.status != http.StatusOK {
 		t.Fatalf("second sign-in: %d", again.status)
+	}
+	key2, _ := again.json(t)["api_key"].(string)
+	for _, k := range []string{key, key2} {
+		if me := a.do(t, http.MethodGet, "/v1/me", nil, map[string]string{"X-API-Key": k}).json(t); me["username"] != reviewer {
+			t.Fatalf("key after second sign-in: %v", me)
+		}
 	}
 }
 

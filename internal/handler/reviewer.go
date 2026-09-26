@@ -204,8 +204,19 @@ func (h *ConnectorHandler) reviewerSignInHandler(w http.ResponseWriter, r *http.
 		writeJSON(w, http.StatusForbidden, errorResponse{Error: "The reviewer account is not available."})
 		return
 	}
+	// Keys are stored only as hashes, so each sign-in hands out a new one;
+	// the reviewer's earlier keys keep working.
+	key, err := auth.GenerateAPIKey()
+	if err == nil {
+		err = db.AddAPIKey(r.Context(), h.database, user.ID, key)
+	}
+	if err != nil {
+		log.Printf("connector: reviewer key: %v", err)
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
 	log.Printf("connector: reviewer sign-in user_id=%s", user.ID)
-	writeJSON(w, http.StatusOK, map[string]string{"api_key": user.APIKey, "username": user.Username})
+	writeJSON(w, http.StatusOK, map[string]string{"api_key": key, "username": user.Username})
 }
 
 // reviewerAccount returns the reviewer's ordinary account, creating it on first
@@ -214,11 +225,7 @@ func (h *ConnectorHandler) reviewerSignInHandler(w http.ResponseWriter, r *http.
 func (h *ConnectorHandler) reviewerAccount(ctx context.Context, email string) (db.User, error) {
 	user, err := db.GetUserByUsername(ctx, h.database, email)
 	if errors.Is(err, sql.ErrNoRows) {
-		key, kerr := auth.GenerateAPIKey()
-		if kerr != nil {
-			return db.User{}, kerr
-		}
-		user, err = db.CreateUser(ctx, h.database, email, key, false)
+		user, err = db.CreateUser(ctx, h.database, email, "", false)
 		if err != nil && isUniqueViolation(err) {
 			user, err = db.GetUserByUsername(ctx, h.database, email)
 		}
@@ -226,7 +233,7 @@ func (h *ConnectorHandler) reviewerAccount(ctx context.Context, email string) (d
 	if err != nil {
 		return db.User{}, err
 	}
-	if user.IsAdmin || subtle.ConstantTimeCompare([]byte(user.APIKey), []byte(h.adminAPIKey)) == 1 {
+	if user.IsAdmin || user.Username == "admin" {
 		return db.User{}, errors.New("the reviewer account is an admin account; refusing")
 	}
 	if !user.Handle.Valid {

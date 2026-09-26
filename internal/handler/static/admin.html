@@ -150,8 +150,8 @@ table.apx td.err{color:var(--error)}
     <div class="row">
       <label>Count <input type="number" id="count" min="1" placeholder="30"></label>
       <label>Prefix <input type="text" id="prefix" placeholder="team"></label>
-      <button class="btn" id="issue-btn" onclick="issueAccounts()">Create</button>
-      <button class="btn ghost" id="csv-btn" onclick="downloadCSV()" hidden>Download CSV</button>
+      <button class="btn" id="issue-btn">Create</button>
+      <button class="btn ghost" id="csv-btn" hidden>Download CSV</button>
     </div>
     <div id="issued" hidden>
       <table class="apx"><thead><tr><th>Account</th><th>Address</th><th>Key</th></tr></thead><tbody id="issued-rows"></tbody></table>
@@ -163,9 +163,9 @@ table.apx td.err{color:var(--error)}
     <h2>Entries</h2>
     <p class="ph">Every published site, newest first. This is the list to give judges.</p>
     <div class="row">
-      <input type="text" id="entry-filter" placeholder="Filter by name or account" oninput="renderEntries()">
-      <button class="btn ghost" onclick="downloadEntries()">Download CSV</button>
-      <button class="btn ghost" onclick="copyEntries()">Copy links</button>
+      <input type="text" id="entry-filter" placeholder="Filter by name or account">
+      <button class="btn ghost" id="entries-csv-btn">Download CSV</button>
+      <button class="btn ghost" id="entries-copy-btn">Copy links</button>
     </div>
     <table class="apx"><thead><tr><th>Entry</th><th>Account</th><th>Link</th><th>Analytics</th></tr></thead><tbody id="entry-rows"></tbody></table>
     <p class="ph" id="entry-count"></p>
@@ -213,7 +213,7 @@ function userCard(u){
   var head='<div class="user-head"><span class="name">'+esc(u.username)+'</span>'+
     (u.handle?'<span class="handle">/'+esc(u.handle)+'</span>':'')+
     (u.is_admin?'<span class="badge admin">admin</span>':'')+
-    (u.is_admin?'':'<button class="btn ghost" style="padding:1px 8px;font-size:13px" onclick="deleteAccount(\''+esc(u.id)+'\',\''+esc(u.username)+'\')">Delete</button>')+
+    (u.is_admin?'':'<button class="btn ghost" style="padding:1px 8px;font-size:13px" data-delete-id="'+esc(u.id)+'" data-delete-name="'+esc(u.username)+'">Delete</button>')+
     '<span class="badge count">'+u.site_count+' site'+(u.site_count===1?'':'s')+'</span>'+
     '<span class="when">joined '+fmtDate(u.created_at)+'</span></div>';
   var body = sites.length ? '<div class="sites">'+sites.map(siteCard).join('')+'</div>' : '<div class="nosites">No sites yet.</div>';
@@ -384,6 +384,19 @@ async function loadTraffic(){
     }).join('')||'<tr><td colspan="5" style="color:var(--dim)">Nothing yet.</td></tr>';
   }catch(e){}
 }
+
+// Handlers are wired here, not as on*= attributes: the CSP allows no inline
+// event handlers.
+document.getElementById('issue-btn').addEventListener('click', issueAccounts);
+document.getElementById('csv-btn').addEventListener('click', downloadCSV);
+document.getElementById('entry-filter').addEventListener('input', renderEntries);
+document.getElementById('entries-csv-btn').addEventListener('click', downloadEntries);
+document.getElementById('entries-copy-btn').addEventListener('click', copyEntries);
+document.getElementById('users').addEventListener('click', function(e){
+  var b=e.target.closest('[data-delete-id]');
+  if(b) deleteAccount(b.dataset.deleteId, b.dataset.deleteName);
+});
+
 load();
 
 // Disk usage. Measured, not predicted: the walk behind this is cached server

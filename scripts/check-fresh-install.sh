@@ -51,6 +51,7 @@ run() {
 }
 
 run "event accounts" "SELECT display_name, handle, handle_changed_at FROM users"
+run "hashed API keys"       "SELECT u.id FROM api_keys k JOIN users u ON u.id = k.user_id WHERE k.key_hash='x'"
 run "sites + versions"      "SELECT id, name, active_version, visibility FROM sites WHERE user_id='$NIL'"
 run "per-site state"        "SELECT COALESCE(state,'null'::jsonb), state_version FROM sites WHERE name='x'"
 run "private pages"         "SELECT view_password_hash FROM sites WHERE name='x'"

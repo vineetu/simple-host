@@ -22,8 +22,10 @@ import (
 //     write happens on a background flush tick.
 //   - Bounded cardinality: routes are normalized to their mux pattern (or a
 //     conservative fallback), so /v1/sites/<any-name>/files is ONE row.
-//   - Raw caller IPs are kept — this exists to spot abuse — but only for
-//     retentionDays, then pruned.
+//   - Caller IPs are stored truncated (IPv4 /24, IPv6 /48; see truncateIP):
+//     enough for the network/geo columns, not a person's exact address.
+//     Pruned after retentionDays. Rate limiting uses the live request IP and
+//     never reads this table.
 //
 // "Where" and "org" come from a local database on this box (internal/geoip,
 // DB-IP Lite) at the moment the admin page asks. No caller IP ever leaves the
@@ -79,8 +81,22 @@ func (m *APIMetrics) Wrap(next http.Handler) http.Handler {
 		if route == "" {
 			route = r.Method + " " + normalizeAPIPath(r.URL.Path)
 		}
-		m.record(route, rec.status, clientIP(r))
+		m.record(route, rec.status, truncateIP(clientIP(r)))
 	})
+}
+
+// truncateIP keeps the network part only: IPv4 → a.b.c.0, IPv6 → its /48.
+// Loopback stays as-is (it is this box, and ::1/48 would stop reading as
+// local). Anything unparseable is returned unchanged.
+func truncateIP(s string) string {
+	ip := net.ParseIP(s)
+	if ip == nil || ip.IsLoopback() {
+		return s
+	}
+	if v4 := ip.To4(); v4 != nil {
+		return v4.Mask(net.CIDRMask(24, 32)).String()
+	}
+	return ip.Mask(net.CIDRMask(48, 128)).String()
 }
 
 type statusCapture struct {

@@ -5,13 +5,21 @@
 CREATE TABLE users (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   username   TEXT UNIQUE NOT NULL,
-  api_key    TEXT UNIQUE NOT NULL,
   is_admin   BOOLEAN DEFAULT FALSE,
   display_name       TEXT,                 -- shown on screen; never in a URL, so it is free to change
   handle             TEXT UNIQUE,          -- URL-safe public path id (^[a-z0-9-]{1,39}$); backfilled separately
   handle_changed_at  TIMESTAMPTZ,          -- last time handle was set/changed; NULL until first set
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Account API keys, stored only as hex SHA-256. An account can hold several
+-- (each sign-in issues one); rotating replaces them all.
+CREATE TABLE api_keys (
+  key_hash   TEXT PRIMARY KEY,
+  user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX api_keys_user_idx ON api_keys (user_id);
 
 CREATE TABLE sites (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -168,8 +176,9 @@ CREATE TABLE IF NOT EXISTS analytics_ingest_state (
 );
 
 -- Per-endpoint API traffic, for the admin page. Go middleware aggregates in
--- memory and flushes here; raw caller IPs are kept for abuse tracking and
--- pruned after 30 days. Mirrors db/migrations/api-analytics.sql.
+-- memory and flushes here; caller IPs are stored truncated (IPv4 /24, IPv6
+-- /48) and pruned after 30 days. Mirrors db/migrations/api-analytics.sql;
+-- db/migrations/truncate-api-ip.sql truncates rows written before that.
 CREATE TABLE IF NOT EXISTS api_request_daily (
   day    DATE NOT NULL,
   route  TEXT NOT NULL,      -- normalized "METHOD /v1/pattern", bounded cardinality

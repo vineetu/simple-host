@@ -602,8 +602,11 @@ func (h *ConnectorHandler) checkConsentCSRF(req authzRequest, token string) bool
 
 // consentHeaders: the consent screen is never framed (clickjacking an Allow
 // button is the attack), never cached, and leaks nothing in a Referer.
-func consentHeaders(w http.ResponseWriter) {
-	w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "+
+// consentHeaders sets the consent page's own policy; nonce is the one its
+// inline scripts were stamped with (the page reads the API key, so no
+// 'unsafe-inline' for scripts).
+func consentHeaders(w http.ResponseWriter, nonce string) {
+	w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'nonce-"+nonce+"'; style-src 'self' 'unsafe-inline'; "+
 		"img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
 	w.Header().Set("X-Frame-Options", "DENY")
 	w.Header().Set("Cache-Control", "no-store")
@@ -643,11 +646,18 @@ func (h *ConnectorHandler) renderConsent(w http.ResponseWriter, r *http.Request,
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
+	var nb [16]byte
+	if _, err := rand.Read(nb[:]); err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	nonce := base64.StdEncoding.EncodeToString(nb[:])
+	page = bytes.ReplaceAll(page, []byte("<script>"), []byte(`<script nonce="`+nonce+`">`))
 	// json.Marshal escapes <, > and & so the data cannot close the script.
 	payload, _ := json.Marshal(data)
 	page = bytes.Replace(page, []byte("<!--sh:connect-data-->"),
 		append(append([]byte(`<script type="application/json" id="connect-data">`), payload...), []byte(`</script>`)...), 1)
-	consentHeaders(w)
+	consentHeaders(w, nonce)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
 	_, _ = w.Write(page)
@@ -1067,7 +1077,10 @@ func (h *ConnectorHandler) userForAccessToken(ctx context.Context, token string,
 		return db.User{}, false
 	}
 	user, err := db.GetUserByID(ctx, h.database, tok.UserID)
-	if err != nil || user.Username == "admin" || user.APIKey == "" {
+	// No "has an API key" check any more: keys are stored hashed and the
+	// connector does not replay one (it acts through a per-request internal
+	// credential), so an account with no key yet can still use its connection.
+	if err != nil || user.Username == "admin" {
 		return db.User{}, false
 	}
 	_ = db.TouchOAuthGrant(ctx, h.database, tok.GrantID)
@@ -1083,9 +1096,10 @@ func bearerToken(r *http.Request) (string, bool) {
 }
 
 // BearerAuth lets a connector access token stand in for the person's API key
-// on the REST API. The token is exchanged for the key in process, so the
-// request then meets exactly the checks, limits and permissions a request
-// with that key meets. A bearer value that is not one of this server's
+// on the REST API. The token is exchanged in process for an internal
+// credential that resolves to the same person (their key itself is stored
+// only as a hash), so the request then meets exactly the checks, limits and
+// permissions a request with their key meets. A bearer value that is not one of this server's
 // tokens is left alone (the key middleware then explains X-API-Key).
 func (h *ConnectorHandler) BearerAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1107,9 +1121,15 @@ func (h *ConnectorHandler) BearerAuth(next http.Handler) http.Handler {
 			})
 			return
 		}
+		key, revoke, err := db.IssueInternalKey(user.ID)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return
+		}
+		defer revoke()
 		r2 := r.Clone(r.Context())
 		r2.Header.Del("Authorization")
-		r2.Header.Set("X-API-Key", user.APIKey)
+		r2.Header.Set("X-API-Key", key)
 		next.ServeHTTP(w, r2)
 	})
 }
@@ -1135,7 +1155,13 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 			h.mcpUnauthorized(w, true)
 			return
 		}
-		apiKey = user.APIKey
+		key, revoke, err := db.IssueInternalKey(user.ID)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return
+		}
+		defer revoke()
+		apiKey = key
 	} else if key := r.Header.Get("X-API-Key"); key != "" {
 		// Coding agents that already hold a key can use the endpoint too.
 		if subtle.ConstantTimeCompare([]byte(key), []byte(h.adminAPIKey)) != 1 {

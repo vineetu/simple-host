@@ -6,9 +6,11 @@ import (
 )
 
 type User struct {
-	ID          string
-	Username    string
-	APIKey      string
+	ID       string
+	Username string
+	// KeyHash is the stored hash of the API key this request authenticated
+	// with; empty for the env admin key and for internal credentials.
+	KeyHash     string
 	IsAdmin     bool
 	CreatedAt   time.Time
 	Handle      sql.NullString

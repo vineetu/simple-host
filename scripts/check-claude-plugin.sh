@@ -27,7 +27,7 @@ if find plugins/simple-host -type l | grep -q .; then
 fi
 [ "$fail" -eq 0 ] && echo "  ok — $SKILLS are verbatim copies"
 
-echo "== claude plugin version matches skills version =="
+echo "== claude plugin version, marketplace and X-Skill-Version literals match skills version =="
 if python3 - <<'PY'
 import json, sys
 src = json.load(open("simple-host-website/.claude-plugin/plugin.json"))["version"]
@@ -39,6 +39,21 @@ for n in ("simple-host", "website-deploy"):
     if n not in mk: bad.append(f"marketplace.json has no {n} entry")
     elif mk[n].get("version") != src: bad.append(f"marketplace.json {n} {mk[n].get('version')} != {src}")
 if mk.get("simple-host", {}).get("source") != "./plugins/simple-host": bad.append("marketplace simple-host source != ./plugins/simple-host")
+# Every X-Skill-Version literal an agent is told to send must be the version
+# the server embeds (this plugin.json); a stale literal earns every call a
+# "your skill is out of date" notice. Bump both together.
+import os, re
+lits = 0
+for root in ("simple-host-website/skills", "plugins/simple-host/skills"):
+    for d, _, fs in os.walk(root):
+        for f in fs:
+            p = os.path.join(d, f)
+            try: text = open(p, encoding="utf-8").read()
+            except (UnicodeDecodeError, OSError): continue
+            for v in re.findall(r"X-Skill-Version:\s*`?\"?(\d+\.\d+\.\d+)", text):
+                lits += 1
+                if v != src: bad.append(f"{p}: X-Skill-Version {v} != plugin.json {src}")
+if lits == 0: bad.append("no X-Skill-Version literal found in the skills (the check pattern is stale)")
 mcp = json.load(open("plugins/simple-host/.mcp.json"))["mcpServers"]
 if mcp != {"simple-host": {"type": "http", "url": "https://simple-host.app/mcp"}}: bad.append(f".mcp.json unexpected: {mcp}")
 for b in bad: print("  FAIL:", b)

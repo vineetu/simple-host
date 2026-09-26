@@ -636,7 +636,7 @@
           <div class="si-os" id="si-os" role="group" aria-label="Operating system">
             <button type="button" data-os="unix" class="on">macOS / Linux</button><button type="button" data-os="win">Windows</button>
           </div>
-          <button type="button" class="btn btn-ghost btn-small" id="deploy-callout-hide" onclick="toggleOnboarding('agentSetup', false)" hidden>Hide</button>
+          <button type="button" class="btn btn-ghost btn-small" id="deploy-callout-hide" data-act="hideAgentSetup" hidden>Hide</button>
         </div>
       </div>
       <p class="si-lede"><b>1.</b> Pick what you use, then copy the box into your agent's terminal:</p>
@@ -668,7 +668,7 @@
         <h3><span class="spark"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg></span> Build a site with AI</h3>
         <div class="grp">
           <button class="btn-ghost btn-small" id="ai-reset" type="button" hidden>Start over</button>
-          <button type="button" class="btn-ghost btn-small" id="ai-create-hide" onclick="toggleOnboarding('aiCreate', false)" hidden>Hide</button>
+          <button type="button" class="btn-ghost btn-small" id="ai-create-hide" data-act="hideAiCreate" hidden>Hide</button>
         </div>
       </div>
       <p class="si-lede" style="margin-bottom:12px">No coding agent, or stuck installing? Build right here instead — or ask anything: install help, what the platform can do, or a ready-made prompt for your own AI.</p>
@@ -739,7 +739,7 @@
 
       <!-- Sites view (management inventory) -->
       <div class="section" id="owner-sites-view">
-        <div class="section-num"><h2>Site Inventory</h2><span class="line"></span><button type="button" class="agent-setup-link" id="ai-create-link" onclick="toggleOnboarding('aiCreate', true)" hidden>Build a site with AI →</button><button type="button" class="agent-setup-link" id="agent-setup-link" onclick="toggleOnboarding('agentSetup', true)" hidden>Set up your AI →</button><a class="btn btn-primary btn-small" id="owner-new-site" href="#" target="_self">＋ New site</a></div>
+        <div class="section-num"><h2>Site Inventory</h2><span class="line"></span><button type="button" class="agent-setup-link" id="ai-create-link" data-act="showAiCreate" hidden>Build a site with AI →</button><button type="button" class="agent-setup-link" id="agent-setup-link" data-act="showAgentSetup" hidden>Set up your AI →</button><a class="btn btn-primary btn-small" id="owner-new-site" href="#" target="_self">＋ New site</a></div>
         <div id="inventory"></div>
       </div>
 
@@ -909,9 +909,9 @@ function parseAnalyticsSummary(data) {
     function esc(str) {
       if (str === 0) return '0';
       if (!str) return '';
-      var div = document.createElement('div');
-      div.textContent = str;
-      return div.innerHTML;
+      return String(str).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
     }
     function toast(msg, type) {
       var el = document.getElementById('toast');
@@ -1599,9 +1599,9 @@ function parseAnalyticsSummary(data) {
         '</div>' +
         '<div class="inv-actions">' +
           '<a class="btn-small btn-secondary" href="' + openUrl + '" target="_blank" rel="noopener">Open</a>' +
-          '<button type="button" class="btn-small btn-secondary" onclick="toggleVis(\'' + name + '\',\'' + vis + '\')" data-vis-btn="' + name + '">' + (vis === 'public' ? 'Make unlisted' : 'Make public') + '</button>' +
-          '<button type="button" class="btn-small btn-secondary" onclick="toggleVersions(\'' + name + '\')">Revert</button>' +
-          '<button type="button" class="btn-small btn-ghost" onclick="confirmDelete(\'' + name + '\')">Delete</button>' +
+          '<button type="button" class="btn-small btn-secondary" data-act="toggleVis" data-name="' + name + '" data-vis="' + vis + '" data-vis-btn="' + name + '">' + (vis === 'public' ? 'Make unlisted' : 'Make public') + '</button>' +
+          '<button type="button" class="btn-small btn-secondary" data-act="toggleVersions" data-name="' + name + '">Revert</button>' +
+          '<button type="button" class="btn-small btn-ghost" data-act="confirmDelete" data-name="' + name + '">Delete</button>' +
         '</div>' +
         '<div class="versions-panel" data-versions="' + name + '" hidden></div>' +
         '<div class="plists" data-plists="' + name + '" hidden></div>' +
@@ -1776,7 +1776,7 @@ function parseAnalyticsSummary(data) {
         var badge = document.querySelector('[data-vis-badge="' + cssEsc(name) + '"]');
         if (badge) { badge.className = 'vis-badge ' + next; badge.setAttribute('data-vis-badge', name); badge.textContent = next; }
         var btn = document.querySelector('[data-vis-btn="' + cssEsc(name) + '"]');
-        if (btn) { btn.setAttribute('onclick', "toggleVis('" + name + "','" + next + "')"); btn.textContent = next === 'public' ? 'Make unlisted' : 'Make public'; }
+        if (btn) { btn.setAttribute('data-vis', next); btn.textContent = next === 'public' ? 'Make unlisted' : 'Make public'; }
         toast(name + ' is now ' + next, 'success');
       } catch (e) {
         toast('Could not change visibility', 'error');
@@ -1803,7 +1803,7 @@ function parseAnalyticsSummary(data) {
             '<span class="version-date">' + esc(new Date(v.created_at).toLocaleString()) + '</span>' +
             (v.is_active
               ? '<span class="version-active-tag">active</span>'
-              : '<button type="button" class="btn-small btn-secondary" onclick="rollbackTo(\'' + name + '\', ' + Number(v.version_number) + ')">Make active</button>') +
+              : '<button type="button" class="btn-small btn-secondary" data-act="rollbackTo" data-name="' + esc(name) + '" data-version="' + Number(v.version_number) + '">Make active</button>') +
             '</div>';
         }).join('') + '</div>';
       } catch (e) {
@@ -2800,6 +2800,25 @@ function parseAnalyticsSummary(data) {
       if (rs) rs.addEventListener('click', resetAiChat);
       aiGreeting();
     })();
+
+    // Handlers are wired here, not as on*= attributes: the CSP allows no inline
+    // event handlers. Buttons name their action in data-act (a fixed list, so
+    // markup cannot reach any other function) and carry arguments in data-*.
+    var clickActions = {
+      hideAgentSetup: function () { toggleOnboarding('agentSetup', false); },
+      showAgentSetup: function () { toggleOnboarding('agentSetup', true); },
+      hideAiCreate: function () { toggleOnboarding('aiCreate', false); },
+      showAiCreate: function () { toggleOnboarding('aiCreate', true); },
+      toggleVis: function (d) { toggleVis(d.name, d.vis); },
+      toggleVersions: function (d) { toggleVersions(d.name); },
+      confirmDelete: function (d) { confirmDelete(d.name); },
+      rollbackTo: function (d) { rollbackTo(d.name, Number(d.version)); }
+    };
+    document.addEventListener('click', function (e) {
+      var el = e.target.closest('[data-act]');
+      var fn = el && Object.prototype.hasOwnProperty.call(clickActions, el.dataset.act) && clickActions[el.dataset.act];
+      if (fn) fn(el.dataset);
+    });
 
     // ------------------------------------------------------------------- boot
     renderPublic();

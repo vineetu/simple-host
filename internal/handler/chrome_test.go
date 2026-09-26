@@ -309,16 +309,17 @@ func TestServeChromeForScreenshots(t *testing.T) {
 	RegisterUIRoutes(mux, "http://"+addr, h)
 	sample := showcaseData{Handle: "jane", SitesBaseURL: "https://sites.simple-host.app", PublicShowcaseURL: "https://sites.simple-host.app/jane", OwnerAppURL: "https://simple-host.app/jane", MainURL: "https://simple-host.app",
 		Sites: []showcaseSite{{Name: "recipes", URL: "https://sites.simple-host.app/jane/recipes/", CreatedAt: time.Now(), Visibility: "public"}}}
-	mux.HandleFunc("GET /jane", func(w http.ResponseWriter, r *http.Request) {
+	// Both under the apex CSP, as they are served in production.
+	mux.Handle("GET /jane", adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		page, err := showcasePage(chromeDataFor(r, ""), sample)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write(page)
-	})
-	mux.HandleFunc("GET /_404", func(w http.ResponseWriter, r *http.Request) { h.renderNotFound(w, r, "/nothing-here.html") })
+		w.Write(stampNonce(r, page))
+	})))
+	mux.Handle("GET /_404", adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.renderNotFound(w, r, "/nothing-here.html") })))
 	srv := &http.Server{Addr: addr, Handler: mux}
 	go srv.ListenAndServe()
 	d, _ := time.ParseDuration(os.Getenv("CHROME_SERVE_FOR"))

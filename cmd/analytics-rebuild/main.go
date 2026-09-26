@@ -5,8 +5,9 @@
 // person/bot/infra split as new traffic instead of the pre-classifier totals
 // (which counted the loopback monitoring probe as thousands of daily pageviews).
 //
-// It reads the same environment as the server: DB_DSN, ADMIN_API_KEY (the hash
-// salt -- it must match the server's or visitor counts will not line up),
+// It reads the same environment as the server: DB_DSN, ADMIN_API_KEY and
+// ANALYTICS_SALT (the hash salt -- it must match the server's or visitor counts
+// will not line up),
 // ANALYTICS_LOG, SITE_DOMAIN, CONTENT_HOST.
 //
 // This is also how per-country history is backfilled: the log still carries
@@ -81,7 +82,7 @@ func main() {
 	}
 
 	started := time.Now()
-	ing := analytics.NewIngester(db, cfg.AnalyticsLog, cfg.AdminAPIKey, cfg.ContentHost, cfg.SiteDomain)
+	ing := analytics.NewIngester(db, cfg.AnalyticsLog, cfg.AdminAPIKey, cfg.ContentHost, cfg.SiteDomain).WithSalt(cfg.AnalyticsSalt)
 	if err := ing.Rebuild(ctx); err != nil {
 		log.Fatalf("rebuild: %v", err)
 	}

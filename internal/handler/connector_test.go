@@ -194,8 +194,7 @@ func newConnectorApp(t *testing.T) *connectorApp {
 		t.Fatal(err)
 	}
 	adminKey, _ := auth.GenerateAPIKey()
-	rowKey, _ := auth.GenerateAPIKey()
-	adminID, err := db.EnsureAdminUser(context.Background(), database, rowKey)
+	adminID, err := db.EnsureAdminUser(context.Background(), database)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -825,8 +824,10 @@ func TestSignInLinkNeedsTheRequestingBrowsersNonce(t *testing.T) {
 	if r := verify(map[string]string{"token": bound, "nonce": "someone-elses-nonce"}); r.status != http.StatusUnauthorized {
 		t.Fatalf("link token redeemed with the wrong nonce: %d", r.status)
 	}
-	if r := verify(map[string]string{"token": bound, "nonce": nonce}); r.status != http.StatusOK || r.json(t)["api_key"] != ann.key {
+	if r := verify(map[string]string{"token": bound, "nonce": nonce}); r.status != http.StatusOK {
 		t.Fatalf("link token refused with its nonce: %d %s", r.status, r.body)
+	} else if k, _ := r.json(t)["api_key"].(string); a.do(t, http.MethodGet, "/v1/me", nil, map[string]string{"X-API-Key": k}).json(t)["username"] != ann.email {
+		t.Fatalf("key from link sign-in does not work")
 	}
 	unbound := issue(sql.NullString{}, "222222")
 	if r := verify(map[string]string{"token": unbound, "nonce": nonce}); r.status != http.StatusUnauthorized {
@@ -837,5 +838,79 @@ func TestSignInLinkNeedsTheRequestingBrowsersNonce(t *testing.T) {
 	}
 	if r := a.do(t, http.MethodPost, "/v1/auth", jsonBody(map[string]string{"email": ann.email, "nonce_hash": "not-a-hash"}), map[string]string{"Content-Type": "application/json"}); r.status != http.StatusBadRequest {
 		t.Fatalf("malformed nonce_hash accepted: %d", r.status)
+	}
+}
+
+// Account keys are stored only as SHA-256; rotating kills every key the
+// account holds; internal credentials die with their request.
+func TestAPIKeysStoredHashed(t *testing.T) {
+	a := newConnectorApp(t)
+	p := a.newPerson(t, "hashed")
+	count := func(v string) int {
+		var n int
+		if err := a.database.QueryRow(`SELECT count(*) FROM api_keys WHERE key_hash = $1`, v).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if count(p.key) != 0 || count(db.HashAPIKey(p.key)) != 1 {
+		t.Fatal("api key is not stored as its hash")
+	}
+	me := func(k string) int {
+		return a.do(t, http.MethodGet, "/v1/me", nil, map[string]string{"X-API-Key": k}).status
+	}
+	u, err := db.GetUserByAPIKey(context.Background(), a.database, p.key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, _ := auth.GenerateAPIKey()
+	if err := db.AddAPIKey(context.Background(), a.database, u.ID, second); err != nil {
+		t.Fatal(err)
+	}
+	if me(p.key) != http.StatusOK || me(second) != http.StatusOK {
+		t.Fatal("both keys should work before rotation")
+	}
+	r := a.do(t, http.MethodPost, "/v1/me/api-key/rotate", nil, map[string]string{"X-API-Key": p.key})
+	if r.status != http.StatusOK {
+		t.Fatalf("rotate: %d %s", r.status, r.body)
+	}
+	fresh, _ := r.json(t)["api_key"].(string)
+	if me(p.key) != http.StatusUnauthorized || me(second) != http.StatusUnauthorized || me(fresh) != http.StatusOK {
+		t.Fatal("rotation must replace every key with the new one")
+	}
+	// A rotation made with a key that is no longer valid fails.
+	if r := a.do(t, http.MethodPost, "/v1/me/api-key/rotate", nil, map[string]string{"X-API-Key": p.key}); r.status != http.StatusUnauthorized {
+		t.Fatalf("rotate with dead key: %d", r.status)
+	}
+
+	ik, revoke, err := db.IssueInternalKey(u.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if me(ik) != http.StatusOK {
+		t.Fatal("internal credential should resolve while live")
+	}
+	if r := a.do(t, http.MethodPost, "/v1/me/api-key/rotate", nil, map[string]string{"X-API-Key": ik}); r.status != http.StatusBadRequest {
+		t.Fatalf("internal credential must not rotate the key: %d", r.status)
+	}
+	revoke()
+	if me(ik) != http.StatusUnauthorized {
+		t.Fatal("internal credential outlived its revoke")
+	}
+}
+
+// The consent page reads the API key from localStorage, so its scripts run
+// only by nonce.
+func TestConsentPageScriptNonce(t *testing.T) {
+	a := newConnectorApp(t)
+	r := a.do(t, http.MethodGet, "/oauth/authorize", nil, nil)
+	csp := r.header.Get("Content-Security-Policy")
+	m := regexp.MustCompile(`script-src 'self' 'nonce-([A-Za-z0-9+/=]+)';`).FindStringSubmatch(csp)
+	if m == nil || strings.Contains(csp, "script-src 'self' 'unsafe-inline'") {
+		t.Fatalf("consent CSP: %q", csp)
+	}
+	body := string(r.body)
+	if !strings.Contains(body, `<script nonce="`+m[1]+`">`) || strings.Contains(body, "<script>") {
+		t.Fatalf("consent page inline scripts are not all stamped with the nonce")
 	}
 }

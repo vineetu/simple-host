@@ -38,9 +38,10 @@ const latestInitializeVersion = "2025-11-25"
 // supportedVersions are answered for, newest first.
 var supportedVersions = []string{"2026-07-28", "2025-11-25", "2025-06-18", "2025-03-26"}
 
-// Caller is the identity a request acts as. APIKey is the person's own key: it
-// is sent only on the in-process REST requests a tool makes, and never appears
-// in any output.
+// Caller is the identity a request acts as. APIKey is the key the client
+// presented or, for a connector token, a per-request internal credential for
+// the same person: it is sent only on the in-process REST requests a tool
+// makes, and never appears in any output.
 type Caller struct {
 	APIKey string
 }

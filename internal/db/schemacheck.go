@@ -20,7 +20,9 @@ import (
 //
 // Add an entry here whenever a migration adds something the code depends on.
 var requiredColumns = map[string][]string{
-	"users":            {"id", "username", "api_key", "is_admin", "handle", "display_name", "handle_changed_at"},
+	"users": {"id", "username", "is_admin", "handle", "display_name", "handle_changed_at"},
+	// hash-api-keys.sql
+	"api_keys":         {"key_hash", "user_id", "created_at"},
 	"sites":            {"id", "user_id", "name", "active_version", "visibility", "state", "custom_domain"},
 	"collection_items": {"id", "site_id", "collection", "data", "submitted_by"},
 	// private-collections.sql

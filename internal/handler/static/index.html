@@ -921,8 +921,8 @@
   <div class="app-bar" id="user-actions" style="display:none">
     <div class="container">
       <span class="user-badge" id="username-display"></span>
-      <button class="btn-ghost" onclick="rotateAPIKey()">Rotate API key</button>
-      <button class="btn-ghost" onclick="logout()">Sign out</button>
+      <button class="btn-ghost" data-act="rotateAPIKey">Rotate API key</button>
+      <button class="btn-ghost" data-act="logout">Sign out</button>
     </div>
   </div>
 
@@ -942,7 +942,7 @@
             <div class="home-card"><h3>Build it in chat</h3><p>Say what you want and watch it appear, or hand it to the coding agent you already use.</p></div>
           </div>
 
-          <form class="auth-form" id="email-form" onsubmit="return handleAuth(event)">
+          <form class="auth-form" id="email-form">
             <div class="auth-input">
               <input type="email" id="email-input" placeholder="you@anywhere.com" autocomplete="email" required>
               <button type="submit" class="arrow-btn" id="auth-btn" aria-label="Send sign-in code">
@@ -959,7 +959,7 @@
                there is nothing to sign in with. Participants are given a key by
                their organiser instead. Showing the email form there would be a
                button that cannot work. -->
-          <form class="auth-form" id="key-form" onsubmit="return handleKey(event)" hidden>
+          <form class="auth-form" id="key-form" hidden>
             <div class="auth-input">
               <input type="text" id="key-input" placeholder="Paste the key your organiser sent you" autocomplete="off" spellcheck="false" required>
               <button type="submit" class="arrow-btn" id="key-btn" aria-label="Use this key">
@@ -981,7 +981,7 @@
           <h1 class="auth-display">Check your<br><em>inbox.</em></h1>
           <p class="auth-lede">Sent a 6-digit code to <strong id="code-email-label"></strong>. Type it below or open the link from the email — both work.</p>
 
-          <form class="auth-form" id="code-form" onsubmit="return handleCodeSubmit(event)">
+          <form class="auth-form" id="code-form">
             <div class="auth-input">
               <input type="text" id="code-input" inputmode="numeric" pattern="[0-9\-]*" maxlength="7" placeholder="123-456" autocomplete="one-time-code" required>
               <button type="submit" class="arrow-btn" id="verify-btn" aria-label="Verify code">
@@ -990,7 +990,7 @@
               </button>
             </div>
             <p class="auth-fine">Code expires in 15 minutes. Three wrong attempts burn the code.</p>
-            <button type="button" class="auth-secondary" onclick="resetAuth()">Use a different email</button>
+            <button type="button" class="auth-secondary" data-act="resetAuth">Use a different email</button>
           </form>
         </div>
 
@@ -1007,8 +1007,8 @@
   <div id="main-view" class="view">
     <div class="container">
       <div id="tab-bar" class="tabs">
-        <button class="tab active" data-tab="sites" onclick="switchTab('sites')">Sites</button>
-        <button class="tab" data-tab="admin" onclick="switchTab('admin')" id="admin-tab" style="display:none">Admin</button>
+        <button class="tab active" data-tab="sites" data-act="switchTab" data-arg="sites">Sites</button>
+        <button class="tab" data-tab="admin" data-act="switchTab" data-arg="admin" id="admin-tab" style="display:none">Admin</button>
       </div>
 
       <!-- Sites Tab -->
@@ -1032,7 +1032,7 @@
           <div class="callout-actions">
             <a class="btn btn-primary btn-small" href="/install.html">Get started →</a>
             <a class="btn btn-ghost btn-small" href="/docs.html">API reference</a>
-            <button type="button" class="btn btn-ghost btn-small callout-hide" id="deploy-callout-hide" onclick="toggleOnboarding('agentSetup', false)" hidden>Hide</button>
+            <button type="button" class="btn btn-ghost btn-small callout-hide" id="deploy-callout-hide" data-act="hideAgentSetup" hidden>Hide</button>
           </div>
         </div>
 
@@ -1040,15 +1040,15 @@
         <div class="section-header">
           <h2>Your sites</h2>
           <div class="section-tools">
-            <button type="button" class="agent-setup-link" id="agent-setup-link" onclick="toggleOnboarding('agentSetup', true)" hidden>Add Simple Host to your AI →</button>
+            <button type="button" class="agent-setup-link" id="agent-setup-link" data-act="showAgentSetup" hidden>Add Simple Host to your AI →</button>
             <label class="sort-label" for="site-sort">Sort</label>
-            <select id="site-sort" class="sort-select" onchange="setSiteSort(this.value)">
+            <select id="site-sort" class="sort-select">
               <option value="people">Most people</option>
               <option value="bots">Most bots</option>
               <option value="traffic">Most traffic (all)</option>
               <option value="name">Name</option>
             </select>
-            <button class="btn btn-secondary btn-small" onclick="loadSites()">Refresh</button>
+            <button class="btn btn-secondary btn-small" data-act="loadSites">Refresh</button>
           </div>
         </div>
         <div id="sites-container">
@@ -1063,7 +1063,7 @@
       <div id="admin-tab-content" class="view">
         <div class="section-header">
           <h2>All sites</h2>
-          <button class="btn btn-secondary btn-small" onclick="loadSites()">Refresh</button>
+          <button class="btn btn-secondary btn-small" data-act="loadSites">Refresh</button>
         </div>
         <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 16px;">
           Every site across every user. Owner shown next to each.
@@ -1732,13 +1732,13 @@ function parseAnalyticsSummary(data) {
             <div class="site-analytics" id="an-${name}" data-site="${name}"></div>
           </div>
           <div class="site-actions">
-            <button type="button" class="btn-small btn-secondary" onclick="toggleVersions('${name}')">Versions</button>
-            <button type="button" class="btn-small btn-secondary" onclick="toggleData('${name}')">Data</button>
-            ${!showOwner || site.user_id === currentUser.id ? `<button type="button" class="btn-small btn-secondary" onclick="renameSite('${name}')">Rename</button>` : ''}
+            <button type="button" class="btn-small btn-secondary" data-act="toggleVersions" data-name="${name}">Versions</button>
+            <button type="button" class="btn-small btn-secondary" data-act="toggleData" data-name="${name}">Data</button>
+            ${!showOwner || site.user_id === currentUser.id ? `<button type="button" class="btn-small btn-secondary" data-act="renameSite" data-name="${name}">Rename</button>` : ''}
             ${site.custom_domain
-              ? `<button type="button" class="btn-small btn-ghost" onclick="disconnectDomain('${name}')">Disconnect ${esc(site.custom_domain)}</button>`
-              : `<button type="button" class="btn-small btn-secondary" onclick="connectDomain('${name}')">Connect domain</button>`}
-            <button type="button" class="btn-small btn-ghost" onclick="confirmDelete('${name}')">Delete</button>
+              ? `<button type="button" class="btn-small btn-ghost" data-act="disconnectDomain" data-name="${name}">Disconnect ${esc(site.custom_domain)}</button>`
+              : `<button type="button" class="btn-small btn-secondary" data-act="connectDomain" data-name="${name}">Connect domain</button>`}
+            <button type="button" class="btn-small btn-ghost" data-act="confirmDelete" data-name="${name}">Delete</button>
           </div>
         </div>
         <div class="site-versions" id="versions-${name}" hidden></div>
@@ -1889,7 +1889,7 @@ function parseAnalyticsSummary(data) {
             <span class="version-date">${esc(new Date(v.created_at).toLocaleString())}</span>
             ${v.is_active
               ? '<span class="version-active-tag">active</span>'
-              : `<button type="button" class="btn-small btn-secondary" onclick="rollbackTo('${name}', ${v.version_number})">Make active</button>`}
+              : `<button type="button" class="btn-small btn-secondary" data-act="rollbackTo" data-name="${esc(name)}" data-version="${esc(String(v.version_number))}">Make active</button>`}
           </div>`).join('')}</div>`;
       } catch {
         panel.innerHTML = `<div class="versions-status">Could not load versions</div>`;
@@ -1926,8 +1926,8 @@ function parseAnalyticsSummary(data) {
             <div class="collection-row">
               <span class="collection-name">${esc(coll)}</span>
               <span class="collection-meta">${count} row${count === 1 ? '' : 's'}${last ? ' · last ' + last : ''}</span>
-              <button type="button" class="btn-small btn-secondary" onclick="downloadCollectionCSV('${name}', '${esc(coll)}')">Download CSV</button>
-              <button type="button" class="btn-small btn-secondary" onclick="toggleCollectionView('${name}', '${esc(coll)}')">View</button>
+              <button type="button" class="btn-small btn-secondary" data-act="downloadCollectionCSV" data-name="${esc(name)}" data-coll="${esc(coll)}">Download CSV</button>
+              <button type="button" class="btn-small btn-secondary" data-act="toggleCollectionView" data-name="${esc(name)}" data-coll="${esc(coll)}">View</button>
             </div>
             <div class="collection-view" id="collview-${name}-${esc(coll)}" hidden></div>
           </div>`;
@@ -2120,9 +2120,9 @@ function parseAnalyticsSummary(data) {
     // Escape HTML
     function esc(str) {
       if (!str) return '';
-      const div = document.createElement('div');
-      div.textContent = str;
-      return div.innerHTML;
+      return String(str).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
     }
 
     // The retired in-app chat left ?job= in some saved URLs — drop it quietly.
@@ -2133,6 +2133,37 @@ function parseAnalyticsSummary(data) {
       const q = u.searchParams.toString();
       history.replaceState({}, '', u.pathname + (q ? '?' + q : ''));
     }
+
+    // Handlers are wired here, not as on*= attributes: the CSP allows no inline
+    // event handlers. Buttons name their action in data-act (a fixed list, so
+    // markup cannot reach any other function) and carry arguments in data-*.
+    const clickActions = {
+      rotateAPIKey: () => rotateAPIKey(),
+      logout: () => logout(),
+      resetAuth: () => resetAuth(),
+      switchTab: d => switchTab(d.arg),
+      hideAgentSetup: () => toggleOnboarding('agentSetup', false),
+      showAgentSetup: () => toggleOnboarding('agentSetup', true),
+      loadSites: () => loadSites(),
+      toggleVersions: d => toggleVersions(d.name),
+      toggleData: d => toggleData(d.name),
+      renameSite: d => renameSite(d.name),
+      disconnectDomain: d => disconnectDomain(d.name),
+      connectDomain: d => connectDomain(d.name),
+      confirmDelete: d => confirmDelete(d.name),
+      rollbackTo: d => rollbackTo(d.name, Number(d.version)),
+      downloadCollectionCSV: d => downloadCollectionCSV(d.name, d.coll),
+      toggleCollectionView: d => toggleCollectionView(d.name, d.coll),
+    };
+    document.addEventListener('click', e => {
+      const el = e.target.closest('[data-act]');
+      const fn = el && Object.hasOwn(clickActions, el.dataset.act) && clickActions[el.dataset.act];
+      if (fn) fn(el.dataset);
+    });
+    document.getElementById('email-form').addEventListener('submit', handleAuth);
+    document.getElementById('key-form').addEventListener('submit', handleKey);
+    document.getElementById('code-form').addEventListener('submit', handleCodeSubmit);
+    document.getElementById('site-sort').addEventListener('change', e => setSiteSort(e.target.value));
 
   </script>
 </body>

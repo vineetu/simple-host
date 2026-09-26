@@ -3,7 +3,10 @@ package handler
 import (
 	"archive/zip"
 	"bytes"
+	"context"
+	"crypto/rand"
 	"embed"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -166,18 +169,18 @@ func serveStaticPage(name string) http.Handler {
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write(body)
+		w.Write(stampNonce(r, body))
 	})
 }
 
 // adminUICSP adds a Content-Security-Policy to the admin UI / landing pages.
-// The page already HTML-escapes all user-controlled data; the CSP is
-// defense-in-depth. 'unsafe-inline' is permitted because the embedded admin UI
-// uses inline <script>/<style>; frame-ancestors/object-src/base-uri still close
-// off clickjacking, plugin, and base-tag injection vectors.
+// These pages keep the account API key in localStorage, so script-src carries
+// no 'unsafe-inline': an injected <script> or on*= attribute cannot run and read
+// it. The pages' own inline scripts run under a per-response nonce, which the
+// handlers stamp onto them with stampNonce. Inline styles stay allowed.
 func adminUICSP(next http.Handler) http.Handler {
-	const policy = "default-src 'self'; " +
-		"script-src 'self' 'unsafe-inline'; " +
+	const policyFmt = "default-src 'self'; " +
+		"script-src 'self' 'nonce-%s'; " +
 		"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
 		"img-src 'self' data:; " +
 		"font-src 'self' data: https://fonts.gstatic.com; " +
@@ -187,9 +190,30 @@ func adminUICSP(next http.Handler) http.Handler {
 		"base-uri 'none'; " +
 		"frame-ancestors 'none'"
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Security-Policy", policy)
-		next.ServeHTTP(w, r)
+		var b [16]byte
+		if _, err := rand.Read(b[:]); err != nil {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		nonce := base64.StdEncoding.EncodeToString(b[:])
+		w.Header().Set("Content-Security-Policy", fmt.Sprintf(policyFmt, nonce))
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), cspNonceKey{}, nonce)))
 	})
+}
+
+type cspNonceKey struct{}
+
+// stampNonce gives every inline <script> in page the request's CSP nonce. Only
+// the bare "<script>" tag is matched: every inline script in static/ is written
+// that way, and data spliced into a page (json.Marshal escapes '<') can never
+// contain it. Without a nonce — a request that did not pass through adminUICSP,
+// so carries no script policy — page is returned as is.
+func stampNonce(r *http.Request, page []byte) []byte {
+	nonce, _ := r.Context().Value(cspNonceKey{}).(string)
+	if nonce == "" {
+		return page
+	}
+	return bytes.ReplaceAll(page, []byte("<script>"), []byte(`<script nonce="`+nonce+`">`))
 }
 
 // serveSkillsVersion returns {"version":"X"} from the embedded plugin.json.

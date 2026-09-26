@@ -98,10 +98,13 @@ type Config struct {
 	CustomDomainIP string
 	AdminAPIKey    string
 	Port           string
-	DeployScript   string
-	PublicBaseURL  string
-	MailFrom       string
-	ResendAPIKey   string
+	// BindAddr is the interface the HTTP server listens on (BIND_ADDR, e.g.
+	// 127.0.0.1 behind nginx). Empty = all interfaces, which Docker needs.
+	BindAddr      string
+	DeployScript  string
+	PublicBaseURL string
+	MailFrom      string
+	ResendAPIKey  string
 
 	// Optional "create with AI" endpoint (/v1/generate). Sign-in-gated + rate
 	// limited. Exactly ONE backend at a time: an OpenAI-compatible
@@ -149,6 +152,11 @@ type Config struct {
 	// hosts that have not configured the analytics log yet.
 	// Set ANALYTICS_LOG=/var/log/simple-host/analytics.log in production.
 	AnalyticsLog string
+
+	// AnalyticsSalt (ANALYTICS_SALT) is the visitor ip_hash salt, used verbatim.
+	// Empty = derive it from ADMIN_API_KEY as before. To keep existing hashes,
+	// set it to hex(sha256(ADMIN_API_KEY + "|visitor")).
+	AnalyticsSalt string
 
 	// GeoIPDir holds the DB-IP Lite databases (dbip-city-lite.mmdb,
 	// dbip-asn-lite.mmdb) used to show where API callers are, resolved on this
@@ -199,6 +207,7 @@ func Load() (Config, error) {
 		SiteDomain:    getEnvOrDefault("SITE_DOMAIN", defaultSiteDomain),
 		AdminAPIKey:   os.Getenv("ADMIN_API_KEY"),
 		Port:          getEnvOrDefault("PORT", defaultPort),
+		BindAddr:      strings.TrimSpace(os.Getenv("BIND_ADDR")),
 		DeployScript:  getEnvOrDefault("DEPLOY_SCRIPT", defaultDeployScript),
 		PublicBaseURL: getEnvOrDefault("PUBLIC_BASE_URL", defaultPublicBaseURL),
 		MailFrom:      getEnvOrDefault("MAIL_FROM", defaultMailFrom),
@@ -241,6 +250,7 @@ func Load() (Config, error) {
 	cfg.CNAMETarget = getEnvOrDefault("CNAME_TARGET", "cname."+cfg.SiteDomain)
 	cfg.CustomDomainIP = os.Getenv("CUSTOM_DOMAIN_IP")
 	cfg.AnalyticsLog = os.Getenv("ANALYTICS_LOG")
+	cfg.AnalyticsSalt = strings.TrimSpace(os.Getenv("ANALYTICS_SALT"))
 	cfg.GeoIPDir = getEnvOrDefault("GEOIP_DIR", filepath.Join(filepath.Dir(filepath.Clean(cfg.DataDir)), "geoip"))
 
 	// Event hostnames: handed to a hackathon organiser under a domain we own,

@@ -70,8 +70,11 @@ func TestResolveUserMatching(t *testing.T) {
 	if created {
 		t.Fatal("linking an existing username must not set created")
 	}
-	if linked.ID != existing.ID || linked.APIKey != existing.APIKey {
-		t.Fatalf("linked %+v, want existing id/key", linked)
+	if linked.ID != existing.ID {
+		t.Fatalf("linked %+v, want existing id", linked)
+	}
+	if u, err := db.GetUserByAPIKey(ctx, database, key); err != nil || u.ID != existing.ID {
+		t.Fatalf("existing key after link: %v %+v", err, u)
 	}
 
 	// Unverified email must create no user and no identity.
