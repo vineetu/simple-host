@@ -24,7 +24,7 @@ set -euo pipefail
 # moving `latest` image against a schema fetched from a moving branch is exactly
 # how a fresh install ended up crash-looping on a schema check. The release
 # workflow refuses to publish a tag that does not match this line.
-VERSION="v0.2.0"
+VERSION="v0.2.1"
 HOST=""; CONTENT=""; IMAGE="ghcr.io/vineetu/simple-host:${VERSION#v}"; ACME_EMAIL=""; REF="$VERSION"
 MAX_SITE_MB=""; KEEP_VERSIONS=""
 while [ $# -gt 0 ]; do
@@ -100,10 +100,11 @@ if [ ! -f "$DIR/.env" ] && docker volume ls -q 2>/dev/null | grep -q '^simple-ho
   exit 1
 fi
 
-ADMIN_KEY=""; DB_PASSWORD=""
+ADMIN_KEY=""; DB_PASSWORD=""; SETUP_PASSWORD=""
 if [ -f "$DIR/.env" ]; then
   ADMIN_KEY=$(grep '^ADMIN_API_KEY=' "$DIR/.env" | cut -d= -f2-)
   DB_PASSWORD=$(grep '^DB_PASSWORD=' "$DIR/.env" | cut -d= -f2-)
+  SETUP_PASSWORD=$(grep '^SETUP_PASSWORD=' "$DIR/.env" | cut -d= -f2- || true)
   # Settings the operator chose survive a re-run. Rewriting them from the
   # defaults would mean that retrying a failed install quietly undoes a decision
   # somebody made deliberately, which is the worst kind of idempotence bug.
@@ -129,11 +130,22 @@ else
   DB_PASSWORD=$(head -c 18 /dev/urandom | od -An -tx1 | tr -d ' \n')
 fi
 
+# Setup mode serves an open finish-setup page until a hostname is chosen.
+# Without a password, whoever reaches the box first — not necessarily the
+# organiser — can complete setup and receive the admin key in the response.
+# Generated once and preserved across re-runs, same as the admin key above: an
+# older config missing only this (from before this fix, or a truncated retry)
+# still gets one filled in now rather than staying open.
+if [ "$SETUP_ONLY" -eq 1 ] && [ -z "$SETUP_PASSWORD" ]; then
+  SETUP_PASSWORD=$(openssl rand -hex 12)
+fi
+
 say "writing configuration for $HOST"
 cat > "$DIR/.env" <<EOF
 IMAGE=$IMAGE
 DB_PASSWORD=$DB_PASSWORD
 ADMIN_API_KEY=$ADMIN_KEY
+SETUP_PASSWORD=$SETUP_PASSWORD
 SITE_DOMAIN=$HOST
 CONTENT_HOST=$CONTENT
 SITE_ADDR=$HOST
@@ -200,7 +212,10 @@ if [ "$SETUP_ONLY" -eq 1 ]; then
 
 {"setup_url":"http://$IP/","dir":"$DIR"}
 
-Open that address in a browser to finish. It asks where this instance lives.
+open http://$IP/ and enter this setup password: $SETUP_PASSWORD
+
+It asks where this instance lives. The password is shown once and nothing
+else displays it.
 EOF
 else
   cat <<EOF

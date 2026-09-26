@@ -23,6 +23,23 @@ Optional flags:
 
 - `--email you@example.com` — where Let's Encrypt sends expiry notices.
 
+**Omit `--host` and the box comes up in setup mode instead** — how it looks
+fresh out of a cloud provider's catalog, before anyone has said where it
+lives. The script generates a setup password, writes it to
+`/opt/simple-host/.env`, and prints it once:
+
+```json
+{"setup_url":"http://<ip>/","dir":"/opt/simple-host"}
+
+open http://<ip>/ and enter this setup password: <password>
+```
+
+Open that address, enter the password, then pick a hostname. The instance
+restarts itself into the normal flow above once setup finishes. Without that
+password the setup page would let whoever reaches the box first finish setup
+and walk off with the admin key, so it is required, not optional, and a
+re-run preserves the same one rather than generating a new one each time.
+
 ## What it does
 
 Installs Docker, writes `/opt/simple-host/.env`, pulls the published image and
