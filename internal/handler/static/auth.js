@@ -1,7 +1,9 @@
 /*
  * simple-host visitor auth and storage. On a site's own address (its
  * <site>.<handle>.simple-host.app, or the site's own domain): Google or an emailed
- * code, then saves are per-person. Old shared address: saves are open.
+ * code, then saves are per-person. The shared address sites.<domain> offers no sign-in:
+ * on simple-host.app it is view-only (anonymous saves refused); event and self-hosted
+ * instances keep saves open there.
  * SH.email.request(email) sends a code; SH.email.verify(email, code) signs in.
  * SH.mount(target) offers Google plus an inline email/code form.
  *

@@ -184,7 +184,7 @@
             <div class="fid">account-handle</div>
             <div>
               <h3>Your handle</h3>
-              <p class="fw">Every account gets a short public name. It is the front of every address you publish and the address of your public profile.</p>
+              <p class="fw">Every account gets a short public name. It is part of every address you publish and the address of your public profile.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Everyone with an account; it is how visitors tell your sites apart from anyone else's.</dd>
                 <dt>Where</dt><dd>In every site address, and at the top of your sites page.</dd>
@@ -201,7 +201,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone using a coding agent rather than clicking through screens.</dd>
                 <dt>Where</dt><dd>Main dashboard — <strong>Rotate API key</strong> in the header issues a fresh key and shows it once, for you to copy.</dd>
-                <dt>Limits</dt><dd class="lim">One key per account. Rotating it <b>stops the old key immediately</b>, so update your agent straight after. Treat it like a password.</dd>
+                <dt>Limits</dt><dd class="lim">Each sign-in adds a new key, and older keys keep working. Rotating replaces them all with one new key and <b>stops the old ones immediately</b>, so update your agent straight after. Keys are stored only as hashes, so a key cannot be shown again later. Treat it like a password.</dd>
               </dl>
             </div>
           </div>
@@ -214,7 +214,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Site authors collecting anything from visitors: a form, a poll, an RSVP, a guestbook.</dd>
                 <dt>Where</dt><dd>On your published page, at the site's own address. The page loads the hosted sign-in helper (<code>auth.js</code>) and that handles the rest.</dd>
-                <dt>Limits</dt><dd class="lim">Every save from a page needs a signed-in visitor. Your agent saves with your API key (or the connector) instead.</dd>
+                <dt>Limits</dt><dd class="lim">Every save from a page needs a signed-in visitor, and a sign-in covers that one site only. Your agent saves with your API key (or the connector) instead.</dd>
               </dl>
             </div>
           </div>
@@ -227,7 +227,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone on a shared or borrowed device.</dd>
                 <dt>Where</dt><dd>Offered by the sign-in helper on the page they signed in on.</dd>
-                <dt>Limits</dt><dd class="lim">Signing in on one person's sites does not sign you in on anyone else's; each address is separate.</dd>
+                <dt>Limits</dt><dd class="lim">Signing in on one site does not sign you in on any other site, even another by the same person; each site is separate.</dd>
               </dl>
             </div>
           </div>
@@ -303,7 +303,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Everyone. This is the point of the service.</dd>
                 <dt>Where</dt><dd>Shown on the site card on the main dashboard and next to each site on your sites page.</dd>
-                <dt>Limits</dt><dd class="lim">Every site gets its own address, <code>https://&lt;site&gt;.&lt;handle&gt;.simple-host.app/</code>. For a nicer address, take a free <code>&lt;name&gt;.simple-host.app</code> or connect your own domain.</dd>
+                <dt>Limits</dt><dd class="lim">Every site gets its own address, <code>https://&lt;site&gt;.&lt;handle&gt;.simple-host.app/</code>. On a brand-new account it can be <code>https://&lt;handle&gt;.simple-host.app/&lt;site&gt;/</code> for the first few minutes, until its certificate is ready; the address shown is always the one that works. For a nicer address, take a free <code>&lt;name&gt;.simple-host.app</code> or connect your own domain.</dd>
               </dl>
             </div>
           </div>

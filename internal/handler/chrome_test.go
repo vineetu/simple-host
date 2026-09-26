@@ -314,8 +314,8 @@ func TestServeChromeForScreenshots(t *testing.T) {
 	h := chromeTestHandler()
 	mux := http.NewServeMux()
 	RegisterUIRoutes(mux, "http://"+addr, h)
-	sample := showcaseData{Handle: "jane", SitesBaseURL: "https://sites.simple-host.app", PublicShowcaseURL: "https://sites.simple-host.app/jane", OwnerAppURL: "https://simple-host.app/jane", MainURL: "https://simple-host.app",
-		Sites: []showcaseSite{{Name: "recipes", URL: "https://sites.simple-host.app/jane/recipes/", CreatedAt: time.Now(), Visibility: "public"}}}
+	sample := showcaseData{Handle: "jane", SitesBaseURL: "https://sites.simple-host.app", PublicShowcaseURL: "https://jane.simple-host.app/", OwnerAppURL: "https://simple-host.app/jane", MainURL: "https://simple-host.app",
+		Sites: []showcaseSite{{Name: "recipes", URL: "https://recipes.jane.simple-host.app/", CreatedAt: time.Now(), Visibility: "public"}}}
 	// Both under the apex CSP, as they are served in production.
 	mux.Handle("GET /jane", adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		page, err := showcasePage(chromeDataFor(r, ""), sample)

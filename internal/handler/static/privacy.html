@@ -39,7 +39,7 @@
   <main class="container">
     <div class="eyebrow">Privacy</div>
     <h1>Privacy Policy</h1>
-    <p class="updated">Simple Host (simple-host.app) · last updated 2026-09-25</p>
+    <p class="updated">Simple Host (simple-host.app) · last updated 2026-09-26</p>
 
     <div class="note">
       <p><strong>The short version.</strong></p>
@@ -61,10 +61,10 @@
       <li><strong>Email address.</strong> Used to sign you in. We get it when you enter a code we emailed you, or when Google confirms a verified address. It is your account name.</li>
       <li><strong>Google account ID.</strong> If you use Google, we keep Google's ID for you and the verified email it last sent, so you land in the same account next time. We do not keep your name, picture or Google password, or any access to your Google account.</li>
       <li><strong>Profile details you choose.</strong> Your handle and display name, if you set them.</li>
-      <li><strong>API key and connection tokens.</strong> Used to prove requests come from you. We store tokens for AI apps only as one-way hashes.</li>
+      <li><strong>API keys and connection tokens.</strong> Used to prove requests come from you. We store them only as one-way hashes, so we cannot show you a key again.</li>
       <li><strong>Your sites.</strong> The files you upload, each version, the site name, and any domain or free <code>&lt;name&gt;.simple-host.app</code> address you connect.</li>
       <li><strong>Data your sites save.</strong> Lists and state that your pages or your AI app save.</li>
-      <li><strong>Request records.</strong> IP addresses and times of requests, used for rate limits, security and investigating abuse. See <a href="#retention">how long we keep things</a>.</li>
+      <li><strong>Request records.</strong> Times of requests and IP addresses, used for rate limits, security and investigating abuse. Our records of API calls keep only a shortened IP address (the network part); the web server's log keeps the full one. See <a href="#retention">how long we keep things</a>.</li>
     </ul>
 
     <h2 id="visitors">If you visit a site hosted here</h2>
@@ -77,7 +77,7 @@
       <li><strong>Your email goes with private submissions.</strong> To add to a private list you sign in, and your verified email is saved with what you submit. The site owner sees it.</li>
     </ul>
     <h3>Signing in on a site</h3>
-    <p>Some sites ask you to sign in with Google or an emailed code before you save. That creates a Simple Host account under your email. You get a sign-in cookie for the site's address, which lasts up to 30 days. Other sites by the same owner on that address share it. The page never gets your API key, and nothing records your name on public lists.</p>
+    <p>Some sites ask you to sign in with Google or an emailed code before you save. That creates a Simple Host account under your email. You get a sign-in cookie for that site's address, which lasts up to 30 days and covers that one site only. Signing in with Google also sets a short-lived cookie there for about 10 minutes, so the sign-in can finish only in the browser that started it. The page never gets your API key, and nothing records your name on public lists.</p>
     <p>One account is used for every site you sign in to. We can see that link. We do not show it to the sites.</p>
     <h3 id="visitor-analytics">Visit counts</h3>
     <p>When you open a page hosted here, we count the visit so the site's owner can see how many people read it.</p>
@@ -90,7 +90,7 @@
       <li><strong>Who sees counts.</strong> Site owners see visit counts and countries for their own sites. We see them for all sites. Nobody is shown your IP address or the hash.</li>
       <li>Analytics records are deleted after 400 days, or when the site is deleted. There is no opt-out, because blocking cookies or sending do-not-track does not change a server log.</li>
     </ul>
-    <p>When a page saves data (a comment, an RSVP), that is an API call. API calls record the raw IP address for 30 days, so abuse can be investigated. Only we can see those records.</p>
+    <p>When a page saves data (a comment, an RSVP), that is an API call. API calls record a shortened IP address (the network part, not your exact address) for 30 days, so abuse can be investigated. Only we can see those records.</p>
 
     <h2 id="ai-apps">Using Simple Host from an AI app</h2>
     <p>The Simple Host connector (also called a plugin; address <code>https://simple-host.app/mcp</code>) lets an AI app such as ChatGPT, Claude or Grok work on your sites for you.</p>
@@ -98,7 +98,7 @@
       <li><strong>Signing in.</strong> You sign in on simple-host.app and choose Allow. The app gets an access token that lasts one hour and a refresh token that it uses to get new ones. A refresh token is replaced each time it is used and expires after 90 days without use. Together they can publish, change and delete your sites and their data, and nothing else. We store only one-way hashes of them.</li>
       <li><strong>What we receive.</strong> Only what the app sends when it uses a Simple Host tool: site names, files, data to save, domain names and similar. We do not receive your chat history or the rest of your conversation.</li>
       <li><strong>What we send back.</strong> Depending on the tool: your account email, handle and display name; your sites, files, versions and addresses; a site's domain and its status; saved data (including private lists you own); and visit counts. We do not send internal IDs, IP addresses or visitor hashes. The app then handles that data under its own privacy policy.</li>
-      <li><strong>What we keep.</strong> Connector requests are logged like other API calls, including the IP for 30 days. We keep a record of each connection (which app, when you connected, when it was last used) until you disconnect it. We do not record what you asked the app.</li>
+      <li><strong>What we keep.</strong> Connector requests are logged like other API calls, including the shortened IP for 30 days. We keep a record of each connection (which app, when you connected, when it was last used) until you disconnect it. We do not record what you asked the app.</li>
       <li><strong>Disconnecting.</strong> Sign in at <a href="/dashboard">simple-host.app/dashboard</a> and choose Disconnect under Connected apps. Rotating your API key also disconnects every app.</li>
     </ul>
     <p>A coding agent that uses your API key works the same way: its requests are made as you.</p>
@@ -133,14 +133,14 @@
     <p>No IP address is sent to any geolocation service. There are no other third parties.</p>
 
     <h2 id="cookies">Cookies</h2>
-    <p>We use only cookies that are needed to sign you in, on simple-host.app and on sites where you sign in. There are no analytics or advertising cookies. The dashboard may also keep your sign-in in your browser's storage.</p>
+    <p>We use only cookies that are needed to sign you in, on simple-host.app and on sites where you sign in. On a site these are <code>__Host-sh_vsess</code>, your sign-in for that one site (up to 30 days), and <code>__Host-sh_vnonce</code>, set for about 10 minutes while a Google sign-in finishes. There are no analytics or advertising cookies. The dashboard may also keep your sign-in in your browser's storage.</p>
 
     <h2 id="retention">How long we keep things</h2>
     <ul>
       <li><strong>Account:</strong> until you ask us to delete it.</li>
       <li><strong>Sites, versions and saved data:</strong> until you delete the site. Earlier versions are kept so you can roll back. Items in a private list can also be edited or deleted one by one by the owner.</li>
       <li><strong>Server logs:</strong> 30 days.</li>
-      <li><strong>Raw IP addresses from API calls:</strong> 30 days.</li>
+      <li><strong>Shortened IP addresses from API calls:</strong> 30 days.</li>
       <li><strong>Analytics records:</strong> 400 days, or until the site is deleted.</li>
       <li><strong>AI app connections:</strong> until you disconnect. Unused refresh tokens expire after 90 days.</li>
       <li><strong>Sign-in cookies on sites:</strong> up to 30 days.</li>

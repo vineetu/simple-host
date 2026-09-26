@@ -2062,7 +2062,7 @@ function parseAnalyticsSummary(data) {
     }
 
     async function rotateAPIKey() {
-      if (!confirm('Rotate your API key? The old key will stop working immediately, and your agent or CLI will need the new key.')) return;
+      if (!confirm('Rotate your API key? All your current keys stop working immediately, and your agent or CLI will need the new key.')) return;
       const res = await api('POST', '/v1/me/api-key/rotate');
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {

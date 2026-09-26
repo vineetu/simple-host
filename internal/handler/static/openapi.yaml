@@ -444,7 +444,7 @@ paths:
                 properties:
                   id: { type: string, format: uuid }
                   username: { type: string }
-                  handle: { type: string, description: "The <handle> in your address https://<handle>.simple-host.app/" }
+                  handle: { type: string, description: "The <handle> in your addresses: sites at https://<site>.<handle>.simple-host.app/, your page at https://<handle>.simple-host.app/" }
                   public_page: { type: string, format: uri, description: "The account's public page listing its public sites, e.g. https://<handle>.simple-host.app/. Present with handle." }
                   display_name: { type: string }
                   is_admin: { type: boolean }
@@ -454,7 +454,7 @@ paths:
     post:
       operationId: postMeApiKeyRotate
       summary: Rotate your API key
-      description: Replaces the authenticated owner's API key and returns the new key. The old key stops working immediately, and every connected app (see /v1/me/connections) is disconnected.
+      description: Replaces all of the authenticated owner's API keys with one new key and returns it. Every older key stops working immediately, and every connected app (see /v1/me/connections) is disconnected. Keys are stored only as SHA-256 hashes, so this response is the only time the new key is shown.
       tags: [Auth]
       security: [{ apiKey: [] }]
       responses:
@@ -3000,7 +3000,7 @@ components:
       properties:
         id: { type: string, format: uuid }
         username: { type: string }
-        api_key: { type: string }
+        api_key: { type: string, description: "A new key for this sign-in. Earlier keys keep working until rotated. Stored only as a hash, so it is shown only here." }
         is_admin: { type: boolean }
         created: { type: boolean, description: true if this verify created the account }
 
