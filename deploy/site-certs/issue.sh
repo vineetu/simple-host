@@ -21,6 +21,7 @@ set -euo pipefail
 SITE_DOMAIN=simple-host.app
 STATE=/var/lib/simple-host-site-certs
 BUDGET=40
+DAILY=12          # new certificates per rolling 24h, so a burst of sign-ups cannot spend the week at once
 PER_RUN=6
 RETRY_AFTER=21600 # seconds before a failed handle is tried again
 IP=""             # A record target; default: the zone apex's A record
@@ -51,6 +52,7 @@ fi
 now=$(date +%s)
 week_ago=$((now - 7 * 86400))
 used=$(awk -v t="$week_ago" '$1 >= t' "$STATE/issued.log" | wc -l)
+used_today=$(awk -v t="$((now - 86400))" '$1 >= t' "$STATE/issued.log" | wc -l)
 issued_now=0
 
 # Oldest request first.
@@ -64,7 +66,9 @@ for h in "${reqs[@]}"; do
   fi
   lineage="/etc/letsencrypt/live/$h.$SITE_DOMAIN"
   if [ -f "$lineage/fullchain.pem" ]; then
-    # Already issued (e.g. a marker cleared by hand): redeploy it.
+    # Already issued (e.g. restored, or a marker cleared by hand): make sure
+    # its DNS records exist (renewals need them) and redeploy it.
+    "$DNS_HELPER" ensure "$h" "$SITE_DOMAIN" "$IP" || { log "DNS records for $h failed"; continue; }
     RENEWED_LINEAGE="$lineage" "$DEPLOY_HOOK"
     rm -f -- "$STATE/requests/$h"
     continue
@@ -74,6 +78,10 @@ for h in "${reqs[@]}"; do
   fi
   if [ "$used" -ge "$BUDGET" ]; then
     log "weekly budget of $BUDGET new certificates used; ${#reqs[@]} request(s) wait"
+    break
+  fi
+  if [ "$used_today" -ge "$DAILY" ]; then
+    log "daily cap of $DAILY new certificates reached; the rest wait"
     break
   fi
   if [ "$issued_now" -ge "$PER_RUN" ]; then
@@ -93,6 +101,7 @@ for h in "${reqs[@]}"; do
       --key-type ecdsa --cert-name "$h.$SITE_DOMAIN" -d "*.$h.$SITE_DOMAIN"; then
     echo "$(date +%s) $h" >> "$STATE/issued.log"
     used=$((used + 1))
+    used_today=$((used_today + 1))
     issued_now=$((issued_now + 1))
     rm -f -- "$STATE/requests/$h" "$STATE/failed/$h"
     if [ -f "$STATE/ready/$h" ]; then log "ready: *.$h.$SITE_DOMAIN"; else log "issued but not deployed: $h"; fi
