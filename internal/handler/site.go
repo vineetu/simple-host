@@ -267,8 +267,9 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// corrupt that contract.
 	//
 	// TRUST MODEL: site state is PUBLIC per-site scratch storage for reads.
-	// The Origin/Referer check (authorizeStateOrigin) still applies to every
-	// method. Writes additionally go through visitorWriteOK: a visitor
+	// A GET with no Origin and no Referer (curl, an agent) is served as is; any
+	// request that names a page is Origin-checked (authorizeStateOrigin), on
+	// every method. Writes additionally go through visitorWriteOK: a visitor
 	// session, the owner's (or admin's) X-API-Key, WRITE_AUTH_MODE=log (measure, allow),
 	// or the admin allow_anonymous_writes hatch. Do not store secrets in it.
 	// Abuse is bounded by stateLimiter (rate) and maxSiteStateSize (1 MB cap).
@@ -736,6 +737,24 @@ func (h *SiteHandler) authorizeStateOrigin(w http.ResponseWriter, r *http.Reques
 	return true
 }
 
+// noBrowserOrigin reports whether r carries neither Origin nor Referer: a
+// script, curl or an agent rather than a page. Saved state and public lists
+// are public to read, so such a read needs no Origin check; there is no
+// calling page to hand CORS headers to, and nothing it could not already see.
+func noBrowserOrigin(r *http.Request) bool {
+	return r.Header.Get("Origin") == "" && r.Header.Get("Referer") == ""
+}
+
+// authorizePublicRead gates a public read (GET state, GET a public list): with
+// no Origin or Referer it is allowed outright; a browser read from a page still
+// needs that page to be one of the site's own origins, exactly like a write.
+func (h *SiteHandler) authorizePublicRead(w http.ResponseWriter, r *http.Request, siteName string) bool {
+	if noBrowserOrigin(r) {
+		return true
+	}
+	return h.authorizeStateOrigin(w, r, siteName)
+}
+
 func (h *SiteHandler) optionsSiteState(w http.ResponseWriter, r *http.Request) {
 	siteName := strings.TrimSpace(r.PathValue("sitename"))
 	if siteName == "" {
@@ -764,7 +783,7 @@ func (h *SiteHandler) getSiteState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !h.authorizeStateOrigin(w, r, siteName) {
+	if !h.authorizePublicRead(w, r, siteName) {
 		writeJSON(w, http.StatusForbidden, errorResponse{Error: "forbidden"})
 		return
 	}

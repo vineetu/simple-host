@@ -6,7 +6,8 @@
 # wrong lives here, where it can be tested, rather than in an agent's judgement.
 #
 #   install.sh --host hack.example.com --content sites.hack.example.com
-#              [--image REF] [--email ADDR] [--max-site-mb N] [--keep-versions N]
+#              [--email ADDR] [--max-site-mb N] [--keep-versions N]
+#              [--image IMAGE --ref GIT_REF]   (override both together, or neither)
 #
 # --max-site-mb   how big one website may be, in megabytes. Default 100.
 # --keep-versions how many deploys of a website to keep. Default 1; 0 keeps all.
@@ -18,7 +19,13 @@
 # exactly once, because nothing else ever displays it.
 set -euo pipefail
 
-HOST=""; CONTENT=""; IMAGE="ghcr.io/vineetu/simple-host:latest"; ACME_EMAIL=""; REF="main"
+# The release this installer belongs to. The image and the compose file and
+# schema it fetches all come from this one tag, so they cannot drift apart: a
+# moving `latest` image against a schema fetched from a moving branch is exactly
+# how a fresh install ended up crash-looping on a schema check. The release
+# workflow refuses to publish a tag that does not match this line.
+VERSION="v0.2.0"
+HOST=""; CONTENT=""; IMAGE="ghcr.io/vineetu/simple-host:${VERSION#v}"; ACME_EMAIL=""; REF="$VERSION"
 MAX_SITE_MB=""; KEEP_VERSIONS=""
 while [ $# -gt 0 ]; do
   case "$1" in

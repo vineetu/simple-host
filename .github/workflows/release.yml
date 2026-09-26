@@ -15,6 +15,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The installer pins one release for its image and its schema. A tag
+      # that does not match that pin would publish an image the documented
+      # install never pulls, so refuse it here, before anything is published.
+      - name: installer pins this tag
+        run: |
+          pinned=$(sed -n 's/^VERSION="\(v[^"]*\)"$/\1/p' deploy/install/install.sh)
+          if [ "$pinned" != "${GITHUB_REF_NAME}" ]; then
+            echo "deploy/install/install.sh pins '$pinned' but this tag is '${GITHUB_REF_NAME}'" >&2
+            exit 1
+          fi
+
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod

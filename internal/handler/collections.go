@@ -111,9 +111,12 @@ func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
 	// sites cannot leak each other's rows.
 	var siteID string
 	ownerKey := false
+	// A read naming no page (no Origin, no Referer) skips the Origin gate:
+	// public lists are public. Private lists still refuse it below.
+	originless := noBrowserOrigin(r)
 	if id, ok := h.ownerSiteIDFromKey(r, siteName); ok {
 		siteID, ownerKey = id, true
-	} else if !h.collectionGate(w, r, siteName, coll) {
+	} else if !originless && !h.collectionGate(w, r, siteName, coll) {
 		return
 	} else {
 		var err error
@@ -143,6 +146,9 @@ func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
 				writePrivateNotFound(w)
 				return
 			}
+		} else if originless {
+			writePrivateNotFound(w)
+			return
 		} else if !h.ownerBrowserRead(w, r, siteID) {
 			return
 		}

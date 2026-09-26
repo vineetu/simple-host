@@ -4,6 +4,8 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 ## 2026-09-26
 
+- v0.2.0 released. The small-box installer pins one release: its image, compose file and schema all come from the same tag (before, `latest` pulled v0.1.2 against a newer schema and the app crash-looped on its schema check). The release workflow refuses a tag the installer does not pin.
+- Saved state and public lists read without an `Origin` (curl, an agent) are served, as the docs always said; a read from a page is still Origin-checked, and private lists still refuse it. README files-API row shows the `{"files": {...}}` body.
 - Security: an API key, connector token or MCP connection now writes saved state and collections only on sites its own account owns (the platform admin on any). Before, any account's key could overwrite or wipe any site's saved data from a script. Another account's key gets 404 "site not found"; signed-in visitors on a site's own address are unchanged, and an owner's key on a bare site name now writes their own site rather than an older same-named one. Skills 0.19.2.
 - Security: a site's export (`export.tar.gz`) now always carries that site's own saved state; before, when another account had an older site of the same name, the export could include that site's state instead.
 - Docs, pages and skills brought in line with per-site addresses: sign-in covers one site, Google sign-in is tied to the browser that starts it, each sign-in adds an API key (older ones keep working, none can be shown again), shortened IPs in API records; privacy page names the sign-in cookies. Skills 0.19.1.

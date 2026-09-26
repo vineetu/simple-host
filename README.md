@@ -131,7 +131,7 @@ Everything an agent needs is at [`/llms.txt`](https://simple-host.app/llms.txt),
 |---|---|---|
 | `/v1/auth`, `/v1/auth/verify` | POST | Email-code sign-in → API key |
 | `/v1/sites` | GET | List your sites |
-| `/v1/sites/{name}/files` | POST / PUT | Deploy a site from a JSON `{path: content}` map |
+| `/v1/sites/{name}/files` | POST / PUT | Deploy a site from JSON: `{"files": {"index.html": "<h1>hi</h1>"}}` |
 | `/v1/sites/{name}` | POST / PUT / DELETE | Deploy from a tarball / roll a new version / delete |
 | `/v1/sites/{name}/state` | GET / PUT / PATCH | Per-site JSON state with atomic ops (reads public; writes need a signed-in visitor on the site's own address or an account's API key) |
 | `/v1/sites/{name}/collections/{coll}` | GET / POST | Append-only collections (POST is a write) |

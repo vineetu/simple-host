@@ -15,7 +15,12 @@ set -uo pipefail
 : "${SH_API_KEY:?set SH_API_KEY (an account key on the public instance)}"
 API=${SH_PUBLIC_API:-https://simple-host.app}
 EVENT=${EVENT_NAME:-e2e-$(date +%s)}
-IMAGE=${IMAGE:-ghcr.io/vineetu/simple-host:latest}
+# Empty means the installer's own pinned release (image and schema from one tag).
+# Set IMAGE and REF together to test something else.
+IMAGE=${IMAGE:-}; REF=${REF:-}
+PIN=""
+[ -z "$IMAGE" ] || PIN="$PIN --image '$IMAGE'"
+[ -z "$REF" ] || PIN="$PIN --ref '$REF'"
 KEYFILE=$(mktemp -u /tmp/e2e-key-XXXX)
 SERVER_ID=""; CLAIMED=""; FAILED=0
 
@@ -107,7 +112,7 @@ for _ in $(seq 1 40); do
   sleep 8
 done
 ssh -o StrictHostKeyChecking=accept-new -i "$KEYFILE" "root@$IP" \
-  "curl -fsSL https://raw.githubusercontent.com/vineetu/simple-host/main/deploy/install/install.sh -o /root/i.sh && bash /root/i.sh --host '$HOST' --content '$CONTENT' --image '$IMAGE'" \
+  "curl -fsSL https://raw.githubusercontent.com/vineetu/simple-host/main/deploy/install/install.sh -o /root/i.sh && bash /root/i.sh --host '$HOST' --content '$CONTENT'$PIN" \
   > /tmp/e2e-install.log 2>&1 || { bad "install failed"; tail -5 /tmp/e2e-install.log; exit 1; }
 ADMIN=$(grep -oE '"admin_api_key":"[^"]+"' /tmp/e2e-install.log | head -1 | cut -d'"' -f4)
 [ -n "$ADMIN" ] || { bad "install printed no admin key"; exit 1; }

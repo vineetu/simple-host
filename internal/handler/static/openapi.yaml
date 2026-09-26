@@ -37,7 +37,7 @@ tags:
   - name: Sites
     description: List, versions, rollback, delete
   - name: State
-    description: Per-site shared JSON store (reads Origin-gated; writes from a page need a signed-in visitor on the site's own address, agents write with the site owner's key; another account's key gets 404). A site with a connected domain lives there — its `https://<site>.<handle>.simple-host.app/...` address answers 302 to `https://<domain>/...` (same path and query) and writes through that address answer 401 use_custom_domain; agents write through the apex.
+    description: Per-site shared JSON store (reads public — a request from a page is Origin-checked, one with no Origin/Referer is served; writes from a page need a signed-in visitor on the site's own address, agents write with the site owner's key; another account's key gets 404). A site with a connected domain lives there — its `https://<site>.<handle>.simple-host.app/...` address answers 302 to `https://<domain>/...` (same path and query) and writes through that address answer 401 use_custom_domain; agents write through the apex.
   - name: Collections
     description: Append-only per-site lists (POST is a write)
   - name: Custom domains
@@ -1073,7 +1073,8 @@ paths:
       summary: Read per-site JSON state
       description: >-
         Returns the JSON blob for this site (`null` if unset). PUBLIC store — no API
-        key; the server checks `Origin`/`Referer` and only accepts calls from the
+        key. A request with no `Origin` and no `Referer` (curl, an agent) is served
+        as is; a request from a page (`Origin`/`Referer` set) is accepted only from the
         site's own page (`https://<site>.<handle>.simple-host.app/`, or its domain). The response carries
         an `ETag`; send `If-None-Match: <etag>` to get a `304` when nothing changed
         (cheap polling). Never store secrets here.
@@ -1246,8 +1247,9 @@ paths:
       operationId: getSitesBySitenameCollectionsByColl
       summary: List items in a collection
       description: >-
-        Newest-first, paginated. Origin-gated (no API key) for the site's own
-        page, or owner/admin API key for the dashboard. Writes (POST) from a page need a signed-in visitor (session with X-SH-CSRF) on the site's own address; agents write with any valid account X-API-Key through the apex (a site with a connected domain takes page writes only there — 401 use_custom_domain elsewhere). Origin gating still applies.
+        Newest-first, paginated. A public list is readable by anyone: with no
+        `Origin` and no `Referer` (curl, an agent) it is served as is; from a page it
+        is Origin-gated to the site's own page; the owner/admin API key also reads it. Writes (POST) from a page need a signed-in visitor (session with X-SH-CSRF) on the site's own address; agents write with any valid account X-API-Key through the apex (a site with a connected domain takes page writes only there — 401 use_custom_domain elsewhere). Origin gating still applies.
         A PRIVATE list is readable only by its owner — and by the Simple Host operator (platform admin key), for moderation: with the owner's `X-API-Key` or connector token (through the apex), or by the owner's own account signed in as a visitor on the site's own address (so an admin page on the site can list it). Each item carries its `id`, which the owner uses to edit or delete it (PATCH/DELETE .../items/{id}). Everyone else — anonymous, other signed-in visitors, other sites, anything through another address — gets 404 `{"error":"not found","code":"not_found"}`. Visitors cannot read back their own submissions. The answer for a private list adds `"private": true`.
       tags: [Collections]
       parameters:
