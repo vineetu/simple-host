@@ -74,6 +74,34 @@ ssh -i ~/.ssh/hackathon_key <user>@<ip> 'cd /opt/simple-host && docker compose p
 Caddy repeatedly failing to get a certificate almost always means DNS is not
 pointing at this machine yet, or port 80 is blocked.
 
+**`app` restarting in a loop with `schema check: database is behind this build:
+missing: ...` in its logs is an image/schema mismatch, not a DNS or Caddy
+problem.** The published `ghcr.io/vineetu/simple-host:latest` image is only
+rebuilt when a `v*` tag is pushed (`.github/workflows/release.yml`); `db/schema.sql`
+is whatever `--ref` points at, which moves independently. If a schema-changing
+commit has landed since the last tagged release, `latest` (or any tag older than
+that commit) will not run against the schema fetched from a newer `--ref`, and
+the install never becomes healthy — confirmed 2026-09-26 testing this against
+`feat/capacity-and-hackathon-page`, where the published `latest` (`v0.1.2`,
+built 2026-09-10) predates a same-day schema migration on the branch. Check
+which is newer before assuming DNS: compare the image's build date
+(`docker inspect <image> --format '{{.Created}}'`) against the last schema-
+touching commit on the ref you installed from. If the image is behind, either
+install from an older `--ref` that matches the published tag, or build from
+source on the box as a stopgap, which needs nothing the installer hasn't
+already set up:
+
+```bash
+git clone --branch <ref> --depth 1 https://github.com/vineetu/simple-host /root/src
+cd /root/src && docker build -t simple-host:local .
+sed -i 's/^IMAGE=.*/IMAGE=simple-host:local/' /opt/simple-host/.env
+cd /opt/simple-host && docker compose up -d
+```
+
+That takes under a minute on a 1 GB box. The real fix is cutting a new release
+so `latest` catches up; this is only how to keep testing or running in the
+meantime.
+
 ## Size settings
 
 Two optional flags, both written to `/opt/simple-host/.env`:
