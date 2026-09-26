@@ -9,7 +9,7 @@
   <meta property="og:site_name" content="Simple Host">
   <meta property="og:url" content="https://simple-host.app/enterprise">
   <meta property="og:title" content="Give everyone in the company a place to build">
-  <meta property="og:description" content="One service on your own cluster. Company sign-in, a hostname per person, pages that can be restricted to named people, and a tamper-evident audit trail of every change.">
+  <meta property="og:description" content="One service on your own cluster. Company sign-in, an address and browser origin per site, pages that can be restricted to named people, and a tamper-evident audit trail of every change.">
   <meta property="og:image" content="https://simple-host.app/og.png">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -72,7 +72,7 @@
         <h2>What a person gets</h2>
         <p class="lede">An address of their own, and somewhere for a page to keep what it collects.</p>
         <div class="facts">
-          <div class="row"><div class="k">Their own hostname</div><p class="v">Every person gets one label under your base domain, so their pages sit at an address that is theirs rather than a path on a shared one. A page they publish runs on their origin and no colleague's; their own sites share that origin by design.</p></div>
+          <div class="row"><div class="k">Their own addresses</div><p class="v">Every person gets their own name under your base domain, and every page they publish sits at the root of its own address under it: <code>&lt;site&gt;.&lt;person&gt;.&lt;your domain&gt;</code>. Each page is its own browser origin, so it shares no cookies, storage or scripts with a colleague's pages or with the person's other pages.</p></div>
           <div class="row"><div class="k">Pages that hold data</div><p class="v">A folder of files, a JSON document the page reads and writes without a schema, and an asset store for the things that are too big to sit in a document. Enough for a sign-up form, a poll, a project board that draws its own timeline.</p></div>
           <div class="row"><div class="k">The agent does it</div><p class="v">Claude Code, Codex, Cursor, ChatGPT, Claude. They install one skill, or connect to the instance's MCP endpoint by signing in, and reach the everyday operations as tools — publish, roll back, share, manage a team.</p></div>
           <div class="row"><div class="k">Nothing to learn</div><p class="v">Signing in is your normal company sign-in. There is no second password, no API key to keep somewhere, and no account for anyone to create or approve.</p></div>
@@ -85,8 +85,8 @@
         <h2>Who can see what</h2>
         <p class="lede">A new page opens only for the person who made it. They choose who else can: named people or teams, anyone signed in with the link, the company showcase, or — with an admin's approval — anyone who can reach the server.</p>
         <div class="facts">
-          <div class="row"><div class="k">Restricted pages</div><p class="v">Name the people who may read it and the page moves to an address of its own. Everyone else gets a 404 — not a sign-in prompt, not a permission error. Somebody who should not know it exists cannot tell that it does.</p></div>
-          <div class="row"><div class="k">Teams</div><p class="v">A team has its own address, and every member can publish and manage its sites — that is how people work on a site together. Share with a team once rather than maintaining the same list on eleven pages.</p></div>
+          <div class="row"><div class="k">Restricted pages</div><p class="v">Name the people who may read it and everyone else gets a 404 — not a sign-in prompt, not a permission error. Somebody who should not know it exists cannot tell that it does.</p></div>
+          <div class="row"><div class="k">Teams</div><p class="v">A team is named <code>team-&lt;name&gt;</code> and has its own address, and every member can publish and manage its sites — that is how people work on a site together. Share with a team once rather than maintaining the same list on eleven pages.</p></div>
           <div class="row"><div class="k">Leavers</div><p class="v">Your identity provider is asked only at sign-in, so disable a leaver there and here. Disabling here — on the admin page, or from HR automation with an offboarding key — ends their sessions, API keys and connected AI apps at once. Sign-ins last 8 hours, or 30 minutes idle, by default.</p></div>
         </div>
       </div>
@@ -106,7 +106,7 @@
         <h2>What it runs on</h2>
         <p class="lede">Your cluster, your Postgres, your object storage, your identity provider. The package is the manifests to do it.</p>
         <div class="facts">
-          <div class="row"><div class="k">Kubernetes</div><p class="v">Kustomize manifests: a base, and overlays for bringing your own managed services or running everything in-cluster to evaluate it. Any conformant cluster — managed or your own. Ingress and certificates are the cluster's normal ones.</p></div>
+          <div class="row"><div class="k">Kubernetes</div><p class="v">Kustomize manifests: a base, and overlays for bringing your own managed services or running everything in-cluster to evaluate it. Any conformant cluster — managed or your own. Ingress and certificates are the cluster's normal ones; cert-manager issues each person's certificate automatically, ideally from your internal CA.</p></div>
           <div class="row"><div class="k">Postgres and object storage</div><p class="v">Any managed Postgres, and any S3-compatible object storage. The service refuses to start unless the database connection verifies the server's certificate in full and the storage endpoint is HTTPS, unless you deliberately opt out to evaluate it locally.</p></div>
           <div class="row"><div class="k">Your identity provider</div><p class="v">Anything that speaks OIDC. Which claim marks an administrator, and which email domains may sign in at all, are yours to set. There is no master key anywhere in the system — an admin is a real person who signed in.</p></div>
           <div class="row"><div class="k">Least privilege</div><p class="v">The service connects to the database as a role that cannot alter the schema. Migrations run as the owner, separately, as their own step.</p></div>

@@ -4,12 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>How Simple Host Enterprise is built</title>
-  <meta name="description" content="The security architecture of Simple Host Enterprise: sign-in through your identity provider, a hostname per person, files that never execute on the server, and a small Kubernetes footprint.">
+  <meta name="description" content="The security architecture of Simple Host Enterprise: sign-in through your identity provider, an address and browser origin per site, files that never execute on the server, and a small Kubernetes footprint.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Simple Host">
   <meta property="og:url" content="https://simple-host.app/enterprise/architecture">
   <meta property="og:title" content="How Simple Host Enterprise is built">
-  <meta property="og:description" content="Sign-in through your identity provider, a hostname per person, and files that never execute on the server.">
+  <meta property="og:description" content="Sign-in through your identity provider, an address and browser origin per site, and files that never execute on the server.">
   <meta property="og:image" content="https://simple-host.app/og.png">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -165,7 +165,7 @@
       <div class="hero">
         <p class="eyebrow">Simple Host Enterprise / Architecture</p>
         <h1>How Simple Host Enterprise is built</h1>
-        <p class="lede">Simple Host Enterprise is one Go service that runs in your own Kubernetes cluster. It serves static pages plus the data those pages save. Each person's pages live on their own hostname, so one person's page cannot read another person's; one person's own sites share that hostname by design. Everyone signs in through your identity provider, unless an admin has opened a site to the whole network. Uploaded files are stored and served as bytes; they never execute on the server.</p>
+        <p class="lede">Simple Host Enterprise is one Go service that runs in your own Kubernetes cluster. It serves static pages plus the data those pages save. Every site lives at its own address under its owner's name, and is its own browser origin, so no page can read another site's, not even a sibling site of the same person. Everyone signs in through your identity provider, unless an admin has opened a site to the whole network. Uploaded files are stored and served as bytes; they never execute on the server.</p>
         <div class="meta"><span>One service</span><span>Your cluster</span><span>Your Postgres</span><span>Your bucket</span><span>Your identity provider</span></div>
       </div>
     </div>
@@ -177,13 +177,13 @@
           <div class="num">01.</div>
           <div class="col">
             <h2>Identity and addresses</h2>
-            <p class="lead">Every request says who is asking, and every person's pages sit on their own browser origin.</p>
+            <p class="lead">Every request says who is asking, and every site sits on its own browser origin.</p>
             <ol class="pts">
               <li><span class="t">1.1</span><div><strong>One sign-in, yours.</strong> People sign in through your identity provider — anything that speaks OIDC. The provider must vouch for the email address (<code>email_verified</code>), or sign-in is refused. There are no local accounts and no admin key. Admins are real signed-in people, named by an email list or a claim from your provider.</div></li>
-              <li><span class="t">1.2</span><div><strong>A hostname per person.</strong> Each person's sites live under their own hostname, as paths: <code>&lt;person&gt;.&lt;your domain&gt;/tracker/</code>. Different people are different browser origins, so one person's page cannot read another person's pages, storage or cookies. One person's sites, or one team's, share their origin by design: a page can read its sibling sites and call their saved data as the visitor. Only that person or team can publish there.</div></li>
-              <li><span class="t">1.3</span><div><strong>Sites for specific people get their own hostname.</strong> A site shared with named people or teams is served at <code>&lt;person&gt;--&lt;site&gt;.&lt;your domain&gt;</code>, for example <code>&lt;person&gt;--roadmap.&lt;your domain&gt;</code>. It is then apart from its owner's other sites too. Sites at every other level stay on the owner's hostname.</div></li>
+              <li><span class="t">1.2</span><div><strong>An address per site.</strong> Every site is served at the root of its own address, under its owner's name: <code>&lt;site&gt;.&lt;person&gt;.&lt;your domain&gt;</code>, for example <code>tracker.&lt;person&gt;.&lt;your domain&gt;</code>. Each site is its own browser origin, so no page can read another site's pages, storage or cookies, or call its saved data, including a sibling site of the same person. <code>&lt;person&gt;.&lt;your domain&gt;/</code> is that person's index of their sites. Teams are named <code>team-&lt;name&gt;</code> and work the same way. Only that person or team can publish there.</div></li>
+              <li><span class="t">1.3</span><div><strong>Until a person's certificate is ready.</strong> Each person needs a certificate for their sites (R11). Until it is issued, their sites are served at <code>&lt;person&gt;.&lt;your domain&gt;/&lt;site&gt;/</code>, with the same sign-in and access checks, and share that origin for the time being. Once it is ready, those addresses redirect to the site's own. Nobody is sent to an address without a certificate.</div></li>
               <li><span class="t">1.4</span><div><strong>Management stays on the base address.</strong> The dashboard, the API and the MCP endpoint are served on <code>&lt;your domain&gt;</code>. No hosted page is ever served there.</div></li>
-              <li><span class="t">1.5</span><div><strong>Moving between addresses.</strong> The browser signs in once, at the base address. Opening a person's hostname hands the session over with a one-time code that expires after 60 seconds and is spent by its first use. Each host then holds its own <code>__Host-</code> cookie (Secure, HttpOnly), bound to that host and refused on any other.</div></li>
+              <li><span class="t">1.5</span><div><strong>Moving between addresses.</strong> The browser signs in once, at the base address. Opening a site's address hands the session over with a one-time code that expires after 60 seconds and is spent by its first use. Each host then holds its own <code>__Host-</code> cookie (Secure, HttpOnly), bound to that host and refused on any other.</div></li>
               <li><span class="t">1.6</span><div><strong>Changes need the right Origin.</strong> A change made with a browser cookie must carry the Origin of the address it was sent to. A page on one address cannot make changes on another.</div></li>
               <li><span class="t">1.7</span><div><strong>AI apps sign in as the person.</strong> ChatGPT, Claude and other AI apps connect to <code>/mcp</code> with OAuth: the person signs in through your identity provider and allows the app once. The app's tokens carry that person's rights and no more, and work only on <code>/mcp</code>; a direct API call with one is refused. An access token lasts an hour, and the connection lasts 30 days from the sign-in that made it, however often it refreshes; then the person signs in again (both configurable, at most 24 hours and 90 days). <code>OAUTH_REDIRECT_HOSTS</code> limits which apps can finish connecting. The apps must be able to reach your instance. Each installation serves its own plugin, with its address already filled in.</div></li>
               <li><span class="t">1.8</span><div><strong>API keys are for automation.</strong> CI and scripts use an API key. Only a signed-in person can create one. Keys are stored as a hash, expire (90 days by default, 365 at most) and can be revoked. Each key has a scope, set when it is created: <code>publish</code> (the default: deploy, update, roll back, saved data and files), <code>full</code> (everything the person can do except administration) or <code>offboard</code> (admins only: the offboarding call and nothing else). No other key reaches the admin API.</div></li>
@@ -196,11 +196,11 @@
 
       <figure class="fig" aria-labelledby="fig1-cap">
         <div class="fig-head">
-          <span>FIG 01 · Identity and one origin per person</span>
+          <span>FIG 01 · Identity and one origin per site</span>
           <span class="legend"><span class="p"><i></i>Simple Host</span><span class="e"><i></i>People &amp; yours</span><span class="g"><i></i>Signed-in request</span></span>
         </div>
         <div class="fig-box">
-          <svg viewBox="0 0 1000 520" role="img" aria-label="An employee's browser signs in through your identity provider, then visits each person's own hostname. An AI app reaches the MCP endpoint on the base address by signing in as the person; automation uses an API key.">
+          <svg viewBox="0 0 1000 520" role="img" aria-label="An employee's browser signs in through your identity provider, then visits each site at its own address. An AI app reaches the MCP endpoint on the base address by signing in as the person; automation uses an API key.">
             <defs>
               <marker id="f1a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
               <marker id="f1g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah g" d="M0,0 L10,5 L0,10 z"/></marker>
@@ -229,12 +229,12 @@
 
             <!-- origin bands -->
             <rect class="band-soft" x="20" y="210" width="220" height="270"/>
-            <text class="lbl-host" x="32" y="230">person-a.&lt;your domain&gt;</text>
+            <text class="lbl-host" x="32" y="230">tracker.person-a.&lt;your domain&gt;</text>
             <rect class="node p" x="32" y="244" width="196" height="222"/>
-            <text class="nt" x="46" y="268">Person A's sites</text>
-            <text class="ns" x="46" y="288">/tracker/ · /notes/ · …</text>
-            <text class="ns" x="46" y="312">all their sites share</text>
-            <text class="ns" x="46" y="327">this origin, by design</text>
+            <text class="nt" x="46" y="268">Person A's tracker</text>
+            <text class="ns" x="46" y="288">served at the root: /</text>
+            <text class="ns" x="46" y="312">one site, one origin</text>
+            <text class="ns" x="46" y="327">its own cookies + storage</text>
             <text class="ns" x="46" y="351">saved data + files API</text>
             <text class="ns" x="46" y="366">served on this host</text>
             <text class="ns" x="46" y="390">sign-in on every view,</text>
@@ -243,12 +243,12 @@
             <text class="ns" x="46" y="444">new sites: owner only</text>
 
             <rect class="band-soft" x="256" y="210" width="220" height="270"/>
-            <text class="lbl-host" x="268" y="230">person-b.&lt;your domain&gt;</text>
+            <text class="lbl-host" x="268" y="230">notes.person-a.&lt;your domain&gt;</text>
             <rect class="node p" x="268" y="244" width="196" height="222"/>
-            <text class="nt" x="282" y="268">Person B's sites</text>
-            <text class="ns" x="282" y="288">/launch/ · /budget/ · …</text>
-            <text class="ns" x="282" y="312">all their sites share</text>
-            <text class="ns" x="282" y="327">this origin, by design</text>
+            <text class="nt" x="282" y="268">Person A's notes</text>
+            <text class="ns" x="282" y="288">served at the root: /</text>
+            <text class="ns" x="282" y="312">apart from the tracker,</text>
+            <text class="ns" x="282" y="327">though the owner is one</text>
             <text class="ns" x="282" y="351">saved data + files API</text>
             <text class="ns" x="282" y="366">served on this host</text>
             <text class="ns" x="282" y="390">sign-in on every view,</text>
@@ -257,15 +257,15 @@
             <text class="ns" x="282" y="444">new sites: owner only</text>
 
             <rect class="band-soft" x="492" y="210" width="236" height="270"/>
-            <text class="lbl-host" x="502" y="230">person-b--roadmap.&lt;your domain&gt;</text>
+            <text class="lbl-host" x="502" y="230">roadmap.person-b.&lt;your domain&gt;</text>
             <rect class="node p" x="504" y="244" width="212" height="222"/>
-            <text class="nt" x="518" y="268">For specific people</text>
-            <text class="ns" x="518" y="288">its own hostname</text>
+            <text class="nt" x="518" y="268">Person B's roadmap</text>
+            <text class="ns" x="518" y="288">shared with specific people</text>
             <text class="ns" x="518" y="312">named viewers only:</text>
             <text class="ns" x="518" y="327">people or teams</text>
             <text class="ns" x="518" y="351">everyone else gets 404</text>
-            <text class="ns" x="518" y="375">apart from the owner's</text>
-            <text class="ns" x="518" y="390">other sites as well</text>
+            <text class="ns" x="518" y="375">person-b.&lt;your domain&gt;/</text>
+            <text class="ns" x="518" y="390">is Person B's index</text>
 
             <rect class="band-soft" x="744" y="210" width="236" height="270"/>
             <text class="lbl-host" x="756" y="230">&lt;your domain&gt; · base address</text>
@@ -290,11 +290,11 @@
             <path class="wire" d="M900,134 L900,208" marker-end="url(#f1a)"/>
             <text class="wl" x="908" y="176">OAuth · API key</text>
 
-            <text class="wl i" x="500" y="505" text-anchor="middle">one person's pages cannot read another person's · the browser withholds every cross-origin response</text>
+            <text class="wl i" x="500" y="505" text-anchor="middle">no site's pages can read another site's · the browser withholds every cross-origin response</text>
           </svg>
         </div>
         <p class="fig-hint">Scroll the figure sideways →</p>
-        <figcaption class="fig-cap" id="fig1-cap">One sign-in through your provider, then a separate origin per person, shared by that person's sites. A site shared with specific people gets one of its own. Management lives on the base address, where no hosted page runs.</figcaption>
+        <figcaption class="fig-cap" id="fig1-cap">One sign-in through your provider, then a separate origin per site, each under its owner's name. Management lives on the base address, where no hosted page runs.</figcaption>
       </figure>
     </section>
 
@@ -408,11 +408,11 @@
             <p class="lead">Every site has one of five access levels. A new site opens only for its owner, who decides from there.</p>
             <table class="tbl">
               <tr><th>Only me</th><td>The default for a new site. Only the owner can open it, or, for a team's site, the team's members.</td></tr>
-              <tr><th>Specific people or teams</th><td>The owner names the people or teams who can open it. The site moves to its own hostname, and everyone else gets a 404, the same answer as a site that does not exist.</td></tr>
+              <tr><th>Specific people or teams</th><td>The owner names the people or teams who can open it, and everyone else gets a 404, the same answer as a site that does not exist.</td></tr>
               <tr><th>Anyone in the company</th><td>Anyone signed in who has the link. The link can be passed on, so this is not private.</td></tr>
               <tr><th>Listed</th><td>Anyone in the company, and the site appears in the company showcase and in search, credited to its owner.</td></tr>
               <tr><th>Anyone on the network</th><td>No sign-in. The owner asks for it with a reason, and the site keeps its level until an admin approves; you can require two different admins. Whoever asked can never approve their own request. Visitors who are not signed in can read its pages, files and saved data, and change nothing. The owner can lower the level at any time, and an admin can revoke it.</td></tr>
-              <tr><th>Teams</th><td>A team is a namespace, like a person. Every member can publish and manage its sites, which is how people work on a site together.</td></tr>
+              <tr><th>Teams</th><td>A team is a namespace, like a person, named <code>team-&lt;name&gt;</code>: its sites are at <code>&lt;site&gt;.team-&lt;name&gt;.&lt;your domain&gt;</code>. Every member can publish and manage its sites, which is how people work on a site together.</td></tr>
               <tr><th>Saved data</th><td>Anyone who can open a site can read and write its saved data, as themselves. Writes go into the audit log under the person who made them.</td></tr>
               <tr><th>Leavers</th><td>Your identity provider is asked about a person only when they sign in, so offboarding is two steps: disable them there, and disable them here. Disabling here ends every session and revokes every API key and connected AI app at once. An admin does it on the admin page, or HR automation calls the offboarding endpoint with an <code>offboard</code> key. Without the second step, a browser session lasts until its lifetime runs out (8 hours, or 30 minutes idle, by default), a connected AI app until its connection expires (30 days by default), and an API key until it expires.</td></tr>
             </table>
@@ -452,18 +452,19 @@
           <div class="num">05.</div>
           <div class="col">
             <h2>Runtime</h2>
-            <p class="lead">One Deployment and one scheduled job in your cluster. Postgres, the bucket and sign-in are yours.</p>
+            <p class="lead">The service, a small certificate reconciler and one scheduled job in your cluster. Postgres, the bucket and sign-in are yours.</p>
             <table class="tbl">
               <tr><td class="tag">R1</td><th>Deployment</th><td>Two replicas. A rolling update starts a new pod before it stops an old one, a PodDisruptionBudget keeps one serving through node drains, and the replicas spread across nodes when there are several. Pods are stateless: sites live in the bucket, and Postgres decides which version is live.</td></tr>
               <tr><td class="tag">R2</td><th>Schema step</th><td>An init container, <code>migrate</code>, runs the same image before the server starts. It takes a lock, applies pending migrations as the database's owning role, each in one transaction with its record, and exits. The server refuses a schema it does not know, unless every newer migration is marked backward-compatible, so an image can be rolled back without restoring the database.</td></tr>
               <tr><td class="tag">R3</td><th>Least-privilege role</th><td>The server connects as <code>simplehost_app</code>, which can read and write application data but cannot change the schema or truncate tables.</td></tr>
-              <tr><td class="tag">R4</td><th>Hardening</th><td>The namespace enforces the restricted Pod Security profile. Every container runs as a non-root user with a read-only root filesystem, all capabilities dropped and the default seccomp profile. No Kubernetes API token is mounted.</td></tr>
+              <tr><td class="tag">R4</td><th>Hardening</th><td>The namespace enforces the restricted Pod Security profile. Every container runs as a non-root user with a read-only root filesystem, all capabilities dropped and the default seccomp profile. No Kubernetes API token is mounted in the service's pods.</td></tr>
               <tr><td class="tag">R5</td><th>Pod storage</th><td>Each pod keeps a bounded cache of the versions it serves in an <code>emptyDir</code>, emptied on start. <code>/tmp</code> is a second scratch <code>emptyDir</code>. A pod holds nothing that is not in the bucket or the database.</td></tr>
-              <tr><td class="tag">R6</td><th>Ingress and metrics</th><td>The base address and a wildcard beneath it, on one TLS certificate, to one ClusterIP Service. How it is exposed is yours to decide; AI apps can connect only if they can reach it. Prometheus metrics are on a separate port, 9090, which the Service does not expose; scrape the pod directly.</td></tr>
+              <tr><td class="tag">R6</td><th>Ingress and metrics</th><td>The base address and a wildcard beneath it, on one TLS certificate, plus one Ingress per person for their sites (R11), all to one ClusterIP Service. One DNS wildcard record covers every depth. How it is exposed is yours to decide; AI apps can connect only if they can reach it. Prometheus metrics are on a separate port, 9090, which the Service does not expose; scrape the pod directly.</td></tr>
               <tr><td class="tag">R7</td><th>Scheduled job</th><td><code>prune</code> runs monthly as the owning role. It drops expired log partitions and their audit-chain rows, and deletes ended sessions and old hand-off codes. It touches only Postgres.</td></tr>
               <tr><td class="tag">R8</td><th>Your Postgres</th><td>Over TLS with <code>sslmode=verify-full</code>; the service refuses to start otherwise. Point-in-time recovery is required: Postgres holds which version of each site is live, the saved data and the accounts, and nothing in the package backs it up. Every page request looks up the live version there, so the sites need it running.</td></tr>
               <tr><td class="tag">R9</td><th>Your bucket</th><td>An S3-compatible bucket over HTTPS is the site store: every version and uploaded file, written once. Bucket versioning with a lifecycle rule is required and is the backup for those files. Every object carries a server-side-encryption header, with an optional client-side envelope on top; <code>reencrypt</code> rewrites every object under a new envelope key so the old one can be retired. The service refuses a plain-HTTP endpoint.</td></tr>
               <tr><td class="tag">R10</td><th>Releases</th><td>Release images are signed with cosign (keyless, from the release workflow) and carry an SBOM and a provenance attestation. There is no <code>latest</code> tag: the manifests pin an image digest, and the install check refuses the placeholder.</td></tr>
+              <tr><td class="tag">R11</td><th>Certificates</th><td>A wildcard certificate per person, <code>*.&lt;person&gt;.&lt;your domain&gt;</code>, issued automatically by cert-manager. A small reconciler keeps one Ingress per person with sites; it runs under its own ServiceAccount, may manage Ingresses and read Certificates only, and never reads Secrets. Your company's internal CA is the recommended issuer: no limits and no cost. Public CAs publish every hostname, and so everyone's name, in Certificate Transparency logs, and Let's Encrypt caps certificates per week. Automatic certificates are tested with an in-cluster ingress controller; AWS ALB and GKE's built-in ingress need an in-cluster controller for the site addresses, or certificates provided by hand.</td></tr>
             </table>
           </div>
         </div>
@@ -475,18 +476,18 @@
           <span class="legend"><span class="p"><i></i>Simple Host</span><span class="e"><i></i>Yours</span><span class="g"><i></i>Read / write path</span></span>
         </div>
         <div class="fig-box">
-          <svg viewBox="0 0 1000 600" role="img" aria-label="The simple-host namespace holds an ingress, a two-replica Deployment whose pods run a migrate init container and the simple-host container with a local cache, and one CronJob, prune. The service talks to your Postgres, your S3-compatible bucket and your OIDC provider. Metrics are on a separate port the Service does not expose.">
+          <svg viewBox="0 0 1000 660" role="img" aria-label="The simple-host namespace holds an ingress, a two-replica Deployment whose pods run a migrate init container and the simple-host container with a local cache, one CronJob, prune, and a certificate reconciler that keeps one Ingress per person for cert-manager. The service talks to your Postgres, your S3-compatible bucket and your OIDC provider. Metrics are on a separate port the Service does not expose.">
             <defs>
               <marker id="f3a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
               <marker id="f3g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah g" d="M0,0 L10,5 L0,10 z"/></marker>
             </defs>
 
-            <rect class="edge" x="20" y="20" width="650" height="560"/>
+            <rect class="edge" x="20" y="20" width="650" height="620"/>
             <text class="lbl-edge" x="36" y="42">Namespace simple-host · pod security: restricted</text>
 
             <rect class="node p" x="44" y="58" width="602" height="56"/>
             <text class="nt" x="60" y="80">Ingress → Service :80</text>
-            <text class="ns" x="60" y="100">&lt;your domain&gt; and *.&lt;your domain&gt; · one wildcard TLS certificate</text>
+            <text class="ns" x="60" y="100">&lt;your domain&gt;, *.&lt;your domain&gt; · plus *.&lt;person&gt;.&lt;your domain&gt; per person</text>
             <text class="tg" x="626" y="80" text-anchor="end">R6</text>
 
             <rect class="band" x="44" y="146" width="602" height="270"/>
@@ -534,8 +535,14 @@
             <text class="ns" x="372" y="499">not in the Service or Ingress</text>
             <text class="tg" x="630" y="464" text-anchor="end">R6</text>
 
+            <rect class="node p" x="44" y="530" width="602" height="70"/>
+            <text class="nt" x="60" y="554">Deployment owner-hosts · certificate reconciler</text>
+            <text class="ns" x="60" y="574">own ServiceAccount · Ingresses + reading Certificates · no Secrets</text>
+            <text class="ns" x="60" y="589">one Ingress per person → cert-manager issues *.&lt;person&gt;.&lt;your domain&gt;</text>
+            <text class="tg" x="630" y="554" text-anchor="end">R11</text>
+
             <!-- yours -->
-            <rect class="band" x="700" y="20" width="280" height="560"/>
+            <rect class="band" x="700" y="20" width="280" height="620"/>
             <text class="lbl" x="716" y="42">Yours</text>
             <rect class="node e" x="716" y="62" width="248" height="80"/>
             <text class="nt" x="732" y="86">Your identity provider</text>
@@ -562,13 +569,13 @@
             <path class="wire g" d="M638,240 L714,240" marker-end="url(#f3g)"/>
             <path class="wire g" d="M638,272 C690,300 670,440 714,452" marker-end="url(#f3g)"/>
             <path class="wire g" d="M364,262 C340,262 350,330 328,340" marker-end="url(#f3g)"/>
-            <path class="wire" d="M60,232 L32,232 L32,566 L686,566 L686,290 L714,290" marker-end="url(#f3a)"/>
-            <path class="wire" d="M190,510 L190,566"/>
-            <text class="wl" x="694" y="548" transform="rotate(-90 694 548)">owning role</text>
+            <path class="wire" d="M60,232 L32,232 L32,626 L686,626 L686,290 L714,290" marker-end="url(#f3a)"/>
+            <path class="wire" d="M44,475 L32,475"/>
+            <text class="wl" x="694" y="608" transform="rotate(-90 694 608)">owning role</text>
           </svg>
         </div>
         <p class="fig-hint">Scroll the figure sideways →</p>
-        <figcaption class="fig-cap" id="fig3-cap">Tags match the rows above. The server reaches Postgres as <code>simplehost_app</code>; the schema step and the prune job use the owning role. The pods keep only a cache: sites live in the bucket.</figcaption>
+        <figcaption class="fig-cap" id="fig3-cap">Tags match the rows above. The server reaches Postgres as <code>simplehost_app</code>; the schema step and the prune job use the owning role, and the reconciler connects as <code>simplehost_app</code>. The pods keep only a cache: sites live in the bucket.</figcaption>
       </figure>
     </section>
 
