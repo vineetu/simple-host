@@ -222,7 +222,7 @@ When the user wants to wire a capability into an existing site, generate a focus
 
 Example prompt for "save drafts in localStorage":
 
-> Add draft autosave to this site. On every change to the text input, write `{text, updatedAt}` to `localStorage['mysite.draft']`. On page load, restore the input value from that key if present. Show a small "Draft saved" indicator that fades out after 1 second when the save runs. No external dependencies. Use relative asset links only (sites are path-hosted).
+> Add draft autosave to this site. On every change to the text input, write `{text, updatedAt}` to `localStorage['mysite.draft']`. On page load, restore the input value from that key if present. Show a small "Draft saved" indicator that fades out after 1 second when the save runs. No external dependencies. Use relative asset links only (a site can also be served under a path).
 
 Example prompt for "let visitors sign the guestbook" (entries belong to signed-in visitors; this site also has a custom domain, so `SH_CONFIG` is required):
 

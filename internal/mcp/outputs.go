@@ -238,7 +238,7 @@ func outputSchemas() map[string]map[string]any {
 			"site":       outString(outSiteName),
 			"collection": outString(outCollection),
 			"private":    outBool("The collection's privacy now: true = only the owner can read it."),
-			"domain":     outString("The host of the site's own address, where visitors sign in to submit: its <site>.<handle>.simple-host.app address or its connected domain. Present when the collection was made private."),
+			"domain":     outString("The host of the site's own address, where visitors sign in to submit: its <site>.<handle>.simple-host.app address (briefly <handle>.simple-host.app for a new account) or its connected domain. Present when the collection was made private."),
 		}, "site", "collection", "private"),
 
 		"update_collection_item": outObject(map[string]any{

@@ -16,8 +16,9 @@ is not redirected and returns 404; use `site_url` from the response.
 
 ## API key rotation
 
-`POST /v1/me/api-key/rotate` returns a new `api_key`. The old key stops working
-immediately, so update the agent or CLI before its next request.
+`POST /v1/me/api-key/rotate` returns a new `api_key`. Every older key stops
+working immediately and connected apps (ChatGPT, Claude, Grok) are signed out, so
+update the agent or CLI before its next request.
 
 ## Rollback
 
@@ -38,9 +39,9 @@ Preview a retained version before restoring it (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.19.0"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.19.1"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.19.0"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.19.1"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte

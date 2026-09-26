@@ -44,9 +44,10 @@ paths do not expand a literal `~`, and `%USERPROFILE%` expands only in `cmd`.
    `handle` is the person's part of every site address
    (`https://<sitename>.<handle>.simple-host.app/`).
 
-5. **Save** `api_key`, `username`, and `handle` to the config file. The key never
-   rotates unless the user asks for a new one, so this file is the source of
-   truth from here on. Re-read `handle` any time via `GET /v1/me`.
+5. **Save** `api_key`, `username`, and `handle` to the config file. The key
+   cannot be shown again, so this file is the source of truth from here on. It
+   keeps working until the user rotates keys; signing in again issues another
+   key without retiring this one. Re-read `handle` any time via `GET /v1/me`.
 
    Never print the key into the transcript, a log, or a committed file.
 

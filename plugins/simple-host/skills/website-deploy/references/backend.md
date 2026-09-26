@@ -169,8 +169,9 @@ site-scoped and is not an API key: it cannot deploy or delete.
 
 Raw `fetch` without the helper works too: send `credentials:'include'` and
 `X-SH-CSRF: 1` yourself, and on a 401 with `code === "visitor_auth_required"`
-navigate to `https://simple-host.app/v1/auth/oauth/google?return_to=` +
-`encodeURIComponent(location.href)`.
+navigate to `/v1/visitor/oauth/google?return_to=` +
+`encodeURIComponent(location.href)` on the site's own address (same origin: the
+sign-in is tied to the browser that starts it).
 
 ## Private collections (orders, RSVPs, anything personal)
 
@@ -348,7 +349,7 @@ the old `sites.simple-host.app` address answers 404 for it, even with a key.
 | 401 | `visitor_auth_required` | Not signed in. `SH.requireSignIn()` handles it. |
 | 403 | `csrf_required` | Missing `X-SH-CSRF: 1`. The helper always sends it. |
 | 403 | `private_visitor_only` | Sent with an API key, or by an agent (`add_to_collection`). Agents cannot add to a private list; only signed-in visitors can. |
-| 403 | `private_needs_own_domain` | Sent from anywhere other than the site's own address (`<site>.<handle>.simple-host.app`, or its domain if it has one). |
+| 403 | `private_needs_own_domain` | Sent from anywhere other than the site's own address (`<site>.<handle>.simple-host.app` or, while a new account uses it, the `<handle>.simple-host.app/<site>/` fallback; or its domain if it has one). |
 | 401 | `use_custom_domain` (+ `domain`) | The site has a domain and this was sent through its previous address. Link the visitor to the same page on `domain`. |
 | 400 | — | The item is not one JSON object. |
 | 413 | — | The item is over 64 KB. |

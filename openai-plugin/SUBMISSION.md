@@ -1,4 +1,4 @@
-# OpenAI plugin submission kit — Simple Host 0.3.0
+# OpenAI plugin submission kit — Simple Host 0.4.0
 
 Everything to paste into the plugin portal (https://platform.openai.com/plugins), in portal
 order, plus the steps only the owner can do. Checked against the OpenAI docs as of 2026-09-24:
@@ -70,7 +70,7 @@ Portal → **Create plugin** → **With MCP**. Package name `simple-host` (it mu
 |---|---|
 | Plugin name (display name) | Simple Host |
 | Short description (≤30) | Describe a site. It's online. |
-| Long description | Tell ChatGPT the website you want (a portfolio, an event page with RSVPs, a small shop, a sign-up form, a survey) and Simple Host puts it online at an address you can share straight away. Every site can save what people send it: RSVPs, orders, votes and survey answers are kept, and you can download them as a spreadsheet. Orders, RSVPs and survey answers can go in a private list that only you can read. For a nicer address, take a free name.simple-host.app or connect your own domain. Sign in once and ChatGPT remembers you in every chat after that. Change a site any time by asking for it, and go back to any earlier version if you don't like the change. Pages are public to anyone with the link, so keep private information in private lists. Free to start. |
+| Long description | Tell ChatGPT the website you want (a portfolio, an event page with RSVPs, a small shop, a sign-up form, a survey) and Simple Host puts it online at an address you can share straight away. Every site can save what people send it: RSVPs, orders, votes and survey answers are kept, and you can download them as a spreadsheet. Every site gets its own address, and orders, RSVPs and survey answers can go in a private list on it that only you can read. Sign in once and ChatGPT remembers you in every chat after that. Change a site any time by asking for it, and go back to any earlier version if you don't like the change. Pages are public to anyone with the link, so keep private information in private lists. Free to start. |
 | Developer identity | the verified identity from step 0.3 |
 | Logo | `openai-plugin/assets/logo.png` (512×512) · composer icon `assets/icon.png` (256×256) |
 | Category | Productivity |
@@ -157,14 +157,15 @@ local-marketplace test or any upload that wants the whole package.
 ## 6. Testing tab (exactly 5 positive, 3 negative)
 
 Account for every case: the reviewer demo account (step 0.4), seeded with step 0.5. Sites are
-at `https://<reviewer handle>.simple-host.app/<site>/`.
+at `https://<site>.<reviewer handle>.simple-host.app/` (briefly
+`https://<reviewer handle>.simple-host.app/<site>/` while a new account's certificate is issued).
 
 ### Positive
 
 **P1 — Publish a new site**
 - Prompt: "Make a one-page site for a neighbourhood book swap on Saturday at 10am in Linden Park, and publish it."
 - Expected behaviour: `website-deploy` skill; `create_site` once with `index.html` (and any CSS) inline; no email/code/key requested.
-- Expected result: a reply with the exact `url` from the tool (`https://<handle>.simple-host.app/<site>/`), version 1; opening it shows the page.
+- Expected result: a reply with the exact `url` from the tool (`https://<site>.<handle>.simple-host.app/`), version 1; opening it shows the page.
 - Fixtures: none.
 
 **P2 — Build the RSVP page with an admin page (starter prompt 2)**
@@ -215,7 +216,7 @@ governing-law clause names one jurisdiction, start there.
 
 ## 8. Release notes
 
-> Simple Host 0.3.0, the successor to the Skills-only "Website Deploy" listing. Adds the Simple Host remote MCP server
+> Simple Host 0.4.0, the successor to the Skills-only "Website Deploy" listing. Adds the Simple Host remote MCP server
 > (https://simple-host.app/mcp, OAuth 2.1 with dynamic client registration and PKCE), so
 > people sign in once and every conversation can publish and manage their sites without email
 > codes or API keys. The three skills now use the MCP tools instead of an email-code and curl
@@ -224,8 +225,8 @@ governing-law clause names one jurisdiction, start there.
 > credentials provided; the account is pre-loaded with three sample sites (garden-party-rsvp,
 > feedback-survey, pickle-shop) and their data. Pages are public by design; orders, RSVPs and
 > sign-ups can go in private collections that only the site owner (and the Simple Host
-> operator, for moderation) can read. Every account has its own address,
-> `<handle>.simple-host.app`, where visitors sign in to save; a free `<name>.simple-host.app`
+> operator, for moderation) can read. Every site has its own address,
+> `<site>.<handle>.simple-host.app`, where visitors sign in to save; a free `<name>.simple-host.app`
 > or the person's domain is an optional nicer address. The tools say which is which.
 
 Then the policy attestations, and **Submit for Review**. After approval, **Publish** from the
@@ -233,19 +234,12 @@ portal.
 
 ---
 
-## Known issue to fix before review (found while building the demo sites)
+## Fixed: same site name in two accounts on the old shared address
 
-On the old shared address (`sites.simple-host.app`, which keeps working), a page that sets `window.SH_CONFIG = { site: "<name>" }` (the pattern
-the skills, the server instructions and `backend.md` all teach) makes `auth.js` call
-`/v1/sites/<name>` without the handle, and the server resolves that to the oldest site of that
-name across all accounts. If two accounts both have e.g. `garden-party-rsvp`, the newer one's
-page reads and writes the older one's data. Without `SH_CONFIG`, `auth.js` derives
-`/v1/u/<handle>/<site>` from the path and is correct. Suggested fix, in `auth.js`: on
-`sites.*` with a `/<handle>/<site>/` path, use the handle-scoped API even when `SH_CONFIG.site`
-is set. Not changed on this branch (it changes live pages' runtime; owner's call). The demo
-site names are unused by other accounts today. On a person address
-(`<handle>.simple-host.app`) the page API answers only for that person's sites, so this does
-not arise there.
+`auth.js` once called `/v1/sites/<name>` without the handle on `sites.simple-host.app` when
+`SH_CONFIG.site` was set, which the server resolves to the oldest site of that name. It now
+uses the handle-scoped API there, and old `sites.simple-host.app/<handle>/<site>/` links
+redirect to the site's own address, where the page API answers only for that site.
 
 ## What the docs asked for that this kit does not do
 
