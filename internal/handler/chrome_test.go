@@ -59,11 +59,18 @@ func assertChrome(t *testing.T, label, body, wantCurrentHref string) {
 		{`id="sh-acct-menu"`, 1},
 		{`localStorage.removeItem(k)`, 1},
 		{`/site.css?v=` + siteCSSVersion, 1},
-		{`With thanks to Jacob Cole and Tejas D Channappa.`, 1},
 	} {
 		if got := strings.Count(body, want.needle); got != want.n {
 			t.Errorf("%s: %q appears %d times, want %d", label, want.needle, got, want.n)
 		}
+	}
+	// The credit line is left off the enterprise pages (owner, 2026-09-26).
+	credit := 1
+	if wantCurrentHref == "/enterprise" {
+		credit = 0
+	}
+	if got := strings.Count(body, `With thanks to Jacob Cole and Tejas D Channappa.`); got != credit {
+		t.Errorf("%s: credit line appears %d times, want %d", label, got, credit)
 	}
 	for _, banned := range []string{"<!--sh:", "/showcase\"", "/showcase'", ">Examples<", `nav class="top"`, `class="theme-toggle"`, `id="tt"`} {
 		if strings.Contains(body, banned) {
