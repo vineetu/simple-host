@@ -165,7 +165,7 @@
       <div class="hero">
         <p class="eyebrow">Simple Host Enterprise / Architecture</p>
         <h1>How Simple Host Enterprise is built</h1>
-        <p class="lede">Simple Host Enterprise is one Go service that runs in your own Kubernetes cluster. It serves static pages plus the data those pages save. Each person's pages live on their own hostname, so one person's page cannot read another's. Everyone signs in through your identity provider, unless an admin has opened a site to the whole network. Uploaded files are stored and served as bytes; they never execute on the server.</p>
+        <p class="lede">Simple Host Enterprise is one Go service that runs in your own Kubernetes cluster. It serves static pages plus the data those pages save. Each person's pages live on their own hostname, so one person's page cannot read another person's; one person's own sites share that hostname by design. Everyone signs in through your identity provider, unless an admin has opened a site to the whole network. Uploaded files are stored and served as bytes; they never execute on the server.</p>
         <div class="meta"><span>One service</span><span>Your cluster</span><span>Your Postgres</span><span>Your bucket</span><span>Your identity provider</span></div>
       </div>
     </div>
@@ -179,14 +179,16 @@
             <h2>Identity and addresses</h2>
             <p class="lead">Every request says who is asking, and every person's pages sit on their own browser origin.</p>
             <ol class="pts">
-              <li><span class="t">1.1</span><div><strong>One sign-in, yours.</strong> People sign in through your identity provider — any OIDC provider: Okta, Entra ID, Google and others. The provider must vouch for the email address (<code>email_verified</code>), or sign-in is refused. There are no local accounts and no admin key. Admins are real signed-in people, named by an email list or a claim from your provider.</div></li>
-              <li><span class="t">1.2</span><div><strong>A hostname per person.</strong> Each person's sites live under their own hostname, as paths: <code>layla-hassan.&lt;your domain&gt;/tracker/</code>. Different people are different browser origins, so one person's page cannot read another person's pages, storage or cookies.</div></li>
-              <li><span class="t">1.3</span><div><strong>Sites for specific people get their own hostname.</strong> A site shared with named people or teams is served at <code>&lt;person&gt;--&lt;site&gt;.&lt;your domain&gt;</code>, for example <code>oliver-bennett--roadmap.&lt;your domain&gt;</code>. It is then apart from its owner's other sites too.</div></li>
+              <li><span class="t">1.1</span><div><strong>One sign-in, yours.</strong> People sign in through your identity provider — anything that speaks OIDC. The provider must vouch for the email address (<code>email_verified</code>), or sign-in is refused. There are no local accounts and no admin key. Admins are real signed-in people, named by an email list or a claim from your provider.</div></li>
+              <li><span class="t">1.2</span><div><strong>A hostname per person.</strong> Each person's sites live under their own hostname, as paths: <code>&lt;person&gt;.&lt;your domain&gt;/tracker/</code>. Different people are different browser origins, so one person's page cannot read another person's pages, storage or cookies. One person's sites, or one team's, share their origin by design: a page can read its sibling sites and call their saved data as the visitor. Only that person or team can publish there.</div></li>
+              <li><span class="t">1.3</span><div><strong>Sites for specific people get their own hostname.</strong> A site shared with named people or teams is served at <code>&lt;person&gt;--&lt;site&gt;.&lt;your domain&gt;</code>, for example <code>&lt;person&gt;--roadmap.&lt;your domain&gt;</code>. It is then apart from its owner's other sites too. Sites at every other level stay on the owner's hostname.</div></li>
               <li><span class="t">1.4</span><div><strong>Management stays on the base address.</strong> The dashboard, the API and the MCP endpoint are served on <code>&lt;your domain&gt;</code>. No hosted page is ever served there.</div></li>
               <li><span class="t">1.5</span><div><strong>Moving between addresses.</strong> The browser signs in once, at the base address. Opening a person's hostname hands the session over with a one-time code that expires after 60 seconds and is spent by its first use. Each host then holds its own <code>__Host-</code> cookie (Secure, HttpOnly), bound to that host and refused on any other.</div></li>
               <li><span class="t">1.6</span><div><strong>Changes need the right Origin.</strong> A change made with a browser cookie must carry the Origin of the address it was sent to. A page on one address cannot make changes on another.</div></li>
-              <li><span class="t">1.7</span><div><strong>AI apps sign in as the person.</strong> ChatGPT, Claude and other AI apps connect to <code>/mcp</code> with OAuth: the person signs in through your identity provider and allows the app once. The app gets a one-hour access token and a rotating refresh token that carry that person's rights and no more. <code>OAUTH_REDIRECT_HOSTS</code> limits which apps can finish connecting. Each installation serves its own plugin, with its address already filled in.</div></li>
-              <li><span class="t">1.8</span><div><strong>API keys are for automation.</strong> CI and scripts use an API key. Only a signed-in person can create one. Keys are stored as a hash, expire (90 days by default, 365 at most) and can be revoked. The admin API accepts a browser session only, never a key.</div></li>
+              <li><span class="t">1.7</span><div><strong>AI apps sign in as the person.</strong> ChatGPT, Claude and other AI apps connect to <code>/mcp</code> with OAuth: the person signs in through your identity provider and allows the app once. The app's tokens carry that person's rights and no more, and work only on <code>/mcp</code>; a direct API call with one is refused. An access token lasts an hour, and the connection lasts 30 days from the sign-in that made it, however often it refreshes; then the person signs in again (both configurable, at most 24 hours and 90 days). <code>OAUTH_REDIRECT_HOSTS</code> limits which apps can finish connecting. The apps must be able to reach your instance. Each installation serves its own plugin, with its address already filled in.</div></li>
+              <li><span class="t">1.8</span><div><strong>API keys are for automation.</strong> CI and scripts use an API key. Only a signed-in person can create one. Keys are stored as a hash, expire (90 days by default, 365 at most) and can be revoked. Each key has a scope, set when it is created: <code>publish</code> (the default: deploy, update, roll back, saved data and files), <code>full</code> (everything the person can do except administration) or <code>offboard</code> (admins only: the offboarding call and nothing else). No other key reaches the admin API.</div></li>
+              <li><span class="t">1.9</span><div><strong>Session lifetimes.</strong> A browser sign-in lasts 8 hours, or 30 minutes unused, by default. Set both to match your identity provider's policy, up to 24 hours and 8 hours; a value out of range stops the service from starting.</div></li>
+              <li><span class="t">1.10</span><div><strong>Shared rate limits.</strong> Sign-in, the session hand-off, key creation and the AI-app connector's token and registration endpoints are counted in Postgres, so every replica shares one budget. Other limits are counted per pod.</div></li>
             </ol>
           </div>
         </div>
@@ -214,48 +216,48 @@
 
             <rect class="node e" x="380" y="58" width="260" height="76"/>
             <text class="nt" x="396" y="82">Your identity provider</text>
-            <text class="ns" x="396" y="102">any OIDC: Okta, Entra ID, Google…</text>
+            <text class="ns" x="396" y="102">anything that speaks OIDC</text>
             <text class="ns" x="396" y="118">decides who can sign in</text>
 
             <rect class="node e" x="690" y="58" width="270" height="76"/>
             <text class="nt" x="706" y="82">AI app or automation</text>
             <text class="ns" x="706" y="102">AI app: OAuth, as the person</text>
-            <text class="ns" x="706" y="118">CI: an expiring API key</text>
+            <text class="ns" x="706" y="118">CI: a scoped, expiring API key</text>
 
             <path class="wire g" d="M330,96 L378,96" marker-end="url(#f1g)"/>
             <text class="wl g" x="334" y="88">OIDC</text>
 
             <!-- origin bands -->
             <rect class="band-soft" x="20" y="210" width="220" height="270"/>
-            <text class="lbl-host" x="32" y="230">layla-hassan.&lt;your domain&gt;</text>
+            <text class="lbl-host" x="32" y="230">person-a.&lt;your domain&gt;</text>
             <rect class="node p" x="32" y="244" width="196" height="222"/>
-            <text class="nt" x="46" y="268">Layla's sites</text>
+            <text class="nt" x="46" y="268">Person A's sites</text>
             <text class="ns" x="46" y="288">/tracker/ · /notes/ · …</text>
-            <text class="ns" x="46" y="312">her pages' JavaScript</text>
-            <text class="ns" x="46" y="327">runs on this origin only</text>
+            <text class="ns" x="46" y="312">all their sites share</text>
+            <text class="ns" x="46" y="327">this origin, by design</text>
             <text class="ns" x="46" y="351">saved data + files API</text>
             <text class="ns" x="46" y="366">served on this host</text>
             <text class="ns" x="46" y="390">sign-in on every view,</text>
             <text class="ns" x="46" y="405">unless an admin opens</text>
             <text class="ns" x="46" y="420">a site to the network</text>
-            <text class="ns" x="46" y="444">new sites: only her</text>
+            <text class="ns" x="46" y="444">new sites: owner only</text>
 
             <rect class="band-soft" x="256" y="210" width="220" height="270"/>
-            <text class="lbl-host" x="268" y="230">oliver-bennett.&lt;your domain&gt;</text>
+            <text class="lbl-host" x="268" y="230">person-b.&lt;your domain&gt;</text>
             <rect class="node p" x="268" y="244" width="196" height="222"/>
-            <text class="nt" x="282" y="268">Oliver's sites</text>
+            <text class="nt" x="282" y="268">Person B's sites</text>
             <text class="ns" x="282" y="288">/launch/ · /budget/ · …</text>
-            <text class="ns" x="282" y="312">his pages' JavaScript</text>
-            <text class="ns" x="282" y="327">runs on this origin only</text>
+            <text class="ns" x="282" y="312">all their sites share</text>
+            <text class="ns" x="282" y="327">this origin, by design</text>
             <text class="ns" x="282" y="351">saved data + files API</text>
             <text class="ns" x="282" y="366">served on this host</text>
             <text class="ns" x="282" y="390">sign-in on every view,</text>
             <text class="ns" x="282" y="405">unless an admin opens</text>
             <text class="ns" x="282" y="420">a site to the network</text>
-            <text class="ns" x="282" y="444">new sites: only him</text>
+            <text class="ns" x="282" y="444">new sites: owner only</text>
 
             <rect class="band-soft" x="492" y="210" width="236" height="270"/>
-            <text class="lbl-host" x="502" y="230">oliver-bennett--roadmap.&lt;…&gt;</text>
+            <text class="lbl-host" x="502" y="230">person-b--roadmap.&lt;your domain&gt;</text>
             <rect class="node p" x="504" y="244" width="212" height="222"/>
             <text class="nt" x="518" y="268">For specific people</text>
             <text class="ns" x="518" y="288">its own hostname</text>
@@ -275,8 +277,8 @@
             <text class="ns" x="770" y="351">cookie-signed changes</text>
             <text class="ns" x="770" y="366">must carry this address</text>
             <text class="ns" x="770" y="381">as their Origin</text>
-            <text class="ns" x="770" y="405">AI apps sign in with OAuth</text>
-            <text class="ns" x="770" y="420">CI uses an API key</text>
+            <text class="ns" x="770" y="405">AI apps: OAuth, /mcp only</text>
+            <text class="ns" x="770" y="420">CI: a scoped API key</text>
 
             <!-- wires -->
             <path class="wire g" d="M130,134 L130,208" marker-end="url(#f1g)"/>
@@ -288,11 +290,11 @@
             <path class="wire" d="M900,134 L900,208" marker-end="url(#f1a)"/>
             <text class="wl" x="908" y="176">OAuth · API key</text>
 
-            <text class="wl i" x="500" y="505" text-anchor="middle">a page on one origin cannot read another · the browser withholds every cross-origin response</text>
+            <text class="wl i" x="500" y="505" text-anchor="middle">one person's pages cannot read another person's · the browser withholds every cross-origin response</text>
           </svg>
         </div>
         <p class="fig-hint">Scroll the figure sideways →</p>
-        <figcaption class="fig-cap" id="fig1-cap">One sign-in through your provider, then a separate origin per person. A site shared with specific people gets one more of its own. Management lives on the base address, where no hosted page runs.</figcaption>
+        <figcaption class="fig-cap" id="fig1-cap">One sign-in through your provider, then a separate origin per person, shared by that person's sites. A site shared with specific people gets one of its own. Management lives on the base address, where no hosted page runs.</figcaption>
       </figure>
     </section>
 
@@ -310,6 +312,8 @@
               <li><span class="t">2.3</span><div><strong>Broad acceptance, small denylist.</strong> Any regular file is accepted, including ZIP and DMG downloads. Refused extensions: <code>.sh</code> <code>.bash</code> <code>.zsh</code> <code>.fish</code> <code>.bat</code> <code>.cmd</code> <code>.ps1</code> <code>.py</code> <code>.pyc</code> <code>.rb</code> <code>.pl</code> <code>.go</code> <code>.php</code> <code>.exe</code>.</div></li>
               <li><span class="t">2.4</span><div><strong>Two confinement layers.</strong> Every path is reduced to a canonical relative path, and anything unsafe (<code>../</code>, an absolute path, a backslash) is refused. Separately, object keys in the bucket are built only from validated IDs, and each pod's local copy of the sites it serves is confined with Go's <code>os.Root</code>, so nothing can reach outside it.</div></li>
               <li><span class="t">2.5</span><div><strong>Files a page uploads are checked by their bytes.</strong> The files API accepts images, audio, video, PDF, plain text, JSON, CSV and archives, judged from the content, not the name. Nothing is ever stored or served as HTML. Defaults: 25 MiB per file, 500 MiB and 5,000 files per site.</div></li>
+              <li><span class="t">2.6</span><div><strong>Quotas per owner.</strong> Each person and each team has its own limits, checked in the same transaction that records a publish or an upload: 1,000 sites, 10 GiB stored, and 5 versions kept per site by default. Older versions are retired.</div></li>
+              <li><span class="t">2.7</span><div><strong>Optional malware scan.</strong> Point it at a ClamAV daemon and every file of a publish and every uploaded file is scanned before anything is stored. An infected upload is refused, and so is every upload while the scanner is unreachable. Off unless you set it.</div></li>
             </ol>
           </div>
         </div>
@@ -337,21 +341,23 @@
             <text class="nt" x="666" y="78">Viewer's browser</text>
             <text class="ns" x="666" y="98">GET /tracker/ · JavaScript may run here</text>
 
-            <rect class="band" x="20" y="168" width="960" height="232"/>
+            <rect class="band" x="20" y="168" width="960" height="248"/>
             <text class="lbl" x="36" y="190">Validation &amp; serving</text>
             <rect class="node p" x="60" y="202" width="290" height="50"/>
             <text class="nt" x="76" y="224">Upload API</text>
             <text class="ns" x="76" y="242">request body capped at 100 MiB</text>
-            <rect class="node p" x="60" y="284" width="290" height="100"/>
+            <rect class="node p" x="60" y="284" width="290" height="116"/>
             <text class="nt" x="76" y="306">Validation gate</text>
             <text class="ns" x="76" y="326">canonical relative paths only</text>
             <text class="ns" x="76" y="341">500 MiB per file · 500 MiB total</text>
             <text class="ns" x="76" y="356">50,000 entries at most</text>
             <text class="ns" x="76" y="371">small extension denylist</text>
-            <rect class="node r" x="400" y="302" width="210" height="64"/>
+            <text class="ns" x="76" y="386">owner quota · optional ClamAV scan</text>
+            <rect class="node r" x="400" y="302" width="210" height="80"/>
             <text class="nt" x="416" y="326">Refused</text>
             <text class="ns" x="416" y="344">unsafe path · over a limit</text>
             <text class="ns" x="416" y="358">denied extension</text>
+            <text class="ns" x="416" y="372">over quota · infected</text>
             <rect class="node p" x="650" y="202" width="290" height="50"/>
             <text class="nt" x="666" y="224">Path check</text>
             <text class="ns" x="666" y="242">owner and site segments validated</text>
@@ -376,8 +382,8 @@
             <path class="wire g" d="M205,252 L205,282" marker-end="url(#f2g)"/>
             <text class="wl g" x="213" y="272">2 · validate</text>
             <path class="wire r" d="M350,334 L398,334" marker-end="url(#f2r)"/>
-            <path class="wire g" d="M205,384 L205,466" marker-end="url(#f2g)"/>
-            <text class="wl g" x="213" y="424">3 · store</text>
+            <path class="wire g" d="M205,400 L205,466" marker-end="url(#f2g)"/>
+            <text class="wl g" x="213" y="440">3 · store</text>
             <path class="wire g" d="M350,497 L438,497" marker-end="url(#f2g)"/>
             <text class="wl g" x="362" y="489">4 · fetch</text>
             <path class="wire" d="M795,118 L795,200" marker-end="url(#f2a)"/>
@@ -388,7 +394,7 @@
           </svg>
         </div>
         <p class="fig-hint">Scroll the figure sideways →</p>
-        <figcaption class="fig-cap" id="fig2-cap">Files go in through four limits and a canonical path check, are stored in the bucket once, and come back out as bytes from a local cache. JavaScript runs in the viewer's browser, never on the server.</figcaption>
+        <figcaption class="fig-cap" id="fig2-cap">Files go in through four limits, a canonical path check and the owner's quota, are stored in the bucket once, and come back out as bytes from a local cache. JavaScript runs in the viewer's browser, never on the server.</figcaption>
       </figure>
     </section>
 
@@ -405,10 +411,10 @@
               <tr><th>Specific people or teams</th><td>The owner names the people or teams who can open it. The site moves to its own hostname, and everyone else gets a 404, the same answer as a site that does not exist.</td></tr>
               <tr><th>Anyone in the company</th><td>Anyone signed in who has the link. The link can be passed on, so this is not private.</td></tr>
               <tr><th>Listed</th><td>Anyone in the company, and the site appears in the company showcase and in search, credited to its owner.</td></tr>
-              <tr><th>Anyone on the network</th><td>No sign-in. The owner asks for it with a reason, and the site keeps its level until an admin approves. Visitors who are not signed in can read its pages, files and saved data, and change nothing. The owner can lower the level at any time, and an admin can revoke it.</td></tr>
+              <tr><th>Anyone on the network</th><td>No sign-in. The owner asks for it with a reason, and the site keeps its level until an admin approves; you can require two different admins. Whoever asked can never approve their own request. Visitors who are not signed in can read its pages, files and saved data, and change nothing. The owner can lower the level at any time, and an admin can revoke it.</td></tr>
               <tr><th>Teams</th><td>A team is a namespace, like a person. Every member can publish and manage its sites, which is how people work on a site together.</td></tr>
               <tr><th>Saved data</th><td>Anyone who can open a site can read and write its saved data, as themselves. Writes go into the audit log under the person who made them.</td></tr>
-              <tr><th>Leavers</th><td>Once your identity provider stops an account, that person cannot sign in again. Open sessions end within the session lifetime: 12 hours, or 1 hour idle, by default. An admin can disable the account, which ends every session and revokes every API key and connected app at once.</td></tr>
+              <tr><th>Leavers</th><td>Your identity provider is asked about a person only when they sign in, so offboarding is two steps: disable them there, and disable them here. Disabling here ends every session and revokes every API key and connected AI app at once. An admin does it on the admin page, or HR automation calls the offboarding endpoint with an <code>offboard</code> key. Without the second step, a browser session lasts until its lifetime runs out (8 hours, or 30 minutes idle, by default), a connected AI app until its connection expires (30 days by default), and an API key until it expires.</td></tr>
             </table>
           </div>
         </div>
@@ -424,11 +430,13 @@
             <h2>Records</h2>
             <p class="lead">Changes and visits are written down, where an owner or admin can read them back.</p>
             <table class="tbl">
-              <tr><th>Audit log</th><td>Changes to sites and access: publishing, updating, deleting and rolling back a site, access-level changes and network requests, approvals and declines, named viewers, team changes, saved-data writes, and file uploads and deletions. Also sign-in, refused sign-ins and sign-out, API keys created and revoked, and admin actions. A site change and its audit row are written in the same database transaction, and the row's time comes from the database clock.</td></tr>
+              <tr><th>Audit log</th><td>Changes to sites and access: publishing, updating, deleting and rolling back a site, access-level changes and network requests, approvals and declines, named viewers, team changes, saved-data writes, and file uploads and deletions. Also sign-in, refused sign-ins and sign-out, API keys created and revoked, AI apps connected and revoked, and admin actions. A site change, a sign-in or a key change is written in the same database transaction as its audit row, and the row's time comes from the database clock. A few writes, such as refusals and sign-out, are recorded separately, retried, and logged loudly if they still fail.</td></tr>
+              <tr><th>Tamper evidence</th><td>Every new audit row is hash-chained to the one before it, inside Postgres. A command walks the chain and reports the first break. Keep the head hash it prints somewhere the database owner cannot edit. The access log is not chained.</td></tr>
+              <tr><th>To your SIEM</th><td>Every audit event is also written to standard output as one JSON line marked <code>"type":"audit"</code>, for the cluster's log shipper to forward. If output stalls, lines are dropped and counted in a metric; the database stays the record of truth.</td></tr>
               <tr><th>Access log</th><td>One row for every hosted page served, the owner's and team members' own visits included.</td></tr>
               <tr><th>Who reads them</th><td>An owner reads the audit log for their own sites and their teams' sites. From the access log they see views per day and how many different people visited, not who. An admin sees who, reads everything and can export it. A setting can instead show owners each visit, or hide the access log from everyone but admins.</td></tr>
               <tr><th>Append-only</th><td>The database role the service runs as can add rows to both logs but cannot change or delete them. The service refuses to start if its role could change the audit log.</td></tr>
-              <tr><th>Retention</th><td>By default, 400 days for the audit log and 90 days for the access log. A monthly job drops expired partitions.</td></tr>
+              <tr><th>Retention</th><td>By default, 400 days for the audit log and 90 days for the access log. A monthly job drops expired partitions and trims the audit chain with them.</td></tr>
               <tr><th>Request log</th><td>One JSON line per request on standard output, with an ID returned as <code>X-Request-Id</code>.</td></tr>
               <tr><th>Client addresses</th><td>Taken from <code>X-Forwarded-For</code> only when the request comes through a trusted proxy (<code>TRUSTED_PROXY_CIDRS</code>, private ranges by default). The same address is used for rate limits and in every log.</td></tr>
             </table>
@@ -451,10 +459,10 @@
               <tr><td class="tag">R3</td><th>Least-privilege role</th><td>The server connects as <code>simplehost_app</code>, which can read and write application data but cannot change the schema or truncate tables.</td></tr>
               <tr><td class="tag">R4</td><th>Hardening</th><td>The namespace enforces the restricted Pod Security profile. Every container runs as a non-root user with a read-only root filesystem, all capabilities dropped and the default seccomp profile. No Kubernetes API token is mounted.</td></tr>
               <tr><td class="tag">R5</td><th>Pod storage</th><td>Each pod keeps a bounded cache of the versions it serves in an <code>emptyDir</code>, emptied on start. <code>/tmp</code> is a second scratch <code>emptyDir</code>. A pod holds nothing that is not in the bucket or the database.</td></tr>
-              <tr><td class="tag">R6</td><th>Ingress and metrics</th><td>The base address and a wildcard beneath it, on one TLS certificate, to one ClusterIP Service. Prometheus metrics are on a separate port, 9090, which the Service does not expose; scrape the pod directly.</td></tr>
-              <tr><td class="tag">R7</td><th>Scheduled job</th><td><code>prune</code> runs monthly as the owning role and drops expired log partitions. It touches only Postgres.</td></tr>
+              <tr><td class="tag">R6</td><th>Ingress and metrics</th><td>The base address and a wildcard beneath it, on one TLS certificate, to one ClusterIP Service. How it is exposed is yours to decide; AI apps can connect only if they can reach it. Prometheus metrics are on a separate port, 9090, which the Service does not expose; scrape the pod directly.</td></tr>
+              <tr><td class="tag">R7</td><th>Scheduled job</th><td><code>prune</code> runs monthly as the owning role. It drops expired log partitions and their audit-chain rows, and deletes ended sessions and old hand-off codes. It touches only Postgres.</td></tr>
               <tr><td class="tag">R8</td><th>Your Postgres</th><td>Over TLS with <code>sslmode=verify-full</code>; the service refuses to start otherwise. Point-in-time recovery is required: Postgres holds which version of each site is live, the saved data and the accounts, and nothing in the package backs it up. Every page request looks up the live version there, so the sites need it running.</td></tr>
-              <tr><td class="tag">R9</td><th>Your bucket</th><td>An S3-compatible bucket over HTTPS is the site store: every version and uploaded file, written once. Bucket versioning with a lifecycle rule is required and is the backup for those files. Every object carries a server-side-encryption header, with an optional client-side envelope on top. The service refuses a plain-HTTP endpoint.</td></tr>
+              <tr><td class="tag">R9</td><th>Your bucket</th><td>An S3-compatible bucket over HTTPS is the site store: every version and uploaded file, written once. Bucket versioning with a lifecycle rule is required and is the backup for those files. Every object carries a server-side-encryption header, with an optional client-side envelope on top; <code>reencrypt</code> rewrites every object under a new envelope key so the old one can be retired. The service refuses a plain-HTTP endpoint.</td></tr>
               <tr><td class="tag">R10</td><th>Releases</th><td>Release images are signed with cosign (keyless, from the release workflow) and carry an SBOM and a provenance attestation. There is no <code>latest</code> tag: the manifests pin an image digest, and the install check refuses the placeholder.</td></tr>
             </table>
           </div>
@@ -574,7 +582,8 @@
             <ol class="pts">
               <li><span class="t">N1</span><div><strong>Not a server-side compute platform.</strong> Pages can run JavaScript in the browser. Nothing uploaded runs on the server.</div></li>
               <li><span class="t">N2</span><div><strong>Not a secrets store.</strong> Anyone who can open a page can read what it saves. Keep secrets out of pages and saved data.</div></li>
-              <li><span class="t">N3</span><div><strong>Not a content scanner.</strong> Files are checked for size, path, extension and type, not for what they contain. The source is yours to extend if you want a scanner.</div></li>
+              <li><span class="t">N3</span><div><strong>Not a content scanner.</strong> Files are checked for size, path, extension and type, and for malware if you turn on the ClamAV scan. Nothing looks for confidential data. The source is yours to extend if you want that.</div></li>
+              <li><span class="t">N4</span><div><strong>Not independently tested.</strong> Simple Host is a side project built by one person. Its security testing so far is the author's own scripted tests, run against a local cluster; no independent penetration test has been done yet. Review the code and run your own security review before you depend on it.</div></li>
             </ol>
           </div>
         </div>

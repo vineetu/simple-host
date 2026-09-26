@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Simple Host for companies — a brief</title>
-  <meta name="description" content="Stateful static websites hosted inside your network: an address per person, shared saved data, no server-side code, and the company in control.">
+  <meta name="description" content="Stateful static websites on your own infrastructure: an address per person, shared saved data, no server-side code, and the company in control.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Simple Host">
   <meta property="og:url" content="https://simple-host.app/enterprise/brief">
-  <meta property="og:title" content="Stateful static websites, hosted inside your network">
+  <meta property="og:title" content="Stateful static websites, on your own infrastructure">
   <meta property="og:description" content="An address per person, shared saved data, no server-side code, and the company in control.">
   <meta property="og:image" content="https://simple-host.app/og.png">
   <meta name="twitter:card" content="summary_large_image">
@@ -64,8 +64,8 @@
     <section>
       <div>
         <div class="kicker">Simple Host for companies · a brief</div>
-        <h1 class="title">Stateful static websites, hosted inside your network.</h1>
-        <p class="lede">Your people already make prototypes, dashboards and trackers with AI. Simple Host gives each of them an address inside your network to host them, with shared saved data and no server-side code, and gives the company control over all of it.</p>
+        <h1 class="title">Stateful static websites, on your own infrastructure.</h1>
+        <p class="lede">Your people already make prototypes, dashboards and trackers with AI. Simple Host gives each of them an address of their own on your domain to host them, with shared saved data and no server-side code, and gives the company control over all of it.</p>
       </div>
     </section>
 
@@ -81,9 +81,9 @@
         <h2>What the addresses look like</h2>
         <p>Each person's work sits under their own name, on your domain, so it reads like a portfolio rather than a list of IDs.</p>
         <div class="urls">
-          <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="u"><b>layla-hassan</b>.your-internal-domain.com/<b>sales-dashboard</b></span></div>
-          <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="u"><b>oliver-bennett</b>.your-internal-domain.com/<b>onboarding-checklist</b></span></div>
-          <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="u"><b>priya-sharma</b>.your-internal-domain.com/<b>offsite-signup</b></span></div>
+          <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="u"><b>&lt;name&gt;</b>.your-domain.com/<b>sales-dashboard</b></span></div>
+          <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="u"><b>&lt;name&gt;</b>.your-domain.com/<b>onboarding-checklist</b></span></div>
+          <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="u"><b>&lt;team&gt;</b>.your-domain.com/<b>offsite-signup</b></span></div>
         </div>
       </div>
     </section>
@@ -92,15 +92,16 @@
       <div>
         <h2>What it is</h2>
         <div class="facts">
-          <div class="row"><div class="k">An address per person</div><p class="v">Everyone gets their own hostname, and each thing they make gets a readable address under it. Colleagues find it by the author's name.</p></div>
-          <div class="row"><div class="k">Teams</div><p class="v">Teams get an address too, like <code>sales.your-internal-domain.com/pipeline/</code>. Anyone can start a team and add colleagues; every member can publish and manage its sites, and a team closes when its last member leaves.</p></div>
+          <div class="row"><div class="k">An address per person</div><p class="v">Everyone gets their own hostname, and each thing they make gets a readable address under it. Colleagues find it by the author's name. People are kept apart from each other. One person's (or team's) sites share their hostname by design; a site shared with specific people gets its own address.</p></div>
+          <div class="row"><div class="k">Teams</div><p class="v">Teams get an address too, like <code>sales.your-domain.com/pipeline/</code>. Anyone can start a team and add colleagues; every member can publish and manage its sites, and a team closes when its last member leaves.</p></div>
           <div class="row"><div class="k">Pages that keep data</div><p class="v">Saved data is shared between the people who can open a page, survives restarts, and works from any browser or phone.</p></div>
           <div class="row"><div class="k">No server-side code</div><p class="v">Pages run in the reader's browser. The server stores pages and data and runs nothing that people publish.</p></div>
-          <div class="row"><div class="k">Inside your network</div><p class="v">You run it on your own servers, behind your VPN, with your own sign-in: Okta or anything that speaks OIDC.</p></div>
-          <div class="row"><div class="k">Access</div><p class="v">Every page needs a company sign-in, and a new page opens only for the person who made it. They choose who else can open it: named people or teams, anyone in the company with the link, or the company showcase. Opening a page to people who are not signed in takes an admin's approval.</p></div>
-          <div class="row"><div class="k">Governance</div><p class="v">Admins see every site, who made it, and who can open it. Publishing, sharing and sign-ins are written to an audit log, and page views to an access log: owners see how many people visited, admins see who.</p></div>
-          <div class="row"><div class="k">Works with your AI apps</div><p class="v">People connect ChatGPT, Claude and other AI apps by signing in with their company account, with no keys to copy. Your installation serves its own plugin, already pointed at it.</p></div>
-          <div class="row"><div class="k">Light to run</div><p class="v">One small service, a Postgres database and file storage. Hosting something that already works takes the AI a single short step, so it costs few tokens.</p></div>
+          <div class="row"><div class="k">Your infrastructure</div><p class="v">You run it on your own infrastructure and decide how it's exposed, with your own sign-in: any identity provider that speaks OIDC. AI apps can connect only if they can reach it.</p></div>
+          <div class="row"><div class="k">Access</div><p class="v">Every page needs a company sign-in, and a new page opens only for the person who made it. They choose who else can open it: named people or teams, anyone in the company with the link, or the company showcase. Opening a page to people who are not signed in takes an admin's approval, or two admins' if you set it that way.</p></div>
+          <div class="row"><div class="k">Governance</div><p class="v">Admins see every site, who made it, and who can open it. Publishing, sharing and sign-ins are written to a tamper-evident audit log that also streams to your SIEM, and page views to an access log: owners see how many people visited, admins see who.</p></div>
+          <div class="row"><div class="k">Leavers and keys</div><p class="v">Sign-ins last 8 hours, or 30 minutes idle, by default. One call disables a leaver and ends their sessions, keys and connected AI apps at once. Keys for automation are limited in what they can do, and expire.</p></div>
+          <div class="row"><div class="k">Works with your AI apps</div><p class="v">People connect ChatGPT, Claude and other AI apps by signing in with their company account, with no keys to copy. A connection lasts 30 days by default, then they sign in again. Your installation serves its own plugin, already pointed at it.</p></div>
+          <div class="row"><div class="k">Light to run</div><p class="v">One small service, a Postgres database and object storage. Hosting something that already works takes the AI a single short step, so it costs few tokens.</p></div>
           <div class="row"><div class="k">Yours to extend</div><p class="v">Your engineers have the code. Add what you need, for example scanning pages for confidential data.</p></div>
         </div>
         <p>
@@ -114,7 +115,7 @@
     <section id="note">
       <div>
         <h2>Before you rely on it</h2>
-        <p>Simple Host is a side project built by one person. Evaluate it the way you would any open-source software: review the code and run your own security review before you depend on it.</p>
+        <p>Simple Host is a side project built by one person. Its security testing so far is the author's own scripted tests; no independent penetration test has been done yet. Evaluate it the way you would any open-source software: review the code and run your own security review before you depend on it.</p>
       </div>
     </section>
   </div>
