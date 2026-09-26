@@ -184,7 +184,7 @@ func (h *SiteHandler) appendPrivate(w http.ResponseWriter, r *http.Request, site
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	if info.IsDomain && !here && (onShared || h.isPersonHost(r.Context(), requestHostName(r))) {
+	if info.IsDomain && !here && (onShared || h.isSiteHostName(requestHostName(r)) || h.isPersonHost(r.Context(), requestHostName(r))) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{
 			"error": "this site saves on its own domain", "code": "use_custom_domain", "domain": info.Host,
 		})

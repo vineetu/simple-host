@@ -96,7 +96,7 @@ func visitorCookieValue(r *http.Request) string {
 // __Host- cookie counts (a sibling can plant a plain one, never a __Host- one)
 // and only on a same-origin request.
 func (h *SiteHandler) sessionCookieFor(r *http.Request) string {
-	if h.isPlatformSubdomainHost(requestHostName(r)) {
+	if host := requestHostName(r); h.isPlatformSubdomainHost(host) || h.isSiteHostName(host) {
 		if !sameOriginRequest(r) {
 			return ""
 		}
@@ -122,8 +122,10 @@ func (h *SiteHandler) sessionValidFor(r *http.Request, sess db.VisitorSession, s
 	if !ok {
 		return false
 	}
-	_, siteOwner, _, err := db.GetSiteOwner(r.Context(), h.database, siteID)
-	return err == nil && siteOwner == owner.ID
+	handle, siteOwner, name, err := db.GetSiteOwner(r.Context(), h.database, siteID)
+	// A site on its own site host is its own origin: a person-host sign-in
+	// never covers it (per-site isolation, owner decision 2026-09-26).
+	return err == nil && siteOwner == owner.ID && !h.siteHostCanonical(handle, name)
 }
 
 func hasVisitorCSRF(r *http.Request) bool {

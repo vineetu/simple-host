@@ -159,3 +159,25 @@ func GetSiteOwner(ctx context.Context, q Querier, siteID string) (handle, userID
 		WHERE s.id::text = $1`, siteID).Scan(&handle, &userID, &name)
 	return
 }
+
+// ListHandlesWithSites returns every account handle that owns at least one
+// site: the people who need a certificate for their site hosts.
+func ListHandlesWithSites(ctx context.Context, q *sql.DB) ([]string, error) {
+	rows, err := q.QueryContext(ctx, `
+		SELECT DISTINCT u.handle FROM users u JOIN sites s ON s.user_id = u.id
+		WHERE u.handle IS NOT NULL AND u.handle <> ''
+		ORDER BY u.handle`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var h string
+		if err := rows.Scan(&h); err != nil {
+			return nil, err
+		}
+		out = append(out, h)
+	}
+	return out, rows.Err()
+}

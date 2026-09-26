@@ -719,6 +719,14 @@ func (i *Ingester) attribute(host, uri string, maps *attrMaps) string {
 			}
 			return maps.nameToOldest[label]
 		}
+		// <site>.<handle>.<siteDomain>: a site's own host (owner decision
+		// 2026-09-26). The whole host names the site; the path does not.
+		if site, handle, ok := strings.Cut(label, "."); ok && site != "" && !strings.Contains(handle, ".") {
+			if userID, ok := maps.handleToUser[handle]; ok {
+				return maps.userNameToID[userID+"/"+site]
+			}
+			return ""
+		}
 	}
 
 	// custom domain

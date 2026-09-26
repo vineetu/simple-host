@@ -1,6 +1,6 @@
 /*
- * simple-host visitor auth and storage. On a site's own address (the owner's
- * <handle>.simple-host.app, or the site's own domain): Google or an emailed
+ * simple-host visitor auth and storage. On a site's own address (its
+ * <site>.<handle>.simple-host.app, or the site's own domain): Google or an emailed
  * code, then saves are per-person. Old shared address: saves are open.
  * SH.email.request(email) sends a code; SH.email.verify(email, code) signs in.
  * SH.mount(target) offers Google plus an inline email/code form.
@@ -16,8 +16,8 @@
  * Private lists (owner-only reads; set by the owner): submit the same way while
  * signed in on the site's own address; the owner's admin page there reads them with
  * SH.collection(name).list() and edits with .update(id, fields) / .remove(id).
- * Auto-derives the API from <handle>.<domain>/<site>/, sites.<domain>/<handle>/<site>/
- * or the first host label.
+ * Auto-derives the API from the first host label (<site>.<handle>.<domain>, a
+ * claimed <name>.<domain>), <handle>.<domain>/<site>/ or sites.<domain>/<handle>/<site>/.
  * Custom domain: set window.SH_CONFIG = {site:'my-site'} (same-origin API).
  * authBase optionally overrides the apex. me() returns the server response.
  * Theme the status box with --sh-accent, --sh-muted and --sh-radius.
@@ -74,6 +74,8 @@
         function (r) { return r.ok ? bySeg : byLabel; },
         function () { return byLabel; });
     } else {
+      // <site>.<handle>.<apex> (a site's own host) and every other host:
+      // the site is the first label, and /v1/ is same-origin.
       API_BASE = location.origin + "/v1/sites/" + sub;
     }
   }

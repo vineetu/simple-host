@@ -77,7 +77,7 @@ func newPrivateApp(t *testing.T) *privateApp {
 	a.conn = NewConnectorHandler(database, a.srv.URL, adminKey, pcSiteDomain, pcContentHost, "1.0.0", mux)
 	a.conn.Register(mux, authMW)
 	app := SecurityHeaders(CORS(a.conn.BearerAuth(mux)))
-	root = a.sites.BoundSubdomains(app, a.sites.PersonHosts(app, LegacyHostRedirect(pcSiteDomain, pcContentHost, database, app)))
+	root = a.sites.BoundSubdomains(app, a.sites.SiteHosts(app, a.sites.PersonHosts(app, LegacyHostRedirect(pcSiteDomain, pcContentHost, database, app))))
 	return a
 }
 

@@ -86,6 +86,9 @@ func (h *SiteHandler) SiteURL(handle, name string) string {
 	if handle == "" {
 		return ""
 	}
+	if h.siteHostCanonical(handle, name) {
+		return "https://" + h.siteHostFor(handle, name) + "/"
+	}
 	if h.personHostsCanonical() && h.personAddressFor(handle, name) {
 		return "https://" + h.personHostFor(handle) + "/" + name + "/"
 	}
@@ -141,7 +144,9 @@ func (h *SiteHandler) isPersonHost(ctx context.Context, host string) bool {
 }
 
 // siteHome is the host that is a site's own origin: its proven own domain
-// (custom or a claimed <name>.<SITE_DOMAIN>), else its owner's person address.
+// (custom or a claimed <name>.<SITE_DOMAIN>), else its site host when that is
+// its address (SITE_HOSTS=canonical and the owner's certificate is ready),
+// else its owner's person address.
 type siteHome struct {
 	Host     string
 	OwnerID  string
@@ -171,6 +176,9 @@ func (h *SiteHandler) siteHomeFor(ctx context.Context, siteID string) (siteHome,
 	if !h.personAddressFor(handle, name) {
 		return siteHome{}, false, nil
 	}
+	if h.siteHostCanonical(handle, name) {
+		return siteHome{Host: h.siteHostFor(handle, name), OwnerID: ownerID}, true, nil
+	}
 	return siteHome{Host: h.personHostFor(handle), OwnerID: ownerID}, true, nil
 }
 
@@ -178,7 +186,7 @@ func (h *SiteHandler) siteHomeFor(ctx context.Context, siteID string) (siteHome,
 // is for a site whose home is its own domain: such a site takes no saves and
 // no sign-in here (owner decision 2026-09-06). Returns the domain.
 func (h *SiteHandler) livesOnDomainElsewhere(r *http.Request, siteID string) (string, bool) {
-	if !h.isPersonHost(r.Context(), requestHostName(r)) {
+	if host := requestHostName(r); !h.isSiteHostName(host) && !h.isPersonHost(r.Context(), host) {
 		return "", false
 	}
 	info, ok, err := h.siteOwnDomain(r.Context(), siteID)
@@ -192,6 +200,10 @@ func (h *SiteHandler) livesOnDomainElsewhere(r *http.Request, siteID string) (st
 // the first path segment, it must be the owner's, and it must live here (not
 // on a domain of its own). Used by the OAuth start to bind the session.
 func (h *SiteHandler) PersonReturnSite(ctx context.Context, host, p string) (string, bool) {
+	// A site host names its site itself (sitehost.go); the path does not.
+	if h.isSiteHostName(host) {
+		return h.SiteReturnSite(ctx, host)
+	}
 	owner, ok := h.personHostOwner(ctx, host)
 	if !ok {
 		return "", false
@@ -202,6 +214,10 @@ func (h *SiteHandler) PersonReturnSite(ctx context.Context, host, p string) (str
 	}
 	site, err := db.GetSiteByUser(ctx, h.database, owner.ID, seg)
 	if err != nil || !h.personAddressFor(owner.Handle.String, site.Name) {
+		return "", false
+	}
+	// A site on its own site host signs visitors in there, not here.
+	if h.siteHostCanonical(owner.Handle.String, site.Name) {
 		return "", false
 	}
 	if _, has, err := h.siteOwnDomain(ctx, site.ID); err != nil || has {
@@ -306,6 +322,12 @@ func (h *SiteHandler) servePersonHost(w http.ResponseWriter, r *http.Request, us
 	if info, has, err := h.siteOwnDomain(r.Context(), site.ID); err == nil && has {
 		w.Header().Set("Cache-Control", "no-store")
 		http.Redirect(w, r, "https://"+info.Domain+"/"+escTail+query, http.StatusFound)
+		return
+	}
+	// A site on its own site host lives there (302 while the move is new).
+	if h.siteHostCanonical(handle, site.Name) {
+		w.Header().Set("Cache-Control", "no-store")
+		http.Redirect(w, r, "https://"+h.siteHostFor(handle, site.Name)+"/"+strings.TrimLeft(escTail, "/")+query, http.StatusFound)
 		return
 	}
 	_, rel, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")

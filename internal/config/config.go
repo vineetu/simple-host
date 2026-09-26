@@ -184,6 +184,20 @@ type Config struct {
 	// URL. canonical: person hosts answer and are the address handed out.
 	PersonHosts string
 
+	// SiteHosts is off | serve | canonical (owner decision 2026-09-26): each
+	// site at its own origin <site>.<handle>.<SITE_DOMAIN>. Needs PersonHosts
+	// on. off (default): no site hosts. serve: they answer, addresses handed
+	// out stay the person-path form. canonical: they are the address handed
+	// out, and person-path/legacy URLs redirect there — per person, only once
+	// that person's certificate is ready (SiteCertDir).
+	SiteHosts string
+	// SiteCertDir holds the per-person certificate hand-off with the root
+	// issuer: requests/<handle> (written here) and ready/<handle> (written by
+	// the issuer once *.<handle>.<SITE_DOMAIN> is served). Empty: every person
+	// counts as ready (an operator with a certificate that already covers two
+	// labels, or local development).
+	SiteCertDir string
+
 	// Visitor OAuth. A provider is enabled only when BOTH of its vars are set.
 	GoogleOAuthClientID     string
 	GoogleOAuthClientSecret string
@@ -308,6 +322,17 @@ func Load() (Config, error) {
 		log.Printf("warning: invalid PERSON_HOSTS %q; treating as off", mode)
 		cfg.PersonHosts = "off"
 	}
+
+	switch mode := strings.ToLower(strings.TrimSpace(os.Getenv("SITE_HOSTS"))); mode {
+	case "off", "serve", "canonical":
+		cfg.SiteHosts = mode
+	case "":
+		cfg.SiteHosts = "off"
+	default:
+		log.Printf("warning: invalid SITE_HOSTS %q; treating as off", mode)
+		cfg.SiteHosts = "off"
+	}
+	cfg.SiteCertDir = strings.TrimSpace(os.Getenv("SITE_CERT_DIR"))
 
 	cfg.PreviewAccounts = map[string]bool{}
 	for _, a := range strings.Split(os.Getenv("PREVIEW_ACCOUNTS"), ",") {

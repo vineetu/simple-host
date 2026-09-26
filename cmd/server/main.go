@@ -158,9 +158,10 @@ func main() {
 	userHandler.Register(mux, authMW, noticeMW)
 	siteHandler := handler.NewSiteHandler(db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID, mailer, userHandler.EmailLimiter())
 	siteHandler.SetPersonHosts(cfg.PersonHosts)
+	siteHandler.SetSiteHosts(cfg.SiteHosts, cfg.SiteCertDir)
 	userHandler.SetPublicPage(siteHandler.PersonPageURL)
 	dbpkg.SetPlatformDomain(cfg.SiteDomain)
-	log.Printf("person hosts: %s", cfg.PersonHosts)
+	log.Printf("person hosts: %s; site hosts: %s", cfg.PersonHosts, cfg.SiteHosts)
 	siteHandler.Register(mux, authMW, noticeMW)
 	oauthHandler := handler.NewOAuthHandler(db, cfg)
 	oauthHandler.SetPersonSiteResolver(siteHandler.PersonReturnSite)
@@ -225,18 +226,22 @@ func main() {
 	}
 
 	// A claimed <name>.<SITE_DOMAIN> is served like a custom domain (its files
-	// at the root, /v1 same-origin); an account's handle is its own address
-	// when PERSON_HOSTS is on (personhost.go); every other single-label name
+	// at the root, /v1 same-origin); <site>.<handle>.<SITE_DOMAIN> is a site's
+	// own address when SITE_HOSTS is on (sitehost.go); an account's handle is
+	// its own address when PERSON_HOSTS is on (personhost.go); every other single-label name
 	// keeps the legacy 301 to its path URL.
 	app := handler.SecurityHeaders(handler.CORS(apiMetrics.Wrap(connector.BearerAuth(mux))))
 	server := &http.Server{
 		Addr:              net.JoinHostPort(cfg.BindAddr, cfg.Port),
-		Handler:           siteHandler.BoundSubdomains(app, siteHandler.PersonHosts(app, handler.LegacyHostRedirect(cfg.SiteDomain, cfg.ContentHost, db, app))),
+		Handler:           siteHandler.BoundSubdomains(app, siteHandler.SiteHosts(app, siteHandler.PersonHosts(app, handler.LegacyHostRedirect(cfg.SiteDomain, cfg.ContentHost, db, app)))),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	// Ask the root issuer for each person's *.<handle>.<SITE_DOMAIN>
+	// certificate (back-fill at boot, then a periodic safety net).
+	siteHandler.StartSiteCertRequests(ctx, 10*time.Minute)
 
 	serverErr := make(chan error, 1)
 

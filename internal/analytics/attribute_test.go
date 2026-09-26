@@ -19,6 +19,11 @@ func TestAttributeHosts(t *testing.T) {
 		{"clay.example.app", "/", "s-clay"},
 		{"legacy.example.app", "/", "s-legacy"},
 		{"brand.com", "/", "s-brand"},
+		{"shop.olive.example.app", "/", "s-shop"},
+		{"blog.olive.example.app", "/post.html?x=1", "s-blog"},
+		{"nope.olive.example.app", "/", ""},
+		{"shop.nobody.example.app", "/", ""},
+		{"a.b.c.example.app", "/", ""},
 	} {
 		if got := i.attribute(tc.host, tc.uri, m); got != tc.want {
 			t.Errorf("%s%s: got %q want %q", tc.host, tc.uri, got, tc.want)

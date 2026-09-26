@@ -100,6 +100,9 @@ type SiteHandler struct {
 
 	// personHosts is PERSON_HOSTS (personhost.go).
 	personHosts personHostMode
+	// siteHosts is SITE_HOSTS and siteCertDir SITE_CERT_DIR (sitehost.go).
+	siteHosts   siteHostMode
+	siteCertDir string
 }
 
 // lockSite acquires the per-site upload mutex and returns its unlock func.
@@ -507,8 +510,31 @@ func (h *SiteHandler) setAllowAnonymousWrites(w http.ResponseWriter, r *http.Req
 // legacy global lookup. Returns sql.ErrNoRows if not found (caller maps to 404).
 func (h *SiteHandler) resolveSiteID(r *http.Request, siteName string) (string, error) {
 	host := requestHostName(r)
-	owner, onPerson := h.personHostOwner(r.Context(), host)
 	handle := strings.TrimSpace(r.PathValue("handle"))
+	// A site host (<site>.<handle>.<SITE_DOMAIN>) is one site's own origin:
+	// only that site resolves there, under its name (what auth.js derives
+	// from the first host label) or its owner's handle route. Any other name
+	// — another site of the same person included — does not exist there.
+	if h.isSiteHostName(host) {
+		site, owner, ok, err := h.siteHostSite(r.Context(), host)
+		if err != nil {
+			return "", err
+		}
+		if !ok || site.Name != siteName {
+			return "", sql.ErrNoRows
+		}
+		if handle != "" {
+			u, err := db.GetUserByHandleOrAlias(r.Context(), h.database, handle)
+			if err != nil {
+				return "", err
+			}
+			if u.ID != owner.ID {
+				return "", sql.ErrNoRows
+			}
+		}
+		return site.ID, nil
+	}
+	owner, onPerson := h.personHostOwner(r.Context(), host)
 	if handle != "" {
 		u, err := db.GetUserByHandleOrAlias(r.Context(), h.database, handle)
 		if err != nil {
@@ -587,6 +613,19 @@ func (h *SiteHandler) originIsPersonHostID(ctx context.Context, siteID, host str
 	return strings.EqualFold(host, h.personHostFor(handle))
 }
 
+// originIsSiteHostID reports whether host is the site's own site host
+// (<site>.<handle>.<SITE_DOMAIN>) while that host serves it.
+func (h *SiteHandler) originIsSiteHostID(ctx context.Context, siteID, host string) bool {
+	if !h.siteHostsOn() || !h.isSiteHostName(host) {
+		return false
+	}
+	handle, _, name, err := db.GetSiteOwner(ctx, h.database, siteID)
+	if err != nil || !h.siteHostLive(handle, name) {
+		return false
+	}
+	return strings.EqualFold(host, h.siteHostFor(handle, name))
+}
+
 // authorizeStateOrigin checks Origin/Referer and, on a match, sets the CORS
 // headers that allow the calling site to read the response. Returns true if
 // the request is allowed. The gate is keyed to the same site_id that the data
@@ -624,6 +663,7 @@ func (h *SiteHandler) authorizeStateOrigin(w http.ResponseWriter, r *http.Reques
 	// co-tenant content host, and the site's own hosts. (The retired
 	// <name>.<SITE_DOMAIN> host only redirects, so it serves no page to trust.)
 	if !strings.EqualFold(parsed.Host, h.contentHost) &&
+		!h.originIsSiteHostID(r.Context(), siteID, parsed.Host) &&
 		!h.originIsPersonHostID(r.Context(), siteID, parsed.Host) &&
 		!h.originIsBoundDomainID(r.Context(), siteID, parsed.Host) &&
 		!h.originAllowedForSiteID(r.Context(), siteID, origin) {
@@ -959,6 +999,7 @@ func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user
 		if err := h.disk.EnsureHandleLink(user.Handle.String, user.ID); err != nil {
 			log.Printf("createSite: ensure handle link %s: %v", user.Handle.String, err)
 		}
+		h.RequestSiteCert(user.Handle.String)
 	}
 
 	site.ActiveVersion = versionNumber
@@ -1081,6 +1122,7 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 		if err := h.disk.EnsureHandleLink(user.Handle.String, user.ID); err != nil {
 			log.Printf("updateSite: ensure handle link %s: %v", user.Handle.String, err)
 		}
+		h.RequestSiteCert(user.Handle.String)
 	}
 
 	// Retention runs last, on the request context, and only ever removes

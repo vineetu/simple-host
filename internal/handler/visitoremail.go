@@ -20,7 +20,7 @@ func (h *SiteHandler) visitorEmailSite(w http.ResponseWriter, r *http.Request) (
 	// On a claimed <name>.<SITE_DOMAIN>, sign-in must come from a page on that
 	// very host: its siblings are "same-site" to the browser, so without this a
 	// page there could sign a visitor in as someone else (login CSRF).
-	if h.isPlatformSubdomainHost(requestHostName(r)) && !sameOriginRequest(r) {
+	if host := requestHostName(r); (h.isPlatformSubdomainHost(host) || h.isSiteHostName(host)) && !sameOriginRequest(r) {
 		writeJSON(w, http.StatusForbidden, errorResponse{Error: "forbidden"})
 		return "", false
 	}
