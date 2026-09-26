@@ -158,7 +158,13 @@ func (h *SiteHandler) isVisitorApexHost(host string) bool {
 }
 
 // establishVisitor handles GET /v1/visitor/establish: consume the one-time
-// token, Set-Cookie on this host, 302 to the stored return_to.
+// token, check this browser holds the nonce the sign-in started with, then
+// Set-Cookie on this host and 302 to the stored return_to.
+//
+// The code is burned before any check, so a code tried in the wrong browser
+// (no nonce cookie, or another one) or on the wrong host cannot be retried.
+// Only the __Host- nonce cookie counts over HTTPS: a sibling host under the
+// same parent domain can plant a plain cookie, never a __Host- one.
 func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 	host := requestHostName(r)
 	if host == "" || h.isVisitorApexHost(host) || strings.EqualFold(host, h.contentHost) {
@@ -177,8 +183,19 @@ func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 		writeOAuthHTMLError(w, http.StatusBadRequest)
 		return
 	}
+	if !tok.NonceHash.Valid || !nonceMatches(visitorNonceCookie(r), tok.NonceHash.String) {
+		// Not the browser that started this sign-in: the session it would
+		// have carried is dropped with the code.
+		if err := db.DeleteVisitorSession(r.Context(), h.database, tok.SessionID); err != nil {
+			log.Printf("establish: drop unbound session: %v", err)
+		}
+		writeOAuthHTMLError(w, http.StatusBadRequest)
+		return
+	}
 
 	setVisitorSessionCookie(w, r, hex.EncodeToString(tok.SessionID), visitorCookieMaxAge)
+	setVisitorNonceCookie(w, r, "", -1)
+	w.Header().Set("Cache-Control", "no-store")
 	http.Redirect(w, r, tok.ReturnTo, http.StatusFound)
 }
 

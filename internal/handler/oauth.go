@@ -3,7 +3,9 @@ package handler
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"log"
@@ -83,6 +85,9 @@ func (h *OAuthHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/auth/oauth/providers", h.listProviders)
 	mux.Handle("GET /v1/auth/oauth/{provider}/callback", rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.callback)))
 	mux.Handle("GET /v1/auth/oauth/{provider}", rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.start)))
+	// Visitor sign-in starts on the site's own host, which binds it to this
+	// browser with a nonce cookie (login-CSRF fix; see startOnSite).
+	mux.Handle("GET /v1/visitor/oauth/{provider}", rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.startOnSite)))
 }
 
 func (h *OAuthHandler) listProviders(w http.ResponseWriter, r *http.Request) {
@@ -110,6 +115,103 @@ func (h *OAuthHandler) start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A visitor sign-in has to start on the site's own host, where it can be
+	// bound to the browser (startOnSite). Send older pages and hand-written
+	// links there; the apex never issues an unbound site sign-in.
+	if purpose == "site" {
+		w.Header().Set("Cache-Control", "no-store")
+		http.Redirect(w, r, siteStartURL(sanitized, name), http.StatusFound)
+		return
+	}
+
+	h.beginOAuth(w, r, p, name, sanitized, host, siteID, purpose, "")
+}
+
+// siteSignInNonceTTL is how long a started visitor sign-in stays redeemable
+// in the browser that started it (the OAuth state lives as long).
+const siteSignInNonceTTL = oauthStateTTL
+
+const (
+	visitorNonceCookieHost = "__Host-sh_vnonce"
+	visitorNonceCookieHTTP = "sh_vnonce"
+)
+
+// siteStartURL is the site-host start for a validated site return_to.
+func siteStartURL(returnTo, provider string) string {
+	u, _ := url.Parse(returnTo)
+	return u.Scheme + "://" + u.Host + "/v1/visitor/oauth/" + url.PathEscape(provider) + "?return_to=" + url.QueryEscape(returnTo)
+}
+
+// startOnSite handles GET /v1/visitor/oauth/{provider} on a site's own host
+// (<site>.<handle> host, person host, claimed name or custom domain). It sets
+// a short-lived host-only nonce cookie here and stores only its SHA-256 with
+// the OAuth state; the callback copies that hash onto the establish code, and
+// establish (on this same host) sets the session cookie only in a browser
+// holding the nonce. So a sign-in someone completed in their own browser
+// cannot be finished in a victim's (login CSRF).
+func (h *OAuthHandler) startOnSite(w http.ResponseWriter, r *http.Request) {
+	name := strings.ToLower(strings.TrimSpace(r.PathValue("provider")))
+	p, ok := h.providers[name]
+	if !ok || (name != "google" && name != "github") {
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found"})
+		return
+	}
+	sanitized, siteID, host, purpose, err := h.sanitizeReturnTo(r.Context(), r.URL.Query().Get("return_to"))
+	if err != nil || purpose != "site" || !strings.EqualFold(host, requestHostName(r)) {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid return_to"})
+		return
+	}
+	nonce, err := randomHex(32)
+	if err != nil {
+		log.Printf("oauth: random nonce: %v", err)
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	h.beginOAuth(w, r, p, name, sanitized, host, siteID, purpose, nonce)
+}
+
+// setVisitorNonceCookie sets (maxAge > 0) or clears (maxAge < 0) the sign-in
+// nonce cookie on this host. Over HTTPS it is __Host-: host-only, so no
+// sibling under the same parent domain can plant or overwrite it.
+func setVisitorNonceCookie(w http.ResponseWriter, r *http.Request, value string, maxAge int) {
+	secure := requestIsHTTPS(r)
+	name := visitorNonceCookieHTTP
+	if secure {
+		name = visitorNonceCookieHost
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     name,
+		Value:    value,
+		Path:     "/",
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+// visitorNonceCookie reads the nonce cookie strictly: over HTTPS only the
+// __Host- one counts (a sibling host can plant a plain one, never this).
+func visitorNonceCookie(r *http.Request) string {
+	name := visitorNonceCookieHTTP
+	if requestIsHTTPS(r) {
+		name = visitorNonceCookieHost
+	}
+	if c, err := r.Cookie(name); err == nil {
+		return c.Value
+	}
+	return ""
+}
+
+// beginOAuth stores the state and redirects to the provider. A site sign-in
+// passes the nonce: only its hash is stored, and the nonce itself goes into a
+// cookie on this host and nowhere else.
+func (h *OAuthHandler) beginOAuth(w http.ResponseWriter, r *http.Request, p oauth.Provider, name, sanitized, host string, siteID sql.NullString, purpose, nonce string) {
+	var nonceHash sql.NullString
+	if nonce != "" {
+		sum := sha256.Sum256([]byte(nonce))
+		nonceHash = sql.NullString{String: base64.RawURLEncoding.EncodeToString(sum[:]), Valid: true}
+	}
 	if err := db.PruneExpiredOAuthStates(r.Context(), h.database); err != nil {
 		log.Printf("oauth: prune states: %v", err)
 	}
@@ -122,12 +224,16 @@ func (h *OAuthHandler) start(w http.ResponseWriter, r *http.Request) {
 	}
 	verifier := oauth2.GenerateVerifier()
 	expiresAt := time.Now().Add(oauthStateTTL)
-	if err := db.InsertOAuthState(r.Context(), h.database, state, name, verifier, sanitized, host, siteID, purpose, expiresAt); err != nil {
+	if err := db.InsertOAuthState(r.Context(), h.database, state, name, verifier, sanitized, host, siteID, purpose, nonceHash, expiresAt); err != nil {
 		log.Printf("oauth: insert state: %v", err)
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
 
+	if nonce != "" {
+		setVisitorNonceCookie(w, r, nonce, int(siteSignInNonceTTL/time.Second))
+		w.Header().Set("Cache-Control", "no-store")
+	}
 	http.Redirect(w, r, p.AuthCodeURL(state, verifier), http.StatusFound)
 }
 
@@ -223,7 +329,8 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !st.SiteID.Valid || st.SiteID.String == "" || st.Host == "" {
+	// A site sign-in must have started on the site host, bound to a browser.
+	if !st.SiteID.Valid || st.SiteID.String == "" || st.Host == "" || !st.NonceHash.Valid || !nonceHashRe.MatchString(st.NonceHash.String) {
 		writeOAuthHTMLError(w, http.StatusBadRequest)
 		return
 	}
@@ -247,7 +354,7 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 		writeOAuthHTMLError(w, http.StatusBadGateway)
 		return
 	}
-	if err := db.InsertEstablishToken(r.Context(), tx, once, sessionID, st.Host, st.ReturnTo, now.Add(60*time.Second)); err != nil {
+	if err := db.InsertEstablishToken(r.Context(), tx, once, sessionID, st.Host, st.ReturnTo, st.NonceHash, now.Add(60*time.Second)); err != nil {
 		log.Printf("oauth: insert establish: %v", err)
 		writeOAuthHTMLError(w, http.StatusBadGateway)
 		return

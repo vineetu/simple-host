@@ -36,6 +36,9 @@ var requiredColumns = map[string][]string{
 	"oauth_tokens":        {"token_hash", "grant_id", "kind", "expires_at", "used_at"},
 	// handle-aliases.sql
 	"handle_aliases": {"handle", "user_id"},
+	// visitor-signin-nonce.sql
+	"oauth_states":             {"state", "return_to", "host", "site_id", "purpose", "nonce_hash"},
+	"visitor_establish_tokens": {"once", "session_id", "host", "return_to", "nonce_hash"},
 }
 
 // VerifySchema refuses to start against a database that is behind the code.

@@ -34,6 +34,7 @@ const (
 type privateApp struct {
 	*connectorApp
 	sites *SiteHandler
+	mux   *http.ServeMux
 }
 
 func newPrivateApp(t *testing.T) *privateApp {
@@ -62,8 +63,8 @@ func newPrivateApp(t *testing.T) *privateApp {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := &privateApp{connectorApp: &connectorApp{database: database, admin: adminKey}}
 	mux := http.NewServeMux()
+	a := &privateApp{connectorApp: &connectorApp{database: database, admin: adminKey}, mux: mux}
 	authMW := auth.Middleware(adminKey, adminID, database)
 	mailer := email.NewResendSender("", "test@example.com")
 	var root http.Handler
@@ -561,12 +562,12 @@ func TestClaimedSubdomainSessionIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.DeleteVisitorSession(context.Background(), a.database, sid) })
-	if err := db.InsertEstablishToken(context.Background(), a.database, "once-"+uid, sid, dom, "https://"+dom+"/", now.Add(time.Minute)); err != nil {
+	if err := db.InsertEstablishToken(context.Background(), a.database, "once-"+uid, sid, dom, "https://"+dom+"/", testNonceHash(testNonce), now.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
-	r := a.at(t, "GET", dom, "/v1/visitor/establish?once=once-"+uid, nil, nil)
+	r := a.at(t, "GET", dom, "/v1/visitor/establish?once=once-"+uid, nil, nonceCookie(testNonce))
 	sc := r.header.Values("Set-Cookie")
-	if r.status != http.StatusFound || len(sc) != 1 || !strings.HasPrefix(sc[0], visitorCookieHost+"=") ||
+	if r.status != http.StatusFound || len(sc) != 2 || !strings.HasPrefix(sc[0], visitorCookieHost+"=") ||
 		strings.Contains(strings.ToLower(sc[0]), "domain=") || !strings.Contains(sc[0], "Secure") || !strings.Contains(sc[0], "HttpOnly") {
 		t.Fatalf("establish cookie: %d %v", r.status, sc)
 	}
@@ -697,12 +698,12 @@ func TestEstablishTokenWrongHostBurns(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { _ = db.DeleteVisitorSession(ctx, a.database, sid) })
-		if err := db.InsertEstablishToken(ctx, a.database, once, sid, dom, "https://"+dom+"/", now.Add(time.Minute)); err != nil {
+		if err := db.InsertEstablishToken(ctx, a.database, once, sid, dom, "https://"+dom+"/", testNonceHash(testNonce), now.Add(time.Minute)); err != nil {
 			t.Fatal(err)
 		}
 	}
 	establish := func(host, once string) resp {
-		return a.at(t, "GET", host, "/v1/visitor/establish?once="+once, nil, nil)
+		return a.at(t, "GET", host, "/v1/visitor/establish?once="+once, nil, nonceCookie(testNonce))
 	}
 
 	// Wrong host: rejected, then the right host is rejected too (burned).
@@ -718,7 +719,7 @@ func TestEstablishTokenWrongHostBurns(t *testing.T) {
 	// Normal flow: right host works once, then the code is spent.
 	good := "good-" + uid
 	issue("ef", good)
-	if r := establish(strings.ToUpper(dom), good); r.status != http.StatusFound || len(r.header.Values("Set-Cookie")) != 1 {
+	if r := establish(strings.ToUpper(dom), good); r.status != http.StatusFound || len(r.header.Values("Set-Cookie")) != 2 {
 		t.Fatalf("normal establish: %d %v", r.status, r.header.Values("Set-Cookie"))
 	}
 	if r := establish(dom, good); r.status != http.StatusBadRequest {

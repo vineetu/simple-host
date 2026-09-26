@@ -71,13 +71,18 @@ Without `SITE_CERT_DIR` every person counts as ready (for instances with their o
 - `/v1/` on a site host resolves every lookup to that one site; no fallback to a global name.
 - Private collections accept submissions only on the site's own address.
 - Hosted pages still never hold an API key.
-- Open, pre-existing (not made worse): the OAuth `state` is not tied to the browser that
-  started sign-in, and a `/v1/visitor/establish?once=` link can be handed to a victim within its
-  60 s life (login CSRF: the victim ends up signed in as the attacker on that one site). On a
-  site host the blast radius is one site instead of all of a person's sites. Fix: a site-host
-  `/v1/visitor/oauth/{provider}` hop that sets a `__Host-` binding cookie and passes its hash
-  through the OAuth state to the establish token (needs a column on `oauth_states` and
-  `visitor_establish_tokens`, and an auth.js change). Not done here.
+- Visitor Google sign-in is bound to the starting browser (fixed 2026-09-26; was an open login
+  CSRF: a `/v1/visitor/establish?once=` link finished in the attacker's browser could be handed
+  to a victim within its 60 s life). `SH.signIn()` starts at the site-host
+  `/v1/visitor/oauth/{provider}`, which sets a 10-minute `__Host-sh_vnonce` cookie (HttpOnly,
+  Secure, SameSite=Lax) on that host and stores only its SHA-256 on `oauth_states.nonce_hash`;
+  the callback copies it to `visitor_establish_tokens.nonce_hash`; establish burns the code, then
+  sets the session only if the browser's `__Host-` nonce hashes to it (a plain cookie a sibling
+  could plant never counts), and clears the nonce. The apex start 302s a site sign-in to the
+  site-host start, so old pages and hand-written links keep working. The email-code path has no
+  cross-browser step (the code is typed into the page and redeemed by a same-origin request that
+  sets the cookie in its response), so it needs no binding. Migration
+  `db/migrations/visitor-signin-nonce.sql`.
 - All `<site>.<handle>` hosts are same-site with each other and the apex until simple-host.app is
   on the Public Suffix List (`public-suffix-list-submission.md`); cookies are host-only and writes
   require `X-SH-CSRF`, so that gap does not open cross-site writes.

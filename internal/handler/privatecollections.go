@@ -147,11 +147,12 @@ func (h *SiteHandler) onOwnDomain(r *http.Request, siteID string) (siteHome, boo
 // site owner, signed in as a visitor on the site's own domain, from a page on
 // that domain. Anyone else gets the 404 (written here) and ok=false.
 //
-// A submitter reading back their own items is deliberately not offered: the
-// visitor Google sign-in hand-off (/v1/visitor/establish) is not bound to the
-// browser that started it, so an attacker can sign a victim's browser in as
-// the attacker (login CSRF) and would then read back what the victim
-// submitted. A page shows the submitter what they sent from the POST answer.
+// A submitter reading back their own items is deliberately not offered. It
+// was first held back because the Google sign-in hand-off was not bound to
+// the starting browser (login CSRF: a victim signed in as the attacker would
+// submit into the attacker's view). That hand-off is now bound (nonce cookie,
+// 2026-09-26), but the rule stands: a page shows the submitter what they sent
+// from the POST answer.
 func (h *SiteHandler) ownerBrowserRead(w http.ResponseWriter, r *http.Request, siteID string) bool {
 	if strings.EqualFold(requestHostName(r), h.contentHost) {
 		writePrivateNotFound(w)

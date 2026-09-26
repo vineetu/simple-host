@@ -317,6 +317,9 @@ CREATE TABLE IF NOT EXISTS oauth_states (
   host           TEXT NOT NULL,
   site_id        UUID REFERENCES sites(id) ON DELETE CASCADE,
   purpose        TEXT NOT NULL DEFAULT 'site',
+  -- Site purpose: SHA-256 (base64url) of the __Host- nonce cookie set on the
+  -- site host that started this sign-in (visitor-signin-nonce.sql).
+  nonce_hash     TEXT,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
   expires_at     TIMESTAMPTZ NOT NULL,
   used_at        TIMESTAMPTZ,
@@ -347,6 +350,8 @@ CREATE TABLE IF NOT EXISTS visitor_establish_tokens (
   session_id   BYTEA NOT NULL REFERENCES visitor_sessions(id) ON DELETE CASCADE,
   host         TEXT NOT NULL,
   return_to    TEXT NOT NULL,
+  -- The starting browser's nonce hash; establish needs the matching cookie.
+  nonce_hash   TEXT,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   expires_at   TIMESTAMPTZ NOT NULL,
   used_at      TIMESTAMPTZ
@@ -356,6 +361,11 @@ CREATE INDEX IF NOT EXISTS visitor_establish_tokens_expires_idx
 
 ALTER TABLE oauth_states
   ALTER COLUMN site_id DROP NOT NULL;
+
+ALTER TABLE oauth_states
+  ADD COLUMN IF NOT EXISTS nonce_hash TEXT;
+ALTER TABLE visitor_establish_tokens
+  ADD COLUMN IF NOT EXISTS nonce_hash TEXT;
 
 ALTER TABLE oauth_states
   ADD COLUMN IF NOT EXISTS purpose TEXT NOT NULL DEFAULT 'site';

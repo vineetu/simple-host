@@ -153,8 +153,13 @@
       if (noBackend) return unavailable();
       options = options || {};
       if (providers && !providers.length) throw new Error("sign-in is not configured on this host");
-      location.href = APEX + "/v1/auth/oauth/" + encodeURIComponent(options.provider || "google") +
-        "?return_to=" + encodeURIComponent(options.returnTo || location.href);
+      // Start on the site's own host (the page's origin, or returnTo's): it
+      // ties the sign-in to this browser with a cookie there, then goes on to
+      // the provider. Only that browser can finish it.
+      var back = options.returnTo || location.href, origin = location.origin;
+      try { origin = new URL(back, location.href).origin; } catch (e) {}
+      location.href = origin + "/v1/visitor/oauth/" + encodeURIComponent(options.provider || "google") +
+        "?return_to=" + encodeURIComponent(back);
     },
     signOut: function () {
       return request(API_ORIGIN + "/v1/visitor/logout", {

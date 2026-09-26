@@ -105,9 +105,13 @@ admin is a real `users` row upserted at boot and authenticates with `ADMIN_API_K
 
 **Visitor sign-in** (`visitorsession.go`, `visitoremail.go`, `oauth.go`, `static/auth.js`).
 Only on a site's own address (site host, person-path fallback, claimed name, custom domain); a
-session covers that one site. Google: the callback
-lands on the apex, mints a one-time token, and redirects to
-`<site host>/v1/visitor/establish?once=...`, which sets the host-only `__Host-sh_vsess` cookie.
+session covers that one site. Google: `SH.signIn()` starts on the site host
+(`/v1/visitor/oauth/{provider}`), which sets a 10-minute `__Host-sh_vnonce` cookie there and
+stores only its SHA-256 with the OAuth state (an apex start for a site is redirected there). The
+callback lands on the apex, mints a one-time token carrying that hash, and redirects to
+`<site host>/v1/visitor/establish?once=...`, which sets the host-only `__Host-sh_vsess` cookie
+only in the browser holding the nonce (the code is burned on any failure). So a sign-in finished
+in one browser cannot be completed in another (login CSRF).
 Email: `POST /v1/sites/{site}/visitor/auth` + `/verify` on the site host; codes are bound to
 that one site. Pages include `/auth.js` (`window.SH`) and call `SH.requireSignIn()` before
 saving; `GET /v1/sites/{site}/me` reports the session without extending it.

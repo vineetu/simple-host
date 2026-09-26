@@ -29,6 +29,7 @@ type OAuthState struct {
 	Host         string
 	SiteID       sql.NullString
 	Purpose      string
+	NonceHash    sql.NullString
 	CreatedAt    time.Time
 	ExpiresAt    time.Time
 	UsedAt       sql.NullTime
@@ -54,6 +55,7 @@ type EstablishToken struct {
 	SessionID []byte
 	Host      string
 	ReturnTo  string
+	NonceHash sql.NullString
 	CreatedAt time.Time
 	ExpiresAt time.Time
 	UsedAt    sql.NullTime
@@ -119,11 +121,12 @@ func TouchOAuthIdentity(ctx context.Context, q Querier, id, email string, emailV
 
 // InsertOAuthState stores a new authorization-code flow.
 // purpose is "site" (siteID valid, host non-empty) or "owner" (siteID null).
-func InsertOAuthState(ctx context.Context, q Querier, state, provider, verifier, returnTo, host string, siteID sql.NullString, purpose string, expiresAt time.Time) error {
+// nonceHash binds a site sign-in to the browser that started it.
+func InsertOAuthState(ctx context.Context, q Querier, state, provider, verifier, returnTo, host string, siteID sql.NullString, purpose string, nonceHash sql.NullString, expiresAt time.Time) error {
 	_, err := q.ExecContext(ctx, `
-		INSERT INTO oauth_states (state, provider, code_verifier, return_to, host, site_id, purpose, expires_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		state, provider, verifier, returnTo, host, siteID, purpose, expiresAt)
+		INSERT INTO oauth_states (state, provider, code_verifier, return_to, host, site_id, purpose, nonce_hash, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		state, provider, verifier, returnTo, host, siteID, purpose, nonceHash, expiresAt)
 	return err
 }
 
@@ -135,11 +138,11 @@ func ConsumeOAuthState(ctx context.Context, q Querier, state string) (OAuthState
 		SET used_at = now()
 		WHERE state = $1 AND used_at IS NULL AND expires_at > now()
 		RETURNING state, provider, code_verifier, return_to, host, site_id,
-		          purpose, created_at, expires_at, used_at`
+		          purpose, nonce_hash, created_at, expires_at, used_at`
 	var s OAuthState
 	err := q.QueryRowContext(ctx, query, state).Scan(
 		&s.State, &s.Provider, &s.CodeVerifier, &s.ReturnTo, &s.Host, &s.SiteID,
-		&s.Purpose, &s.CreatedAt, &s.ExpiresAt, &s.UsedAt,
+		&s.Purpose, &s.NonceHash, &s.CreatedAt, &s.ExpiresAt, &s.UsedAt,
 	)
 	return s, err
 }
@@ -191,12 +194,13 @@ func DeleteVisitorSession(ctx context.Context, q Querier, id []byte) error {
 	return err
 }
 
-// InsertEstablishToken stores the one-time bounce token for Set-Cookie.
-func InsertEstablishToken(ctx context.Context, q Querier, once string, sessionID []byte, host, returnTo string, expiresAt time.Time) error {
+// InsertEstablishToken stores the one-time bounce token for Set-Cookie,
+// bound to the nonce hash of the browser that started the sign-in.
+func InsertEstablishToken(ctx context.Context, q Querier, once string, sessionID []byte, host, returnTo string, nonceHash sql.NullString, expiresAt time.Time) error {
 	_, err := q.ExecContext(ctx, `
-		INSERT INTO visitor_establish_tokens (once, session_id, host, return_to, expires_at)
-		VALUES ($1, $2, $3, $4, $5)`,
-		once, sessionID, host, returnTo, expiresAt)
+		INSERT INTO visitor_establish_tokens (once, session_id, host, return_to, nonce_hash, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6)`,
+		once, sessionID, host, returnTo, nonceHash, expiresAt)
 	return err
 }
 
@@ -211,10 +215,10 @@ func ConsumeEstablishToken(ctx context.Context, q Querier, once, host string) (E
 		WHERE once = $1
 		  AND used_at IS NULL
 		  AND expires_at > now()
-		RETURNING once, session_id, host, return_to, created_at, expires_at, used_at`
+		RETURNING once, session_id, host, return_to, nonce_hash, created_at, expires_at, used_at`
 	var t EstablishToken
 	err := q.QueryRowContext(ctx, query, once).Scan(
-		&t.Once, &t.SessionID, &t.Host, &t.ReturnTo, &t.CreatedAt, &t.ExpiresAt, &t.UsedAt,
+		&t.Once, &t.SessionID, &t.Host, &t.ReturnTo, &t.NonceHash, &t.CreatedAt, &t.ExpiresAt, &t.UsedAt,
 	)
 	if err != nil {
 		return EstablishToken{}, err
