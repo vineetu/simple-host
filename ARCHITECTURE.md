@@ -1,200 +1,216 @@
 # Architecture
 
-Orientation for people changing this code. It answers two questions: *where is
-the thing that does X*, and *what does the thing I'm looking at do*.
+Where things live and how a request moves through them. What the product does is in
+`FEATURES.md`; why it is that way is in `INTENT.md`. This file is only about where it lives.
+Anything that must stay true is enforced by a check in `make check`, not by this document.
 
-It is deliberately coarse. It names files and packages but does not link them,
-and it does not list every function — those go stale, and a stale map is worse
-than none. Anything that must stay true is enforced by a check in `make check`,
-not by this document. Read `FEATURES` (served at `/features`) for what the
-product does; this file is only about where it lives.
+## Components
 
-## Bird's eye view
+| Piece | What it is | Where |
+|---|---|---|
+| Go service | One binary: API, dashboard and pages, site files for person hosts and claimed names, MCP connector, OAuth server | `/usr/local/bin/simple-host`, `simple-host.service`, `127.0.0.1:8090` (`BIND_ADDR`) |
+| nginx | TLS, hostname routing, serves the legacy content host and custom-domain files from disk, writes the analytics log | `/etc/nginx/sites-enabled/*` (repo copies in `deploy/prod/`) |
+| Postgres 16 | Accounts, sites, versions, state, collections, sessions, OAuth, aggregates | database `simplehost`, role `simplehost`; schema `db/schema.sql` |
+| Site files | Versioned folders on local disk | `/srv/simple-host/sites` (`DATA_DIR`) |
+| Grok sidecar | CLIProxy: the Grok subscription as a local OpenAI-compatible API, the only model behind AI create | `cliproxy.service`, `127.0.0.1:8102` (`/opt/cliproxy`) |
+| Speech-to-text | Moonshine, local; voice input in the builder chat | `moonshine-stt` `:8100`, `moonshine-stream` `:8103` |
+| Geo DB | DB-IP Lite country files, read on this box | `GEOIP_DIR`, refreshed by `simple-host-geoip-refresh.timer` |
+| Email | Resend, sends sign-in codes only | `internal/email` |
+| Event DNS | Vercel DNS API, hands hackathon organisers hostnames; off unless configured | `internal/eventdns` |
 
-One Go binary serves every site's static files and the REST API. Postgres holds
-users, sites, versions and aggregates. A folder on disk holds versioned site
-files. nginx terminates TLS and maps hostnames to the binary.
+There is no object store, CDN, queue, frontend build or notification service. simple-hack.app
+is the same binary behind its own nginx vhost (`/` proxies to `/hackathons`).
 
-A request is either **content** (someone visiting a hosted site) or **API**
-(an owner or their agent calling `/v1/...`). Content is served from disk by
-path; API calls are authenticated, hit Postgres, and return JSON.
+## Hosts and how a request flows
 
-## Codemap
+Every hostname reaches the binary through nginx on `127.0.0.1:8090`. Inside, the handler chain
+is (`cmd/server/main.go`):
 
-### `cmd/server`
+`BoundSubdomains` → `PersonHosts` → `LegacyHostRedirect` → app, where app is
+`SecurityHeaders(CORS(apiMetrics(BearerAuth(mux))))`.
 
-`main.go` is the wiring: config, database handle, middleware chain, background
-loops.
+**Apex `simple-host.app` (and simple-hack.app).** nginx proxies everything to the app except
+`/v1/transcribe/stream` (straight to Moonshine) and `/internal/` (404 from outside). The single
+`ServeMux` answers the API (`/v1/...`), the pages (`ui.go`: `/`, `/dashboard`, `/admin`,
+`/features`, `/hackathons`, `/enterprise*`, `/terms`, `/support`, `/analytics/{site}`), the
+skill downloads (`/skills.zip`, `/plugin.zip`, `/install.sh`, `/.well-known/skills/...`), the
+connector (`/mcp`, `/oauth/*`, `/.well-known/oauth-*`) and `/healthz`, `/readyz`. Agents write
+here with `X-API-Key` or a connector bearer token.
 
-Routes are registered across `main.go` and about nine files in
-`internal/handler`, each next to the code it serves. To find what handles a URL,
-grep for `mux.Handle`, or look it up in `openapi.yaml`, which is the contract and
-is checked against the registered routes.
+**Person hosts `<handle>.simple-host.app/<site>/`** (`personhost.go`). The wildcard vhost
+proxies to the app; `PersonHosts` recognises the handle (aliases such as `admin` →
+`simple-host-team` resolve too). `/` is the person's page of public sites, `/<site>/...` is
+that site's live files served by Go (relative links keep working), and `/v1/` is host-bound:
+only that person's sites answer. A site with its own domain 302s to it. Mode comes from
+`PERSON_HOSTS`: `off` (default, event and self-hosted boxes: path model only), `serve` (answer,
+but hand out path URLs), `canonical` (live: every URL handed out is the person address).
 
-### `internal/handler`
+**Legacy `sites.simple-host.app/<handle>/<site>/`.** nginx still owns this host; the redirect
+below has been live since 2026-09-25 16:26 UTC. A path with a
+`domain-redirect` marker file in the site folder is rewritten to
+`/internal/domain-redirect/...` (302 to the custom domain). Every other
+`/<handle>/<site>/...` is rewritten to `/internal/site-redirect/...`, which 302s
+(`Cache-Control: no-store`) to the person address, path and query kept. Exception:
+`vineetu/eb2-wait` is still served from disk here because it calls the content host's
+`/eb2-api/*` sidecar proxies (`contentHostOnlySites` in `personhost.go` and the nginx block
+agree on it). `/<handle>` redirects to the person page. `/v1/` on this host is kept for
+good: old pages call it. The 302 becomes 301 after a quiet soak
+(`docs/designs/per-person-subdomains-nginx.md`).
 
-Every HTTP handler, plus the entire web UI. The largest package by far, and the
-one most likely to be where your change belongs.
+**Claimed `<name>.simple-host.app`** (`platformsubdomain.go`). A site claims a free name with
+`POST /v1/sites/{site}/domain`; it is verified at once. `BoundSubdomains` serves it in process
+like a custom domain: files at the root, `/v1/` same-origin, visitor sign-in. Unclaimed
+single-label names that match an old per-name host get a 301 from `LegacyHostRedirect`
+(`legacyhost.go`).
 
-Some landmarks, not an inventory. `site.go` is deploy, versions and rollback.
-`ui.go` decides which static page a bare URL gets. `stateops.go` and
-`collections.go` are the per-site datastore.
-`visitorsession.go` is the write gate (`visitorWriteOK`) and the Origin-gated
-`GET .../me`; `visitoremail.go` is email-code sign-in on a hosted page; hosted
-`static/auth.js` exposes `window.SH` for visitor sign-in, status, state and
-collections. `generate.go` is Create-with-AI.
-`analytics.go` and `apimetrics.go` are two unrelated things both called
-"analytics" — the first is per-site visitor traffic, the second is per-endpoint
-API call counts.
+**Custom domains** (`domains.go`, `domaincheck.go`). Bind with `POST /v1/sites/{site}/domain`;
+the binding is provisional until DNS proves it (24 h expiry, can be taken over until verified).
+On bind, `storage` makes `domains/<domain>` a symlink to the site and writes the
+`domain-redirect` marker. Serving needs a per-domain nginx vhost plus a Let's Encrypt cert,
+added by the operator (`deploy/prod/nginx-customdomain.example.conf`): files straight from
+`domains/<domain>/current`, `/v1/` and `/internal/` proxied to the app. Off the domain, writes
+for that site answer 401 `use_custom_domain`.
 
-`/internal/*` routes are not API: nginx calls them on the localhost side.
-`/internal/tls-ask` is the on-demand TLS check, `/internal/showcase/{handle}`
-and `/internal/notfound` render content-host pages, and
-`/internal/domain-redirect/{handle}/{sitename}/...` (`domains.go`) is what the
-content host proxies to when a site directory carries the `domain-redirect`
-marker — it looks up the bound domain and answers 302 with `Cache-Control:
-no-store`, or clears a stale marker and 404s if the domain is gone.
+**MCP and OAuth** (`connector.go`, `internal/mcp`). An OAuth 2.1 authorization server
+(dynamic client registration, PKCE, consent page `static/connect.html` reusing the normal
+Google or email-code sign-in) guards a Streamable HTTP MCP endpoint at `/mcp`. Each tool call is
+replayed in process into the bare mux, so it meets exactly the REST checks. Account keys are
+stored only as hashes, so the replay carries a per-request internal credential (`shint_…`,
+`internal/db/internalkey.go`: in memory only, revoked when the request ends, 15 min TTL backstop)
+instead of the person's key. `BearerAuth` does the same for connector tokens on `/v1/`. Hand-registered clients:
+`simple-host oauth-client create`. Reviewer password sign-in (`reviewer.go`) and the OpenAI
+domain challenge are off unless configured.
 
-`static/` holds the web UI as hand-written HTML with inline CSS and JS, embedded
-into the binary. `index.html` is the owner dashboard; `showcase.html` is the
-public profile *and* the owner's Analytics tab. **Both render analytics, and
-both are served on two different origins.** That pair has already caused one
-production bug (see Traps).
+**Owner sign-in.** Email code (`/v1/auth`, `/v1/auth/verify`, Resend) or Google
+(`/v1/auth/oauth/{provider}`) returns a new API key (each sign-in issues one; `api_keys` keeps
+only its SHA-256; rotate replaces them all); the dashboard keeps it and sends `X-API-Key`. The
+admin is a real `users` row upserted at boot and authenticates with `ADMIN_API_KEY`.
 
-### `internal/db`
+**Visitor sign-in** (`visitorsession.go`, `visitoremail.go`, `oauth.go`, `static/auth.js`).
+Only on a site's own address (person host, claimed name, custom domain). Google: the callback
+lands on the apex, mints a one-time token, and redirects to
+`<site host>/v1/visitor/establish?once=...`, which sets the host-only `__Host-sh_vsess` cookie.
+Email: `POST /v1/sites/{site}/visitor/auth` + `/verify` on the site host; codes are bound to
+that one site. Pages include `/auth.js` (`window.SH`) and call `SH.requireSignIn()` before
+saving; `GET /v1/sites/{site}/me` reports the session without extending it.
 
-The SQL behind the request path, one file per area, plus `models.go` for the row
-types. No ORM — queries are written out, and the schema lives in `db/schema.sql`.
-The analytics ingester is the one exception: it writes its aggregate tables
-directly, because it runs off the request path entirely.
+**Writes and reads.** State (`stateops.go`) and collections (`collections.go`) are readable by
+anyone (GETs are Origin/Referer-gated). Writes pass `visitorWriteOK`: any account's API key, or
+a visitor session plus `X-SH-CSRF: 1` on the site's own address; the old shared host is still an
+open scratchpad (INTENT 2026-09-24 decided to close it). Private collections
+(`privatecollections.go`): only signed-in visitors on the site's address submit, only the owner
+or admin reads, everyone else gets 404.
 
-### `internal/analytics`
+## Code map
 
-Reads the nginx access log and turns it into per-hour, per-class aggregates.
-`ingest.go` tails the log by inode and byte offset; `classify.go` decides whether
-a request was a person, a bot, or our own monitoring. Nothing here is on the
-request path — it is a background loop.
+- `cmd/server/main.go` — wiring: config, schema check, setup mode, admin row, handlers,
+  middleware chain, background loops. `oauthclient.go`, `reviewaccount.go` are subcommands.
+- `cmd/analytics-rebuild`, `cmd/ip-country-load` — one-off operator tools.
+- `internal/handler` — every HTTP handler and the embedded web UI (`static/`, hand-written
+  HTML, no build step). Landmarks: `site.go` deploy, versions, rollback, route registration;
+  `personhost.go` person hosts and `/internal/site-redirect`; `platformsubdomain.go` claimed
+  names and in-process file serving; `domains.go` custom domains, `/internal/domain-redirect`,
+  `/internal/tls-ask`; `legacyhost.go` old per-name hosts; `handles.go` the one namespace;
+  `stateops.go`, `collections.go`, `privatecollections.go`, `export.go` the datastore;
+  `visitorsession.go`, `visitoremail.go`, `oauth.go`, `emailcode.go`, `user.go` sign-in;
+  `connector.go` OAuth server + MCP; `generate.go`, `generate_jobs.go` AI create;
+  `transcribe.go` voice; `analytics.go` site traffic; `apimetrics.go` per-endpoint API counts;
+  `eventdomain.go` hackathon hostnames; `setup.go` first-boot setup page; `instancehost.go`
+  rewrites hostnames for instances on other domains; `ui.go`, `chrome.go`, `skillshub.go`
+  pages and skill downloads; `notice_middleware.go` stale-skill notice; `ratelimit.go`,
+  `cors.go`.
+- `internal/mcp` — MCP JSON-RPC server, tool list, output schemas, instructions.
+- `internal/db` — SQL, one file per area, `models.go` row types, `schemacheck.go` boot check.
+- `internal/storage/disk.go` — the only writer of site files; owns symlinks and markers.
+- `internal/analytics` — tails the nginx analytics log into aggregates, off the request path.
+- Leaves: `config`, `auth` (API-key middleware; reaches `db`), `tarball`, `email`, `oauth`
+  (Google; GitHub wired, unconfigured), `geoip`, `capacity`, `eventdns`.
+- Outside Go: `db/schema.sql` (canonical) and `db/migrations/` (history, applied by hand);
+  `deploy/prod/` nginx, logrotate, geoip timer; `simple-host-website/` the Website Deploy
+  skills and plugin, embedded in the binary; `plugins/simple-host/` the Claude directory plugin
+  (generated skill copies); `openai-plugin/` the ChatGPT package; `scripts/` checks and ops.
 
-### `internal/storage`
+## Data model
 
-`disk.go` — versioned site files on disk. The only package that writes site
-content. Also owns the `domain-redirect` marker file in a site directory
-(written on domain bind, removed on disconnect) that nginx tests to send the
-shared-host URL to the custom domain.
+On disk under `/srv/simple-host/sites`: `by-id/<user_id>/<site>/v<n>/` holds each upload,
+`current` points at the live one; `handles/<handle>` links to `by-id/<user_id>`;
+`domains/<domain>` links to a site; a `domain-redirect` file marks a site with its own domain.
 
-### The leaves
+Tables (`db/schema.sql`):
 
-`internal/config` (environment), `internal/auth` (API key middleware),
-`internal/tarball` (extract, validate, sanitize uploads), `internal/email`
-(sign-in codes and magic links), `internal/oauth` (Google sign-in; more
-providers later).
+- `users` — every identity: owners, visitors, admin. `handle`, `display_name`.
+- `api_keys` — account keys as hex SHA-256 only (`key_hash`, `user_id`); several per account.
+- `handle_aliases`, `legacy_hostnames` — old handles and retired per-name hosts, same namespace.
+- `sites` — owner, name, active version, `state` JSONB + `state_version`, custom domain and its
+  status, `visibility` (listing only), `allowed_origins`.
+- `versions` — one row per upload.
+- `collection_items`, `collection_settings` — append-only lists; private flag, `submitted_by`.
+- `auth_tokens` — email codes, bound to a purpose and, for visitors, one site; expired rows
+  purged.
+- `oauth_identities`, `oauth_states` — Google sign-in.
+- `visitor_sessions`, `visitor_establish_tokens` — site-scoped cookies and their one-time hand-off.
+- `oauth_clients`, `oauth_grants`, `oauth_codes`, `oauth_tokens` — the connector (hashes only).
+- `event_domains` — hackathon hostnames. `instance_config` — answers from the setup page.
+- Analytics: `site_view_hourly`, `site_visitor_hourly`, `site_geo_daily`,
+  `analytics_ingest_state`; legacy `site_view_daily`, `site_visitor_daily` (never written,
+  pruned after 400 days). API: `api_request_daily`, `api_ip_daily` (caller IP truncated to
+  IPv4 /24 or IPv6 /48, pruned at 30 days).
+- `ip_country_ranges` — reference data for visitor-analytics country counts.
 
-### Outside the Go tree
+## Deploy
 
-`db/schema.sql` is the canonical schema; `db/migrations/` is history, applied by
-hand. `deploy/prod/` is the nginx configuration. `simple-host-website/` is the
-agent-facing plugin: the skills a coding agent installs to deploy to this
-service. `scripts/` holds the checks.
-
-## Boundaries
-
-**`internal/handler` is the only package that imports other internal packages.**
-Everything else is a leaf, except `internal/auth`, which reaches `internal/db`.
-Enforced by `scripts/check-layering.sh`.
-
-This is the property worth protecting. It means any leaf can be read and changed
-without understanding the rest of the system, and it is the reason a package
-here is cheap to replace.
-
-**The API contract lives in `openapi.yaml`,** not in the handlers. `openapi.json`
-is generated from it and must never be hand-edited.
+- Binary `/usr/local/bin/simple-host`, `simple-host.service` (user `simplehost`, sandboxed,
+  writes only `/srv/simple-host/sites`), env `/etc/simple-host.env` (secrets; never print it).
+- Build on the box (aarch64) under a memory cap, back up the running binary to
+  `/usr/local/bin/simple-host.bak-<timestamp>`, install, restart, verify from a client. Exact
+  steps in `CLAUDE.md`. Rollback = install the `.bak` and restart.
+- Flags in the env file: `PERSON_HOSTS=canonical`, `WRITE_AUTH_MODE=on`, `BIND_ADDR=127.0.0.1`
+  (empty = all interfaces, which Docker needs), `LLM_BASE_URL` (the sidecar), `TRANSCRIBE_URL`,
+  `ANALYTICS_LOG`, `ANALYTICS_SALT` (visitor hash salt; empty = derived from `ADMIN_API_KEY`),
+  `GEOIP_DIR`.
+- Schema changes are hand-applied SQL; add them to `db/schema.sql` and `db/migrations/`.
+  The binary refuses to start if a column it reads is missing (`schemacheck.go`).
+- nginx edits are by hand, with a dated `.bak` first, then `nginx -t` and reload.
 
 ## Invariants
 
-Mostly stated as absences, because those are the things you cannot infer by
-reading code:
-
-- **No build step for the frontend.** No bundler, no npm, no framework. The HTML
-  is written by hand and embedded. This is why the pages are large, and it is a
-  deliberate trade for "one binary, no build farm".
-- **No fallback model provider.** Create-with-AI talks to one Grok sidecar. If it
-  is down the feature fails honestly rather than silently substituting.
-- **No client-side analytics.** Nothing is injected into hosted pages — no
-  beacon, no cookie, no script. Traffic is derived entirely from the server's own
-  access log. Adding a script tag would break the promise the product makes.
-- **No object store, no CDN, no queue.** Files are on local disk.
-- **Site analytics never store a raw visitor IP.** The ingester keeps a salted
-  hash (stable salt, not per-day, because a rotating salt makes counting unique
-  visitors over a range impossible) plus per-day country counts. API caller
-  IPs are a different thing: `apimetrics.go` keeps them raw in `api_ip_daily`
-  for 30 days, then prunes. Their location is resolved on this box, when the
-  admin page asks, from local DB-IP Lite files (`internal/geoip`, files in
-  `GEOIP_DIR`, refreshed monthly by `scripts/geoip-refresh.sh`). No caller IP
-  is ever sent to a geolocation service, and results are not stored.
-- **Every account is its own origin.** With `PERSON_HOSTS=canonical` a site
-  lives at `https://<handle>.simple-host.app/<site>/` and the account's root
-  lists its public sites (`internal/handler/personhost.go`; `off`, the default
-  and what event/self-hosted instances use, keeps the path model on
-  `sites.<domain>/<handle>/<site>/`; `serve` answers person hosts but still
-  emits the old URLs). Handles and claimed `<name>.<SITE_DOMAIN>` addresses
-  share one namespace.
-- **Reads are public; every page write needs an identity.** State and
-  collection writes accept any account's `X-API-Key` (agents use the apex).
-  From a page they need a visitor session on the site's own address — its
-  person host, or its custom domain if it has one; only that person's sites
-  answer `/v1/` on a person host. A collection can be made private on any site:
-  only signed-in visitors on the site's own address submit, only the owner
-  reads. There is no view-lock, no private page, and no per-site opt-out.
-- **A site with a custom domain lives only there.** Its person-host URL
-  redirects to the domain, and its legacy shared-host page URL
-  `sites.simple-host.app/{handle}/{site}/...` answers 302 to the same path on
-  the domain (302, not 301, so disconnecting stops it immediately and nothing
-  stays cached — links people saved to the domain are stranded, by decision),
-  and the shared-host API takes no writes for it at all, key or not (401
-  `use_custom_domain`); reads stay public. Agents write through the apex or
-  the domain's own `/v1/`. The switch is a `domain-redirect` marker file in
-  the site directory: `storage/disk.go` writes it on bind and removes it on
-  disconnect, and the content-host nginx tests for it.
-- **`site_view_daily` and `site_visitor_daily` are never written to, and must
-  never be dropped.** They are the only surviving record of traffic from before
-  classification existed, and are served as the `unknown` class.
+- **Visitor IPs never leave the box.** Site analytics keep a salted hash plus country counts;
+  API caller IPs are stored truncated (/24, /48) for 30 days and located from local files only;
+  the analytics log drops the query string. No IP goes to a
+  geolocation service or any third party.
+- **AI create is the Grok sidecar only.** One provider, no fallback, no metered API keys. If
+  the sidecar is down the feature fails honestly.
+- **No client-side analytics.** Nothing is injected into hosted pages; traffic comes from the
+  server's own access log.
+- **API keys are never stored in plaintext.** Only SHA-256 in `api_keys`; in-process callers
+  use a per-request internal credential, never a stored key.
+- **Apex pages run no inline script without a nonce.** `script-src` carries a per-response
+  nonce (`adminUICSP`, `consentHeaders`), no `unsafe-inline`; inline `on*=` handlers are
+  blocked, so pages bind events with `addEventListener`.
+- **Hosted pages never hold an API key.** Everything a page does works with the site-scoped
+  cookie. Middleware reads only `X-API-Key` (or a connector token); a site session is never
+  owner power.
+- **Reads are public; every page write needs an identity.** The one private thing is a private
+  collection. No view-lock, no private pages.
+- **A site with a domain lives only there.** 302 (not 301) so disconnecting takes effect at once.
+- **One namespace** for handles, claimed names, reserved names and retired hosts.
+- **`internal/handler` is the only package that imports other internal packages** (plus `auth`
+  → `db`). Enforced by `scripts/check-layering.sh`.
+- **`openapi.yaml` is the API contract;** `openapi.json` is generated from it.
 
 ## Traps
 
-Things that have already gone wrong, or are one edit away from going wrong.
-
-**One payload, two pages.** `index.html` and `showcase.html` both render
-analytics. The response shape changed, one page was updated, the other silently
-rendered `0` for every site — no error, because a missing field read as
-`undefined` and got coerced to zero. Any change to an API response shape must be
-checked against *both* pages. This is why the analytics parser is shared and
-strict.
-
-**Two origins.** `showcase.html` is served from the apex *and* from the content
-host. A `<script src="/...">` resolves on one and 404s on the other, so shared
-frontend code is inlined rather than linked.
-
-**The log tail is stateful.** The ingester tracks position by inode and byte
-offset, so logrotate must use `create` (not `copytruncate`), and must
-`delaycompress` — the ingester reads the previous file as plain text and cannot
-read gzip.
-
-**The compiled binary is not the repo.** Editing source changes nothing until
-rebuild and restart. The production host is `aarch64`.
+- **One payload, two pages.** `index.html` and `showcase.html` both render analytics; check
+  both on any response-shape change. The analytics parser is shared and checked verbatim.
+- **Two origins.** `showcase.html` is served on the apex and on the content host, so shared
+  frontend code is inlined, not linked.
+- **The log tail is stateful** (inode + offset): logrotate must use `create` and
+  `delaycompress`, never `copytruncate`.
+- **The compiled binary is not the repo.** Nothing changes until rebuild and restart; embedded
+  HTML needs a rebuild too.
 
 ## Checks
 
-`make check` runs all of them, and they are the actual guarantee this document
-is not:
-
-- `scripts/check-layering.sh` — the boundary above
-- `scripts/check-docs-sync.sh` — routes match `openapi.yaml`, `openapi.json`
-  matches `openapi.yaml`, and both pages carry the analytics parser verbatim
-- `scripts/check-fresh-install.sh` — `db/schema.sql` alone can run the product
-
-`make check` runs all of them. If you add a check, add it there — this list is
-prose and will rot; the Makefile is what executes.
-
-Revisit this file when a check changes or a package appears. Not otherwise.
-
-Product decisions and their reasons are in `INTENT.md`.
+`make check` runs gofmt, build, vet, `go test ./...` and `scripts/check-html.sh`,
+`check-layering.sh`, `check-docs-sync.sh`, `check-claude-plugin.sh`,
+`check-fresh-install.sh`. The Makefile is what executes; this list is prose.

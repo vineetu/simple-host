@@ -1,4 +1,4 @@
-> **Status (2026-09-05): Shipped in a different form / superseded.** The live model is described in `INTENT.md`; read this as design history only.
+> **Status: Planned (2026-08-15)** — not built: state is still one inline `jsonb` document (Tier A); Tiers B/C wait for a real need.
 
 # Scaling the state document: 1 MB → 100 MB
 

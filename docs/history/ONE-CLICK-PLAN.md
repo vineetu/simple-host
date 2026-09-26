@@ -1,3 +1,5 @@
+> Historical — kept for context; the current truth is INTENT.md, FEATURES.md and ARCHITECTURE.md.
+
 # One-click install from a provider's catalog
 
 Written 2026-09-09. Nothing here is built.

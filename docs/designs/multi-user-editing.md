@@ -1,4 +1,4 @@
-> **Status (2026-09-05): Not planned — INTENT non-goal.** Private or password-locked pages, and isolating sites from each other, are explicitly out of scope; see `INTENT.md`.
+> **Status: Planned (2026-06-25)** — not built: sites still have one owner (`sites.user_id`), no collaborators table in `db/schema.sql`.
 
 # Design: Multi-User Editing (Sharing & Collaboration)
 

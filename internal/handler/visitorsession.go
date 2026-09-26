@@ -213,7 +213,7 @@ func writeVisitorAuthRequired(w http.ResponseWriter) {
 }
 
 // visitorWriteOK is the write gate for PUT/PATCH state and POST collections.
-// See SPEC.md §4.4. Returns false after writing the error response.
+// See docs/history/SPEC.md §4.4. Returns false after writing the error response.
 func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, siteID, siteName, route, collection string) bool {
 	_, allowAnon, err := db.GetSiteWriteGate(r.Context(), h.database, siteID)
 	if err != nil {

@@ -1,4 +1,4 @@
-> **Status (2026-09-05): Shipped in a different form / superseded.** The live model is described in `INTENT.md`; read this as design history only.
+> **Status: Superseded (2026-09-25)** — path-based addressing replaced by per-person subdomains (`personhost.go`); the custom-domain half lives on in `internal/handler/domains.go`.
 
 # Design: Path-Based User Sites + Custom Domains (v3)
 

@@ -1,4 +1,4 @@
-> **Status (2026-09-05): Shipped (v2), current.** This document describes what runs.
+> **Status: Done (2026-09-05)** — v2 classified hourly visitor analytics live in `internal/analytics` + `internal/handler/analytics.go`; person-host attribution added 2026-09-25.
 
 # Server-side per-site visitor analytics — design
 

@@ -1,3 +1,5 @@
+> **Status: Done (2026-09-25)** — person addresses live (`internal/handler/personhost.go`, `PERSON_HOSTS=canonical`) and old `sites.simple-host.app` links 302 to them; the 301 soak and the eb2-wait move are tracked in `per-person-subdomains-nginx.md`.
+
 # Plan: per-person subdomains for hosted Simple Host (2026-09-25, not started)
 
 Target: `https://<handle>.simple-host.app/<site>/`; person index at `<handle>.simple-host.app/`; old `sites.simple-host.app/<handle>/<site>/...` redirects forever (path + query kept). Claimed `<name>.simple-host.app` site addresses and custom domains unchanged.

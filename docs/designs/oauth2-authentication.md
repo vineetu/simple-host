@@ -1,4 +1,4 @@
-> **Status (2026-09-05): Shipped in a different form / superseded.** The live model is described in `INTENT.md`; read this as design history only.
+> **Status: Done (2026-09-05)** — Google sign-in for owners and visitors in `internal/oauth` + `internal/handler/oauth.go`; GitHub wired but deliberately unconfigured.
 
 # Design: OAuth2 / OIDC Social Login (GitHub, Google, …)
 

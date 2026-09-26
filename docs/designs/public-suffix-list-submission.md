@@ -1,3 +1,5 @@
+> **Status: Planned (2026-09-25)** — prepared, not submitted; `simple-host.app` is not on the Public Suffix List as of 2026-09-26.
+
 # Public Suffix List: submitting simple-host.app (prepared 2026-09-25, NOT submitted)
 
 Why: every account now has its own address, `<handle>.simple-host.app`. Browsers treat all of

@@ -1,3 +1,5 @@
+> **Status: Partly done (2026-09-25)** — step 1 applied 2026-09-25: old `sites.simple-host.app/<handle>/<site>/` links 302 to the person address via `/internal/site-redirect` (`personhost.go`), `vineetu/eb2-wait` excepted, `/v1/` kept; left: step 3 (switch to 301 after the soak) and step 4 (move eb2-wait).
+
 # Per-person addresses: the nginx step left for the owner
 
 Status 2026-09-25: person addresses (`https://<handle>.simple-host.app/<site>/`) are live and

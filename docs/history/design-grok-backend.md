@@ -1,3 +1,5 @@
+> Historical — kept for context; the current truth is INTENT.md, FEATURES.md and ARCHITECTURE.md.
+
 > **Status (2026-09-05):** AI create runs on Grok through the local CLIProxy sidecar only — no fallback provider (the DeepSeek fallback mentioned below is gone). See `INTENT.md`.
 
 # SUPERSEDED — not implemented, and deliberately so

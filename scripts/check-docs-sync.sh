@@ -41,7 +41,7 @@ done <<<"$documented"
 
 # Owner /v1/sites/{sitename} routes (except public state/collections/me and OPTIONS)
 # must be wrapped with auth.Middleware. A missed wrap is how a site session
-# cookie on a custom domain would escalate (UNIFY.md credential boundary).
+# cookie on a custom domain would escalate (docs/history/UNIFY.md credential boundary).
 # .../collections/{coll}/items/{id} (private-list edit/delete) is excluded on
 # purpose: privateManager authorizes it itself (owner or admin key, or the
 # owner's own visitor session on the site's own address; 404 for anyone else).

@@ -1,5 +1,4 @@
 # AGENTS.md
 
-This file is the agent context for any AI coding assistant (Codex CLI, Cursor, Cline, Continue, Windsurf, Goose, etc.) working in this repository.
-
-The content is the same as `CLAUDE.md`. See that file for layout, conventions, routing, and gotchas.
+The working rules for every coding agent in this repo are in `CLAUDE.md`. Read it first,
+then `INTENT.md`, `FEATURES.md` and `ARCHITECTURE.md`.

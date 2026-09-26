@@ -1,4 +1,4 @@
-> **Status (2026-09-05): Not planned — INTENT non-goal.** Private or password-locked pages, and isolating sites from each other, are explicitly out of scope; see `INTENT.md`.
+> **Status: Superseded (2026-09-05)** — by the INTENT non-goal that pages are always public; the only private data is private collections (`internal/handler/privatecollections.go`).
 
 # Design: Encrypting user files in simple-host ("only they can read them")
 

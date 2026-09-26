@@ -81,7 +81,7 @@ What follows from that, and is not negotiable without changing the line above:
 ## Decisions already made
 
 - **2026-08-14. Every state/collection write requires a signed-in visitor.** Not per-site opt-in.
-  Reason: writes should cost an identity without giving pages an API key. `SPEC.md` is the
+  Reason: writes should cost an identity without giving pages an API key. `docs/history/SPEC.md` is the
   historical design; later entries here override it.
 - **2026-08-23. AI create uses Grok only, via the local CLIProxy sidecar.** No fallbacks. Reason:
   no metered third-party AI keys, no silent provider switches.
@@ -203,8 +203,8 @@ What follows from that, and is not negotiable without changing the line above:
   account's handle is its own address: `https://<handle>.simple-host.app/` lists the person's
   public sites, and each site lives at `https://<handle>.simple-host.app/<site>/` — the address
   every tool, page and skill hands out. All existing sites moved automatically. Old
-  `sites.simple-host.app/<handle>/<site>/` links keep working (they will redirect once the
-  nginx step ships); claimed `<name>.simple-host.app` addresses and custom domains are
+  `sites.simple-host.app/<handle>/<site>/` links keep working (they redirect: the nginx step
+  shipped 2026-09-25 16:26 UTC); claimed `<name>.simple-host.app` addresses and custom domains are
   unchanged, and a site with one of those lives there (its person-address URL redirects to it).
   The person address is that person's own origin, so visitors sign in there, every page save
   there needs a signed-in visitor, and private collections work there. Handles, claimed names,

@@ -1,4 +1,4 @@
-> **Status (2026-09-05): Shipped in a different form / superseded.** The live model is described in `INTENT.md`; read this as design history only.
+> **Status: Partly done (2026-07-25)** — Release A (skill split, reference routes in `skillshub.go`) shipped; left: §4 sharing (`site_collaborators`, `versions.created_by`), never built.
 
 # simple-host.app: simplification pass + the sharing gap
 

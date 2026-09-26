@@ -1,3 +1,5 @@
+> Historical — kept for context; the current truth is INTENT.md, FEATURES.md and ARCHITECTURE.md.
+
 > **Status (2026-09-05): Shipped in a different form / superseded.** The live model is described in `INTENT.md`; read this as design history only.
 
 # Per-user Showcase (`sites.simple-host.app/<handle>`) + Branded 404 pages

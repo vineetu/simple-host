@@ -1,4 +1,4 @@
-> **Status (2026-09-05): Shipped in a different form / superseded.** The live model is described in `INTENT.md`; read this as design history only.
+> **Status: Superseded (2026-09-24)** — by the Get started rebuild for non-technical people (`internal/handler/static/install.html`, paste-back flow removed).
 
 # Install / Get-Started page redesign
 

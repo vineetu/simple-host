@@ -1,3 +1,5 @@
+> Historical — kept for context; the current truth is INTENT.md, FEATURES.md and ARCHITECTURE.md.
+
 > **HISTORICAL (2026-09-05). Superseded by `INTENT.md`.** Not a source of truth.
 > What changed since this was written: visitors are `users` rows; email-code
 > sign-in exists; any account key writes; sign-in is custom-domain-only; there

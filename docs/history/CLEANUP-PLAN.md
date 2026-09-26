@@ -1,3 +1,5 @@
+> Historical — kept for context; the current truth is INTENT.md, FEATURES.md and ARCHITECTURE.md.
+
 > **Status (2026-09-05): Partly executed.** Items about log mode (`WRITE_AUTH_MODE`), GitHub sign-in and private pages are settled — see `INTENT.md` — and are no longer open questions here.
 
 # simple-host cleanup plan (v2)
