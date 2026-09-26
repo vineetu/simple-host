@@ -1406,6 +1406,14 @@ function parseAnalyticsSummary(data) {
       apiKey = data.api_key;
       currentUser = { id: data.id, username: data.username, is_admin: data.is_admin, handle: data.handle };
       localStorage.setItem('apiKey', apiKey);
+      enterAfterSignIn();
+    }
+
+    // An explicit sign-in (link, code, Google, pasted key) goes to the
+    // person's sites. On the bare landing page enterApp() deliberately stays
+    // put, which left the "Signing you in…" screen showing forever.
+    function enterAfterSignIn() {
+      if (isLandingPath()) { location.replace('/dashboard'); return; }
       enterApp();
     }
 
@@ -1421,7 +1429,7 @@ function parseAnalyticsSummary(data) {
         apiKey = key;
         currentUser = { id: d.id, username: d.username, is_admin: d.is_admin, handle: d.handle, public_page: d.public_page };
         localStorage.setItem('apiKey', key);
-        enterApp();
+        enterAfterSignIn();
       } catch (err) {
         toast('Cannot reach server', 'error');
       } finally {
