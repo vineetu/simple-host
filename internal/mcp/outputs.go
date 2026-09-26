@@ -61,7 +61,7 @@ const (
 func siteSummaryProperties() map[string]any {
 	return map[string]any{
 		"name":           outString(outSiteName),
-		"url":            outString("The site's live public address: its connected domain once that is active, otherwise https://<handle>.simple-host.app/<site>/."),
+		"url":            outString("The site's live public address: its connected domain once that is active, otherwise https://<site>.<handle>.simple-host.app/ (or, briefly for a new account, https://<handle>.simple-host.app/<site>/). Give the person this exact value."),
 		"active_version": outInteger("The version number visitors see now (0 if nothing is published yet)."),
 		"listed":         outBool("Whether the site is listed on the account's public page. An unlisted site is still public to anyone with its address."),
 		"custom_domain":  outString("The site's own domain, present only when one is connected."),
@@ -131,7 +131,7 @@ func outputSchemas() map[string]map[string]any {
 	return map[string]map[string]any{
 		"who_am_i": outObject(map[string]any{
 			"email":        outString("The email address the account signs in with."),
-			"handle":       outString("The account's handle: the <handle> in its address https://<handle>.simple-host.app/. Absent until the account publishes its first site."),
+			"handle":       outString("The account's handle: the <handle> in its page https://<handle>.simple-host.app/ and in every site address https://<site>.<handle>.simple-host.app/. Absent until the account publishes its first site."),
 			"public_page":  outString("Address of the account's public page listing its sites. Present with handle."),
 			"display_name": outString("The account's display name, if one is set."),
 		}, "email"),
@@ -238,7 +238,7 @@ func outputSchemas() map[string]map[string]any {
 			"site":       outString(outSiteName),
 			"collection": outString(outCollection),
 			"private":    outBool("The collection's privacy now: true = only the owner can read it."),
-			"domain":     outString("The host of the site's own address, where visitors sign in to submit: its person address (<handle>.simple-host.app) or its connected domain. Present when the collection was made private."),
+			"domain":     outString("The host of the site's own address, where visitors sign in to submit: its <site>.<handle>.simple-host.app address or its connected domain. Present when the collection was made private."),
 		}, "site", "collection", "private"),
 
 		"update_collection_item": outObject(map[string]any{

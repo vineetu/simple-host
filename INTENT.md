@@ -20,9 +20,9 @@ Website Deploy skill; humans mostly never touch the API directly.
 
 - An agent with the skill installed can ship a working site, including a form that saves, on
   the first try, without the owner intervening.
-- Every site lives on its owner's own address, `https://<handle>.simple-host.app/<site>/`
-  (or on a domain of its own). There a visitor signs in with Google or an emailed code and
-  saves are per-person. Agents save with an API key anywhere.
+- Every site lives at its own address, `https://<site>.<handle>.simple-host.app/` (or on a
+  domain of its own), its own browser origin. There a visitor signs in with Google or an emailed
+  code and saves are per-person. Agents save with an API key anywhere.
 - The whole thing keeps running on a 1 CPU / 1 GB box: one binary, one Postgres, one folder.
 
 ## The hackathon product, and the page that sells it
@@ -65,9 +65,9 @@ What follows from that, and is not negotiable without changing the line above:
 - A general-purpose backend. No schema, no queries, no server-side code for site authors.
 - Metered third-party AI keys. AI create runs on the local Grok sidecar only.
 - Starter templates and drop-in widgets. Removed 2026-09-05; agents build pages themselves.
-- Isolating one person's sites from each other. All of a person's sites share their address
-  (`<handle>.simple-host.app`), so a sign-in there covers all of them; a site that needs an
-  origin of its own takes a free `<name>.simple-host.app` address or a custom domain.
+- Isolation beyond the browser origin. Each site is its own origin (decision 2026-09-26), so a
+  person's sites are kept apart by the browser and a sign-in covers one site; nothing isolates
+  pages inside one site from each other.
 
 ## Constraints
 
@@ -220,3 +220,17 @@ What follows from that, and is not negotiable without changing the line above:
   and self-hosted instances keep the path model (`PERSON_HOSTS=off`). simple-host.app goes to the
   Public Suffix List so person addresses become separate sites to browsers too. Reason: owner's
   call — every person gets an address of their own, and sign-in and privacy stop needing a domain.
+  Partly superseded 2026-09-26: sites no longer live at `<handle>.simple-host.app/<site>/` (that
+  form now redirects) and a sign-in no longer covers all of a person's sites (see "Per-site
+  subdomains"); the person page, the namespace and the rest stand.
+- **2026-09-26. Per-site subdomains.** Every site lives at `https://<site>.<handle>.simple-host.app/`,
+  its own browser origin, served at the host root. The person page stays at
+  `https://<handle>.simple-host.app/`. Old `<handle>.simple-host.app/<site>/` and
+  `sites.simple-host.app/<handle>/<site>/` links redirect there (302, path and query kept).
+  Claimed `<name>.simple-host.app` addresses and custom domains are unchanged. Each person gets a
+  `*.<handle>.simple-host.app` certificate issued automatically; until it exists their sites keep
+  the person-path address, and every tool hands out whichever address is live. Sign-in is now per
+  site: a visitor signs in on the site's host and that covers that site only. What a page kept in
+  the browser starts empty at the new address; server-saved data moves with the site. Event and
+  self-hosted instances keep their current model (`SITE_HOSTS=off`). Reason: an origin of its own
+  for every site, and nicer addresses. Owner approved 2026-09-26.

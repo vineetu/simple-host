@@ -2488,8 +2488,8 @@ function parseAnalyticsSummary(data) {
         if (res.ok && data.api_key) {
           apiKey = data.api_key;
           // Stored only on the base origin (simple-host.app). This page is also
-          // a person's page on <handle>.simple-host.app, whose storage their
-          // hosted sites share: a key never goes there.
+          // a person's page on <handle>.simple-host.app, whose storage sites
+          // served there by path (the fallback address) share: a key never goes there.
           if (onBaseApp) { try { localStorage.setItem('apiKey', apiKey); } catch (e2) {} }
           if (window.shAuthRender) window.shAuthRender();
           hideAiAuth();

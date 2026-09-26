@@ -8,11 +8,15 @@ info:
     returns an API key, sent as the
     `X-API-Key` header. Hosted-page sign-in uses the same account but a
     site-scoped session cookie on the site's own address — never an API key.
-    Every account gets its own address, `https://<handle>.simple-host.app/`, and
-    each site lives at `https://<handle>.simple-host.app/<site>/` (links to
-    the old `sites.simple-host.app/<handle>/<site>/` form keep working).
-    Visitors sign in with Google or an emailed code on the site's own address;
-    every save from a page needs a signed-in visitor. Agents save with the API key
+    Every site lives at its own address, `https://<site>.<handle>.simple-host.app/`
+    (its own browser origin); `https://<handle>.simple-host.app/` lists the
+    person's public sites. For a brand-new account a site may briefly live at
+    `https://<handle>.simple-host.app/<site>/` until its certificate is issued:
+    use the `site_url` the API returns, never a composed one.
+    Old `<handle>.simple-host.app/<site>/` links redirect to the site's address,
+    as do old `sites.simple-host.app/<handle>/<site>/` ones.
+    Visitors sign in with Google or an emailed code on the site's own address (a
+    sign-in covers that site only); every save from a page needs a signed-in visitor. Agents save with the API key
     (or the connector) through `https://simple-host.app/v1/...`.
   version: 2.0.0
 
@@ -25,7 +29,7 @@ tags:
     description: Email-code sign-in and dashboard OAuth handoff (`/?token=`)
   - name: Visitor
     description: >-
-      Site-scoped browser session for hosted-page Google or email-code sign-in, on the site's own address (its person address `https://<handle>.simple-host.app/<site>/`, or its domain if it has one).
+      Site-scoped browser session for hosted-page Google or email-code sign-in, on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one).
       Same `users` row as email-code / dashboard OAuth; the cookie is not an
       API key and does not satisfy owner routes.
   - name: Deploy
@@ -33,7 +37,7 @@ tags:
   - name: Sites
     description: List, versions, rollback, delete
   - name: State
-    description: Per-site shared JSON store (reads Origin-gated; writes from a page need a signed-in visitor on the site's own address, agents write with any account key). A site with a connected domain lives there — its person address `https://<handle>.simple-host.app/<site>/...` answers 302 to `https://<domain>/...` (same path and query) and writes through that address answer 401 use_custom_domain; agents write through the apex.
+    description: Per-site shared JSON store (reads Origin-gated; writes from a page need a signed-in visitor on the site's own address, agents write with any account key). A site with a connected domain lives there — its `https://<site>.<handle>.simple-host.app/...` address answers 302 to `https://<domain>/...` (same path and query) and writes through that address answer 401 use_custom_domain; agents write through the apex.
   - name: Collections
     description: Append-only per-site lists (POST is a write)
   - name: Custom domains
@@ -219,7 +223,7 @@ paths:
       description: >-
         Apex start. Query `return_to` is required and must be an absolute URL.
         Two shapes: the dashboard origin `/` (owner purpose — callback hands
-        off via `/?token=`) or a site's own address — a person address `https://<handle>.simple-host.app/...` or a DNS-proven bound domain (site purpose — callback issues a
+        off via `/?token=`) or a site's own address — a site host `https://<site>.<handle>.simple-host.app/...` (or, while that person's certificate is pending, the person address `https://<handle>.simple-host.app/<site>/...`) or a DNS-proven bound domain (site purpose — callback issues a
         host-and-site-scoped session). Success 302s to the provider with PKCE
         S256. Unknown or disabled provider is 404. No cookie is set here. The
         Legacy path-address (`sites.<domain>/<handle>/<site>/`) return_to URLs are rejected with 400 invalid return_to, as are apex URLs outside the dashboard. The caller cannot set `purpose`; it is derived from `return_to`.
@@ -310,7 +314,7 @@ paths:
       operationId: establishVisitor
       summary: Establish the visitor session cookie
       description: >-
-        One-time hop on the site's own address (person address or domain). Consumes `once`,
+        One-time hop on the site's own address (its `<site>.<handle>` host or domain). Consumes `once`,
         host-matches, sets `__Host-sh_vsess` (or `sh_vsess` on local HTTP),
         then 302s to the stored `return_to` with no query mutation. Never sets
         a cookie on the apex or the legacy path address. Failures are HTML, no cookie, no redirect.
@@ -969,7 +973,7 @@ paths:
     get:
       operationId: getVisitorMe
       summary: Read the current site visitor session
-      description: Pages call it same-origin on the site's own address — its person address `https://<handle>.simple-host.app/<site>/` (only that person's sites answer there), or its domain if it has one. Origin/Referer-gated. When the site has a connected domain and the call comes through another address, it returns signed_in false, sign_in_available false and code use_custom_domain with `domain` naming it, so the page can send the visitor to sign in there. Where sign-in is not offered (the legacy path address) the code is custom_domain_required. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.
+      description: Pages call it same-origin on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (only that site answers there), or its domain if it has one. Origin/Referer-gated. When the site has a connected domain and the call comes through another address, it returns signed_in false, sign_in_available false and code use_custom_domain with `domain` naming it, so the page can send the visitor to sign in there. Where sign-in is not offered (the legacy path address) the code is custom_domain_required. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.
       tags: [State]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -1025,7 +1029,7 @@ paths:
       description: >-
         Returns the JSON blob for this site (`null` if unset). PUBLIC store — no API
         key; the server checks `Origin`/`Referer` and only accepts calls from the
-        site's own page (`https://<handle>.simple-host.app/<site>/`, or its domain). The response carries
+        site's own page (`https://<site>.<handle>.simple-host.app/`, or its domain). The response carries
         an `ETag`; send `If-None-Match: <etag>` to get a `304` when nothing changed
         (cheap polling). Never store secrets here.
       tags: [State]
@@ -1045,7 +1049,7 @@ paths:
       description: >-
         Overwrites the whole blob (≤ 1 MB), last-write-wins. Optionally pass
         `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict).
-        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its person address `https://<handle>.simple-host.app/<site>/` (same-origin `/v1/sites/{sitename}/...`; only that person's sites answer there), or its domain if it has one. Agents write with any account's `X-API-Key` (or the connector) through the apex `https://simple-host.app/v1/...`. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}.
+        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with any account's `X-API-Key` (or the connector) through the apex `https://simple-host.app/v1/...`. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}.
       tags: [State]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -1072,7 +1076,7 @@ paths:
       summary: Atomically update per-site state
       description: >-
         Apply one or more atomic operations so concurrent writers never clobber.
-        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its person address `https://<handle>.simple-host.app/<site>/` (same-origin `/v1/sites/{sitename}/...`; only that person's sites answer there), or its domain if it has one. Agents write with any account's `X-API-Key` (or the connector) through the apex `https://simple-host.app/v1/...`. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Ops — `set` (path,value), `inc` (path,by),
+        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with any account's `X-API-Key` (or the connector) through the apex `https://simple-host.app/v1/...`. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Ops — `set` (path,value), `inc` (path,by),
         `append` (path,value), `remove` (path), `removeWhere` (path,match).
       tags: [State]
       parameters:
@@ -1149,8 +1153,8 @@ paths:
       summary: Append an item to a collection
       description: >-
         Append-only list (O(1) insert). For signups, RSVPs, submissions.
-        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its person address `https://<handle>.simple-host.app/<site>/` (same-origin `/v1/sites/{sitename}/...`; only that person's sites answer there), or its domain if it has one. Agents write with any account's `X-API-Key` (or the connector) through the apex `https://simple-host.app/v1/...`. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB.
-        PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its person address `https://<handle>.simple-host.app/<site>/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.
+        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with any account's `X-API-Key` (or the connector) through the apex `https://simple-host.app/v1/...`. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB.
+        PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.
       tags: [Collections]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -1261,7 +1265,7 @@ paths:
         moderation. Everyone else gets 404. The owner can edit or delete its items
         (PATCH/DELETE .../items/{id}); public lists stay append-only. Any site can
         make a list private. Submissions come from signed-in visitors on the site's
-        own address: its person address `https://<handle>.simple-host.app/<site>/`,
+        own address: its address `https://<site>.<handle>.simple-host.app/`,
         or its domain if it has one. Can be set before any item exists.
         `{"private": false}` makes it public again, and everything already in it
         becomes readable by anyone. Idempotent; deletes nothing.
@@ -1290,8 +1294,8 @@ paths:
                   site: { type: string, example: pickle-shop }
                   collection: { type: string, example: orders }
                   private: { type: boolean, example: true }
-                  domain: { type: string, description: "The host of the site's own address (the person address, or its domain if it has one); present when private is true", example: jane.simple-host.app }
-                  message: { type: string, example: "Private: visitors signed in on https://jane.simple-host.app/pickle-shop/ can add to it; only you can read it." }
+                  domain: { type: string, description: "The host of the site's own address (<site>.<handle>.simple-host.app, or its domain if it has one); present when private is true", example: my-cool-site.jane.simple-host.app }
+                  message: { type: string, example: "Private: visitors signed in on https://pickle-shop.jane.simple-host.app/ can add to it; only you can read it." }
         '400':
           description: 'Invalid collection name, or the body is not {"private": true} or {"private": false}'
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
@@ -1382,7 +1386,7 @@ paths:
     get:
       operationId: getVisitorMeByHandle
       summary: Read the current site visitor session
-      description: Pages call it same-origin on the site's own address — its person address `https://<handle>.simple-host.app/<site>/` (only that person's sites answer there), or its domain if it has one. Origin/Referer-gated. When the site has a connected domain and the call comes through another address, it returns signed_in false, sign_in_available false and code use_custom_domain with `domain` naming it, so the page can send the visitor to sign in there. Where sign-in is not offered (the legacy path address) the code is custom_domain_required. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.
+      description: Pages call it same-origin on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (only that site answers there), or its domain if it has one. Origin/Referer-gated. When the site has a connected domain and the call comes through another address, it returns signed_in false, sign_in_available false and code use_custom_domain with `domain` naming it, so the page can send the visitor to sign in there. Where sign-in is not offered (the legacy path address) the code is custom_domain_required. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.
       tags: [State]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -1440,7 +1444,7 @@ paths:
       description: >-
         Returns the JSON blob for this site (`null` if unset). PUBLIC store — no API
         key; the server checks `Origin`/`Referer` and only accepts calls from the
-        site's own page (`https://<handle>.simple-host.app/<site>/`, or its domain). The response carries
+        site's own page (`https://<site>.<handle>.simple-host.app/`, or its domain). The response carries
         an `ETag`; send `If-None-Match: <etag>` to get a `304` when nothing changed
         (cheap polling). Never store secrets here.
         v3 user-scoped, path-model-canonical variant: resolves the site by
@@ -1463,7 +1467,7 @@ paths:
       description: >-
         Overwrites the whole blob (≤ 1 MB), last-write-wins. Optionally pass
         `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict).
-        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its person address `https://<handle>.simple-host.app/<site>/` (same-origin `/v1/sites/{sitename}/...`; only that person's sites answer there), or its domain if it has one. Agents write with any account's `X-API-Key` (or the connector) through the apex `https://simple-host.app/v1/...`. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}.
+        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with any account's `X-API-Key` (or the connector) through the apex `https://simple-host.app/v1/...`. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}.
         v3 user-scoped, path-model-canonical variant: resolves the site by
         (handle -> user_id) + (user_id, name).
       tags: [State]
@@ -1493,7 +1497,7 @@ paths:
       summary: Atomically update per-site state (v3, by handle)
       description: >-
         Apply one or more atomic operations so concurrent writers never clobber.
-        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its person address `https://<handle>.simple-host.app/<site>/` (same-origin `/v1/sites/{sitename}/...`; only that person's sites answer there), or its domain if it has one. Agents write with any account's `X-API-Key` (or the connector) through the apex `https://simple-host.app/v1/...`. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Ops — `set` (path,value), `inc` (path,by),
+        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with any account's `X-API-Key` (or the connector) through the apex `https://simple-host.app/v1/...`. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Ops — `set` (path,value), `inc` (path,by),
         `append` (path,value), `remove` (path), `removeWhere` (path,match).
         v3 user-scoped, path-model-canonical variant: resolves the site by
         (handle -> user_id) + (user_id, name).
@@ -1541,8 +1545,8 @@ paths:
       summary: Append an item to a collection (v3, by handle)
       description: >-
         Append-only list (O(1) insert). For signups, RSVPs, submissions.
-        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its person address `https://<handle>.simple-host.app/<site>/` (same-origin `/v1/sites/{sitename}/...`; only that person's sites answer there), or its domain if it has one. Agents write with any account's `X-API-Key` (or the connector) through the apex `https://simple-host.app/v1/...`. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB.
-        PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its person address `https://<handle>.simple-host.app/<site>/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.
+        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with any account's `X-API-Key` (or the connector) through the apex `https://simple-host.app/v1/...`. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB.
+        PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.
         v3 user-scoped, path-model-canonical variant: resolves the site by
         (handle -> user_id) + (user_id, name).
       tags: [Collections]
@@ -1787,8 +1791,8 @@ paths:
       operationId: postSitesBySitenameDomain
       summary: Give this site a nicer address (free <name>.simple-host.app or a custom domain)
       description: >-
-        Optional. Every site already lives at its person address
-        `https://<handle>.simple-host.app/<site>/`, with sign-in and private lists.
+        Optional. Every site already lives at its own address
+        `https://<site>.<handle>.simple-host.app/`, with sign-in and private lists.
         This gives it a nicer address; the site moves there and its old address redirects.
         A free address: send `{"domain": "<name>.simple-host.app"}` (one DNS label:
         lowercase letters, digits and hyphens, not at the start or end, up to 63
@@ -2345,7 +2349,7 @@ paths:
     post:
       operationId: requestSiteVisitorEmail
       summary: Request a site-scoped email sign-in code
-      description: Origin-gated; sign-in works on the site's own address (its person address `https://<handle>.simple-host.app/<site>/`, or its domain if it has one), not on the apex or the legacy path address. Uses the shared account
+      description: Origin-gated; sign-in works on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), not on the apex or the legacy path address. Uses the shared account
         email-code limiter and site IP limiter. Normalizes and validates email, then
         sends a 6-digit Resend code valid for 15 minutes. Does not create the account
         yet.
@@ -2479,7 +2483,7 @@ paths:
     post:
       operationId: verifySiteVisitorEmail
       summary: Verify a site-scoped email sign-in code
-      description: 'Origin-gated; sign-in works on the site''s own address (its person address `https://<handle>.simple-host.app/<site>/`, or its domain if it has one), not on the apex or the legacy path address. Uses the shared account
+      description: 'Origin-gated; sign-in works on the site''s own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), not on the apex or the legacy path address. Uses the shared account
         email-code limiter and dedicated visitor auth IP limiter. Codes are bound to this
         site and the visitor purpose; dashboard codes are not accepted. Checks the latest
         unused, unexpired token, caps attempts, and creates the account lazily. Never returns an
@@ -2615,7 +2619,7 @@ paths:
     post:
       operationId: requestUserSiteVisitorEmail
       summary: Request a site-scoped email sign-in code
-      description: Origin-gated; sign-in works on the site's own address (its person address `https://<handle>.simple-host.app/<site>/`, or its domain if it has one), not on the apex or the legacy path address. Uses the shared account
+      description: Origin-gated; sign-in works on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), not on the apex or the legacy path address. Uses the shared account
         email-code limiter and site IP limiter. Normalizes and validates email, then
         sends a 6-digit Resend code valid for 15 minutes. Does not create the account
         yet.
@@ -2748,7 +2752,7 @@ paths:
     post:
       operationId: verifyUserSiteVisitorEmail
       summary: Verify a site-scoped email sign-in code
-      description: 'Origin-gated; sign-in works on the site''s own address (its person address `https://<handle>.simple-host.app/<site>/`, or its domain if it has one), not on the apex or the legacy path address. Uses the shared account
+      description: 'Origin-gated; sign-in works on the site''s own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), not on the apex or the legacy path address. Uses the shared account
         email-code limiter and dedicated visitor auth IP limiter. Codes are bound to this
         site and the visitor purpose; dashboard codes are not accepted. Checks the latest
         unused, unexpired token, caps attempts, and creates the account lazily. Never returns an
@@ -2981,7 +2985,7 @@ components:
         user_id: { type: string, format: uuid }
         name: { type: string }
         active_version: { type: integer }
-        site_url: { type: string, nullable: true, description: "https://<handle>.simple-host.app/<site>/, or the site's domain when it has one", example: https://jane.simple-host.app/my-cool-site/ }
+        site_url: { type: string, nullable: true, description: "The link to share: https://<site>.<handle>.simple-host.app/ (briefly https://<handle>.simple-host.app/<site>/ for a brand-new account), or the site's domain when it has one", example: https://my-cool-site.jane.simple-host.app/ }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 

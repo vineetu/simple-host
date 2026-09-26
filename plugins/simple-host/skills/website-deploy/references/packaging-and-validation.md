@@ -68,8 +68,10 @@ The response includes `active_version` and `site_url`.
 
 ## Verify — this step is not optional
 
-1. The public URL is `https://<handle>.simple-host.app/<sitename>/`, also
-   returned as `site_url`.
+1. The public URL is the `site_url` in the response, normally
+   `https://<sitename>.<handle>.simple-host.app/` (briefly
+   `https://<handle>.simple-host.app/<sitename>/` for a brand-new account). Use the
+   returned one; never compose it.
 2. Open it. Confirm the entrypoint renders and that assets, navigation, and
    styling are intact. Check for 404s in the network panel — broken CSS or JS
    almost always means root-absolute links.

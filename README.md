@@ -51,10 +51,10 @@ It signs you up (emailed code → API key), builds the site, wires in state if t
 
 ## What you get
 
-- **One-call deploy** — upload a folder, get a live `https://{handle}.simple-host.app/{site}/`. Every deploy is a new immutable version; roll back instantly.
+- **One-call deploy** — upload a folder, get a live `https://{site}.{handle}.simple-host.app/`. Every deploy is a new immutable version; roll back instantly.
 - **A little backend, free** — per-site JSON state with atomic ops (set / inc / append), plus append-only collections for guestbooks, signups, and submissions. No schema, no database to run yourself.
 - **See what your site collected** — read and download whatever visitors saved to it.
-- **Connect your own domain** — subdomain or apex, or take a free `<name>.simple-host.app`. Optional: every account already has its own address, `https://<handle>.simple-host.app/`.
+- **Connect your own domain** — subdomain or apex, or take a free `<name>.simple-host.app`. Optional: every site already has its own address, `https://<site>.<handle>.simple-host.app/`.
 - **Build with AI** — a chat on the homepage that designs, previews, and publishes a site for you. Describe what you want, watch it being written, then publish.
 - **Talk to it** — dictate your idea instead of typing. Captions appear as you speak, and you can edit the text before sending.
 - **Show it what you mean** — attach screenshots or notes to the chat and it builds from them.
@@ -69,7 +69,7 @@ Three moving parts, and you can hold all of them in your head at once:
 2. A **Postgres** tracks users, sites, and versions.
 3. A **folder on disk** holds the versioned site files.
 
-Every account has its own address, `{handle}.simple-host.app`, and each site is served at `{handle}.simple-host.app/{site}/`, which maps each path to its folder on disk; a connected custom domain serves the same folder. Old `sites.simple-host.app/{handle}/{site}/` links keep working. That's the whole system — no object store, no CDN, no build farm, which is exactly why it fits on a 1 GB box. The per-site datastore lives next to the files: reads are public (except private collections, which only the owner reads); a page writes after the visitor signs in on the site's own address (Google or an emailed code); agents write with an account's `X-API-Key`.
+Every site is served at its own address, `{site}.{handle}.simple-host.app` (its own browser origin), which maps each path to its folder on disk; `{handle}.simple-host.app` lists the person's public sites, and a connected custom domain serves the same folder. Old `{handle}.simple-host.app/{site}/` and `sites.simple-host.app/{handle}/{site}/` links redirect. That's the whole system — no object store, no CDN, no build farm, which is exactly why it fits on a 1 GB box. The per-site datastore lives next to the files: reads are public (except private collections, which only the owner reads); a page writes after the visitor signs in on the site's own address (Google or an emailed code); agents write with an account's `X-API-Key`.
 
 ## Run your own
 

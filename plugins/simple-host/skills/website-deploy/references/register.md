@@ -41,8 +41,8 @@ paths do not expand a literal `~`, and `%USERPROFILE%` expands only in `cmd`.
    ```
 
    Success returns `api_key`, `username`, `handle`, `id`, and `is_admin`. The
-   `handle` is the person's address in site URLs
-   (`https://<handle>.simple-host.app/<sitename>/`).
+   `handle` is the person's part of every site address
+   (`https://<sitename>.<handle>.simple-host.app/`).
 
 5. **Save** `api_key`, `username`, and `handle` to the config file. The key never
    rotates unless the user asks for a new one, so this file is the source of

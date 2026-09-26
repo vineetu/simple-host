@@ -9,17 +9,18 @@ server for you to run.
 Reads are public: anyone with the link can read a site's state and its public
 collections. The one exception is a **private collection** (see "Private
 collections" below): visitors add to it, only the site owner reads it.
-**Writes need an identity.** Every account gets its own address,
-`https://<handle>.simple-host.app/`, and each site lives at
-`https://<handle>.simple-host.app/<site>/`. That address is the person's own
-browser origin: visitors sign in with Google or an emailed code there, and every
-save from a page needs a signed-in visitor. Agents save with the API key (or the
-connector) on any site. Old `sites.simple-host.app/<handle>/<site>/` links keep
-working.
+**Writes need an identity.** Each site lives at its own address,
+`https://<site>.<handle>.simple-host.app/` (use the `site_url` the API returned; a
+brand-new account's sites briefly use `https://<handle>.simple-host.app/<site>/`
+until its certificate is issued). That address is the site's own browser origin:
+visitors sign in with Google or an emailed code there, a sign-in covers that site
+only, and every save from a page needs a signed-in visitor. Agents save with the
+API key (or the connector) on any site. Old `<handle>.simple-host.app/<site>/` and
+`sites.simple-host.app/<handle>/<site>/` links redirect to the site's address.
 
 A site can also take a nicer address — a free `<name>.simple-host.app` or a
 custom domain (the `connect-domain` skill); both behave the same here. Once one
-is bound, the site lives only there. Its `<handle>.simple-host.app/<site>/...`
+is bound, the site lives only there. Its `<site>.<handle>.simple-host.app/...`
 page URL answers 302 to `https://<domain>/...` (same path and query), and state
 and collection writes there answer 401 `use_custom_domain` (with the `domain`)
 whether or not an `X-API-Key` is sent. Reads there stay public. Agents write
@@ -30,7 +31,7 @@ The plain-`fetch` shape, same-origin on the site's own address (the `SH` helper
 below sends the same headers for you):
 
 ```js
-const API = '/v1/sites/<sitename>';   // same-origin on <handle>.simple-host.app or the site's domain
+const API = '/v1/sites/<sitename>';   // same-origin on <sitename>.<handle>.simple-host.app or the site's domain
 await fetch(API + '/state', { method: 'PATCH', credentials: 'include',
   headers: { 'Content-Type': 'application/json', 'X-SH-CSRF': '1' },
   body: JSON.stringify({ ops: [{ op: 'inc', path: 'count', by: 1 }] }) });
@@ -41,7 +42,7 @@ await fetch(API + '/collections/entries', { method: 'POST', credentials: 'includ
 
 Reads are gated on the request `Origin`, which a browser page sends by itself;
 a `curl` or script with no `Origin` gets 403 on reads, so send one:
-`curl -H "Origin: https://<handle>.simple-host.app" https://<handle>.simple-host.app/v1/sites/<sitename>/state`.
+`curl -H "Origin: https://<sitename>.<handle>.simple-host.app" https://<sitename>.<handle>.simple-host.app/v1/sites/<sitename>/state`.
 
 ## Shared JSON state (one document per site)
 
@@ -100,8 +101,9 @@ private collection and an owner page instead (below).
 ## Saving from a page with the hosted helper
 
 The page loads the hosted helper, offers sign-in next to the form, and signs the
-visitor in before every save. On `<handle>.simple-host.app` the helper finds the
-site from the page path. For a site that has a domain bound, visited on its
+visitor in before every save. On `<sitename>.<handle>.simple-host.app` the helper
+finds the site from the host name (on the fallback `<handle>.simple-host.app/<sitename>/`,
+from the page path). For a site that has a domain bound, visited on its
 previous address, `SH.mount` renders "This site saves on <domain>. Sign in there
 to save." with a link to the same page on the domain, and `SH.requireSignIn()`
 rejects with `code: "use_custom_domain"` and `.domain`. Because a custom-domain
@@ -175,7 +177,7 @@ navigate to `https://simple-host.app/v1/auth/oauth/google?return_to=` +
 Use a private collection when a form collects orders, RSVPs, survey answers,
 sign-ups, or anything with names, emails, phone numbers or addresses. Visitors
 signed in on the site's own address add to it: its
-`<handle>.simple-host.app/<site>/` address, or its domain if it has one. Only the site owner — and the
+`<site>.<handle>.simple-host.app` address, or its domain if it has one. Only the site owner — and the
 Simple Host operator, for moderation — can read it. Everyone else gets 404.
 Pages stay public; only the list is private.
 
@@ -346,7 +348,7 @@ the old `sites.simple-host.app` address answers 404 for it, even with a key.
 | 401 | `visitor_auth_required` | Not signed in. `SH.requireSignIn()` handles it. |
 | 403 | `csrf_required` | Missing `X-SH-CSRF: 1`. The helper always sends it. |
 | 403 | `private_visitor_only` | Sent with an API key, or by an agent (`add_to_collection`). Agents cannot add to a private list; only signed-in visitors can. |
-| 403 | `private_needs_own_domain` | Sent from anywhere other than the site's own address (`<handle>.simple-host.app/<site>/`, or its domain if it has one). |
+| 403 | `private_needs_own_domain` | Sent from anywhere other than the site's own address (`<site>.<handle>.simple-host.app`, or its domain if it has one). |
 | 401 | `use_custom_domain` (+ `domain`) | The site has a domain and this was sent through its previous address. Link the visitor to the same page on `domain`. |
 | 400 | — | The item is not one JSON object. |
 | 413 | — | The item is over 64 KB. |

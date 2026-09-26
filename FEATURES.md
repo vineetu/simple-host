@@ -17,7 +17,7 @@ Conventions:
 - **Status**: `live` = in the running binary and enabled in `/etc/simple-host.env`; `flag` = off
   unless the named env is set; `planned` = decided in INTENT, not built.
 - Both site-data API forms exist for every page-facing route: `/v1/sites/{site}/…` (the site is
-  resolved from the Host: person host, claimed name or custom domain) and
+  resolved from the Host: site host, person host, claimed name or custom domain) and
   `/v1/u/{handle}/sites/{site}/…` (explicit owner; on a person host the handle must be the
   host's owner). Rows below list the first form and mark `(+/v1/u)` where both are registered.
   The `/v1/u/{handle}/sites/{sitename}/…` registrations:
@@ -53,24 +53,30 @@ export, public/unlisted listing. **Status: live.**
 | Env | `DATA_DIR`, `MAX_ARCHIVE_MB`, `KEEP_VERSIONS`, `DEPLOY_SCRIPT`, `PREVIEW_ACCOUNTS`, `PREVIEW_TTL_HOURS` (preview-site expiry sweep) |
 | External | nginx serves files from `/srv/simple-host/sites/handles/<h>/<s>/` on the content host; Caddy does the same on event instances (`deploy/compose/Caddyfile`) |
 
-## 2. Per-person addresses and legacy redirects
+## 2. Per-site and per-person addresses, and legacy redirects
 
-Every handle is a host: `https://<handle>.simple-host.app/` lists that person's public sites,
-each site lives at `/<site>/`, and that host is the person's own origin (sign-in, per-person
-saves, private collections). Old addresses redirect: the nginx 302 on `sites.simple-host.app`
-has been live since 2026-09-25 16:26 UTC (301 after a quiet soak). **Status: live**
-(`PERSON_HOSTS=canonical`).
+Every site lives at its own origin, `https://<site>.<handle>.simple-host.app/` (files at the
+root, `/v1/` for that site only, sign-in, per-person saves and private collections bound to that
+host; a sign-in covers that one site). Every handle is a host too:
+`https://<handle>.simple-host.app/` lists that person's public sites. Each person gets a
+certificate for `*.<handle>.simple-host.app`, issued automatically (usually within ~10 minutes of
+their first site; brand-new accounts may queue behind a weekly budget); until it exists their
+sites keep the person-path form `<handle>.simple-host.app/<site>/`, and every URL handed out is
+whichever address is live. Old `<handle>.simple-host.app/<site>/…` and
+`sites.simple-host.app/<handle>/<site>/…` links 302 to the site host (path and query kept).
+**Status: live** (`PERSON_HOSTS=canonical`, `SITE_HOSTS=canonical`, 2026-09-26; design:
+`docs/designs/per-site-subdomains.md`).
 
 | Surface | Details |
 |---|---|
-| Routes | Host-routed, not mux: `<handle>.<SITE_DOMAIN>` → `PersonHosts` (files at `/<site>/`, `/v1` same-origin for that person's sites only) · `GET /internal/site-redirect/{handle}` · `GET /internal/site-redirect/{handle}/{sitename}` · `GET /internal/site-redirect/{handle}/{sitename}/{rest...}` (302 from `sites.simple-host.app/<h>/<s>/…` to the person address; nginx rewrites into these; `vineetu/eb2-wait` excepted in nginx and in `contentHostOnlySites`) · `LegacyHostRedirect`: 301 for an unclaimed single-label `<name>.<SITE_DOMAIN>` that is not a handle, to `sites.<domain>/<handle>/<name>` (which then 302s as above) · an aliased old handle 301s to the new one |
-| MCP tools | none directly; `who_am_i` and site summaries return the person-address URL |
+| Routes | Host-routed, not mux: `<site>.<handle>.<SITE_DOMAIN>` → `SiteHosts` (files at `/`, `/v1` same-origin for that one site only) · `<handle>.<SITE_DOMAIN>` → `PersonHosts` (person page at `/`; `/<site>/…` 302s to the site host once the person's certificate is ready, else serves it by path) · `GET /internal/site-redirect/{handle}` · `GET /internal/site-redirect/{handle}/{sitename}` · `GET /internal/site-redirect/{handle}/{sitename}/{rest...}` (302 from `sites.simple-host.app/<h>/<s>/…` to the site's live address; nginx rewrites into these; `vineetu/eb2-wait` excepted in nginx and in `contentHostOnlySites`) · `LegacyHostRedirect`: 301 for an unclaimed single-label `<name>.<SITE_DOMAIN>` that is not a handle, to `sites.<domain>/<handle>/<name>` (which then 302s as above) · an aliased old handle 301s to the new one |
+| MCP tools | none directly; site summaries return the live site address, `who_am_i` the person page |
 | Skill | `website-deploy/SKILL.md` §Service (address form); host strings are rewritten per instance (`h/instancehost.go`) |
 | Pages | `st/showcase.html` (person index / public view) |
-| Go | `h/personhost.go` (`PERSON_HOSTS` off/serve/canonical, `PersonPageURL`, `PersonReturnSite`, `contentHostRedirect`), `h/legacyhost.go`, `h/handles.go` (reserved handles, `assignHandle`), `internal/db/namespace.go` (one namespace for handles, claimed names, reserved and retired names; `RenameHandle`, aliases), `h/instancehost.go` |
+| Go | `h/sitehost.go` (`SITE_HOSTS` off/serve/canonical, site-host routing, certificate requests and readiness), `h/personhost.go` (`PERSON_HOSTS` off/serve/canonical, `PersonPageURL`, `PersonReturnSite`, `contentHostRedirect`), `h/legacyhost.go`, `h/handles.go` (reserved handles, `assignHandle`), `internal/db/namespace.go` (one namespace for handles, claimed names, reserved and retired names; `RenameHandle`, aliases), `h/instancehost.go` |
 | DB | `users.handle`, `handle_aliases` (e.g. `admin` → `simple-host-team`), `legacy_hostnames` |
-| Env | `PERSON_HOSTS`, `SITE_DOMAIN`, `CONTENT_HOST` |
-| External | live nginx `/etc/nginx/sites-enabled/sites-content-host` (rewrites to `/internal/site-redirect/*`) and `simple-host` (wildcard `*.simple-host.app` → app); wildcard cert; Public Suffix List entry is **planned** |
+| Env | `PERSON_HOSTS`, `SITE_HOSTS` (needs `PERSON_HOSTS` on), `SITE_CERT_DIR` (e.g. `/var/lib/simple-host-site-certs`: `requests/<handle>` written by the app, `ready/<handle>` by the issuer), `SITE_DOMAIN`, `CONTENT_HOST` |
+| External | live nginx `/etc/nginx/sites-enabled/sites-content-host` (rewrites to `/internal/site-redirect/*`) and `simple-host` (wildcard `*.simple-host.app` → app; a server for `<site>.<person>.simple-host.app` loads the per-person cert by variable); wildcard cert; per-person certs from the root-owned issuer in `deploy/site-certs/` (systemd timer every 10 min, weekly budget 40, certbot DNS-01 via the Vercel hooks in `/usr/local/lib/certbot-vercel/`); Public Suffix List entry is **planned** |
 
 ## 3. Claimed `<name>.simple-host.app` and custom domains
 
@@ -93,7 +99,7 @@ lives only there; its other addresses redirect. **Status: live.**
 ## 4. Saved state (shared JSON per site)
 
 One JSON document per site: read by anyone, written with atomic ops. On a site's own origin
-(person host, claimed name, custom domain) writes need a signed-in visitor (cookie + `X-SH-CSRF`)
+(site host, person-path fallback, claimed name, custom domain) writes need a signed-in visitor (cookie + `X-SH-CSRF`)
 or any valid API key. On the old shared content host (`sites.simple-host.app`) reads stay open
 and writes need an API key or the connector: sign-in is never offered there, so an anonymous or
 cookie write gets 401 `visitor_auth_required` (INTENT 2026-09-24, built 2026-09-26; only when
@@ -192,7 +198,7 @@ as the person, so they meet the same checks as REST. Connector tokens are stored
 ## 9. Skills and plugin distribution
 
 Skills source is `simple-host-website/skills/` (embedded via `simple-host-website/embed.go`) at
-version **0.18.1**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
+version **0.19.0**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live**
 (ChatGPT and Claude directory listings submitted 2026-09-24, pending).
 
@@ -248,17 +254,17 @@ with country from local IP-range data; per-endpoint API metrics for admin. No cl
 | MCP tools | `site_analytics` |
 | Skill | `website-deploy/references/operations.md` §Analytics |
 | Pages | `st/analytics.html`, `st/showcase.html` Analytics tab, `st/index.html` site cards, `st/admin.html` API traffic |
-| Go | `internal/analytics/{ingest,classify,geo,countries,rebuild}.go` (attributes views on person hosts, claimed names, custom domains; bot/human classes; salted ip_hash), `h/analytics.go`, `h/apimetrics.go` (every `/v1/*` request; IPs stored as /24 or /48), `internal/geoip/geoip.go` (DB-IP mmdb, watched), `cmd/analytics-rebuild`, `cmd/ip-country-load`, `web/analytics-parse.js` |
+| Go | `internal/analytics/{ingest,classify,geo,countries,rebuild}.go` (attributes views on site hosts, person hosts, claimed names, custom domains; bot/human classes; salted ip_hash), `h/analytics.go`, `h/apimetrics.go` (every `/v1/*` request; IPs stored as /24 or /48), `internal/geoip/geoip.go` (DB-IP mmdb, watched), `cmd/analytics-rebuild`, `cmd/ip-country-load`, `web/analytics-parse.js` |
 | DB | `site_view_hourly`, `site_visitor_hourly`, `site_geo_daily`, `site_view_daily`, `site_visitor_daily` (legacy, pruned after 400 days), `analytics_ingest_state`, `ip_country_ranges`, `api_request_daily`, `api_ip_daily` |
 | Env | `ANALYTICS_LOG`, `ANALYTICS_SALT`, `GEOIP_DIR` |
 | External | nginx `log_format shanalytics` (`deploy/prod/nginx-analytics-logformat.conf`, query string stripped), `deploy/prod/logrotate-analytics.conf`, DB-IP Lite via `scripts/geoip-refresh.sh` + `deploy/prod/simple-host-geoip-refresh.{service,timer}` |
 
 ## 13. Showcase / person index
 
-Public page listing a person's `public` sites: at `<handle>.simple-host.app/` (person host) and
+Public page listing a person's `public` sites (each linked at its own address): at `<handle>.simple-host.app/` (person host) and
 `sites.simple-host.app/<handle>` (content host, via nginx). **Status: live.** See §2 and §10 for
 routes (`GET /internal/showcase/{handle}`, host-routed person root). Go: `h/showcase.go`,
-`h/personhost.go`. Page: `st/showcase.html`. DB: `sites.visibility`. MCP: `set_visibility`.
+`h/personhost.go`, `h/sitehost.go`. Page: `st/showcase.html`. DB: `sites.visibility`. MCP: `set_visibility`.
 
 ## 14. AI create (Grok sidecar) and voice input
 
@@ -377,5 +383,5 @@ notice.
 None. Every `mux.Handle`/`HandleFunc` registration in `cmd/server` and `internal/handler`
 (129 distinct method+path patterns, plus the looped `/mcp`, `/skills/{dir}.*` and
 `rewrittenAssets` routes) and all 22 MCP tools are placed above. Routes that exist outside
-the mux: host-routed person hosts / claimed names / custom domains (§2, §3) and the
+the mux: host-routed site hosts / person hosts / claimed names / custom domains (§2, §3) and the
 nginx-only `/v1/transcribe/stream` (§14).

@@ -1,6 +1,6 @@
 ---
 name: website-deploy-builder
-description: Plan what to build on Website Deploy (simple-host.app). Helps a user decide whether their idea fits the static + light-backend model, maps it to concrete patterns (shared JSON state with atomic ops, append-only collections, localStorage, public APIs), and produces a focused prompt for an implementation agent. Knows the planning rules that matter - every site lives at https://<handle>.simple-host.app/<site>/, where visitors sign in (Google or an emailed code) before saving from a page; anything personal (orders, RSVPs, sign-ups) goes in a private collection that only the owner can read; a free <name>.simple-host.app or a custom domain is an optional nicer address. Use when a user is starting a new site or describes a feature idea and needs help mapping it to what the platform can do.
+description: Plan what to build on Website Deploy (simple-host.app). Helps a user decide whether their idea fits the static + light-backend model, maps it to concrete patterns (shared JSON state with atomic ops, append-only collections, localStorage, public APIs), and produces a focused prompt for an implementation agent. Knows the planning rules that matter - every site lives at its own address, https://<site>.<handle>.simple-host.app/, where visitors sign in (Google or an emailed code) before saving from a page; anything personal (orders, RSVPs, sign-ups) goes in a private collection that only the owner can read; a free <name>.simple-host.app or a custom domain is an optional nicer address. Use when a user is starting a new site or describes a feature idea and needs help mapping it to what the platform can do.
 ---
 
 # Website Deploy Builder
@@ -21,7 +21,7 @@ Use this skill when a user wants help deciding what to build on Website Deploy, 
 
 ## What Website Deploy gives you
 
-Website Deploy is a static-file host at `https://simple-host.app`. Every account gets its own address, `https://<handle>.simple-host.app/`, and each site lives at `https://<handle>.simple-host.app/<sitename>/` (`handle` is the owner's URL-safe handle from GET `/v1/me`). The dashboard/API stay on `https://simple-host.app` (a separate origin). Old `sites.simple-host.app/<handle>/<site>/` links keep working. There is no server-side execution — but the API gives each site a real, server-backed backend:
+Website Deploy is a static-file host at `https://simple-host.app`. Each site lives at its own address, `https://<sitename>.<handle>.simple-host.app/` (`handle` is the owner's URL-safe handle from GET `/v1/me`; `https://<handle>.simple-host.app/` lists the person's public sites). Always hand the person the `site_url`/`url` the deploy returned — for a brand-new account it is briefly `https://<handle>.simple-host.app/<sitename>/` until the site's certificate is issued. The dashboard/API stay on `https://simple-host.app` (a separate origin). Old `<handle>.simple-host.app/<site>/` and `sites.simple-host.app/<handle>/<site>/` links redirect to the site's address. There is no server-side execution — but the API gives each site a real, server-backed backend:
 
 | Capability | How |
 |---|---|
@@ -38,7 +38,7 @@ Website Deploy is a static-file host at `https://simple-host.app`. Every account
 
 If your idea needs a server you control, a shared SQL database, persistent per-user accounts, or anything that runs server-side, Website Deploy is not the right host. Say so and stop.
 
-**Anyone can read; saving from a page needs sign-in.** Visitors sign in with Google or an emailed code on the site's own address; every save from a page needs a signed-in visitor. Agents save with the API key (or the connector). Say this up front, before the page is written, so the form gets its sign-in box.
+**Anyone can read; saving from a page needs sign-in.** Visitors sign in with Google or an emailed code on the site's own address (a sign-in covers that site only); every save from a page needs a signed-in visitor. Agents save with the API key (or the connector). Say this up front, before the page is written, so the form gets its sign-in box.
 
 **Anything personal goes in a private collection.** Orders, RSVPs, survey answers, sign-ups, or anything with names, emails, phone numbers or addresses. A collection can be made private: only signed-in visitors can submit, and only the owner can read it. Plan it in this order:
 
@@ -67,7 +67,7 @@ What it is: any folder of HTML/CSS/JS/assets served as-is. Build any framework's
 
 When to choose: every Website Deploy site starts here. Deploy first, then layer storage and external calls.
 
-Gotchas: the site lives under `/<sitename>/` on the person address, so **relative links are required**. Root-absolute paths like `/css/app.css` resolve to the wrong place and break — use `css/app.css`, `./img/x.png`, `../shared/y`. For framework builds, set the base/public path so output uses relative URLs (e.g. Vite `base: './'`, Next `basePath` / relative assets, etc.). Don't ship `node_modules/` or `.env`. Each archive is capped at 100 MB.
+Gotchas: the same site can be served at a host root or under a path (the fallback `<handle>.simple-host.app/<sitename>/`), so **relative links are required**. Root-absolute paths like `/css/app.css` can resolve to the wrong place and break — use `css/app.css`, `./img/x.png`, `../shared/y`. For framework builds, set the base/public path so output uses relative URLs (e.g. Vite `base: './'`, Next `basePath` / relative assets, etc.). Don't ship `node_modules/` or `.env`. Each archive is capped at 100 MB.
 
 ### 2. Per-site JSON state (shared across visitors)
 
@@ -114,7 +114,7 @@ Gotchas: state is public to anyone with the link; never keep personal details in
 
 ### 3. Per-visitor state with `localStorage`
 
-What it is: small JSON blobs stored in the visitor's browser, scoped to the page's origin (`<handle>.simple-host.app` — shared across that person's sites; a custom domain gets its own origin).
+What it is: small JSON blobs stored in the visitor's browser, scoped to the page's origin (each site's own `<sitename>.<handle>.simple-host.app`, or its custom domain).
 
 When to choose: anything you'd want a tiny key-value store for in a single-visitor experience — drafts, settings, app state, the user's progress. Per-visitor only; there is no sharing across browsers or devices.
 
@@ -127,7 +127,7 @@ const raw = localStorage.getItem('myapp.state');
 const state = raw ? JSON.parse(raw) : {};
 ```
 
-Gotchas: typical browser quota is ~5 MB per origin. Cleared by the user at any time. On `<handle>.simple-host.app`, the person's other sites share the same origin and can see the same storage — prefix your keys. For multi-megabyte structured data, use `IndexedDB` instead.
+Gotchas: typical browser quota is ~5 MB per origin. Cleared by the user at any time. Prefix your keys with the site name: on the `<handle>.simple-host.app/<sitename>/` fallback address a person's sites share one origin. For multi-megabyte structured data, use `IndexedDB` instead.
 
 ### 4. Larger per-visitor state with `IndexedDB`
 
@@ -194,7 +194,7 @@ Website Deploy serves files. There is no rewrite layer. Because sites live under
 
 ### 8. A nicer address: free name or custom domain
 
-Optional — every site already has `https://<handle>.simple-host.app/<sitename>/`, where sign-in and private collections work. The quickest nicer address is a free `<name>.simple-host.app`: `connect_domain` (or `POST /v1/sites/<sitename>/domain`) with `{"domain":"clay-studio.simple-host.app"}` answers `active` at once, no DNS. First come, first served. A user can instead serve a site from their own domain (e.g. `recipes.brand.com`) — use the `connect-domain` skill (`simple-host-website/skills/connect-domain`). Summary: `POST /v1/sites/<sitename>/domain` with `{domain}` → user adds one DNS record → poll `GET /v1/sites/<sitename>/domain` until `active` (with the connector: `connect_domain`, then `domain_status`). Either one changes the address; sign-in and private collections carry over. Pages stay public. Once connected, the site lives only at that address: its `<handle>.simple-host.app/<sitename>/` URL 302s there and takes no writes for it (agents keep writing through the apex `https://simple-host.app/v1/...`).
+Optional — every site already has its own `https://<sitename>.<handle>.simple-host.app/`, where sign-in and private collections work. The quickest nicer address is a free `<name>.simple-host.app`: `connect_domain` (or `POST /v1/sites/<sitename>/domain`) with `{"domain":"clay-studio.simple-host.app"}` answers `active` at once, no DNS. First come, first served. A user can instead serve a site from their own domain (e.g. `recipes.brand.com`) — use the `connect-domain` skill (`simple-host-website/skills/connect-domain`). Summary: `POST /v1/sites/<sitename>/domain` with `{domain}` → user adds one DNS record → poll `GET /v1/sites/<sitename>/domain` until `active` (with the connector: `connect_domain`, then `domain_status`). Either one changes the address; sign-in and private collections carry over. Pages stay public. Once connected, the site lives only at that address: its `<sitename>.<handle>.simple-host.app` URL 302s there and takes no writes for it (agents keep writing through the apex `https://simple-host.app/v1/...`).
 
 ## Picking a capability mix
 
@@ -232,4 +232,4 @@ Mirror this shape for `IndexedDB`, external API calls, routing, etc.
 
 ## Handoff: deploy
 
-Once the user has decided what to build, they need to deploy. Tell them to use the `website-deploy` skill, which handles registration (only when the Simple Host connector is not available), framework-aware build (with a relative base path), packaging, and upload. The site will be live at `https://<handle>.simple-host.app/<sitename>/`. If they want a nicer address, offer the free `<name>.simple-host.app` or the `connect-domain` skill for their own domain; it is optional.
+Once the user has decided what to build, they need to deploy. Tell them to use the `website-deploy` skill, which handles registration (only when the Simple Host connector is not available), framework-aware build (with a relative base path), packaging, and upload. The site will be live at `https://<sitename>.<handle>.simple-host.app/` (give them the `site_url` the deploy returned). If they want a nicer address, offer the free `<name>.simple-host.app` or the `connect-domain` skill for their own domain; it is optional.

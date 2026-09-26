@@ -4,6 +4,8 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 ## 2026-09-26
 
+- Every site now has its own address, `https://<site>.<handle>.simple-host.app/`, and is its own browser origin: visitors sign in there and a sign-in covers that site only. The person page stays at `https://<handle>.simple-host.app/`; old `<handle>.simple-host.app/<site>/` and `sites.simple-host.app/<handle>/<site>/` links redirect. Each person's certificate is issued automatically (usually within ~10 minutes of their first site); until then their sites keep the person-path address. What a page kept in the browser starts fresh at the new address; server-saved data moves with the site. New `SITE_HOSTS` and `SITE_CERT_DIR` settings (event and self-hosted instances unchanged).
+- Skills 0.19.0.
 - The old shared address `sites.simple-host.app` no longer takes anonymous saves: reading stays open, writing needs the owner's key or the connector (event and self-hosted instances unchanged).
 - Security: account API keys are stored only as SHA-256 hashes (each sign-in issues a new key, rotate replaces all); the connector acts through a per-request in-process credential instead of the key.
 - Security: apex pages and the connector consent page run scripts only by per-response nonce, with no inline handlers.

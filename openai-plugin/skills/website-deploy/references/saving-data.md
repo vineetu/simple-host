@@ -33,10 +33,11 @@ window.addEventListener('DOMContentLoaded', function () {
 </script>
 ```
 
-- Set `window.SH_CONFIG` **before** the script tag. On the shared address the helper can work
-  out the site from the URL, but on the site's own domain it cannot, so always set it.
-- Call `SH.mount('#sh-auth')` on pages that save. On the shared address it currently renders
-  one muted line; where sign-in is required it renders "Sign in with Google" plus an inline
+- Set `window.SH_CONFIG` **before** the script tag. On `<site>.<handle>.simple-host.app` the
+  helper finds the site from the host name, but on a custom domain it cannot, so always set it
+  (it is harmless everywhere).
+- Call `SH.mount('#sh-auth')` on pages that save. Every save needs a signed-in visitor, and a
+  sign-in covers that site only. It renders "Sign in with Google" plus an inline
   email-and-code form, and "Signed in as ... · Sign out" once signed in.
 - The box can be themed with CSS variables `--sh-accent`, `--sh-muted`, `--sh-radius`.
 - Results and admin pages only read, so they need the script and `SH_CONFIG` but not `mount`.
@@ -107,7 +108,8 @@ form.onsubmit = async function (e) {
 - Never re-send an item after an error. If the append worked and the count patch failed, the
   item is saved; retry only the patch, or let the results page count from the collection.
 - Save a draft to `localStorage` on input and restore it on load, with a key prefixed by the
-  site name (all sites on the shared address share one browser origin).
+  site name. Each site has its own browser origin, but the brief fallback address
+  `<handle>.simple-host.app/<site>/` (for a new account) is shared across a person's sites.
 
 ## Results / admin page pattern
 
@@ -138,27 +140,18 @@ A private collection takes submissions only from visitors signed in on the site'
 and only the site owner — and the Simple Host operator, for moderation — can read it. Pages stay public; the list is what is private. Public lists
 (guestbook, votes, public comments) stay public.
 
-### 1. Give the site its own address
+Private collections work on every site's own address (`<site>.<handle>.simple-host.app`); no
+free name or domain is needed first. If the person later adds a free `<name>.simple-host.app`
+(`connect_domain`, active at once) or their own domain (`connect-domain` skill), the site moves
+there, its `<site>.<handle>.simple-host.app` address redirects to it, and sign-in and private
+lists carry over.
 
-Offer the free address first: `connect_domain` with `site` and `domain: "clay-studio.simple-host.app"`.
-It answers `status: "active"` at once, with no DNS step, and the site is served at
-`https://clay-studio.simple-host.app/`; its old shared address redirects there.
-
-- `domain_taken` (409): another site has that name. Suggest another.
-- `name_reserved` (400): a reserved name (`www`, `api`, `admin`, `mail` and others).
-- `invalid_name` (400): one label only, lowercase letters, digits and hyphens, not starting or
-  ending with a hyphen, up to 63 characters.
-
-The person's own domain works the same way once active (`connect-domain` skill, one DNS
-record). A site has one own address: claiming one replaces the other.
-
-### 2. Make the collection private
+### 1. Make the collection private
 
 Before the form goes live: `set_collection_privacy` `{site, collection: "orders", private: true}`.
-It can be set before anything is saved. Without an own address it is refused with
-`custom_domain_required`; do step 1 first (a domain still pending DNS does not count).
+It can be set before anything is saved.
 
-### 3. The form page
+### 2. The form page
 
 Same page setup as above (`SH_CONFIG`, `auth.js`, `SH.mount('#sh-auth')`). Sign in, append one
 object, then show what was stored:
@@ -200,7 +193,7 @@ window.addEventListener('DOMContentLoaded', function () {
   visitors cannot read back their own submissions.
 - Do not add a public count of names to state. A plain total is fine.
 
-### 4. The owner admin page
+### 3. The owner admin page
 
 `orders.html`, linked quietly or not at all, with `<meta name="robots" content="noindex">`. It
 signs in, lists the collection, and lets the owner mark an item done or delete it, using each
@@ -279,12 +272,6 @@ columns appear like any other key). You read it with `read_collection` (its answ
 - **Make it public again**: `set_collection_privacy` with `private: false`. Everything already
   saved becomes readable by anyone. Confirm with the person first.
 
-### On the shared address
-
-Private lists need an own address. Without one, do not collect personal details: suggest an
-email-order flow (a `mailto:` link, "email us to order"), or claiming the free
-`<name>.simple-host.app` address, or connecting their domain.
-
 ## Doing it with the tools
 
 - `list_collections` shows what a site has collected and how many items each holds.
@@ -309,7 +296,7 @@ email-order flow (a `mailto:` link, "email us to order"), or claiming the free
 | `use_custom_domain` (401) | the site now lives on its own domain | link the visitor to the same page at `err.domain` |
 | `csrf_required` (403) | the request missed the helper's header | send saves through `SH`, not raw `fetch` |
 | `private_visitor_only` (403) | an API key or agent tried to add to a private list | only signed-in visitors add; not a page error |
-| `private_needs_own_domain` (403) | a private list was sent to from another address | submit from a page on the site's own address |
+| `private_needs_own_domain` (403) | a private list was sent to from anywhere other than the site's own address | submit from a page on the site's own address (the `url` the tools return) |
 | 400 | a private list got something other than one JSON object | send one object per item |
 | `not_found` (404) | reading or changing a private list without being its owner | show "Sign in with the owner's account" |
 | `append_only` (409) | `update`/`remove` on a public list | public lists cannot be changed |

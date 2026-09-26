@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "simple-host",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Plan, build and publish websites on Simple Host (simple-host.app) from a conversation, with a small built-in backend so forms, RSVPs, surveys, votes and orders save and can be read back, and connect a custom domain.",
   "author": {
     "name": "Vineet Sriram",
@@ -25,7 +25,7 @@
       "interface": {
         "displayName": "Simple Host",
         "shortDescription": "Describe a site. It's online.",
-        "longDescription": "Tell ChatGPT the website you want (a portfolio, an event page with RSVPs, a small shop, a sign-up form, a survey) and Simple Host puts it online at an address you can share straight away. Every site can save what people send it: RSVPs, orders, votes and survey answers are kept, and you can download them as a spreadsheet. Orders, RSVPs and survey answers can go in a private list that only you can read, once the site has its own address; a free name.simple-host.app address takes one step. Sign in once and ChatGPT remembers you in every chat after that. Change a site any time by asking for it, and go back to any earlier version if you don't like the change. Pages are public to anyone with the link, so keep private information in private lists. Free to start.",
+        "longDescription": "Tell ChatGPT the website you want (a portfolio, an event page with RSVPs, a small shop, a sign-up form, a survey) and Simple Host puts it online at an address you can share straight away. Every site can save what people send it: RSVPs, orders, votes and survey answers are kept, and you can download them as a spreadsheet. Every site gets its own address, and orders, RSVPs and survey answers can go in a private list on it that only you can read. Sign in once and ChatGPT remembers you in every chat after that. Change a site any time by asking for it, and go back to any earlier version if you don't like the change. Pages are public to anyone with the link, so keep private information in private lists. Free to start.",
         "developerName": "Vineet Sriram",
         "category": "Productivity",
         "capabilities": [

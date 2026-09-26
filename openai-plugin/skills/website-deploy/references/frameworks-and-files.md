@@ -13,7 +13,7 @@ publish call: text files in `files`, binary files (images, fonts, media, `.wasm`
 `files_base64`. Large builds may not fit in one call; keep sites lean (compress images,
 drop source maps) and tell the person if a build is too big to send.
 
-Sites live under `/<handle>/<site>/`, so build with a **relative** base path:
+The same site can be served at a host root or under a path, so build with a **relative** base path:
 
 | Framework | Detect | Build with a relative base | Output |
 |---|---|---|---|

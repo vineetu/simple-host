@@ -303,7 +303,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Everyone. This is the point of the service.</dd>
                 <dt>Where</dt><dd>Shown on the site card on the main dashboard and next to each site on your sites page.</dd>
-                <dt>Limits</dt><dd class="lim">Every account gets its own address, <code>https://&lt;handle&gt;.simple-host.app/</code>, and each site lives at <code>https://&lt;handle&gt;.simple-host.app/&lt;site&gt;/</code>. For a nicer address, take a free <code>&lt;name&gt;.simple-host.app</code> or connect your own domain.</dd>
+                <dt>Limits</dt><dd class="lim">Every site gets its own address, <code>https://&lt;site&gt;.&lt;handle&gt;.simple-host.app/</code>. For a nicer address, take a free <code>&lt;name&gt;.simple-host.app</code> or connect your own domain.</dd>
               </dl>
             </div>
           </div>
@@ -338,11 +338,11 @@
             <div class="fid">legacy-url-redirect</div>
             <div>
               <h3>Old addresses still work</h3>
-              <p class="fw">Sites published under the older style of address are forwarded to the current one, so links you have already shared keep working. Old <code>sites.simple-host.app/&lt;handle&gt;/&lt;site&gt;/</code> links keep working too.</p>
+              <p class="fw">Sites published under the older style of address are forwarded to the current one, so links you have already shared keep working: old <code>&lt;handle&gt;.simple-host.app/&lt;site&gt;/</code> and <code>sites.simple-host.app/&lt;handle&gt;/&lt;site&gt;/</code> links redirect to the site's own address.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone who published before the address format changed.</dd>
                 <dt>Where</dt><dd>Nothing to do — the old link forwards on its own.</dd>
-                <dt>Limits</dt><dd class="lim">Visitors land on the new address, so that is what they will see in the address bar and copy from then on.</dd>
+                <dt>Limits</dt><dd class="lim">Visitors land on the new address, so that is what they will see in the address bar and copy from then on. What a page kept in the visitor's browser starts fresh there; what the site saved on the server moves with it.</dd>
               </dl>
             </div>
           </div>
@@ -440,7 +440,7 @@
             <div class="fid">public-profile</div>
             <div>
               <h3>A public page listing your sites</h3>
-              <p class="fw">Your handle has its own page showing your public sites, at the root of your address, <code>https://&lt;handle&gt;.simple-host.app/</code>, so you can share one link instead of five.</p>
+              <p class="fw">Your handle has its own page showing your public sites, <code>https://&lt;handle&gt;.simple-host.app/</code>, so you can share one link instead of five.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone showing a body of work — a portfolio, a course, a set of demos.</dd>
                 <dt>Where</dt><dd>The link is shown to you on your sites page, under <strong>Your public showcase</strong>.</dd>
@@ -642,7 +642,7 @@
             <div class="fid">custom-domain-connect</div>
             <div>
               <h3>Point your own domain at a site</h3>
-              <p class="fw">Attach a domain you own — a subdomain like <code>recipes.yourbrand.com</code> or the bare domain itself — to one of your sites. Once connected, the site is served only on your domain: its <code>&lt;handle&gt;.simple-host.app</code> address redirects there, and visitors sign in and save there.</p>
+              <p class="fw">Attach a domain you own — a subdomain like <code>recipes.yourbrand.com</code> or the bare domain itself — to one of your sites. Once connected, the site is served only on your domain: its <code>&lt;site&gt;.&lt;handle&gt;.simple-host.app</code> address redirects there, and visitors sign in and save there.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone with a brand, a business or a domain already bought.</dd>
                 <dt>Where</dt><dd><strong>Connect domain</strong> on the site card — <strong>main dashboard only</strong>. Your agent can also do it, and there is a skill for exactly this.</dd>
@@ -694,7 +694,7 @@
             <div class="fid">custom-domain-disconnect</div>
             <div>
               <h3>Disconnect a domain</h3>
-              <p class="fw">Detaches the domain and stops serving your site from it, freeing the domain to be used on another site. The site's <code>&lt;handle&gt;.simple-host.app</code> address stops redirecting and serves the site again, with sign-in and saving there, and links people kept to the domain stop working.</p>
+              <p class="fw">Detaches the domain and stops serving your site from it, freeing the domain to be used on another site. The site's <code>&lt;site&gt;.&lt;handle&gt;.simple-host.app</code> address stops redirecting and serves the site again, with sign-in and saving there, and links people kept to the domain stop working.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone moving a domain to a different site, or retiring one.</dd>
                 <dt>Where</dt><dd><strong>Disconnect</strong> on the site card, main dashboard.</dd>

@@ -8,8 +8,8 @@ Anything that must stay true is enforced by a check in `make check`, not by this
 
 | Piece | What it is | Where |
 |---|---|---|
-| Go service | One binary: API, dashboard and pages, site files for person hosts and claimed names, MCP connector, OAuth server | `/usr/local/bin/simple-host`, `simple-host.service`, `127.0.0.1:8090` (`BIND_ADDR`) |
-| nginx | TLS, hostname routing, serves the legacy content host and custom-domain files from disk, writes the analytics log | `/etc/nginx/sites-enabled/*` (repo copies in `deploy/prod/`) |
+| Go service | One binary: API, dashboard and pages, site files for site hosts, person hosts and claimed names, MCP connector, OAuth server | `/usr/local/bin/simple-host`, `simple-host.service`, `127.0.0.1:8090` (`BIND_ADDR`) |
+| nginx | TLS (wildcard cert plus one `*.<handle>` cert per person), hostname routing, serves the legacy content host and custom-domain files from disk, writes the analytics log | `/etc/nginx/sites-enabled/*` (repo copies in `deploy/prod/`) |
 | Postgres 16 | Accounts, sites, versions, state, collections, sessions, OAuth, aggregates | database `simplehost`, role `simplehost`; schema `db/schema.sql` |
 | Site files | Versioned folders on local disk | `/srv/simple-host/sites` (`DATA_DIR`) |
 | Grok sidecar | CLIProxy: the Grok subscription as a local OpenAI-compatible API, the only model behind AI create | `cliproxy.service`, `127.0.0.1:8102` (`/opt/cliproxy`) |
@@ -26,7 +26,7 @@ is the same binary behind its own nginx vhost (`/` proxies to `/hackathons`).
 Every hostname reaches the binary through nginx on `127.0.0.1:8090`. Inside, the handler chain
 is (`cmd/server/main.go`):
 
-`BoundSubdomains` → `PersonHosts` → `LegacyHostRedirect` → app, where app is
+`BoundSubdomains` → `SiteHosts` → `PersonHosts` → `LegacyHostRedirect` → app, where app is
 `SecurityHeaders(CORS(apiMetrics(BearerAuth(mux))))`.
 
 **Apex `simple-host.app` (and simple-hack.app).** nginx proxies everything to the app except
@@ -37,20 +37,35 @@ skill downloads (`/skills.zip`, `/plugin.zip`, `/install.sh`, `/.well-known/skil
 connector (`/mcp`, `/oauth/*`, `/.well-known/oauth-*`) and `/healthz`, `/readyz`. Agents write
 here with `X-API-Key` or a connector bearer token.
 
-**Person hosts `<handle>.simple-host.app/<site>/`** (`personhost.go`). The wildcard vhost
+**Site hosts `<site>.<handle>.simple-host.app`** (`sitehost.go`, live 2026-09-26). Every site
+is its own origin: `SiteHosts` serves the site's live files at the root, `/v1/` answers for that
+one site only, and visitor sign-in, sessions and private collections are bound to that host. A
+two-label name needs its own certificate, `*.<handle>.simple-host.app`: the app drops
+`SITE_CERT_DIR/requests/<handle>`, a root-owned issuer (`deploy/site-certs/`, systemd timer every
+10 min, weekly budget 40, certbot DNS-01 through the Vercel hooks in
+`/usr/local/lib/certbot-vercel/`) issues it, copies it for nginx and writes
+`SITE_CERT_DIR/ready/<handle>`; the nginx server for `<site>.<person>.simple-host.app` loads the
+cert by variable. The app never hands out or redirects to a site host before its ready marker
+exists; until then that person's sites keep the person-path form. Mode comes from `SITE_HOSTS`:
+`off` (default; event and self-hosted boxes), `serve` (answer, hand out person-path URLs),
+`canonical` (live: the site host is the address handed out). Needs `PERSON_HOSTS` on.
+
+**Person hosts `<handle>.simple-host.app`** (`personhost.go`). The wildcard vhost
 proxies to the app; `PersonHosts` recognises the handle (aliases such as `admin` →
-`simple-host-team` resolve too). `/` is the person's page of public sites, `/<site>/...` is
-that site's live files served by Go (relative links keep working), and `/v1/` is host-bound:
-only that person's sites answer. A site with its own domain 302s to it. Mode comes from
+`simple-host-team` resolve too). `/` is the person's page of public sites. `/<site>/...` 302s
+to the site host (path and query kept) once the person's certificate is ready; before that it
+is the site's live files served by Go (relative links keep working), with `/v1/` host-bound to
+that person's sites. A site with its own domain 302s to it. Mode comes from
 `PERSON_HOSTS`: `off` (default, event and self-hosted boxes: path model only), `serve` (answer,
-but hand out path URLs), `canonical` (live: every URL handed out is the person address).
+but hand out path URLs), `canonical` (live).
 
 **Legacy `sites.simple-host.app/<handle>/<site>/`.** nginx still owns this host; the redirect
 below has been live since 2026-09-25 16:26 UTC. A path with a
 `domain-redirect` marker file in the site folder is rewritten to
 `/internal/domain-redirect/...` (302 to the custom domain). Every other
 `/<handle>/<site>/...` is rewritten to `/internal/site-redirect/...`, which 302s
-(`Cache-Control: no-store`) to the person address, path and query kept. Exception:
+(`Cache-Control: no-store`) to the site's live address (site host, or person path while the
+certificate is pending), path and query kept. Exception:
 `vineetu/eb2-wait` is still served from disk here because it calls the content host's
 `/eb2-api/*` sidecar proxies (`contentHostOnlySites` in `personhost.go` and the nginx block
 agree on it). `/<handle>` redirects to the person page. `/v1/` on this host is kept for
@@ -89,7 +104,8 @@ only its SHA-256; rotate replaces them all); the dashboard keeps it and sends `X
 admin is a real `users` row upserted at boot and authenticates with `ADMIN_API_KEY`.
 
 **Visitor sign-in** (`visitorsession.go`, `visitoremail.go`, `oauth.go`, `static/auth.js`).
-Only on a site's own address (person host, claimed name, custom domain). Google: the callback
+Only on a site's own address (site host, person-path fallback, claimed name, custom domain); a
+session covers that one site. Google: the callback
 lands on the apex, mints a one-time token, and redirects to
 `<site host>/v1/visitor/establish?once=...`, which sets the host-only `__Host-sh_vsess` cookie.
 Email: `POST /v1/sites/{site}/visitor/auth` + `/verify` on the site host; codes are bound to
@@ -111,7 +127,7 @@ or admin reads, everyone else gets 404.
 - `cmd/analytics-rebuild`, `cmd/ip-country-load` — one-off operator tools.
 - `internal/handler` — every HTTP handler and the embedded web UI (`static/`, hand-written
   HTML, no build step). Landmarks: `site.go` deploy, versions, rollback, route registration;
-  `personhost.go` person hosts and `/internal/site-redirect`; `platformsubdomain.go` claimed
+  `sitehost.go` per-site hosts and certificate requests; `personhost.go` person hosts and `/internal/site-redirect`; `platformsubdomain.go` claimed
   names and in-process file serving; `domains.go` custom domains, `/internal/domain-redirect`,
   `/internal/tls-ask`; `legacyhost.go` old per-name hosts; `handles.go` the one namespace;
   `stateops.go`, `collections.go`, `privatecollections.go`, `export.go` the datastore;
@@ -167,7 +183,8 @@ Tables (`db/schema.sql`):
 - Build on the box (aarch64) under a memory cap, back up the running binary to
   `/usr/local/bin/simple-host.bak-<timestamp>`, install, restart, verify from a client. Exact
   steps in `CLAUDE.md`. Rollback = install the `.bak` and restart.
-- Flags in the env file: `PERSON_HOSTS=canonical`, `WRITE_AUTH_MODE=on`, `BIND_ADDR=127.0.0.1`
+- Flags in the env file: `PERSON_HOSTS=canonical`, `SITE_HOSTS=canonical`,
+  `SITE_CERT_DIR=/var/lib/simple-host-site-certs`, `WRITE_AUTH_MODE=on`, `BIND_ADDR=127.0.0.1`
   (empty = all interfaces, which Docker needs), `LLM_BASE_URL` (the sidecar), `TRANSCRIBE_URL`,
   `ANALYTICS_LOG`, `ANALYTICS_SALT` (visitor hash salt; empty = derived from `ADMIN_API_KEY`),
   `GEOIP_DIR`.
@@ -197,6 +214,9 @@ Tables (`db/schema.sql`):
   collection. No view-lock, no private pages.
 - **A site with a domain lives only there.** 302 (not 301) so disconnecting takes effect at once.
 - **One namespace** for handles, claimed names, reserved names and retired hosts.
+- **Never hand out a site host without its certificate.** A TLS name mismatch cannot be fixed
+  after the handshake, so URLs and redirects use `<site>.<handle>` only once
+  `SITE_CERT_DIR/ready/<handle>` exists.
 - **`internal/handler` is the only package that imports other internal packages** (plus `auth`
   → `db`). Enforced by `scripts/check-layering.sh`.
 - **`openapi.yaml` is the API contract;** `openapi.json` is generated from it.

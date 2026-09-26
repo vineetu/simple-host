@@ -202,23 +202,44 @@ else
   echo "  ok — every skill reference is cited by full URL somewhere"
 fi
 
-# ── the canonical docs give the person address, not the old shared one ──
-# Owner decision 2026-09-25: a site's address is https://<handle>.simple-host.app/<site>/.
-# The old path form sites.simple-host.app/<handle>/<site>/ still works (it
-# redirects), so a line may name it only while saying so: it must also contain
-# "old", "legacy" or "redirect". run-hackathon is exempt — event instances keep
-# the path model on sites.<their-domain>/<handle>/<project>/.
-echo "== docs use the person address =="
+# ── the canonical docs give the site address, not an older form ──
+# Owner decision 2026-09-26: a site's address is https://<site>.<handle>.simple-host.app/.
+# Two older forms still work and redirect: the shared path form
+# sites.simple-host.app/<handle>/<site>/ and the person-path form
+# <handle>.simple-host.app/<site>/ (which is also the brief fallback for a person
+# whose certificate is not issued yet). A line may name either only while saying
+# so: the shared form needs "old", "legacy" or "redirect"; the person-path form
+# needs one of those or "fallback", "briefly", "brand-new", "new account",
+# "until" or "pending". run-hackathon is exempt — event instances keep the path
+# model on sites.<their-domain>/<handle>/<project>/.
+echo "== docs use the site address =="
+canon_docs=(simple-host-website/skills "$LLMS" "$OPENAPI" internal/handler/static/*.html openai-plugin/skills internal/mcp/instructions.go internal/mcp/outputs.go internal/mcp/tools.go internal/handler/generate.go)
 old_addr='sites\.(simple-host\.app|<[^>/]+>|\{[^}/]+\}|&lt;[^/]+&gt;)/(<|\{|&lt;)'
-offending=$(grep -rnE "$old_addr" \
-    simple-host-website/skills "$LLMS" "$OPENAPI" internal/handler/static/*.html 2>/dev/null \
+offending=$(grep -rnE "$old_addr" "${canon_docs[@]}" 2>/dev/null \
   | grep -v '^simple-host-website/skills/run-hackathon/' \
   | grep -viE 'old|legacy|redirect' || true)
+person_path='(<handle>|\{handle\}|&lt;handle&gt;)\.simple-host\.app/(<(site|sitename|name)>|\{(site|sitename|name)\}|&lt;(site|sitename|name)&gt;)'
+offending_pp=$(grep -rnE "$person_path" "${canon_docs[@]}" 2>/dev/null \
+  | grep -v '^simple-host-website/skills/run-hackathon/' \
+  | grep -viE 'old|legacy|redirect|fallback|briefly|brand-new|new account|until|pending' || true)
 if [ -n "$offending" ]; then
-  echo "$offending" | cut -c1-200 | sed 's/^/  FAIL: old address form (say "old"\/"legacy"\/"redirect" or use <handle>.simple-host.app): /'
+  echo "$offending" | cut -c1-200 | sed 's/^/  FAIL: shared path form as the address (say "old"\/"legacy"\/"redirect" or use <site>.<handle>.simple-host.app): /'
   fail=1
-else
-  echo "  ok — no canonical doc presents sites.simple-host.app/<handle> as the address"
+fi
+if [ -n "$offending_pp" ]; then
+  echo "$offending_pp" | cut -c1-200 | sed 's/^/  FAIL: person-path form as the address (say "old"\/"redirect"\/"fallback"\/"briefly" or use <site>.<handle>.simple-host.app): /'
+  fail=1
+fi
+missing_site=""
+for doc in "$LLMS" "$OPENAPI" "$SKILL_DEPLOY" "$SKILL_BUILD" simple-host-website/skills/connect-domain/SKILL.md internal/mcp/instructions.go; do
+  grep -qE '<(site|sitename|name)>\.<handle>\.simple-host\.app' "$doc" || missing_site="$missing_site $doc"
+done
+if [ -n "$missing_site" ]; then
+  echo "  FAIL: does not give the site address <site>.<handle>.simple-host.app:$missing_site"
+  fail=1
+fi
+if [ -z "$offending$offending_pp$missing_site" ]; then
+  echo "  ok — canonical docs give <site>.<handle>.simple-host.app; older forms appear only as old/redirect/fallback"
 fi
 
 # ── FEATURES.md places every route and MCP tool ──

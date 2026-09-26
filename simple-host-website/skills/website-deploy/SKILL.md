@@ -1,6 +1,6 @@
 ---
 name: website-deploy
-description: Deploy static websites to simple-host.app. Use when an agent needs to build/validate a static site, deploy it (inline JSON files OR a tar.gz/zip archive), or wire up the per-site backend — shared JSON state with atomic ops and append-only collections. Every site lives at https://<handle>.simple-host.app/<site>/. Pages and public lists are readable by anyone; visitors sign in with Google or an emailed code via the hosted auth.js before saving from a page, and a collection can be made private so only the owner reads it (orders, RSVPs, sign-ups, anything with personal details); agents write with the Simple Host connector or, without it, an API key from email-code registration.
+description: Deploy static websites to simple-host.app. Use when an agent needs to build/validate a static site, deploy it (inline JSON files OR a tar.gz/zip archive), or wire up the per-site backend — shared JSON state with atomic ops and append-only collections. Every site lives at its own address, https://<site>.<handle>.simple-host.app/. Pages and public lists are readable by anyone; visitors sign in with Google or an emailed code via the hosted auth.js before saving from a page, and a collection can be made private so only the owner reads it (orders, RSVPs, sign-ups, anything with personal details); agents write with the Simple Host connector or, without it, an API key from email-code registration.
 ---
 
 # Website Deploy
@@ -27,7 +27,7 @@ append-only collections) that its own page JavaScript can call.
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.18.1`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.19.0`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -37,20 +37,26 @@ append-only collections) that its own page JavaScript can call.
 
 ## The one rule that breaks sites: use relative links
 
-Every account gets its own address, `https://<handle>.simple-host.app/`, and
-each site lives at a **path** on it:
+Every site gets its own address:
 
 ```
-https://<handle>.simple-host.app/<sitename>/
+https://<sitename>.<handle>.simple-host.app/
 ```
 
-`handle` is the owner's URL-safe handle (from `GET /v1/me`); `site_url` in every
-response is this address. Because the site lives under a path prefix, a
-root-absolute URL like `/css/app.css` resolves off the site and 404s. Use
+`handle` is the owner's URL-safe handle (from `GET /v1/me`); the account's own page,
+`https://<handle>.simple-host.app/`, lists their public sites. **Give the person the
+`site_url` (or connector `url`) the response returned — never compose one.** For a
+brand-new account the site briefly lives at `https://<handle>.simple-host.app/<sitename>/`
+until its certificate is issued (usually within ~10 minutes); the returned URL is
+always the one that works.
+
+The same site can be served under a path (that fallback address) or at a domain root,
+so a root-absolute URL like `/css/app.css` can resolve off the site and 404. Use
 `css/app.css`, `./img/x.png`, `../shared/y`. For framework builds, set the
 base/public path so the output emits relative URLs.
 
-Old `sites.simple-host.app/<handle>/<site>/` links keep working.
+Old `<handle>.simple-host.app/<site>/` and `sites.simple-host.app/<handle>/<site>/`
+links redirect to the site's address.
 
 ## Read the reference that matches the operation
 
@@ -109,12 +115,13 @@ production build output.
 ## Saving from a page: visitors sign in
 
 Every site's backend is readable by anyone. Visitors sign in with Google or an
-emailed code on the site's own address; every save from a page needs a
-signed-in visitor. The hosted helper does it —
+emailed code on the site's own address (a sign-in there covers that site only);
+every save from a page needs a signed-in visitor. The hosted helper does it —
 `<script src="https://simple-host.app/auth.js" defer></script>`,
 `SH.mount('#sh-auth')` next to the form, `await SH.requireSignIn()` before
 `SH.state.patch(...)` or `SH.collection(name).append(...)`. On
-`<handle>.simple-host.app` the helper finds the site from the page path; on a
+`<sitename>.<handle>.simple-host.app` the helper finds the site from the host name
+(on the `<handle>.simple-host.app/<sitename>/` fallback, from the page path); on a
 custom domain set `window.SH_CONFIG = { site: "<sitename>" }` before the tag
 (harmless everywhere).
 
@@ -171,7 +178,7 @@ Full code and error codes: `references/backend.md`.
   that shows what was collected.
 - **Origin-gating trips up non-browser reads.** A `curl`/script read with no
   `Origin` gets **403**. Send one:
-  `curl -H "Origin: https://<handle>.simple-host.app" https://<handle>.simple-host.app/v1/sites/<name>/state`
+  `curl -H "Origin: https://<name>.<handle>.simple-host.app" https://<name>.<handle>.simple-host.app/v1/sites/<name>/state`
 - **On a staleness notice:** API responses carry a `_notice` field when this skill
   is out of date. Relay it to the user verbatim, then update the skill the way it
   was installed — usually `npx skills add vineetu/simple-host`; other ways are at

@@ -471,7 +471,7 @@ func Tools() []Tool {
 		{
 			Name:        "who_am_i",
 			Title:       "Who am I signed in as",
-			Description: "Return the Simple Host account this connection acts as: its email, its handle (the <handle> in its address https://<handle>.simple-host.app/) and its public page listing its sites.",
+			Description: "Return the Simple Host account this connection acts as: its email, its handle (the <handle> in its page https://<handle>.simple-host.app/ and its site addresses https://<site>.<handle>.simple-host.app/) and its public page listing its sites.",
 			InputSchema: noArgs(),
 			Annotations: readOnly(),
 			run: func(c *call, _ map[string]any) (output, error) {
@@ -624,7 +624,7 @@ func Tools() []Tool {
 			Name:  "create_site",
 			Title: "Publish a new site",
 			Description: "Publish a NEW website from files given inline, at a public address. Fails if this account already has a site of that name, so it never overwrites anything; to change an existing site use update_site. " +
-				"`index.html` is required. Use relative links only (`css/style.css`, never `/css/style.css`), because sites live under a path. " +
+				"`index.html` is required. Use relative links only (`css/style.css`, never `/css/style.css`), because a site can be served under a path as well as at a root. " +
 				"The site is public to anyone with the returned URL as soon as this returns.",
 			InputSchema: object(map[string]any{
 				"site":         str(siteDesc + " Pick a short, descriptive name."),
@@ -1168,7 +1168,7 @@ func Tools() []Tool {
 		{
 			Name:  "connect_domain",
 			Title: "Connect a custom domain",
-			Description: "Give a site a nicer address (optional: every site already has its own at https://<handle>.simple-host.app/<site>/). Either a free `<name>.simple-host.app` address (e.g. `clay-studio.simple-host.app`): active at once, no DNS step, first come first served. " +
+			Description: "Give a site a nicer address (optional: every site already has its own at https://<site>.<handle>.simple-host.app/). Either a free `<name>.simple-host.app` address (e.g. `clay-studio.simple-host.app`): active at once, no DNS step, first come first served. " +
 				"Or the person's own domain (e.g. `rsvp.example.com` or `example.com`): returns the one DNS record they must add at their domain registrar; relay it exactly, then check with domain_status until it is active. " +
 				"Once active the site lives only at that address, its old address redirects there, and visitors sign in and save there.",
 			InputSchema: object(map[string]any{

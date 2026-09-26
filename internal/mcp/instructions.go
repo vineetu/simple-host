@@ -12,7 +12,7 @@ PUBLISHING
 - create_site publishes a new site; update_site publishes a new version of an existing one. Both take every file inline: {"index.html": "...", "css/style.css": "..."}. index.html is required. Binary files (images) go in files_base64.
 - update_site REPLACES the whole site. To edit: get_site (lists its files), read_site_file for each file, change what was asked, and send ALL files to update_site. Never drop files you did not mean to delete. create_site never overwrites an existing site.
 - Site names: lowercase letters, numbers and hyphens (e.g. "birthday-rsvp"), unique within the account.
-- Every account has its own address (https://<handle>.simple-host.app/) and each site lives under a path on it (https://<handle>.simple-host.app/<site>/), so use RELATIVE links only: "css/style.css", "./img/a.png" — never "/css/style.css".
+- Every site lives at its own address (https://<site>.<handle>.simple-host.app/); for a brand-new account it may briefly live under a path (https://<handle>.simple-host.app/<site>/) until its certificate is issued. The same site can be served at a root or under a path, so use RELATIVE links only: "css/style.css", "./img/a.png" — never "/css/style.css".
 - Static files only: HTML, CSS, JS, images, fonts. Nothing runs on the server (no PHP, Node, Python). Keep everything in the files you send; one self-contained index.html is fine for small sites.
 - Every version is kept: list_versions and rollback_site undo a bad deploy.
 - After publishing, give the person the url the tool returned, exactly as returned. Never compose an address yourself.
@@ -28,7 +28,7 @@ SAVING DATA FROM A PAGE (forms, RSVPs, votes, guestbooks)
   <script src="https://simple-host.app/auth.js" defer></script>
   <div id="sh-auth"></div>   then in JS: SH.mount('#sh-auth'); await SH.requireSignIn(); await SH.collection('rsvps').append({...}); await SH.state.patch([{op:'inc', path:'count', by:1}]);
   Reads: const {data} = await SH.state.get(); await SH.collection('rsvps').list({limit:50}).
-- Always call SH.requireSignIn() before a save: every save from a page needs a visitor signed in with Google or an emailed code on the site's own address. You (with these tools) save without it. The same page code works on the site's person address and on a connected domain.
+- Always call SH.requireSignIn() before a save: every save from a page needs a visitor signed in with Google or an emailed code on the site's own address; a sign-in there covers that site only. You (with these tools) save without it. The same page code works on the site's own address and on a connected domain.
 - On a failed save keep the form filled, show the error, and never claim success. Never re-send a collection item after an error.
 - Public lists (guestbook, votes, public comments) stay public: pair them with a results page (e.g. results.html) linked quietly from the main page.
 - Per-visitor things (drafts, preferences) belong in localStorage, not in shared state.
