@@ -245,6 +245,9 @@ fi
 # ── FEATURES.md places every route and MCP tool ──
 bash scripts/check-features.sh || fail=1
 
+# ── PARITY.md covers every FEATURES.md section ──
+bash scripts/check-parity.sh || fail=1
+
 echo
 if [ "$fail" -ne 0 ]; then
   echo "DRIFT DETECTED — update openapi.yaml (source of truth) to match the routes."

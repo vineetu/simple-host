@@ -26,6 +26,10 @@ https://simple-host.app and runs in production for real users.
   `bash scripts/sync-claude-plugin.sh`. Never hand-edit `plugins/simple-host/skills/`.
 - Schema changed: edit `db/schema.sql`, add a file under `db/migrations/`, apply it by hand
   before deploying (the binary refuses to start if a column it reads is missing).
+- Parity with Simple Host Enterprise (`PARITY.md`, identical in both repos): any security fix in
+  one repo is checked against the other the same day (note it in PARITY.md). A new or changed
+  feature updates PARITY.md in the same commit. `scripts/check-parity.sh` (in
+  `check-docs-sync.sh`) fails if a `## N.` section of FEATURES.md has no PARITY.md row.
 - Design docs in `docs/designs/` carry a status line at the top; update it when you ship or drop
   the thing. Finished plans go to `docs/history/`.
 
