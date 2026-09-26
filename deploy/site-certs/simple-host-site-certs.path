@@ -1,0 +1,9 @@
+[Unit]
+Description=Issue a Simple Host site-host certificate as soon as one is requested
+
+[Path]
+PathChanged=/var/lib/simple-host-site-certs/requests
+Unit=simple-host-site-certs.service
+
+[Install]
+WantedBy=paths.target

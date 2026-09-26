@@ -1,0 +1,9 @@
+[Unit]
+Description=Issue Simple Host per-person site-host certificates (*.<handle>.simple-host.app)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/simple-host-site-certs
+TimeoutStartSec=45min
