@@ -269,7 +269,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// TRUST MODEL: site state is PUBLIC per-site scratch storage for reads.
 	// The Origin/Referer check (authorizeStateOrigin) still applies to every
 	// method. Writes additionally go through visitorWriteOK: a visitor
-	// session, any account's X-API-Key, WRITE_AUTH_MODE=log (measure, allow),
+	// session, the owner's (or admin's) X-API-Key, WRITE_AUTH_MODE=log (measure, allow),
 	// or the admin allow_anonymous_writes hatch. Do not store secrets in it.
 	// Abuse is bounded by stateLimiter (rate) and maxSiteStateSize (1 MB cap).
 	mux.Handle("PUT /v1/sites/{sitename}/allowed-origins", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setAllowedOrigins))))
@@ -485,7 +485,21 @@ func (h *SiteHandler) setAllowAnonymousWrites(w http.ResponseWriter, r *http.Req
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
 		return
 	}
-	siteID, err := db.GetSiteIDByName(r.Context(), h.database, siteName)
+	// ?owner=<handle> names the exact site; without it, the oldest site of
+	// that name (the legacy bare-name lookup).
+	var siteID string
+	var err error
+	if owner := strings.TrimSpace(r.URL.Query().Get("owner")); owner != "" {
+		var u db.User
+		if u, err = db.GetUserByHandleOrAlias(r.Context(), h.database, owner); err == nil {
+			var s db.Site
+			if s, err = db.GetSiteByUser(r.Context(), h.database, u.ID, siteName); err == nil {
+				siteID = s.ID
+			}
+		}
+	} else {
+		siteID, err = db.GetSiteIDByName(r.Context(), h.database, siteName)
+	}
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
@@ -509,6 +523,45 @@ func (h *SiteHandler) setAllowAnonymousWrites(w http.ResponseWriter, r *http.Req
 // only that site does. Elsewhere (apex, content host) a bare name falls back to the
 // legacy global lookup. Returns sql.ErrNoRows if not found (caller maps to 404).
 func (h *SiteHandler) resolveSiteID(r *http.Request, siteName string) (string, error) {
+	id, _, err := h.resolveSiteIDBare(r, siteName)
+	return id, err
+}
+
+// resolveWriteSiteID is resolveSiteID for the page-data write routes (state
+// PUT/PATCH, collection append). A bare name on the API or shared host
+// otherwise means the oldest same-named site; when the caller's key owns a
+// site of that name, it means theirs. Everything else is unchanged, and the
+// write gate (visitorWriteOK) still decides whether the caller may write.
+func (h *SiteHandler) resolveWriteSiteID(r *http.Request, siteName string) (string, error) {
+	id, bare, err := h.resolveSiteIDBare(r, siteName)
+	key := r.Header.Get("X-API-Key")
+	if !bare || key == "" {
+		return id, err
+	}
+	u, ok, kerr := h.resolveWriterKey(r.Context(), key)
+	if kerr != nil || !ok || u.ID == "" {
+		return id, err
+	}
+	if s, serr := db.GetSiteByUser(r.Context(), h.database, u.ID, siteName); serr == nil {
+		return s.ID, nil
+	}
+	return id, err
+}
+
+// resolveSiteIDBare resolves like resolveSiteID and reports whether the name
+// was looked up bare (no handle, no site/person host, no own domain).
+func (h *SiteHandler) resolveSiteIDBare(r *http.Request, siteName string) (string, bool, error) {
+	id, err := h.resolveSiteIDScoped(r, siteName)
+	if !errors.Is(err, errBareSiteName) {
+		return id, false, err
+	}
+	id, err = db.GetSiteIDByName(r.Context(), h.database, siteName)
+	return id, true, err
+}
+
+var errBareSiteName = errors.New("bare site name")
+
+func (h *SiteHandler) resolveSiteIDScoped(r *http.Request, siteName string) (string, error) {
 	host := requestHostName(r)
 	handle := strings.TrimSpace(r.PathValue("handle"))
 	// A site host (<site>.<handle>.<SITE_DOMAIN>) is one site's own origin:
@@ -569,7 +622,7 @@ func (h *SiteHandler) resolveSiteID(r *http.Request, siteName string) (string, e
 			return "", sql.ErrNoRows
 		}
 	}
-	return db.GetSiteIDByName(r.Context(), h.database, siteName)
+	return "", errBareSiteName
 }
 
 // originAllowedForSiteID reports whether the owner has whitelisted this exact
@@ -633,7 +686,9 @@ func (h *SiteHandler) originIsSiteHostID(ctx context.Context, siteID, host strin
 // each other's allowed_origins or bound custom_domain.
 func (h *SiteHandler) authorizeStateOrigin(w http.ResponseWriter, r *http.Request, siteName string) bool {
 	// Resolve once; if we can't attribute the request to a real site, deny.
-	siteID, err := h.resolveSiteID(r, siteName)
+	// Key-aware, so the origin is checked against the same site a keyed
+	// write or read targets (the caller's own same-named site on a bare name).
+	siteID, err := h.resolveWriteSiteID(r, siteName)
 	if err != nil {
 		return false
 	}
@@ -790,7 +845,7 @@ func (h *SiteHandler) putSiteState(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Resolve name -> site_id once; all subsequent state ops key by id.
-	siteID, err := h.resolveSiteID(r, siteName)
+	siteID, err := h.resolveWriteSiteID(r, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})

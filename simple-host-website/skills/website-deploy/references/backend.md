@@ -15,7 +15,7 @@ brand-new account's sites briefly use `https://<handle>.simple-host.app/<site>/`
 until its certificate is issued). That address is the site's own browser origin:
 visitors sign in with Google or an emailed code there, a sign-in covers that site
 only, and every save from a page needs a signed-in visitor. Agents save with the
-API key (or the connector) on any site. Old `<handle>.simple-host.app/<site>/` and
+owner's API key (or the connector) on the owner's own sites. Old `<handle>.simple-host.app/<site>/` and
 `sites.simple-host.app/<handle>/<site>/` links redirect to the site's address.
 
 A site can also take a nicer address — a free `<name>.simple-host.app` or a
@@ -356,13 +356,19 @@ the old `sites.simple-host.app` address answers 404 for it, even with a key.
 
 ## Saving from an agent (API key)
 
-Any account's API key writes to any site's state and public collections. A private collection takes no writes from a key or an
+A key writes only the sites its own account owns: the owner's API key (or the
+connector signed in as the owner) writes the site's state and public
+collections. Another account's key gets 404 `site not found`, exactly as if the
+site did not exist, and changes nothing. A private collection takes no writes from a key or an
 agent (403 `private_visitor_only`). Send `X-API-Key: <key>` on `PUT`/`PATCH /v1/sites/<sitename>/state`
 and `POST /v1/sites/<sitename>/collections/<name>` (or the
 `/v1/u/<handle>/sites/<sitename>/...` twins).
 
-An agent acting for a person who is **not** the site owner gets that person's
-key by email code:
+Someone who does not own the site saves the way any visitor does: on the site's
+own page, signed in. No key writes someone else's site.
+
+An agent working for the owner without the connector gets the owner's key by
+email code:
 
 1. `POST https://simple-host.app/v1/auth` with `{"email":"person@example.com"}`
    → 202 `{message, email, expires_in_seconds: 900}`. The person receives a
@@ -376,8 +382,7 @@ Codes are bound to where they were requested: one requested through `/v1/auth`
 works only at `/v1/auth/verify`, and one emailed by a page sign-in works only on
 that site. Keep the key in the agent's config or secret store, never in page
 HTML or committed files — it also grants that person's dashboard and site
-management. The site owner's agent already has the owner key and needs none of
-this.
+management. An agent that already holds the owner's key needs none of this.
 
 ## Error bodies
 
@@ -386,6 +391,7 @@ this.
 | 401 | `{"error":"sign-in required to write","code":"visitor_auth_required","sign_in":"/v1/auth/oauth/providers","retry":true}` | No signed-in visitor and no key. Sign the visitor in, then retry once. |
 | 403 | `{"error":"missing CSRF header","code":"csrf_required"}` | A session write without `X-SH-CSRF: 1`. The helper always sends it. |
 | 401 | `{"error":"invalid API key","code":"invalid_api_key"}` | Unknown `X-API-Key`. Do not retry with the same key. |
+| 404 | `{"error":"site not found"}` | On a write with a key: the key's account does not own this site (or it does not exist). Use the owner's key; do not retry. |
 | 401 | `{"error":"this site saves on its own domain","code":"use_custom_domain","domain":"recipes.brand.com"}` | The site has a domain and this was sent through its previous address: that address takes no writes for it, key or not (its page URL itself 302s to the domain). Pages: link the visitor to the same page on `domain`. Agents: write through the apex `https://simple-host.app/v1/...` or the domain's `/v1/`. Do not retry here. |
 | 403 | (reads) | No `Origin` header on a non-browser read. Send one. |
 

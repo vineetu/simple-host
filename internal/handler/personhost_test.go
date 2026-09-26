@@ -146,9 +146,12 @@ func TestPersonHostsServeAndCanonical(t *testing.T) {
 	if r := a.at(t, "PATCH", oscarHost, "/v1/sites/shop/state", patch, browser(oscarHost, cookie)); r.status == 200 {
 		t.Fatalf("session on another host: %d", r.status)
 	}
-	// The key still saves anywhere.
-	if r := a.at(t, "PATCH", host, "/v1/sites/shop/state", patch, map[string]string{"X-API-Key": oscar.key, "Origin": "https://" + host}); r.status != 200 {
-		t.Fatalf("key save: %d %s", r.status, r.body)
+	// The owner's key saves; another account's key does not.
+	if r := a.at(t, "PATCH", host, "/v1/sites/shop/state", patch, map[string]string{"X-API-Key": olive.key, "Origin": "https://" + host}); r.status != 200 {
+		t.Fatalf("owner key save: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "PATCH", host, "/v1/sites/shop/state", patch, map[string]string{"X-API-Key": oscar.key, "Origin": "https://" + host}); r.status != http.StatusNotFound {
+		t.Fatalf("other account's key save: %d %s", r.status, r.body)
 	}
 
 	// ---- private lists work on the person host ------------------------------------------

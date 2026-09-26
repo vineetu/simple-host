@@ -98,7 +98,7 @@ What follows from that, and is not negotiable without changing the line above:
 - **2026-09-05. Skills teach sign-in as a precondition, not as a 401 branch.** Reason: an agent
   that only handles the error builds a form that looks fine in testing and fails for visitors.
 - **2026-09-05. One account model; visitors are not a separate class.** Any account's API key
-  writes to any site (accepted as that account's write; the store records no actor, only the
+  writes to any site (accepted as that account's write; superseded 2026-09-26: only its own sites; the store records no actor, only the
   server log does), and a page can sign a visitor in by emailed code as well as Google, creating the account if it does not exist. Reason: "keep it simple";
   an agent saving on behalf of a person gets their key through the same email-code flow the
   dashboard already uses, and there is only one kind of identity to reason about.
@@ -243,6 +243,12 @@ What follows from that, and is not negotiable without changing the line above:
   short-lived cookie there, and the final step signs in only the browser holding it. Reason: a
   sign-in finished in someone else's browser must not sign a visitor in as them (login CSRF).
   Email-code sign-in already had no cross-browser step.
+- **2026-09-26. A key writes only its own account's sites.** State and collection writes with an
+  API key, a connector token or the MCP server need the key's account to own the site (or be the
+  platform admin); any other key gets the 404 of a missing site. Signed-in visitors on the
+  site's own address are unchanged. Supersedes the "any account's key writes to any site" part
+  of 2026-09-05. Reason: signup is free and the Origin gate stops only browsers, so any stranger
+  with a script could overwrite or wipe every site's saved data (state-storage review).
 
 ## Open, deliberately parked
 

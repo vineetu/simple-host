@@ -41,7 +41,7 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Resolve name -> site_id once; collection ops key by id.
-	siteID, err := h.resolveSiteID(r, siteName)
+	siteID, err := h.resolveWriteSiteID(r, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})

@@ -234,7 +234,7 @@ func writeVisitorAuthRequired(w http.ResponseWriter) {
 // visitorWriteOK is the write gate for PUT/PATCH state and POST collections.
 // See docs/history/SPEC.md §4.4. Returns false after writing the error response.
 func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, siteID, siteName, route, collection string) bool {
-	_, allowAnon, err := db.GetSiteWriteGate(r.Context(), h.database, siteID)
+	ownerID, allowAnon, err := db.GetSiteWriteGate(r.Context(), h.database, siteID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
@@ -285,7 +285,16 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return false
 		}
-		// Agent writes accept any valid account key as the caller identity.
+		// A key writes only to its own account's sites (the platform admin
+		// to any). Any other account's key gets the same 404 as a missing
+		// site, so it learns nothing. Connector tokens and the MCP server
+		// arrive here as an internal key for their person, so the same rule
+		// holds for them.
+		if ok && !u.IsAdmin && u.ID != ownerID {
+			log.Printf("key_write_refused user_id=%s site_id=%s name=%s route=%s collection=%s", u.ID, siteID, siteName, route, collection)
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			return false
+		}
 		if ok {
 			log.Printf("key_write user_id=%s site_id=%s name=%s route=%s collection=%s", u.ID, siteID, siteName, route, collection)
 			return true

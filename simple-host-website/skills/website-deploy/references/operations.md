@@ -39,9 +39,9 @@ Preview a retained version before restoring it (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.19.1"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.19.2"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.19.1"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.19.2"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte
@@ -111,7 +111,7 @@ site already lives at its own `https://<sitename>.<handle>.simple-host.app/`. In
 The site moves there and its old address redirects. Sign-in and private
 collections work either way: visitors sign in with Google or an emailed code on
 the site's own address, and every save from a page needs a signed-in visitor
-(see `backend.md`). Agents write with an API key anywhere.
+(see `backend.md`). Agents write with the site owner's API key.
 
 ## Private collections
 

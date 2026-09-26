@@ -27,7 +27,7 @@ append-only collections) that its own page JavaScript can call.
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.19.1`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.19.2`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -129,9 +129,9 @@ Want a nicer address? Take a free `<name>.simple-host.app` or connect your own
 domain (the `connect-domain` skill). The site moves there and its old address
 redirects. Optional; sign-in works without it.
 
-Agents write with an API key (`X-API-Key`) on any site.
-An agent acting for a person uses the connector if it has one; otherwise it gets
-that person's key by email code. Both flows,
+Agents write with the site owner's API key (`X-API-Key`); another account's key
+gets 404 and writes nothing. An agent acting for the owner uses the connector if
+it has one; otherwise it gets the owner's key by email code. Both flows,
 the `SH` API and the error bodies: `references/backend.md`.
 
 Sign-in identifies the visitor; it does not make the page private. Pages are

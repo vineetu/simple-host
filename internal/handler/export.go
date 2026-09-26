@@ -51,7 +51,7 @@ func (h *SiteHandler) exportSite(w http.ResponseWriter, r *http.Request) {
 	// The saved data first, because it is the part nothing else preserves: the
 	// files exist in whatever the person built from, the JSON only lives here.
 	state := "null"
-	if raw, _, err := db.GetSiteState(r.Context(), h.database, name); err == nil && len(raw) > 0 {
+	if raw, _, err := db.GetSiteStateByID(r.Context(), h.database, site.ID); err == nil && len(raw) > 0 {
 		state = string(raw)
 	}
 	if err := writeTarBytes(tw, name+"/state.json", []byte(state)); err != nil {

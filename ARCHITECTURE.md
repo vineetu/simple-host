@@ -118,7 +118,7 @@ that one site. Pages include `/auth.js` (`window.SH`) and call `SH.requireSignIn
 saving; `GET /v1/sites/{site}/me` reports the session without extending it.
 
 **Writes and reads.** State (`stateops.go`) and collections (`collections.go`) are readable by
-anyone (GETs are Origin/Referer-gated). Writes pass `visitorWriteOK`: any account's API key, or
+anyone (GETs are Origin/Referer-gated). Writes pass `visitorWriteOK`: the site owner's API key (or the admin's; connector tokens and MCP arrive as the person's in-process key), or
 a visitor session plus `X-SH-CSRF: 1` on the site's own address. On the old shared host a key
 is the only way in when `PERSON_HOSTS=canonical`; on event and self-hosted instances
 (`off`/`serve`) the shared host is where pages live and its writes stay open. Private collections

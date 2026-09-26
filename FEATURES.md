@@ -100,7 +100,9 @@ lives only there; its other addresses redirect. **Status: live.**
 
 One JSON document per site: read by anyone, written with atomic ops. On a site's own origin
 (site host, person-path fallback, claimed name, custom domain) writes need a signed-in visitor (cookie + `X-SH-CSRF`)
-or any valid API key. On the old shared content host (`sites.simple-host.app`) reads stay open
+or the site owner's API key (the admin's key writes any site; connector tokens and MCP act as
+their person). Another account's key gets 404 `site not found` and writes nothing (fixed
+2026-09-26; before, any account's key wrote any site). On the old shared content host (`sites.simple-host.app`) reads stay open
 and writes need an API key or the connector: sign-in is never offered there, so an anonymous or
 cookie write gets 401 `visitor_auth_required` (INTENT 2026-09-24, built 2026-09-26; only when
 `PERSON_HOSTS=canonical`: event and self-hosted instances keep the shared host open, logged as
@@ -199,7 +201,7 @@ as the person, so they meet the same checks as REST. Connector tokens are stored
 ## 9. Skills and plugin distribution
 
 Skills source is `simple-host-website/skills/` (embedded via `simple-host-website/embed.go`) at
-version **0.19.1**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
+version **0.19.2**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live**
 (ChatGPT and Claude directory listings submitted 2026-09-24, pending).
 
@@ -237,7 +239,7 @@ traffic. Admin = `ADMIN_API_KEY` or the admin user. **Status: live.**
 
 | Surface | Details |
 |---|---|
-| Routes | `GET /admin` (public shell) · `GET /v1/admin/users` · `POST /v1/admin/users` (bulk-create participant accounts, returns keys) · `DELETE /v1/admin/users/{id}` · `GET /v1/admin/usage` · `GET /v1/admin/api-analytics` · `PUT /v1/sites/{sitename}/allow-anonymous-writes` (`RequireAdmin`) · `GET /v1/sites/{sitename}/analytics?owner=` and `/analytics/geo?owner=`, `GET /v1/analytics/sites?all=1` (admin reads any site) |
+| Routes | `GET /admin` (public shell) · `GET /v1/admin/users` · `POST /v1/admin/users` (bulk-create participant accounts, returns keys) · `DELETE /v1/admin/users/{id}` · `GET /v1/admin/usage` · `GET /v1/admin/api-analytics` · `PUT /v1/sites/{sitename}/allow-anonymous-writes?owner=` (`RequireAdmin`; `owner` picks that person's site, else the oldest of the name) · `GET /v1/sites/{sitename}/analytics?owner=` and `/analytics/geo?owner=`, `GET /v1/analytics/sites?all=1` (admin reads any site) |
 | Pages | `st/admin.html` (tiles Users/Websites/Disk; Biggest websites; Issue participant accounts; Entries: Entry/Account/Link/**Analytics**; user cards; API traffic tables), `st/index.html` Admin tab |
 | Go | `h/site.go` (`adminUsers`, `adminUsage`), `h/accounts.go` (`createAccounts`, `deleteAccount`, `accountAdmin`), `internal/capacity/capacity.go`, `h/apimetrics.go` (`AdminSummary`), `internal/auth/middleware.go` |
 | DB | `users`, `sites`, `versions`, `api_request_daily`, `api_ip_daily` |

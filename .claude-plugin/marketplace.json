@@ -12,14 +12,14 @@
       "name": "simple-host",
       "displayName": "Simple Host",
       "source": "./plugins/simple-host",
-      "version": "0.19.1",
+      "version": "0.19.2",
       "homepage": "https://simple-host.app",
       "description": "Describe a website and it goes online at its own address. Claude builds the site and publishes it to simple-host.app through the Simple Host connector: pages, a small shared backend for saves and sign-ups, visitor analytics, and your own domain when you want one."
     },
     {
       "name": "website-deploy",
       "source": "./simple-host-website",
-      "version": "0.19.1",
+      "version": "0.19.2",
       "homepage": "https://simple-host.app",
       "description": "Superseded by the simple-host plugin (Simple Host) \u2014 install that one instead; it bundles these same skills plus the Simple Host connector. Kept so existing installs keep updating. Deploy static websites to simple-host.app from your coding agent (inline JSON or tar.gz/zip). Every site lives at its own address, https://<site>.<handle>.simple-host.app/, and gets a per-site backend (shared JSON state with atomic ops, append-only collections) and built-in server-side visitor analytics, and can be connected to your own custom domain \u2014 subdomain via CNAME or apex via A record. Pages and public lists are readable by anyone; visitors sign in with Google or an emailed code before saving from a page, and a collection can be made private so only the owner reads it; agents write with an API key anywhere. Bundles a builder skill (plan what to build) and a connect-domain skill."
     }
