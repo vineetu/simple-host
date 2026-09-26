@@ -10,6 +10,6 @@
         <a href="{{.Base}}/architecture.html"{{if eq .Current "architecture"}} aria-current="page"{{end}}>Architecture</a>
         <a href="{{.Base}}/privacy.html"{{if eq .Current "privacy"}} aria-current="page"{{end}}>Privacy</a>
       </nav>
-      <p class="sh-credit">With thanks to Jacob Cole and Tejas D Channappa.</p>
+      {{if ne .Current "enterprise"}}<p class="sh-credit">With thanks to Jacob Cole and Tejas D Channappa.</p>{{end}}
     </div>
   </footer>
