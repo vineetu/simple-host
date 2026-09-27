@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	db "github.com/vsriram/simple-host/internal/db"
 )
@@ -117,4 +118,40 @@ func TestPageInfoRestoreKeepsOneDocument(t *testing.T) {
 	if d, _ := got["data"].(map[string]any); d["v"] != float64(1) {
 		t.Fatalf("restored document: %v", got)
 	}
+}
+
+// L1: ids and cursors past 2^31 are ordinary numbers, not a 500.
+func TestBigIDsAndCursors(t *testing.T) {
+	s := newKindsSite(t, true)
+	ctx := context.Background()
+	const big = int64(3000000000)
+	d := s.a.database
+	if _, err := db.ListCollectionItemsByID(ctx, d, s.shopID, "guestbook", 10, big, false); err != nil {
+		t.Fatalf("list before: %v", err)
+	}
+	if _, err := db.ListHistory(ctx, d, s.shopID, db.HistoryList, "guestbook", 10, big); err != nil {
+		t.Fatalf("history before: %v", err)
+	}
+	if n, err := db.UndeleteItems(ctx, d, s.shopID, "guestbook", big, db.Actor{}, 0, false, 0, 0); err != nil || n != 0 {
+		t.Fatalf("undelete: %d %v", n, err)
+	}
+	if _, err := db.ListDeletedItems(ctx, d, s.shopID, "guestbook", 10, db.DeletedCursor{At: time.Now(), ID: big}); err != nil {
+		t.Fatalf("deleted cursor: %v", err)
+	}
+	if n, err := db.PurgeDeletedItems(ctx, d, s.shopID, "guestbook", big); err != nil || n != 0 {
+		t.Fatalf("purge: %d %v", n, err)
+	}
+	vicID, _ := s.a.userID(t, s.vic)
+	if _, err := db.ListOwnEntries(ctx, d, s.shopID, "guestbook", vicID, 10, big); err != nil {
+		t.Fatalf("own entries before: %v", err)
+	}
+	if _, err := db.ListItemHistory(ctx, d, s.shopID, "guestbook", big, 10, big); err != nil {
+		t.Fatalf("item history before: %v", err)
+	}
+	// Over HTTP: the public list, and a restore or purge of an id nobody has.
+	if r := s.a.at(t, "GET", s.dom, "/v1/sites/shop/collections/guestbook?before=3000000000", nil, nil); r.status != 200 {
+		t.Fatalf("public list before: %d %s", r.status, r.body)
+	}
+	wantCode(t, "restore big id", s.owner(t, "POST", "/v1/sites/shop/collections/guestbook/items/3000000000/restore", nil), 404, "not_found")
+	wantCode(t, "purge big id", s.owner(t, "DELETE", "/v1/sites/shop/collections/guestbook/deleted/3000000000", nil), 404, "")
 }

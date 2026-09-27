@@ -85,7 +85,7 @@ func ListCollectionItemsByID(ctx context.Context, db *sql.DB, siteID, collection
 		WHERE site_id = $1
 		  AND collection = $2
 		  AND deleted_at IS NULL
-		  AND ($3 = 0 OR id < $3)
+		  AND ($3::bigint = 0 OR id < $3)
 		ORDER BY id DESC
 		LIMIT $4`
 	rows, err := db.QueryContext(ctx, q, siteID, collection, before, limit)

@@ -362,7 +362,7 @@ func ListHistory(ctx context.Context, database *sql.DB, siteID, kind, name strin
 		SELECT id, item_id, op, `+byExpr+`, actor_kind, created_at,
 		       COALESCE(octet_length(prev::text), octet_length(diff::text), 0)
 		  FROM data_history
-		 WHERE site_id = $1 AND kind = $2 AND name = $3 AND ($4 = 0 OR id < $4)
+		 WHERE site_id = $1 AND kind = $2 AND name = $3 AND ($4::bigint = 0 OR id < $4)
 		 ORDER BY id DESC
 		 LIMIT $5`, siteID, kind, name, before, limit)
 	if err != nil {
@@ -537,7 +537,7 @@ func UndeleteItems(ctx context.Context, database *sql.DB, siteID, collection str
 	err = tx.QueryRowContext(ctx, `
 		WITH back AS (
 			UPDATE collection_items SET deleted_at = NULL
-			 WHERE site_id = $1 AND collection = $2 AND deleted_at IS NOT NULL AND ($3 = 0 OR id = $3)
+			 WHERE site_id = $1 AND collection = $2 AND deleted_at IS NOT NULL AND ($3::bigint = 0 OR id = $3)
 			   AND (NOT $7 OR (SELECT h.op FROM data_history h WHERE h.item_id = collection_items.id
 			                    ORDER BY h.id DESC LIMIT 1) = 'clear')
 			   AND ($8 = 0 OR deleted_at >= now() - make_interval(secs => $8))
@@ -710,7 +710,7 @@ func ListDeletedItems(ctx context.Context, database *sql.DB, siteID, collection 
 		SELECT id, data, created_at, deleted_at, `+authorExpr+`
 		  FROM collection_items
 		 WHERE site_id = $1 AND collection = $2 AND deleted_at IS NOT NULL
-		   AND ($3 = 0 OR (deleted_at, id) < ($4, $3))
+		   AND ($3::bigint = 0 OR (deleted_at, id) < ($4, $3))
 		 ORDER BY deleted_at DESC, id DESC
 		 LIMIT $5`, siteID, collection, after.ID, after.At, limit)
 	if err != nil {
@@ -738,7 +738,7 @@ func ListDeletedItems(ctx context.Context, database *sql.DB, siteID, collection 
 func PurgeDeletedItems(ctx context.Context, database *sql.DB, siteID, collection string, id int64) (int64, error) {
 	res, err := database.ExecContext(ctx, `
 		DELETE FROM collection_items
-		 WHERE site_id = $1 AND collection = $2 AND deleted_at IS NOT NULL AND ($3 = 0 OR id = $3)`, siteID, collection, id)
+		 WHERE site_id = $1 AND collection = $2 AND deleted_at IS NOT NULL AND ($3::bigint = 0 OR id = $3)`, siteID, collection, id)
 	if err != nil {
 		return 0, err
 	}

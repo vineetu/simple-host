@@ -432,7 +432,7 @@ func ListOwnEntries(ctx context.Context, database *sql.DB, siteID, name, userID 
 	rows, err := database.QueryContext(ctx, `
 		SELECT id, data, created_at FROM collection_items
 		 WHERE site_id = $1 AND collection = $2 AND submitted_by = $3 AND deleted_at IS NULL
-		   AND ($4 = 0 OR id < $4)
+		   AND ($4::bigint = 0 OR id < $4)
 		 ORDER BY id DESC LIMIT $5`, siteID, name, userID, before, limit)
 	if err != nil {
 		return nil, err
@@ -728,7 +728,7 @@ func ListItemHistory(ctx context.Context, database *sql.DB, siteID, name string,
 		SELECT id, item_id, op, `+byExpr+`, actor_kind, created_at,
 		       COALESCE(octet_length(prev::text), octet_length(diff::text), 0)
 		  FROM data_history
-		 WHERE site_id = $1 AND kind = 'list' AND name = $2 AND item_id = $3 AND ($4 = 0 OR id < $4)
+		 WHERE site_id = $1 AND kind = 'list' AND name = $2 AND item_id = $3 AND ($4::bigint = 0 OR id < $4)
 		 ORDER BY id DESC
 		 LIMIT $5`, siteID, name, itemID, before, limit)
 	if err != nil {
