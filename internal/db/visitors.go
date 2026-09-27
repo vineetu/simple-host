@@ -195,6 +195,16 @@ func DeleteVisitorSession(ctx context.Context, q Querier, id []byte) error {
 	return err
 }
 
+// EndVisitorSessions signs the account out of every site it is signed in to
+// as a visitor, its own sites included (where such a session carries the
+// owner's powers over saved data). Every "get an intruder out" lever calls
+// it: Sign out everywhere, email-change completion and undo, the admin's new
+// key, removing a Google or GitHub sign-in, and suspension.
+func EndVisitorSessions(ctx context.Context, q Querier, userID string) error {
+	_, err := q.ExecContext(ctx, `DELETE FROM visitor_sessions WHERE user_id = $1`, userID)
+	return err
+}
+
 // InsertEstablishToken stores the one-time bounce token for Set-Cookie,
 // bound to the nonce hash of the browser that started the sign-in.
 func InsertEstablishToken(ctx context.Context, q Querier, once string, sessionID []byte, host, returnTo string, nonceHash sql.NullString, expiresAt time.Time) error {

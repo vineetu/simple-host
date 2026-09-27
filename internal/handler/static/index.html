@@ -941,7 +941,7 @@
   <div class="app-bar" id="user-actions" style="display:none">
     <div class="container">
       <span class="user-badge" id="username-display"></span>
-      <button class="btn-ghost" data-act="rotateAPIKey" title="Every key stops working and connected apps are disconnected; this browser gets a new key">Sign out everywhere</button>
+      <button class="btn-ghost" data-act="rotateAPIKey" title="Every key stops working, connected apps are disconnected and sign-ins on your sites end; this browser gets a new key">Sign out everywhere</button>
       <button class="btn-ghost" data-act="logout">Sign out</button>
     </div>
   </div>
@@ -2195,7 +2195,7 @@ function parseAnalyticsSummary(data) {
     }
 
     async function rotateAPIKey() {
-      if (!confirm('Sign out everywhere? Every key on this account stops working, and connected apps (ChatGPT, Claude, Grok) are disconnected. This browser stays signed in; your agents will need the new key.')) return;
+      if (!confirm('Sign out everywhere? Every key on this account stops working, and connected apps (ChatGPT, Claude, Grok) are disconnected, and every sign-in on your sites ends. This browser stays signed in; your agents will need the new key.')) return;
       const res = await api('POST', '/v1/me/api-key/rotate');
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {

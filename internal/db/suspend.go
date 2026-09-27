@@ -36,8 +36,9 @@ func SetSiteSuspended(ctx context.Context, q Querier, siteID, reason string) err
 }
 
 // SetUserSuspended suspends an account (reason non-empty) or re-enables it
-// (reason empty). Keys, connector grants and sessions are kept; the checks
-// that read users.suspended_at refuse them while it is set.
+// (reason empty). Keys and connector grants are kept; the checks that read
+// users.suspended_at refuse them while it is set. Suspending also ends every
+// site sign-in of the account (EndVisitorSessions): nothing re-enables them.
 func SetUserSuspended(ctx context.Context, q Querier, userID, reason string) error {
 	var res sql.Result
 	var err error
@@ -54,6 +55,9 @@ func SetUserSuspended(ctx context.Context, q Querier, userID, reason string) err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return sql.ErrNoRows
+	}
+	if reason != "" {
+		return EndVisitorSessions(ctx, q, userID)
 	}
 	return nil
 }

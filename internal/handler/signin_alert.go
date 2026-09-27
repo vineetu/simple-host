@@ -140,7 +140,7 @@ From: "%s" (as reported by the browser or app)
 
 If this was you, there is nothing to do.
 
-If it wasn't, open %s and press "Sign out everywhere": every key stops working and every connected app is disconnected. Then write to support@simple-host.app.
+If it wasn't, open %s and press "Sign out everywhere": every key stops working, every connected app is disconnected and every sign-in on your sites ends. Then write to support@simple-host.app.
 
 You can turn these emails off on the same page.
 

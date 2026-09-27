@@ -136,7 +136,8 @@ func GetUserByAPIKey(ctx context.Context, db *sql.DB, apiKey string) (User, erro
 	return user, err
 }
 
-// RotateAPIKey replaces every key the account holds with newKey, but only if
+// RotateAPIKey replaces every key the account holds with newKey and ends
+// every site sign-in of the account (EndVisitorSessions), but only if
 // the key the request was made with (currentKeyHash) is still one of them, so
 // two concurrent rotations cannot both succeed.
 func RotateAPIKey(ctx context.Context, db *sql.DB, userID, currentKeyHash, newKey, name string) error {
@@ -157,6 +158,9 @@ func RotateAPIKey(ctx context.Context, db *sql.DB, userID, currentKeyHash, newKe
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM api_keys WHERE user_id = $1`, userID); err != nil {
+		return err
+	}
+	if err := EndVisitorSessions(ctx, tx, userID); err != nil {
 		return err
 	}
 	if err := AddAPIKey(ctx, tx, userID, newKey, name); err != nil {

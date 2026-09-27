@@ -18,6 +18,11 @@ import (
 // saved data or the account. /mcp is listed because the MCP server serves
 // each tool call back through this same gate as the caller, so a tool is
 // allowed exactly when the REST route behind it is.
+//
+// The scope limits what the key itself can call, not what the pages it
+// publishes do: a deploy key can publish code that runs when the owner opens
+// their own site, where a signed-in owner has powers over its saved data.
+// Every place a deploy key is made says so ("treat it like the site itself").
 var deployRoutes = map[string]bool{
 	"GET /v1/sites":                                               true,
 	"POST /v1/sites/{sitename}":                                   true,

@@ -863,6 +863,7 @@
             <option value="365">in 1 year</option>
           </select></label>
         </div>
+        <p class="conn-note">A deploy key can publish code that runs when you open your own site; treat it like the site itself.</p>
         <div class="key-shown" id="key-shown" hidden>
           <span id="key-shown-note">Copy this key now. It is not shown again.</span>
           <code id="key-shown-value"></code>
@@ -1328,7 +1329,7 @@ function parseAnalyticsSummary(data) {
       // "Sign out everywhere" is rotate: every key and connected app is cut
       // off, and this browser keeps working with the one new key.
       document.getElementById('keys-signout-all').addEventListener('click', async function () {
-        if (!confirm('Sign out everywhere? Every key on this account stops working, and connected apps (ChatGPT, Claude, Grok) are disconnected. This browser stays signed in; your agents will need the new key.')) return;
+        if (!confirm('Sign out everywhere? Every key on this account stops working, and connected apps (ChatGPT, Claude, Grok) are disconnected, and every sign-in on your sites ends. This browser stays signed in; your agents will need the new key.')) return;
         var res, body = {};
         try { res = await api('POST', '/v1/me/api-key/rotate'); body = await res.json().catch(function () { return {}; }); } catch (err) {}
         if (!res || !res.ok) { toast(body.error || 'Could not sign out everywhere. Try again.', 'error'); return; }

@@ -62,6 +62,8 @@ func EmailChangeUndoTTL() time.Duration { return lim().EmailChangeUndoTTL }
 //     that made the change);
 //   - ends the account's emailed idle-cleanup links (they went to the old
 //     address);
+//   - ends every site sign-in of the account (EndVisitorSessions): whoever
+//     made the change may have signed in on the owner's own sites;
 //   - records the undo link (undoHash) the old address is sent, valid for
 //     EmailChangeUndoTTL.
 //
@@ -76,6 +78,7 @@ func ApplyEmailChange(ctx context.Context, tx *sql.Tx, userID, oldEmail, newEmai
 		{`UPDATE users SET username = $2 WHERE id = $1`, []any{userID, newEmail}},
 		{`DELETE FROM email_changes WHERE user_id = $1`, []any{userID}},
 		{`DELETE FROM api_keys WHERE user_id = $1 AND key_hash <> $2`, []any{userID, keepKeyHash}},
+		{`DELETE FROM visitor_sessions WHERE user_id = $1`, []any{userID}},
 		{`INSERT INTO email_change_undos (token_hash, user_id, old_email, new_email, expires_at)
 		  VALUES ($1, $2, $3, $4, now() + ($5 * interval '1 second'))`, []any{undoHash, userID, oldEmail, newEmail, int64(EmailChangeUndoTTL().Seconds())}},
 	}
@@ -109,7 +112,8 @@ var ErrUndoAddressTaken = errors.New("the old address belongs to another account
 
 // UndoEmailChange puts the account back on the old address ("this wasn't
 // me"), in one transaction: every API key is revoked (whoever made the change
-// holds one), Google/GitHub sign-ins and connected apps added since the change
+// holds one), every site sign-in ends, Google/GitHub sign-ins and connected
+// apps added since the change
 // are removed, pending changes, emailed codes for the address it had and
 // idle-cleanup links end, and every undo link of the account is spent.
 // sql.ErrNoRows when the link is unknown, used or expired; ErrUndoAddressTaken
@@ -144,6 +148,7 @@ func UndoEmailChange(ctx context.Context, database *sql.DB, tokenHash string) (E
 		{`UPDATE auth_tokens SET used_at = now() WHERE email = $1 AND used_at IS NULL`, []any{current}},
 		{`UPDATE users SET username = $2 WHERE id = $1`, []any{u.UserID, u.OldEmail}},
 		{`DELETE FROM api_keys WHERE user_id = $1`, []any{u.UserID}},
+		{`DELETE FROM visitor_sessions WHERE user_id = $1`, []any{u.UserID}},
 		{`DELETE FROM oauth_identities WHERE user_id = $1 AND created_at >= $2`, []any{u.UserID, u.ChangedAt}},
 		{`DELETE FROM oauth_grants WHERE user_id = $1 AND created_at >= $2`, []any{u.UserID, u.ChangedAt}},
 		{`DELETE FROM email_changes WHERE user_id = $1`, []any{u.UserID}},

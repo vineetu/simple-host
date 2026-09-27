@@ -117,7 +117,9 @@ Do not upload a source tree for a project that has a build step. Upload the
 production build output.
 
 **Redeploy on every push (CI):** `PUT` with `?create=1` creates or updates in
-one call; use a deploy-only key as the CI secret. GitHub Actions recipe:
+one call; use a deploy-only key as the CI secret. A deploy key can publish
+code that runs when the person opens their own site; tell them to treat it like
+the site itself. GitHub Actions recipe:
 `references/operations.md` §Deploy from CI.
 
 ## Saving from a page: visitors sign in

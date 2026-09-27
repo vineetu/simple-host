@@ -291,9 +291,23 @@ func ListSignInIdentities(ctx context.Context, database *sql.DB, userID string) 
 // UnlinkSignInIdentity removes one of the account's linked Google/GitHub
 // sign-ins: that Google or GitHub account no longer signs in here.
 // sql.ErrNoRows when the account has no such link.
+// Every site sign-in of the account ends with it (EndVisitorSessions): a
+// session cannot say which sign-in made it, and removing one is how a person
+// shuts out whoever used it.
 func UnlinkSignInIdentity(ctx context.Context, database *sql.DB, userID, id string) error {
-	res, err := database.ExecContext(ctx, `DELETE FROM oauth_identities WHERE user_id = $1 AND id::text = $2`, userID, id)
-	return oneRow(res, err)
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	res, err := tx.ExecContext(ctx, `DELETE FROM oauth_identities WHERE user_id = $1 AND id::text = $2`, userID, id)
+	if err := oneRow(res, err); err != nil {
+		return err
+	}
+	if err := EndVisitorSessions(ctx, tx, userID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // VisitorSignIn is a site this person is signed in to as a visitor.

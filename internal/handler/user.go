@@ -182,7 +182,7 @@ func (h *UserHandler) rotateAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]string{
 		"api_key": newKey,
-		"message": "API key rotated. The old key no longer works; update your agent or CLI with this new key. Connected apps (ChatGPT, Claude, Grok) were disconnected; reconnect the ones you use.",
+		"message": "API key rotated. The old key no longer works; update your agent or CLI with this new key. Connected apps (ChatGPT, Claude, Grok) were disconnected and sign-ins on your sites ended; reconnect the ones you use.",
 	})
 }
 

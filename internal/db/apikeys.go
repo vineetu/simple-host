@@ -236,9 +236,13 @@ func DeleteAPIKeyByHash(ctx context.Context, q Querier, userID, keyHash string) 
 
 // ReplaceAPIKeys removes every key an account holds and stores newKey as its
 // only one. Unlike RotateAPIKey it needs no current key: the admin uses it to
-// reissue a participant's lost key. Run it inside the caller's transaction.
+// reissue a participant's lost key. Every site sign-in of the account ends
+// too (EndVisitorSessions). Run it inside the caller's transaction.
 func ReplaceAPIKeys(ctx context.Context, q Querier, userID, newKey, name string) error {
 	if _, err := q.ExecContext(ctx, `DELETE FROM api_keys WHERE user_id = $1`, userID); err != nil {
+		return err
+	}
+	if err := EndVisitorSessions(ctx, q, userID); err != nil {
 		return err
 	}
 	return AddAPIKey(ctx, q, userID, newKey, name)

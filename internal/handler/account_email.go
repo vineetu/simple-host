@@ -303,7 +303,7 @@ func (h *UserHandler) emailOldAddress(oldEmail, newEmail, undoToken string) {
 If this wasn't you, undo it (opens a page with an Undo button; works for ` + config.Span(db.EmailChangeUndoTTL()) + `):
 ` + h.undoLink(undoToken) + `
 
-Undoing puts the account back on this address, signs out every key, and removes Google or GitHub sign-ins and connected apps added since the change. Questions: support@simple-host.app.
+Undoing puts the account back on this address, signs out every key and every sign-in on sites, and removes Google or GitHub sign-ins and connected apps added since the change. Questions: support@simple-host.app.
 
 Simple Host
 `
