@@ -97,7 +97,11 @@ func TestAddressStateFromIssuerFiles(t *testing.T) {
 	}
 	// The site list carries it on the site, with that site's addresses.
 	r := a.at(t, "GET", "simple-host.test", "/v1/sites", nil, okey)
-	if !strings.Contains(string(r.body), `"address_state":{"address":"https://shop.`+oh+`.`+pcSiteDomain+`/","interim_address":"https://`+oh+`.`+pcSiteDomain+`/shop/"`) {
+	var listed []struct {
+		AddressState map[string]any `json:"address_state"`
+	}
+	if err := json.Unmarshal(r.body, &listed); err != nil || len(listed) == 0 || listed[0].AddressState["address"] != "https://shop."+oh+"."+pcSiteDomain+"/" ||
+		listed[0].AddressState["interim_address"] != "https://"+oh+"."+pcSiteDomain+"/shop/" {
 		t.Fatalf("site list: %s", r.body)
 	}
 	// Failing: the issuer's failure marker, retried after its wait.

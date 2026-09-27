@@ -225,13 +225,11 @@ func TestPrivateCollectionsEndToEnd(t *testing.T) {
 	}
 	// The site list carries what the owner app shows for a pending domain
 	// (its DNS record and expiry) and when the site was last deployed.
-	var listed struct {
-		Data []map[string]any `json:"data"`
-	}
-	if r := a.at(t, "GET", apex, "/v1/sites", nil, okey); r.status != 200 || json.Unmarshal([]byte(r.body), &listed) != nil || len(listed.Data) != 2 {
+	var listed []map[string]any
+	if r := a.at(t, "GET", apex, "/v1/sites", nil, okey); r.status != 200 || json.Unmarshal([]byte(r.body), &listed) != nil || len(listed) != 2 {
 		t.Fatalf("list sites: %d %s", r.status, r.body)
 	}
-	for _, st := range listed.Data {
+	for _, st := range listed {
 		switch st["name"] {
 		case "plain":
 			dns, _ := st["domain_dns"].(map[string]any)

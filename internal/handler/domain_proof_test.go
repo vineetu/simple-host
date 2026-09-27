@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
@@ -61,7 +62,11 @@ func TestDomainNeedsTXTProof(t *testing.T) {
 		t.Fatalf("bind: %d %s (token %q)", r.status, r.body, info.Token)
 	}
 	list := a.at(t, "GET", pcSiteDomain, "/v1/sites", nil, key)
-	if !strings.Contains(string(list.body), `"domain_dns_txt":{"host":"_simple-host.`+dom+`","type":"TXT","value":"`+info.Token+`"}`) {
+	var listed []struct {
+		TXT map[string]any `json:"domain_dns_txt"`
+	}
+	if err := json.Unmarshal(list.body, &listed); err != nil || len(listed) != 1 ||
+		listed[0].TXT["host"] != "_simple-host."+dom || listed[0].TXT["type"] != "TXT" || listed[0].TXT["value"] != info.Token {
 		t.Fatalf("site list lacks the TXT record: %s", list.body)
 	}
 
