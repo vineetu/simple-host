@@ -330,7 +330,7 @@ func (h *SiteHandler) setCollectionPrivacy(w http.ResponseWriter, r *http.Reques
 		resp["domain"] = home.Host
 		resp["message"] = "Private: visitors signed in on https://" + home.Host + " can add to it; only you can read it."
 	} else {
-		resp["message"] = "Public: anyone can read this list again, including everything already in it."
+		resp["message"] = "Public: anyone can read this list again, including everything already in it. Who sent each entry (their email) stays private: only you see it."
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
