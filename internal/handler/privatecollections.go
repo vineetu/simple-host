@@ -246,7 +246,7 @@ func (h *SiteHandler) appendPrivate(w http.ResponseWriter, r *http.Request, site
 	if err := dec.Decode(&fields); err != nil || fields == nil || dec.More() {
 		var maxErr *http.MaxBytesError
 		if errors.As(err, &maxErr) {
-			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large"})
+			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large", Code: "item_too_large"})
 			return
 		}
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "a private list takes one JSON object per item"})
@@ -267,7 +267,10 @@ func (h *SiteHandler) appendPrivate(w http.ResponseWriter, r *http.Request, site
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid item"})
 		return
 	}
-	item, err := db.AppendSubmittedItemByID(r.Context(), h.database, siteID, coll, body, sess.UserID)
+	if !h.siteHasRoom(w, r, siteID, len(body)) {
+		return
+	}
+	item, err := db.AppendSubmittedItemByID(r.Context(), h.database, siteID, coll, body, sess.UserID, email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
@@ -277,6 +280,7 @@ func (h *SiteHandler) appendPrivate(w http.ResponseWriter, r *http.Request, site
 		return
 	}
 	_ = db.TouchVisitorSession(r.Context(), h.database, sess.ID)
+	h.watchItemSize(r.Context(), siteID, len(body))
 	writeJSON(w, http.StatusCreated, item)
 }
 
@@ -460,7 +464,7 @@ func (h *SiteHandler) updatePrivateItem(w http.ResponseWriter, r *http.Request) 
 	if err := dec.Decode(&patch); err != nil || patch == nil || dec.More() {
 		var maxErr *http.MaxBytesError
 		if errors.As(err, &maxErr) {
-			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large"})
+			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large", Code: "item_too_large"})
 			return
 		}
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `send a JSON object of the fields to change, e.g. {"status": "done"}`})
@@ -468,7 +472,7 @@ func (h *SiteHandler) updatePrivateItem(w http.ResponseWriter, r *http.Request) 
 	}
 	errTooLarge := errors.New("too large")
 	errNotObject := errors.New("not an object")
-	item, err := db.UpdateCollectionItemByID(r.Context(), h.database, siteID, coll, id, func(old json.RawMessage) (json.RawMessage, error) {
+	item, err := db.UpdateCollectionItemByID(r.Context(), h.database, siteID, coll, id, h.managerActor(r, siteID), func(old json.RawMessage) (json.RawMessage, error) {
 		var fields map[string]json.RawMessage
 		if err := json.Unmarshal(old, &fields); err != nil || fields == nil {
 			return nil, errNotObject
@@ -496,7 +500,7 @@ func (h *SiteHandler) updatePrivateItem(w http.ResponseWriter, r *http.Request) 
 	case errors.Is(err, sql.ErrNoRows):
 		writePrivateNotFound(w)
 	case errors.Is(err, errTooLarge):
-		writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large"})
+		writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large", Code: "item_too_large"})
 	case errors.Is(err, errNotObject):
 		writeJSON(w, http.StatusConflict, errorResponse{Error: "this item is not a JSON object, so it has no fields to change; delete it instead", Code: "not_an_object"})
 	case err != nil:
@@ -506,13 +510,14 @@ func (h *SiteHandler) updatePrivateItem(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-// deletePrivateItem is DELETE .../collections/{coll}/items/{id}: gone for good.
+// deletePrivateItem is DELETE .../collections/{coll}/items/{id}: the item
+// moves to the list's Recently deleted, restorable for SAVED_DATA_UNDO_DAYS.
 func (h *SiteHandler) deletePrivateItem(w http.ResponseWriter, r *http.Request) {
 	siteID, coll, id, ok := h.privateItemTarget(w, r)
 	if !ok {
 		return
 	}
-	found, err := db.DeleteCollectionItemByID(r.Context(), h.database, siteID, coll, id)
+	found, err := db.SoftDeleteItem(r.Context(), h.database, siteID, coll, id, h.managerActor(r, siteID))
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -525,7 +530,8 @@ func (h *SiteHandler) deletePrivateItem(w http.ResponseWriter, r *http.Request) 
 }
 
 // clearCollection is DELETE /v1/sites/{sitename}/collections/{coll}: the owner
-// (or the platform admin) empties one list, public or private, for good. The
+// (or the platform admin) empties one list, public or private. Its items move
+// to the list's Recently deleted for SAVED_DATA_UNDO_DAYS. The
 // body must repeat the list's name ({"confirm": "<coll>"}) so a stray call
 // cannot wipe a list. The list's private/public setting stays. Visitors can
 // never do this.
@@ -554,10 +560,10 @@ func (h *SiteHandler) clearCollection(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	n, err := db.ClearCollectionByID(r.Context(), h.database, siteID, coll)
+	n, err := db.SoftClearCollection(r.Context(), h.database, siteID, coll, h.managerActor(r, siteID))
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"site": siteName, "collection": coll, "deleted": n})
+	writeJSON(w, http.StatusOK, map[string]any{"site": siteName, "collection": coll, "deleted": n, "restorable_days": h.savedData.UndoDays})
 }

@@ -32,7 +32,7 @@ func TestRecentlyDeletedAndRestore(t *testing.T) {
 	claimed := "olv" + strings.ToLower(strings.TrimPrefix(oh, "olive-")) + "." + pcSiteDomain
 
 	// Saved data and a claimed free address that must survive the round trip.
-	if _, err := db.AppendCollectionItemByID(ctx, a.database, siteID, "rsvps", []byte(`{"name":"Ann"}`)); err != nil {
+	if _, err := db.AppendCollectionItemByID(ctx, a.database, siteID, "rsvps", []byte(`{"name":"Ann"}`), db.Actor{Kind: "anonymous"}); err != nil {
 		t.Fatal(err)
 	}
 	if r := a.at(t, "POST", apex, "/v1/sites/shop/domain", map[string]string{"domain": claimed}, okey); r.status != 200 {

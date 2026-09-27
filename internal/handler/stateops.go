@@ -1,12 +1,16 @@
 package handler
 
 import (
+	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"reflect"
+	"strconv"
 	"strings"
 
 	db "github.com/vsriram/simple-host/internal/db"
@@ -27,7 +31,7 @@ type stateOp struct {
 	Op    string          `json:"op"`
 	Path  string          `json:"path"`
 	Value json.RawMessage `json:"value,omitempty"`
-	By    *float64        `json:"by,omitempty"`
+	By    json.RawMessage `json:"by,omitempty"`
 	Match map[string]any  `json:"match,omitempty"`
 }
 
@@ -57,18 +61,24 @@ func (h *SiteHandler) patchSiteState(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	if !h.visitorWriteOK(w, r, siteID, siteName, writeRouteStatePatch, "") {
+	actor, ok := h.visitorWriteOK(w, r, siteID, siteName, writeRouteStatePatch, "")
+	if !ok {
 		return
 	}
+	actor = h.withAuthorEmail(r.Context(), actor)
 
 	r.Body = http.MaxBytesReader(w, r.Body, maxSiteStateSize)
 	var req struct {
 		Ops []stateOp `json:"ops"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	// UseNumber: numbers keep their exact digits (a large id or a precise
+	// amount is not rounded through float64).
+	dec := json.NewDecoder(r.Body)
+	dec.UseNumber()
+	if err := dec.Decode(&req); err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
-			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "request body too large"})
+			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "request body too large", Code: "item_too_large"})
 			return
 		}
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid JSON body"})
@@ -117,7 +127,10 @@ func (h *SiteHandler) patchSiteState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(newBytes) > maxSiteStateSize {
-		writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "resulting state exceeds size limit"})
+		writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "resulting state exceeds size limit", Code: "item_too_large"})
+		return
+	}
+	if !h.siteHasRoom(w, r, siteID, len(newBytes)) {
 		return
 	}
 
@@ -126,9 +139,17 @@ func (h *SiteHandler) patchSiteState(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	// The document from before goes to the site's history (undo).
+	if err := db.RecordStateChange(r.Context(), tx, siteID, db.OpChange, cur, newBytes, actor); err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
 	if err := tx.Commit(); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
+	}
+	if isVisitorActor(actor) {
+		h.watchVisitorOps(r.Context(), siteID, req.Ops)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -145,7 +166,9 @@ func stateRootObject(cur json.RawMessage) (map[string]any, error) {
 		return map[string]any{}, nil
 	}
 	var root map[string]any
-	if err := json.Unmarshal(cur, &root); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(cur))
+	dec.UseNumber()
+	if err := dec.Decode(&root); err != nil {
 		return nil, err
 	}
 	if root == nil {
@@ -175,19 +198,19 @@ func applyStateOps(root map[string]any, ops []stateOp) error {
 			parent[last] = v
 
 		case "inc":
-			by := 1.0
-			if op.By != nil {
-				by = *op.By
+			by, err := incBy(op.By)
+			if err != nil {
+				return fmt.Errorf("op %d (inc): %v", i, err)
 			}
 			parent, last, err := navigate(root, keys, true)
 			if err != nil {
 				return fmt.Errorf("op %d (inc): %v", i, err)
 			}
-			cur, err := toFloat(parent[last])
+			sum, err := addNumbers(parent[last], by)
 			if err != nil {
 				return fmt.Errorf("op %d (inc): %v", i, err)
 			}
-			parent[last] = cur + by
+			parent[last] = sum
 
 		case "append":
 			v, err := decodeValue(op.Value)
@@ -285,21 +308,58 @@ func decodeValue(raw json.RawMessage) (any, error) {
 		return nil, fmt.Errorf("missing value")
 	}
 	var v any
-	if err := json.Unmarshal(raw, &v); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	if err := dec.Decode(&v); err != nil {
 		return nil, fmt.Errorf("invalid value")
 	}
 	return v, nil
 }
 
-func toFloat(v any) (float64, error) {
-	switch n := v.(type) {
-	case nil:
-		return 0, nil
-	case float64:
-		return n, nil
-	default:
-		return 0, fmt.Errorf("existing value is not a number")
+// incBy is an inc's amount: 1 when it is missing or null, otherwise a JSON
+// number, kept as written.
+func incBy(raw json.RawMessage) (json.Number, error) {
+	t := bytes.TrimSpace(raw)
+	if len(t) == 0 || string(t) == "null" {
+		return "1", nil
 	}
+	if t[0] == '"' {
+		return "", fmt.Errorf("by must be a number")
+	}
+	n := json.Number(t)
+	if _, err := n.Float64(); err != nil {
+		return "", fmt.Errorf("by must be a number")
+	}
+	return n, nil
+}
+
+// addNumbers is inc: whole numbers add exactly (a count past 2^53 stays
+// right); anything else adds as before, in float64. A missing value is 0.
+func addNumbers(cur any, by json.Number) (any, error) {
+	var n json.Number
+	switch v := cur.(type) {
+	case nil:
+		n = "0"
+	case json.Number:
+		n = v
+	case float64:
+		n = json.Number(strconv.FormatFloat(v, 'g', -1, 64))
+	default:
+		return nil, fmt.Errorf("existing value is not a number")
+	}
+	if a, err := strconv.ParseInt(string(n), 10, 64); err == nil {
+		if b, err := strconv.ParseInt(string(by), 10, 64); err == nil {
+			if s := a + b; (b >= 0) == (s >= a) { // no overflow
+				return json.Number(strconv.FormatInt(s, 10)), nil
+			}
+		}
+	}
+	a, err := n.Float64()
+	if err != nil {
+		return nil, fmt.Errorf("existing value is not a number")
+	}
+	b, _ := by.Float64()
+	return a + b, nil
 }
 
 func matchesAll(el map[string]any, match map[string]any) bool {
@@ -307,9 +367,90 @@ func matchesAll(el map[string]any, match map[string]any) bool {
 		return false // an empty match must not delete everything
 	}
 	for k, want := range match {
-		if !reflect.DeepEqual(el[k], want) {
+		if !jsonEqual(el[k], want) {
 			return false
 		}
 	}
 	return true
+}
+
+// jsonEqual compares two decoded JSON values, numbers by value (1 == 1.0),
+// as matching did when every number was a float64.
+func jsonEqual(a, b any) bool {
+	an, aNum := asFloat(a)
+	bn, bNum := asFloat(b)
+	if aNum || bNum {
+		if !aNum || !bNum {
+			return false
+		}
+		ai, aerr := strconv.ParseInt(numberText(a), 10, 64)
+		bi, berr := strconv.ParseInt(numberText(b), 10, 64)
+		if aerr == nil && berr == nil {
+			return ai == bi
+		}
+		return an == bn
+	}
+	switch av := a.(type) {
+	case map[string]any:
+		bv, ok := b.(map[string]any)
+		if !ok || len(av) != len(bv) {
+			return false
+		}
+		for k, v := range av {
+			w, ok := bv[k]
+			if !ok || !jsonEqual(v, w) {
+				return false
+			}
+		}
+		return true
+	case []any:
+		bv, ok := b.([]any)
+		if !ok || len(av) != len(bv) {
+			return false
+		}
+		for i := range av {
+			if !jsonEqual(av[i], bv[i]) {
+				return false
+			}
+		}
+		return true
+	}
+	return reflect.DeepEqual(a, b)
+}
+
+func asFloat(v any) (float64, bool) {
+	switch n := v.(type) {
+	case json.Number:
+		f, err := n.Float64()
+		return f, err == nil
+	case float64:
+		return n, true
+	}
+	return 0, false
+}
+
+func numberText(v any) string {
+	if n, ok := v.(json.Number); ok {
+		return string(n)
+	}
+	return ""
+}
+
+// watchVisitorOps counts a visitor's PATCH ops by type, and increments
+// larger than SAVED_DATA_WATCH_INC_MAX, for the watch.
+func (h *SiteHandler) watchVisitorOps(ctx context.Context, siteID string, ops []stateOp) {
+	counts := map[string]int64{}
+	for _, op := range ops {
+		counts[watchVisitorOp+op.Op]++
+		if op.Op == "inc" {
+			if by, err := incBy(op.By); err == nil {
+				if f, err := by.Float64(); err == nil && math.Abs(f) > float64(h.savedData.WatchIncMax) {
+					counts[watchIncLarge]++
+				}
+			}
+		}
+	}
+	for m, n := range counts {
+		h.watch(ctx, siteID, m, n)
+	}
 }

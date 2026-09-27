@@ -115,7 +115,7 @@ func rateLimitByIP(rl *rateLimiter, next http.Handler) http.Handler {
 
 func tooManyRequests(w http.ResponseWriter) {
 	w.Header().Set("Retry-After", "60")
-	writeJSON(w, http.StatusTooManyRequests, errorResponse{Error: "rate limit exceeded, slow down"})
+	writeJSON(w, http.StatusTooManyRequests, errorResponse{Error: "rate limit exceeded, slow down", Code: "rate_limited"})
 }
 
 // SecurityHeaders adds X-Content-Type-Options: nosniff to every response.

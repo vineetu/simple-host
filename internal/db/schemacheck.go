@@ -35,7 +35,11 @@ var requiredColumns = map[string][]string{
 	"site_name_aliases": {"user_id", "name", "site_id"},
 	// cp-proof-domain-ownership.sql (also the two domain_* columns above)
 	"domain_cert_requests": {"user_id", "domain", "requested_at"},
-	"collection_items":     {"id", "site_id", "collection", "data", "submitted_by"},
+	// sd1-saved-data-safety.sql adds deleted_at, submitted_email and the three tables below.
+	"collection_items": {"id", "site_id", "collection", "data", "submitted_by", "deleted_at", "submitted_email"},
+	"data_history":     {"id", "site_id", "kind", "name", "item_id", "op", "prev", "actor_id", "actor_kind", "actor_email", "created_at"},
+	"idempotency_keys": {"scope", "status", "content_type", "etag", "body", "created_at"},
+	"data_watch":       {"day", "site_id", "metric", "count", "last_at"},
 	// private-collections.sql
 	"collection_settings": {"site_id", "collection", "private"},
 	"site_view_hourly":    {"site_id", "hour", "class", "views"},

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"crypto/subtle"
 	"database/sql"
 	"encoding/csv"
@@ -61,7 +62,8 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 		h.appendPrivate(w, r, siteID, siteName, coll)
 		return
 	}
-	if !h.visitorWriteOK(w, r, siteID, siteName, writeRouteCollectionPost, coll) {
+	actor, ok := h.visitorWriteOK(w, r, siteID, siteName, writeRouteCollectionPost, coll)
+	if !ok {
 		return
 	}
 
@@ -70,7 +72,7 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		var maxErr *http.MaxBytesError
 		if errors.As(err, &maxErr) {
-			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large"})
+			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large", Code: "item_too_large"})
 			return
 		}
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
@@ -80,8 +82,20 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "body must be a JSON value"})
 		return
 	}
+	if !h.siteHasRoom(w, r, siteID, len(body)) {
+		return
+	}
+	// The watch: a visitor starting a list name nobody used before.
+	newName := false
+	if isVisitorActor(actor) {
+		if used, err := db.CollectionNameUsed(r.Context(), h.database, siteID, coll); err == nil && !used {
+			newName = true
+		}
+	}
 
-	item, err := db.AppendCollectionItemByID(r.Context(), h.database, siteID, coll, json.RawMessage(body))
+	// Who sent it is kept with the item (the owner sees it; public reads
+	// never do). Nothing in the item itself changes.
+	item, err := db.AppendCollectionItemByID(r.Context(), h.database, siteID, coll, json.RawMessage(body), h.withAuthorEmail(r.Context(), actor))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
@@ -90,7 +104,18 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	if newName {
+		h.watch(r.Context(), siteID, watchNewList, 1)
+	}
+	h.watchItemSize(r.Context(), siteID, len(body))
 	writeJSON(w, http.StatusCreated, item)
+}
+
+// watchItemSize counts a list item larger than SAVED_DATA_WATCH_ITEM_KB.
+func (h *SiteHandler) watchItemSize(ctx context.Context, siteID string, size int) {
+	if size > h.savedData.WatchItemKB<<10 {
+		h.watch(ctx, siteID, watchItemLarge, 1)
+	}
 }
 
 func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
@@ -171,7 +196,10 @@ func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
 		before = v
 	}
 
-	items, err := db.ListCollectionItemsByID(r.Context(), h.database, siteID, coll, limit, before)
+	// Who sent each item: the owner's key (or the admin's), or the owner
+	// signed in on the site's own address, only.
+	withAuthor := ownerKey || h.ownerBrowserView(r, siteID)
+	items, err := db.ListCollectionItemsByID(r.Context(), h.database, siteID, coll, limit, before, withAuthor)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -186,7 +214,7 @@ func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
 	// emails (_submitted_by). They stay private: only the owner's key (or
 	// the admin's), or the owner signed in on the site's own address, sees
 	// them. A private list's reader is already the owner.
-	if !private && !ownerKey && !h.ownerBrowserView(r, siteID) {
+	if !private && !withAuthor {
 		for i := range items {
 			items[i].Data = withoutSubmitter(items[i].Data)
 		}
@@ -205,7 +233,7 @@ func (h *SiteHandler) optionsCollection(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-SH-CSRF")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-SH-CSRF, Idempotency-Key")
 	w.Header().Set("Access-Control-Max-Age", "600")
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -382,24 +410,27 @@ func (h *SiteHandler) exportCollectionCSV(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusOK)
 
 	cw := csv.NewWriter(w)
-	header := make([]string, 0, 2+len(keys))
+	header := make([]string, 0, 3+len(keys))
 	header = append(header, "id", "created_at")
 	for _, k := range keys {
 		header = append(header, csvSafe(k))
 	}
+	// Last: who sent each item (the owner's download only).
+	header = append(header, "sent_by")
 	if err := cw.Write(header); err != nil {
 		return
 	}
 
 	n := 0
 	err = db.ForEachCollectionItemByID(r.Context(), h.database, siteID, coll, func(it db.CollectionItem) error {
-		row := make([]string, 2+len(keys))
+		row := make([]string, 3+len(keys))
 		row[0] = strconv.FormatInt(it.ID, 10)
 		row[1] = it.CreatedAt.UTC().Format(time.RFC3339)
 		fields := jsonObjectFields(it.Data)
 		for i, k := range keys {
 			row[2+i] = jsonCSVCell(fields[k])
 		}
+		row[2+len(keys)] = csvSafe(it.By)
 		if err := cw.Write(row); err != nil {
 			return err
 		}

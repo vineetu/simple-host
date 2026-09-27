@@ -225,6 +225,62 @@ type Config struct {
 	// consent page. Both or neither; see internal/handler/reviewer.go.
 	ReviewAccountEmail        string
 	ReviewAccountPasswordHash string
+
+	// SavedData holds the saved-data safety limits (SAVED_DATA_*).
+	SavedData SavedData
+}
+
+// SavedData is every number behind saved-data history, undo, the watch and
+// the limits (saved-data redesign step 1, 2026-09-27). Each is an env knob;
+// the defaults are the approved plan's values.
+type SavedData struct {
+	UndoDays         int // SAVED_DATA_UNDO_DAYS: history and deleted items are kept this long (30)
+	HistoryMaxMB     int // SAVED_DATA_HISTORY_MAX_MB: per-site history cap before thinning (20)
+	SiteMaxMB        int // SAVED_DATA_SITE_MAX_MB: per-site total, history included (50)
+	SweepMinutes     int // SAVED_DATA_SWEEP_MINUTES: how often expired history is removed (15)
+	WatchDays        int // SAVED_DATA_WATCH_DAYS: the watch window before tightening (7)
+	WatchIncMax      int // SAVED_DATA_WATCH_INC_MAX: a visitor inc larger than this is counted as large (10)
+	WatchItemKB      int // SAVED_DATA_WATCH_ITEM_KB: a list item larger than this is counted as large (16)
+	IdempotencyHours int // SAVED_DATA_IDEMPOTENCY_HOURS: how long a write's first answer is replayed (24)
+	ReadPerSec       int // SAVED_DATA_READ_PER_SEC: saved-data reads per second per address (30)
+	ReadBurst        int // SAVED_DATA_READ_BURST: burst above that rate (60)
+}
+
+// DefaultSavedData is the approved plan's values.
+func DefaultSavedData() SavedData {
+	return SavedData{UndoDays: 30, HistoryMaxMB: 20, SiteMaxMB: 50, SweepMinutes: 15, WatchDays: 7,
+		WatchIncMax: 10, WatchItemKB: 16, IdempotencyHours: 24, ReadPerSec: 30, ReadBurst: 60}
+}
+
+// positiveEnv reads a whole number > 0 from name, keeping def when it is
+// unset or not a positive whole number.
+func positiveEnv(name string, def int) int {
+	v := strings.TrimSpace(os.Getenv(name))
+	if v == "" {
+		return def
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 {
+		log.Printf("warning: invalid %s %q; using the default %d", name, v, def)
+		return def
+	}
+	return n
+}
+
+func loadSavedData() SavedData {
+	d := DefaultSavedData()
+	return SavedData{
+		UndoDays:         positiveEnv("SAVED_DATA_UNDO_DAYS", d.UndoDays),
+		HistoryMaxMB:     positiveEnv("SAVED_DATA_HISTORY_MAX_MB", d.HistoryMaxMB),
+		SiteMaxMB:        positiveEnv("SAVED_DATA_SITE_MAX_MB", d.SiteMaxMB),
+		SweepMinutes:     positiveEnv("SAVED_DATA_SWEEP_MINUTES", d.SweepMinutes),
+		WatchDays:        positiveEnv("SAVED_DATA_WATCH_DAYS", d.WatchDays),
+		WatchIncMax:      positiveEnv("SAVED_DATA_WATCH_INC_MAX", d.WatchIncMax),
+		WatchItemKB:      positiveEnv("SAVED_DATA_WATCH_ITEM_KB", d.WatchItemKB),
+		IdempotencyHours: positiveEnv("SAVED_DATA_IDEMPOTENCY_HOURS", d.IdempotencyHours),
+		ReadPerSec:       positiveEnv("SAVED_DATA_READ_PER_SEC", d.ReadPerSec),
+		ReadBurst:        positiveEnv("SAVED_DATA_READ_BURST", d.ReadBurst),
+	}
 }
 
 func Load() (Config, error) {
@@ -360,6 +416,8 @@ func Load() (Config, error) {
 			cfg.IdleCleanupExemptHandles = append(cfg.IdleCleanupExemptHandles, hd)
 		}
 	}
+
+	cfg.SavedData = loadSavedData()
 
 	cfg.PreviewAccounts = map[string]bool{}
 	for _, a := range strings.Split(os.Getenv("PREVIEW_ACCOUNTS"), ",") {

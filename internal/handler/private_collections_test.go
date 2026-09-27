@@ -501,10 +501,11 @@ func TestPrivateCollectionsEndToEnd(t *testing.T) {
 	if n := len(itemsOf(t, a.at(t, "GET", apex, orders, nil, okey))); n != 1 {
 		t.Fatalf("after delete: %d items", n)
 	}
+	// Kept in Recently deleted (restorable) until the undo window passes.
 	var left int
-	_ = a.database.QueryRow(`SELECT count(*) FROM collection_items WHERE id = $1`, spamID).Scan(&left)
-	if left != 0 {
-		t.Fatal("deleted row still stored")
+	_ = a.database.QueryRow(`SELECT count(*) FROM collection_items WHERE id = $1 AND deleted_at IS NOT NULL`, spamID).Scan(&left)
+	if left != 1 {
+		t.Fatal("deleted row not kept as recently deleted")
 	}
 
 	// ---- public collections are unchanged ---------------------------------------
