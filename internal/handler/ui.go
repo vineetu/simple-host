@@ -110,6 +110,11 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	mux.Handle("GET /enterprise/brief", adminUICSP(serveStaticPage("enterprise-brief.html")))
 	mux.Handle("GET /enterprise/architecture", adminUICSP(serveStaticPage("enterprise-architecture.html")))
 	mux.Handle("GET /hackathons", adminUICSP(serveStaticPage("hackathons.html")))
+	// The setup helper: a small-box .env and install command, or Enterprise's
+	// config.env and Secret template, built in the browser from the two
+	// settings lists under static/setup/ (docs/advanced/README.md).
+	mux.Handle("GET /setup", adminUICSP(serveStaticPage("setup-helper.html")))
+	mux.Handle("GET /setup/{$}", http.RedirectHandler("/setup", http.StatusMovedPermanently))
 	// Terms of service and support, linked from plugin directory listings, so
 	// each needs a clean, stable URL.
 	mux.Handle("GET /terms", adminUICSP(serveStaticPage("terms.html")))
@@ -139,11 +144,12 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 // showcase.html are templates that are meaningless — literal __SH_MESSAGE__,
 // unparseable script — until a handler substitutes them.
 var handlerOnlyPages = map[string]bool{
-	"admin.html":     true,
-	"connect.html":   true,
-	"analytics.html": true,
-	"notfound.html":  true,
-	"showcase.html":  true,
+	"admin.html":        true,
+	"connect.html":      true,
+	"analytics.html":    true,
+	"setup-helper.html": true,
+	"notfound.html":     true,
+	"showcase.html":     true,
 }
 
 type handlerOnlyFS struct{ fs.FS }

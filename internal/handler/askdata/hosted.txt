@@ -12,4 +12,6 @@ Accounts: sign in with an emailed six-digit code or Google; no password. Agents 
 
 Pages are always public to anyone with the address; there is no password lock. Only a private list is private. There is no server-side code for site authors: pages run in the visitor's browser.
 
+Running your own: https://simple-host.app/setup is a setup helper that asks a few questions (or every setting, in Advanced mode) and writes the one-line install command and .env for a small box (one server with Docker), or config.env, a secrets template and the apply commands for Simple Host Enterprise on Kubernetes. It runs in the browser and sends nothing anywhere; every setting is explained in docs/advanced/ of each repository.
+
 It is one Go program, one Postgres database and one folder of files. Useful pages: https://simple-host.app/ (start), https://simple-host.app/install.html (get started in your AI app), https://simple-host.app/features (what it does), https://simple-host.app/architecture.html (how it is built), https://simple-host.app/docs.html (API), https://simple-host.app/llms.txt (for agents), https://simple-host.app/privacy.html, https://simple-host.app/terms, https://simple-host.app/support. Contact: support@simple-host.app.

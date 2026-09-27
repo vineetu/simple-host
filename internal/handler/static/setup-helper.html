@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Setup helper — Simple Host</title>
+  <meta name="description" content="Answer a few questions and get the install command and settings for a Simple Host small box, or the Kubernetes configuration for Simple Host Enterprise. Runs in your browser; nothing is sent anywhere.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <!--sh:head-->
+  <style>
+    /* Tokens, base type and the header/footer live in /site.css. This page is
+       light only: the light tokens are pinned here, header and footer too. */
+    html:root, html:root .sh-header, html:root .sh-footer {
+      color-scheme: light;
+      --bg: #f7f8fb; --surface: #ffffff; --grid: #e9edf4; --border: #e2e8f0; --border-hi: #cbd5e1;
+      --text: #0f172a; --text-secondary: #475569; --dim: #94a3b8;
+      --accent: #17336b; --accent-hover: #0e2250; --success: #059669; --error: #e11d48;
+      --header-bg: rgba(255, 255, 255, 0.82); --on-accent: #ffffff;
+    }
+    /* Light only, so the header's theme switch has nothing to do here. */
+    #theme-toggle { display: none; }
+    body { background: var(--bg); color: var(--text); min-height: 100vh; }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+    main { padding: 40px 0 88px; }
+    a { color: var(--accent); text-underline-offset: 3px; }
+    h1 { font-size: clamp(28px, 5vw, 40px); font-weight: 700; letter-spacing: -.02em; line-height: 1.12; margin: 0 0 12px; }
+    h2 { font-size: 22px; font-weight: 700; letter-spacing: -.01em; margin: 0 0 6px; }
+    h3 { font-size: 16px; font-weight: 650; margin: 0 0 4px; }
+    .lede { font-size: 17px; color: var(--text-secondary); line-height: 1.55; margin: 0 0 22px; }
+    .note { font-size: 14px; color: var(--text-secondary); line-height: 1.5; margin: 6px 0 0; }
+    code { font-family: var(--mono); font-size: .9em; background: #eef2f8; padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+
+    /* Progress */
+    .progress { display: flex; gap: 6px; list-style: none; margin: 0 0 28px; padding: 0; counter-reset: p; }
+    .progress li { flex: 1; counter-increment: p; font-size: 13px; color: var(--text-secondary); }
+    .progress li::before { content: ""; display: block; height: 4px; border-radius: 2px; background: var(--border); margin-bottom: 6px; }
+    .progress li.done::before, .progress li.on::before { background: var(--accent); }
+    .progress li.on { color: var(--text); font-weight: 600; }
+    .progress .n::before { content: counter(p) ". "; }
+
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 22px; margin: 0 0 18px; }
+
+    /* Big choices */
+    .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0 4px; }
+    .choice { position: relative; display: block; border: 1.5px solid var(--border-hi); border-radius: 10px; padding: 14px 16px; cursor: pointer; background: var(--surface); }
+    .choice input { position: absolute; opacity: 0; pointer-events: none; }
+    .choice b { display: block; font-size: 16px; margin-bottom: 4px; }
+    .choice span { display: block; font-size: 14px; color: var(--text-secondary); line-height: 1.45; }
+    .choice:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: #f3f6fc; }
+    .choice:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    /* Fields */
+    .field { margin: 0 0 18px; }
+    .field:last-child { margin-bottom: 0; }
+    .field > label, .field > .label { display: block; font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+    .field .name { font-family: var(--mono); font-size: 12px; color: var(--text-secondary); font-weight: 400; margin-left: 6px; overflow-wrap: anywhere; }
+    .field .help { font-size: 14px; color: var(--text-secondary); margin: 0 0 8px; line-height: 1.45; }
+    input[type=text], input[type=email], input[type=number], select {
+      width: 100%; font: inherit; font-size: 16px; color: var(--text); background: #fff;
+      border: 1px solid var(--border-hi); border-radius: 8px; padding: 9px 11px; min-height: 42px;
+    }
+    input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+    input.bad { border-color: var(--error); }
+    .err { color: var(--error); font-size: 13px; margin-top: 4px; }
+    .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+    .opt { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border-hi); border-radius: 999px; padding: 6px 12px; font-size: 14px; cursor: pointer; background: #fff; min-height: 36px; }
+    .opt input { accent-color: var(--accent); margin: 0; }
+    .opt:has(input:checked) { border-color: var(--accent); background: #f3f6fc; font-weight: 600; }
+    .row { display: flex; gap: 8px; align-items: center; }
+    .row input { flex: 1; }
+    .skip { flex: none; font: inherit; font-size: 13px; color: var(--text-secondary); background: none; border: 0; padding: 6px 4px; cursor: pointer; text-decoration: underline; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; color: #8a4b00; background: #fff4e0; border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px; }
+    .secret { font-size: 14px; color: var(--text-secondary); background: #f6f8fb; border: 1px dashed var(--border-hi); border-radius: 8px; padding: 10px 12px; }
+    fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+    legend { padding: 0; }
+
+    /* Buttons */
+    .nav { display: flex; gap: 10px; justify-content: space-between; align-items: center; margin-top: 22px; flex-wrap: wrap; }
+    .btn { font: inherit; font-size: 15px; font-weight: 600; border-radius: 8px; padding: 10px 18px; min-height: 44px; cursor: pointer; border: 1px solid var(--border-hi); background: #fff; color: var(--text); }
+    .btn:hover { border-color: var(--accent); color: var(--accent); }
+    .btn.solid { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+    .btn.solid:hover { background: var(--accent-hover); color: var(--on-accent); }
+    .btn.small { font-size: 13px; padding: 6px 12px; min-height: 34px; }
+
+    /* Output */
+    .out { margin: 0 0 22px; }
+    .out h3 { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .out .acts { display: flex; gap: 6px; }
+    pre { margin: 8px 0 0; background: #0f172a; color: #e2e8f0; border-radius: 10px; padding: 14px 16px; font-family: var(--mono); font-size: 13px; line-height: 1.55; overflow-x: auto; white-space: pre; }
+    ol.steps { margin: 8px 0 0; padding-left: 22px; line-height: 1.6; }
+    ol.steps li { margin-bottom: 6px; }
+    .summary { margin: 8px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--border); }
+    .summary li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+    .summary li span:last-child { font-family: var(--mono); font-size: 13px; text-align: right; overflow-wrap: anywhere; min-width: 0; }
+    .area-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    .area-head .count { font-size: 13px; color: var(--text-secondary); }
+    .privacy { font-size: 13px; color: var(--text-secondary); margin-top: 30px; }
+
+    @media (max-width: 600px) {
+      .wrap { padding: 0 16px; }
+      main { padding-top: 28px; }
+      .choices { grid-template-columns: 1fr; }
+      .card { padding: 16px; }
+      .progress li { font-size: 0; }
+      .progress li.on { font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <!--sh:header-->
+  <main class="wrap">
+    <h1>Set up Simple Host</h1>
+    <p class="lede">Answer a few questions and get what to run: the install command and settings for a small box, or the configuration for Simple Host Enterprise on Kubernetes. Anything you skip keeps its default.</p>
+    <ol class="progress" id="progress" aria-label="Progress">
+      <li class="on"><span class="n">Choose</span></li>
+      <li><span class="n">Basics</span></li>
+      <li><span class="n">Advanced</span></li>
+      <li><span class="n">Your files</span></li>
+    </ol>
+    <div id="app" aria-live="polite">
+      <noscript><p class="card">The setup helper needs JavaScript. Everything it writes is also described in the <a href="https://github.com/vineetu/simple-host/tree/main/docs/advanced">advanced settings docs</a>.</p></noscript>
+    </div>
+    <p class="privacy">This page runs entirely in your browser. Nothing you type is sent anywhere, and it never asks for a password or key: secrets appear as blanks for you to fill in. Every setting is explained in the advanced docs: <a href="https://github.com/vineetu/simple-host/tree/main/docs/advanced">small box</a> · <a href="https://github.com/vineetu/simple-host-enterprise/tree/main/docs/advanced">Enterprise</a>.</p>
+  </main>
+  <!--sh:footer-->
+  <script src="/setup/setup.js"></script>
+</body>
+</html>

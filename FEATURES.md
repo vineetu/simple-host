@@ -533,8 +533,27 @@ Static audience pages shared as direct links. **Status: live.**
 | `GET /enterprise/architecture` | `st/enterprise-architecture.html` |
 | `GET /architecture.html` | `st/architecture.html` (file server) |
 | `GET /hackathons` | see §15 |
+| `GET /setup` | `st/setup-helper.html` + `st/setup/setup.js` (the setup helper, below); `GET /setup/{$}` redirects to it |
 
 Go: `h/ui.go`, `h/chrome.go`. Assets: `st/og.png`, `st/favicon.svg`, `st/site.css`.
+
+**Setup helper (`/setup`).** A page like start.spring.io for running your own: choose **Small box** (one server with
+Docker Compose) or **Enterprise** (Kubernetes), then **Basic** (small box: domain, sites hostname, certificate email,
+sign-in by emailed code and/or Google, sender; Enterprise: address, admins, OIDC issuer/client/domains, owner
+certificate issuer, SMTP, bucket provider/endpoint/region/name/credentials, Postgres) or **Advanced** (the basics, then
+every other setting area by area, default preselected, a one-line explanation, range checks as you type, Skip
+restores the default, progress by step and area). Output: small box → the one-line `install.sh` command (its flags
+for host, sites host, email, `--max-site-mb`, `--keep-versions`) and the `/opt/simple-host/.env` lines (only changed
+and needed values; Copy, Download) with where to paste them and the restart line; Enterprise → `config.env` for
+`deploy/overlays/byo` (the ConfigMap), a `secrets.env` template naming every secret as a blank with how to generate
+it, and the apply commands (`make install OVERLAY=…` or `kustomize build … | kubectl apply -f -`); both with a
+"What you chose" summary. Runs entirely in the browser (no request but its own files; `credentials: 'omit'`), never
+asks for a secret's value, light only. Its lists are `st/setup/small-box-settings.json` (a copy of
+`docs/advanced/settings.json`, which `simple-host settings --json` prints from `internal/config/settings.go`) and
+`st/setup/enterprise-settings.json` (a copy of the enterprise repo's), kept equal by `scripts/sync-settings.sh` and
+checked by `scripts/settings_docs.py --check` (in `check-docs-sync.sh`) and `h/setuphelper_test.go`; only settings a
+Compose box passes through and the installer keeps are offered for a small box. Linked from `install.html` (FAQ),
+`enterprise.html`, both READMEs and `docs/advanced/`. **Status: built.**
 
 **Ask assistants.** Two assistants, each defined once and shown on all its pages: **Simple Host** (features,
 architecture) and **Simple Host Enterprise** (`/enterprise`, `/enterprise/brief`, `/enterprise/architecture`). A floating
@@ -596,10 +615,10 @@ responses (§9) is the only in-band notice.
 | Routes | `GET /healthz` · `GET /readyz` (DB ping) — `h/health.go` |
 | Startup | logs `simple-host <release> (commit <hash>)` (`internal/buildinfo`, stamped by `-ldflags -X` in `Dockerfile`, `.github/workflows/release.yml`, the CLAUDE.md build line); `internal/db/schemacheck.go` `VerifySchema` (fails fast on missing columns, names `simple-host migrate`); never migrates |
 | Schema | `db/schema.sql` (new database) + `db/migrations/*.sql`; `db/migrations/migrations.go` embeds them and applies pending files in lexical order, each once in its own transaction, tracked in `schema_migrations`, under a Postgres advisory lock; historical files are a fixed baseline, never run; new files must be idempotent (rule in that file) |
-| CLI subcommands | `simple-host migrate` (apply pending; `-status`; `-mark FILE` records without running), `simple-host version` (release, commit, migrations in this build; no DB), `simple-host oauth-client`, `simple-host review-account`, `simple-host geoip-verify` (`cmd/server/`); `cmd/analytics-rebuild`, `cmd/ip-country-load` |
+| CLI subcommands | `simple-host migrate` (apply pending; `-status`; `-mark FILE` records without running), `simple-host version` (release, commit, migrations in this build; no DB), `simple-host oauth-client`, `simple-host review-account`, `simple-host geoip-verify`, `simple-host settings --json` (every setting with area, description, type, default, range; `docs/advanced/settings.json` is its output) (`cmd/server/`); `cmd/analytics-rebuild`, `cmd/ip-country-load` |
 | Small-box upgrade | re-run `deploy/install/install.sh`: pulls the pinned release, `docker compose up -d db`, `docker compose run --rm app migrate`, then starts the new app; a failed migrate leaves the app as it was |
 | Env | `DB_DSN`, `PORT`, `BIND_ADDR`, `DATA_DIR`, `SITE_DOMAIN`, `PUBLIC_BASE_URL`, `CONTENT_HOST`; dev-only `CHROME_SERVE_ADDR`, `CHROME_SERVE_FOR`; migration-only `UNIFY_KEEP` |
-| Operational times and limits | 70 env vars (`SIGNIN_CODE_TTL_MINUTES`, `MAX_SITES_PER_ACCOUNT`, `DELETED_RETENTION_DAYS`, `RATE_LIMIT_*`, `SAVED_DATA_*`, `ASK_*`, …), read once at startup with range checks in `internal/config/limits.go` (a bad value stops the server; the sign-in, visitor sign-in and connector OAuth limiters at most 4× looser than default; other rate limits warn past 10×, unknown `RATE_LIMIT_*` names warn), default today's values; promised dates are stored when made (`sites.purge_at`, `idle_remove_at`, `domain_release_at`), so a changed retention or grace applies to new deletions and warnings only; `handler.ApplyLimits` hands db/mcp/tarball their share; copy that states a value follows it (Go text formats it, served pages/docs/skills are rewritten by `h/limitstext.go`, nil at the defaults). Full table, and the issuers' `/etc/simple-host-{domain,site}-certs.conf`: `docs/configuration.md` |
+| Operational times and limits | 70 env vars (`SIGNIN_CODE_TTL_MINUTES`, `MAX_SITES_PER_ACCOUNT`, `DELETED_RETENTION_DAYS`, `RATE_LIMIT_*`, `SAVED_DATA_*`, `ASK_*`, …), read once at startup with range checks in `internal/config/limits.go` (a bad value stops the server; the sign-in, visitor sign-in and connector OAuth limiters at most 4× looser than default; other rate limits warn past 10×, unknown `RATE_LIMIT_*` names warn), default today's values; promised dates are stored when made (`sites.purge_at`, `idle_remove_at`, `domain_release_at`), so a changed retention or grace applies to new deletions and warnings only; `handler.ApplyLimits` hands db/mcp/tarball their share; copy that states a value follows it (Go text formats it, served pages/docs/skills are rewritten by `h/limitstext.go`, nil at the defaults). Full table, and the issuers' `/etc/simple-host-{domain,site}-certs.conf`: `docs/configuration.md`; by area with recipes: `docs/advanced/` (tables generated from `docs/advanced/settings.json`; `internal/config/settings.go` is the registry, a test fails when a read env var is missing from it) |
 | Deploy | `/usr/local/bin/simple-host` as `simple-host.service`, env `/etc/simple-host.env`; `deploy/prod/*` (incl. log retention `logrotate-analytics.conf` and `journald-retention.conf`, 30 days), `Dockerfile`, `compose.yaml`, `Makefile`; checks `scripts/check-{docs-sync,features,html,layering,claude-plugin,reserved-subdomains,fresh-install}.sh` |
 
 ## 21. MCP tool index (`internal/mcp/tools.go`, 35 tools)
