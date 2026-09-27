@@ -515,9 +515,11 @@ func SoftClearCollection(ctx context.Context, database *sql.DB, siteID, collecti
 }
 
 // UndeleteItems brings back one deleted item (id > 0) or every deleted item
-// of the list (id == 0) and returns how many came back. ErrSiteFull when
-// they would take the site past maxBytes.
-func UndeleteItems(ctx context.Context, database *sql.DB, siteID, collection string, id int64, a Actor, maxBytes int64) (int64, error) {
+// of the list (id == 0) and returns how many came back. onlyCleared brings
+// back only items the owner's clear took (a Personal name: a record its
+// person deleted stays deleted). ErrSiteFull when they would take the site
+// past maxBytes.
+func UndeleteItems(ctx context.Context, database *sql.DB, siteID, collection string, id int64, a Actor, maxBytes int64, onlyCleared bool) (int64, error) {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
@@ -528,12 +530,14 @@ func UndeleteItems(ctx context.Context, database *sql.DB, siteID, collection str
 		WITH back AS (
 			UPDATE collection_items SET deleted_at = NULL
 			 WHERE site_id = $1 AND collection = $2 AND deleted_at IS NOT NULL AND ($3 = 0 OR id = $3)
+			   AND (NOT $7 OR (SELECT h.op FROM data_history h WHERE h.item_id = collection_items.id
+			                    ORDER BY h.id DESC LIMIT 1) = 'clear')
 			RETURNING id
 		), hist AS (
 			INSERT INTO data_history (site_id, kind, name, item_id, op, actor_id, actor_kind, actor_email)
 			SELECT $1, 'list', $2, id, 'undelete', $4, $5, $6 FROM back
 		)
-		SELECT count(*) FROM back`, siteID, collection, id, nullIfEmpty(a.ID), a.Kind, nullIfEmpty(a.Email)).Scan(&n)
+		SELECT count(*) FROM back`, siteID, collection, id, nullIfEmpty(a.ID), a.Kind, nullIfEmpty(a.Email), onlyCleared).Scan(&n)
 	if err != nil {
 		return 0, err
 	}
@@ -585,7 +589,7 @@ func RestoreItemVersion(ctx context.Context, database *sql.DB, siteID, collectio
 	case e.Value == nil:
 		return CollectionItem{}, ErrNoEarlierValue
 	default:
-		if _, err := tx.ExecContext(ctx, `UPDATE collection_items SET data = $2::jsonb, deleted_at = NULL WHERE id = $1`, itemID, string(e.Value)); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE collection_items SET data = $2::jsonb, deleted_at = NULL, version = version + 1 WHERE id = $1`, itemID, string(e.Value)); err != nil {
 			return CollectionItem{}, err
 		}
 		if err := recordHistory(ctx, tx, siteID, HistoryList, collection, &itemID, OpRestore, cur, a); err != nil {
@@ -599,7 +603,7 @@ func RestoreItemVersion(ctx context.Context, database *sql.DB, siteID, collectio
 		}
 	}
 	var it CollectionItem
-	if err := tx.QueryRowContext(ctx, `SELECT id, data, created_at FROM collection_items WHERE id = $1`, itemID).Scan(&it.ID, &it.Data, &it.CreatedAt); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT id, data, created_at, version FROM collection_items WHERE id = $1`, itemID).Scan(&it.ID, &it.Data, &it.CreatedAt, &it.Version); err != nil {
 		return CollectionItem{}, err
 	}
 	return it, tx.Commit()

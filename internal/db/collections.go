@@ -31,6 +31,9 @@ type CollectionItem struct {
 	// By is who sent the item (the address they were signed in with), for
 	// the owner's reads only; empty everywhere else.
 	By string `json:"by,omitempty"`
+	// Version counts the item's changes (from 1). Shown for Shared board
+	// items only, where an edit can name the version it changes (If-Match).
+	Version int64 `json:"version,omitempty"`
 }
 
 // authorExpr is who sent an item, as the owner sees it: the address kept
@@ -60,7 +63,7 @@ func AppendCollectionItemByID(ctx context.Context, db *sql.DB, siteID, collectio
 // with id < before. withAuthor fills By (the owner's reads only).
 func ListCollectionItemsByID(ctx context.Context, db *sql.DB, siteID, collection string, limit int, before int64, withAuthor bool) ([]CollectionItem, error) {
 	q := `
-		SELECT id, data, created_at, ` + authorExpr + `
+		SELECT id, data, created_at, ` + authorExpr + `, version
 		FROM collection_items
 		WHERE site_id = $1
 		  AND collection = $2
@@ -76,7 +79,7 @@ func ListCollectionItemsByID(ctx context.Context, db *sql.DB, siteID, collection
 	out := make([]CollectionItem, 0, limit)
 	for rows.Next() {
 		var it CollectionItem
-		if err := rows.Scan(&it.ID, &it.Data, &it.CreatedAt, &it.By); err != nil {
+		if err := rows.Scan(&it.ID, &it.Data, &it.CreatedAt, &it.By, &it.Version); err != nil {
 			return nil, err
 		}
 		if !withAuthor {
@@ -97,6 +100,9 @@ type CollectionSummary struct {
 	Private bool       `json:"private"`
 	// Deleted counts the items in the list's Recently deleted.
 	Deleted int64 `json:"deleted"`
+	// Bytes is the size of the live items (for Personal names, all that the
+	// owner sees besides the count: how many people have a record).
+	Bytes int64 `json:"bytes"`
 	// Kind is what the name was declared as (content = Page info, entries =
 	// Submissions), "" when nobody declared it; the Submissions options with it.
 	Kind         string `json:"kind"`
@@ -114,7 +120,8 @@ func ListCollectionSummariesByID(ctx context.Context, db *sql.DB, siteID string)
 		WITH counts AS (
 			SELECT collection, count(*) FILTER (WHERE deleted_at IS NULL) AS n,
 			       max(created_at) FILTER (WHERE deleted_at IS NULL) AS last_at,
-			       count(*) FILTER (WHERE deleted_at IS NOT NULL) AS gone
+			       count(*) FILTER (WHERE deleted_at IS NOT NULL) AS gone,
+			       COALESCE(sum(octet_length(data::text)) FILTER (WHERE deleted_at IS NULL), 0) AS bytes
 			FROM collection_items
 			WHERE site_id = $1
 			GROUP BY collection
@@ -123,7 +130,7 @@ func ListCollectionSummariesByID(ctx context.Context, db *sql.DB, siteID string)
 			  FROM collection_settings WHERE site_id = $1 AND (private OR kind IS NOT NULL)
 		)
 		SELECT COALESCE(c.collection, p.collection), COALESCE(c.n, 0), c.last_at, COALESCE(p.private, false), COALESCE(c.gone, 0),
-		       COALESCE(p.kind, ''), COALESCE(p.one_per_person, false), COALESCE(p.notify, 'off')
+		       COALESCE(p.kind, ''), COALESCE(p.one_per_person, false), COALESCE(p.notify, 'off'), COALESCE(c.bytes, 0)
 		FROM counts c FULL OUTER JOIN settings p ON p.collection = c.collection
 		ORDER BY 2 DESC, 1`
 	rows, err := db.QueryContext(ctx, q, siteID)
@@ -135,7 +142,7 @@ func ListCollectionSummariesByID(ctx context.Context, db *sql.DB, siteID string)
 	for rows.Next() {
 		var s CollectionSummary
 		var last sql.NullTime
-		if err := rows.Scan(&s.Name, &s.Count, &last, &s.Private, &s.Deleted, &s.Kind, &s.OnePerPerson, &s.Notify); err != nil {
+		if err := rows.Scan(&s.Name, &s.Count, &last, &s.Private, &s.Deleted, &s.Kind, &s.OnePerPerson, &s.Notify, &s.Bytes); err != nil {
 			return nil, err
 		}
 		if last.Valid {
@@ -253,18 +260,30 @@ func ForEachCollectionItemByID(ctx context.Context, db *sql.DB, siteID, collecti
 // a live item of that site's collection, ErrSiteFull when the edit grows the
 // site past maxBytes.
 func UpdateCollectionItemByID(ctx context.Context, db *sql.DB, siteID, collection string, id int64, a Actor, maxBytes int64, fn func(json.RawMessage) (json.RawMessage, error)) (CollectionItem, error) {
+	return UpdateItemVersioned(ctx, db, siteID, collection, id, 0, a, maxBytes, fn)
+}
+
+// UpdateItemVersioned is UpdateCollectionItemByID with a version check: when
+// ifVersion > 0 and the item is at another version, nothing changes and the
+// current item comes back with ErrVersionConflict. Every edit adds one to the
+// item's version.
+func UpdateItemVersioned(ctx context.Context, db *sql.DB, siteID, collection string, id, ifVersion int64, a Actor, maxBytes int64, fn func(json.RawMessage) (json.RawMessage, error)) (CollectionItem, error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return CollectionItem{}, err
 	}
 	defer tx.Rollback()
-	var old json.RawMessage
+	var cur CollectionItem
 	err = tx.QueryRowContext(ctx, `
-		SELECT data FROM collection_items
+		SELECT id, data, created_at, version FROM collection_items
 		WHERE id = $1 AND site_id = $2 AND collection = $3 AND deleted_at IS NULL
-		FOR UPDATE`, id, siteID, collection).Scan(&old)
+		FOR UPDATE`, id, siteID, collection).Scan(&cur.ID, &cur.Data, &cur.CreatedAt, &cur.Version)
 	if err != nil {
 		return CollectionItem{}, err
+	}
+	old := cur.Data
+	if ifVersion > 0 && cur.Version != ifVersion {
+		return cur, ErrVersionConflict
 	}
 	next, err := fn(old)
 	if err != nil {
@@ -272,9 +291,9 @@ func UpdateCollectionItemByID(ctx context.Context, db *sql.DB, siteID, collectio
 	}
 	var it CollectionItem
 	err = tx.QueryRowContext(ctx, `
-		UPDATE collection_items SET data = $4::jsonb
+		UPDATE collection_items SET data = $4::jsonb, version = version + 1
 		WHERE id = $1 AND site_id = $2 AND collection = $3
-		RETURNING id, data, created_at`, id, siteID, collection, string(next)).Scan(&it.ID, &it.Data, &it.CreatedAt)
+		RETURNING id, data, created_at, version`, id, siteID, collection, string(next)).Scan(&it.ID, &it.Data, &it.CreatedAt, &it.Version)
 	if err != nil {
 		return CollectionItem{}, err
 	}

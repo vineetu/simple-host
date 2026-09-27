@@ -13,10 +13,15 @@ import (
 // is: Page info (kind content: only the owner writes it, anyone reads it) or
 // Submissions (kind entries: visitors send them; the owner reads all; each
 // visitor sees, changes and withdraws their own; private unless made public).
+// Personal (kind mine: one private record per signed-in visitor, which only
+// that visitor reads) and Shared board (kind board: a list signed-in visitors
+// add to and edit item by item; only the owner clears it) came in steps 3-4.
 // A name nobody declared is Shared (public, signed-in visitors add to it),
 // unless the install set SAVED_DATA_DEFAULT_KIND=declare_first.
 
-const kindWords = "`entries` (Submissions: things visitors send, e.g. RSVPs, orders, sign-ups, votes, comments, feedback) or `content` (Page info: text and settings only the owner writes and everyone reads, e.g. a menu, schedule, prices)"
+const kindWords = "`entries` (Submissions: things visitors send, e.g. RSVPs, orders, sign-ups, votes, comments, feedback), `content` (Page info: text and settings only the owner writes and everyone reads, e.g. a menu, schedule, prices), " +
+	"`mine` (Personal: one private record per signed-in visitor that follows them across devices, e.g. a habit tracker, saved progress, preferences; only that visitor reads it, the owner sees only how many people have one) " +
+	"or `board` (Shared board: a list anyone reads and signed-in visitors add to, change and delete item by item, e.g. a shared shopping list, a kanban, a potluck sign-up; only the owner clears it)"
 
 func kindTools() []Tool {
 	return []Tool{
@@ -27,11 +32,12 @@ func kindTools() []Tool {
 				"A name nobody declared is Shared: anyone reads it and anyone signed in adds to it, so declare anything with personal details (RSVPs, orders, sign-ups) as private Submissions and anything only the owner changes as Page info; when unsure, the stricter kind. " +
 				"Submissions are private to the owner unless visibility is public; each visitor can see, change and withdraw only their own. one_per_person allows one entry per visitor (votes, one RSVP each). " +
 				"notify emails the owner about new entries: daily (the default for private ones), each (batched, soon after they arrive) or off (the default for public ones). " +
-				"Making private Submissions public (visibility public) shows everything already in them to anyone: it is refused (error confirm_public) until you send confirm_public true after the person agreed. A private name that holds entries never becomes Page info (error has_entries): use another name.",
+				"Making private Submissions public (visibility public) shows everything already in them to anyone: it is refused (error confirm_public) until you send confirm_public true after the person agreed. A private name that holds entries never becomes Page info (error has_entries): use another name. " +
+				"Personal and Shared board take no options. A name that already holds data never becomes Personal (error has_entries), and a Personal name that holds records never becomes another kind (error has_records): use another name.",
 			InputSchema: object(map[string]any{
 				"site":           str(siteDesc),
 				"name":           str("The data name, e.g. `rsvps` or `menu` (letters, digits, - and _)."),
-				"kind":           map[string]any{"type": "string", "enum": []string{"entries", "content"}, "description": "entries (Submissions) or content (Page info)."},
+				"kind":           map[string]any{"type": "string", "enum": []string{"entries", "content", "mine", "board"}, "description": "entries (Submissions), content (Page info), mine (Personal) or board (Shared board)."},
 				"visibility":     map[string]any{"type": "string", "enum": []string{"owner", "public"}, "description": "Submissions only: owner (only the owner reads them all; the default) or public (anyone reads them; who sent each stays private)."},
 				"one_per_person": map[string]any{"type": "boolean", "description": "Submissions only: one entry per signed-in visitor, who changes it instead of adding another."},
 				"notify":         map[string]any{"type": "string", "enum": []string{"off", "each", "daily"}, "description": "Submissions only: email the owner about new entries."},
@@ -103,7 +109,7 @@ func kindTools() []Tool {
 		{
 			Name:        "list_data",
 			Title:       "List a site's saved data",
-			Description: "List every data name a site has, with its kind (Page info, Submissions, or Shared when nobody declared it), how many items it holds, whether it is private, one per person, the email setting, and who may save on the site. undeclared_names_take_saves says whether names nobody declared take saves (Shared) on this site.",
+			Description: "List every data name a site has, with its kind (Page info, Submissions, Personal, Shared board, or Shared when nobody declared it), how many items it holds (Personal: how many people have a record) and their size, whether it is private, one per person, the email setting, and who may save on the site. undeclared_names_take_saves says whether names nobody declared take saves (Shared) on this site. Personal records are never readable by the owner: only counts and sizes.",
 			InputSchema: object(map[string]any{"site": str(siteDesc)}, "site"),
 			Annotations: readOnly(),
 			run: func(c *call, args map[string]any) (output, error) {
@@ -121,6 +127,7 @@ func kindTools() []Tool {
 						Count        int64  `json:"count"`
 						Private      bool   `json:"private"`
 						Deleted      int64  `json:"deleted"`
+						Bytes        int64  `json:"bytes"`
 						Kind         string `json:"kind"`
 						Label        string `json:"label"`
 						OnePerPerson bool   `json:"one_per_person"`
@@ -136,8 +143,8 @@ func kindTools() []Tool {
 				_ = json.Unmarshal(res.body, &parsed)
 				names := make([]any, 0, len(parsed.Names))
 				for _, n := range parsed.Names {
-					item := map[string]any{"name": n.Name, "kind": n.Kind, "label": n.Label, "items": n.Count, "deleted": n.Deleted}
-					if n.Kind != "content" {
+					item := map[string]any{"name": n.Name, "kind": n.Kind, "label": n.Label, "items": n.Count, "deleted": n.Deleted, "bytes": n.Bytes}
+					if n.Kind != "content" && n.Kind != "mine" && n.Kind != "board" {
 						item["private"] = n.Private
 					}
 					if n.Kind == "entries" {
@@ -316,13 +323,13 @@ func kindTools() []Tool {
 }
 
 func kindOutputSchemas() map[string]map[string]any {
-	kind := outEnum("entries (Submissions) or content (Page info).", "entries", "content")
+	kind := outEnum("entries (Submissions), content (Page info), mine (Personal) or board (Shared board).", "entries", "content", "mine", "board")
 	return map[string]map[string]any{
 		"declare_data": outObject(map[string]any{
 			"site":           outString(outSiteName),
 			"name":           outString("The data name."),
 			"kind":           kind,
-			"label":          outString("The kind in product words: Submissions or Page info."),
+			"label":          outString("The kind in product words: Submissions, Page info, Personal or Shared board."),
 			"visibility":     outEnum("Submissions: owner (only the owner reads them all) or public.", "owner", "public"),
 			"one_per_person": outBool("Submissions: one entry per visitor."),
 			"notify":         outEnum("Submissions: the owner's email about new entries.", "off", "each", "daily"),
@@ -331,11 +338,12 @@ func kindOutputSchemas() map[string]map[string]any {
 			"site": outString(outSiteName),
 			"names": outArray("Every data name on the site.", outObject(map[string]any{
 				"name":           outString("The data name."),
-				"kind":           outString("entries (Submissions), content (Page info) or empty (not declared)."),
-				"label":          outString("The kind in product words: Submissions, Page info, Shared (not declared; public), Private list (not declared, made private) or Not set (not declared, takes no saves)."),
-				"items":          outInteger("How many items it holds (Page info: 1 once saved)."),
+				"kind":           outString("entries (Submissions), content (Page info), mine (Personal), board (Shared board) or empty (not declared)."),
+				"label":          outString("The kind in product words: Submissions, Page info, Personal, Shared board, Shared (not declared; public), Private list (not declared, made private) or Not set (not declared, takes no saves)."),
+				"items":          outInteger("How many items it holds (Page info: 1 once saved; Personal: how many people have a record)."),
+				"bytes":          outInteger("The size of what it holds now, in bytes."),
 				"deleted":        outInteger("Items in its Recently deleted (list_deleted, restore_item)."),
-				"private":        outBool("Whether only the owner reads it. Absent for Page info."),
+				"private":        outBool("Whether only the owner reads it. Absent for Page info, Personal and Shared boards."),
 				"one_per_person": outBool("Submissions: one entry per visitor."),
 				"notify":         outString("Submissions: off, each or daily."),
 			}, "name", "kind", "label", "items", "deleted")),

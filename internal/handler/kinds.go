@@ -51,7 +51,7 @@ import (
 // made after the kinds; sites made before them (sites.legacy_data) stay
 // Shared either way.
 
-var kindLabels = map[string]string{db.KindContent: "Page info", db.KindEntries: "Submissions"}
+var kindLabels = map[string]string{db.KindContent: "Page info", db.KindEntries: "Submissions", db.KindPersonal: "Personal", db.KindBoard: "Shared board"}
 
 func kindLabel(kind string) string {
 	if l, ok := kindLabels[kind]; ok {
@@ -123,12 +123,21 @@ func entriesLike(set db.DataSettings) bool {
 	return set.Kind == db.KindEntries || (set.Kind == "" && set.Shared)
 }
 
+// listLike: the name is a list of items anyone may be shown (Submissions,
+// Shared) or a Shared board.
+func listLike(set db.DataSettings) bool {
+	return entriesLike(set) || set.Kind == db.KindBoard
+}
+
 // appendAllowed is the kind check before any item is added to a name. Writes
 // the refusal.
 func (h *SiteHandler) appendAllowed(w http.ResponseWriter, set db.DataSettings, siteName string) bool {
 	switch {
 	case set.Kind == db.KindContent:
 		writeWrongKind(w, set.Name, set.Kind, "only the owner saves it, as a whole document with PUT /v1/sites/"+siteName+"/data/"+set.Name)
+		return false
+	case set.Kind == db.KindPersonal:
+		writeWrongKind(w, set.Name, set.Kind, "each signed-in visitor saves their own record with PUT or PATCH /v1/sites/"+siteName+"/data/"+set.Name+" (SH.data(name, 'personal').set)")
 		return false
 	case set.Kind == "" && !set.Shared:
 		writeDeclareFirst(w, siteName, set.Name)
@@ -336,10 +345,12 @@ func (h *SiteHandler) getData(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if (set.Kind == db.KindContent || !entriesLike(set) || q.Get("count") != "") && !h.allowRead(w, r, siteID) {
+	if (set.Kind == db.KindContent || !listLike(set) || q.Get("count") != "") && !h.allowRead(w, r, siteID) {
 		return
 	}
 	switch {
+	case set.Kind == db.KindPersonal:
+		h.getPersonal(w, r, siteID, name, ownerKey)
 	case set.Kind == db.KindContent:
 		doc, found, err := db.GetContent(r.Context(), h.database, siteID, name)
 		if err != nil {
@@ -359,7 +370,7 @@ func (h *SiteHandler) getData(w http.ResponseWriter, r *http.Request) {
 			resp["saved_at"] = doc.CreatedAt
 		}
 		writeJSON(w, http.StatusOK, resp)
-	case !entriesLike(set):
+	case !listLike(set):
 		writeDeclareFirst(w, siteName, name)
 	case q.Get("count") != "":
 		if set.Private && !ownerKey && !h.ownerBrowserView(r, siteID) {
@@ -430,8 +441,8 @@ func (h *SiteHandler) listMine(w http.ResponseWriter, r *http.Request, siteName,
 	if !ok {
 		return
 	}
-	if !entriesLike(set) {
-		if set.Kind == db.KindContent {
+	if !listLike(set) {
+		if set.Kind == db.KindContent || set.Kind == db.KindPersonal {
 			writeWrongKind(w, name, set.Kind, "read it with GET /v1/sites/"+siteName+"/data/"+name)
 			return
 		}
@@ -490,8 +501,11 @@ func (h *SiteHandler) putContent(w http.ResponseWriter, r *http.Request) {
 	}
 	switch set.Kind {
 	case db.KindContent:
-	case db.KindEntries:
-		writeWrongKind(w, name, set.Kind, "visitors add entries with POST /v1/sites/"+siteName+"/data/"+name)
+	case db.KindPersonal:
+		h.putPersonal(w, r, siteID, name)
+		return
+	case db.KindEntries, db.KindBoard:
+		writeWrongKind(w, name, set.Kind, "add items with POST /v1/sites/"+siteName+"/data/"+name+"; only the owner empties it, with DELETE /v1/sites/"+siteName+"/collections/"+name)
 		return
 	default:
 		writeJSON(w, http.StatusConflict, errorResponse{
@@ -613,6 +627,22 @@ func (h *SiteHandler) ownEntry(w http.ResponseWriter, r *http.Request, siteID, s
 	return sess, set, id, true
 }
 
+// itemKind reads the name of an item route: a Personal name has no items
+// anyone addresses by id (answered: the refusal is written); everything else
+// comes back to its handler.
+func (h *SiteHandler) itemKind(w http.ResponseWriter, r *http.Request, siteID, siteName string) (db.DataSettings, bool) {
+	name := strings.TrimSpace(r.PathValue("coll"))
+	set, ok := h.dataSettings(w, r, siteID, name)
+	if !ok {
+		return set, true
+	}
+	if set.Kind == db.KindPersonal {
+		writeWrongKind(w, name, set.Kind, "each visitor changes their own record with PUT, PATCH or DELETE /v1/sites/"+siteName+"/data/"+name)
+		return set, true
+	}
+	return set, false
+}
+
 // itemSite resolves {sitename} for the item routes. Writes the 404.
 func (h *SiteHandler) itemSite(w http.ResponseWriter, r *http.Request) (string, string, bool) {
 	w.Header().Set("Cache-Control", "private, no-store")
@@ -637,6 +667,12 @@ func (h *SiteHandler) itemSite(w http.ResponseWriter, r *http.Request) (string, 
 func (h *SiteHandler) updateEntry(w http.ResponseWriter, r *http.Request) {
 	siteID, siteName, ok := h.itemSite(w, r)
 	if !ok {
+		return
+	}
+	if set, answered := h.itemKind(w, r, siteID, siteName); answered {
+		return
+	} else if set.Kind == db.KindBoard {
+		h.updateBoardItem(w, r, siteID, set)
 		return
 	}
 	if h.isOwnerRequest(r, siteID) {
@@ -720,8 +756,16 @@ func (h *SiteHandler) withdrawEntry(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	kset, answered := h.itemKind(w, r, siteID, siteName)
+	if answered {
+		return
+	}
 	if h.isOwnerRequest(r, siteID) {
 		h.deletePrivateItem(w, r)
+		return
+	}
+	if kset.Kind == db.KindBoard {
+		h.deleteBoardItem(w, r, siteID, kset)
 		return
 	}
 	if h.refuseSuspendedSiteID(w, r, siteID) {
@@ -753,6 +797,12 @@ func (h *SiteHandler) undoWithdraw(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if set, answered := h.itemKind(w, r, siteID, siteName); answered {
+		return
+	} else if set.Kind == db.KindBoard {
+		h.undoBoardDelete(w, r, siteID, set)
+		return
+	}
 	if h.refuseSuspendedSiteID(w, r, siteID) || h.refuseOffline(w, r, siteID) {
 		return
 	}
@@ -766,7 +816,7 @@ func (h *SiteHandler) undoWithdraw(w http.ResponseWriter, r *http.Request) {
 	actor := h.withAuthorEmail(r.Context(), db.Actor{ID: sess.UserID, Kind: actorVisitor})
 	window := time.Duration(h.savedData.WithdrawUndoMinutes) * time.Minute
 	declared := set.Kind == db.KindEntries
-	item, done, err := db.UndoOwnWithdrawal(r.Context(), h.database, siteID, set.Name, id, sess.UserID, window, declared, declared && set.OnePerPerson, h.savedData.EntriesMax, actor, h.siteMaxBytes())
+	item, done, err := db.UndoOwnWithdrawal(r.Context(), h.database, siteID, set.Name, id, sess.UserID, window, declared, declared && set.OnePerPerson, h.savedData.EntriesMax, actor, h.siteMaxBytes(), false)
 	switch {
 	case errors.Is(err, db.ErrOnePerPerson):
 		writeJSON(w, http.StatusConflict, errorResponse{Error: "you have another entry here now (one per person); withdraw it first", Code: "one_per_person"})
@@ -797,7 +847,7 @@ func (h *SiteHandler) optionsData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-SH-CSRF, Idempotency-Key")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-SH-CSRF, Idempotency-Key, If-Match, If-None-Match")
 	w.Header().Set("Access-Control-Max-Age", "600")
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -838,6 +888,23 @@ func (h *SiteHandler) declareData(w http.ResponseWriter, r *http.Request) {
 	prev, ok := h.dataSettings(w, r, siteID, name)
 	if !ok {
 		return
+	}
+	// Personal records belong to the people who saved them: a Personal name
+	// becomes another kind (which the owner or everyone reads) only when it
+	// holds none, not even in Recently deleted.
+	if prev.Kind == db.KindPersonal && req.Kind != db.KindPersonal && validKind(req.Kind) {
+		has, err := db.NameHasRows(r.Context(), h.database, siteID, name)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return
+		}
+		if has {
+			writeJSON(w, http.StatusConflict, errorResponse{
+				Error: fmt.Sprintf("%q is Personal and holds records that belong to the people who saved them, so it never becomes another kind while it holds any. Use another name, or empty it and delete what is in its Recently deleted for good first", name),
+				Code:  "has_records",
+			})
+			return
+		}
 	}
 	switch req.Kind {
 	case db.KindContent:
@@ -973,9 +1040,85 @@ func (h *SiteHandler) declareData(w http.ResponseWriter, r *http.Request) {
 			"site": siteName, "name": name, "kind": db.KindEntries, "label": kindLabel(db.KindEntries),
 			"visibility": visibilityWord(private), "one_per_person": one, "notify": notify, "message": msg,
 		})
+	case db.KindPersonal, db.KindBoard:
+		h.declarePersonalOrBoard(w, r, siteID, siteName, name, req.Kind, prev, req.Visibility, req.OnePerPerson, req.Notify, req.ConfirmPublic)
 	default:
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `kind is "entries" (Submissions: things visitors send) or "content" (Page info: only the owner writes it)`, Code: "invalid_kind"})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `kind is "entries" (Submissions: things visitors send), "content" (Page info: only the owner writes it), "mine" (Personal: one private record per signed-in visitor) or "board" (Shared board: a list signed-in visitors edit together)`, Code: "invalid_kind"})
 	}
+}
+
+func validKind(k string) bool {
+	switch k {
+	case db.KindContent, db.KindEntries, db.KindPersonal, db.KindBoard:
+		return true
+	}
+	return false
+}
+
+// declarePersonalOrBoard declares name Personal (mine) or Shared board
+// (board). Neither takes options. Both need the site on an address of its
+// own, where visitors sign in. A name that already holds data never becomes
+// Personal (it would vanish from the owner's view); private entries become a
+// (public) board only with confirm_public.
+func (h *SiteHandler) declarePersonalOrBoard(w http.ResponseWriter, r *http.Request, siteID, siteName, name, kind string, prev db.DataSettings, visibility string, one *bool, notify string, confirmPublic bool) {
+	if (visibility != "" && !(kind == db.KindBoard && visibility == "public")) || (one != nil && *one) || (notify != "" && notify != db.NotifyOff) {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "Personal and Shared board take no options: visibility, one_per_person and notify apply to Submissions (kind entries)", Code: "invalid_kind"})
+		return
+	}
+	internal := func() { writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"}) }
+	if prev.Kind != kind {
+		if kind == db.KindPersonal {
+			has, err := db.NameHasRows(r.Context(), h.database, siteID, name)
+			if err != nil {
+				internal()
+				return
+			}
+			if has {
+				writeJSON(w, http.StatusConflict, errorResponse{
+					Error: fmt.Sprintf("%q already holds data (or has items in Recently deleted), and Personal records are private to each person, so it would disappear from your view. Use another name, or empty it and delete what is in its Recently deleted for good first", name),
+					Code:  "has_entries",
+				})
+				return
+			}
+		}
+		max, label := h.savedData.PersonalNamesMax, "Personal"
+		if kind == db.KindBoard {
+			max, label = h.savedData.BoardNamesMax, "Shared board"
+		}
+		n, err := db.CountKindNames(r.Context(), h.database, siteID, kind, name)
+		if err != nil {
+			internal()
+			return
+		}
+		if n >= max {
+			writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("a site has at most %d %s names", max, label), Code: "too_many_names"})
+			return
+		}
+	}
+	home, hasHome, err := h.siteHomeFor(r.Context(), siteID)
+	if err != nil {
+		internal()
+		return
+	}
+	if !hasHome {
+		writeJSON(w, http.StatusConflict, errorResponse{
+			Error: "visitors save here while signed in, and visitors sign in on the site's own address: connect one first (a free <name>." + h.siteDomain + " address works, or your own domain)",
+			Code:  "custom_domain_required",
+		})
+		return
+	}
+	if kind == db.KindBoard && prev.Private && !h.confirmPublicOK(w, r, siteID, name, "a Shared board", confirmPublic) {
+		return
+	}
+	if err := db.DeclareData(r.Context(), h.database, siteID, name, kind, false, false, db.NotifyOff); err != nil {
+		internal()
+		return
+	}
+	msg := fmt.Sprintf("Personal: each visitor signed in on https://%s keeps one private record here (at most %d KB), on any device; only they read or change it. You see how many people have one, never what they saved.", home.Host, h.savedData.PersonalMaxKB)
+	if kind == db.KindBoard {
+		msg = fmt.Sprintf("Shared board: anyone who can open the site reads it; visitors signed in on https://%s add items and change or delete any item, one at a time (at most %d items of %d KB). Only you can clear it; changed and deleted items can be restored for %d days.", home.Host, h.savedData.BoardMax, h.savedData.BoardItemMaxKB, h.savedData.UndoDays)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"site": siteName, "name": name, "kind": kind, "label": kindLabel(kind), "message": msg})
 }
 
 // publicEntriesOK: public Submissions take entries only from visitors signed
@@ -1042,6 +1185,10 @@ func normalizeKind(k string) string {
 		return db.KindContent
 	case "entries", "submissions":
 		return db.KindEntries
+	case "mine", "personal":
+		return db.KindPersonal
+	case "board", "shared board":
+		return db.KindBoard
 	}
 	return strings.TrimSpace(k)
 }
@@ -1094,6 +1241,8 @@ func (h *SiteHandler) listData(w http.ResponseWriter, r *http.Request) {
 			"content_max_kb": h.savedData.ContentMaxKB, "entry_max_kb": h.savedData.EntryMaxKB,
 			"entries_max": h.savedData.EntriesMax, "content_names_max": h.savedData.ContentNamesMax,
 			"withdraw_undo_minutes": h.savedData.WithdrawUndoMinutes,
+			"personal_max_kb": h.savedData.PersonalMaxKB, "board_item_max_kb": h.savedData.BoardItemMaxKB,
+			"board_max": h.savedData.BoardMax,
 		},
 	})
 }
@@ -1233,6 +1382,10 @@ func (h *SiteHandler) blockSaver(w http.ResponseWriter, r *http.Request) {
 		id, err := strconv.ParseInt(strings.Trim(string(req.ID), `" `), 10, 64)
 		if err != nil || id <= 0 || !validCollectionName.MatchString(req.Collection) {
 			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "collection and id name one entry (the id from the list)", Code: "invalid_savers"})
+			return
+		}
+		// Who keeps a Personal record is theirs too: never revealed.
+		if h.refusePersonal(w, r, siteID, req.Collection) {
 			return
 		}
 		author, err := db.GetItemAuthor(r.Context(), h.database, siteID, req.Collection, id)

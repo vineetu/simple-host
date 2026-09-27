@@ -27,11 +27,23 @@ import (
 // kinds. An install with SAVED_DATA_DEFAULT_KIND=declare_first makes it take
 // no saves instead, on every site made after the kinds (legacy_data false).
 
-// The kinds a name can be declared as (Personal and Shared board come later).
+// The kinds a name can be declared as.
 const (
 	KindContent = "content"
 	KindEntries = "entries"
+	// KindPersonal ("Personal"): one private record per signed-in person,
+	// the live row of that name whose submitted_by is the person. Only that
+	// person reads or writes it; the owner sees counts and sizes only.
+	KindPersonal = "mine"
+	// KindBoard ("Shared board"): a list anyone who can open the site reads;
+	// signed-in visitors allowed to save add, change (with the item's
+	// version) and delete items one at a time; only the owner clears it.
+	KindBoard = "board"
 )
+
+// ErrVersionConflict: the item changed since the version the caller named
+// (If-Match); the current item comes back with it.
+var ErrVersionConflict = errors.New("the item changed since that version")
 
 // Notify choices for Submissions.
 const (
@@ -349,7 +361,10 @@ func GetItemAuthor(ctx context.Context, q Querier, siteID, name string, id int64
 // and keeps its rules: at most maxItems live entries (ErrNameFull) and, with
 // onePerPerson, none while the person has another live entry
 // (ErrOnePerPerson).
-func UndoOwnWithdrawal(ctx context.Context, database *sql.DB, siteID, name string, id int64, userID string, window time.Duration, declared, onePerPerson bool, maxItems int, a Actor, maxBytes int64) (CollectionItem, bool, error) {
+//
+// anyAuthor (a Shared board) lets the person who deleted an item bring it
+// back whoever added it; otherwise it must be their own.
+func UndoOwnWithdrawal(ctx context.Context, database *sql.DB, siteID, name string, id int64, userID string, window time.Duration, declared, onePerPerson bool, maxItems int, a Actor, maxBytes int64, anyAuthor bool) (CollectionItem, bool, error) {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return CollectionItem{}, false, err
@@ -368,10 +383,10 @@ func UndoOwnWithdrawal(ctx context.Context, database *sql.DB, siteID, name strin
 		SELECT h.op, h.actor_id::text, h.created_at
 		  FROM collection_items ci
 		  JOIN data_history h ON h.item_id = ci.id
-		 WHERE ci.id = $1 AND ci.site_id = $2 AND ci.collection = $3 AND ci.submitted_by = $4
+		 WHERE ci.id = $1 AND ci.site_id = $2 AND ci.collection = $3 AND ($5 OR ci.submitted_by = $4)
 		   AND ci.deleted_at IS NOT NULL
 		 ORDER BY h.id DESC LIMIT 1
-		 FOR UPDATE OF ci`, id, siteID, name, userID).Scan(&op, &actor, &at)
+		 FOR UPDATE OF ci`, id, siteID, name, userID, anyAuthor).Scan(&op, &actor, &at)
 	if errors.Is(err, sql.ErrNoRows) {
 		return CollectionItem{}, false, nil
 	}
@@ -401,8 +416,8 @@ func UndoOwnWithdrawal(ctx context.Context, database *sql.DB, siteID, name strin
 	}
 	var it CollectionItem
 	if err := tx.QueryRowContext(ctx, `
-		UPDATE collection_items SET deleted_at = NULL WHERE id = $1 RETURNING id, data, created_at`, id).
-		Scan(&it.ID, &it.Data, &it.CreatedAt); err != nil {
+		UPDATE collection_items SET deleted_at = NULL WHERE id = $1 RETURNING id, data, created_at, version`, id).
+		Scan(&it.ID, &it.Data, &it.CreatedAt, &it.Version); err != nil {
 		return CollectionItem{}, false, err
 	}
 	if err := recordHistory(ctx, tx, siteID, HistoryList, name, &id, OpUndelete, nil, a); err != nil {
@@ -412,6 +427,145 @@ func UndoOwnWithdrawal(ctx context.Context, database *sql.DB, siteID, name strin
 		return CollectionItem{}, false, err
 	}
 	return it, true, tx.Commit()
+}
+
+// NameHasRows reports whether name holds any item at all, live or in
+// Recently deleted (a name that holds data cannot become Personal, and a
+// Personal name that holds records cannot become anything else).
+func NameHasRows(ctx context.Context, q Querier, siteID, name string) (bool, error) {
+	var ok bool
+	err := q.QueryRowContext(ctx, `
+		SELECT EXISTS(SELECT 1 FROM collection_items WHERE site_id = $1 AND collection = $2)`, siteID, name).Scan(&ok)
+	return ok, err
+}
+
+// ---- Personal (mine) --------------------------------------------------------------
+
+// GetPersonal is userID's live record in a Personal name, ok=false when
+// they have none (never saved, or deleted).
+func GetPersonal(ctx context.Context, q Querier, siteID, name, userID string) (CollectionItem, bool, error) {
+	var it CollectionItem
+	err := q.QueryRowContext(ctx, `
+		SELECT id, data, created_at, version FROM collection_items
+		 WHERE site_id = $1 AND collection = $2 AND submitted_by = $3 AND deleted_at IS NULL
+		 ORDER BY id DESC LIMIT 1`, siteID, name, userID).Scan(&it.ID, &it.Data, &it.CreatedAt, &it.Version)
+	if errors.Is(err, sql.ErrNoRows) {
+		return it, false, nil
+	}
+	return it, err == nil, err
+}
+
+// PersonalItemID is the id of userID's record in a Personal name, live or in
+// Recently deleted; 0 when they never saved one.
+func PersonalItemID(ctx context.Context, q Querier, siteID, name, userID string) (int64, error) {
+	var id int64
+	err := q.QueryRowContext(ctx, `
+		SELECT id FROM collection_items
+		 WHERE site_id = $1 AND collection = $2 AND submitted_by = $3
+		 ORDER BY id DESC LIMIT 1`, siteID, name, userID).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	return id, err
+}
+
+// SavePersonal writes a.ID's record in a Personal name: fn gets the live
+// record (nil when there is none) and returns the new one. Each person has
+// one row per name for good: a deleted record (by them, or cleared by the
+// owner) is written over and comes back live, so a restore never makes two.
+// The earlier value goes to history. The declaration row is locked, so two
+// first saves at once cannot make two rows. ErrSiteFull when it grows the
+// site past maxBytes.
+func SavePersonal(ctx context.Context, database *sql.DB, siteID, name string, a Actor, maxBytes int64, fn func(cur json.RawMessage) (json.RawMessage, error)) (CollectionItem, error) {
+	if a.ID == "" {
+		return CollectionItem{}, errors.New("a personal record needs a signed-in person")
+	}
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return CollectionItem{}, err
+	}
+	defer tx.Rollback()
+	var one int
+	if err := tx.QueryRowContext(ctx, `
+		SELECT 1 FROM collection_settings WHERE site_id = $1 AND collection = $2 AND kind = 'mine' FOR UPDATE`, siteID, name).Scan(&one); err != nil {
+		return CollectionItem{}, err
+	}
+	var id int64
+	var old json.RawMessage
+	var deleted sql.NullTime
+	err = tx.QueryRowContext(ctx, `
+		SELECT id, data, deleted_at FROM collection_items
+		 WHERE site_id = $1 AND collection = $2 AND submitted_by = $3
+		 ORDER BY id DESC LIMIT 1 FOR UPDATE`, siteID, name, a.ID).Scan(&id, &old, &deleted)
+	found := err == nil
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return CollectionItem{}, err
+	}
+	var cur json.RawMessage
+	if found && !deleted.Valid {
+		cur = old
+	}
+	next, err := fn(cur)
+	if err != nil {
+		return CollectionItem{}, err
+	}
+	var it CollectionItem
+	if found {
+		err = tx.QueryRowContext(ctx, `
+			UPDATE collection_items SET data = $2::jsonb, deleted_at = NULL, version = version + 1, submitted_email = $3
+			 WHERE id = $1 RETURNING id, data, created_at, version`, id, string(next), nullIfEmpty(a.Email)).
+			Scan(&it.ID, &it.Data, &it.CreatedAt, &it.Version)
+		if err != nil {
+			return CollectionItem{}, err
+		}
+		if err := recordHistory(ctx, tx, siteID, HistoryList, name, &id, OpEdit, old, a); err != nil {
+			return CollectionItem{}, err
+		}
+	} else {
+		err = tx.QueryRowContext(ctx, `
+			INSERT INTO collection_items (site_id, collection, data, submitted_by, submitted_email)
+			VALUES ($1, $2, $3::jsonb, $4, $5) RETURNING id, data, created_at, version`,
+			siteID, name, string(next), a.ID, nullIfEmpty(a.Email)).Scan(&it.ID, &it.Data, &it.CreatedAt, &it.Version)
+		if err != nil {
+			return CollectionItem{}, err
+		}
+	}
+	if !found || deleted.Valid || len(it.Data) > len(old) {
+		if err := roomAfter(ctx, tx, siteID, maxBytes); err != nil {
+			return CollectionItem{}, err
+		}
+	}
+	return it, tx.Commit()
+}
+
+// ListItemHistory is one item's changes, newest first (a person's own
+// Personal record). before > 0 pages back.
+func ListItemHistory(ctx context.Context, database *sql.DB, siteID, name string, itemID int64, limit int, before int64) ([]HistoryEntry, error) {
+	rows, err := database.QueryContext(ctx, `
+		SELECT id, item_id, op, `+byExpr+`, actor_kind, created_at,
+		       COALESCE(octet_length(prev::text), octet_length(diff::text), 0)
+		  FROM data_history
+		 WHERE site_id = $1 AND kind = 'list' AND name = $2 AND item_id = $3 AND ($4 = 0 OR id < $4)
+		 ORDER BY id DESC
+		 LIMIT $5`, siteID, name, itemID, before, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]HistoryEntry, 0)
+	for rows.Next() {
+		var e HistoryEntry
+		var item sql.NullInt64
+		if err := rows.Scan(&e.ID, &item, &e.Op, &e.By, &e.ByKind, &e.At, &e.Size); err != nil {
+			return nil, err
+		}
+		if item.Valid {
+			v := item.Int64
+			e.ItemID = &v
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
 }
 
 // ---- who may save ---------------------------------------------------------------

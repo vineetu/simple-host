@@ -344,8 +344,12 @@ func (h *SiteHandler) setCollectionPrivacy(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	if set.Kind == db.KindContent {
-		writeWrongKind(w, coll, set.Kind, "page info is always public; only Submissions (kind entries) can be private")
+	switch set.Kind {
+	case db.KindContent, db.KindBoard:
+		writeWrongKind(w, coll, set.Kind, "page info and Shared boards are always public; only Submissions (kind entries) can be private")
+		return
+	case db.KindPersonal:
+		writeWrongKind(w, coll, set.Kind, "Personal records are always private, each to its own person")
 		return
 	}
 	home, hasHome, err := h.siteHomeFor(r.Context(), siteID)
@@ -477,12 +481,19 @@ func (h *SiteHandler) privateItemTarget(w http.ResponseWriter, r *http.Request) 
 	if h.refuseSuspendedSiteID(w, r, siteID) {
 		return "", "", 0, false
 	}
-	private, err := db.IsCollectionPrivate(r.Context(), h.database, siteID, coll)
+	set, err := db.GetDataSettings(r.Context(), h.database, siteID, coll)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return "", "", 0, false
 	}
-	if !private && r.Method != http.MethodDelete {
+	// Nobody changes or deletes one person's Personal record but that
+	// person; the owner may empty the whole name (clear).
+	if set.Kind == db.KindPersonal {
+		writePersonalOnly(w, coll)
+		return "", "", 0, false
+	}
+	// A Shared board is edited item by item, the owner included.
+	if !set.Private && set.Kind != db.KindBoard && r.Method != http.MethodDelete {
 		writeJSON(w, http.StatusConflict, map[string]string{
 			"error": "items in a public list cannot be edited, only deleted; only items in a private list can be edited",
 			"code":  "append_only",

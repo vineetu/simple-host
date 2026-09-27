@@ -466,7 +466,7 @@ func historyNext(entries []db.HistoryEntry, limit int) *int64 {
 // their values.
 func (h *SiteHandler) listDataHistory(w http.ResponseWriter, r *http.Request) {
 	_, siteID, siteName, coll, ok := h.ownedDataSite(w, r)
-	if !ok {
+	if !ok || h.refusePersonal(w, r, siteID, coll) {
 		return
 	}
 	kind := db.HistoryState
@@ -490,7 +490,7 @@ func (h *SiteHandler) listDataHistory(w http.ResponseWriter, r *http.Request) {
 // before it.
 func (h *SiteHandler) getDataHistory(w http.ResponseWriter, r *http.Request) {
 	_, siteID, _, coll, ok := h.ownedDataSite(w, r)
-	if !ok {
+	if !ok || h.refusePersonal(w, r, siteID, coll) {
 		return
 	}
 	id, valid := pathID(r, "id")
@@ -553,7 +553,7 @@ func (h *SiteHandler) restoreStateHistory(w http.ResponseWriter, r *http.Request
 // its earlier fields back).
 func (h *SiteHandler) restoreListHistory(w http.ResponseWriter, r *http.Request) {
 	user, siteID, siteName, coll, ok := h.ownedDataSite(w, r)
-	if !ok || h.refuseSuspendedSiteID(w, r, siteID) {
+	if !ok || h.refuseSuspendedSiteID(w, r, siteID) || h.refusePersonal(w, r, siteID, coll) {
 		return
 	}
 	id, valid := pathID(r, "id")
@@ -582,7 +582,7 @@ func (h *SiteHandler) restoreListHistory(w http.ResponseWriter, r *http.Request)
 // for ?before.
 func (h *SiteHandler) listDeletedItems(w http.ResponseWriter, r *http.Request) {
 	_, siteID, siteName, coll, ok := h.ownedDataSite(w, r)
-	if !ok {
+	if !ok || h.refusePersonal(w, r, siteID, coll) {
 		return
 	}
 	limit := pageLimit(r)
@@ -623,7 +623,18 @@ func (h *SiteHandler) restoreDeletedItem(w http.ResponseWriter, r *http.Request)
 			return
 		}
 	}
-	n, err := db.UndeleteItems(r.Context(), h.database, siteID, coll, id, h.ownerActor(r.Context(), user, siteID), h.siteMaxBytes())
+	// A Personal name: the owner brings back only what their clear took, all
+	// at once (they never pick out one person's record, and a record its
+	// person deleted stays deleted).
+	personal, ok := h.isPersonalName(w, r, siteID, coll)
+	if !ok {
+		return
+	}
+	if personal && id > 0 {
+		writePersonalOnly(w, coll)
+		return
+	}
+	n, err := db.UndeleteItems(r.Context(), h.database, siteID, coll, id, h.ownerActor(r.Context(), user, siteID), h.siteMaxBytes(), personal)
 	if errors.Is(err, db.ErrSiteFull) {
 		h.writeSiteFull(w)
 		return

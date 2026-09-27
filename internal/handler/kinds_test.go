@@ -218,7 +218,7 @@ func TestPageInfoRules(t *testing.T) {
 	}
 	s.setLimits(t, func(c *config.SavedData) {})
 	wantCode(t, "list to page info", s.owner(t, "PUT", "/v1/sites/shop/data/notes/kind", map[string]any{"kind": "content"}), 409, "has_entries")
-	wantCode(t, "bad kind", s.owner(t, "PUT", "/v1/sites/shop/data/x/kind", map[string]any{"kind": "board"}), 400, "invalid_kind")
+	wantCode(t, "bad kind", s.owner(t, "PUT", "/v1/sites/shop/data/x/kind", map[string]any{"kind": "table"}), 400, "invalid_kind")
 	wantCode(t, "visitor declares", s.visitor(t, "PUT", "/v1/sites/shop/data/x/kind", map[string]any{"kind": "content"}), 401, "")
 }
 
