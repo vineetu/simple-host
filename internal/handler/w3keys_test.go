@@ -230,3 +230,40 @@ func TestPutCreateIfMissing(t *testing.T) {
 		t.Fatalf("create=1 on an existing site keeps publish=false: %d %s", r.status, r.body)
 	}
 }
+
+// Top pages and referring domains for the chosen range, most views first,
+// from the people-only daily tables. Needs DB_DSN.
+func TestSiteTopAnalytics(t *testing.T) {
+	a := newConnectorApp(t)
+	p := a.newPerson(t, "toppages")
+	h := map[string]string{"X-API-Key": p.key, "Content-Type": "application/json"}
+	if r := a.do(t, http.MethodPost, "/v1/sites/shop/files", jsonBody(map[string]any{"files": map[string]string{"index.html": "x"}}), h); r.status != http.StatusCreated {
+		t.Fatalf("deploy: %d %s", r.status, r.body)
+	}
+	var siteID string
+	if err := a.database.QueryRow(`SELECT s.id FROM sites s JOIN api_keys k ON k.user_id = s.user_id WHERE k.key_hash = encode(sha256($1::bytea), 'hex') AND s.name = 'shop'`, p.key).Scan(&siteID); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`INSERT INTO site_page_daily (site_id, day, path, views) VALUES ($1, current_date, '/', 5), ($1, current_date - 1, '/', 2), ($1, current_date, '/menu/', 9), ($1, current_date - 40, '/old/', 99)`,
+		`INSERT INTO site_referrer_daily (site_id, day, domain, views) VALUES ($1, current_date, 'news.ycombinator.com', 4), ($1, current_date, 't.co', 6), ($1, current_date - 40, 'old.example', 50)`,
+	} {
+		if _, err := a.database.Exec(q, siteID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := a.do(t, http.MethodGet, "/v1/sites/shop/analytics/top?days=30", nil, h)
+	if r.status != http.StatusOK {
+		t.Fatalf("top: %d %s", r.status, r.body)
+	}
+	body := string(r.body)
+	for _, want := range []string{
+		`"pages":[{"path":"/menu/","views":9},{"path":"/","views":7}]`,
+		`"referrers":[{"domain":"t.co","views":6},{"domain":"news.ycombinator.com","views":4}]`,
+		`"range_days":30`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("top analytics %s: missing %s", body, want)
+		}
+	}
+}

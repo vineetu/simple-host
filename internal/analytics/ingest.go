@@ -123,11 +123,22 @@ type geoKey struct {
 }
 
 // hit is one accepted log line. ip is held only long enough to resolve a
-// country; it is never written to the database.
+// country; it is never written to the database. path is the site-relative
+// page and referrer the referring domain ("" when none, or the site's own
+// address).
 type hit struct {
-	key    bucketKey
-	ipHash []byte
-	ip     string
+	key      bucketKey
+	ipHash   []byte
+	ip       string
+	path     string
+	referrer string
+}
+
+// dayItemKey identifies one row of site_page_daily or site_referrer_daily.
+type dayItemKey struct {
+	siteID string
+	day    string // YYYY-MM-DD UTC
+	item   string // path or domain
 }
 
 type attrMaps struct {
@@ -314,6 +325,9 @@ func (i *Ingester) commitLines(ctx context.Context, lines []string, saveState bo
 	visitorSet := map[bucketKey]map[string]visitor{}
 	// (site, day) pairs whose per-country visitor counts need recomputing.
 	touched := map[[2]string]struct{}{}
+	// Top pages and referring domains: people only.
+	pageDelta := map[dayItemKey]int64{}
+	refDelta := map[dayItemKey]int64{}
 
 	for _, h := range hits {
 		cc := country[h.ip]
@@ -325,6 +339,14 @@ func (i *Ingester) commitLines(ctx context.Context, lines []string, saveState bo
 		}
 		visitorSet[h.key][hex.EncodeToString(h.ipHash)] = visitor{hash: h.ipHash, country: cc}
 		touched[[2]string{h.key.siteID, day}] = struct{}{}
+		if h.key.class == ClassPerson {
+			if h.path != "" {
+				pageDelta[dayItemKey{h.key.siteID, day, h.path}]++
+			}
+			if h.referrer != "" {
+				refDelta[dayItemKey{h.key.siteID, day, h.referrer}]++
+			}
+		}
 	}
 
 	tx, err := i.db.BeginTx(ctx, nil)
@@ -392,6 +414,27 @@ func (i *Ingester) commitLines(ctx context.Context, lines []string, saveState bo
 			SET views = site_geo_daily.views + EXCLUDED.views
 		`, k.siteID, k.day, k.country, string(k.class), n); err != nil {
 			return fmt.Errorf("upsert geo views: %w", err)
+		}
+	}
+
+	for k, n := range pageDelta {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO site_page_daily (site_id, day, path, views)
+			VALUES ($1, $2::date, $3, $4)
+			ON CONFLICT (site_id, day, path) DO UPDATE
+			SET views = site_page_daily.views + EXCLUDED.views
+		`, k.siteID, k.day, k.item, n); err != nil {
+			return fmt.Errorf("upsert page views: %w", err)
+		}
+	}
+	for k, n := range refDelta {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO site_referrer_daily (site_id, day, domain, views)
+			VALUES ($1, $2::date, $3, $4)
+			ON CONFLICT (site_id, day, domain) DO UPDATE
+			SET views = site_referrer_daily.views + EXCLUDED.views
+		`, k.siteID, k.day, k.item, n); err != nil {
+			return fmt.Errorf("upsert referrer views: %w", err)
 		}
 	}
 
@@ -467,6 +510,14 @@ func (i *Ingester) pruneOld(ctx context.Context) {
 	if _, err := i.db.ExecContext(ctx,
 		`DELETE FROM site_geo_daily WHERE day < $1::date`, cutoff[:len("2006-01-02")]); err != nil {
 		log.Printf("analytics prune geo: %v", err)
+	}
+	if _, err := i.db.ExecContext(ctx,
+		`DELETE FROM site_page_daily WHERE day < $1::date`, cutoff[:len("2006-01-02")]); err != nil {
+		log.Printf("analytics prune pages: %v", err)
+	}
+	if _, err := i.db.ExecContext(ctx,
+		`DELETE FROM site_referrer_daily WHERE day < $1::date`, cutoff[:len("2006-01-02")]); err != nil {
+		log.Printf("analytics prune referrers: %v", err)
 	}
 	// Legacy pre-split daily tables: no longer written, same retention.
 	if _, err := i.db.ExecContext(ctx,
@@ -577,11 +628,15 @@ type logLine struct {
 	uri        string
 	remoteAddr string
 	ua         string
+	referrer   string // the referring host only (see referrerDomain)
 }
 
 // parseTSV reads the nginx `shanalytics` format:
 //
-//	ts \t host \t status \t method \t request_uri \t remote_addr \t user_agent
+//	ts \t host \t status \t method \t request_uri \t remote_addr \t user_agent [\t referrer_host]
+//
+// The eighth field (the referring host, nothing else of the referrer) was
+// added 2026-09-27; lines written before it have seven and still parse.
 //
 // This is what simple-host.app itself writes, and an analytics rebuild replays
 // every retained archive of it (about 30 days, see
@@ -605,7 +660,67 @@ func parseTSV(line string) (logLine, bool) {
 	if len(fields) >= 7 {
 		l.ua = fields[6]
 	}
+	if len(fields) >= 8 {
+		l.referrer = referrerDomain(fields[7])
+	}
 	return l, true
+}
+
+// referrerDomain reduces a referrer to its host name, lowercased and without a
+// port: the only part of a referrer analytics keeps. nginx already logs just
+// the host; a full URL (Caddy's header, or anything unexpected) is cut down
+// here, so no path or query is ever stored. "" for none or anything that is
+// not a plain host name.
+func referrerDomain(v string) string {
+	v = strings.TrimSpace(v)
+	if v == "" || v == "-" {
+		return ""
+	}
+	if i := strings.Index(v, "://"); i >= 0 {
+		v = v[i+3:]
+	}
+	if i := strings.IndexAny(v, "/?#"); i >= 0 {
+		v = v[:i]
+	}
+	if i := strings.LastIndexByte(v, '@'); i >= 0 {
+		v = v[i+1:] // never keep userinfo
+	}
+	if h, _, ok := strings.Cut(v, ":"); ok {
+		v = h
+	}
+	v = strings.TrimSuffix(strings.ToLower(v), ".")
+	if v == "" || len(v) > 253 || !strings.Contains(v, ".") {
+		return ""
+	}
+	for _, c := range v {
+		if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '.' || c == '-') {
+			return ""
+		}
+	}
+	return v
+}
+
+// maxPagePath bounds a stored page path, so a crawler inventing long URLs
+// cannot bloat the table.
+const maxPagePath = 200
+
+// pagePath is how a page is stored for "top pages": the site-relative path
+// without its query, with a trailing index.html dropped (/ and /index.html are
+// the same page), cut to maxPagePath bytes.
+func pagePath(p string) string {
+	if q := strings.IndexByte(p, '?'); q >= 0 {
+		p = p[:q]
+	}
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	if strings.HasSuffix(p, "/index.html") {
+		p = strings.TrimSuffix(p, "index.html")
+	}
+	if len(p) > maxPagePath {
+		p = strings.ToValidUTF8(p[:maxPagePath], "")
+	}
+	return p
 }
 
 // caddyAccess is the subset of Caddy's JSON access log this needs.
@@ -645,13 +760,15 @@ func parseCaddyJSON(line string) (logLine, bool) {
 	if remote == "" {
 		remote = a.Request.RemoteIP
 	}
-	ua := ""
+	ua, ref := "", ""
 	// Header names arrive canonicalised, but a map lookup is cheap insurance
 	// against a future change in casing.
 	for k, v := range a.Request.Headers {
 		if strings.EqualFold(k, "User-Agent") && len(v) > 0 {
 			ua = v[0]
-			break
+		}
+		if strings.EqualFold(k, "Referer") && len(v) > 0 {
+			ref = referrerDomain(v[0])
 		}
 	}
 	sec, frac := math.Modf(a.TS)
@@ -663,6 +780,7 @@ func parseCaddyJSON(line string) (logLine, bool) {
 		uri:        a.Request.URI,
 		remoteAddr: remote,
 		ua:         ua,
+		referrer:   ref,
 	}, true
 }
 
@@ -726,9 +844,15 @@ func (i *Ingester) parseAndAttribute(line string, maps *attrMaps) (hit, bool) {
 	}
 	ts = ts.UTC()
 
-	siteID := i.attribute(host, uri, maps)
+	siteID, sitePath := i.attribute(host, uri, maps)
 	if siteID == "" {
 		return hit{}, false
+	}
+	// A link from the site's own address is moving around the site, not
+	// arriving from somewhere.
+	ref := l.referrer
+	if ref == host {
+		ref = ""
 	}
 
 	return hit{
@@ -737,21 +861,24 @@ func (i *Ingester) parseAndAttribute(line string, maps *attrMaps) (hit, bool) {
 			hour:   ts.Truncate(time.Hour).Format(time.RFC3339),
 			class:  Classify(remoteAddr, ua, uri),
 		},
-		ipHash: hashIP(i.salt, remoteAddr),
-		ip:     remoteAddr,
+		ipHash:   hashIP(i.salt, remoteAddr),
+		ip:       remoteAddr,
+		path:     pagePath(sitePath),
+		referrer: ref,
 	}, true
 }
 
-func (i *Ingester) attribute(host, uri string, maps *attrMaps) string {
+// attribute names the site a request was for, and the page's path within
+// that site (the address prefix a content-host or person-host URL carries is
+// dropped). "" when the host is not a site's.
+func (i *Ingester) attribute(host, uri string, maps *attrMaps) (string, string) {
+	path := uri
+	if q := strings.IndexByte(path, '?'); q >= 0 {
+		path = path[:q]
+	}
 	// content host: /<handle>/<site>/...
 	if host == i.contentHost {
-		path := uri
-		if q := strings.IndexByte(path, '?'); q >= 0 {
-			path = path[:q]
-		}
-		path = strings.TrimPrefix(path, "/")
-		// drop trailing empty from trailing slash
-		segs := strings.Split(path, "/")
+		segs := strings.Split(strings.TrimPrefix(path, "/"), "/")
 		// filter empty segments
 		clean := segs[:0]
 		for _, s := range segs {
@@ -760,14 +887,14 @@ func (i *Ingester) attribute(host, uri string, maps *attrMaps) string {
 			}
 		}
 		if len(clean) < 2 {
-			return ""
+			return "", ""
 		}
 		handle, siteName := clean[0], clean[1]
 		userID, ok := maps.handleToUser[handle]
 		if !ok {
-			return ""
+			return "", ""
 		}
-		return maps.userNameToID[userID+"/"+siteName]
+		return maps.userNameToID[userID+"/"+siteName], trimPathPrefix(path, 2)
 	}
 
 	// <label>.<siteDomain>: a claimed site address first (it is a domain like
@@ -779,33 +906,43 @@ func (i *Ingester) attribute(host, uri string, maps *attrMaps) string {
 		// single label only (no dots)
 		if label != "" && !strings.Contains(label, ".") {
 			if id := maps.domainToID[host]; id != "" {
-				return id
+				return id, path
 			}
 			if userID, ok := maps.handleToUser[label]; ok {
-				p := uri
-				if q := strings.IndexByte(p, '?'); q >= 0 {
-					p = p[:q]
-				}
-				seg, _, _ := strings.Cut(strings.TrimPrefix(p, "/"), "/")
+				seg, _, _ := strings.Cut(strings.TrimPrefix(path, "/"), "/")
 				if seg == "" {
-					return ""
+					return "", ""
 				}
-				return maps.userNameToID[userID+"/"+seg]
+				return maps.userNameToID[userID+"/"+seg], trimPathPrefix(path, 1)
 			}
-			return maps.nameToOldest[label]
+			return maps.nameToOldest[label], path
 		}
 		// <site>.<handle>.<siteDomain>: a site's own host (owner decision
 		// 2026-09-26). The whole host names the site; the path does not.
 		if site, handle, ok := strings.Cut(label, "."); ok && site != "" && !strings.Contains(handle, ".") {
 			if userID, ok := maps.handleToUser[handle]; ok {
-				return maps.userNameToID[userID+"/"+site]
+				return maps.userNameToID[userID+"/"+site], path
 			}
-			return ""
+			return "", ""
 		}
 	}
 
 	// custom domain
-	return maps.domainToID[host]
+	return maps.domainToID[host], path
+}
+
+// trimPathPrefix drops the first n non-empty segments of path (the handle and
+// site name in an address path), keeping the rest as the site-relative path.
+func trimPathPrefix(path string, n int) string {
+	rest := strings.TrimLeft(path, "/")
+	for ; n > 0; n-- {
+		_, after, found := strings.Cut(rest, "/")
+		if !found {
+			return "/"
+		}
+		rest = strings.TrimLeft(after, "/")
+	}
+	return "/" + rest
 }
 
 // isDocumentURI keeps only HTML-ish document requests; strips query for path checks.

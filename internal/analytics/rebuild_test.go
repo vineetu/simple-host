@@ -125,3 +125,50 @@ func TestNameToOldestSkipsDeleted(t *testing.T) {
 		t.Errorf("nameToOldest[blog] = %s, want the live site %s (deleted one is %s)", got, newID, oldID)
 	}
 }
+
+// People's page views are counted per site-relative path and per referring
+// domain; bots, the site's own address as referrer, and old seven-field lines
+// add nothing to the referrers. Needs DB_DSN.
+func TestIngestPagesAndReferrers(t *testing.T) {
+	db := isolatedDB(t)
+	ctx := context.Background()
+	var userID, siteID string
+	if err := db.QueryRow(`INSERT INTO users (username, handle) VALUES ('pr', 'pr') RETURNING id`).Scan(&userID); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`INSERT INTO sites (user_id, name, custom_domain) VALUES ($1, 'shop', 'shop.example') RETURNING id`, userID).Scan(&siteID); err != nil {
+		t.Fatal(err)
+	}
+	const ff = "Mozilla/5.0 (X11; Linux x86_64) Firefox/130.0"
+	lines := []string{
+		"2026-09-20T10:00:01+00:00\tshop.example\t200\tGET\t/\t203.0.113.1\t" + ff, // old format
+		"2026-09-20T10:00:02+00:00\tshop.example\t200\tGET\t/index.html\t203.0.113.2\t" + ff + "\tnews.ycombinator.com",
+		"2026-09-20T10:00:03+00:00\tshop.example\t200\tGET\t/menu/\t203.0.113.3\t" + ff + "\tnews.ycombinator.com",
+		"2026-09-20T10:00:04+00:00\tshop.example\t200\tGET\t/menu/\t203.0.113.4\t" + ff + "\tshop.example", // own address
+		"2026-09-20T10:00:05+00:00\tshop.example\t200\tGET\t/menu/\t203.0.113.5\tcurl/8.0\tt.co",           // not a person
+		"2026-09-20T10:00:06+00:00\tshop.example\t200\tGET\t/app.css\t203.0.113.6\t" + ff + "\tt.co",       // not a page
+	}
+	ing := NewIngester(db, "unused", "salt", "sites.example", "example")
+	if err := ing.commitLines(ctx, lines, false, 0, 0); err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]int64{}
+	rows, err := db.Query(`SELECT 'p:' || path, views FROM site_page_daily WHERE site_id = $1
+		UNION ALL SELECT 'r:' || domain, views FROM site_referrer_daily WHERE site_id = $1`, siteID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var k string
+		var n int64
+		if err := rows.Scan(&k, &n); err != nil {
+			t.Fatal(err)
+		}
+		got[k] = n
+	}
+	want := map[string]int64{"p:/": 2, "p:/menu/": 2, "r:news.ycombinator.com": 2}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("pages and referrers = %v, want %v", got, want)
+	}
+}

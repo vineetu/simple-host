@@ -286,6 +286,14 @@
     }
     .an-site-id .an-site-vals b { color: var(--text); font-weight: 600; }
     .an-site-spark { flex-shrink: 0; }
+    /* Top pages and where visitors came from, per site, opened on demand. */
+    .an-top-toggle { margin-top: 6px; padding: 0; border: 0; background: none; font: inherit; font-size: 13px; color: var(--accent); cursor: pointer; }
+    .an-top { flex-basis: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px 24px; font-size: 13px; }
+    .an-top h4 { font-size: 13px; font-weight: 600; color: var(--text); margin: 0 0 4px; }
+    .an-top ol { list-style: none; margin: 0; padding: 0; }
+    .an-top li { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+    .an-top li span { overflow-wrap: anywhere; min-width: 0; }
+    .an-top .an-none { color: var(--text-secondary); }
 
     /* Inventory */
     .inv-list {
@@ -2810,10 +2818,42 @@ function parseAnalyticsSummary(data) {
             '<div class="an-site-vals"><b>' + r.m.views.toLocaleString() + '</b> views · <b>' + r.m.visitors.toLocaleString() + '</b> visitors <span style="color:var(--dim)">(' + label + ')</span>' +
               (r.m.earlier ? '<span style="color:var(--dim)"> · ' + r.m.earlier.toLocaleString() + ' earlier, unclassified</span>' : '') +
             '</div>' +
+            '<button type="button" class="an-top-toggle" data-an-top="' + esc(r.name) + '" aria-expanded="false">Top pages and referrers</button>' +
           '</div>' +
           '<div class="an-site-spark">' + renderSparkline(r.m.daily) + '</div>' +
+          '<div class="an-top" hidden></div>' +
         '</div>';
       }).join('') + '</div>';
+      Array.prototype.forEach.call(document.querySelectorAll('#an-body [data-an-top]'), function (btn) {
+        btn.addEventListener('click', function () { toggleTopLists(btn, days); });
+      });
+    }
+
+    // Top pages and referring domains for one site over the selected range
+    // (GET /v1/sites/{name}/analytics/top), people only. A referrer is a
+    // domain, never a full address: that is all the log keeps.
+    async function toggleTopLists(btn, days) {
+      var box = btn.closest('.an-site-row').querySelector('.an-top');
+      if (!box.hidden) { box.hidden = true; btn.setAttribute('aria-expanded', 'false'); return; }
+      box.hidden = false;
+      btn.setAttribute('aria-expanded', 'true');
+      box.innerHTML = '<div class="an-loading">Loading…</div>';
+      var name = btn.getAttribute('data-an-top'), data = null;
+      try {
+        var res = await api('GET', '/v1/sites/' + encodeURIComponent(name) + '/analytics/top?days=' + days);
+        if (res.ok) data = await res.json();
+      } catch (e) {}
+      if (!data || !Array.isArray(data.pages) || !Array.isArray(data.referrers)) {
+        box.innerHTML = '<div class="an-failed">Couldn\'t load this site\'s pages and referrers.</div>';
+        return;
+      }
+      function list(title, rows, key, none) {
+        return '<div><h4>' + title + '</h4>' + (rows.length ? '<ol>' + rows.map(function (x) {
+          return '<li><span>' + esc(String(x[key])) + '</span><b>' + Number(x.views).toLocaleString() + '</b></li>';
+        }).join('') + '</ol>' : '<div class="an-none">' + none + '</div>') + '</div>';
+      }
+      box.innerHTML = list('Top pages (' + days + '-day views)', data.pages, 'path', 'No page views by people in this range.') +
+        list('Where visitors came from', data.referrers, 'domain', 'No visits from links on other sites in this range.');
     }
 
     // Plots the full daily[] range, people only. index.html shows a 24-hour bar

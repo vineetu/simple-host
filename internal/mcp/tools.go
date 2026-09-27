@@ -2043,7 +2043,7 @@ func Tools() []Tool {
 		{
 			Name:        "site_analytics",
 			Title:       "How many people visited",
-			Description: "Visits to a site over the last N days, split into people, bots and monitoring. When asked how many people visited, report the `person` numbers only.",
+			Description: "Visits to a site over the last N days, split into people, bots and monitoring, with the most viewed pages and the domains visitors came from (people only). When asked how many people visited, report the `person` numbers only.",
 			InputSchema: object(map[string]any{
 				"site": str(siteDesc),
 				"days": map[string]any{"type": "integer", "description": "Window in days (1–90, default 30)."},
@@ -2070,6 +2070,17 @@ func Tools() []Tool {
 				// Totals only: the daily and hourly series are for charts and
 				// would swamp a conversation.
 				out := map[string]any{"site": name, "range_days": full["range_days"], "totals": full["totals"], "last_24h": full["last_24h"]}
+				// Top pages and referring domains are a second read; the
+				// totals stand without them if it fails.
+				if top := c.do(http.MethodGet, "/v1/sites/"+url.PathEscape(name)+"/analytics/top?days="+strconv.Itoa(days), nil, nil); top.ok() {
+					var t struct {
+						Pages     []any `json:"pages"`
+						Referrers []any `json:"referrers"`
+					}
+					if json.Unmarshal(top.body, &t) == nil && t.Pages != nil && t.Referrers != nil {
+						out["top_pages"], out["top_referrers"] = t.Pages, t.Referrers
+					}
+				}
 				return output{Text: jsonText(out), Structured: out}, nil
 			},
 		},

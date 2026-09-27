@@ -399,6 +399,14 @@ func outputSchemas() map[string]map[string]any {
 			"range_days": outInteger("The window the totals cover, in days."),
 			"totals":     trafficSplitSchema("Traffic over the whole window. Visitors are unique across the window."),
 			"last_24h":   trafficSplitSchema("Traffic over the last 24 hours."),
+			"top_pages": outArray("The most viewed pages over the window, people only, most first.", outObject(map[string]any{
+				"path":  outString("The page's path on the site."),
+				"views": outInteger("Views by people."),
+			}, "path", "views")),
+			"top_referrers": outArray("Where visitors came from over the window: the referring domain only (never a full address), people only, most first.", outObject(map[string]any{
+				"domain": outString("The referring site's domain."),
+				"views":  outInteger("Views by people arriving from it."),
+			}, "domain", "views")),
 		}, "site", "range_days", "totals", "last_24h"),
 
 		"export_site": outObject(map[string]any{

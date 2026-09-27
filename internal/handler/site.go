@@ -352,6 +352,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("POST /v1/sites/{sitename}/versions/{version}/preview-link", noticeMiddleware(authMiddleware(http.HandlerFunc(h.createPreviewLink))))
 	mux.Handle("GET /v1/sites/{sitename}/analytics", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteAnalytics))))
 	mux.Handle("GET /v1/sites/{sitename}/analytics/geo", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteGeoAnalytics))))
+	mux.Handle("GET /v1/sites/{sitename}/analytics/top", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteTopAnalytics))))
 	// Deliberately not /v1/sites/analytics: that would collide with a site
 	// actually named "analytics".
 	mux.Handle("GET /v1/analytics/sites", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getAnalyticsSummary))))

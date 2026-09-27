@@ -558,6 +558,28 @@ CREATE TABLE IF NOT EXISTS site_geo_daily (
 );
 CREATE INDEX IF NOT EXISTS site_geo_daily_day_idx ON site_geo_daily (day);
 
+-- Top pages and where visitors came from (owner analytics), people only:
+-- views per site-relative path, and per referring domain. The domain is all
+-- that is kept of a referrer (nginx logs only the host; no full URL, no
+-- query); a link from the site's own address is not counted. Same retention
+-- as the other aggregates (ANALYTICS_RETENTION_DAYS).
+CREATE TABLE IF NOT EXISTS site_page_daily (
+  site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  day     DATE NOT NULL,   -- UTC
+  path    TEXT NOT NULL,   -- site-relative, no query string, at most 200 bytes
+  views   BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (site_id, day, path)
+);
+CREATE INDEX IF NOT EXISTS site_page_daily_day_idx ON site_page_daily (day);
+CREATE TABLE IF NOT EXISTS site_referrer_daily (
+  site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  day     DATE NOT NULL,   -- UTC
+  domain  TEXT NOT NULL,   -- referring host name only, lowercased
+  views   BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (site_id, day, domain)
+);
+CREATE INDEX IF NOT EXISTS site_referrer_daily_day_idx ON site_referrer_daily (day);
+
 -- IP → country ranges, loaded by `ip-country-load` from a public dataset
 -- (default: DB-IP IP-to-Country Lite, CC BY 4.0 — "IP Geolocation by DB-IP",
 -- https://db-ip.com). Not vendored in the repo; a fresh install has an empty

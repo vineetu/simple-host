@@ -258,6 +258,16 @@
           <div class="card-head"><h2>Where your readers are</h2><span class="card-note">People, by country</span></div>
           <div id="geo-body"></div>
         </section>
+
+        <section class="card">
+          <div class="card-head"><h2>Top pages</h2><span class="card-note">People, views</span></div>
+          <div id="pages-body"></div>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h2>Where visitors came from</h2><span class="card-note">Referring domain, people</span></div>
+          <div id="referrers-body"></div>
+        </section>
       </div>
     </div>
   </div>
@@ -489,6 +499,16 @@ function parseAnalyticsSummary(data) {
       } catch (e) {
         entry.geoError = e.message;
       }
+      // Top pages and referring domains: a third endpoint, failing on its own.
+      try {
+        var tres = await api('/v1/sites/' + encodeURIComponent(SITE) + '/analytics/top?days=' + days + OWNER_Q);
+        if (!tres.ok) throw new Error('HTTP ' + tres.status);
+        var top = await tres.json();
+        if (!top || !Array.isArray(top.pages) || !Array.isArray(top.referrers)) throw new Error('unexpected answer');
+        entry.top = top;
+      } catch (e) {
+        entry.topError = e.message;
+      }
 
       cache[days] = entry;
       // Only paint if this range is still the selected one; render() clears the
@@ -507,6 +527,26 @@ function parseAnalyticsSummary(data) {
       renderDaily(entry.a);
       renderHourly(entry.a);
       renderGeo(entry);
+      renderTop(entry);
+    }
+
+    // A referrer is shown as its domain only: that is all the log keeps.
+    function renderTop(entry) {
+      var lists = [['pages-body', 'pages', 'path', 'Page', 'No page views by people in this range.'],
+                   ['referrers-body', 'referrers', 'domain', 'Domain', 'No visits from links on other sites in this range.']];
+      lists.forEach(function (l) {
+        var body = document.getElementById(l[0]);
+        if (entry.topError) {
+          body.innerHTML = '<div class="an-failed">Couldn’t load this list — ' + esc(entry.topError) + '</div>';
+          return;
+        }
+        var rows = entry.top[l[1]];
+        if (!rows.length) { body.innerHTML = '<div class="empty-state">' + l[4] + '</div>'; return; }
+        body.innerHTML = '<table class="geo"><thead><tr><th>' + l[3] + '</th><th class="num">People</th></tr></thead><tbody>' +
+          rows.map(function (x) {
+            return '<tr><td class="name">' + esc(String(x[l[2]])) + '</td><td class="num">' + Number(x.views).toLocaleString() + '</td></tr>';
+          }).join('') + '</tbody></table>';
+      });
     }
 
     // Headline. `person` is the audience number and is the only figure given

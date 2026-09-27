@@ -49,6 +49,9 @@ var requiredColumns = map[string][]string{
 	"collection_settings": {"site_id", "collection", "private", "kind", "one_per_person", "notify", "notify_sent_at", "declared_at"},
 	"site_savers":         {"site_id", "list", "pattern", "added_at"},
 	"site_view_hourly":    {"site_id", "hour", "class", "views"},
+	// w3-analytics-pages-referrers.sql
+	"site_page_daily":     {"site_id", "day", "path", "views"},
+	"site_referrer_daily": {"site_id", "day", "domain", "views"},
 	"instance_config":     {"key", "value"},
 	"oauth_clients":       {"client_id", "client_secret_hash", "client_name", "redirect_uris", "token_endpoint_auth_method", "pkce_required", "dynamic"},
 	// w3-connection-device.sql adds device to oauth_grants and oauth_codes.

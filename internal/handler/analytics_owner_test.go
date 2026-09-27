@@ -37,7 +37,7 @@ func TestSiteAnalyticsOwnerParam(t *testing.T) {
 		if owner != "" {
 			q += "&owner=" + url.QueryEscape(owner)
 		}
-		return []string{"/v1/sites/" + site + "/analytics" + q, "/v1/sites/" + site + "/analytics/geo" + q}
+		return []string{"/v1/sites/" + site + "/analytics" + q, "/v1/sites/" + site + "/analytics/geo" + q, "/v1/sites/" + site + "/analytics/top" + q}
 	}
 	want := func(label, key string, code int, site, owner string) []resp {
 		t.Helper()

@@ -207,9 +207,10 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		"GET /v1/sites/broken/domain": fixed(200, `{"domain":"broken.example.com","status":"error","last_error":"HTTPS returned 502","certificate_status":"live","failing_since":"2026-09-01T00:00:00Z",`+
 			`"partner_domain":"www.broken.example.com","partner_status":"not_set_up","partner_note":"www.broken.example.com does not point to this server yet","dns_partner":{"type":"CNAME","host":"www.broken.example.com","value":"sites.simple-host.app"},`+
 			`"dns":{"type":"CNAME","host":"broken.example.com","value":"sites.simple-host.app"}}`),
-		"DELETE /v1/sites/blog/domain":    fixed(204, ""),
-		"POST /v1/sites/blog/export-link": fixed(200, `{"site":"blog","url":"https://simple-host.app/v1/export?token=abc.def","expires_at":"2026-09-27T10:10:00Z","expires_in":600}`),
-		"GET /v1/sites/blog/analytics":    fixed(200, `{"range_days":7,"totals":`+split+`,"daily":[],"last_24h":`+split+`,"hourly":[],"classified_from":"2026-09-01"}`),
+		"DELETE /v1/sites/blog/domain":     fixed(204, ""),
+		"POST /v1/sites/blog/export-link":  fixed(200, `{"site":"blog","url":"https://simple-host.app/v1/export?token=abc.def","expires_at":"2026-09-27T10:10:00Z","expires_in":600}`),
+		"GET /v1/sites/blog/analytics":     fixed(200, `{"range_days":7,"totals":`+split+`,"daily":[],"last_24h":`+split+`,"hourly":[],"classified_from":"2026-09-01"}`),
+		"GET /v1/sites/blog/analytics/top": fixed(200, `{"range_days":7,"pages":[{"path":"/","views":3}],"referrers":[{"domain":"news.ycombinator.com","views":2}]}`),
 	}}
 	s := newTestServer(up)
 	calls := []struct {
