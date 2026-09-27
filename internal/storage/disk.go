@@ -496,3 +496,37 @@ func (d *DiskStorage) DeleteVersion(userID, siteName string, versionNum int) err
 	}
 	return nil
 }
+
+// suspendedMarker is the file that marks a site taken down by the operator.
+// It sits next to `current` (and `domain-redirect`) in the site directory, so
+// every server that reads files straight from disk can test for it: Go's
+// serveSiteFile, and nginx or Caddy for the content host and custom domains
+// (`if (-f .../suspended)`), through handles/<h>/<s>/ and domains/<d>/ alike.
+const suspendedMarker = "suspended"
+
+// SetSuspended writes (on) or removes (off) the take-down marker. Idempotent.
+func (d *DiskStorage) SetSuspended(userID, siteName string, on bool) error {
+	if !validPathKey(userID) || !validPathKey(siteName) {
+		return fmt.Errorf("invalid site %q/%q", userID, siteName)
+	}
+	p := filepath.Join(d.SiteDir(userID, siteName), suspendedMarker)
+	if !on {
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	}
+	if err := os.MkdirAll(d.SiteDir(userID, siteName), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(p, []byte("taken down by the operator\n"), 0o644)
+}
+
+// IsSuspended reports whether the take-down marker is present.
+func (d *DiskStorage) IsSuspended(userID, siteName string) bool {
+	if !validPathKey(userID) || !validPathKey(siteName) {
+		return false
+	}
+	_, err := os.Lstat(filepath.Join(d.SiteDir(userID, siteName), suspendedMarker))
+	return err == nil
+}

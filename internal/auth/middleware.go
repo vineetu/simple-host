@@ -67,6 +67,16 @@ func Middleware(adminAPIKey, adminUserID string, database *sql.DB) func(http.Han
 
 			user, err := db.GetUserByAPIKey(r.Context(), database, apiKey)
 			if err != nil {
+				if errors.Is(err, db.ErrAccountSuspended) {
+					// The key is kept, not deleted, so re-enabling the account
+					// brings it back; the person sees why here.
+					writeJSON(w, http.StatusForbidden, map[string]string{
+						"error":  "this account has been suspended by the operator",
+						"code":   "account_suspended",
+						"reason": user.SuspendedReason,
+					})
+					return
+				}
 				if errors.Is(err, sql.ErrNoRows) {
 					writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "invalid API key: the X-API-Key you sent is not recognized. If it expired or leaked, sign in again via POST /v1/auth."})
 					return

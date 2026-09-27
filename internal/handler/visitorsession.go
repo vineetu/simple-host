@@ -243,6 +243,11 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return false
 	}
+	// A taken-down site (or one whose owner is suspended) takes no writes
+	// from anyone, the admin included; restore it first.
+	if h.refuseSuspendedSiteID(w, r, siteID) {
+		return false
+	}
 
 	mode := h.writeAuthMode
 	if mode == "" {
@@ -333,6 +338,11 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 			sess, sessErr := db.GetVisitorSession(r.Context(), h.database, id)
 			if sessErr == nil {
 				if h.sessionValidFor(r, sess, siteID) {
+					// A suspended person's sign-ins stop working too.
+					if susp, serr := db.UserSuspended(r.Context(), h.database, sess.UserID); serr != nil || susp {
+						writeAccountSuspended(w)
+						return false
+					}
 					if r.Header.Get(visitorCSRFHeader) == visitorCSRFValue {
 						_ = db.TouchVisitorSession(r.Context(), h.database, id)
 						return true
@@ -372,7 +382,8 @@ func (h *SiteHandler) resolveWriterKey(ctx context.Context, key string) (db.User
 	}
 	u, err := db.GetUserByAPIKey(ctx, h.database, key)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		// A suspended account's key is refused like an unknown one.
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, db.ErrAccountSuspended) {
 			return db.User{}, false, nil
 		}
 		return db.User{}, false, err

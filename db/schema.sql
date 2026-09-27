@@ -9,6 +9,10 @@ CREATE TABLE users (
   display_name       TEXT,                 -- shown on screen; never in a URL, so it is free to change
   handle             TEXT UNIQUE,          -- URL-safe public path id (^[a-z0-9-]{1,39}$); backfilled separately
   handle_changed_at  TIMESTAMPTZ,          -- last time handle was set/changed; NULL until first set
+  -- Operator suspension (cp-ops-suspend.sql): keys, connected apps and
+  -- sign-in refused, every site taken down; nothing deleted. NULL = active.
+  suspended_at       TIMESTAMPTZ,
+  suspended_reason   TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -42,6 +46,12 @@ CREATE TABLE sites (
   -- the edge). No code reads or writes this column; kept because dropping it is
   -- irreversible and it costs nothing.
   view_password_hash TEXT,
+  -- Operator take-down (cp-ops-suspend.sql): the site keeps everything, is
+  -- served as "taken down" on every address and refuses changes. NULL = live.
+  -- A `suspended` marker file in the site folder mirrors it for the servers
+  -- that read files straight from disk.
+  suspended_at     TIMESTAMPTZ,
+  suspended_reason TEXT,
   created_at     TIMESTAMPTZ DEFAULT now(),
   updated_at     TIMESTAMPTZ DEFAULT now(),
   CONSTRAINT sites_user_name UNIQUE (user_id, name)

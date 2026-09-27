@@ -201,6 +201,22 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A suspended account gets no new key. It has proved its email, so it is
+	// told why.
+	fresh, err := db.GetUserByID(r.Context(), h.database, user.ID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	if fresh.Suspended {
+		writeJSON(w, http.StatusForbidden, map[string]string{
+			"error":  "this account has been suspended by the operator",
+			"code":   "account_suspended",
+			"reason": fresh.SuspendedReason,
+		})
+		return
+	}
+
 	// Keys are stored only as hashes, so each sign-in hands out a new key;
 	// keys from earlier sign-ins keep working until the person rotates.
 	apiKey, err := auth.GenerateAPIKey()

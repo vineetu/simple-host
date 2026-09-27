@@ -163,6 +163,8 @@ func main() {
 	dbpkg.SetPlatformDomain(cfg.SiteDomain)
 	log.Printf("person hosts: %s; site hosts: %s", cfg.PersonHosts, cfg.SiteHosts)
 	siteHandler.Register(mux, authMW, noticeMW)
+	// Take-down markers on disk follow the database (suspend.go).
+	siteHandler.SyncSuspendMarkers(context.Background())
 	oauthHandler := handler.NewOAuthHandler(db, cfg)
 	oauthHandler.SetPersonSiteResolver(siteHandler.PersonReturnSite)
 	oauthHandler.Register(mux)

@@ -295,6 +295,12 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 		writeOAuthHTMLError(w, http.StatusBadGateway)
 		return
 	}
+	// A suspended account signs in on no site. (A dashboard sign-in is
+	// refused, with the reason, when its token is redeemed at /v1/auth/verify.)
+	if susp, serr := db.UserSuspended(r.Context(), tx, user.ID); st.Purpose != "owner" && (serr != nil || susp) {
+		writeOAuthHTMLError(w, http.StatusForbidden)
+		return
+	}
 
 	if st.Purpose == "owner" {
 		if created || !user.Handle.Valid {

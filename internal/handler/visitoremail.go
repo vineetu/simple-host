@@ -101,6 +101,10 @@ func (h *SiteHandler) verifyVisitorEmail(w http.ResponseWriter, r *http.Request)
 		}
 		return
 	}
+	if susp, serr := db.UserSuspended(r.Context(), h.database, user.ID); serr != nil || susp {
+		writeAccountSuspended(w)
+		return
+	}
 	id, err := randomRaw(32)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})

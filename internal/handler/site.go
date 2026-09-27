@@ -126,6 +126,10 @@ type siteResponse struct {
 	Visibility    string    `json:"visibility,omitempty"`
 	OwnerUsername string    `json:"owner_username,omitempty"`
 	Note          string    `json:"note,omitempty"`
+	// Suspended: the operator has taken the site down (by itself or with its
+	// owner's account). It keeps everything and refuses changes until restored.
+	Suspended       bool   `json:"suspended,omitempty"`
+	SuspendedReason string `json:"suspended_reason,omitempty"`
 }
 
 type versionResponse struct {
@@ -240,6 +244,14 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("DELETE /v1/admin/users/{id}", authMiddleware(http.HandlerFunc(h.deleteAccount)))
 	mux.Handle("PATCH /v1/me", authMiddleware(http.HandlerFunc(h.patchMe)))
 	mux.Handle("GET /v1/admin/users", authMiddleware(http.HandlerFunc(h.adminUsers)))
+	// Operator take-down (suspend.go): a site, or a person and all their
+	// sites, without deleting anything; restore / enable reverses it.
+	mux.Handle("POST /v1/admin/sites/{id}/suspend", authMiddleware(h.setSiteSuspension(true)))
+	mux.Handle("POST /v1/admin/sites/{id}/restore", authMiddleware(h.setSiteSuspension(false)))
+	mux.Handle("POST /v1/admin/users/{id}/suspend", authMiddleware(h.setUserSuspension(true)))
+	mux.Handle("POST /v1/admin/users/{id}/enable", authMiddleware(h.setUserSuspension(false)))
+	// Every site on the instance in one archive (export.go).
+	mux.Handle("GET /v1/admin/export.tar.gz", authMiddleware(http.HandlerFunc(h.exportAll)))
 	// What the disk is actually holding, and how much is left.
 	mux.Handle("GET /v1/admin/usage", authMiddleware(http.HandlerFunc(h.adminUsage)))
 	// Take your work with you. An event box is destroyed when the event ends and
@@ -293,6 +305,9 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.HandleFunc("GET /internal/site-redirect/{handle}/{sitename}", h.contentHostRedirect)
 	mux.HandleFunc("GET /internal/site-redirect/{handle}/{sitename}/{rest...}", h.contentHostRedirect)
 	mux.HandleFunc("GET /internal/notfound", h.notFound)
+	// Where nginx and Caddy send a request for a site whose folder carries the
+	// take-down marker (suspend.go).
+	mux.HandleFunc("GET /internal/suspended", h.suspendedPage)
 
 	// Append-only collections (second backend type): cheap O(1) appends +
 	// paginated reads for large/high-volume lists. Origin-gated like state.
@@ -387,6 +402,9 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
 		return
 	}
+	if refuseSuspendedSite(w, site) {
+		return
+	}
 	if _, err := db.GetSiteByUser(r.Context(), h.database, user.ID, newName); err == nil {
 		writeJSON(w, http.StatusConflict, errorResponse{Error: "you already have a site with that name"})
 		return
@@ -437,6 +455,9 @@ func (h *SiteHandler) setAllowedOrigins(w http.ResponseWriter, r *http.Request) 
 	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+		return
+	}
+	if refuseSuspendedSite(w, site) {
 		return
 	}
 
@@ -798,6 +819,11 @@ func (h *SiteHandler) getSiteState(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	// A taken-down site serves nothing to the public; the owner's (or the
+	// admin's) key still reads it.
+	if _, owner := h.ownerSiteIDFromKey(r, siteName); !owner && h.refuseSuspendedSiteID(w, r, siteID) {
+		return
+	}
 
 	// Conditional GET: if the caller already has the current version, do a cheap
 	// version-only check and return 304 — no fetch/serialize of the document.
@@ -1131,6 +1157,9 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	if refuseSuspendedSite(w, site) {
+		return
+	}
 
 	// Serialize write+promote for this site (in-process), and take a DB row
 	// lock so version allocation is safe even across multiple binary instances.
@@ -1441,6 +1470,9 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	if refuseSuspendedSite(w, site) {
+		return
+	}
 
 	if site.ActiveVersion == req.VersionNumber {
 		writeJSON(w, http.StatusOK, h.toSiteResponse(site, ""))
@@ -1499,6 +1531,9 @@ func (h *SiteHandler) deleteSite(w http.ResponseWriter, r *http.Request) {
 		}
 
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	if refuseSuspendedSite(w, site) {
 		return
 	}
 
@@ -1568,6 +1603,9 @@ func (h *SiteHandler) setVisibility(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	if refuseSuspendedSite(w, site) {
 		return
 	}
 
@@ -1643,11 +1681,15 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 	byUser := make(map[string][]map[string]any, len(users))
 	for _, s := range sites {
 		byUser[s.UserID] = append(byUser[s.UserID], map[string]any{
-			"name":           s.Name,
-			"site_url":       h.siteURLFor(s),
-			"active_version": s.ActiveVersion,
-			"custom_domain":  s.CustomDomain.String,
-			"created_at":     s.CreatedAt,
+			"id":               s.ID,
+			"name":             s.Name,
+			"site_url":         h.siteURLFor(s),
+			"active_version":   s.ActiveVersion,
+			"custom_domain":    s.CustomDomain.String,
+			"created_at":       s.CreatedAt,
+			"suspended":        s.Suspended(),
+			"suspended_reason": s.SuspendedReason(),
+			"suspended_by":     suspendedBy(s),
 		})
 	}
 
@@ -1658,14 +1700,16 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 			list = []map[string]any{}
 		}
 		out = append(out, map[string]any{
-			"id":           u.ID,
-			"username":     u.Username,
-			"handle":       u.Handle.String,
-			"display_name": u.DisplayName.String,
-			"is_admin":     u.IsAdmin,
-			"created_at":   u.CreatedAt,
-			"site_count":   len(list),
-			"sites":        list,
+			"id":               u.ID,
+			"username":         u.Username,
+			"handle":           u.Handle.String,
+			"display_name":     u.DisplayName.String,
+			"is_admin":         u.IsAdmin,
+			"created_at":       u.CreatedAt,
+			"site_count":       len(list),
+			"sites":            list,
+			"suspended":        u.Suspended,
+			"suspended_reason": u.SuspendedReason,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"users": out, "user_count": len(out), "site_count": len(sites)})
@@ -1746,18 +1790,20 @@ func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
 		visibility = "unlisted" // never guess "public"
 	}
 	return siteResponse{
-		ID:            site.ID,
-		UserID:        site.UserID,
-		Name:          site.Name,
-		ActiveVersion: site.ActiveVersion,
-		SiteURL:       h.siteURLFor(site),
-		CreatedAt:     site.CreatedAt,
-		UpdatedAt:     site.UpdatedAt,
-		CustomDomain:  site.CustomDomain.String,
-		DomainStatus:  site.DomainStatus.String,
-		Visibility:    visibility,
-		OwnerUsername: site.OwnerUsername,
-		Note:          note,
+		ID:              site.ID,
+		UserID:          site.UserID,
+		Name:            site.Name,
+		ActiveVersion:   site.ActiveVersion,
+		SiteURL:         h.siteURLFor(site),
+		CreatedAt:       site.CreatedAt,
+		UpdatedAt:       site.UpdatedAt,
+		CustomDomain:    site.CustomDomain.String,
+		DomainStatus:    site.DomainStatus.String,
+		Visibility:      visibility,
+		OwnerUsername:   site.OwnerUsername,
+		Note:            note,
+		Suspended:       site.Suspended(),
+		SuspendedReason: site.SuspendedReason(),
 	}
 }
 

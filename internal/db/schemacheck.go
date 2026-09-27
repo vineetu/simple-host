@@ -20,10 +20,11 @@ import (
 //
 // Add an entry here whenever a migration adds something the code depends on.
 var requiredColumns = map[string][]string{
-	"users": {"id", "username", "is_admin", "handle", "display_name", "handle_changed_at"},
+	// cp-ops-suspend.sql adds the suspended_* columns.
+	"users": {"id", "username", "is_admin", "handle", "display_name", "handle_changed_at", "suspended_at", "suspended_reason"},
 	// hash-api-keys.sql
 	"api_keys":         {"key_hash", "user_id", "created_at"},
-	"sites":            {"id", "user_id", "name", "active_version", "visibility", "state", "custom_domain"},
+	"sites":            {"id", "user_id", "name", "active_version", "visibility", "state", "custom_domain", "suspended_at", "suspended_reason"},
 	"collection_items": {"id", "site_id", "collection", "data", "submitted_by"},
 	// private-collections.sql
 	"collection_settings": {"site_id", "collection", "private"},
