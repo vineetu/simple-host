@@ -169,6 +169,14 @@ func (h *OAuthHandler) startOnSite(w http.ResponseWriter, r *http.Request) {
 		writeSiteOffline(w)
 		return
 	}
+	// Nor does a taken-down one (suspend.go).
+	if susp, reason, err := db.SiteSuspension(r.Context(), h.database, siteID.String); err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	} else if susp {
+		writeSiteSuspended(w, reason)
+		return
+	}
 	nonce, err := randomHex(32)
 	if err != nil {
 		log.Printf("oauth: random nonce: %v", err)

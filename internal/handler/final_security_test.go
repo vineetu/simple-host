@@ -224,3 +224,20 @@ func TestTLSAskRateLimited(t *testing.T) {
 		t.Fatal("tls-ask never rate-limited")
 	}
 }
+
+// I1: a taken-down site signs no visitor in (no code is emailed).
+func TestTakenDownSiteSignsNobodyIn(t *testing.T) {
+	a := newPersonApp(t, "serve")
+	a.sites.SetSiteHosts("canonical", "")
+	olive := a.newPerson(t, "tdown")
+	a.deploy(t, olive, "shop")
+	_, oh := a.userID(t, olive)
+	shop := "shop." + oh + "." + pcSiteDomain
+	shopID := a.siteID(t, olive, "shop")
+	if err := db.SetSiteSuspended(context.Background(), a.database, shopID, "report"); err != nil {
+		t.Fatal(err)
+	}
+	if r := a.at(t, "POST", shop, "/v1/sites/shop/visitor/auth", map[string]string{"email": "ann@example.com"}, browser(shop, "")); r.status != 403 || r.json(t)["code"] != "site_suspended" {
+		t.Fatalf("visitor sign-in on a taken-down site: %d %s", r.status, r.body)
+	}
+}
