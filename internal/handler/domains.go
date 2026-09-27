@@ -390,10 +390,10 @@ func setDomainTimes(resp *domainResponse, info db.SiteDomainInfo) {
 		resp.BoundAt = &t
 		if !info.VerifiedAt.Valid {
 			// DNS not pointed here: 24 hours. Pointed here but never proven
-			// (the certificate keeps failing): db.UnprovenDomainMaxAge.
-			expires := t.Add(24 * time.Hour)
+			// (the certificate keeps failing): db.UnprovenDomainMaxAge().
+			expires := t.Add(db.UnprovenDomainTTL())
 			if info.CertStatus != "" && info.CertStatus != "pending" {
-				expires = t.Add(db.UnprovenDomainMaxAge)
+				expires = t.Add(db.UnprovenDomainMaxAge())
 			}
 			resp.ExpiresAt = &expires
 		}

@@ -99,22 +99,28 @@ var assetContentTypes = map[string]string{
 }
 
 // serveRewrittenAsset serves one embedded asset with the instance's own
-// hostnames substituted in.
+// hostnames (rw, which may be nil) and limits substituted in.
 func serveRewrittenAsset(name string, rw *hostRewriter, modTime time.Time) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body []byte
 		var err error
 		if strings.HasSuffix(name, ".html") {
-			// A page gets the shared chrome first, so the rewrite covers it too.
+			// A page gets the shared chrome first, so the rewrite covers it
+			// too; chromePage has already put this install's limits in.
 			body, err = chromePage(name, chromeDataFor(r, ""))
+			if err == nil {
+				body = rw.apply(body)
+			}
 		} else {
 			body, err = staticFiles.ReadFile("static/" + name)
+			if err == nil {
+				body = instanceLimits.apply(rw.apply(body))
+			}
 		}
 		if err != nil {
 			http.NotFound(w, r)
 			return
 		}
-		body = rw.apply(body)
 		if ct := assetContentTypes[strings.ToLower(path.Ext(name))]; ct != "" {
 			w.Header().Set("Content-Type", ct)
 		}

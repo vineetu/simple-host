@@ -1333,8 +1333,8 @@ paths:
       summary: Keep a site up for good
       description: >-
         Mark the site Keep (or clear the mark). Where the idle-site cleanup is on
-        (simple-host.app), a site with no visits by people and no new version for 90
-        days gets its owner an email with a "Keep it" link (and a link to their page,
+        (simple-host.app), a site with no visits by people and no new version
+        for 90 days gets its owner an email with a "Keep it" link (and a link to their page,
         where they can sign in and download it); 30 days later with nothing done it
         moves to Recently deleted (restorable for 7 days, with a link in a second
         email). A site marked Keep is never
@@ -2573,8 +2573,8 @@ paths:
         `previous_domain` drops the pending one. Until first verified, a binding is
         provisional: another site can take it over until it has passed its ownership
         proof, and it expires 24 hours after binding unless DNS already points here.
-        A verified domain stays exclusive while it works; if it fails every check for
-        24 hours the owner is emailed, and after 72 hours it is disconnected (the
+        A verified domain stays exclusive while it works; if it fails every check
+        for 24 hours the owner is emailed, and after 72 hours it is disconnected (the
         site's own address serves again) and can be connected afresh, with the TXT
         record, by whoever holds it; while it is being released, binding it answers
         409 domain_releasing.
@@ -2755,8 +2755,8 @@ paths:
       description: >-
         Re-proves the site's own domain at once (its TXT ownership record holds the
         site's token, it resolves here and serves the site over HTTPS; the check
-        connects only to this server's public address and never follows a redirect), instead of waiting for the background check every two
-        minutes, then answers exactly like GET .../domain with the new status and
+        connects only to this server's public address and never follows a redirect), instead of waiting for the
+        background check every two minutes, then answers exactly like GET .../domain with the new status and
         `last_error`. A free <name>.simple-host.app address needs no proof and is
         answered as is. Owner only (API key); rate-limited per IP and per account
         (a few at once, then one per 30 seconds; 429 with code rate_limited).

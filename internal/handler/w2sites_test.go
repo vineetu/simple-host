@@ -105,7 +105,7 @@ func TestRenameKeepsOldLinks(t *testing.T) {
 	if r := a.at(t, "DELETE", apex, "/v1/sites/rsvp", nil, okey); r.status != http.StatusNoContent {
 		t.Fatalf("delete again: %d %s", r.status, r.body)
 	}
-	if _, err := a.database.Exec(`UPDATE sites SET deleted_at = now() - interval '8 days' WHERE id = $1`, siteID); err != nil {
+	if _, err := a.database.Exec(`UPDATE sites SET deleted_at = now() - interval '8 days', purge_at = now() - interval '1 day' WHERE id = $1`, siteID); err != nil {
 		t.Fatal(err)
 	}
 	a.sites.purgeDeletedSites(context.Background())

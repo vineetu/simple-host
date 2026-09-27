@@ -61,7 +61,7 @@ func NewOAuthHandler(database *sql.DB, cfg config.Config) *OAuthHandler {
 	if cfg.GitHubOAuthEnabled() {
 		providers["github"] = oauth.NewGitHub(cfg.GitHubOAuthClientID, cfg.GitHubOAuthClientSecret, cfg.OAuthRedirectURI("github"))
 	}
-	ipLimiter := newRateLimiter(20, 0.2)
+	ipLimiter := newRateLimiterFor(config.Active().RateVisitorOAuth)
 	ipLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	h := &OAuthHandler{
 		database:    database,
@@ -328,7 +328,7 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 		}
 		// The one-time token is bound to the nonce of the tab that started
 		// this sign-in (cn in its return_to), so only that tab can redeem it.
-		if err := db.CreateAuthToken(r.Context(), tx, user.Username, code, linkToken, time.Now().Add(authTokenTTL), "dashboard", sql.NullString{}, returnToNonceHash(st.ReturnTo)); err != nil {
+		if err := db.CreateAuthToken(r.Context(), tx, user.Username, code, linkToken, time.Now().Add(authTokenTTL()), "dashboard", sql.NullString{}, returnToNonceHash(st.ReturnTo)); err != nil {
 			log.Printf("oauth: owner auth token: %v", err)
 			writeOAuthHTMLError(w, http.StatusBadGateway)
 			return
@@ -356,7 +356,7 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := time.Now()
-	if err := db.InsertVisitorSession(r.Context(), tx, sessionID, user.ID, st.SiteID.String, st.Host, now.Add(30*24*time.Hour), now.Add(14*24*time.Hour)); err != nil {
+	if err := db.InsertVisitorSession(r.Context(), tx, sessionID, user.ID, st.SiteID.String, st.Host, now.Add(visitorSessionTTL()), now.Add(visitorSessionIdle())); err != nil {
 		log.Printf("oauth: insert session: %v", err)
 		writeOAuthHTMLError(w, http.StatusBadGateway)
 		return

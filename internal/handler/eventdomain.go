@@ -17,22 +17,19 @@ import (
 	"github.com/vsriram/simple-host/internal/eventdns"
 )
 
-// eventTTL is how long a claimed event name lives before the sweep removes it.
-//
-// Long enough for a week-long event, short enough that a forgotten claim does
-// not point at a recycled cloud address for months. An organiser can re-claim
-// the same name to extend it.
-const eventTTL = 21 * 24 * time.Hour
+// eventTTL (EVENT_TTL_DAYS, default 21) is how long a claimed event name
+// lives before the sweep removes it. Long enough for a week-long event, short
+// enough that a forgotten claim does not point at a recycled cloud address for
+// months. An organiser can re-claim the same name to extend it.
 
 // recordTTL is deliberately short so teardown takes effect within minutes.
 const recordTTL = 120
 
-// maxClaimsPerAccount caps how many event names one account can hold at once.
-//
-// A name under our domain carrying a valid certificate is a phishing surface,
-// so the number one account can mint is bounded and every claim is
-// attributable. An organiser runs one event at a time; five is generous.
-const maxClaimsPerAccount = 5
+// maxClaimsPerAccount (EVENT_MAX_CLAIMS, default 5) caps how many event names
+// one account can hold at once. A name under our domain carrying a valid
+// certificate is a phishing surface, so the number one account can mint is
+// bounded and every claim is attributable. An organiser runs one event at a
+// time; five is generous.
 
 // EventDomainHandler hands an organiser two hostnames under a domain we own,
 // pointing at their own server, so they never touch a registrar.
@@ -196,9 +193,9 @@ func (h *EventDomainHandler) claim(w http.ResponseWriter, r *http.Request) {
 	var held int
 	if err := h.db.QueryRowContext(r.Context(),
 		`SELECT count(*) FROM event_domains WHERE user_id=$1 AND NOT (name=$2 AND domain=$3)`,
-		user.ID, req.Name, req.Domain).Scan(&held); err == nil && held >= maxClaimsPerAccount {
+		user.ID, req.Name, req.Domain).Scan(&held); err == nil && held >= maxClaimsPerAccount() {
 		writeJSON(w, http.StatusConflict, errorResponse{
-			Error: fmt.Sprintf("an account may hold %d event names at once; release one first", maxClaimsPerAccount)})
+			Error: fmt.Sprintf("an account may hold %d event names at once; release one first", maxClaimsPerAccount())})
 		return
 	}
 
@@ -215,7 +212,7 @@ func (h *EventDomainHandler) claim(w http.ResponseWriter, r *http.Request) {
 		  SET ip = EXCLUDED.ip, expires_at = EXCLUDED.expires_at
 		  WHERE event_domains.user_id = EXCLUDED.user_id
 		RETURNING user_id, record_ids, (xmax = 0)`,
-		req.Name, req.Domain, user.ID, req.IP, fmt.Sprintf("%d hours", int(eventTTL.Hours())),
+		req.Name, req.Domain, user.ID, req.IP, fmt.Sprintf("%d hours", int(eventTTL().Hours())),
 	).Scan(&ownerID, pq.Array(&existingIDs), &wasNew)
 	if errors.Is(err, sql.ErrNoRows) {
 		// The conflict clause refused: the row exists and belongs to somebody else.
@@ -283,7 +280,7 @@ func (h *EventDomainHandler) claim(w http.ResponseWriter, r *http.Request) {
 		"host":         host,
 		"content_host": content,
 		"ip":           req.IP,
-		"expires_at":   time.Now().Add(eventTTL).UTC().Format(time.RFC3339),
+		"expires_at":   time.Now().Add(eventTTL()).UTC().Format(time.RFC3339),
 	})
 }
 

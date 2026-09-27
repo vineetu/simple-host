@@ -16,6 +16,7 @@ import (
 	"github.com/lib/pq"
 
 	"github.com/vsriram/simple-host/internal/auth"
+	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/email"
 )
@@ -23,7 +24,6 @@ import (
 var validEmail = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 
 const (
-	authTokenTTL    = 15 * time.Minute
 	maxCodeAttempts = 3
 )
 
@@ -115,8 +115,8 @@ type errorResponse struct {
 func NewUserHandler(database *sql.DB, mailer email.Sender, publicBaseURL string) *UserHandler {
 	// ~12 req/min/IP (burst 20) across both auth routes; ~1.2/min/email
 	// (burst 5). Generous for a human signing in, tight against automation.
-	ipLimiter := newRateLimiter(20, 0.2)
-	emailLimiter := newRateLimiter(5, 0.02)
+	ipLimiter := newRateLimiterFor(config.Active().RateSigninIP)
+	emailLimiter := newRateLimiterFor(config.Active().RateSigninEmail)
 	ipLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	emailLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	return &UserHandler{

@@ -16,7 +16,7 @@ import (
 func TestExportTokenRefusesWhatItShould(t *testing.T) {
 	h := &SiteHandler{exportKey: newExportKey()}
 	now := time.Now()
-	good := h.signExportToken("user-1", "site-1", now.Add(exportLinkTTL))
+	good := h.signExportToken("user-1", "site-1", now.Add(exportLinkTTL()))
 	if u, s, err := h.checkExportToken(good, now); err != nil || u != "user-1" || s != "site-1" {
 		t.Fatalf("good token refused: %v %q %q", err, u, s)
 	}
@@ -25,7 +25,7 @@ func TestExportTokenRefusesWhatItShould(t *testing.T) {
 	other := &SiteHandler{exportKey: newExportKey()}
 	for name, tok := range map[string]string{
 		"expired":           h.signExportToken("user-1", "site-1", now.Add(-time.Second)),
-		"expires too late":  h.signExportToken("user-1", "site-1", now.Add(exportLinkTTL+time.Minute)),
+		"expires too late":  h.signExportToken("user-1", "site-1", now.Add(exportLinkTTL()+time.Minute)),
 		"other site":        swapped,
 		"flipped signature": enc + "." + strings.Repeat("A", len(mac)),
 		"another key":       other.signExportToken("user-1", "site-1", now.Add(time.Minute)),

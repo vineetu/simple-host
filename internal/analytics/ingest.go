@@ -30,8 +30,6 @@ const (
 	visitorInsertChunk = 1000
 	// runTimeout is the overall timeout for one runOnce (DB + file I/O).
 	runTimeout = 60 * time.Second
-	// pruneRetentionDays: drop aggregate rows older than this (best-effort, outside main tx).
-	pruneRetentionDays = 400
 )
 
 // asset extensions whose last path segment disqualifies a URI as a "document".
@@ -50,18 +48,31 @@ type Ingester struct {
 	salt        string // visitor ip_hash salt, used verbatim (see visitorSalt)
 	contentHost string
 	siteDomain  string
+	// retentionDays: drop aggregate rows older than this (best-effort,
+	// outside the main tx). ANALYTICS_RETENTION_DAYS, default 400.
+	retentionDays int
 }
 
 // NewIngester builds an ingester. saltSecret should be a stable server secret
 // (ADMIN_API_KEY); contentHost and siteDomain drive host→site attribution.
 func NewIngester(db *sql.DB, logPath, saltSecret, contentHost, siteDomain string) *Ingester {
 	return &Ingester{
-		db:          db,
-		logPath:     logPath,
-		salt:        visitorSalt(saltSecret),
-		contentHost: strings.ToLower(strings.TrimSpace(contentHost)),
-		siteDomain:  strings.ToLower(strings.TrimSpace(siteDomain)),
+		db:            db,
+		logPath:       logPath,
+		salt:          visitorSalt(saltSecret),
+		contentHost:   strings.ToLower(strings.TrimSpace(contentHost)),
+		siteDomain:    strings.ToLower(strings.TrimSpace(siteDomain)),
+		retentionDays: 400,
 	}
+}
+
+// WithRetentionDays sets how long aggregate rows are kept
+// (ANALYTICS_RETENTION_DAYS). Zero or less keeps the default.
+func (i *Ingester) WithRetentionDays(days int) *Ingester {
+	if days > 0 {
+		i.retentionDays = days
+	}
+	return i
 }
 
 // WithSalt replaces the salt derived from saltSecret with an explicit one
@@ -444,7 +455,7 @@ func (i *Ingester) commitLines(ctx context.Context, lines []string, saveState bo
 }
 
 func (i *Ingester) pruneOld(ctx context.Context) {
-	cutoff := time.Now().UTC().AddDate(0, 0, -pruneRetentionDays).Format(time.RFC3339)
+	cutoff := time.Now().UTC().AddDate(0, 0, -i.retentionDays).Format(time.RFC3339)
 	if _, err := i.db.ExecContext(ctx,
 		`DELETE FROM site_view_hourly WHERE hour < $1::timestamptz`, cutoff); err != nil {
 		log.Printf("analytics prune views: %v", err)

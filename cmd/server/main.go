@@ -58,6 +58,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("load config: %v", err)
 	}
+	// Every operational time and limit, before anything reads one.
+	handler.ApplyLimits(cfg.Limits)
+	if changed := cfg.Limits.Changed(); len(changed) > 0 {
+		log.Printf("limits changed from the defaults: %s", strings.Join(changed, " "))
+	}
+	for _, w := range cfg.Limits.Warnings(os.Environ()) {
+		log.Printf("WARNING: %s", w)
+	}
 
 	db, err := sql.Open("postgres", cfg.DBDSN)
 	if err != nil {
@@ -153,6 +161,7 @@ func main() {
 	log.Printf("website-deploy skill version: %s", pluginVersion)
 
 	mailer := email.NewResendSender(cfg.ResendAPIKey, cfg.MailFrom)
+	mailer.SetCodeLifetime(config.Span(cfg.Limits.SigninCodeTTL))
 	if cfg.ResendAPIKey == "" {
 		log.Printf("warning: RESEND_API_KEY not set; /v1/auth will fail until it is configured")
 	}
@@ -242,6 +251,7 @@ func main() {
 	if cfg.AnalyticsLog != "" {
 		analytics.NewIngester(db, cfg.AnalyticsLog, cfg.AdminAPIKey, cfg.ContentHost, cfg.SiteDomain).
 			WithSalt(cfg.AnalyticsSalt).
+			WithRetentionDays(cfg.Limits.AnalyticsRetention).
 			Start(5 * time.Minute)
 		log.Printf("analytics ingester enabled: %s", cfg.AnalyticsLog)
 	}

@@ -245,6 +245,9 @@ type DomainCheck struct {
 	Name         string
 	FailingSince sql.NullTime
 	Notified     bool
+	// ReleaseAt is the disconnect date the owner's email gave (only while
+	// Notified, and NULL for emails sent before it was stored).
+	ReleaseAt sql.NullTime
 }
 
 // SetDomainStatus records one check of siteID's bound domain: status
@@ -264,10 +267,11 @@ func SetDomainStatus(ctx context.Context, database *sql.DB, siteID, domain, stat
 		        ELSE COALESCE(domain_failing_since, now()) END,
 		    domain_lapse_notified_at = CASE WHEN $3 = 'active' THEN NULL ELSE domain_lapse_notified_at END
 		WHERE id = $1 AND custom_domain = $2
-		RETURNING user_id, name, domain_failing_since, domain_lapse_notified_at IS NOT NULL
+		RETURNING user_id, name, domain_failing_since, domain_lapse_notified_at IS NOT NULL,
+		          CASE WHEN domain_lapse_notified_at IS NOT NULL THEN domain_release_at END
 	`
 	var c DomainCheck
-	err := database.QueryRowContext(ctx, query, siteID, domain, status, lastErr, certStatus).Scan(&c.UserID, &c.Name, &c.FailingSince, &c.Notified)
+	err := database.QueryRowContext(ctx, query, siteID, domain, status, lastErr, certStatus).Scan(&c.UserID, &c.Name, &c.FailingSince, &c.Notified, &c.ReleaseAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return DomainCheck{}, nil
 	}
@@ -275,9 +279,10 @@ func SetDomainStatus(ctx context.Context, database *sql.DB, siteID, domain, stat
 }
 
 // MarkDomainLapseNotified records that the owner was emailed about their
-// failing domain.
-func MarkDomainLapseNotified(ctx context.Context, database *sql.DB, siteID, domain string) error {
-	_, err := database.ExecContext(ctx, `UPDATE sites SET domain_lapse_notified_at = now() WHERE id = $1 AND custom_domain = $2`, siteID, domain)
+// failing domain, and the disconnect date the email gave: the domain is let
+// go then, whatever DOMAIN_LAPSE_HOURS says later.
+func MarkDomainLapseNotified(ctx context.Context, database *sql.DB, siteID, domain string, releaseAt time.Time) error {
+	_, err := database.ExecContext(ctx, `UPDATE sites SET domain_lapse_notified_at = now(), domain_release_at = $3 WHERE id = $1 AND custom_domain = $2`, siteID, domain, releaseAt)
 	return err
 }
 
@@ -451,11 +456,15 @@ func BindCustomDomain(ctx context.Context, database *sql.DB, siteID, domain stri
 
 // UnprovenDomainMaxAge is how long a binding whose DNS points here may stay
 // unproven (its certificate keeps failing, or HTTPS never answers) before it
-// is released like any other unproven binding.
-const UnprovenDomainMaxAge = 7 * 24 * time.Hour
+// is released like any other unproven binding (DOMAIN_UNPROVEN_MAX_DAYS).
+func UnprovenDomainMaxAge() time.Duration { return lim().UnprovenDomainMaxAge }
 
-// ReleaseExpiredDomains clears bindings that were never proven within 24
-// hours, unless DNS already points here (the certificate status is past
+// UnprovenDomainTTL is how long a new binding may stay unproven while its DNS
+// does not point here (DOMAIN_UNPROVEN_HOURS).
+func UnprovenDomainTTL() time.Duration { return lim().UnprovenDomainTTL }
+
+// ReleaseExpiredDomains clears bindings that were never proven within
+// UnprovenDomainTTL, unless DNS already points here (the certificate status is past
 // "pending": it is being issued, is live, or failed and will be retried); those
 // get UnprovenDomainMaxAge. A site that still had an earlier proven address
 // gets it back; it is returned as the released row's PreviousDomain.
@@ -464,13 +473,13 @@ func ReleaseExpiredDomains(ctx context.Context, database *sql.DB) ([]SiteDomainI
 		WITH expired AS (
 		SELECT id, user_id, name, custom_domain FROM sites
 		WHERE custom_domain IS NOT NULL AND domain_verified_at IS NULL AND deleted_at IS NULL
-		AND ((domain_bound_at < now() - interval '24 hours' AND COALESCE(domain_cert_status, 'pending') = 'pending')
+		AND ((domain_bound_at < now() - ($2 * interval '1 second') AND COALESCE(domain_cert_status, 'pending') = 'pending')
 		     OR domain_bound_at < now() - ($1 * interval '1 second'))
 		FOR UPDATE
 		)
 		UPDATE sites s SET `+restorePreviousSet+`
 		FROM expired e WHERE s.id = e.id
-		RETURNING e.id, e.user_id, e.name, e.custom_domain, COALESCE(s.custom_domain, '')`, int64(UnprovenDomainMaxAge.Seconds()))
+		RETURNING e.id, e.user_id, e.name, e.custom_domain, COALESCE(s.custom_domain, '')`, int64(UnprovenDomainMaxAge().Seconds()), int64(UnprovenDomainTTL().Seconds()))
 	if err != nil {
 		return nil, err
 	}
@@ -641,8 +650,8 @@ func ClaimPlatformSubdomain(ctx context.Context, database *sql.DB, siteID, host 
 }
 
 // DomainCertDailyCap is how many new custom-domain certificates one account
-// may ask for in a rolling day.
-const DomainCertDailyCap = 5
+// may ask for in a rolling day (DOMAIN_CERTS_PER_ACCOUNT_DAILY).
+func DomainCertDailyCap() int { return lim().DomainCertDailyCap }
 
 // AllowDomainCertRequest records that userID asks for a certificate for
 // domain, unless that would be more than DomainCertDailyCap different domains
@@ -667,7 +676,7 @@ func AllowDomainCertRequest(ctx context.Context, database *sql.DB, userID, domai
 	if again {
 		return true, nil
 	}
-	if n >= DomainCertDailyCap {
+	if n >= DomainCertDailyCap() {
 		return false, nil
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO domain_cert_requests (user_id, domain) VALUES ($1, $2)`, userID, domain); err != nil {

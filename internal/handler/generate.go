@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
+	"github.com/vsriram/simple-host/internal/config"
 )
 
 // GenerateHandler powers the home page "create with AI" chat: a signed-in user
@@ -49,8 +50,8 @@ type GenerateHandler struct {
 func NewGenerateHandler(llmKey, llmBase, llmModel, visionKey, visionBase, visionModel string) *GenerateHandler {
 	// A conversation is several turns, so allow a healthy burst; the slow refill
 	// is the real cost guard against scripted abuse.
-	ipLimiter := newRateLimiter(20, 1.0/12.0)   // burst 20, +1 every 12s
-	userLimiter := newRateLimiter(30, 1.0/10.0) // burst 30, +1 every 10s
+	ipLimiter := newRateLimiterFor(config.Active().RateAIIP)     // default burst 20, +1 every 12s
+	userLimiter := newRateLimiterFor(config.Active().RateAIUser) // default burst 30, +1 every 10s
 	// Status polling happens every couple seconds for the length of a run, so it
 	// needs a much higher ceiling than the (expensive) generate calls.
 	statusLimiter := newRateLimiter(240, 4.0) // burst 240, +4/s

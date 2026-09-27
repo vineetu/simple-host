@@ -203,8 +203,8 @@ type Config struct {
 	// (written by the issuer). Empty: certificates are issued by hand.
 	DomainCertDir string
 	// IdleCleanup is IDLE_CLEANUP=on (default off): warn owners of sites
-	// idle for 90 days, move them to Recently deleted 30 days later unless
-	// kept. IdleCleanupMaxEmails caps the emails one run sends (default 50).
+	// idle for IDLE_AFTER_DAYS (90), move them to Recently deleted
+	// IDLE_GRACE_DAYS (30) later unless kept (limits.go). IdleCleanupMaxEmails caps the emails one run sends (default 50).
 	IdleCleanup          bool
 	IdleCleanupMaxEmails int
 	// IdleCleanupExemptHandles is IDLE_CLEANUP_EXEMPT_HANDLES (comma list):
@@ -225,6 +225,10 @@ type Config struct {
 	// consent page. Both or neither; see internal/handler/reviewer.go.
 	ReviewAccountEmail        string
 	ReviewAccountPasswordHash string
+
+	// Limits is every operational time and limit (limits.go,
+	// docs/configuration.md). main installs it with SetActive.
+	Limits Limits
 }
 
 func Load() (Config, error) {
@@ -373,6 +377,12 @@ func Load() (Config, error) {
 			cfg.PreviewTTL = time.Duration(n) * time.Hour
 		}
 	}
+
+	limits, err := limitsFromEnv()
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.Limits = limits
 
 	if cfg.DBDSN == "" {
 		return Config{}, errors.New("DB_DSN is required")

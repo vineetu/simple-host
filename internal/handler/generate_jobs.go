@@ -25,14 +25,11 @@ const (
 	// Long enough for the slowest full-page build, short enough that a wedged
 	// provider call cannot pin a goroutine and its HTML forever. The client polls
 	// for 9 minutes, so this stays inside its patience.
-	jobRunTimeout = 8 * time.Minute
 	// A finished job lingers this long so a slow poll still collects its answer.
 	jobRetention = 10 * time.Minute
 	// Ceilings so a scripted caller cannot fan out unbounded goroutines or hold
 	// unbounded HTML in memory. Per-user is checked first, so one caller cannot
 	// starve everyone else out of the global budget.
-	maxJobsPerUser = 3
-	maxJobsTotal   = 64
 )
 
 // generateJob is one direct-backend turn. Fields are guarded by jobStore.mu
@@ -95,7 +92,7 @@ func (s *jobStore) start(owner string, work func(context.Context, func(string)) 
 			mine++
 		}
 	}
-	if mine >= maxJobsPerUser || running >= maxJobsTotal {
+	if mine >= maxJobsPerUser() || running >= maxJobsTotal() {
 		s.mu.Unlock()
 		return "", errJobsBusy
 	}
@@ -103,7 +100,7 @@ func (s *jobStore) start(owner string, work func(context.Context, func(string)) 
 	s.mu.Unlock()
 
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), jobRunTimeout)
+		ctx, cancel := context.WithTimeout(context.Background(), jobRunTimeout())
 		defer cancel()
 		reply, html, err := runJobWork(ctx, func(ctx context.Context) (string, string, error) {
 			return work(ctx, s.progressReporter(id))
@@ -167,7 +164,7 @@ func (s *jobStore) startCleanup(every time.Duration) {
 				switch {
 				case j.done && now.Sub(j.ended) > jobRetention:
 					delete(s.jobs, id)
-				case !j.done && now.Sub(j.started) > jobRunTimeout+time.Minute:
+				case !j.done && now.Sub(j.started) > jobRunTimeout()+time.Minute:
 					delete(s.jobs, id)
 				}
 			}

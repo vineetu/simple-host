@@ -318,7 +318,7 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 			"protocolVersion": negotiateInitialize(metaProtocolVersion(req.Params)),
 			"capabilities":    map[string]any{"tools": map[string]any{"listChanged": false}},
 			"serverInfo":      s.serverInfo(),
-			"instructions":    Instructions,
+			"instructions":    Instructions(),
 		})
 
 	// ping is a keepalive in every revision that has it, and a failure reads
@@ -335,7 +335,7 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 			"supportedVersions": supportedVersions,
 			"capabilities":      map[string]any{"tools": map[string]any{"listChanged": false}},
 			"serverInfo":        s.serverInfo(),
-			"instructions":      Instructions,
+			"instructions":      Instructions(),
 			"ttlMs":             cacheTTLMillis,
 			"cacheScope":        "private",
 		}))

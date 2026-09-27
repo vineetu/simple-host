@@ -52,8 +52,6 @@ type ipAgg struct {
 	lastRoute string
 }
 
-const metricsRetentionDays = 30
-
 func NewAPIMetrics(db *sql.DB, geo *geoip.DB) *APIMetrics {
 	m := &APIMetrics{
 		db:     db,
@@ -210,7 +208,7 @@ func (m *APIMetrics) pruneOld() {
 		`DELETE FROM api_request_daily WHERE day < CURRENT_DATE - $1::int`,
 		`DELETE FROM api_ip_daily WHERE day < CURRENT_DATE - $1::int`,
 	} {
-		if _, err := m.db.ExecContext(ctx, q, metricsRetentionDays); err != nil {
+		if _, err := m.db.ExecContext(ctx, q, metricsRetentionDays()); err != nil {
 			log.Printf("api metrics prune: %v", err)
 		}
 	}
@@ -296,7 +294,7 @@ func (m *APIMetrics) AdminSummary(w http.ResponseWriter, r *http.Request) {
 	// sequential queries are simpler than one clever one.
 	m.flush() // fold in the last ≤20s so "today" looks live
 	ctx := r.Context()
-	out := apiAnalyticsResponse{Retention: metricsRetentionDays}
+	out := apiAnalyticsResponse{Retention: metricsRetentionDays()}
 
 	row := m.db.QueryRowContext(ctx, `
 		SELECT

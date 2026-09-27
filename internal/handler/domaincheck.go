@@ -13,21 +13,16 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
+	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 )
 
 const (
-	domainCheckInterval = 2 * time.Minute
 	// domainActiveAge is how long an "active" verdict stands before it must be
 	// proved again.
 	domainActiveAge = time.Hour
 	// domainPassTimeout bounds one whole pass over the due domains.
 	domainPassTimeout = 2 * time.Minute
-	// A verified domain that keeps failing its checks: its owner is emailed
-	// after domainLapseWarnAfter, and after domainLapseAfter it stops being
-	// the site's home (its verification is cleared).
-	domainLapseWarnAfter = 24 * time.Hour
-	domainLapseAfter     = 72 * time.Hour
 )
 
 // lookupTXT and lookupHost read DNS (variables so tests can stand in).
@@ -227,7 +222,7 @@ func (h *SiteHandler) checkPreviousDomain(ctx context.Context, d db.BoundDomain,
 		log.Printf("domain check %s (earlier address): %v", d.PreviousDomain, err)
 		return
 	}
-	if !since.Valid || time.Since(since.Time) < domainLapseAfter {
+	if !since.Valid || time.Since(since.Time) < domainLapseAfter() {
 		return
 	}
 	info, ok, err := db.GetSiteDomainInfo(ctx, h.database, d.SiteID)
@@ -269,8 +264,14 @@ func (h *SiteHandler) applyDomainCheck(ctx context.Context, d db.BoundDomain, st
 		return
 	}
 	failing := time.Since(check.FailingSince.Time)
+	// Once the owner was emailed, the date that email gave decides (a later
+	// DOMAIN_LAPSE_HOURS change applies to new warnings only).
+	due := failing >= domainLapseAfter()
+	if check.ReleaseAt.Valid {
+		due = !time.Now().Before(check.ReleaseAt.Time)
+	}
 	switch {
-	case failing >= domainLapseAfter:
+	case due:
 		if lapsed, err := db.LapseDomain(ctx, h.database, d.SiteID, d.Domain); err != nil {
 			log.Printf("domain %s: lapse: %v", d.Domain, err)
 		} else if lapsed {
@@ -283,7 +284,7 @@ func (h *SiteHandler) applyDomainCheck(ctx context.Context, d db.BoundDomain, st
 			h.syncDomainRedirect(ctx, d.SiteID)
 			log.Printf("domain %s: failing for %s; released from %s", d.Domain, failing.Round(time.Hour), check.Name)
 		}
-	case failing >= domainLapseWarnAfter && !check.Notified:
+	case failing >= domainLapseWarnAfter() && !check.Notified:
 		h.emailDomainFailing(ctx, d, check.Name, reason)
 	}
 }
@@ -325,21 +326,23 @@ func (h *SiteHandler) emailDomainFailing(ctx context.Context, d db.BoundDomain, 
 		reason = "it does not answer over HTTPS"
 	}
 	subject := "Your domain " + d.Domain + " has stopped working"
-	text := fmt.Sprintf(`Your site %s is connected to https://%s/, and that address has failed every check for the last day.
+	releaseIn := domainLapseAfter() - domainLapseWarnAfter()
+	releaseAt := time.Now().Add(releaseIn)
+	text := fmt.Sprintf(`Your site %s is connected to https://%s/, and that address has failed every check for %s.
 
 What the last check saw: %s
 
 If you moved the domain or let it lapse on purpose, there is nothing to do. Otherwise, check the DNS record at your domain registrar.
 
-If it is still failing two days from now, %s is disconnected from the site: the site serves at its own Simple Host address again. Connecting the domain again (by you or whoever holds it then) needs its DNS ownership record (TXT _simple-host.<domain>) once more.
+If it is still failing %s from now, %s is disconnected from the site: the site serves at its own Simple Host address again. Connecting the domain again (by you or whoever holds it then) needs its DNS ownership record (TXT _simple-host.<domain>) once more.
 
 Simple Host
-`, siteName, d.Domain, reason, d.Domain)
+`, siteName, d.Domain, config.Span(domainLapseWarnAfter()), reason, config.Span(releaseIn), d.Domain)
 	if err := mailer.SendNotice(to, subject, text); err != nil {
 		log.Printf("domain %s: failing notice: %v", d.Domain, err)
 		return
 	}
-	if err := db.MarkDomainLapseNotified(ctx, h.database, d.SiteID, d.Domain); err != nil {
+	if err := db.MarkDomainLapseNotified(ctx, h.database, d.SiteID, d.Domain, releaseAt); err != nil {
 		log.Printf("domain %s: mark notified: %v", d.Domain, err)
 	}
 	log.Printf("domain %s: owner emailed about failing checks", d.Domain)

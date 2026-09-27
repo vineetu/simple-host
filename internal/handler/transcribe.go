@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
+	"github.com/vsriram/simple-host/internal/config"
 )
 
 // TranscribeHandler turns a chat voice recording into text.
@@ -41,8 +42,8 @@ func NewTranscribeHandler(url, ticketSecret string) *TranscribeHandler {
 	// one ordinary recording is a burst of calls, not one. Sized for that: a
 	// 90-second recording is ~22 interim passes plus a final. Still real CPU on a
 	// 4-core box, so the refill stays slow enough to bound scripted abuse.
-	ipLimiter := newRateLimiter(60, 1.0/3.0)   // burst 60, +1 every 3s
-	userLimiter := newRateLimiter(60, 1.0/3.0) // burst 60, +1 every 3s
+	ipLimiter := newRateLimiterFor(config.Active().RateTranscribe)   // default burst 60, +1 every 3s
+	userLimiter := newRateLimiterFor(config.Active().RateTranscribe) // the same, per signed-in user
 	ipLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	userLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	return &TranscribeHandler{

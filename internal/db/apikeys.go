@@ -75,8 +75,8 @@ func ListAPIKeys(ctx context.Context, q *sql.DB, userID string) ([]APIKey, error
 }
 
 // MaxAccountKeys caps how many keys one account may mint from the Keys panel
-// (POST /v1/me/keys). Sign-in keys are not refused by it.
-const MaxAccountKeys = 50
+// (POST /v1/me/keys; MAX_KEYS_PER_ACCOUNT). Sign-in keys are not refused by it.
+func MaxAccountKeys() int { return lim().MaxAccountKeys }
 
 // ErrKeyLimit: the account already holds MaxAccountKeys keys.
 var ErrKeyLimit = errors.New("account key limit reached")
@@ -105,7 +105,7 @@ func CreateAPIKey(ctx context.Context, db *sql.DB, userID, callerKeyHash, apiKey
 	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM api_keys WHERE user_id = $1`, userID).Scan(&n); err != nil {
 		return APIKey{}, err
 	}
-	if n >= MaxAccountKeys {
+	if n >= MaxAccountKeys() {
 		return APIKey{}, ErrKeyLimit
 	}
 	k := APIKey{Hash: HashAPIKey(apiKey), Name: name, Last4: keyLast4(apiKey)}

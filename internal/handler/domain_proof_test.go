@@ -176,7 +176,7 @@ func TestDomainCertDailyCap(t *testing.T) {
 	olive := a.newPerson(t, "olive")
 	uid, _ := a.userID(t, olive)
 	d := db.BoundDomain{UserID: uid, Name: "shop", Token: "sh-0123456789abcdef0123456789abcdef"}
-	for i := 0; i < db.DomainCertDailyCap; i++ {
+	for i := 0; i < db.DomainCertDailyCap(); i++ {
 		d.Domain = uniq("c") + ".example.test"
 		if st, why := a.sites.domainCertProgress(context.Background(), d); st != "issuing" {
 			t.Fatalf("request %d: %s %s", i, st, why)

@@ -25,11 +25,10 @@ const (
 )
 
 const (
-	visitorCookieHost   = "__Host-sh_vsess"
-	visitorCookieHTTP   = "sh_vsess"
-	visitorCookieMaxAge = 2592000 // 30 days, matching absolute session lifetime; idle expiry is server-side
-	visitorCSRFHeader   = "X-SH-CSRF"
-	visitorCSRFValue    = "1"
+	visitorCookieHost = "__Host-sh_vsess"
+	visitorCookieHTTP = "sh_vsess"
+	visitorCSRFHeader = "X-SH-CSRF"
+	visitorCSRFValue  = "1"
 )
 
 func requestIsHTTPS(r *http.Request) bool {
@@ -193,7 +192,7 @@ func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	setVisitorSessionCookie(w, r, hex.EncodeToString(tok.SessionID), visitorCookieMaxAge)
+	setVisitorSessionCookie(w, r, hex.EncodeToString(tok.SessionID), visitorCookieMaxAge())
 	setVisitorNonceCookie(w, r, "", -1)
 	w.Header().Set("Cache-Control", "no-store")
 	http.Redirect(w, r, tok.ReturnTo, http.StatusFound)

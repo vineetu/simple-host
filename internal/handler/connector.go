@@ -44,14 +44,13 @@ import (
 	"unicode"
 
 	"github.com/vsriram/simple-host/internal/auth"
+	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/mcp"
 )
 
 const (
 	oauthCodeTTL         = 60 * time.Second
-	oauthAccessTTL       = time.Hour
-	oauthRefreshTTL      = 90 * 24 * time.Hour
 	oauthConsentTTL      = 30 * time.Minute
 	oauthScope           = "sites"
 	oauthMaxRedirectURIs = 10
@@ -116,9 +115,9 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		// Registration: a chat app registers once per install, so a handful
 		// an hour per address is plenty. Authorize and token: one person's
 		// sign-in or a client's refresh loop, with room for retries.
-		registerLimiter:  newRateLimiter(10, 10.0/3600),
-		authorizeLimiter: newRateLimiter(30, 0.5),
-		tokenLimiter:     newRateLimiter(30, 0.5),
+		registerLimiter:  newRateLimiterFor(config.Active().RateOAuthRegister),
+		authorizeLimiter: newRateLimiterFor(config.Active().RateOAuthAuthorize),
+		tokenLimiter:     newRateLimiterFor(config.Active().RateOAuthToken),
 		now:              time.Now,
 	}
 	h.mcp = mcp.NewServer(mcp.Config{
@@ -1014,12 +1013,12 @@ func (h *ConnectorHandler) issueTokens(w http.ResponseWriter, r *http.Request, t
 	access := randomToken(prefixAccess, 32)
 	refresh := randomToken(prefixRefresh, 32)
 	now := h.now()
-	if err := db.InsertOAuthToken(r.Context(), tx, hashSecret(access), grantID, "access", now.Add(oauthAccessTTL)); err != nil {
+	if err := db.InsertOAuthToken(r.Context(), tx, hashSecret(access), grantID, "access", now.Add(oauthAccessTTL())); err != nil {
 		log.Printf("connector: insert access token: %v", err)
 		oauthError(w, http.StatusInternalServerError, "server_error", "")
 		return
 	}
-	if err := db.InsertOAuthToken(r.Context(), tx, hashSecret(refresh), grantID, "refresh", now.Add(oauthRefreshTTL)); err != nil {
+	if err := db.InsertOAuthToken(r.Context(), tx, hashSecret(refresh), grantID, "refresh", now.Add(oauthRefreshTTL())); err != nil {
 		log.Printf("connector: insert refresh token: %v", err)
 		oauthError(w, http.StatusInternalServerError, "server_error", "")
 		return
@@ -1033,7 +1032,7 @@ func (h *ConnectorHandler) issueTokens(w http.ResponseWriter, r *http.Request, t
 	writeJSON(w, http.StatusOK, map[string]any{
 		"access_token":  access,
 		"token_type":    "Bearer",
-		"expires_in":    int(oauthAccessTTL / time.Second),
+		"expires_in":    int(oauthAccessTTL() / time.Second),
 		"refresh_token": refresh,
 		"scope":         scope,
 	})

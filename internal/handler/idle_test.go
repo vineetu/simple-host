@@ -171,7 +171,7 @@ func TestIdleSiteCleanup(t *testing.T) {
 	if len(m.sent) != n+1 {
 		t.Fatalf("not warned again after 90 more days")
 	}
-	exec(`UPDATE sites SET idle_warned_at = now() - interval '31 days' WHERE id = $1`, quiet)
+	exec(`UPDATE sites SET idle_warned_at = now() - interval '31 days', idle_remove_at = now() - interval '1 day' WHERE id = $1`, quiet)
 	a.sites.runIdleCleanup(ctx, time.Now())
 	gone := m.last("quiet")
 	if !strings.Contains(gone, "moved to Recently deleted") {
@@ -263,7 +263,7 @@ func TestIdleCleanupHardening(t *testing.T) {
 	}
 	mine := func() map[string]db.IdleSite {
 		t.Helper()
-		list, err := db.ListIdleSitesToWarn(ctx, a.database, a.sites.idleExempt, time.Now().Add(-idleAfter), 0)
+		list, err := db.ListIdleSitesToWarn(ctx, a.database, a.sites.idleExempt, time.Now().Add(-idleAfter()), 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -324,8 +324,8 @@ func TestIdleCleanupHardening(t *testing.T) {
 	if links["keep"] == "" {
 		t.Fatalf("no keep link: %v", m.sent)
 	}
-	exec(`UPDATE sites SET idle_warned_at = now() - interval '31 days' WHERE id = $1`, plain)
-	remove, err := db.ListIdleSitesToRemove(ctx, a.database, a.sites.idleExempt, time.Now().Add(-idleGrace), 0)
+	exec(`UPDATE sites SET idle_warned_at = now() - interval '31 days', idle_remove_at = now() - interval '1 day' WHERE id = $1`, plain)
+	remove, err := db.ListIdleSitesToRemove(ctx, a.database, a.sites.idleExempt, time.Now(), idleGrace(), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -349,7 +349,7 @@ func TestIdleCleanupHardening(t *testing.T) {
 	}
 
 	// A failed removal notice leaves the site where it is.
-	exec(`UPDATE sites SET idle_kept_at = NULL, idle_warned_at = now() - interval '31 days' WHERE id = $1`, plain)
+	exec(`UPDATE sites SET idle_kept_at = NULL, idle_warned_at = now() - interval '31 days', idle_remove_at = now() - interval '1 day' WHERE id = $1`, plain)
 	a.sites.removeIdleSite(ctx, &failingReplyMailer{}, target, time.Now())
 	if err := a.database.QueryRow(`SELECT deleted_at IS NOT NULL FROM sites WHERE id = $1`, plain).Scan(&deleted); err != nil || deleted {
 		t.Fatalf("removed without its email: %v %v", deleted, err)

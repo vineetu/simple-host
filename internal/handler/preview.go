@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
+	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
 )
 
@@ -34,8 +35,6 @@ import (
 // cached, and saves made from them are refused, so trying a new version never
 // writes into the live site's data. Making the version live is the existing
 // rollback (PUT .../active-version).
-
-const previewLinkTTL = time.Hour
 
 // previewLinkDomain separates these MACs from export links and anything else
 // the key could be asked to sign.
@@ -88,7 +87,7 @@ func (h *SiteHandler) checkPreviewToken(token string, now time.Time) (siteID str
 		return "", 0, errPreviewLink
 	}
 	left := time.Unix(exp, 0).Sub(now)
-	if left <= 0 || left > previewLinkTTL {
+	if left <= 0 || left > previewLinkTTL() {
 		return "", 0, errPreviewLink
 	}
 	return parts[0], v, nil
@@ -117,7 +116,7 @@ func (h *SiteHandler) previewLink(site db.Site, n int) (string, time.Time, bool)
 	if !ok {
 		return "", time.Time{}, false
 	}
-	expires := time.Now().Add(previewLinkTTL).Truncate(time.Second)
+	expires := time.Now().Add(previewLinkTTL()).Truncate(time.Second)
 	return base + strconv.Itoa(n) + "/" + h.signPreviewToken(site.ID, n, expires) + "/", expires, true
 }
 
@@ -209,7 +208,7 @@ func (h *SiteHandler) createPreviewLink(w http.ResponseWriter, r *http.Request) 
 		"live":       n == site.ActiveVersion,
 		"url":        link,
 		"expires_at": expires.UTC().Format(time.RFC3339),
-		"expires_in": int(previewLinkTTL.Seconds()),
+		"expires_in": int(previewLinkTTL().Seconds()),
 	})
 }
 
@@ -267,7 +266,7 @@ func (h *SiteHandler) servePreview(w http.ResponseWriter, r *http.Request, site 
 
 func (h *SiteHandler) renderPreviewExpired(w http.ResponseWriter, r *http.Request) {
 	h.renderNotFoundPage(w, r, "This preview link has expired",
-		"Preview links work for an hour. Make a new one from Versions on your Simple Host page, or ask your AI app.",
+		"Preview links work for "+config.Span(previewLinkTTL())+". Make a new one from Versions on your Simple Host page, or ask your AI app.",
 		h.mainSiteURL(), "Go to "+h.siteDomain)
 }
 

@@ -51,7 +51,18 @@ type IdleSite struct {
 	OwnerHandle  string
 	LastActivity time.Time
 	WarnedAt     sql.NullTime
+	RemoveAt     sql.NullTime // the removal date the warning email gave
 }
+
+// idleRemoveDue is true for a warned site whose promised removal date is
+// before $<p+1>: the date stored with the warning, or (for warnings sent
+// before it was stored) the warning plus $<p> seconds of grace. A later
+// IDLE_GRACE_DAYS change therefore applies to new warnings only.
+func idleRemoveDue(p int) string {
+	return fmt.Sprintf(`COALESCE(s.idle_remove_at, s.idle_warned_at + ($%d * interval '1 second')) < $%d`, p, p+1)
+}
+
+func graceSeconds(grace time.Duration) int64 { return int64(grace.Seconds()) }
 
 // idleLastActivity is the SQL expression for a site's last activity (s is
 // the sites row).
@@ -85,9 +96,9 @@ func idleEligible(p int) string {
 func queryIdleSites(ctx context.Context, database *sql.DB, ex IdleExempt, extra string, args ...any) ([]IdleSite, error) {
 	all := append(ex.args(), args...)
 	rows, err := database.QueryContext(ctx, `
-		SELECT id, user_id, name, username, handle, last_activity, idle_warned_at FROM (
+		SELECT id, user_id, name, username, handle, last_activity, idle_warned_at, idle_remove_at FROM (
 			SELECT s.id, s.user_id::text AS user_id, s.name, u.username, COALESCE(u.handle, '') AS handle,
-			       `+idleLastActivity+` AS last_activity, s.idle_warned_at
+			       `+idleLastActivity+` AS last_activity, s.idle_warned_at, s.idle_remove_at
 			  FROM sites s JOIN users u ON u.id = s.user_id
 			 WHERE s.deleted_at IS NULL AND `+idleEligible(1)+`
 		) x WHERE `+extra, all...)
@@ -98,7 +109,7 @@ func queryIdleSites(ctx context.Context, database *sql.DB, ex IdleExempt, extra 
 	var out []IdleSite
 	for rows.Next() {
 		var s IdleSite
-		if err := rows.Scan(&s.SiteID, &s.UserID, &s.Name, &s.OwnerEmail, &s.OwnerHandle, &s.LastActivity, &s.WarnedAt); err != nil {
+		if err := rows.Scan(&s.SiteID, &s.UserID, &s.Name, &s.OwnerEmail, &s.OwnerHandle, &s.LastActivity, &s.WarnedAt, &s.RemoveAt); err != nil {
 			return nil, err
 		}
 		out = append(out, s)
@@ -116,14 +127,17 @@ func ListIdleSitesToWarn(ctx context.Context, database *sql.DB, ex IdleExempt, i
 	return queryIdleSites(ctx, database, ex, q, idleBefore)
 }
 
-// ListIdleSitesToRemove: eligible sites warned before warnedBefore with no
-// activity since the warning, earliest warned first, at most limit (0 = all).
-func ListIdleSitesToRemove(ctx context.Context, database *sql.DB, ex IdleExempt, warnedBefore time.Time, limit int) ([]IdleSite, error) {
-	q := `idle_warned_at IS NOT NULL AND idle_warned_at < $3 AND last_activity <= idle_warned_at ORDER BY idle_warned_at`
+// ListIdleSitesToRemove: eligible warned sites whose removal date (see
+// idleRemoveDue; grace for warnings from before it was stored) is before now,
+// with no activity since the warning, earliest warned first, at most limit
+// (0 = all).
+func ListIdleSitesToRemove(ctx context.Context, database *sql.DB, ex IdleExempt, now time.Time, grace time.Duration, limit int) ([]IdleSite, error) {
+	q := `idle_warned_at IS NOT NULL AND COALESCE(idle_remove_at, idle_warned_at + ($3 * interval '1 second')) < $4
+		AND last_activity <= idle_warned_at ORDER BY idle_warned_at`
 	if limit > 0 {
-		return queryIdleSites(ctx, database, ex, q+` LIMIT $4`, warnedBefore, limit)
+		return queryIdleSites(ctx, database, ex, q+` LIMIT $5`, graceSeconds(grace), now, limit)
 	}
-	return queryIdleSites(ctx, database, ex, q, warnedBefore)
+	return queryIdleSites(ctx, database, ex, q, graceSeconds(grace), now)
 }
 
 // ClearStaleIdleWarnings drops the warning (and its links) of every live site
@@ -142,14 +156,14 @@ func ClearStaleIdleWarnings(ctx context.Context, database *sql.DB, ex IdleExempt
 }
 
 // MarkIdleWarned records, inside tx, that the owner is being warned, with the
-// hash of the token their links carry: only while the site is live, still
+// hash of the token their links carry and the removal date the email gives: only while the site is live, still
 // unwarned, still eligible and idle since before idleBefore (all re-checked
 // here, under the row lock). sql.ErrNoRows when it no longer qualifies. The
 // caller sends the email before committing, so a warning is only on record
 // once the email was accepted.
-func MarkIdleWarned(ctx context.Context, tx *sql.Tx, ex IdleExempt, siteID string, tokenHash []byte, idleBefore time.Time) error {
-	args := append(ex.args(), siteID, tokenHash, idleBefore)
-	res, err := tx.ExecContext(ctx, `UPDATE sites s SET idle_warned_at = now(), idle_token_hash = $4
+func MarkIdleWarned(ctx context.Context, tx *sql.Tx, ex IdleExempt, siteID string, tokenHash []byte, idleBefore, removeAt time.Time) error {
+	args := append(ex.args(), siteID, tokenHash, idleBefore, removeAt)
+	res, err := tx.ExecContext(ctx, `UPDATE sites s SET idle_warned_at = now(), idle_remove_at = $6, idle_token_hash = $4
 		  FROM users u
 		 WHERE s.id = $3 AND u.id = s.user_id AND s.deleted_at IS NULL AND s.idle_warned_at IS NULL
 		   AND `+idleEligible(1)+` AND `+idleLastActivity+` < $5`, args...)
@@ -158,16 +172,16 @@ func MarkIdleWarned(ctx context.Context, tx *sql.Tx, ex IdleExempt, siteID strin
 
 // MarkIdleRemoved records, in the same transaction that moves the site to
 // Recently deleted, that the cleanup removed it, with its restore link's hash
-// — only while the site still qualifies: warned before warnedBefore, no
+// — only while the site still qualifies: its removal date is before now, no
 // activity since, still eligible (re-checked here, so a Keep, a deploy or a
 // new domain that landed since the list was read rolls the removal back).
 // sql.ErrNoRows when it no longer qualifies.
-func MarkIdleRemoved(ctx context.Context, q Querier, ex IdleExempt, siteID string, tokenHash []byte, warnedBefore time.Time) error {
-	args := append(ex.args(), siteID, tokenHash, warnedBefore)
+func MarkIdleRemoved(ctx context.Context, q Querier, ex IdleExempt, siteID string, tokenHash []byte, now time.Time, grace time.Duration) error {
+	args := append(ex.args(), siteID, tokenHash, graceSeconds(grace), now)
 	res, err := q.ExecContext(ctx, `UPDATE sites s SET idle_removed_at = now(), idle_token_hash = $4
 		  FROM users u
 		 WHERE s.id = $3 AND u.id = s.user_id
-		   AND s.idle_warned_at IS NOT NULL AND s.idle_warned_at < $5
+		   AND s.idle_warned_at IS NOT NULL AND `+idleRemoveDue(5)+`
 		   AND `+idleEligible(1)+` AND `+idleLastActivity+` <= s.idle_warned_at`, args...)
 	return oneRow(res, err)
 }
@@ -227,12 +241,26 @@ func SetSiteKeep(ctx context.Context, database *sql.DB, siteID string, keep bool
 type SiteIdleFlags struct {
 	Keep     bool
 	WarnedAt sql.NullTime
+	RemoveAt sql.NullTime // the removal date the warning gave
+}
+
+// RemovalAt is when a warned site moves to Recently deleted: the date the
+// warning gave, or the warning plus grace for warnings from before it was
+// stored. Zero when not warned.
+func (f SiteIdleFlags) RemovalAt(grace time.Duration) time.Time {
+	switch {
+	case !f.WarnedAt.Valid:
+		return time.Time{}
+	case f.RemoveAt.Valid:
+		return f.RemoveAt.Time
+	}
+	return f.WarnedAt.Time.Add(grace)
 }
 
 // ListSiteIdleFlags returns the Keep flag and warning of each of the user's
 // live sites (all live sites when userID is ""), by site id.
 func ListSiteIdleFlags(ctx context.Context, database *sql.DB, userID string) (map[string]SiteIdleFlags, error) {
-	q := `SELECT id, idle_keep, idle_warned_at FROM sites WHERE deleted_at IS NULL AND (idle_keep OR idle_warned_at IS NOT NULL)`
+	q := `SELECT id, idle_keep, idle_warned_at, idle_remove_at FROM sites WHERE deleted_at IS NULL AND (idle_keep OR idle_warned_at IS NOT NULL)`
 	args := []any{}
 	if userID != "" {
 		q += ` AND user_id = $1`
@@ -247,7 +275,7 @@ func ListSiteIdleFlags(ctx context.Context, database *sql.DB, userID string) (ma
 	for rows.Next() {
 		var id string
 		var f SiteIdleFlags
-		if err := rows.Scan(&id, &f.Keep, &f.WarnedAt); err != nil {
+		if err := rows.Scan(&id, &f.Keep, &f.WarnedAt, &f.RemoveAt); err != nil {
 			return nil, err
 		}
 		out[id] = f

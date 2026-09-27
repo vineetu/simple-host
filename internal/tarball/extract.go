@@ -30,11 +30,50 @@ const (
 	// ceilingBytes is the largest site this package will ever accept, whatever
 	// an instance asks for. The rest of the pipeline was sized against it.
 	ceilingBytes int64 = 500 * 1024 * 1024
-	// entryCeiling is the absolute file-count cap, and blockSize is the
-	// allocation unit assumed when deriving a smaller one from a byte budget.
-	entryCeiling = 50_000
-	blockSize    = 4096
+	// blockSize is the allocation unit assumed when deriving a file-count cap
+	// from a byte budget.
+	blockSize = 4096
+	// maxEntriesCeiling is the most files an archive may ever hold: the
+	// pipeline (in-memory entry map, inodes per version) was sized against it.
+	maxEntriesCeiling = 50_000
 )
+
+// entryCeiling is the file-count cap (MAX_FILES_PER_SITE, default 50,000);
+// siteBudget is the byte budget SetSiteLimit was last given (0: never), from
+// which a smaller count may be derived.
+var (
+	entryCeiling       = maxEntriesCeiling
+	siteBudget   int64 = 0
+)
+
+// SetMaxEntries sets the most files one archive may hold (MAX_FILES_PER_SITE).
+// When a per-site byte budget is in force the smaller of the two applies. Call
+// once at startup, before serving. It only lowers: above maxEntriesCeiling is
+// refused, like SetSiteLimit above ceilingBytes.
+func SetMaxEntries(n int) {
+	if n < 1 || n > maxEntriesCeiling {
+		return
+	}
+	entryCeiling = n
+	deriveEntryCount()
+}
+
+func deriveEntryCount() {
+	maxEntryCount = entryCeiling
+	if siteBudget <= 0 {
+		return
+	}
+	// A filesystem allocates at least one block per file, so 49,000 one-byte
+	// files occupy ~190 MB on a 4K filesystem while measuring 49 KB — the byte
+	// cap alone does not bound what a site costs on disk. One block per entry
+	// makes the budget hold.
+	if n := int(siteBudget / blockSize); n < maxEntryCount {
+		maxEntryCount = n
+	}
+	if maxEntryCount < 1 {
+		maxEntryCount = 1
+	}
+}
 
 // SetSiteLimit lowers the extraction caps to a per-site budget in bytes. Call
 // once at startup, before serving. Raising them above the built-in ceiling is
@@ -50,17 +89,9 @@ func SetSiteLimit(bytes int64) {
 	maxTotalUncompressedSize = bytes
 	maxFileSize = bytes
 
-	// Entry count follows the byte budget. A filesystem allocates at least one
-	// block per file, so 49,000 one-byte files occupy ~190 MB on a 4K
-	// filesystem while measuring 49 KB — the byte cap alone does not bound what
-	// a site costs on disk. One block per entry makes the budget hold.
-	maxEntryCount = int(bytes / blockSize)
-	if maxEntryCount > entryCeiling {
-		maxEntryCount = entryCeiling
-	}
-	if maxEntryCount < 1 {
-		maxEntryCount = 1
-	}
+	// Entry count follows the byte budget.
+	siteBudget = bytes
+	deriveEntryCount()
 }
 
 const (
@@ -303,6 +334,8 @@ func MaxEntries() int { return maxEntryCount }
 // every test that runs after it — an order-dependent failure, which is the
 // worst kind to debug.
 func SnapshotLimits() func() {
-	total, file, entries := maxTotalUncompressedSize, maxFileSize, maxEntryCount
-	return func() { maxTotalUncompressedSize, maxFileSize, maxEntryCount = total, file, entries }
+	total, file, entries, ceiling, budget := maxTotalUncompressedSize, maxFileSize, maxEntryCount, entryCeiling, siteBudget
+	return func() {
+		maxTotalUncompressedSize, maxFileSize, maxEntryCount, entryCeiling, siteBudget = total, file, entries, ceiling, budget
+	}
 }

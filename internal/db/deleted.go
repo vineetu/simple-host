@@ -15,8 +15,9 @@ import (
 // only ones that see deleted rows. PurgeDeletedSite removes one for good once
 // DeletedSiteRetention has passed.
 
-// DeletedSiteRetention is how long a deleted site can be restored.
-const DeletedSiteRetention = 7 * 24 * time.Hour
+// DeletedSiteRetention is how long a deleted site can be restored
+// (DELETED_RETENTION_DAYS).
+func DeletedSiteRetention() time.Duration { return lim().DeletedRetention }
 
 // DeletedSite is one site in an account's Recently deleted list.
 type DeletedSite struct {
@@ -25,16 +26,32 @@ type DeletedSite struct {
 	Name         string
 	DeletedAt    time.Time
 	CustomDomain sql.NullString
+	// purgeAt is the date stored when it was deleted (NULL for sites deleted
+	// before the column existed).
+	purgeAt sql.NullTime
 }
 
-// PurgeAt is when the site is removed for good.
-func (d DeletedSite) PurgeAt() time.Time { return d.DeletedAt.Add(DeletedSiteRetention) }
+// PurgeAt is when the site is removed for good: the date promised when it was
+// deleted, so a later DELETED_RETENTION_DAYS change applies to new deletions
+// only.
+func (d DeletedSite) PurgeAt() time.Time {
+	if d.purgeAt.Valid {
+		return d.purgeAt.Time
+	}
+	return d.DeletedAt.Add(DeletedSiteRetention())
+}
 
-// MarkSiteDeleted moves a live site to Recently deleted. sql.ErrNoRows when
-// there is no live site with that id. An emailed idle-cleanup link ("Keep
+// purgeDue is true for a deleted row whose promised date has passed; $1 is
+// DeletedSiteRetention in seconds, for rows deleted before purge_at existed.
+const purgeDue = `COALESCE(purge_at, deleted_at + ($1 * interval '1 second')) < now()`
+
+// MarkSiteDeleted moves a live site to Recently deleted, recording when it
+// will be removed for good. sql.ErrNoRows when there is no live site with
+// that id. An emailed idle-cleanup link ("Keep
 // it") ends with it; the cleanup's own removal sets a restore link after.
 func MarkSiteDeleted(ctx context.Context, q Querier, siteID string) error {
-	res, err := q.ExecContext(ctx, `UPDATE sites SET deleted_at = now(), idle_token_hash = NULL WHERE id = $1 AND deleted_at IS NULL`, siteID)
+	res, err := q.ExecContext(ctx, `UPDATE sites SET deleted_at = now(), purge_at = now() + ($2 * interval '1 second'), idle_token_hash = NULL
+		 WHERE id = $1 AND deleted_at IS NULL`, siteID, int64(DeletedSiteRetention().Seconds()))
 	return oneRow(res, err)
 }
 
@@ -43,7 +60,7 @@ func MarkSiteDeleted(ctx context.Context, q Querier, siteID string) error {
 // (owner app, API, MCP, the emailed link) counts as the owner keeping it: the
 // idle warning, removal and link end and the idle clock restarts.
 func RestoreDeletedSite(ctx context.Context, q Querier, siteID string) error {
-	res, err := q.ExecContext(ctx, `UPDATE sites SET deleted_at = NULL, updated_at = now(),
+	res, err := q.ExecContext(ctx, `UPDATE sites SET deleted_at = NULL, purge_at = NULL, updated_at = now(),
 		       idle_kept_at = now(), idle_warned_at = NULL, idle_removed_at = NULL, idle_token_hash = NULL
 		 WHERE id = $1 AND deleted_at IS NOT NULL`, siteID)
 	return oneRow(res, err)
@@ -63,11 +80,11 @@ func oneRow(res sql.Result, err error) error {
 	return nil
 }
 
-const deletedSiteCols = `id, user_id, name, deleted_at, custom_domain`
+const deletedSiteCols = `id, user_id, name, deleted_at, custom_domain, purge_at`
 
 func scanDeletedSite(sc interface{ Scan(...any) error }) (DeletedSite, error) {
 	var d DeletedSite
-	err := sc.Scan(&d.ID, &d.UserID, &d.Name, &d.DeletedAt, &d.CustomDomain)
+	err := sc.Scan(&d.ID, &d.UserID, &d.Name, &d.DeletedAt, &d.CustomDomain, &d.purgeAt)
 	return d, err
 }
 
@@ -99,12 +116,12 @@ func ListDeletedSitesByUser(ctx context.Context, database *sql.DB, userID string
 const notTakenDown = `suspended_at IS NULL
 	AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = sites.user_id AND u.suspended_at IS NOT NULL)`
 
-// ListPurgeableSites returns deleted sites whose restore window has passed,
+// ListPurgeableSites returns deleted sites whose restore date has passed,
 // except taken-down ones.
 func ListPurgeableSites(ctx context.Context, database *sql.DB) ([]DeletedSite, error) {
 	return queryDeletedSites(ctx, database,
-		`SELECT `+deletedSiteCols+` FROM sites WHERE deleted_at IS NOT NULL AND deleted_at < now() - ($1 * interval '1 second') AND `+notTakenDown+` ORDER BY deleted_at LIMIT 500`,
-		int64(DeletedSiteRetention.Seconds()))
+		`SELECT `+deletedSiteCols+` FROM sites WHERE deleted_at IS NOT NULL AND `+purgeDue+` AND `+notTakenDown+` ORDER BY deleted_at LIMIT 500`,
+		int64(DeletedSiteRetention().Seconds()))
 }
 
 func queryDeletedSites(ctx context.Context, database *sql.DB, query string, args ...any) ([]DeletedSite, error) {
@@ -136,8 +153,8 @@ func PurgeDeletedSite(ctx context.Context, database *sql.DB, siteID string) ([]s
 	}
 	defer tx.Rollback()
 	var id string
-	err = tx.QueryRowContext(ctx, `SELECT id FROM sites WHERE id = $1 AND deleted_at IS NOT NULL
-		AND deleted_at < now() - ($2 * interval '1 second') AND `+notTakenDown+` FOR UPDATE`, siteID, int64(DeletedSiteRetention.Seconds())).Scan(&id)
+	err = tx.QueryRowContext(ctx, `SELECT id FROM sites WHERE id = $2 AND deleted_at IS NOT NULL
+		AND `+purgeDue+` AND `+notTakenDown+` FOR UPDATE`, int64(DeletedSiteRetention().Seconds()), siteID).Scan(&id)
 	if err != nil {
 		return nil, err
 	}

@@ -118,12 +118,12 @@ func (h *SiteHandler) verifyVisitorEmail(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	now := time.Now()
-	expires, idle := now.Add(30*24*time.Hour), now.Add(14*24*time.Hour)
+	expires, idle := now.Add(visitorSessionTTL()), now.Add(visitorSessionIdle())
 	if err := db.InsertVisitorSession(r.Context(), h.database, id, user.ID, siteID, requestHostName(r), expires, idle); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	setVisitorSessionCookie(w, r, hex.EncodeToString(id), visitorCookieMaxAge)
+	setVisitorSessionCookie(w, r, hex.EncodeToString(id), visitorCookieMaxAge())
 	w.Header().Set("Cache-Control", "private, no-store")
 	writeJSON(w, http.StatusOK, h.visitorSignedInResponse(r, idle, user.Username, "email"))
 }

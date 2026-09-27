@@ -297,7 +297,7 @@ func TestLapsedDomainLetsGo(t *testing.T) {
 	if r := a.at(t, "GET", handle+"."+pcSiteDomain, "/shop/", nil, nil); r.status != http.StatusFound || r.header.Get("Location") != "https://"+dom+"/" {
 		t.Fatalf("before lapse: %d %q", r.status, r.header.Get("Location"))
 	}
-	if _, err := a.database.Exec(`UPDATE sites SET domain_failing_since = now() - interval '73 hours' WHERE id = $1`, shopID); err != nil {
+	if _, err := a.database.Exec(`UPDATE sites SET domain_failing_since = now() - interval '73 hours', domain_release_at = now() - interval '1 hour' WHERE id = $1`, shopID); err != nil {
 		t.Fatal(err)
 	}
 	a.sites.applyDomainCheck(ctx, failing, "pending", "resolves to 192.0.2.9, not to this server", "pending")

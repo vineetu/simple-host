@@ -80,7 +80,7 @@ func (h *SiteHandler) domainCertProgress(ctx context.Context, d db.BoundDomain) 
 		return "failed", why
 	}
 	if !asked {
-		return "failed", fmt.Sprintf("this account has asked for %d new domain certificates in the last day; this one is asked for automatically once that day is over", db.DomainCertDailyCap)
+		return "failed", fmt.Sprintf("this account has asked for %d new domain certificates in the last day; this one is asked for automatically once that day is over", db.DomainCertDailyCap())
 	}
 	return "issuing", ""
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/lib/pq"
@@ -286,11 +287,17 @@ func SweepOAuth(ctx context.Context, database *sql.DB) error {
 		`DELETE FROM oauth_tokens WHERE expires_at < now() - interval '1 day'`,
 		`DELETE FROM oauth_grants g WHERE g.created_at < now() - interval '1 day'
 		   AND NOT EXISTS (SELECT 1 FROM oauth_tokens t WHERE t.grant_id = g.id)`,
-		`DELETE FROM oauth_clients c WHERE c.dynamic AND c.created_at < now() - interval '30 days'
-		   AND COALESCE(c.last_used_at, c.created_at) < now() - interval '30 days'
+		// $1 is OAUTH_UNUSED_CLIENT_DAYS in seconds; the statements above
+		// ignore it.
+		`DELETE FROM oauth_clients c WHERE c.dynamic AND c.created_at < now() - ($1 * interval '1 second')
+		   AND COALESCE(c.last_used_at, c.created_at) < now() - ($1 * interval '1 second')
 		   AND NOT EXISTS (SELECT 1 FROM oauth_grants g WHERE g.client_id = c.client_id)`,
 	} {
-		if _, err := database.ExecContext(ctx, stmt); err != nil {
+		var args []any
+		if strings.Contains(stmt, "$1") {
+			args = append(args, int64(lim().OAuthUnusedClientAge.Seconds()))
+		}
+		if _, err := database.ExecContext(ctx, stmt, args...); err != nil {
 			return err
 		}
 	}
