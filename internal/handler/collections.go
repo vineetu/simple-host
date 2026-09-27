@@ -37,7 +37,14 @@ const (
 func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 	siteName := strings.TrimSpace(r.PathValue("sitename"))
 	coll := strings.TrimSpace(r.PathValue("coll"))
-	if !h.collectionGate(w, r, siteName, coll) {
+	// The site's own pages (Origin), or an agent with the owner's key (as on
+	// the /data routes): the write path checks the key is the owner's.
+	if keyWithoutPage(r) {
+		if siteName == "" || !validCollectionName.MatchString(coll) {
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid site or collection name"})
+			return
+		}
+	} else if !h.collectionGate(w, r, siteName, coll) {
 		return
 	}
 
@@ -302,7 +309,7 @@ func (h *SiteHandler) collectionGate(w http.ResponseWriter, r *http.Request, sit
 		return false
 	}
 	if !h.authorizeStateOrigin(w, r, siteName) {
-		writeJSON(w, http.StatusForbidden, errorResponse{Error: "forbidden"})
+		writeOriginRefused(w)
 		return false
 	}
 	return true

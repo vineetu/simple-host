@@ -49,8 +49,9 @@ func (h *SiteHandler) patchSiteState(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
 		return
 	}
-	if !h.authorizeStateOrigin(w, r, siteName) {
-		writeJSON(w, http.StatusForbidden, errorResponse{Error: "forbidden"})
+	// The site's own pages (Origin), or an agent with the owner's key.
+	if !keyWithoutPage(r) && !h.authorizeStateOrigin(w, r, siteName) {
+		writeOriginRefused(w)
 		return
 	}
 

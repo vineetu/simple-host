@@ -987,6 +987,26 @@ func (h *SiteHandler) authorizeStateOrigin(w http.ResponseWriter, r *http.Reques
 	return true
 }
 
+// writeOriginRefused is the 403 for a request from a page that is not one of
+// the site's own addresses (or that names no page and holds no key of the
+// site's owner).
+func writeOriginRefused(w http.ResponseWriter) {
+	writeJSON(w, http.StatusForbidden, errorResponse{
+		Error: "this request comes from a page that is not one of this site's own addresses, so it cannot use the site's saved data. " +
+			"A page saves from the site itself; an agent or script sends the site owner's X-API-Key and no Origin header",
+		Code: "origin_not_allowed",
+	})
+}
+
+// keyWithoutPage: the request carries an API key and names no page (no
+// Origin, no Referer): an agent or a script. The key is the authorization
+// (the write path checks it is the site owner's, or the admin's); a browser
+// never sends one on its own, and a page cannot add it cross-origin without a
+// preflight the Origin gate refuses.
+func keyWithoutPage(r *http.Request) bool {
+	return r.Header.Get("X-API-Key") != "" && noBrowserOrigin(r)
+}
+
 // noBrowserOrigin reports whether r carries neither Origin nor Referer: a
 // script, curl or an agent rather than a page. Saved state and public lists
 // are public to read, so such a read needs no Origin check; there is no
@@ -1038,7 +1058,7 @@ func (h *SiteHandler) getSiteState(w http.ResponseWriter, r *http.Request) {
 	// pins the site to the key's owner rather than the oldest same name.
 	siteID, ownerKey := h.ownerSiteIDFromKey(r, siteName)
 	if !ownerKey && !h.authorizePublicRead(w, r, siteName) {
-		writeJSON(w, http.StatusForbidden, errorResponse{Error: "forbidden"})
+		writeOriginRefused(w)
 		return
 	}
 
@@ -1123,8 +1143,9 @@ func (h *SiteHandler) putSiteState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !h.authorizeStateOrigin(w, r, siteName) {
-		writeJSON(w, http.StatusForbidden, errorResponse{Error: "forbidden"})
+	// The site's own pages (Origin), or an agent with the owner's key.
+	if !keyWithoutPage(r) && !h.authorizeStateOrigin(w, r, siteName) {
+		writeOriginRefused(w)
 		return
 	}
 

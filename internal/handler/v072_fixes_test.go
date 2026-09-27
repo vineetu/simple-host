@@ -469,3 +469,31 @@ func TestThinSkipsWhenNothingCanGo(t *testing.T) {
 		t.Fatal("still remembered once under the cap")
 	}
 }
+
+// Small-box trial B4: the owner's agent saves with its key and no page
+// Origin, as llms.txt says, on the state and list routes too; anything else
+// without one of the site's origins is 403 origin_not_allowed.
+func TestOwnerKeyWritesWithoutOrigin(t *testing.T) {
+	s := newKindsSite(t, true)
+	a := s.a
+	if r := s.owner(t, "PUT", "/v1/sites/shop/state", map[string]any{"n": 1}); r.status != 200 {
+		t.Fatalf("owner key state put: %d %s", r.status, r.body)
+	}
+	if r := s.owner(t, "PATCH", "/v1/sites/shop/state", `{"ops":[{"op":"inc","path":"n"}]}`); r.status != 200 {
+		t.Fatalf("owner key state patch: %d %s", r.status, r.body)
+	}
+	if r := s.owner(t, "POST", "/v1/sites/shop/collections/guestbook", map[string]any{"msg": "hi"}); r.status != 201 {
+		t.Fatalf("owner key list add: %d %s", r.status, r.body)
+	}
+	var who string
+	_ = a.database.QueryRow(`SELECT actor_kind FROM data_history WHERE site_id = $1 AND kind = 'state' ORDER BY id DESC LIMIT 1`, s.shopID).Scan(&who)
+	if who != actorOwner {
+		t.Fatalf("recorded as %q", who)
+	}
+	stranger := a.newPerson(t, "stranger")
+	wantCode(t, "another account's key", a.at(t, "PUT", pcSiteDomain, "/v1/sites/shop/state", map[string]any{"x": 1}, map[string]string{"X-API-Key": stranger.key}), 404, "")
+	wantCode(t, "a bad key", a.at(t, "PUT", pcSiteDomain, "/v1/sites/shop/state", map[string]any{"x": 1}, map[string]string{"X-API-Key": "sh_nope"}), 401, "invalid_api_key")
+	wantCode(t, "no key, no page", a.at(t, "PUT", pcSiteDomain, "/v1/sites/shop/state", map[string]any{"x": 1}, nil), 403, "origin_not_allowed")
+	wantCode(t, "a foreign page with the key", a.at(t, "PUT", pcSiteDomain, "/v1/sites/shop/state", map[string]any{"x": 1}, map[string]string{"X-API-Key": s.olive.key, "Origin": "https://evil.example"}), 403, "origin_not_allowed")
+	wantCode(t, "a foreign page, list", a.at(t, "POST", pcSiteDomain, "/v1/sites/shop/collections/guestbook", map[string]any{"x": 1}, map[string]string{"Origin": "https://evil.example"}), 403, "origin_not_allowed")
+}
