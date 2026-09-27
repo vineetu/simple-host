@@ -254,3 +254,9 @@ What follows from that, and is not negotiable without changing the line above:
 
 - Whether a site that disconnects its domain should be migrated back to a "normal" shared-host site in some
   guided way, rather than just having the redirect stop. Parked 2026-09-06; revisit when it happens.
+- **2026-09-27. People can change their handle, also after publishing.** The dashboard shows the
+  address with a Change button; after sites exist the change keeps the old handle as an alias, so
+  old links redirect, rate-limited through `handle_changed_at`. The new handle gets its own
+  certificate; what pages kept in the browser starts empty. Replaces "the address is fixed once
+  something is published". Reason: a handle taken from an email's local part is public and
+  otherwise permanent. Owner approved 2026-09-27; planned (completeness plan, wave 1), not built.
