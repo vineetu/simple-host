@@ -708,12 +708,12 @@
           <div class="feat" id="custom-domain-https">
             <div class="fid">custom-domain-https</div>
             <div>
-              <h3>HTTPS on your domain <span class="st part">Partial</span></h3>
+              <h3>HTTPS on your domain</h3>
               <p class="fw">A connected domain is served over HTTPS with a valid certificate.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Everyone — a browser warning on your own domain is worse than no domain.</dd>
                 <dt>Where</dt><dd>Nothing to press.</dd>
-                <dt>Limits</dt><dd class="lim">The certificate is <b>not issued automatically</b> — it is a manual step by whoever runs the service. Until it is done, your domain will not load. Check by opening it, not by waiting for a status to change.</dd>
+                <dt>Limits</dt><dd class="lim">The certificate is issued automatically once your domain points here and its ownership record (a TXT record at <code>_simple-host.&lt;your domain&gt;</code>) is in place, usually within minutes. Until then your site keeps its current address. <code>www</code> and the bare domain can both work on one certificate.</dd>
               </dl>
             </div>
           </div>
