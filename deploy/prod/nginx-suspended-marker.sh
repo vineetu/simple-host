@@ -130,7 +130,7 @@ for i, line in enumerate(lines):
     if b >= 0 and starts[b] == i and needs_internal[b]:
         ind = server_pat.match(line).group(1) + "    "
         for page in ("suspended", "offline"):
-            out.append("%slocation = /internal/%s { proxy_pass http://%s; proxy_set_header Host $host; proxy_set_header X-Forwarded-Proto $scheme; }" % (ind, page, up))
+            out.append("%slocation = /internal/%s { internal; proxy_pass http://%s; proxy_set_header Host $host; proxy_set_header X-Forwarded-Proto $scheme; }" % (ind, page, up))
             n += 1
     sm = susp_pat.match(line)
     if sm:

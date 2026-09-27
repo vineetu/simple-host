@@ -28,7 +28,10 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
+    # internal: reached only through this file's rewrites and error pages;
+    # a request from outside gets 404 (nginx-internal-lock.sh).
     location ^~ /internal/ {
+        internal;
         proxy_pass http://127.0.0.1:8090;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-Proto $scheme;

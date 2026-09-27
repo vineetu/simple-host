@@ -97,7 +97,7 @@ for i, x in enumerate(l):
 PY
 [ "$(count template "/suspended)")" = 1 ] && [ "$(count template "/offline)")" = 1 ] && [ "$(count template "location = /internal/")" = 0 ] && ok "template: offline after the take-down, no extra locations" || bad "template: $(cat "$T/en/template")"
 grep -A1 "t.example/suspended" "$T/en/template" | grep -q "t.example/offline" && ok "template: offline right after the take-down" || bad "template order"
-[ "$(count by-id "by-id/2be1c8c7/paragliding/offline)")" = 1 ] && [ "$(count by-id "location = /internal/suspended { proxy_pass http://127.0.0.1:8090")" = 1 ] && ok "by-id vhost covered" || bad "by-id: $(cat "$T/en/by-id")"
+[ "$(count by-id "by-id/2be1c8c7/paragliding/offline)")" = 1 ] && [ "$(count by-id "location = /internal/suspended { internal; proxy_pass http://127.0.0.1:8090")" = 1 ] && ok "by-id vhost covered" || bad "by-id: $(cat "$T/en/by-id")"
 [ "$(count wildcard '$client/suspended)')" = 1 ] && [ "$(count wildcard '$client/offline)')" = 1 ] && [ "$(count wildcard "location = /internal/suspended")" = 1 ] && ok "wildcard vhost gains the offline check" || bad "wildcard: $(cat "$T/en/wildcard")"
 [ "$(count lab '$sub/offline)')" = 1 ] && ok "lab vhost covered" || bad "lab: $(cat "$T/en/lab")"
 cmp -s "$T/orig/sites-content-host" "$T/en/sites-content-host" && ok "content host untouched without the flag" || bad "content host edited"
