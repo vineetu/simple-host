@@ -292,8 +292,8 @@
   function upcloudOffer() {
     return el('div', { class: 'upcloud' }, [
       el('p', { class: 'note', style: 'margin:0 0 12px', text: 'The smallest UpCloud server (1 CPU, 1 GB, about $5/month) runs Simple Host comfortably; we test on it.' }),
-      el('a', { class: 'btn solid cta', href: UPCLOUD_SIGNUP, target: '_blank', rel: 'noopener', text: 'Create your UpCloud account — $300 in credits' }),
-      el('p', { class: 'fine', text: 'Referral link. The $300 credit is UpCloud’s offer for new accounts through this link; their terms apply.' }),
+      el('a', { class: 'btn solid cta', href: UPCLOUD_SIGNUP, target: '_blank', rel: 'noopener', text: 'Create your UpCloud account — $25 in credits' }),
+      el('p', { class: 'fine', text: 'Referral link. New accounts through this link get $25 of UpCloud credit; their terms apply.' }),
       el('ol', { class: 'steps' }, [
         el('li', { text: 'Create your UpCloud account.' }),
         el('li', { text: 'In the UpCloud control panel, create an API user: a sub-account with API access allowed. Its username and password stay with you; this page never asks for them.' }),
@@ -883,7 +883,7 @@
         el('ol', { class: 'steps' }, [
           el('li', null, ['An UpCloud account with an API user (a sub-account with API access). No account yet? ',
             el('a', { href: UPCLOUD_SIGNUP, target: '_blank', rel: 'noopener', text: 'Create your UpCloud account' }),
-            el('span', { class: 'fine-inline', text: ' (referral link: $300 in credits for new accounts; their terms apply)' }), '.']),
+            el('span', { class: 'fine-inline', text: ' (referral link: $25 of credit for new accounts; their terms apply)' }), '.']),
           el('li', { text: 'In the terminal you use your agent in, run this. It asks for the API user’s name and password (the password is not shown) and keeps them in that terminal only: not on this page, not in your agent’s chat, not in your shell history.' })
         ]),
         block('In your terminal', UPCLOUD_CREDS),

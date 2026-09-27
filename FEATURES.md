@@ -691,8 +691,8 @@ certificate issuer, SMTP, bucket provider/endpoint/region/name/credentials, Post
 every other setting area by area, default preselected, a one-line explanation, range checks as you type, Skip
 restores the default, progress by step and area). **UpCloud** (small box, "Where it runs"): one line on why ("The
 smallest UpCloud server (1 CPU, 1 GB, about $5/month) runs Simple Host comfortably; we test on it."), a **Create your
-UpCloud account — $300 in credits** button to the referral link `https://signup.upcloud.com/?promo=JF2WCV` (new tab,
-`rel="noopener"`) with "Referral link. The $300 credit is UpCloud's offer for new accounts through this link; their
+UpCloud account — $25 in credits** button to the referral link `https://signup.upcloud.com/?promo=JF2WCV` (new tab,
+`rel="noopener"`) with "Referral link. New accounts through this link get $25 of UpCloud credit; their
 terms apply." under it, and the steps (create the account → create an API user, a sub-account with API access, in the
 UpCloud control panel → answer the questions → on the files step, set the API user in your terminal and give your agent
 the prompt); the page has no field for UpCloud credentials and never asks for them. Output: small box → the one-line

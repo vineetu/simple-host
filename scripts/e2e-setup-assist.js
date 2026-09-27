@@ -161,12 +161,12 @@ async function enterprise(browser, width) {
 // it, the steps, and nowhere on the page a field for a credential.
 async function upcloud(page, tag) {
   assert(await page.getByRole('radio', { name: /UpCloud \(recommended\)/ }).isChecked(), 'UpCloud is the recommended choice, picked by default');
-  const btn = page.getByRole('link', { name: 'Create your UpCloud account — $300 in credits' });
+  const btn = page.getByRole('link', { name: 'Create your UpCloud account — $25 in credits' });
   assert(await btn.count() === 1, 'the sign-up button says what it gives');
   assert(await btn.getAttribute('href') === 'https://signup.upcloud.com/?promo=JF2WCV', 'the button is the referral link, exactly');
   assert(await btn.getAttribute('target') === '_blank' && /\bnoopener\b/.test(await btn.getAttribute('rel')), 'it opens in a new tab with rel=noopener');
   const where = await page.locator('#where').innerText();
-  assert(where.includes('Referral link. The $300 credit is UpCloud’s offer for new accounts through this link; their terms apply.'), 'the referral note sits under it');
+  assert(where.includes('Referral link. New accounts through this link get $25 of UpCloud credit; their terms apply.'), 'the referral note sits under it');
   assert(where.includes('The smallest UpCloud server (1 CPU, 1 GB, about $5/month) runs Simple Host comfortably; we test on it.'), 'with one line on why');
   assert(/create an API user/.test(where) && /copy the prompt into your AI agent/.test(where), 'and the steps: account, API user, this page, the prompt');
   const creds = await page.evaluate(() => [...document.querySelectorAll('input, textarea, select')].filter(i => i.type !== 'radio' && i.type !== 'checkbox').filter(i => i.type === 'password' || /upcloud|password|token|secret|credential/i.test(i.id + ' ' + i.name + ' ' + (i.labels && i.labels[0] ? i.labels[0].textContent : ''))).map(i => i.id || i.name));

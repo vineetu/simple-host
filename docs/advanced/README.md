@@ -22,8 +22,8 @@ needs, every step with your files in it, and how to check the result.
 
 Any fresh Ubuntu server with a public IPv4 address works. We recommend **UpCloud**: the smallest
 UpCloud server (1 CPU, 1 GB, about $5/month) runs Simple Host comfortably; we test on it.
-[Create your UpCloud account — $300 in credits](https://signup.upcloud.com/?promo=JF2WCV)
-(referral link. The $300 credit is UpCloud's offer for new accounts through this link; their terms
+[Create your UpCloud account — $25 in credits](https://signup.upcloud.com/?promo=JF2WCV)
+(referral link. New accounts through this link get $25 of UpCloud credit; their terms
 apply.)
 
 1. Create your UpCloud account.
