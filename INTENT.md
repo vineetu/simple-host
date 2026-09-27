@@ -296,11 +296,17 @@ What follows from that, and is not negotiable without changing the line above:
 
 - **2026-09-27. People can download all their data and delete their account and all data
   themselves; deletion is immediate and final.** "Download my data" and "Delete my account" in
-  the owner app (and `/dashboard` for accounts without a handle), `GET /v1/me/export.tar.gz` and
+  the owner app (and `/dashboard` for accounts without a handle), `GET /v1/me/export.zip` and
   `DELETE /v1/me`. Deletion bypasses Recently deleted, also removes the person's entries in other
   people's lists, and retires their handle and names so nobody inherits their links. Refused for
   suspended and admin accounts and while event hostnames are held. Reason: GDPR and trust.
   Owner approved 2026-09-27.
+- **2026-09-27. Download my data is one .zip.** A folder per site (`sites/<name>/`: files/,
+  state.json, collections.json), sites in Recently deleted too (`recently-deleted/<name>/`, with
+  when each goes for good), and the account documents. `GET /v1/me/export.zip`; the older
+  `/v1/me/export.tar.gz` serves the same zip so agents that used it keep working. The per-site
+  download and `export_site` stay .tar.gz. Reason: a .zip opens with a double click everywhere,
+  and a site that is only deleted is still the person's data. Owner decision 2026-09-27.
 - **2026-09-27. Idle sites are cleaned up, with warning and an easy way back.** A site with no
   visits by people and no new version for 90 days: its owner is emailed (reply-to support) with
   one-click "Keep it" (resets the clock, no sign-in) and "Download it" links; 30 days later with

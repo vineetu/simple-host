@@ -873,8 +873,8 @@
       <div class="section" id="owner-data" hidden>
         <div class="section-num"><h2>Your data</h2><span class="line"></span></div>
         <div class="conn-row">
-          <span><b>Download my data</b><small>One archive with every site (files, saved data and lists), your account, your keys' names (never the keys), connected apps, the entries you sent to other people's lists while signed in, and the changes you made to other people's page data while signed in. Changes made without signing in and older public-list entries aren't linked to you; for help with those, write to support@simple-host.app.</small></span>
-          <button type="button" class="btn btn-secondary btn-small" id="data-download">Download my data</button>
+          <span><b>Download my data</b><small>One .zip file with every site, those in Recently deleted too (files, saved data and lists), your account, your keys' names (never the keys), connected apps, the entries you sent to other people's lists while signed in, and the changes you made to other people's page data while signed in. Changes made without signing in and older public-list entries aren't linked to you; for help with those, write to support@simple-host.app.</small></span>
+          <button type="button" class="btn btn-secondary btn-small" id="data-download">Download my data (.zip)</button>
         </div>
         <div class="conn-row" id="data-delete-row">
           <span><b>Delete my account</b><small>Deletes your account and all its data at once and for good.</small></span>
@@ -3924,7 +3924,7 @@ function parseAnalyticsSummary(data) {
 
   <script>
     // ==== Your data (cp/gdpr) ====
-    // Download my data (GET /v1/me/export.tar.gz) and Delete my account
+    // Download my data (GET /v1/me/export.zip) and Delete my account
     // (DELETE /v1/me). Owner-only: uses the page script's api, downloadFrom,
     // toast, HANDLE and apiKey, and shows nothing unless /v1/me says this
     // visitor owns HANDLE.
@@ -3936,7 +3936,7 @@ function parseAnalyticsSummary(data) {
       var go = document.getElementById('data-delete-go');
       var word = '';
       async function download(btn) {
-        var ok = await downloadFrom('/v1/me/export.tar.gz', 'simple-host-' + HANDLE + '.tar.gz', 'Could not download your data', btn);
+        var ok = await downloadFrom('/v1/me/export.zip', 'simple-host-' + HANDLE + '.zip', 'Could not download your data', btn);
         if (ok) toast('Downloading your data', 'success');
       }
       function openPanel(open) {

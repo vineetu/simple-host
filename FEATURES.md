@@ -308,12 +308,14 @@ replaces all keys and disconnects all connector grants. Owner-route 401s carry `
 (`missing_api_key`, `wrong_auth_header`, `invalid_api_key`). The dashboard keeps the key in
 `localStorage['apiKey']`; there is no owner cookie session.
 
-**Your data (GDPR self-service, 2026-09-27).** "Download my data" (`GET /v1/me/export.tar.gz`,
-streamed) gives one archive: `README.txt`, `account.json` (email, handle, display name, created,
+**Your data (GDPR self-service, 2026-09-27).** "Download my data" (`GET /v1/me/export.zip`,
+streamed; the older `/v1/me/export.tar.gz` serves the same zip) gives one .zip: `README.txt`, `account.json` (email, handle, display name, created,
 old handles, claimed names incl. retired, custom domains, linked Google/GitHub), `keys.json`
 (name, last4, created, last used; never keys or hashes), `connected_apps.json`, `visitor.json`
-(sites signed in to as a visitor, entries sent to other people's private lists while signed in) and `sites/<name>/` per
-live site (the per-site export). Analytics are left out (salted hashes, no personal data; the
+(sites signed in to as a visitor, entries sent to other people's lists and `changed`, changes to
+their saved data, while signed in), `sites/<name>/` per live site (the per-site export) and
+`recently-deleted/<name>/` per site in Recently deleted (same layout plus `deleted.json`: deleted
+and removed-for-good dates; files from the trash folder). Analytics are left out (salted hashes, no personal data; the
 README says so). "Delete my account" (`DELETE /v1/me` with `{"confirm": "<handle, or email with
 no handle>"}`) is immediate and final, bypassing Recently deleted: every site (deleted ones too)
 with files, versions, saved data, lists and analytics; keys; connected apps; sign-in identities;

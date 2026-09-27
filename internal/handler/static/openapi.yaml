@@ -481,7 +481,7 @@ paths:
         public-list entries are not linked to anyone and stay; support@simple-host.app helps with
         those). The handle, old handles and claimed
         <name>.simple-host.app addresses are retired, never given to anyone else; custom domains are
-        released. A confirmation email goes to the account's address. Offer GET /v1/me/export.tar.gz
+        released. A confirmation email goes to the account's address. Offer GET /v1/me/export.zip
         first. Refused for a suspended account or one holding a site the operator took down (the
         operator handles those), an admin account, or one still holding event hostnames.
       tags: [Auth]
@@ -658,29 +658,32 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: No such sign-in on this account }
 
-  /v1/me/export.tar.gz:
+  /v1/me/export.zip:
     get:
       operationId: exportMe
-      summary: Download all your data
+      summary: Download all your data (one .zip)
       description: >-
-        Streams one .tar.gz of everything held about the account: README.txt; account.json (email,
+        Streams one .zip of everything held about the account: README.txt; account.json (email,
         handle, display name, created, earlier handles, claimed names including retired ones, custom
         domains, linked Google/GitHub sign-ins); keys.json (name, last 4 characters, created, last
         used; never keys or hashes); connected_apps.json (name, connected, last used); visitor.json
         (sites signed in to as a visitor with first sign-in and last seen, every entry
         sent to other people's lists while signed in, and `changed`: every change made to other
-        people's page data or list entries while signed in, as site, what, change and when); and sites/<name>/ for every live site in the same layout
-        as GET /v1/sites/{sitename}/export.tar.gz. Visitor analytics hold no personal data (salted
-        hashes) and are not included. Needs one of the account's own API keys: a connected app or
-        the admin key gets 400 not_an_account_key. A suspended account gets 403 account_suspended
-        and writes to support@simple-host.app for a copy of its data.
+        people's page data or list entries while signed in, as site, what, change and when);
+        sites/<name>/ for every live site in the same layout as GET
+        /v1/sites/{sitename}/export.tar.gz (files/, state.json, collections.json); and
+        recently-deleted/<name>/ for every site in Recently deleted, in the same layout plus
+        deleted.json (deleted_at, removed_for_good_at). Visitor analytics hold no personal data
+        (salted hashes) and are not included. Needs one of the account's own API keys: a connected
+        app or the admin key gets 400 not_an_account_key. A suspended account gets 403
+        account_suspended and writes to support@simple-host.app for a copy of its data.
       tags: [Auth]
       security: [{ apiKey: [] }]
       responses:
         '200':
-          description: A gzipped tar archive
+          description: A .zip file (Content-Disposition names it simple-host-<handle>-<date>.zip)
           content:
-            application/gzip:
+            application/zip:
               schema: { type: string, format: binary }
         '400':
           description: Not one of the account's own API keys (code not_an_account_key)
@@ -690,6 +693,35 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403':
           description: The account is suspended (code account_suspended); write to support@simple-host.app for a copy of the data
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /v1/me/export.tar.gz:
+    get:
+      operationId: exportMeLegacy
+      deprecated: true
+      summary: Download all your data (older address)
+      description: >-
+        The address Download my data had before it became a .zip. Serves exactly what GET
+        /v1/me/export.zip serves: the same .zip, with Content-Type application/zip and a .zip
+        filename, under the same rules. Use /v1/me/export.zip.
+      tags: [Auth]
+      security: [{ apiKey: [] }]
+      responses:
+        '200':
+          description: The same .zip as GET /v1/me/export.zip
+          content:
+            application/zip:
+              schema: { type: string, format: binary }
+        '400':
+          description: Not one of the account's own API keys (code not_an_account_key)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: The account is suspended (code account_suspended)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }

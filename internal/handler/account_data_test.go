@@ -2,6 +2,7 @@ package handler
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"database/sql"
@@ -16,7 +17,7 @@ import (
 	"github.com/vsriram/simple-host/internal/db"
 )
 
-// Download my data (GET /v1/me/export.tar.gz) and Delete my account
+// Download my data (GET /v1/me/export.zip) and Delete my account
 // (DELETE /v1/me), end to end. Needs DB_DSN (db/schema.sql applied).
 
 func tarFiles(t *testing.T, b []byte) map[string]string {
@@ -41,6 +42,26 @@ func tarFiles(t *testing.T, b []byte) map[string]string {
 	return out
 }
 
+// zipFiles reads a .zip into name -> body.
+func zipFiles(t *testing.T, b []byte) map[string]string {
+	t.Helper()
+	zr, err := zip.NewReader(bytes.NewReader(b), int64(len(b)))
+	if err != nil {
+		t.Fatalf("not a zip (%d bytes): %v", len(b), err)
+	}
+	out := map[string]string{}
+	for _, f := range zr.File {
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(rc)
+		rc.Close()
+		out[f.Name] = string(body)
+	}
+	return out
+}
+
 // fileUnder returns the archive entry whose name ends in suffix.
 func fileUnder(t *testing.T, files map[string]string, suffix string) string {
 	t.Helper()
@@ -61,11 +82,19 @@ func TestAccountExport(t *testing.T) {
 	a, dir := newSiteApp(t, "canonical")
 	olive, vic := a.newPerson(t, "olive"), a.newPerson(t, "vic")
 	a.deploy(t, olive, "shop")
+	a.deploy(t, olive, "old")
 	oid, oh := a.userID(t, olive)
 	vid, _ := a.userID(t, vic)
 	markReady(t, dir, oh)
 	const apex = pcSiteDomain
 	okey := map[string]string{"X-API-Key": olive.key}
+	// A site in Recently deleted comes along, in its own folder.
+	if _, err := a.database.Exec(`UPDATE sites SET state = '{"kept":true}' WHERE id = $1`, a.siteID(t, olive, "old")); err != nil {
+		t.Fatal(err)
+	}
+	if r := a.at(t, "DELETE", apex, "/v1/sites/old", nil, okey); r.status != http.StatusNoContent {
+		t.Fatalf("delete old: %d %s", r.status, r.body)
+	}
 	vkey := map[string]string{"X-API-Key": vic.key}
 	shopID := a.siteID(t, olive, "shop")
 	claimed := oh + "-store." + pcSiteDomain
@@ -89,14 +118,38 @@ func TestAccountExport(t *testing.T) {
 	}
 
 	// ---- the owner: sites, account, keys, never a secret ----
-	r := a.at(t, "GET", apex, "/v1/me/export.tar.gz", nil, okey)
-	if r.status != 200 || !strings.Contains(r.header.Get("Content-Disposition"), "simple-host-"+oh) {
+	r := a.at(t, "GET", apex, "/v1/me/export.zip", nil, okey)
+	if r.status != 200 || !strings.Contains(r.header.Get("Content-Disposition"), "simple-host-"+oh) ||
+		!strings.Contains(r.header.Get("Content-Disposition"), `.zip"`) || r.header.Get("Content-Type") != "application/zip" {
 		t.Fatalf("export: %d %v %s", r.status, r.header, r.body)
 	}
-	files := tarFiles(t, r.body)
+	files := zipFiles(t, r.body)
 	for _, want := range []string{"/README.txt", "/account.json", "/keys.json", "/connected_apps.json", "/visitor.json",
-		"/sites/shop/state.json", "/sites/shop/collections.json", "/sites/shop/files/index.html"} {
+		"/sites/shop/state.json", "/sites/shop/collections.json", "/sites/shop/files/index.html",
+		"/recently-deleted/old/deleted.json", "/recently-deleted/old/files/index.html"} {
 		fileUnder(t, files, want)
+	}
+	if got := fileUnder(t, files, "/recently-deleted/old/state.json"); got != `{"kept": true}` && got != `{"kept":true}` {
+		t.Errorf("deleted site's saved data: %s", got)
+	}
+	var del map[string]any
+	if err := json.Unmarshal([]byte(fileUnder(t, files, "/recently-deleted/old/deleted.json")), &del); err != nil || del["removed_for_good_at"] == nil || del["deleted_at"] == nil {
+		t.Errorf("deleted.json: %v %v", del, err)
+	}
+	for name := range files {
+		if strings.Contains(name, "/sites/old/") {
+			t.Errorf("a deleted site is filed with the live ones: %s", name)
+		}
+	}
+	if !strings.Contains(fileUnder(t, files, "/README.txt"), "recently-deleted/") {
+		t.Error("README does not explain the recently-deleted folder")
+	}
+	// The older .tar.gz address serves the same zip, so agents that used it
+	// keep working.
+	if old := a.at(t, "GET", apex, "/v1/me/export.tar.gz", nil, okey); old.status != 200 || old.header.Get("Content-Type") != "application/zip" {
+		t.Errorf("old export address: %d %v", old.status, old.header)
+	} else {
+		fileUnder(t, zipFiles(t, old.body), "/sites/shop/files/index.html")
 	}
 	if !strings.Contains(fileUnder(t, files, "/README.txt"), "salted") {
 		t.Error("README does not explain why analytics are not included")
@@ -154,11 +207,11 @@ func TestAccountExport(t *testing.T) {
 	}
 
 	// ---- the visitor: what they sent to someone else's site ----
-	r = a.at(t, "GET", apex, "/v1/me/export.tar.gz", nil, vkey)
+	r = a.at(t, "GET", apex, "/v1/me/export.zip", nil, vkey)
 	if r.status != 200 {
 		t.Fatalf("visitor export: %d %s", r.status, r.body)
 	}
-	files = tarFiles(t, r.body)
+	files = zipFiles(t, r.body)
 	var visitor struct {
 		SignedInTo []map[string]any `json:"signed_in_to"`
 		Submitted  []map[string]any `json:"submitted"`
@@ -174,7 +227,7 @@ func TestAccountExport(t *testing.T) {
 		t.Errorf("visitor sign-ins: %v", visitor.SignedInTo)
 	}
 	for name := range files {
-		if strings.Contains(name, "/sites/") {
+		if strings.Contains(name, "/sites/") || strings.Contains(name, "/recently-deleted/") {
 			t.Errorf("a visitor's export holds someone else's site: %s", name)
 		}
 	}
@@ -186,7 +239,7 @@ func TestAccountExport(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE users SET suspended_at = now() WHERE id = $1`, vid); err != nil {
 		t.Fatal(err)
 	}
-	if r := a.at(t, "GET", apex, "/v1/me/export.tar.gz", nil, vkey); r.status != 403 || !strings.Contains(r.json(t)["error"].(string), "support@simple-host.app") {
+	if r := a.at(t, "GET", apex, "/v1/me/export.zip", nil, vkey); r.status != 403 || !strings.Contains(r.json(t)["error"].(string), "support@simple-host.app") {
 		t.Errorf("suspended export: %d %s", r.status, r.body)
 	}
 }
@@ -405,8 +458,8 @@ func TestDeleteMyAccountWithoutHandle(t *testing.T) {
 		t.Fatal(err)
 	}
 	key := map[string]string{"X-API-Key": p.key}
-	r := a.at(t, "GET", pcSiteDomain, "/v1/me/export.tar.gz", nil, key)
-	if r.status != 200 || !strings.Contains(fileUnder(t, tarFiles(t, r.body), "/account.json"), p.email) {
+	r := a.at(t, "GET", pcSiteDomain, "/v1/me/export.zip", nil, key)
+	if r.status != 200 || !strings.Contains(fileUnder(t, zipFiles(t, r.body), "/account.json"), p.email) {
 		t.Fatalf("export without a handle: %d", r.status)
 	}
 	if r := a.at(t, "DELETE", pcSiteDomain, "/v1/me", map[string]string{"confirm": "nohandle"}, key); r.status != 400 || r.json(t)["code"] != "confirm_mismatch" {

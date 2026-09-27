@@ -182,16 +182,19 @@ Each entry in `collections.json` is `{id, created_at, submitted_by, data}`
 ## The person's whole account: download or delete
 
 ```
-GET /v1/me/export.tar.gz                        (X-API-Key)
+GET /v1/me/export.zip                           (X-API-Key)
 DELETE /v1/me  {"confirm": "<handle>"}          (X-API-Key; the email if no handle)
 ```
 
-The first is one archive of everything held about the person: every live site
-(as above, under `sites/<name>/`), `account.json`, `keys.json` (names only, never
+The first is one .zip of everything held about the person: every live site
+(as above, under `sites/<name>/`), every site in Recently deleted (same layout
+under `recently-deleted/<name>/`, with `deleted.json` saying when it goes for
+good), `account.json`, `keys.json` (names only, never
 keys), `connected_apps.json` and `visitor.json` (entries they sent to other
 people's lists, and changes they made to other people's page data, while signed
 in; writes made without signing in and older public-list entries are not linked
-to anyone, so support@simple-host.app helps with those). The connector's `export_site` covers one site; the whole-account archive needs the
+to anyone, so support@simple-host.app helps with those). The older address
+`/v1/me/export.tar.gz` serves the same .zip. The connector's `export_site` covers one site; the whole-account archive needs the
 person's own key (a connected app gets 400 `not_an_account_key`), so point them to
 "Download my data" on their Simple Host page.
 

@@ -318,6 +318,8 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("POST /v1/admin/users/{id}/key", authMiddleware(http.HandlerFunc(h.reissueAccountKey)))
 	mux.Handle("PATCH /v1/me", authMiddleware(http.HandlerFunc(h.patchMe)))
 	// Download my data / delete my account and all data (account_data.go).
+	mux.Handle("GET /v1/me/export.zip", authMiddleware(http.HandlerFunc(h.exportMe)))
+	// The address before the download became a .zip; serves the same zip.
 	mux.Handle("GET /v1/me/export.tar.gz", authMiddleware(http.HandlerFunc(h.exportMe)))
 	mux.Handle("DELETE /v1/me", authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.deleteMe))))
 	mux.Handle("GET /v1/admin/users", authMiddleware(http.HandlerFunc(h.adminUsers)))

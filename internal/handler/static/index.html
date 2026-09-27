@@ -1083,8 +1083,8 @@
         <div class="my-data" id="my-data" hidden>
           <h2>Your data</h2>
           <div class="row">
-            <span>Download everything Simple Host holds about you: your sites, account, keys' names (never the keys), connected apps, the entries you sent to other people's lists while signed in, and the changes you made to other people's page data while signed in. Changes made without signing in and older public-list entries aren't linked to you; for help with those, write to support@simple-host.app.</span>
-            <button type="button" class="btn btn-secondary btn-small" data-act="downloadMyData">Download my data</button>
+            <span>Download everything Simple Host holds about you, as one .zip file: your sites (those in Recently deleted too), account, keys' names (never the keys), connected apps, the entries you sent to other people's lists while signed in, and the changes you made to other people's page data while signed in. Changes made without signing in and older public-list entries aren't linked to you; for help with those, write to support@simple-host.app.</span>
+            <button type="button" class="btn btn-secondary btn-small" data-act="downloadMyData">Download my data (.zip)</button>
           </div>
           <div class="row" id="my-data-delete-row">
             <span>Delete your account and all its data at once and for good.</span>
@@ -2208,11 +2208,11 @@ function parseAnalyticsSummary(data) {
       toast('Signed out everywhere; your agents need the new key.', 'success');
     }
 
-    // Your data (accounts without a handle): GET /v1/me/export.tar.gz and
+    // Your data (accounts without a handle): GET /v1/me/export.zip and
     // DELETE /v1/me, confirmed by typing the account's email.
     async function downloadMyData() {
       try {
-        const res = await api('GET', '/v1/me/export.tar.gz');
+        const res = await api('GET', '/v1/me/export.zip');
         if (!res.ok) {
           const err = await res.json().catch(() => null);
           toast((err && err.error) || 'Could not download your data', 'error');
@@ -2224,7 +2224,7 @@ function parseAnalyticsSummary(data) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = m ? m[1] : 'simple-host-account.tar.gz';
+        a.download = m ? m[1] : 'simple-host-account.zip';
         document.body.appendChild(a);
         a.click();
         a.remove();

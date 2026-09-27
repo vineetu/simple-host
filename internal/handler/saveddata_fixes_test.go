@@ -514,11 +514,11 @@ func TestExportListsChangesElsewhere(t *testing.T) {
 	s := newSavedDataSite(t)
 	a := s.a
 	s.visitor(t, "PUT", "/v1/sites/shop/state", map[string]string{"secret": "owner data"})
-	r := a.at(t, "GET", pcSiteDomain, "/v1/me/export.tar.gz", nil, map[string]string{"X-API-Key": s.vic.key})
+	r := a.at(t, "GET", pcSiteDomain, "/v1/me/export.zip", nil, map[string]string{"X-API-Key": s.vic.key})
 	if r.status != 200 {
 		t.Fatalf("export: %d %s", r.status, r.body)
 	}
-	body := fileUnder(t, tarFiles(t, r.body), "/visitor.json")
+	body := fileUnder(t, zipFiles(t, r.body), "/visitor.json")
 	var v struct {
 		Changed []map[string]any `json:"changed"`
 	}

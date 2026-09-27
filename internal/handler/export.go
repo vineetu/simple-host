@@ -2,6 +2,8 @@ package handler
 
 import (
 	"archive/tar"
+	"archive/zip"
+	"bytes"
 	"compress/gzip"
 	"context"
 	"database/sql"
@@ -90,28 +92,64 @@ func (h *SiteHandler) exportAll(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// writeSiteTar writes one site into tw under prefix: state.json (saved data),
-// collections.json (every list, private ones included, each entry with its
-// id, time and submitter), and files/ (the live version).
+// archivePut adds one file to an archive being streamed (a .tar.gz or a
+// .zip), so one site's layout is written the same way into either.
+type archivePut func(name string, modTime time.Time, size int64, r io.Reader) error
+
+func tarPut(tw *tar.Writer) archivePut {
+	return func(name string, modTime time.Time, size int64, r io.Reader) error {
+		if err := tw.WriteHeader(&tar.Header{
+			Name: name, Mode: 0o644, Size: size, ModTime: modTime, Typeflag: tar.TypeReg,
+		}); err != nil {
+			return err
+		}
+		_, err := io.Copy(tw, r)
+		return err
+	}
+}
+
+func zipPut(zw *zip.Writer) archivePut {
+	return func(name string, modTime time.Time, _ int64, r io.Reader) error {
+		f, err := zw.CreateHeader(&zip.FileHeader{Name: name, Method: zip.Deflate, Modified: modTime})
+		if err != nil {
+			return err
+		}
+		_, err = io.Copy(f, r)
+		return err
+	}
+}
+
+func putBytes(put archivePut, name string, b []byte) error {
+	return put(name, time.Now(), int64(len(b)), bytes.NewReader(b))
+}
+
+// writeSiteTar writes one live site into tw under prefix (writeSiteArchive).
 func (h *SiteHandler) writeSiteTar(ctx context.Context, tw *tar.Writer, prefix string, site db.Site) error {
+	return h.writeSiteArchive(ctx, tarPut(tw), prefix, site.ID, filepath.Join(h.disk.SiteDir(site.UserID, site.Name), "current"))
+}
+
+// writeSiteArchive writes one site under prefix: state.json (saved data),
+// collections.json (every list, private ones included, each entry with its
+// id, time and submitter), and files/ (the version in current, the site's
+// live folder or, for a site in Recently deleted, the one waiting in trash).
+func (h *SiteHandler) writeSiteArchive(ctx context.Context, put archivePut, prefix, siteID, current string) error {
 	// The saved data first, because it is the part nothing else preserves: the
 	// files exist in whatever the person built from, the JSON only lives here.
 	state := "null"
-	if raw, _, err := db.GetSiteStateByID(ctx, h.database, site.ID); err == nil && len(raw) > 0 {
+	if raw, _, err := db.GetSiteStateByID(ctx, h.database, siteID); err == nil && len(raw) > 0 {
 		state = string(raw)
 	}
-	if err := writeTarBytes(tw, prefix+"/state.json", []byte(state)); err != nil {
+	if err := putBytes(put, prefix+"/state.json", []byte(state)); err != nil {
 		return err
 	}
-	if items, err := exportCollections(ctx, h.database, site.ID); err == nil && len(items) > 0 {
+	if items, err := exportCollections(ctx, h.database, siteID); err == nil && len(items) > 0 {
 		if b, err := json.MarshalIndent(items, "", "  "); err == nil {
-			if err := writeTarBytes(tw, prefix+"/collections.json", b); err != nil {
+			if err := putBytes(put, prefix+"/collections.json", b); err != nil {
 				return err
 			}
 		}
 	}
 
-	current := filepath.Join(h.disk.SiteDir(site.UserID, site.Name), "current")
 	if _, err := os.Stat(current); err != nil {
 		return nil // nothing published yet; the data above is still worth having
 	}
@@ -124,7 +162,7 @@ func (h *SiteHandler) writeSiteTar(ctx context.Context, tw *tar.Writer, prefix s
 			return nil
 		}
 		info, ierr := d.Info()
-		if ierr != nil {
+		if ierr != nil || !info.Mode().IsRegular() {
 			return nil
 		}
 		f, oerr := os.Open(path)
@@ -132,26 +170,8 @@ func (h *SiteHandler) writeSiteTar(ctx context.Context, tw *tar.Writer, prefix s
 			return nil
 		}
 		defer f.Close()
-		hdr := &tar.Header{
-			Name: prefix + "/files/" + filepath.ToSlash(rel),
-			Mode: 0o644, Size: info.Size(), ModTime: info.ModTime(), Typeflag: tar.TypeReg,
-		}
-		if werr := tw.WriteHeader(hdr); werr != nil {
-			return werr
-		}
-		_, werr := io.Copy(tw, f)
-		return werr
+		return put(prefix+"/files/"+filepath.ToSlash(rel), info.ModTime(), info.Size(), f)
 	})
-}
-
-func writeTarBytes(tw *tar.Writer, name string, b []byte) error {
-	if err := tw.WriteHeader(&tar.Header{
-		Name: name, Mode: 0o644, Size: int64(len(b)), ModTime: time.Now(), Typeflag: tar.TypeReg,
-	}); err != nil {
-		return err
-	}
-	_, err := tw.Write(b)
-	return err
 }
 
 // exportItem is one list entry in collections.json: its id, when it was

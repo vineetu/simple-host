@@ -1,8 +1,7 @@
 package handler
 
 import (
-	"archive/tar"
-	"compress/gzip"
+	"archive/zip"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -10,20 +9,24 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
+	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
 )
 
 // Download my data and Delete my account (GDPR self-service, owner decision
 // 2026-09-27).
 //
-//   GET    /v1/me/export.tar.gz  one archive of everything held about the
-//                                caller: every live site's export, the
+//   GET    /v1/me/export.zip     one .zip of everything held about the
+//                                caller (/v1/me/export.tar.gz serves the same
+//                                zip): every site's export, those in Recently
+//                                deleted too, the
 //                                account, keys (never the keys themselves),
 //                                connected apps, and what they did as a
 //                                visitor: sign-ins, entries sent to other
@@ -232,7 +235,8 @@ Simple Host
 
 // ---- export ----------------------------------------------------------------
 
-// exportMe handles GET /v1/me/export.tar.gz: streamed, like the per-site
+// exportMe handles GET /v1/me/export.zip (and the older
+// /v1/me/export.tar.gz address, which serves the same zip): streamed, like the per-site
 // export, so a large account never sits in memory.
 func (h *SiteHandler) exportMe(w http.ResponseWriter, r *http.Request) {
 	// Only the person's own key, as for delete: a connected app must not be
@@ -260,25 +264,47 @@ func (h *SiteHandler) exportMe(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	deleted, err := db.ListDeletedSitesByUser(ctx, h.database, me.ID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
 	name := me.Handle.String
 	if name == "" {
 		name = "account"
 	}
 	root := "simple-host-" + name + "-" + time.Now().UTC().Format("2006-01-02")
-	w.Header().Set("Content-Type", "application/gzip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.tar.gz"`, root))
-	gz := gzip.NewWriter(w)
-	defer gz.Close()
-	tw := tar.NewWriter(gz)
-	defer tw.Close()
+	// One .zip (owner decision 2026-09-27): it opens with a double click on
+	// every computer. The old .tar.gz address serves the same zip.
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.zip"`, root))
+	zw := zip.NewWriter(w)
+	defer zw.Close()
+	put := zipPut(zw)
 	for _, d := range docs {
-		if err := writeTarBytes(tw, root+"/"+d.name, d.body); err != nil {
+		if err := putBytes(put, root+"/"+d.name, d.body); err != nil {
 			return
 		}
 	}
 	for _, s := range sites {
-		if err := h.writeSiteTar(ctx, tw, root+"/sites/"+s.Name, s); err != nil {
+		current := filepath.Join(h.disk.SiteDir(s.UserID, s.Name), "current")
+		if err := h.writeSiteArchive(ctx, put, root+"/sites/"+s.Name, s.ID, current); err != nil {
 			return // the client went away, or the stream broke
+		}
+	}
+	// Sites in Recently deleted, in their own folder so nobody mistakes one
+	// for a live site, each with when it goes for good.
+	for _, d := range deleted {
+		prefix := root + "/recently-deleted/" + d.Name
+		info, _ := json.MarshalIndent(map[string]any{
+			"site": d.Name, "deleted_at": d.DeletedAt.UTC(), "removed_for_good_at": d.PurgeAt().UTC(),
+		}, "", "  ")
+		if err := putBytes(put, prefix+"/deleted.json", info); err != nil {
+			return
+		}
+		current := filepath.Join(h.disk.TrashDir(d.UserID, d.ID), "current")
+		if err := h.writeSiteArchive(ctx, put, prefix, d.ID, current); err != nil {
+			return
 		}
 	}
 }
@@ -465,7 +491,7 @@ func (h *SiteHandler) accountDocuments(ctx context.Context, me db.User) ([]expor
 	}
 	visitor := map[string]any{"signed_in_to": signInList, "submitted": subList, "changed": changeList}
 
-	out := []exportDoc{{name: "README.txt", body: []byte(exportReadme)}}
+	out := []exportDoc{{name: "README.txt", body: []byte(exportReadme(h.savedData.UndoDays))}}
 	for _, d := range []struct {
 		name string
 		v    any
@@ -484,10 +510,16 @@ func (h *SiteHandler) accountDocuments(ctx context.Context, me db.User) ([]expor
 	return out, nil
 }
 
-const exportReadme = `Your Simple Host data
+// exportReadme is README.txt at the top of Download my data. undoDays is
+// SAVED_DATA_UNDO_DAYS, how far back visitor.json's changes go.
+func exportReadme(undoDays int) string {
+	return strings.ReplaceAll(exportReadmeText, "{undo_days}", config.Count(undoDays, "day"))
+}
+
+const exportReadmeText = `Your Simple Host data
 =====================
 
-This archive holds everything Simple Host keeps about your account.
+This .zip holds everything Simple Host keeps about your account.
 
 account.json         Your email, handle, display name, when the account was
                      made, your earlier handles, the names your sites claimed
@@ -501,18 +533,22 @@ connected_apps.json  Apps connected through the Simple Host connector
 visitor.json         Sites where you are signed in as a visitor (first sign-in
                      and last seen; a sign-in is kept only until it expires),
                      every entry you sent to other people's lists while
-                     signed in, and every change you made to other people's
-                     page data or list entries while signed in in the last
-                     30 days (which site, what and when; the site's owner
-                     sees your address next to each). Changes made without
-                     signing in, and older public-list entries, are not
-                     linked to you, so they are not here; for help with
-                     those, write to support@simple-host.app.
+                     signed in ("submitted"), and every change you made to
+                     other people's page data or list entries while signed
+                     in, in the last {undo_days} ("changed": which site, what and
+                     when; the site's owner sees your address next to each).
+                     Changes made without signing in, and older public-list
+                     entries, are not linked to you, so they are not here;
+                     for help with those, write to support@simple-host.app.
 sites/<name>/        One folder per site, the same as that site's download:
                      files/ (the live version), state.json (saved data) and
                      collections.json (every list, with each entry's id, time
-                     and who sent it, when they were signed in). Sites in Recently
-                     deleted are not included; restore one to include it.
+                     and who sent it, when they were signed in).
+recently-deleted/<name>/
+                     Sites in Recently deleted, laid out the same way, plus
+                     deleted.json (when it was deleted and when it is removed
+                     for good). Restore one from your page before then to
+                     keep it.
 
 Visitor analytics hold no personal data: visitors are counted by a salted
 hash, never by address, so there is nothing about you to export.
