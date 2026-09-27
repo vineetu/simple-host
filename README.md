@@ -1,155 +1,144 @@
 # Simple Host
 
-**Ship a real website with one sentence to your coding agent — and every site gets a little backend for free.**
+Ask your AI app for a website, and it goes live at its own address, `https://<site>.<handle>.simple-host.app/`, with a place to save things (RSVPs, votes, sign-ups).
 
-**Live:** https://simple-host.app · **For your agent:** [`/llms.txt`](https://simple-host.app/llms.txt) · **API:** [`/openapi.yaml`](https://simple-host.app/openapi.yaml)
+- **Try it:** https://simple-host.app/
+- **Features:** https://simple-host.app/features
+- **Architecture:** https://simple-host.app/architecture.html
+- **For agents and developers:** [`llms.txt`](https://simple-host.app/llms.txt) · [OpenAPI spec](https://simple-host.app/openapi.yaml) · [API docs](https://simple-host.app/docs.html) · [Get started in your AI app](https://simple-host.app/install.html)
+- **Enterprise edition:** https://simple-host.app/enterprise · [github.com/vineetu/simple-host-enterprise](https://github.com/vineetu/simple-host-enterprise)
+- **Legal and help:** [Terms](https://simple-host.app/terms) · [Privacy](https://simple-host.app/privacy.html) · [Support](https://simple-host.app/support) (support@simple-host.app)
 
----
+## Get started
 
-## The idea
+Connect Simple Host to your AI app once, then ask it for a site.
 
-Hosting a static website is a solved problem. The thing nobody made *simple* is the little bit of backend almost every site quietly needs.
+- **Chat apps:** add the connector `https://simple-host.app/mcp` and sign in in the window that opens. Steps for each app: [get-started page](https://simple-host.app/install.html).
+- **Coding agents:** install the skills with `npx skills add vineetu/simple-host`.
+- **Claude Code plugin:** `/plugin marketplace add vineetu/simple-host`, then `/plugin install simple-host@simple-host`.
 
-Look at the websites real people actually build: a portfolio, a wedding RSVP, a neighborhood poll, a class project, a small landing page collecting emails, a guestbook for a side project. The overwhelming majority — call it ninety-something percent of the web ordinary people need — are static pages with **one sliver of dynamic behavior**: save an RSVP, count a vote, append to a guestbook, remember a preference.
+Then ask: *"Build me a wedding RSVP page and put it online."*
 
-Today that one sliver is absurdly expensive. To store a single list of RSVPs you're told to stand up a separate backend service, run a database, register a domain, and thread environment variables through a build pipeline. The backend ends up heavier than the website it serves.
+## Features
 
-**Simple Host folds both halves into one tiny binary.** Static hosting *and* a lightweight per-site datastore — lighter than Supabase, no schema, no separate service — in the same upload. Your agent ships the HTML and the data layer together, the site goes live at `https://<site>.<handle>.simple-host.app/` (or on your own domain), and it just works.
+### Publish and versions
+- Publish a folder (archive or inline files) in one call. Every publish is a new version.
+- Look before it goes live: publish without making it live, open a one-hour preview link, then make it live.
+- Roll back to any kept version. Rename a site and old links keep working.
+- Take a site offline and back online. Nothing is deleted.
+- Delete is recoverable for 7 days from Recently deleted.
+- Download a copy of any site. Public or unlisted on your person page.
+- Visitor analytics per site, from server logs. No tracking script.
 
-And because it stays small, it runs small. Simple Host serves all of its sites from a box with **1 CPU and 1 GB of RAM** — no CDN, no object store, no orchestration. One binary, one Postgres, one folder on disk. Most of the websites everyday people need, hosted on hardware you could forget under your desk.
+### Addresses and custom domains
+- Every site has its own address and browser origin: `<site>.<handle>.simple-host.app`.
+- Every person has a page listing their public sites: `<handle>.simple-host.app`.
+- A free `<name>.simple-host.app`, live at once.
+- Your own domain, subdomain or bare domain. Ownership is proved with one TXT record; the certificate is issued automatically.
+- `www` and the bare domain are set up together, one redirecting to the other.
 
-## Get going
+### Saved data and lists
+- Per-site saved data: one JSON document with atomic operations (set, increment, append, remove).
+- Lists that visitors add to: comments, RSVPs, votes, sign-ups.
+- Private lists: only signed-in visitors add, only the owner reads.
+- The owner can edit or delete entries, empty a list, and download it as CSV.
 
-You don't deploy by hand. You tell your coding agent to, and it uses the Simple Host skill to do the rest.
+### Visitor sign-in
+- Visitors sign in with Google or an emailed code on the site's own address.
+- Saves are made as that visitor. One sign-in covers one site.
+- A small `auth.js` client handles it for the page.
 
-If you found this on GitHub, you almost certainly already have an agent — Claude Code, Cursor, Codex, opencode, GitHub Copilot, and a dozen more. Install the skill once, for any of them:
+### Your account, keys and data
+- Sign in with an emailed code or Google.
+- Named API keys: list, create and revoke them one at a time. Sign out everywhere in one step.
+- Change your sign-in email, confirmed from both addresses, with a 7-day undo.
+- An email after each new sign-in or app connection. Can be turned off.
+- Download all your data in one archive. Delete your account for good.
 
-```bash
-npx skills add vineetu/simple-host
-```
+### For AI agents
+- A connector (MCP) at `https://simple-host.app/mcp` with sign-in, for chat apps and agents.
+- Skills: `website-deploy`, `website-deploy-builder`, `connect-domain`.
+- Plugins for Claude and ChatGPT, and `npx skills add vineetu/simple-host` for coding agents.
+- [`llms.txt`](https://simple-host.app/llms.txt) and a full [OpenAPI spec](https://simple-host.app/openapi.yaml).
 
-**Install in Claude:** the [Simple Host plugin](plugins/simple-host/) bundles the skills and the Simple Host connector (`https://simple-host.app/mcp`, you sign in once when Claude first uses it). On Claude Code:
+### Operator tools
+- Admin console: disk use, running release, every account and site, API traffic.
+- Take down a site or suspend an account without deleting anything; restore later.
+- Issue participant accounts. Download all entries.
 
-```bash
-/plugin marketplace add vineetu/simple-host
-/plugin install simple-host@simple-host
-```
-
-The older skills-only `website-deploy@simple-host` plugin still installs and updates, but is superseded by `simple-host`.
-
-Using **Hermes** or **OpenClaw**? The skills are plain `SKILL.md`, so they install natively too — e.g. Hermes: `hermes skills install https://simple-host.app/skills/website-deploy/SKILL.md --name website-deploy`. That fetches one file; `website-deploy`'s SKILL.md routes to reference documents, and cites each by full URL as well as relative path so a single-file install can still fetch them (`https://simple-host.app/v1/skills/website-deploy/references/<name>.md`). Per-agent paths are under "Install the skills manually" on the [API page](https://simple-host.app/docs.html#install-skills).
-
-Then just talk to your agent:
-
-> *"Build me a wedding RSVP page and deploy it."*
-> *"Deploy this folder."*
-> *"Add a guestbook to my site."*
-
-It signs you up (emailed code → API key), builds the site, wires in state if the page needs it, and deploys. No terminal, no dashboard, no config files.
-
-**In ChatGPT, Claude or Grok instead?** Add Simple Host as a connector once — `https://simple-host.app/mcp`, sign in in the window that opens — and every chat after that can build and publish sites. Steps for each app are on the [get-started page](https://simple-host.app/install.html).
-
-## What you get
-
-- **One-call deploy** — upload a folder, get a live `https://{site}.{handle}.simple-host.app/`. Every deploy is a new immutable version; roll back instantly.
-- **A little backend, free** — per-site JSON state with atomic ops (set / inc / append), plus append-only collections for guestbooks, signups, and submissions. No schema, no database to run yourself.
-- **See what your site collected** — read and download whatever visitors saved to it.
-- **Connect your own domain** — subdomain or apex, or take a free `<name>.simple-host.app`. Optional: every site already has its own address, `https://<site>.<handle>.simple-host.app/`.
-- **Build with AI** — a chat on the homepage that designs, previews, and publishes a site for you. Describe what you want, watch it being written, then publish.
-- **Talk to it** — dictate your idea instead of typing. Captions appear as you speak, and you can edit the text before sending.
-- **Show it what you mean** — attach screenshots or notes to the chat and it builds from them.
-- **Sign in your way** — an emailed code, or Google (more providers later). Visitors to a site sign in the same way, on the site's own address, so a page can save on their behalf; a collection can be made private so only the owner reads it.
-- **Your own admin view** — see every account on your instance and the sites they have made.
+### Self-host, small box, hackathons
+- One Go binary, one Postgres, one folder on disk. Runs on 1 CPU and 1 GB of RAM.
+- A Docker Compose install for a fresh server ([`deploy/install/install.sh`](deploy/install/install.sh)). Re-running it upgrades.
+- A hackathon edition: an organiser stands up a private instance for an event and hands each participant a key. See https://simple-hack.app/.
 
 ## How it works
 
-Three moving parts, and you can hold all of them in your head at once:
-
-1. A single **Go binary** serves every site's static files *and* exposes the REST API.
-2. A **Postgres** tracks users, sites, and versions.
+1. A single **Go binary** serves every site's files and the REST API.
+2. **Postgres** holds accounts, sites, versions and saved data.
 3. A **folder on disk** holds the versioned site files.
 
-Every site is served at its own address, `{site}.{handle}.simple-host.app` (its own browser origin), which maps each path to its folder on disk; `{handle}.simple-host.app` lists the person's public sites, and a connected custom domain serves the same folder. Old `{handle}.simple-host.app/{site}/` and `sites.simple-host.app/{handle}/{site}/` links redirect. That's the whole system — no object store, no CDN, no build farm, which is exactly why it fits on a 1 GB box. The per-site datastore lives next to the files: reads are public (except private collections, which only the owner reads); a page writes after the visitor signs in on the site's own address (Google or an emailed code); agents write with an account's `X-API-Key`.
+No object store, no CDN, no build farm. Details: [ARCHITECTURE.md](ARCHITECTURE.md) and the [architecture page](https://simple-host.app/architecture.html).
 
 ## Run your own
 
 ```bash
-# 1. Postgres
-docker run -d --name simple-host-postgres -p 5432:5432 \
-  -e POSTGRES_USER=simplehost -e POSTGRES_PASSWORD=simplehost -e POSTGRES_DB=simplehost \
-  postgres:16-alpine
-
-# 2. Schema (one-time)
+docker run -d --name simple-host-postgres -p 5432:5432 -e POSTGRES_USER=simplehost -e POSTGRES_PASSWORD=simplehost -e POSTGRES_DB=simplehost postgres:16-alpine
 docker exec -i simple-host-postgres psql -U simplehost -d simplehost < db/schema.sql
-
-# 3. Run
-DB_DSN='postgres://simplehost:simplehost@localhost:5432/simplehost?sslmode=disable' \
-DATA_DIR=./data/sites \
-SITE_DOMAIN=localhost:8090 \
-PUBLIC_BASE_URL=http://localhost:8090 \
-ADMIN_API_KEY=$(openssl rand -hex 32) \
-go run ./cmd/server
+DB_DSN='postgres://simplehost:simplehost@localhost:5432/simplehost?sslmode=disable' DATA_DIR=./data/sites SITE_DOMAIN=localhost:8090 PUBLIC_BASE_URL=http://localhost:8090 ADMIN_API_KEY=$(openssl rand -hex 32) go run ./cmd/server
 ```
 
-Open http://localhost:8090 and sign in with that `ADMIN_API_KEY` — it's the master key with admin access. Build a production binary with:
+Open http://localhost:8090 and sign in with that `ADMIN_API_KEY` (the admin key). Production build:
 
 ```bash
 GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o ./simple-host ./cmd/server
 ```
 
-A single self-contained binary: ship it anywhere, set the env vars, run it.
-
 ### Configuration
 
-All via environment variables. `DB_DSN` and `ADMIN_API_KEY` are required; the rest have defaults.
+Environment variables. `DB_DSN` and `ADMIN_API_KEY` are required.
 
-| Env var | Required | Description |
-|---|---|---|
-| `DB_DSN` | ✅ | Postgres DSN |
-| `ADMIN_API_KEY` | ✅ | Master admin key. Pick something long — the public source intentionally ships no default. |
-| `SITE_DOMAIN` | | Domain suffix for site URLs (e.g. `simple-host.app`) |
-| `PUBLIC_BASE_URL` | | Base URL used in magic-link emails |
-| `DATA_DIR` | | Where versioned site files live on disk |
-| `PORT` | | HTTP listen port (default `8090`) |
-| `RESEND_API_KEY` | | Magic-link email via [Resend](https://resend.com); auth is disabled without it |
-| `MAIL_FROM` | | Magic-link sender address |
-| `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` | | The model behind **Build with AI**, an OpenAI-compatible endpoint (simple-host.app uses a local Grok sidecar); unset = the feature is off. |
-| `TRANSCRIBE_URL` / `TRANSCRIBE_TICKET_SECRET` | | Speech-to-text for the chat mic. Unset = the mic is hidden. |
-| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | | Enables Google sign-in, for owners and for visitors to sites. Both needed, or it stays off. |
-| `BIND_ADDR` | | Interface to listen on (e.g. `127.0.0.1` behind nginx). Empty = all interfaces, which Docker needs. |
-| `WRITE_AUTH_MODE` | | `on` makes every page save need a signed-in visitor or a key; `log` (default) only logs; `off` |
-| `PERSON_HOSTS` | | `canonical` gives each account `https://<handle>.<SITE_DOMAIN>/`; `off` (default) keeps sites at `sites.<SITE_DOMAIN>/<handle>/<site>/` |
-| `SITE_HOSTS` | | `canonical` gives each site its own origin, `https://<site>.<handle>.<SITE_DOMAIN>/` (needs `PERSON_HOSTS` and a `*.<handle>` certificate per person); `off` (default) |
-| `SITE_CERT_DIR` | | Where the app asks for and finds those per-person certificates |
-| `DOMAIN_CERT_DIR` | | Where the app asks for and finds custom-domain certificates (issuer in `deploy/domain-certs/`); unset = issued by hand |
-| `ANALYTICS_SALT` | | Salt for the hashed visitor IP in site analytics. Empty = derived from `ADMIN_API_KEY`. |
+| Env var | Description |
+|---|---|
+| `DB_DSN` | Postgres DSN (required) |
+| `ADMIN_API_KEY` | Admin key (required). Pick something long; there is no default. |
+| `SITE_DOMAIN` | Domain suffix for site addresses (e.g. `simple-host.app`) |
+| `PUBLIC_BASE_URL` | Base URL used in emails |
+| `DATA_DIR` | Where versioned site files live |
+| `PORT` / `BIND_ADDR` | Listen port (default `8090`) and interface (empty = all) |
+| `RESEND_API_KEY` / `MAIL_FROM` | Email sign-in codes via [Resend](https://resend.com); email sign-in is off without it |
+| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | Google sign-in for owners and visitors |
+| `WRITE_AUTH_MODE` | `on`: page saves need a signed-in visitor or a key; `log` (default); `off` |
+| `PERSON_HOSTS` | `canonical`: each account gets `https://<handle>.<SITE_DOMAIN>/`; `off` (default) |
+| `SITE_HOSTS` | `canonical`: each site gets `https://<site>.<handle>.<SITE_DOMAIN>/` (needs `PERSON_HOSTS`); `off` (default) |
+| `SITE_CERT_DIR` / `DOMAIN_CERT_DIR` | Where per-person and custom-domain certificates are requested and found |
+| `ANALYTICS_SALT` | Salt for hashed visitor IPs in analytics |
+
+The full list, with every surface each feature touches, is in [FEATURES.md](FEATURES.md).
 
 ## API
 
-Everything an agent needs is at [`/llms.txt`](https://simple-host.app/llms.txt), with the full spec at [`/openapi.yaml`](https://simple-host.app/openapi.yaml) and live docs at [`/docs.html`](https://simple-host.app/docs.html). Authenticated routes take `X-API-Key: <key>`; JSON in, JSON out. The headline endpoints:
+Authenticated routes take `X-API-Key: <key>`. JSON in, JSON out. The full contract is [`openapi.yaml`](https://simple-host.app/openapi.yaml); a readable version is [docs.html](https://simple-host.app/docs.html).
 
 | Endpoint | Method | Description |
 |---|---|---|
-| `/v1/auth`, `/v1/auth/verify` | POST | Email-code sign-in → API key |
+| `/v1/auth`, `/v1/auth/verify` | POST | Email-code sign-in, returns an API key |
 | `/v1/sites` | GET | List your sites |
-| `/v1/sites/{name}/files` | POST / PUT | Deploy a site from JSON: `{"files": {"index.html": "<h1>hi</h1>"}}` |
-| `/v1/sites/{name}` | POST / PUT / DELETE | Deploy from a tarball / roll a new version / delete |
-| `/v1/sites/{name}/state` | GET / PUT / PATCH | Per-site JSON state with atomic ops (reads public; writes need a signed-in visitor on the site's own address or an account's API key) |
-| `/v1/sites/{name}/collections/{coll}` | GET / POST | Append-only collections (POST is a write) |
-| `/v1/sites/{name}/domain` | POST / GET / DELETE | Connect your own domain |
-| `/v1/generate` | POST | Build with AI (when enabled) |
+| `/v1/sites/{name}/files` | POST / PUT | Publish from JSON: `{"files": {"index.html": "<h1>hi</h1>"}}` |
+| `/v1/sites/{name}` | POST / PUT / PATCH / DELETE | Publish an archive / new version / rename or offline / delete |
+| `/v1/sites/{name}/state` | GET / PUT / PATCH | Saved data with atomic operations |
+| `/v1/sites/{name}/collections/{coll}` | GET / POST | Lists |
+| `/v1/sites/{name}/domain` | POST / GET / DELETE | Your own domain |
 
-## The Website Deploy plugin
+## Working on this repo
 
-[`simple-host-website/`](simple-host-website/) is the agent integration that the install commands above pull in. It bundles:
-
-- **Three skills** — `website-deploy` (the deploy workflow, a router plus reference documents under `references/`), `website-deploy-builder` (helping decide what to build that fits a static-plus-light-state model), and `connect-domain` (giving a site a nicer address: your own domain or a free `<name>.simple-host.app`).
-- **An MCP server** (Node) exposing `register`, `deploy`, `status`, and `list` as agent-callable tools.
-
-For Claude, [`plugins/simple-host/`](plugins/simple-host/) packages the same three skills with the hosted connector as the `simple-host` plugin. Its skills are generated copies — edit `simple-host-website/skills/` and run `bash scripts/sync-claude-plugin.sh`; `scripts/check-claude-plugin.sh` (part of `make check`) fails if the copy or version drifts.
-
-The plugin is embedded into the Go binary, so a running instance also serves it at `/skills.zip`, `/plugin.zip`, and per-skill ZIPs for manual upload (e.g. Claude.ai). It reports its version on every API call; if the server's bundle is newer, responses carry a `_notice` the agent surfaces so users know to update.
+- [CLAUDE.md](CLAUDE.md): working rules, build, test and deploy.
+- [INTENT.md](INTENT.md): what it is for, and decisions with dates.
+- [FEATURES.md](FEATURES.md): every feature and every surface it touches.
+- [ARCHITECTURE.md](ARCHITECTURE.md): components, request flow, data model.
+- [CHANGELOG.md](CHANGELOG.md): what changed, newest first.
+- `make check`: format, build, vet, tests and the doc-sync checks.
+- Skills source: [`simple-host-website/skills/`](simple-host-website/skills/). The Claude plugin in [`plugins/simple-host/`](plugins/simple-host/) is a generated copy (`bash scripts/sync-claude-plugin.sh`).
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE).
+MIT. See [`LICENSE`](LICENSE).
