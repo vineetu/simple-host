@@ -266,6 +266,11 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 	}
 	if strings.EqualFold(requestHostName(r), h.contentHost) {
 		if info, ok, _ := db.GetSiteDomainInfo(r.Context(), h.database, siteID); ok && info.Domain != "" {
+			// Name the address that works: the earlier one while a new
+			// domain is still pending.
+			if own, has, _ := h.siteOwnDomain(r.Context(), siteID); has {
+				info.Domain = own.Domain
+			}
 			h.logAnonWrite(r, siteID, siteName, route, collection, mode, "use_custom_domain")
 			if mode == "on" && !allowAnon {
 				writeJSON(w, http.StatusUnauthorized, map[string]string{
@@ -433,7 +438,7 @@ func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 	// site has its own domain, say so, so the page can send the visitor there.
 	if strings.EqualFold(requestHostName(r), h.contentHost) {
 		resp := map[string]any{"signed_in": false, "sign_in_available": false, "code": "custom_domain_required"}
-		if info, ok, _ := db.GetSiteDomainInfo(r.Context(), h.database, siteID); ok && info.Domain != "" {
+		if info, ok, _ := h.siteOwnDomain(r.Context(), siteID); ok && info.Domain != "" {
 			resp["code"] = "use_custom_domain"
 			resp["domain"] = info.Domain
 		} else if h.personHostsCanonical() {

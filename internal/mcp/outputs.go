@@ -115,14 +115,18 @@ func domainSchema(justConnected bool) map[string]any {
 			"host":  outString("The name the record is added for."),
 			"value": outString("The record's value."),
 		}, "type", "host", "value"), "The one DNS record the person must add at their registrar. Absent for a free simple-host.app address, which needs none."),
-		"last_check": outString("Why the domain is not active yet, from the most recent check. Present only after a failed check."),
-		"url":        outString("The site's address on this domain. Present only when status is active."),
-		"note":       outString("What to do next. Present only when status is pending."),
+		"last_check":    outString("Why the domain is not active yet, from the most recent check. Present only after a failed check."),
+		"url":           outString("The site's address on this domain. Present only when status is active."),
+		"certificate":   outEnum("The domain's HTTPS certificate: pending (DNS not pointed here yet), issuing (automatic, usually minutes), live, or failed (last_check says why; it is retried). Absent for a free simple-host.app address.", "pending", "issuing", "live", "failed"),
+		"serving_at":    outString("The site's earlier address, where it is still served until this domain is live (then it redirects here). Present only while a new domain is pending."),
+		"failing_since": outString("When this verified domain started failing its checks. The owner is emailed after a day; after three days the domain stops being the site's address."),
+		"note":          outString("What to do next. Present only when status is pending."),
 	}
 	if justConnected {
 		props["domain"] = outString("The domain just connected.")
 		props["status"] = outEnum("pending (add the DNS record in dns_record, then check with domain_status) or active (a free simple-host.app address, live at once).", "pending", "active")
 		delete(props, "last_check")
+		delete(props, "failing_since")
 	}
 	return outObject(props, "site", "domain", "status")
 }
@@ -260,6 +264,11 @@ func outputSchemas() map[string]map[string]any {
 
 		"connect_domain": domainSchema(true),
 		"domain_status":  domainSchema(false),
+		"remove_domain": outObject(map[string]any{
+			"site":    outString(outSiteName),
+			"removed": outString("The address that was disconnected."),
+			"url":     outString("The site's live address now."),
+		}, "site", "removed"),
 
 		"site_analytics": outObject(map[string]any{
 			"site":       outString(outSiteName),

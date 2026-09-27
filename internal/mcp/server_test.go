@@ -310,6 +310,7 @@ func TestAnnotationsMatchBehaviour(t *testing.T) {
 		"update_state":      {false, true, true},
 		"add_to_collection": {false, true, true},
 		"connect_domain":    {false, false, true},
+		"remove_domain":     {false, true, true},
 
 		"set_collection_privacy": {false, false, true},
 		"update_collection_item": {false, true, false},
@@ -452,5 +453,28 @@ func TestStateToolsUseTheCallersHandleAndContentOrigin(t *testing.T) {
 	_, _, isErr = resultOf(t, send(t, s, toolCall("read_collection", map[string]any{"site": "party", "collection": "rsvps", "limit": 5}), nil, true))
 	if isErr || up.requests[len(up.requests)-1].URL.Query().Get("limit") != "5" {
 		t.Fatal("read_collection did not pass limit")
+	}
+}
+
+// remove_domain disconnects only the address the person confirmed, and a
+// mismatch changes nothing.
+func TestRemoveDomainNeedsTheConnectedDomainConfirmed(t *testing.T) {
+	up := &recordingUpstream{answers: map[string]func() (int, string){
+		"GET /v1/sites/blog/domain":    func() (int, string) { return 200, `{"domain":"rsvp.example.com","status":"active"}` },
+		"DELETE /v1/sites/blog/domain": func() (int, string) { return 204, "" },
+		"GET /v1/sites":                func() (int, string) { return 200, `[{"name":"blog","site_url":"https://blog.ann.simple-host.app/"}]` },
+	}}
+	text, _, isErr := resultOf(t, send(t, newTestServer(up), toolCall("remove_domain", map[string]any{"site": "blog", "confirm_domain": "other.example.com"}), nil, true))
+	if !isErr || !strings.Contains(text, "nothing was changed") {
+		t.Fatalf("mismatch: isErr=%v text=%q", isErr, text)
+	}
+	for _, r := range up.requests {
+		if r.Method == http.MethodDelete {
+			t.Fatalf("mismatch still sent DELETE %s", r.URL.Path)
+		}
+	}
+	text, structured, isErr := resultOf(t, send(t, newTestServer(up), toolCall("remove_domain", map[string]any{"site": "blog", "confirm_domain": "https://RSVP.example.com/"}), nil, true))
+	if isErr || structured["removed"] != "rsvp.example.com" || structured["url"] != "https://blog.ann.simple-host.app/" {
+		t.Fatalf("remove: isErr=%v text=%q structured=%v", isErr, text, structured)
 	}
 }

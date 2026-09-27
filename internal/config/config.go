@@ -197,6 +197,11 @@ type Config struct {
 	// counts as ready (an operator with a certificate that already covers two
 	// labels, or local development).
 	SiteCertDir string
+	// DomainCertDir holds the custom-domain certificate hand-off with the root
+	// issuer (deploy/domain-certs/): requests/<domain> (written here once the
+	// domain resolves to this server), ready/<domain> and failed/<domain>
+	// (written by the issuer). Empty: certificates are issued by hand.
+	DomainCertDir string
 
 	// Visitor OAuth. A provider is enabled only when BOTH of its vars are set.
 	GoogleOAuthClientID     string
@@ -333,6 +338,7 @@ func Load() (Config, error) {
 		cfg.SiteHosts = "off"
 	}
 	cfg.SiteCertDir = strings.TrimSpace(os.Getenv("SITE_CERT_DIR"))
+	cfg.DomainCertDir = strings.TrimSpace(os.Getenv("DOMAIN_CERT_DIR"))
 
 	cfg.PreviewAccounts = map[string]bool{}
 	for _, a := range strings.Split(os.Getenv("PREVIEW_ACCOUNTS"), ",") {

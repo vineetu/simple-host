@@ -135,12 +135,8 @@ func (h *SiteHandler) bindPlatformSubdomain(w http.ResponseWriter, r *http.Reque
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error(), "code": code})
 		return
 	}
-	previous, _, err := db.GetSiteDomainInfo(r.Context(), h.database, site.ID)
+	released, err := db.ClaimPlatformSubdomain(r.Context(), h.database, site.ID, host)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	if err := db.ClaimPlatformSubdomain(r.Context(), h.database, site.ID, host); err != nil {
 		if errors.Is(err, db.ErrNameIsAccountAddress) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": "that name is someone's own address; pick another name", "code": "domain_taken"})
 			return
@@ -152,18 +148,17 @@ func (h *SiteHandler) bindPlatformSubdomain(w http.ResponseWriter, r *http.Reque
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	// A site has one address of its own; the one it replaces stops serving it.
-	if previous.Domain != "" && !strings.EqualFold(previous.Domain, host) {
-		if err := h.disk.UnbindDomain(previous.Domain); err != nil {
-			log.Printf("domain: unbind previous %s for %s: %v", previous.Domain, site.Name, err)
+	// A site has one address of its own; the ones it replaces stop serving it
+	// (a replaced claimed name redirects here: it was kept as a retired name).
+	for _, d := range released {
+		if err := h.disk.UnbindDomain(d); err != nil {
+			log.Printf("domain: unbind previous %s for %s: %v", d, site.Name, err)
 		}
 	}
 	if err := h.disk.BindDomain(site.UserID, site.Name, host); err != nil {
 		log.Printf("domain: bind %s for %s/%s: %v", host, site.UserID, site.Name, err)
 	}
-	if err := h.disk.SetDomainRedirect(site.UserID, site.Name, host); err != nil {
-		log.Printf("domain: redirect marker for %s/%s: %v", site.UserID, site.Name, err)
-	}
+	h.syncDomainRedirect(r.Context(), site.ID)
 	now := time.Now()
 	writeJSON(w, http.StatusOK, domainResponse{
 		Domain:     host,
@@ -301,14 +296,44 @@ func (h *SiteHandler) siteNotFound(w http.ResponseWriter, r *http.Request, root 
 }
 
 // siteOwnDomain returns the site's proven own domain (a verified custom domain
-// or a claimed platform subdomain), or ok=false.
+// or a claimed platform subdomain), or ok=false. While a newly connected
+// domain is still pending, that is the site's earlier proven address, which
+// keeps serving it until the new one is verified.
 func (h *SiteHandler) siteOwnDomain(ctx context.Context, siteID string) (db.SiteDomainInfo, bool, error) {
 	info, ok, err := db.GetSiteDomainInfo(ctx, h.database, siteID)
 	if err != nil {
 		return db.SiteDomainInfo{}, false, err
 	}
-	if !ok || info.Domain == "" || !info.VerifiedAt.Valid {
+	if !ok || info.Domain == "" {
 		return db.SiteDomainInfo{}, false, nil
 	}
-	return info, true, nil
+	if info.VerifiedAt.Valid {
+		return info, true, nil
+	}
+	if info.PreviousDomain != "" {
+		return info.AsPrevious(), true, nil
+	}
+	return db.SiteDomainInfo{}, false, nil
+}
+
+// syncDomainRedirect points the content-host redirect marker at the site's
+// proven own domain, or removes it when there is none: old
+// sites.<SITE_DOMAIN> links never follow a domain that does not work yet.
+func (h *SiteHandler) syncDomainRedirect(ctx context.Context, siteID string) {
+	_, userID, name, err := db.GetSiteOwner(ctx, h.database, siteID)
+	if err != nil {
+		return
+	}
+	info, has, err := h.siteOwnDomain(ctx, siteID)
+	if err != nil {
+		return
+	}
+	if has {
+		err = h.disk.SetDomainRedirect(userID, name, strings.ToLower(info.Domain))
+	} else {
+		err = h.disk.ClearDomainRedirect(userID, name)
+	}
+	if err != nil {
+		log.Printf("domain: redirect marker for %s/%s: %v", userID, name, err)
+	}
 }

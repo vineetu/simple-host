@@ -159,6 +159,7 @@ func main() {
 	siteHandler := handler.NewSiteHandler(db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID, mailer, userHandler.EmailLimiter())
 	siteHandler.SetPersonHosts(cfg.PersonHosts)
 	siteHandler.SetSiteHosts(cfg.SiteHosts, cfg.SiteCertDir)
+	siteHandler.SetDomainCerts(cfg.DomainCertDir)
 	userHandler.SetPublicPage(siteHandler.PersonPageURL)
 	dbpkg.SetPlatformDomain(cfg.SiteDomain)
 	log.Printf("person hosts: %s; site hosts: %s", cfg.PersonHosts, cfg.SiteHosts)
@@ -233,7 +234,7 @@ func main() {
 	app := handler.SecurityHeaders(handler.CORS(apiMetrics.Wrap(connector.BearerAuth(mux))))
 	server := &http.Server{
 		Addr:              net.JoinHostPort(cfg.BindAddr, cfg.Port),
-		Handler:           siteHandler.BoundSubdomains(app, siteHandler.SiteHosts(app, siteHandler.PersonHosts(app, handler.LegacyHostRedirect(cfg.SiteDomain, cfg.ContentHost, db, app)))),
+		Handler:           siteHandler.BoundSubdomains(app, siteHandler.SiteHosts(app, siteHandler.PersonHosts(app, siteHandler.LegacyHostRedirect(app)))),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

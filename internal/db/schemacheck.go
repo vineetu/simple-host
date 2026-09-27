@@ -23,7 +23,7 @@ var requiredColumns = map[string][]string{
 	"users": {"id", "username", "is_admin", "handle", "display_name", "handle_changed_at"},
 	// hash-api-keys.sql
 	"api_keys":         {"key_hash", "user_id", "created_at"},
-	"sites":            {"id", "user_id", "name", "active_version", "visibility", "state", "custom_domain"},
+	"sites":            {"id", "user_id", "name", "active_version", "visibility", "state", "custom_domain", "previous_domain", "domain_cert_status", "domain_failing_since", "domain_lapse_notified_at"},
 	"collection_items": {"id", "site_id", "collection", "data", "submitted_by"},
 	// private-collections.sql
 	"collection_settings": {"site_id", "collection", "private"},

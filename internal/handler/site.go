@@ -103,6 +103,8 @@ type SiteHandler struct {
 	// siteHosts is SITE_HOSTS and siteCertDir SITE_CERT_DIR (sitehost.go).
 	siteHosts   siteHostMode
 	siteCertDir string
+	// domainCertDir is DOMAIN_CERT_DIR (domaincert.go).
+	domainCertDir string
 }
 
 // lockSite acquires the per-site upload mutex and returns its unlock func.
@@ -650,7 +652,8 @@ func (h *SiteHandler) originIsBoundDomainID(ctx context.Context, siteID, host st
 	if err != nil || !ok {
 		return false
 	}
-	return strings.EqualFold(info.Domain, host)
+	// Also the earlier address it still serves at while a new one is pending.
+	return strings.EqualFold(info.Domain, host) || (info.PreviousDomain != "" && strings.EqualFold(info.PreviousDomain, host))
 }
 
 // originIsPersonHostID reports whether host is the person address of the
@@ -1509,6 +1512,14 @@ func (h *SiteHandler) deleteSite(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
+	// A claimed <name>.<SITE_DOMAIN> outlives the site as a retired name
+	// ("this site was removed"), so it never passes to a stranger's site.
+	domains, err := db.RetireSiteNames(r.Context(), tx, site.ID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+
 	if err := db.DeleteSite(r.Context(), tx, site.ID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
@@ -1527,6 +1538,12 @@ func (h *SiteHandler) deleteSite(w http.ResponseWriter, r *http.Request) {
 	if err := tx.Commit(); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
+	}
+	for _, d := range domains {
+		if err := h.disk.UnbindDomain(d); err != nil {
+			log.Printf("delete site: unbind %s: %v", d, err)
+		}
+		h.cancelDomainCert(d)
 	}
 
 	w.WriteHeader(http.StatusNoContent)

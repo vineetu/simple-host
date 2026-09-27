@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -153,6 +154,42 @@ type domainResponse struct {
 	VerifiedAt   *time.Time `json:"verified_at,omitempty"`
 	LastError    string     `json:"last_error,omitempty"`
 	DNS          *dnsRecord `json:"dns,omitempty"`
+	// CertStatus is the domain's certificate: pending (DNS not pointed here
+	// yet), issuing, live or failed (last_error says why; retried).
+	CertStatus string `json:"certificate_status,omitempty"`
+	// PreviousDomain is the site's earlier address, which keeps serving it
+	// until this domain is live and then redirects here.
+	PreviousDomain string `json:"previous_domain,omitempty"`
+	// FailingSince: a verified domain that stopped passing its checks. After
+	// 24 h the owner is emailed; after 72 h it stops being the site's home.
+	FailingSince *time.Time `json:"failing_since,omitempty"`
+}
+
+// domainResponseFor is the API view of a site's binding.
+func (h *SiteHandler) domainResponseFor(info db.SiteDomainInfo) domainResponse {
+	resp := domainResponse{
+		Domain:         info.Domain,
+		Status:         info.Status,
+		LastError:      info.LastError,
+		PreviousDomain: info.PreviousDomain,
+	}
+	if !h.isPlatformSubdomainHost(info.Domain) {
+		rec := h.dnsRecordFor(info.Domain)
+		resp.DNS = &rec
+		resp.CertStatus = info.CertStatus
+		if resp.CertStatus == "" {
+			resp.CertStatus = "pending"
+			if info.Status == "active" {
+				resp.CertStatus = "live"
+			}
+		}
+	}
+	if info.FailingSince.Valid {
+		t := info.FailingSince.Time
+		resp.FailingSince = &t
+	}
+	setDomainTimes(&resp, info)
+	return resp
 }
 
 // bindDomain POST /v1/sites/{sitename}/domain — bind one custom domain (pending DNS).
@@ -197,6 +234,38 @@ func (h *SiteHandler) bindDomain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	current, has, err := db.GetSiteDomainInfo(r.Context(), h.database, site.ID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	// Already this site's working domain: nothing to redo.
+	if has && current.Domain == domain && current.VerifiedAt.Valid {
+		writeJSON(w, http.StatusOK, h.domainResponseFor(current))
+		return
+	}
+	// Back to the earlier address the site still serves at: drop the pending one.
+	if has && current.PreviousDomain == domain {
+		dropped, _, err := db.DropCustomDomain(r.Context(), h.database, site.ID)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return
+		}
+		if dropped != "" {
+			if err := h.disk.UnbindDomain(dropped); err != nil {
+				log.Printf("domain: unbind %s: %v", dropped, err)
+			}
+		}
+		h.syncDomainRedirect(r.Context(), site.ID)
+		info, _, err := db.GetSiteDomainInfo(r.Context(), h.database, site.ID)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return
+		}
+		writeJSON(w, http.StatusOK, h.domainResponseFor(info))
+		return
+	}
+
 	holder, err := db.BindCustomDomain(r.Context(), h.database, site.ID, domain)
 	if err != nil {
 		if errors.Is(err, db.ErrDomainTaken) {
@@ -215,20 +284,27 @@ func (h *SiteHandler) bindDomain(w http.ResponseWriter, r *http.Request) {
 		h.releaseDomainFiles(*holder)
 		tookOverFrom = holder.Handle + "/" + holder.Name
 	}
+	// A pending domain this one replaces stops pointing at the site. A proven
+	// one is kept (previous_domain) and keeps serving until this one is live.
+	if has && current.Domain != domain && !current.VerifiedAt.Valid {
+		if err := h.disk.UnbindDomain(current.Domain); err != nil {
+			log.Printf("domain: unbind replaced %s: %v", current.Domain, err)
+		}
+	}
 	if err := h.disk.BindDomain(site.UserID, site.Name, domain); err != nil {
 		log.Printf("domain: bind %s for %s/%s: %v", domain, site.UserID, site.Name, err)
 	}
-	if err := h.disk.SetDomainRedirect(site.UserID, site.Name, domain); err != nil {
-		log.Printf("domain: redirect marker for %s/%s: %v", site.UserID, site.Name, err)
-	}
+	// The content-host redirect follows only a proven domain.
+	h.syncDomainRedirect(r.Context(), site.ID)
 
-	rec := h.dnsRecordFor(domain)
-	writeJSON(w, http.StatusOK, domainResponse{
-		Domain:       domain,
-		TookOverFrom: tookOverFrom,
-		Status:       "pending",
-		DNS:          &rec,
-	})
+	info, _, err := db.GetSiteDomainInfo(r.Context(), h.database, site.ID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	resp := h.domainResponseFor(info)
+	resp.TookOverFrom = tookOverFrom
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // getDomain GET /v1/sites/{sitename}/domain — current binding + DNS hint.
@@ -265,17 +341,7 @@ func (h *SiteHandler) getDomain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := domainResponse{
-		Domain:    info.Domain,
-		Status:    info.Status,
-		LastError: info.LastError,
-	}
-	if !h.isPlatformSubdomainHost(info.Domain) {
-		rec := h.dnsRecordFor(info.Domain)
-		resp.DNS = &rec
-	}
-	setDomainTimes(&resp, info)
-	writeJSON(w, http.StatusOK, resp)
+	writeJSON(w, http.StatusOK, h.domainResponseFor(info))
 }
 
 func setDomainTimes(resp *domainResponse, info db.SiteDomainInfo) {
@@ -317,26 +383,21 @@ func (h *SiteHandler) deleteDomain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	info, ok, err := db.GetSiteDomainInfo(r.Context(), h.database, site.ID)
+	// Drops the domain shown by GET: a pending one gives the site back the
+	// earlier address it still serves at; a claimed <name>.<SITE_DOMAIN> stays
+	// with the site as a retired name that redirects to its current address.
+	dropped, _, err := db.DropCustomDomain(r.Context(), h.database, site.ID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-
-	if err := db.ClearCustomDomain(r.Context(), h.database, site.ID); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	if ok && info.Domain != "" {
-		if err := h.disk.UnbindDomain(info.Domain); err != nil {
+	if dropped != "" {
+		if err := h.disk.UnbindDomain(dropped); err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
 		}
-		if err := h.disk.ClearDomainRedirect(info.UserID, info.Name); err != nil {
-			log.Printf("domain: clear redirect marker for %s/%s: %v", info.UserID, info.Name, err)
-		}
 	}
+	h.syncDomainRedirect(r.Context(), site.ID)
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -401,9 +462,11 @@ func (h *SiteHandler) domainRedirect(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	info, ok, err := db.GetSiteDomainInfo(r.Context(), h.database, site.ID)
+	// Only a proven domain: a pending one may not serve anything yet.
+	info, ok, err := h.siteOwnDomain(r.Context(), site.ID)
 	if err != nil || !ok || info.Domain == "" {
-		// Stale marker: the domain is gone. Clean up and let the next request serve.
+		// Stale marker: the domain is gone or unproven. Clean up and let the
+		// next request serve.
 		_ = h.disk.ClearDomainRedirect(user.ID, name)
 		http.NotFound(w, r)
 		return
@@ -417,12 +480,12 @@ func (h *SiteHandler) domainRedirect(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, target, http.StatusFound)
 }
 
-// releaseDomainFiles is best-effort cleanup after a database release.
+// releaseDomainFiles is best-effort cleanup after a database release: the
+// released domain stops pointing at the site, and the content-host redirect
+// follows whatever the site now has (an earlier address it got back, or none).
 func (h *SiteHandler) releaseDomainFiles(info db.SiteDomainInfo) {
 	if err := h.disk.UnbindDomain(info.Domain); err != nil {
 		log.Printf("domain: unbind %s: %v", info.Domain, err)
 	}
-	if err := h.disk.ClearDomainRedirect(info.UserID, info.Name); err != nil {
-		log.Printf("domain: clear redirect marker for %s/%s: %v", info.UserID, info.Name, err)
-	}
+	h.syncDomainRedirect(context.Background(), info.SiteID)
 }
