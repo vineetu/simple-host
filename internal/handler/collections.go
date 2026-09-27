@@ -51,8 +51,9 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	// The name's kind (kinds.go): Page info takes no items, and on a site
-	// created after the kinds an undeclared name takes nothing.
+	// The name's kind (kinds.go): Page info takes no items; a name nobody
+	// declared is Shared (or, with SAVED_DATA_DEFAULT_KIND=declare_first on a
+	// site made after the kinds, takes nothing).
 	set, ok := h.dataSettings(w, r, siteID, coll)
 	if !ok || !h.appendAllowed(w, set, siteName) {
 		return
@@ -65,6 +66,13 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 	}
 	actor, ok := h.visitorWriteOK(w, r, siteID, siteName, writeRouteCollectionPost, coll)
 	if !ok {
+		return
+	}
+	// Declared Submissions come from a signed-in visitor, always: one per
+	// person and the block list need someone to count and to block. (A
+	// Shared name keeps taking what the site's write mode lets through.)
+	if set.Kind == db.KindEntries && actor.Kind == actorAnonymous {
+		writeVisitorAuthRequired(w)
 		return
 	}
 	// Items added without the owner's key: SAVED_DATA_APPEND_PER_MIN per address.

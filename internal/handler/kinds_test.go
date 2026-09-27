@@ -3,33 +3,39 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 )
 
 // Saved data, step 2: kinds (kinds.go). Needs DB_DSN (db/schema.sql applied).
 
-// kindsSite is newSavedDataSite with a second visitor (wes) and the site made
-// strict, as every site created since the kinds is (legacy=false), unless
-// legacy is asked for.
+// kindsSite is newSavedDataSite with a second visitor (wes). legacy=false
+// makes it strict: a site made after the kinds (legacy_data false) on an
+// install with SAVED_DATA_DEFAULT_KIND=declare_first. legacy=true is a site
+// from before the kinds (the default install makes every site behave so).
 type kindsSite struct {
 	*savedDataSite
 	wes      person
 	wesCooky string
+	strict   bool
 }
 
 func newKindsSite(t *testing.T, legacy bool) *kindsSite {
 	t.Helper()
-	s := &kindsSite{savedDataSite: newSavedDataSite(t)}
+	s := &kindsSite{savedDataSite: newSavedDataSite(t), strict: !legacy}
 	if _, err := s.a.database.Exec(`UPDATE sites SET legacy_data = $2 WHERE id = $1`, s.shopID, legacy); err != nil {
 		t.Fatal(err)
 	}
+	s.setLimits(t, func(*config.SavedData) {})
 	s.wes = s.a.newPerson(t, "wes")
 	s.wesCooky = s.a.session(t, s.wes, s.shopID, s.dom)
 	return s
@@ -60,6 +66,9 @@ func (s *kindsSite) declare(t *testing.T, name string, body map[string]any) map[
 func (s *kindsSite) setLimits(t *testing.T, edit func(*config.SavedData)) {
 	t.Helper()
 	c := config.DefaultSavedData()
+	if s.strict {
+		c.DefaultKind = config.DefaultKindDeclareFirst
+	}
 	edit(&c)
 	s.a.sites.SetSavedData(c)
 	t.Cleanup(func() { s.a.sites.SetSavedData(config.DefaultSavedData()) })
@@ -110,11 +119,9 @@ func TestDeclareFirstOnNewSites(t *testing.T) {
 	if r := s.visitor(t, "POST", "/v1/sites/shop/data/rsvps", map[string]any{"name": "Vic"}); r.status != 201 {
 		t.Fatalf("after declaring: %d %s", r.status, r.body)
 	}
-	// A site deployed through the API as production does (TestMain models
-	// older sites for the tests written before the kinds) is strict.
-	db.NewSitesLegacyData = false
+	// A site deployed through the API is made after the kinds, so on this
+	// install it is strict.
 	s.a.deploy(t, s.olive, "fresh")
-	db.NewSitesLegacyData = true
 	var legacy bool
 	if err := s.a.database.QueryRow(`SELECT legacy_data FROM sites WHERE id = $1`, s.a.siteID(t, s.olive, "fresh")).Scan(&legacy); err != nil {
 		t.Fatal(err)
@@ -294,8 +301,15 @@ func TestSubmissionsRules(t *testing.T) {
 	}
 	wantCode(t, "undo the owner's delete", s.as(t, s.wesCooky, "POST", base+"/items/"+wesID+"/undo", nil), 409, "undo_expired")
 
-	// Made public: anyone reads, without who sent it.
-	if out := s.declare(t, "rsvps", map[string]any{"kind": "entries", "visibility": "public"}); out["notify"] != "daily" {
+	// Made public: only when the owner confirms, since the entry becomes
+	// readable by anyone; then anyone reads, without who sent it.
+	cp := s.owner(t, "PUT", "/v1/sites/shop/data/rsvps/kind", map[string]any{"kind": "entries", "visibility": "public"})
+	wantCode(t, "private to public, unconfirmed", cp, 409, "confirm_public")
+	if !strings.Contains(string(cp.body), "1 private entry") {
+		t.Fatalf("confirm_public says what becomes public: %s", cp.body)
+	}
+	wantCode(t, "private to page info, unconfirmed", s.owner(t, "PUT", "/v1/sites/shop/data/rsvps/kind", map[string]any{"kind": "content"}), 409, "confirm_public")
+	if out := s.declare(t, "rsvps", map[string]any{"kind": "entries", "visibility": "public", "confirm_public": true}); out["notify"] != "daily" {
 		t.Fatalf("a re-declaration keeps notify: %v", out)
 	}
 	pub := itemsOf(t, s.a.at(t, "GET", s.dom, base, nil, nil))
@@ -493,4 +507,210 @@ func TestSubmissionEmails(t *testing.T) {
 	if r := s.a.at(t, "GET", pcSiteDomain, "/v1/data-notify/stop?t=forged.x", nil, nil); r.status != http.StatusNotFound {
 		t.Fatalf("forged link: %d", r.status)
 	}
+}
+
+// Owner decision 2026-09-27: a name nobody declared is Shared. On the
+// default install a site made after the kinds takes saves to it as before, so
+// old skills, AI create and uploaded pages (no X-Skill-Version) keep working;
+// SAVED_DATA_DEFAULT_KIND=declare_first makes such a site strict, and sites
+// from before the kinds stay Shared either way.
+func TestSharedIsTheDefault(t *testing.T) {
+	s := newKindsSite(t, true)
+	if _, err := s.a.database.Exec(`UPDATE sites SET legacy_data = false WHERE id = $1`, s.shopID); err != nil {
+		t.Fatal(err)
+	}
+	s.a.sites.SetSavedData(config.DefaultSavedData())
+	if r := s.visitor(t, "POST", "/v1/sites/shop/data/guestbook", map[string]any{"msg": "hi"}); r.status != 201 {
+		t.Fatalf("visitor, undeclared, default install: %d %s", r.status, r.body)
+	}
+	if r := s.visitor(t, "POST", "/v1/sites/shop/collections/guestbook", map[string]any{"msg": "again"}); r.status != 201 {
+		t.Fatalf("old route: %d %s", r.status, r.body)
+	}
+	if items := itemsOf(t, s.a.at(t, "GET", s.dom, "/v1/sites/shop/collections/guestbook", nil, nil)); len(items) != 2 {
+		t.Fatalf("anyone reads a Shared name: %v", items)
+	}
+	k := s.a.at(t, "GET", s.dom, "/v1/sites/shop/data/guestbook/kind", nil, nil).json(t)
+	if k["declared"] != false || k["kind"] != nil || k["label"] != "Shared" || k["accepts_saves"] != true || k["visibility"] != "public" {
+		t.Fatalf("kind of a Shared name: %v", k)
+	}
+	d := s.owner(t, "GET", "/v1/sites/shop/data", nil).json(t)
+	if d["undeclared_names_take_saves"] != true {
+		t.Fatalf("list data: %v", d)
+	}
+	for _, n := range d["names"].([]any) {
+		if m := n.(map[string]any); m["name"] == "guestbook" && m["label"] != "Shared" {
+			t.Fatalf("label: %v", m)
+		}
+	}
+	// A site deployed with no X-Skill-Version (an old skill, AI create, the
+	// dashboard's upload) takes saves under any name, the owner's included.
+	s.a.deploy(t, s.olive, "fresh")
+	var legacy bool
+	if err := s.a.database.QueryRow(`SELECT legacy_data FROM sites WHERE id = $1`, s.a.siteID(t, s.olive, "fresh")).Scan(&legacy); err != nil || legacy {
+		t.Fatalf("new site legacy_data=%v err=%v", legacy, err)
+	}
+	if r := s.a.at(t, "POST", pcSiteDomain, "/v1/sites/fresh/collections/rsvps", map[string]any{"a": 1}, map[string]string{"X-API-Key": s.olive.key, "Origin": "https://" + pcContentHost}); r.status != 201 {
+		t.Fatalf("fresh site, undeclared, default install: %d %s", r.status, r.body)
+	}
+
+	// declare_first: the site made after the kinds refuses; one from before does not.
+	c := config.DefaultSavedData()
+	c.DefaultKind = config.DefaultKindDeclareFirst
+	s.a.sites.SetSavedData(c)
+	t.Cleanup(func() { s.a.sites.SetSavedData(config.DefaultSavedData()) })
+	wantCode(t, "declare_first install", s.visitor(t, "POST", "/v1/sites/shop/data/guestbook", map[string]any{"msg": "x"}), 409, "declare_first")
+	if k := s.a.at(t, "GET", s.dom, "/v1/sites/shop/data/guestbook/kind", nil, nil).json(t); k["accepts_saves"] != false || k["label"] != "Not set" {
+		t.Fatalf("kind under declare_first: %v", k)
+	}
+	if _, err := s.a.database.Exec(`UPDATE sites SET legacy_data = true WHERE id = $1`, s.shopID); err != nil {
+		t.Fatal(err)
+	}
+	if r := s.visitor(t, "POST", "/v1/sites/shop/data/guestbook", map[string]any{"msg": "old site"}); r.status != 201 {
+		t.Fatalf("site from before the kinds under declare_first: %d %s", r.status, r.body)
+	}
+}
+
+// taggedPerson is another account for p's mailbox: p's address with a +tag.
+func (s *kindsSite) taggedPerson(t *testing.T, p person) (person, string) {
+	t.Helper()
+	addr := strings.Replace(p.email, "@", "+two@", 1)
+	key, _ := auth.GenerateAPIKey()
+	u, err := db.CreateUser(context.Background(), s.a.database, addr, key, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.a.database.Exec(`UPDATE users SET handle = $1 WHERE id = $2`, "t"+strconv.FormatInt(int64(len(addr)), 10)+strings.ReplaceAll(strings.Split(p.email, "@")[0], ".", "-"), u.ID); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = s.a.database.Exec(`DELETE FROM users WHERE id = $1`, u.ID) })
+	tp := person{email: addr, key: key}
+	return tp, s.a.session(t, tp, s.shopID, s.dom)
+}
+
+// Review sd2: S1 (anonymous Submissions), S4 (+tag), S5 (undo keeps the
+// rules), S6 (block uses the stamped address), S8 (the owner undoes), S10.
+func TestSubmissionsReviewFixes(t *testing.T) {
+	s := newKindsSite(t, true)
+	s.declare(t, "votes", map[string]any{"kind": "entries", "visibility": "public", "one_per_person": true})
+	base := "/v1/sites/shop/data/votes"
+
+	// S1: a write that reaches the list as nobody (log mode, no CSRF header)
+	// is refused for Submissions, and still taken by a Shared name.
+	s.a.sites.writeAuthMode = "log"
+	noCSRF := browser(s.dom, s.vicCooky, "X-SH-CSRF", "")
+	wantCode(t, "anonymous to Submissions", s.a.at(t, "POST", s.dom, base, map[string]any{"pick": "a"}, noCSRF), 401, "visitor_auth_required")
+	if r := s.a.at(t, "POST", s.dom, "/v1/sites/shop/data/wall", map[string]any{"hi": 1}, noCSRF); r.status != 201 {
+		t.Fatalf("anonymous to a Shared name in log mode: %d %s", r.status, r.body)
+	}
+	s.a.sites.writeAuthMode = "on"
+
+	// S4: one per person counts the address without its +tag.
+	tagged, taggedCooky := s.taggedPerson(t, s.vic)
+	vicVote := idOf(t, s.as(t, s.vicCooky, "POST", base, map[string]any{"pick": "a"}))
+	r := s.as(t, taggedCooky, "POST", base, map[string]any{"pick": "b"})
+	wantCode(t, "same mailbox, +tag", r, 409, "one_per_person")
+	if _, has := r.json(t)["id"]; has {
+		t.Fatalf("another account's entry id revealed: %s", r.body)
+	}
+	// Blocking by entry blocks the mailbox under any tag.
+	b := s.owner(t, "POST", "/v1/sites/shop/savers/block", map[string]any{"collection": "votes", "id": vicVote})
+	if b.status != 200 || b.json(t)["blocked"] != s.vic.email {
+		t.Fatalf("block: %d %s", b.status, b.body)
+	}
+	wantCode(t, "blocked, +tag", s.as(t, taggedCooky, "POST", "/v1/sites/shop/data/wall", map[string]any{"n": 1}), 403, "not_allowed_to_save")
+	_ = tagged
+	if r := s.owner(t, "PUT", "/v1/sites/shop/savers", map[string]any{"mode": "anyone"}); r.status != 200 {
+		t.Fatalf("unblock: %d %s", r.status, r.body)
+	}
+
+	// S5: undo keeps the list's cap.
+	s.declare(t, "slots", map[string]any{"kind": "entries", "visibility": "public"})
+	s.setLimits(t, func(c *config.SavedData) { c.EntriesMax = 1 })
+	slot := idOf(t, s.as(t, s.vicCooky, "POST", "/v1/sites/shop/data/slots", map[string]any{"at": 9}))
+	s.as(t, s.vicCooky, "DELETE", "/v1/sites/shop/data/slots/items/"+slot, nil)
+	idOf(t, s.as(t, s.wesCooky, "POST", "/v1/sites/shop/data/slots", map[string]any{"at": 9}))
+	wantCode(t, "undo into a full list", s.as(t, s.vicCooky, "POST", "/v1/sites/shop/data/slots/items/"+slot+"/undo", nil), 409, "list_full")
+	s.setLimits(t, func(*config.SavedData) {})
+
+	// S8: the owner, signed in on the site, undoes their own withdrawal even
+	// when only listed people may save.
+	ownerCookie := s.a.session(t, s.olive, s.shopID, s.dom)
+	own := idOf(t, s.as(t, ownerCookie, "POST", "/v1/sites/shop/data/wall", map[string]any{"from": "owner"}))
+	if r := s.owner(t, "PUT", "/v1/sites/shop/savers", map[string]any{"mode": "listed", "allow": []string{"someone@else.org"}}); r.status != 200 {
+		t.Fatalf("listed: %d %s", r.status, r.body)
+	}
+	if r := s.as(t, ownerCookie, "DELETE", "/v1/sites/shop/data/wall/items/"+own, nil); r.status != 204 && r.status != 200 {
+		t.Fatalf("owner withdraws: %d %s", r.status, r.body)
+	}
+	if r := s.as(t, ownerCookie, "POST", "/v1/sites/shop/data/wall/items/"+own+"/undo", nil); r.status != 200 {
+		t.Fatalf("owner undoes on a listed site: %d %s", r.status, r.body)
+	}
+	s.owner(t, "PUT", "/v1/sites/shop/savers", map[string]any{"mode": "anyone"})
+
+	// S6: a public list's _submitted_by is what the page sent; with no
+	// stamped address there is nobody to block.
+	spoof := idOf(t, s.as(t, s.wesCooky, "POST", "/v1/sites/shop/data/wall", map[string]any{"_submitted_by": "victim@example.org"}))
+	if _, err := s.a.database.Exec(`UPDATE collection_items SET submitted_email = NULL WHERE id = $1`, spoof); err != nil {
+		t.Fatal(err)
+	}
+	wantCode(t, "block a spoofed sender", s.owner(t, "POST", "/v1/sites/shop/savers/block", map[string]any{"collection": "wall", "id": spoof}), 409, "no_author")
+
+	// S10: Submissions names per site.
+	s.setLimits(t, func(c *config.SavedData) { c.EntriesNamesMax = 2 })
+	wantCode(t, "third Submissions name", s.owner(t, "PUT", "/v1/sites/shop/data/more/kind", map[string]any{"kind": "entries", "visibility": "public"}), 409, "too_many_names")
+	s.declare(t, "votes", map[string]any{"kind": "entries", "one_per_person": false}) // re-declaring one it has is fine
+}
+
+// S9: an email is claimed before it is sent, so it goes out once however
+// many servers run the tick, and a failed send is not retried every tick.
+func TestSubmissionEmailClaimedOnce(t *testing.T) {
+	s := newKindsSite(t, true)
+	s.declare(t, "orders", map[string]any{"kind": "entries", "notify": "each"})
+	idOf(t, s.as(t, s.vicCooky, "POST", "/v1/sites/shop/data/orders", map[string]any{"item": "tea"}))
+	if _, err := s.a.database.Exec(`UPDATE collection_settings SET declared_at = now() - interval '1 hour', updated_at = now() - interval '1 hour' WHERE site_id = $1`, s.shopID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.a.database.Exec(`UPDATE collection_items SET created_at = now() - interval '30 minutes' WHERE site_id = $1`, s.shopID); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	due, err := db.DueNotifications(ctx, s.a.database, 10*time.Minute, 24*time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mine []db.NotifyDue
+	for _, d := range due {
+		if d.SiteID == s.shopID {
+			mine = append(mine, d)
+		}
+	}
+	if len(mine) != 1 {
+		t.Fatalf("due: %v", mine)
+	}
+	first, err1 := db.ClaimNotification(ctx, s.a.database, mine[0])
+	second, err2 := db.ClaimNotification(ctx, s.a.database, mine[0])
+	if err1 != nil || err2 != nil || !first || second {
+		t.Fatalf("claims: %v %v (%v %v)", first, second, err1, err2)
+	}
+	// A failed send is not retried on the next tick.
+	if _, err := s.a.database.Exec(`UPDATE collection_settings SET notify_sent_at = NULL WHERE site_id = $1`, s.shopID); err != nil {
+		t.Fatal(err)
+	}
+	s.a.sites.mailer = failingNoticeMailer{}
+	s.a.sites.sendSubmissionEmails(ctx)
+	m := &noticeMailer{}
+	s.a.sites.mailer = m
+	s.a.sites.sendSubmissionEmails(ctx)
+	for _, n := range m.sent {
+		if strings.HasPrefix(n, s.olive.email+"|") {
+			t.Fatalf("re-sent after a failure: %q", n)
+		}
+	}
+}
+
+type failingNoticeMailer struct{}
+
+func (failingNoticeMailer) SendSignInCode(string, string, string) error { return nil }
+func (failingNoticeMailer) SendNotice(string, string, string) error {
+	return errors.New("smtp down")
 }

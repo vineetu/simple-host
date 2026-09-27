@@ -312,26 +312,22 @@ type Querier interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
 
-// NewSitesLegacyData is the legacy_data flag new sites are created with:
-// false, so kinds apply to them. Only tests that model sites from before the
-// kinds (the saved-data tests written before step 2) set it true.
-var NewSitesLegacyData = false
-
 // CreateSite inserts a new site. expiresAt is nil for permanent sites, or a
 // timestamp for ephemeral "preview" sites that the background sweep deletes.
-// A new site is not legacy_data (NewSitesLegacyData): a data name on it
-// takes saves only once it is declared (saved data, step 2). The column's
-// default stays true for the sites that existed before.
+// legacy_data marks the sites made before the kinds (the column's default,
+// true, covers them); a new site is false, so a data name nobody declared on
+// it follows SAVED_DATA_DEFAULT_KIND (Shared unless the install chose
+// declare_first).
 func CreateSite(ctx context.Context, q Querier, userID, name, siteURL string, expiresAt *time.Time) (Site, error) {
 	const query = `
 		INSERT INTO sites (user_id, name, site_url, expires_at, legacy_data)
-		VALUES ($1, $2, $3, $4, $5)
+		VALUES ($1, $2, $3, $4, false)
 		RETURNING id, user_id, name, active_version, site_url, created_at, updated_at
 	`
 
 	var site Site
 
-	err := q.QueryRowContext(ctx, query, userID, name, siteURL, expiresAt, NewSitesLegacyData).Scan(
+	err := q.QueryRowContext(ctx, query, userID, name, siteURL, expiresAt).Scan(
 		&site.ID,
 		&site.UserID,
 		&site.Name,

@@ -160,7 +160,21 @@ type SavedData struct {
 	// SAVED_DATA_SAVERS_MAX: emails and domains in one site's who-may-save
 	// and block lists together (500).
 	SaversMax int
+	// SAVED_DATA_ENTRIES_NAMES_MAX: Submissions names per site (50).
+	EntriesNamesMax int
+	// SAVED_DATA_DEFAULT_KIND: what a name nobody declared is on a site made
+	// after the kinds. "shared" (default): Shared, anyone reads it and
+	// signed-in visitors save to it, as before the kinds. "declare_first":
+	// it takes no saves until the owner declares it. Sites that existed
+	// before the kinds are Shared either way.
+	DefaultKind string
 }
+
+// The SAVED_DATA_DEFAULT_KIND values.
+const (
+	DefaultKindShared       = "shared"
+	DefaultKindDeclareFirst = "declare_first"
+)
 
 // DefaultSavedData is the approved plan's values.
 func DefaultSavedData() SavedData {
@@ -168,7 +182,8 @@ func DefaultSavedData() SavedData {
 		WatchIncMax: 10, WatchItemKB: 16, IdempotencyHours: 24, ReadPerSec: 30, ReadBurst: 60,
 		AppendPerMin: 30, AppendBurst: 30, IdempotencyMaxPerSite: 10000, SnapshotEvery: 50, WatchKeepDays: 90,
 		ContentMaxKB: 1024, ContentNamesMax: 20, EntryMaxKB: 16, EntriesMax: 10000, WithdrawUndoMinutes: 10,
-		NotifyEachMinutes: 10, NotifyDailyHours: 24, SaversMax: 500}
+		NotifyEachMinutes: 10, NotifyDailyHours: 24, SaversMax: 500, EntriesNamesMax: 50,
+		DefaultKind: DefaultKindShared}
 }
 
 // Rate is a token bucket: Burst requests at once, then one more every Every.
@@ -455,6 +470,17 @@ func Knobs() []Knob {
 		intKnob("SAVED_DATA_NOTIFY_EACH_MINUTES", "minutes", 1, 1440, func(l *Limits) *int { return &l.SavedData.NotifyEachMinutes }),
 		intKnob("SAVED_DATA_NOTIFY_DAILY_HOURS", "hours", 1, 720, func(l *Limits) *int { return &l.SavedData.NotifyDailyHours }),
 		intKnob("SAVED_DATA_SAVERS_MAX", "entries", 1, 100_000, func(l *Limits) *int { return &l.SavedData.SaversMax }),
+		intKnob("SAVED_DATA_ENTRIES_NAMES_MAX", "names", 1, 1_000, func(l *Limits) *int { return &l.SavedData.EntriesNamesMax }),
+		{Env: "SAVED_DATA_DEFAULT_KIND", Unit: "shared/declare_first",
+			Value: func(l *Limits) string { return l.SavedData.DefaultKind },
+			set: func(l *Limits, v string) error {
+				switch strings.ToLower(v) {
+				case DefaultKindShared, DefaultKindDeclareFirst:
+					l.SavedData.DefaultKind = strings.ToLower(v)
+					return nil
+				}
+				return fmt.Errorf("SAVED_DATA_DEFAULT_KIND=%q: want shared or declare_first", v)
+			}},
 
 		boolKnob("ASK_ENABLED", func(l *Limits) *bool { return &l.Ask.Enabled }),
 		intKnob("ASK_BURST", "questions", 1, 50, func(l *Limits) *int { return &l.Ask.Burst }),

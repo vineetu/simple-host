@@ -1698,7 +1698,7 @@ function parseAnalyticsSummary(data) {
       var html = '';
       if (info.lists.length) {
         html += '<div class="plists-head">Lists and page info</div>' +
-          '<div class="versions-list">' + info.lists.map(function (c) { return renderListRow(name, c); }).join('') + '</div>';
+          '<div class="versions-list">' + info.lists.map(function (c) { return renderListRow(name, c, info.legacy); }).join('') + '</div>';
         html += '<div class="plists-head plists-gap">Who may save here</div>' +
           '<div class="versions-list"><div class="plist">' +
             '<div class="version-row plist-row">' +
@@ -1735,20 +1735,22 @@ function parseAnalyticsSummary(data) {
       if (block) t += ' · ' + block + ' blocked';
       return t;
     }
-    var KIND_LABELS = { content: 'page info', entries: 'submissions' };
-    function renderListRow(name, c) {
+    var KIND_LABELS = { content: 'page info', entries: 'submissions', shared: 'shared' };
+    // shared: a name nobody declared takes saves here (Shared).
+    function renderListRow(name, c, shared) {
       var coll = String(c.name || '');
       var count = Number.isFinite(Number(c.count)) ? Math.trunc(Number(c.count)) : 0;
       var priv = c.private === true;
       var gone = Number.isFinite(Number(c.deleted)) ? Math.trunc(Number(c.deleted)) : 0;
       var kind = c.kind === 'content' || c.kind === 'entries' ? c.kind : '';
       var page = kind === 'content';
+      var badge = kind || (shared && !priv ? 'shared' : '');
       var a = ' data-site="' + escAttr(name) + '" data-coll="' + escAttr(coll) + '" data-private="' + (priv ? '1' : '0') + '"' +
         ' data-kind="' + kind + '" data-one="' + (c.one_per_person ? '1' : '0') + '" data-notify="' + escAttr(c.notify || 'off') + '"';
       return '<div class="plist">' +
         '<div class="version-row plist-row">' +
           '<span class="plist-name">' + esc(coll) + '</span>' +
-          (kind ? '<span class="vis-badge unlisted">' + KIND_LABELS[kind] + '</span>' : '') +
+          (badge ? '<span class="vis-badge unlisted">' + KIND_LABELS[badge] + '</span>' : '') +
           (page ? '' : '<span class="vis-badge ' + (priv ? 'private' : 'unlisted') + '">' + (priv ? 'private' : 'public') + '</span>') +
           (c.one_per_person ? '<span class="vis-badge unlisted">one per person</span>' : '') +
           '<span class="plist-meta" data-count="' + count + '" data-last="' + escAttr(c.last_at || '') + '">' + (page ? (count ? 'saved' : 'empty now') + (c.last_at ? ' · ' + esc(new Date(c.last_at).toLocaleString()) : '') : plistMeta(count, c.last_at)) + '</span>' +
@@ -1816,14 +1818,16 @@ function parseAnalyticsSummary(data) {
       var panel = panelOf(btn, 'plist-kind');
       if (!panel) return;
       if (!panel.hidden) { panel.hidden = true; panel.innerHTML = ''; btn.setAttribute('aria-expanded', 'false'); return; }
-      var kind = btn.getAttribute('data-kind') || 'entries';
+      var kind = btn.getAttribute('data-kind') || '';
+      var privNow = btn.getAttribute('data-private') === '1';
       var one = btn.getAttribute('data-one') === '1', notify = btn.getAttribute('data-notify') || 'off';
       var id = 'kind-' + escAttr(btn.getAttribute('data-site')) + '-' + escAttr(btn.getAttribute('data-coll'));
       var a = ' data-site="' + escAttr(btn.getAttribute('data-site')) + '" data-coll="' + escAttr(btn.getAttribute('data-coll')) + '" data-private="' + btn.getAttribute('data-private') + '"';
       panel.innerHTML =
         '<div class="panel-field"><label for="' + id + '-k">What is this?</label>' +
           '<select id="' + id + '-k" data-kind-field="kind">' +
-            '<option value="entries"' + (kind !== 'content' ? ' selected' : '') + '>Submissions: visitors send them; each sees and changes their own</option>' +
+            (kind || privNow ? '' : '<option value="" selected>Shared: anyone reads it; people who sign in add to it</option>') +
+            '<option value="entries"' + (kind === 'entries' || (!kind && privNow) ? ' selected' : '') + '>Submissions: visitors send them; each sees and changes their own</option>' +
             '<option value="content"' + (kind === 'content' ? ' selected' : '') + '>Page info: only you write it; everyone reads it</option>' +
           '</select></div>' +
         '<label class="panel-check"><input type="checkbox" data-kind-field="one"' + (one ? ' checked' : '') + '> One entry per person (votes, one RSVP each)</label>' +
@@ -1846,6 +1850,7 @@ function parseAnalyticsSummary(data) {
       var name = btn.getAttribute('data-site'), coll = btn.getAttribute('data-coll');
       var field = function (f) { return panel.querySelector('[data-kind-field="' + f + '"]'); };
       var kind = field('kind').value;
+      if (!kind) { closePanel(btn); return; }
       var body = { kind: kind };
       if (kind === 'entries') {
         body.visibility = btn.getAttribute('data-private') === '1' ? 'owner' : 'public';
@@ -1857,6 +1862,13 @@ function parseAnalyticsSummary(data) {
       try {
         var res = await api('PUT', sitePathPart(name) + '/data/' + encodeURIComponent(coll) + '/kind', body);
         var out = await res.json().catch(function () { return null; });
+        // Private entries that would become public: say what, and go on only if the owner agrees.
+        if (res.status === 409 && out && out.code === 'confirm_public') {
+          if (!confirm(out.error.replace(/ To go ahead.*$/, '') + '\n\nMake them public?')) { btn.disabled = false; return; }
+          body.confirm_public = true;
+          res = await api('PUT', sitePathPart(name) + '/data/' + encodeURIComponent(coll) + '/kind', body);
+          out = await res.json().catch(function () { return null; });
+        }
         if (!res.ok) { err.textContent = (out && out.error) || 'Could not save'; err.hidden = false; btn.disabled = false; return; }
         toast((out && out.message) || 'Saved', 'success');
         loadPrivateLists(name, true);
@@ -2025,8 +2037,10 @@ function parseAnalyticsSummary(data) {
       var keys = Object.keys(keySet).filter(function (k) { return PLIST_STAMPS.indexOf(k) < 0; }).sort()
         .concat(PLIST_STAMPS.filter(function (k) { return keySet[k]; }));
       var saved = !keySet._submitted_at; // older items without the stamp: show when they were saved
-      // Who sent each item (the owner sees it; the public list never does).
-      var sentBy = !keySet._submitted_by && items.some(function (it) { return it && it.by; });
+      // Who sent each item, as the server stamped it (the owner sees it; the
+      // public list never does). A public list's own _submitted_by field is
+      // whatever the page sent, so it never stands in for it.
+      var sentBy = (!st.priv || !keySet._submitted_by) && items.some(function (it) { return it && it.by; });
       // An item that is not an object (a page may append a bare string) shows as its value.
       var plain = items.some(function (it) { return it && (it.data === null || typeof it.data !== 'object' || Array.isArray(it.data)); });
       var head = '<th></th>' + (plain ? '<th>value</th>' : '') + keys.map(function (k) { return '<th>' + esc(k) + '</th>'; }).join('') + (saved ? '<th>saved</th>' : '') + (sentBy ? '<th>sent by</th>' : '');
@@ -2038,7 +2052,7 @@ function parseAnalyticsSummary(data) {
           '<td class="plist-acts"><span class="plist-btns">' +
             (st.priv ? '<button type="button" class="btn-small btn-secondary" data-plist-act="edit" data-id="' + id + '">Edit</button>' : '') +
             '<button type="button" class="btn-small btn-ghost" data-plist-act="delete" data-id="' + id + '">Delete</button>' +
-            ((it.by || d._submitted_by) ? '<button type="button" class="btn-small btn-ghost" data-plist-act="block" data-id="' + id + '">Block</button>' : '') +
+            ((it.by || (st.priv && d._submitted_by)) ? '<button type="button" class="btn-small btn-ghost" data-plist-act="block" data-id="' + id + '">Block</button>' : '') +
           '</span></td>' +
           (plain ? '<td>' + (isObj ? '' : plistCell(it.data)) + '</td>' : '') +
           keys.map(function (k) {
@@ -2126,7 +2140,7 @@ function parseAnalyticsSummary(data) {
         return;
       }
       if (act === 'block') {
-        var person = plistData(item)._submitted_by || item.by;
+        var person = item.by || (st.priv ? plistData(item)._submitted_by : '');
         if (!confirm('Block ' + person + ' from saving anything more on this site? What they already sent stays until you delete it. You can unblock them under "Who may save here".')) return;
         t.disabled = true;
         try {
@@ -2144,7 +2158,7 @@ function parseAnalyticsSummary(data) {
         return;
       }
       if (act === 'delete') {
-        var who = plistData(item)._submitted_by || item.by;
+        var who = item.by || plistData(item)._submitted_by;
         if (!confirm('Delete item ' + id + (who ? ' from ' + who : '') + '?' + (st.priv ? '' : ' It disappears from the public list.') + ' You can bring it back from Recently deleted for ' + UNDO_DAYS + ' days.')) return;
         t.disabled = true;
         try {

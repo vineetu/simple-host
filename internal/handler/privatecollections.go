@@ -360,7 +360,10 @@ func (h *SiteHandler) setCollectionPrivacy(w http.ResponseWriter, r *http.Reques
 	// On a site that needs kinds, choosing privacy declares the name as
 	// Submissions (with the default email for that visibility).
 	setPrivacy := func() error { return db.SetCollectionPrivate(r.Context(), h.database, siteID, coll, *req.Private) }
-	if set.Kind == "" && !set.Legacy {
+	if set.Kind == "" && !set.Shared {
+		if !h.entriesNameRoom(w, r, siteID, coll) {
+			return
+		}
 		notify := db.NotifyDaily
 		if !*req.Private {
 			notify = db.NotifyOff

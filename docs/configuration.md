@@ -136,6 +136,8 @@ removes older history and Recently deleted items at the next sweep.
 | `SAVED_DATA_NOTIFY_EACH_MINUTES` | 10 | 1–1440 | "Email me: each" sends at most one email per name this often, counting what arrived since the last. Also how often due emails are checked. |
 | `SAVED_DATA_NOTIFY_DAILY_HOURS` | 24 | 1–720 | "Email me: daily" sends at most one digest per name this often. |
 | `SAVED_DATA_SAVERS_MAX` | 500 | 1–100000 | Emails and domains in one site's who-may-save and block lists together. |
+| `SAVED_DATA_ENTRIES_NAMES_MAX` | 50 | 1–1000 | Submissions names one site may declare (409 `too_many_names`). |
+| `SAVED_DATA_DEFAULT_KIND` | shared | shared, declare_first | What a data name is when the site owner never declared it. `shared` (Shared): anyone who can open the site reads it and signed-in visitors save to it, as before the kinds, so older skills, AI create and uploaded pages keep working. `declare_first`: such a name takes no saves (409 `declare_first`) until the owner declares it Page info or Submissions. Sites that existed before the kinds (migration `sd2-saved-data-kinds.sql`) stay Shared either way; every later site follows this setting as it is now, so switching it changes them all. |
 
 ## Ask about this page
 

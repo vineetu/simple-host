@@ -294,7 +294,7 @@
     },
     data: function (name, kind) {
       var base = API_BASE + "/data/" + encodeURIComponent(name);
-      var want = {"page info": "content", content: "content", submissions: "entries", entries: "entries"}[String(kind || "").toLowerCase()] || kind;
+      var want = {"page info": "content", content: "content", submissions: "entries", entries: "entries", shared: "shared"}[String(kind || "").toLowerCase()] || kind;
       var checked = null;
       // With a kind, the first call checks the name was declared as that kind.
       function check() {
@@ -307,8 +307,11 @@
               e.code = "wrong_kind";
               throw e;
             }
-            if (!k.kind && k.accepts_saves === false) {
-              e = new Error('"' + name + '" is not declared yet: the site owner declares it as ' + want + " first");
+            // A name nobody declared is Shared (public). A page that asked
+            // for Page info or Submissions never saves there by mistake.
+            if (!k.kind && (want !== "shared" || k.accepts_saves === false)) {
+              e = new Error('"' + name + '" is not declared yet' + (k.accepts_saves === false ? "" : " (until then it is Shared: anyone can read it)") +
+                ": the site owner declares it as " + want + " first");
               e.code = "declare_first";
               throw e;
             }
