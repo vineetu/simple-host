@@ -113,7 +113,31 @@
       "justifications": {
         "read_only_justification": "It deletes a site, so it modifies data.",
         "open_world_justification": "It acts only inside the person's own account and publishes nothing to the internet or any third party.",
-        "destructive_justification": "It permanently deletes the site, all its versions and its saved data, with no undo. It requires the site name to be repeated as confirmation."
+        "destructive_justification": "It takes the site offline with all its versions and its saved data. It stays restorable for 7 days (restore_site), then it is removed for good. It requires the site name to be repeated as confirmation."
+      }
+    },
+    "list_deleted_sites": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It only lists the person's own recently deleted sites; it changes nothing.",
+        "open_world_justification": "It reads only the person's own account.",
+        "destructive_justification": "It changes nothing."
+      }
+    },
+    "restore_site": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It brings a deleted site back, so it modifies data.",
+        "open_world_justification": "The restored site is live again on the public internet.",
+        "destructive_justification": "Nothing is deleted or overwritten: the site comes back exactly as it was."
       }
     },
     "rename_site": {

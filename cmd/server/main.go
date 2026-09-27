@@ -242,6 +242,7 @@ func main() {
 	// Ask the root issuer for each person's *.<handle>.<SITE_DOMAIN>
 	// certificate (back-fill at boot, then a periodic safety net).
 	siteHandler.StartSiteCertRequests(ctx, 10*time.Minute)
+	siteHandler.StartDeletedSitePurge(ctx, time.Hour)
 
 	serverErr := make(chan error, 1)
 

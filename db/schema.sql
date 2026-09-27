@@ -67,6 +67,11 @@ ALTER TABLE sites ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'unl
 -- keep whatever they already have; only new sites are affected.
 ALTER TABLE sites ALTER COLUMN visibility SET DEFAULT 'unlisted';
 
+-- Recently deleted (mirrors db/migrations/cp-recover-recently-deleted.sql).
+-- A deleted site keeps its row, data and name for 7 days; NULL = live.
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_sites_deleted_at ON sites (deleted_at) WHERE deleted_at IS NOT NULL;
+
 -- Append-only per-site collections (guestbooks, RSVPs, signups). The other half
 -- of the built-in backend alongside sites.state.
 CREATE TABLE IF NOT EXISTS collection_items (

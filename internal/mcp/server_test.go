@@ -212,7 +212,7 @@ func TestEveryToolIsWellFormed(t *testing.T) {
 	}
 	for _, tool := range Tools() {
 		if tool.Name == "delete_site" {
-			if tool.Annotations["destructiveHint"] != true || !strings.Contains(tool.Description, "IRREVERSIBLE") {
+			if tool.Annotations["destructiveHint"] != true || !strings.Contains(tool.Description, "DESTRUCTIVE") {
 				t.Error("delete_site is not marked destructive")
 			}
 		}
@@ -291,25 +291,27 @@ func TestCreateAndUpdateSite(t *testing.T) {
 func TestAnnotationsMatchBehaviour(t *testing.T) {
 	type hints struct{ readOnly, destructive, openWorld bool }
 	want := map[string]hints{
-		"who_am_i":          {true, false, false},
-		"list_sites":        {true, false, false},
-		"get_site":          {true, false, false},
-		"read_site_file":    {true, false, false},
-		"list_versions":     {true, false, false},
-		"get_state":         {true, false, false},
-		"list_collections":  {true, false, false},
-		"read_collection":   {true, false, false},
-		"domain_status":     {true, false, false},
-		"site_analytics":    {true, false, false},
-		"create_site":       {false, false, true},
-		"update_site":       {false, true, true},
-		"rollback_site":     {false, false, true},
-		"delete_site":       {false, true, false},
-		"rename_site":       {false, false, true},
-		"set_visibility":    {false, false, true},
-		"update_state":      {false, true, true},
-		"add_to_collection": {false, true, true},
-		"connect_domain":    {false, false, true},
+		"who_am_i":           {true, false, false},
+		"list_sites":         {true, false, false},
+		"get_site":           {true, false, false},
+		"read_site_file":     {true, false, false},
+		"list_versions":      {true, false, false},
+		"get_state":          {true, false, false},
+		"list_collections":   {true, false, false},
+		"read_collection":    {true, false, false},
+		"domain_status":      {true, false, false},
+		"site_analytics":     {true, false, false},
+		"create_site":        {false, false, true},
+		"update_site":        {false, true, true},
+		"rollback_site":      {false, false, true},
+		"delete_site":        {false, true, false},
+		"list_deleted_sites": {true, false, false},
+		"restore_site":       {false, false, true},
+		"rename_site":        {false, false, true},
+		"set_visibility":     {false, false, true},
+		"update_state":       {false, true, true},
+		"add_to_collection":  {false, true, true},
+		"connect_domain":     {false, false, true},
 
 		"set_collection_privacy": {false, false, true},
 		"update_collection_item": {false, true, false},

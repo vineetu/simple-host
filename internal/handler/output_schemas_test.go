@@ -112,6 +112,8 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	call("list_sites", map[string]any{})
 	call("rename_site", map[string]any{"site": "plain", "new_name": "plain-two"})
 	call("delete_site", map[string]any{"site": "plain-two", "confirm_name": "plain-two"})
+	call("list_deleted_sites", map[string]any{})
+	call("restore_site", map[string]any{"site": "plain-two"})
 
 	var missing []string
 	for name := range schemas {

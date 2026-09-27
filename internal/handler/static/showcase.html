@@ -129,6 +129,11 @@
     .key-tag { color: var(--accent); font-weight: 600; }
     .keys-everywhere { display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--border); }
     .keys-everywhere small { color: var(--text-secondary); font-size: 13px; flex: 1; min-width: 200px; }
+    /* Your address (cp/recover) */
+    .addr-form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px 0; border-top: 1px solid var(--border); }
+    .addr-form label { font-size: 14px; color: var(--text-secondary); }
+    .addr-field { display: inline-flex; align-items: center; gap: 2px; font-size: 14px; color: var(--text-secondary); }
+    .addr-field input { font: inherit; color: var(--text); padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; width: 14em; max-width: 60vw; }
     .section-num {
       display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
       margin-bottom: 16px;
@@ -785,6 +790,28 @@
           <small>Every key stops working and connected apps are disconnected. This browser stays signed in with a new key.</small>
         </div>
       </div>
+      <!-- ==== Your address + Recently deleted (cp/recover) ====
+           Self-contained: markup here, logic in the matching script block
+           at the end of the page. Owner-only, like the rest of #owner-view. -->
+      <div class="section" id="owner-address" hidden>
+        <div class="section-num"><h2>Your address</h2><span class="line"></span></div>
+        <div class="conn-row">
+          <span><b id="addr-current"></b><small>Your page and every site's address start with this name.</small></span>
+          <button type="button" class="btn btn-secondary btn-small" id="addr-change">Change</button>
+        </div>
+        <form class="addr-form" id="addr-form" hidden>
+          <label for="addr-input">New address</label>
+          <span class="addr-field"><input type="text" id="addr-input" autocomplete="off" spellcheck="false" maxlength="39"><span id="addr-suffix"></span></span>
+          <button type="submit" class="btn btn-primary btn-small" id="addr-save">Save</button>
+          <button type="button" class="btn-ghost btn-small" id="addr-cancel">Cancel</button>
+        </form>
+      </div>
+      <div class="section" id="owner-deleted" hidden>
+        <div class="section-num"><h2>Recently deleted</h2><span class="line"></span></div>
+        <p class="conn-note">Deleted sites are kept for 7 days with their saved data, then removed for good. Their names stay yours until then.</p>
+        <div id="deleted-list"></div>
+      </div>
+      <!-- ==== end Your address + Recently deleted ==== -->
 
       <!-- Analytics view (dedicated screen) -->
       <div class="section" id="owner-analytics-view" hidden>
@@ -1950,7 +1977,7 @@ function parseAnalyticsSummary(data) {
     }
 
     async function confirmDelete(name) {
-      if (!confirm('Delete site "' + name + '"? This removes all versions and cannot be undone.')) return;
+      if (!confirm('Delete site "' + name + '"? It goes offline now. For 7 days you can restore it, with every version and all its saved data, from Recently deleted; after that it is gone for good.')) return;
       try {
         var res = await api('DELETE', '/v1/sites/' + encodeURIComponent(name));
         if (!res.ok && res.status !== 204) {
@@ -1958,7 +1985,8 @@ function parseAnalyticsSummary(data) {
           toast((err && err.error) || 'Could not delete site', 'error');
           return;
         }
-        toast('Deleted ' + name, 'success');
+        toast('Deleted ' + name + '. Restore it from Recently deleted within 7 days.', 'success');
+        if (window.shLoadDeletedSites) window.shLoadDeletedSites();
         var row = document.querySelector('.inv-row[data-site="' + cssEsc(name) + '"]');
         if (row) row.remove();
         ownerSites = ownerSites.filter(function (s) { return s.name !== name; });
@@ -2957,6 +2985,120 @@ function parseAnalyticsSummary(data) {
       }).catch(function () { resetOnboardingPublic(); /* stay in public view on any error */ });
     }
 
+  </script>
+
+  <script>
+    // ==== Your address + Recently deleted (cp/recover) ====
+    // Owner-only: runs after the page script above (uses its api, esc, toast,
+    // fmtDate, HANDLE, MAIN_URL, apiKey) and shows nothing unless /v1/me says
+    // this visitor owns HANDLE.
+    (function () {
+      if (!apiKey) return;
+      var HANDLE_RE = /^[a-z0-9]([a-z0-9-]{0,37}[a-z0-9])?$/;
+      var suffix = '';
+      function hostSuffix() {
+        try { return '.' + new URL(MAIN_URL).hostname; } catch (e) { return ''; }
+      }
+      async function errorOf(res, fallback) {
+        var body = null;
+        try { body = await res.json(); } catch (e) {}
+        var msg = (body && body.error) || fallback;
+        return msg.charAt(0).toUpperCase() + msg.slice(1);
+      }
+
+      // ---- Your address ----
+      function showAddress(handle) {
+        suffix = hostSuffix();
+        document.getElementById('addr-current').textContent = handle + suffix;
+        document.getElementById('addr-suffix').textContent = suffix;
+        document.getElementById('owner-address').hidden = false;
+      }
+      function openForm(open) {
+        document.getElementById('addr-form').hidden = !open;
+        document.getElementById('addr-change').hidden = open;
+        if (open) {
+          var input = document.getElementById('addr-input');
+          input.value = HANDLE;
+          input.focus();
+          input.select();
+        }
+      }
+      document.getElementById('addr-change').addEventListener('click', function () { openForm(true); });
+      document.getElementById('addr-cancel').addEventListener('click', function () { openForm(false); });
+      document.getElementById('addr-form').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var next = document.getElementById('addr-input').value.trim().toLowerCase();
+        if (next === HANDLE) { openForm(false); return; }
+        if (!HANDLE_RE.test(next) || next.indexOf('xn--') === 0) {
+          toast('Use 1 to 39 lowercase letters, numbers or hyphens, not starting or ending with a hyphen.', 'error');
+          return;
+        }
+        var msg = 'Change your address to ' + next + suffix + '?\n\n' +
+          'Old links to your page and your sites keep working: they redirect to the new address.\n\n' +
+          'Anything your pages kept in visitors\' browsers (drafts, settings, scores) starts fresh at the new address, and visitors sign in again.\n\n' +
+          'You can change it again after 30 days.';
+        if (!confirm(msg)) return;
+        var btn = document.getElementById('addr-save');
+        btn.disabled = true;
+        try {
+          var res = await api('PATCH', '/v1/me', { handle: next });
+          if (res.status === 409) { toast('That address is already taken. Try another.', 'error'); return; }
+          if (!res.ok) { toast(await errorOf(res, 'Could not change your address'), 'error'); return; }
+          var me = await res.json();
+          toast('Your address is now ' + me.handle + suffix, 'success');
+          location.href = MAIN_URL.replace(/\/$/, '') + '/' + encodeURIComponent(me.handle);
+        } catch (err) {
+          toast('Could not change your address', 'error');
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      // ---- Recently deleted ----
+      async function loadDeleted() {
+        var box = document.getElementById('owner-deleted');
+        var list = document.getElementById('deleted-list');
+        var sites = [];
+        try {
+          var res = await api('GET', '/v1/me/deleted-sites');
+          if (res.ok) sites = (await res.json()).sites || [];
+        } catch (e) {}
+        box.hidden = sites.length === 0;
+        list.innerHTML = sites.map(function (d, i) {
+          return '<div class="conn-row"><span><b>' + esc(d.name) + '</b><small>Deleted ' + fmtDate(d.deleted_at) +
+            ' · removed for good on ' + fmtDate(d.purge_at) + '</small></span>' +
+            '<button type="button" class="btn btn-secondary btn-small" data-restore="' + i + '">Restore</button></div>';
+        }).join('');
+        Array.prototype.forEach.call(list.querySelectorAll('[data-restore]'), function (btn) {
+          btn.addEventListener('click', async function () {
+            var d = sites[Number(btn.getAttribute('data-restore'))];
+            btn.disabled = true;
+            try {
+              var res = await api('POST', '/v1/sites/' + encodeURIComponent(d.name) + '/restore');
+              if (!res.ok) { toast(await errorOf(res, 'Could not restore ' + d.name), 'error'); btn.disabled = false; return; }
+              toast('Restored ' + d.name, 'success');
+              location.reload();
+            } catch (e) {
+              toast('Could not restore ' + d.name, 'error');
+              btn.disabled = false;
+            }
+          });
+        });
+      }
+      window.shLoadDeletedSites = loadDeleted;
+
+      (async function () {
+        try {
+          var res = await api('GET', '/v1/me');
+          if (!res.ok) return;
+          var me = await res.json();
+          if (!me || !me.handle || me.handle !== HANDLE) return;
+          showAddress(me.handle);
+          loadDeleted();
+        } catch (e) {}
+      })();
+    })();
+    // ==== end Your address + Recently deleted ====
   </script>
 </body>
 </html>

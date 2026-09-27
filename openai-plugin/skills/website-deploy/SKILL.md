@@ -34,6 +34,7 @@ own domain, use the `connect-domain` skill.
 | Change an existing site | `update_site` (read its files first) |
 | Versions, undo a bad publish | `list_versions`, `rollback_site` |
 | Rename, list on public page, delete | `rename_site`, `set_visibility`, `delete_site` |
+| Undo a delete (within 7 days) | `list_deleted_sites`, `restore_site` |
 | Saved data | `get_state`, `update_state`, `list_collections`, `read_collection`, `add_to_collection` |
 | Keep a list owner-only | `set_collection_privacy` |
 | Mark done or delete an item (private lists) | `update_collection_item`, `delete_collection_item` |
@@ -78,9 +79,13 @@ be dropped, and ask them to provide them again or agree to losing them.
 
 Every version is kept. If a change went wrong, `list_versions`, confirm the version with the
 person, then `rollback_site`. Renaming (`rename_site`) changes the address and the old one stops
-working; tell the person. `delete_site` removes the site, every version and all its saved data,
-permanently: call it only after the person has explicitly confirmed deleting that specific site
-in this conversation, and name what will be lost when you ask.
+working; tell the person. `delete_site` takes the site offline with every version and all its
+saved data: call it only after the person has explicitly confirmed deleting that specific site
+in this conversation, and name what goes offline when you ask. It stays in Recently deleted for
+7 days (`list_deleted_sites`, `restore_site` brings it back exactly as it was), then it is gone
+for good, and its name stays taken until then. The person can change their handle (the
+`<handle>` in every address) under "Your address" on their Simple Host page; old addresses
+redirect to the new one.
 
 ## What is public, what is private
 

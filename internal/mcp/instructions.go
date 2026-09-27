@@ -43,6 +43,6 @@ PERSONAL DETAILS: ORDERS, RSVPS, SURVEYS, SIGN-UPS
 - set_collection_privacy with private: false makes everything already in the list public; confirm with the person first.
 
 CARE
-- delete_site is permanent: it removes every version and all saved data. Only call it after the person explicitly confirms that specific site.
+- delete_site takes a site offline with every version and all saved data. It stays in Recently deleted for 7 days (list_deleted_sites; restore_site brings it back exactly as it was), then it is gone for good. Only call it after the person explicitly confirms that specific site.
 - connect_domain is optional, for a nicer address: a free <name>.simple-host.app is active at once; the person's own domain needs one DNS record at their registrar; relay the record exactly and check domain_status. Once active the site lives only at that address and its old address redirects there.
 - If a tool says the connection is no longer signed in, ask the person to reconnect Simple Host in their app's settings.`

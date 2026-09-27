@@ -39,17 +39,21 @@ Conventions:
 ## 1. Sites and deploy
 
 Upload a static site (tar.gz/zip or inline JSON files); versions, rollback, rename, delete,
-export, public/unlisted listing. **Status: live.**
+export, public/unlisted listing. Delete is recoverable: the site goes offline at once and stays in
+Recently deleted for 7 days (row kept with `deleted_at`, files moved to `DATA_DIR/deleted/<user>/<site_id>`,
+name, saved data, collections and claimed names kept), `restore` brings it back whole, and an
+hourly in-process sweep purges it after the window. Deleting a whole account (admin) is immediate.
+**Status: live.**
 
 | Surface | Details |
 |---|---|
-| Routes | `POST`/`PUT /v1/sites/{sitename}` (archive) · `POST`/`PUT /v1/sites/{sitename}/files` (inline JSON, base64 allowed) · `GET /v1/sites` · `PATCH /v1/sites/{sitename}` (rename) · `DELETE /v1/sites/{sitename}` · `GET /v1/sites/{sitename}/versions` · `GET /v1/sites/{sitename}/versions/{version}/files` · `GET /v1/sites/{sitename}/versions/{version}/files/{path...}` · `PUT /v1/sites/{sitename}/active-version` · `PUT /v1/sites/{sitename}/visibility` (`public`/`unlisted`) · `GET /v1/sites/{sitename}/export.tar.gz` (files + saved data) · `GET /internal/notfound` (branded 404, nginx `@notfound`) |
-| MCP tools | `list_sites`, `get_site`, `read_site_file`, `create_site`, `update_site`, `list_versions`, `rollback_site`, `delete_site`, `rename_site`, `set_visibility` |
-| Skill | `website-deploy/SKILL.md` §Two ways to deploy, §The one rule that breaks sites (relative links), §Rules that always apply, §Completion standard · `references/packaging-and-validation.md` (Package, Upload, Verify) · `references/operations.md` §Listing, §Rename, §Rollback, §Delete · `references/frameworks.md` · `website-deploy-builder/SKILL.md` §Capability tree 1 |
-| Pages | owner app `st/showcase.html` (site inventory, versions, delete, visibility) · `st/index.html` at `/dashboard` (site cards, rename, delete, versions) · `st/notfound.html` |
-| Go | `h/site.go` (create/update/list/delete/rename/visibility, route table), `h/versions.go`, `h/versionfiles.go`, `h/export.go`, `h/sitename.go`, `h/usage.go` (per-site cap), `internal/tarball/{extract,sanitize,validate}.go`, `internal/storage/disk.go` (by-id layout, `handles/` symlinks), `internal/db/queries.go` |
-| DB | `sites`, `versions` |
-| Limits | 100 sites per account (admins exempt); uploads serialised per site; upload limiter 30 burst, 0.1/s |
+| Routes | `POST`/`PUT /v1/sites/{sitename}` (archive) · `POST`/`PUT /v1/sites/{sitename}/files` (inline JSON, base64 allowed) · `GET /v1/sites` · `PATCH /v1/sites/{sitename}` (rename) · `DELETE /v1/sites/{sitename}` (to Recently deleted) · `POST /v1/sites/{sitename}/restore` · `GET /v1/me/deleted-sites` · `GET /v1/sites/{sitename}/versions` · `GET /v1/sites/{sitename}/versions/{version}/files` · `GET /v1/sites/{sitename}/versions/{version}/files/{path...}` · `PUT /v1/sites/{sitename}/active-version` · `PUT /v1/sites/{sitename}/visibility` (`public`/`unlisted`) · `GET /v1/sites/{sitename}/export.tar.gz` (files + saved data) · `GET /internal/notfound` (branded 404, nginx `@notfound`) |
+| MCP tools | `list_sites`, `get_site`, `read_site_file`, `create_site`, `update_site`, `list_versions`, `rollback_site`, `delete_site`, `list_deleted_sites`, `restore_site`, `rename_site`, `set_visibility` |
+| Skill | `website-deploy/SKILL.md` §Two ways to deploy, §The one rule that breaks sites (relative links), §Rules that always apply, §Completion standard · `references/packaging-and-validation.md` (Package, Upload, Verify) · `references/operations.md` §Listing, §Rename, §Rollback, §Delete and restore · `references/frameworks.md` · `website-deploy-builder/SKILL.md` §Capability tree 1 |
+| Pages | owner app `st/showcase.html` (site inventory, versions, delete, visibility, Recently deleted with Restore) · `st/index.html` at `/dashboard` (site cards, rename, delete, versions) · `st/notfound.html` |
+| Go | `h/site.go` (create/update/list/rename/visibility, route table), `h/deleted.go` (delete, restore, Recently deleted list, purge sweep), `h/versions.go`, `h/versionfiles.go`, `h/export.go`, `h/sitename.go`, `h/usage.go` (per-site cap), `internal/tarball/{extract,sanitize,validate}.go`, `internal/storage/disk.go` (by-id layout, `handles/` symlinks), `internal/storage/trash.go` (`deleted/` area), `internal/db/queries.go`, `internal/db/deleted.go` |
+| DB | `sites` (`deleted_at`: every serving and listing lookup skips deleted rows), `versions` |
+| Limits | 100 sites per account (admins exempt; deleted sites do not count, restore re-checks); uploads serialised per site; upload limiter 30 burst, 0.1/s; Recently deleted keeps a site 7 days |
 | Env | `DATA_DIR`, `MAX_ARCHIVE_MB`, `KEEP_VERSIONS`, `DEPLOY_SCRIPT`, `PREVIEW_ACCOUNTS`, `PREVIEW_TTL_HOURS` (preview-site expiry sweep) |
 | External | nginx serves files from `/srv/simple-host/sites/handles/<h>/<s>/` on the content host; Caddy does the same on event instances (`deploy/compose/Caddyfile`) |
 
@@ -69,11 +73,11 @@ whichever address is live. Old `<handle>.simple-host.app/<site>/…` and
 
 | Surface | Details |
 |---|---|
-| Routes | Host-routed, not mux: `<site>.<handle>.<SITE_DOMAIN>` → `SiteHosts` (files at `/`, `/v1` same-origin for that one site only) · `<handle>.<SITE_DOMAIN>` → `PersonHosts` (person page at `/`; `/<site>/…` 302s to the site host once the person's certificate is ready, else serves it by path) · `GET /internal/site-redirect/{handle}` · `GET /internal/site-redirect/{handle}/{sitename}` · `GET /internal/site-redirect/{handle}/{sitename}/{rest...}` (302 from `sites.simple-host.app/<h>/<s>/…` to the site's live address; nginx rewrites into these; `vineetu/eb2-wait` excepted in nginx and in `contentHostOnlySites`) · `LegacyHostRedirect`: 301 for an unclaimed single-label `<name>.<SITE_DOMAIN>` that is not a handle, to `sites.<domain>/<handle>/<name>` (which then 302s as above) · an aliased old handle 301s to the new one |
+| Routes | Host-routed, not mux: `<site>.<handle>.<SITE_DOMAIN>` → `SiteHosts` (files at `/`, `/v1` same-origin for that one site only) · `<handle>.<SITE_DOMAIN>` → `PersonHosts` (person page at `/`; `/<site>/…` 302s to the site host once the person's certificate is ready, else serves it by path) · `GET /internal/site-redirect/{handle}` · `GET /internal/site-redirect/{handle}/{sitename}` · `GET /internal/site-redirect/{handle}/{sitename}/{rest...}` (302 from `sites.simple-host.app/<h>/<s>/…` to the site's live address; nginx rewrites into these; `vineetu/eb2-wait` excepted in nginx and in `contentHostOnlySites`) · `LegacyHostRedirect`: 301 for an unclaimed single-label `<name>.<SITE_DOMAIN>` that is not a handle, to `sites.<domain>/<handle>/<name>` (which then 302s as above) · an aliased old handle 301s to the new one (person host), 302s on site hosts, content-host paths and the owner app `/<old>` → `/<new>` |
 | MCP tools | none directly; site summaries return the live site address, `who_am_i` the person page |
 | Skill | `website-deploy/SKILL.md` §Service (address form); host strings are rewritten per instance (`h/instancehost.go`) |
 | Pages | `st/showcase.html` (person index / public view) |
-| Go | `h/sitehost.go` (`SITE_HOSTS` off/serve/canonical, site-host routing, certificate requests and readiness), `h/personhost.go` (`PERSON_HOSTS` off/serve/canonical, `PersonPageURL`, `PersonReturnSite`, `contentHostRedirect`), `h/legacyhost.go`, `h/handles.go` (reserved handles, `assignHandle`), `internal/db/namespace.go` (one namespace for handles, claimed names, reserved and retired names; `RenameHandle`, aliases), `h/instancehost.go` |
+| Go | `h/sitehost.go` (`SITE_HOSTS` off/serve/canonical, site-host routing, certificate requests and readiness), `h/personhost.go` (`PERSON_HOSTS` off/serve/canonical, `PersonPageURL`, `PersonReturnSite`, `contentHostRedirect`), `h/legacyhost.go`, `h/handles.go` (reserved handles, `assignHandle`), `internal/db/namespace.go` (one namespace for handles, claimed names, reserved and retired names; `RenameHandle`/`RenameHandleTx`, aliases, `HandleRenamedSince`), `h/instancehost.go` |
 | DB | `users.handle`, `handle_aliases` (e.g. `admin` → `simple-host-team`), `legacy_hostnames` |
 | Env | `PERSON_HOSTS`, `SITE_HOSTS` (needs `PERSON_HOSTS` on), `SITE_CERT_DIR` (e.g. `/var/lib/simple-host-site-certs`: `requests/<handle>` written by the app, `ready/<handle>` by the issuer), `SITE_DOMAIN`, `CONTENT_HOST` |
 | External | live nginx `/etc/nginx/sites-enabled/sites-content-host` (rewrites to `/internal/site-redirect/*`) and `simple-host` (wildcard `*.simple-host.app` → app; a server for `<site>.<person>.simple-host.app` loads the per-person cert by variable); wildcard cert; per-person certs from the root-owned issuer in `deploy/site-certs/` (path unit on each request plus a 10-minute timer; at most 40 new certificates per rolling week and 12 per day; certbot DNS-01 via the Vercel hooks in `/usr/local/lib/certbot-vercel/`); Public Suffix List entry is **planned** |
@@ -176,12 +180,12 @@ replaces all keys and disconnects all connector grants. Owner-route 401s carry `
 
 | Surface | Details |
 |---|---|
-| Routes | `POST /v1/auth` (send code) · `POST /v1/auth/verify` (code → key, optional `name`; creates the account and handle if new) · `GET /v1/me` · `POST /v1/me/api-key/rotate` (Sign out everywhere: replaces all keys) · `POST /v1/me/sign-out` (ends the calling key) · `GET /v1/me/keys` · `POST /v1/me/keys` (named key) · `DELETE /v1/me/keys/{id}` · `PATCH /v1/me` (display name, handle) |
+| Routes | `POST /v1/auth` (send code) · `POST /v1/auth/verify` (code → key, optional `name`; creates the account and handle if new) · `GET /v1/me` · `POST /v1/me/api-key/rotate` (Sign out everywhere: replaces all keys) · `POST /v1/me/sign-out` (ends the calling key) · `GET /v1/me/keys` · `POST /v1/me/keys` (named key) · `DELETE /v1/me/keys/{id}` · `PATCH /v1/me` (display name, handle: free before publishing; after, once per 30 days, old handle kept as an alias so every old address redirects, new handle's certificate requested) |
 | MCP tools | `who_am_i` |
 | Skill | `website-deploy/references/register.md` (email-code registration) · `references/operations.md` §API keys · `references/backend.md` §Saving from an agent (API key) |
-| Pages | `st/index.html` (`/dashboard` sign-in: code, Google, paste key; Sign out everywhere), `st/showcase.html` (owner **Keys** panel `#owner-keys`), `st/connect.html`, `st/partials/header.html` (Sign out → `/v1/me/sign-out`) |
+| Pages | `st/index.html` (`/dashboard` sign-in: code, Google, paste key; Sign out everywhere), `st/showcase.html` (owner **Keys** panel `#owner-keys`; Your address, with Change), `st/connect.html`, `st/partials/header.html` (Sign out → `/v1/me/sign-out`) |
 | Go | `internal/auth/middleware.go` (`X-API-Key`, `shk_` keys, 401 codes, admin key, `RequireAdmin`), `h/user.go`, `h/keys.go` (list/mint/revoke/sign-out), `internal/db/apikeys.go`, `h/emailcode.go`, `h/accounts.go` (`patchMe`, handle validation), `h/handles.go`, `internal/db/queries.go` (hashed key lookup, `ClaimHandle`), `internal/db/internalkey.go` (in-process per-request keys for the connector), `internal/email/resend.go` |
-| DB | `users`, `api_keys`, `auth_tokens` (purpose-bound codes; expired ones purged) |
+| DB | `users` (`handle_changed_at`), `handle_aliases`, `api_keys`, `auth_tokens` (purpose-bound codes; expired ones purged) |
 | Env | `ADMIN_API_KEY`, `RESEND_API_KEY`, `MAIL_FROM`, `PUBLIC_BASE_URL` |
 | External | Resend |
 | Limits | `ipLimiter` 20/0.2 s⁻¹ per IP; `emailLimiter` 5/0.02 s⁻¹ per address |
@@ -196,7 +200,7 @@ as the person, so they meet the same checks as REST. Connector tokens are stored
 | Surface | Details |
 |---|---|
 | Routes | `GET /.well-known/oauth-protected-resource` · `GET /.well-known/oauth-protected-resource/mcp` · `GET /.well-known/oauth-authorization-server` · `GET /.well-known/oauth-authorization-server/mcp` · `POST /oauth/register` · `GET /oauth/authorize` (consent page) · `POST /oauth/authorize/decision` · `POST /oauth/token` · `POST /oauth/revoke` · `POST /oauth/reviewer-signin` · `POST`/`GET`/`DELETE /mcp` · `GET /v1/me/connections` · `DELETE /v1/me/connections/{client_id}` |
-| MCP tools | all 22 (see §21); server metadata and instructions in `internal/mcp/instructions.go` |
+| MCP tools | all 24 (see §21); server metadata and instructions in `internal/mcp/instructions.go` |
 | Skill | `website-deploy/SKILL.md` §Service, §Two ways to deploy (connector vs key); `openai-plugin/skills/website-deploy/SKILL.md` is the connector-only variant |
 | Pages | `st/connect.html` (consent; own nonce CSP in `consentHeaders`), `st/showcase.html` (Connected apps) |
 | Go | `h/connector.go` (AS, `BearerAuth`, `serveMCP`, connections, hourly sweep), `h/reviewer.go` (password sign-in for one designated store-review account), `internal/mcp/{server,jsonrpc,tools,outputs,instructions}.go`, `internal/db/connector.go`, `internal/db/internalkey.go`, `cmd/server/oauthclient.go` (`simple-host oauth-client …`, hand-registered clients e.g. a GPT Action), `cmd/server/reviewaccount.go` (`simple-host review-account …`) |
@@ -209,7 +213,7 @@ as the person, so they meet the same checks as REST. Connector tokens are stored
 ## 9. Skills and plugin distribution
 
 Skills source is `simple-host-website/skills/` (embedded via `simple-host-website/embed.go`) at
-version **0.19.2**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
+version **0.19.3**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live**
 (ChatGPT and Claude directory listings submitted 2026-09-24, pending).
 
@@ -219,7 +223,7 @@ standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: 
 | Skills | `website-deploy` (SKILL.md + references `backend.md`, `operations.md`, `packaging-and-validation.md`, `register.md`, `frameworks.md`), `website-deploy-builder`, `connect-domain` (+ `references/registrars.md`), `run-hackathon` (source only; not in the plugin or `/skills.zip`) |
 | Pages | `st/install.html`, `st/llms.txt`, `st/openapi.yaml` / `st/openapi.json`, `st/docs.html` (Swagger UI) |
 | Go | `h/ui.go` (zips, install scripts, `PluginVersion`), `h/skillshub.go` (catalog; not host-rewritten), `h/instancehost.go` (`rewrittenAssets`, `controlPlaneSkills`), `h/notice_middleware.go` (`X-Skill-Version` → `_notice`), `h/openaichallenge.go`, `simple-host-website/embed.go` |
-| Packaging | `plugins/simple-host/` (Claude plugin: `.claude-plugin/plugin.json`, `.mcp.json` → `https://simple-host.app/mcp`), `.claude-plugin/marketplace.json`, `openai-plugin/` (plugin.json 0.4.0, mcp.json, skills rewrite, assets, demo-sites, SUBMISSION.md), `dist/*.zip`, `simple-host-website/` (legacy plugin, `mcp-server/` Node stdio MCP, `setup.sh`, `template/`) |
+| Packaging | `plugins/simple-host/` (Claude plugin: `.claude-plugin/plugin.json`, `.mcp.json` → `https://simple-host.app/mcp`), `.claude-plugin/marketplace.json`, `openai-plugin/` (plugin.json 0.4.1, mcp.json, skills rewrite, assets, demo-sites, SUBMISSION.md), `dist/*.zip`, `simple-host-website/` (legacy plugin, `mcp-server/` Node stdio MCP, `setup.sh`, `template/`) |
 | Scripts | `scripts/sync-claude-plugin.sh` (copy source → plugin, stamp version), `scripts/check-claude-plugin.sh` (drift + `X-Skill-Version` literals), `scripts/publish-claude-plugin-repo.sh` (→ github.com/vineetu/simple-host-plugin, tag `v$V`), `scripts/build-openai-plugin.sh`, `scripts/check-docs-sync.sh` (routes ↔ openapi ↔ llms.txt ↔ skills) |
 | Env | `PUBLIC_BASE_URL`, `SITE_DOMAIN`, `CONTENT_HOST`, `CNAME_TARGET` (host rewriting), `OPENAI_APPS_CHALLENGE` |
 | External | Claude plugin directory, OpenAI apps portal, GitHub `vineetu/simple-host-plugin`, skills CLI (`npx skills`) |
@@ -365,7 +369,7 @@ notice.
 | Env | `DB_DSN`, `PORT`, `BIND_ADDR`, `DATA_DIR`, `SITE_DOMAIN`, `PUBLIC_BASE_URL`, `CONTENT_HOST`; dev-only `CHROME_SERVE_ADDR`, `CHROME_SERVE_FOR`; migration-only `UNIFY_KEEP` |
 | Deploy | `/usr/local/bin/simple-host` as `simple-host.service`, env `/etc/simple-host.env`; `deploy/prod/*`, `Dockerfile`, `compose.yaml`, `Makefile`; checks `scripts/check-{docs-sync,features,html,layering,claude-plugin,reserved-subdomains,fresh-install}.sh` |
 
-## 21. MCP tool index (`internal/mcp/tools.go`, 22 tools)
+## 21. MCP tool index (`internal/mcp/tools.go`, 24 tools)
 
 | Tool | REST call | § |
 |---|---|---|
@@ -377,6 +381,8 @@ notice.
 | `list_versions` | `GET /v1/sites/{s}/versions` | 1 |
 | `rollback_site` | `PUT /v1/sites/{s}/active-version` | 1 |
 | `delete_site` | `DELETE /v1/sites/{s}` | 1 |
+| `list_deleted_sites` | `GET /v1/me/deleted-sites` | 1 |
+| `restore_site` | `POST /v1/sites/{s}/restore` | 1 |
 | `rename_site` | `PATCH /v1/sites/{s}` | 1 |
 | `set_visibility` | `PUT /v1/sites/{s}/visibility` | 1, 13 |
 | `get_state` | `GET …/state` | 4 |
@@ -394,7 +400,7 @@ notice.
 ## 22. Unplaced routes and tools
 
 None. Every `mux.Handle`/`HandleFunc` registration in `cmd/server` and `internal/handler`
-(129 distinct method+path patterns, plus the looped `/mcp`, `/skills/{dir}.*` and
-`rewrittenAssets` routes) and all 22 MCP tools are placed above. Routes that exist outside
+(131 distinct method+path patterns, plus the looped `/mcp`, `/skills/{dir}.*` and
+`rewrittenAssets` routes) and all 24 MCP tools are placed above. Routes that exist outside
 the mux: host-routed site hosts / person hosts / claimed names / custom domains (§2, §3) and the
 nginx-only `/v1/transcribe/stream` (§14).

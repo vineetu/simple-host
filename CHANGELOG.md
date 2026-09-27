@@ -8,6 +8,8 @@ One line per shipped change, newest first. Add a line here in the same commit as
 - Sign out now ends the key on the server (`POST /v1/me/sign-out`) before clearing the browser, so a signed-out browser no longer leaves a working key behind.
 - New keys start with `shk_` so secret scanners can spot a leaked one; older keys keep working. Owner-route 401s carry a `code` (`missing_api_key`, `wrong_auth_header`, `invalid_api_key`).
 - Organisers can give a participant a new key: **New key** on the admin page's account row (`POST /v1/admin/users/{id}/key`) replaces that account's keys with one new key, shown once.
+- Change your address, also after publishing: "Your address" on your sites page (and `PATCH /v1/me`) changes your handle. Before anything is published it changes freely; after that once every 30 days. The old handle stays yours and every old link (your page, each site, old content-host and owner-app links) redirects to the new address; the new address gets its own certificate and sites use the working person-path address until it is ready. What pages kept in visitors' browsers starts fresh and visitors sign in again. The "address is fixed once something is published" rule is gone. Skills 0.19.3.
+- Recently deleted: deleting a site takes it offline at once and keeps it, with every version, its saved data, private lists and claimed names, for 7 days with its name held. Restore it from "Recently deleted" on your sites page, `POST /v1/sites/{site}/restore` or the new `restore_site` tool (`list_deleted_sites` lists them); after 7 days it is removed for good. Creating a site with a held name says it is in Recently deleted. Deleting a whole account from the admin page is still immediate.
 
 ## 2026-09-26
 

@@ -185,8 +185,20 @@ func outputSchemas() map[string]map[string]any {
 		"rollback_site": siteSummarySchema(),
 
 		"delete_site": outObject(map[string]any{
-			"deleted": outString("Name of the site that was deleted."),
-		}, "deleted"),
+			"deleted":         outString("Name of the site that was deleted."),
+			"restorable_days": outInteger("How many days restore_site can bring it back."),
+		}, "deleted", "restorable_days"),
+
+		"list_deleted_sites": outObject(map[string]any{
+			"sites": outArray("Sites in Recently deleted, most recently deleted first.", outObject(map[string]any{
+				"name":       outString(outSiteName),
+				"deleted_at": outString("When it was deleted (RFC 3339)."),
+				"purge_at":   outString("When it is removed for good (RFC 3339); restore_site works until then."),
+			}, "name", "deleted_at", "purge_at")),
+			"count": outInteger("How many sites are in Recently deleted."),
+		}, "sites", "count"),
+
+		"restore_site": withDescription(siteSummarySchema(), "The restored site, live again at its address."),
 
 		"rename_site": withDescription(siteSummarySchema(), "The site under its new name, at its new address."),
 

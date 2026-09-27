@@ -51,7 +51,7 @@ paths do not expand a literal `~`, and `%USERPROFILE%` expands only in `cmd`.
    cannot be shown again, so this file is the source of truth from here on. It
    keeps working until the person revokes it from their Keys list or signs out
    everywhere; signing in again issues another key without retiring this one.
-   Keys start with `shk_`. Re-read `handle` any time via `GET /v1/me`.
+   Keys start with `shk_`. Re-read `handle` any time via `GET /v1/me`; the person can change it.
 
    Never print the key into the transcript, a log, or a committed file.
 

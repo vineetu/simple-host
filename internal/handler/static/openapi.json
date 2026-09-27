@@ -701,7 +701,8 @@
     "/v1/me": {
       "patch": {
         "operationId": "patchMe",
-        "summary": "Edit display name or rename an empty account",
+        "summary": "Edit display name or change your handle",
+        "description": "Changing the handle changes every address (https://<handle>.simple-host.app/ and https://<site>.<handle>.simple-host.app/). Before anything is published it changes freely. After that it can change once every 30 days: the old handle stays reserved for this account and every old address redirects to the new one. A new handle gets its own certificate; until it is issued, sites briefly use the fallback https://<handle>.simple-host.app/<site>/. What pages kept in visitors' browsers starts empty at the new address, and visitors sign in again.",
         "security": [
           {
             "apiKey": []
@@ -723,7 +724,7 @@
                   "handle": {
                     "type": "string",
                     "pattern": "^[a-z0-9-]{1,39}$",
-                    "description": "The <handle> in your address https://<handle>.simple-host.app/. Must not be reserved or already taken (handles and free <name>.simple-host.app addresses share one namespace); editable only with zero sites."
+                    "description": "The <handle> in your address https://<handle>.simple-host.app/. Must not be reserved or already taken (handles and free <name>.simple-host.app addresses share one namespace)."
                   }
                 }
               }
@@ -741,7 +742,26 @@
             "description": "API key required"
           },
           "409": {
-            "description": "Handle taken or address fixed once something is published"
+            "description": "Handle taken"
+          },
+          "429": {
+            "description": "The handle already changed within the last 30 days after publishing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "next_change_after": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       },
@@ -888,6 +908,74 @@
                           "last_used_at": {
                             "type": "string",
                             "format": "date-time"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/me/deleted-sites": {
+      "get": {
+        "operationId": "getMeDeletedSites",
+        "summary": "List recently deleted sites",
+        "description": "Sites this account deleted in the last 7 days. Each keeps its files, versions, saved data, collections and addresses, and its name stays taken, until purge_at; POST /v1/sites/{sitename}/restore brings it back until then.",
+        "tags": [
+          "Sites"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recently deleted sites, most recently deleted first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "sites",
+                    "retention_days"
+                  ],
+                  "properties": {
+                    "retention_days": {
+                      "type": "integer",
+                      "example": 7
+                    },
+                    "sites": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "name",
+                          "deleted_at",
+                          "purge_at"
+                        ],
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "deleted_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "purge_at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "When it is removed for good"
+                          },
+                          "custom_domain": {
+                            "type": "string"
                           }
                         }
                       }
@@ -1432,7 +1520,7 @@
       "delete": {
         "operationId": "deleteSitesBySitename",
         "summary": "Delete your site",
-        "description": "Deletes the site you own \u2014 all versions and files from disk.",
+        "description": "Takes the site offline at once, with every version, its saved state and collections. It stays in Recently deleted (GET /v1/me/deleted-sites) for 7 days with its name held, and POST /v1/sites/{sitename}/restore brings it back exactly as it was; after that it is removed for good. Creating a site with a held name answers 409 with recently_deleted true.",
         "tags": [
           "Sites"
         ],
@@ -1448,13 +1536,52 @@
         ],
         "responses": {
           "204": {
-            "description": "Site deleted"
+            "description": "Site deleted (restorable for 7 days)"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/restore": {
+      "post": {
+        "operationId": "restoreSite",
+        "summary": "Restore a recently deleted site",
+        "description": "Brings a site back from Recently deleted under the same name and address, with every version, its saved data, collections and connected address, live at once.",
+        "tags": [
+          "Sites"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The restored site",
+            "as in GET /v1/sites": null
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Site quota reached"
+          },
+          "404": {
+            "description": "No site with that name in Recently deleted"
+          },
+          "409": {
+            "description": "That site is live",
+            "not deleted": null
           }
         }
       }

@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/vsriram/simple-host/internal/auth"
@@ -271,6 +274,9 @@ func (h *SiteHandler) reissueAccountKey(w http.ResponseWriter, r *http.Request) 
 		"message": "Every earlier key for this account stopped working. Hand this one over now; it is not shown again.",
 	})
 }
+// handleRenameEvery: after publishing, an account may move to a new handle
+// once in this long. Changes before anything is published are free.
+const handleRenameEvery = 30 * 24 * time.Hour
 
 func (h *SiteHandler) patchMe(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
@@ -301,38 +307,67 @@ func (h *SiteHandler) patchMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	changed := req.Handle != nil && *req.Handle != oldHandle.String
+	renamed := false // moved with sites: the old handle stays as an alias
 	if changed {
+		// Sites in Recently deleted count: they come back at this account's
+		// address, so their old links need the alias too.
 		var hasSites bool
 		err = tx.QueryRowContext(r.Context(), "SELECT EXISTS (SELECT 1 FROM sites WHERE user_id=$1)", user.ID).Scan(&hasSites)
 		if err != nil {
 			writeJSON(w, 500, errorResponse{Error: "internal server error"})
 			return
 		}
-		if hasSites {
-			writeJSON(w, 409, errorResponse{Error: "the address is fixed once something is published"})
-			return
-		}
-		free, nsErr := db.HandleAvailable(r.Context(), tx, user.ID, *req.Handle)
-		if nsErr != nil {
-			writeJSON(w, 500, errorResponse{Error: "internal server error"})
-			return
-		}
-		if !free {
-			writeJSON(w, 409, errorResponse{Error: "handle already taken"})
-			return
-		}
-		_, err = tx.ExecContext(r.Context(), "UPDATE users SET handle=$2, handle_changed_at=now() WHERE id=$1", user.ID, *req.Handle)
-		if isUniqueViolation(err) {
-			writeJSON(w, 409, errorResponse{Error: "handle already taken"})
-			return
-		}
-		if err != nil {
-			writeJSON(w, 500, errorResponse{Error: "internal server error"})
-			return
-		}
-		if err = h.disk.RemoveHandleLink(oldHandle.String); err != nil {
-			writeJSON(w, 500, errorResponse{Error: "could not remove old handle link"})
-			return
+		if hasSites && oldHandle.String != "" {
+			// Owner decision 2026-09-27: the handle can change after
+			// publishing; old links redirect through the alias. Once per
+			// handleRenameEvery, so an address cannot be churned.
+			limited, last, rerr := db.HandleRenamedSince(r.Context(), tx, user.ID, time.Now().Add(-handleRenameEvery))
+			if rerr != nil {
+				writeJSON(w, 500, errorResponse{Error: "internal server error"})
+				return
+			}
+			if limited {
+				next := last.Add(handleRenameEvery).UTC()
+				w.Header().Set("Retry-After", strconv.Itoa(int(time.Until(next).Seconds())+1))
+				writeJSON(w, http.StatusTooManyRequests, map[string]any{
+					"error":             "you changed your address recently; you can change it again after " + next.Format("2 Jan 2006"),
+					"next_change_after": next,
+				})
+				return
+			}
+			_, err = db.RenameHandleTx(r.Context(), tx, user.ID, *req.Handle)
+			if errors.Is(err, db.ErrDomainTaken) || isUniqueViolation(err) {
+				writeJSON(w, 409, errorResponse{Error: "handle already taken"})
+				return
+			}
+			if err != nil {
+				writeJSON(w, 500, errorResponse{Error: "internal server error"})
+				return
+			}
+			renamed = true
+		} else {
+			free, nsErr := db.HandleAvailable(r.Context(), tx, user.ID, *req.Handle)
+			if nsErr != nil {
+				writeJSON(w, 500, errorResponse{Error: "internal server error"})
+				return
+			}
+			if !free {
+				writeJSON(w, 409, errorResponse{Error: "handle already taken"})
+				return
+			}
+			_, err = tx.ExecContext(r.Context(), "UPDATE users SET handle=$2, handle_changed_at=now() WHERE id=$1", user.ID, *req.Handle)
+			if isUniqueViolation(err) {
+				writeJSON(w, 409, errorResponse{Error: "handle already taken"})
+				return
+			}
+			if err != nil {
+				writeJSON(w, 500, errorResponse{Error: "internal server error"})
+				return
+			}
+			if err = h.disk.RemoveHandleLink(oldHandle.String); err != nil {
+				writeJSON(w, 500, errorResponse{Error: "could not remove old handle link"})
+				return
+			}
 		}
 	}
 	if req.DisplayName != nil {
@@ -349,6 +384,16 @@ func (h *SiteHandler) patchMe(w http.ResponseWriter, r *http.Request) {
 	if err = tx.Commit(); err != nil {
 		writeJSON(w, 500, errorResponse{Error: "internal server error"})
 		return
+	}
+	if renamed {
+		// The files answer under the new handle at once; the old handle's
+		// link stays so old content-host paths keep resolving. The new
+		// handle needs its own *.<handle> certificate: until it is ready,
+		// every address handed out is the person-path one (siteHostLive).
+		if err := h.disk.EnsureHandleLink(updated.Handle.String, updated.ID); err != nil {
+			log.Printf("handle rename: ensure handle link %s: %v", updated.Handle.String, err)
+		}
+		h.RequestSiteCert(updated.Handle.String)
 	}
 	writeJSON(w, 200, meResponse{ID: updated.ID, Username: updated.Username, IsAdmin: updated.IsAdmin, Handle: updated.Handle.String, DisplayName: updated.DisplayName.String, PublicPage: h.PersonPageURL(updated.Handle.String)})
 }

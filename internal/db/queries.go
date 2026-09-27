@@ -188,7 +188,7 @@ func GetHandleBySiteName(ctx context.Context, db *sql.DB, name string) (string, 
 	const query = `
 		SELECT COALESCE(u.handle, '')
 		FROM sites s JOIN users u ON u.id = s.user_id
-		WHERE s.name = $1
+		WHERE s.name = $1 AND s.deleted_at IS NULL
 		ORDER BY s.created_at ASC
 		LIMIT 1
 	`
@@ -328,7 +328,7 @@ type ExpiredSite struct {
 // expires_at (the default) are permanent and never returned.
 func ListExpiredSites(ctx context.Context, db *sql.DB) ([]ExpiredSite, error) {
 	rows, err := db.QueryContext(ctx,
-		`SELECT id, user_id, name FROM sites WHERE expires_at IS NOT NULL AND expires_at < now() ORDER BY expires_at LIMIT 500`)
+		`SELECT id, user_id, name FROM sites WHERE expires_at IS NOT NULL AND expires_at < now() AND deleted_at IS NULL ORDER BY expires_at LIMIT 500`)
 	if err != nil {
 		return nil, err
 	}
@@ -366,7 +366,7 @@ func BackfillPreviewExpiry(ctx context.Context, db *sql.DB, username string, ttl
 // anywhere" (e.g. a page hosted on external hosting using this site as its backend).
 func GetAllowedOrigins(ctx context.Context, db *sql.DB, siteName string) ([]string, error) {
 	var raw sql.NullString
-	err := db.QueryRowContext(ctx, `SELECT allowed_origins FROM sites WHERE name = $1`, siteName).Scan(&raw)
+	err := db.QueryRowContext(ctx, `SELECT allowed_origins FROM sites WHERE name = $1 AND deleted_at IS NULL`, siteName).Scan(&raw)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -442,7 +442,7 @@ func GetSite(ctx context.Context, db *sql.DB, name string) (Site, error) {
 	const query = `
 		SELECT id, user_id, name, active_version, site_url, created_at, updated_at
 		FROM sites
-		WHERE name = $1
+		WHERE name = $1 AND deleted_at IS NULL
 	`
 
 	var site Site
@@ -466,7 +466,7 @@ func GetSite(ctx context.Context, db *sql.DB, name string) (Site, error) {
 func GetSiteIDByName(ctx context.Context, db *sql.DB, name string) (string, error) {
 	var id string
 	err := db.QueryRowContext(ctx,
-		`SELECT id FROM sites WHERE name = $1 ORDER BY created_at ASC, id ASC LIMIT 1`,
+		`SELECT id FROM sites WHERE name = $1 AND deleted_at IS NULL ORDER BY created_at ASC, id ASC LIMIT 1`,
 		name,
 	).Scan(&id)
 	return id, err
@@ -477,7 +477,7 @@ func GetSiteByUser(ctx context.Context, db *sql.DB, userID, name string) (Site, 
 		SELECT id, user_id, name, active_version, COALESCE(site_url, ''), created_at, updated_at, custom_domain, domain_status, visibility,
 		       (SELECT COALESCE(u.handle, '') FROM users u WHERE u.id = sites.user_id)
 		FROM sites
-		WHERE user_id = $1 AND name = $2
+		WHERE user_id = $1 AND name = $2 AND deleted_at IS NULL
 	`
 
 	var site Site
@@ -537,6 +537,7 @@ func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 		SELECT s.id, s.user_id, s.name, s.active_version, COALESCE(s.site_url, ''), s.created_at, s.updated_at, s.custom_domain, s.domain_status, s.visibility, u.username, COALESCE(u.handle, '')
 		FROM sites s
 		INNER JOIN users u ON u.id = s.user_id
+		WHERE s.deleted_at IS NULL
 		ORDER BY s.created_at ASC, s.name ASC
 	`
 
@@ -605,7 +606,7 @@ func ListSitesByUser(ctx context.Context, db *sql.DB, userID string) ([]Site, er
 		SELECT id, user_id, name, active_version, COALESCE(site_url, ''), created_at, updated_at, custom_domain, domain_status, visibility,
 		       (SELECT COALESCE(u.handle, '') FROM users u WHERE u.id = sites.user_id)
 		FROM sites
-		WHERE user_id = $1
+		WHERE user_id = $1 AND deleted_at IS NULL
 		ORDER BY created_at ASC, name ASC
 	`
 
@@ -744,7 +745,7 @@ func GetSiteState(ctx context.Context, db *sql.DB, name string) (json.RawMessage
 	// COALESCE so a SQL NULL becomes the JSON literal `null` — keeps the
 	// scan target (json.RawMessage / []byte) happy and the response a
 	// well-formed JSON document either way.
-	const query = `SELECT COALESCE(state, 'null'::jsonb), state_version FROM sites WHERE name = $1`
+	const query = `SELECT COALESCE(state, 'null'::jsonb), state_version FROM sites WHERE name = $1 AND deleted_at IS NULL`
 
 	var state []byte
 	var version int
@@ -779,7 +780,7 @@ func UpdateSiteState(ctx context.Context, db *sql.DB, name string, state json.Ra
 	const query = `
 		UPDATE sites
 		SET state = $2::jsonb, state_version = state_version + 1, updated_at = now()
-		WHERE name = $1
+		WHERE name = $1 AND deleted_at IS NULL
 		RETURNING state_version
 	`
 
@@ -816,7 +817,7 @@ func UpdateSiteStateCAS(ctx context.Context, db *sql.DB, name string, state json
 	const query = `
 		UPDATE sites
 		SET state = $2::jsonb, state_version = state_version + 1, updated_at = now()
-		WHERE name = $1 AND state_version = $3
+		WHERE name = $1 AND deleted_at IS NULL AND state_version = $3
 		RETURNING state_version
 	`
 
@@ -826,7 +827,7 @@ func UpdateSiteStateCAS(ctx context.Context, db *sql.DB, name string, state json
 		// No row updated: either the site is gone or the version moved. Probe
 		// to return the precise error.
 		var exists bool
-		probe := db.QueryRowContext(ctx, `SELECT true FROM sites WHERE name = $1`, name).Scan(&exists)
+		probe := db.QueryRowContext(ctx, `SELECT true FROM sites WHERE name = $1 AND deleted_at IS NULL`, name).Scan(&exists)
 		if errors.Is(probe, sql.ErrNoRows) {
 			return 0, sql.ErrNoRows
 		}
@@ -875,7 +876,7 @@ func UpdateSiteStateCASByID(ctx context.Context, db *sql.DB, siteID string, stat
 // (If-None-Match -> 304) so pollers don't fetch/serialize the whole document.
 func GetSiteStateVersion(ctx context.Context, db *sql.DB, name string) (int, error) {
 	var version int
-	err := db.QueryRowContext(ctx, `SELECT state_version FROM sites WHERE name = $1`, name).Scan(&version)
+	err := db.QueryRowContext(ctx, `SELECT state_version FROM sites WHERE name = $1 AND deleted_at IS NULL`, name).Scan(&version)
 	return version, err
 }
 
@@ -891,7 +892,7 @@ func GetSiteStateVersionByID(ctx context.Context, db *sql.DB, siteID string) (in
 // PATCHes serialize on the lock instead of burning CPU on optimistic retries.
 // Use inside a transaction.
 func GetSiteStateForUpdate(ctx context.Context, q Querier, name string) (json.RawMessage, int, error) {
-	const query = `SELECT COALESCE(state, 'null'::jsonb), state_version FROM sites WHERE name = $1 FOR UPDATE`
+	const query = `SELECT COALESCE(state, 'null'::jsonb), state_version FROM sites WHERE name = $1 AND deleted_at IS NULL FOR UPDATE`
 	var state []byte
 	var version int
 	if err := q.QueryRowContext(ctx, query, name).Scan(&state, &version); err != nil {
@@ -923,7 +924,7 @@ func SetSiteState(ctx context.Context, q Querier, name string, state json.RawMes
 	const query = `
 		UPDATE sites
 		SET state = $2::jsonb, state_version = state_version + 1, updated_at = now()
-		WHERE name = $1
+		WHERE name = $1 AND deleted_at IS NULL
 		RETURNING state_version
 	`
 	var version int
