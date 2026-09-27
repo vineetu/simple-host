@@ -524,12 +524,16 @@ func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 				}
 				resp := h.visitorSignedInResponse(r, expires, "", "")
 
-				identity, err := db.GetLatestOAuthIdentity(r.Context(), h.database, sess.UserID)
-				resp.Email, resp.Provider = identity.Email.String, identity.Provider
-				if errors.Is(err, sql.ErrNoRows) {
-					var user db.User
-					user, err = db.GetUserByID(r.Context(), h.database, sess.UserID)
-					resp.Email = user.Username
+				// The same address the site's rules see (visitorEmail).
+				email, err := visitorEmail(r.Context(), h.database, sess.UserID)
+				resp.Email = email
+				if err == nil {
+					identity, ierr := db.GetLatestOAuthIdentity(r.Context(), h.database, sess.UserID)
+					if ierr == nil && strings.EqualFold(identity.Email.String, email) {
+						resp.Provider = identity.Provider
+					} else if ierr != nil && !errors.Is(ierr, sql.ErrNoRows) {
+						err = ierr
+					}
 				}
 				if err != nil {
 					writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})

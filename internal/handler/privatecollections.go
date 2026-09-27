@@ -116,19 +116,26 @@ func (h *SiteHandler) strictVisitorSession(r *http.Request, siteID string) (db.V
 	return sess, true
 }
 
-// visitorEmail is the verified address of an account: its latest verified
-// sign-in identity (Google), else the address it signed up with by emailed
-// code. The same answer GET /me gives the page.
+// visitorEmail is the address an account presents to other people's sites
+// (who may save, blocks, one per person, the _submitted_by stamp, GET /me):
+// its current sign-in email, which it proved by code when it signed up or
+// moved there. A linked Google address is only used for an account whose
+// name is not an address (an organiser-made event account), because an
+// account can move off an address it no longer owns while the identity
+// linked under it stays.
 func visitorEmail(ctx context.Context, database *sql.DB, userID string) (string, error) {
+	u, err := db.GetUserByID(ctx, database, userID)
+	if err != nil {
+		return "", err
+	}
+	if strings.Contains(u.Username, "@") {
+		return u.Username, nil
+	}
 	identity, err := db.GetLatestOAuthIdentity(ctx, database, userID)
 	if err == nil && identity.Email.Valid && identity.Email.String != "" {
 		return identity.Email.String, nil
 	}
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return "", err
-	}
-	u, err := db.GetUserByID(ctx, database, userID)
-	if err != nil {
 		return "", err
 	}
 	return u.Username, nil

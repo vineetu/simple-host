@@ -107,3 +107,28 @@ func TestLeversEndSiteSignIns(t *testing.T) {
 		t.Fatalf("suspension left %d site sign-ins", n)
 	}
 }
+
+// M3: a site's rules see the account's current sign-in email, not a Google
+// address linked before the account moved.
+func TestVisitorEmailFollowsAccountEmail(t *testing.T) {
+	a := newPrivateApp(t)
+	ctx := context.Background()
+	p := a.newPerson(t, "bobmoved")
+	uid, _ := a.userID(t, p)
+	if _, err := db.InsertOAuthIdentity(ctx, a.database, uid, "google", "g-"+uid, "bob-"+uid+"@acme.test", true); err != nil {
+		t.Fatal(err)
+	}
+	got, err := visitorEmail(ctx, a.database, uid)
+	if err != nil || got != p.email {
+		t.Fatalf("visitorEmail = %q, %v; want the account email %q", got, err, p.email)
+	}
+	// An account whose name is not an address (event account) falls back to
+	// its verified identity.
+	if _, err := a.database.Exec(`UPDATE users SET username = $2 WHERE id = $1`, uid, "team-"+uid); err != nil {
+		t.Fatal(err)
+	}
+	got, err = visitorEmail(ctx, a.database, uid)
+	if err != nil || got != "bob-"+uid+"@acme.test" {
+		t.Fatalf("event account visitorEmail = %q, %v", got, err)
+	}
+}
