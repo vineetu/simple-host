@@ -22,7 +22,8 @@ keeps all.
 | `EXPORT_LINK_TTL_MINUTES` | `10` | 1–60 minutes | How long a site download link works (it holds private lists too). **Security-sensitive.** |
 | `RATE_LIMIT_UPLOAD` | `30,10s` | any (warns past 10× looser) | Uploads and deploys per client. |
 | `RATE_LIMIT_SITE_OPS` | `30,2s` | any (warns past 10× looser) | Deleting, changing and restoring sites, per address. |
-| `RATE_LIMIT_EXPORT` | `10,10s` | any (warns past 10× looser) | Site downloads per address. |
+| `RATE_LIMIT_EXPORT` | `10,10s` | any (warns past 10× looser) | Site and account downloads per address. |
+| `RATE_LIMIT_ANALYTICS` | `30,2s` | any (warns past 10× looser) | Top pages and referring domains reads, per address. |
 | `MAX_ARCHIVE_MB` | `100` | at least 1 MB | Largest upload, and the size one site may have. |
 | `KEEP_VERSIONS` | `0` | at least 0 versions | Deploys kept per site; 0 keeps all. install.sh sets 1, which means no rollback. |
 | `PREVIEW_ACCOUNTS` | none | text | Accounts (comma-separated) whose sites expire on their own. |

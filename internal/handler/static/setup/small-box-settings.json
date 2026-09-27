@@ -584,9 +584,20 @@
     {
       "name": "RATE_LIMIT_EXPORT",
       "group": "sites",
-      "description": "Site downloads per address.",
+      "description": "Site and account downloads per address.",
       "type": "rate",
       "default": "10,10s",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
+      "name": "RATE_LIMIT_ANALYTICS",
+      "group": "sites",
+      "description": "Top pages and referring domains reads, per address.",
+      "type": "rate",
+      "default": "30,2s",
       "security_sensitive": false,
       "required": false,
       "basic": false,
@@ -1240,6 +1251,17 @@
       "required": false,
       "basic": false,
       "small_box": false
+    },
+    {
+      "name": "RATE_LIMIT_TLS_ASK",
+      "group": "domains",
+      "description": "Certificate checks (/internal/tls-ask), per address.",
+      "type": "rate",
+      "default": "60,100ms",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
     },
     {
       "name": "RATE_LIMIT_DOMAIN_CHECK",

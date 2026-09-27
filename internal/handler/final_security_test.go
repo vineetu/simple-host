@@ -211,3 +211,16 @@ func TestFragmentLinkPage(t *testing.T) {
 		}
 	}
 }
+
+// L6: the certificate check is rate-limited per address (RATE_LIMIT_TLS_ASK).
+func TestTLSAskRateLimited(t *testing.T) {
+	a := newPrivateApp(t)
+	limited := false
+	for i := 0; i < 90 && !limited; i++ {
+		r := a.at(t, "GET", "simple-host.test", "/internal/tls-ask?domain=nobody-"+strings.Repeat("x", i%5)+".example", nil, nil)
+		limited = r.status == 429
+	}
+	if !limited {
+		t.Fatal("tls-ask never rate-limited")
+	}
+}

@@ -692,6 +692,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '403':
           description: The account is suspended (code account_suspended); write to support@simple-host.app for a copy of the data
           content:
@@ -721,6 +722,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '403':
           description: The account is suspended (code account_suspended)
           content:
@@ -1142,6 +1144,7 @@ paths:
             application/gzip:
               schema: { type: string, format: binary }
         '404': { description: Not found, or not yours }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/sites/{sitename}/export-link:
     post:
@@ -1749,6 +1752,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/sites/{sitename}/me:
     get:

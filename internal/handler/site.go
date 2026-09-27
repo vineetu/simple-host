@@ -323,9 +323,13 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("POST /v1/admin/users/{id}/key", authMiddleware(http.HandlerFunc(h.reissueAccountKey)))
 	mux.Handle("PATCH /v1/me", authMiddleware(http.HandlerFunc(h.patchMe)))
 	// Download my data / delete my account and all data (account_data.go).
-	mux.Handle("GET /v1/me/export.zip", authMiddleware(http.HandlerFunc(h.exportMe)))
+	// Owner downloads are heavy (a tar of every site): RATE_LIMIT_EXPORT per
+	// address, like the signed export link.
+	exportLimiter := newRateLimiterFor(config.Active().RateExport)
+	exportLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	mux.Handle("GET /v1/me/export.zip", authMiddleware(rateLimitByIP(exportLimiter, http.HandlerFunc(h.exportMe))))
 	// The address before the download became a .zip; serves the same zip.
-	mux.Handle("GET /v1/me/export.tar.gz", authMiddleware(http.HandlerFunc(h.exportMe)))
+	mux.Handle("GET /v1/me/export.tar.gz", authMiddleware(rateLimitByIP(exportLimiter, http.HandlerFunc(h.exportMe))))
 	mux.Handle("DELETE /v1/me", authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.deleteMe))))
 	mux.Handle("GET /v1/admin/users", authMiddleware(http.HandlerFunc(h.adminUsers)))
 	// Operator take-down (suspend.go): a site, or a person and all their
@@ -340,12 +344,10 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("GET /v1/admin/usage", authMiddleware(http.HandlerFunc(h.adminUsage)))
 	// Take your work with you. An event box is destroyed when the event ends and
 	// nothing is backed up, so the only honest answer is to make leaving easy.
-	mux.Handle("GET /v1/sites/{sitename}/export.tar.gz", authMiddleware(http.HandlerFunc(h.exportSite)))
+	mux.Handle("GET /v1/sites/{sitename}/export.tar.gz", authMiddleware(rateLimitByIP(exportLimiter, http.HandlerFunc(h.exportSite))))
 	// The same export behind a 10-minute signed link, for people with no API
 	// key (chat-app connector users): minted by the owner, opened by a click.
 	mux.Handle("POST /v1/sites/{sitename}/export-link", noticeMiddleware(authMiddleware(http.HandlerFunc(h.createExportLink))))
-	exportLimiter := newRateLimiterFor(config.Active().RateExport)
-	exportLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	mux.Handle("GET /v1/export", rateLimitByIP(exportLimiter, http.HandlerFunc(h.downloadExport)))
 	mux.Handle("GET /v1/sites/{sitename}/versions", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listVersions))))
 	mux.Handle("GET /v1/sites/{sitename}/versions/{version}/files", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listVersionFiles))))
@@ -355,7 +357,9 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("POST /v1/sites/{sitename}/versions/{version}/preview-link", noticeMiddleware(authMiddleware(http.HandlerFunc(h.createPreviewLink))))
 	mux.Handle("GET /v1/sites/{sitename}/analytics", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteAnalytics))))
 	mux.Handle("GET /v1/sites/{sitename}/analytics/geo", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteGeoAnalytics))))
-	mux.Handle("GET /v1/sites/{sitename}/analytics/top", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteTopAnalytics))))
+	analyticsLimiter := newRateLimiterFor(config.Active().RateAnalytics)
+	analyticsLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	mux.Handle("GET /v1/sites/{sitename}/analytics/top", noticeMiddleware(authMiddleware(rateLimitByIP(analyticsLimiter, http.HandlerFunc(h.getSiteTopAnalytics)))))
 	// Deliberately not /v1/sites/analytics: that would collide with a site
 	// actually named "analytics".
 	mux.Handle("GET /v1/analytics/sites", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getAnalyticsSummary))))
@@ -399,7 +403,9 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// "Check again": re-verify this site's pending domain now instead of
 	// waiting for the next background pass.
 	mux.Handle("POST /v1/sites/{sitename}/domain/check", noticeMiddleware(authMiddleware(rateLimitByIP(h.domainCheckLimiter, http.HandlerFunc(h.checkDomainNow)))))
-	mux.HandleFunc("GET /internal/tls-ask", h.tlsAsk)
+	tlsAskLimiter := newRateLimiterFor(config.Active().RateTLSAsk)
+	tlsAskLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	mux.Handle("GET /internal/tls-ask", rateLimitByIP(tlsAskLimiter, http.HandlerFunc(h.tlsAsk)))
 	mux.HandleFunc("GET /internal/domain-redirect/{handle}/{sitename}", h.domainRedirect)
 	mux.HandleFunc("GET /internal/domain-redirect/{handle}/{sitename}/{rest...}", h.domainRedirect)
 

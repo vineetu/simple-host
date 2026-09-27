@@ -79,6 +79,8 @@ type Limits struct {
 	RateState           Rate // RATE_LIMIT_STATE
 	RateSiteOps         Rate // RATE_LIMIT_SITE_OPS
 	RateExport          Rate // RATE_LIMIT_EXPORT
+	RateAnalytics       Rate // RATE_LIMIT_ANALYTICS
+	RateTLSAsk          Rate // RATE_LIMIT_TLS_ASK
 	RateDomainCheck     Rate // RATE_LIMIT_DOMAIN_CHECK
 	RateDomainCheckUser Rate // RATE_LIMIT_DOMAIN_CHECK_USER
 	RateOAuthRegister   Rate // RATE_LIMIT_OAUTH_REGISTER
@@ -296,6 +298,8 @@ func DefaultLimits() Limits {
 		RateState:           Rate{60, time.Second},
 		RateSiteOps:         Rate{30, 2 * time.Second},
 		RateExport:          Rate{10, 10 * time.Second},
+		RateAnalytics:       Rate{30, 2 * time.Second},
+		RateTLSAsk:          Rate{60, 100 * time.Millisecond},
 		RateDomainCheck:     Rate{10, 10 * time.Second},
 		RateDomainCheckUser: Rate{3, 30 * time.Second},
 		RateOAuthRegister:   Rate{10, 6 * time.Minute},
@@ -479,6 +483,8 @@ func Knobs() []Knob {
 		rateKnob("RATE_LIMIT_STATE", func(l *Limits) *Rate { return &l.RateState }),
 		rateKnob("RATE_LIMIT_SITE_OPS", func(l *Limits) *Rate { return &l.RateSiteOps }),
 		rateKnob("RATE_LIMIT_EXPORT", func(l *Limits) *Rate { return &l.RateExport }),
+		rateKnob("RATE_LIMIT_ANALYTICS", func(l *Limits) *Rate { return &l.RateAnalytics }),
+		rateKnob("RATE_LIMIT_TLS_ASK", func(l *Limits) *Rate { return &l.RateTLSAsk }),
 		rateKnob("RATE_LIMIT_DOMAIN_CHECK", func(l *Limits) *Rate { return &l.RateDomainCheck }),
 		rateKnob("RATE_LIMIT_DOMAIN_CHECK_USER", func(l *Limits) *Rate { return &l.RateDomainCheckUser }),
 		secRateKnob("RATE_LIMIT_OAUTH_REGISTER", func(l *Limits) *Rate { return &l.RateOAuthRegister }),

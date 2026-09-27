@@ -25,6 +25,7 @@ the public instance only.
 | `DOMAIN_CERTS_PER_ACCOUNT_DAILY` | `5` | 1–1000 certificates | New custom-domain certificates one account may ask for in a day. |
 | `EVENT_TTL_DAYS` | `21` | 1–60 days | How long a claimed event hostname lives (only where EVENT_DNS_TOKEN is set). |
 | `EVENT_MAX_CLAIMS` | `5` | 1–100 names | Event hostnames one account may hold at once. |
+| `RATE_LIMIT_TLS_ASK` | `60,100ms` | any (warns past 10× looser) | Certificate checks (/internal/tls-ask), per address. |
 | `RATE_LIMIT_DOMAIN_CHECK` | `10,10s` | any (warns past 10× looser) | "Check again" on a domain, per address. |
 | `RATE_LIMIT_DOMAIN_CHECK_USER` | `3,30s` | any (warns past 10× looser) | "Check again" on a domain, per account. |
 | `CNAME_TARGET` | `cname.<SITE_DOMAIN>` | text | The hostname people point their own domain at with a CNAME record. |
