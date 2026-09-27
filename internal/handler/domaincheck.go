@@ -99,6 +99,11 @@ func (h *SiteHandler) checkDomain(ctx context.Context, d db.BoundDomain, ours ma
 			reason = "resolves to this server; its certificate is being issued (usually a few minutes)"
 		}
 	}
+	h.applyDomainCheck(ctx, d, status, reason, cert)
+}
+
+// applyDomainCheck records one check's verdict and acts on it.
+func (h *SiteHandler) applyDomainCheck(ctx context.Context, d db.BoundDomain, status, reason, cert string) {
 	check, err := db.SetDomainStatus(ctx, h.database, d.SiteID, d.Domain, status, reason, cert)
 	if err != nil {
 		log.Printf("domain check %s: %v", d.Domain, err)
