@@ -46,6 +46,9 @@ func (h *SiteHandler) visitorEmailSite(w http.ResponseWriter, r *http.Request) (
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "this site signs visitors in on its own domain", "code": "use_custom_domain", "domain": domain})
 		return "", false
 	}
+	if h.refuseOffline(w, r, id) {
+		return "", false
+	}
 	return id, true
 }
 

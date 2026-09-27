@@ -194,6 +194,15 @@ func (h *SiteHandler) ownerBrowserRead(w http.ResponseWriter, r *http.Request, s
 // appendPrivate is POST to a private collection. Returns after answering.
 func (h *SiteHandler) appendPrivate(w http.ResponseWriter, r *http.Request, siteID, siteName, coll string) {
 	w.Header().Set("Cache-Control", "private, no-store")
+	// Offline, or a page opened as a preview: no entries, as on public lists
+	// (visitorWriteOK). Keys cannot add to a private list at all (below).
+	if h.refuseSuspendedSiteID(w, r, siteID) || h.refuseOffline(w, r, siteID) {
+		return
+	}
+	if previewReferer(r) {
+		writePreviewReadOnly(w)
+		return
+	}
 	onShared := strings.EqualFold(requestHostName(r), h.contentHost)
 	info, here, err := h.onOwnDomain(r, siteID)
 	if err != nil {

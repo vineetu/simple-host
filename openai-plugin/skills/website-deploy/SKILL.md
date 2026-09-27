@@ -87,11 +87,11 @@ be dropped, and ask them to provide them again or agree to losing them.
 Every version is kept. If a change went wrong, `list_versions`, confirm the version with the
 person, then `rollback_site`. For a big change (a redesign), offer to let them look first:
 `update_site` with `publish: false` stores the version without making it live and returns a
-`preview_url` (owner-only, one hour); give them the link, and when they are happy make it live
+`preview_url` (it works for anyone who has it, for one hour); give only them the link, and when they are happy make it live
 with `rollback_site`. `preview_version` makes a link for any kept version. Renaming (`rename_site`) changes the address; links to the old one
 redirect to the new one until a new site takes the old name. When an event is over or a form
 must stop taking entries, `set_site_offline` (after the person confirms) shows "This site is
-offline" at every address and stops visitor saves, keeping everything; `offline: false` undoes it. `delete_site` takes the site offline with every version and all its
+offline" at every address and stops visitor saves, reads of its data and sign-in, keeping everything; `offline: false` undoes it. `delete_site` takes the site offline with every version and all its
 saved data: call it only after the person has explicitly confirmed deleting that specific site
 in this conversation, and name what goes offline when you ask. It stays in Recently deleted for
 7 days (`list_deleted_sites`, `restore_site` brings it back exactly as it was), then it is gone

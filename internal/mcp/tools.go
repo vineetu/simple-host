@@ -756,7 +756,7 @@ func Tools() []Tool {
 			Title: "Publish a new version of a site",
 			Description: "Replace the live files of an EXISTING site with a new version, at its public address. The files you send are the COMPLETE new version: anything not included stops being served, so to change one page read the others with read_site_file and send them all again. " +
 				"`index.html` is required; use relative links only. The previous version is kept and can be made live again with rollback_site. Fails if there is no site of that name (use create_site). " +
-				"With `publish: false` the new version is only stored, not made live: visitors keep seeing the current one, and the answer carries a preview link (owner-only, one hour) to look at it first; make it live with rollback_site when the person is happy.",
+				"With `publish: false` the new version is only stored, not made live: visitors keep seeing the current one, and the answer carries a preview link (anyone with it can open it, for one hour) to look at it first; make it live with rollback_site when the person is happy.",
 			InputSchema: object(map[string]any{
 				"site":         str(siteDesc),
 				"files":        filesSchema(),
@@ -841,7 +841,7 @@ func Tools() []Tool {
 			Name:  "preview_version",
 			Title: "Preview a version before it is live",
 			Description: "Make a preview link for one of a site's kept versions (from list_versions): the person opens it in their browser to see that version exactly as visitors would, before making it live with rollback_site. " +
-				"The link works for one hour and only for that version; pages opened from it cannot save anything, and search engines do not index it. Give it to the person to click; do not post it anywhere public.",
+				"The link works for anyone who has it, for one hour and only for that version; pages opened from it cannot save anything, and search engines do not index it. Give it to the person to click; do not post it anywhere public.",
 			InputSchema: object(map[string]any{
 				"site":    str(siteDesc),
 				"version": map[string]any{"type": "integer", "description": "The version number to preview, from list_versions."},
@@ -1023,7 +1023,7 @@ func Tools() []Tool {
 		{
 			Name:  "set_site_offline",
 			Title: "Take a site offline or back online",
-			Description: "Take a site offline (`offline: true`): every address of it shows a plain \"This site is offline\" page and visitors can no longer save anything (RSVPs, votes, sign-ups), for example when an event is over or a form must stop taking entries. " +
+			Description: "Take a site offline (`offline: true`): every address of it shows a plain \"This site is offline\" page and visitors can no longer save anything (RSVPs, votes, sign-ups, private lists), read its saved data or lists, or sign in, for example when an event is over or a form must stop taking entries. " +
 				"Nothing is deleted: files, versions, saved data and lists are kept, and you can still update, read and export it. `offline: false` puts it back online at every address. Confirm with the person before taking a site offline.",
 			InputSchema: object(map[string]any{
 				"site":    str(siteDesc),
@@ -1773,7 +1773,7 @@ func deploySite(c *call, args map[string]any, mode string) (output, error) {
 		text := fmt.Sprintf("Stored %s version %d without making it live; visitors still see version %d at %s.", name, stored.Version, site.ActiveVersion, site.liveURL())
 		if stored.PreviewURL != "" {
 			out["preview_url"] = stored.PreviewURL
-			text += " Preview it (owner only, one hour): " + stored.PreviewURL
+			text += " Preview it (the link works for anyone who has it, for one hour): " + stored.PreviewURL
 		}
 		text += fmt.Sprintf("\nWhen the person is happy, rollback_site with version %d makes it live.", stored.Version)
 		return output{Text: text, Structured: out}, nil

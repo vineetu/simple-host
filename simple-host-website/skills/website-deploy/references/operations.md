@@ -18,8 +18,9 @@ a new site is created with the old name. Use `site_url` from the response.
 ## Take a site offline
 
 `PATCH /v1/sites/<sitename>` with `{"offline":true}` takes the site offline:
-every address of it shows a plain "This site is offline" page and visitor saves
-are refused (403 `site_offline`). Use it when an event is over or a form must
+every address of it shows a plain "This site is offline" page, and visitor
+saves (private lists too), visitors' reads of its saved data and lists, and
+visitor sign-in are refused (403 `site_offline`). Use it when an event is over or a form must
 stop taking entries. Nothing is deleted, and the owner's key still deploys,
 reads and writes. `{"offline":false}` puts it back online; `GET /v1/sites`
 marks an offline site `"offline": true`. Confirm with the person first.
@@ -67,8 +68,8 @@ There is **no** `.../activate` and no `.../version/<n>` endpoint. This is the on
 To let the person see a new version before visitors do, deploy it with
 `?publish=false` (on `PUT /v1/sites/<sitename>/files` or the archive
 `PUT /v1/sites/<sitename>`). The version is stored but not made live; the answer
-carries `unpublished_version` and `preview_url`, an owner-only link that works
-for one hour and shows that version exactly as visitors would see it. Give the
+carries `unpublished_version` and `preview_url`, a link that works for anyone
+who has it, for one hour, and shows that version exactly as visitors would see it. Give the
 person the link. When they are happy, make it live with the `active-version`
 call above. `POST /v1/sites/<sitename>/versions/<n>/preview-link` mints a new
 link for any kept version (`GET .../versions` shows a stored, never-live one

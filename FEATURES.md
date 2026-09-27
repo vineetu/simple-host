@@ -48,15 +48,19 @@ current address (path and query kept, chains followed) until a site of that name
 (the new site wins); a site in Recently deleted is skipped and purge removes its old names.
 Offline: the owner can take a site offline (`sites.offline_at`, an `offline` marker in the site
 folder): every address answers a plain "This site is offline" page (503, no-store, noindex), visitor
-saves answer 403 `site_offline`, it leaves the person page, and nothing is deleted; the owner's key
-and connector still deploy, read and write. An operator take-down wins; the marker follows rename,
+saves (private lists included), visitors' reads of its saved data and lists, and visitor sign-in
+answer 403 `site_offline`, it leaves the person page, and nothing is deleted; the owner's key and
+connector still deploy, read and write. An operator take-down wins; the marker follows rename,
 delete and restore and is re-synced at boot.
 Look before it goes live: an update with `?publish=false` stores the version (`versions.status`
 `ready`) without making it live and answers `unpublished_version` and `preview_url`; the owner mints
-an hour-long preview link for any kept version, served on the site's own host at
+an hour-long preview link for any kept version (a bearer link: anyone who has it can open it for
+that hour; the copy says so), served on the site's own host at
 `/__preview/<n>/<token>/…` (person path `/<site>/__preview/…` until the certificate is ready; HMAC
 over site+version+expiry with the per-process export key, own domain string), noindex, no-store,
-saves from it refused (403 `preview_read_only`, by same-host `Referer`); "Make live" is the rollback,
+saves from it refused, private lists included (403 `preview_read_only`, by same-host `Referer`: a
+page that suppresses its Referer is not stopped, so this guards against accidents; the pages are
+the owner's own and share the live site's origin); "Make live" is the rollback,
 which marks the version `active`.
 **Status: live.**
 

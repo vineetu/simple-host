@@ -51,9 +51,26 @@ func (h *SiteHandler) offlinePageHandler(w http.ResponseWriter, r *http.Request)
 
 func writeSiteOffline(w http.ResponseWriter) {
 	writeJSON(w, http.StatusForbidden, map[string]string{
-		"error": "this site is offline; its owner has paused it, and saves are refused until it is back online",
+		"error": "this site is offline; its owner has paused it, and it takes no saves, reads or sign-ins until it is back online",
 		"code":  "site_offline",
 	})
+}
+
+// refuseOffline answers site_offline (and reports true) when the site is
+// offline: offline means offline, so visitors' reads of its saved data and
+// lists, list submissions (private ones too) and visitor sign-in all stop.
+// The owner's key is let through by the callers, not here.
+func (h *SiteHandler) refuseOffline(w http.ResponseWriter, r *http.Request, siteID string) bool {
+	off, err := db.SiteOffline(r.Context(), h.database, siteID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return true
+	}
+	if off {
+		writeSiteOffline(w)
+		return true
+	}
+	return false
 }
 
 // syncOfflineMarker makes the disk marker match the site's offline flag.

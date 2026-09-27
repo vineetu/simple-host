@@ -871,8 +871,9 @@ paths:
       description: >-
         One change per request. With {"offline": true} the site is taken
         offline: every address answers a plain "This site is offline" page
-        (503) and visitor saves (state and collection writes from a page) are
-        refused with 403 site_offline; files, versions and saved data are
+        (503), and visitor saves (state and collection writes from a page,
+        private lists included), visitors' reads of its state and lists, and
+        visitor sign-in are refused with 403 site_offline; files, versions and saved data are
         kept, and the owner's key or connector still deploys, reads and
         writes. {"offline": false} puts it back online. An operator take-down
         wins over it, and a taken-down site cannot be switched (403
@@ -1157,13 +1158,14 @@ paths:
       operationId: postSitesBySitenameVersionPreviewLink
       summary: Preview a kept version
       description: >-
-        Owner only. Mints an hour-long link that shows one kept version (live, earlier, or stored
+        Owner only. Mints a link, working for anyone who has it for one hour, that shows one kept version (live, earlier, or stored
         with publish=false) exactly as visitors would see it, on the site's own host:
         https://<site>.<handle>.simple-host.app/__preview/<n>/<token>/ (or
         briefly, as a fallback while the person's certificate is not ready, <handle>.simple-host.app/<site>/__preview/...).
         The token is an HMAC over site, version and expiry; it stops working after an hour or a
         server restart. Preview pages are noindex and never cached, and saves made from them are
-        refused (403 preview_read_only). Make the version live with PUT .../active-version.
+        refused (403 preview_read_only; told apart by the Referer, so a page that suppresses its
+        Referer is not stopped: this guards against accidents, and the pages are the owner's own). Make the version live with PUT .../active-version.
       tags: [Sites]
       security: [{ apiKey: [] }]
       parameters:
@@ -4006,7 +4008,7 @@ components:
         suspended_reason: { type: string, description: The operator's one-line reason, when suspended. }
         offline: { type: boolean, description: "Present and true when the owner has taken the site offline (PATCH /v1/sites/{sitename} {\"offline\": true}): every address shows \"This site is offline\" and visitor saves are refused. Nothing is deleted." }
         unpublished_version: { type: integer, description: "Only on a deploy with publish=false: the version stored without going live." }
-        preview_url: { type: string, format: uri, description: "Only on a deploy with publish=false: an owner-only link (one hour) showing the stored version." }
+        preview_url: { type: string, format: uri, description: "Only on a deploy with publish=false: a link showing the stored version that works for anyone with it, for one hour." }
         preview_expires_at: { type: string, format: date-time, description: "When preview_url stops working." }
         domain_partner: { type: string, description: "The custom domain's www / bare partner, which forwards to it (see GET .../domain partner_domain)" }
         domain_partner_dns:

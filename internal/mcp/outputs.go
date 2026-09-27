@@ -202,7 +202,7 @@ func outputSchemas() map[string]map[string]any {
 		"update_site": siteSummaryWith(map[string]any{
 			"file_count":          outInteger("How many files the new version has."),
 			"unpublished_version": outInteger("Only with publish: false: the version stored without going live (active_version is still the live one)."),
-			"preview_url":         outString("Only with publish: false: an owner-only link (one hour) showing the stored version. Give it to the person; do not post it publicly."),
+			"preview_url":         outString("Only with publish: false: a link showing the stored version that works for anyone who has it, for one hour. Give it to the person; do not post it publicly."),
 		}, "file_count"),
 
 		"list_versions": outObject(map[string]any{
@@ -221,7 +221,7 @@ func outputSchemas() map[string]map[string]any {
 			"site":       outString(outSiteName),
 			"version":    outInteger("The version the link shows."),
 			"live":       outBool("Whether this version is the one visitors see now."),
-			"url":        outString("The preview link: owner-only, one hour, that version only. Give it to the person to open; do not post it publicly."),
+			"url":        outString("The preview link: works for anyone who has it, for one hour, that version only. Give it to the person to open; do not post it publicly."),
 			"expires_at": outString("When the link stops working (RFC 3339)."),
 		}, "site", "version", "live", "url", "expires_at"),
 

@@ -177,6 +177,25 @@ func TestSiteOffline(t *testing.T) {
 	if r := save(); r.status != http.StatusForbidden || r.json(t)["code"] != "site_offline" {
 		t.Fatalf("visitor save while offline: %d %s", r.status, r.body)
 	}
+	// Offline means offline: private-list entries, visitors' reads of saved
+	// data and lists, and visitor sign-in stop too.
+	if r := a.at(t, "PUT", apex, "/v1/sites/shop/collections/orders/privacy", map[string]bool{"private": true}, okey); r.status != 200 {
+		t.Fatalf("make private: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "POST", shop, "/v1/sites/shop/collections/orders", map[string]string{"item": "tea"}, browser(shop, cookie)); r.status != http.StatusForbidden || r.json(t)["code"] != "site_offline" {
+		t.Fatalf("private entry while offline: %d %s", r.status, r.body)
+	}
+	for _, p := range []string{"/v1/sites/shop/state", "/v1/sites/shop/collections/rsvps"} {
+		if r := a.at(t, "GET", shop, p, nil, browser(shop, "")); r.status != http.StatusForbidden || r.json(t)["code"] != "site_offline" {
+			t.Fatalf("visitor read %s while offline: %d %s", p, r.status, r.body)
+		}
+		if r := a.at(t, "GET", apex, p, nil, okey); r.status != 200 {
+			t.Fatalf("owner read %s while offline: %d %s", p, r.status, r.body)
+		}
+	}
+	if r := a.at(t, "POST", shop, "/v1/sites/shop/visitor/auth", map[string]string{"email": "ann@example.com"}, browser(shop, "")); r.status != http.StatusForbidden || r.json(t)["code"] != "site_offline" {
+		t.Fatalf("visitor sign-in while offline: %d %s", r.status, r.body)
+	}
 	if r := a.at(t, "PUT", shop, "/v1/sites/shop/state", map[string]any{"n": 1}, map[string]string{"X-API-Key": olive.key, "Origin": "https://" + shop}); r.status != 200 {
 		t.Fatalf("owner state write: %d %s", r.status, r.body)
 	}
@@ -322,6 +341,16 @@ func TestPreviewBeforeLive(t *testing.T) {
 	}
 	if r := a.at(t, "POST", shop, "/v1/sites/shop/collections/rsvps", item, browser(shop, cookie, "Referer", "https://"+shop+"/")); r.status != http.StatusCreated {
 		t.Fatalf("save from live page: %d %s", r.status, r.body)
+	}
+	// Private lists too.
+	if r := a.at(t, "PUT", apex, "/v1/sites/shop/collections/orders/privacy", map[string]bool{"private": true}, okey); r.status != 200 {
+		t.Fatalf("make private: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "POST", shop, "/v1/sites/shop/collections/orders", item, browser(shop, cookie, "Referer", "https://"+shop+path)); r.status != http.StatusForbidden || r.json(t)["code"] != "preview_read_only" {
+		t.Fatalf("private entry from preview: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "POST", shop, "/v1/sites/shop/collections/orders", item, browser(shop, cookie, "Referer", "https://"+shop+"/")); r.status != http.StatusCreated {
+		t.Fatalf("private entry from live page: %d %s", r.status, r.body)
 	}
 
 	// Preview links for any kept version, owner only.

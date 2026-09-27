@@ -953,7 +953,7 @@ func (h *SiteHandler) getSiteState(w http.ResponseWriter, r *http.Request) {
 	}
 	// A taken-down site serves nothing to the public; the owner's (or the
 	// admin's) key still reads it.
-	if _, owner := h.ownerSiteIDFromKey(r, siteName); !owner && h.refuseSuspendedSiteID(w, r, siteID) {
+	if _, owner := h.ownerSiteIDFromKey(r, siteName); !owner && (h.refuseSuspendedSiteID(w, r, siteID) || h.refuseOffline(w, r, siteID)) {
 		return
 	}
 
