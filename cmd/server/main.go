@@ -156,6 +156,16 @@ func main() {
 	// Before anything can serve an asset: the skills zips are built once and
 	// cached for the process lifetime, so the rewriter has to exist first.
 	handler.SetInstanceHosts(cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget)
+	// Who a person writes to about their account: the hosted service's
+	// support address only on simple-host.app; elsewhere IDLE_REPLY_TO when
+	// the operator set one, or whoever runs the server.
+	if cfg.SiteDomain != "simple-host.app" {
+		contact := "whoever runs this server"
+		if r := cfg.Limits.IdleReplyTo; r != "" && r != "support@simple-host.app" {
+			contact = r
+		}
+		auth.SetSupportContact(contact, cfg.ResendAPIKey != "")
+	}
 
 	pluginVersion, err := handler.PluginVersion()
 	if err != nil {
@@ -167,7 +177,7 @@ func main() {
 	mailer := email.NewResendSender(cfg.ResendAPIKey, cfg.MailFrom)
 	mailer.SetCodeLifetime(config.Span(cfg.Limits.SigninCodeTTL))
 	if cfg.ResendAPIKey == "" {
-		log.Printf("warning: RESEND_API_KEY not set; /v1/auth will fail until it is configured")
+		log.Printf("no RESEND_API_KEY: no email is sent, so sign-in codes (/v1/auth) and Submissions emails are off; accounts use keys the admin issues")
 	}
 
 	if names := cfg.EnabledVisitorProviders(); len(names) == 0 {
@@ -181,6 +191,7 @@ func main() {
 	userHandler := handler.NewUserHandler(db, mailer, cfg.PublicBaseURL)
 	userHandler.Register(mux, authMW, noticeMW)
 	siteHandler := handler.NewSiteHandler(db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID, mailer, userHandler.EmailLimiter())
+	siteHandler.SetVisitorSignIn(cfg.ResendAPIKey != "", cfg.EnabledVisitorProviders())
 	siteHandler.SetPersonHosts(cfg.PersonHosts)
 	siteHandler.SetSiteHosts(cfg.SiteHosts, cfg.SiteCertDir)
 	siteHandler.SetDomainCerts(cfg.DomainCertDir)
@@ -193,6 +204,12 @@ func main() {
 	dbpkg.SetPlatformDomain(cfg.SiteDomain)
 	log.Printf("person hosts: %s; site hosts: %s", cfg.PersonHosts, cfg.SiteHosts)
 	siteHandler.Register(mux, authMW, noticeMW)
+	handler.SetInstanceNote(handler.InstanceFacts{
+		SiteDomain: cfg.SiteDomain, ContentHost: cfg.ContentHost,
+		SharedOrigin: siteHandler.SharedOrigin(),
+		SignInEmail:  cfg.ResendAPIKey != "", SignInProviders: cfg.EnabledVisitorProviders(),
+		Contact: auth.SupportContact,
+	})
 	// Take-down markers on disk follow the database (suspend.go).
 	siteHandler.SyncSuspendMarkers(context.Background())
 	oauthHandler := handler.NewOAuthHandler(db, cfg)

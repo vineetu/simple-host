@@ -367,6 +367,9 @@ func (h *SiteHandler) setCollectionPrivacy(w http.ResponseWriter, r *http.Reques
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	if *req.Private && !set.Private && !h.signInNeededOK(w, "Private lists") {
+		return
+	}
 	if *req.Private && !hasHome {
 		writeJSON(w, http.StatusConflict, map[string]string{
 			"error": strings.Replace(privateListNeedsDomain, "%s", h.siteDomain, 1),

@@ -126,8 +126,10 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		APIHost:       apiHost,
 		ContentOrigin: "https://" + contentHost,
 		SkillVersion:  skillVersion,
-		ServerName:    "simple-host",
-		Version:       skillVersion,
+		// This install's contact in hints (auth.SetSupportContact runs first).
+		SupportContact: auth.SupportContact,
+		ServerName:     "simple-host",
+		Version:        skillVersion,
 		// An inline deploy carries the whole site in one message: the per-site
 		// limit, plus JSON/base64 overhead.
 		MaxBodyBytes: maxSiteArchiveSize*4/3 + (1 << 20),

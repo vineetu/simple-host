@@ -908,6 +908,12 @@ func (h *SiteHandler) declareData(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// Kinds that take saves only from signed-in visitors are not offered
+	// where nobody can sign in (a name already declared keeps its kind).
+	if req.Kind != prev.Kind && (req.Kind == db.KindEntries || req.Kind == db.KindPersonal || req.Kind == db.KindBoard) &&
+		!h.signInNeededOK(w, map[string]string{db.KindEntries: "Submissions", db.KindPersonal: "Personal records", db.KindBoard: "Shared boards"}[req.Kind]) {
+		return
+	}
 	// Personal records belong to the people who saved them: a Personal name
 	// becomes another kind (which the owner or everyone reads) only when it
 	// holds none, not even in Recently deleted.
@@ -978,9 +984,16 @@ func (h *SiteHandler) declareData(w http.ResponseWriter, r *http.Request) {
 		}
 		if notify == "" {
 			notify = db.NotifyDaily
-			if !private {
+			if !private || h.noEmail {
 				notify = db.NotifyOff
 			}
+		}
+		if notify != db.NotifyOff && h.noEmail && req.Notify != "" {
+			writeJSON(w, http.StatusConflict, errorResponse{
+				Error: `this server sends no email (RESEND_API_KEY is not set), so it cannot email you about new entries; send "notify": "off", and read them with GET .../data/` + name,
+				Code:  "email_unavailable",
+			})
+			return
 		}
 		if req.OnePerPerson != nil {
 			one = *req.OnePerPerson

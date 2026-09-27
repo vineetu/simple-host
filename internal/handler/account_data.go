@@ -100,13 +100,13 @@ func (h *SiteHandler) deleteMe(w http.ResponseWriter, r *http.Request) {
 	}
 	// The operator is handling a suspended account; it stays as it is.
 	if acct.Suspended {
-		writeJSON(w, http.StatusForbidden, errorResponse{Error: "this account is suspended; write to support@simple-host.app about deleting it", Code: "account_suspended"})
+		writeJSON(w, http.StatusForbidden, errorResponse{Error: supportText("this account is suspended; write to support@simple-host.app about deleting it"), Code: "account_suspended"})
 		return
 	}
 	// A site the operator took down stays as it is (its owner cannot delete
 	// it), so the account that holds it cannot be deleted here either.
 	if acct.TakenDown > 0 {
-		writeJSON(w, http.StatusForbidden, errorResponse{Error: "a site of this account was taken down; write to support@simple-host.app about deleting the account", Code: "site_suspended"})
+		writeJSON(w, http.StatusForbidden, errorResponse{Error: supportText("a site of this account was taken down; write to support@simple-host.app about deleting the account"), Code: "site_suspended"})
 		return
 	}
 	if acct.EventClaims > 0 {
@@ -228,7 +228,7 @@ If you did not ask for this, write to support@simple-host.app.
 
 Simple Host
 `
-	if err := mailer.SendNotice(to, "Your Simple Host account was deleted", text); err != nil {
+	if err := mailer.SendNotice(to, "Your Simple Host account was deleted", supportText(text)); err != nil {
 		log.Printf("account deleted: confirmation email: %v", err)
 	}
 }
@@ -513,10 +513,19 @@ func (h *SiteHandler) accountDocuments(ctx context.Context, me db.User) ([]expor
 	return out, nil
 }
 
+// supportText puts this install's contact (auth.SupportContact) where s
+// names the hosted service's support address.
+func supportText(s string) string {
+	if auth.SupportContact == "support@simple-host.app" {
+		return s
+	}
+	return strings.ReplaceAll(s, "support@simple-host.app", auth.SupportContact)
+}
+
 // exportReadme is README.txt at the top of Download my data. undoDays is
 // SAVED_DATA_UNDO_DAYS, how far back visitor.json's changes go.
 func exportReadme(undoDays int) string {
-	return strings.ReplaceAll(exportReadmeText, "{undo_days}", config.Count(undoDays, "day"))
+	return supportText(strings.ReplaceAll(exportReadmeText, "{undo_days}", config.Count(undoDays, "day")))
 }
 
 const exportReadmeText = `Your Simple Host data

@@ -2606,7 +2606,7 @@
             "description": "Site or version not found (including pruned versions)"
           },
           "409": {
-            "description": "The site has no address of its own to preview on (code preview_unavailable)"
+            "description": "No preview link (code preview_unavailable): the site has no address of its own yet, or the server gives sites none (every site on one shared address, as on a small box), which the message says"
           }
         }
       }
@@ -4739,7 +4739,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "too_many_names, has_entries, has_records, confirm_public, visitor_sign_in_off or custom_domain_required",
+            "description": "too_many_names, has_entries, has_records, confirm_public, visitor_sign_in_off, custom_domain_required, visitor_sign_in_unavailable (no visitor can sign in on this server; Submissions, Personal and Shared boards are not offered) or email_unavailable (the server sends no email; notify must be off)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5976,7 +5976,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "custom_domain_required, confirm_public (with `count`), visitor_sign_in_off, wrong_kind or too_many_names",
+            "description": "custom_domain_required, confirm_public (with `count`), visitor_sign_in_off, wrong_kind, too_many_names or visitor_sign_in_unavailable (no visitor can sign in on this server, so a list is not made private)",
             "content": {
               "application/json": {
                 "schema": {

@@ -31,6 +31,32 @@ type errorResponse struct {
 // whatever is sent, so keys issued before the prefix (bare hex) keep working.
 const APIKeyPrefix = "shk_"
 
+// SupportContact is who a person writes to about their account: the
+// hosted service's support address, or on another install whoever runs it
+// (SetSupportContact, from main).
+var SupportContact = "support@simple-host.app"
+
+// keyHelp is how a person gets a new key: signing in again with an emailed
+// code, or on an install that sends no email, from whoever runs it.
+var keyHelp = "Sign in again via POST /v1/auth for a new key."
+
+// SetSupportContact sets SupportContact and, when the install sends no email
+// (so nobody can sign in with a code), the key help. Call once at startup.
+func SetSupportContact(contact string, emailSignIn bool) {
+	if contact != "" {
+		SupportContact = contact
+	}
+	keyHelp = "Sign in again via POST /v1/auth for a new key."
+	if !emailSignIn {
+		keyHelp = "Ask whoever runs this server for a new key (its admin page issues one)."
+	}
+}
+
+// InvalidKeyMessage is the 401 invalid_api_key text.
+func InvalidKeyMessage() string {
+	return "invalid API key: the X-API-Key you sent is not recognized (it may have been revoked, or the account signed out). " + keyHelp
+}
+
 func GenerateAPIKey() (string, error) {
 	key := make([]byte, 32)
 	if _, err := rand.Read(key); err != nil {
@@ -85,7 +111,7 @@ func Middleware(adminAPIKey, adminUserID string, database *sql.DB) func(http.Han
 					msg := SuspendedMessage(user.SuspendedReason)
 					if r.URL.Path == "/v1/me/export.zip" || r.URL.Path == "/v1/me/export.tar.gz" {
 						// The right of access stands while suspended.
-						msg += "; write to support@simple-host.app for a copy of your data"
+						msg += "; write to " + SupportContact + " for a copy of your data"
 					}
 					writeJSON(w, http.StatusForbidden, map[string]string{
 						"error":  msg,
@@ -100,7 +126,7 @@ func Middleware(adminAPIKey, adminUserID string, database *sql.DB) func(http.Han
 					return
 				}
 				if errors.Is(err, sql.ErrNoRows) {
-					writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "invalid API key: the X-API-Key you sent is not recognized (it may have been revoked, or the account signed out). Sign in again via POST /v1/auth for a new key.", Code: "invalid_api_key"})
+					writeJSON(w, http.StatusUnauthorized, errorResponse{Error: InvalidKeyMessage(), Code: "invalid_api_key"})
 					return
 				}
 

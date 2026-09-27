@@ -164,7 +164,7 @@ func (h *UserHandler) rotateAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := db.RotateAPIKey(r.Context(), h.database, user.ID, user.KeyHash, newKey, db.KeyNameRotated); errors.Is(err, sql.ErrNoRows) {
 		// The key this request came with was revoked or rotated away meanwhile.
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "invalid API key: the X-API-Key you sent is not recognized (it may have been revoked, or the account signed out). Sign in again via POST /v1/auth for a new key.", Code: "invalid_api_key"})
+		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: auth.InvalidKeyMessage(), Code: "invalid_api_key"})
 		return
 	} else if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})

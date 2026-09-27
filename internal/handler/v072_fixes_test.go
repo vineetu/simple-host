@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 )
@@ -542,5 +543,90 @@ func TestNoticeKeepsResponseShape(t *testing.T) {
 	}
 	if rec := serve(obj, "1.2.3"); rec.Body.String() != obj {
 		t.Fatalf("current skill: %s", rec.Body.String())
+	}
+}
+
+// Small-box trial B7: where no visitor can sign in, the kinds that take saves
+// only from signed-in visitors are refused with a clear code, and where no
+// email is sent, Submissions emails are off.
+func TestNoVisitorSignInRefusesSignInKinds(t *testing.T) {
+	s := newKindsSite(t, true)
+	t.Cleanup(func() { s.a.sites.SetVisitorSignIn(true, []string{"google"}) })
+	s.a.sites.SetVisitorSignIn(false, nil)
+	for _, k := range []string{"entries", "mine", "board"} {
+		r := s.owner(t, "PUT", "/v1/sites/shop/data/x"+k+"/kind", map[string]any{"kind": k})
+		wantCode(t, "declare "+k, r, 409, "visitor_sign_in_unavailable")
+		if !strings.Contains(string(r.body), "RESEND_API_KEY") {
+			t.Fatalf("says what to set up: %s", r.body)
+		}
+	}
+	wantCode(t, "a private list", s.owner(t, "PUT", "/v1/sites/shop/collections/orders/privacy", map[string]bool{"private": true}), 409, "visitor_sign_in_unavailable")
+	s.declare(t, "menu", map[string]any{"kind": "content"}) // page info needs nobody to sign in
+
+	// Google sign-in, no email: Submissions work, with no emails.
+	s.a.sites.SetVisitorSignIn(false, []string{"google"})
+	out := s.declare(t, "rsvps", map[string]any{"kind": "entries"})
+	if out["notify"] != "off" {
+		t.Fatalf("no email, yet notify %v", out["notify"])
+	}
+	wantCode(t, "asking for emails", s.owner(t, "PUT", "/v1/sites/shop/data/rsvps/kind", map[string]any{"kind": "entries", "notify": "daily"}), 409, "email_unavailable")
+}
+
+// Small-box trial B5: a server that gives sites no address of their own says
+// plainly that it makes no preview links.
+func TestNoPreviewOnSharedOrigin(t *testing.T) {
+	a := newPrivateApp(t)
+	if !a.sites.SharedOrigin() {
+		t.Skip("the test app gives sites their own addresses")
+	}
+	ann := a.newPerson(t, "ann")
+	key := map[string]string{"X-API-Key": ann.key}
+	a.deploy(t, ann, "blog")
+	r := a.at(t, "PUT", "simple-host.test", "/v1/sites/blog/files?publish=false", map[string]any{"files": map[string]string{"index.html": "v2"}}, key)
+	if r.status != 200 || r.json(t)["preview_url"] != nil || !strings.Contains(r.json(t)["note"].(string), "per-site address") {
+		t.Fatalf("publish=false: %d %s", r.status, r.body)
+	}
+	p := a.at(t, "POST", "simple-host.test", "/v1/sites/blog/versions/2/preview-link", nil, key)
+	wantCode(t, "preview link", p, 409, "preview_unavailable")
+	if !strings.Contains(string(p.body), "per-site address") {
+		t.Fatalf("says why: %s", p.body)
+	}
+}
+
+// Small-box trial B7/B14: an install's llms.txt starts with what holds there,
+// and its messages name its own contact, not the hosted support mailbox.
+func TestInstanceNoteAndContact(t *testing.T) {
+	prevHosts, prevNote, prevContact := instanceHosts, instanceNote, auth.SupportContact
+	t.Cleanup(func() {
+		instanceHosts, instanceNote = prevHosts, prevNote
+		auth.SetSupportContact(prevContact, true)
+	})
+	SetInstanceHosts("ev.test", "sites.ev.test", "")
+	auth.SetSupportContact("whoever runs this server", false)
+	SetInstanceNote(InstanceFacts{SiteDomain: "ev.test", ContentHost: "sites.ev.test", SharedOrigin: true, Contact: auth.SupportContact})
+	rec := httptest.NewRecorder()
+	serveRewrittenAsset("llms.txt", instanceHosts, time.Now()).ServeHTTP(rec, httptest.NewRequest("GET", "/llms.txt", nil))
+	body := rec.Body.String()
+	for _, want := range []string{"THIS SERVER (ev.test)", "shares that one browser origin", "Never call SH.requireSignIn()",
+		"visitor_sign_in_unavailable", "preview_unavailable", "sends no email", "ask whoever runs this server",
+		"(one browser origin, shared by every site on this server)"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("llms.txt lacks %q", want)
+		}
+	}
+	if !strings.HasPrefix(body, "THIS SERVER") {
+		t.Errorf("the note is not first: %.80s", body)
+	}
+	if got := exportReadme(30); strings.Contains(got, "support@simple-host.app") || !strings.Contains(got, "whoever runs this server") {
+		t.Errorf("export README names the hosted mailbox")
+	}
+	if msg := auth.InvalidKeyMessage(); strings.Contains(msg, "/v1/auth") {
+		t.Errorf("invalid key message sends to email sign-in: %s", msg)
+	}
+	// On simple-host.app itself: no note.
+	SetInstanceHosts("simple-host.app", "", "")
+	SetInstanceNote(InstanceFacts{SiteDomain: "simple-host.app"})
+	if instanceNote != "" {
+		t.Errorf("a note on the hosted service")
 	}
 }

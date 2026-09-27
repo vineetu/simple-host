@@ -125,10 +125,38 @@ type SiteHandler struct {
 	boardLimiter *rateLimiter
 	// thinLimiter spaces out boundHistory's thinning: once a second per site.
 	thinLimiter *rateLimiter
+	// noVisitorSignIn: this install has no way for a visitor to sign in (no
+	// email codes, no Google/GitHub), so kinds that take saves only from
+	// signed-in visitors are refused. noEmail: it sends no email, so
+	// Submissions emails are off. Both false unless SetVisitorSignIn says.
+	noVisitorSignIn, noEmail bool
 	// thinStuck: sites whose history stayed over the cap after a thin (what
 	// is left is the per-day copies thinning keeps), with its size then.
 	// Thinning is skipped for them until the history grows by thinMargin.
 	thinStuck sync.Map // site id -> int64
+}
+
+// SetVisitorSignIn records how visitors can sign in on this install: email
+// codes (email) and the OAuth providers configured (providers).
+func (h *SiteHandler) SetVisitorSignIn(email bool, providers []string) {
+	h.noEmail = !email
+	h.noVisitorSignIn = !email && len(providers) == 0
+}
+
+// signInNeededOK refuses what needs a signed-in visitor (Submissions,
+// Personal, a Shared board, a private list: what) on an install where no
+// visitor can sign in. Writes the 409; false then.
+func (h *SiteHandler) signInNeededOK(w http.ResponseWriter, what string) bool {
+	if !h.noVisitorSignIn {
+		return true
+	}
+	writeJSON(w, http.StatusConflict, errorResponse{
+		Error: what + " take saves only from visitors who sign in, and visitors cannot sign in on this server: it has no sign-in method set up " +
+			"(email codes need RESEND_API_KEY; Google sign-in needs GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET). " +
+			"Use a Shared name (no kind) instead, or ask whoever runs this server to set one up",
+		Code: "visitor_sign_in_unavailable",
+	})
+	return false
 }
 
 // lockSite acquires the per-site upload mutex for one account's site name and
