@@ -93,6 +93,7 @@ var limitPhrases = []limitPhrase{
 
 	// MAX_SITES_PER_ACCOUNT
 	phrase("Up to a hundred sites", knob("MAX_SITES_PER_ACCOUNT"), func(l *config.Limits) string { return "Up to " + limitCommas(l.MaxSitesPerAccount) + " sites" }),
+	phrase("up to a hundred separate sites", knob("MAX_SITES_PER_ACCOUNT"), func(l *config.Limits) string { return "up to " + limitCommas(l.MaxSitesPerAccount) + " separate sites" }),
 	phrase("<b>100 sites</b>", knob("MAX_SITES_PER_ACCOUNT"), func(l *config.Limits) string { return "<b>" + limitCommas(l.MaxSitesPerAccount) + " sites</b>" }),
 
 	// MAX_FILES_PER_SITE
@@ -151,9 +152,13 @@ var limitPhrases = []limitPhrase{
 
 	// DOMAIN_CHECK_INTERVAL_MINUTES
 	phrase("about every two minutes", knob("DOMAIN_CHECK_INTERVAL_MINUTES"), func(l *config.Limits) string { return "about every " + limitSpan(l.DomainCheckInterval) }),
+	phrase("background check every two minutes", knob("DOMAIN_CHECK_INTERVAL_MINUTES"), func(l *config.Limits) string { return "background check every " + limitSpan(l.DomainCheckInterval) }),
 	phrase("every 2 minutes (releasing", knob("DOMAIN_CHECK_INTERVAL_MINUTES"), func(l *config.Limits) string { return "every " + limitSpan(l.DomainCheckInterval) + " (releasing" }),
 
 	// DOMAIN_CERTS_PER_ACCOUNT_DAILY
+	phrase("at most 5 new domain certificates per account per day", knob("DOMAIN_CERTS_PER_ACCOUNT_DAILY"), func(l *config.Limits) string {
+		return "at most " + limitNum(l.DomainCertsDaily) + " new domain certificates per account per day"
+	}),
 	phrase("at most 5 new domain certificates a day", knob("DOMAIN_CERTS_PER_ACCOUNT_DAILY"), func(l *config.Limits) string {
 		return "at most " + limitNum(l.DomainCertsDaily) + " new domain certificates a day"
 	}),

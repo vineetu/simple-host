@@ -2755,8 +2755,8 @@ paths:
       description: >-
         Re-proves the site's own domain at once (its TXT ownership record holds the
         site's token, it resolves here and serves the site over HTTPS; the check
-        connects only to this server's public address and never follows a redirect), instead of waiting for the background check every two
-        minutes, then answers exactly like GET .../domain with the new status and
+        connects only to this server's public address and never follows a redirect), instead of waiting for the
+        background check every two minutes, then answers exactly like GET .../domain with the new status and
         `last_error`. A free <name>.simple-host.app address needs no proof and is
         answered as is. Owner only (API key); rate-limited per IP and per account
         (a few at once, then one per 30 seconds; 429 with code rate_limited).
