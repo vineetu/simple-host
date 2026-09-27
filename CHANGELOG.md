@@ -2,6 +2,11 @@
 
 One line per shipped change, newest first. Add a line here in the same commit as any feature change.
 
+## 2026-09-27
+
+- `analytics-rebuild` now replays the rotated archives too (`.N.gz` oldest first, then `.1`, then the live log; Caddy's `access-<time>.log.gz` rolls on self-hosted boxes), instead of wiping history back to the last rotation. `--dry-run` lists the files it would read.
+- Privacy: raw server logs on simple-host.app are kept 30 days as the privacy page says: the analytics log keeps 29 archives (was 30), and the system journal is capped at 30 days (`deploy/prod/journald-retention.conf`).
+
 ## 2026-09-26
 
 - v0.2.0 released. The small-box installer pins one release: its image, compose file and schema all come from the same tag (before, `latest` pulled v0.1.2 against a newer schema and the app crash-looped on its schema check). The release workflow refuses a tag the installer does not pin.

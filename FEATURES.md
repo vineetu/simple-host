@@ -257,10 +257,10 @@ with country from local IP-range data; per-endpoint API metrics for admin. No cl
 | MCP tools | `site_analytics` |
 | Skill | `website-deploy/references/operations.md` §Analytics |
 | Pages | `st/analytics.html`, `st/showcase.html` Analytics tab, `st/index.html` site cards, `st/admin.html` API traffic |
-| Go | `internal/analytics/{ingest,classify,geo,countries,rebuild}.go` (attributes views on site hosts, person hosts, claimed names, custom domains; bot/human classes; salted ip_hash), `h/analytics.go`, `h/apimetrics.go` (every `/v1/*` request; IPs stored as /24 or /48), `internal/geoip/geoip.go` (DB-IP mmdb, watched), `cmd/analytics-rebuild`, `cmd/ip-country-load`, `web/analytics-parse.js` |
+| Go | `internal/analytics/{ingest,classify,geo,countries,rebuild}.go` (attributes views on site hosts, person hosts, claimed names, custom domains; bot/human classes; salted ip_hash), `h/analytics.go`, `h/apimetrics.go` (every `/v1/*` request; IPs stored as /24 or /48), `internal/geoip/geoip.go` (DB-IP mmdb, watched), `cmd/analytics-rebuild` (replays the rotated archives oldest first, then the live log), `cmd/ip-country-load`, `web/analytics-parse.js` |
 | DB | `site_view_hourly`, `site_visitor_hourly`, `site_geo_daily`, `site_view_daily`, `site_visitor_daily` (legacy, pruned after 400 days), `analytics_ingest_state`, `ip_country_ranges`, `api_request_daily`, `api_ip_daily` |
 | Env | `ANALYTICS_LOG`, `ANALYTICS_SALT`, `GEOIP_DIR` |
-| External | nginx `log_format shanalytics` (`deploy/prod/nginx-analytics-logformat.conf`, query string stripped), `deploy/prod/logrotate-analytics.conf`, DB-IP Lite via `scripts/geoip-refresh.sh` + `deploy/prod/simple-host-geoip-refresh.{service,timer}` |
+| External | nginx `log_format shanalytics` (`deploy/prod/nginx-analytics-logformat.conf`, query string stripped), `deploy/prod/logrotate-analytics.conf` (29 archives: raw IPs ≤30 days), DB-IP Lite via `scripts/geoip-refresh.sh` + `deploy/prod/simple-host-geoip-refresh.{service,timer}` |
 
 ## 13. Showcase / person index
 
@@ -355,7 +355,7 @@ notice.
 | Startup | `internal/db/schemacheck.go` `VerifySchema` (fails fast on missing columns); `db/schema.sql` + `db/migrations/*.sql` |
 | CLI subcommands | `simple-host oauth-client`, `simple-host review-account`, `simple-host geoip-verify` (`cmd/server/`); `cmd/analytics-rebuild`, `cmd/ip-country-load` |
 | Env | `DB_DSN`, `PORT`, `BIND_ADDR`, `DATA_DIR`, `SITE_DOMAIN`, `PUBLIC_BASE_URL`, `CONTENT_HOST`; dev-only `CHROME_SERVE_ADDR`, `CHROME_SERVE_FOR`; migration-only `UNIFY_KEEP` |
-| Deploy | `/usr/local/bin/simple-host` as `simple-host.service`, env `/etc/simple-host.env`; `deploy/prod/*`, `Dockerfile`, `compose.yaml`, `Makefile`; checks `scripts/check-{docs-sync,features,html,layering,claude-plugin,reserved-subdomains,fresh-install}.sh` |
+| Deploy | `/usr/local/bin/simple-host` as `simple-host.service`, env `/etc/simple-host.env`; `deploy/prod/*` (incl. log retention `logrotate-analytics.conf` and `journald-retention.conf`, 30 days), `Dockerfile`, `compose.yaml`, `Makefile`; checks `scripts/check-{docs-sync,features,html,layering,claude-plugin,reserved-subdomains,fresh-install}.sh` |
 
 ## 21. MCP tool index (`internal/mcp/tools.go`, 22 tools)
 

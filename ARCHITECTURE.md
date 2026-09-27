@@ -151,7 +151,7 @@ or admin reads, everyone else gets 404.
 - Leaves: `config`, `auth` (API-key middleware; reaches `db`), `tarball`, `email`, `oauth`
   (Google; GitHub wired, unconfigured), `geoip`, `capacity`, `eventdns`.
 - Outside Go: `db/schema.sql` (canonical) and `db/migrations/` (history, applied by hand);
-  `deploy/prod/` nginx, logrotate, geoip timer; `simple-host-website/` the Website Deploy
+  `deploy/prod/` nginx, logrotate, journald retention, geoip timer; `simple-host-website/` the Website Deploy
   skills and plugin, embedded in the binary; `plugins/simple-host/` the Claude directory plugin
   (generated skill copies); `openai-plugin/` the ChatGPT package; `scripts/` checks and ops.
 
@@ -197,6 +197,11 @@ Tables (`db/schema.sql`):
 - Schema changes are hand-applied SQL; add them to `db/schema.sql` and `db/migrations/`.
   The binary refuses to start if a column it reads is missing (`schemacheck.go`).
 - nginx edits are by hand, with a dated `.bak` first, then `nginx -t` and reload.
+- Log retention matches the privacy page's 30 days: `deploy/prod/logrotate-analytics.conf`
+  (installed as `/etc/logrotate.d/simple-host-analytics`; live day + 29 daily archives) and
+  `deploy/prod/journald-retention.conf` (installed as
+  `/etc/systemd/journald.conf.d/30-retention.conf`, `MaxRetentionSec=30day`, box-wide).
+  `analytics-rebuild` replays those archives, so a rebuild reaches back about 30 days.
 
 ## Invariants
 
