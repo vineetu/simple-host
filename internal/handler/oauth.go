@@ -161,6 +161,14 @@ func (h *OAuthHandler) startOnSite(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid return_to"})
 		return
 	}
+	// An offline site signs nobody in (offline.go).
+	if off, err := db.SiteOffline(r.Context(), h.database, siteID.String); err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	} else if off {
+		writeSiteOffline(w)
+		return
+	}
 	nonce, err := randomHex(32)
 	if err != nil {
 		log.Printf("oauth: random nonce: %v", err)

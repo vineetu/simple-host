@@ -222,6 +222,16 @@ func TestVisitorSignInBoundToStartingBrowser(t *testing.T) {
 	}
 	// A site state with no nonce (issued before this fix) never yields a code.
 	siteID := a.siteID(t, olive, "shop")
+	// An offline site starts no sign-in.
+	if _, err := a.database.Exec(`UPDATE sites SET offline_at = now() WHERE id = $1`, siteID); err != nil {
+		t.Fatal(err)
+	}
+	if r := a.at(t, "GET", siteHost, "/v1/visitor/oauth/google?return_to="+url.QueryEscape(returnTo), nil, nil); r.status != http.StatusForbidden || !strings.Contains(string(r.body), "site_offline") {
+		t.Fatalf("sign-in start while offline: %d %s", r.status, r.body)
+	}
+	if _, err := a.database.Exec(`UPDATE sites SET offline_at = NULL WHERE id = $1`, siteID); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := a.database.Exec(`INSERT INTO oauth_states (state, provider, code_verifier, return_to, host, site_id, purpose, expires_at) VALUES ('legacy-'||$1, 'google', 'v', $2, $3, $4, 'site', $5)`,
 		oh, returnTo, siteHost, siteID, time.Now().Add(time.Minute)); err != nil {
 		t.Fatal(err)
