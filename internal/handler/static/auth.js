@@ -13,8 +13,17 @@
  *     SH.mount('#sh-auth');
  *   });</script>
  *
- * Before saving: await SH.requireSignIn(); then await SH.state.patch([{op:"inc",path:"count",by:1}])
- * or await SH.collection('entries').append(item). Never automatically re-POST.
+ * Saved data has a name and a kind the owner's agent declares once (Page info:
+ * only the owner writes it; Submissions: visitors send them). SH.data(name, kind):
+ *   SH.data('menu', 'content').get()            -> the Page info document
+ *   var rsvps = SH.data('rsvps', 'entries');     (kind is optional; it is checked)
+ *   await SH.requireSignIn(); await rsvps.add({name: 'Ann'});
+ *   rsvps.mine() / rsvps.update(id, fields) / rsvps.remove(id) / rsvps.undo(id)
+ *     -> the visitor's own entries; rsvps.list() and rsvps.count() for the owner,
+ *     or anyone when the list is public. Writes carry an Idempotency-Key and are
+ *     retried once, with the same key, after a network error.
+ * Older pages: await SH.state.patch([{op:"inc",path:"count",by:1}]) or
+ * await SH.collection('entries').append(item). Never automatically re-POST those.
  * Private lists (owner-only reads; set by the owner): submit the same way while
  * signed in on the site's own address; the owner's admin page there reads them with
  * SH.collection(name).list() and edits with .update(id, fields) / .remove(id).
@@ -281,6 +290,97 @@
           if (!u) return Promise.reject(new Error("remove(id): id is the item's number from list()"));
           return request(u, {method: "DELETE", headers: {"X-SH-CSRF": "1"}}).catch(explain);
         }
+      };
+    },
+    data: function (name, kind) {
+      var base = API_BASE + "/data/" + encodeURIComponent(name);
+      var want = {"page info": "content", content: "content", submissions: "entries", entries: "entries"}[String(kind || "").toLowerCase()] || kind;
+      var checked = null;
+      // With a kind, the first call checks the name was declared as that kind.
+      function check() {
+        if (!want) return Promise.resolve();
+        if (!checked) {
+          checked = request(base + "/kind", {cache: "no-store"}).then(function (k) {
+            var e;
+            if (k.kind && k.kind !== want) {
+              e = new Error('"' + name + '" is ' + k.label + " (kind " + k.kind + "), not " + want);
+              e.code = "wrong_kind";
+              throw e;
+            }
+            if (!k.kind && k.accepts_saves === false) {
+              e = new Error('"' + name + '" is not declared yet: the site owner declares it as ' + want + " first");
+              e.code = "declare_first";
+              throw e;
+            }
+          });
+          checked.catch(function () { checked = null; });
+        }
+        return checked;
+      }
+      function explain(e) {
+        if (e && e.status === 404 && e.code === "not_found") {
+          e.message = "Not found. Private entries are read only by the site owner; a visitor reads their own with mine().";
+        }
+        throw e;
+      }
+      function newKey() {
+        if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+        return String(Date.now()) + "-" + Math.random().toString(36).slice(2);
+      }
+      // One Idempotency-Key per write; a network error (no answer) is retried
+      // once with the same key, so the server saves it once.
+      function send(url, method, body) {
+        var headers = {"Idempotency-Key": newKey()};
+        function go() { return write(url, method, body, Object.assign({}, headers)); }
+        return check().then(function () {
+          return go().catch(function (e) {
+            if (e && e.status === undefined) return go();
+            throw e;
+          });
+        }).catch(explain);
+      }
+      function itemURL(id, rest) {
+        if (!/^[0-9]+$/.test(String(id))) return null;
+        return base + "/items/" + String(id) + (rest || "");
+      }
+      function query(q) {
+        var params = Object.keys(q || {}).map(function (key) {
+          return encodeURIComponent(key) + "=" + encodeURIComponent(q[key]);
+        });
+        return params.length ? "?" + params.join("&") : "";
+      }
+      function byId(id, rest, method, body) {
+        var u = itemURL(id, rest);
+        if (!u) return Promise.reject(new Error("id is the entry's number from add(), mine() or list()"));
+        if (method === "DELETE") {
+          return check().then(function () {
+            return request(u, {method: "DELETE", headers: {"X-SH-CSRF": "1"}});
+          }).catch(explain);
+        }
+        return send(u, method, body);
+      }
+      return {
+        // Page info: the document (null until the owner saves one).
+        get: function () {
+          return check().then(function () { return request(base); }).then(function (r) {
+            return r && r.kind === "content" ? r.data : r;
+          }).catch(explain);
+        },
+        // Page info, the owner only (signed in on the site).
+        set: function (obj) { return send(base, "PUT", obj).then(function (r) { return r.data; }); },
+        // Submissions.
+        add: function (item) { return send(base, "POST", item); },
+        mine: function (q) {
+          var extra = query(q);
+          return check().then(function () { return request(base + "?mine=1" + (extra ? "&" + extra.slice(1) : "")); }).catch(explain);
+        },
+        list: function (q) { return check().then(function () { return request(base + query(q)); }).catch(explain); },
+        count: function () {
+          return check().then(function () { return request(base + "?count=1"); }).then(function (r) { return r.count; }).catch(explain);
+        },
+        update: function (id, fields) { return byId(id, "", "PATCH", fields || {}); },
+        remove: function (id) { return byId(id, "", "DELETE"); },
+        undo: function (id) { return byId(id, "/undo", "POST", {}); }
       };
     },
     mount: function (target) {

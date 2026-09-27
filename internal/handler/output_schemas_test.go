@@ -150,6 +150,14 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	call("delete_forever", map[string]any{"site": "shop", "collection": "orders", "all": true, "confirm_collection": "orders"})
 	call("delete_forever", map[string]any{"site": "shop", "history": true, "confirm_site": "shop"})
 
+	// Kinds: declare, page info, who may save, block, the list of names.
+	call("declare_data", map[string]any{"site": "shop", "name": "menu", "kind": "content"})
+	call("update_data", map[string]any{"site": "shop", "name": "menu", "data": map[string]any{"soup": 4}})
+	call("declare_data", map[string]any{"site": "shop", "name": "votes", "kind": "entries", "visibility": "public", "one_per_person": true, "notify": "off"})
+	call("set_who_can_save", map[string]any{"site": "shop", "mode": "listed", "allow": []any{"@example.com"}, "block": []any{"spam@example.org"}})
+	call("block_person", map[string]any{"site": "shop", "email": "flood@example.org"})
+	call("list_data", map[string]any{"site": "shop"})
+
 	call("site_analytics", map[string]any{"site": "shop", "days": 7})
 	call("export_site", map[string]any{"site": "shop"})
 	call("list_sites", map[string]any{})

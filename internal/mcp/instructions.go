@@ -20,29 +20,33 @@ PUBLISHING
 - After publishing, give the person the url the tool returned, exactly as returned. Never compose an address yourself.
 
 WHAT IS PUBLIC
-- Every page, the shared state and every public collection can be read by anyone who has the link. There are no password-protected pages. set_visibility only controls whether a site is listed on the person's public page; it is not privacy. Never put secrets in a page or in saved data.
-- The one private thing is a private collection: only the site owner (and the Simple Host operator, for moderation) can read it. Every site can have one; no domain is needed.
+- Every page, all Page info, the shared state and every public list can be read by anyone who has the link. There are no password-protected pages. set_visibility only controls whether a site is listed on the person's public page; it is not privacy. Never put secrets in a page or in saved data.
+- The one private thing is private Submissions (a private collection): only the site owner (and the Simple Host operator, for moderation) reads them all; each visitor reads only their own. Every site can have them; no domain is needed.
 
 SAVING DATA FROM A PAGE (forms, RSVPs, votes, guestbooks)
-- Two stores per site: one shared JSON "state" document (counters, settings, small lists; atomic ops) and "collections" that visitors append to (one item per submission; newest-first, paged; only the owner deletes).
+- Every piece of saved data has a name and one kind. Before a page saves to a name, declare it once with declare_data; on sites made since the kinds, a name with no kind takes no saves at all (error declare_first). What is this data?
+  - Page info (kind content): text and settings only the owner writes and everyone reads (a menu, schedule, prices, dashboard numbers). You write it with update_data; the page reads it with SH.data('menu').get().
+  - Submissions (kind entries): things visitors send (RSVPs, orders, sign-ups, votes, comments, feedback). Private to the owner by default; visibility public for a guestbook or public comments. Each visitor sees, changes and withdraws only their own. one_per_person for votes or one RSVP each. The owner is emailed a daily digest of new private entries (notify: daily, each or off).
+  - It does not fit: roles, per-field rules, joins, search, or several people editing one shared object. Say so rather than approximating it.
 - In the page, load the hosted helper and put SH.requireSignIn() before every save:
   <script>window.SH_CONFIG = { site: "<site-name>" };</script>
   <script src="https://simple-host.app/auth.js" defer></script>
-  <div id="sh-auth"></div>   then in JS: SH.mount('#sh-auth'); await SH.requireSignIn(); await SH.collection('rsvps').append({...}); await SH.state.patch([{op:'inc', path:'count', by:1}]);
-  Reads: const {data} = await SH.state.get(); await SH.collection('rsvps').list({limit:50}).
+  <div id="sh-auth"></div>   then in JS: SH.mount('#sh-auth'); await SH.requireSignIn(); const rsvps = SH.data('rsvps', 'entries'); await rsvps.add({...});
+  A visitor's own: await rsvps.mine(); await rsvps.update(id, {guests: 3}); await rsvps.remove(id) (withdraw; rsvps.undo(id) brings it back for a few minutes). Everyone (public list, or the owner): await rsvps.list({limit:50}); await rsvps.count().
 - Always call SH.requireSignIn() before a save: every save from a page needs a visitor signed in with Google or an emailed code on the site's own address; a sign-in there covers that site only. You (with these tools) save without it. The same page code works on the site's own address and on a connected domain.
-- On a failed save keep the form filled, show the error, and never claim success. Never re-send a collection item after an error.
-- Public lists (guestbook, votes, public comments) stay public: pair them with a results page (e.g. results.html) linked quietly from the main page.
-- Per-visitor things (drafts, preferences) belong in localStorage, not in shared state.
-- You can read and change a site's data directly with get_state, update_state, list_collections, read_collection and add_to_collection.
+- On a failed save keep the form filled, show the error, and never claim success. SH.data writes are safe to retry (they carry an idempotency key); never re-send by hand after an error.
+- Who may save on a site: anyone who signs in (the default), or only listed emails and whole @domains (set_who_can_save). block_person stops one person (or domain) from saving more.
+- Older sites also have a shared "state" document (SH.state, get_state, update_state) for counters and settings, and lists nobody declared keep working as public lists there (list_data says undeclared_names_take_saves).
+- Per-visitor things (drafts, preferences) belong in localStorage, not in saved data.
+- list_data shows every name with its kind; read_collection reads Submissions (and a Page info document, as one item); add_to_collection adds to public ones.
 
 PERSONAL DETAILS: ORDERS, RSVPS, SURVEYS, SIGN-UPS
-- Anything with names, emails, phone numbers or addresses goes in a private collection. Do this, in order:
-  1. set_collection_privacy {site, collection, private: true} before the form goes live.
-  2. The form page: await SH.requireSignIn(); then SH.collection('orders').append({...}). The item must be one object. The server adds _submitted_by (the visitor's verified email) and _submitted_at; show the visitor the item the append returns. Visitors cannot read their items back.
-  3. An owner admin page on the site (e.g. orders.html, linked quietly or not at all): await SH.requireSignIn(); then SH.collection('orders').list(). It works only for the owner's own account; everyone else gets not found. Each item has an id: SH.collection('orders').update(id, {status: 'done'}) and .remove(id) let the owner mark or delete items.
-- The owner also sees the list in the dashboard and can download a spreadsheet. You read it with read_collection, and change or delete items with update_collection_item and delete_collection_item (delete only after the person confirms that item). add_to_collection cannot add to a private list. In a public list (guestbook, comments) the owner can delete an item (spam) but not edit it; visitors only add. clear_collection empties a whole list, only after the person confirms that list by name.
-- set_collection_privacy with private: false makes everything already in the list public; confirm with the person first.
+- Anything with names, emails, phone numbers or addresses goes in private Submissions. Do this, in order:
+  1. declare_data {site, name: 'orders', kind: 'entries'} before the form goes live (private to the owner is the default).
+  2. The form page: await SH.requireSignIn(); then SH.data('orders', 'entries').add({...}). The item must be one object. The server adds _submitted_by (the visitor's verified email) and _submitted_at. The visitor can see, change and withdraw their own with .mine(), .update(id, fields), .remove(id).
+  3. An owner admin page on the site (e.g. orders.html, linked quietly or not at all): await SH.requireSignIn(); then SH.data('orders').list(). It works only for the owner's own account; everyone else gets not found. The owner can also .update(id, {status: 'done'}) and .remove(id) any item.
+- The owner also sees every name, its kind and its entries (with who sent each) in their sites page, and can download a spreadsheet. You read it with read_collection, and change or delete items with update_collection_item and delete_collection_item (delete only after the person confirms that item). add_to_collection cannot add to a private list. In a public list the owner can delete an item (spam) but not edit it. clear_collection empties a whole list, only after the person confirms that list by name.
+- Making Submissions public (declare_data with visibility public, or set_collection_privacy private: false) shows everything already in the list to anyone; confirm with the person first.
 
 CARE
 - delete_site takes a site offline with every version and all saved data. It stays in Recently deleted for {deleted_retention} (list_deleted_sites; restore_site brings it back exactly as it was), then it is gone for good. Only call it after the person explicitly confirms that specific site.

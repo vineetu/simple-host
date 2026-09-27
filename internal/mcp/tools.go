@@ -203,6 +203,18 @@ var codeHints = map[string]string{
 	"account_suspended":        "This account is suspended by the operator. Tell the person to contact support@simple-host.app; do not retry.",
 	"preview_unavailable":      "This site has no address of its own to show a preview on. Tell the person; the version can still be made live with rollback_site.",
 	"site_offline":             "The owner has taken this site offline, so visitors cannot save to it. Put it back online with set_site_offline if the person wants that; the owner's own changes still work.",
+	"declare_first":            "This name has no kind yet, so nothing can be saved under it. Say what it is with declare_data: kind entries for things visitors send, kind content for page info only the owner writes. Then call again.",
+	"wrong_kind":               "This name is declared as another kind. Page info (content) is written whole with update_data; Submissions (entries) take new items with add_to_collection. Check list_data, or change the kind with declare_data if the person wants.",
+	"owner_only":               "Only the site's owner can change page info. Tell the person; a visitor cannot.",
+	"one_per_person":           "This list takes one entry per person, and this person already has one. Change that entry instead, or withdraw it first.",
+	"list_full":                "This list is full. The owner can delete entries (delete_collection_item) or clear it (clear_collection) to make room.",
+	"not_allowed_to_save":      "The site's owner has not allowed this account to save here (list_data shows who may save; set_who_can_save changes it). Tell the person rather than retrying.",
+	"too_many_names":           "The site has as many page info names as it may hold. Keep related settings together in one page info document.",
+	"has_entries":              "That name holds several entries, and page info is one document. Use another name for the page info.",
+	"invalid_kind":             "kind is entries (Submissions) or content (Page info); visibility, one_per_person and notify apply to entries only. Correct the arguments and call again.",
+	"invalid_savers":           "Send emails (ann@example.com) or whole domains (@company.com). Correct the list and call again.",
+	"too_many_savers":          "The who-may-save and block lists together are full. Remove some entries (set_who_can_save) first.",
+	"no_author":                "That entry was saved without a sign-in, so there is nobody to block. Delete it instead if the person wants.",
 }
 
 func codeHint(code string) string { return codeHints[code] }
@@ -1354,7 +1366,7 @@ func Tools() []Tool {
 		{
 			Name:        "add_to_collection",
 			Title:       "Add an item to a collection",
-			Description: "Append one JSON object to a site's public collection (at most 64 KB), exactly as a page would. Do not retry one that may have succeeded: a second call adds a second item. A private collection takes items only from visitors signed in on the site's own address; this tool cannot add to one.",
+			Description: "Append one JSON object to a site's public collection (at most 64 KB; a name declared as Submissions takes smaller entries), exactly as a page would. Do not retry one that may have succeeded: a second call adds a second item. A private collection takes items only from visitors signed in on the site's own address; this tool cannot add to one. On sites made since the kinds, the name must be declared first (declare_data).",
 			InputSchema: object(map[string]any{
 				"site":       str(siteDesc),
 				"collection": str("Collection name, e.g. `rsvps`."),
@@ -2087,7 +2099,11 @@ func Tools() []Tool {
 			},
 		},
 	}
+	tools = append(tools, kindTools()...)
 	schemas := outputSchemas()
+	for name, schema := range kindOutputSchemas() {
+		schemas[name] = schema
+	}
 	for i := range tools {
 		tools[i].OutputSchema = schemas[tools[i].Name]
 	}
