@@ -546,7 +546,7 @@ as the person, so they meet the same checks as REST. Connector tokens are stored
 ## 9. Skills and plugin distribution
 
 Skills source is `simple-host-website/skills/` (embedded via `simple-host-website/embed.go`) at
-version **0.26.1**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
+version **0.26.2**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live**
 (ChatGPT and Claude directory listings submitted 2026-09-24, pending).
 
@@ -685,10 +685,19 @@ Go: `h/ui.go`, `h/chrome.go`. Assets: `st/og.png`, `st/favicon.svg`, `st/site.cs
 
 **Setup helper (`/setup`).** A page like start.spring.io for running your own: choose **Small box** (one server with
 Docker Compose) or **Enterprise** (Kubernetes), then **Basic** (small box: domain, sites hostname, certificate email,
-sign-in by emailed code and/or Google, sender; Enterprise: address, admins, OIDC issuer/client/domains, owner
+sign-in by emailed code and/or Google, sender, and **Where it runs**: UpCloud (recommended, the default) or a server
+you already have; Enterprise: address, admins, OIDC issuer/client/domains, owner
 certificate issuer, SMTP, bucket provider/endpoint/region/name/credentials, Postgres) or **Advanced** (the basics, then
 every other setting area by area, default preselected, a one-line explanation, range checks as you type, Skip
-restores the default, progress by step and area). Output: small box → the one-line `install.sh` command (its flags
+restores the default, progress by step and area). **UpCloud** (small box, "Where it runs"): one line on why ("The
+smallest UpCloud server (1 CPU, 1 GB, about $5/month) runs Simple Host comfortably; we test on it."), a **Create your
+UpCloud account — $300 in credits** button to the referral link `https://signup.upcloud.com/?promo=JF2WCV` (new tab,
+`rel="noopener"`) with "Referral link. The $300 credit is UpCloud's offer for new accounts through this link; their
+terms apply." under it, and the steps (create the account → create an API user, a sub-account with API access, in the
+UpCloud control panel → answer the questions → on the files step, set the API user in your terminal and give your agent
+the prompt); the page has no field for UpCloud credentials and never asks for them. Output: small box → the one-line
+`install.sh` command, fetched from the release the installer pins (`INSTALLER_RELEASE` in setup.js, equal to
+`VERSION` in `install.sh` by test), not `main` (its flags
 for host, sites host, email, `--max-site-mb`, `--keep-versions`) and the `/opt/simple-host/.env` lines (only changed
 and needed values; Copy, Download) with where to paste them and the restart line; Enterprise → `config.env` for
 `deploy/overlays/byo` (the ConfigMap), a `secrets.env` template naming every secret as a blank with how to generate
@@ -699,8 +708,18 @@ the install command, the `.env` lines, `docker compose up -d`; Enterprise: clone
 `INSTALL.md` with these `config.env`/`secrets.env`, the overlay edits, `make install … INSTALL_CONTEXT=…`), checks
 (`/healthz` → 200, `docker compose ps`, the sites host's certificate; `/readyz`, an owner host, an admin sign-in) and, where
 the assistant is on, "paste the error at `<origin>/setup?product=<p>#help`"; secrets stay blanks for the agent to ask for.
-Where it runs is one entry per product in `TARGETS` (setup.js), so a later "where do you want to run it" step can add
-platforms. `/setup?product=enterprise` or `?product=small-box` preselects the first choice (the
+On UpCloud the files step leads with this block, headed **Set it up on UpCloud with your AI agent**: a one-line
+command for the person's own terminal (`printf`/`read`, the password read with `stty -echo`, then `export
+UPCLOUD_USERNAME UPCLOUD_PASSWORD`; bash and zsh) and the prompt, which tells the agent to use those variables only from
+the environment (never ask for them in chat, print them or write them anywhere), to use `upctl` or the UpCloud API,
+create an SSH key `~/.ssh/simple-host` if missing, list plans and take the smallest with 1 CPU and 1 GB
+(`STARTER-1xCPU-1GB` today; tell the person the price first), ask for the zone, take the plain Ubuntu Server 24.04 LTS
+template (not the CUDA one), the plan's disk at tier `standard`, root login with the key, a public IPv4; DNS A records
+for the domain and `*.<domain>` (plus the sites hostname when it is not under the domain), checked with `dig`; run the
+pinned installer over SSH; the `.env` lines; `/healthz`, `docker compose ps` and the sites host's certificate; then
+report the admin page `https://<domain>/admin` and the server's UUID, address, plan and zone. The by-hand steps follow
+("Or do it by hand"). Where it runs is one entry per target in `TARGETS` (setup.js: small box `upcloud`, `server`;
+Enterprise `kubernetes`), so another platform is one more entry and one more choice. `/setup?product=enterprise` or `?product=small-box` preselects the first choice (the
 links on the enterprise and hosted pages). Runs in the browser (its only requests are its own files, the optional
 check and the assistant below; `credentials: 'omit'`), never asks for a secret's value, light only. **Check my choices** (optional, where
 the server has its model backend): just before the files, when the visitor changed any number, duration, switch,
@@ -743,7 +762,8 @@ message is redacted too. The conversation (last 4 turns per product) lives in th
 | Assist route | `POST /v1/setup/assist` `{product, step: choose\|basics\|advanced\|files, mode?, area?, choices?, basics?, message, pasted?, history?}` → `{answer, changes: [{setting, value, why}], basics: {key: value}}`, or with `Accept: text/event-stream` `data: {"t"}` pieces (stopped before the changes marker, even one arriving in pieces) then `data: {"done":true,"answer","changes","basics"}`. Request: unknown fields 400 `invalid_body`; `choices` exactly as the check takes settings (0–80; `unknown_setting`, `secret_not_accepted`, `setting_not_checkable`, `invalid_value`); `basics` only the answers picked from lists (small box `codes`, `google`; Enterprise `idp`, `certs`, `smtp`, `bucket`, `creds`; else `unknown_basic`/`invalid_value`); `message` 1–500 characters; `pasted` ≤ 8 KB (`paste_too_long`); message, pasted output and earlier questions redacted again on the server (`h/setupredact.go`, the same rules as the page's). Response: every change checked — dropped if the helper does not write that setting (a basic question's, a secret, free text, or on a small box one Compose does not pass through), the value is outside its range, equals the current value, or loosens a security-sensitive setting past both its default and the current value (the check's rules, `strict_order` and `zero_is_never` included); canonical values; at most 12; `why` ≤ 200 characters with no links; answer plain with no links. Same-origin only, shares Ask's per-IP/per-network buckets, its own in-flight cap `SETUP_ASSIST_MAX_IN_FLIGHT` (1), per-network count per UTC day in memory `SETUP_ASSIST_PER_NETWORK_DAILY` (40), daily count `SETUP_ASSIST_DAILY_MAX` (300; 0 turns it off and hides the panel) in table `setup_assist_daily` (migration `v073-setup-assist-daily.sql`); left out of `h/cors.go` and `h/apimetrics.go` |
 | Assist Go | `h/setupassist.go` (prompt = rules, the product's basic questions (proposable ones with their values, typed ones never proposed), the check's FACTS, the product guide `h/askdata/setup-<product>.txt` through the Ask filter, troubleshooting `h/askdata/setup-troubleshoot-<product>.txt` through a lighter filter that keeps install commands, and the settings the helper writes area by area with type, default, range, security flag and description; ASK_MODEL and ASK_REASONING_EFFORT, up to 1200 tokens; one request, never retried; log line: product, step, number of choices, whether output was pasted, the day's count), `h/setupredact.go`, `h/chrome.go` (`<!--sh:setup-assist-->` → the script tag when on) |
 | Assist page | `st/setup/assist.js` (panel, streaming, items, redaction and review, `#help`), `st/setup/setup.js` (`window.shSetup`: context, describe, apply, describeBasic, applyBasic, refresh; `<setupBasics>` block), styles in `st/setup-helper.html` |
-| Assist tests | `h/setupassist_test.go` (validation, dropped changes, no looser changes, reply shapes, prompt contents and no leaks, streaming, caps and own slots, no CORS or metrics, redaction cases in Go and the page's JS against `h/testdata/setup-redact-cases.json`, knowledge filters, basics lists equal the page's, the script only when on); `scripts/e2e-setup-assist.js` with `scripts/e2e-setup-assist-sidecar.py` drives the page in Chromium (ask → items → apply → files reflect it, clean-up, paste → review → send, both products, 390 and 1280) |
+| UpCloud | `st/setup/setup.js` (`UPCLOUD_SIGNUP`, `upcloudOffer`, `renderWhere`, `TARGETS`, `UPCLOUD_CREDS`, `handoff`), styles `.cta`/`.fine` in `st/setup-helper.html`; `h/setuphelper_test.go` (`TestSetupHelperInstallerRelease`: pinned release equals `install.sh`, the exact referral URL); the assistant's knowledge (`h/askdata/setup-small-box.txt`, UpCloud errors in `setup-troubleshoot-small-box.txt`); `docs/advanced/README.md` and the run-hackathon skill's `install.md`/`providers.md` carry the recommendation and the referral note; pasted `curl -u`/`--user` passwords are redacted |
+| Assist tests | `h/setupassist_test.go` (validation, dropped changes, no looser changes, reply shapes, prompt contents and no leaks, streaming, caps and own slots, no CORS or metrics, redaction cases in Go and the page's JS against `h/testdata/setup-redact-cases.json`, knowledge filters, basics lists equal the page's, the script only when on); `scripts/e2e-setup-assist.js` with `scripts/e2e-setup-assist-sidecar.py` drives the page in Chromium (ask → items → apply → files reflect it, clean-up, paste → review → send, both products, 390 and 1280; the UpCloud block: the button's text, exact URL, new tab and noopener, the referral note, no credential field on the page; the prompt's pinned installer URL, chosen settings, UpCloud steps and credential rules; a server of your own gets no UpCloud steps) |
 
 | Surface | Details |
 |---|---|

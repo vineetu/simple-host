@@ -18,6 +18,28 @@ error you paste (redacted first, and sent only after you review it); you apply e
 suggests. The files step also gives one block to hand to **your own AI agent**: what the server
 needs, every step with your files in it, and how to check the result.
 
+## Where to run a small box
+
+Any fresh Ubuntu server with a public IPv4 address works. We recommend **UpCloud**: the smallest
+UpCloud server (1 CPU, 1 GB, about $5/month) runs Simple Host comfortably; we test on it.
+[Create your UpCloud account — $300 in credits](https://signup.upcloud.com/?promo=JF2WCV)
+(referral link. The $300 credit is UpCloud's offer for new accounts through this link; their terms
+apply.)
+
+1. Create your UpCloud account.
+2. In the UpCloud control panel, create an API user: a sub-account with API access allowed.
+3. Answer the questions at https://simple-host.app/setup?product=small-box, with **UpCloud** as
+   where it runs.
+4. On the files step, run the one line it gives in your own terminal (it asks for the API user's
+   name and password and keeps them there as `UPCLOUD_USERNAME` and `UPCLOUD_PASSWORD`), start
+   your AI agent in that terminal and give it the prompt. The agent creates the smallest Ubuntu
+   24.04 server with `upctl` or the UpCloud API and your SSH key, has you add the DNS records
+   (your domain and `*.<domain>`), runs the installer from its pinned release with your choices,
+   checks `/healthz` and HTTPS, and tells you the admin page. If anything fails, paste the error
+   at https://simple-host.app/setup?product=small-box#help.
+
+The setup page never asks for or accepts UpCloud credentials.
+
 ## Where settings go
 
 - **Small box (Docker Compose, `deploy/install/install.sh`):** `/opt/simple-host/.env`, then
