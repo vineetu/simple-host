@@ -399,6 +399,22 @@ What follows from that, and is not negotiable without changing the line above:
   are claimed before sending, so they go out once and a failed send is not retried. Reason: a
   strict default broke every site built by an older skill or by AI create on arrival. Owner
   decision 2026-09-27.
+- **2026-09-27. Saved data steps 3 and 4 (Personal, Shared board), as built.** **Personal**
+  (`mine`) is one private record per signed-in visitor per name. Only that visitor reads or
+  writes it; the site owner (key, connector, owner app, CSV, history, Recently deleted, the
+  site's download) and the operator never read one: the owner sees how many people have a record
+  and their size, and can clear the name for everyone (restore brings back only what the clear
+  took). This is stricter than the plan's "the owner can export it": the build brief said
+  Personal content is never visible to the owner, and a record is its person's (it is in their
+  own Download my data and goes with their account). A name must be empty to become Personal
+  and a Personal name that holds records never becomes another kind. The visitor lists and
+  restores their own record's 30-day history. **Shared board** (`board`): anyone reads it; any
+  signed-in visitor allowed to save adds, changes and deletes any item, one at a time, with an
+  optional version check (409 `version_conflict`); whoever deleted an item can undo it for a few
+  minutes; only the owner clears it; no live feed (pages poll with `If-None-Match`). Both need
+  the site's own address. Every number is a `SAVED_DATA_*` knob (64 KB per record, 16 KB per
+  item, 2,000 items per board, 20 names of each per site). Reason: the approved plan's steps 3
+  and 4, smallest complete version. Decided under the approved plan; the owner may overrule.
 
 ## Open, deliberately parked
 
