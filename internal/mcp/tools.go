@@ -449,6 +449,14 @@ func domainSummary(site string, body []byte) map[string]any {
 			Host  string `json:"host"`
 			Value string `json:"value"`
 		} `json:"dns_txt"`
+		PartnerDomain string `json:"partner_domain"`
+		PartnerStatus string `json:"partner_status"`
+		PartnerNote   string `json:"partner_note"`
+		PartnerDNS    *struct {
+			Type  string `json:"type"`
+			Host  string `json:"host"`
+			Value string `json:"value"`
+		} `json:"dns_partner"`
 	}
 	_ = json.Unmarshal(body, &d)
 	out := map[string]any{"site": site}
@@ -467,6 +475,17 @@ func domainSummary(site string, body []byte) map[string]any {
 	if d.TXT != nil {
 		out["ownership_record"] = map[string]any{"type": d.TXT.Type, "host": d.TXT.Host, "value": d.TXT.Value}
 	}
+	if d.PartnerDomain != "" && d.PartnerDNS != nil {
+		partner := map[string]any{
+			"domain":     d.PartnerDomain,
+			"status":     d.PartnerStatus,
+			"dns_record": map[string]any{"type": d.PartnerDNS.Type, "host": d.PartnerDNS.Host, "value": d.PartnerDNS.Value},
+		}
+		if d.PartnerNote != "" {
+			partner["note"] = d.PartnerNote
+		}
+		out["partner"] = partner
+	}
 	if d.LastError != "" {
 		out["last_check"] = d.LastError
 	}
@@ -484,6 +503,9 @@ func domainSummary(site string, body []byte) map[string]any {
 	}
 	if d.Status != nil && *d.Status == "pending" {
 		out["note"] = "Add both DNS records at the domain's registrar within 24 hours: dns_record points the domain here, and ownership_record (a TXT record) proves it is the person's; keep the TXT record in place afterwards. Until both are seen, the binding is provisional. Then the certificate is issued automatically and the domain goes live within minutes."
+		if _, ok := out["partner"]; ok {
+			out["note"] = out["note"].(string) + " Also add partner.dns_record so " + d.PartnerDomain + " forwards to " + *d.Domain + " (the one ownership record covers both)."
+		}
 	}
 	return out
 }

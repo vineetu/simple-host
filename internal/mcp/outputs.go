@@ -120,6 +120,16 @@ func domainSchema(justConnected bool) map[string]any {
 			"host":  outString("_simple-host.<domain>, the name the TXT record is added for."),
 			"value": outString("This site's ownership token, the record's value."),
 		}, "type", "host", "value"), "The TXT record that proves the domain is the person's, to add at the registrar next to dns_record and keep in place. Nothing is verified or certified without it. Absent for a free simple-host.app address."),
+		"partner": withDescription(outObject(map[string]any{
+			"domain": outString("www.<domain> for a bare domain, or the bare domain for www.<domain>."),
+			"status": outEnum("pending (the domain itself is not live yet), live (it forwards to the domain), or not_set_up (note says why; it is picked up automatically once fixed).", "pending", "live", "not_set_up"),
+			"dns_record": withDescription(outObject(map[string]any{
+				"type":  outString("CNAME for www.<domain>, A for a bare domain."),
+				"host":  outString("The partner name."),
+				"value": outString("The record's value."),
+			}, "type", "host", "value"), "The record that points the partner here too. The ownership record on the domain covers both."),
+			"note": outString("Why the partner is not set up. Present only then."),
+		}, "domain", "status", "dns_record"), "The domain's www / bare partner, which forwards to the domain so both work. Present only for a bare domain or www.<bare domain>."),
 		"last_check":    outString("Why the domain is not active yet, from the most recent check. Present only after a failed check."),
 		"url":           outString("The site's address on this domain. Present only when status is active."),
 		"certificate":   outEnum("The domain's HTTPS certificate: pending (DNS not pointed here yet), issuing (automatic, usually minutes), live, or failed (last_check says why; it is retried). Absent for a free simple-host.app address.", "pending", "issuing", "live", "failed"),
@@ -132,6 +142,8 @@ func domainSchema(justConnected bool) map[string]any {
 		props["status"] = outEnum("pending (add the DNS records in dns_record and ownership_record, then check with domain_status) or active (a free simple-host.app address, live at once).", "pending", "active")
 		delete(props, "last_check")
 		delete(props, "failing_since")
+		// Just connected: the partner waits with the domain.
+		delete(props["partner"].(map[string]any)["properties"].(map[string]any), "note")
 	}
 	return outObject(props, "site", "domain", "status")
 }
