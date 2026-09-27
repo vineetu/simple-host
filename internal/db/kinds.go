@@ -887,16 +887,23 @@ type NotifyDue struct {
 	SentAt     *time.Time
 	Count      int64
 	CheckUntil time.Time
+	// LastID is the newest entry counted; the claim records it, and the
+	// next email counts only entries after it.
+	LastID int64
 }
 
 // DueNotifications lists every name with notify each or daily whose interval
 // has passed and that has new entries from people other than the owner since
 // the last email (or since it was declared). Taken-down, offline and deleted
-// sites are skipped.
+// sites are skipped. "Since" is by id once an email recorded one: entries of
+// a Submissions name go in one at a time under the name's lock, so their ids
+// are in commit order, while created_at (a transaction's start) is not, and
+// an entry committed just after one digest read would be missed by every
+// later one.
 func DueNotifications(ctx context.Context, database *sql.DB, each, daily time.Duration) ([]NotifyDue, error) {
 	rows, err := database.QueryContext(ctx, `
 		WITH due AS (
-			SELECT cs.site_id, cs.collection, cs.notify, cs.notify_sent_at,
+			SELECT cs.site_id, cs.collection, cs.notify, cs.notify_sent_at, cs.notify_last_id,
 			       COALESCE(cs.notify_sent_at, cs.declared_at, cs.updated_at) AS since
 			  FROM collection_settings cs
 			 WHERE cs.kind = 'entries' AND cs.notify IN ('each', 'daily')
@@ -904,12 +911,13 @@ func DueNotifications(ctx context.Context, database *sql.DB, each, daily time.Du
 			       now() - CASE WHEN cs.notify = 'each' THEN $1::interval ELSE $2::interval END
 		)
 		SELECT d.site_id, s.name, COALESCE(u.handle, ''), s.user_id, d.collection, d.notify, d.since, d.notify_sent_at, now(),
-		       count(ci.id)
+		       count(ci.id), max(ci.id)
 		  FROM due d
 		  JOIN sites s ON s.id = d.site_id AND s.deleted_at IS NULL AND s.suspended_at IS NULL AND s.offline_at IS NULL
 		  JOIN users u ON u.id = s.user_id
 		  JOIN collection_items ci ON ci.site_id = d.site_id AND ci.collection = d.collection
-		   AND ci.deleted_at IS NULL AND ci.created_at > d.since
+		   AND ci.deleted_at IS NULL
+		   AND CASE WHEN d.notify_last_id IS NULL THEN ci.created_at > d.since ELSE ci.id > d.notify_last_id END
 		   AND ci.submitted_by IS DISTINCT FROM s.user_id
 		 GROUP BY d.site_id, s.name, u.handle, s.user_id, d.collection, d.notify, d.since, d.notify_sent_at`,
 		each.String(), daily.String())
@@ -921,7 +929,7 @@ func DueNotifications(ctx context.Context, database *sql.DB, each, daily time.Du
 	for rows.Next() {
 		var n NotifyDue
 		var sent sql.NullTime
-		if err := rows.Scan(&n.SiteID, &n.SiteName, &n.Handle, &n.OwnerID, &n.Name, &n.Notify, &n.Since, &sent, &n.CheckUntil, &n.Count); err != nil {
+		if err := rows.Scan(&n.SiteID, &n.SiteName, &n.Handle, &n.OwnerID, &n.Name, &n.Notify, &n.Since, &sent, &n.CheckUntil, &n.Count, &n.LastID); err != nil {
 			return nil, err
 		}
 		if sent.Valid {
@@ -934,14 +942,14 @@ func DueNotifications(ctx context.Context, database *sql.DB, each, daily time.Du
 }
 
 // ClaimNotification records, before the email goes out, that the owner is
-// emailed about d's entries up to d.CheckUntil. Only one caller wins it (the
+// emailed about d's entries up to d.CheckUntil and d.LastID. Only one caller wins it (the
 // row still holds the notify_sent_at that DueNotifications read), so two
 // servers never both send, and a failed send is not retried every tick.
 func ClaimNotification(ctx context.Context, database *sql.DB, d NotifyDue) (bool, error) {
 	res, err := database.ExecContext(ctx, `
-		UPDATE collection_settings SET notify_sent_at = $3
+		UPDATE collection_settings SET notify_sent_at = $3, notify_last_id = GREATEST(COALESCE(notify_last_id, 0), $5)
 		 WHERE site_id = $1 AND collection = $2 AND notify_sent_at IS NOT DISTINCT FROM $4`,
-		d.SiteID, d.Name, d.CheckUntil, d.SentAt)
+		d.SiteID, d.Name, d.CheckUntil, d.SentAt, d.LastID)
 	if err != nil {
 		return false, err
 	}

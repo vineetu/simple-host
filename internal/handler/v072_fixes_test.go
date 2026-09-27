@@ -219,3 +219,58 @@ func TestSavedDataRefusesUnstorableText(t *testing.T) {
 		t.Fatalf("ordinary text: %d %s", r.status, r.body)
 	}
 }
+
+// L3: an entry that committed just after a digest read (its created_at is
+// before that digest's time) is counted by the next one.
+func TestDigestCountsByID(t *testing.T) {
+	s := newKindsSite(t, true)
+	ctx := context.Background()
+	s.declare(t, "orders", map[string]any{"kind": "entries", "notify": "each"})
+	idOf(t, s.as(t, s.vicCooky, "POST", "/v1/sites/shop/data/orders", map[string]any{"item": "tea"}))
+	back := func(q string) {
+		t.Helper()
+		if _, err := s.a.database.Exec(q, s.shopID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	back(`UPDATE collection_settings SET declared_at = now() - interval '3 hours', updated_at = now() - interval '3 hours' WHERE site_id = $1`)
+	back(`UPDATE collection_items SET created_at = now() - interval '2 hours' WHERE site_id = $1`)
+	dueHere := func() []db.NotifyDue {
+		t.Helper()
+		due, err := db.DueNotifications(ctx, s.a.database, 10*time.Minute, 24*time.Hour)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var mine []db.NotifyDue
+		for _, d := range due {
+			if d.SiteID == s.shopID {
+				mine = append(mine, d)
+			}
+		}
+		return mine
+	}
+	first := dueHere()
+	if len(first) != 1 || first[0].Count != 1 {
+		t.Fatalf("first digest: %+v", first)
+	}
+	if ok, err := db.ClaimNotification(ctx, s.a.database, first[0]); !ok || err != nil {
+		t.Fatalf("claim: %v %v", ok, err)
+	}
+	// The late entry: its transaction began before that digest ran.
+	late := idOf(t, s.as(t, s.wesCooky, "POST", "/v1/sites/shop/data/orders", map[string]any{"item": "cake"}))
+	back(`UPDATE collection_settings SET notify_sent_at = notify_sent_at - interval '1 hour' WHERE site_id = $1`)
+	if _, err := s.a.database.Exec(`UPDATE collection_items SET created_at = (SELECT notify_sent_at - interval '1 minute' FROM collection_settings WHERE site_id = $1 AND collection = 'orders') WHERE id = $2`, s.shopID, late); err != nil {
+		t.Fatal(err)
+	}
+	next := dueHere()
+	if len(next) != 1 || next[0].Count != 1 || strconv.FormatInt(next[0].LastID, 10) != late {
+		t.Fatalf("next digest misses the late entry: %+v", next)
+	}
+	if ok, err := db.ClaimNotification(ctx, s.a.database, next[0]); !ok || err != nil {
+		t.Fatalf("claim 2: %v %v", ok, err)
+	}
+	back(`UPDATE collection_settings SET notify_sent_at = notify_sent_at - interval '1 hour' WHERE site_id = $1`)
+	if again := dueHere(); len(again) != 0 {
+		t.Fatalf("counted twice: %+v", again)
+	}
+}

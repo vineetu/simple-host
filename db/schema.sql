@@ -823,6 +823,9 @@ ALTER TABLE collection_settings ADD COLUMN IF NOT EXISTS one_per_person BOOLEAN 
 ALTER TABLE collection_settings ADD COLUMN IF NOT EXISTS notify TEXT NOT NULL DEFAULT 'off';
 ALTER TABLE collection_settings ADD COLUMN IF NOT EXISTS notify_sent_at TIMESTAMPTZ;
 ALTER TABLE collection_settings ADD COLUMN IF NOT EXISTS declared_at TIMESTAMPTZ;
+-- The last entry id a submission email counted (mirrors
+-- db/migrations/v072-notify-last-id.sql); NULL: count by time since the last email.
+ALTER TABLE collection_settings ADD COLUMN IF NOT EXISTS notify_last_id BIGINT;
 -- Who may save: 'anyone' (anyone who signs in) or 'listed' (the allow list
 -- below); the block list applies in both modes.
 ALTER TABLE sites ADD COLUMN IF NOT EXISTS savers_mode TEXT NOT NULL DEFAULT 'anyone';

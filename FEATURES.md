@@ -313,7 +313,8 @@ lands just as the kind changes is refused (409 `kind_changed`, nothing saved). P
 deleted document back only while it holds none (409 `one_document`), so it stays one document. A
 Page info read shows `_submitted_by` to nobody but the owner. With `WRITE_AUTH_MODE=off` public Submissions are
 refused (409 `visitor_sign_in_off`: that mode reads no visitor sign-in on public saves). Submission emails are claimed before they are
-sent (once across servers; a failed send is not retried). **A name nobody declared is Shared**
+sent (once across servers; a failed send is not retried) and count the entries after the last one
+emailed, by id, so one saved just as a digest ran is in the next. **A name nobody declared is Shared**
 (owner decision 2026-09-27): anyone reads it and signed-in visitors save to it, as before the
 kinds, on every site, so old skills, AI create and uploads keep working; `/kind` says `label`
 "Shared", `accepts_saves: true`; the owner app shows a "shared" badge. With

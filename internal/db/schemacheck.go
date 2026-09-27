@@ -46,7 +46,8 @@ var requiredColumns = map[string][]string{
 	"data_watch":       {"day", "site_id", "metric", "count", "last_at"},
 	// private-collections.sql; sd2-saved-data-kinds.sql adds kind .. declared_at,
 	// sites.savers_mode (above) and site_savers.
-	"collection_settings": {"site_id", "collection", "private", "kind", "one_per_person", "notify", "notify_sent_at", "declared_at"},
+	// v072-notify-last-id.sql adds notify_last_id.
+	"collection_settings": {"site_id", "collection", "private", "kind", "one_per_person", "notify", "notify_sent_at", "declared_at", "notify_last_id"},
 	"site_savers":         {"site_id", "list", "pattern", "added_at"},
 	"site_view_hourly":    {"site_id", "hour", "class", "views"},
 	// w3-analytics-pages-referrers.sql
