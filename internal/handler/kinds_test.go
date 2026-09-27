@@ -308,7 +308,7 @@ func TestSubmissionsRules(t *testing.T) {
 	if !strings.Contains(string(cp.body), "1 private entry") {
 		t.Fatalf("confirm_public says what becomes public: %s", cp.body)
 	}
-	wantCode(t, "private to page info, unconfirmed", s.owner(t, "PUT", "/v1/sites/shop/data/rsvps/kind", map[string]any{"kind": "content"}), 409, "confirm_public")
+	wantCode(t, "private to page info", s.owner(t, "PUT", "/v1/sites/shop/data/rsvps/kind", map[string]any{"kind": "content", "confirm_public": true}), 409, "has_entries")
 	if out := s.declare(t, "rsvps", map[string]any{"kind": "entries", "visibility": "public", "confirm_public": true}); out["notify"] != "daily" {
 		t.Fatalf("a re-declaration keeps notify: %v", out)
 	}
@@ -659,6 +659,84 @@ func TestSubmissionsReviewFixes(t *testing.T) {
 	s.setLimits(t, func(c *config.SavedData) { c.EntriesNamesMax = 2 })
 	wantCode(t, "third Submissions name", s.owner(t, "PUT", "/v1/sites/shop/data/more/kind", map[string]any{"kind": "entries", "visibility": "public"}), 409, "too_many_names")
 	s.declare(t, "votes", map[string]any{"kind": "entries", "one_per_person": false}) // re-declaring one it has is fine
+}
+
+// Review round 2: N1 (a private name becomes Page info only when empty, and
+// a Page info read never shows the stamp to anyone but the owner), I5 (no
+// confirm asked for a change that fails anyway), N2 (the privacy switch asks
+// for confirm_public too), N3 (no public Submissions when WRITE_AUTH_MODE=off).
+func TestSubmissionsReviewRound2(t *testing.T) {
+	s := newKindsSite(t, true)
+
+	// N1 + I5: one private entry, then Page info: refused as has_entries
+	// straight away, confirmed or not.
+	s.declare(t, "sub", map[string]any{"kind": "entries"})
+	idOf(t, s.as(t, s.vicCooky, "POST", "/v1/sites/shop/data/sub", map[string]any{"msg": "hi"}))
+	wantCode(t, "private with an entry to page info", s.owner(t, "PUT", "/v1/sites/shop/data/sub/kind", map[string]any{"kind": "content"}), 409, "has_entries")
+	wantCode(t, "same, confirmed", s.owner(t, "PUT", "/v1/sites/shop/data/sub/kind", map[string]any{"kind": "content", "confirm_public": true}), 409, "has_entries")
+	idOf(t, s.as(t, s.wesCooky, "POST", "/v1/sites/shop/data/sub", map[string]any{"msg": "yo"}))
+	wantCode(t, "two private entries to page info (I5)", s.owner(t, "PUT", "/v1/sites/shop/data/sub/kind", map[string]any{"kind": "content"}), 409, "has_entries")
+	if a := s.a.at(t, "GET", s.dom, "/v1/sites/shop/data/sub", nil, nil); strings.Contains(string(a.body), "@") {
+		t.Fatalf("private entries readable: %d %s", a.status, a.body)
+	}
+	// An empty private name may become Page info.
+	s.declare(t, "empty", map[string]any{"kind": "entries"})
+	s.declare(t, "empty", map[string]any{"kind": "content"})
+
+	// Defence in depth: a Page info document carrying a stamp shows it only
+	// to the owner.
+	s.declare(t, "about", map[string]any{"kind": "content"})
+	if r := s.owner(t, "PUT", "/v1/sites/shop/data/about", map[string]any{"title": "Hi"}); r.status != 200 {
+		t.Fatalf("put content: %d %s", r.status, r.body)
+	}
+	if _, err := s.a.database.Exec(`UPDATE collection_items SET data = data || '{"_submitted_by":"vic@example.org"}'::jsonb WHERE site_id = $1 AND collection = 'about' AND deleted_at IS NULL`, s.shopID); err != nil {
+		t.Fatal(err)
+	}
+	anon := s.a.at(t, "GET", s.dom, "/v1/sites/shop/data/about", nil, nil)
+	if anon.status != 200 || strings.Contains(string(anon.body), "_submitted_by") || !strings.Contains(string(anon.body), `"Hi"`) {
+		t.Fatalf("anonymous page info read: %d %s", anon.status, anon.body)
+	}
+	if v := s.as(t, s.wesCooky, "GET", "/v1/sites/shop/data/about", nil); strings.Contains(string(v.body), "_submitted_by") {
+		t.Fatalf("visitor page info read: %s", v.body)
+	}
+	if o := s.owner(t, "GET", "/v1/sites/shop/data/about", nil); !strings.Contains(string(o.body), "vic@example.org") {
+		t.Fatalf("owner page info read: %d %s", o.status, o.body)
+	}
+
+	// N2: the privacy switch makes entries public only when confirmed.
+	priv := "/v1/sites/shop/collections/sub/privacy"
+	cp := s.owner(t, "PUT", priv, map[string]any{"private": false})
+	wantCode(t, "privacy off, unconfirmed", cp, 409, "confirm_public")
+	if cp.json(t)["count"] != float64(2) {
+		t.Fatalf("confirm_public count: %s", cp.body)
+	}
+	if a := s.a.at(t, "GET", s.dom, "/v1/sites/shop/data/sub", nil, nil); a.status == 200 {
+		t.Fatalf("still private after the refusal: %s", a.body)
+	}
+	if r := s.owner(t, "PUT", priv, map[string]any{"private": false, "confirm_public": true}); r.status != 200 {
+		t.Fatalf("privacy off, confirmed: %d %s", r.status, r.body)
+	}
+	if items := itemsOf(t, s.a.at(t, "GET", s.dom, "/v1/sites/shop/data/sub", nil, nil)); len(items) != 2 {
+		t.Fatalf("public after confirm: %v", items)
+	}
+	// An empty private list needs no confirm.
+	s.declare(t, "quiet", map[string]any{"kind": "entries"})
+	if r := s.owner(t, "PUT", "/v1/sites/shop/collections/quiet/privacy", map[string]any{"private": false}); r.status != 200 {
+		t.Fatalf("empty list made public: %d %s", r.status, r.body)
+	}
+
+	// N3: with visitor sign-in off for public saves, public Submissions are
+	// refused up front; private ones (their own sign-in) still work.
+	s.a.sites.writeAuthMode = "off"
+	defer func() { s.a.sites.writeAuthMode = "on" }()
+	wantCode(t, "public Submissions, mode off", s.owner(t, "PUT", "/v1/sites/shop/data/poll/kind", map[string]any{"kind": "entries", "visibility": "public"}), 409, "visitor_sign_in_off")
+	s.declare(t, "poll", map[string]any{"kind": "entries"})
+	idOf(t, s.as(t, s.vicCooky, "POST", "/v1/sites/shop/data/poll", map[string]any{"pick": "a"}))
+	wantCode(t, "privacy off, mode off", s.owner(t, "PUT", "/v1/sites/shop/collections/poll/privacy", map[string]any{"private": false, "confirm_public": true}), 409, "visitor_sign_in_off")
+	// A Shared name keeps its privacy switch.
+	if r := s.owner(t, "PUT", "/v1/sites/shop/collections/wall/privacy", map[string]any{"private": false}); r.status != 200 {
+		t.Fatalf("shared name, mode off: %d %s", r.status, r.body)
+	}
 }
 
 // S9: an email is claimed before it is sent, so it goes out once however

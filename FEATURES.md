@@ -304,9 +304,12 @@ person is a signed-in account: a block and one per person also match its address
 dropped, and Block by entry uses only the address the server stamped. Declared Submissions take
 entries only from a signed-in visitor (401 `visitor_auth_required`) on the site's own address
 (declaring them needs one: 409 `custom_domain_required`); at most
-`SAVED_DATA_ENTRIES_NAMES_MAX` (50) Submissions names per site. Declaring a private name that
-holds entries as public Submissions or Page info is 409 `confirm_public` (with the count) until
-`confirm_public: true`; the owner app asks first. Submission emails are claimed before they are
+`SAVED_DATA_ENTRIES_NAMES_MAX` (50) Submissions names per site. Making a private name that holds
+entries public (declaring it public Submissions, or `{"private": false}` on the privacy switch) is
+409 `confirm_public` (with the count) until `confirm_public: true`; the owner app asks first. A
+private name becomes Page info only while it is empty (409 `has_entries`), and a Page info read
+shows `_submitted_by` to nobody but the owner. With `WRITE_AUTH_MODE=off` public Submissions are
+refused (409 `visitor_sign_in_off`: that mode reads no visitor sign-in on public saves). Submission emails are claimed before they are
 sent (once across servers; a failed send is not retried). **A name nobody declared is Shared**
 (owner decision 2026-09-27): anyone reads it and signed-in visitors save to it, as before the
 kinds, on every site, so old skills, AI create and uploads keep working; `/kind` says `label`
@@ -328,7 +331,7 @@ tightenings wait for the 7-day watch. **Status: built (branch sd/step2).**
 | Go | `h/kinds.go` (`declareData`, `getData`, `putContent`, `updateEntry`, `withdrawEntry`, `undoWithdraw`, `visitorWriteOK` + `saverOK`, savers, `sendSubmissionEmails`, `notifyStop`), `h/collections.go` / `h/privatecollections.go` (kind check, entry rules), `internal/db/kinds.go`, `internal/mcp/kinds.go` |
 | DB | `collection_settings` (`kind`, `one_per_person`, `notify`, `notify_sent_at`, `declared_at`), `sites.savers_mode`, `site_savers`, `sites.legacy_data` (true for sites from before the kinds; false on create) · migration `sd2-saved-data-kinds.sql` |
 | Env | `SAVED_DATA_CONTENT_MAX_KB`, `SAVED_DATA_CONTENT_NAMES_MAX`, `SAVED_DATA_ENTRY_MAX_KB`, `SAVED_DATA_ENTRIES_MAX`, `SAVED_DATA_WITHDRAW_UNDO_MINUTES`, `SAVED_DATA_NOTIFY_EACH_MINUTES`, `SAVED_DATA_NOTIFY_DAILY_HOURS`, `SAVED_DATA_SAVERS_MAX`, `SAVED_DATA_ENTRIES_NAMES_MAX`, `SAVED_DATA_DEFAULT_KIND` (`shared` \| `declare_first`) |
-| Limits | codes `declare_first`, `wrong_kind`, `owner_only`, `one_per_person`, `list_full`, `not_allowed_to_save`, `undo_expired`, `too_many_names`, `has_entries`, `invalid_kind`, `invalid_savers`, `too_many_savers`, `no_author`, `item_too_large`, `confirm_public`, `visitor_auth_required` (Submissions) |
+| Limits | codes `declare_first`, `wrong_kind`, `owner_only`, `one_per_person`, `list_full`, `not_allowed_to_save`, `undo_expired`, `too_many_names`, `has_entries`, `invalid_kind`, `invalid_savers`, `too_many_savers`, `no_author`, `item_too_large`, `confirm_public`, `visitor_auth_required`, `visitor_sign_in_off` (Submissions) |
 
 ## 6. Visitor sign-in (Google, emailed code)
 

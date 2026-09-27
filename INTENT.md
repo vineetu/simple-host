@@ -394,7 +394,7 @@ What follows from that, and is not negotiable without changing the line above:
   visitor; a block and one per person count an address with its `+tag` dropped (identities stay
   cheap: "per signed-in account"); an `@domain` allow trusts the address a sign-in verified,
   including a Google account made with a company address after its owner left; a private name
-  that holds entries becomes public only with `confirm_public`; the owner may always save and
+  that holds entries becomes public only with `confirm_public` and never becomes Page info; the owner may always save and
   undo; Submissions names per site are capped (`SAVED_DATA_ENTRIES_NAMES_MAX`); submission emails
   are claimed before sending, so they go out once and a failed send is not retried. Reason: a
   strict default broke every site built by an older skill or by AI create on arrival. Owner

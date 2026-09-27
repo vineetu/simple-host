@@ -1929,7 +1929,7 @@ function parseAnalyticsSummary(data) {
       if (priv && !confirm('Make the list "' + coll + '" public? Anyone can read this list again, including everything already in it. Who sent each entry (their email) stays private: only you see it.')) return;
       btn.disabled = true;
       try {
-        var res = await api('PUT', sitePathPart(name) + '/collections/' + encodeURIComponent(coll) + '/privacy', { private: !priv });
+        var res = await api('PUT', sitePathPart(name) + '/collections/' + encodeURIComponent(coll) + '/privacy', priv ? { private: false, confirm_public: true } : { private: true });
         var body = await res.json().catch(function () { return null; });
         if (!res.ok) { toast((body && body.error) || 'Could not change the list', 'error'); btn.disabled = false; return; }
         toast((body && body.message) || (coll + (priv ? ' is public' : ' is private')), 'success');
@@ -2097,9 +2097,10 @@ function parseAnalyticsSummary(data) {
       if (act === 'edit') {
         var editable = {};
         var d = plistData(item);
+        var from = item.by || (st.priv ? d._submitted_by : '');
         Object.keys(d).forEach(function (k) { if (PLIST_STAMPS.indexOf(k) < 0) editable[k] = d[k]; });
         editor.innerHTML = '<label for="plist-ta-' + escAttr(id) + '">Edit item ' + esc(id) +
-            (d._submitted_by ? ' from ' + esc(d._submitted_by) : '') + '</label>' +
+            (from ? ' from ' + esc(from) : '') + '</label>' +
           '<textarea id="plist-ta-' + escAttr(id) + '" spellcheck="false">' + esc(JSON.stringify(editable, null, 2)) + '</textarea>' +
           '<div class="plist-err" hidden></div>' +
           '<div class="plist-edit-btns">' +
@@ -2158,7 +2159,9 @@ function parseAnalyticsSummary(data) {
         return;
       }
       if (act === 'delete') {
-        var who = item.by || plistData(item)._submitted_by;
+        // Who sent it: the server's stamp (item.by); on a public list the
+        // item's own _submitted_by is whatever the page sent, so never shown.
+        var who = item.by || (st.priv ? plistData(item)._submitted_by : '');
         if (!confirm('Delete item ' + id + (who ? ' from ' + who : '') + '?' + (st.priv ? '' : ' It disappears from the public list.') + ' You can bring it back from Recently deleted for ' + UNDO_DAYS + ' days.')) return;
         t.disabled = true;
         try {

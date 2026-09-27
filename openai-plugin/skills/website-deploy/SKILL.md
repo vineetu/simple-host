@@ -168,8 +168,9 @@ confirmed that list by name. Visitors can never edit or delete items.
 
 Making it public (`declare_data` with `visibility: "public"`, or `set_collection_privacy`
 `private: false`) puts everything already saved on the public internet; confirm with the person
-first. `declare_data` refuses it while the list holds entries (`confirm_public`, with how many)
-until you pass `confirm_public: true` after the person agreed.
+first. Both refuse it while the list holds entries (`confirm_public`, with how many) until you
+pass `confirm_public: true` after the person agreed. A private list with entries never becomes
+Page info (`has_entries`): use another name.
 
 If the person later adds a free `<name>.simple-host.app` or their own domain, the site moves
 there and its `<site>.<handle>.simple-host.app` address redirects to it. Sign-in and private

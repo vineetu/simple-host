@@ -27,7 +27,7 @@ func kindTools() []Tool {
 				"A name nobody declared is Shared: anyone reads it and anyone signed in adds to it, so declare anything with personal details (RSVPs, orders, sign-ups) as private Submissions and anything only the owner changes as Page info; when unsure, the stricter kind. " +
 				"Submissions are private to the owner unless visibility is public; each visitor can see, change and withdraw only their own. one_per_person allows one entry per visitor (votes, one RSVP each). " +
 				"notify emails the owner about new entries: daily (the default for private ones), each (batched, soon after they arrive) or off (the default for public ones). " +
-				"Making a private list public (visibility public, or kind content) shows everything already in it to anyone: it is refused (error confirm_public) until you send confirm_public true after the person agreed.",
+				"Making private Submissions public (visibility public) shows everything already in them to anyone: it is refused (error confirm_public) until you send confirm_public true after the person agreed. A private name that holds entries never becomes Page info (error has_entries): use another name.",
 			InputSchema: object(map[string]any{
 				"site":           str(siteDesc),
 				"name":           str("The data name, e.g. `rsvps` or `menu` (letters, digits, - and _)."),

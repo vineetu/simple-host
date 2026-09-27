@@ -110,7 +110,8 @@ things nobody else needs (drafts, preferences) belong in `localStorage`.
 | Status | Code | Meaning |
 |---|---|---|
 | 409 | `declare_first` | The name has no kind yet and must be declared here (or the page asked for a kind). Declare it (`declare_data`), then save. |
-| 409 | `confirm_public` | Declaring would make this private name's entries public (`count` says how many). Ask the owner; resend with `"confirm_public": true` only if they agree. |
+| 409 | `confirm_public` | Declaring (or `{"private": false}`) would make this private name's entries public (`count` says how many). Ask the owner; resend with `"confirm_public": true` only if they agree. |
+| 409 | `visitor_sign_in_off` | This install reads no visitor sign-in on public saves (`WRITE_AUTH_MODE=off`), so public Submissions could never take an entry. Keep them private, or leave the name Shared. |
 | 401 | `visitor_auth_required` | Submissions come only from a signed-in visitor. Call `SH.requireSignIn()` first. |
 | 409 | `wrong_kind` | Page info takes no entries (the owner PUTs the document); Submissions are not PUT. |
 | 403 | `owner_only` | Only the owner changes Page info. |
@@ -372,9 +373,10 @@ changes and withdraws their own.
 
 `{"visibility": "public"}` (or `{"private": false}`) makes the list public again,
 and everything already saved in it becomes readable by anyone. Confirm with the
-owner before sending it: `declare_data` refuses it while the list holds entries
-(409 `confirm_public`, with the `count`) until you add `"confirm_public": true`;
-declaring such a list Page info is refused the same way.
+owner before sending it: both refuse it while the list holds entries
+(409 `confirm_public`, with the `count`) until you add `"confirm_public": true`.
+A private list that holds entries never becomes Page info (409 `has_entries`):
+use another name.
 
 ### 2. The form page
 

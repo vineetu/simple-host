@@ -204,14 +204,15 @@ var codeHints = map[string]string{
 	"preview_unavailable":      "This site has no address of its own to show a preview on. Tell the person; the version can still be made live with rollback_site.",
 	"site_offline":             "The owner has taken this site offline, so visitors cannot save to it. Put it back online with set_site_offline if the person wants that; the owner's own changes still work.",
 	"declare_first":            "This name has no kind yet, and here that means nothing can be saved under it. Say what it is with declare_data: kind entries for things visitors send, kind content for page info only the owner writes. Then call again.",
-	"confirm_public":           "This name holds private entries, and that change would let anyone read them. Tell the person how many and what becomes public; only if they agree, call declare_data again with confirm_public true.",
+	"confirm_public":           "This name holds private entries, and that change would let anyone read them. Tell the person how many and what becomes public; only if they agree, call the same tool again with confirm_public true.",
 	"wrong_kind":               "This name is declared as another kind. Page info (content) is written whole with update_data; Submissions (entries) take new items with add_to_collection. Check list_data, or change the kind with declare_data if the person wants.",
 	"owner_only":               "Only the site's owner can change page info. Tell the person; a visitor cannot.",
 	"one_per_person":           "This list takes one entry per person, and this person already has one. Change that entry instead, or withdraw it first.",
 	"list_full":                "This list is full. The owner can delete entries (delete_collection_item) or clear it (clear_collection) to make room.",
 	"not_allowed_to_save":      "The site's owner has not allowed this account to save here (list_data shows who may save; set_who_can_save changes it). Tell the person rather than retrying.",
 	"too_many_names":           "The site has as many names of that kind as it may hold. Keep related settings in one page info document, and reuse a Submissions name for the same kind of thing.",
-	"has_entries":              "That name holds several entries, and page info is one document. Use another name for the page info.",
+	"has_entries":              "That name holds entries (several, or private ones), and page info is one public document. Use another name for the page info.",
+	"visitor_sign_in_off":      "This install does not read visitor sign-in on public saves, so public Submissions could never take an entry. Keep them private, or leave the name Shared; tell the person.",
 	"invalid_kind":             "kind is entries (Submissions) or content (Page info); visibility, one_per_person and notify apply to entries only. Correct the arguments and call again.",
 	"invalid_savers":           "Send emails (ann@example.com) or whole domains (@company.com). Correct the list and call again.",
 	"too_many_savers":          "The who-may-save and block lists together are full. Remove some entries (set_who_can_save) first.",
@@ -1407,11 +1408,12 @@ func Tools() []Tool {
 			Description: "Make one of a site's collections private (only the owner can read it) or public again. Use private for anything with personal details: orders, RSVPs, survey answers, sign-ups. " +
 				"A private collection takes submissions only from visitors signed in on the site's own address (every item is stamped with their verified email as `_submitted_by`), and only the owner reads it: here with read_collection, in the dashboard, or on an admin page of the site while signed in there. " +
 				"Any site can have one; no domain is needed. It can be set before anything is saved. " +
-				"Setting private=false makes everything already in the list readable by anyone (the submitters' emails, `_submitted_by`, stay visible only to the owner); confirm with the person before doing that.",
+				"Setting private=false makes everything already in the list readable by anyone (the submitters' emails, `_submitted_by`, stay visible only to the owner): when the list holds entries it is refused (error confirm_public, saying how many) until you send confirm_public true after the person agreed.",
 			InputSchema: object(map[string]any{
-				"site":       str(siteDesc),
-				"collection": str("Collection name, e.g. `orders`."),
-				"private":    map[string]any{"type": "boolean", "description": "true = only the owner can read it; false = public (anyone can read it)."},
+				"site":           str(siteDesc),
+				"collection":     str("Collection name, e.g. `orders`."),
+				"private":        map[string]any{"type": "boolean", "description": "true = only the owner can read it; false = public (anyone can read it)."},
+				"confirm_public": map[string]any{"type": "boolean", "description": "The person agreed that the entries already in this private list become readable by anyone. Only after a confirm_public refusal was shown to them."},
 			}, "site", "collection", "private"),
 			// Changes a setting and deletes nothing. Making a list public puts
 			// its contents in front of the public internet, so open world.
@@ -1429,7 +1431,11 @@ func Tools() []Tool {
 				if !ok {
 					return output{}, errors.New("private must be true or false")
 				}
-				body, _ := json.Marshal(map[string]bool{"private": private})
+				req := map[string]bool{"private": private}
+				if b, ok := args["confirm_public"].(bool); ok && b {
+					req["confirm_public"] = true
+				}
+				body, _ := json.Marshal(req)
 				res := c.do(http.MethodPut, "/v1/sites/"+url.PathEscape(name)+"/collections/"+url.PathEscape(coll)+"/privacy", body, nil)
 				if !res.ok() {
 					return output{}, restError("set_collection_privacy", res)

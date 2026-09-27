@@ -2114,9 +2114,11 @@ paths:
         address of its own, where visitors sign in (409 custom_domain_required on
         instances without one); a site declares at most 50 Submissions names
         (SAVED_DATA_ENTRIES_NAMES_MAX, 409 too_many_names). Declaring a private
-        name that holds entries as public Submissions or as Page info would let
-        anyone read them: 409 confirm_public (with `count`) until the request
-        carries `"confirm_public": true`.
+        name that holds entries as public Submissions would let anyone read
+        them: 409 confirm_public (with `count`) until the request carries
+        `"confirm_public": true`. A private name becomes Page info only while
+        it is empty (409 has_entries). Public Submissions are refused on an
+        install with WRITE_AUTH_MODE=off (409 visitor_sign_in_off).
       tags: [Collections]
       security: [{ apiKey: [] }]
       parameters:
@@ -2158,7 +2160,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: too_many_names, has_entries, confirm_public or custom_domain_required
+          description: too_many_names, has_entries, confirm_public, visitor_sign_in_off or custom_domain_required
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
 
   /v1/sites/{sitename}/data/{coll}:
@@ -2425,7 +2427,11 @@ paths:
         `{"private": false}` makes it public again, and everything already in it
         becomes readable by anyone, except who sent it: `_submitted_by` is left
         out of every read but the owner's (key, or signed in on the site's own
-        address) and the admin's. Idempotent; deletes nothing.
+        address) and the admin's. While the list holds entries that is 409
+        confirm_public (with `count`) until the request carries
+        `"confirm_public": true`, after the owner agreed. On declared
+        Submissions it is 409 visitor_sign_in_off on an install with
+        WRITE_AUTH_MODE=off. Idempotent; deletes nothing.
       tags: [Collections]
       security: [{ apiKey: [] }]
       parameters:
@@ -2440,6 +2446,7 @@ paths:
               required: [private]
               properties:
                 private: { type: boolean, example: true }
+                confirm_public: { type: boolean, description: "The owner agreed that the entries already in this private list become readable by anyone." }
       responses:
         '200':
           description: Privacy set
@@ -2458,6 +2465,9 @@ paths:
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: custom_domain_required, confirm_public (with `count`), visitor_sign_in_off, wrong_kind or too_many_names
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
 
   /v1/sites/{sitename}/collections/{coll}/items/{id}:
     patch:

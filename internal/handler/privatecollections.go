@@ -320,6 +320,9 @@ func (h *SiteHandler) setCollectionPrivacy(w http.ResponseWriter, r *http.Reques
 	}
 	var req struct {
 		Private *bool `json:"private"`
+		// ConfirmPublic: the owner saw that the entries already there
+		// become readable by anyone.
+		ConfirmPublic bool `json:"confirm_public"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil || req.Private == nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `send {"private": true} or {"private": false}`})
@@ -355,6 +358,12 @@ func (h *SiteHandler) setCollectionPrivacy(w http.ResponseWriter, r *http.Reques
 			"error": strings.Replace(privateListNeedsDomain, "%s", h.siteDomain, 1),
 			"code":  "custom_domain_required",
 		})
+		return
+	}
+	if !*req.Private && (set.Kind == db.KindEntries || (set.Kind == "" && !set.Shared)) && !h.publicEntriesOK(w) {
+		return
+	}
+	if !*req.Private && set.Private && !h.confirmPublicOK(w, r, siteID, coll, "a public list", req.ConfirmPublic) {
 		return
 	}
 	// On a site that needs kinds, choosing privacy declares the name as
