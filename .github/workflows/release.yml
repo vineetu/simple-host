@@ -43,7 +43,7 @@ jobs:
           for pair in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
             os=${pair%/*}; arch=${pair#*/}
             CGO_ENABLED=0 GOOS=$os GOARCH=$arch \
-              go build -trimpath -ldflags="-s -w" \
+              go build -trimpath -ldflags="-s -w -X github.com/vsriram/simple-host/internal/buildinfo.Version=${GITHUB_REF_NAME} -X github.com/vsriram/simple-host/internal/buildinfo.Commit=${GITHUB_SHA::7}" \
               -o "dist/simple-host_${os}_${arch}" ./cmd/server
           done
           cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS
@@ -72,6 +72,7 @@ jobs:
         run: |
           echo "repo=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
           echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          echo "commit=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
       # The Go toolchain cross-compiles inside the build stage, which always runs
       # on the runner's own architecture. That is why this is multi-arch without
@@ -81,6 +82,9 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
+          build-args: |
+            VERSION=${{ github.ref_name }}
+            COMMIT=${{ steps.meta.outputs.commit }}
           tags: |
             ${{ steps.meta.outputs.repo }}:${{ steps.meta.outputs.version }}
             ${{ steps.meta.outputs.repo }}:latest
