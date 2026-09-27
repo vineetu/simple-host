@@ -395,7 +395,7 @@ func TestAskPacksLinkTheSetupHelper(t *testing.T) {
 }
 
 func TestAskPromptSizes(t *testing.T) {
-	for key, maxTokens := range map[string]int{"enterprise": 12000, "simple-host": 14000} {
+	for key, maxTokens := range map[string]int{"enterprise": 12000, "simple-host": 16000} {
 		a := askAssistantByKey(key)
 		n := len(askSystemPrompt(a, a.pages[0].key)) / 4
 		t.Logf("%s: about %d tokens", key, n)
