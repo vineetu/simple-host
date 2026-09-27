@@ -133,7 +133,7 @@ func (i *Ingester) runOnce(ctx context.Context) error {
 		return nil
 	}
 
-	storedOffset, storedInode, err := i.loadState(ctx)
+	storedOffset, storedInode, storedAt, err := i.loadState(ctx)
 	if err != nil {
 		return fmt.Errorf("load state: %w", err)
 	}
@@ -165,7 +165,7 @@ func (i *Ingester) runOnce(ctx context.Context) error {
 		// previousLog), then the active file from 0. Same-inode truncate has
 		// no predecessor; skip straight to active@0.
 		if activeInode != storedInode {
-			if rotPath, rotInode, from, ok := i.previousLog(storedInode, storedOffset); ok {
+			if rotPath, rotInode, from, ok := i.previousLog(storedInode, storedOffset, storedAt); ok {
 				lines, newOff, rerr := readLines(rotPath, from, remaining)
 				if rerr != nil {
 					return fmt.Errorf("read rotated: %w", rerr)
@@ -213,13 +213,24 @@ func (i *Ingester) runOnce(ctx context.Context) error {
 // (accept a small gap). Caddy has no `.1`; it renames the file to
 // `access-<timestamp>-<reason>.log` and gzips it moments later, which changes
 // the inode. So without a `.1`, take Caddy's newest roll: plain with a
-// matching inode, or gzip, resumes at the stored offset (offsets count
-// uncompressed bytes, which gzip preserves); plain with another inode is read
-// from 0 like `.1`.
-func (i *Ingester) previousLog(storedInode, storedOffset int64) (path string, inode, from int64, ok bool) {
+// matching inode resumes at the stored offset; plain with another inode is
+// read from 0 like `.1`.
+//
+// A gzip roll has lost the inode, so its identity is inferred from time
+// (storedAt is when the position was last saved): the file we were reading
+// was rolled after storedAt, and the roll before it was not. Only then does
+// it resume at the stored offset (offsets count uncompressed bytes, which
+// gzip preserves). Two or more rolls since storedAt mean the newest is not
+// ours: it is read from 0 and the older ones are a gap. No roll since
+// storedAt means the newest was already read before we moved on: there is
+// no predecessor. Limitation: this compares file mtimes with the database
+// clock, so a skew between the two larger than the time between a save and
+// the next roll can pick the wrong case.
+func (i *Ingester) previousLog(storedInode, storedOffset int64, storedAt time.Time) (path string, inode, from int64, ok bool) {
 	candidate := i.logPath + ".1"
+	var rolls []string
 	if _, err := os.Stat(candidate); err != nil {
-		rolls := caddyRolls(i.logPath)
+		rolls = caddyRolls(i.logPath)
 		if len(rolls) == 0 {
 			return "", 0, 0, false
 		}
@@ -230,8 +241,22 @@ func (i *Ingester) previousLog(storedInode, storedOffset int64) (path string, in
 		return "", 0, 0, false
 	}
 	inode = fileInode(info)
-	if inode == storedInode || strings.HasSuffix(candidate, ".gz") {
+	switch {
+	case inode == storedInode:
 		from = storedOffset
+	case strings.HasSuffix(candidate, ".gz"):
+		since := 0
+		for _, r := range rolls {
+			if ri, err := os.Stat(r); err == nil && !ri.ModTime().Before(storedAt) {
+				since++
+			}
+		}
+		if since == 0 {
+			return "", 0, 0, false
+		}
+		if since == 1 {
+			from = storedOffset
+		}
 	}
 	return candidate, inode, from, true
 }
@@ -443,14 +468,16 @@ func (i *Ingester) pruneOld(ctx context.Context) {
 	}
 }
 
-func (i *Ingester) loadState(ctx context.Context) (offset, inode int64, err error) {
+// loadState returns the saved position and when it was saved (zero time when
+// there is none).
+func (i *Ingester) loadState(ctx context.Context) (offset, inode int64, savedAt time.Time, err error) {
 	err = i.db.QueryRowContext(ctx, `
-		SELECT offset_bytes, inode FROM analytics_ingest_state WHERE logfile = $1
-	`, i.logPath).Scan(&offset, &inode)
+		SELECT offset_bytes, inode, updated_at FROM analytics_ingest_state WHERE logfile = $1
+	`, i.logPath).Scan(&offset, &inode, &savedAt)
 	if err == sql.ErrNoRows {
-		return 0, 0, nil
+		return 0, 0, time.Time{}, nil
 	}
-	return offset, inode, err
+	return offset, inode, savedAt, err
 }
 
 func (i *Ingester) buildAttrMaps(ctx context.Context) (*attrMaps, error) {
@@ -507,6 +534,7 @@ func (i *Ingester) buildAttrMaps(ctx context.Context) (*attrMaps, error) {
 	nrows, err := i.db.QueryContext(ctx, `
 		SELECT DISTINCT ON (name) id, name
 		FROM sites
+		WHERE deleted_at IS NULL
 		ORDER BY name, created_at ASC, id ASC
 	`)
 	if err != nil {

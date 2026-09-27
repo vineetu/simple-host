@@ -101,7 +101,11 @@ func (h *SiteHandler) verifyVisitorEmail(w http.ResponseWriter, r *http.Request)
 		}
 		return
 	}
-	if susp, serr := db.UserSuspended(r.Context(), h.database, user.ID); serr != nil || susp {
+	// Only a real suspension answers account_suspended; a failed lookup is ours.
+	if susp, serr := db.UserSuspended(r.Context(), h.database, user.ID); serr != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	} else if susp {
 		writeAccountSuspended(w)
 		return
 	}

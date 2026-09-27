@@ -383,7 +383,7 @@ async function adminAction(path, body, done){
     var res=await fetch(path,{method:'POST',headers:{'X-API-Key':apiKey,'Content-Type':'application/json'},body:JSON.stringify(body||{})});
     var d=await res.json().catch(function(){return {};});
     if(!res.ok){ status(d.error||('HTTP '+res.status), true); return; }
-    status(done); load();
+    await load(); status(done);
   }catch(e){ status('Cannot reach server', true); }
 }
 function askReason(what){

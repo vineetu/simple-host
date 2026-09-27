@@ -344,7 +344,11 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 			if sessErr == nil {
 				if h.sessionValidFor(r, sess, siteID) {
 					// A suspended person's sign-ins stop working too.
-					if susp, serr := db.UserSuspended(r.Context(), h.database, sess.UserID); serr != nil || susp {
+					// A failed lookup is a server error, not a suspension.
+					if susp, serr := db.UserSuspended(r.Context(), h.database, sess.UserID); serr != nil {
+						writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+						return false
+					} else if susp {
 						writeAccountSuspended(w)
 						return false
 					}

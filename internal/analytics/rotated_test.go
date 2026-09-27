@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func writePlain(t *testing.T, path, body string) {
@@ -114,10 +115,13 @@ func TestPreviousLogCaddyRoll(t *testing.T) {
 		t.Fatal(err)
 	}
 	writePlain(t, live, "new\n")
-	writeGz(t, filepath.Join(dir, "access-2026-09-26T00-00-00.000-time.log.gz"), "older roll\n")
+	olderRoll := filepath.Join(dir, "access-2026-09-26T00-00-00.000-time.log.gz")
+	writeGz(t, olderRoll, "older roll\n")
+	savedAt := time.Now().Add(-time.Minute)
+	setMtime(t, olderRoll, savedAt.Add(-time.Hour))
 
 	ing := &Ingester{logPath: live}
-	path, inode, from, ok := ing.previousLog(oldInode, storedOffset)
+	path, inode, from, ok := ing.previousLog(oldInode, storedOffset, savedAt)
 	if !ok || path != roll || inode != oldInode || from != storedOffset {
 		t.Fatalf("plain roll: path=%s inode=%d from=%d ok=%v", path, inode, from, ok)
 	}
@@ -125,7 +129,7 @@ func TestPreviousLogCaddyRoll(t *testing.T) {
 	// Then gzips it and removes the plain copy.
 	writeGz(t, roll+".gz", "read\nunread\n")
 	os.Remove(roll)
-	path, _, from, ok = ing.previousLog(oldInode, storedOffset)
+	path, _, from, ok = ing.previousLog(oldInode, storedOffset, savedAt)
 	if !ok || path != roll+".gz" || from != storedOffset {
 		t.Fatalf("gz roll: path=%s from=%d ok=%v", path, from, ok)
 	}
@@ -144,14 +148,59 @@ func TestPreviousLogLogrotate(t *testing.T) {
 	info, _ := os.Stat(live + ".1")
 	ing := &Ingester{logPath: live}
 
-	if path, _, from, ok := ing.previousLog(fileInode(info), 2); !ok || path != live+".1" || from != 2 {
+	if path, _, from, ok := ing.previousLog(fileInode(info), 2, time.Time{}); !ok || path != live+".1" || from != 2 {
 		t.Errorf("matching inode: %s from %d ok=%v", path, from, ok)
 	}
-	if _, _, from, ok := ing.previousLog(fileInode(info)+12345, 2); !ok || from != 0 {
+	if _, _, from, ok := ing.previousLog(fileInode(info)+12345, 2, time.Time{}); !ok || from != 0 {
 		t.Errorf("other inode should read .1 from 0, got from %d ok=%v", from, ok)
 	}
 	os.Remove(live + ".1")
-	if _, _, _, ok := ing.previousLog(1, 2); ok {
+	if _, _, _, ok := ing.previousLog(1, 2, time.Time{}); ok {
 		t.Error("no predecessor should report ok=false")
+	}
+}
+
+func setMtime(t *testing.T, path string, at time.Time) {
+	t.Helper()
+	if err := os.Chtimes(path, at, at); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A gzip roll has a new inode, so the stored offset may only be applied to it
+// when it is the one roll made since the position was saved. Otherwise the
+// offset belongs to another file: resuming there would skip lines of a file
+// never read (two rolls since) or recount one already read (none since).
+func TestPreviousLogGzipIdentity(t *testing.T) {
+	dir := t.TempDir()
+	live := filepath.Join(dir, "access.log")
+	writePlain(t, live, "new\n")
+	savedAt := time.Now().Add(-time.Hour)
+	const storedInode, storedOffset = 999999999, 5
+	ing := &Ingester{logPath: live}
+
+	a := filepath.Join(dir, "access-2026-09-25T00-00-00.000-size.log.gz")
+	b := filepath.Join(dir, "access-2026-09-26T00-00-00.000-size.log.gz")
+	c := filepath.Join(dir, "access-2026-09-27T00-00-00.000-size.log.gz")
+	writeGz(t, a, "aaaa\nbbbb\n")
+	setMtime(t, a, savedAt.Add(-2*time.Hour))
+
+	// Only a roll made before the save: it was read before we moved on.
+	if p, _, _, ok := ing.previousLog(storedInode, storedOffset, savedAt); ok {
+		t.Errorf("no roll since save: got %s, want no predecessor", p)
+	}
+
+	// Exactly one roll since the save: it is ours, resume at the offset.
+	writeGz(t, b, "read\nunread\n")
+	setMtime(t, b, savedAt.Add(time.Minute))
+	if p, _, from, ok := ing.previousLog(storedInode, storedOffset, savedAt); !ok || p != b || from != storedOffset {
+		t.Errorf("one roll since save: %s from %d ok=%v", p, from, ok)
+	}
+
+	// Two rolls since the save: the newest is not ours, read it whole.
+	writeGz(t, c, "x\ny\n")
+	setMtime(t, c, savedAt.Add(2*time.Minute))
+	if p, _, from, ok := ing.previousLog(storedInode, storedOffset, savedAt); !ok || p != c || from != 0 {
+		t.Errorf("two rolls since save: %s from %d ok=%v", p, from, ok)
 	}
 }

@@ -80,12 +80,29 @@ func (i *Ingester) Rebuild(ctx context.Context) error {
 		return fmt.Errorf("commit reset: %w", err)
 	}
 
+	var lastInode, lastSize int64 = -1, 0
 	for _, path := range files {
-		if err := i.replayArchive(ctx, path); err != nil {
+		inode, size, err := i.replayArchive(ctx, path)
+		if err != nil {
 			return fmt.Errorf("replay %s: %w", path, err)
+		}
+		if inode >= 0 {
+			lastInode, lastSize = inode, size
 		}
 	}
 	if liveInode < 0 {
+		// No live log yet (between a rotation and the first new line). Park
+		// the position at the end of the newest archive, so the first ingest
+		// once the log reappears finds it fully read (previousLog: matching
+		// inode, offset at its end) instead of counting it again from 0.
+		if lastInode >= 0 {
+			if _, err := i.db.ExecContext(ctx, `
+				INSERT INTO analytics_ingest_state (logfile, offset_bytes, inode, updated_at)
+				VALUES ($1, $2, $3, now())
+			`, i.logPath, lastSize, lastInode); err != nil {
+				return fmt.Errorf("seed ingest state: %w", err)
+			}
+		}
 		return nil
 	}
 
@@ -96,7 +113,7 @@ func (i *Ingester) Rebuild(ctx context.Context) error {
 		if err := i.runOnce(ctx); err != nil {
 			return fmt.Errorf("pass %d: %w", pass, err)
 		}
-		offset, _, err := i.loadState(ctx)
+		offset, _, _, err := i.loadState(ctx)
 		if err != nil {
 			return fmt.Errorf("pass %d: read state: %w", pass, err)
 		}
@@ -110,21 +127,27 @@ func (i *Ingester) Rebuild(ctx context.Context) error {
 }
 
 // replayArchive ingests one rotated file (plain or .gz) in maxLinesPerRun
-// chunks, without touching the live ingest position.
-func (i *Ingester) replayArchive(ctx context.Context, path string) error {
+// chunks, without touching the live ingest position. It returns the file's
+// inode and the uncompressed bytes read (inode -1 when the file is gone).
+func (i *Ingester) replayArchive(ctx context.Context, path string) (inode, size int64, err error) {
 	f, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil // rotated away while we worked
+			return -1, 0, nil // rotated away while we worked
 		}
-		return err
+		return -1, 0, err
 	}
 	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return -1, 0, err
+	}
+	inode = fileInode(info)
 	var src io.Reader = f
 	if strings.HasSuffix(path, ".gz") {
 		zr, err := gzip.NewReader(f)
 		if err != nil {
-			return err
+			return -1, 0, err
 		}
 		defer zr.Close()
 		src = zr
@@ -132,18 +155,19 @@ func (i *Ingester) replayArchive(ctx context.Context, path string) error {
 	r := bufio.NewReaderSize(src, 256*1024)
 	total := 0
 	for {
-		lines, _, err := readChunk(r, maxLinesPerRun)
+		lines, n, err := readChunk(r, maxLinesPerRun)
 		if err != nil {
-			return err
+			return -1, 0, err
 		}
 		if len(lines) == 0 {
 			break
 		}
 		if err := i.commitLines(ctx, lines, false, 0, 0); err != nil {
-			return err
+			return -1, 0, err
 		}
 		total += len(lines)
+		size += n
 	}
 	log.Printf("analytics rebuild: %s, %d lines", path, total)
-	return nil
+	return inode, size, nil
 }

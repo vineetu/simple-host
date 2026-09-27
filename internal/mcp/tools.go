@@ -1401,7 +1401,9 @@ func Tools() []Tool {
 				if want != strings.ToLower(*cur.Domain) {
 					return output{}, fmt.Errorf("confirm_domain %q does not match the connected domain %q; nothing was changed", confirm, *cur.Domain)
 				}
-				res = c.do(http.MethodDelete, path, nil, nil)
+				// The server drops only this address: if the site's domain
+				// changed since the read above, it answers domain_changed.
+				res = c.do(http.MethodDelete, path+"?domain="+url.QueryEscape(*cur.Domain), nil, nil)
 				if !res.ok() {
 					return output{}, restError("remove_domain", res)
 				}
@@ -1456,7 +1458,8 @@ func Tools() []Tool {
 				"and every collection's items (collections.json, private lists included). The link works for 10 minutes and only for that site; " +
 				"give it to the person to click, and make a new one if it has expired. Do not post it anywhere public: until it expires, anyone with it can download the copy.",
 			InputSchema: object(map[string]any{"site": str(siteDesc)}, "site"),
-			Annotations: readOnly(),
+			// Not read-only: each call mints a new bearer download link on the server.
+			Annotations: writes(false, false, false),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
 				if err != nil {

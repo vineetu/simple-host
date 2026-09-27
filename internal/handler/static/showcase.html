@@ -1381,6 +1381,10 @@ function parseAnalyticsSummary(data) {
     var ownerMe = null;             // /v1/me of the confirmed owner
     var currentRange = 30;         // selected analytics range (days)
     var analyticsLoaded = {};      // days -> true once fetched for that range
+    // True only on the visitor's own page. An admin may open anyone's page,
+    // but the row actions and lists name sites by /v1/sites/<name>, which is
+    // the admin's own account, so they are offered only here.
+    function pageIsOwn() { return !!(ownerMe && ownerMe.handle && ownerMe.handle === HANDLE); }
 
     async function hydrateOwner() {
       if (!apiKey) return false;
@@ -1503,7 +1507,7 @@ function parseAnalyticsSummary(data) {
       inv.innerHTML = '<div class="inv-list">' + sitesArr.map(function (s) {
         return renderInvRow(s);
       }).join('') + '</div>';
-      observePrivateLists(inv);
+      if (pageIsOwn()) observePrivateLists(inv);
     }
 
     // ------------------------------------------------------- LISTS AND SAVED DATA
@@ -1967,6 +1971,7 @@ function parseAnalyticsSummary(data) {
       var ver = Number(s.active_version) || 0;
       var meta = ver ? 'v' + ver + ' live' : 'nothing published yet';
       if (s.deployed_at) meta += ' · last deployed ' + fmtDateTime(s.deployed_at);
+      var own = pageIsOwn();
       return '<div class="inv-row" data-site="' + name + '">' +
         '<div class="inv-main">' +
           '<div class="inv-id">' +
@@ -1977,17 +1982,17 @@ function parseAnalyticsSummary(data) {
               '. Every address shows a &ldquo;taken down&rdquo; page and changes are refused until it is restored. Nothing has been deleted.</div>' : '') +
           '</div>' +
         '</div>' +
-        (s.suspended ? '<div class="inv-actions">' +
+        (s.suspended ? (own ? '<div class="inv-actions">' +
           '<button type="button" class="btn-small btn-secondary" data-act="downloadSite" data-name="' + name + '">Download</button>' +
-        '</div>' :
+        '</div>' : '') :
         '<div class="inv-actions">' +
-          '<a class="btn-small btn-secondary" href="' + openUrl + '" target="_blank" rel="noopener">Open</a>' +
+          '<a class="btn-small btn-secondary" href="' + openUrl + '" target="_blank" rel="noopener">Open</a>' + (own ?
           '<button type="button" class="btn-small btn-secondary" data-act="toggleVis" data-name="' + name + '" data-vis="' + vis + '" data-vis-btn="' + name + '">' + (vis === 'public' ? 'Make unlisted' : 'Make public') + '</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="toggleVersions" data-name="' + name + '">Revert</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="openRename" data-name="' + name + '">Rename</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="openDomain" data-name="' + name + '">' + (s.custom_domain ? 'Domain' : 'Connect domain') + '</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="downloadSite" data-name="' + name + '">Download</button>' +
-          '<button type="button" class="btn-small btn-ghost" data-act="confirmDelete" data-name="' + name + '">Delete</button>' +
+          '<button type="button" class="btn-small btn-ghost" data-act="confirmDelete" data-name="' + name + '">Delete</button>' : '') +
         '</div>') +
         '<div class="versions-panel" data-versions="' + name + '" hidden></div>' +
         '<div class="row-panel" data-panel="' + name + '" hidden></div>' +
@@ -2024,6 +2029,9 @@ function parseAnalyticsSummary(data) {
           arr = arr.filter(function (s) { return s.user_id === ownerMe.id; });
         }
         ownerSites = arr;
+        // Analytics are keyed by site name; a rename or delete makes them stale.
+        analyticsCache = {};
+        analyticsLoaded = {};
         renderInventory(ownerSites);
       } catch (e) { /* the old rows stay */ }
     }
@@ -3517,14 +3525,15 @@ function parseAnalyticsSummary(data) {
           });
         });
       }
-      window.shLoadDeletedSites = loadDeleted;
-
       (async function () {
         try {
           var res = await api('GET', '/v1/me');
           if (!res.ok) return;
           var me = await res.json();
           if (!me || !me.handle || me.handle !== HANDLE) return;
+          // Only now: an admin on someone else's page must not get their own
+          // deleted sites listed there after a delete.
+          window.shLoadDeletedSites = loadDeleted;
           showAddress(me.handle);
           loadDeleted();
         } catch (e) {}

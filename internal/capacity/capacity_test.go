@@ -122,3 +122,26 @@ func TestHumanReadsLikeAnAdminScreen(t *testing.T) {
 		}
 	}
 }
+
+// Recently deleted sites wait in <dataDir>/deleted/<userID>/<siteID>/. They
+// still occupy the disk (DiskUsedBytes) but are not live sites, so they must
+// not add to SiteBytes, Sites or Largest.
+func TestMeasureSkipsRecentlyDeleted(t *testing.T) {
+	root := t.TempDir()
+	writeSite(t, root, "user-a", "entry", map[string]int{"current": 100})
+	trashed := filepath.Join(root, "deleted", "user-a", "site-id-1", "current")
+	if err := os.MkdirAll(trashed, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(trashed, "index.html"), make([]byte, 5000), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	usage, err := Measure(root, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if usage.SiteBytes != 100 || usage.Sites != 1 {
+		t.Errorf("SiteBytes = %d, Sites = %d; want 100 and 1 (deleted site counted as live)", usage.SiteBytes, usage.Sites)
+	}
+}
