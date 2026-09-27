@@ -15,8 +15,11 @@
 # ($SITES/<domain> -> by-id/<user>/<site>, made by the app on connect and
 # removed on disconnect). A request is honoured only while that link exists,
 # and a server this script wrote is removed (with its certificate) once the
-# link is gone. Domains the operator configured by hand
-# (sites-enabled/customdomain-<domain>) are never touched: they count as ready.
+# link is gone. Domains the operator configured by hand are never touched:
+# any domain already named by server_name in a sites-enabled file this script
+# did not write (customdomain-<domain>, or a vhost named after the site such as
+# sites-enabled/vineetsriram.com) counts as ready, and no server of ours is
+# written for it.
 #
 # Per request: check that the domain's A record points here and that no
 # AAAA record points elsewhere (Let's Encrypt prefers IPv6), then certbot
@@ -33,19 +36,22 @@ WEBROOT=/var/www/acme
 TEMPLATE=/usr/local/lib/simple-host-domain-certs/vhost.conf.template
 AVAILABLE=/etc/nginx/sites-available
 ENABLED=/etc/nginx/sites-enabled
-PREFIX=simple-host-domain-  # our servers; hand-made ones are customdomain-<domain>
+LE_LIVE=/etc/letsencrypt/live
+LOCK=/run/simple-host-domain-certs.lock
+PREFIX=simple-host-domain-  # our servers; anything else naming the domain is hand-made
 DAILY=50                    # new certificates per rolling 24h
 PER_RUN=10
 RETRY_AFTER=21600           # seconds before a failed domain is tried again
 IP=""                       # this server's IPv4 (the A record handed out); default: the apex's A record
 IP6=""                      # this server's IPv6, if AAAA records may point here
-[ -r /etc/simple-host-domain-certs.conf ] && . /etc/simple-host-domain-certs.conf
+CONF=${SIMPLE_HOST_DOMAIN_CERTS_CONF:-/etc/simple-host-domain-certs.conf}  # override: tests only
+[ -r "$CONF" ] && . "$CONF"
 
 DOMAIN_RE='^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$'
 
 log() { echo "domain-certs: $*"; }
 
-exec 9>/run/simple-host-domain-certs.lock
+exec 9>"$LOCK"
 flock -n 9 || { log "another run is in progress"; exit 0; }
 
 install -d -m 0755 -o root -g root "$STATE" "$STATE/ready" "$STATE/failed" "$STATE/owned"
@@ -72,6 +78,41 @@ fail() {
   touch -d "@$((now - RETRY_AFTER + retry))" "$STATE/failed/$d.new"
   mv -f "$STATE/failed/$d.new" "$STATE/failed/$d"
   log "$d: $why"
+}
+
+# hand_served <domain>: 0 when an enabled nginx file we did not write already
+# names the domain in server_name (exactly, or as *.parent / .parent). Such a
+# server belongs to the operator; writing ours next to it would take it over.
+hand_served() {
+  local d=$1 f
+  for f in "$ENABLED"/*; do
+    [ -f "$f" ] || continue
+    case "$(basename "$f")" in "$PREFIX"*) continue ;; esac
+    awk -v d="$d" '
+      { sub(/#.*/, ""); buf = buf " " $0 }
+      END {
+        n = split(buf, st, ";")
+        for (i = 1; i <= n; i++) {
+          s = st[i]; gsub(/[{}"]/, " ", s)
+          m = split(s, w, /[ \t]+/)
+          for (j = 1; j <= m; j++) {
+            if (w[j] != "server_name") continue
+            for (k = j + 1; k <= m; k++) {
+              nm = tolower(w[k])
+              if (nm == d) exit 0
+              if (nm ~ /^\.|^\*\./) {
+                # .parent also names parent itself; *.parent only its subdomains
+                if (nm ~ /^\./ && d == substr(nm, 2)) exit 0
+                sfx = substr(nm, index(nm, "."))
+                if (length(d) > length(sfx) && substr(d, length(d) - length(sfx) + 1) == sfx) exit 0
+              }
+            }
+          }
+        }
+        exit 1
+      }' "$f" && return 0
+  done
+  return 1
 }
 
 # write_server <domain>: our nginx server for it, enabled; 0 when nginx accepts it.
@@ -105,6 +146,12 @@ if [ -d "$SITES" ]; then
     fi
     rm -f -- "$f" "$STATE/failed/$d"
   done
+  # A failure note outlives its request: drop it once the binding is gone.
+  for f in "$STATE"/failed/*; do
+    [ -f "$f" ] || continue
+    d=$(basename "$f")
+    [ -L "$SITES/$d" ] || rm -f -- "$f"
+  done
 fi
 
 used_today=$(awk -v t="$((now - 86400))" '$1 >= t' "$STATE/issued.log" | wc -l)
@@ -124,13 +171,18 @@ for d in "${reqs[@]}"; do
     rm -f -- "$STATE/requests/$d"
     continue
   fi
-  if [ -e "$ENABLED/customdomain-$d" ]; then
-    # Configured by hand: served already.
+  if [ -e "$ENABLED/customdomain-$d" ] || hand_served "$d"; then
+    # Configured by hand: served already. Never write ours beside it (and
+    # drop one written before the hand-made server appeared).
+    if [ -e "$AVAILABLE/$PREFIX$d" ] || [ -L "$ENABLED/$PREFIX$d" ]; then
+      rm -f -- "$ENABLED/$PREFIX$d" "$AVAILABLE/$PREFIX$d"
+      reload=1
+    fi
     touch "$STATE/ready/$d"
     rm -f -- "$STATE/requests/$d" "$STATE/failed/$d"
     continue
   fi
-  lineage="/etc/letsencrypt/live/$d"
+  lineage="$LE_LIVE/$d"
   if [ -f "$lineage/fullchain.pem" ] && [ -f "$lineage/privkey.pem" ]; then
     # Issued before (e.g. reconnected, or a server removed by hand): serve it again.
     if write_server "$d"; then

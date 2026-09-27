@@ -11,4 +11,5 @@ check:
 	bash scripts/check-layering.sh
 	bash scripts/check-docs-sync.sh
 	bash scripts/check-claude-plugin.sh
+	bash deploy/domain-certs/issue_test.sh
 	bash scripts/check-fresh-install.sh

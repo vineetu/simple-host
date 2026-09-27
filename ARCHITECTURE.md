@@ -59,7 +59,7 @@ certbot HTTP-01 against the webroot every port-80 server already answers (`/var/
 writes `sites-enabled/simple-host-domain-<domain>` from its template, reloads nginx and writes
 `ready/<domain>`, or `failed/<domain>` with one line the app shows as `last_error`. The issuer
 only issues while the domain's link in `/srv/simple-host/sites/domains/` exists and removes its
-own server (and certificate) once the link is gone; hand-made `customdomain-<domain>` servers are
+own server (and certificate) once the link is gone; hand-made servers (any other enabled file whose `server_name` names the domain) are
 left alone. A site keeps serving at its earlier own address (`previous_domain`) until a new
 domain is verified; a verified domain failing for 24 h emails the owner, and after 72 h its
 verification is cleared. A claimed `<name>.simple-host.app` the site lets go is kept in

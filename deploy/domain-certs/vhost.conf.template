@@ -1,8 +1,8 @@
 # simple-host-domain-certs: written by /usr/local/sbin/simple-host-domain-certs
 # for the custom domain __DOMAIN__. Do not edit by hand: it is rewritten on
-# every issue and removed when the domain is disconnected. A hand-made server
-# for a domain lives in sites-enabled/customdomain-<domain> instead, and the
-# issuer leaves such domains alone.
+# every issue and removed when the domain is disconnected. A domain that any
+# other enabled server already names in server_name is hand-made; the issuer
+# leaves such domains alone.
 #
 # Custom domain -> the one site it is bound to. Content is served from the
 # domains farm (domains/<domain> -> by-id/<user_id>/<site>); /v1 and
@@ -32,7 +32,12 @@ server {
 
     root /srv/simple-host/sites/domains/__DOMAIN__/current;
     index index.html;
-    location / { try_files $uri $uri/ =404; }
+    # Taken down by the operator: the app's take-down page. Inside location /
+    # so /v1/ (the owner's API; the app refuses visitors itself) is not caught.
+    location / {
+        if (-f /srv/simple-host/sites/domains/__DOMAIN__/suspended) { rewrite ^ /internal/suspended last; }
+        try_files $uri $uri/ =404;
+    }
 }
 
 # http -> https, keeping the ACME challenge path for renewals.

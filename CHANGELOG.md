@@ -4,6 +4,8 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 ## 2026-09-27
 
+- Custom-domain issuer: never writes its own server for a domain another enabled nginx file already names (hand-made vhosts such as `vineetsriram.com` stay in charge), drops failure notes of disconnected domains, and issued servers now show the take-down page for a taken-down site (the `/v1/` API still reaches the app).
+
 - Public pages (terms, privacy, support) now give support@simple-host.app as the contact address. Deleting a site that the operator has taken down is refused; a claimed free address of a site in Recently deleted stays held and says the site was removed, and is retired to it when the site is purged. The owner app shows a pending custom domain's certificate progress and the address the site still answers at (`GET /v1/sites` adds `domain_certificate_status`, `previous_domain`). Skills 0.20.0; installer pins v0.3.0.
 - API keys one at a time: every key now has a name (where it came from, or one you type), its last 4 characters and when it was last used. The **Keys** panel on your page lists them, creates a named key (shown once) and revokes one without touching the rest (`GET/POST /v1/me/keys`, `DELETE /v1/me/keys/{id}`). "Rotate API key" is now called **Sign out everywhere**. Needs migration `cp-keys-key-names.sql`. Skills 0.20.0.
 - Sign out now ends the key on the server (`POST /v1/me/sign-out`) before clearing the browser, so a signed-out browser no longer leaves a working key behind.

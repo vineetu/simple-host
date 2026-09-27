@@ -25,7 +25,7 @@ never runs certbot; a root-owned issuer does.
    `<name>.simple-host.app` is kept in `legacy_hostnames` and redirects to the domain.
 5. When the binding goes (disconnect, expiry, site delete) the app removes the link; the
    issuer's next run removes its server block, the ready marker and the certificate it issued.
-   Hand-made `customdomain-<domain>` servers are never touched and count as ready.
+   Hand-made servers (any enabled file this script did not write whose `server_name` names the domain, e.g. `customdomain-<domain>` or `vineetsriram.com`) are never touched and count as ready.
 
 Caps: 50 new certificates per rolling day, 10 per run. Renewals are certbot's own timer (the
 lineage keeps the webroot and `systemctl reload nginx` as its deploy hook).
