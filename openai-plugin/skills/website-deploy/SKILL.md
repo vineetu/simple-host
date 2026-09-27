@@ -40,6 +40,7 @@ own domain, use the `connect-domain` skill.
 | Mark done (private lists), delete an item or empty a list (any list) | `update_collection_item`, `delete_collection_item`, `clear_collection` |
 | A shorter address (optional) | `connect_domain` (free `<name>.simple-host.app`, or their own domain), `domain_status` |
 | Visitors | `site_analytics` (report the `person` numbers) |
+| Download a copy (files, saved data, lists) | `export_site` (a link that works for 10 minutes; give it to the person) |
 
 To publish a new site use `create_site`; to change an existing site use `update_site` (read
 its files first). `create_site` never overwrites an existing site.

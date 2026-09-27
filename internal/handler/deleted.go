@@ -76,6 +76,10 @@ func (h *SiteHandler) deleteSite(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	// A site the operator took down stays as it is: its owner cannot delete it.
+	if refuseSuspendedSite(w, site) {
+		return
+	}
 	tx, err := h.database.BeginTx(r.Context(), nil)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -140,7 +144,7 @@ func (h *SiteHandler) restoreSite(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			if _, lerr := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName); lerr == nil {
-				writeJSON(w, http.StatusConflict, errorResponse{Error: "that site is not deleted"})
+				writeJSON(w, http.StatusConflict, errorResponse{Error: "that site is not deleted", Code: "site_not_deleted"})
 				return
 			}
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "no site with that name in Recently deleted"})
@@ -197,6 +201,11 @@ func (h *SiteHandler) restoreSite(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
+	}
+	// It comes back as it was, taken down included (the operator may have
+	// taken it down while it was deleted): the disk marker follows the record.
+	if err := h.syncSiteMarker(site); err != nil {
+		log.Printf("restore site %s: suspend marker: %v", site.ID, err)
 	}
 	writeJSON(w, http.StatusOK, h.toSiteResponse(site, "Restored with all its versions and saved data."))
 }

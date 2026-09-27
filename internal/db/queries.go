@@ -73,10 +73,15 @@ func GetUserByAPIKey(ctx context.Context, db *sql.DB, apiKey string) (User, erro
 		if !ok {
 			return User{}, sql.ErrNoRows
 		}
-		return GetUserByID(ctx, db, userID)
+		u, err := GetUserByID(ctx, db, userID)
+		if err == nil && u.Suspended {
+			return u, ErrAccountSuspended
+		}
+		return u, err
 	}
 	const query = `
-		SELECT u.id, u.username, u.is_admin, u.created_at, u.handle, u.display_name, k.key_hash
+		SELECT u.id, u.username, u.is_admin, u.created_at, u.handle, u.display_name, k.key_hash,
+		       u.suspended_at IS NOT NULL, COALESCE(u.suspended_reason, '')
 		FROM api_keys k JOIN users u ON u.id = k.user_id
 		WHERE k.key_hash = $1
 	`
@@ -90,7 +95,12 @@ func GetUserByAPIKey(ctx context.Context, db *sql.DB, apiKey string) (User, erro
 		&user.Handle,
 		&user.DisplayName,
 		&user.KeyHash,
+		&user.Suspended,
+		&user.SuspendedReason,
 	)
+	if err == nil && user.Suspended {
+		return user, ErrAccountSuspended
+	}
 	if err == nil {
 		touchAPIKey(ctx, db, user.KeyHash)
 	}
@@ -123,7 +133,8 @@ func RotateAPIKey(ctx context.Context, db *sql.DB, userID, currentKeyHash, newKe
 
 func GetUserByUsername(ctx context.Context, q Querier, username string) (User, error) {
 	const query = `
-		SELECT id, username, is_admin, created_at, handle, display_name
+		SELECT id, username, is_admin, created_at, handle, display_name,
+		       suspended_at IS NOT NULL, COALESCE(suspended_reason, '')
 		FROM users
 		WHERE username = $1
 	`
@@ -136,14 +147,18 @@ func GetUserByUsername(ctx context.Context, q Querier, username string) (User, e
 		&user.CreatedAt,
 		&user.Handle,
 		&user.DisplayName,
+		&user.Suspended,
+		&user.SuspendedReason,
 	)
 	return user, err
 }
 
-// GetUserByID loads a users row by primary key.
+// GetUserByID loads a users row by primary key, including whether the
+// operator has suspended it (callers that authenticate must check Suspended).
 func GetUserByID(ctx context.Context, q Querier, id string) (User, error) {
 	const query = `
-		SELECT id, username, is_admin, created_at, handle, display_name
+		SELECT id, username, is_admin, created_at, handle, display_name,
+		       suspended_at IS NOT NULL, COALESCE(suspended_reason, '')
 		FROM users
 		WHERE id = $1
 	`
@@ -156,6 +171,8 @@ func GetUserByID(ctx context.Context, q Querier, id string) (User, error) {
 		&user.CreatedAt,
 		&user.Handle,
 		&user.DisplayName,
+		&user.Suspended,
+		&user.SuspendedReason,
 	)
 	return user, err
 }
@@ -475,7 +492,10 @@ func GetSiteIDByName(ctx context.Context, db *sql.DB, name string) (string, erro
 func GetSiteByUser(ctx context.Context, db *sql.DB, userID, name string) (Site, error) {
 	const query = `
 		SELECT id, user_id, name, active_version, COALESCE(site_url, ''), created_at, updated_at, custom_domain, domain_status, visibility,
-		       (SELECT COALESCE(u.handle, '') FROM users u WHERE u.id = sites.user_id)
+		       (SELECT COALESCE(u.handle, '') FROM users u WHERE u.id = sites.user_id),
+		       sites.suspended_at IS NOT NULL, COALESCE(sites.suspended_reason, ''),
+		       COALESCE((SELECT su.suspended_at IS NOT NULL FROM users su WHERE su.id = sites.user_id), false),
+		       COALESCE((SELECT su.suspended_reason FROM users su WHERE su.id = sites.user_id AND su.suspended_at IS NOT NULL), '')
 		FROM sites
 		WHERE user_id = $1 AND name = $2 AND deleted_at IS NULL
 	`
@@ -493,6 +513,10 @@ func GetSiteByUser(ctx context.Context, db *sql.DB, userID, name string) (Site, 
 		&site.DomainStatus,
 		&site.Visibility,
 		&site.OwnerHandle,
+		&site.SiteSuspended,
+		&site.SiteSuspendedReason,
+		&site.OwnerSuspended,
+		&site.OwnerSuspendedReason,
 	)
 	return site, err
 }
@@ -535,7 +559,9 @@ func DeleteSite(ctx context.Context, db Querier, siteID string) error {
 func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 	const query = `
 		SELECT s.id, s.user_id, s.name, s.active_version, COALESCE(s.site_url, ''), s.created_at, s.updated_at, s.custom_domain, s.domain_status, s.visibility, u.username, COALESCE(u.handle, ''),
-		       s.domain_last_error, s.domain_bound_at, s.domain_verified_at, COALESCE(s.previous_domain, ''), COALESCE(s.domain_cert_status, ''), (SELECT max(v.created_at) FROM versions v WHERE v.site_id = s.id AND v.status = 'active')
+		       s.domain_last_error, s.domain_bound_at, s.domain_verified_at, COALESCE(s.previous_domain, ''), COALESCE(s.domain_cert_status, ''), (SELECT max(v.created_at) FROM versions v WHERE v.site_id = s.id AND v.status = 'active'),
+		       s.suspended_at IS NOT NULL, COALESCE(s.suspended_reason, ''),
+		       u.suspended_at IS NOT NULL, COALESCE(u.suspended_reason, '')
 		FROM sites s
 		INNER JOIN users u ON u.id = s.user_id
 		WHERE s.deleted_at IS NULL
@@ -570,6 +596,10 @@ func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 			&site.PreviousDomain,
 			&site.DomainCertStatus,
 			&site.LastDeployedAt,
+			&site.SiteSuspended,
+			&site.SiteSuspendedReason,
+			&site.OwnerSuspended,
+			&site.OwnerSuspendedReason,
 		); err != nil {
 			return nil, err
 		}
@@ -585,7 +615,8 @@ func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 // are deliberately NOT selected.
 func ListAllUsers(ctx context.Context, db *sql.DB) ([]User, error) {
 	rows, err := db.QueryContext(ctx, `
-		SELECT id, username, is_admin, created_at, COALESCE(handle, ''), display_name
+		SELECT id, username, is_admin, created_at, COALESCE(handle, ''), display_name,
+		       suspended_at IS NOT NULL, COALESCE(suspended_reason, '')
 		FROM users
 		ORDER BY created_at ASC`)
 	if err != nil {
@@ -597,7 +628,7 @@ func ListAllUsers(ctx context.Context, db *sql.DB) ([]User, error) {
 	for rows.Next() {
 		var u User
 		var handle string
-		if err := rows.Scan(&u.ID, &u.Username, &u.IsAdmin, &u.CreatedAt, &handle, &u.DisplayName); err != nil {
+		if err := rows.Scan(&u.ID, &u.Username, &u.IsAdmin, &u.CreatedAt, &handle, &u.DisplayName, &u.Suspended, &u.SuspendedReason); err != nil {
 			return nil, err
 		}
 		if handle != "" {
@@ -613,7 +644,10 @@ func ListSitesByUser(ctx context.Context, db *sql.DB, userID string) ([]Site, er
 		SELECT id, user_id, name, active_version, COALESCE(site_url, ''), created_at, updated_at, custom_domain, domain_status, visibility,
 		       (SELECT COALESCE(u.handle, '') FROM users u WHERE u.id = sites.user_id),
 		       domain_last_error, domain_bound_at, domain_verified_at, COALESCE(previous_domain, ''), COALESCE(domain_cert_status, ''),
-		       (SELECT max(v.created_at) FROM versions v WHERE v.site_id = sites.id AND v.status = 'active')
+		       (SELECT max(v.created_at) FROM versions v WHERE v.site_id = sites.id AND v.status = 'active'),
+		       sites.suspended_at IS NOT NULL, COALESCE(sites.suspended_reason, ''),
+		       COALESCE((SELECT su.suspended_at IS NOT NULL FROM users su WHERE su.id = sites.user_id), false),
+		       COALESCE((SELECT su.suspended_reason FROM users su WHERE su.id = sites.user_id AND su.suspended_at IS NOT NULL), '')
 		FROM sites
 		WHERE user_id = $1 AND deleted_at IS NULL
 		ORDER BY created_at ASC, name ASC
@@ -668,6 +702,10 @@ func scanSiteRows(rows *sql.Rows) ([]Site, error) {
 			&site.PreviousDomain,
 			&site.DomainCertStatus,
 			&site.LastDeployedAt,
+			&site.SiteSuspended,
+			&site.SiteSuspendedReason,
+			&site.OwnerSuspended,
+			&site.OwnerSuspendedReason,
 		); err != nil {
 			return nil, err
 		}

@@ -215,6 +215,9 @@ func (h *SiteHandler) bindDomain(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	if refuseSuspendedSite(w, site) {
+		return
+	}
 
 	var req domainBindRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -230,7 +233,7 @@ func (h *SiteHandler) bindDomain(w http.ResponseWriter, r *http.Request) {
 
 	domain, err := h.normalizeDomain(req.Domain)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "invalid_domain"})
 		return
 	}
 
@@ -380,6 +383,9 @@ func (h *SiteHandler) deleteDomain(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	if refuseSuspendedSite(w, site) {
 		return
 	}
 

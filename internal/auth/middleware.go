@@ -77,6 +77,16 @@ func Middleware(adminAPIKey, adminUserID string, database *sql.DB) func(http.Han
 
 			user, err := db.GetUserByAPIKey(r.Context(), database, apiKey)
 			if err != nil {
+				if errors.Is(err, db.ErrAccountSuspended) {
+					// The key is kept, not deleted, so re-enabling the account
+					// brings it back; the person sees why here.
+					writeJSON(w, http.StatusForbidden, map[string]string{
+						"error":  SuspendedMessage(user.SuspendedReason),
+						"code":   "account_suspended",
+						"reason": user.SuspendedReason,
+					})
+					return
+				}
 				if errors.Is(err, sql.ErrNoRows) {
 					writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "invalid API key: the X-API-Key you sent is not recognized (it may have been revoked, or the account signed out). Sign in again via POST /v1/auth for a new key.", Code: "invalid_api_key"})
 					return
@@ -90,6 +100,15 @@ func Middleware(adminAPIKey, adminUserID string, database *sql.DB) func(http.Han
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// SuspendedMessage is the error text a suspended person sees, with the
+// operator's reason when there is one.
+func SuspendedMessage(reason string) string {
+	if reason == "" {
+		return "this account has been suspended by the operator"
+	}
+	return "this account has been suspended by the operator: " + reason
 }
 
 func RequireAdmin(next http.Handler) http.Handler {

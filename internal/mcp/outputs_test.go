@@ -177,10 +177,11 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		"GET /v1/sites/blog/domain":  fixed(200, `{"domain":"rsvp.example.com","status":"active","verified_at":"2026-09-01T00:00:00Z","dns":{"type":"A","host":"rsvp.example.com","value":"192.0.2.1"}}`),
 		"GET /v1/sites/pend/domain": fixed(200, `{"domain":"pend.example.com","status":"pending","bound_at":"2026-09-01T00:00:00Z","expires_at":"2026-09-02T00:00:00Z","certificate_status":"issuing","previous_domain":"pend.simple-host.app",`+
 			`"dns":{"type":"CNAME","host":"pend.example.com","value":"sites.simple-host.app"}}`),
-		"GET /v1/sites/draft/domain":   fixed(200, `{"domain":null,"status":null}`),
-		"GET /v1/sites/broken/domain":  fixed(200, `{"domain":"broken.example.com","status":"error","last_error":"HTTPS returned 502","certificate_status":"live","failing_since":"2026-09-01T00:00:00Z","dns":{"type":"CNAME","host":"broken.example.com","value":"sites.simple-host.app"}}`),
-		"DELETE /v1/sites/blog/domain": fixed(204, ""),
-		"GET /v1/sites/blog/analytics": fixed(200, `{"range_days":7,"totals":`+split+`,"daily":[],"last_24h":`+split+`,"hourly":[],"classified_from":"2026-09-01"}`),
+		"GET /v1/sites/draft/domain":      fixed(200, `{"domain":null,"status":null}`),
+		"GET /v1/sites/broken/domain":     fixed(200, `{"domain":"broken.example.com","status":"error","last_error":"HTTPS returned 502","certificate_status":"live","failing_since":"2026-09-01T00:00:00Z","dns":{"type":"CNAME","host":"broken.example.com","value":"sites.simple-host.app"}}`),
+		"DELETE /v1/sites/blog/domain":    fixed(204, ""),
+		"POST /v1/sites/blog/export-link": fixed(200, `{"site":"blog","url":"https://simple-host.app/v1/export?token=abc.def","expires_at":"2026-09-27T10:10:00Z","expires_in":600}`),
+		"GET /v1/sites/blog/analytics":    fixed(200, `{"range_days":7,"totals":`+split+`,"daily":[],"last_24h":`+split+`,"hourly":[],"classified_from":"2026-09-01"}`),
 	}}
 	s := newTestServer(up)
 	calls := []struct {
@@ -223,6 +224,7 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		{"domain_status", map[string]any{"site": "pend"}},
 		{"remove_domain", map[string]any{"site": "blog", "confirm_domain": "rsvp.example.com"}},
 		{"site_analytics", map[string]any{"site": "blog", "days": 7}},
+		{"export_site", map[string]any{"site": "blog"}},
 	}
 	byName := map[string]Tool{}
 	for _, tool := range Tools() {

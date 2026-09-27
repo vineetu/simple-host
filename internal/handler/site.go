@@ -106,6 +106,11 @@ type SiteHandler struct {
 	siteCertDir string
 	// domainCertDir is DOMAIN_CERT_DIR (domaincert.go).
 	domainCertDir string
+
+	// exportKey signs short-lived export download links (exportlink.go); per
+	// process, used for nothing else. publicBaseURL is the apex they point at.
+	exportKey     []byte
+	publicBaseURL string
 }
 
 // lockSite acquires the per-site upload mutex and returns its unlock func.
@@ -141,6 +146,10 @@ type siteResponse struct {
 	Visibility    string     `json:"visibility,omitempty"`
 	OwnerUsername string     `json:"owner_username,omitempty"`
 	Note          string     `json:"note,omitempty"`
+	// Suspended: the operator has taken the site down (by itself or with its
+	// owner's account). It keeps everything and refuses changes until restored.
+	Suspended       bool   `json:"suspended,omitempty"`
+	SuspendedReason string `json:"suspended_reason,omitempty"`
 }
 
 type versionResponse struct {
@@ -181,6 +190,7 @@ func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, con
 		writeAuthMode:      writeAuthMode,
 		adminAPIKey:        adminAPIKey,
 		adminUserID:        adminUserID,
+		exportKey:          newExportKey(),
 	}
 	if len(previewAccounts) > 0 {
 		ttlHours := int(previewTTL.Hours())
@@ -261,11 +271,25 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("POST /v1/admin/users/{id}/key", authMiddleware(http.HandlerFunc(h.reissueAccountKey)))
 	mux.Handle("PATCH /v1/me", authMiddleware(http.HandlerFunc(h.patchMe)))
 	mux.Handle("GET /v1/admin/users", authMiddleware(http.HandlerFunc(h.adminUsers)))
+	// Operator take-down (suspend.go): a site, or a person and all their
+	// sites, without deleting anything; restore / enable reverses it.
+	mux.Handle("POST /v1/admin/sites/{id}/suspend", authMiddleware(h.setSiteSuspension(true)))
+	mux.Handle("POST /v1/admin/sites/{id}/restore", authMiddleware(h.setSiteSuspension(false)))
+	mux.Handle("POST /v1/admin/users/{id}/suspend", authMiddleware(h.setUserSuspension(true)))
+	mux.Handle("POST /v1/admin/users/{id}/enable", authMiddleware(h.setUserSuspension(false)))
+	// Every site on the instance in one archive (export.go).
+	mux.Handle("GET /v1/admin/export.tar.gz", authMiddleware(http.HandlerFunc(h.exportAll)))
 	// What the disk is actually holding, and how much is left.
 	mux.Handle("GET /v1/admin/usage", authMiddleware(http.HandlerFunc(h.adminUsage)))
 	// Take your work with you. An event box is destroyed when the event ends and
 	// nothing is backed up, so the only honest answer is to make leaving easy.
 	mux.Handle("GET /v1/sites/{sitename}/export.tar.gz", authMiddleware(http.HandlerFunc(h.exportSite)))
+	// The same export behind a 10-minute signed link, for people with no API
+	// key (chat-app connector users): minted by the owner, opened by a click.
+	mux.Handle("POST /v1/sites/{sitename}/export-link", noticeMiddleware(authMiddleware(http.HandlerFunc(h.createExportLink))))
+	exportLimiter := newRateLimiter(10, 0.1)
+	exportLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	mux.Handle("GET /v1/export", rateLimitByIP(exportLimiter, http.HandlerFunc(h.downloadExport)))
 	mux.Handle("GET /v1/sites/{sitename}/versions", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listVersions))))
 	mux.Handle("GET /v1/sites/{sitename}/versions/{version}/files", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listVersionFiles))))
 	mux.Handle("GET /v1/sites/{sitename}/versions/{version}/files/{path...}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getVersionFile))))
@@ -317,6 +341,9 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.HandleFunc("GET /internal/site-redirect/{handle}/{sitename}", h.contentHostRedirect)
 	mux.HandleFunc("GET /internal/site-redirect/{handle}/{sitename}/{rest...}", h.contentHostRedirect)
 	mux.HandleFunc("GET /internal/notfound", h.notFound)
+	// Where nginx and Caddy send a request for a site whose folder carries the
+	// take-down marker (suspend.go).
+	mux.HandleFunc("GET /internal/suspended", h.suspendedPage)
 
 	// Append-only collections (second backend type): cheap O(1) appends +
 	// paginated reads for large/high-volume lists. Origin-gated like state.
@@ -388,11 +415,11 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request) {
 	}
 	newName := strings.TrimSpace(req.Name)
 	if err := validateSiteShape(newName); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "invalid_name"})
 		return
 	}
 	if err := validateSiteReserved(newName); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "name_reserved"})
 		return
 	}
 	if oldName == newName {
@@ -413,15 +440,18 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
 		return
 	}
+	if refuseSuspendedSite(w, site) {
+		return
+	}
 	if _, err := db.GetSiteByUser(r.Context(), h.database, user.ID, newName); err == nil {
-		writeJSON(w, http.StatusConflict, errorResponse{Error: "you already have a site with that name"})
+		writeJSON(w, http.StatusConflict, errorResponse{Error: "you already have a site with that name", Code: "site_exists"})
 		return
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
 	if msg, held := h.deletedNameConflict(r.Context(), user.ID, newName); held {
-		writeJSON(w, http.StatusConflict, map[string]any{"error": msg, "recently_deleted": true})
+		writeJSON(w, http.StatusConflict, map[string]any{"error": msg, "code": "recently_deleted", "recently_deleted": true})
 		return
 	}
 	oldURL := h.siteURLFor(site)
@@ -440,7 +470,7 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request) {
 	if err := db.RenameSite(r.Context(), h.database, site.ID, newName, newURL); err != nil {
 		_ = h.disk.RenameSite(user.ID, newName, oldName, domain)
 		if isUniqueViolation(err) {
-			writeJSON(w, http.StatusConflict, errorResponse{Error: "you already have a site with that name"})
+			writeJSON(w, http.StatusConflict, errorResponse{Error: "you already have a site with that name", Code: "site_exists"})
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -467,6 +497,9 @@ func (h *SiteHandler) setAllowedOrigins(w http.ResponseWriter, r *http.Request) 
 	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+		return
+	}
+	if refuseSuspendedSite(w, site) {
 		return
 	}
 
@@ -836,6 +869,11 @@ func (h *SiteHandler) getSiteState(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	// A taken-down site serves nothing to the public; the owner's (or the
+	// admin's) key still reads it.
+	if _, owner := h.ownerSiteIDFromKey(r, siteName); !owner && h.refuseSuspendedSiteID(w, r, siteID) {
+		return
+	}
 
 	// Conditional GET: if the caller already has the current version, do a cheap
 	// version-only check and return 304 — no fetch/serialize of the document.
@@ -984,13 +1022,13 @@ func (h *SiteHandler) createSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := validateSiteShape(siteName); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "invalid_name"})
 		return
 	}
 	// Reserved-name check is create-only: existing sites must always remain
 	// re-deployable even if a name later lands on the reserved list.
 	if err := validateSiteReserved(siteName); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "name_reserved"})
 		return
 	}
 
@@ -1004,7 +1042,7 @@ func (h *SiteHandler) createSite(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(existing) >= maxSitesPerUser {
-			writeJSON(w, http.StatusForbidden, errorResponse{Error: "site quota reached"})
+			writeJSON(w, http.StatusForbidden, errorResponse{Error: "site quota reached", Code: "site_quota_reached"})
 			return
 		}
 	}
@@ -1061,10 +1099,10 @@ func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user
 		if isUniqueViolation(err) {
 			tx.Rollback()
 			if msg, held := h.deletedNameConflict(r.Context(), user.ID, siteName); held {
-				writeJSON(w, http.StatusConflict, map[string]any{"error": msg, "recently_deleted": true})
+				writeJSON(w, http.StatusConflict, map[string]any{"error": msg, "code": "recently_deleted", "recently_deleted": true})
 				return
 			}
-			writeJSON(w, http.StatusConflict, errorResponse{Error: "site already exists"})
+			writeJSON(w, http.StatusConflict, errorResponse{Error: "site already exists", Code: "site_exists"})
 			return
 		}
 
@@ -1148,7 +1186,7 @@ func (h *SiteHandler) updateSite(w http.ResponseWriter, r *http.Request) {
 	// Charset/shape only on update — never the reserved-name denylist, so an
 	// existing site is always re-deployable.
 	if err := validateSiteShape(siteName); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "invalid_name"})
 		return
 	}
 
@@ -1172,6 +1210,9 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 		}
 
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	if refuseSuspendedSite(w, site) {
 		return
 	}
 
@@ -1347,11 +1388,11 @@ func (h *SiteHandler) createSiteFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := validateSiteShape(siteName); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "invalid_name"})
 		return
 	}
 	if err := validateSiteReserved(siteName); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "name_reserved"})
 		return
 	}
 
@@ -1362,7 +1403,7 @@ func (h *SiteHandler) createSiteFiles(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(existing) >= maxSitesPerUser {
-			writeJSON(w, http.StatusForbidden, errorResponse{Error: "site quota reached"})
+			writeJSON(w, http.StatusForbidden, errorResponse{Error: "site quota reached", Code: "site_quota_reached"})
 			return
 		}
 	}
@@ -1390,7 +1431,7 @@ func (h *SiteHandler) updateSiteFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := validateSiteShape(siteName); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "invalid_name"})
 		return
 	}
 
@@ -1484,6 +1525,9 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	if refuseSuspendedSite(w, site) {
+		return
+	}
 
 	if site.ActiveVersion == req.VersionNumber {
 		writeJSON(w, http.StatusOK, h.toSiteResponse(site, ""))
@@ -1559,6 +1603,9 @@ func (h *SiteHandler) setVisibility(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	if refuseSuspendedSite(w, site) {
+		return
+	}
 
 	if err := db.SetSiteVisibility(r.Context(), h.database, site.ID, vis); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -1632,11 +1679,15 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 	byUser := make(map[string][]map[string]any, len(users))
 	for _, s := range sites {
 		byUser[s.UserID] = append(byUser[s.UserID], map[string]any{
-			"name":           s.Name,
-			"site_url":       h.siteURLFor(s),
-			"active_version": s.ActiveVersion,
-			"custom_domain":  s.CustomDomain.String,
-			"created_at":     s.CreatedAt,
+			"id":               s.ID,
+			"name":             s.Name,
+			"site_url":         h.siteURLFor(s),
+			"active_version":   s.ActiveVersion,
+			"custom_domain":    s.CustomDomain.String,
+			"created_at":       s.CreatedAt,
+			"suspended":        s.Suspended(),
+			"suspended_reason": s.SuspendedReason(),
+			"suspended_by":     suspendedBy(s),
 		})
 	}
 
@@ -1647,14 +1698,16 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 			list = []map[string]any{}
 		}
 		out = append(out, map[string]any{
-			"id":           u.ID,
-			"username":     u.Username,
-			"handle":       u.Handle.String,
-			"display_name": u.DisplayName.String,
-			"is_admin":     u.IsAdmin,
-			"created_at":   u.CreatedAt,
-			"site_count":   len(list),
-			"sites":        list,
+			"id":               u.ID,
+			"username":         u.Username,
+			"handle":           u.Handle.String,
+			"display_name":     u.DisplayName.String,
+			"is_admin":         u.IsAdmin,
+			"created_at":       u.CreatedAt,
+			"site_count":       len(list),
+			"sites":            list,
+			"suspended":        u.Suspended,
+			"suspended_reason": u.SuspendedReason,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"users": out, "user_count": len(out), "site_count": len(sites)})
@@ -1735,18 +1788,20 @@ func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
 		visibility = "unlisted" // never guess "public"
 	}
 	resp := siteResponse{
-		ID:            site.ID,
-		UserID:        site.UserID,
-		Name:          site.Name,
-		ActiveVersion: site.ActiveVersion,
-		SiteURL:       h.siteURLFor(site),
-		CreatedAt:     site.CreatedAt,
-		UpdatedAt:     site.UpdatedAt,
-		CustomDomain:  site.CustomDomain.String,
-		DomainStatus:  site.DomainStatus.String,
-		Visibility:    visibility,
-		OwnerUsername: site.OwnerUsername,
-		Note:          note,
+		ID:              site.ID,
+		UserID:          site.UserID,
+		Name:            site.Name,
+		ActiveVersion:   site.ActiveVersion,
+		SiteURL:         h.siteURLFor(site),
+		CreatedAt:       site.CreatedAt,
+		UpdatedAt:       site.UpdatedAt,
+		CustomDomain:    site.CustomDomain.String,
+		DomainStatus:    site.DomainStatus.String,
+		Visibility:      visibility,
+		OwnerUsername:   site.OwnerUsername,
+		Note:            note,
+		Suspended:       site.Suspended(),
+		SuspendedReason: site.SuspendedReason(),
 	}
 	if site.LastDeployedAt.Valid {
 		t := site.LastDeployedAt.Time

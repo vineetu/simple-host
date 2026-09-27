@@ -47,11 +47,11 @@ hourly in-process sweep purges it after the window. Deleting a whole account (ad
 
 | Surface | Details |
 |---|---|
-| Routes | `POST`/`PUT /v1/sites/{sitename}` (archive) · `POST`/`PUT /v1/sites/{sitename}/files` (inline JSON, base64 allowed) · `GET /v1/sites` · `PATCH /v1/sites/{sitename}` (rename) · `DELETE /v1/sites/{sitename}` (to Recently deleted) · `POST /v1/sites/{sitename}/restore` · `GET /v1/me/deleted-sites` · `GET /v1/sites/{sitename}/versions` · `GET /v1/sites/{sitename}/versions/{version}/files` · `GET /v1/sites/{sitename}/versions/{version}/files/{path...}` · `PUT /v1/sites/{sitename}/active-version` · `PUT /v1/sites/{sitename}/visibility` (`public`/`unlisted`) · `GET /v1/sites/{sitename}/export.tar.gz` (files + saved data) · `GET /v1/sites` also returns `deployed_at` and, for a domain not live yet, `domain_last_error`, `domain_dns`, `domain_expires_at` · `GET /internal/notfound` (branded 404, nginx `@notfound`) |
-| MCP tools | `list_sites`, `get_site`, `read_site_file`, `create_site`, `update_site`, `list_versions`, `rollback_site`, `delete_site`, `list_deleted_sites`, `restore_site`, `rename_site`, `set_visibility` |
-| Skill | `website-deploy/SKILL.md` §Two ways to deploy, §The one rule that breaks sites (relative links), §Rules that always apply, §Completion standard · `references/packaging-and-validation.md` (Package, Upload, Verify) · `references/operations.md` §Listing, §Rename, §Rollback, §Delete and restore · `references/frameworks.md` · `website-deploy-builder/SKILL.md` §Capability tree 1 |
-| Pages | owner app `st/showcase.html` (site inventory with live address, version and last deploy; versions, rename, visibility, Download (export), delete with a count of what goes and "Download first", Recently deleted with Restore) · `st/index.html` at `/dashboard` (site cards; for an account with a handle only a list with Manage links to the owner app; full controls for accounts without one and in the admin tab) · `st/notfound.html` |
-| Go | `h/site.go` (create/update/list/rename/visibility, route table), `h/deleted.go` (delete, restore, Recently deleted list, purge sweep), `h/versions.go`, `h/versionfiles.go`, `h/export.go`, `h/sitename.go`, `h/usage.go` (per-site cap), `internal/tarball/{extract,sanitize,validate}.go`, `internal/storage/disk.go` (by-id layout, `handles/` symlinks), `internal/storage/trash.go` (`deleted/` area), `internal/db/queries.go`, `internal/db/deleted.go` |
+| Routes | `POST`/`PUT /v1/sites/{sitename}` (archive) · `POST`/`PUT /v1/sites/{sitename}/files` (inline JSON, base64 allowed) · `GET /v1/sites` · `PATCH /v1/sites/{sitename}` (rename) · `DELETE /v1/sites/{sitename}` (to Recently deleted; refused while taken down) · `POST /v1/sites/{sitename}/restore` · `GET /v1/me/deleted-sites` · `GET /v1/sites/{sitename}/versions` · `GET /v1/sites/{sitename}/versions/{version}/files` · `GET /v1/sites/{sitename}/versions/{version}/files/{path...}` · `PUT /v1/sites/{sitename}/active-version` · `PUT /v1/sites/{sitename}/visibility` (`public`/`unlisted`) · `GET /v1/sites/{sitename}/export.tar.gz` (files + saved data) · `POST /v1/sites/{sitename}/export-link` (owner mints a 10-minute signed link) · `GET /v1/export` (`?token=`; the same archive, no key: HMAC over owner+site+expiry, per-process key, 404 `export_link_invalid` when expired, tampered, or the site is gone, deleted or changed hands) · `GET /v1/sites` also returns `deployed_at` and, for a domain not live yet, `domain_last_error`, `domain_dns`, `domain_expires_at` · `GET /internal/notfound` (branded 404, nginx `@notfound`) |
+| MCP tools | `list_sites`, `get_site`, `read_site_file`, `create_site`, `update_site`, `list_versions`, `rollback_site`, `delete_site`, `list_deleted_sites`, `restore_site`, `rename_site`, `set_visibility`, `export_site` (download link) |
+| Skill | `website-deploy/SKILL.md` §Two ways to deploy, §The one rule that breaks sites (relative links), §Rules that always apply, §Completion standard · `references/packaging-and-validation.md` (Package, Upload, Verify) · `references/operations.md` §Listing, §Rename, §Rollback, §Delete and restore, §Download a copy · `references/frameworks.md` · `website-deploy-builder/SKILL.md` §Capability tree 1 |
+| Pages | owner app `st/showcase.html` (site inventory with live address, version and last deploy; versions, rename, visibility, Download (export), taken-down sites with the reason, delete with a count of what goes and "Download first", Recently deleted with Restore) · `st/index.html` at `/dashboard` (site cards; for an account with a handle only a list with Manage links to the owner app; full controls for accounts without one and in the admin tab) · `st/notfound.html` |
+| Go | `h/site.go` (create/update/list/rename/visibility, route table), `h/deleted.go` (delete, restore, Recently deleted list, purge sweep), `h/versions.go`, `h/versionfiles.go`, `h/export.go`, `h/exportlink.go`, `h/sitename.go`, `h/usage.go` (per-site cap), `internal/tarball/{extract,sanitize,validate}.go`, `internal/storage/disk.go` (by-id layout, `handles/` symlinks), `internal/storage/trash.go` (`deleted/` area), `internal/db/queries.go`, `internal/db/deleted.go` |
 | DB | `sites` (`deleted_at`: every serving and listing lookup skips deleted rows), `versions` |
 | Limits | 100 sites per account (admins exempt; deleted sites do not count, restore re-checks); uploads serialised per site; upload limiter 30 burst, 0.1/s; Recently deleted keeps a site 7 days |
 | Env | `DATA_DIR`, `MAX_ARCHIVE_MB`, `KEEP_VERSIONS`, `DEPLOY_SCRIPT`, `PREVIEW_ACCOUNTS`, `PREVIEW_TTL_HOURS` (preview-site expiry sweep) |
@@ -210,20 +210,21 @@ as the person, so they meet the same checks as REST. Connector tokens are stored
 | Surface | Details |
 |---|---|
 | Routes | `GET /.well-known/oauth-protected-resource` · `GET /.well-known/oauth-protected-resource/mcp` · `GET /.well-known/oauth-authorization-server` · `GET /.well-known/oauth-authorization-server/mcp` · `POST /oauth/register` · `GET /oauth/authorize` (consent page) · `POST /oauth/authorize/decision` · `POST /oauth/token` · `POST /oauth/revoke` · `POST /oauth/reviewer-signin` · `POST`/`GET`/`DELETE /mcp` · `GET /v1/me/connections` · `DELETE /v1/me/connections/{client_id}` |
-| MCP tools | all 24 (see §21); server metadata and instructions in `internal/mcp/instructions.go` |
+| MCP tools | all 27 (see §21); server metadata and instructions in `internal/mcp/instructions.go` |
 | Skill | `website-deploy/SKILL.md` §Service, §Two ways to deploy (connector vs key); `openai-plugin/skills/website-deploy/SKILL.md` is the connector-only variant |
 | Pages | `st/connect.html` (consent; own nonce CSP in `consentHeaders`), `st/showcase.html` (Connected apps) |
 | Go | `h/connector.go` (AS, `BearerAuth`, `serveMCP`, connections, hourly sweep), `h/reviewer.go` (password sign-in for one designated store-review account), `internal/mcp/{server,jsonrpc,tools,outputs,instructions}.go`, `internal/db/connector.go`, `internal/db/internalkey.go`, `cmd/server/oauthclient.go` (`simple-host oauth-client …`, hand-registered clients e.g. a GPT Action), `cmd/server/reviewaccount.go` (`simple-host review-account …`) |
 | DB | `oauth_clients`, `oauth_grants`, `oauth_codes`, `oauth_tokens` |
 | Env | `PUBLIC_BASE_URL`, `REVIEW_ACCOUNT_EMAIL`, `REVIEW_ACCOUNT_PASSWORD_HASH`, `ADMIN_API_KEY` |
 | Tokens | PKCE S256 only; code 60 s, access 1 h, refresh 90 days rotating (reuse revokes the grant); scope `sites`; tool calls run with a per-request `shint_` internal key |
+| Errors | a refused tool call returns the server's message, its `code`, and one recovery hint chosen by the code (`codeHints` in `internal/mcp/tools.go`: `site_exists`, `domain_taken`, `invalid_name`, `name_reserved`, `invalid_domain`, `site_quota_reached`, `append_only`, `custom_domain_required`, `not_an_object`, private-list and sign-in codes, `site_suspended`, `account_suspended`); the HTTP status picks the hint only when there is no known code. REST errors carry the same `code` (openapi `Error` schema) |
 | Limits | register 10 burst, 10/h; authorize and token 30 burst, 0.5/s; reviewer sign-in 10/IP then 1/min, 30 global then 30/h |
 | Tests / e2e | `h/connector_test.go`, `h/reviewer_test.go`, `internal/mcp/*_test.go`, `scripts/e2e-connector.py`, `scripts/e2e-connector-browser.mjs`, `scripts/e2e-reviewer.py`, `scripts/seed-reviewer-demo.py` |
 
 ## 9. Skills and plugin distribution
 
 Skills source is `simple-host-website/skills/` (embedded via `simple-host-website/embed.go`) at
-version **0.19.3**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
+version **0.20.0**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live**
 (ChatGPT and Claude directory listings submitted 2026-09-24, pending).
 
@@ -260,17 +261,19 @@ the full apex controls. Rotate API key stays in the apex app bar.
 
 ## 11. Admin (operator)
 
-Operator console: disk usage, participant account issuing, Entries (one row per deployed site
-with an **Analytics** column linking `/analytics/{site}?owner={handle}`), per-user cards, API
+Operator console: disk usage, release/commit and versions kept, participant account issuing, Entries (one row per deployed site
+with an **Analytics** column linking `/analytics/{site}?owner={handle}`, a Take down / Restore
+switch, and Download all entries), per-user cards (Suspend / Re-enable / Delete), API
 traffic. Admin = `ADMIN_API_KEY` or the admin user. **Status: live.**
 
 | Surface | Details |
 |---|---|
-| Routes | `GET /admin` (public shell) · `GET /v1/admin/users` · `POST /v1/admin/users` (bulk-create participant accounts, returns keys) · `POST /v1/admin/users/{id}/key` (replace that account's keys with one new key, shown once) · `DELETE /v1/admin/users/{id}` · `GET /v1/admin/usage` · `GET /v1/admin/api-analytics` · `PUT /v1/sites/{sitename}/allow-anonymous-writes?owner=` (`RequireAdmin`; `owner` picks that person's site, else the oldest of the name) · `GET /v1/sites/{sitename}/analytics?owner=` and `/analytics/geo?owner=`, `GET /v1/analytics/sites?all=1` (admin reads any site) |
-| Pages | `st/admin.html` (tiles Users/Websites/Disk; Biggest websites; Issue participant accounts; Entries: Entry/Account/Link/**Analytics**; user cards with **New key** and Delete; API traffic tables), `st/index.html` Admin tab |
-| Go | `h/site.go` (`adminUsers`, `adminUsage`), `h/accounts.go` (`createAccounts`, `reissueAccountKey`, `deleteAccount`, `accountAdmin`), `internal/capacity/capacity.go`, `h/apimetrics.go` (`AdminSummary`), `internal/auth/middleware.go` |
-| DB | `users`, `sites`, `versions`, `api_request_daily`, `api_ip_daily` |
-| Env | `ADMIN_API_KEY`, `DATA_DIR` |
+| Routes | `GET /admin` (public shell) · `GET /v1/admin/users` (users with their sites, ids and suspension state) · `POST /v1/admin/users` (bulk-create participant accounts, returns keys) · `POST /v1/admin/users/{id}/key` (replace that account's keys with one new key, shown once; refused while suspended) · `DELETE /v1/admin/users/{id}` · `POST /v1/admin/sites/{id}/suspend` (`{"reason"}`) and `POST /v1/admin/sites/{id}/restore` (take a site down / put it back) · `POST /v1/admin/users/{id}/suspend` (`{"reason"}`) and `POST /v1/admin/users/{id}/enable` (suspend / re-enable a person) · `GET /v1/admin/export.tar.gz` (every site with saved data and lists, one archive) · `GET /internal/suspended` (the take-down page nginx and Caddy hand off to) · `GET /v1/admin/usage` · `GET /v1/admin/api-analytics` · `PUT /v1/sites/{sitename}/allow-anonymous-writes?owner=` (`RequireAdmin`; `owner` picks that person's site, else the oldest of the name) · `GET /v1/sites/{sitename}/analytics?owner=` and `/analytics/geo?owner=`, `GET /v1/analytics/sites?all=1` (admin reads any site) |
+| Pages | `st/admin.html` (tiles Users/Websites/Disk; line with versions kept and running release/commit from usage; Biggest websites; Issue participant accounts; Entries: Entry/Account/Link/**Analytics**/Status with Take down / Restore, Download CSV, Copy links, Download all entries; user cards with **New key**, Suspend / Re-enable / Delete; API traffic tables); `st/index.html` site cards and `st/showcase.html` owner inventory show a taken-down site and its reason, `st/index.html` Admin tab |
+| Go | `h/site.go` (`adminUsers`, `adminUsage`), `h/suspend.go` (take-down: admin calls, `serveTakedown`, refusals, boot marker sync), `h/export.go` (`exportAll`), `h/accounts.go` (`createAccounts`, `reissueAccountKey`, `deleteAccount`, `accountAdmin`), `internal/db/suspend.go`, `internal/storage/disk.go` (`SetSuspended`/`IsSuspended`, the `suspended` marker file), `internal/capacity/capacity.go`, `h/apimetrics.go` (`AdminSummary`), `internal/auth/middleware.go` |
+| DB | `users` (`suspended_at`, `suspended_reason`), `sites` (`suspended_at`, `suspended_reason`), `versions`, `api_keys`, `api_request_daily`, `api_ip_daily` |
+| Take-down | A suspended site keeps everything; Go answers 410 "This site has been taken down" on every path of its site host, person path and claimed name; nginx (custom domains, content host) and Caddy (event boxes) check the `suspended` marker in the site folder and hand off to `/internal/suspended` (`deploy/prod/nginx-suspended-marker.sh` adds the check to live vhosts; `deploy/compose/Caddyfile`). Deploy, rollback, rename, delete, visibility, address and origin changes, state/list writes and public reads of its data answer 403 `site_suspended`; the owner's key still reads and exports. A suspended person's key, connector token, MCP calls and visitor sessions answer 403 `account_suspended` (with the reason), sign-in is refused, refresh tokens are refused unspent, their sites are down; nothing is deleted and re-enable reverses it (a site taken down on its own stays down). Markers are re-synced from the database at boot. |
+| Env | `ADMIN_API_KEY`, `DATA_DIR`, `KEEP_VERSIONS` and `MAX_ARCHIVE_MB` (reported by usage as `keep_versions`, `site_limit_mb`) |
 
 ## 12. Analytics and geo
 
@@ -284,10 +287,10 @@ with country from local IP-range data; per-endpoint API metrics for admin. No cl
 | MCP tools | `site_analytics` |
 | Skill | `website-deploy/references/operations.md` §Analytics |
 | Pages | `st/analytics.html`, `st/showcase.html` Analytics tab, `st/index.html` site cards, `st/admin.html` API traffic |
-| Go | `internal/analytics/{ingest,classify,geo,countries,rebuild}.go` (attributes views on site hosts, person hosts, claimed names, custom domains; bot/human classes; salted ip_hash), `h/analytics.go`, `h/apimetrics.go` (every `/v1/*` request; IPs stored as /24 or /48), `internal/geoip/geoip.go` (DB-IP mmdb, watched), `cmd/analytics-rebuild`, `cmd/ip-country-load`, `web/analytics-parse.js` |
+| Go | `internal/analytics/{ingest,classify,geo,countries,rebuild}.go` (attributes views on site hosts, person hosts, claimed names, custom domains; bot/human classes; salted ip_hash), `h/analytics.go`, `h/apimetrics.go` (every `/v1/*` request; IPs stored as /24 or /48), `internal/geoip/geoip.go` (DB-IP mmdb, watched), `cmd/analytics-rebuild` (replays the rotated archives oldest first, then the live log), `cmd/ip-country-load`, `web/analytics-parse.js` |
 | DB | `site_view_hourly`, `site_visitor_hourly`, `site_geo_daily`, `site_view_daily`, `site_visitor_daily` (legacy, pruned after 400 days), `analytics_ingest_state`, `ip_country_ranges`, `api_request_daily`, `api_ip_daily` |
 | Env | `ANALYTICS_LOG`, `ANALYTICS_SALT`, `GEOIP_DIR` |
-| External | nginx `log_format shanalytics` (`deploy/prod/nginx-analytics-logformat.conf`, query string stripped), `deploy/prod/logrotate-analytics.conf`, DB-IP Lite via `scripts/geoip-refresh.sh` + `deploy/prod/simple-host-geoip-refresh.{service,timer}` |
+| External | nginx `log_format shanalytics` (`deploy/prod/nginx-analytics-logformat.conf`, query string stripped), `deploy/prod/logrotate-analytics.conf` (29 archives: raw IPs ≤30 days), DB-IP Lite via `scripts/geoip-refresh.sh` + `deploy/prod/simple-host-geoip-refresh.{service,timer}` |
 
 ## 13. Showcase / person index
 
@@ -329,7 +332,7 @@ because Vercel rejects `EVENT_DNS_TOKEN`.
 | Go | `h/eventdomain.go` (claim/release/list, hourly sweep), `internal/eventdns/{vercel,inuse}.go`, `h/setup.go` (`InstanceConfigured`, setup restart), `h/chrome.go` (`HackHome` when host is `simple-hack.*`), `h/instancehost.go` (host rewriting for non-canonical instances) |
 | DB | `event_domains`, `instance_config` |
 | Env | `EVENT_DNS_TOKEN`, `EVENT_DNS_TEAM_ID`, `EVENT_DOMAINS`, `SETUP_PASSWORD`, `SETUP_PUBLIC_API`, `PERSON_HOSTS` (off on event instances), `MAX_ARCHIVE_MB`, `KEEP_VERSIONS`, `BIND_ADDR` |
-| External | Vercel DNS API; Docker Compose + Caddy (`deploy/compose/`, `deploy/install/install.sh`); live nginx `/etc/nginx/sites-enabled/simple-hack.app`; `scripts/e2e-hackathon.sh`, `scripts/check-fresh-install.sh` |
+| External | Vercel DNS API; Docker Compose + Caddy (`deploy/compose/`, `deploy/install/install.sh`; container logs capped at 3 × 10 MB per service, Caddy access log rolled daily and rolls deleted after 28 days, so raw IPs ≤30 days); live nginx `/etc/nginx/sites-enabled/simple-hack.app`; `scripts/e2e-hackathon.sh`, `scripts/check-fresh-install.sh` |
 | Limits | event claims 10 burst, 1/min; setup 5 burst, 1/min |
 
 ## 16. Enterprise and marketing pages
@@ -366,7 +369,8 @@ listings; public contact is support@simple-host.app. Go: `h/ui.go`.
 | Headers / CSP | `SecurityHeaders`; apex nonce CSP `adminUICSP`; consent page `consentHeaders` |
 | Reserved names | `h/handles.go` (handles), `h/platformsubdomain.go` `reservedSubdomainLabels`, `internal/db/namespace.go` |
 | Preview accounts | `PREVIEW_ACCOUNTS`, `PREVIEW_TTL_HOURS` (expiry sweep in `h/site.go`) |
-| Planned | Public Suffix List entry, subdomain blocklist/cap, AUP, report + takedown, DMCA agent (INTENT / owner TODO) |
+| Take-down | Operator suspend / restore of a site or a person, nothing deleted (§11) |
+| Planned | Public Suffix List entry, subdomain blocklist/cap, AUP, report form, DMCA agent (INTENT / owner TODO) |
 
 ## 19. Signals and notifications
 
@@ -379,12 +383,14 @@ notice.
 | Surface | Details |
 |---|---|
 | Routes | `GET /healthz` · `GET /readyz` (DB ping) — `h/health.go` |
-| Startup | `internal/db/schemacheck.go` `VerifySchema` (fails fast on missing columns); `db/schema.sql` + `db/migrations/*.sql` |
-| CLI subcommands | `simple-host oauth-client`, `simple-host review-account`, `simple-host geoip-verify` (`cmd/server/`); `cmd/analytics-rebuild`, `cmd/ip-country-load` |
+| Startup | logs `simple-host <release> (commit <hash>)` (`internal/buildinfo`, stamped by `-ldflags -X` in `Dockerfile`, `.github/workflows/release.yml`, the CLAUDE.md build line); `internal/db/schemacheck.go` `VerifySchema` (fails fast on missing columns, names `simple-host migrate`); never migrates |
+| Schema | `db/schema.sql` (new database) + `db/migrations/*.sql`; `db/migrations/migrations.go` embeds them and applies pending files in lexical order, each once in its own transaction, tracked in `schema_migrations`, under a Postgres advisory lock; historical files are a fixed baseline, never run; new files must be idempotent (rule in that file) |
+| CLI subcommands | `simple-host migrate` (apply pending; `-status`; `-mark FILE` records without running), `simple-host version` (release, commit, migrations in this build; no DB), `simple-host oauth-client`, `simple-host review-account`, `simple-host geoip-verify` (`cmd/server/`); `cmd/analytics-rebuild`, `cmd/ip-country-load` |
+| Small-box upgrade | re-run `deploy/install/install.sh`: pulls the pinned release, `docker compose up -d db`, `docker compose run --rm app migrate`, then starts the new app; a failed migrate leaves the app as it was |
 | Env | `DB_DSN`, `PORT`, `BIND_ADDR`, `DATA_DIR`, `SITE_DOMAIN`, `PUBLIC_BASE_URL`, `CONTENT_HOST`; dev-only `CHROME_SERVE_ADDR`, `CHROME_SERVE_FOR`; migration-only `UNIFY_KEEP` |
-| Deploy | `/usr/local/bin/simple-host` as `simple-host.service`, env `/etc/simple-host.env`; `deploy/prod/*`, `Dockerfile`, `compose.yaml`, `Makefile`; checks `scripts/check-{docs-sync,features,html,layering,claude-plugin,reserved-subdomains,fresh-install}.sh` |
+| Deploy | `/usr/local/bin/simple-host` as `simple-host.service`, env `/etc/simple-host.env`; `deploy/prod/*` (incl. log retention `logrotate-analytics.conf` and `journald-retention.conf`, 30 days), `Dockerfile`, `compose.yaml`, `Makefile`; checks `scripts/check-{docs-sync,features,html,layering,claude-plugin,reserved-subdomains,fresh-install}.sh` |
 
-## 21. MCP tool index (`internal/mcp/tools.go`, 24 tools)
+## 21. MCP tool index (`internal/mcp/tools.go`, 27 tools)
 
 | Tool | REST call | § |
 |---|---|---|
@@ -413,11 +419,12 @@ notice.
 | `domain_status` | `GET /v1/sites/{s}/domain` | 3 |
 | `remove_domain` | `DELETE /v1/sites/{s}/domain` | 3 |
 | `site_analytics` | `GET /v1/sites/{s}/analytics?days=` | 12 |
+| `export_site` | `POST /v1/sites/{s}/export-link` (returns a link to `GET /v1/export?token=`) | 1 |
 
 ## 22. Unplaced routes and tools
 
 None. Every `mux.Handle`/`HandleFunc` registration in `cmd/server` and `internal/handler`
 (131 distinct method+path patterns, plus the looped `/mcp`, `/skills/{dir}.*` and
-`rewrittenAssets` routes) and all 24 MCP tools are placed above. Routes that exist outside
+`rewrittenAssets` routes) and all 27 MCP tools are placed above. Routes that exist outside
 the mux: host-routed site hosts / person hosts / claimed names / custom domains (§2, §3) and the
 nginx-only `/v1/transcribe/stream` (§14).

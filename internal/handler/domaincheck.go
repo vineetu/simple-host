@@ -267,6 +267,9 @@ func (h *SiteHandler) checkDomainNow(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	if refuseSuspendedSite(w, site) {
+		return
+	}
 	info, ok, err := db.GetSiteDomainInfo(r.Context(), h.database, site.ID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})

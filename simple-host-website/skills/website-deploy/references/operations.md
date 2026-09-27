@@ -58,9 +58,9 @@ Preview a retained version before restoring it (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.19.3"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.0"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.19.3"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.0"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte
@@ -76,7 +76,9 @@ Takes the site offline at once, with every version, its state and collections.
 It stays in Recently deleted for 7 days, then it is removed for good. Confirm
 with the user in plain language before calling it, and say what goes offline.
 Until it is removed its name stays taken: creating a site with that name answers
-409 with `"recently_deleted": true` (ask the person whether to restore it).
+409 with `"recently_deleted": true` (ask the person whether to restore it). Offer
+a copy first (Download a copy, below). A site the operator has taken down cannot
+be deleted (403 `site_suspended`).
 
 - `GET /v1/me/deleted-sites` lists them: `{"sites":[{"name","deleted_at","purge_at"}],"retention_days":7}`.
 - `POST /v1/sites/<sitename>/restore` brings one back under the same name and
@@ -94,6 +96,18 @@ in visitors' browsers (localStorage) starts empty at the new address, and
 visitors sign in again, so tell the person before changing it. They can also do
 it themselves under "Your address" on their Simple Host page. Afterwards re-read
 `site_url` from `GET /v1/sites`; never compose addresses.
+## Download a copy
+
+```
+GET /v1/sites/<sitename>/export.tar.gz          (X-API-Key)
+POST /v1/sites/<sitename>/export-link           (X-API-Key) → {"url", "expires_at"}
+```
+
+The archive holds the live files (`<site>/files/…`), the saved state
+(`<site>/state.json`) and every collection's items (`<site>/collections.json`,
+private lists included). The link form (connector: `export_site`) opens the same
+archive without a key for 10 minutes: give it to the person to click, never post
+it publicly, and make a new one if it has expired.
 
 ## Analytics
 

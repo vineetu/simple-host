@@ -17,7 +17,8 @@ ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/hackathon_key <user>@<ip> 'cur
 
 **Do not pass `--image`.** The script pins one release: the image it pulls and
 the compose file and database schema it fetches all come from that same tag, so
-they always match. A re-run pulls the same release again.
+they always match. The command fetches the current script, so a re-run installs
+the latest release (see Upgrading below).
 
 Optional flags:
 
@@ -88,8 +89,26 @@ Caddy repeatedly failing to get a certificate almost always means DNS is not
 pointing at this machine yet, or port 80 is blocked.
 
 `app` restarting in a loop with `schema check: database is behind this build`
-means the image and the schema came from different releases, which only happens
-when `--image` or `--ref` was passed. Re-run the command above without them.
+means the database has not had the running release's changes applied. Re-run
+the install command above (without `--image` or `--ref`): it applies them before
+starting the app. If the re-run itself stops at "updating the database", send
+the organiser the lines it printed; the previous app was not restarted.
+
+## Upgrading
+
+To move a running instance to a newer release, **re-run the same install
+command**. It keeps the admin key, database password and size settings, pulls
+the release the current script pins, applies that release's database changes
+(`simple-host migrate`, each change once) and only then starts the new app.
+Sites, saved data and accounts are untouched. Do it between sessions rather
+than mid-demo: the app restarts, which takes a few seconds.
+
+Which release is running: the admin page names it under the disk figures, and
+`GET /v1/admin/usage` returns it as `version` and `commit`. Over SSH:
+
+```bash
+ssh -i ~/.ssh/hackathon_key <user>@<ip> 'cd /opt/simple-host && sudo docker compose exec app simple-host version'
+```
 
 ## Size settings
 
@@ -120,5 +139,6 @@ ssh root@<ip> "cd /opt/simple-host && \
 ```
 
 Sites and data are in named volumes, so this restarts the app without touching
-either. The organiser's admin page shows the value currently in force, along
-with how much disk is used and how much is left.
+either. The organiser's admin page shows the per-site cap and versions kept
+currently in force (`site_limit_mb` and `keep_versions` in `GET /v1/admin/usage`),
+along with how much disk is used and how much is left.

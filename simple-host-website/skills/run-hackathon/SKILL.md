@@ -109,7 +109,9 @@ which is far more alarming than waiting.
 
 One command over SSH, from `references/install.md` (https://simple-host.app/v1/skills/run-hackathon/references/install.md). It is idempotent: if it
 fails halfway, run it again. It installs Docker, pulls the published image,
-starts the stack and prints a JSON summary.
+starts the stack and prints a JSON summary. Re-running it later is also how an
+instance moves to a newer release: it applies the release's database changes
+before the new version starts (`references/install.md`, Upgrading).
 
 Two optional flags set how big a website may be and how many deploys to keep —
 `--max-site-mb` and `--keep-versions`, both covered in `references/install.md`.
@@ -150,7 +152,9 @@ X-API-Key: <the admin key>
 `message` is one sentence to repeat to the organiser, and `status` is `ok`,
 `filling` (75% or more) or `full` (90% or more). On `filling`, tell them before
 the event rather than during it; the fixes are a bigger disk or removing
-whatever `largest` names. The organiser's admin page shows the same figures.
+whatever `largest` names. `version` and `commit` name the release running, and
+`keep_versions` how many deploys of each website are kept. The organiser's admin
+page shows the same figures.
 
 The response gives each participant a username, a handle
 and an **api_key**. Keys start with `shk_` (an older install issues bare
@@ -229,8 +233,32 @@ answers 404 and leaves the real records in place.
 
 If the organiser used their own domain, they delete the two records themselves.
 
-Warn them first: deleting the server destroys every entry. If anyone wants to
-keep what they built, they take a copy before you start.
+Warn them first: deleting the server destroys every entry. Before you start,
+offer to keep a copy of all of them in one archive (every site's files, saved
+data and lists; the admin page's "Download all entries" does the same):
+
+```
+GET https://<event-host>/v1/admin/export.tar.gz
+X-API-Key: <the admin key>
+```
+
+Save the response to a file on the organiser's machine and tell them where it is.
+
+### If a site has to come down during the event
+
+A reported or abusive site is taken down without deleting anything, with a
+one-line reason the owner sees (the admin page has the same switches):
+
+```
+POST https://<event-host>/v1/admin/sites/<site id>/suspend   {"reason": "..."}
+POST https://<event-host>/v1/admin/sites/<site id>/restore
+POST https://<event-host>/v1/admin/users/<user id>/suspend   {"reason": "..."}
+POST https://<event-host>/v1/admin/users/<user id>/enable
+```
+
+Ids come from `GET /v1/admin/users`. A taken-down site shows "This site has
+been taken down" on every address and refuses changes; a suspended person's key
+stops working and all their sites go down. Restore / enable puts it all back.
 
 ## What this does not do
 

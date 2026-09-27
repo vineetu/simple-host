@@ -1,6 +1,8 @@
 -- Simple Host schema. Apply once to a fresh Postgres before running the server.
--- There is no migrations framework; apply changes by hand. The trailing ALTERs
--- are idempotent-ish notes for upgrading an existing deployment.
+-- Every later change also adds a file under db/migrations/, applied to existing
+-- databases by `simple-host migrate` (tracked in schema_migrations; the rule for
+-- those files is in db/migrations/migrations.go). The trailing ALTERs are
+-- idempotent notes from before that tool existed.
 
 CREATE TABLE users (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -9,6 +11,10 @@ CREATE TABLE users (
   display_name       TEXT,                 -- shown on screen; never in a URL, so it is free to change
   handle             TEXT UNIQUE,          -- URL-safe public path id (^[a-z0-9-]{1,39}$); backfilled separately
   handle_changed_at  TIMESTAMPTZ,          -- last time handle was set/changed; NULL until first set
+  -- Operator suspension (cp-ops-suspend.sql): keys, connected apps and
+  -- sign-in refused, every site taken down; nothing deleted. NULL = active.
+  suspended_at       TIMESTAMPTZ,
+  suspended_reason   TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -52,6 +58,12 @@ CREATE TABLE sites (
   -- the edge). No code reads or writes this column; kept because dropping it is
   -- irreversible and it costs nothing.
   view_password_hash TEXT,
+  -- Operator take-down (cp-ops-suspend.sql): the site keeps everything, is
+  -- served as "taken down" on every address and refuses changes. NULL = live.
+  -- A `suspended` marker file in the site folder mirrors it for the servers
+  -- that read files straight from disk.
+  suspended_at     TIMESTAMPTZ,
+  suspended_reason TEXT,
   created_at     TIMESTAMPTZ DEFAULT now(),
   updated_at     TIMESTAMPTZ DEFAULT now(),
   CONSTRAINT sites_user_name UNIQUE (user_id, name)
@@ -497,3 +509,12 @@ CREATE INDEX IF NOT EXISTS oauth_tokens_expires_idx ON oauth_tokens (expires_at)
 -- together with the nonce itself. A link token without a hash is never
 -- redeemable; the typed 6-digit code is unaffected.
 ALTER TABLE auth_tokens ADD COLUMN IF NOT EXISTS nonce_hash TEXT;
+
+-- Which db/migrations/ files `simple-host migrate` has applied (or an operator
+-- recorded with `migrate -mark`). A database built from this file already has
+-- every migration's effect; migrate still runs each new (idempotent) file once
+-- and records it. Historical hand-applied files are never recorded here.
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  name       TEXT PRIMARY KEY,
+  applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

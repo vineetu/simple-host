@@ -227,6 +227,12 @@ func (h *SiteHandler) serveSiteFile(w http.ResponseWriter, r *http.Request, user
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	// A site the operator has taken down answers the take-down page on
+	// every path, whichever address reached it (suspend.go).
+	if h.disk.IsSuspended(userID, siteName) {
+		serveTakedown(w, r)
+		return
+	}
 	root, err := os.OpenRoot(h.disk.SiteDir(userID, siteName) + "/current")
 	if err != nil {
 		http.NotFound(w, r)

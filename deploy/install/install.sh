@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Stand up a Simple Host event instance on a fresh Ubuntu server.
 #
-# Idempotent: safe to re-run after a partial failure, which is the point. The
+# Idempotent: safe to re-run after a partial failure, which is the point. It is
+# also the upgrade: re-running the current script on an existing box pulls the
+# release it pins and applies that release's database changes first. The
 # setup skill's job is only to get a box and run this; everything that can go
 # wrong lives here, where it can be tested, rather than in an agent's judgement.
 #
@@ -24,7 +26,7 @@ set -euo pipefail
 # moving `latest` image against a schema fetched from a moving branch is exactly
 # how a fresh install ended up crash-looping on a schema check. The release
 # workflow refuses to publish a tag that does not match this line.
-VERSION="v0.2.1"
+VERSION="v0.3.0"
 HOST=""; CONTENT=""; IMAGE="ghcr.io/vineetu/simple-host:${VERSION#v}"; ACME_EMAIL=""; REF="$VERSION"
 MAX_SITE_MB=""; KEEP_VERSIONS=""
 while [ $# -gt 0 ]; do
@@ -183,6 +185,19 @@ fetch "$DIR/db/schema.sql" db/schema.sql
 say "pulling $IMAGE"
 cd "$DIR"
 docker compose pull --quiet
+
+# Upgrading is re-running this script: a newer release may add columns, and the
+# server refuses to start against a database behind it. So the database is
+# brought up first and `simple-host migrate` (from the image just pulled) applies
+# whatever that release added, each file once, before the new app starts. On a
+# new volume Postgres loads schema.sql first and migrate finds nothing to change.
+say "updating the database"
+docker compose up -d --no-build db
+if ! docker compose run --rm -T app migrate; then
+  echo "FAILED: the database could not be brought up to $VERSION." >&2
+  echo "The app was not restarted. Diagnose with: cd $DIR && docker compose logs --tail 50 db" >&2
+  exit 1
+fi
 docker compose up -d --no-build
 
 say "waiting for the instance to answer"

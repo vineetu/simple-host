@@ -244,8 +244,8 @@ func (h *SiteHandler) reissueAccountKey(w http.ResponseWriter, r *http.Request) 
 	defer tx.Rollback()
 	var id, username string
 	var handle sql.NullString
-	var admin bool
-	err = tx.QueryRowContext(r.Context(), `SELECT id, username, handle, is_admin FROM users WHERE id::text=$1 FOR UPDATE`, r.PathValue("id")).Scan(&id, &username, &handle, &admin)
+	var admin, suspended bool
+	err = tx.QueryRowContext(r.Context(), `SELECT id, username, handle, is_admin, suspended_at IS NOT NULL FROM users WHERE id::text=$1 FOR UPDATE`, r.PathValue("id")).Scan(&id, &username, &handle, &admin, &suspended)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeJSON(w, 404, errorResponse{Error: "not found"})
 		return
@@ -256,6 +256,11 @@ func (h *SiteHandler) reissueAccountKey(w http.ResponseWriter, r *http.Request) 
 	}
 	if admin || id == h.adminUserID {
 		writeJSON(w, 400, errorResponse{Error: "cannot reissue an admin account's key here"})
+		return
+	}
+	// A suspended account gets no new key; re-enable it first.
+	if suspended {
+		writeJSON(w, http.StatusConflict, errorResponse{Error: "this account is suspended; re-enable it before giving it a new key", Code: "account_suspended"})
 		return
 	}
 	key, err := auth.GenerateAPIKey()

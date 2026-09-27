@@ -1628,6 +1628,123 @@
         }
       }
     },
+    "/v1/sites/{sitename}/export-link": {
+      "post": {
+        "operationId": "createExportLink",
+        "summary": "Make a 10-minute download link for a site's export",
+        "description": "Returns a link that downloads the same archive as `export.tar.gz` without an API key, for people who use Simple Host only through a chat app's connector (the `export_site` tool). The link is signed for this owner and this site, expires after 10 minutes, and stops working if the site is deleted or the server restarts. Anyone holding it can download the copy until then, so hand it to the person only.",
+        "tags": [
+          "Sites"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sitename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The link",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "site",
+                    "url",
+                    "expires_at",
+                    "expires_in"
+                  ],
+                  "properties": {
+                    "site": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string",
+                      "example": "https://simple-host.app/v1/export?token=..."
+                    },
+                    "expires_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "expires_in": {
+                      "type": "integer",
+                      "description": "Seconds until it expires (600)"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/export": {
+      "get": {
+        "operationId": "downloadExport",
+        "summary": "Download a site's export through a link from export-link",
+        "description": "No API key: the signed `token` is the whole authorization, for one site, for 10 minutes. Streams the archive described under `export.tar.gz`. An expired, altered or unknown token, or one for a site since deleted or moved to another account, answers 404 with code `export_link_invalid`.",
+        "tags": [
+          "Sites"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A gzipped tar archive",
+            "content": {
+              "application/gzip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The link is not valid or has expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "this download link is not valid or has expired",
+                  "code": "export_link_invalid"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
     "/v1/sites/{sitename}/versions": {
       "get": {
         "operationId": "getSitesBySitenameVersions",
@@ -5513,6 +5630,18 @@
                       "type": "integer",
                       "description": "Per-site cap in force"
                     },
+                    "keep_versions": {
+                      "type": "integer",
+                      "description": "Deploys of each site kept (KEEP_VERSIONS in force); 0 keeps every one"
+                    },
+                    "version": {
+                      "type": "string",
+                      "description": "Release this server was built from, e.g. v0.3.0; \"dev\" for an unstamped build"
+                    },
+                    "commit": {
+                      "type": "string",
+                      "description": "Short commit hash of the build, or \"unknown\""
+                    },
                     "status": {
                       "type": "string",
                       "enum": [
@@ -5737,10 +5866,53 @@
                           "site_count": {
                             "type": "integer"
                           },
+                          "suspended": {
+                            "type": "boolean",
+                            "description": "The operator has suspended this account"
+                          },
+                          "suspended_reason": {
+                            "type": "string"
+                          },
                           "sites": {
                             "type": "array",
                             "items": {
-                              "type": "object"
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "site_url": {
+                                  "type": "string"
+                                },
+                                "active_version": {
+                                  "type": "integer"
+                                },
+                                "custom_domain": {
+                                  "type": "string"
+                                },
+                                "created_at": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "suspended": {
+                                  "type": "boolean"
+                                },
+                                "suspended_reason": {
+                                  "type": "string"
+                                },
+                                "suspended_by": {
+                                  "type": "string",
+                                  "enum": [
+                                    "site",
+                                    "account",
+                                    ""
+                                  ]
+                                }
+                              }
                             }
                           }
                         }
@@ -7321,6 +7493,286 @@
           "400": {
             "description": "Cannot reissue an admin account's key"
           },
+          "409": {
+            "description": "account_suspended: re-enable the account first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/admin/sites/{id}/suspend": {
+      "post": {
+        "operationId": "suspendSite",
+        "summary": "Take a site down (admin only)",
+        "description": "Takes one site down without deleting anything: every address it has (site host, person path, claimed name, custom domain, old content-host links) answers a plain \"This site has been taken down\" page (410), and deploys, rollback, rename, delete, visibility, address and origin changes, saved-data and list writes, and public reads of its data are refused with 403 `site_suspended`. The owner's key still reads and exports it, and the owner sees it as taken down with the reason. POST .../restore puts it back as it was. Non-admin callers receive 404.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 300,
+                    "description": "One line; shown to the owner."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Taken down",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSiteState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "reason_required or reason_too_long",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/admin/sites/{id}/restore": {
+      "post": {
+        "operationId": "unsuspendSite",
+        "summary": "Put a taken-down site back (admin only)",
+        "description": "Clears the site's own take-down. A site whose owner's account is suspended stays down until the account is re-enabled (`suspended_by` says which). Non-admin callers receive 404.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Restored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSiteState"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/admin/users/{id}/suspend": {
+      "post": {
+        "operationId": "suspendAccount",
+        "summary": "Suspend a person (admin only)",
+        "description": "Suspends an account without deleting anything: its API keys, connector tokens, MCP calls and visitor sessions are refused with 403 `account_suspended` (the person sees the reason), sign-in is refused, connector refresh tokens are refused without being spent, and every site of theirs is taken down as with POST /v1/admin/sites/{id}/suspend. POST .../enable reverses all of it. Admin accounts cannot be suspended. Non-admin callers receive 404.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 300,
+                    "description": "One line; shown to the person."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Suspended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "reason_required, reason_too_long or admin_account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/admin/users/{id}/enable": {
+      "post": {
+        "operationId": "enableAccount",
+        "summary": "Re-enable a suspended person (admin only)",
+        "description": "Lifts the account suspension: keys, connected apps and sign-in work again and their sites come back, except a site taken down on its own. Non-admin callers receive 404.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Re-enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserState"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/admin/export.tar.gz": {
+      "get": {
+        "operationId": "exportAllSites",
+        "summary": "Download every site as one archive (admin only)",
+        "description": "Streams every site on the instance as one .tar.gz, each under `<handle>/<site>/` in the same layout as GET /v1/sites/{sitename}/export.tar.gz: `state.json` (saved data), `collections.json` (every list, private ones included) and `files/` (the live version). For an organiser keeping every entry before the box is deleted. Non-admin callers receive 404.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The archive",
+            "content": {
+              "application/gzip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
@@ -7623,6 +8075,72 @@
                 "type": "string"
               }
             }
+          },
+          "suspended": {
+            "type": "boolean",
+            "description": "Present and true when the operator has taken the site down (on its own or with its owner's account): every address shows a \"taken down\" page and changes are refused until it is restored. Nothing is deleted."
+          },
+          "suspended_reason": {
+            "type": "string",
+            "description": "The operator's one-line reason",
+            "when suspended.": null
+          }
+        }
+      },
+      "AdminSiteState": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "handle": {
+            "type": "string"
+          },
+          "site_url": {
+            "type": "string"
+          },
+          "suspended": {
+            "type": "boolean"
+          },
+          "suspended_reason": {
+            "type": "string"
+          },
+          "suspended_by": {
+            "type": "string",
+            "enum": [
+              "site",
+              "account",
+              ""
+            ],
+            "description": "Which switch holds it down: its own, or its owner's account"
+          }
+        }
+      },
+      "AdminUserState": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "suspended": {
+            "type": "boolean"
+          },
+          "suspended_reason": {
+            "type": "string"
+          },
+          "site_count": {
+            "type": "integer"
           }
         }
       },
@@ -7643,13 +8161,19 @@
       },
       "Error": {
         "type": "object",
+        "required": [
+          "error"
+        ],
         "properties": {
           "error": {
-            "type": "string"
+            "type": "string",
+            "description": "What went wrong",
+            "in plain words. The wording may change; branch on `code`.": null
           },
           "code": {
             "type": "string",
-            "description": "Machine-readable reason where one applies. On 401 from an owner route: missing_api_key, wrong_auth_header (sent Authorization instead of X-API-Key) or invalid_api_key (unknown, revoked or signed-out key)."
+            "description": "A stable snake_case name for the refusal, present where one status has more than one meaning. site_exists (409: this account already has a site of that name), domain_taken (409: the address belongs to another site or person), invalid_name (400: not 1-63 lowercase letters, digits and hyphens), name_reserved (400: reserved by the platform), invalid_domain (400: not a domain that can be connected), site_quota_reached (403), append_only (409: public list items cannot be edited; the owner may still delete them), custom_domain_required (409: the site needs its own address first), not_an_object (409: the saved value is not a JSON object), private_visitor_only and private_needs_own_domain (403), use_custom_domain and visitor_auth_required (401), missing_api_key, wrong_auth_header (sent Authorization instead of X-API-Key) and invalid_api_key (unknown, revoked or signed-out key) (401), csrf_required (403), recently_deleted (409: the name belongs to a site in Recently deleted), site_not_deleted (409: restore of a live site), confirm_required (400), not_found (404, private collections), export_link_invalid (404: the download link expired or is not valid), site_suspended (403: the operator has taken the site down; changes and public reads of its data are refused until it is restored, `reason` says why), account_suspended (403: the operator has suspended this account; its keys, connected apps and sign-in are refused, `reason` says why). New codes may be added.",
+            "example": "domain_taken"
           }
         }
       }
@@ -7696,7 +8220,7 @@
         }
       },
       "Conflict": {
-        "description": "Site name already exists",
+        "description": "Conflict: the code says which (site_exists, domain_taken, append_only, custom_domain_required, not_an_object)",
         "content": {
           "application/json": {
             "schema": {

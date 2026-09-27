@@ -917,6 +917,8 @@
     .site-actions a.btn { text-decoration: none; display: inline-block; }
     .status-dot.live { background: var(--success); }
     .status-dot.pending { background: #d4a843; }
+    .status-dot.down { background: var(--error); }
+    .site-down { font-size: 13px; color: var(--error); margin-top: 6px; }
   </style>
 </head>
 <body>
@@ -1427,7 +1429,11 @@ function parseAnalyticsSummary(data) {
       setBtnLoading('key-btn', true);
       try {
         const r = await fetch('/v1/me', { headers: { 'X-API-Key': key } });
-        if (!r.ok) { toast('That key was not recognised', 'error'); return false; }
+        if (!r.ok) {
+          const d = r.status === 403 ? await r.json().catch(() => ({})) : {};
+          toast(d.code === 'account_suspended' ? d.error : 'That key was not recognised', 'error');
+          return false;
+        }
         const d = await r.json();
         apiKey = key;
         currentUser = { id: d.id, username: d.username, is_admin: d.is_admin, handle: d.handle, public_page: d.public_page };
@@ -1501,6 +1507,17 @@ function parseAnalyticsSummary(data) {
           currentUser = await res.json();
           enterApp();
           return;
+        }
+        if (res.status === 403) {
+          // Suspended by the operator: say so (with the reason), and sign out.
+          const d = await res.json().catch(() => ({}));
+          if (d.code === 'account_suspended') {
+            apiKey = null;
+            localStorage.removeItem('apiKey');
+            if (window.shAuthRender) window.shAuthRender();
+            toast(d.error, 'error');
+            return;
+          }
         }
         if (res.status === 401) {
           // Server explicitly rejected the key — only here do we wipe
@@ -1731,8 +1748,8 @@ function parseAnalyticsSummary(data) {
 
     function renderSiteCard(site, showOwner) {
       const hasSiteURL = site.site_url;
-      const statusClass = hasSiteURL ? 'live' : 'pending';
-      const statusText = hasSiteURL ? 'Live' : 'Pending';
+      const statusClass = site.suspended ? 'down' : hasSiteURL ? 'live' : 'pending';
+      const statusText = site.suspended ? 'Taken down' : hasSiteURL ? 'Live' : 'Pending';
       const name = esc(site.name);
 
       return `
@@ -1746,6 +1763,7 @@ function parseAnalyticsSummary(data) {
               ${hasSiteURL ? `<a class="site-url" href="${esc(site.site_url)}" target="_blank">${esc(site.site_url)}</a>` : ''}
               ${site.custom_domain ? `<span class="owner-badge domain-badge">🌐 ${esc(site.custom_domain)}${site.domain_status ? ' · ' + esc(site.domain_status) : ''}</span>` : ''}
             </div>
+            ${site.suspended ? `<p class="site-down">Taken down by the operator${site.suspended_reason ? ': ' + esc(site.suspended_reason) : ''}. Every address shows a "taken down" page and changes are refused until it is restored. Nothing has been deleted.</p>` : ''}
             <div class="site-analytics" id="an-${name}" data-site="${name}"></div>
           </div>
           ${!showOwner && currentUser && currentUser.handle ? `<div class="site-actions">

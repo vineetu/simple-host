@@ -59,6 +59,10 @@ run "private pages"         "SELECT view_password_hash FROM sites WHERE name='x'
 run "collections"           "SELECT id, data FROM collection_items WHERE site_id='$NIL' AND collection='c' ORDER BY id DESC"
 run "private collections"   "SELECT s.private, i.submitted_by FROM collection_settings s LEFT JOIN collection_items i ON i.site_id = s.site_id AND i.collection = s.collection WHERE s.site_id='$NIL'"
 run "custom domains"        "SELECT custom_domain, domain_status FROM sites WHERE custom_domain='x'"
+run "domain certificates"   "SELECT previous_domain, domain_cert_status, domain_failing_since, domain_lapse_notified_at FROM sites WHERE previous_domain='x'"
+run "recently deleted"      "SELECT id, name, deleted_at FROM sites WHERE user_id='$NIL' AND deleted_at IS NOT NULL"
+run "take-down"             "SELECT s.suspended_at, s.suspended_reason, u.suspended_at, u.suspended_reason FROM sites s JOIN users u ON u.id = s.user_id WHERE s.id='$NIL'"
+run "migrations record"     "SELECT name, applied_at FROM schema_migrations"
 run "auth tokens"           "SELECT id, email, code, link_token, nonce_hash FROM auth_tokens WHERE link_token='x'"
 run "visitor sessions"      "SELECT id, user_id, site_id, host FROM visitor_sessions WHERE id='x'"
 run "oauth identities"      "SELECT provider, provider_user_id FROM oauth_identities WHERE provider_user_id='x'"
@@ -75,6 +79,34 @@ run "connector clients"   "SELECT client_id, client_secret_hash, redirect_uris, 
 run "connector grants"    "SELECT g.id, g.user_id, g.client_id, c.client_name FROM oauth_grants g JOIN oauth_clients c USING (client_id) WHERE g.user_id='$NIL'"
 run "connector codes"     "SELECT client_id, user_id, redirect_uri, code_challenge, resource, grant_id FROM oauth_codes WHERE code_hash='x' AND used_at IS NULL"
 run "connector tokens"    "SELECT t.kind, t.expires_at, g.user_id FROM oauth_tokens t JOIN oauth_grants g ON g.id = t.grant_id WHERE t.token_hash='x'"
+
+# An existing box upgrades by running `simple-host migrate`. Prove, on its own
+# throwaway database and role (the Go test connects over TCP with a password):
+# schema.sql + migrate leaves nothing pending, a second run is a no-op, a box
+# from before tracking existed gets every file once, two racing runs apply a
+# file once, and a failing file rolls back. Skipped when go is not installed.
+echo "== simple-host migrate on a fresh and an older database =="
+if command -v go >/dev/null 2>&1; then
+  MDB=${DB}_migrate
+  MPW=$(openssl rand -hex 16)
+  mcleanup() { $PSQL -c "DROP DATABASE IF EXISTS $MDB;" -c "DROP ROLE IF EXISTS $MDB;" >/dev/null 2>&1; }
+  mcleanup
+  if $PSQL -c "CREATE ROLE $MDB LOGIN PASSWORD '$MPW';" -c "CREATE DATABASE $MDB OWNER $MDB;" >/dev/null 2>&1; then
+    if MIGRATE_TEST_DSN="postgres://$MDB:$MPW@127.0.0.1:${PGPORT:-5432}/$MDB?sslmode=disable" \
+        go test -count=1 ./db/migrations/ >/tmp/sh-migrate-check.$$ 2>&1; then
+      echo "  ok — migrate applies each file once, tracked, and is a no-op after"
+    else
+      echo "  FAIL migrate"; sed 's/^/    /' /tmp/sh-migrate-check.$$ | tail -20
+      fail=1
+    fi
+    rm -f /tmp/sh-migrate-check.$$
+  else
+    echo "  FAIL: cannot create $MDB"; fail=1
+  fi
+  mcleanup
+else
+  echo "  skipped — go not installed"
+fi
 
 echo
 if [ "$fail" -ne 0 ]; then

@@ -1,5 +1,8 @@
-// Command analytics-rebuild replays the nginx analytics log from the beginning
-// and rewrites every hourly aggregate with the current traffic classifier.
+// Command analytics-rebuild replays the analytics log and its rotated archives
+// (logrotate's .1 and .N.gz, or Caddy's access-<timestamp>.log.gz rolls),
+// oldest first, and rewrites every hourly aggregate with the current traffic
+// classifier. History older than the oldest archive (about 30 days) is not in
+// any file, so the rebuilt aggregates start there.
 //
 // Run it once after deploying the classifier, so historical charts show the same
 // person/bot/infra split as new traffic instead of the pre-classifier totals
@@ -18,8 +21,8 @@
 //	sudo -u simplehost env $(cat /etc/simple-host.env | xargs) analytics-rebuild
 //	sudo systemctl start simple-host
 //
-// Stopping the server first is not strictly required, but it keeps the log
-// output readable and avoids the ingest loop racing the replay.
+// Stop the server first: its ingest loop and the replay share one position in
+// the database, and racing on it would count lines twice.
 package main
 
 import (
@@ -74,6 +77,9 @@ func main() {
 	}
 
 	fmt.Printf("log:       %s (%.1f MB)\n", cfg.AnalyticsLog, float64(info.Size())/(1<<20))
+	for _, f := range analytics.ReplayFiles(cfg.AnalyticsLog) {
+		fmt.Printf("replays:   %s\n", f)
+	}
 	fmt.Printf("existing:  %d view rows, %d visitor rows, %d geo rows\n", before.views, before.visitors, before.geo)
 
 	if *dryRun {

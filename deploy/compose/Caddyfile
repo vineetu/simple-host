@@ -35,8 +35,22 @@ https:// {
 			# every site reporting zero views rather than as an error anyone
 			# would notice.
 			mode 644
+			# The log holds visitor IPs, and the privacy page says log files
+			# are deleted after 30 days. Roll daily at midnight UTC (on a clock,
+			# so a quiet box rolls too; size alone could take months) and delete
+			# rolls 28 days after they were rolled: a roll holds the day before
+			# it, and old rolls are removed at the next daily roll, so the
+			# oldest line on disk is about 30 days old. roll_keep only bounds
+			# how many size rolls a busy box keeps. roll_at needs Caddy 2.11+
+			# (caddy:2-alpine is 2.11.4).
+			#
+			# Rolls are named access-<time>-<reason>.log and gzipped at once;
+			# the ingester finishes the newest one after a roll, and
+			# analytics-rebuild replays them all.
 			roll_size 64MiB
-			roll_keep 8
+			roll_at 00:00
+			roll_keep 35
+			roll_keep_for 672h
 		}
 		format json
 	}
@@ -59,7 +73,20 @@ https:// {
 		redir @nodir {uri}/ 308
 
 		@site path_regexp site ^/([a-z0-9-]{1,39})/([a-z0-9-]{1,63})(/.*)?$
-		rewrite @site /{re.site.1}/{re.site.2}/current{re.site.3}
+		# A route, so these run in the order written. A site the operator
+		# has taken down carries a `suspended` marker in its folder: every
+		# path of it answers the application's take-down page instead.
+		route @site {
+			@suspended file {
+				root /data/sites/handles
+				try_files /{re.site.1}/{re.site.2}/suspended
+			}
+			rewrite @suspended /internal/suspended
+			reverse_proxy @suspended app:8090
+			rewrite * /{re.site.1}/{re.site.2}/current{re.site.3}
+			root * /data/sites/handles
+			file_server
+		}
 		root * /data/sites/handles
 		file_server
 	}

@@ -57,8 +57,10 @@ func TestRecentlyDeletedAndRestore(t *testing.T) {
 	if r := a.at(t, "GET", shop, "/", nil, nil); r.status != http.StatusNotFound {
 		t.Fatalf("site host after delete: %d", r.status)
 	}
-	if r := a.at(t, "GET", claimed, "/", nil, nil); r.status == 200 {
-		t.Fatalf("claimed host still serves after delete")
+	// While the site is in Recently deleted its claimed name is held and
+	// answers "removed", never another site of that name.
+	if r := a.at(t, "GET", claimed, "/", nil, nil); r.status == 200 || !strings.Contains(string(r.body), "This site was removed") {
+		t.Fatalf("claimed host after delete: %d %s", r.status, r.body)
 	}
 	if r := a.at(t, "GET", apex, "/v1/u/"+oh+"/sites/shop/collections/rsvps", nil, nil); r.status != http.StatusNotFound {
 		t.Fatalf("collection after delete: %d %s", r.status, r.body)
@@ -143,10 +145,18 @@ func TestRecentlyDeletedAndRestore(t *testing.T) {
 	if _, err := os.Stat(a.sites.disk.TrashDir(uid, siteID)); !os.IsNotExist(err) {
 		t.Fatalf("files not purged: %v", err)
 	}
-	if r := a.at(t, "POST", apex, "/v1/sites/home/domain", map[string]string{"domain": claimed}, map[string]string{"X-API-Key": oscar.key}); r.status != 200 {
-		t.Fatalf("claimed name not freed by the purge: %d %s", r.status, r.body)
+	// The purge retires the claimed name (legacy_hostnames): it keeps saying
+	// the site was removed and never passes to someone else's site.
+	if r := a.at(t, "POST", apex, "/v1/sites/home/domain", map[string]string{"domain": claimed}, map[string]string{"X-API-Key": oscar.key}); r.status != http.StatusConflict {
+		t.Fatalf("retired claimed name taken by someone else after the purge: %d %s", r.status, r.body)
 	}
-	a.deploy(t, olive, "shop") // the name is free again
+	if r := a.at(t, "GET", claimed, "/", nil, nil); r.status == 200 || !strings.Contains(string(r.body), "This site was removed") {
+		t.Fatalf("claimed host after purge: %d %s", r.status, r.body)
+	}
+	if _, err := db.GetRetiredName(ctx, a.database, claimed); err != nil {
+		t.Fatalf("claimed name not retired by the purge: %v", err)
+	}
+	a.deploy(t, olive, "shop") // the site name is free again
 }
 
 // A handle can change after publishing: the old handle stays as an alias, so

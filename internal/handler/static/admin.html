@@ -35,6 +35,13 @@ async function loadDisk(){
       age=secs<90?'':' Measured '+Math.round(secs/60)+' minutes ago.';
     }
     note.textContent=d.message+' Websites are capped at '+d.site_limit_mb+' MB each.'+age;
+    // Settings and release in force, so nobody needs a shell to say which
+    // version this box runs or how much history it keeps.
+    var kv=d.keep_versions, keep=kv===0?'Keeps every deploy of each website.':
+      kv===1?'Keeps the latest deploy of each website.':'Keeps the latest '+kv+' deploys of each website.';
+    var inst=document.getElementById('instance-note');
+    inst.textContent=keep+(d.version?' Running release '+d.version+', commit '+d.commit+'.':'');
+    inst.hidden=false;
     var top=(d.largest||[]);
     if(top.length){
       document.getElementById('disk-rows').innerHTML=top.map(function(t){
@@ -101,6 +108,9 @@ body{min-height:100vh}
 .site .cd{font-size:13px;color:var(--text-secondary);margin-top:2px;display:flex;align-items:center;gap:6px;min-width:0;overflow-wrap:anywhere}
 .site .cd .ico{width:14px;height:14px;flex-shrink:0}
 .nosites{font-size:13px;color:var(--text-secondary);margin-top:6px}
+.badge.down{color:var(--error);border-color:var(--error)}
+.downnote{font-size:13px;color:var(--error);margin-top:2px;overflow-wrap:anywhere}
+.btn.mini{padding:1px 8px;font-size:13px}
 .sec{font-size:21px;font-weight:700;letter-spacing:-.01em;color:var(--text);border-top:1px solid var(--border);padding-top:20px;margin:0 0 4px}
 .secnote{font-size:15px;color:var(--text-secondary);margin-bottom:12px}
 table.apx{width:100%;border-collapse:collapse;font-size:15px;margin:12px 0 24px;font-variant-numeric:tabular-nums}
@@ -135,6 +145,7 @@ table.apx td.err{color:var(--error)}
   <div id="disk" hidden>
     <div class="bar"><div id="bar-fill"></div></div>
     <p class="ph" id="disk-note"></p>
+    <p class="ph" id="instance-note" hidden></p>
     <details id="disk-top" hidden><summary>Biggest websites</summary>
       <table class="apx"><thead><tr><th>Website</th><th>Size</th></tr></thead><tbody id="disk-rows"></tbody></table>
     </details>
@@ -166,8 +177,9 @@ table.apx td.err{color:var(--error)}
       <input type="text" id="entry-filter" placeholder="Filter by name or account">
       <button class="btn ghost" id="entries-csv-btn">Download CSV</button>
       <button class="btn ghost" id="entries-copy-btn">Copy links</button>
+      <button class="btn ghost" id="entries-all-btn">Download all entries</button>
     </div>
-    <table class="apx"><thead><tr><th>Entry</th><th>Account</th><th>Link</th><th>Analytics</th></tr></thead><tbody id="entry-rows"></tbody></table>
+    <table class="apx"><thead><tr><th>Entry</th><th>Account</th><th>Link</th><th>Analytics</th><th>Status</th></tr></thead><tbody id="entry-rows"></tbody></table>
     <p class="ph" id="entry-count"></p>
   </div>
 
@@ -204,7 +216,9 @@ function status(msg, err){ var s=document.getElementById('status'); s.hidden=fal
 
 function siteCard(s){
   var live=!!s.site_url;
-  return '<div class="site"><div class="sn"><span class="dot '+(live?'live':'pending')+'"></span>'+esc(s.name)+'</div>'+
+  return '<div class="site"><div class="sn"><span class="dot '+(live?'live':'pending')+'"></span>'+esc(s.name)+
+    (s.suspended?' <span class="badge down">taken down</span>':'')+'</div>'+
+    (s.suspended?'<div class="downnote">'+esc(s.suspended_reason)+(s.suspended_by==='account'?' (account suspended)':'')+'</div>':'')+
     (live?'<a href="'+esc(s.site_url)+'" target="_blank" rel="noopener">'+esc(s.site_url)+'</a>':'<span class="cd">not live yet</span>')+
     (s.custom_domain?'<div class="cd"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15 15 0 0 1 0 20a15 15 0 0 1 0-20z"/></svg><span>'+esc(s.custom_domain)+'</span></div>':'')+'</div>';
 }
@@ -213,12 +227,17 @@ function userCard(u){
   var head='<div class="user-head"><span class="name">'+esc(u.username)+'</span>'+
     (u.handle?'<span class="handle">/'+esc(u.handle)+'</span>':'')+
     (u.is_admin?'<span class="badge admin">admin</span>':'')+
-    (u.is_admin?'':'<button class="btn ghost" style="padding:1px 8px;font-size:13px" data-newkey-id="'+esc(u.id)+'" data-newkey-name="'+esc(u.username)+'">New key</button>')+
-    (u.is_admin?'':'<button class="btn ghost" style="padding:1px 8px;font-size:13px" data-delete-id="'+esc(u.id)+'" data-delete-name="'+esc(u.username)+'">Delete</button>')+
+    (u.suspended?'<span class="badge down">suspended</span>':'')+
+    (u.is_admin||u.suspended?'':'<button class="btn ghost mini" data-newkey-id="'+esc(u.id)+'" data-newkey-name="'+esc(u.username)+'">New key</button>')+
+    (u.is_admin?'':(u.suspended
+      ?'<button class="btn ghost mini" data-user-enable="'+esc(u.id)+'" data-name="'+esc(u.username)+'">Re-enable</button>'
+      :'<button class="btn ghost mini" data-user-suspend="'+esc(u.id)+'" data-name="'+esc(u.username)+'">Suspend</button>'))+
+    (u.is_admin?'':'<button class="btn ghost mini" data-delete-id="'+esc(u.id)+'" data-delete-name="'+esc(u.username)+'">Delete</button>')+
     '<span class="badge count">'+u.site_count+' site'+(u.site_count===1?'':'s')+'</span>'+
     '<span class="when">joined '+fmtDate(u.created_at)+'</span></div>';
+  var why = u.suspended ? '<div class="downnote">Suspended: '+esc(u.suspended_reason)+'. Keys, connected apps and sign-in are refused; every site of theirs is taken down.</div>' : '';
   var body = sites.length ? '<div class="sites">'+sites.map(siteCard).join('')+'</div>' : '<div class="nosites">No sites yet.</div>';
-  return '<div class="user">'+head+body+'</div>';
+  return '<div class="user">'+head+why+body+'</div>';
 }
 
 // Anyone who is not an admin sees an ordinary not-found page — no key prompt, no
@@ -236,7 +255,8 @@ function collectEntries(users){
   (users||[]).forEach(function(u){
     (u.sites||[]).forEach(function(s){
       if(!s.site_url) return;   // never deployed; nothing to judge
-      allEntries.push({name:s.name, account:u.handle||u.username, handle:u.handle||'', url:s.site_url, domain:s.custom_domain||''});
+      allEntries.push({id:s.id, name:s.name, account:u.handle||u.username, handle:u.handle||'', url:s.site_url, domain:s.custom_domain||'',
+        suspended:!!s.suspended, reason:s.suspended_reason||'', by:s.suspended_by||''});
     });
   });
   var ep=document.getElementById('entries');
@@ -259,14 +279,24 @@ function renderEntries(){
     return '<tr><td>'+esc(e.name)+'</td><td>'+esc(e.account)+'</td>'+
       '<td><a href="'+esc(e.url)+'" target="_blank" rel="noopener">'+esc(e.url)+'</a></td>'+
       // Same page the owner sees; ?owner= is honoured for the admin only.
-      '<td>'+(e.handle?'<a href="/analytics/'+encodeURIComponent(e.name)+'?owner='+encodeURIComponent(e.handle)+'" target="_blank" rel="noopener">Analytics</a>':'')+'</td></tr>';
+      '<td>'+(e.handle?'<a href="/analytics/'+encodeURIComponent(e.name)+'?owner='+encodeURIComponent(e.handle)+'" target="_blank" rel="noopener">Analytics</a>':'')+'</td>'+
+      '<td>'+entryStatus(e)+'</td></tr>';
   }).join('');
   var c=document.getElementById('entry-count');
   if(c) c.textContent=rows.length+' of '+allEntries.length+' entries';
 }
 
+// Live, or taken down with the reason and the switch that undoes it. A site
+// that is down because its account is suspended comes back with the account.
+function entryStatus(e){
+  if(!e.suspended) return 'Live <button class="btn ghost mini" data-site-suspend="'+esc(e.id)+'" data-name="'+esc(e.name)+'">Take down</button>';
+  var why='<div class="sub">'+esc(e.reason)+'</div>';
+  if(e.by==='account') return 'Taken down with the account'+why;
+  return 'Taken down <button class="btn ghost mini" data-site-restore="'+esc(e.id)+'" data-name="'+esc(e.name)+'">Restore</button>'+why;
+}
+
 function downloadEntries(){
-  var rows=[['entry','account','link','custom_domain']].concat(visibleEntries().map(function(e){return [e.name,e.account,e.url,e.domain];}));
+  var rows=[['entry','account','link','custom_domain','status']].concat(visibleEntries().map(function(e){return [e.name,e.account,e.url,e.domain,e.suspended?'taken down':'live'];}));
   var csv=rows.map(function(r){return r.map(function(v){return '"'+String(v).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
   var a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
@@ -346,6 +376,51 @@ async function deleteAccount(id, username){
   else { var d=await res.json().catch(function(){return {};}); status(d.error||'Could not delete', true); }
 }
 
+// Take down / restore a site, suspend / re-enable a person. Nothing is deleted
+// either way, so these ask for a reason, not for "are you sure".
+async function adminAction(path, body, done){
+  try{
+    var res=await fetch(path,{method:'POST',headers:{'X-API-Key':apiKey,'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+    var d=await res.json().catch(function(){return {};});
+    if(!res.ok){ status(d.error||('HTTP '+res.status), true); return; }
+    status(done); load();
+  }catch(e){ status('Cannot reach server', true); }
+}
+function askReason(what){
+  var r=prompt('Why? One line. The owner sees this.\n'+what);
+  return r==null ? null : r.trim();
+}
+function suspendSite(id, name){
+  var r=askReason('Take down '+name+': every address shows "This site has been taken down" and changes are refused. Restore puts it back.');
+  if(!r) return;
+  adminAction('/v1/admin/sites/'+encodeURIComponent(id)+'/suspend',{reason:r},'Took down '+name+'.');
+}
+function restoreSite(id, name){ adminAction('/v1/admin/sites/'+encodeURIComponent(id)+'/restore',null,'Restored '+name+'.'); }
+function suspendUser(id, name){
+  var r=askReason('Suspend '+name+': their keys, connected apps and sign-in stop working and all their sites are taken down. Re-enable reverses it.');
+  if(!r) return;
+  adminAction('/v1/admin/users/'+encodeURIComponent(id)+'/suspend',{reason:r},'Suspended '+name+'.');
+}
+function enableUser(id, name){ adminAction('/v1/admin/users/'+encodeURIComponent(id)+'/enable',null,'Re-enabled '+name+'.'); }
+
+// Every site, its saved data and its lists, as one archive. Streamed by the
+// server; the browser holds it until the download starts.
+async function downloadAll(){
+  var btn=document.getElementById('entries-all-btn'); btn.disabled=true;
+  status('Preparing the archive…');
+  try{
+    var res=await fetch('/v1/admin/export.tar.gz',{headers:{'X-API-Key':apiKey}});
+    if(!res.ok){ var d=await res.json().catch(function(){return {};}); status(d.error||('HTTP '+res.status), true); return; }
+    var blob=await res.blob();
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    var m=/filename="([^"]+)"/.exec(res.headers.get('Content-Disposition')||'');
+    a.download=m?m[1]:'all-entries.tar.gz'; a.click(); URL.revokeObjectURL(a.href);
+    status('Downloaded every entry ('+bytes(blob.size)+').');
+  }catch(e){ status('Cannot reach server', true); }
+  finally{ btn.disabled=false; }
+}
+
 function renderNotFound(){
   document.title='Not found · simple·host';
   // Only the page body is swapped: the shared header and footer stay, as they
@@ -411,12 +486,19 @@ document.getElementById('csv-btn').addEventListener('click', downloadCSV);
 document.getElementById('entry-filter').addEventListener('input', renderEntries);
 document.getElementById('entries-csv-btn').addEventListener('click', downloadEntries);
 document.getElementById('entries-copy-btn').addEventListener('click', copyEntries);
-document.getElementById('users').addEventListener('click', function(e){
-  var k=e.target.closest('[data-newkey-id]');
-  if(k){ reissueKey(k.dataset.newkeyId, k.dataset.newkeyName); return; }
-  var b=e.target.closest('[data-delete-id]');
-  if(b) deleteAccount(b.dataset.deleteId, b.dataset.deleteName);
-});
+document.getElementById('entries-all-btn').addEventListener('click', downloadAll);
+function onAdminClick(e){
+  var b=e.target.closest('button'); if(!b) return;
+  var d=b.dataset;
+  if(d.newkeyId) reissueKey(d.newkeyId, d.newkeyName);
+  else if(d.deleteId) deleteAccount(d.deleteId, d.deleteName);
+  else if(d.userSuspend) suspendUser(d.userSuspend, d.name);
+  else if(d.userEnable) enableUser(d.userEnable, d.name);
+  else if(d.siteSuspend) suspendSite(d.siteSuspend, d.name);
+  else if(d.siteRestore) restoreSite(d.siteRestore, d.name);
+}
+document.getElementById('users').addEventListener('click', onAdminClick);
+document.getElementById('entry-rows').addEventListener('click', onAdminClick);
 
 load();
 
@@ -448,6 +530,13 @@ async function loadDisk(){
       age=secs<90?'':' Measured '+Math.round(secs/60)+' minutes ago.';
     }
     note.textContent=d.message+' Websites are capped at '+d.site_limit_mb+' MB each.'+age;
+    // Settings and release in force, so nobody needs a shell to say which
+    // version this box runs or how much history it keeps.
+    var kv=d.keep_versions, keep=kv===0?'Keeps every deploy of each website.':
+      kv===1?'Keeps the latest deploy of each website.':'Keeps the latest '+kv+' deploys of each website.';
+    var inst=document.getElementById('instance-note');
+    inst.textContent=keep+(d.version?' Running release '+d.version+', commit '+d.commit+'.':'');
+    inst.hidden=false;
     var top=(d.largest||[]);
     if(top.length){
       document.getElementById('disk-rows').innerHTML=top.map(function(t){

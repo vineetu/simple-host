@@ -15,6 +15,11 @@ type User struct {
 	CreatedAt   time.Time
 	Handle      sql.NullString
 	DisplayName sql.NullString
+	// Suspended is set when the operator has suspended the account: its keys
+	// and connected apps stop working and its sites are taken down, without
+	// deleting anything. Loaded by GetUserByAPIKey, GetUserByID and ListAllUsers.
+	Suspended       bool
+	SuspendedReason string
 }
 
 type Site struct {
@@ -47,6 +52,34 @@ type Site struct {
 	// failed ("" = not known yet).
 	PreviousDomain   string
 	DomainCertStatus string
+
+	// Operator take-down. SiteSuspended is this site's own flag; OwnerSuspended
+	// is its owner's account being suspended, which takes every site of theirs
+	// down too. Populated by GetSiteByUser, ListSitesByUser and ListAllSites.
+	SiteSuspended        bool
+	SiteSuspendedReason  string
+	OwnerSuspended       bool
+	OwnerSuspendedReason string
+
+	// Deleted: the site is in Recently deleted. Only GetSiteByID sees such
+	// rows; every other lookup skips them.
+	Deleted bool
+}
+
+// Suspended reports whether the site is taken down, by itself or through its
+// owner's account.
+func (s Site) Suspended() bool { return s.SiteSuspended || s.OwnerSuspended }
+
+// SuspendedReason is the reason shown to the owner: the site's own, else the
+// account's.
+func (s Site) SuspendedReason() string {
+	if s.SiteSuspended {
+		return s.SiteSuspendedReason
+	}
+	if s.OwnerSuspended {
+		return s.OwnerSuspendedReason
+	}
+	return ""
 }
 
 type Version struct {

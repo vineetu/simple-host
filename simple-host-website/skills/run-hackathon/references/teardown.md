@@ -5,7 +5,10 @@ Do both halves. The server alone is not enough.
 ## Warn first
 
 Deleting the server destroys every entry and all saved data. There is no backup.
-If anyone wants to keep what they built, they take a copy before you begin.
+Before you begin, offer the organiser one archive of every entry
+(`GET /v1/admin/export.tar.gz` with the admin key, or "Download all entries" on
+the admin page): each site's files, saved data and lists. Participants can also
+take their own copy.
 
 ## 1. Delete the server
 

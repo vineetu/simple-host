@@ -110,6 +110,7 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	call("clear_collection", map[string]any{"site": "shop", "collection": "orders", "confirm_collection": "orders"})
 
 	call("site_analytics", map[string]any{"site": "shop", "days": 7})
+	call("export_site", map[string]any{"site": "shop"})
 	call("list_sites", map[string]any{})
 	if s := call("remove_domain", map[string]any{"site": "plain", "confirm_domain": "plain-" + handle + ".example.test"}); s["url"] == nil {
 		t.Errorf("remove_domain gave no address: %v", s)

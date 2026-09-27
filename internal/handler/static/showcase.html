@@ -300,6 +300,7 @@
       overflow-wrap: anywhere;
       margin-top: 2px;
     }
+    .inv-down { font-size: 13px; color: var(--error); margin-top: 4px; }
     .vis-badge {
       font-size: 13px;
       font-weight: 500;
@@ -1972,8 +1973,13 @@ function parseAnalyticsSummary(data) {
             '<h3>' + name + ' <span class="vis-badge ' + vis + '" data-vis-badge="' + name + '">' + vis + '</span>' + dom + '</h3>' +
             '<div class="inv-path"><a href="' + openUrl + '" target="_blank" rel="noopener">' + esc(url.replace(/^https?:\/\//, '').replace(/\/$/, '')) + '</a></div>' +
             '<div class="inv-meta">' + meta + '</div>' +
+            (s.suspended ? '<div class="inv-down">Taken down by the operator' + (s.suspended_reason ? ': ' + esc(s.suspended_reason) : '') +
+              '. Every address shows a &ldquo;taken down&rdquo; page and changes are refused until it is restored. Nothing has been deleted.</div>' : '') +
           '</div>' +
         '</div>' +
+        (s.suspended ? '<div class="inv-actions">' +
+          '<button type="button" class="btn-small btn-secondary" data-act="downloadSite" data-name="' + name + '">Download</button>' +
+        '</div>' :
         '<div class="inv-actions">' +
           '<a class="btn-small btn-secondary" href="' + openUrl + '" target="_blank" rel="noopener">Open</a>' +
           '<button type="button" class="btn-small btn-secondary" data-act="toggleVis" data-name="' + name + '" data-vis="' + vis + '" data-vis-btn="' + name + '">' + (vis === 'public' ? 'Make unlisted' : 'Make public') + '</button>' +
@@ -1982,7 +1988,7 @@ function parseAnalyticsSummary(data) {
           '<button type="button" class="btn-small btn-secondary" data-act="openDomain" data-name="' + name + '">' + (s.custom_domain ? 'Domain' : 'Connect domain') + '</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="downloadSite" data-name="' + name + '">Download</button>' +
           '<button type="button" class="btn-small btn-ghost" data-act="confirmDelete" data-name="' + name + '">Delete</button>' +
-        '</div>' +
+        '</div>') +
         '<div class="versions-panel" data-versions="' + name + '" hidden></div>' +
         '<div class="row-panel" data-panel="' + name + '" hidden></div>' +
         '<div class="plists" data-plists="' + name + '" hidden></div>' +

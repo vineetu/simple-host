@@ -677,6 +677,9 @@ func (h *ConnectorHandler) resolveConsentUser(ctx context.Context, key string) (
 		if errors.Is(err, sql.ErrNoRows) {
 			return db.User{}, http.StatusUnauthorized, "sign in again"
 		}
+		if errors.Is(err, db.ErrAccountSuspended) {
+			return db.User{}, http.StatusForbidden, "This account has been suspended by the operator, so it cannot connect apps."
+		}
 		return db.User{}, http.StatusInternalServerError, "internal server error"
 	}
 	// The built-in admin-key account is not a person and never connects an
@@ -909,7 +912,7 @@ func (h *ConnectorHandler) redeemCode(w http.ResponseWriter, r *http.Request, cl
 		}
 	}
 	user, err := db.GetUserByID(r.Context(), tx, stored.UserID)
-	if err != nil || user.Username == "admin" {
+	if err != nil || user.Username == "admin" || user.Suspended {
 		fail("account unavailable")
 		return
 	}
@@ -983,8 +986,10 @@ func (h *ConnectorHandler) refresh(w http.ResponseWriter, r *http.Request, clien
 			return
 		}
 	}
+	// A suspended account's refresh is refused without being spent (the
+	// transaction rolls back), so it works again once the account is re-enabled.
 	user, err := db.GetUserByID(r.Context(), tx, tok.UserID)
-	if err != nil || user.Username == "admin" {
+	if err != nil || user.Username == "admin" || user.Suspended {
 		oauthError(w, http.StatusBadRequest, "invalid_grant", "account unavailable")
 		return
 	}
@@ -1083,6 +1088,12 @@ func (h *ConnectorHandler) userForAccessToken(ctx context.Context, token string,
 	if err != nil || user.Username == "admin" {
 		return db.User{}, false
 	}
+	// A suspended person's token is refused but the grant is kept, so
+	// re-enabling the account brings the connection back. The user is
+	// returned (with Suspended set) so callers can say why.
+	if user.Suspended {
+		return user, false
+	}
 	_ = db.TouchOAuthGrant(ctx, h.database, tok.GrantID)
 	return user, true
 }
@@ -1113,6 +1124,10 @@ func (h *ConnectorHandler) BearerAuth(next http.Handler) http.Handler {
 			return
 		}
 		user, ok := h.userForAccessToken(r.Context(), token, h.issuer)
+		if !ok && user.Suspended {
+			writeAccountSuspended(w)
+			return
+		}
 		if !ok {
 			w.Header().Set("WWW-Authenticate", `Bearer error="invalid_token", resource_metadata="`+h.issuer+`/.well-known/oauth-protected-resource"`)
 			writeJSON(w, http.StatusUnauthorized, map[string]string{
@@ -1151,6 +1166,10 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 	var apiKey string
 	if token, ok := bearerToken(r); ok {
 		user, valid := h.userForAccessToken(r.Context(), token, h.mcpResource, h.issuer)
+		if !valid && user.Suspended {
+			writeAccountSuspended(w)
+			return
+		}
 		if !valid {
 			h.mcpUnauthorized(w, true)
 			return
@@ -1166,6 +1185,10 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 		// Coding agents that already hold a key can use the endpoint too.
 		if subtle.ConstantTimeCompare([]byte(key), []byte(h.adminAPIKey)) != 1 {
 			if _, err := db.GetUserByAPIKey(r.Context(), h.database, key); err != nil {
+				if errors.Is(err, db.ErrAccountSuspended) {
+					writeAccountSuspended(w)
+					return
+				}
 				h.mcpUnauthorized(w, true)
 				return
 			}

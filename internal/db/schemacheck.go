@@ -20,10 +20,11 @@ import (
 //
 // Add an entry here whenever a migration adds something the code depends on.
 var requiredColumns = map[string][]string{
-	"users": {"id", "username", "is_admin", "handle", "display_name", "handle_changed_at"},
+	// cp-ops-suspend.sql adds the suspended_* columns.
+	"users": {"id", "username", "is_admin", "handle", "display_name", "handle_changed_at", "suspended_at", "suspended_reason"},
 	// hash-api-keys.sql, cp-keys-key-names.sql
 	"api_keys":         {"id", "key_hash", "user_id", "name", "last4", "created_at", "last_used_at"},
-	"sites":            {"id", "user_id", "name", "active_version", "visibility", "state", "custom_domain", "deleted_at", "previous_domain", "domain_cert_status", "domain_failing_since", "domain_lapse_notified_at"},
+	"sites":            {"id", "user_id", "name", "active_version", "visibility", "state", "custom_domain", "deleted_at", "previous_domain", "domain_cert_status", "domain_failing_since", "domain_lapse_notified_at", "suspended_at", "suspended_reason"},
 	"collection_items": {"id", "site_id", "collection", "data", "submitted_by"},
 	// private-collections.sql
 	"collection_settings": {"site_id", "collection", "private"},
@@ -89,7 +90,9 @@ func VerifySchema(ctx context.Context, database *sql.DB) error {
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("database is behind this build; missing: %s\n"+
-			"Apply the migrations in db/migrations/, or db/schema.sql on a new database",
+			"Run `simple-host migrate` against this database (on a small box, re-running the install\n"+
+			"command does it), or apply the files in db/migrations/ by hand and record each with\n"+
+			"`simple-host migrate -mark FILE`. A new database takes db/schema.sql",
 			strings.Join(missing, ", "))
 	}
 	return nil

@@ -291,6 +291,9 @@ func (h *SiteHandler) setCollectionPrivacy(w http.ResponseWriter, r *http.Reques
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	if h.refuseSuspendedSiteID(w, r, siteID) {
+		return
+	}
 	home, hasHome, err := h.siteHomeFor(r.Context(), siteID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -395,6 +398,10 @@ func (h *SiteHandler) privateItemTarget(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return "", "", 0, false
 	}
+	// A taken-down site's lists are kept as they are until it is restored.
+	if h.refuseSuspendedSiteID(w, r, siteID) {
+		return "", "", 0, false
+	}
 	private, err := db.IsCollectionPrivate(r.Context(), h.database, siteID, coll)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -467,7 +474,7 @@ func (h *SiteHandler) updatePrivateItem(w http.ResponseWriter, r *http.Request) 
 	case errors.Is(err, errTooLarge):
 		writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large"})
 	case errors.Is(err, errNotObject):
-		writeJSON(w, http.StatusConflict, errorResponse{Error: "this item is not a JSON object, so it has no fields to change; delete it instead"})
+		writeJSON(w, http.StatusConflict, errorResponse{Error: "this item is not a JSON object, so it has no fields to change; delete it instead", Code: "not_an_object"})
 	case err != nil:
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 	default:
@@ -508,6 +515,9 @@ func (h *SiteHandler) clearCollection(w http.ResponseWriter, r *http.Request) {
 	}
 	siteID, ok := h.privateManager(w, r, siteName)
 	if !ok {
+		return
+	}
+	if h.refuseSuspendedSiteID(w, r, siteID) {
 		return
 	}
 	var req struct {
