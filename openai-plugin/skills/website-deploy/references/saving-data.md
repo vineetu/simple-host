@@ -17,7 +17,7 @@ anyone reads it and anyone signed in adds to it. Page info and Submissions are d
 | One thing per visitor: RSVP, survey response, order, sign-up, message | **Submissions** (`kind: "entries"`), private (the default) | the owner reads all; each visitor sees, changes and withdraws their own |
 | A guestbook, public comments | Submissions with `visibility: "public"` | anyone reads them; who sent each stays with the owner |
 | Votes, one RSVP each | Submissions with `one_per_person: true` (public to show a tally; `SH.data(name).count()`) | a second entry is refused; the visitor changes theirs |
-| A habit tracker, saved progress, preferences that follow the visitor to any device | **Personal** (`kind: "mine"`), `SH.data(name, 'personal')` | only that visitor reads it; the owner sees how many people have one |
+| A habit tracker, saved progress, preferences that follow the visitor to any device | **Personal** (`kind: "mine"`), `SH.data(name, 'personal')` | the owner's tools never show it (only how many people have one); the site's own pages read it for that visitor, so only on sites you trust; never send it anywhere else |
 | A shared shopping list, a kanban, a potluck sign-up | **Shared board** (`kind: "board"`), `SH.data(name, 'board')` | anyone reads; signed-in visitors add, change and delete items; only the owner clears it |
 | A draft, a cart, "already voted" on this device only | `localStorage` in the page | per visitor, this device; never shared |
 | Roles, per-field rules, joins, search, live co-editing of one object, instant updates | does not fit | say so instead of approximating it |
@@ -324,7 +324,7 @@ columns appear like any other key). You read it with `read_collection` (its answ
   for 30 days. `data_history` (site, optional collection) lists them with who made each and
   when, and shows one earlier value with `version`; `restore_data` puts one back (confirm
   which with the person first). `list_deleted` and `restore_item` (one `id`, or `all: true`
-  to undo `clear_collection`) bring deleted items back. `read_collection` shows the owner who
+  to undo `clear_collection`; with `within_minutes` on a Shared board) bring deleted items back. `read_collection` shows the owner who
   sent each item (`by`).
 - `delete_forever` removes for good what the undo still holds: one item of a list's recently
   deleted (`collection`, `id`, `confirm_id`), all of it (`collection`, `all: true`,

@@ -124,8 +124,8 @@ saves to it:
   guestbook, public comments); say so plainly when building one. `one_per_person: true` for
   votes.
 - **Personal** (`kind: "mine"`): one private record per signed-in visitor that follows them to
-  any device: a habit tracker, saved progress, preferences. Only that visitor reads or changes
-  it; the owner sees how many people have one, never what they saved.
+  any device: a habit tracker, saved progress, preferences. Only that visitor changes it; the
+  owner sees how many people have one. Simple Host's owner tools never show a person's Personal record; the site's own pages run in the visitor's browser and can read that visitor's record, so only use Personal on sites you trust. Never write a page that sends a Personal record, or anything read from it, anywhere else: not to another data name, not to another site or service.
 - **Shared board** (`kind: "board"`): a list anyone reads and signed-in visitors add to, change
   and delete item by item: a shared shopping list, a kanban, a potluck sign-up. Only the owner
   clears it. Changes show up by polling, not instantly.

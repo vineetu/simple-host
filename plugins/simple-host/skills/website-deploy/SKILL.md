@@ -27,7 +27,7 @@ append-only collections) that its own page JavaScript can call.
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.25.0`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.25.1`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -165,9 +165,10 @@ can require declaring every name first; then an undeclared one answers 409
   to `off`).
 - **Each visitor's own, private: Personal** — `{"kind": "mine"}`. One record per
   signed-in visitor that follows them to any device: a habit tracker, saved
-  progress, preferences, a reading list. Only that visitor reads or changes it;
-  the owner sees how many people have one, never what they saved, and can clear
-  it for everyone. In the page: `const me = SH.data('habits', 'personal')`, then
+  progress, preferences, a reading list. Only that visitor changes it; the owner
+  sees how many people have one (from 3 people up) and can clear it for
+  everyone. Simple Host's owner tools never show a person's Personal record; the site's own pages run in the visitor's browser and can read that visitor's record, so only use Personal on sites you trust.
+  Never write a page that sends a Personal record, or anything read from it, anywhere else: not to another data name, not to another site or service. In the page: `const me = SH.data('habits', 'personal')`, then
   `await SH.requireSignIn(); await me.get()` (null at first), `me.set({...})` (the
   whole record) or `me.set('theme', 'dark')`, `me.inc('streak')`,
   `me.patch([ops])`, `me.clear()`; `me.history()` / `me.restore(id)` undo their own
@@ -235,7 +236,8 @@ app). Full code, limits and error codes: `references/backend.md`.
   `?publish=false` and give them the `preview_url` (see `references/operations.md`).
 - **Sites and their data are public to anyone with the link**, except private
   Submissions, which only the owner reads in full (each visitor reads their own),
-  and Personal records, which only their own visitor reads. The visitor
+  and Personal records, which the owner's tools never show (the site's own pages
+  read each for its own visitor). The visitor
   session is site-scoped and is **not** an API key — it cannot deploy or delete.
   On a failed write keep the form, never claim success on a non-2xx, and never
   re-POST an entry by hand after a partial write (`SH.data` writes carry an

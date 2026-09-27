@@ -113,15 +113,20 @@ against their sign-in, so it follows them to their phone and laptop. Declare the
 name while it is still empty (a name that already holds data answers 409
 `has_entries`).
 
-- **Only that visitor** reads or writes it, signed in on the site's own address.
-  Other visitors each have their own. The owner never reads anyone's: their key,
-  the connector (`read_collection`, `data_history`, `list_deleted`), the owner
-  app and the site's download all answer 403 `personal_data` or leave it out.
-  The owner sees how many people have a record and their total size
-  (`list_data`, `GET .../data/<name>?count=1`), and can clear the name for
-  everyone (`clear_collection`, after the owner confirms); Restore in the owner
-  app then brings back what that clear took.
-- A personal record is at most 64 KB (413 `item_too_large`).
+- **Only that visitor** writes it, signed in on the site's own address. Other
+  visitors each have their own. Simple Host's owner tools never show a person's Personal record; the site's own pages run in the visitor's browser and can read that visitor's record, so only use Personal on sites you trust. Simple Host's side of that: the owner's
+  key, the connector (`read_collection`, `data_history`, `list_deleted`), the
+  owner app and the site's download all answer 403 `personal_data` or leave it
+  out. The owner sees how many people have a record and their total size
+  (`list_data`, `GET .../data/<name>?count=1`), from 3 people up (with one or
+  two: `few: true`, no numbers), and can clear the name for everyone
+  (`clear_collection`, after the owner confirms); Restore in the owner app then
+  brings back what that clear took, never a record its person deleted.
+- **Never write a page that sends a Personal record, or anything read from it, anywhere else: not to another data name, not to another site or service.** A page reads the record
+  only to show it to that visitor or to change it.
+- A personal record is at most 64 KB (413 `item_too_large`). One name holds
+  records for at most 1,000 people (409 `people_full` for someone new; people who
+  have a record keep saving).
 - It is in the visitor's own "Download my data", and is erased with their account.
 - A Personal name that holds records never becomes another kind (409
   `has_records`): pick a new name instead.
@@ -157,7 +162,13 @@ and change or delete **any** item, one at a time. Only the owner empties it
   it first you get 409 `version_conflict` with `item` as it is now — show it,
   and let the visitor apply their change again.
 - Whoever deleted an item can bring it back for a few minutes (`undo`); the
-  owner restores anything from History and Recently deleted.
+  owner restores anything from History and Recently deleted, never past the
+  board's cap. The owner's Restore all on a board names a window
+  (`{"all": true, "within_minutes": 60}`), so after someone deletes the lot it
+  brings back what went since then, not what people deleted on purpose before.
+- Adds, changes and deletes are rate-limited per address and per signed-in
+  person (429 `rate_limited`). `list()` and `watch()` read every page of the
+  board.
 - There is no live feed: `watch` polls, and an unchanged board answers 304, so
   polling every few seconds is cheap.
 
@@ -197,7 +208,8 @@ ones that should follow the visitor to another device are Personal.
 | 403 | `not_allowed_to_save` | The owner has not allowed this account to save here (or blocked it). Tell the visitor; do not retry. |
 | 409 | `undo_expired` | Only a visitor's own withdrawal, within the window, comes back; the owner restores older ones. |
 | 413 | `item_too_large` | Over the entry, Page info, personal record or board item size above. |
-| 403 | `personal_data` | A Personal record is read and written only by its own visitor, signed in on the site; the owner gets counts only. |
+| 403 | `personal_data` | A Personal record is written only by its own visitor, signed in on the site; the owner's tools get counts only. |
+| 409 | `people_full` | This Personal name already keeps records for as many people as it may; nobody new can start one. Tell the visitor. |
 | 409 | `has_records` | A Personal name that holds records cannot become another kind. Use a new name. |
 | 409 | `has_entries` | The name holds data, so it cannot become Personal (or several entries cannot become Page info). Use a new name. |
 | 409 | `version_conflict` | A board item changed since the version sent; `item` in the body is how it is now. |
@@ -328,6 +340,8 @@ with the person before either. Deleted entries stay in the list's **Recently
 deleted** for 30 days: `GET .../collections/<name>/deleted`,
 `POST .../collections/<name>/items/<id>/restore` for one, or
 `POST .../collections/<name>/deleted/restore` with `{"all": true}` to undo a clear
+(add `"within_minutes": n` for only what went in the last n minutes; a Shared
+board needs it)
 (connector `list_deleted`, `restore_item`; owner app Recently deleted). Every
 edit, delete and clear is in `GET .../collections/<name>/history` and can be
 undone with `POST .../history/<id>/restore` (`data_history`, `restore_data`).
