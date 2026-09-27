@@ -3,12 +3,14 @@ package handler
 import (
 	"context"
 	"errors"
+	"net/http/httptest"
 	"os"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 )
 
@@ -398,5 +400,72 @@ func TestRollbackServesOnlyWhatCommitted(t *testing.T) {
 	}
 	if !strings.Contains(served(), "blog") {
 		t.Fatalf("after rollback: %q", served())
+	}
+}
+
+// L6: when the per-day copies thinning keeps are over the cap by themselves,
+// writes stop re-running the whole-history thin until it has grown again.
+func TestThinSkipsWhenNothingCanGo(t *testing.T) {
+	s := newKindsSite(t, true)
+	a := s.a
+	ctx := context.Background()
+	s.setLimits(t, func(c *config.SavedData) { c.HistoryMaxMB = 1 })
+	a.sites.thinLimiter = nil
+	capBytes := int64(1) << 20
+	blob := func(n int) string { return `{"x":"` + strings.Repeat("a", n) + `"}` }
+	var items []int64
+	for i := 0; i < 12; i++ { // 12 keepers of ~100 KB: over the cap on their own
+		var id int64
+		if err := a.database.QueryRow(`INSERT INTO collection_items (site_id, collection, data) VALUES ($1, 'big', '{}') RETURNING id`, s.shopID).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		items = append(items, id)
+		if _, err := a.database.Exec(`INSERT INTO data_history (site_id, kind, name, item_id, op, prev, actor_kind) VALUES ($1, 'list', 'big', $2, 'edit', $3::jsonb, 'owner')`, s.shopID, id, blob(100<<10)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rows := func() (n int) {
+		t.Helper()
+		_ = a.database.QueryRow(`SELECT count(*) FROM data_history WHERE site_id = $1`, s.shopID).Scan(&n)
+		return
+	}
+	req := httptest.NewRequest("GET", "/", nil)
+	a.sites.boundHistory(req, s.shopID)
+	if rows() != 12 {
+		t.Fatalf("keepers deleted: %d", rows())
+	}
+	size, err := db.HistoryBytes(ctx, a.database, s.shopID)
+	if err != nil || size <= capBytes {
+		t.Fatalf("history size %d %v", size, err)
+	}
+	if !a.sites.thinPointless(s.shopID, size, capBytes) {
+		t.Fatal("a thin that left the history over the cap is not remembered")
+	}
+	// A small later change of the same item the same day: not a keeper, but
+	// the history has not grown by the margin, so no thin runs.
+	add := func(n int) {
+		t.Helper()
+		if _, err := a.database.Exec(`INSERT INTO data_history (site_id, kind, name, item_id, op, prev, actor_kind) VALUES ($1, 'list', 'big', $2, 'edit', $3::jsonb, 'owner')`, s.shopID, items[0], blob(n)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add(1 << 10)
+	a.sites.boundHistory(req, s.shopID)
+	if rows() != 13 {
+		t.Fatalf("thinned before the margin: %d rows", rows())
+	}
+	// Grown by the margin: the thin runs again and takes what it can.
+	add(int(thinMargin(capBytes)))
+	a.sites.boundHistory(req, s.shopID)
+	if rows() != 12 {
+		t.Fatalf("after the margin: %d rows", rows())
+	}
+	// The sweep forgets sites back under the cap.
+	if _, err := a.database.Exec(`DELETE FROM data_history WHERE site_id = $1`, s.shopID); err != nil {
+		t.Fatal(err)
+	}
+	a.sites.sweepSavedData(ctx)
+	if _, ok := a.sites.thinStuck.Load(s.shopID); ok {
+		t.Fatal("still remembered once under the cap")
 	}
 }

@@ -77,13 +77,41 @@ func (h *SiteHandler) SetSavedData(c config.SavedData) {
 func (h *SiteHandler) boundHistory(r *http.Request, siteID string) {
 	capBytes := int64(h.savedData.HistoryMaxMB) << 20
 	ctx := context.WithoutCancel(r.Context())
-	over, err := db.HistoryOverCap(ctx, h.database, siteID, capBytes)
-	if err != nil || !over || (h.thinLimiter != nil && !h.thinLimiter.allow(siteID)) {
+	size, err := db.HistoryBytes(ctx, h.database, siteID)
+	if err != nil || size <= capBytes || h.thinPointless(siteID, size, capBytes) || (h.thinLimiter != nil && !h.thinLimiter.allow(siteID)) {
 		return
 	}
-	if _, err := db.ThinSiteHistory(ctx, h.database, siteID, capBytes); err != nil {
+	h.thin(ctx, siteID, capBytes)
+}
+
+// thinMargin is how much a site's history grows past the size it was left at
+// by a thin that could not bring it under the cap before thinning runs again:
+// a sixteenth of the cap, at least 64 KB.
+func thinMargin(capBytes int64) int64 { return max(capBytes/16, 64<<10) }
+
+// thinPointless: the last thin of siteID left it over the cap (the per-day
+// copies that thinning keeps hold more than the cap) and it has not grown by
+// thinMargin since, so thinning again would sort its whole history to delete
+// little or nothing.
+func (h *SiteHandler) thinPointless(siteID string, size, capBytes int64) bool {
+	v, ok := h.thinStuck.Load(siteID)
+	return ok && size < v.(int64)+thinMargin(capBytes)
+}
+
+// thin thins siteID's history to capBytes and notes whether it stayed over
+// (thinPointless). Returns how many changes went.
+func (h *SiteHandler) thin(ctx context.Context, siteID string, capBytes int64) int64 {
+	n, err := db.ThinSiteHistory(ctx, h.database, siteID, capBytes)
+	if err != nil {
 		log.Printf("saved-data thin site_id=%s: %v", siteID, err)
+		return 0
 	}
+	if size, err := db.HistoryBytes(ctx, h.database, siteID); err == nil && size > capBytes {
+		h.thinStuck.Store(siteID, size)
+	} else {
+		h.thinStuck.Delete(siteID)
+	}
+	return n
 }
 
 // siteMaxBytes is SAVED_DATA_SITE_MAX_MB in bytes.
@@ -335,14 +363,21 @@ func (h *SiteHandler) sweepSavedData(ctx context.Context) {
 		log.Printf("saved-data sweep (cap): %v", err)
 	}
 	var thinned int64
+	over := make(map[string]bool, len(sites))
 	for _, id := range sites {
-		n, err := db.ThinSiteHistory(ctx, h.database, id, capBytes)
-		if err != nil {
-			log.Printf("saved-data thin site_id=%s: %v", id, err)
+		over[id] = true
+		size, err := db.HistoryBytes(ctx, h.database, id)
+		if err != nil || h.thinPointless(id, size, capBytes) {
 			continue
 		}
-		thinned += n
+		thinned += h.thin(ctx, id, capBytes)
 	}
+	h.thinStuck.Range(func(k, _ any) bool {
+		if !over[k.(string)] {
+			h.thinStuck.Delete(k)
+		}
+		return true
+	})
 	if hist+items+idem+thinned+watch > 0 {
 		log.Printf("saved-data sweep: history=%d deleted_items=%d idempotency=%d thinned=%d watch=%d", hist, items, idem, thinned, watch)
 	}

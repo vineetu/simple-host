@@ -125,6 +125,10 @@ type SiteHandler struct {
 	boardLimiter *rateLimiter
 	// thinLimiter spaces out boundHistory's thinning: once a second per site.
 	thinLimiter *rateLimiter
+	// thinStuck: sites whose history stayed over the cap after a thin (what
+	// is left is the per-day copies thinning keeps), with its size then.
+	// Thinning is skipped for them until the history grows by thinMargin.
+	thinStuck sync.Map // site id -> int64
 }
 
 // lockSite acquires the per-site upload mutex for one account's site name and

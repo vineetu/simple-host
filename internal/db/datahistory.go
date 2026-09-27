@@ -790,15 +790,15 @@ func PurgeSavedData(ctx context.Context, database *sql.DB, undoDays int) (histor
 // (sd1-saved-data-safety3-history-bytes.sql).
 const historySize = `COALESCE(octet_length(prev::text), octet_length(diff::text), 0)`
 
-// HistoryOverCap reports whether a site's history holds more than capBytes
-// (sites.history_bytes: one row read).
-func HistoryOverCap(ctx context.Context, q Querier, siteID string, capBytes int64) (bool, error) {
-	var over bool
-	err := q.QueryRowContext(ctx, `SELECT history_bytes > $2 FROM sites WHERE id = $1`, siteID, capBytes).Scan(&over)
+// HistoryBytes is a site's history size (sites.history_bytes); 0 when the
+// site is gone.
+func HistoryBytes(ctx context.Context, q Querier, siteID string) (int64, error) {
+	var n int64
+	err := q.QueryRowContext(ctx, `SELECT history_bytes FROM sites WHERE id = $1`, siteID).Scan(&n)
 	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
+		return 0, nil
 	}
-	return over, err
+	return n, err
 }
 
 // SitesOverHistoryCap lists the sites whose history holds more than capBytes.
