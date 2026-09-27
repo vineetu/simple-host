@@ -174,6 +174,9 @@ func (h *SiteHandler) createAccounts(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]any{"created": created, "skipped": skipped})
 }
 
+// deleteAccount handles DELETE /v1/admin/users/{id}: the same immediate,
+// final erasure as DELETE /v1/me (account_data.go), started by the operator.
+// A suspended account can be deleted here; an admin account cannot.
 func (h *SiteHandler) deleteAccount(w http.ResponseWriter, r *http.Request) {
 	if !accountAdmin(w, r) {
 		return
@@ -184,10 +187,7 @@ func (h *SiteHandler) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback()
-	var id string
-	var handle sql.NullString
-	var admin bool
-	err = tx.QueryRowContext(r.Context(), `SELECT id, handle, is_admin FROM users WHERE id::text=$1 FOR UPDATE`, r.PathValue("id")).Scan(&id, &handle, &admin)
+	acct, err := db.LockAccountForDelete(r.Context(), tx, r.PathValue("id"))
 	if errors.Is(err, sql.ErrNoRows) {
 		writeJSON(w, 404, errorResponse{Error: "not found"})
 		return
@@ -196,33 +196,26 @@ func (h *SiteHandler) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 500, errorResponse{Error: "internal server error"})
 		return
 	}
-	if admin || id == h.adminUserID {
+	if acct.IsAdmin || acct.ID == h.adminUserID {
 		writeJSON(w, 400, errorResponse{Error: "cannot delete an admin account"})
 		return
 	}
-	// event_domains cascades on user_id, so deleting the row would take the
-	// claim with it and strand live DNS records under our domain that nothing
-	// could then find or remove. Make the operator release them first.
-	var claims int
-	if err = tx.QueryRowContext(r.Context(),
-		`SELECT count(*) FROM event_domains WHERE user_id=$1`, id).Scan(&claims); err == nil && claims > 0 {
+	if acct.EventClaims > 0 {
 		writeJSON(w, 409, errorResponse{
-			Error: "this account still holds event hostnames; release them first so their DNS records are removed"})
+			Error: "this account still holds event hostnames; release them first so their DNS records are removed", Code: "event_hostnames"})
 		return
 	}
-	if _, err = tx.ExecContext(r.Context(), "DELETE FROM users WHERE id=$1", id); err != nil {
+	erased, err := db.EraseAccount(r.Context(), tx, acct)
+	if err == nil {
+		err = tx.Commit()
+	}
+	if err != nil {
+		log.Printf("admin delete account %s: %v", acct.ID, err)
 		writeJSON(w, 500, errorResponse{Error: "internal server error"})
 		return
 	}
-	if err = tx.Commit(); err != nil {
-		writeJSON(w, 500, errorResponse{Error: "internal server error"})
-		return
-	}
-	// Disk comes after the commit, never before. The other order means a commit
-	// failure rolls the row back while the files are already gone, leaving a
-	// live account with a working key whose content has been destroyed. This
-	// way a failure here strands a directory an operator can delete.
-	if err = h.disk.DeleteUser(id, handle.String); err != nil {
+	if err = h.eraseAccountFiles(erased); err != nil {
+		log.Printf("admin delete account %s: files: %v", acct.ID, err)
 		writeJSON(w, 500, errorResponse{Error: "account removed but its files could not be deleted"})
 		return
 	}

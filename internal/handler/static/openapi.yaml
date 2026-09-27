@@ -466,6 +466,58 @@ paths:
                   display_name: { type: string }
                   is_admin: { type: boolean }
         '401': { $ref: '#/components/responses/Unauthorized' }
+    delete:
+      operationId: deleteMe
+      summary: Delete your account and all its data
+      description: >-
+        Deletes the account at once and for good; nothing goes to Recently deleted and nothing can
+        be restored. Removed: every site (including ones in Recently deleted) with its files,
+        versions, saved data, lists and analytics; keys; connected apps; visitor sign-ins; and every
+        entry this person submitted to other people's lists. The handle, old handles and claimed
+        <name>.simple-host.app addresses are retired, never given to anyone else; custom domains are
+        released. A confirmation email goes to the account's address. Offer GET /v1/me/export.tar.gz
+        first. Refused for a suspended account (the operator handles it), an admin account, or one
+        still holding event hostnames.
+      tags: [Auth]
+      security: [{ apiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirm]
+              properties:
+                confirm: { type: string, description: "The account's handle, or its email when it has no handle. Case-insensitive." }
+      responses:
+        '204': { description: Deleted }
+        '400': { description: "confirm missing (code confirm_required) or does not match (code confirm_mismatch)" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: "Suspended account (code account_suspended) or admin account (code admin_account)" }
+        '409': { description: "The account still holds event hostnames (code event_hostnames)" }
+
+  /v1/me/export.tar.gz:
+    get:
+      operationId: exportMe
+      summary: Download all your data
+      description: >-
+        Streams one .tar.gz of everything held about the account: README.txt; account.json (email,
+        handle, display name, created, earlier handles, claimed names including retired ones, custom
+        domains, linked Google/GitHub sign-ins); keys.json (name, last 4 characters, created, last
+        used; never keys or hashes); connected_apps.json (name, connected, last used); visitor.json
+        (sites signed in to as a visitor with first sign-in and last seen, and every list entry
+        submitted to other people's sites); and sites/<name>/ for every live site in the same layout
+        as GET /v1/sites/{sitename}/export.tar.gz. Visitor analytics hold no personal data (salted
+        hashes) and are not included.
+      tags: [Auth]
+      security: [{ apiKey: [] }]
+      responses:
+        '200':
+          description: A gzipped tar archive
+          content:
+            application/gzip:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
 
   /v1/me/api-key/rotate:
     post:
@@ -813,8 +865,10 @@ paths:
       operationId: exportSite
       summary: Download a site as a tar.gz
       description: >-
-        Streams the site's published files, its saved JSON state and its
-        collections as one archive. Exists because an event instance is
+        Streams the site's published files (`files/`), its saved JSON state
+        (`state.json`) and its collections (`collections.json`: every list,
+        private ones included, each entry as `{id, created_at, submitted_by,
+        data}`; `submitted_by` only on private lists) as one archive. Exists because an event instance is
         destroyed when the event ends and nothing is backed up, so the person who
         built something can take it with them. The saved data comes first: the
         files usually exist somewhere else, the JSON only lives here.

@@ -49,7 +49,8 @@ func lockPlatformName(ctx context.Context, tx *sql.Tx, host string) error {
 }
 
 // handleNameTaken reports whether handle, as an address, is already used by a
-// claimed site address, a legacy hostname, or another account's alias.
+// claimed site address, a legacy hostname, or another account's alias (or a
+// retired one: a deleted account's handles keep user_id NULL and stay taken).
 // Callers hold the namespace lock.
 func handleNameTaken(ctx context.Context, tx *sql.Tx, userID, handle string) (bool, error) {
 	domain := currentPlatformDomain()
@@ -61,7 +62,7 @@ func handleNameTaken(ctx context.Context, tx *sql.Tx, userID, handle string) (bo
 	err := tx.QueryRowContext(ctx, `
 		SELECT EXISTS (SELECT 1 FROM sites WHERE lower(custom_domain) = $1 OR lower(previous_domain) = $1)
 		    OR EXISTS (SELECT 1 FROM legacy_hostnames WHERE lower(hostname) = $1)
-		    OR EXISTS (SELECT 1 FROM handle_aliases WHERE handle = $2 AND user_id::text <> $3)`,
+		    OR EXISTS (SELECT 1 FROM handle_aliases WHERE handle = $2 AND user_id::text IS DISTINCT FROM $3)`,
 		host, strings.ToLower(handle), userID).Scan(&taken)
 	return taken, err
 }

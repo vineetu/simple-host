@@ -919,6 +919,16 @@
     .status-dot.pending { background: #d4a843; }
     .status-dot.down { background: var(--error); }
     .site-down { font-size: 13px; color: var(--error); margin-top: 6px; }
+    /* Your data (accounts without a handle; the owner app has its own) */
+    .my-data { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 14px; color: var(--text-secondary); }
+    .my-data h2 { font-size: 18px; color: var(--text); margin: 0 0 8px; }
+    .my-data .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 0; }
+    .my-data b { color: var(--text); }
+    .my-data ul { margin: 8px 0 12px; padding-left: 20px; }
+    .my-data input { font: inherit; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; width: 18em; max-width: 80vw; margin: 4px 0 12px; display: block; }
+    .my-data .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn-danger { background: var(--error); color: #fff; border: 1px solid var(--error); }
+    .btn-danger:disabled { opacity: 0.45; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -1060,6 +1070,37 @@
           <div class="empty-state">
             <p>No sites yet</p>
             <p>Ask your AI for one and it shows up here</p>
+          </div>
+        </div>
+
+        <!-- Your data: shown only to an account without a handle (one with a
+             handle has the same two buttons on its own page). -->
+        <div class="my-data" id="my-data" hidden>
+          <h2>Your data</h2>
+          <div class="row">
+            <span>Download everything Simple Host holds about you: your sites, account, keys' names (never the keys), connected apps, and the entries you sent to other people's sites.</span>
+            <button type="button" class="btn btn-secondary btn-small" data-act="downloadMyData">Download my data</button>
+          </div>
+          <div class="row" id="my-data-delete-row">
+            <span>Delete your account and all its data at once and for good.</span>
+            <button type="button" class="btn btn-secondary btn-small" data-act="openDeleteAccount">Delete my account…</button>
+          </div>
+          <div id="my-data-delete" hidden>
+            <div>Deleting your account removes, at once and for good:</div>
+            <ul>
+              <li>every site, including any in Recently deleted, with its files, every version, saved data and lists</li>
+              <li>your keys and connected apps (ChatGPT, Claude, Grok)</li>
+              <li>the entries you sent to other people's sites, which disappear from their lists</li>
+              <li>your sites' names and custom domains; the names are retired, never given to anyone else</li>
+            </ul>
+            <div>Nothing goes to Recently deleted and nothing can be restored. Download your data first if you want a copy.</div>
+            <label for="my-data-confirm">Type <b id="my-data-word"></b> to confirm</label>
+            <input type="text" id="my-data-confirm" autocomplete="off" spellcheck="false">
+            <div class="btns">
+              <button type="button" class="btn btn-secondary btn-small" data-act="downloadMyData">Download my data first</button>
+              <button type="button" class="btn btn-danger btn-small" id="my-data-go" data-act="deleteAccount" disabled>Delete my account</button>
+              <button type="button" class="btn btn-ghost btn-small" data-act="closeDeleteAccount">Cancel</button>
+            </div>
           </div>
         </div>
       </div>
@@ -1490,6 +1531,11 @@ function parseAnalyticsSummary(data) {
     // https://<handle>.<apex>/). Only rendered when signed in AND the account
     // has a handle; hidden otherwise.
     function updateShowcaseBanner() {
+      const myData = document.getElementById('my-data');
+      if (myData) {
+        myData.hidden = !(currentUser && !currentUser.handle && !currentUser.is_admin);
+        document.getElementById('my-data-word').textContent = (currentUser && currentUser.username) || '';
+      }
       const banner = document.getElementById('showcase-banner');
       if (!banner) return;
       const handle = currentUser && currentUser.handle;
@@ -2112,6 +2158,59 @@ function parseAnalyticsSummary(data) {
       toast('Signed out everywhere; your agents need the new key.', 'success');
     }
 
+    // Your data (accounts without a handle): GET /v1/me/export.tar.gz and
+    // DELETE /v1/me, confirmed by typing the account's email.
+    async function downloadMyData() {
+      try {
+        const res = await api('GET', '/v1/me/export.tar.gz');
+        if (!res.ok) {
+          const err = await res.json().catch(() => null);
+          toast((err && err.error) || 'Could not download your data', 'error');
+          return;
+        }
+        const blob = await res.blob();
+        const cd = res.headers.get('Content-Disposition');
+        const m = cd && cd.match(/filename="([^"]+)"/);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = m ? m[1] : 'simple-host-account.tar.gz';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        toast('Downloading your data', 'success');
+      } catch {
+        toast('Could not download your data', 'error');
+      }
+    }
+    function toggleDeleteAccount(open) {
+      document.getElementById('my-data-delete').hidden = !open;
+      document.getElementById('my-data-delete-row').hidden = open;
+      const input = document.getElementById('my-data-confirm');
+      input.value = '';
+      document.getElementById('my-data-go').disabled = true;
+      if (open) input.focus();
+    }
+    async function deleteAccount() {
+      const go = document.getElementById('my-data-go');
+      go.disabled = true;
+      try {
+        const res = await api('DELETE', '/v1/me', { confirm: document.getElementById('my-data-confirm').value.trim() });
+        if (res.status !== 204) {
+          const err = await res.json().catch(() => null);
+          toast((err && err.error) || 'Could not delete your account', 'error');
+          go.disabled = false;
+          return;
+        }
+        alert('Your account and all its data were deleted. A confirmation is on its way to your email.');
+        window.shSignOut();
+      } catch {
+        toast('Could not delete your account', 'error');
+        go.disabled = false;
+      }
+    }
+
     async function connectDomain(name) {
       const d = prompt('Enter the custom domain to connect (e.g. recipes.brand.com):');
       if (!d) return;
@@ -2176,6 +2275,10 @@ function parseAnalyticsSummary(data) {
     // markup cannot reach any other function) and carry arguments in data-*.
     const clickActions = {
       rotateAPIKey: () => rotateAPIKey(),
+      downloadMyData: () => downloadMyData(),
+      openDeleteAccount: () => toggleDeleteAccount(true),
+      closeDeleteAccount: () => toggleDeleteAccount(false),
+      deleteAccount: () => deleteAccount(),
       logout: () => logout(),
       resetAuth: () => resetAuth(),
       switchTab: d => switchTab(d.arg),
@@ -2201,6 +2304,10 @@ function parseAnalyticsSummary(data) {
     document.getElementById('key-form').addEventListener('submit', handleKey);
     document.getElementById('code-form').addEventListener('submit', handleCodeSubmit);
     document.getElementById('site-sort').addEventListener('change', e => setSiteSort(e.target.value));
+    document.getElementById('my-data-confirm').addEventListener('input', e => {
+      const want = ((currentUser && currentUser.username) || '').toLowerCase();
+      document.getElementById('my-data-go').disabled = !want || e.target.value.trim().toLowerCase() !== want;
+    });
 
   </script>
 </body>

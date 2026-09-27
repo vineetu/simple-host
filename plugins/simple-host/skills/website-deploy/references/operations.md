@@ -58,9 +58,9 @@ Preview a retained version before restoring it (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.0"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.1"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.0"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.1"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte
@@ -108,6 +108,30 @@ The archive holds the live files (`<site>/files/…`), the saved state
 private lists included). The link form (connector: `export_site`) opens the same
 archive without a key for 10 minutes: give it to the person to click, never post
 it publicly, and make a new one if it has expired.
+
+Each entry in `collections.json` is `{id, created_at, submitted_by, data}`
+(`submitted_by` only on private lists).
+
+## The person's whole account: download or delete
+
+```
+GET /v1/me/export.tar.gz                        (X-API-Key)
+DELETE /v1/me  {"confirm": "<handle>"}          (X-API-Key; the email if no handle)
+```
+
+The first is one archive of everything held about the person: every live site
+(as above, under `sites/<name>/`), `account.json`, `keys.json` (names only, never
+keys), `connected_apps.json` and `visitor.json` (entries they sent to other
+people's sites). The connector's `export_site` covers one site; for the whole
+account point the person to "Download my data" on their Simple Host page.
+
+`DELETE /v1/me` deletes the account and all its data at once and for good,
+including their entries on other people's sites; nothing goes to Recently
+deleted. Only when the person explicitly asks to delete their account: say what
+goes, offer the download first, and send their handle as `confirm` only after
+they confirm. It needs their own key (a connected app gets 400
+`not_an_account_key`); they can always do it themselves under "Your data" on
+their page.
 
 ## Analytics
 

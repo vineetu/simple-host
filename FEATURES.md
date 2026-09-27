@@ -42,12 +42,12 @@ Upload a static site (tar.gz/zip or inline JSON files); versions, rollback, rena
 export, public/unlisted listing. Delete is recoverable: the site goes offline at once and stays in
 Recently deleted for 7 days (row kept with `deleted_at`, files moved to `DATA_DIR/deleted/<user>/<site_id>`,
 name, saved data, collections and claimed names kept), `restore` brings it back whole, and an
-hourly in-process sweep purges it after the window. Deleting a whole account (admin) is immediate.
+hourly in-process sweep purges it after the window. Deleting a whole account (the person, or the admin) is immediate (§7).
 **Status: live.**
 
 | Surface | Details |
 |---|---|
-| Routes | `POST`/`PUT /v1/sites/{sitename}` (archive) · `POST`/`PUT /v1/sites/{sitename}/files` (inline JSON, base64 allowed) · `GET /v1/sites` · `PATCH /v1/sites/{sitename}` (rename) · `DELETE /v1/sites/{sitename}` (to Recently deleted; refused while taken down) · `POST /v1/sites/{sitename}/restore` · `GET /v1/me/deleted-sites` · `GET /v1/sites/{sitename}/versions` · `GET /v1/sites/{sitename}/versions/{version}/files` · `GET /v1/sites/{sitename}/versions/{version}/files/{path...}` · `PUT /v1/sites/{sitename}/active-version` · `PUT /v1/sites/{sitename}/visibility` (`public`/`unlisted`) · `GET /v1/sites/{sitename}/export.tar.gz` (files + saved data) · `POST /v1/sites/{sitename}/export-link` (owner mints a 10-minute signed link) · `GET /v1/export` (`?token=`; the same archive, no key: HMAC over owner+site+expiry, per-process key, 404 `export_link_invalid` when expired, tampered, or the site is gone, deleted or changed hands) · `GET /v1/sites` also returns `deployed_at` and, for a domain not live yet, `domain_last_error`, `domain_dns`, `domain_expires_at` · `GET /internal/notfound` (branded 404, nginx `@notfound`) |
+| Routes | `POST`/`PUT /v1/sites/{sitename}` (archive) · `POST`/`PUT /v1/sites/{sitename}/files` (inline JSON, base64 allowed) · `GET /v1/sites` · `PATCH /v1/sites/{sitename}` (rename) · `DELETE /v1/sites/{sitename}` (to Recently deleted; refused while taken down) · `POST /v1/sites/{sitename}/restore` · `GET /v1/me/deleted-sites` · `GET /v1/sites/{sitename}/versions` · `GET /v1/sites/{sitename}/versions/{version}/files` · `GET /v1/sites/{sitename}/versions/{version}/files/{path...}` · `PUT /v1/sites/{sitename}/active-version` · `PUT /v1/sites/{sitename}/visibility` (`public`/`unlisted`) · `GET /v1/sites/{sitename}/export.tar.gz` (files + saved data; `collections.json` entries carry `id`, `created_at`, `submitted_by` on private lists, `data`) · `POST /v1/sites/{sitename}/export-link` (owner mints a 10-minute signed link) · `GET /v1/export` (`?token=`; the same archive, no key: HMAC over owner+site+expiry, per-process key, 404 `export_link_invalid` when expired, tampered, or the site is gone, deleted or changed hands) · `GET /v1/sites` also returns `deployed_at` and, for a domain not live yet, `domain_last_error`, `domain_dns`, `domain_expires_at` · `GET /internal/notfound` (branded 404, nginx `@notfound`) |
 | MCP tools | `list_sites`, `get_site`, `read_site_file`, `create_site`, `update_site`, `list_versions`, `rollback_site`, `delete_site`, `list_deleted_sites`, `restore_site`, `rename_site`, `set_visibility`, `export_site` (download link) |
 | Skill | `website-deploy/SKILL.md` §Two ways to deploy, §The one rule that breaks sites (relative links), §Rules that always apply, §Completion standard · `references/packaging-and-validation.md` (Package, Upload, Verify) · `references/operations.md` §Listing, §Rename, §Rollback, §Delete and restore, §Download a copy · `references/frameworks.md` · `website-deploy-builder/SKILL.md` §Capability tree 1 |
 | Pages | owner app `st/showcase.html` (site inventory with live address, version and last deploy; versions, rename, visibility, Download (export), taken-down sites with the reason, delete with a count of what goes and "Download first", Recently deleted with Restore) · `st/index.html` at `/dashboard` (site cards; for an account with a handle only a list with Manage links to the owner app; full controls for accounts without one and in the admin tab) · `st/notfound.html` |
@@ -186,16 +186,35 @@ or a connected app). Sign out (header, every page) first calls `POST /v1/me/sign
 deletes the key the browser held, then clears browser storage. Rotate ("Sign out everywhere")
 replaces all keys and disconnects all connector grants. Owner-route 401s carry `code`
 (`missing_api_key`, `wrong_auth_header`, `invalid_api_key`). The dashboard keeps the key in
-`localStorage['apiKey']`; there is no owner cookie session. **Status: live.**
+`localStorage['apiKey']`; there is no owner cookie session.
+
+**Your data (GDPR self-service, 2026-09-27).** "Download my data" (`GET /v1/me/export.tar.gz`,
+streamed) gives one archive: `README.txt`, `account.json` (email, handle, display name, created,
+old handles, claimed names incl. retired, custom domains, linked Google/GitHub), `keys.json`
+(name, last4, created, last used; never keys or hashes), `connected_apps.json`, `visitor.json`
+(sites signed in to as a visitor, entries sent to other people's sites) and `sites/<name>/` per
+live site (the per-site export). Analytics are left out (salted hashes, no personal data; the
+README says so). "Delete my account" (`DELETE /v1/me` with `{"confirm": "<handle, or email with
+no handle>"}`) is immediate and final, bypassing Recently deleted: every site (deleted ones too)
+with files, versions, saved data, lists and analytics; keys; connected apps; sign-in identities;
+visitor sessions; pending sign-in codes; and the person's entries in other people's lists. The
+handle, old handles and claimed names are retired (`handle_aliases`/`legacy_hostnames` with
+`user_id` NULL), never reusable by anyone; custom domains are unbound and their certificate
+requests withdrawn. One confirmation email follows. Refused: 400 `confirm_required` /
+`confirm_mismatch`, 400 `not_an_account_key` (connected app or admin env key), 403
+`admin_account`, 403 `account_suspended` (the operator handles those), 409 `event_hostnames`.
+The admin's `DELETE /v1/admin/users/{id}` runs the same erasure (`db.EraseAccount`). Buttons:
+the owner app's **Your data** section, and `/dashboard` for accounts without a handle.
+**Status: live.**
 
 | Surface | Details |
 |---|---|
-| Routes | `POST /v1/auth` (send code) · `POST /v1/auth/verify` (code → key, optional `name`; creates the account and handle if new) · `GET /v1/me` · `POST /v1/me/api-key/rotate` (Sign out everywhere: replaces all keys) · `POST /v1/me/sign-out` (ends the calling key) · `GET /v1/me/keys` · `POST /v1/me/keys` (named key) · `DELETE /v1/me/keys/{id}` · `PATCH /v1/me` (display name, handle: free before publishing; after, once per 30 days, old handle kept as an alias so every old address redirects, new handle's certificate requested) |
+| Routes | `POST /v1/auth` (send code) · `POST /v1/auth/verify` (code → key, optional `name`; creates the account and handle if new) · `GET /v1/me` · `POST /v1/me/api-key/rotate` (Sign out everywhere: replaces all keys) · `POST /v1/me/sign-out` (ends the calling key) · `GET /v1/me/keys` · `POST /v1/me/keys` (named key) · `DELETE /v1/me/keys/{id}` · `PATCH /v1/me` (display name, handle: free before publishing; after, once per 30 days, old handle kept as an alias so every old address redirects, new handle's certificate requested) · `GET /v1/me/export.tar.gz` (Download my data) · `DELETE /v1/me` (Delete my account, `{"confirm"}`) |
 | MCP tools | `who_am_i` |
 | Skill | `website-deploy/references/register.md` (email-code registration) · `references/operations.md` §API keys · `references/backend.md` §Saving from an agent (API key) |
-| Pages | `st/index.html` (`/dashboard` sign-in: code, Google, paste key; Sign out everywhere), `st/showcase.html` (owner **Keys** panel `#owner-keys`; Your address, with Change), `st/connect.html`, `st/partials/header.html` (Sign out → `/v1/me/sign-out`) |
-| Go | `internal/auth/middleware.go` (`X-API-Key`, `shk_` keys, 401 codes, admin key, `RequireAdmin`), `h/user.go`, `h/keys.go` (list/mint/revoke/sign-out), `internal/db/apikeys.go`, `h/emailcode.go`, `h/accounts.go` (`patchMe`, handle validation), `h/handles.go`, `internal/db/queries.go` (hashed key lookup, `ClaimHandle`), `internal/db/internalkey.go` (in-process per-request keys for the connector), `internal/email/resend.go` |
-| DB | `users` (`handle_changed_at`), `handle_aliases`, `api_keys`, `auth_tokens` (purpose-bound codes; expired ones purged) |
+| Pages | `st/index.html` (`/dashboard` sign-in: code, Google, paste key; Sign out everywhere), `st/showcase.html` (owner **Keys** panel `#owner-keys`; Your address, with Change; **Your data** `#owner-data`: Download my data, Delete my account with type-to-confirm), `st/index.html` **Your data** (`#my-data`, accounts without a handle), `st/privacy.html`, `st/terms.html`, `st/support.html` (point at the two buttons), `st/connect.html`, `st/partials/header.html` (Sign out → `/v1/me/sign-out`) |
+| Go | `internal/auth/middleware.go` (`X-API-Key`, `shk_` keys, 401 codes, admin key, `RequireAdmin`), `h/user.go`, `h/keys.go` (list/mint/revoke/sign-out), `internal/db/apikeys.go`, `h/emailcode.go`, `h/accounts.go` (`patchMe`, handle validation), `h/account_data.go` (`exportMe`, `deleteMe`, `eraseAccountFiles`), `internal/db/account.go` (`LockAccountForDelete`, `EraseAccount`, export queries), `h/handles.go`, `internal/db/queries.go` (hashed key lookup, `ClaimHandle`), `internal/db/internalkey.go` (in-process per-request keys for the connector), `internal/email/resend.go` |
+| DB | `users` (`handle_changed_at`), `handle_aliases` (`user_id` NULL = retired handle of a deleted account; `cp-gdpr-retired-handles.sql`), `api_keys`, `auth_tokens` (purpose-bound codes; expired ones purged) |
 | Env | `ADMIN_API_KEY`, `RESEND_API_KEY`, `MAIL_FROM`, `PUBLIC_BASE_URL` |
 | External | Resend |
 | Limits | `ipLimiter` 20/0.2 s⁻¹ per IP; `emailLimiter` 5/0.02 s⁻¹ per address |
@@ -224,7 +243,7 @@ as the person, so they meet the same checks as REST. Connector tokens are stored
 ## 9. Skills and plugin distribution
 
 Skills source is `simple-host-website/skills/` (embedded via `simple-host-website/embed.go`) at
-version **0.20.0**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
+version **0.20.1**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live**
 (ChatGPT and Claude directory listings submitted 2026-09-24, pending).
 
@@ -268,7 +287,7 @@ traffic. Admin = `ADMIN_API_KEY` or the admin user. **Status: live.**
 
 | Surface | Details |
 |---|---|
-| Routes | `GET /admin` (public shell) · `GET /v1/admin/users` (users with their sites, ids and suspension state) · `POST /v1/admin/users` (bulk-create participant accounts, returns keys) · `POST /v1/admin/users/{id}/key` (replace that account's keys with one new key, shown once; refused while suspended) · `DELETE /v1/admin/users/{id}` · `POST /v1/admin/sites/{id}/suspend` (`{"reason"}`) and `POST /v1/admin/sites/{id}/restore` (take a site down / put it back) · `POST /v1/admin/users/{id}/suspend` (`{"reason"}`) and `POST /v1/admin/users/{id}/enable` (suspend / re-enable a person) · `GET /v1/admin/export.tar.gz` (every site with saved data and lists, one archive) · `GET /internal/suspended` (the take-down page nginx and Caddy hand off to) · `GET /v1/admin/usage` · `GET /v1/admin/api-analytics` · `PUT /v1/sites/{sitename}/allow-anonymous-writes?owner=` (`RequireAdmin`; `owner` picks that person's site, else the oldest of the name) · `GET /v1/sites/{sitename}/analytics?owner=` and `/analytics/geo?owner=`, `GET /v1/analytics/sites?all=1` (admin reads any site) |
+| Routes | `GET /admin` (public shell) · `GET /v1/admin/users` (users with their sites, ids and suspension state) · `POST /v1/admin/users` (bulk-create participant accounts, returns keys) · `POST /v1/admin/users/{id}/key` (replace that account's keys with one new key, shown once; refused while suspended) · `DELETE /v1/admin/users/{id}` (the same erasure as `DELETE /v1/me`, suspended accounts included) · `POST /v1/admin/sites/{id}/suspend` (`{"reason"}`) and `POST /v1/admin/sites/{id}/restore` (take a site down / put it back) · `POST /v1/admin/users/{id}/suspend` (`{"reason"}`) and `POST /v1/admin/users/{id}/enable` (suspend / re-enable a person) · `GET /v1/admin/export.tar.gz` (every site with saved data and lists, one archive) · `GET /internal/suspended` (the take-down page nginx and Caddy hand off to) · `GET /v1/admin/usage` · `GET /v1/admin/api-analytics` · `PUT /v1/sites/{sitename}/allow-anonymous-writes?owner=` (`RequireAdmin`; `owner` picks that person's site, else the oldest of the name) · `GET /v1/sites/{sitename}/analytics?owner=` and `/analytics/geo?owner=`, `GET /v1/analytics/sites?all=1` (admin reads any site) |
 | Pages | `st/admin.html` (tiles Users/Websites/Disk; line with versions kept and running release/commit from usage; Biggest websites; Issue participant accounts; Entries: Entry/Account/Link/**Analytics**/Status with Take down / Restore, Download CSV, Copy links, Download all entries; user cards with **New key**, Suspend / Re-enable / Delete; API traffic tables); `st/index.html` site cards and `st/showcase.html` owner inventory show a taken-down site and its reason, `st/index.html` Admin tab |
 | Go | `h/site.go` (`adminUsers`, `adminUsage`), `h/suspend.go` (take-down: admin calls, `serveTakedown`, refusals, boot marker sync), `h/export.go` (`exportAll`), `h/accounts.go` (`createAccounts`, `reissueAccountKey`, `deleteAccount`, `accountAdmin`), `internal/db/suspend.go`, `internal/storage/disk.go` (`SetSuspended`/`IsSuspended`, the `suspended` marker file), `internal/capacity/capacity.go`, `h/apimetrics.go` (`AdminSummary`), `internal/auth/middleware.go` |
 | DB | `users` (`suspended_at`, `suspended_reason`), `sites` (`suspended_at`, `suspended_reason`), `versions`, `api_keys`, `api_request_daily`, `api_ip_daily` |

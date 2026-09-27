@@ -1,0 +1,11 @@
+-- Account self-deletion (GDPR self-service, 2026-09-27): a deleted account's
+-- handle and old handles stay in handle_aliases with user_id NULL, retired,
+-- so nobody else can take them and inherit links that used to point at the
+-- person. Also, deleting an account now keeps its retired site names in
+-- legacy_hostnames with user_id NULL (that column is already nullable).
+--
+-- APPLY AS THE ROLE IN DB_DSN (the table owner) before the new binary starts.
+-- DROP NOT NULL is a catalog change: instant, no rewrite, no long lock, and a
+-- no-op when the column is already nullable. Safe while the old binary runs
+-- (it never writes NULL there). Safe to re-run.
+ALTER TABLE handle_aliases ALTER COLUMN user_id DROP NOT NULL;
