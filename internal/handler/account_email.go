@@ -288,7 +288,7 @@ func (h *UserHandler) verifyEmailChange(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *UserHandler) undoLink(tok string) string {
-	return strings.TrimRight(h.publicBaseURL, "/") + "/v1/me/email/undo?t=" + tok
+	return strings.TrimRight(h.publicBaseURL, "/") + "/v1/me/email/undo#t=" + tok
 }
 
 // emailOldAddress tells the old address where the account went, masked,
@@ -319,13 +319,10 @@ Simple Host
 func (h *UserHandler) undoEmailChange(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")
-	var tok string
-	if r.Method == http.MethodPost {
-		r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
-		tok = strings.TrimSpace(r.PostFormValue("t"))
-	} else {
-		tok = strings.TrimSpace(r.URL.Query().Get("t"))
+	if fragmentLinkGET(w, r, "", "/v1/me/email/undo") {
+		return
 	}
+	tok := linkToken(w, r)
 	home := strings.TrimRight(h.publicBaseURL, "/") + "/"
 	gone := func() {
 		writeMessagePage(w, r, "", http.StatusNotFound, "This link has already been used or has expired",
@@ -336,7 +333,7 @@ func (h *UserHandler) undoEmailChange(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hash := hashEmailChangeCode(tok)
-	if r.Method != http.MethodPost {
+	if linkConfirming(r) {
 		u, err := db.GetEmailChangeUndo(r.Context(), h.database, hash)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -347,7 +344,7 @@ func (h *UserHandler) undoEmailChange(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeMessagePage(w, r, "", http.StatusOK, "Undo the sign-in email change?",
-			"The account goes back to signing in with "+html.EscapeString(u.OldEmail)+". Every key is signed out, and Google or GitHub sign-ins and connected apps added since the change are removed.",
+			"The account goes back to signing in with "+html.EscapeString(u.OldEmail)+". Every key and every sign-in on sites is signed out, and Google or GitHub sign-ins and connected apps added since the change are removed.",
 			"", "", confirmForm("/v1/me/email/undo", map[string]string{"t": tok}, "Undo the change"))
 		return
 	}

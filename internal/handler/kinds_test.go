@@ -490,13 +490,18 @@ func TestSubmissionEmails(t *testing.T) {
 		t.Fatalf("each: %q", got)
 	}
 	// The stop link: GET asks, POST stops.
-	i := strings.Index(got[1], "/v1/data-notify/stop?t=")
+	i := strings.Index(got[1], "/v1/data-notify/stop#t=")
 	link := strings.Fields(got[1][i:])[0]
 	u, _ := url.Parse(link)
-	if r := s.a.at(t, "GET", pcSiteDomain, link, nil, nil); r.status != 200 || !strings.Contains(string(r.body), "Stop these emails") {
+	tok := strings.TrimPrefix(u.Fragment, "t=")
+	if r := s.a.at(t, "GET", pcSiteDomain, "/v1/data-notify/stop?t="+url.QueryEscape(tok), nil, nil); r.status != 200 || !strings.Contains(string(r.body), "Stop these emails") {
 		t.Fatalf("stop page: %d", r.status)
 	}
-	form := url.Values{"t": {u.Query().Get("t")}}
+	peek := url.Values{"t": {tok}, "peek": {"1"}}
+	if r := s.a.at(t, "POST", pcSiteDomain, "/v1/data-notify/stop", peek.Encode(), map[string]string{"Content-Type": "application/x-www-form-urlencoded"}); r.status != 200 || !strings.Contains(string(r.body), "Stop these emails") {
+		t.Fatalf("peek: %d", r.status)
+	}
+	form := url.Values{"t": {tok}}
 	if r := s.a.at(t, "POST", pcSiteDomain, "/v1/data-notify/stop", form.Encode(), map[string]string{"Content-Type": "application/x-www-form-urlencoded"}); r.status != 200 {
 		t.Fatalf("stop: %d %s", r.status, r.body)
 	}

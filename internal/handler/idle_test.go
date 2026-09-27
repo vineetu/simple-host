@@ -39,7 +39,7 @@ func (m *replyMailer) last(site string) string {
 	return ""
 }
 
-var idleLinkRE = regexp.MustCompile(`/v1/idle/(keep|download|restore)\?t=([0-9a-f]{48})`)
+var idleLinkRE = regexp.MustCompile(`/v1/idle/(keep|download|restore)#t=([0-9a-f]{48})`)
 
 // idleAct opens an emailed link the way a person does: the GET shows a
 // confirmation page and changes nothing; the button POSTs the token.

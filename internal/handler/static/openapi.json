@@ -1035,7 +1035,7 @@
       "get": {
         "operationId": "getEmailChangeUndo",
         "summary": "\"This wasn't me\" link from the old address's notice (confirmation page)",
-        "description": "Shows a page with an Undo button and changes nothing. No sign-in; the token is the authorization. 404 page when the link was used or is older than 7 days.",
+        "description": "Shows a page with an Undo button and changes nothing. No sign-in; the token is the authorization. 404 page when the link was used or is older than 7 days. Emailed links carry the token in the fragment (`#t=`), so it never reaches a server log: without `t` the GET returns a small page whose script posts the fragment's token back with `peek=1`, which shows this confirmation. Links sent before v0.7.1 carry `?t=` and keep working until they expire.",
         "tags": [
           "Auth"
         ],
@@ -1044,7 +1044,7 @@
           {
             "name": "t",
             "in": "query",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -1065,7 +1065,7 @@
       "post": {
         "operationId": "postEmailChangeUndo",
         "summary": "Undo a sign-in email change",
-        "description": "The confirmation page's button. Puts the account back on the old address, signs out every API key, removes Google/GitHub sign-ins and connected apps added since the change, and spends every undo link of the account. HTML page.",
+        "description": "The confirmation page's button (with `peek=1`, only the confirmation page). Puts the account back on the old address, signs out every API key and every sign-in on sites, removes Google/GitHub sign-ins and connected apps added since the change, and spends every undo link of the account. HTML page.",
         "tags": [
           "Auth"
         ],
@@ -1082,6 +1082,12 @@
                 "properties": {
                   "t": {
                     "type": "string"
+                  },
+                  "peek": {
+                    "type": "string",
+                    "enum": [
+                      "1"
+                    ]
                   }
                 }
               }
@@ -2778,7 +2784,7 @@
       "get": {
         "operationId": "getIdleKeep",
         "summary": "\"Keep it\" link from an idle-site email (confirmation page)",
-        "description": "Opened from the idle-site email; no sign-in, the token is the authorization. Shows a page with a \"Keep it online\" button and changes nothing (mail scanners follow links). 404 page when the link was used, replaced or has expired; 403 page while the site is taken down.",
+        "description": "Opened from the idle-site email; no sign-in, the token is the authorization. Shows a page with a \"Keep it online\" button and changes nothing (mail scanners follow links). 404 page when the link was used, replaced or has expired; 403 page while the site is taken down. Emailed links carry the token in the fragment (`#t=`), so it never reaches a server log: without `t` the GET returns a small page whose script posts the fragment's token back with `peek=1`, which shows this confirmation. Links sent before v0.7.1 carry `?t=` and keep working until they expire.",
         "tags": [
           "Sites"
         ],
@@ -2787,11 +2793,11 @@
           {
             "name": "t",
             "in": "query",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string"
             },
-            "description": "The token from the email"
+            "description": "The token from an older email"
           }
         ],
         "responses": {
@@ -2812,7 +2818,7 @@
       "post": {
         "operationId": "postIdleKeep",
         "summary": "\"Keep it\" button",
-        "description": "The confirmation page's button. The site stays up and its idle clock restarts; the link is then spent. HTML page.",
+        "description": "The confirmation page's button (with `peek=1`, only the confirmation page). The site stays up and its idle clock restarts; the link is then spent. HTML page.",
         "tags": [
           "Sites"
         ],
@@ -2829,6 +2835,12 @@
                 "properties": {
                   "t": {
                     "type": "string"
+                  },
+                  "peek": {
+                    "type": "string",
+                    "enum": [
+                      "1"
+                    ]
                   }
                 }
               }
@@ -2855,7 +2867,7 @@
       "get": {
         "operationId": "getIdleRestore",
         "summary": "\"Restore it\" link from an idle-site removal email (confirmation page)",
-        "description": "Shows a page with a \"Restore it\" button for a site the idle-site cleanup moved to Recently deleted, and changes nothing. No sign-in.",
+        "description": "Shows a page with a \"Restore it\" button for a site the idle-site cleanup moved to Recently deleted, and changes nothing. No sign-in. Emailed links carry the token in the fragment (`#t=`), so it never reaches a server log: without `t` the GET returns a small page whose script posts the fragment's token back with `peek=1`, which shows this confirmation. Links sent before v0.7.1 carry `?t=` and keep working until they expire.",
         "tags": [
           "Sites"
         ],
@@ -2864,7 +2876,7 @@
           {
             "name": "t",
             "in": "query",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -2888,7 +2900,7 @@
       "post": {
         "operationId": "postIdleRestore",
         "summary": "\"Restore it\" button",
-        "description": "Brings the site back exactly as it was (versions, saved data, names), with a fresh idle clock, while it is still in Recently deleted; the link is then spent. HTML page.",
+        "description": "Brings the site back exactly as it was (versions, saved data, names), with a fresh idle clock, while it is still in Recently deleted; the link is then spent (with `peek=1`, only the confirmation page). HTML page.",
         "tags": [
           "Sites"
         ],
@@ -2905,6 +2917,12 @@
                 "properties": {
                   "t": {
                     "type": "string"
+                  },
+                  "peek": {
+                    "type": "string",
+                    "enum": [
+                      "1"
+                    ]
                   }
                 }
               }
@@ -5760,7 +5778,7 @@
       "get": {
         "operationId": "dataNotifyStopPage",
         "summary": "The \"stop these emails\" link (confirmation page)",
-        "description": "The link in an email about new Submissions. GET shows a page with one button (mail scanners follow links, and must change nothing); the button POSTs the token, which turns that name's email off. HTML.",
+        "description": "The link in an email about new Submissions. GET shows a page with one button (mail scanners follow links, and must change nothing); the button POSTs the token, which turns that name's email off. HTML. Emailed links carry the token in the fragment (`#t=`), so it never reaches a server log: without `t` the GET returns a small page whose script posts the fragment's token back with `peek=1`, which shows this confirmation. Links sent before v0.7.1 carry `?t=` and keep working until they expire.",
         "tags": [
           "Collections"
         ],
@@ -5768,7 +5786,7 @@
           {
             "name": "t",
             "in": "query",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -5812,6 +5830,13 @@
                 "properties": {
                   "t": {
                     "type": "string"
+                  },
+                  "peek": {
+                    "type": "string",
+                    "enum": [
+                      "1"
+                    ],
+                    "description": "Only show the confirmation page"
                   }
                 }
               }

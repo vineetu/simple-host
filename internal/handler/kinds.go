@@ -1541,7 +1541,7 @@ func (h *SiteHandler) sendSubmissionEmails(ctx context.Context) int {
 		if d.Handle != "" {
 			owner = h.mainSiteURL() + "/" + d.Handle
 		}
-		stop := h.exportLinkBase() + "/v1/data-notify/stop?t=" + url.QueryEscape(h.notifyStopToken(d.SiteID, d.Name))
+		stop := h.exportLinkBase() + "/v1/data-notify/stop#t=" + url.QueryEscape(h.notifyStopToken(d.SiteID, d.Name))
 		text := fmt.Sprintf(`%d new %s arrived in %s on your site %s since %s.
 
 See who sent them and what they say in your sites page: %s
@@ -1570,14 +1570,17 @@ Simple Host
 func (h *SiteHandler) notifyStop(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")
-	tok := idleLinkToken(w, r)
+	if fragmentLinkGET(w, r, h.chromeBase(r), "/v1/data-notify/stop") {
+		return
+	}
+	tok := linkToken(w, r)
 	siteID, name, ok := h.checkNotifyStopToken(tok)
 	if !ok {
 		h.renderMessagePage(w, r, http.StatusNotFound, "This link does not work",
 			"Sign in to Simple Host and change the email setting from your sites page.", h.exportLinkBase()+"/", "Go to Simple Host")
 		return
 	}
-	if r.Method != http.MethodPost {
+	if linkConfirming(r) {
 		writeMessagePage(w, r, h.chromeBase(r), http.StatusOK, "Stop emails about "+html.EscapeString(name)+"?",
 			"You will not be emailed about new entries in "+html.EscapeString(name)+" any more. You can turn it back on from your sites page.",
 			"", "", confirmForm("/v1/data-notify/stop", map[string]string{"t": tok}, "Stop these emails"))

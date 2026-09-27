@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/vsriram/simple-host/internal/auth"
@@ -188,5 +189,25 @@ func TestHandleChangeAfterPurgeKeepsAlias(t *testing.T) {
 	q := a.newPerson(t, "claimer")
 	if r := a.at(t, "PATCH", apex, "/v1/me", map[string]string{"handle": old}, map[string]string{"X-API-Key": q.key}); r.status != 409 {
 		t.Fatalf("stranger took the old handle: %d %s", r.status, r.body)
+	}
+}
+
+// L5: an emailed link's GET without ?t= answers with the page that reads the
+// fragment and posts it back; that post (peek=1) only shows the confirmation.
+func TestFragmentLinkPage(t *testing.T) {
+	a := newPrivateApp(t)
+	for _, path := range []string{"/v1/idle/keep", "/v1/idle/restore", "/v1/data-notify/stop", "/v1/me/email/undo"} {
+		r := a.at(t, "GET", "simple-host.test", path, nil, nil)
+		body := string(r.body)
+		if r.status != 200 || !strings.Contains(body, `action="`+path+`"`) || !strings.Contains(body, `name="peek" value="1"`) || !strings.Contains(body, "location.hash") {
+			t.Fatalf("%s: %d %s", path, r.status, body)
+		}
+		if r.header.Get("Referrer-Policy") != "no-referrer" || r.header.Get("Cache-Control") != "no-store" {
+			t.Fatalf("%s headers: %v", path, r.header)
+		}
+		// A peek with an unknown token acts on nothing.
+		if r := a.at(t, "POST", "simple-host.test", path, "peek=1&t="+strings.Repeat("0", 48), map[string]string{"Content-Type": "application/x-www-form-urlencoded"}); r.status != 404 {
+			t.Fatalf("%s bad peek: %d", path, r.status)
+		}
 	}
 }

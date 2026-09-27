@@ -335,6 +335,54 @@ func confirmForm(action string, fields map[string]string, button string) string 
 	return b.String()
 }
 
+// Emailed one-time links carry their token after "#" (#t=...), so it never
+// reaches a server or proxy log: a browser does not send the fragment. The
+// link's GET finds no token and answers with fragmentTokenPage, whose script
+// reads it and POSTs it back with peek=1; the handler then shows its usual
+// confirmation page (peek never acts). Links sent before this change carry
+// ?t= and keep working on GET until they expire.
+
+// linkToken is an emailed link's token: from the posted form on POST, from
+// the query on GET (older links).
+func linkToken(w http.ResponseWriter, r *http.Request) string {
+	if r.Method == http.MethodPost {
+		r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
+		return strings.TrimSpace(r.PostFormValue("t"))
+	}
+	return strings.TrimSpace(r.URL.Query().Get("t"))
+}
+
+// linkConfirming reports whether r only asks for the confirmation page: a GET
+// (an older ?t= link) or the fragment page's POST with peek=1.
+func linkConfirming(r *http.Request) bool {
+	return r.Method != http.MethodPost || r.PostFormValue("peek") == "1"
+}
+
+// fragmentLinkGET answers the GET of an emailed link that carries its token
+// in the fragment (no ?t=): the page that reads it and posts it back. It
+// reports whether it wrote the response.
+func fragmentLinkGET(w http.ResponseWriter, r *http.Request, base, action string) bool {
+	if r.Method == http.MethodPost || r.URL.Query().Get("t") != "" {
+		return false
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	nonce, _ := r.Context().Value(cspNonceKey{}).(string)
+	attr := ""
+	if nonce != "" {
+		attr = ` nonce="` + html.EscapeString(nonce) + `"`
+	}
+	form := `<form id="sh-link" method="post" action="` + html.EscapeString(action) + `">` +
+		`<input type="hidden" name="t" value=""><input type="hidden" name="peek" value="1">` +
+		`<button type="submit" class="btn-primary" style="border:0;cursor:pointer;font:inherit">Continue</button></form>` +
+		`<script` + attr + `>(function(){var m=/[#&]t=([^&]+)/.exec(location.hash||"");var f=document.getElementById("sh-link");` +
+		`if(!m){f.hidden=true;return;}f.elements.t.value=decodeURIComponent(m[1]);` +
+		`try{history.replaceState(null,"",location.pathname);}catch(e){}f.submit();})();</script>`
+	writeMessagePage(w, r, base, http.StatusOK, "Opening your link…",
+		"If nothing happens, press Continue. If there is no button, open the link from the email again.", "", "", form)
+	return true
+}
+
 // writeMessagePage writes the one-message page. A non-empty form (from
 // confirmForm) takes the place of the way-back link: emailed links open such
 // a page on GET and act only when the person presses its button, so a mail

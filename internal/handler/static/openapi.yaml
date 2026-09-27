@@ -591,9 +591,10 @@ paths:
       description: >-
         Shows a page with an Undo button and changes nothing. No sign-in; the token is the
         authorization. 404 page when the link was used or is older than 7 days.
+        Emailed links carry the token in the fragment (`#t=`), so it never reaches a server log: without `t` the GET returns a small page whose script posts the fragment's token back with `peek=1`, which shows this confirmation. Links sent before v0.7.1 carry `?t=` and keep working until they expire.
       tags: [Auth]
       security: []
-      parameters: [ { name: t, in: query, required: true, schema: { type: string } } ]
+      parameters: [ { name: t, in: query, required: false, schema: { type: string } } ]
       responses:
         '200': { description: HTML confirmation page with the button }
         '404': { description: HTML page; the link was used or has expired }
@@ -602,8 +603,8 @@ paths:
       operationId: postEmailChangeUndo
       summary: Undo a sign-in email change
       description: >-
-        The confirmation page's button. Puts the account back on the old address, signs out
-        every API key, removes Google/GitHub sign-ins and connected apps added since the change,
+        The confirmation page's button (with `peek=1`, only the confirmation page). Puts the
+        account back on the old address, signs out every API key and every sign-in on sites, removes Google/GitHub sign-ins and connected apps added since the change,
         and spends every undo link of the account. HTML page.
       tags: [Auth]
       security: []
@@ -611,7 +612,7 @@ paths:
         required: true
         content:
           application/x-www-form-urlencoded:
-            schema: { type: object, required: [t], properties: { t: { type: string } } }
+            schema: { type: object, required: [t], properties: { t: { type: string }, peek: { type: string, enum: ['1'] } } }
       responses:
         '200': { description: HTML page; the account signs in with the old address again }
         '404': { description: HTML page; the link was used or has expired }
@@ -1428,9 +1429,10 @@ paths:
         Shows a page with a "Keep it online" button and changes nothing (mail
         scanners follow links). 404 page when the link was used, replaced or has
         expired; 403 page while the site is taken down.
+        Emailed links carry the token in the fragment (`#t=`), so it never reaches a server log: without `t` the GET returns a small page whose script posts the fragment's token back with `peek=1`, which shows this confirmation. Links sent before v0.7.1 carry `?t=` and keep working until they expire.
       tags: [Sites]
       security: []
-      parameters: [ { name: t, in: query, required: true, schema: { type: string }, description: The token from the email } ]
+      parameters: [ { name: t, in: query, required: false, schema: { type: string }, description: The token from an older email } ]
       responses:
         '200': { description: HTML confirmation page with the button }
         '403': { description: HTML page; the site is taken down }
@@ -1440,15 +1442,15 @@ paths:
       operationId: postIdleKeep
       summary: '"Keep it" button'
       description: >-
-        The confirmation page's button. The site stays up and its idle clock
-        restarts; the link is then spent. HTML page.
+        The confirmation page's button (with `peek=1`, only the confirmation page). The site
+        stays up and its idle clock restarts; the link is then spent. HTML page.
       tags: [Sites]
       security: []
       requestBody:
         required: true
         content:
           application/x-www-form-urlencoded:
-            schema: { type: object, required: [t], properties: { t: { type: string } } }
+            schema: { type: object, required: [t], properties: { t: { type: string }, peek: { type: string, enum: ['1'] } } }
       responses:
         '200': { description: HTML page confirming the site stays up }
         '403': { description: HTML page; the site is taken down }
@@ -1461,9 +1463,10 @@ paths:
       description: >-
         Shows a page with a "Restore it" button for a site the idle-site cleanup
         moved to Recently deleted, and changes nothing. No sign-in.
+        Emailed links carry the token in the fragment (`#t=`), so it never reaches a server log: without `t` the GET returns a small page whose script posts the fragment's token back with `peek=1`, which shows this confirmation. Links sent before v0.7.1 carry `?t=` and keep working until they expire.
       tags: [Sites]
       security: []
-      parameters: [ { name: t, in: query, required: true, schema: { type: string } } ]
+      parameters: [ { name: t, in: query, required: false, schema: { type: string } } ]
       responses:
         '200': { description: HTML confirmation page with the button }
         '403': { description: HTML page; the site is taken down }
@@ -1475,14 +1478,14 @@ paths:
       description: >-
         Brings the site back exactly as it was (versions, saved data, names), with
         a fresh idle clock, while it is still in Recently deleted; the link is
-        then spent. HTML page.
+        then spent (with `peek=1`, only the confirmation page). HTML page.
       tags: [Sites]
       security: []
       requestBody:
         required: true
         content:
           application/x-www-form-urlencoded:
-            schema: { type: object, required: [t], properties: { t: { type: string } } }
+            schema: { type: object, required: [t], properties: { t: { type: string }, peek: { type: string, enum: ['1'] } } }
       responses:
         '200': { description: HTML page confirming the site is back }
         '403': { description: HTML page; the site is taken down }
@@ -2644,8 +2647,9 @@ paths:
         The link in an email about new Submissions. GET shows a page with one
         button (mail scanners follow links, and must change nothing); the button
         POSTs the token, which turns that name's email off. HTML.
+        Emailed links carry the token in the fragment (`#t=`), so it never reaches a server log: without `t` the GET returns a small page whose script posts the fragment's token back with `peek=1`, which shows this confirmation. Links sent before v0.7.1 carry `?t=` and keep working until they expire.
       tags: [Collections]
-      parameters: [ { name: t, in: query, required: true, schema: { type: string } } ]
+      parameters: [ { name: t, in: query, required: false, schema: { type: string } } ]
       responses:
         '200': { description: The confirmation page, content: { text/html: { schema: { type: string } } } }
         '404': { description: The link is not valid, content: { text/html: { schema: { type: string } } } }
@@ -2655,7 +2659,7 @@ paths:
       tags: [Collections]
       requestBody:
         required: true
-        content: { application/x-www-form-urlencoded: { schema: { type: object, properties: { t: { type: string } } } } }
+        content: { application/x-www-form-urlencoded: { schema: { type: object, properties: { t: { type: string }, peek: { type: string, enum: ['1'], description: "Only show the confirmation page" } } } } }
       responses:
         '200': { description: Stopped, content: { text/html: { schema: { type: string } } } }
         '404': { description: The link is not valid, content: { text/html: { schema: { type: string } } } }

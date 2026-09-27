@@ -61,7 +61,7 @@ func newAccountApp(t *testing.T) (*privateApp, *mailbox) {
 var confirmCodeRe = regexp.MustCompile(`confirmation code: (\d{6})`)
 
 var currentCodeRe = regexp.MustCompile(`together with the one sent to the new address:\s+(\d{6})`)
-var undoLinkRe = regexp.MustCompile(`/v1/me/email/undo\?t=([0-9a-f]{48})`)
+var undoLinkRe = regexp.MustCompile(`/v1/me/email/undo#t=([0-9a-f]{48})`)
 
 // requestEmailChange asks to move p to newAddr and returns the code sent to
 // the new address and the one sent to the current address.
@@ -183,14 +183,23 @@ func TestEmailChangeMovesAccountAndTellsOldAddress(t *testing.T) {
 		t.Fatal(err)
 	}
 	tok := undoLinkRe.FindStringSubmatch(notice)[1]
+	form := map[string]string{"Content-Type": "application/x-www-form-urlencoded"}
+	// The emailed link keeps the token in the fragment: the GET gets the page
+	// that posts it back (peek), which shows the confirmation.
+	if r := a.at(t, "GET", host, "/v1/me/email/undo", nil, nil); r.status != 200 || !strings.Contains(string(r.body), `name="peek" value="1"`) {
+		t.Fatalf("fragment page: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "POST", host, "/v1/me/email/undo", "peek=1&t="+tok, form); r.status != 200 || !strings.Contains(string(r.body), "Undo the change") {
+		t.Fatalf("peek: %d %s", r.status, r.body)
+	}
+	// Links sent before carry ?t= and still open the confirmation.
 	page := a.at(t, "GET", host, "/v1/me/email/undo?t="+tok, nil, nil)
 	if page.status != 200 || !strings.Contains(string(page.body), `action="/v1/me/email/undo"`) {
 		t.Fatalf("undo page: %d %s", page.status, page.body)
 	}
 	if err := a.database.QueryRow(`SELECT username FROM users WHERE id = $1`, uid).Scan(&username); err != nil || username != newAddr {
-		t.Fatalf("a GET undid the change: %q %v", username, err)
+		t.Fatalf("a GET or peek undid the change: %q %v", username, err)
 	}
-	form := map[string]string{"Content-Type": "application/x-www-form-urlencoded"}
 	if r := a.at(t, "POST", host, "/v1/me/email/undo", "t="+tok, form); r.status != 200 || !strings.Contains(string(r.body), "again") {
 		t.Fatalf("undo: %d %s", r.status, r.body)
 	}

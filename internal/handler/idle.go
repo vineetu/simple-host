@@ -212,8 +212,10 @@ func idleTokenHash(tok string) []byte {
 	return sum[:]
 }
 
+// idleLink carries the token in the fragment (fragmentLinkGET), so it never
+// reaches a server log.
 func (h *SiteHandler) idleLink(action, tok string) string {
-	return h.exportLinkBase() + "/v1/idle/" + action + "?t=" + url.QueryEscape(tok)
+	return h.exportLinkBase() + "/v1/idle/" + action + "#t=" + url.QueryEscape(tok)
 }
 
 func (h *SiteHandler) idleSiteAddress(s db.IdleSite) string {
@@ -342,6 +344,9 @@ Simple Host
 func (h *SiteHandler) idleLinkSite(w http.ResponseWriter, r *http.Request) (db.IdleLink, bool) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")
+	if fragmentLinkGET(w, r, h.chromeBase(r), r.URL.Path) {
+		return db.IdleLink{}, false
+	}
 	tok := idleLinkToken(w, r)
 	if len(tok) != 48 {
 		h.idleLinkGone(w, r)
@@ -365,15 +370,9 @@ func (h *SiteHandler) idleLinkGone(w http.ResponseWriter, r *http.Request) {
 		h.exportLinkBase()+"/", "Go to Simple Host")
 }
 
-// idleLinkToken is the link's token: from the query on GET, from the
-// confirmation form on POST.
-func idleLinkToken(w http.ResponseWriter, r *http.Request) string {
-	if r.Method == http.MethodPost {
-		r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
-		return strings.TrimSpace(r.PostFormValue("t"))
-	}
-	return strings.TrimSpace(r.URL.Query().Get("t"))
-}
+// idleLinkToken is the link's token: from the query on GET (older links),
+// from the posted form on POST (linkToken).
+func idleLinkToken(w http.ResponseWriter, r *http.Request) string { return linkToken(w, r) }
 
 // idleLinkUsable refuses a link whose site is taken down (or whose owner's
 // account is suspended): it then does nothing until the operator lifts it.
@@ -401,7 +400,7 @@ func (h *SiteHandler) idleKeep(w http.ResponseWriter, r *http.Request) {
 	if !h.idleLinkUsable(w, r, l) {
 		return
 	}
-	if r.Method != http.MethodPost {
+	if linkConfirming(r) {
 		writeMessagePage(w, r, h.chromeBase(r), http.StatusOK, "Keep "+html.EscapeString(l.Name)+" online?",
 			"It stays up, and we only ask again if it goes another "+config.Span(idleAfter())+" without visitors, a new version or saved data.",
 			"", "", confirmForm("/v1/idle/keep", map[string]string{"t": idleLinkToken(w, r)}, "Keep it online"))
@@ -431,7 +430,7 @@ func (h *SiteHandler) idleRestore(w http.ResponseWriter, r *http.Request) {
 	if !h.idleLinkUsable(w, r, l) {
 		return
 	}
-	if r.Method != http.MethodPost {
+	if linkConfirming(r) {
 		writeMessagePage(w, r, h.chromeBase(r), http.StatusOK, "Restore "+html.EscapeString(l.Name)+"?",
 			"It comes back exactly as it was, with all its versions and saved data.",
 			"", "", confirmForm("/v1/idle/restore", map[string]string{"t": idleLinkToken(w, r)}, "Restore it"))
