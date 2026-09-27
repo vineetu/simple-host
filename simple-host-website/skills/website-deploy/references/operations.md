@@ -33,7 +33,8 @@ Each sign-in and each agent holds its own key. Keys issued now start with
 - `GET /v1/me/keys` lists them: `id`, `name` (`dashboard sign-in`,
   `agent sign-in`, `event account`, or a typed name; absent on older keys),
   `last4`, `created_at`, `last_used_at`, and `current` for the key you sent.
-- `POST /v1/me/keys` with `{"name":"GitHub Actions"}` mints a named key for a
+- `POST /v1/me/keys` with `{"name":"GitHub Actions"}` (not one of the names
+  above, which Simple Host keeps for its own keys) mints a named key for a
   CI secret or another machine and returns `api_key` once. Add
   `"scope":"deploy"` for a **deploy-only** key (create, update, roll back and
   list sites, preview links; everything else answers 403 `deploy_only_key`),

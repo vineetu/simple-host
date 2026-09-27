@@ -1620,7 +1620,8 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 60,
-                    "example": "GitHub Actions"
+                    "example": "GitHub Actions",
+                    "description": "Any label except the names Simple Host gives its own keys (dashboard sign-in, agent sign-in, event account, reviewer sign-in, replacement key; 400)"
                   },
                   "scope": {
                     "type": "string",

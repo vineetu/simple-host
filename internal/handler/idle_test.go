@@ -295,11 +295,17 @@ func TestIdleCleanupHardening(t *testing.T) {
 		t.Fatalf("reviewer account listed: %v", mine())
 	}
 	a.sites.SetIdleExempt(nil, "")
+	// A key's name no longer marks an event account; the flag does.
 	exec(`UPDATE api_keys SET name = $2 WHERE user_id = $1`, uid, db.KeyNameEvent)
+	if len(mine()) == 0 {
+		t.Fatal("a key named like the event key exempted the account")
+	}
+	exec(`UPDATE api_keys SET name = NULL WHERE user_id = $1`, uid)
+	exec(`UPDATE users SET event_account = TRUE WHERE id = $1`, uid)
 	if len(mine()) != 0 {
 		t.Fatalf("event account listed: %v", mine())
 	}
-	exec(`UPDATE api_keys SET name = NULL WHERE user_id = $1`, uid)
+	exec(`UPDATE users SET event_account = FALSE WHERE id = $1`, uid)
 
 	// A deploy between the list and the warning: no warning, no email.
 	s := mine()["plain"]

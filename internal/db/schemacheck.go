@@ -22,7 +22,7 @@ import (
 var requiredColumns = map[string][]string{
 	// cp-ops-suspend.sql adds the suspended_* columns.
 	// w2-account-signin-email.sql adds signin_alerts and the two tables below.
-	"users":         {"id", "username", "is_admin", "handle", "display_name", "handle_changed_at", "suspended_at", "suspended_reason", "signin_alerts"},
+	"users":         {"id", "username", "is_admin", "handle", "display_name", "handle_changed_at", "suspended_at", "suspended_reason", "signin_alerts", "event_account"},
 	"email_changes": {"user_id", "new_email", "code_hash", "old_code_hash", "attempts", "expires_at"},
 	// w2-signin-email-undo.sql adds old_code_hash above and this table.
 	"email_change_undos": {"token_hash", "user_id", "old_email", "new_email", "created_at", "expires_at", "used_at"},

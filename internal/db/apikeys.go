@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 )
 
@@ -232,6 +233,27 @@ func DeleteAPIKeyByHash(ctx context.Context, q Querier, userID, keyHash string) 
 	}
 	n, err := res.RowsAffected()
 	return n > 0, err
+}
+
+// MarkEventAccount records that an organiser made (or reissued) this account
+// for an event (users.event_account): no sign-in alerts, no email change, no
+// idle cleanup. Only the admin's routes call it; a key's name never does.
+func MarkEventAccount(ctx context.Context, q Querier, userID string) error {
+	_, err := q.ExecContext(ctx, `UPDATE users SET event_account = TRUE WHERE id = $1`, userID)
+	return err
+}
+
+// ReservedKeyName reports whether name is one the service gives its own keys
+// (case-insensitive, after trimming). A typed key name may not be one, so a
+// name never reads like something the service made.
+func ReservedKeyName(name string) bool {
+	n := strings.ToLower(strings.TrimSpace(name))
+	for _, r := range []string{KeyNameDashboard, KeyNameAgent, KeyNameEvent, KeyNameReviewer, KeyNameRotated} {
+		if n == r {
+			return true
+		}
+	}
+	return false
 }
 
 // ReplaceAPIKeys removes every key an account holds and stores newKey as its

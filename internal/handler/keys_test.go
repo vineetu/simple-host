@@ -211,6 +211,10 @@ func TestAdminReissuesKey(t *testing.T) {
 	if len(ks) != 1 || ks[0]["name"] != db.KeyNameEvent || ks[0]["current"] != true {
 		t.Fatalf("after reissue: %v", ks)
 	}
+	var event bool
+	if err := a.database.QueryRow(`SELECT event_account FROM users WHERE id = $1`, id).Scan(&event); err != nil || !event {
+		t.Fatalf("reissue did not mark the event account: %v %v", event, err)
+	}
 }
 
 // An account mints at most db.MaxAccountKeys() keys from the Keys panel; the

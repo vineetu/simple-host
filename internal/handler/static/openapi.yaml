@@ -892,7 +892,7 @@ paths:
               type: object
               required: [name]
               properties:
-                name: { type: string, minLength: 1, maxLength: 60, example: GitHub Actions }
+                name: { type: string, minLength: 1, maxLength: 60, example: GitHub Actions, description: "Any label except the names Simple Host gives its own keys (dashboard sign-in, agent sign-in, event account, reviewer sign-in, replacement key; 400)" }
                 scope: { type: string, enum: [full, deploy], default: full, description: "deploy: create, update, roll back and list sites and make preview links, nothing else" }
                 expires_in_days: { type: integer, minimum: 1, maximum: 3650, description: "Optional fixed expiry, in days from now" }
       responses:

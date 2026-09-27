@@ -26,7 +26,7 @@ import (
 // by their owner (a deliberate choice to keep it, just not serve it), preview
 // sites (they expire on their own), and the operator's exempt accounts
 // (IdleExempt: IDLE_CLEANUP_EXEMPT_HANDLES, the plugin reviewer account) and
-// event accounts (they hold an "event account" key).
+// event accounts (users.event_account).
 
 // IdleExempt is the operator's list of accounts the cleanup never touches.
 type IdleExempt struct {
@@ -90,7 +90,7 @@ func idleEligible(p int) string {
 	AND NOT EXISTS (SELECT 1 FROM legacy_hostnames l WHERE l.site_id = s.id)
 	AND NOT (lower(COALESCE(u.handle, '')) = ANY($%d::text[]))
 	AND NOT ($%d <> '' AND lower(u.username) = $%d)
-	AND NOT EXISTS (SELECT 1 FROM api_keys k WHERE k.user_id = u.id AND k.name = '%s')`, p, p+1, p+1, KeyNameEvent)
+	AND NOT u.event_account`, p, p+1, p+1)
 }
 
 func queryIdleSites(ctx context.Context, database *sql.DB, ex IdleExempt, extra string, args ...any) ([]IdleSite, error) {

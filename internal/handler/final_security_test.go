@@ -132,3 +132,36 @@ func TestVisitorEmailFollowsAccountEmail(t *testing.T) {
 		t.Fatalf("event account visitorEmail = %q, %v", got, err)
 	}
 }
+
+// L1: the service's own key names are refused as typed names, and a key's
+// name never marks an account as an event account.
+func TestReservedKeyNames(t *testing.T) {
+	a := newPrivateApp(t)
+	const apex = "simple-host.test"
+	p := a.newPerson(t, "keynames")
+	key := map[string]string{"X-API-Key": p.key}
+	for _, n := range []string{"event account", " Event Account ", "DASHBOARD SIGN-IN", "agent sign-in", "reviewer sign-in", "replacement key"} {
+		if r := a.at(t, "POST", apex, "/v1/me/keys", map[string]string{"name": n}, key); r.status != 400 {
+			t.Fatalf("reserved name %q: %d %s", n, r.status, r.body)
+		}
+	}
+	if r := a.at(t, "POST", apex, "/v1/me/keys", map[string]string{"name": "event account 2"}, key); r.status != 200 && r.status != 201 {
+		t.Fatalf("ordinary name: %d %s", r.status, r.body)
+	}
+	uid, _ := a.userID(t, p)
+	// Even a key stored under the event name (an older row) does not make one.
+	k, _ := auth.GenerateAPIKey()
+	if err := db.AddAPIKey(context.Background(), a.database, uid, k, db.KeyNameEvent); err != nil {
+		t.Fatal(err)
+	}
+	tgt, err := db.GetSignInAlertTarget(context.Background(), a.database, uid)
+	if err != nil || tgt.Event {
+		t.Fatalf("key name marked an event account: %+v %v", tgt, err)
+	}
+	if err := db.MarkEventAccount(context.Background(), a.database, uid); err != nil {
+		t.Fatal(err)
+	}
+	if tgt, _ = db.GetSignInAlertTarget(context.Background(), a.database, uid); !tgt.Event {
+		t.Fatal("flag not read")
+	}
+}

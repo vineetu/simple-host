@@ -263,6 +263,9 @@ func TestEmailChangeRefusals(t *testing.T) {
 	if err := db.AddAPIKey(context.Background(), a.database, uid, k, db.KeyNameEvent); err != nil {
 		t.Fatal(err)
 	}
+	if err := db.MarkEventAccount(context.Background(), a.database, uid); err != nil {
+		t.Fatal(err)
+	}
 	if r := a.at(t, "POST", host, "/v1/me/email", map[string]string{"email": "y@example.org"}, key); r.status != 403 || r.json(t)["code"] != "event_account" {
 		t.Fatalf("event account: %d %s", r.status, r.body)
 	}
@@ -395,6 +398,9 @@ func TestSignInAlertsSkipEventAndReviewer(t *testing.T) {
 	}
 	k, _ := auth.GenerateAPIKey()
 	if err := db.AddAPIKey(context.Background(), a.database, id, k, db.KeyNameEvent); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.MarkEventAccount(context.Background(), a.database, id); err != nil {
 		t.Fatal(err)
 	}
 	signInWith(t, a, mb, ev.email, uaMacChrome)

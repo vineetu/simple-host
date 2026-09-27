@@ -155,6 +155,9 @@ func (h *SiteHandler) createAccounts(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			err = db.AddAPIKey(r.Context(), tx, id, key, db.KeyNameEvent)
 		}
+		if err == nil {
+			err = db.MarkEventAccount(r.Context(), tx, id)
+		}
 		if err != nil {
 			writeJSON(w, 500, errorResponse{Error: "internal server error"})
 			return
@@ -268,6 +271,9 @@ func (h *SiteHandler) reissueAccountKey(w http.ResponseWriter, r *http.Request) 
 	key, err := auth.GenerateAPIKey()
 	if err == nil {
 		err = db.ReplaceAPIKeys(r.Context(), tx, id, key, db.KeyNameEvent)
+	}
+	if err == nil {
+		err = db.MarkEventAccount(r.Context(), tx, id)
 	}
 	if err == nil {
 		err = tx.Commit()

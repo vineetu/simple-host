@@ -33,6 +33,9 @@ func normalizeKeyName(name string) (string, error) {
 	if strings.IndexFunc(name, func(r rune) bool { return unicode.IsControl(r) || unicode.Is(unicode.Cf, r) }) >= 0 {
 		return "", errors.New("name must not contain control or invisible formatting characters")
 	}
+	if db.ReservedKeyName(name) {
+		return "", errors.New("that name is used by Simple Host for its own keys; pick another")
+	}
 	return name, nil
 }
 

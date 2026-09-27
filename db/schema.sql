@@ -18,6 +18,10 @@ CREATE TABLE users (
   -- Email after each owner sign-in (w2-account-signin-email.sql); the owner
   -- turns it off in the owner app (PATCH /v1/me signin_alerts).
   signin_alerts      BOOLEAN NOT NULL DEFAULT TRUE,
+  -- An account an organiser made for an event (admin create / new key):
+  -- no sign-in alerts, no email change, no idle cleanup
+  -- (v071-event-account-flag.sql). Never set from a key's name.
+  event_account      BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 

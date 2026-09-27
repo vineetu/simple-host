@@ -191,8 +191,8 @@ type SignInAlertTarget struct {
 	Email  string
 	Handle string
 	On     bool
-	// Event is an account an organiser made for an event (it holds or held
-	// an "event account" key); those get no alerts.
+	// Event is an account an organiser made for an event
+	// (users.event_account); those get no alerts.
 	Event bool
 }
 
@@ -200,9 +200,8 @@ type SignInAlertTarget struct {
 func GetSignInAlertTarget(ctx context.Context, q Querier, userID string) (SignInAlertTarget, error) {
 	var t SignInAlertTarget
 	err := q.QueryRowContext(ctx, `
-		SELECT u.username, COALESCE(u.handle, ''), u.signin_alerts,
-		       EXISTS (SELECT 1 FROM api_keys k WHERE k.user_id = u.id AND k.name = $2)
-		  FROM users u WHERE u.id = $1`, userID, KeyNameEvent).Scan(&t.Email, &t.Handle, &t.On, &t.Event)
+		SELECT u.username, COALESCE(u.handle, ''), u.signin_alerts, u.event_account
+		  FROM users u WHERE u.id = $1`, userID).Scan(&t.Email, &t.Handle, &t.On, &t.Event)
 	return t, err
 }
 

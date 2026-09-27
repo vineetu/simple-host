@@ -50,7 +50,7 @@ run() {
   fi
 }
 
-run "event accounts" "SELECT display_name, handle, handle_changed_at FROM users"
+run "event accounts" "SELECT display_name, handle, handle_changed_at, event_account FROM users"
 run "hashed API keys"       "SELECT u.id FROM api_keys k JOIN users u ON u.id = k.user_id WHERE k.key_hash='x'"
 run "named API keys"        "SELECT id, name, last4, created_at, last_used_at FROM api_keys WHERE user_id='$NIL' ORDER BY created_at DESC"
 run "key scope and expiry"  "SELECT scope, expires_at, idle_from FROM api_keys WHERE key_hash='x'"
