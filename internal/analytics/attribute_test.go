@@ -1,6 +1,7 @@
 package analytics
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -64,6 +65,19 @@ func TestPagePath(t *testing.T) {
 		"/docs/index.html": "/docs/",
 		"/menu?utm=x":      "/menu",
 		"about.html":       "/about.html",
+		// One page, many spellings: decoded once, slashes collapsed, query
+		// and fragment dropped, trailing slash kept, case kept.
+		"/%61bout/":      "/about/",
+		"//about/":       "/about/",
+		"/about/?":       "/about/",
+		"/about/#top":    "/about/",
+		"/a//b///c":      "/a/b/c",
+		"/x/../about/":   "/about/",
+		"/About":         "/About",
+		"/%2561bout":     "/%61bout",
+		"/menu%3Fid=1":   "/menu",
+		"/%69ndex.html":  "/",
+		"/bad%zzescape/": "/bad%zzescape/",
 	} {
 		if got := pagePath(in); got != want {
 			t.Errorf("pagePath(%q) = %q, want %q", in, got, want)
@@ -90,5 +104,19 @@ func TestParseTSVBothFormats(t *testing.T) {
 	l, ok = parseTSV(old + "\t-")
 	if !ok || l.referrer != "" {
 		t.Fatalf("eight fields, no referrer: %+v %v", l, ok)
+	}
+}
+
+// A site keeps at most max distinct items a day; new ones beyond that are
+// counted as (other), stored ones keep counting, and (other) takes no slot.
+func TestCapItems(t *testing.T) {
+	have := map[string]bool{"/a": true, "/b": true, otherItem: true}
+	got := capItems(have, map[string]int64{"/a": 1, "/c": 5, "/d": 3, "/e": 1, otherItem: 2}, 3)
+	want := map[string]int64{"/a": 1, "/c": 5, otherItem: 2 + 3 + 1}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("capItems = %v, want %v", got, want)
+	}
+	if got := capItems(map[string]bool{}, map[string]int64{"/x": 1}, 3); got["/x"] != 1 || len(got) != 1 {
+		t.Errorf("under the cap = %v", got)
 	}
 }

@@ -15,7 +15,10 @@ import (
 	"io"
 	"log"
 	"math"
+	"net/url"
 	"os"
+	"path"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -51,7 +54,18 @@ type Ingester struct {
 	// retentionDays: drop aggregate rows older than this (best-effort,
 	// outside the main tx). ANALYTICS_RETENTION_DAYS, default 400.
 	retentionDays int
+	// pagesPerDay and refsPerDay cap the distinct paths and referring
+	// domains kept per site per day (ANALYTICS_PAGES_PER_SITE_DAY,
+	// ANALYTICS_REFERRERS_PER_SITE_DAY); views of further new ones that
+	// day go to otherItem.
+	pagesPerDay int
+	refsPerDay  int
 }
+
+// otherItem is the row that takes a day's views of pages or referring
+// domains beyond the per-site cap. It cannot collide with a real one: a path
+// starts with "/" and a domain has no parentheses.
+const otherItem = "(other)"
 
 // NewIngester builds an ingester. saltSecret should be a stable server secret
 // (ADMIN_API_KEY); contentHost and siteDomain drive host→site attribution.
@@ -63,11 +77,25 @@ func NewIngester(db *sql.DB, logPath, saltSecret, contentHost, siteDomain string
 		contentHost:   strings.ToLower(strings.TrimSpace(contentHost)),
 		siteDomain:    strings.ToLower(strings.TrimSpace(siteDomain)),
 		retentionDays: 400,
+		pagesPerDay:   200,
+		refsPerDay:    100,
 	}
 }
 
 // WithRetentionDays sets how long aggregate rows are kept
 // (ANALYTICS_RETENTION_DAYS). Zero or less keeps the default.
+// WithItemCaps sets how many distinct pages and referring domains a site
+// keeps per day (values <= 0 keep the defaults).
+func (i *Ingester) WithItemCaps(pages, referrers int) *Ingester {
+	if pages > 0 {
+		i.pagesPerDay = pages
+	}
+	if referrers > 0 {
+		i.refsPerDay = referrers
+	}
+	return i
+}
+
 func (i *Ingester) WithRetentionDays(days int) *Ingester {
 	if days > 0 {
 		i.retentionDays = days
@@ -417,6 +445,12 @@ func (i *Ingester) commitLines(ctx context.Context, lines []string, saveState bo
 		}
 	}
 
+	if pageDelta, err = capDayItems(ctx, tx, pageDelta, `SELECT path FROM site_page_daily WHERE site_id = $1 AND day = $2::date`, i.pagesPerDay); err != nil {
+		return fmt.Errorf("cap pages: %w", err)
+	}
+	if refDelta, err = capDayItems(ctx, tx, refDelta, `SELECT domain FROM site_referrer_daily WHERE site_id = $1 AND day = $2::date`, i.refsPerDay); err != nil {
+		return fmt.Errorf("cap referrers: %w", err)
+	}
 	for k, n := range pageDelta {
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO site_page_daily (site_id, day, path, views)
@@ -705,22 +739,116 @@ func referrerDomain(v string) string {
 const maxPagePath = 200
 
 // pagePath is how a page is stored for "top pages": the site-relative path
-// without its query, with a trailing index.html dropped (/ and /index.html are
-// the same page), cut to maxPagePath bytes.
+// without its query or fragment, percent-escapes decoded once, runs of "/"
+// collapsed and dot segments resolved (a trailing slash is kept), with a
+// trailing index.html dropped (/ and /index.html are the same page), cut to
+// maxPagePath bytes. The raw request line has many spellings of one page
+// (/%61bout/, //about/, /about/?x); each would otherwise be its own row.
+// Case is kept: /About and /about can be different files.
 func pagePath(p string) string {
-	if q := strings.IndexByte(p, '?'); q >= 0 {
+	if q := strings.IndexAny(p, "?#"); q >= 0 {
 		p = p[:q]
+	}
+	if u, err := url.PathUnescape(p); err == nil {
+		p = u
+	}
+	if q := strings.IndexAny(p, "?#"); q >= 0 {
+		p = p[:q] // an escaped ? or # is not part of the page either
 	}
 	if !strings.HasPrefix(p, "/") {
 		p = "/" + p
 	}
+	slash := strings.HasSuffix(p, "/")
+	p = path.Clean(p)
+	if slash && p != "/" {
+		p += "/"
+	}
 	if strings.HasSuffix(p, "/index.html") {
 		p = strings.TrimSuffix(p, "index.html")
 	}
+	p = strings.ToValidUTF8(p, "")
 	if len(p) > maxPagePath {
 		p = strings.ToValidUTF8(p[:maxPagePath], "")
 	}
 	return p
+}
+
+// capDayItems bounds how many distinct pages (or referring domains) one site
+// keeps per day. existing selects the items a (site, day) already has. An item
+// already stored keeps counting; a new one takes a free slot while the site
+// has fewer than max that day (the most viewed first), and otherwise its views
+// go to otherItem. Without this, random paths or referrer spam would add a row
+// per request.
+func capDayItems(ctx context.Context, tx *sql.Tx, delta map[dayItemKey]int64, existing string, max int) (map[dayItemKey]int64, error) {
+	if len(delta) == 0 {
+		return delta, nil
+	}
+	type siteDay struct{ siteID, day string }
+	groups := map[siteDay]map[string]int64{}
+	for k, n := range delta {
+		sd := siteDay{k.siteID, k.day}
+		if groups[sd] == nil {
+			groups[sd] = map[string]int64{}
+		}
+		groups[sd][k.item] += n
+	}
+	out := make(map[dayItemKey]int64, len(delta))
+	for sd, items := range groups {
+		rows, err := tx.QueryContext(ctx, existing, sd.siteID, sd.day)
+		if err != nil {
+			return nil, err
+		}
+		have := map[string]bool{}
+		for rows.Next() {
+			var item string
+			if err := rows.Scan(&item); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			have[item] = true
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		for item, n := range capItems(have, items, max) {
+			out[dayItemKey{sd.siteID, sd.day, item}] = n
+		}
+	}
+	return out, nil
+}
+
+// capItems is capDayItems for one (site, day): have is what is stored,
+// items this run's views. otherItem does not take a slot.
+func capItems(have map[string]bool, items map[string]int64, max int) map[string]int64 {
+	used := len(have)
+	if have[otherItem] {
+		used--
+	}
+	var fresh []string
+	out := map[string]int64{}
+	for item, n := range items {
+		if have[item] || item == otherItem {
+			out[item] += n
+		} else {
+			fresh = append(fresh, item)
+		}
+	}
+	sort.Slice(fresh, func(a, b int) bool {
+		if items[fresh[a]] != items[fresh[b]] {
+			return items[fresh[a]] > items[fresh[b]]
+		}
+		return fresh[a] < fresh[b]
+	})
+	for _, item := range fresh {
+		if used < max {
+			out[item] += items[item]
+			used++
+		} else {
+			out[otherItem] += items[item]
+		}
+	}
+	return out
 }
 
 // caddyAccess is the subset of Caddy's JSON access log this needs.

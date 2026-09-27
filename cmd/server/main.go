@@ -274,6 +274,7 @@ func main() {
 		analytics.NewIngester(db, cfg.AnalyticsLog, cfg.AdminAPIKey, cfg.ContentHost, cfg.SiteDomain).
 			WithSalt(cfg.AnalyticsSalt).
 			WithRetentionDays(cfg.Limits.AnalyticsRetention).
+			WithItemCaps(cfg.Limits.AnalyticsPagesDay, cfg.Limits.AnalyticsRefsDay).
 			Start(5 * time.Minute)
 		log.Printf("analytics ingester enabled: %s", cfg.AnalyticsLog)
 	}

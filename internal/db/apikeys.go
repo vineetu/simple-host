@@ -169,7 +169,9 @@ func CreateAPIKey(ctx context.Context, db *sql.DB, userID, callerKeyHash, apiKey
 		callerKeyHash, userID).Scan(&one); err != nil {
 		return APIKey{}, err
 	}
-	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM api_keys WHERE user_id = $1`, userID).Scan(&n); err != nil {
+	// Keys that have stopped working do not count: an account minting
+	// short-lived CI keys must not fill the cap with dead ones.
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM api_keys WHERE user_id = $1 AND `+liveKeySQL, userID, idleExpirySeconds()).Scan(&n); err != nil {
 		return APIKey{}, err
 	}
 	if n >= MaxAccountKeys() {
@@ -242,10 +244,52 @@ func ReplaceAPIKeys(ctx context.Context, q Querier, userID, newKey, name string)
 	return AddAPIKey(ctx, q, userID, newKey, name)
 }
 
-// APIKeyScope is the scope of a stored key, or sql.ErrNoRows for a key that
-// is not stored (unknown, the env admin key, an internal credential).
+// liveKeySQL is the SQL form of keyExpired == "": the key has neither passed
+// its fixed expiry nor gone unused for KEY_IDLE_EXPIRY_DAYS. The idle expiry
+// in seconds is the query's $2 (0 = never).
+const liveKeySQL = `(expires_at IS NULL OR expires_at > now())
+	AND ($2::float8 <= 0 OR GREATEST(idle_from, COALESCE(last_used_at, idle_from)) + make_interval(secs => $2::float8) > now())`
+
+func idleExpirySeconds() float64 { return KeyIdleExpiry().Seconds() }
+
+// expiredKeyKeep is how long a key that stopped working stays in the Keys
+// panel (shown as expired) before PurgeExpiredAPIKeys removes it.
+const expiredKeyKeep = 30 * 24 * time.Hour
+
+// PurgeExpiredAPIKeys deletes keys that stopped working more than 30 days ago,
+// by fixed expiry or by going unused, and reports how many.
+func PurgeExpiredAPIKeys(ctx context.Context, q Querier) (int64, error) {
+	res, err := q.ExecContext(ctx, `
+		DELETE FROM api_keys
+		 WHERE (expires_at IS NOT NULL AND expires_at < now() - make_interval(secs => $1))
+		    OR ($2::float8 > 0 AND GREATEST(idle_from, COALESCE(last_used_at, idle_from)) + make_interval(secs => $2::float8) < now() - make_interval(secs => $1))`,
+		expiredKeyKeep.Seconds(), idleExpirySeconds())
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// APIKeyScope is the scope of a stored key that still works, or
+// sql.ErrNoRows for a key that is not stored (unknown, the env admin key, an
+// internal credential) or has expired: an expired key is passed on so the key
+// middleware can say it expired rather than that it is deploy-only.
 func APIKeyScope(ctx context.Context, q Querier, apiKey string) (string, error) {
-	var scope string
-	err := q.QueryRowContext(ctx, `SELECT scope FROM api_keys WHERE key_hash = $1`, HashAPIKey(apiKey)).Scan(&scope)
-	return scope, err
+	var (
+		scope     string
+		expiresAt *time.Time
+		idleFrom  time.Time
+		lastUsed  *time.Time
+		now       time.Time
+	)
+	err := q.QueryRowContext(ctx,
+		`SELECT scope, expires_at, idle_from, last_used_at, now() FROM api_keys WHERE key_hash = $1`,
+		HashAPIKey(apiKey)).Scan(&scope, &expiresAt, &idleFrom, &lastUsed, &now)
+	if err != nil {
+		return "", err
+	}
+	if keyExpired(now, expiresAt, idleFrom, lastUsed) != "" {
+		return "", sql.ErrNoRows
+	}
+	return scope, nil
 }

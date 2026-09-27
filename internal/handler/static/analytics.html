@@ -260,12 +260,12 @@
         </section>
 
         <section class="card">
-          <div class="card-head"><h2>Top pages</h2><span class="card-note">People, views</span></div>
+          <div class="card-head"><h2>Top pages</h2><span class="card-note">Views by people</span></div>
           <div id="pages-body"></div>
         </section>
 
         <section class="card">
-          <div class="card-head"><h2>Where visitors came from</h2><span class="card-note">Referring domain, people</span></div>
+          <div class="card-head"><h2>Where visitors came from</h2><span class="card-note">Referring domain, views by people</span></div>
           <div id="referrers-body"></div>
         </section>
       </div>
@@ -542,7 +542,7 @@ function parseAnalyticsSummary(data) {
         }
         var rows = entry.top[l[1]];
         if (!rows.length) { body.innerHTML = '<div class="empty-state">' + l[4] + '</div>'; return; }
-        body.innerHTML = '<table class="geo"><thead><tr><th>' + l[3] + '</th><th class="num">People</th></tr></thead><tbody>' +
+        body.innerHTML = '<table class="geo"><thead><tr><th>' + l[3] + '</th><th class="num">Views</th></tr></thead><tbody>' +
           rows.map(function (x) {
             return '<tr><td class="name">' + esc(String(x[l[2]])) + '</td><td class="num">' + Number(x.views).toLocaleString() + '</td></tr>';
           }).join('') + '</tbody></table>';

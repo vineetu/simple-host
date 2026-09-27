@@ -59,6 +59,8 @@ type Limits struct {
 	IdleAfter           time.Duration // IDLE_AFTER_DAYS
 	IdleGrace           time.Duration // IDLE_GRACE_DAYS
 	AnalyticsRetention  int           // ANALYTICS_RETENTION_DAYS (days)
+	AnalyticsPagesDay   int           // ANALYTICS_PAGES_PER_SITE_DAY
+	AnalyticsRefsDay    int           // ANALYTICS_REFERRERS_PER_SITE_DAY
 	APIMetricsRetention int           // API_METRICS_RETENTION_DAYS (days)
 	IdleReplyTo         string        // IDLE_REPLY_TO
 
@@ -248,6 +250,8 @@ func DefaultLimits() Limits {
 		IdleAfter:           90 * day,
 		IdleGrace:           30 * day,
 		AnalyticsRetention:  400,
+		AnalyticsPagesDay:   200,
+		AnalyticsRefsDay:    100,
 		APIMetricsRetention: 30,
 		IdleReplyTo:         "support@simple-host.app",
 
@@ -416,6 +420,10 @@ func Knobs() []Knob {
 		durKnob("IDLE_AFTER_DAYS", "days", d, 7, 3650, func(l *Limits) *time.Duration { return &l.IdleAfter }),
 		durKnob("IDLE_GRACE_DAYS", "days", d, 1, 365, func(l *Limits) *time.Duration { return &l.IdleGrace }),
 		intKnob("ANALYTICS_RETENTION_DAYS", "days", 1, 3650, func(l *Limits) *int { return &l.AnalyticsRetention }),
+		// Distinct pages and referring domains kept per site per day; the
+		// rest are counted together as "(other)".
+		intKnob("ANALYTICS_PAGES_PER_SITE_DAY", "pages", 10, 10_000, func(l *Limits) *int { return &l.AnalyticsPagesDay }),
+		intKnob("ANALYTICS_REFERRERS_PER_SITE_DAY", "domains", 10, 10_000, func(l *Limits) *int { return &l.AnalyticsRefsDay }),
 		intKnob("API_METRICS_RETENTION_DAYS", "days", 1, 3650, func(l *Limits) *int { return &l.APIMetricsRetention }),
 		{Env: "IDLE_REPLY_TO", Unit: "email address",
 			Value: func(l *Limits) string { return l.IdleReplyTo },

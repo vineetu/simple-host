@@ -1,11 +1,18 @@
 package handler
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/vsriram/simple-host/internal/auth"
+	"github.com/vsriram/simple-host/internal/db"
 )
 
 // A deploy-only key creates, updates, rolls back and lists sites and makes
@@ -264,6 +271,205 @@ func TestSiteTopAnalytics(t *testing.T) {
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("top analytics %s: missing %s", body, want)
+		}
+	}
+}
+
+// A deploy key minted by an admin carries no admin powers: GET /v1/sites and
+// the MCP list_sites tool list only the account's own sites, and the site
+// quota applies. The admin's full key keeps both. Needs DB_DSN.
+func TestDeployKeyNeverAdmin(t *testing.T) {
+	a := newConnectorApp(t)
+	withLimits(t, map[string]string{"MAX_SITES_PER_ACCOUNT": "1"})
+	boss := a.newPerson(t, "adminci")
+	other := a.newPerson(t, "bystander")
+	if _, err := a.database.Exec(`UPDATE users SET is_admin = true WHERE id = (SELECT user_id FROM api_keys WHERE key_hash = $1)`, db.HashAPIKey(boss.key)); err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]any{"files": map[string]string{"index.html": "x"}}
+	hdr := func(k string) map[string]string {
+		return map[string]string{"X-API-Key": k, "Content-Type": "application/json"}
+	}
+	if r := a.do(t, http.MethodPost, "/v1/sites/bystander-site/files", jsonBody(files), hdr(other.key)); r.status != http.StatusCreated {
+		t.Fatalf("other's site: %d %s", r.status, r.body)
+	}
+	r := a.do(t, http.MethodPost, "/v1/me/keys", jsonBody(map[string]any{"name": "CI", "scope": "deploy"}), hdr(boss.key))
+	if r.status != http.StatusCreated {
+		t.Fatalf("mint: %d %s", r.status, r.body)
+	}
+	dk := r.json(t)["api_key"].(string)
+
+	if r := a.do(t, http.MethodGet, "/v1/sites", nil, hdr(boss.key)); !strings.Contains(string(r.body), "bystander-site") {
+		t.Fatalf("admin full key should list every site: %d %s", r.status, r.body)
+	}
+	if r := a.do(t, http.MethodGet, "/v1/sites", nil, hdr(dk)); r.status != http.StatusOK || strings.Contains(string(r.body), "bystander-site") {
+		t.Errorf("deploy key listed another account's site: %d %s", r.status, r.body)
+	}
+	res := a.do(t, http.MethodPost, "/mcp", jsonBody(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+		"params": map[string]any{"name": "list_sites", "arguments": map[string]any{}}}),
+		map[string]string{"Content-Type": "application/json", "X-API-Key": dk, "MCP-Protocol-Version": "2025-06-18"})
+	if text, _, isErr := toolResultOf(t, res); isErr || strings.Contains(text, "bystander-site") {
+		t.Errorf("MCP list_sites with a deploy key: %v %s", isErr, text)
+	}
+
+	// Quota 1: the deploy key's first site fits, the second is refused.
+	if r := a.do(t, http.MethodPut, "/v1/sites/ci-one/files?create=1", jsonBody(files), hdr(dk)); r.status != http.StatusCreated {
+		t.Fatalf("first site: %d %s", r.status, r.body)
+	}
+	if r := a.do(t, http.MethodPut, "/v1/sites/ci-two/files?create=1", jsonBody(files), hdr(dk)); r.status != http.StatusForbidden || r.json(t)["code"] != "site_quota_reached" {
+		t.Errorf("deploy key over the quota: %d %s", r.status, r.body)
+	}
+	if r := a.do(t, http.MethodPost, "/v1/sites/ci-three/files", jsonBody(files), hdr(dk)); r.status != http.StatusForbidden || r.json(t)["code"] != "site_quota_reached" {
+		t.Errorf("deploy key POST over the quota: %d %s", r.status, r.body)
+	}
+	if r := a.do(t, http.MethodPost, "/v1/sites/boss-two/files", jsonBody(files), hdr(boss.key)); r.status != http.StatusCreated {
+		t.Errorf("admin full key stays exempt from the quota: %d %s", r.status, r.body)
+	}
+}
+
+// Two CI jobs racing PUT ?create=1 on a site that does not exist yet: one
+// creates it and the rest publish a new version, none gets site_exists.
+// Needs DB_DSN.
+func TestPutCreateRace(t *testing.T) {
+	a := newConnectorApp(t)
+	p := a.newPerson(t, "race")
+	const n = 6
+	statuses := make(chan int, n)
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			body, _ := json.Marshal(map[string]any{"files": map[string]string{"index.html": fmt.Sprint("v", i)}})
+			req, _ := http.NewRequest(http.MethodPut, a.srv.URL+"/v1/sites/raced/files?create=1", bytes.NewReader(body))
+			req.Header.Set("X-API-Key", p.key)
+			req.Header.Set("Content-Type", "application/json")
+			<-start
+			res, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			b, _ := io.ReadAll(res.Body)
+			res.Body.Close()
+			if res.StatusCode != http.StatusCreated && res.StatusCode != http.StatusOK {
+				t.Errorf("racing PUT ?create=1: %d %s", res.StatusCode, b)
+			}
+			statuses <- res.StatusCode
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+	close(statuses)
+	created := 0
+	for s := range statuses {
+		if s == http.StatusCreated {
+			created++
+		}
+	}
+	if created != 1 {
+		t.Errorf("%d calls created the site, want 1", created)
+	}
+	var versions int
+	if err := a.database.QueryRow(`SELECT count(*) FROM versions v JOIN sites s ON s.id = v.site_id
+		JOIN api_keys k ON k.user_id = s.user_id WHERE k.key_hash = $1 AND s.name = 'raced'`, db.HashAPIKey(p.key)).Scan(&versions); err != nil {
+		t.Fatal(err)
+	}
+	if versions != n {
+		t.Errorf("%d versions after %d uploads", versions, n)
+	}
+}
+
+// Keys that stopped working leave room under MAX_KEYS_PER_ACCOUNT, and are
+// deleted 30 days after they stopped. Needs DB_DSN.
+func TestExpiredKeysFreeTheCapAndArePurged(t *testing.T) {
+	a := newConnectorApp(t)
+	withLimits(t, map[string]string{"MAX_KEYS_PER_ACCOUNT": "3"})
+	p := a.newPerson(t, "keycap")
+	h := map[string]string{"X-API-Key": p.key, "Content-Type": "application/json"}
+	var ids []string
+	for i := len(keysOf(t, a, p.key)); i < 3; i++ {
+		r := a.do(t, http.MethodPost, "/v1/me/keys", jsonBody(map[string]string{"name": fmt.Sprint("k", i)}), h)
+		if r.status != http.StatusCreated {
+			t.Fatalf("key %d: %d %s", i, r.status, r.body)
+		}
+		ids = append(ids, r.json(t)["id"].(string))
+	}
+	if r := a.do(t, http.MethodPost, "/v1/me/keys", jsonBody(map[string]string{"name": "full"}), h); r.status != http.StatusConflict {
+		t.Fatalf("at the cap: %d %s", r.status, r.body)
+	}
+	if len(ids) < 2 {
+		t.Fatalf("need two minted keys, have %d", len(ids))
+	}
+	// One past its fixed expiry long ago, one idle long ago.
+	if _, err := a.database.Exec(`UPDATE api_keys SET expires_at = now() - interval '31 days' WHERE id = $1`, ids[0]); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.database.Exec(`UPDATE api_keys SET idle_from = now() - interval '300 days', last_used_at = NULL WHERE id = $1`, ids[1]); err != nil {
+		t.Fatal(err)
+	}
+	r := a.do(t, http.MethodPost, "/v1/me/keys", jsonBody(map[string]string{"name": "room"}), h)
+	if r.status != http.StatusCreated {
+		t.Fatalf("expired keys still count toward the cap: %d %s", r.status, r.body)
+	}
+	recent := r.json(t)["id"].(string)
+	if _, err := a.database.Exec(`UPDATE api_keys SET expires_at = now() - interval '1 day' WHERE id = $1`, recent); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.PurgeExpiredAPIKeys(context.Background(), a.database); err != nil {
+		t.Fatal(err)
+	}
+	left := map[string]bool{}
+	for _, k := range keysOf(t, a, p.key) {
+		left[k["id"].(string)] = true
+	}
+	if left[ids[0]] || left[ids[1]] {
+		t.Errorf("keys expired over 30 days ago were kept: %v", left)
+	}
+	if !left[recent] {
+		t.Error("a key expired a day ago was purged; it should stay listed for 30 days")
+	}
+}
+
+// An expired key says so everywhere: on /mcp as 401 key_expired with no OAuth
+// challenge, and a deploy key on a route it may not call as key_expired
+// rather than deploy_only_key. Needs DB_DSN.
+func TestExpiredKeyOnMCPAndOffDeployRoutes(t *testing.T) {
+	a := newConnectorApp(t)
+	p := a.newPerson(t, "mcpexp")
+	full := map[string]string{"X-API-Key": p.key, "Content-Type": "application/json"}
+	r := a.do(t, http.MethodPost, "/v1/me/keys", jsonBody(map[string]any{"name": "CI", "scope": "deploy"}), full)
+	if r.status != http.StatusCreated {
+		t.Fatalf("mint: %d %s", r.status, r.body)
+	}
+	dk, id := r.json(t)["api_key"].(string), r.json(t)["id"].(string)
+	if _, err := a.database.Exec(`UPDATE api_keys SET expires_at = now() - interval '1 second' WHERE id = $1`, id); err != nil {
+		t.Fatal(err)
+	}
+	res := a.do(t, http.MethodPost, "/mcp", jsonBody(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}),
+		map[string]string{"Content-Type": "application/json", "X-API-Key": dk, "MCP-Protocol-Version": "2025-06-18"})
+	if res.status != http.StatusUnauthorized || res.json(t)["code"] != "key_expired" || res.header.Get("WWW-Authenticate") != "" {
+		t.Errorf("/mcp with an expired key: %d %v %s", res.status, res.header.Get("WWW-Authenticate"), res.body)
+	}
+	if r := a.do(t, http.MethodGet, "/v1/me", nil, map[string]string{"X-API-Key": dk}); r.status != http.StatusUnauthorized || r.json(t)["code"] != "key_expired" {
+		t.Errorf("expired deploy key off its routes: %d %s", r.status, r.body)
+	}
+}
+
+// The Keys panel states KEY_IDLE_EXPIRY_DAYS, including when it is off.
+func TestKeysPanelIdleCopyFollowsSetting(t *testing.T) {
+	for v, want := range map[string]string{
+		"90": "A key unused for 90 days stops working.",
+		"0":  "Unused keys keep working until revoked.",
+	} {
+		withLimits(t, map[string]string{"KEY_IDLE_EXPIRY_DAYS": v})
+		page, err := chromePage("showcase.html", chromeData{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(page), want) || strings.Contains(string(page), "unused for 180 days") {
+			t.Errorf("KEY_IDLE_EXPIRY_DAYS=%s: Keys panel does not say %q", v, want)
 		}
 	}
 }

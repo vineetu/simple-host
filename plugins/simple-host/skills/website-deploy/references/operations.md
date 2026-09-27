@@ -37,7 +37,8 @@ Each sign-in and each agent holds its own key. Keys issued now start with
   CI secret or another machine and returns `api_key` once. Add
   `"scope":"deploy"` for a **deploy-only** key (create, update, roll back and
   list sites, preview links; everything else answers 403 `deploy_only_key`),
-  the right key for a CI secret, and `"expires_in_days": 90` (1–3650) for one
+  the right key for a CI secret (treat a deploy key like the site itself: it
+  can ship code that runs when you view the site), and `"expires_in_days": 90` (1–3650) for one
   that stops on a date. The list shows `scope`, `expires_at`,
   `idle_expires_at` and, once a key has stopped, `expired`.
 - `DELETE /v1/me/keys/<id>` revokes one key; the others keep working. This is
@@ -114,9 +115,9 @@ Read a retained version's files (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.24.1"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.24.2"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.24.1"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.24.2"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte

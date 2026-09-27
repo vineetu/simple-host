@@ -1223,6 +1223,23 @@ func (h *SiteHandler) createSite(w http.ResponseWriter, r *http.Request) {
 // (createSiteFiles) so both inherit identical versioning, locking, commit-then-
 // promote ordering, and deploy-queue behavior.
 func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string) {
+	h.commitCreate(w, r, user, siteName, files, archiveSHA, false)
+}
+
+// createOrUpdateSite is the commit for PUT ?create=1: it creates the site, and
+// when a concurrent call created it first (two CI jobs racing), commits the
+// upload as an update instead of answering site_exists to a caller that asked
+// for create-or-update.
+func (h *SiteHandler) createOrUpdateSite(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, publish bool) {
+	if h.commitCreate(w, r, user, siteName, files, archiveSHA, true) {
+		h.commitSiteUpdate(w, r, user, siteName, files, archiveSHA, publish)
+	}
+}
+
+// commitCreate commits files as a new site. With orUpdate, a site of that name
+// that already exists is not an error: nothing is written and it reports true
+// so the caller updates it (after this has released the site lock).
+func (h *SiteHandler) commitCreate(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, orUpdate bool) (exists bool) {
 	// A guest-created users row has a NULL handle until owner-intent. First
 	// deploy is owner-intent: assign before building the path-model site URL.
 	if user != nil && (!user.Handle.Valid || user.Handle.String == "") {
@@ -1264,6 +1281,9 @@ func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user
 			if msg, held := h.deletedNameConflict(r.Context(), user.ID, siteName); held {
 				writeJSON(w, http.StatusConflict, map[string]any{"error": msg, "code": "recently_deleted", "recently_deleted": true})
 				return
+			}
+			if orUpdate {
+				return true
 			}
 			writeJSON(w, http.StatusConflict, errorResponse{Error: "site already exists: use PUT to update it (PUT /v1/sites/" + siteName + " or PUT /v1/sites/" + siteName + "/files); add ?create=1 to a PUT to create or update in one call", Code: "site_exists"})
 			return
@@ -1339,6 +1359,7 @@ func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user
 	}
 
 	writeJSON(w, http.StatusCreated, h.toSiteResponse(site, ""))
+	return false
 }
 
 func (h *SiteHandler) updateSite(w http.ResponseWriter, r *http.Request) {
@@ -1374,7 +1395,7 @@ func (h *SiteHandler) updateSite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if create {
-		h.commitNewSite(w, r, user, siteName, files, archiveSHA)
+		h.createOrUpdateSite(w, r, user, siteName, files, archiveSHA, publish)
 		return
 	}
 	h.commitSiteUpdate(w, r, user, siteName, files, archiveSHA, publish)
@@ -1701,7 +1722,7 @@ func (h *SiteHandler) updateSiteFiles(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if create {
-		h.commitNewSite(w, r, user, siteName, files, digest)
+		h.createOrUpdateSite(w, r, user, siteName, files, digest, publish)
 		return
 	}
 	h.commitSiteUpdate(w, r, user, siteName, files, digest, publish)

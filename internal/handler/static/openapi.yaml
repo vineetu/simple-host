@@ -876,7 +876,10 @@ paths:
         create, connecting apps, and the same through /mcp) answers 403 deploy_only_key. Use it for
         a CI secret. `expires_in_days` (1-3650) gives the key a fixed expiry; without it the key
         stops only when it goes unused (KEY_IDLE_EXPIRY_DAYS). Needs one of the account's own keys (the admin env key
-        or a connected app gets 400 not_an_account_key). An account holds at most 50 keys (409 key_limit);
+        or a connected app gets 400 not_an_account_key). An account holds at most 50 keys (409 key_limit;
+        keys that have stopped working do not count, and are deleted 30 days after they stop). A
+        deploy key never carries admin powers. Treat a deploy key like the site itself: it can ship
+        code that runs when you view the site;
         a key revoked or rotated away mid-request gets 401 invalid_api_key.
       tags: [Auth]
       security: [{ apiKey: [] }]
@@ -1691,8 +1694,11 @@ paths:
       operationId: getSitesBySitenameAnalyticsTop
       summary: A site's top pages and where its visitors came from
       description: >-
-        The 20 most viewed pages (path on the site, without the query string) and the 20 top
-        referring domains over the last `days` UTC days, people only, most views first. A referrer
+        The 20 most viewed pages (path on the site, without the query string or fragment,
+        percent-escapes decoded once and `//` collapsed) and the 20 top referring domains over the
+        last `days` UTC days, people only, most views first. A site keeps at most
+        ANALYTICS_PAGES_PER_SITE_DAY pages and ANALYTICS_REFERRERS_PER_SITE_DAY domains a day; the
+        views of further new ones that day are listed as `(other)`. A referrer
         is recorded as its domain alone — never a full address, path or query — and a link from
         the site's own address is not counted. Owner only (API key); the platform admin may pass
         `owner`.

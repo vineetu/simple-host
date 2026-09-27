@@ -135,7 +135,8 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 	return h
 }
 
-// StartSweep removes expired codes and tokens and abandoned registrations.
+// StartSweep removes expired codes and tokens, abandoned registrations, and
+// API keys that stopped working more than 30 days ago.
 func (h *ConnectorHandler) StartSweep(every time.Duration) {
 	h.registerLimiter.startCleanup(10*time.Minute, 2*time.Hour)
 	h.authorizeLimiter.startCleanup(10*time.Minute, 30*time.Minute)
@@ -146,6 +147,11 @@ func (h *ConnectorHandler) StartSweep(every time.Duration) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			if err := db.SweepOAuth(ctx, h.database); err != nil {
 				log.Printf("connector sweep: %v", err)
+			}
+			if n, err := db.PurgeExpiredAPIKeys(ctx, h.database); err != nil {
+				log.Printf("api key sweep: %v", err)
+			} else if n > 0 {
+				log.Printf("api key sweep: removed %d keys expired over 30 days", n)
 			}
 			cancel()
 			time.Sleep(every)
@@ -1196,9 +1202,17 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 	} else if key := r.Header.Get("X-API-Key"); key != "" {
 		// Coding agents that already hold a key can use the endpoint too.
 		if subtle.ConstantTimeCompare([]byte(key), []byte(h.adminAPIKey)) != 1 {
-			if _, err := db.GetUserByAPIKey(r.Context(), h.database, key); err != nil {
+			if u, err := db.GetUserByAPIKey(r.Context(), h.database, key); err != nil {
 				if errors.Is(err, db.ErrAccountSuspended) {
 					writeAccountSuspended(w)
+					return
+				}
+				if errors.Is(err, db.ErrKeyExpired) || errors.Is(err, db.ErrKeyExpiredIdle) {
+					// Say why, with no OAuth challenge: the caller holds a key
+					// and needs a new one, not a sign-in flow.
+					msg, code := auth.ExpiredKeyMessage(err, u.KeyExpiresAt)
+					w.Header().Set("Cache-Control", "no-store")
+					writeJSON(w, http.StatusUnauthorized, errorResponse{Error: msg, Code: code})
 					return
 				}
 				h.mcpUnauthorized(w, true)

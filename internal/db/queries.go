@@ -110,6 +110,12 @@ func GetUserByAPIKey(ctx context.Context, db *sql.DB, apiKey string) (User, erro
 		&lastUsed,
 		&now,
 	)
+	if err == nil && user.KeyScope == KeyScopeDeploy {
+		// A deploy key never carries admin powers, even when an admin
+		// minted it: a leaked CI secret must not list every site on the
+		// instance or skip the site quota.
+		user.IsAdmin = false
+	}
 	if err == nil {
 		// An expired key is kept (the owner sees it in the Keys panel as
 		// expired and can revoke it) but never authenticates.

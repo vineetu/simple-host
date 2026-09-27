@@ -379,8 +379,14 @@ a recovery hint on MCP). A key unused for `KEY_IDLE_EXPIRY_DAYS` (default 180; 0
 working, counted from the later of its last use and `idle_from` (creation, or the day the
 migration ran for older keys): 401 `key_expired_idle` saying to create a new key. A panel-minted
 key may also carry a fixed expiry (`expires_in_days` 1–3650, `api_keys.expires_at`; 401
-`key_expired` with the date). Expired keys stay listed (`expired`: `expired`/`idle`) until
-revoked. The Keys list shows a "Deploy only" badge, last used, and the expiry or the date it
+`key_expired` with the date). Expired keys stay listed (`expired`: `expired`/`idle`), do not count
+toward `MAX_KEYS_PER_ACCOUNT`, and are deleted 30 days after they stopped (the hourly connector
+sweep). A deploy key never carries admin powers, even one an admin minted (it lists only the
+account's own sites and the site quota applies). An expired key on `/mcp` gets the same 401
+`key_expired`/`key_expired_idle` (no OAuth challenge), and an expired deploy key off its routes
+gets that 401 rather than 403 `deploy_only_key`. `PUT ?create=1` racing another create of the
+same name publishes as an update instead of answering `site_exists`. Treat a deploy key like the
+site itself: it can ship code that runs when you view the site. The Keys list shows a "Deploy only" badge, last used, and the expiry or the date it
 stops if unused (`scope`, `expires_at`, `idle_expires_at` on `GET /v1/me/keys`).
 
 **Your data (GDPR self-service, 2026-09-27).** "Download my data" (`GET /v1/me/export.zip`,
@@ -536,9 +542,12 @@ traffic. Admin = `ADMIN_API_KEY` or the admin user. **Status: live.**
 Server-side visitor analytics tailed from the nginx (or Caddy) log into hourly/daily aggregates,
 with country from local IP-range data; per-endpoint API metrics for admin. No client script.
 Top pages and where visitors came from (2026-09-27): people's views per site-relative page
-(query dropped, `/index.html` folded into `/`, at most 200 bytes) and per referring domain (the
-log carries the referrer's host name only; a link from the site's own address is not counted),
-per day; `GET /v1/sites/{sitename}/analytics/top?days=` answers the top 20 of each, shown per
+(query and fragment dropped, percent-escapes decoded once, `//` collapsed, `/index.html` folded
+into `/`, at most 200 bytes) and per referring domain (the log carries the referrer's host name
+only; a link from the site's own address is not counted), per day. A site keeps at most
+`ANALYTICS_PAGES_PER_SITE_DAY` (200) pages and `ANALYTICS_REFERRERS_PER_SITE_DAY` (100) domains a
+day; views of further new ones that day are counted as `(other)`, so random paths or referrer spam
+cannot grow the tables; `GET /v1/sites/{sitename}/analytics/top?days=` answers the top 20 of each, shown per
 site in the owner app's Analytics tab ("Top pages and referrers"), on the per-site analytics
 page, and in MCP `site_analytics` (`top_pages`, `top_referrers`).
 **Status: live** (`ANALYTICS_LOG` set).
