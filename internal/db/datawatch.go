@@ -102,7 +102,7 @@ func ListDataWatch(ctx context.Context, database *sql.DB, days int) ([]DataWatch
 		  FROM data_watch w
 		  JOIN sites s ON s.id = w.site_id
 		  LEFT JOIN users u ON u.id = s.user_id
-		 WHERE w.day > (now() AT TIME ZONE 'UTC')::date - $1
+		 WHERE w.day > (now() AT TIME ZONE 'UTC')::date - $1::int
 		 GROUP BY w.site_id, s.name, u.handle, w.metric`, days)
 	if err != nil {
 		return nil, time.Time{}, err
