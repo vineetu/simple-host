@@ -125,6 +125,25 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	call("delete_collection_item", map[string]any{"site": "shop", "collection": "orders", "id": id, "confirm_id": id})
 	call("set_collection_privacy", map[string]any{"site": "shop", "collection": "orders", "private": false})
 	call("clear_collection", map[string]any{"site": "shop", "collection": "orders", "confirm_collection": "orders"})
+	// Undo: every change is kept, deleted items come back.
+	if s := call("list_deleted", map[string]any{"site": "shop", "collection": "orders"}); len(s["items"].([]any)) != 1 {
+		t.Fatalf("list_deleted: %v", s)
+	}
+	call("restore_item", map[string]any{"site": "shop", "collection": "orders", "id": id})
+	call("clear_collection", map[string]any{"site": "shop", "collection": "orders", "confirm_collection": "orders"})
+	call("restore_item", map[string]any{"site": "shop", "collection": "orders", "all": true})
+	hist := call("data_history", map[string]any{"site": "shop", "collection": "orders"})
+	edit := ""
+	for _, raw := range hist["changes"].([]any) {
+		if c := raw.(map[string]any); c["op"] == "edit" {
+			edit = c["version"].(string)
+		}
+	}
+	call("data_history", map[string]any{"site": "shop", "collection": "orders", "version": edit})
+	call("restore_data", map[string]any{"site": "shop", "collection": "orders", "version": edit})
+	docs := call("data_history", map[string]any{"site": "shop", "limit": 5})
+	first := docs["changes"].([]any)[0].(map[string]any)["version"].(string)
+	call("restore_data", map[string]any{"site": "shop", "version": first})
 
 	call("site_analytics", map[string]any{"site": "shop", "days": 7})
 	call("export_site", map[string]any{"site": "shop"})

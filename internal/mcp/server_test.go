@@ -322,6 +322,10 @@ func TestAnnotationsMatchBehaviour(t *testing.T) {
 		"update_collection_item": {false, true, false},
 		"delete_collection_item": {false, true, false},
 		"clear_collection":       {false, true, false},
+		"data_history":           {true, false, false},
+		"restore_data":           {false, false, true},
+		"list_deleted":           {true, false, false},
+		"restore_item":           {false, false, true},
 	}
 	tools := Tools()
 	if len(tools) != len(want) {
