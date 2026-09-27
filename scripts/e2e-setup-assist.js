@@ -216,7 +216,8 @@ async function smallBox(browser, width) {
   for (const want of ['UpCloud', 'UPCLOUD_USERNAME', 'upctl', 'STARTER-1xCPU-1GB', 'Ubuntu Server 24.04 LTS', 'tier `standard`', '~/.ssh/simple-host.pub', 'hack.example.com, *.hack.example.com', 'https://hack.example.com/admin', 'https://hack.example.com/healthz', 'root@<the server’s IPv4>'])
     assert(agent.includes(want), 'the UpCloud prompt has ' + want);
   assert(/never ask me to paste them into this chat, never print them, and never write them to a file/.test(agent), 'the prompt keeps the UpCloud credentials in the environment');
-  assert(!/UPCLOUD_PASSWORD=\S/.test(agent), 'the prompt holds no credential value');
+  assert(!/UPCLOUD_PASSWORD=\S/.test(agent) && !/curl[^\n]* -u /.test(agent), 'the prompt holds no credential value and never puts one in a command\'s arguments');
+  assert(agent.includes(`printf 'header = "Authorization: Basic %s"\\n' "$(printf '%s:%s' "$UPCLOUD_USERNAME" "$UPCLOUD_PASSWORD" | base64 | tr -d '\\n')" | curl -fsS -K - https://api.upcloud.com/1.3/account`), 'curl reads the API user from its standard input');
   assert(agent.includes('dig +short hack.example.com') && agent.includes('RATE_LIMIT_UPLOAD=120,2s') && agent.includes('/healthz') && agent.includes('/setup?product=small-box#help'), 'the block for your AI agent has DNS, the files, the checks and the help link');
   await page.locator('#agent').screenshot({ path: `${shots}/${tag}-files-agent.png` });
 
