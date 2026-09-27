@@ -1546,7 +1546,7 @@ function parseAnalyticsSummary(data) {
         var sres = await api('GET', '/v1/sites');
         if (sres.ok) {
           var data = await sres.json();
-          // /v1/sites is wrapped as {data:[...],_notice} for callers without an
+          // /v1/sites was wrapped as {data:[...],_notice} for callers without an
           // X-Skill-Version header (every browser) — unwrap it.
           var arr = Array.isArray(data) ? data : (data && Array.isArray(data.data) ? data.data : []);
           // On your OWN showcase, show only YOUR sites (an admin's /v1/sites

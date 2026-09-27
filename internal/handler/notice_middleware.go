@@ -10,10 +10,12 @@ import (
 	"strings"
 )
 
-// NoticeMiddleware returns a middleware that injects a `_notice` field
-// into JSON responses when the caller's `X-Skill-Version` header is
-// missing or stale. The notice text directs the caller to re-run the
-// install script.
+// NoticeMiddleware returns a middleware that tells a caller whose
+// `X-Skill-Version` header is missing or stale to update its skill: every
+// JSON response carries the notice in an `X-Skill-Notice` header, and a JSON
+// object also gains a top-level `_notice` field. A response never changes
+// shape because of the header: a top-level array stays a bare array (the
+// header is its notice), and an object keeps every field exactly as written.
 //
 // Scoping is structural — only routes whose Register methods accept this
 // middleware as a parameter receive it. State endpoints, static serving,
@@ -53,7 +55,9 @@ func NoticeMiddleware(serverVersion string) func(http.Handler) http.Handler {
 				return
 			}
 
-			injected, ok := injectNotice(rec.body.Bytes(), serverVersion, requestBaseURL(r))
+			notice := noticeText(serverVersion, requestBaseURL(r))
+			w.Header().Set("X-Skill-Notice", notice)
+			injected, ok := injectNotice(rec.body.Bytes(), notice)
 			if !ok {
 				if rec.status != 0 {
 					w.WriteHeader(rec.status)
@@ -161,34 +165,27 @@ func requestBaseURL(r *http.Request) string {
 	return scheme + "://" + host
 }
 
-// injectNotice decodes JSON, adds a top-level `_notice` field, and
-// re-encodes. For top-level arrays, the result is wrapped as
-// `{data: [...], _notice: ...}`. Returns ok=false on decode failure so
-// the caller can pass the original body through unchanged.
-func injectNotice(raw []byte, version, baseURL string) ([]byte, bool) {
-	notice := noticeText(version, baseURL)
-
-	var asObject map[string]any
-	if err := json.Unmarshal(raw, &asObject); err == nil && asObject != nil {
-		asObject["_notice"] = notice
-		out, err := json.Marshal(asObject)
-		if err != nil {
-			return nil, false
-		}
-		return out, true
+// injectNotice adds a top-level `_notice` field to a JSON object, splicing
+// it in after the opening brace so every other field keeps its exact bytes
+// (numbers are never re-encoded). Anything else (an array, a scalar, invalid
+// JSON) comes back ok=false and is passed through unchanged.
+func injectNotice(raw []byte, notice string) ([]byte, bool) {
+	body := bytes.TrimSpace(raw)
+	if len(body) < 2 || body[0] != '{' || !json.Valid(body) {
+		return nil, false
 	}
-
-	var asArray []any
-	if err := json.Unmarshal(raw, &asArray); err == nil {
-		wrapped := map[string]any{"data": asArray, "_notice": notice}
-		out, err := json.Marshal(wrapped)
-		if err != nil {
-			return nil, false
-		}
-		return out, true
+	field, err := json.Marshal(notice)
+	if err != nil {
+		return nil, false
 	}
-
-	return nil, false
+	rest := bytes.TrimSpace(body[1:])
+	out := make([]byte, 0, len(body)+len(field)+13)
+	out = append(out, `{"_notice":`...)
+	out = append(out, field...)
+	if rest[0] != '}' {
+		out = append(out, ',')
+	}
+	return append(out, rest...), true
 }
 
 func noticeText(version, baseURL string) string {

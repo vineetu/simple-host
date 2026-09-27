@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 	"os"
 	"strings"
@@ -207,7 +208,8 @@ func TestSiteListCarriesPendingDomainState(t *testing.T) {
 		t.Fatalf("bind own domain: %d %s", r.status, r.body)
 	}
 	r := a.at(t, "GET", apex, "/v1/sites", nil, okey)
-	sites, _ := r.json(t)["data"].([]any)
+	var sites []any
+	_ = json.Unmarshal(r.body, &sites)
 	if r.status != 200 || len(sites) != 1 {
 		t.Fatalf("list: %d %s", r.status, r.body)
 	}
@@ -223,7 +225,9 @@ func TestSiteListCarriesPendingDomainState(t *testing.T) {
 		t.Fatal(err)
 	}
 	r = a.at(t, "GET", apex, "/v1/sites", nil, okey)
-	s = r.json(t)["data"].([]any)[0].(map[string]any)
+	sites = nil
+	_ = json.Unmarshal(r.body, &sites)
+	s = sites[0].(map[string]any)
 	if s["domain_certificate_status"] != "issuing" {
 		t.Fatalf("certificate status: %s", r.body)
 	}

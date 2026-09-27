@@ -259,7 +259,8 @@ app). Full code, limits and error codes: `references/backend.md`.
 - **Origin-gating trips up non-browser reads.** A `curl`/script read with no
   `Origin` gets **403**. Send one:
   `curl -H "Origin: https://<name>.<handle>.simple-host.app" https://<name>.<handle>.simple-host.app/v1/sites/<name>/state`
-- **On a staleness notice:** API responses carry a `_notice` field when this skill
+- **On a staleness notice:** API responses carry a `_notice` field (and an
+  `X-Skill-Notice` header; a list answer carries only the header) when this skill
   is out of date. Relay it to the user verbatim, then update the skill the way it
   was installed — usually `npx skills add vineetu/simple-host`; other ways are at
   https://simple-host.app/docs.html#install-skills. Never pipe a downloaded script
