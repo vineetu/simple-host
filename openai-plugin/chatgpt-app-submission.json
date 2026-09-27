@@ -188,6 +188,18 @@
         "destructive_justification": "Nothing is deleted: files, versions and saved data are kept, and calling it with the other value puts the site back exactly as it was."
       }
     },
+    "keep_site": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It marks a site Keep or clears the mark, so it modifies data.",
+        "open_world_justification": "The mark decides whether a public site on the internet can be flagged by the idle-site cleanup.",
+        "destructive_justification": "It changes a flag only; nothing is deleted or published, and the other value undoes it."
+      }
+    },
     "get_state": {
       "annotations": {
         "readOnlyHint": true,

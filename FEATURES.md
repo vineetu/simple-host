@@ -68,7 +68,8 @@ reply-to support@simple-host.app) with one-click **Keep it** (resets the clock, 
 it moves to Recently deleted and a second email carries a one-click **Restore it** link. Exempt:
 a custom domain or claimed name (current, earlier or retired), the **Keep** flag (owner app
 "Keep for good", `PUT /v1/sites/{sitename}/keep`, MCP `keep_site`), admin accounts' sites,
-taken-down sites, suspended accounts, preview sites. Runs every 6 h, at most
+taken-down sites, sites taken offline by their owner (a warning pending when a site goes offline
+is dropped), suspended accounts, preview sites. Runs every 6 h, at most
 `IDLE_CLEANUP_MAX_EMAILS` (default 50) emails per run, removals first; a site is removed only
 after its warning was sent. Nothing runs without 90 days of visit records and an analytics
 ingest in the last 48 h. Link tokens are random, stored as SHA-256, replaced at every step and
@@ -332,7 +333,7 @@ as the person, so they meet the same checks as REST. Connector tokens are stored
 ## 9. Skills and plugin distribution
 
 Skills source is `simple-host-website/skills/` (embedded via `simple-host-website/embed.go`) at
-version **0.20.5**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
+version **0.21.0**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live**
 (ChatGPT and Claude directory listings submitted 2026-09-24, pending).
 
@@ -501,7 +502,7 @@ responses (§9) is the only in-band notice.
 | Env | `DB_DSN`, `PORT`, `BIND_ADDR`, `DATA_DIR`, `SITE_DOMAIN`, `PUBLIC_BASE_URL`, `CONTENT_HOST`; dev-only `CHROME_SERVE_ADDR`, `CHROME_SERVE_FOR`; migration-only `UNIFY_KEEP` |
 | Deploy | `/usr/local/bin/simple-host` as `simple-host.service`, env `/etc/simple-host.env`; `deploy/prod/*` (incl. log retention `logrotate-analytics.conf` and `journald-retention.conf`, 30 days), `Dockerfile`, `compose.yaml`, `Makefile`; checks `scripts/check-{docs-sync,features,html,layering,claude-plugin,reserved-subdomains,fresh-install}.sh` |
 
-## 21. MCP tool index (`internal/mcp/tools.go`, 28 tools)
+## 21. MCP tool index (`internal/mcp/tools.go`, 30 tools)
 
 | Tool | REST call | § |
 |---|---|---|

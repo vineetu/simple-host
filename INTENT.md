@@ -306,7 +306,8 @@ What follows from that, and is not negotiable without changing the line above:
   one-click "Keep it" (resets the clock, no sign-in) and "Download it" links; 30 days later with
   nothing done it moves to Recently deleted (7 days) and a second email carries a one-click
   "Restore it" link. Never touched: sites with a custom domain or claimed name, sites the owner
-  marks Keep (owner app and `keep_site`), admin and operator sites, taken-down sites. The owner's
+  marks Keep (owner app and `keep_site`), sites the owner took offline (they acted on it on
+  purpose), preview sites, admin and operator sites, taken-down sites. The owner's
   own visits cannot be told apart from anyone else's (visitor addresses are only kept hashed), so
   any person's visit counts. Off until `IDLE_CLEANUP=on`, with an admin dry run to check first,
   a per-run email cap, and nothing done while visit records are too short or stale to trust.

@@ -16,8 +16,9 @@ import (
 //
 // Never considered: sites in Recently deleted, taken down, owned by a
 // suspended or admin account, with the Keep flag, with a custom domain or a
-// claimed <name>.<SITE_DOMAIN> (current, earlier or retired), and preview
-// sites (they expire on their own).
+// claimed <name>.<SITE_DOMAIN> (current, earlier or retired), taken offline
+// by their owner (a deliberate choice to keep it, just not serve it), and
+// preview sites (they expire on their own).
 
 // IdleSite is one site the cleanup acts on (or would, in the dry run).
 type IdleSite struct {
@@ -41,6 +42,7 @@ const idleLastActivity = `GREATEST(
 // idleEligible is the WHERE clause every stage shares: the exemptions.
 const idleEligible = `s.deleted_at IS NULL
 	AND s.suspended_at IS NULL
+	AND s.offline_at IS NULL
 	AND u.suspended_at IS NULL
 	AND NOT u.is_admin
 	AND NOT s.idle_keep

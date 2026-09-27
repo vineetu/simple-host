@@ -81,9 +81,9 @@ Read a retained version's files (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.5"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.21.0"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.5"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.21.0"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte
@@ -116,7 +116,7 @@ its owner an email with one-click "Keep it" and "Download it" links; 30 days
 later with nothing done it moves to Recently deleted, and a second email has a
 one-click "Restore it" link. `GET /v1/sites` shows `idle_removal_at` on such a
 site; a new deploy or a visit also clears it. Sites with their own domain or
-claimed name are never flagged. To keep a site up for good:
+claimed name, and sites taken offline, are never flagged. To keep a site up for good:
 
 ```
 PUT /v1/sites/<sitename>/keep   {"keep": true}

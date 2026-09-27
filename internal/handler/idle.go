@@ -29,7 +29,8 @@ import (
 // second email carries a one-click "Restore it" link. Exempt: sites with a
 // custom domain or a claimed name, sites marked Keep (owner app, PUT
 // /v1/sites/{site}/keep, MCP keep_site), admin accounts' sites, taken-down
-// sites and suspended accounts, preview sites (db/idle.go has the rule).
+// sites and suspended accounts, sites their owner took offline, preview sites
+// (db/idle.go has the rule).
 //
 // Off unless IDLE_CLEANUP=on. The admin page's dry run (GET
 // /v1/admin/idle-sites) lists what a run would do either way. Each run sends
@@ -248,7 +249,7 @@ func (h *SiteHandler) removeIdleSite(ctx context.Context, mailer replyNoticeSend
 	unlock := h.lockSite(s.UserID, s.Name)
 	defer unlock()
 	site, err := db.GetSiteByUser(ctx, h.database, s.UserID, s.Name)
-	if err != nil || site.ID != s.SiteID || site.Suspended() {
+	if err != nil || site.ID != s.SiteID || site.Suspended() || site.Offline {
 		return
 	}
 	tok, hash := newIdleToken()

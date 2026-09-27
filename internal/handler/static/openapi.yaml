@@ -2683,7 +2683,9 @@ paths:
         Admin-only (404 for anyone else). What a cleanup run would do now, whether
         or not IDLE_CLEANUP is on: sites that would be warned (no visits by people
         and no new version for 90 days) and sites that would move to Recently deleted
-        (warned 30 days ago with nothing done since). At most 500 of each. Nothing
+        (warned 30 days ago with nothing done since). Sites taken offline by their
+        owner, marked Keep, with their own domain or name, taken down, preview sites
+        and admin sites are never listed. At most 500 of each. Nothing
         runs while `visit_data_ok` is false (under 90 days of visit records, or an
         analytics ingester that has not run for two days).
       tags: [Admin]
