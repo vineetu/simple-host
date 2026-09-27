@@ -205,8 +205,11 @@ anyone without one uses the prompt above in an agent that can fetch a URL.
 Every entry is a link of the form
 `https://sites.<event>.<their-domain>/<handle>/<project>/`.
 
-The organiser's admin page lists them: open `https://<event-host>/admin` with
-the admin key. Entries shows every published site newest first, filterable, with
+The organiser's admin page lists them. To open it, paste the admin key into the
+key box on `https://<event-host>/` (the one that says "Paste the key your
+organiser sent you"; it works for the admin key too), then open
+`https://<event-host>/admin`. Opened without a key stored in that browser,
+`/admin` shows a "page does not exist" page on purpose. Entries shows every published site newest first, filterable, with
 the links copyable and downloadable as a spreadsheet. That is the list for the
 judges.
 

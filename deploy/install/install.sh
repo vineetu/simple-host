@@ -19,8 +19,8 @@
 # Any operational time or limit (docs/configuration.md), and the email and
 # Google sign-in settings, added to that file are kept on a re-run too.
 #
-# Prints a JSON summary on success. The admin key is generated here and shown
-# exactly once, because nothing else ever displays it.
+# Prints a JSON summary on success. The admin key is generated here and kept in
+# /opt/simple-host/.env; every run prints it again (that is how to recover it).
 set -euo pipefail
 
 # The release this installer belongs to. The image and the compose file and
@@ -28,7 +28,7 @@ set -euo pipefail
 # moving `latest` image against a schema fetched from a moving branch is exactly
 # how a fresh install ended up crash-looping on a schema check. The release
 # workflow refuses to publish a tag that does not match this line.
-VERSION="v0.7.1"
+VERSION="v0.7.2"
 HOST=""; CONTENT=""; IMAGE="ghcr.io/vineetu/simple-host:${VERSION#v}"; ACME_EMAIL=""; REF="$VERSION"
 MAX_SITE_MB=""; KEEP_VERSIONS=""
 while [ $# -gt 0 ]; do
@@ -72,8 +72,8 @@ SETUP_ONLY=0
 DIR=/opt/simple-host
 say() { echo "==> $*"; }
 
-say "installing docker"
 if ! command -v docker >/dev/null 2>&1; then
+  say "installing docker"
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -qq
   apt-get install -y -qq ca-certificates curl >/dev/null
@@ -178,7 +178,11 @@ if [ "$SETUP_ONLY" -eq 1 ] && [ -z "$SETUP_PASSWORD" ]; then
   SETUP_PASSWORD=$(openssl rand -hex 12)
 fi
 
-say "writing configuration for $HOST"
+if [ "$SETUP_ONLY" -eq 1 ]; then
+  say "writing configuration (the hostname is chosen on the setup page)"
+else
+  say "writing configuration for $HOST"
+fi
 cat > "$DIR/.env" <<EOF
 IMAGE=$IMAGE
 DB_PASSWORD=$DB_PASSWORD
@@ -229,7 +233,8 @@ docker compose pull --quiet
 # server refuses to start against a database behind it. So the database is
 # brought up first and `simple-host migrate` (from the image just pulled) applies
 # whatever that release added, each file once, before the new app starts. On a
-# new volume Postgres loads schema.sql first and migrate finds nothing to change.
+# new volume Postgres loads schema.sql first; migrate then runs and records each
+# file, and a file whose effect schema.sql already has changes nothing.
 say "updating the database"
 docker compose up -d --no-build db
 if ! docker compose run --rm -T app migrate; then
@@ -240,12 +245,15 @@ fi
 docker compose up -d --no-build
 
 say "waiting for the instance to answer"
-healthy=0
+healthy=0; CONFIGURED=0
 for _ in $(seq 1 60); do
   if [ "$SETUP_ONLY" -eq 1 ]; then
-    # The product is absent until setup finishes, so the setup page is the
-    # only thing that can answer, and answering is what success means here.
+    # Until setup finishes the setup page is the only thing that can answer.
+    # A box set up earlier in the browser keeps its hostname in the database,
+    # not in .env, so a re-run (the upgrade) also comes here: there the setup
+    # page is gone (404) and the instance itself answers /healthz.
     if curl -fsS -o /dev/null --max-time 3 "http://127.0.0.1/v1/setup/state" 2>/dev/null; then healthy=1; break; fi
+    if curl -fsS -o /dev/null --max-time 3 "http://127.0.0.1/healthz" 2>/dev/null; then healthy=1; CONFIGURED=1; break; fi
   else
     if curl -fsS -o /dev/null --max-time 3 -H "Host: $HOST" "http://127.0.0.1/healthz" 2>/dev/null; then healthy=1; break; fi
   fi
@@ -260,22 +268,33 @@ if [ "$healthy" -ne 1 ]; then
   exit 1
 fi
 
-if [ "$SETUP_ONLY" -eq 1 ]; then
-  IP=$(curl -fsS --max-time 5 https://api.ipify.org 2>/dev/null || echo "<this server\'s address>")
+if [ "$CONFIGURED" -eq 1 ]; then
+  # Setup was finished in the browser: report the hostnames it chose.
+  HOST=$(docker compose exec -T db psql -U simplehost -d simplehost -tAc "SELECT value FROM instance_config WHERE key = 'site_domain'" 2>/dev/null | tr -d '[:space:]' || true)
+  CONTENT=$(docker compose exec -T db psql -U simplehost -d simplehost -tAc "SELECT value FROM instance_config WHERE key = 'content_host'" 2>/dev/null | tr -d '[:space:]' || true)
+  cat <<EOF
+
+{"host":"https://$HOST","content_host":"https://$CONTENT","admin_api_key":"$ADMIN_KEY","dir":"$DIR"}
+
+Updated to $VERSION. This box was set up in the browser, so its hostnames live
+in its database. The admin key is the one in $DIR/.env; every run prints it.
+EOF
+elif [ "$SETUP_ONLY" -eq 1 ]; then
+  IP=$(curl -fsS --max-time 5 https://api.ipify.org 2>/dev/null || echo "this server's address")
   cat <<EOF
 
 {"setup_url":"http://$IP/","dir":"$DIR"}
 
 open http://$IP/ and enter this setup password: $SETUP_PASSWORD
 
-It asks where this instance lives. The password is shown once and nothing
-else displays it.
+It asks where this instance lives. The password is kept in $DIR/.env
+(SETUP_PASSWORD), and re-running this script prints it again until setup is done.
 EOF
 else
   cat <<EOF
 
 {"host":"https://$HOST","content_host":"https://$CONTENT","admin_api_key":"$ADMIN_KEY","dir":"$DIR"}
 
-Keep the admin key. It is shown once and nothing else displays it.
+Keep the admin key. It is kept in $DIR/.env, and re-running this script prints it again.
 EOF
 fi
