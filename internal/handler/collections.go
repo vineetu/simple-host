@@ -182,6 +182,15 @@ func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
 		n := items[len(items)-1].ID
 		next = &n
 	}
+	// A list made public after it was private still holds the submitters'
+	// emails (_submitted_by). They stay private: only the owner's key (or
+	// the admin's), or the owner signed in on the site's own address, sees
+	// them. A private list's reader is already the owner.
+	if !private && !ownerKey && !h.ownerBrowserView(r, siteID) {
+		for i := range items {
+			items[i].Data = withoutSubmitter(items[i].Data)
+		}
+	}
 	resp := map[string]any{"items": items, "next": next}
 	if private {
 		resp["private"] = true
@@ -408,6 +417,27 @@ func (h *SiteHandler) exportCollectionCSV(w http.ResponseWriter, r *http.Request
 		// Headers already sent; nothing left to report to the client.
 		return
 	}
+}
+
+// withoutSubmitter drops the _submitted_by stamp from an item that has one.
+// Anything else (and anything that is not a JSON object) comes back as is.
+func withoutSubmitter(data json.RawMessage) json.RawMessage {
+	if !bytes.Contains(data, []byte(`"_submitted_by"`)) {
+		return data
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil || fields == nil {
+		return data
+	}
+	if _, ok := fields["_submitted_by"]; !ok {
+		return data
+	}
+	delete(fields, "_submitted_by")
+	out, err := json.Marshal(fields)
+	if err != nil {
+		return data
+	}
+	return out
 }
 
 // jsonObjectFields decodes a JSON object into raw per-key values. Non-objects

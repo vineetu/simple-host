@@ -144,7 +144,9 @@ on a site's own origin: only signed-in visitors submit, same-origin, never by AP
 stamps `_submitted_by`/`_submitted_at`),
 only the owner (or operator) reads, and the owner may edit items. The owner (or operator) deletes
 single items in any list, public included, and empties a whole list after repeating its name
-(INTENT 2026-09-27); visitors only append. **Status: live.**
+(INTENT 2026-09-27); visitors only append. A list made public again keeps its submitters' emails
+private: `_submitted_by` is left out of every read but the owner's (key, or signed in on the
+site's own address) and the operator's (`withoutSubmitter`, `ownerBrowserView`). **Status: live.**
 
 | Surface | Details |
 |---|---|
@@ -247,7 +249,7 @@ as the person, so they meet the same checks as REST. Connector tokens are stored
 ## 9. Skills and plugin distribution
 
 Skills source is `simple-host-website/skills/` (embedded via `simple-host-website/embed.go`) at
-version **0.20.1**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
+version **0.20.2**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live**
 (ChatGPT and Claude directory listings submitted 2026-09-24, pending).
 

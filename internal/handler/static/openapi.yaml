@@ -1631,7 +1631,9 @@ paths:
         own address: its address `https://<site>.<handle>.simple-host.app/`,
         or its domain if it has one. Can be set before any item exists.
         `{"private": false}` makes it public again, and everything already in it
-        becomes readable by anyone. Idempotent; deletes nothing.
+        becomes readable by anyone, except who sent it: `_submitted_by` is left
+        out of every read but the owner's (key, or signed in on the site's own
+        address) and the admin's. Idempotent; deletes nothing.
       tags: [Collections]
       security: [{ apiKey: [] }]
       parameters:

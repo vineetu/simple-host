@@ -58,9 +58,9 @@ Preview a retained version before restoring it (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.1"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.2"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.1"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.2"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte
@@ -198,7 +198,8 @@ the site's own address, and every save from a page needs a signed-in visitor
 signed in on the site's own address add to it; only the site owner — and the
 Simple Host operator, for moderation — can read it. Any site can make a list
 private.
-`{"private": false}` makes it public again, including everything already in it,
+`{"private": false}` makes it public again, including everything already in it
+(the submitters' emails, `_submitted_by`, stay visible only to the owner),
 so confirm with the user first. The owner reads it with
 `GET /v1/sites/<sitename>/collections/<name>`, lists all with
 `GET /v1/sites/<sitename>/collections` (each entry has `private`), and downloads

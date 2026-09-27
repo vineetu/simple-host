@@ -1150,7 +1150,7 @@ func Tools() []Tool {
 			Description: "Make one of a site's collections private (only the owner can read it) or public again. Use private for anything with personal details: orders, RSVPs, survey answers, sign-ups. " +
 				"A private collection takes submissions only from visitors signed in on the site's own address (every item is stamped with their verified email as `_submitted_by`), and only the owner reads it: here with read_collection, in the dashboard, or on an admin page of the site while signed in there. " +
 				"Any site can have one; no domain is needed. It can be set before anything is saved. " +
-				"Setting private=false makes everything already in the list readable by anyone; confirm with the person before doing that.",
+				"Setting private=false makes everything already in the list readable by anyone (the submitters' emails, `_submitted_by`, stay visible only to the owner); confirm with the person before doing that.",
 			InputSchema: object(map[string]any{
 				"site":       str(siteDesc),
 				"collection": str("Collection name, e.g. `orders`."),

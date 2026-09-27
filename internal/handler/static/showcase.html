@@ -1697,7 +1697,7 @@ function parseAnalyticsSummary(data) {
     }
     async function toggleListPrivacy(btn, name, coll) {
       var priv = btn.getAttribute('data-private') === '1';
-      if (priv && !confirm('Make the list "' + coll + '" public? Anyone can read this list again, including everything already in it.')) return;
+      if (priv && !confirm('Make the list "' + coll + '" public? Anyone can read this list again, including everything already in it. Who sent each entry (their email) stays private: only you see it.')) return;
       btn.disabled = true;
       try {
         var res = await api('PUT', sitePathPart(name) + '/collections/' + encodeURIComponent(coll) + '/privacy', { private: !priv });

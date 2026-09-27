@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"regexp"
 	"strings"
@@ -283,5 +284,35 @@ func TestCreateKeyRacesRevoke(t *testing.T) {
 	r := a.do(t, http.MethodPost, "/v1/me/keys", jsonBody(map[string]string{"name": "late"}), map[string]string{"X-API-Key": p.key, "Content-Type": "application/json"})
 	if r.status != http.StatusUnauthorized || r.json(t)["code"] != "invalid_api_key" {
 		t.Fatalf("mint with revoked key: %d %s", r.status, r.body)
+	}
+}
+
+// Sign out everywhere with a key revoked after it was checked (between the
+// auth middleware and the rotation) answers 401 invalid_api_key, not 500, and
+// mints nothing.
+func TestRotateWithKeyRevokedMidRequest(t *testing.T) {
+	a := newConnectorApp(t)
+	p := a.newPerson(t, "rotate-race")
+	u, err := db.GetUserByAPIKey(context.Background(), a.database, p.key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	users := NewUserHandler(a.database, nil, a.srv.URL)
+	h := auth.Middleware("", "", a.database)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := a.database.Exec(`DELETE FROM api_keys WHERE key_hash = $1`, u.KeyHash); err != nil {
+			t.Fatal(err)
+		}
+		users.rotateAPIKey(w, r)
+	}))
+	req := httptest.NewRequest(http.MethodPost, "/v1/me/api-key/rotate", nil)
+	req.Header.Set("X-API-Key", p.key)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized || !strings.Contains(rec.Body.String(), `"invalid_api_key"`) {
+		t.Fatalf("rotate with a revoked key: %d %s", rec.Code, rec.Body.String())
+	}
+	var n int
+	if err := a.database.QueryRow(`SELECT count(*) FROM api_keys WHERE user_id = $1`, u.ID).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("keys after a refused rotate: %d %v", n, err)
 	}
 }
