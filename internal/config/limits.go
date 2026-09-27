@@ -176,6 +176,10 @@ func DefaultLimits() Limits {
 type Knob struct {
 	Env, Unit string
 	Min, Max  int64
+	// Sensitive marks a rate limit that guards sign-in or the connector's
+	// OAuth: it may be made stricter freely but at most secLoosen times
+	// looser than its default.
+	Sensitive bool
 	// Value reads the current setting out of a Limits in the knob's unit, as
 	// the env var would spell it.
 	Value func(*Limits) string
@@ -212,19 +216,49 @@ func rateKnob(env string, p func(*Limits) *Rate) Knob {
 		}}
 }
 
+// secLoosen is how far a security-sensitive rate limit may be loosened: a
+// burst at most this many times the default, a refill interval at least the
+// default divided by it. warnLoosen is the point past which any other rate
+// limit is named in a startup warning.
+const (
+	secLoosen  = 4
+	warnLoosen = 10
+)
+
+// secRateKnob is a rate limit guarding sign-in, visitor sign-in or the
+// connector's OAuth. Loosening it past secLoosen stops startup.
+func secRateKnob(env string, p func(*Limits) *Rate) Knob {
+	k := rateKnob(env, p)
+	k.Sensitive = true
+	dl := DefaultLimits()
+	def := *p(&dl)
+	parse := k.set
+	k.set = func(l *Limits, v string) error {
+		if err := parse(l, v); err != nil {
+			return err
+		}
+		if r := *p(l); r.Burst > def.Burst*secLoosen || r.Every < def.Every/secLoosen {
+			return fmt.Errorf("%s=%q is too loose for a sign-in limit: at most %d at once and an <every> of at least %s (%d times the default %s). It can be made stricter freely",
+				env, v, def.Burst*secLoosen, shortDuration(def.Every/secLoosen), secLoosen, def)
+		}
+		return nil
+	}
+	return k
+}
+
 // Knobs lists every setting, in the order docs/configuration.md gives them.
 func Knobs() []Knob {
 	m, h, d := time.Minute, time.Hour, day
 	return []Knob{
 		durKnob("SIGNIN_CODE_TTL_MINUTES", "minutes", m, 5, 60, func(l *Limits) *time.Duration { return &l.SigninCodeTTL }),
 		intKnob("MAX_KEYS_PER_ACCOUNT", "keys", 1, 1000, func(l *Limits) *int { return &l.MaxKeysPerAccount }),
-		durKnob("HANDLE_RENAME_EVERY_DAYS", "days", d, 1, 365, func(l *Limits) *time.Duration { return &l.HandleRenameEvery }),
+		durKnob("HANDLE_RENAME_EVERY_DAYS", "days", d, 7, 365, func(l *Limits) *time.Duration { return &l.HandleRenameEvery }),
 		durKnob("EMAIL_CHANGE_UNDO_DAYS", "days", d, 1, 90, func(l *Limits) *time.Duration { return &l.EmailChangeUndoTTL }),
 
 		intKnob("MAX_SITES_PER_ACCOUNT", "sites", 1, 100_000, func(l *Limits) *int { return &l.MaxSitesPerAccount }),
-		intKnob("MAX_FILES_PER_SITE", "files", 100, 500_000, func(l *Limits) *int { return &l.MaxFilesPerSite }),
+		intKnob("MAX_FILES_PER_SITE", "files", 100, 50_000, func(l *Limits) *int { return &l.MaxFilesPerSite }),
 		durKnob("PREVIEW_LINK_TTL_MINUTES", "minutes", m, 5, 7*24*60, func(l *Limits) *time.Duration { return &l.PreviewLinkTTL }),
-		durKnob("EXPORT_LINK_TTL_MINUTES", "minutes", m, 1, 24*60, func(l *Limits) *time.Duration { return &l.ExportLinkTTL }),
+		durKnob("EXPORT_LINK_TTL_MINUTES", "minutes", m, 1, 60, func(l *Limits) *time.Duration { return &l.ExportLinkTTL }),
 
 		durKnob("VISITOR_SESSION_DAYS", "days", d, 1, 365, func(l *Limits) *time.Duration { return &l.VisitorSessionTTL }),
 		durKnob("VISITOR_SESSION_IDLE_DAYS", "days", d, 1, 365, func(l *Limits) *time.Duration { return &l.VisitorSessionIdle }),
@@ -239,7 +273,7 @@ func Knobs() []Knob {
 		durKnob("DOMAIN_LAPSE_HOURS", "hours", h, 2, 90*24, func(l *Limits) *time.Duration { return &l.DomainLapseAfter }),
 		durKnob("DOMAIN_CHECK_INTERVAL_MINUTES", "minutes", m, 1, 60, func(l *Limits) *time.Duration { return &l.DomainCheckInterval }),
 		intKnob("DOMAIN_CERTS_PER_ACCOUNT_DAILY", "certificates", 1, 1000, func(l *Limits) *int { return &l.DomainCertsDaily }),
-		durKnob("EVENT_TTL_DAYS", "days", d, 1, 365, func(l *Limits) *time.Duration { return &l.EventTTL }),
+		durKnob("EVENT_TTL_DAYS", "days", d, 1, 60, func(l *Limits) *time.Duration { return &l.EventTTL }),
 		intKnob("EVENT_MAX_CLAIMS", "names", 1, 100, func(l *Limits) *int { return &l.EventMaxClaims }),
 
 		durKnob("DELETED_RETENTION_DAYS", "days", d, 1, 365, func(l *Limits) *time.Duration { return &l.DeletedRetention }),
@@ -263,20 +297,20 @@ func Knobs() []Knob {
 		// would finish after the page has given up on it.
 		durKnob("AI_JOB_TIMEOUT_MINUTES", "minutes", m, 1, 8, func(l *Limits) *time.Duration { return &l.AIJobTimeout }),
 
-		rateKnob("RATE_LIMIT_SIGNIN_IP", func(l *Limits) *Rate { return &l.RateSigninIP }),
-		rateKnob("RATE_LIMIT_SIGNIN_EMAIL", func(l *Limits) *Rate { return &l.RateSigninEmail }),
-		rateKnob("RATE_LIMIT_VISITOR_OAUTH", func(l *Limits) *Rate { return &l.RateVisitorOAuth }),
-		rateKnob("RATE_LIMIT_VISITOR_AUTH", func(l *Limits) *Rate { return &l.RateVisitorAuth }),
-		rateKnob("RATE_LIMIT_VISITOR", func(l *Limits) *Rate { return &l.RateVisitor }),
+		secRateKnob("RATE_LIMIT_SIGNIN_IP", func(l *Limits) *Rate { return &l.RateSigninIP }),
+		secRateKnob("RATE_LIMIT_SIGNIN_EMAIL", func(l *Limits) *Rate { return &l.RateSigninEmail }),
+		secRateKnob("RATE_LIMIT_VISITOR_OAUTH", func(l *Limits) *Rate { return &l.RateVisitorOAuth }),
+		secRateKnob("RATE_LIMIT_VISITOR_AUTH", func(l *Limits) *Rate { return &l.RateVisitorAuth }),
+		secRateKnob("RATE_LIMIT_VISITOR", func(l *Limits) *Rate { return &l.RateVisitor }),
 		rateKnob("RATE_LIMIT_UPLOAD", func(l *Limits) *Rate { return &l.RateUpload }),
 		rateKnob("RATE_LIMIT_STATE", func(l *Limits) *Rate { return &l.RateState }),
 		rateKnob("RATE_LIMIT_SITE_OPS", func(l *Limits) *Rate { return &l.RateSiteOps }),
 		rateKnob("RATE_LIMIT_EXPORT", func(l *Limits) *Rate { return &l.RateExport }),
 		rateKnob("RATE_LIMIT_DOMAIN_CHECK", func(l *Limits) *Rate { return &l.RateDomainCheck }),
 		rateKnob("RATE_LIMIT_DOMAIN_CHECK_USER", func(l *Limits) *Rate { return &l.RateDomainCheckUser }),
-		rateKnob("RATE_LIMIT_OAUTH_REGISTER", func(l *Limits) *Rate { return &l.RateOAuthRegister }),
-		rateKnob("RATE_LIMIT_OAUTH_AUTHORIZE", func(l *Limits) *Rate { return &l.RateOAuthAuthorize }),
-		rateKnob("RATE_LIMIT_OAUTH_TOKEN", func(l *Limits) *Rate { return &l.RateOAuthToken }),
+		secRateKnob("RATE_LIMIT_OAUTH_REGISTER", func(l *Limits) *Rate { return &l.RateOAuthRegister }),
+		secRateKnob("RATE_LIMIT_OAUTH_AUTHORIZE", func(l *Limits) *Rate { return &l.RateOAuthAuthorize }),
+		secRateKnob("RATE_LIMIT_OAUTH_TOKEN", func(l *Limits) *Rate { return &l.RateOAuthToken }),
 		rateKnob("RATE_LIMIT_AI_IP", func(l *Limits) *Rate { return &l.RateAIIP }),
 		rateKnob("RATE_LIMIT_AI_USER", func(l *Limits) *Rate { return &l.RateAIUser }),
 		rateKnob("RATE_LIMIT_TRANSCRIBE", func(l *Limits) *Rate { return &l.RateTranscribe }),
@@ -345,6 +379,35 @@ func parseRate(env, v string) (Rate, error) {
 		return Rate{}, bad
 	}
 	return Rate{Burst: burst, Every: every}, nil
+}
+
+// Warnings are startup notes about settings that load but deserve a second
+// look: a rate limit loosened more than warnLoosen times past its default,
+// and a RATE_LIMIT_* variable in environ ("NAME=value" lines, os.Environ in
+// production) that is not a setting at all, most likely a typo, whose
+// intended limit is therefore not in force.
+func (l Limits) Warnings(environ []string) []string {
+	def := DefaultLimits()
+	known := map[string]bool{}
+	var out []string
+	for _, k := range Knobs() {
+		known[k.Env] = true
+		if k.Unit != "burst,every" || k.Sensitive {
+			continue
+		}
+		r, _ := parseRate(k.Env, k.Value(&l))
+		d, _ := parseRate(k.Env, k.Value(&def))
+		if r.Burst > d.Burst*warnLoosen || r.Every < d.Every/warnLoosen {
+			out = append(out, fmt.Sprintf("%s=%s is more than %d times looser than the default %s", k.Env, r, warnLoosen, d))
+		}
+	}
+	for _, kv := range environ {
+		name, _, _ := strings.Cut(kv, "=")
+		if strings.HasPrefix(name, "RATE_LIMIT_") && !known[name] {
+			out = append(out, name+" is not a setting Simple Host knows, so it changes nothing (see docs/configuration.md for the names)")
+		}
+	}
+	return out
 }
 
 // Changed lists "ENV=value" for every knob that differs from its default, for

@@ -238,13 +238,17 @@ func TestSiteLimitIsActuallyEnforcedOnExtraction(t *testing.T) {
 	}
 }
 
-// MAX_FILES_PER_SITE sets the ceiling; a per-site byte budget still lowers it,
-// in either order of setting.
+// MAX_FILES_PER_SITE lowers the ceiling but never raises it past 50,000; a
+// per-site byte budget still lowers it, in either order of setting.
 func TestSetMaxEntries(t *testing.T) {
 	restoreLimits(t)
-	SetMaxEntries(120_000)
-	if MaxEntries() != 120_000 {
-		t.Errorf("MaxEntries() = %d, want 120000", MaxEntries())
+	SetMaxEntries(120_000) // refused: above the built-in ceiling
+	if MaxEntries() != 50_000 {
+		t.Errorf("SetMaxEntries(120000): MaxEntries() = %d, want 50000", MaxEntries())
+	}
+	SetMaxEntries(40_000)
+	if MaxEntries() != 40_000 {
+		t.Errorf("MaxEntries() = %d, want 40000", MaxEntries())
 	}
 	SetSiteLimit(100 << 20) // 25,600 blocks
 	if MaxEntries() != 25_600 {

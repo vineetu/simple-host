@@ -63,6 +63,9 @@ func main() {
 	if changed := cfg.Limits.Changed(); len(changed) > 0 {
 		log.Printf("limits changed from the defaults: %s", strings.Join(changed, " "))
 	}
+	for _, w := range cfg.Limits.Warnings(os.Environ()) {
+		log.Printf("WARNING: %s", w)
+	}
 
 	db, err := sql.Open("postgres", cfg.DBDSN)
 	if err != nil {

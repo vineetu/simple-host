@@ -37,6 +37,11 @@ func otherValue(t *testing.T, env string) string {
 			continue
 		}
 		switch {
+		case k.Sensitive:
+			// A sign-in limit may be at most 4 times looser: keep its
+			// interval and change the burst.
+			_, every, _ := strings.Cut(k.Value(&def), ",")
+			return "7," + every
 		case strings.HasPrefix(env, "RATE_LIMIT_"):
 			return "7,7s"
 		case env == "IDLE_REPLY_TO":
@@ -69,7 +74,7 @@ func changedLimits(t *testing.T) map[string]string {
 		"HANDLE_RENAME_EVERY_DAYS":       "45",
 		"EMAIL_CHANGE_UNDO_DAYS":         "9",
 		"MAX_SITES_PER_ACCOUNT":          "250",
-		"MAX_FILES_PER_SITE":             "80000",
+		"MAX_FILES_PER_SITE":             "30000",
 		"PREVIEW_LINK_TTL_MINUTES":       "120",
 		"EXPORT_LINK_TTL_MINUTES":        "25",
 		"VISITOR_SESSION_DAYS":           "60",
@@ -266,12 +271,16 @@ func TestServedTextFollowsLimits(t *testing.T) {
 		{"/privacy.html", []string{"lasts up to 60 days and covers", "access token that lasts 45 minutes", "expires after 120 days without use", "deleted after 200 days",
 			"shortened IP for 60 days", "Analytics records:</strong> 200 days"},
 			[]string{"up to 30 days", "400 days", "shortened IP for 30 days"}},
-		{"/architecture.html", []string{"80,000 entries", "6-minute run ceiling", "4 builds in flight per user, 40 in total", "per user (burst 7, +1 per 7 s)", "every 5 minutes (releasing unproven bindings after 36 hours)"},
+		{"/architecture.html", []string{"30,000 entries", "6-minute run ceiling", "4 builds in flight per user, 40 in total", "per user (burst 7, +1 per 7 s)", "every 5 minutes (releasing unproven bindings after 36 hours)"},
 			[]string{"50,000 entries", "8-minute", "64 in total", "burst 30"}},
 		{"/dashboard", []string{"Expires in 20 minutes", "For 30 days you can restore it"}, []string{"15 minutes", "For 7 days"}},
 		{"/skills/connect-domain/SKILL.md", []string{"expires after 36 hours", "If it fails every check for 2 days", "After 5 days the domain is disconnected", "after 5 days, be disconnected"},
 			[]string{"after 24 hours", "for a day", "three days"}},
-		{"/skills/run-hackathon/SKILL.md", []string{"A claim lasts 30 days", "A claim expires after 30 days"}, []string{"three weeks"}},
+		// The hackathon skill's claims live on the public instance, under its
+		// limits, so this install's EVENT_TTL_DAYS is not written into it.
+		{"/skills/run-hackathon/SKILL.md", []string{"A claim lasts three weeks", "A claim expires after three weeks"}, []string{"30 days"}},
+		// The enterprise pages describe the other product's limits.
+		{"/enterprise/architecture", []string{"at most 50,000 entries"}, []string{"30,000 entries"}},
 	} {
 		rec := get(t, mux, "simple-host.app", c.path)
 		if rec.Code != http.StatusOK {
@@ -348,12 +357,12 @@ func TestMCPTextFollowsLimits(t *testing.T) {
 
 // The limiters are built from the RATE_LIMIT_* settings.
 func TestRateLimitsFollowSettings(t *testing.T) {
-	withLimits(t, map[string]string{"RATE_LIMIT_SIGNIN_IP": "2,1h", "RATE_LIMIT_SIGNIN_EMAIL": "9,250ms"})
+	withLimits(t, map[string]string{"RATE_LIMIT_SIGNIN_IP": "2,1h", "RATE_LIMIT_SIGNIN_EMAIL": "9,20s"})
 	h := NewUserHandler(nil, nil, "https://simple-host.app")
 	if h.ipLimiter.capacity != 2 || h.ipLimiter.rate != 1.0/3600 {
 		t.Errorf("sign-in IP limiter: burst %v, %v/s", h.ipLimiter.capacity, h.ipLimiter.rate)
 	}
-	if h.emailLimiter.capacity != 9 || h.emailLimiter.rate != 4 {
+	if h.emailLimiter.capacity != 9 || h.emailLimiter.rate != 1.0/20 {
 		t.Errorf("sign-in email limiter: burst %v, %v/s", h.emailLimiter.capacity, h.emailLimiter.rate)
 	}
 	if !h.ipLimiter.allow("a") || !h.ipLimiter.allow("a") || h.ipLimiter.allow("a") {

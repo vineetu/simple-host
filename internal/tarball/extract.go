@@ -33,21 +33,25 @@ const (
 	// blockSize is the allocation unit assumed when deriving a file-count cap
 	// from a byte budget.
 	blockSize = 4096
+	// maxEntriesCeiling is the most files an archive may ever hold: the
+	// pipeline (in-memory entry map, inodes per version) was sized against it.
+	maxEntriesCeiling = 50_000
 )
 
 // entryCeiling is the file-count cap (MAX_FILES_PER_SITE, default 50,000);
 // siteBudget is the byte budget SetSiteLimit was last given (0: never), from
 // which a smaller count may be derived.
 var (
-	entryCeiling       = 50_000
+	entryCeiling       = maxEntriesCeiling
 	siteBudget   int64 = 0
 )
 
 // SetMaxEntries sets the most files one archive may hold (MAX_FILES_PER_SITE).
 // When a per-site byte budget is in force the smaller of the two applies. Call
-// once at startup, before serving.
+// once at startup, before serving. It only lowers: above maxEntriesCeiling is
+// refused, like SetSiteLimit above ceilingBytes.
 func SetMaxEntries(n int) {
-	if n < 1 {
+	if n < 1 || n > maxEntriesCeiling {
 		return
 	}
 	entryCeiling = n

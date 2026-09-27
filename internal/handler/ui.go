@@ -273,8 +273,12 @@ func serveSkillMarkdown(skillName string) http.HandlerFunc {
 			return
 		}
 		// A skill tells an agent which host to publish to. On a non-canonical
-		// instance that must be this one, or the agent deploys elsewhere.
-		data = rewriteServedText(data)
+		// instance that must be this one, or the agent deploys elsewhere —
+		// except a control-plane skill, whose endpoints and limits are the
+		// public instance's (see copyRewritten).
+		if !controlPlaneSkill(skillName + "/SKILL.md") {
+			data = rewriteServedText(data)
+		}
 
 		filename := skillName + "-SKILL.md"
 		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
@@ -490,7 +494,7 @@ func buildSingleSkillZip(skillName string) ([]byte, error) {
 			return err
 		}
 
-		err = copyRewritten(dst, src, controlPlaneSkill(path))
+		err = copyRewritten(dst, src, controlPlaneSkill(skillName+"/"+path))
 		return err
 	})
 	if err != nil {
@@ -572,13 +576,13 @@ func copyRewritten(dst io.Writer, src io.Reader, skipRewrite bool) error {
 		// host would make an agent claim and release names against a box that
 		// answers 404, so teardown would silently leave live records in our
 		// zone.
+		// The limits follow the same rule: a skill states the limits of the
+		// instance that serves its endpoints, which is this one except for
+		// the public-instance skill, whose claims live under the public
+		// instance's EVENT_TTL_DAYS.
 		if !skipRewrite {
-			data = instanceHosts.apply(data)
+			data = instanceLimits.apply(instanceHosts.apply(data))
 		}
-		// The limits are rewritten in every skill: a control-plane skill
-		// states the limits of the instance that serves its endpoints, which
-		// is this one wherever that skill's endpoints are switched on.
-		data = instanceLimits.apply(data)
 	}
 	_, err = dst.Write(data)
 	return err
