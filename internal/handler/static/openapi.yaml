@@ -2128,12 +2128,14 @@ paths:
         writes it, and the owner sees only how many people have one and their
         size; a name must be empty (nothing live or in Recently deleted) to
         become Personal (409 has_entries), and a Personal name that holds records
-        never becomes another kind (409 has_records); a site declares at most 20
-        Personal names (SAVED_DATA_PERSONAL_NAMES_MAX). `{"kind": "board"}` is a
+        never becomes another kind (409 has_records);
+        a site declares at most 20 Personal names (SAVED_DATA_PERSONAL_NAMES_MAX).
+        `{"kind": "board"}` is a
         **Shared board**: anyone reads it; signed-in visitors add, change and
         delete items one at a time; only the owner clears it; private entries
-        become a board only with `confirm_public`; a site declares at most 20
-        Shared board names (SAVED_DATA_BOARD_NAMES_MAX). Neither takes options
+        become a board only with `confirm_public`;
+        a site declares at most 20 Shared board names (SAVED_DATA_BOARD_NAMES_MAX).
+        Neither takes options
         (400 invalid_kind), and both need the site's own address (409
         custom_domain_required). Product words are accepted ("Personal",
         "Shared board").
@@ -2331,8 +2333,8 @@ paths:
       description: >-
         Personal names only. The signed-in visitor deletes their own record
         (`{"deleted": true, "restorable_days": 30}`); they bring it back from
-        their history (POST .../history/{id}/restore) for 30 days
-        (SAVED_DATA_UNDO_DAYS). 404 not_found when they have none. A blocked
+        their history (POST .../history/{id}/restore)
+        for 30 days (SAVED_DATA_UNDO_DAYS). 404 not_found when they have none. A blocked
         visitor can still delete their own. The owner empties a name for
         everyone with DELETE .../collections/{coll}.
       tags: [Collections]
