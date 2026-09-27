@@ -270,7 +270,7 @@ identity. Recently deleted pages by (`deleted_at`, `id`); `next` is an opaque cu
 |---|---|
 | Routes | `GET /v1/sites/{sitename}/collections/{coll}` · `POST /v1/sites/{sitename}/collections/{coll}` · `OPTIONS /v1/sites/{sitename}/collections/{coll}` — `(+/v1/u)` · `GET /v1/sites/{sitename}/collections` (owner list) · `GET /v1/sites/{sitename}/collections/{coll}/export.csv` (owner) · `PUT /v1/sites/{sitename}/collections/{coll}/privacy` (owner) · `DELETE /v1/sites/{sitename}/collections/{coll}/items/{id}` (any list) and `PATCH` (private lists only) `(+/v1/u)` · `DELETE /v1/sites/{sitename}/collections/{coll}` `(+/v1/u)` with `{"confirm": "<coll>"}` (clear list; items to Recently deleted) — owner key, connector, owner session on own origin, or admin · owner key/connector/admin: `GET /v1/sites/{sitename}/collections/{coll}/history` · `GET /v1/sites/{sitename}/collections/{coll}/history/{id}` · `POST /v1/sites/{sitename}/collections/{coll}/history/{id}/restore` · `GET /v1/sites/{sitename}/collections/{coll}/deleted` · `POST /v1/sites/{sitename}/collections/{coll}/items/{id}/restore` · `POST /v1/sites/{sitename}/collections/{coll}/deleted/restore` (`{"all": true}`) · `DELETE /v1/sites/{sitename}/collections/{coll}/deleted/{id}` (one item, for good) · `DELETE /v1/sites/{sitename}/collections/{coll}/deleted` (`{"confirm": "<coll>"}`: all of it, for good) · the same by handle: `GET /v1/u/{handle}/sites/{sitename}/collections/{coll}/history` · `GET /v1/u/{handle}/sites/{sitename}/collections/{coll}/history/{id}` · `POST /v1/u/{handle}/sites/{sitename}/collections/{coll}/history/{id}/restore` · `GET`/`DELETE /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted` · `POST /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted/restore` · `DELETE /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted/{id}` · `POST /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}/restore` |
 | MCP tools | `list_collections` (with `deleted` counts), `read_collection` (with `by`), `add_to_collection`, `set_collection_privacy`, `update_collection_item`, `delete_collection_item`, `clear_collection`, `data_history`, `restore_data`, `list_deleted`, `restore_item`, `delete_forever` |
-| Skill | `website-deploy/SKILL.md` §Personal details go in a private collection · `references/backend.md` §Append-only collections, §Private collections (1–3, editing, reading as owner, errors) · `references/operations.md` §Private collections · `website-deploy-builder/SKILL.md` §Capability tree |
+| Skill | `website-deploy/SKILL.md` §Personal details go in a private collection · `references/backend.md` §Collections, §Private collections (1–3, editing, reading as owner, errors) · `references/operations.md` §Private collections · `website-deploy-builder/SKILL.md` §Capability tree |
 | Pages | `st/auth.js` (`SH.collection(...).list/append/update/remove`), `st/showcase.html` owner app (every list with a public/private badge and switch, view with a "sent by" column, CSV, delete any entry, edit private entries, Clear list behind the typed name, **History** and **Recently deleted (N)** with Restore, Restore all, Delete forever (type `delete`) and Delete all forever (type the list name)) · `st/index.html` (data tab, CSV export; accounts without a handle) |
 | Go | `h/collections.go`, `h/privatecollections.go` (`onOwnDomain`, `strictVisitorSession`, `appendPrivate`, `privateManager`), `h/saveddata.go` (history, Recently deleted, restore, delete for good), `internal/db/collections.go`, `internal/db/datahistory.go` (`SoftDeleteItem`, `SoftClearCollection`, `UndeleteItems`, `RestoreItemVersion`, `ListDeletedItems`, `PurgeDeletedItems`), `h/export.go` (collections in site export, live items only) |
 | DB | `collection_items` (`deleted_at`, `submitted_by`, `submitted_email`), `collection_settings` (privacy flag), `data_history` |
@@ -546,7 +546,7 @@ as the person, so they meet the same checks as REST. Connector tokens are stored
 ## 9. Skills and plugin distribution
 
 Skills source is `simple-host-website/skills/` (embedded via `simple-host-website/embed.go`) at
-version **0.26.0**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
+version **0.26.1**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live**
 (ChatGPT and Claude directory listings submitted 2026-09-24, pending).
 
@@ -569,7 +569,7 @@ owner app is the one place an account with a handle manages its sites: address, 
 deploy, visibility, versions, rename, domain, lists, saved data, Download and Delete
 (INTENT 2026-09-27). `/dashboard` sends such an account there; the apex view it can still reach
 (`/?new=1`) lists the sites with a Manage link. Accounts without a handle and the admin tab keep
-the full apex controls. Rotate API key stays in the apex app bar.
+the full apex controls. Sign out everywhere (key rotate) stays in the apex app bar.
 **Status: live.**
 
 | Surface | Details |
@@ -749,7 +749,7 @@ listings; public contact is support@simple-host.app. Go: `h/ui.go`.
 | Guard | Where |
 |---|---|
 | Per-IP token buckets | `h/ratelimit.go`; instances listed in each section (upload 30 burst/0.1 s⁻¹, state 60/1 s⁻¹, auth 20/0.2, email 5/0.02, connector, generate, transcribe, events, setup, reviewer); each user-facing one is a `RATE_LIMIT_*` setting (`docs/configuration.md`) |
-| Size caps | per-site archive `MAX_ARCHIVE_MB` (default 100 MB, `h/usage.go`), tarball total/file/path caps (`internal/tarball/extract.go`), state 1 MB, collection item 64 KB, ≤100 PATCH ops, a site's live saved data 50 MB, refusing only growth (`SAVED_DATA_SITE_MAX_MB`, 507 `site_full`) |
+| Size caps | per-site archive `MAX_ARCHIVE_MB` (default 100 MB, simple-host.app runs 300; served text states the cap in force via `h/limitstext.go` `archivePhrases`; `h/usage.go`), tarball total/file/path caps (`internal/tarball/extract.go`), state 1 MB, collection item 64 KB, ≤100 PATCH ops, a site's live saved data 50 MB, refusing only growth (`SAVED_DATA_SITE_MAX_MB`, 507 `site_full`) |
 | Saved-data reads | `allowRead`, once the site is resolved: 30/s, burst 60 per site and address (never the Host header), or per account for a valid key or connector (`SAVED_DATA_READ_PER_SEC`, `SAVED_DATA_READ_BURST`), 429 `rate_limited` (every 429 now carries that code) |
 | List appends | `allowAppend`: items added without the owner's key, 30/min per address, burst 30 (`SAVED_DATA_APPEND_PER_MIN`, `SAVED_DATA_APPEND_BURST`), 429 `rate_limited` |
 | Idempotency | `Idempotency-Key` on list POST and state PATCH (`h/saveddata.go` `idemBegin`, table `idempotency_keys`, 24 h `SAVED_DATA_IDEMPOTENCY_HOURS`, at most `SAVED_DATA_IDEMPOTENCY_MAX_PER_SITE` per site), scoped by site, route and a signed-in identity only (no identity, no idempotency); keeps status, ETag, version or item id and a body hash, never a response body; another body under the same key is 409 `idempotency_key_reused` |
@@ -768,7 +768,9 @@ No webhooks or signals exist. Outbound email (`internal/email/resend.go`, Resend
 codes; the confirmation code for a new sign-in email and the notice to the old address (§7);
 sign-in alerts after each owner sign-in or app connection, switchable (§7); the account-deleted
 confirmation (§7); a custom domain failing for a day (§3); the idle-site warning and removal
-notices (§1, reply-to support@simple-host.app, `SendNoticeReplyTo`). Stale-skill `_notice` in JSON
+notices (§1, reply-to support@simple-host.app, `SendNoticeReplyTo`); new-Submissions digests
+("Email me": daily, each at most every 10 minutes, or off) with a signed stop link (§5; the
+emailed one-time links carry their token after `#`, so it never reaches a server log). Stale-skill `_notice` in JSON
 responses (§9) is the only in-band notice.
 
 ## 20. Operations (health, schema, CLI)

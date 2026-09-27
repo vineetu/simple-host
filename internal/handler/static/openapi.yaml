@@ -4,7 +4,7 @@ info:
   description: >-
     Static website hosting with a light per-site backend. Deploy a site with one
     API call — inline JSON files (LLM-friendly) or a tar.gz/zip archive — and each
-    site gets shared JSON state (with atomic ops), append-only collections. Sign-in is a 6-digit email code or Google that
+    site gets shared JSON state (with atomic ops) and saved data of four kinds (Page info, Submissions, Personal, Shared board) on top of per-site lists. Sign-in is a 6-digit email code or Google that
     returns an API key, sent as the
     `X-API-Key` header. Hosted-page sign-in uses the same account but a
     site-scoped session cookie on the site's own address — never an API key.
@@ -39,7 +39,7 @@ tags:
   - name: State
     description: Per-site shared JSON store (reads public — a request from a page is Origin-checked, one with no Origin/Referer is served; writes from a page need a signed-in visitor on the site's own address, agents write with the site owner's key; another account's key gets 404). A site with a connected domain lives there — its `https://<site>.<handle>.simple-host.app/...` address answers 302 to `https://<domain>/...` (same path and query) and writes through that address answer 401 use_custom_domain; agents write through the apex.
   - name: Collections
-    description: Append-only per-site lists (POST is a write)
+    description: Per-site lists (POST is a write; declared kinds under /data)
   - name: Custom domains
     description: Give a site a nicer address — a free <name>.simple-host.app or one custom domain (CNAME or A record plus a TXT ownership record; its certificate is issued automatically once both are seen). Optional.
   - name: Analytics
@@ -1945,7 +1945,7 @@ paths:
                         last_at: { type: string, format: date-time, nullable: true, description: Time of the newest item; null for a private list with no items yet }
                         private: { type: boolean, example: false, description: "true when only the owner can read it (see PUT .../collections/{coll}/privacy)" }
                         deleted: { type: integer, example: 0, description: "items in the list's Recently deleted (GET .../collections/{coll}/deleted)" }
-                        kind: { type: string, enum: ['', content, entries], description: "What the name was declared as (PUT .../data/{coll}/kind): content (Page info), entries (Submissions), or empty (not declared)" }
+                        kind: { type: string, enum: ['', content, entries, mine, board], description: "What the name was declared as (PUT .../data/{coll}/kind): content (Page info), entries (Submissions), mine (Personal), board (Shared board), or empty (not declared: Shared)" }
                         one_per_person: { type: boolean }
                         notify: { type: string, enum: [off, each, daily] }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -1994,7 +1994,7 @@ paths:
       operationId: postSitesBySitenameCollectionsByColl
       summary: Append an item to a collection
       description: >-
-        Append-only list (O(1) insert). For signups, RSVPs, submissions.
+        Adds one item (O(1) insert). For signups, RSVPs, submissions.
         Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged.
         PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.
       tags: [Collections]
@@ -2679,7 +2679,7 @@ paths:
         and only the owner can read it (key, connector, CSV export, dashboard, or the
         owner signed in on the site) — plus the Simple Host operator, for
         moderation. Everyone else gets 404. The owner can edit or delete its items
-        (PATCH/DELETE .../items/{id}); public lists stay append-only. Any site can
+        (PATCH/DELETE .../items/{id}); in a public list the owner can delete items but not edit them (409 append_only). Any site can
         make a list private. Submissions come from signed-in visitors on the site's
         own address: its address `https://<site>.<handle>.simple-host.app/`,
         or its domain if it has one. Can be set before any item exists.
@@ -3806,7 +3806,7 @@ paths:
       operationId: postCollectionByHandle
       summary: Append an item to a collection (v3, by handle)
       description: >-
-        Append-only list (O(1) insert). For signups, RSVPs, submissions.
+        Adds one item (O(1) insert). For signups, RSVPs, submissions.
         Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged.
         PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.
         v3 user-scoped, path-model-canonical variant: resolves the site by

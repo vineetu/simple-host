@@ -222,12 +222,6 @@ var limitPhrases = []limitPhrase{
 	phrase("3 builds in flight per user, 64 in total", []string{"AI_MAX_JOBS_PER_USER", "AI_MAX_JOBS"}, func(l *config.Limits) string {
 		return limitNum(l.AIMaxJobsPerUser) + " builds in flight per user, " + limitNum(l.AIMaxJobs) + " in total"
 	}),
-	phrase("Three builds at once", knob("AI_MAX_JOBS_PER_USER"), func(l *config.Limits) string {
-		if l.AIMaxJobsPerUser == 1 {
-			return "One build at a time"
-		}
-		return limitNum(l.AIMaxJobsPerUser) + " builds at once"
-	}),
 
 	// RATE_LIMIT_AI_USER, RATE_LIMIT_AI_IP
 	phrase("per user (burst 30, +1 per 10 s)", knob("RATE_LIMIT_AI_USER"), func(l *config.Limits) string {

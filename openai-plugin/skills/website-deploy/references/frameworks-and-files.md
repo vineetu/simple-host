@@ -49,7 +49,7 @@ Stop and explain before publishing if any of these fail:
   `url(/fonts/...)`) and no local filesystem paths (`/Users/...`, `C:\...`, `file:///`).
 - Every referenced file exists with exactly the same letter case.
 - Text files are UTF-8 without a byte-order mark (a BOM breaks `.json` and ES-module `.js`).
-- Any single file over 25 MB, or a site over 100 MB, is too large; shrink it.
+- Any single file over 25 MB, or a site over 100 MB (the default upload limit; a server may allow more), is too large; shrink it.
 
 ## After publishing
 

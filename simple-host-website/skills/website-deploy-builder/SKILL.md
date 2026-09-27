@@ -30,15 +30,15 @@ Website Deploy is a static-file host at `https://simple-host.app`. Each site liv
 | Who may save here | Anyone who signs in (default), or only listed emails and whole `@domains`, plus a block list: `set_who_can_save`, `block_person` |
 | Per-site JSON state (≤ 1 MB, shared across all visitors; older sites) | `GET / PUT /v1/sites/<sitename>/state` (same-origin from the page; agents can also use `/v1/u/<handle>/sites/<sitename>/state` on the apex). Reads public; a page write needs the visitor signed in first (`auth.js`) |
 | Atomic state updates (concurrent-safe counters, lists, votes) | `PATCH .../state` with `{ops:[inc/append/set/remove/removeWhere]}`; `If-None-Match` ETag for cheap polling. A write — same rule as above |
-| Append-only collections (signups / RSVPs / submissions) | `POST/GET /v1/sites/<sitename>/collections/<name>`. GET public; POST is a write. Only the owner removes entries (one, or the whole list) |
-| Private collections (orders, RSVPs, anything personal) | `set_collection_privacy` (or `PUT .../collections/<name>/privacy` `{"private":true}`). Signed-in visitors add; only the site owner — and the Simple Host operator, for moderation — can read it. The owner can edit or delete items (`update` / `remove`). In a public list the owner can delete (spam) but not edit; visitors only append |
+| Collections (signups / RSVPs / submissions) | `POST/GET /v1/sites/<sitename>/collections/<name>`. GET public; POST is a write. The owner removes entries (one, or the whole list); in declared Submissions each visitor also changes and withdraws their own |
+| Private collections (orders, RSVPs, anything personal) | `set_collection_privacy` (or `PUT .../collections/<name>/privacy` `{"private":true}`). Signed-in visitors add; only the site owner — and the Simple Host operator, for moderation — can read it. The owner can edit or delete items (`update` / `remove`). In a public list the owner can delete (spam) but not edit; in declared Submissions each visitor also changes and withdraws their own |
 | A nicer address (optional) | Free `<name>.simple-host.app`: one call (`connect_domain`), active at once, no DNS. Or a custom domain via the `connect-domain` skill (two DNS records: the address and a TXT ownership record). The site moves there and its old address redirects |
 | Agent writing for the site owner (no browser) | The connector (`update_state`, `add_to_collection`) if present; otherwise the owner's own API key, obtained by email code, as `X-API-Key` — works only on sites that account owns (another account's key gets 404). Anyone else saves on the page as a signed-in visitor. See "Saving from an agent" in the `website-deploy` skill's `references/backend.md` |
-| Per-visitor state | `localStorage`, `sessionStorage`, `IndexedDB` (in the browser) |
+| Per-visitor state | `localStorage`, `sessionStorage`, `IndexedDB` (in the browser), or **Personal** (`mine`) when it must follow the visitor to another device |
 | External APIs | `fetch()` from the page to any public CORS-enabled API |
 | Routing | Static files only — path-relative directories with `index.html`; SPA routing via the framework's hash router or `404.html` fallback |
 
-If your idea needs a server you control, a shared SQL database, persistent per-user accounts, or anything that runs server-side, Website Deploy is not the right host. Say so and stop.
+If your idea needs a server you control, a shared SQL database, your own user accounts and roles, or anything that runs server-side, Website Deploy is not the right host. Say so and stop.
 
 **Anyone can read; saving from a page needs sign-in.** Visitors sign in with Google or an emailed code on the site's own address (a sign-in covers that site only); every save from a page needs a signed-in visitor. Agents save with the API key (or the connector). Say this up front, before the page is written, so the form gets its sign-in box.
 

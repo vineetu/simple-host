@@ -3,7 +3,7 @@
 # tables in docs/advanced/*.md and the setup helper's copies under
 # internal/handler/static/setup/ (the enterprise copy from an enterprise
 # checkout: ENTERPRISE_REPO=/path/to/simple-host-enterprise, else
-# ../simple-host-enterprise or /tmp/ent-wt/advanced).
+# ../simple-host-enterprise).
 # `make check` fails until this has been run after a setting changes.
 set -euo pipefail
 cd "$(dirname "$0")/.."

@@ -74,7 +74,7 @@
     <ul>
       <li><strong>It belongs to the site's owner.</strong> Anything you type into a site (an RSVP, a comment, a survey answer, an order) is collected by that site's owner. We store it for them. The owner sees the address you were signed in with next to each entry you send and each change you make to the page's saved data (a vote, a like, an edit); other visitors never do. When an entry or a page's saved data is changed or deleted, the earlier copy is kept for 30 days so the owner can restore it, then removed. Ask the owner how they use it, or ask them to delete it. If you delete your own Simple Host account, the entries you sent to other people's lists while signed in are deleted with it, and your address is taken off the changes you made to their page data (the page data itself is the owner's and stays). Changes made without signing in, and public-list entries sent before lists recorded who sent them, are not linked to you, so they stay; for help with those, write to <a href="mailto:support@simple-host.app">support@simple-host.app</a>.</li>
       <li><strong>Most saved data is public.</strong> Unless a list is private, anyone can read what you submit. Do not submit anything you would not want public.</li>
-      <li><strong>Private lists.</strong> The owner can make a list private. Only the owner and the Simple Host operator can read it. The operator reads private lists only when needed for moderation, security, support or the law.</li>
+      <li><strong>Private lists.</strong> The owner can make a list private. Only the owner and the Simple Host operator can read it all; you can see and change what you sent. The operator reads private lists only when needed for moderation, security, support or the law.</li>
       <li><strong>Personal records.</strong> Some sites keep a record that is yours alone, such as saved progress or a habit tracker. Simple Host's owner tools never show it to the site's owner. The site's own pages run in your browser and can read it, so it is only as private as the site you use it on.</li>
       <li><strong>Your email goes with private submissions.</strong> To add to a private list you sign in, and your verified email is saved with what you submit. The site owner sees it.</li>
     </ul>
@@ -101,7 +101,7 @@
       <li><strong>What we receive.</strong> Only what the app sends when it uses a Simple Host tool: site names, files, data to save, domain names and similar. We do not receive your chat history or the rest of your conversation.</li>
       <li><strong>What we send back.</strong> Depending on the tool: your account email, handle and display name; your sites, files, versions and addresses; a site's domain and its status; saved data (including private lists you own); and visit counts. We do not send internal IDs, IP addresses or visitor hashes. The app then handles that data under its own privacy policy.</li>
       <li><strong>What we keep.</strong> Connector requests are logged like other API calls, including the shortened IP for 30 days. We keep a record of each connection (which app, the browser you allowed it in, in a few words such as "Chrome on macOS" so you can tell two connections apart, when you connected, when it was last used) until you disconnect it; never your IP address. We do not record what you asked the app.</li>
-      <li><strong>Disconnecting.</strong> Sign in at <a href="/dashboard">simple-host.app/dashboard</a> and choose Disconnect under Connected apps. Rotating your API key also disconnects every app.</li>
+      <li><strong>Disconnecting.</strong> Sign in at <a href="/dashboard">simple-host.app/dashboard</a> and choose Disconnect under Connected apps. Sign out everywhere also disconnects every app.</li>
     </ul>
     <p>A coding agent that uses your API key works the same way: its requests are made as you.</p>
 
@@ -142,7 +142,7 @@
     <h2 id="retention">How long we keep things</h2>
     <ul>
       <li><strong>Account:</strong> until you delete it. Deleting it removes it and all its data at once.</li>
-      <li><strong>Sites, versions and saved data:</strong> until you delete the site. Earlier versions are kept so you can roll back. Items in a private list can also be edited or deleted one by one by the owner.</li>
+      <li><strong>Sites, versions and saved data:</strong> until you delete the site. Earlier versions are kept so you can roll back. A deleted site is restorable for 7 days. Every change is kept for 30 days: the owner can restore earlier versions of saved data and deleted list items. The owner can delete entries in any list, and edit entries in a private list.</li>
       <li><strong>Server logs:</strong> 30 days.</li>
       <li><strong>Shortened IP addresses from API calls:</strong> 30 days.</li>
       <li><strong>Analytics records:</strong> 400 days, or until the site is deleted.</li>
@@ -154,7 +154,7 @@
 
     <h2 id="rights">Your choices and rights</h2>
     <ul>
-      <li><strong>Delete a site</strong> yourself at any time, from the dashboard or your AI app. This removes its files, saved data and analytics.</li>
+      <li><strong>Delete a site</strong> yourself at any time, from the dashboard or your AI app. It is restorable for 7 days from Recently deleted; then its files, saved data and analytics are removed.</li>
       <li><strong>Get a copy of your data:</strong> choose <strong>Download my data</strong> in the <strong>Your data</strong> section of your page (sign in at <a href="https://simple-host.app/dashboard">simple-host.app/dashboard</a>). You get one .zip file with every site, including any in Recently deleted (files, saved data and lists), your account details, your keys' names (never the keys), your connected apps, the sites you are signed in to as a visitor, every entry you sent to other people's lists while signed in, and every change you made to other people's page data while signed in (which site, what kind of change and when; changes made without signing in, and public-list entries sent before lists recorded who sent them, are not linked to you). Visitor analytics are not in it because they hold no personal data: visitors are counted by a salted hash, never by address.</li>
       <li><strong>Delete your account and all its data:</strong> choose <strong>Delete my account</strong> in the same place, and type your handle (or your email, if you have no handle) to confirm. It happens at once and cannot be undone: every site with its files, versions, saved data and analytics, your keys and connected apps, and the entries you sent to other people's lists while signed in. Your address and your sites' names are retired, never given to anyone else. We email you when it is done. Copies in backups are gone within about 14 days.</li>
       <li><strong>Correct your details:</strong> change your sign-in email under <strong>Sign-in</strong> on your page; for anything else, email us and we will fix them.</li>

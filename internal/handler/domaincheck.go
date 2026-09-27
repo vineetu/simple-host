@@ -332,7 +332,7 @@ func (h *SiteHandler) emailDomainFailing(ctx context.Context, d db.BoundDomain, 
 
 What the last check saw: %s
 
-If you moved the domain or let it lapse on purpose, there is nothing to do. Otherwise, check the DNS record at your domain registrar.
+If you moved the domain or let it lapse on purpose, there is nothing to do. Otherwise, check the domain's DNS records at your registrar (the address record, and the TXT record _simple-host.<domain>).
 
 If it is still failing %s from now, %s is disconnected from the site: the site serves at its own Simple Host address again. Connecting the domain again (by you or whoever holds it then) needs its DNS ownership record (TXT _simple-host.<domain>) once more.
 

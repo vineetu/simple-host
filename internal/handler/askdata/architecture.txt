@@ -21,7 +21,7 @@ Every site gets a small backend in the same upload, with no server code to write
 Each site's live saved data (page data and list items) is capped at 50 MB. The data lives in the Postgres database next to the site's record. A deleted site stays, with its saved data, in Recently deleted for 7 days, and can be restored until then.
 
 Who can write
-On a site's own address, visitors sign in before a page saves: with Google or with a six-digit code sent by email. The sign-in is tied to that one site's address, so signing in on one site does not sign you in anywhere else, and the site never sees a password or an API key. Agents write with the owner's API key or through the connector. Pages are always public to anyone who has the address; only private collections are private.
+On a site's own address, visitors sign in before a page saves: with Google or with a six-digit code sent by email. The sign-in is tied to that one site's address, so signing in on one site does not sign you in anywhere else, and the site never sees a password or an API key. Agents write with the owner's API key or through the connector. Pages are always public to anyone who has the address; only private Submissions (private collections) and Personal records are private.
 
 Accounts
 People sign in to Simple Host itself with an emailed six-digit code or with Google; there are no passwords. An account has a handle, which is the name in its addresses. API keys are stored only as one-way hashes, can be named, and can be revoked. A key can be made deploy-only (it can publish, roll back and list sites and nothing else, for a CI secret), and can be given a fixed expiry. A key unused for 180 days stops working.
@@ -32,8 +32,8 @@ Most people never use the dashboard. They ask their AI app or coding agent to pu
 - The Simple Host skill, for coding agents such as Claude Code, Codex and Cursor, which uses the public API with an API key.
 Both are described for agents in https://simple-host.app/llms.txt and the API reference at https://simple-host.app/docs.html.
 
-Create with AI and the Ask assistants
-The builder on simple-host.app can write a page from a chat. It uses one AI provider, Grok from xAI, with no fallback provider. The "Ask" panels (the Simple Host assistant and the Simple Host Enterprise assistant) use the same provider: the question, the last few questions and answers of the conversation (kept in the reader's browser tab only), and a public summary of the pages are sent, and nothing about the visitor. Answers appear as they are written. Questions are not stored.
+The Ask assistants
+The "Ask" panels (the Simple Host assistant and the Simple Host Enterprise assistant) use one AI provider, Grok from xAI, with no fallback provider: the question, the last few questions and answers of the conversation (kept in the reader's browser tab only), and a public summary of the pages are sent, and nothing about the visitor. Answers appear as they are written. Questions are not stored.
 
 Visit counts
 Site owners see how many people, bots and monitoring checks visit each site. The counts come from the web server's own log, with no script or cookie added to anyone's page. Visitor addresses are not kept in the analytics database; countries are looked up on the server itself. Owners also see each site's top pages and the domains visitors came from (the domain only, never the full referring address).

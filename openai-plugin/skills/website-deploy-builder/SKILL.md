@@ -18,11 +18,12 @@ if the idea is clear, go straight to building.
   or the person's own domain. Any number of pages.
 - **Shared state**: one small JSON document per site (about 1 MB) with atomic ops. Counters,
   vote tallies, settings, a short list.
-- **Collections**: append-only lists, one item per submission, newest first. RSVPs, sign-ups,
+- **Collections**: lists, one item per submission, newest first. RSVPs, sign-ups,
   survey responses, orders, guestbook entries. On any site, a collection
   can be made **private**: signed-in visitors add to it, and only the site owner — and the
   Simple Host operator, for moderation — can read it. The owner can mark items done or delete
-  them; in a public list the owner can delete (spam) but not edit, and visitors only add.
+  them; in a public list the owner can delete (spam) but not edit. In declared Submissions each
+  visitor also changes and withdraws their own.
 - **Per-visitor storage** in the browser (`localStorage`, IndexedDB): drafts, carts, settings,
   game saves, a private journal on one device.
 - **Public APIs** called from the page with `fetch()` (weather, maps, open data), when the API

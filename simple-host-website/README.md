@@ -1,18 +1,17 @@
-# Website Deploy Plugin
+# Website Deploy skills
 
-Deploy static websites to simple-host.app from your AI coding IDE. Works with Claude Code, Codex CLI, and Cursor.
+Deploy static websites to simple-host.app from your AI app or coding agent.
 
 ## Install
 
-```bash
-git clone git@github.com:vineetu/simple-host.git
-cd simple-host/simple-host-website
-bash setup.sh
-```
+- Coding agents (Claude Code, Codex, Cursor and others): `npx skills add vineetu/simple-host`
+- Chat apps (ChatGPT, Claude, Grok): add the connector `https://simple-host.app/mcp`
+- Claude Code plugin: the `simple-host` plugin (skills plus the connector)
 
-Requires **Node.js** (for the MCP server).
+The steps for each app are on https://simple-host.app/install.html. Restart your agent after installing.
 
-The setup script detects which IDEs you have installed and configures each one automatically. Restart your IDE after running setup.
+The local stdio MCP server in `mcp-server/` (5 tools: register, verify, deploy, status, list) and
+`setup.sh` are legacy; the connector above replaces them.
 
 ## Usage
 
@@ -29,7 +28,7 @@ The AI will guide you through registration, validate your site, and deploy it.
 
 Website Deploy serves **static files only** — HTML, CSS, JavaScript, images, and fonts. Your site will be live at its own address, `https://{sitename}.{handle}.simple-host.app/`. Every site gets built-in traffic analytics, computed server-side from access logs with nothing to add to your pages. Views and unique visitors are split by who was asking — `person`, `bot` and `infra` (uptime probes) — so `person` is the number that means real audience. Want a nicer address? Take a free `<name>.simple-host.app` or connect your own domain — subdomain or apex (e.g. `recipes.brand.com` / `brand.com`) — see the `connect-domain` skill.
 
-Every site also gets a small JSON backend (shared state, append-only collections) that its own pages can call. Reading it is public. Visitors sign in with Google (more providers later) or an emailed code on the site's own address via the hosted `https://simple-host.app/auth.js` helper; every save from a page needs a signed-in visitor, and a collection can be made private so only you can read it. Agents write with the site owner's API key. The `website-deploy` skill covers the pattern and `connect-domain` covers the optional domain.
+Every site also gets a small JSON backend (shared state, lists, and declared kinds: Page info, Submissions, Personal, Shared board) that its own pages can call. Reading it is public. Visitors sign in with Google (more providers later) or an emailed code on the site's own address via the hosted `https://simple-host.app/auth.js` helper; every save from a page needs a signed-in visitor, and a collection can be made private so only you can read it. Agents write with the site owner's API key. The `website-deploy` skill covers the pattern and `connect-domain` covers the optional domain.
 
 ### What works
 
@@ -45,7 +44,7 @@ Every site also gets a small JSON backend (shared state, append-only collections
 
 ### Limits
 
-- Max compressed upload: 100 MB
+- Max compressed upload: 100 MB by default (a server may allow more)
 - Max uncompressed: 500 MB
 - Site names: lowercase letters, numbers, and hyphens only
 

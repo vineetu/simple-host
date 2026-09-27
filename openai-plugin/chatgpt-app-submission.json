@@ -4,7 +4,7 @@
   "app_info": {
     "display_name": "Simple Host",
     "subtitle": "Describe a site. It's online.",
-    "description": "Tell ChatGPT the website you want (a portfolio, an event page with RSVPs, a small shop, a sign-up form, a survey) and Simple Host puts it online at an address you can share straight away. Every site can save what people send it: RSVPs, orders, votes and survey answers are kept, and you can download them as a spreadsheet. Orders, RSVPs and survey answers can go in a private list that only you can read. For a nicer address, take a free name.simple-host.app or connect your own domain. Sign in once and ChatGPT remembers you in every chat after that. Change a site any time by asking for it, and go back to any earlier version if you don't like the change. Pages are public to anyone with the link, so keep private information in private lists. Free to start.",
+    "description": "Tell ChatGPT the website you want (a portfolio, an event page with RSVPs, a small shop, a sign-up form, a survey) and Simple Host puts it online at an address you can share straight away. Every site can save what people send it: RSVPs, orders, votes and survey answers are kept, and you can download them as a spreadsheet. Every site gets its own address, and orders, RSVPs and survey answers can go in a private list on it that only you can read. Sign in once and ChatGPT remembers you in every chat after that. Change a site any time by asking for it, and go back to any earlier version if you don't like the change. Pages are public to anyone with the link, so keep private information in private lists. Free to start.",
     "category": "PRODUCTIVITY"
   },
   "tools": {

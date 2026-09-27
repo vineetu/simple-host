@@ -29,7 +29,7 @@ Then ask: *"Build me a wedding RSVP page and put it online."*
 - Take a site offline and back online. Nothing is deleted.
 - Delete is recoverable for 7 days from Recently deleted.
 - Download a copy of any site. Public or unlisted on your person page.
-- Visitor analytics per site, from server logs. No tracking script.
+- Visitor analytics per site, from server logs, with top pages and referring domains. No tracking script.
 
 ### Addresses and custom domains
 - Every site has its own address and browser origin: `<site>.<handle>.simple-host.app`.
@@ -41,8 +41,9 @@ Then ask: *"Build me a wedding RSVP page and put it online."*
 ### Saved data and lists
 - Per-site saved data: one JSON document with atomic operations (set, increment, append, remove).
 - Lists that visitors add to: comments, RSVPs, votes, sign-ups.
-- Private lists: only signed-in visitors add, only the owner reads.
-- The owner can edit or delete entries, empty a list, and download it as CSV.
+- Every piece of saved data has a kind: Shared (default, public), Page info (owner writes, everyone reads), Submissions (visitors send; private to the owner by default; each visitor sees, changes and withdraws their own; optional email digest), Personal (one private record per visitor) and Shared board (a list a group edits item by item).
+- Private Submissions: only signed-in visitors add; the owner reads all, each visitor only their own.
+- The owner can delete entries in any list, edit entries in a private list, empty a list, and download it as CSV. Every change to saved data can be undone for 30 days (History, Recently deleted).
 
 ### Visitor sign-in
 - Visitors sign in with Google or an emailed code on the site's own address.
@@ -51,7 +52,7 @@ Then ask: *"Build me a wedding RSVP page and put it online."*
 
 ### Your account, keys and data
 - Sign in with an emailed code or Google.
-- Named API keys: list, create and revoke them one at a time. Sign out everywhere in one step.
+- Named API keys: list, create and revoke them one at a time. Deploy-only keys for CI; a key unused for 180 days stops working. Sign out everywhere in one step.
 - Change your sign-in email, confirmed from both addresses, with a 7-day undo.
 - An email after each new sign-in or app connection. Can be turned off.
 - Download all your data in one archive. Delete your account for good.
@@ -116,6 +117,8 @@ Authenticated routes take `X-API-Key: <key>`. JSON in, JSON out. The full contra
 | `/v1/sites/{name}` | POST / PUT / PATCH / DELETE | Publish an archive / new version / rename or offline / delete |
 | `/v1/sites/{name}/state` | GET / PUT / PATCH | Saved data with atomic operations |
 | `/v1/sites/{name}/collections/{coll}` | GET / POST | Lists |
+| `/v1/sites/{name}/data/{name}` | GET / POST / PUT / PATCH | Saved data by kind (Page info, Submissions, Personal, Shared board); `.../kind` declares one |
+| `/v1/me/keys` | GET / POST / DELETE | Named API keys, deploy-only keys for CI |
 | `/v1/sites/{name}/domain` | POST / GET / DELETE | Your own domain |
 
 ## Working on this repo

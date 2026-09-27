@@ -95,13 +95,8 @@ like a custom domain: files at the root, `/v1/` same-origin, visitor sign-in. Un
 single-label names that match an old per-name host get a 301 from `LegacyHostRedirect`
 (`legacyhost.go`).
 
-**Custom domains** (`domains.go`, `domaincheck.go`). Bind with `POST /v1/sites/{site}/domain`;
-the binding is provisional until DNS proves it (24 h expiry, can be taken over until verified).
-On bind, `storage` makes `domains/<domain>` a symlink to the site and writes the
-`domain-redirect` marker. Serving needs a per-domain nginx vhost plus a Let's Encrypt cert,
-added by the operator (`deploy/prod/nginx-customdomain.example.conf`): files straight from
-`domains/<domain>/current`, `/v1/` and `/internal/` proxied to the app. Off the domain, writes
-for that site answer 401 `use_custom_domain`.
+Off its custom domain (see **Custom domains** above), writes for that site answer 401
+`use_custom_domain`.
 
 **MCP and OAuth** (`connector.go`, `internal/mcp`). An OAuth 2.1 authorization server
 (dynamic client registration, PKCE, consent page `static/connect.html` reusing the normal
@@ -137,8 +132,10 @@ lists refuse the former). Writes pass `visitorWriteOK`: the site owner's API key
 a visitor session plus `X-SH-CSRF: 1` on the site's own address. On the old shared host a key
 is the only way in when `PERSON_HOSTS=canonical`; on event and self-hosted instances
 (`off`/`serve`) the shared host is where pages live and its writes stay open. Private collections
-(`privatecollections.go`): only signed-in visitors on the site's address submit, only the owner
-or admin reads, everyone else gets 404.
+(`privatecollections.go`): only signed-in visitors on the site's address submit, the owner or
+admin reads all, and a visitor reads only their own entries. Personal (`mine`) records are read
+and written only by their person; Shared boards (`board`) are edited item by item with a version
+check.
 
 ## Code map
 
@@ -186,12 +183,22 @@ and rewrite to `/internal/suspended` (`deploy/prod/nginx-suspended-marker.sh` ad
 Tables (`db/schema.sql`):
 
 - `users` — every identity: owners, visitors, admin. `handle`, `display_name`.
-- `api_keys` — account keys as hex SHA-256 only (`key_hash`, `user_id`); several per account.
+- `users` also carries `event_account` (organiser-made accounts), suspension and `signin_alerts`.
+- `api_keys` — account keys as hex SHA-256 only (`key_hash`, `user_id`); several per account;
+  `scope` (full or deploy) and `expires_at`.
 - `handle_aliases`, `legacy_hostnames` — old handles and retired per-name hosts, same namespace.
 - `sites` — owner, name, active version, `state` JSONB + `state_version`, custom domain and its
   status, `visibility` (listing only), `allowed_origins`.
 - `versions` — one row per upload.
-- `collection_items`, `collection_settings` — append-only lists; private flag, `submitted_by`.
+- `collection_items`, `collection_settings` — lists, boards and Personal records (`kind`,
+  `version`); private flag, `submitted_by`.
+- `data_history` — every saved-data change for 30-day undo; `idempotency_keys`; `data_watch`
+  (counts of the visitor writes a later step may tighten); `site_savers` (who may save, blocks).
+- `site_name_aliases` — a renamed site's old names. `email_changes`, `email_change_undos`,
+  `signin_alerts_sent` — sign-in email changes and alerts.
+- `domain_cert_requests` — the certificate issuer's daily cap.
+- `site_page_daily`, `site_referrer_daily` — top pages and referring domains.
+- `ask_daily`, `setup_check_daily` — daily caps for the Ask assistants and the setup check.
 - `auth_tokens` — email codes, bound to a purpose and, for visitors, one site; expired rows
   purged.
 - `oauth_identities`, `oauth_states` — Google sign-in.
@@ -247,8 +254,8 @@ Tables (`db/schema.sql`):
 - **Hosted pages never hold an API key.** Everything a page does works with the site-scoped
   cookie. Middleware reads only `X-API-Key` (or a connector token); a site session is never
   owner power.
-- **Reads are public; every page write needs an identity.** The one private thing is a private
-  collection. No view-lock, no private pages.
+- **Reads are public; every page write needs an identity.** The private things are private
+  Submissions and Personal records. No view-lock, no private pages.
 - **A site with a domain lives only there.** 302 (not 301) so disconnecting takes effect at once.
 - **One namespace** for handles, claimed names, reserved names and retired hosts.
 - **Never hand out a site host without its certificate.** A TLS name mismatch cannot be fixed

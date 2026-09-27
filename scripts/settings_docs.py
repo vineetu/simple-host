@@ -14,8 +14,7 @@ docs/advanced/settings.json is generated from the code (`simple-host settings
     compose.yaml and kept by deploy/install/install.sh, and keeps the setup
     helper's copies (internal/handler/static/setup/*.json) equal to the
     sources: this repo's settings.json, and the enterprise repo's when a
-    checkout of it is found ($ENTERPRISE_REPO, ../simple-host-enterprise or
-    /tmp/ent-wt/advanced).
+    checkout of it is found ($ENTERPRISE_REPO or ../simple-host-enterprise).
 
   python3 scripts/settings_docs.py          rewrite the tables and copies
   python3 scripts/settings_docs.py --check  fail if anything is out of step
@@ -162,7 +161,7 @@ if os.path.exists(os.path.join(ROOT, "compose.yaml")):
 
     static = "internal/handler/static/setup"
     write_or_check(f"{static}/small-box-settings.json", read("docs/advanced/settings.json"))
-    candidates = [os.environ.get("ENTERPRISE_REPO", ""), os.path.join(ROOT, "..", "simple-host-enterprise"), "/tmp/ent-wt/advanced"]
+    candidates = [os.environ.get("ENTERPRISE_REPO", ""), os.path.join(ROOT, "..", "simple-host-enterprise")]
     ent = next((c for c in candidates if c and os.path.exists(os.path.join(c, "docs/advanced/settings.json"))), None)
     if ent:
         with open(os.path.join(ent, "docs/advanced/settings.json"), encoding="utf-8") as f:

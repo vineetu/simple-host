@@ -1,8 +1,9 @@
 # AI features
 
-**Ask about this page.** simple-host.app's features, architecture and enterprise pages carry a
-small "Ask about this page" box that answers from the page's own text. It runs only when a model
-backend is set (`LLM_API_KEY` and `LLM_BASE_URL`, or a provider); without one the box is not
+**Ask.** simple-host.app's features, architecture and enterprise pages carry a floating "Ask"
+button: two assistants (Simple Host, Simple Host Enterprise), each answering from all of its
+pages. It runs only when a model
+backend is set (`LLM_API_KEY` and `LLM_BASE_URL`, or a provider); without one the button is not
 shown. Questions are limited per address, per day across everyone, and in how many are answered
 at once.
 

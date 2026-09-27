@@ -3,7 +3,8 @@
 ## What this is, and why it exists
 
 Simple Host is one Go binary that hosts static websites and gives every site a small JSON
-backend (per-site state plus append-only collections) in the same upload. It exists because the
+backend (per-site state and saved data of four kinds: Page info, Submissions, Personal, Shared
+board; undeclared data is Shared) in the same upload. It exists because the
 sliver of dynamic behaviour most ordinary websites need (save an RSVP, count a vote, keep a
 guestbook) is absurdly expensive to stand up separately. Agents deploy sites through the bundled
 Website Deploy skill; humans mostly never touch the API directly.
@@ -60,8 +61,9 @@ What follows from that, and is not negotiable without changing the line above:
 ## Non-goals
 
 - Private or password-locked pages. Pages are always public; there is no view-lock and docs
-  must not advertise one. The one thing that can be private is a collection on a site's own
-  address (decisions 2026-09-24 "Private collections" and 2026-09-25); every other read stays open.
+  must not advertise one. The private things are Submissions (a private collection) and Personal
+  records, both on a site's own address (decisions 2026-09-24 "Private collections", 2026-09-25
+  and 2026-09-27 steps 3-4); every other read stays open.
 - A general-purpose backend. No schema, no queries, no server-side code for site authors.
 - Metered third-party AI keys. AI create runs on the local Grok sidecar only.
 - Starter templates and drop-in widgets. Removed 2026-09-05; agents build pages themselves.
@@ -120,7 +122,7 @@ What follows from that, and is not negotiable without changing the line above:
 - **2026-09-05. Say "Google sign-in", never "Google only".** More providers may come; GitHub stays
   wired but unconfigured and is not advertised.
 - **2026-09-05. Keep the story simple.** No "attributable writes" claim (nothing records an
-  author), no personal-data rules in the docs; one sentence that sites and their data are public.
+  author; superseded 2026-09-27: every write records its author, shown only to the owner), no personal-data rules in the docs; one sentence that sites and their data are public.
 - **2026-09-06. A site with a domain lives only there.** Its shared-host page URL 302s to the
   domain (same path), and its shared-host API takes no writes at all, key or not; agents use the
   apex or the domain. Reads stay public. Disconnecting the domain reverses both at once and
@@ -272,6 +274,8 @@ What follows from that, and is not negotiable without changing the line above:
   `DELETE .../collections/{c}` with `{"confirm": "<c>"}`, MCP `clear_collection`). Editing an
   entry stays private-lists only. Reverses "public lists stay append-only" (2026-09-24) for the
   owner only. Reason: spam could not be removed. Owner approved via the completeness plan.
+  Refined the same day by "Saved data step 2": a visitor sees, changes and withdraws their own
+  Submissions; Shared boards are edited item by item.
 - **2026-09-27. The owner app is the one place to manage sites.** Rename, domains (with the DNS
   record, last problem and "Check again"), every list with its public/private switch, saved
   data, Download and Delete live on `/<handle>`; the apex dashboard lists sites and links there
@@ -400,7 +404,8 @@ What follows from that, and is not negotiable without changing the line above:
   deferred. With it (review of step 2): declared Submissions take entries only from a signed-in
   visitor; a block and one per person count an address with its `+tag` dropped (identities stay
   cheap: "per signed-in account"); an `@domain` allow trusts the address a sign-in verified,
-  including a Google account made with a company address after its owner left; a private name
+  including a Google account made with a company address after its owner left (superseded
+  2026-09-27: sites see the account's current sign-in email); a private name
   that holds entries becomes public only with `confirm_public` and never becomes Page info; the owner may always save and
   undo; Submissions names per site are capped (`SAVED_DATA_ENTRIES_NAMES_MAX`); submission emails
   are claimed before sending, so they go out once and a failed send is not retried. Reason: a
@@ -424,7 +429,7 @@ What follows from that, and is not negotiable without changing the line above:
   (`mine`) is one private record per signed-in visitor per name. Only that visitor writes it;
   Simple Host's owner tools (key, connector, owner app, CSV, history, Recently deleted, the
   site's download) and the operator never show one (the site's own pages can read it for their
-  visitor; see the review decision below): the owner sees how many people have a record
+  visitor; see the review decision above): the owner sees how many people have a record
   and their size, and can clear the name for everyone (restore brings back only what the clear
   took). This is stricter than the plan's "the owner can export it": the build brief said
   Personal content is never visible to the owner, and a record is its person's (it is in their
@@ -438,10 +443,6 @@ What follows from that, and is not negotiable without changing the line above:
   item, 2,000 items per board, 20 names of each per site). Reason: the approved plan's steps 3
   and 4, smallest complete version. Decided under the approved plan; the owner may overrule.
 
-## Open, deliberately parked
-
-- Whether a site that disconnects its domain should be migrated back to a "normal" shared-host site in some
-  guided way, rather than just having the redirect stop. Parked 2026-09-06; revisit when it happens.
 - **2026-09-27. People can change their handle, also after publishing.** The dashboard shows the
   address with a Change button; after sites exist the change keeps the old handle as an alias, so
   old links redirect, rate-limited through `handle_changed_at`. The new handle gets its own
@@ -455,3 +456,39 @@ What follows from that, and is not negotiable without changing the line above:
   removed for good. Deleting a whole account (admin) stays immediate. Reason: an owner (or their
   agent) deleting the wrong site lost every RSVP and order with one click. Owner approved
   2026-09-27 (completeness plan).
+- **2026-09-27. A handle that ever published stays held after a change.** Even with no sites
+  left (all purged), the old handle is kept as an alias of the account, so old links and
+  hand-made vhosts keyed on the handle folder never follow a stranger who claims it; only a
+  handle that never published anything is freed. Reason: security review L3. Decided under the
+  owner's security-fix go, 2026-09-27.
+- **2026-09-27. Every "get the intruder out" lever also ends sign-ins on sites.** Sign out
+  everywhere, the admin's new key, email change and its undo, removing a Google/GitHub sign-in
+  and suspension end the account's visitor sessions, its own sites included (where they carry
+  owner powers over saved data). Reason: security review M1. Owner decision 2026-09-27.
+- **2026-09-27. A deploy key is as powerful as the site it publishes.** No behaviour change:
+  every place a deploy key is made says "a deploy key can publish code that runs when you open
+  your own site; treat it like the site itself". Reason: security review M2. Owner decision
+  2026-09-27.
+- **2026-09-27. Sites see the account's current sign-in email.** Who may save, blocks, one per
+  person and the `_submitted_by` stamp use the account's current address, not a Google address
+  linked before it moved; existing stamps stay. This replaces the step-2 note that an `@domain`
+  allow trusts a Google account made with a company address after its owner left. Reason:
+  security review M3. Owner decision 2026-09-27.
+- **2026-09-27. Reserved names for new claims.** Names that read as the service, its operator or
+  a sensitive function (support, admin, billing, login, simple-host and the rest of the list in
+  `docs/advanced/server-and-addresses.md`) are refused to new handles and new free addresses,
+  and the platform-sounding subset to new site names. Existing holders keep theirs. Reason:
+  impersonation. Owner decision 2026-09-27.
+- **2026-09-27. The enterprise pages are light by default.** `/enterprise`, `/enterprise/brief`
+  and `/enterprise/architecture` offer the header's light/dark toggle but open light whatever
+  the OS prefers; dark only when the reader picks it. Other pages are unchanged. Owner decision
+  2026-09-27.
+- **2026-09-27. /internal/ is closed to outside requests.** Every nginx vhost's
+  `location ^~ /internal/` carries `internal;` (`deploy/prod/nginx-internal-lock.sh`, the
+  content host included), so those pages are reached only through nginx's own rewrites and
+  error pages. Reason: security review L2. Owner approved 2026-09-27.
+
+## Open, deliberately parked
+
+- Whether a site that disconnects its domain should be migrated back to a "normal" shared-host site in some
+  guided way, rather than just having the redirect stop. Parked 2026-09-06; revisit when it happens.

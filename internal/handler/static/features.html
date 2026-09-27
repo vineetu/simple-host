@@ -99,12 +99,9 @@
       <a href="#state">Shared data</a>
       <a href="#collections">Collections</a>
       <a href="#domains">A nicer address</a>
-      <a href="#ai">Build with AI</a>
-      <a href="#voice">Voice &amp; attachments</a>
       <a href="#analytics">Traffic</a>
       <a href="#admin">Admin</a>
       <a href="#agent">Your AI agent</a>
-      <a href="#limits">Limits</a>
     </div>
 
     <!-- 00 What this page is -->
@@ -118,18 +115,16 @@
 
         <p><strong>Where you manage things.</strong> Every entry says which screen it lives on:</p>
         <div class="legend">
-          <div class="lrow"><div><span class="st">Your sites page</span></div><p>At <code>simple-host.app/your-handle</code>. Signing in takes you here. It is where you manage every site: its address, versions, rename, domain, lists, saved data, download and delete. It also has an <strong>Analytics</strong> tab, the AI chat and the setup panel for your AI agent.</p></div>
-          <div class="lrow"><div><span class="st">Main dashboard</span></div><p>The older screen, reached with <strong>＋ New site</strong> from your sites page. It lists your sites with a <strong>Manage</strong> link back to your sites page, and holds <strong>Rotate API key</strong>.</p></div>
+          <div class="lrow"><div><span class="st">Your sites page</span></div><p>At <code>simple-host.app/your-handle</code>. Signing in takes you here. It is where you manage every site: its address, versions, rename, domain, lists, saved data, download and delete. It also has an <strong>Analytics</strong> tab and the setup panel for your AI app.</p></div>
+          <div class="lrow"><div><span class="st">Main dashboard</span></div><p>The older screen, reached with <strong>＋ New site</strong> from your sites page. It lists your sites with a <strong>Manage</strong> link back to your sites page, and holds <strong>Sign out everywhere</strong>.</p></div>
         </div>
 
         <p><strong>Status marks used below:</strong></p>
         <div class="legend">
           <div class="lrow"><div><span class="st agent">Agent only</span></div><p>Real and working, but there is no button for it. You ask your AI agent and it does it for you.</p></div>
           <div class="lrow"><div><span class="st admin">Admin only</span></div><p>Only visible to the person who runs the service.</p></div>
-          <div class="lrow"><div><span class="st part">Partial</span></div><p>It exists, but it does not finish the job on its own. The gap is written out in the entry.</p></div>
-          <div class="lrow"><div><span class="st no">Not active</span></div><p>Built, but switched off or not connected up on this instance. It does nothing for you today.</p></div>
         </div>
-        <div class="fine">Everything unmarked works end to end · last checked against the running service on 6 September 2026</div>
+        <div class="fine">Everything unmarked works end to end · last checked against the running service on 27 September 2026</div>
       </div>
     </section>
 
@@ -149,7 +144,7 @@
               <p class="fw">Type your email, get a six-digit code, type it back. There is no password to choose or remember, and no separate sign-up step — your first code creates the account.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone starting out, and any visitor who needs to sign in to post on a site.</dd>
-                <dt>Where</dt><dd>The sign-in box on the home page, and inside the AI chat when a visitor tries to build something.</dd>
+                <dt>Where</dt><dd>The sign-in box on the home page.</dd>
                 <dt>Limits</dt><dd class="lim">The code expires after <b>15 minutes</b> and you get <b>three</b> tries before you have to ask for a new one.</dd>
               </dl>
             </div>
@@ -235,6 +230,58 @@
             </div>
           </div>
 
+          <div class="feat" id="sign-out">
+            <div class="fid">sign-out</div>
+            <div>
+              <h3>Sign out, or sign out everywhere</h3>
+              <p class="fw">Sign out ends the key this browser holds. <strong>Sign out everywhere</strong> stops every key on the account at once, disconnects every connected app and ends every sign-in on your sites; the browser you pressed it in gets a fresh key.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone who lost a laptop, shared a key by mistake or got a sign-in alert they did not expect.</dd>
+                <dt>Where</dt><dd><strong>Sign out</strong> in the header, and <strong>Sign out everywhere</strong> in the <strong>Keys</strong> panel on your sites page.</dd>
+                <dt>Limits</dt><dd class="lim">Your agents need the new key afterwards, and apps you want to keep have to be connected again.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="signin-email-change">
+            <div class="fid">signin-email-change</div>
+            <div>
+              <h3>Change your sign-in email</h3>
+              <p class="fw">Move the account to another address. A code goes to the new address and another to the current one, and both are needed. Your handle, sites and connected apps stay; other keys are signed out.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone leaving a job address or a mailbox they no longer use.</dd>
+                <dt>Where</dt><dd><strong>Sign-in</strong> on your sites page, or ask your AI app.</dd>
+                <dt>Limits</dt><dd class="lim">The old address gets a notice with a 7-day undo link: undoing puts the account back and signs everything out. Event and reviewer accounts keep their address.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="signin-alerts">
+            <div class="fid">signin-alerts</div>
+            <div>
+              <h3>An email after each sign-in</h3>
+              <p class="fw">After each sign-in (code, link or Google) or app connection you get one short email: when, which browser or app, and a link to <strong>Sign out everywhere</strong>.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Everyone; it is how you notice a sign-in that was not you.</dd>
+                <dt>Where</dt><dd>Your inbox. Turn it off or on under <strong>Sign-in</strong> on your sites page.</dd>
+                <dt>Limits</dt><dd class="lim">At most one per browser a day, and never for API key calls. It never contains your address or IP.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="account-data">
+            <div class="fid">account-data</div>
+            <div>
+              <h3>Download your data, or delete your account</h3>
+              <p class="fw"><strong>Download my data</strong> gives one <code>.zip</code> of everything held about you: account details, keys (never the keys themselves), connected apps, what you sent to other people's sites, and every site with its saved data. <strong>Delete my account</strong> removes the account and all of it at once.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone leaving, or checking what is kept about them.</dd>
+                <dt>Where</dt><dd><strong>Your data</strong> on your sites page.</dd>
+                <dt>Limits</dt><dd class="lim">Deleting is <b>for good</b>: every site (Recently deleted included), keys, connected apps and your entries on other people's lists go, and your handle and site names are retired. You type your handle to confirm.</dd>
+              </dl>
+            </div>
+          </div>
+
         </div>
       </div>
     </section>
@@ -243,7 +290,7 @@
     <section id="publish">
       <div>
         <h2>Publishing a site</h2>
-        <p class="lede">Two ways in: ask your own AI (with Simple Host added to it) to publish, or have the AI chat write it. Both end at the same live address.</p>
+        <p class="lede">Ask your own AI app (with Simple Host added to it) to publish. It ends at a live address.</p>
         <div class="feats">
 
           <div class="feat" id="deploy-inline-files">
@@ -285,6 +332,19 @@
             </div>
           </div>
 
+          <div class="feat" id="deploy-ci">
+            <div class="fid">deploy-ci</div>
+            <div>
+              <h3>Publish from CI in one call <span class="st agent">Agent only</span></h3>
+              <p class="fw">One call creates the site the first time and publishes a new version after that, so a build pipeline (GitHub Actions and the like) can publish on every push.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone whose site lives in a repository with a build step.</dd>
+                <dt>Where</dt><dd>No screen. Create a <strong>Deploy only</strong> key in the <strong>Keys</strong> panel, save it as the pipeline's secret, and your agent writes the workflow.</dd>
+                <dt>Limits</dt><dd class="lim">A deploy key can create, update, roll back and list sites, and nothing else. A deploy key can publish code that runs when you open your own site; treat it like the site itself.</dd>
+              </dl>
+            </div>
+          </div>
+
           <div class="feat" id="site-name">
             <div class="fid">site-name</div>
             <div>
@@ -293,7 +353,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone publishing anything.</dd>
                 <dt>Where</dt><dd>Your AI asks or picks one when it publishes; ask it for a different one any time.</dd>
-                <dt>Limits</dt><dd class="lim">Lower-case letters, numbers and dashes only. You can <b>rename it later</b> (<b>Rename</b> next to the site on your sites page); the old address then returns 404.</dd>
+                <dt>Limits</dt><dd class="lim">Lower-case letters, numbers and dashes only. You can <b>rename it later</b> (<b>Rename</b> next to the site on your sites page); links to the old address redirect to the new one until a new site takes the old name.</dd>
               </dl>
             </div>
           </div>
@@ -558,7 +618,7 @@
             <div class="fid">state-public</div>
             <div>
               <h3>The store is public, on purpose</h3>
-              <p class="fw">Sites and their data are public to anyone with the link. This is stated plainly because it is the single most important thing to know before you build.</p>
+              <p class="fw">Pages and shared data are public to anyone with the link; private Submissions and Personal records are not. This is stated plainly because it is the single most important thing to know before you build.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Everyone using the store. It shapes what you should and should not collect.</dd>
                 <dt>Where</dt><dd>Not a setting — it is how the store works.</dd>
@@ -601,7 +661,7 @@
     <section id="collections">
       <div>
         <h2>Site data — collections</h2>
-        <p class="lede">Where form entries go. A collection is a growing list — one row per submission — separate from the shared box so it can grow without limit on the page.</p>
+        <p class="lede">Where form entries go. A collection is a growing list — one row per submission — separate from the shared box so it can grow well past it (a declared Submissions name holds at most 10,000 live entries).</p>
         <div class="feats">
 
           <div class="feat" id="collection-append">
@@ -612,7 +672,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone with a form: an event page, a waitlist, a contact form, a survey.</dd>
                 <dt>Where</dt><dd>Your page's own code saves to it.</dd>
-                <dt>Limits</dt><dd class="lim">Up to <b>64 KB</b> per entry. Visitors only add. You can delete any entry, or empty the whole list, from your page or through your agent; entries in a public list cannot be edited.</dd>
+                <dt>Limits</dt><dd class="lim">Up to <b>64 KB</b> per entry (Each new entry is at most 16 KB in declared Submissions). In Submissions each visitor can see, change and withdraw their own; on a Shared board anyone signed in edits items. You can delete any entry, or empty the whole list, from your page or through your agent; entries in a public list cannot be edited.</dd>
               </dl>
             </div>
           </div>
@@ -638,7 +698,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>You, checking whether anyone actually filled the form in, or cleaning up after spam.</dd>
                 <dt>Where</dt><dd><strong>Lists</strong> beneath the site on your sites page. Your agent can do the same.</dd>
-                <dt>Limits</dt><dd class="lim">Shows the <b>50 most recent</b> entries in the table view. A deleted entry stays in Recently deleted for <b>30 days</b>, then is gone for good. Entries in a public list can be deleted but not edited. Visitors can only add.</dd>
+                <dt>Limits</dt><dd class="lim">Shows the <b>50 most recent</b> entries in the table view. A deleted entry stays in Recently deleted for <b>30 days</b>, then is gone for good. Entries in a public list can be deleted but not edited.</dd>
               </dl>
             </div>
           </div>
@@ -660,11 +720,63 @@
             <div class="fid">collection-private</div>
             <div>
               <h3>Private collections</h3>
-              <p class="fw">A collection can be made private: only signed-in visitors can submit, and only you can read it. Each entry is stamped with the visitor's verified email and the time.</p>
+              <p class="fw">A collection can be made private: only signed-in visitors can submit; you read them all, and each visitor sees, changes and withdraws only their own. Each entry is stamped with the visitor's verified email and the time.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone collecting personal details: orders, RSVPs, sign-ups.</dd>
-                <dt>Where</dt><dd><strong>Make private</strong> next to the list on your sites page, or ask your agent. Visitors submit on the site's own address; you read the entries on your sites page, on an owner page on the site, or as a CSV.</dd>
+                <dt>Where</dt><dd><strong>Make private</strong> next to the list on your sites page, or choose Submissions under the list's <strong>Settings</strong>, or ask your agent. Visitors submit on the site's own address; you read the entries on your sites page, on an owner page on the site, or as a CSV.</dd>
                 <dt>Limits</dt><dd class="lim">Making a private collection public again shows everything already in it, so the page and your agent ask first.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="data-kinds">
+            <div class="fid">data-kinds</div>
+            <div>
+              <h3>Four kinds of saved data</h3>
+              <p class="fw">Each data name a site uses is one kind, and the kind decides who reads and who changes what: <strong>Page info</strong> (you write, everyone reads), <strong>Submissions</strong> (visitors send; private to you by default), <strong>Personal</strong> (one private record per visitor that follows them to any device) and <strong>Shared board</strong> (a list a group edits item by item). A name nobody declared is Shared, as before.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone building a form, a menu, a habit tracker or a group list without writing access rules.</dd>
+                <dt>Where</dt><dd>Your AI app declares each name when it builds the site; you see and change the kind under <strong>Settings</strong> next to each name on your sites page.</dd>
+                <dt>Limits</dt><dd class="lim">A Page info document is at most 1 MB. Each new entry is at most 16 KB, and a name holds at most 10,000 live entries. A personal record is at most 64 KB, and a name holds records for at most 1,000 people. A board item is at most 16 KB, and a board holds at most 2,000 live items. All but Page info need the site on an address of its own. A site's own pages can read a visitor's Personal record, so it is as private as the site's pages are trustworthy.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="who-may-save">
+            <div class="fid">who-may-save</div>
+            <div>
+              <h3>Who may save here, and Block</h3>
+              <p class="fw">Choose whether anyone who signs in may save on a site, or only listed emails and whole <code>@domains</code>. <strong>Block</strong> next to any entry stops that person saving there again.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone whose form is for a club, a class or a company, and anyone dealing with a troublemaker.</dd>
+                <dt>Where</dt><dd><strong>Who may save here</strong> under the site's data on your sites page, and <strong>Block</strong> next to an entry. Your AI app can do both.</dd>
+                <dt>Limits</dt><dd class="lim">At most 500 emails and domains in total. You always may save. A blocked person can still withdraw what they already sent.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="submission-emails">
+            <div class="fid">submission-emails</div>
+            <div>
+              <h3>Email me when something arrives</h3>
+              <p class="fw">New Submissions can email you: once a day (the default for private ones), soon after each arrives, or not at all. Every email has a link that stops them.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone taking orders, RSVPs or sign-ups who will not check the page every day.</dd>
+                <dt>Where</dt><dd><strong>Email me</strong> under the name's <strong>Settings</strong> on your sites page, or ask your AI app.</dd>
+                <dt>Limits</dt><dd class="lim">Soon after they arrive means at most one email per name every 10 minutes, counting what came in. The email carries counts and the list's name, not the entries.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="data-history">
+            <div class="fid">data-history</div>
+            <div>
+              <h3>History, Restore and Delete for good</h3>
+              <p class="fw">Every change to saved data is kept, with who made it: open <strong>History</strong> to undo one change or put a whole document back, and <strong>Recently deleted</strong> to restore entries one by one or all at once.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone whose page data was overwritten, or who deleted the wrong entry.</dd>
+                <dt>Where</dt><dd><strong>History</strong> and <strong>Recently deleted</strong> under the site's data on your sites page, or ask your AI app.</dd>
+                <dt>Limits</dt><dd class="lim">Every change is kept for 30 days: the owner restores any of it. A deleted entry stays in Recently deleted for <b>30 days</b>, then is gone for good. <strong>Delete forever</strong> removes an entry and its history at once, for a person who asks to be erased or a flood of spam.</dd>
               </dl>
             </div>
           </div>
@@ -740,146 +852,33 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone moving a domain to a different site, or retiring one.</dd>
                 <dt>Where</dt><dd><strong>Disconnect</strong> under <strong>Domain</strong> next to the site on your sites page.</dd>
-                <dt>Limits</dt><dd class="lim">The DNS record at your registrar is <b>not removed</b> — take it out yourself, or the domain will point at nothing.</dd>
+                <dt>Limits</dt><dd class="lim">The DNS records at your registrar (address and TXT) are <b>not removed</b> — take them out yourself, or the domain will point at nothing.</dd>
               </dl>
             </div>
           </div>
 
-        </div>
-      </div>
-    </section>
-
-    <!-- 07 Build with AI -->
-    <section id="ai">
-      <div>
-        <h2>Build with AI</h2>
-        <p class="lede">Describe the site you want and watch it appear. There are two routes, and they differ in one important way: only one of them can publish.</p>
-        <div class="feats">
-
-          <div class="feat" id="ai-chat-build">
-            <div class="fid">ai-chat-build</div>
+          <div class="feat" id="free-name">
+            <div class="fid">free-name</div>
             <div>
-              <h3>Describe a site in the chat</h3>
-              <p class="fw">Say what you want in plain language — "a landing page for my coffee shop" — and a complete page is built for you, working backend and all.</p>
+              <h3>A free &lt;name&gt;.simple-host.app</h3>
+              <p class="fw">Take a short free address such as <code>my-shop.simple-host.app</code> for a site. It is live at once, with HTTPS and nothing to set up at a registrar, and the site's longer address redirects there.</p>
               <dl class="fm">
-                <dt>Who</dt><dd>Anyone without a designer, and anyone starting from nothing on a phone.</dd>
-                <dt>Where</dt><dd>The <strong>Build a site with AI</strong> chat at the top of your sites page.</dd>
-                <dt>Limits</dt><dd class="lim">Name it and press <b>Publish</b> under the preview; the builder stays tied to that site so the next build updates it (<b>Publish as new</b> for a copy). The chat only builds a <b>single page</b>.</dd>
+                <dt>Who</dt><dd>Anyone who wants a short link to print or say out loud.</dd>
+                <dt>Where</dt><dd><strong>Domain</strong> next to the site on your sites page, or ask your AI app.</dd>
+                <dt>Limits</dt><dd class="lim">One name per site, first come first served. Names that read as Simple Host or a sensitive function (support, admin, billing, login and similar) are reserved.</dd>
               </dl>
             </div>
           </div>
 
-          <div class="feat" id="ai-chat-iterate">
-            <div class="fid">ai-chat-iterate</div>
+          <div class="feat" id="domain-partner">
+            <div class="fid">domain-partner</div>
             <div>
-              <h3>Keep talking to change it</h3>
-              <p class="fw">Ask for a change — different colours, another section, fix the wording — and the same page is revised rather than started over.</p>
+              <h3>www and the bare domain together</h3>
+              <p class="fw">Connect <code>brand.com</code> and <code>www.brand.com</code> answers too (or the other way round): the partner name redirects to the one you chose, on the same certificate.</p>
               <dl class="fm">
-                <dt>Who</dt><dd>Anyone who never gets it right on the first try.</dd>
-                <dt>Where</dt><dd>The same chat, one message after another.</dd>
-                <dt>Limits</dt><dd class="lim">The conversation is <b>lost on reload</b> or on <strong>Start over</strong>, and so is the page it built.</dd>
-              </dl>
-            </div>
-          </div>
-
-          <div class="feat" id="ai-chat-preview">
-            <div class="fid">ai-chat-preview</div>
-            <div>
-              <h3>See it before anyone else does</h3>
-              <p class="fw">The built page appears live in the chat, and can be opened full-screen in its own tab to judge properly.</p>
-              <dl class="fm">
-                <dt>Who</dt><dd>Everyone using the chat.</dd>
-                <dt>Where</dt><dd>Below the conversation, plus <strong>Open full page</strong>.</dd>
-                <dt>Limits</dt><dd class="lim">The preview is <b>only for you</b> — the link cannot be shared, and it disappears when you leave.</dd>
-              </dl>
-            </div>
-          </div>
-
-          <div class="feat" id="ai-single-provider">
-            <div class="fid">ai-single-provider</div>
-            <div>
-              <h3>One model, no silent substitutes</h3>
-              <p class="fw">The chat runs on exactly one AI provider. If it is unavailable you are told the build failed — you are never quietly switched to a different, worse model.</p>
-              <dl class="fm">
-                <dt>Who</dt><dd>Anyone who needs to trust that two builds an hour apart came from the same thing.</dd>
-                <dt>Where</dt><dd>Visible only as an error message when the provider is down.</dd>
-                <dt>Limits</dt><dd class="lim">No fallback means <b>an outage stops the AI chat entirely</b>. Your own AI, with Simple Host added, still works.</dd>
-              </dl>
-            </div>
-          </div>
-
-          <div class="feat" id="ai-build-queue">
-            <div class="fid">ai-build-queue</div>
-            <div>
-              <h3>Builds run in the background</h3>
-              <p class="fw">A full build takes a minute or more, so it runs behind the scenes and the page keeps showing progress rather than freezing or timing out.</p>
-              <dl class="fm">
-                <dt>Who</dt><dd>Everyone using the chat, especially on a phone with a flaky connection.</dd>
-                <dt>Where</dt><dd>The progress bubble in the chat.</dd>
-                <dt>Limits</dt><dd class="lim"><b>Three builds at once</b> per person, and a finished build is <b>discarded after ten minutes</b> if you never come back to it.</dd>
-              </dl>
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </section>
-
-    <!-- 08 Voice and attachments -->
-    <section id="voice">
-      <div>
-        <h2>Voice &amp; attachments</h2>
-        <p class="lede">Two ways to describe a site without typing it — both aimed squarely at building from a phone.</p>
-        <div class="feats">
-
-          <div class="feat" id="voice-dictation">
-            <div class="fid">voice-dictation</div>
-            <div>
-              <h3>Speak instead of typing</h3>
-              <p class="fw">Press the microphone, say what you want, and it becomes text in the box. The words stay editable before you send them, so a misheard name is fixable.</p>
-              <dl class="fm">
-                <dt>Who</dt><dd>Anyone on a phone, and anyone who describes things better out loud than in writing.</dd>
-                <dt>Where</dt><dd>The microphone button in the AI chat on your sites page.</dd>
-                <dt>Limits</dt><dd class="lim">The button <b>only appears if your browser can record</b>. About five minutes of speech at a time.</dd>
-              </dl>
-            </div>
-          </div>
-
-          <div class="feat" id="voice-live-captions">
-            <div class="fid">voice-live-captions</div>
-            <div>
-              <h3>Captions while you are still talking</h3>
-              <p class="fw">Words appear as you say them, so you can tell immediately that it is hearing you correctly instead of finding out at the end.</p>
-              <dl class="fm">
-                <dt>Who</dt><dd>Anyone dictating more than a sentence.</dd>
-                <dt>Where</dt><dd>In the message box, while the microphone is on.</dd>
-                <dt>Limits</dt><dd class="lim">If live captions are busy or drop out you are told so, and it <b>falls back to transcribing when you stop</b> — you never lose what you said.</dd>
-              </dl>
-            </div>
-          </div>
-
-          <div class="feat" id="voice-on-device-privacy">
-            <div class="fid">voice-on-device-privacy</div>
-            <div>
-              <h3>Your recording does not leave the service</h3>
-              <p class="fw">Speech is turned into text on this same machine rather than being sent to an outside company.</p>
-              <dl class="fm">
-                <dt>Who</dt><dd>Anyone who would rather their voice not be handed to a third party.</dd>
-                <dt>Where</dt><dd>Nothing to switch on.</dd>
-                <dt>Limits</dt><dd class="lim">It is a small machine, so <b>very long recordings queue</b> behind other people's.</dd>
-              </dl>
-            </div>
-          </div>
-
-          <div class="feat" id="ai-attachments">
-            <div class="fid">ai-attachments</div>
-            <div>
-              <h3>Attach a screenshot or notes</h3>
-              <p class="fw">Add a picture of a design you like, or a page of notes, and have the site built from it instead of described from scratch. Both are genuinely read.</p>
-              <dl class="fm">
-                <dt>Who</dt><dd>Anyone copying an existing look, or turning something they already have into a page.</dd>
-                <dt>Where</dt><dd>The paperclip button in the AI chat on your sites page.</dd>
-                <dt>Limits</dt><dd class="lim">Images (PNG, JPEG, GIF, WebP) and plain text only — <b>PDFs are not accepted</b>; screenshot the page or paste the text. Up to <b>six</b> attachments a message, images about <b>5 MB</b> each, <b>18 MB</b> in total.</dd>
+                <dt>Who</dt><dd>Anyone whose visitors type the domain either way.</dd>
+                <dt>Where</dt><dd>Offered when you connect a domain; the records to add are shown with the rest.</dd>
+                <dt>Limits</dt><dd class="lim">The partner only redirects; it never serves a second copy of the site.</dd>
               </dl>
             </div>
           </div>
@@ -1096,7 +1095,20 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Whoever runs the service, checking who is actually using it.</dd>
                 <dt>Where</dt><dd>The admin dashboard, ordered by most sites first.</dd>
-                <dt>Limits</dt><dd class="lim">Accounts can be created in bulk and deleted from here, and deleting takes everything that account published with it. There is no way to suspend or contact an account.</dd>
+                <dt>Limits</dt><dd class="lim">Accounts can be created in bulk and deleted from here, and deleting takes everything that account published with it. Accounts can be suspended and sites taken down without deleting anything, and restored later.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="admin-takedown">
+            <div class="fid">admin-takedown</div>
+            <div>
+              <h3>Take a site down, or suspend an account <span class="st admin">Admin only</span></h3>
+              <p class="fw">Take one site down, or suspend a whole account, with a reason. Every address of the site shows &ldquo;This site has been taken down&rdquo; and changes are refused; nothing is deleted, and <strong>Restore</strong> or <strong>Re-enable</strong> puts it back.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Whoever runs the service, handling an abuse report.</dd>
+                <dt>Where</dt><dd><strong>Take down</strong> in the admin dashboard's entries, and <strong>Suspend</strong> on a person's card.</dd>
+                <dt>Limits</dt><dd class="lim">A suspended account's keys, connected apps and sign-in are refused while it lasts. The owner still reads and downloads their data with their key.</dd>
               </dl>
             </div>
           </div>
@@ -1109,7 +1121,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Whoever runs the service, dealing with a report or a broken site.</dd>
                 <dt>Where</dt><dd>An extra <strong>Admin</strong> tab that appears on the main dashboard for admins.</dd>
-                <dt>Limits</dt><dd class="lim">Full control including delete, so it is easy to remove somebody else's site by accident.</dd>
+                <dt>Limits</dt><dd class="lim">Full control including delete, so it is easy to remove somebody else's site by accident; a deleted site is restorable for 7 days.</dd>
               </dl>
             </div>
           </div>
@@ -1207,7 +1219,7 @@
             <div class="fid">skill-connect-domain</div>
             <div>
               <h3>The domain skill</h3>
-              <p class="fw">Walks your agent through connecting your own domain: attach it, tell you the one record to add, then check the domain itself until it answers.</p>
+              <p class="fw">Walks your agent through connecting your own domain: attach it, tell you the two records to add (the address record and the TXT ownership record), then check the domain itself until it answers.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone attaching a domain, which is the step most likely to go wrong unattended.</dd>
                 <dt>Where</dt><dd>Installed alongside the other two.</dd>
@@ -1255,15 +1267,28 @@
             </div>
           </div>
 
-          <div class="feat" id="skill-help-desk">
-            <div class="fid">skill-help-desk</div>
+          <div class="feat" id="connector">
+            <div class="fid">connector</div>
             <div>
-              <h3>"I'm stuck — help me"</h3>
-              <p class="fw">A button that opens the AI chat with your tool and operating system already filled in, so you can describe the problem instead of the setup.</p>
+              <h3>Simple Host in your chat app</h3>
+              <p class="fw">Add Simple Host to ChatGPT, Claude or Grok once, sign in, and the chat app can publish and manage your sites for you. Each connected app is listed with the device it was connected from (for example "Chrome on macOS") and when it was last used.</p>
               <dl class="fm">
-                <dt>Who</dt><dd>Anyone whose install did not work first time.</dd>
-                <dt>Where</dt><dd>In the setup panel on your sites page.</dd>
-                <dt>Limits</dt><dd class="lim">It is the same AI chat, so it can advise but cannot reach into your machine and fix it.</dd>
+                <dt>Who</dt><dd>Anyone who builds in a chat app rather than a terminal.</dd>
+                <dt>Where</dt><dd><strong>Get started</strong> gives the address to add (<code>https://simple-host.app/mcp</code>). <strong>Connected apps</strong> on your sites page lists them, with <strong>Disconnect</strong>.</dd>
+                <dt>Limits</dt><dd class="lim">ChatGPT and Grok need a paid plan for this. <strong>Sign out everywhere</strong> disconnects every app.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="self-host">
+            <div class="fid">self-host</div>
+            <div>
+              <h3>Run it on your own server</h3>
+              <p class="fw">The same software runs on a server of your own, from one install command. The setup helper asks a few questions and writes the settings, and an optional check looks over the numbers you changed.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Teams and event organisers who want their own copy, with their own limits.</dd>
+                <dt>Where</dt><dd><a href="/setup?product=small-box">Run your own → Set up</a>.</dd>
+                <dt>Limits</dt><dd class="lim">Every limit on this page is a setting there. Your server, your certificates and your backups are yours to run.</dd>
               </dl>
             </div>
           </div>
@@ -1289,7 +1314,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Developers, and agents that prefer a specification to prose.</dd>
                 <dt>Where</dt><dd><strong>API</strong> in the top navigation.</dd>
-                <dt>Limits</dt><dd class="lim">A few internal and download addresses are not listed there, and the published rate limits are not given as numbers.</dd>
+                <dt>Limits</dt><dd class="lim">A few internal and download addresses are not listed there.</dd>
               </dl>
             </div>
           </div>
@@ -1298,22 +1323,6 @@
       </div>
     </section>
 
-    <!-- 12 Limits -->
-    <section id="limits">
-      <div>
-        <h2>Limits</h2>
-        <p class="lede">Where the product stops. Written down so you can plan around it rather than discover it halfway through building something.</p>
-        <table>
-          <tr class="trow"><td class="tk">Sharing a site with someone else</td><td class="tv">No collaborators, no second owner, no team. A site belongs to one account.</td></tr>
-          <tr class="trow"><td class="tk">Private or password-protected sites</td><td class="tv">There is no way to put a password on a site, and no encrypted mode. Assume anything published is readable by anyone with the link.</td></tr>
-          <tr class="trow"><td class="tk">Attaching a PDF to the AI chat</td><td class="tv">PDFs are not accepted. Screenshot the page you want copied, or paste the text.</td></tr>
-          <tr class="trow"><td class="tk">Email when something arrives</td><td class="tv">No notifications of any kind — not for form entries or traffic. You check, or your agent does.</td></tr>
-          <tr class="trow"><td class="tk">Referrers or page-level traffic</td><td class="tv">Traffic is per site: people, bots, monitoring, a trend and countries. Nothing about which link a visitor came from or which page they read.</td></tr>
-          <tr class="trow"><td class="tk">Anything that runs on the server</td><td class="tv">No server-side code, no scheduled jobs, no image processing, no sending mail from your site. Deliberate, and it is what keeps this safe to host.</td></tr>
-        </table>
-        <p class="fine">If something you need is on this list, say so. Writing it down makes it arguable rather than invisible.</p>
-      </div>
-    </section>
 
   </div>
 

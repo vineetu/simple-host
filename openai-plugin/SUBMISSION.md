@@ -1,4 +1,4 @@
-# OpenAI plugin submission kit — Simple Host 0.4.0
+# OpenAI plugin submission kit — Simple Host 0.8.0
 
 Everything to paste into the plugin portal (https://platform.openai.com/plugins), in portal
 order, plus the steps only the owner can do. Checked against the OpenAI docs as of 2026-09-24:
@@ -234,7 +234,7 @@ governing-law clause names one jurisdiction, start there.
 
 ## 8. Release notes
 
-> Simple Host 0.4.0, the successor to the Skills-only "Website Deploy" listing. Adds the Simple Host remote MCP server
+> Simple Host 0.8.0, the successor to the Skills-only "Website Deploy" listing. Adds the Simple Host remote MCP server
 > (https://simple-host.app/mcp, OAuth 2.1 with dynamic client registration and PKCE), so
 > people sign in once and every conversation can publish and manage their sites without email
 > codes or API keys. The three skills now use the MCP tools instead of an email-code and curl

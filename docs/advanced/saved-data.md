@@ -2,7 +2,16 @@
 
 Every site gets a small backend in the same upload: one shared JSON document (page data) with
 atomic operations, and lists visitors add to (RSVPs, votes, sign-ups). A list can be private: only
-signed-in visitors add, only the owner reads.
+signed-in visitors add; the owner reads all, and each visitor reads their own.
+
+**Kinds.** Each data name is one kind, and the kind decides who reads and who changes what:
+**Page info** (the owner writes, everyone reads), **Submissions** (visitors send entries; private
+to the owner by default; each visitor sees, changes and withdraws their own; an optional email
+digest to the owner), **Personal** (one private record per signed-in visitor) and **Shared
+board** (a list a group edits item by item). A name nobody declared is **Shared**, as before the
+kinds; `SAVED_DATA_DEFAULT_KIND=declare_first` makes new sites take no saves under an undeclared
+name. The owner can limit who may save on a site to listed emails and `@domains`, and block
+people. The `SAVED_DATA_*` settings below set each kind's sizes and counts.
 
 **Undo.** Every change to page data, and every deleted or edited list item, is kept for
 `SAVED_DATA_UNDO_DAYS` and can be restored by the site's owner. History past its size cap is
@@ -13,8 +22,8 @@ sweep.
 **Limits.** A site's live saved data may not grow past `SAVED_DATA_SITE_MAX_MB`; writes that do
 not grow it always go through. Reads and list additions are rate limited per address.
 
-**The watch.** The admin page counts, per site and day, the kinds of visitor writes a later
-release will tighten, so an operator can see who would be affected first.
+**The watch.** The admin page counts, per site and day, the visitor writes a later step may
+tighten (still counted; not enforced yet), so an operator can see who would be affected first.
 
 **Who may write.** `WRITE_AUTH_MODE=on` makes every page save need a signed-in visitor or the
 owner's key.

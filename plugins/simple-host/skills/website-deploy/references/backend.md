@@ -301,7 +301,7 @@ deleted do not count, and deleting items or clearing a list makes room at once.
 For **per-visitor** state (a draft, a preference, a dismissed banner) use
 `localStorage` in the page instead — it never belongs in shared state.
 
-## Append-only collections (growing lists)
+## Collections (growing lists)
 
 For sign-ups, RSVPs, submissions — O(1) append, paginated reads:
 

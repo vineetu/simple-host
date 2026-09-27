@@ -4,7 +4,9 @@
 no passwords. Signing in gives the browser or the agent an API key; an owner can name, list and
 revoke keys, and "Sign out everywhere" replaces every key and disconnects every AI app. Each
 new sign-in sends an alert email (owners can turn it off). A sign-in email change is confirmed
-from both addresses, and the old address gets an undo link.
+from both addresses, and the old address gets an undo link. A key can be deploy-only (for CI:
+create, update, roll back and list sites), may carry a fixed expiry, and stops working after
+`KEY_IDLE_EXPIRY_DAYS` unused.
 
 **AI apps** connect over the connector at `/mcp` with OAuth: the person signs in once in the
 window the app opens, and the app keeps a short access token it refreshes.

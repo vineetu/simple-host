@@ -222,7 +222,7 @@ func (h *SiteHandler) emailAccountDeleted(to string) {
 
 Your sites, their files and saved data, your keys and connected apps, and the entries you sent to other people's lists while signed in are gone for good. Your address is not given to anyone else.
 
-Entries on public lists and data saved by pages were never linked to you, so they stay on those sites. For help with those, write to support@simple-host.app.
+Changes you made to other people's page data stay with their sites, with your address taken off them. Entries sent without signing in, and older public-list entries, were never linked to you and stay. For help with those, write to support@simple-host.app.
 
 If you did not ask for this, write to support@simple-host.app.
 
