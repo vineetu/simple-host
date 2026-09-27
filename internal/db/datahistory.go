@@ -677,7 +677,11 @@ func ClearSiteHistory(ctx context.Context, database *sql.DB, siteID string) (int
 // ---- keeping history bounded -------------------------------------------------
 
 // PurgeSavedData removes, for good, history older than undoDays and items
-// deleted more than undoDays ago (their history goes with them).
+// deleted more than undoDays ago (their history goes with them). A change to
+// the document is kept past undoDays while an earlier change to it is still
+// kept: that one may be a diff, rebuilt only through every newer change, and
+// created_at (its transaction's start) can be out of id order when two writes
+// waited on the same row lock.
 func PurgeSavedData(ctx context.Context, database *sql.DB, undoDays int) (history, items int64, err error) {
 	res, err := database.ExecContext(ctx, `
 		DELETE FROM collection_items WHERE deleted_at IS NOT NULL AND deleted_at < now() - make_interval(days => $1)`, undoDays)
@@ -686,7 +690,12 @@ func PurgeSavedData(ctx context.Context, database *sql.DB, undoDays int) (histor
 	}
 	items, _ = res.RowsAffected()
 	res, err = database.ExecContext(ctx, `
-		DELETE FROM data_history WHERE created_at < now() - make_interval(days => $1)`, undoDays)
+		DELETE FROM data_history h
+		 WHERE h.created_at < now() - make_interval(days => $1)
+		   AND (h.kind <> 'state' OR NOT EXISTS (
+		        SELECT 1 FROM data_history k
+		         WHERE k.site_id = h.site_id AND k.kind = 'state' AND k.name = h.name
+		           AND k.id < h.id AND k.created_at >= now() - make_interval(days => $1)))`, undoDays)
 	if err != nil {
 		return 0, items, err
 	}
@@ -694,14 +703,26 @@ func PurgeSavedData(ctx context.Context, database *sql.DB, undoDays int) (histor
 	return history, items, nil
 }
 
-// historySize is what one history row holds.
-const historySize = `COALESCE(pg_column_size(prev), pg_column_size(diff), 0)`
+// historySize is what one history row holds: the text of its value or diff,
+// the same measure the sites.history_bytes trigger keeps
+// (sd1-saved-data-safety3-history-bytes.sql).
+const historySize = `COALESCE(octet_length(prev::text), octet_length(diff::text), 0)`
+
+// HistoryOverCap reports whether a site's history holds more than capBytes
+// (sites.history_bytes: one row read).
+func HistoryOverCap(ctx context.Context, q Querier, siteID string, capBytes int64) (bool, error) {
+	var over bool
+	err := q.QueryRowContext(ctx, `SELECT history_bytes > $2 FROM sites WHERE id = $1`, siteID, capBytes).Scan(&over)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return over, err
+}
 
 // SitesOverHistoryCap lists the sites whose history holds more than capBytes.
 func SitesOverHistoryCap(ctx context.Context, database *sql.DB, capBytes int64) ([]string, error) {
 	rows, err := database.QueryContext(ctx, `
-		SELECT site_id::text FROM data_history
-		 GROUP BY site_id HAVING sum(`+historySize+`) > $1`, capBytes)
+		SELECT id::text FROM sites WHERE history_bytes > $1`, capBytes)
 	if err != nil {
 		return nil, err
 	}

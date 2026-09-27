@@ -120,6 +120,8 @@ type SiteHandler struct {
 	savedData     config.SavedData
 	readLimiter   *rateLimiter
 	appendLimiter *rateLimiter
+	// thinLimiter spaces out boundHistory's thinning: once a second per site.
+	thinLimiter *rateLimiter
 }
 
 // lockSite acquires the per-site upload mutex for one account's site name and
@@ -458,7 +460,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/history", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.clearDataHistory)))))
 	// The saved-data watch: what the later tightening would affect.
 	mux.Handle("GET /v1/admin/data-watch", authMiddleware(auth.RequireAdmin(http.HandlerFunc(h.adminDataWatch))))
-	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}", h.limitReads(h.listCollection))
+	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}", http.HandlerFunc(h.listCollection))
 	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection)))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/collections/{coll}", h.optionsCollection)
 
@@ -468,14 +470,14 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/visitor/auth", h.optionsVisitorEmail)
 	mux.HandleFunc("POST /v1/sites/{sitename}/visitor/auth/verify", h.verifyVisitorEmail)
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/visitor/auth/verify", h.optionsVisitorEmail)
-	mux.Handle("GET /v1/sites/{sitename}/state", h.limitReads(h.getSiteState))
+	mux.Handle("GET /v1/sites/{sitename}/state", http.HandlerFunc(h.getSiteState))
 	mux.Handle("PUT /v1/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSiteState)))
 	mux.Handle("PATCH /v1/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchSiteState)))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/state", h.optionsSiteState)
 
 	// v3 user-scoped state/collections: unambiguous after UNIQUE(name) drops.
 	// Same handlers as above; resolveSiteID reads {handle} when present.
-	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/collections/{coll}", h.limitReads(h.listCollection))
+	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/collections/{coll}", http.HandlerFunc(h.listCollection))
 	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection)))
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/collections/{coll}", h.optionsCollection)
 
@@ -485,7 +487,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/visitor/auth", h.optionsVisitorEmail)
 	mux.HandleFunc("POST /v1/u/{handle}/sites/{sitename}/visitor/auth/verify", h.verifyVisitorEmail)
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/visitor/auth/verify", h.optionsVisitorEmail)
-	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/state", h.limitReads(h.getSiteState))
+	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/state", http.HandlerFunc(h.getSiteState))
 	mux.Handle("PUT /v1/u/{handle}/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSiteState)))
 	mux.Handle("PATCH /v1/u/{handle}/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchSiteState)))
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/state", h.optionsSiteState)
@@ -986,6 +988,9 @@ func (h *SiteHandler) getSiteState(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	if !h.allowRead(w, r, siteID) {
+		return
+	}
 	// A taken-down site serves nothing to the public; the owner's (or the
 	// admin's) key still reads it.
 	if _, owner := h.ownerSiteIDFromKey(r, siteName); !owner && (h.refuseSuspendedSiteID(w, r, siteID) || h.refuseOffline(w, r, siteID)) {
@@ -1106,6 +1111,7 @@ func (h *SiteHandler) putSiteState(w http.ResponseWriter, r *http.Request) {
 	// A replace that grows the site past SAVED_DATA_SITE_MAX_MB is refused
 	// (site_full); one that does not grow it always goes through.
 	newVersion, err := db.WriteSiteState(r.Context(), h.database, siteID, state, expected, db.OpReplace, h.withAuthorEmail(r.Context(), actor), h.siteMaxBytes())
+	h.boundHistory(r, siteID)
 	if errors.Is(err, db.ErrSiteFull) {
 		h.writeSiteFull(w)
 		return

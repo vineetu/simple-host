@@ -64,6 +64,24 @@ func (h *SiteHandler) SetSavedData(c config.SavedData) {
 	h.savedData = c
 	h.readLimiter = newRateLimiter(float64(c.ReadBurst), float64(c.ReadPerSec))
 	h.appendLimiter = newRateLimiter(float64(c.AppendBurst), float64(c.AppendPerMin)/60)
+	h.thinLimiter = newRateLimiter(1, 1)
+}
+
+// boundHistory keeps a site's history near SAVED_DATA_HISTORY_MAX_MB between
+// sweeps: after a write that may have added to it, when sites.history_bytes
+// is past the cap (one row read), the site's history is thinned now, at most
+// once a second per site, so a flood of writes cannot grow it for a whole
+// sweep interval. Never fails the write.
+func (h *SiteHandler) boundHistory(r *http.Request, siteID string) {
+	capBytes := int64(h.savedData.HistoryMaxMB) << 20
+	ctx := context.WithoutCancel(r.Context())
+	over, err := db.HistoryOverCap(ctx, h.database, siteID, capBytes)
+	if err != nil || !over || (h.thinLimiter != nil && !h.thinLimiter.allow(siteID)) {
+		return
+	}
+	if _, err := db.ThinSiteHistory(ctx, h.database, siteID, capBytes); err != nil {
+		log.Printf("saved-data thin site_id=%s: %v", siteID, err)
+	}
 }
 
 // siteMaxBytes is SAVED_DATA_SITE_MAX_MB in bytes.
@@ -145,27 +163,27 @@ func (h *SiteHandler) writeSiteFull(w http.ResponseWriter) {
 	})
 }
 
-// limitReads is the read limit on saved data (state and list GETs):
-// SAVED_DATA_READ_PER_SEC with a SAVED_DATA_READ_BURST burst, per identity
-// for a valid key (the owner's, or a connector's: those share an AI vendor's
-// addresses), otherwise per site and address.
-func (h *SiteHandler) limitReads(next http.HandlerFunc) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if h.readLimiter != nil && !h.readLimiter.allow(h.readBucket(r)) {
-			tooManyRequests(w)
-			return
-		}
-		next(w, r)
-	})
+// allowRead is the read limit on saved data (state and list GETs):
+// SAVED_DATA_READ_PER_SEC with a SAVED_DATA_READ_BURST burst, per account for
+// a valid key (the owner's, or a connector's: those share an AI vendor's
+// addresses), otherwise per resolved site and address. Called once the site
+// is resolved, so nothing the caller sends (a Host header, a name spelling)
+// makes a fresh bucket. Writes the 429 when refused.
+func (h *SiteHandler) allowRead(w http.ResponseWriter, r *http.Request, siteID string) bool {
+	if h.readLimiter == nil || h.readLimiter.allow(h.readBucket(r, siteID)) {
+		return true
+	}
+	tooManyRequests(w)
+	return false
 }
 
-func (h *SiteHandler) readBucket(r *http.Request) string {
+func (h *SiteHandler) readBucket(r *http.Request, siteID string) string {
 	if key := r.Header.Get("X-API-Key"); key != "" {
 		if u, ok, err := h.resolveWriterKey(r.Context(), key); err == nil && ok {
 			return "user:" + u.ID
 		}
 	}
-	return "site:" + strings.ToLower(requestHostName(r)) + "/" + r.PathValue("handle") + "/" + r.PathValue("sitename") + "|" + clientIP(r)
+	return "site:" + siteID + "|" + clientIP(r)
 }
 
 // allowAppend is the per-address limit on list items added without the
@@ -291,7 +309,7 @@ func (h *SiteHandler) StartSavedDataSweep(ctx context.Context) {
 }
 
 func (h *SiteHandler) sweepSavedData(ctx context.Context) {
-	for _, rl := range []*rateLimiter{h.readLimiter, h.appendLimiter} {
+	for _, rl := range []*rateLimiter{h.readLimiter, h.appendLimiter, h.thinLimiter} {
 		if rl != nil {
 			rl.evictIdle(10 * time.Minute)
 		}
@@ -513,6 +531,7 @@ func (h *SiteHandler) restoreStateHistory(w http.ResponseWriter, r *http.Request
 		return
 	}
 	state, ver, err := db.RestoreStateVersion(r.Context(), h.database, siteID, id, h.ownerActor(r.Context(), user, siteID), h.siteMaxBytes())
+	h.boundHistory(r, siteID)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no such change", Code: "not_found"})
@@ -543,6 +562,7 @@ func (h *SiteHandler) restoreListHistory(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	item, err := db.RestoreItemVersion(r.Context(), h.database, siteID, coll, id, h.ownerActor(r.Context(), user, siteID), h.siteMaxBytes())
+	h.boundHistory(r, siteID)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no such change", Code: "not_found"})
@@ -644,6 +664,9 @@ func (h *SiteHandler) purgeDeletedItems(w http.ResponseWriter, r *http.Request) 
 	if !ok || h.refuseSuspendedSiteID(w, r, siteID) {
 		return
 	}
+	if h.adminNeedsHandle(w, r, user, siteID) {
+		return
+	}
 	var id int64
 	if r.PathValue("id") != "" {
 		var valid bool
@@ -667,12 +690,34 @@ func (h *SiteHandler) purgeDeletedItems(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]any{"site": siteName, "collection": coll, "deleted_for_good": n})
 }
 
+// adminNeedsHandle refuses (409 handle_required) a delete for good by the
+// admin that names another account's site by its bare name: bare names are
+// not unique across accounts, so the admin says whose site it is with
+// /v1/u/{handle}/sites/{name}/…. The admin's own sites and the named form go
+// through. Writes the refusal.
+func (h *SiteHandler) adminNeedsHandle(w http.ResponseWriter, r *http.Request, user *db.User, siteID string) bool {
+	if !user.IsAdmin || strings.TrimSpace(r.PathValue("handle")) != "" {
+		return false
+	}
+	if owner, _, err := db.GetSiteWriteGate(r.Context(), h.database, siteID); err == nil && owner == user.ID {
+		return false
+	}
+	writeJSON(w, http.StatusConflict, errorResponse{
+		Error: "name the site's owner for a delete for good: use /v1/u/{handle}/sites/{sitename}/…",
+		Code:  "handle_required",
+	})
+	return true
+}
+
 // clearDataHistory is DELETE /v1/sites/{s}/history {"confirm": "<s>"}: every
 // earlier version of the site's saved data and list items goes for good. The
 // data itself and Recently deleted stay. Owner (or admin) only, and logged.
 func (h *SiteHandler) clearDataHistory(w http.ResponseWriter, r *http.Request) {
 	user, siteID, siteName, _, ok := h.ownedDataSite(w, r)
 	if !ok || h.refuseSuspendedSiteID(w, r, siteID) {
+		return
+	}
+	if h.adminNeedsHandle(w, r, user, siteID) {
 		return
 	}
 	if !confirmBody(w, r, siteName, "clear this site's history for good") {

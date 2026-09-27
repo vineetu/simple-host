@@ -4470,7 +4470,7 @@
       "get": {
         "operationId": "getStateHistory",
         "summary": "Changes to a site's saved data (owner)",
-        "description": "Every change to the site's saved-data document in the last 30 days (SAVED_DATA_UNDO_DAYS), newest first, without the values: what happened (`op`: replace for a PUT, change for a PATCH, restore), who made it (`by`, the address they were signed in with; `by_kind` owner, admin, visitor or anonymous; the operator's moderation shows as \"Simple Host (operator)\") and when. A write that leaves the document as it was is not recorded. A PATCH keeps only what it changed, with a full copy on each day's first change and at least every 50 changes (SAVED_DATA_SNAPSHOT_EVERY); every version still reads back whole. Past a per-site cap (SAVED_DATA_HISTORY_MAX_MB, 20 MB) the oldest versions are thinned, but the first full copy of each day is always kept. DELETE /v1/sites/{sitename}/history clears it for good. Owner (X-API-Key or connector token) or the operator only.",
+        "description": "Every change to the site's saved-data document in the last 30 days (SAVED_DATA_UNDO_DAYS), newest first, without the values: what happened (`op`: replace for a PUT, change for a PATCH, restore), who made it (`by`, the address they were signed in with; `by_kind` owner, admin, visitor or anonymous; the operator's moderation shows as \"Simple Host (operator)\") and when. A write that leaves the document as it was is not recorded. A PATCH keeps only what it changed, with a full copy on each day's first change and at least every 50 changes (SAVED_DATA_SNAPSHOT_EVERY); every version still reads back whole. Past a per-site cap (SAVED_DATA_HISTORY_MAX_MB, 20 MB) the oldest versions are thinned, as soon as a write crosses it, but the first full copy of each day is always kept. DELETE /v1/sites/{sitename}/history clears it for good. Owner (X-API-Key or connector token) or the operator only.",
         "tags": [
           "State"
         ],
@@ -5178,7 +5178,7 @@
       "delete": {
         "operationId": "purgeCollectionDeleted",
         "summary": "Delete everything in a list's Recently deleted for good (owner)",
-        "description": "Every item in the list's Recently deleted, with its history, is removed at once and for good; live items are not touched. The body must repeat the list's name, `{\"confirm\": \"<coll>\"}` (400 confirm_required otherwise). Logged. Refused on a taken-down site. Owner or operator only.",
+        "description": "Every item in the list's Recently deleted, with its history, is removed at once and for good; live items are not touched. The body must repeat the list's name, `{\"confirm\": \"<coll>\"}` (400 confirm_required otherwise). Logged. Refused on a taken-down site. Owner or operator only; the operator names another account's site with the /v1/u/{handle}/sites/{sitename}/\u2026 form (a bare name from the operator is 409 handle_required).",
         "tags": [
           "Collections"
         ],
@@ -5242,6 +5242,16 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "409": {
+            "description": "The operator named another account's site by its bare name (handle_required)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           }
@@ -5252,7 +5262,7 @@
       "delete": {
         "operationId": "purgeCollectionDeletedItem",
         "summary": "Delete one item of Recently deleted for good (owner)",
-        "description": "The item, which must be in the list's Recently deleted (delete it with DELETE .../items/{id} first), and its history are removed at once and for good: for a visitor who asked to be erased, or data that must not be kept 30 days. Logged. Refused on a taken-down site. Owner or operator only.",
+        "description": "The item, which must be in the list's Recently deleted (delete it with DELETE .../items/{id} first), and its history are removed at once and for good: for a visitor who asked to be erased, or data that must not be kept 30 days. Logged. Refused on a taken-down site. Owner or operator only; the operator names another account's site with the /v1/u/{handle}/sites/{sitename}/\u2026 form (a bare name from the operator is 409 handle_required).",
         "tags": [
           "Collections"
         ],
@@ -5305,6 +5315,16 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "409": {
+            "description": "The operator named another account's site by its bare name (handle_required)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Not in the list's Recently deleted (not_found)",
             "content": {
@@ -5322,7 +5342,7 @@
       "delete": {
         "operationId": "clearSiteHistory",
         "summary": "Clear a site's history for good (owner)",
-        "description": "Every earlier version of the site's saved data and of its list items (GET .../state/history, .../collections/{coll}/history) is removed at once and for good. The data as it is now stays, and so do the lists' Recently deleted. The body must repeat the site's name, `{\"confirm\": \"<sitename>\"}` (400 confirm_required otherwise). Logged. Refused on a taken-down site. Owner or operator only.",
+        "description": "Every earlier version of the site's saved data and of its list items (GET .../state/history, .../collections/{coll}/history) is removed at once and for good. The data as it is now stays, and so do the lists' Recently deleted. The body must repeat the site's name, `{\"confirm\": \"<sitename>\"}` (400 confirm_required otherwise). Logged. Refused on a taken-down site. Owner or operator only; the operator names another account's site with the /v1/u/{handle}/sites/{sitename}/\u2026 form (a bare name from the operator is 409 handle_required).",
         "tags": [
           "State"
         ],
@@ -5379,6 +5399,16 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "description": "The operator named another account's site by its bare name (handle_required)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -5535,7 +5565,7 @@
       "get": {
         "operationId": "getStateHistoryByHandle",
         "summary": "Changes to a site's saved data (owner, by handle)",
-        "description": "Every change to the site's saved-data document in the last 30 days (SAVED_DATA_UNDO_DAYS), newest first, without the values: what happened (`op`: replace for a PUT, change for a PATCH, restore), who made it (`by`, the address they were signed in with; `by_kind` owner, admin, visitor or anonymous; the operator's moderation shows as \"Simple Host (operator)\") and when. A write that leaves the document as it was is not recorded. A PATCH keeps only what it changed, with a full copy on each day's first change and at least every 50 changes (SAVED_DATA_SNAPSHOT_EVERY); every version still reads back whole. Past a per-site cap (SAVED_DATA_HISTORY_MAX_MB, 20 MB) the oldest versions are thinned, but the first full copy of each day is always kept. DELETE /v1/sites/{sitename}/history clears it for good. Owner (X-API-Key or connector token) or the operator only.",
+        "description": "Every change to the site's saved-data document in the last 30 days (SAVED_DATA_UNDO_DAYS), newest first, without the values: what happened (`op`: replace for a PUT, change for a PATCH, restore), who made it (`by`, the address they were signed in with; `by_kind` owner, admin, visitor or anonymous; the operator's moderation shows as \"Simple Host (operator)\") and when. A write that leaves the document as it was is not recorded. A PATCH keeps only what it changed, with a full copy on each day's first change and at least every 50 changes (SAVED_DATA_SNAPSHOT_EVERY); every version still reads back whole. Past a per-site cap (SAVED_DATA_HISTORY_MAX_MB, 20 MB) the oldest versions are thinned, as soon as a write crosses it, but the first full copy of each day is always kept. DELETE /v1/sites/{sitename}/history clears it for good. Owner (X-API-Key or connector token) or the operator only.",
         "tags": [
           "State"
         ],

@@ -310,7 +310,7 @@ func TestPatchHistoryRebuildsEveryVersion(t *testing.T) {
 
 	// Thinning to a third keeps every remaining version exact.
 	var total int64
-	a.database.QueryRow(`SELECT sum(COALESCE(pg_column_size(prev), pg_column_size(diff), 0)) FROM data_history WHERE site_id = $1`, s.shopID).Scan(&total)
+	a.database.QueryRow(`SELECT sum(COALESCE(octet_length(prev::text), octet_length(diff::text), 0)) FROM data_history WHERE site_id = $1`, s.shopID).Scan(&total)
 	if _, err := db.ThinSiteHistory(context.Background(), a.database, s.shopID, total/3); err != nil {
 		t.Fatal(err)
 	}

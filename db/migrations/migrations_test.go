@@ -214,3 +214,20 @@ func TestMigrateAgainstPostgres(t *testing.T) {
 		t.Error("marking an unknown file succeeded")
 	}
 }
+
+// The saved-data files touch busy tables: each runs as one transaction with a
+// short lock timeout, so a backfill never races a write and a long lock wait
+// gives up instead of queueing every request behind it.
+func TestSavedDataMigrationsAreOneTransaction(t *testing.T) {
+	for _, n := range []string{"sd1-saved-data-safety.sql", "sd1-saved-data-safety2-limits.sql", "sd1-saved-data-safety3-history-bytes.sql"} {
+		body, err := embedded.ReadFile(n)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s := string(body)
+		b, l, c := strings.Index(s, "\nBEGIN;\n"), strings.Index(s, "SET LOCAL lock_timeout"), strings.LastIndex(s, "\nCOMMIT;\n")
+		if b < 0 || l < b || c < l {
+			t.Errorf("%s: not wrapped in BEGIN; SET LOCAL lock_timeout ...; COMMIT;", n)
+		}
+	}
+}

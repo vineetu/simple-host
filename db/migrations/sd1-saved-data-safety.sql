@@ -9,6 +9,8 @@
 --   sudo -u postgres psql -d simplehost -c 'SET ROLE simplehost' -f db/migrations/sd1-saved-data-safety.sql
 -- Idempotent and additive. The ADD COLUMNs are metadata-only; the two indexes
 -- on collection_items are built on a few hundred rows.
+BEGIN;
+SET LOCAL lock_timeout = '5s';
 
 -- Every site that exists before the kinds arrive keeps today's open behaviour.
 -- The default is true until the step that introduces kinds flips it.
@@ -68,3 +70,5 @@ CREATE TABLE IF NOT EXISTS data_watch (
   last_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (day, site_id, metric)
 );
+
+COMMIT;

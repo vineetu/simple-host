@@ -114,7 +114,7 @@ removes older history and Recently deleted items at the next sweep.
 | Variable | Default | Range | What it controls |
 |---|---|---|---|
 | `SAVED_DATA_UNDO_DAYS` | 30 | 1–365 | Days every change to saved data, and every deleted list item, can be restored by the site owner. |
-| `SAVED_DATA_HISTORY_MAX_MB` | 20 | 1–10240 | A site's history above this is thinned, oldest first, keeping each item's first change of every day. |
+| `SAVED_DATA_HISTORY_MAX_MB` | 20 | 1–10240 | A site's history above this is thinned, oldest first, keeping each item's first change of every day: at once when a write crosses it (at most once a second per site), and by the sweep. |
 | `SAVED_DATA_SITE_MAX_MB` | 50 | 1–10240 | A site's live saved data (page data and list items; not history or Recently deleted). A write that would grow it past this is refused (507 `site_full`); writes that do not grow it always go through. |
 | `SAVED_DATA_SNAPSHOT_EVERY` | 50 | 1–10000 | A change made with ops keeps only what it changed in history, with a full copy at least this often and on the first change of each day. |
 | `SAVED_DATA_SWEEP_MINUTES` | 15 | 1–1440 | How often expired history and deleted items are removed. |

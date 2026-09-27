@@ -511,6 +511,7 @@ func (h *SiteHandler) updatePrivateItem(w http.ResponseWriter, r *http.Request) 
 		}
 		return next, nil
 	})
+	h.boundHistory(r, siteID)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		writePrivateNotFound(w)

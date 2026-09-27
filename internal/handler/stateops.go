@@ -180,6 +180,7 @@ func (h *SiteHandler) patchState(r *http.Request, siteID string, actor db.Actor,
 		out = db.StatePatch{Before: before, After: root, Next: next}
 		return out, nil
 	})
+	h.boundHistory(r, siteID)
 	return out, ver, err
 }
 

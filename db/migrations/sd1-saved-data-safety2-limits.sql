@@ -3,6 +3,8 @@
 -- Runs after sd1-saved-data-safety.sql (lexical order). Idempotent; one
 -- transaction; the triggers are created before the backfill and both lock the
 -- two tables briefly, so no write slips between them.
+BEGIN;
+SET LOCAL lock_timeout = '5s';
 
 -- What a site's live saved data takes: the page-data document (state_bytes)
 -- plus every live list item (deleted items and history are not counted).
@@ -81,3 +83,5 @@ ALTER TABLE idempotency_keys ADD COLUMN IF NOT EXISTS site_id UUID REFERENCES si
 ALTER TABLE idempotency_keys ADD COLUMN IF NOT EXISTS ref BIGINT;
 ALTER TABLE idempotency_keys ADD COLUMN IF NOT EXISTS body_hash BYTEA;
 CREATE INDEX IF NOT EXISTS idx_idempotency_keys_site ON idempotency_keys (site_id, created_at);
+
+COMMIT;

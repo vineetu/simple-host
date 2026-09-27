@@ -2155,8 +2155,8 @@ paths:
         PATCH keeps only what it changed, with a full copy on each day's first
         change and at least every 50 changes (SAVED_DATA_SNAPSHOT_EVERY); every
         version still reads back whole. Past a per-site cap
-        (SAVED_DATA_HISTORY_MAX_MB, 20 MB) the oldest versions are thinned, but
-        the first full copy of each day is always kept. DELETE /v1/sites/{sitename}/history
+        (SAVED_DATA_HISTORY_MAX_MB, 20 MB) the oldest versions are thinned, as
+        soon as a write crosses it, but the first full copy of each day is always kept. DELETE /v1/sites/{sitename}/history
         clears it for good. Owner (X-API-Key or connector token) or the operator only.
       tags: [State]
       security: [{ apiKey: [] }]
@@ -2331,7 +2331,9 @@ paths:
         Every item in the list's Recently deleted, with its history, is removed
         at once and for good; live items are not touched. The body must repeat
         the list's name, `{"confirm": "<coll>"}` (400 confirm_required
-        otherwise). Logged. Refused on a taken-down site. Owner or operator only.
+        otherwise). Logged. Refused on a taken-down site. Owner or operator only; the operator names another
+        account's site with the /v1/u/{handle}/sites/{sitename}/… form (a bare
+        name from the operator is 409 handle_required).
       tags: [Collections]
       security: [{ apiKey: [] }]
       parameters:
@@ -2344,6 +2346,7 @@ paths:
           content: { application/json: { schema: { type: object, properties: { site: { type: string }, collection: { type: string }, deleted_for_good: { type: integer } } } } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { description: "The operator named another account's site by its bare name (handle_required)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { $ref: '#/components/responses/NotFound' }
 
   /v1/sites/{sitename}/collections/{coll}/deleted/{id}:
@@ -2354,7 +2357,9 @@ paths:
         The item, which must be in the list's Recently deleted (delete it with
         DELETE .../items/{id} first), and its history are removed at once and
         for good: for a visitor who asked to be erased, or data that must not be
-        kept 30 days. Logged. Refused on a taken-down site. Owner or operator only.
+        kept 30 days. Logged. Refused on a taken-down site. Owner or operator only; the operator names another
+        account's site with the /v1/u/{handle}/sites/{sitename}/… form (a bare
+        name from the operator is 409 handle_required).
       tags: [Collections]
       security: [{ apiKey: [] }]
       parameters:
@@ -2366,6 +2371,7 @@ paths:
           description: Gone for good
           content: { application/json: { schema: { type: object, properties: { site: { type: string }, collection: { type: string }, deleted_for_good: { type: integer, enum: [1] } } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { description: "The operator named another account's site by its bare name (handle_required)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: Not in the list's Recently deleted (not_found), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /v1/sites/{sitename}/history:
@@ -2378,7 +2384,9 @@ paths:
         once and for good. The data as it is now stays, and so do the lists'
         Recently deleted. The body must repeat the site's name,
         `{"confirm": "<sitename>"}` (400 confirm_required otherwise). Logged.
-        Refused on a taken-down site. Owner or operator only.
+        Refused on a taken-down site. Owner or operator only; the operator names another
+        account's site with the /v1/u/{handle}/sites/{sitename}/… form (a bare
+        name from the operator is 409 handle_required).
       tags: [State]
       security: [{ apiKey: [] }]
       parameters:
@@ -2390,6 +2398,7 @@ paths:
           content: { application/json: { schema: { type: object, properties: { site: { type: string }, cleared: { type: integer } } } } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { description: "The operator named another account's site by its bare name (handle_required)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { $ref: '#/components/responses/NotFound' }
 
   /v1/sites/{sitename}/collections/{coll}/deleted/restore:
@@ -2443,8 +2452,8 @@ paths:
         PATCH keeps only what it changed, with a full copy on each day's first
         change and at least every 50 changes (SAVED_DATA_SNAPSHOT_EVERY); every
         version still reads back whole. Past a per-site cap
-        (SAVED_DATA_HISTORY_MAX_MB, 20 MB) the oldest versions are thinned, but
-        the first full copy of each day is always kept. DELETE /v1/sites/{sitename}/history
+        (SAVED_DATA_HISTORY_MAX_MB, 20 MB) the oldest versions are thinned, as
+        soon as a write crosses it, but the first full copy of each day is always kept. DELETE /v1/sites/{sitename}/history
         clears it for good. Owner (X-API-Key or connector token) or the operator only.
       tags: [State]
       security: [{ apiKey: [] }]

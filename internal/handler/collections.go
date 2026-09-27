@@ -166,6 +166,9 @@ func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if !h.allowRead(w, r, siteID) {
+		return
+	}
 	// A taken-down site serves nothing to the public; its owner's key (and the
 	// admin's) still reads, so the owner can take their data with them.
 	if !ownerKey && (h.refuseSuspendedSiteID(w, r, siteID) || h.refuseOffline(w, r, siteID)) {
