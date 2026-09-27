@@ -302,6 +302,12 @@ func (h *SiteHandler) patchMe(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, errorResponse{Error: err.Error()})
 		return
 	}
+	if req.SignInAlerts != nil && user.KeyHash == "" {
+		// A connected app (or a stolen connection) must not be able to
+		// silence the email that would reveal it.
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "turning sign-in alerts on or off needs one of the account's own API keys (X-API-Key), not the admin key or a connected app", Code: "not_an_account_key"})
+		return
+	}
 	tx, err := h.database.BeginTx(r.Context(), nil)
 	if err != nil {
 		writeJSON(w, 500, errorResponse{Error: "internal server error"})
@@ -385,7 +391,18 @@ func (h *SiteHandler) patchMe(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if req.SignInAlerts != nil {
+		if err = db.SetSignInAlerts(r.Context(), tx, user.ID, *req.SignInAlerts); err != nil {
+			writeJSON(w, 500, errorResponse{Error: "internal server error"})
+			return
+		}
+	}
 	updated, err := db.GetUserByID(r.Context(), tx, user.ID)
+	if err != nil {
+		writeJSON(w, 500, errorResponse{Error: "internal server error"})
+		return
+	}
+	alertsOn, err := db.SignInAlertsOn(r.Context(), tx, user.ID)
 	if err != nil {
 		writeJSON(w, 500, errorResponse{Error: "internal server error"})
 		return
@@ -404,17 +421,18 @@ func (h *SiteHandler) patchMe(w http.ResponseWriter, r *http.Request) {
 		}
 		h.RequestSiteCert(updated.Handle.String)
 	}
-	writeJSON(w, 200, meResponse{ID: updated.ID, Username: updated.Username, IsAdmin: updated.IsAdmin, Handle: updated.Handle.String, DisplayName: updated.DisplayName.String, PublicPage: h.PersonPageURL(updated.Handle.String)})
+	writeJSON(w, 200, meResponse{ID: updated.ID, Username: updated.Username, IsAdmin: updated.IsAdmin, Handle: updated.Handle.String, DisplayName: updated.DisplayName.String, PublicPage: h.PersonPageURL(updated.Handle.String), SignInAlerts: &alertsOn})
 }
 
 type profileRequest struct {
-	DisplayName *string `json:"display_name"`
-	Handle      *string `json:"handle"`
+	DisplayName  *string `json:"display_name"`
+	Handle       *string `json:"handle"`
+	SignInAlerts *bool   `json:"signin_alerts"`
 }
 
 func validateProfile(req *profileRequest) error {
-	if req.DisplayName == nil && req.Handle == nil {
-		return errors.New("provide display_name and/or handle")
+	if req.DisplayName == nil && req.Handle == nil && req.SignInAlerts == nil {
+		return errors.New("provide display_name, handle and/or signin_alerts")
 	}
 	if req.DisplayName != nil {
 		name, err := normalizeDisplayName(*req.DisplayName)

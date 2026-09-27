@@ -21,7 +21,10 @@ import (
 // Add an entry here whenever a migration adds something the code depends on.
 var requiredColumns = map[string][]string{
 	// cp-ops-suspend.sql adds the suspended_* columns.
-	"users": {"id", "username", "is_admin", "handle", "display_name", "handle_changed_at", "suspended_at", "suspended_reason"},
+	// w2-account-signin-email.sql adds signin_alerts and the two tables below.
+	"users":              {"id", "username", "is_admin", "handle", "display_name", "handle_changed_at", "suspended_at", "suspended_reason", "signin_alerts"},
+	"email_changes":      {"user_id", "new_email", "code_hash", "attempts", "expires_at"},
+	"signin_alerts_sent": {"user_id", "summary", "day"},
 	// hash-api-keys.sql, cp-keys-key-names.sql
 	"api_keys": {"id", "key_hash", "user_id", "name", "last4", "created_at", "last_used_at"},
 	"sites":    {"id", "user_id", "name", "active_version", "visibility", "state", "custom_domain", "deleted_at", "previous_domain", "domain_cert_status", "domain_failing_since", "domain_lapse_notified_at", "previous_domain_failing_since", "suspended_at", "suspended_reason", "domain_token", "domain_proof_exempt"},

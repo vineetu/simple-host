@@ -187,6 +187,8 @@ func main() {
 	connector := handler.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, mux)
 	connector.Register(mux, authMW)
 	connector.EnableReviewerSignIn(cfg.ReviewAccountEmail, cfg.ReviewAccountPasswordHash)
+	userHandler.SetReviewerEmail(cfg.ReviewAccountEmail)
+	connector.SetSignInAlerts(userHandler.SignInAlerts())
 	handler.RegisterOpenAIAppsChallenge(mux, cfg.OpenAIAppsChallenge)
 	connector.StartSweep(time.Hour)
 	handler.RegisterUIRoutes(mux, cfg.PublicBaseURL, siteHandler)

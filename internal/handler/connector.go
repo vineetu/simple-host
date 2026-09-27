@@ -82,6 +82,9 @@ type ConnectorHandler struct {
 	// (off) unless the operator configures it. See reviewer.go.
 	reviewer *reviewerSignIn
 
+	// alerts emails the owner when an app is connected (signin_alert.go).
+	alerts *SignInAlerts
+
 	registerLimiter  *rateLimiter
 	authorizeLimiter *rateLimiter
 	tokenLimiter     *rateLimiter
@@ -663,6 +666,13 @@ func (h *ConnectorHandler) renderConsent(w http.ResponseWriter, r *http.Request,
 	_, _ = w.Write(page)
 }
 
+// SetSignInAlerts shares the sign-in alert sender (UserHandler.SignInAlerts).
+func (h *ConnectorHandler) SetSignInAlerts(a *SignInAlerts) { h.alerts = a }
+
+// connectedAppName is how a sign-in alert names the app: the name it
+// registered with (self-declared, so the alert quotes it).
+func connectedAppName(name string) string { return cleanClientName(name) }
+
 // resolveConsentUser authenticates the person deciding, by the API key the
 // sign-in on this page (or the dashboard) left in the browser.
 func (h *ConnectorHandler) resolveConsentUser(ctx context.Context, key string) (db.User, int, string) {
@@ -763,6 +773,7 @@ func (h *ConnectorHandler) decide(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("connector: consent user_id=%s client_id=%s", user.ID, req.Client.ClientID)
+	h.alerts.Alert(user.ID, r.UserAgent(), connectedAppName(req.Client.Name))
 	writeJSON(w, http.StatusOK, map[string]string{"redirect_to": h.redirectWith(req.RedirectURI, map[string]string{"code": code, "state": req.State})})
 }
 

@@ -45,6 +45,8 @@ that should get it). Last derived from both `FEATURES.md` files and code on 2026
 | Visitor sign-in on a site | Google or emailed code on the site's own host; host-only cookie + `X-SH-CSRF`; login-CSRF nonce | company OIDC session handed to the site host by a nonce-bound one-time code | `different on purpose` — public visitors vs company identity |
 | Owner sign-in and sessions | emailed code or Google → API key kept in the browser; no owner cookie session | company OIDC only; revocable sessions, idle 30m / absolute 8h, sessions page; stored email refreshed from the IdP at each sign-in | `different on purpose` — enterprise constraint: the IdP is the only identity |
 | Sign out and sign out everywhere | Sign out deletes the key the browser held (`POST /v1/me/sign-out`); "Sign out everywhere" (rotate) replaces every key and disconnects every connected app (2026-09-27) | Sign out revokes the session; sessions page "Sign out everywhere": every session, plus (default on) every API key and connected app, one audited transaction | `same` |
+| Change sign-in email | self-serve: owner app **Sign-in** / `/dashboard` → code to the new address (`POST /v1/me/email`, `/v1/me/email/verify`), own key only; old address told (masked); an address another account holds refused after its code (2026-09-27) | none; the stored email is refreshed from the IdP at each sign-in | `different on purpose` — enterprise constraint: the IdP is the only identity |
+| Sign-in alert email | one email after each owner sign-in (code, link, Google) and each app connection: time (UTC), browser/app summary, link to Sign out everywhere; no IP or location; one per account+browser+day; none for event and reviewer accounts; owner switch (`PATCH /v1/me signin_alerts`) (2026-09-27) | none for the person; sign-ins go through the company IdP and audit to the SIEM stream | `different on purpose` — the company IdP owns sign-in alerting |
 | Connected apps: list and disconnect | owner app list with Disconnect (`/v1/me/connections`) | `/auth/sessions` list with Disconnect (`/api/me/connections`, session only), audited | `same` |
 | API keys: hashing | SHA-256, shown once (2026-09-26); `shk_` prefix (2026-09-27) | `shk_`, stored hashed | `same` |
 | API keys: expiry | none; rotate replaces all | 90 days default, capped by `API_KEY_MAX_DAYS` | `gap → hosted` |
@@ -73,7 +75,7 @@ that should get it). Last derived from both `FEATURES.md` files and code on 2026
 | Schema migrations and version stamp | `simple-host migrate` (tracked in `schema_migrations`, advisory lock, per-file transaction, `-status`, `-mark`) run by `install.sh` on every run; production applies by hand and marks; `simple-host version`, startup log, `version`/`commit`/`keep_versions` in admin usage | migrate init container with advisory lock and per-file transactions, `migrate -status`; `simple-host version`, `simplehost_build_info` | `same` |
 | Health and metrics | `/healthz`, `/readyz` | `/healthz`, `/readyz`, `/metrics` on its own port; startup warnings (no admin, bucket versioning off) logged and exported | `different on purpose` — no metrics stack on a small box |
 | Static, marketing and legal pages | landing, features, enterprise pages, terms, privacy, support | landing, docs, capabilities, install, changelog | `different on purpose` — public service vs internal install |
-| Notifications | none (sign-in email only) | none (SIEM stream only) | `same` |
+| Notifications | email only: sign-in codes, sign-in alerts, sign-in email changed, account deleted, custom domain failing; no webhooks | none (SIEM stream only) | `different on purpose` — enterprise people are notified by their company's own systems |
 
 ## Security fixes checked across
 
@@ -102,7 +104,7 @@ Every numbered `FEATURES.md` section, per repo, and the rows above that cover it
 | hosted | Saved state (shared JSON per site) | Saved state; Saved-state history |
 | hosted | Collections, including private collections | Collections and private collections |
 | hosted | Visitor sign-in (Google, emailed code) | Visitor sign-in on a site |
-| hosted | Owner auth (API keys, email codes, profile) | Owner sign-in; Sign out and sign out everywhere; API keys rows; Change a person's address; Data export and account erasure |
+| hosted | Owner auth (API keys, email codes, profile) | Owner sign-in; Sign out and sign out everywhere; Change sign-in email; Sign-in alert email; API keys rows; Change a person's address; Data export and account erasure |
 | hosted | MCP connector and OAuth (chat apps) | MCP connector; Connector token lifetime; Connected apps; MCP error hints |
 | hosted | Skills and plugin distribution | Skills and plugin |
 | hosted | Owner dashboard and owner app | Dashboard |
@@ -118,7 +120,7 @@ Every numbered `FEATURES.md` section, per repo, and the rows above that cover it
 | hosted | Operations (health, schema, CLI) | Health and metrics; Deployment model; Schema migrations and version stamp |
 | hosted | MCP tool index (`internal/mcp/tools.go`, 27 tools) | MCP tools |
 | hosted | Unplaced routes and tools | (index of FEATURES itself, no feature) |
-| enterprise | Identity: OIDC sign-in, sessions, hand-off | Owner sign-in and sessions; Sign out and sign out everywhere; Visitor sign-in on a site |
+| enterprise | Identity: OIDC sign-in, sessions, hand-off | Owner sign-in and sessions; Sign out and sign out everywhere; Change sign-in email; Sign-in alert email; Visitor sign-in on a site |
 | enterprise | API keys (CI and automation) | API keys rows |
 | enterprise | MCP server, OAuth connector, plugin.zip | MCP connector; Connector token lifetime; Connected apps; MCP error hints; Skills and plugin |
 | enterprise | Skills bundle and skill-version gate | Skills and plugin |

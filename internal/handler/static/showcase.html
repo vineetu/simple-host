@@ -136,6 +136,11 @@
     .data-delete b { color: var(--text); }
     .data-delete input { font: inherit; color: var(--text); padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; width: 16em; max-width: 70vw; margin: 4px 0 12px; display: block; }
     .data-delete .panel-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+    /* Sign-in (w2/account) */
+    .signin-form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px 0; border-top: 1px solid var(--border); font-size: 14px; color: var(--text-secondary); }
+    .signin-form input { font: inherit; color: var(--text); padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; width: 16em; max-width: 70vw; }
+    .signin-form b { color: var(--text); }
+    .signin-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text); cursor: pointer; }
     /* Your address (cp/recover) */
     .addr-form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px 0; border-top: 1px solid var(--border); }
     .addr-form label { font-size: 14px; color: var(--text-secondary); }
@@ -886,6 +891,33 @@
         </div>
       </div>
       <!-- ==== end Your data ==== -->
+      <!-- ==== Sign-in (w2/account) ====
+           Self-contained: markup here, the "Sign-in" CSS, and the matching
+           script block at the end of the page. Owner-only. -->
+      <div class="section" id="owner-signin" hidden>
+        <div class="section-num"><h2>Sign-in</h2><span class="line"></span></div>
+        <div class="conn-row" id="signin-email-row">
+          <span><b id="signin-email"></b><small>The email you sign in with. Google sign-in keeps working after a change.</small></span>
+          <button type="button" class="btn btn-secondary btn-small" id="signin-email-change">Change email</button>
+        </div>
+        <form class="signin-form" id="signin-email-form" hidden>
+          <label for="signin-email-input">New email</label>
+          <input type="email" id="signin-email-input" autocomplete="email" spellcheck="false" maxlength="254">
+          <button type="submit" class="btn btn-primary btn-small" id="signin-email-send">Send code</button>
+          <button type="button" class="btn-ghost btn-small" id="signin-email-cancel">Cancel</button>
+        </form>
+        <form class="signin-form" id="signin-code-form" hidden>
+          <label for="signin-code-input">Code sent to <b id="signin-code-to"></b></label>
+          <input type="text" id="signin-code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="7">
+          <button type="submit" class="btn btn-primary btn-small" id="signin-code-go">Confirm</button>
+          <button type="button" class="btn-ghost btn-small" id="signin-code-cancel">Cancel</button>
+        </form>
+        <div class="conn-row">
+          <span><b>Sign-in alerts</b><small>An email after each new sign-in or connected app, so you notice one that wasn't you.</small></span>
+          <label class="signin-toggle"><input type="checkbox" id="signin-alerts"> Email me</label>
+        </div>
+      </div>
+      <!-- ==== end Sign-in ==== -->
 
       <!-- Analytics view (dedicated screen) -->
       <div class="section" id="owner-analytics-view" hidden>
@@ -3648,6 +3680,97 @@ function parseAnalyticsSummary(data) {
       })();
     })();
     // ==== end Your data ====
+  </script>
+
+  <script>
+    // ==== Sign-in (w2/account) ====
+    // Change the sign-in email (POST /v1/me/email, then /v1/me/email/verify
+    // with the code sent to the new address) and turn sign-in alerts on or
+    // off (PATCH /v1/me signin_alerts). Owner-only: uses the page script's
+    // api, toast, HANDLE and apiKey.
+    (function () {
+      if (!apiKey) return;
+      var box = document.getElementById('owner-signin');
+      var row = document.getElementById('signin-email-row');
+      var emailForm = document.getElementById('signin-email-form');
+      var codeForm = document.getElementById('signin-code-form');
+      var emailInput = document.getElementById('signin-email-input');
+      var codeInput = document.getElementById('signin-code-input');
+      var alerts = document.getElementById('signin-alerts');
+      function show(which) {
+        row.hidden = which !== 'row';
+        emailForm.hidden = which !== 'email';
+        codeForm.hidden = which !== 'code';
+        if (which === 'email') { emailInput.value = ''; emailInput.focus(); }
+        if (which === 'code') { codeInput.value = ''; codeInput.focus(); }
+      }
+      async function send(method, path, body) {
+        var res = await api(method, path, body);
+        var data = await res.json().catch(function () { return null; });
+        return { ok: res.ok, data: data || {} };
+      }
+      document.getElementById('signin-email-change').addEventListener('click', function () { show('email'); });
+      document.getElementById('signin-email-cancel').addEventListener('click', function () { show('row'); });
+      document.getElementById('signin-code-cancel').addEventListener('click', function () { show('row'); });
+      emailForm.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var btn = document.getElementById('signin-email-send');
+        btn.disabled = true;
+        try {
+          var r = await send('POST', '/v1/me/email', { email: emailInput.value.trim() });
+          if (!r.ok) { toast(r.data.error || 'Could not send a code', 'error'); return; }
+          document.getElementById('signin-code-to').textContent = r.data.email;
+          show('code');
+        } catch (err) {
+          toast('Could not send a code', 'error');
+        } finally {
+          btn.disabled = false;
+        }
+      });
+      codeForm.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var btn = document.getElementById('signin-code-go');
+        btn.disabled = true;
+        try {
+          var r = await send('POST', '/v1/me/email/verify', { code: codeInput.value.trim() });
+          if (!r.ok) { toast(r.data.error || 'Could not change your email', 'error'); return; }
+          document.getElementById('signin-email').textContent = r.data.email;
+          show('row');
+          toast('Your sign-in email is now ' + r.data.email, 'success');
+        } catch (err) {
+          toast('Could not change your email', 'error');
+        } finally {
+          btn.disabled = false;
+        }
+      });
+      alerts.addEventListener('change', async function () {
+        var want = alerts.checked;
+        alerts.disabled = true;
+        try {
+          var r = await send('PATCH', '/v1/me', { signin_alerts: want });
+          if (!r.ok) { alerts.checked = !want; toast(r.data.error || 'Could not save', 'error'); return; }
+          toast(want ? 'Sign-in alerts on' : 'Sign-in alerts off', 'success');
+        } catch (err) {
+          alerts.checked = !want;
+          toast('Could not save', 'error');
+        } finally {
+          alerts.disabled = false;
+        }
+      });
+
+      (async function () {
+        try {
+          var res = await api('GET', '/v1/me');
+          if (!res.ok) return;
+          var me = await res.json();
+          if (!me || !me.handle || me.handle !== HANDLE) return;
+          document.getElementById('signin-email').textContent = me.username;
+          alerts.checked = me.signin_alerts !== false;
+          box.hidden = false;
+        } catch (e) {}
+      })();
+    })();
+    // ==== end Sign-in ====
   </script>
 </body>
 </html>

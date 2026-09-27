@@ -40,6 +40,22 @@ type UserHandler struct {
 
 	// publicPage builds an account's public page address (SiteHandler.PersonPageURL).
 	publicPage func(handle string) string
+
+	// alerts emails the owner after each sign-in (signin_alert.go).
+	alerts *SignInAlerts
+	// reviewerEmail is the plugin reviewer account (REVIEW_ACCOUNT_EMAIL):
+	// its email cannot be changed and it gets no sign-in alerts.
+	reviewerEmail string
+}
+
+// SignInAlerts is the sign-in alert sender, shared with the connector's
+// consent screen.
+func (h *UserHandler) SignInAlerts() *SignInAlerts { return h.alerts }
+
+// SetReviewerEmail names the plugin reviewer account (REVIEW_ACCOUNT_EMAIL).
+func (h *UserHandler) SetReviewerEmail(address string) {
+	h.reviewerEmail = strings.TrimSpace(address)
+	h.alerts.reviewerEmail = h.reviewerEmail
 }
 
 // SetPublicPage sets how GET /v1/me names the account's public page.
@@ -100,6 +116,7 @@ func NewUserHandler(database *sql.DB, mailer email.Sender, publicBaseURL string)
 		publicBaseURL: strings.TrimRight(publicBaseURL, "/"),
 		ipLimiter:     ipLimiter,
 		emailLimiter:  emailLimiter,
+		alerts:        newSignInAlerts(database, mailer, publicBaseURL),
 	}
 }
 
@@ -112,6 +129,8 @@ func (h *UserHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("GET /v1/me/keys", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listKeys))))
 	mux.Handle("POST /v1/me/keys", noticeMiddleware(authMiddleware(http.HandlerFunc(h.createKey))))
 	mux.Handle("DELETE /v1/me/keys/{id}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.deleteKey))))
+	mux.Handle("POST /v1/me/email", noticeMiddleware(authMiddleware(http.HandlerFunc(h.requestEmailChange))))
+	mux.Handle("POST /v1/me/email/verify", noticeMiddleware(authMiddleware(http.HandlerFunc(h.verifyEmailChange))))
 }
 
 func (h *UserHandler) rotateAPIKey(w http.ResponseWriter, r *http.Request) {
@@ -260,6 +279,9 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	// Emailed code, emailed link or Google (which ends here through its
+	// one-time link): the owner hears about it.
+	h.alerts.Alert(user.ID, r.UserAgent(), "")
 	writeJSON(w, http.StatusOK, authResponse{
 		ID:       user.ID,
 		Username: user.Username,
@@ -283,12 +305,18 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user = &fresh
+	alertsOn, err := db.SignInAlertsOn(r.Context(), h.database, user.ID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
 	resp := meResponse{
-		ID:          user.ID,
-		Username:    user.Username,
-		IsAdmin:     user.IsAdmin,
-		Handle:      user.Handle.String,
-		DisplayName: user.DisplayName.String,
+		ID:           user.ID,
+		Username:     user.Username,
+		IsAdmin:      user.IsAdmin,
+		Handle:       user.Handle.String,
+		DisplayName:  user.DisplayName.String,
+		SignInAlerts: &alertsOn,
 	}
 	if h.publicPage != nil && user.Handle.String != "" {
 		resp.PublicPage = h.publicPage(user.Handle.String)
@@ -305,6 +333,8 @@ type meResponse struct {
 	// PublicPage is the account's public page: https://<handle>.<SITE_DOMAIN>/
 	// (or the path address when person hosts are not the canonical address).
 	PublicPage string `json:"public_page,omitempty"`
+	// SignInAlerts: an email after each sign-in (default on).
+	SignInAlerts *bool `json:"signin_alerts,omitempty"`
 }
 
 func isUniqueViolation(err error) bool {
