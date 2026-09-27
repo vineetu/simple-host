@@ -12,6 +12,7 @@ import (
 // (a test, a tool) sees the long-standing behaviour.
 type Limits struct {
 	MaxAccountKeys       int           // MAX_KEYS_PER_ACCOUNT
+	KeyIdleExpiry        time.Duration // KEY_IDLE_EXPIRY_DAYS (0 = never)
 	EmailChangeUndoTTL   time.Duration // EMAIL_CHANGE_UNDO_DAYS
 	DeletedRetention     time.Duration // DELETED_RETENTION_DAYS
 	UnprovenDomainTTL    time.Duration // DOMAIN_UNPROVEN_HOURS
@@ -26,6 +27,7 @@ type Limits struct {
 func DefaultLimits() Limits {
 	return Limits{
 		MaxAccountKeys:       50,
+		KeyIdleExpiry:        180 * 24 * time.Hour,
 		EmailChangeUndoTTL:   7 * 24 * time.Hour,
 		DeletedRetention:     7 * 24 * time.Hour,
 		UnprovenDomainTTL:    24 * time.Hour,

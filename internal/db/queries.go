@@ -81,12 +81,19 @@ func GetUserByAPIKey(ctx context.Context, db *sql.DB, apiKey string) (User, erro
 	}
 	const query = `
 		SELECT u.id, u.username, u.is_admin, u.created_at, u.handle, u.display_name, k.key_hash,
-		       u.suspended_at IS NOT NULL, COALESCE(u.suspended_reason, '')
+		       u.suspended_at IS NOT NULL, COALESCE(u.suspended_reason, ''),
+		       k.scope, k.expires_at, k.idle_from, k.last_used_at, now()
 		FROM api_keys k JOIN users u ON u.id = k.user_id
 		WHERE k.key_hash = $1
 	`
 
-	var user User
+	var (
+		user      User
+		expiresAt *time.Time
+		idleFrom  time.Time
+		lastUsed  *time.Time
+		now       time.Time
+	)
 	err := db.QueryRowContext(ctx, query, HashAPIKey(apiKey)).Scan(
 		&user.ID,
 		&user.Username,
@@ -97,7 +104,23 @@ func GetUserByAPIKey(ctx context.Context, db *sql.DB, apiKey string) (User, erro
 		&user.KeyHash,
 		&user.Suspended,
 		&user.SuspendedReason,
+		&user.KeyScope,
+		&expiresAt,
+		&idleFrom,
+		&lastUsed,
+		&now,
 	)
+	if err == nil {
+		// An expired key is kept (the owner sees it in the Keys panel as
+		// expired and can revoke it) but never authenticates.
+		switch keyExpired(now, expiresAt, idleFrom, lastUsed) {
+		case KeyExpiredFixed:
+			user.KeyExpiresAt = expiresAt
+			return user, ErrKeyExpired
+		case KeyExpiredIdle:
+			return user, ErrKeyExpiredIdle
+		}
+	}
 	if err == nil && user.Suspended {
 		return user, ErrAccountSuspended
 	}

@@ -10,11 +10,16 @@ type User struct {
 	Username string
 	// KeyHash is the stored hash of the API key this request authenticated
 	// with; empty for the env admin key and for internal credentials.
-	KeyHash     string
-	IsAdmin     bool
-	CreatedAt   time.Time
-	Handle      sql.NullString
-	DisplayName sql.NullString
+	KeyHash string
+	// KeyScope is that key's scope (KeyScopeFull or KeyScopeDeploy); empty
+	// when KeyHash is.
+	KeyScope string
+	// KeyExpiresAt is set alongside ErrKeyExpired: when the key expired.
+	KeyExpiresAt *time.Time
+	IsAdmin      bool
+	CreatedAt    time.Time
+	Handle       sql.NullString
+	DisplayName  sql.NullString
 	// Suspended is set when the operator has suspended the account: its keys
 	// and connected apps stop working and its sites are taken down, without
 	// deleting anything. Loaded by GetUserByAPIKey, GetUserByID and ListAllUsers.

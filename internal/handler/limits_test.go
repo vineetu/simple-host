@@ -116,6 +116,7 @@ func TestLeafLimitDefaultsMatchConfig(t *testing.T) {
 	def := config.DefaultLimits()
 	if got, want := db.DefaultLimits(), (db.Limits{
 		MaxAccountKeys:       def.MaxKeysPerAccount,
+		KeyIdleExpiry:        def.KeyIdleExpiry,
 		EmailChangeUndoTTL:   def.EmailChangeUndoTTL,
 		DeletedRetention:     def.DeletedRetention,
 		UnprovenDomainTTL:    def.DomainUnprovenTTL,

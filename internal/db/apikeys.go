@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log"
 	"time"
 )
@@ -18,6 +19,33 @@ const (
 	KeyNameRotated   = "replacement key"
 )
 
+// Key scopes (api_keys.scope). A full key does everything the account can
+// through the API; a deploy key only what a CI job that publishes needs
+// (internal/auth/scope.go holds the route table).
+const (
+	KeyScopeFull   = "full"
+	KeyScopeDeploy = "deploy"
+)
+
+// Why a stored key no longer works (APIKey.Expired).
+const (
+	KeyExpiredFixed = "expired" // past the expiry chosen when it was minted
+	KeyExpiredIdle  = "idle"    // unused for KEY_IDLE_EXPIRY_DAYS
+)
+
+// ErrKeyExpired and ErrKeyExpiredIdle are returned by GetUserByAPIKey for a
+// stored key that has stopped working. Both wrap sql.ErrNoRows, so every
+// caller that treats an unknown key as "not signed in" keeps doing so; the key
+// middleware tells them apart to say why.
+var (
+	ErrKeyExpired     = fmt.Errorf("api key expired: %w", sql.ErrNoRows)
+	ErrKeyExpiredIdle = fmt.Errorf("api key expired after going unused: %w", sql.ErrNoRows)
+)
+
+// KeyIdleExpiry is how long a key may go unused before it stops working
+// (KEY_IDLE_EXPIRY_DAYS); 0 means never.
+func KeyIdleExpiry() time.Duration { return lim().KeyIdleExpiry }
+
 // APIKey is one row of api_keys as its owner sees it. The key itself is never
 // stored; Last4 is only for recognising it. Name and Last4 are empty for keys
 // issued before keys had names.
@@ -26,8 +54,46 @@ type APIKey struct {
 	Hash       string
 	Name       string
 	Last4      string
+	Scope      string
 	CreatedAt  time.Time
 	LastUsedAt *time.Time
+	ExpiresAt  *time.Time
+	IdleFrom   time.Time
+}
+
+// IdleExpiresAt is when the key stops working if it is not used before then,
+// or nil when idle expiry is off (KEY_IDLE_EXPIRY_DAYS=0).
+func (k APIKey) IdleExpiresAt() *time.Time {
+	return idleExpiresAt(k.IdleFrom, k.LastUsedAt)
+}
+
+func idleExpiresAt(idleFrom time.Time, lastUsed *time.Time) *time.Time {
+	d := KeyIdleExpiry()
+	if d <= 0 {
+		return nil
+	}
+	from := idleFrom
+	if lastUsed != nil && lastUsed.After(from) {
+		from = *lastUsed
+	}
+	t := from.Add(d)
+	return &t
+}
+
+// Expired says whether the key has stopped working at now, and why:
+// KeyExpiredFixed, KeyExpiredIdle, or "" while it works.
+func (k APIKey) Expired(now time.Time) string {
+	return keyExpired(now, k.ExpiresAt, k.IdleFrom, k.LastUsedAt)
+}
+
+func keyExpired(now time.Time, expiresAt *time.Time, idleFrom time.Time, lastUsed *time.Time) string {
+	if expiresAt != nil && !now.Before(*expiresAt) {
+		return KeyExpiredFixed
+	}
+	if t := idleExpiresAt(idleFrom, lastUsed); t != nil && !now.Before(*t) {
+		return KeyExpiredIdle
+	}
+	return ""
 }
 
 func keyLast4(key string) string {
@@ -56,7 +122,7 @@ func touchAPIKey(ctx context.Context, q Querier, keyHash string) {
 // ListAPIKeys returns an account's keys, newest first.
 func ListAPIKeys(ctx context.Context, q *sql.DB, userID string) ([]APIKey, error) {
 	rows, err := q.QueryContext(ctx, `
-		SELECT id, key_hash, COALESCE(name, ''), COALESCE(last4, ''), created_at, last_used_at
+		SELECT id, key_hash, COALESCE(name, ''), COALESCE(last4, ''), scope, created_at, last_used_at, expires_at, idle_from
 		  FROM api_keys WHERE user_id = $1
 		 ORDER BY created_at DESC, id`, userID)
 	if err != nil {
@@ -66,7 +132,7 @@ func ListAPIKeys(ctx context.Context, q *sql.DB, userID string) ([]APIKey, error
 	out := []APIKey{}
 	for rows.Next() {
 		var k APIKey
-		if err := rows.Scan(&k.ID, &k.Hash, &k.Name, &k.Last4, &k.CreatedAt, &k.LastUsedAt); err != nil {
+		if err := rows.Scan(&k.ID, &k.Hash, &k.Name, &k.Last4, &k.Scope, &k.CreatedAt, &k.LastUsedAt, &k.ExpiresAt, &k.IdleFrom); err != nil {
 			return nil, err
 		}
 		out = append(out, k)
@@ -81,13 +147,14 @@ func MaxAccountKeys() int { return lim().MaxAccountKeys }
 // ErrKeyLimit: the account already holds MaxAccountKeys keys.
 var ErrKeyLimit = errors.New("account key limit reached")
 
-// CreateAPIKey stores a new key under name and returns its row, but only while
+// CreateAPIKey stores a new key under name, with scope (KeyScopeFull or
+// KeyScopeDeploy) and an optional fixed expiry, and returns its row, but only while
 // the key the request came with (callerKeyHash) is still one of the account's:
 // a key revoked or rotated away mid-request cannot mint a successor
 // (sql.ErrNoRows). The users row is locked first, the same lock rotate and the
 // admin reissue take, so a concurrent "revoke everything" cannot miss the new
 // key. ErrKeyLimit when the account already holds MaxAccountKeys keys.
-func CreateAPIKey(ctx context.Context, db *sql.DB, userID, callerKeyHash, apiKey, name string) (APIKey, error) {
+func CreateAPIKey(ctx context.Context, db *sql.DB, userID, callerKeyHash, apiKey, name, scope string, expiresAt *time.Time) (APIKey, error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return APIKey{}, err
@@ -108,10 +175,13 @@ func CreateAPIKey(ctx context.Context, db *sql.DB, userID, callerKeyHash, apiKey
 	if n >= MaxAccountKeys() {
 		return APIKey{}, ErrKeyLimit
 	}
-	k := APIKey{Hash: HashAPIKey(apiKey), Name: name, Last4: keyLast4(apiKey)}
+	if scope == "" {
+		scope = KeyScopeFull
+	}
+	k := APIKey{Hash: HashAPIKey(apiKey), Name: name, Last4: keyLast4(apiKey), Scope: scope, ExpiresAt: expiresAt}
 	if err := tx.QueryRowContext(ctx, `
-		INSERT INTO api_keys (key_hash, user_id, name, last4) VALUES ($1, $2, $3, $4)
-		RETURNING id, created_at`, k.Hash, userID, name, k.Last4).Scan(&k.ID, &k.CreatedAt); err != nil {
+		INSERT INTO api_keys (key_hash, user_id, name, last4, scope, expires_at) VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id, created_at, idle_from`, k.Hash, userID, name, k.Last4, scope, expiresAt).Scan(&k.ID, &k.CreatedAt, &k.IdleFrom); err != nil {
 		return APIKey{}, err
 	}
 	return k, tx.Commit()
@@ -170,4 +240,12 @@ func ReplaceAPIKeys(ctx context.Context, q Querier, userID, newKey, name string)
 		return err
 	}
 	return AddAPIKey(ctx, q, userID, newKey, name)
+}
+
+// APIKeyScope is the scope of a stored key, or sql.ErrNoRows for a key that
+// is not stored (unknown, the env admin key, an internal credential).
+func APIKeyScope(ctx context.Context, q Querier, apiKey string) (string, error) {
+	var scope string
+	err := q.QueryRowContext(ctx, `SELECT scope FROM api_keys WHERE key_hash = $1`, HashAPIKey(apiKey)).Scan(&scope)
+	return scope, err
 }

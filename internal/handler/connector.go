@@ -91,8 +91,9 @@ type ConnectorHandler struct {
 	now func() time.Time
 }
 
-// NewConnectorHandler builds the connector. upstream is the bare application
-// mux: MCP tool calls are served into it in process.
+// NewConnectorHandler builds the connector. upstream is the application mux
+// behind the key scope gate (auth.ScopeGate): MCP tool calls are served into
+// it in process, so a deploy-only key's tools meet the same route table.
 func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomain, contentHost, skillVersion string, upstream http.Handler) *ConnectorHandler {
 	issuer := strings.TrimRight(publicBaseURL, "/")
 	key := make([]byte, 32)

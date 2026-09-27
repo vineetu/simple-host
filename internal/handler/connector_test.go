@@ -168,6 +168,7 @@ type connectorApp struct {
 	database *sql.DB
 	admin    string
 	conn     *ConnectorHandler
+	mux      *http.ServeMux
 }
 
 // newConnectorApp wires the server the way cmd/server/main.go does. It needs
@@ -198,8 +199,8 @@ func newConnectorApp(t *testing.T) *connectorApp {
 	if err != nil {
 		t.Fatal(err)
 	}
-	app := &connectorApp{database: database, admin: adminKey}
 	mux := http.NewServeMux()
+	app := &connectorApp{database: database, admin: adminKey, mux: mux}
 	authMW := auth.Middleware(adminKey, adminID, database)
 	noticeMW := NoticeMiddleware("1.0.0")
 	mailer := email.NewResendSender("", "test@example.com")
@@ -214,10 +215,11 @@ func newConnectorApp(t *testing.T) *connectorApp {
 	users.Register(mux, authMW, noticeMW)
 	sites := NewSiteHandler(database, disk, "simple-host.test", "sites.simple-host.test", "cname.simple-host.test", "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
 	sites.Register(mux, authMW, noticeMW)
-	conn := NewConnectorHandler(database, app.srv.URL, adminKey, "simple-host.test", "sites.simple-host.test", "1.0.0", mux)
+	gated := auth.ScopeGate(database, mux)
+	conn := NewConnectorHandler(database, app.srv.URL, adminKey, "simple-host.test", "sites.simple-host.test", "1.0.0", gated)
 	conn.Register(mux, authMW)
 	app.conn = conn
-	root = CORS(conn.BearerAuth(mux))
+	root = CORS(conn.BearerAuth(gated))
 	return app
 }
 

@@ -8,7 +8,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/vsriram/simple-host/internal/db"
 )
@@ -92,6 +94,11 @@ func Middleware(adminAPIKey, adminUserID string, database *sql.DB) func(http.Han
 					})
 					return
 				}
+				if errors.Is(err, db.ErrKeyExpired) || errors.Is(err, db.ErrKeyExpiredIdle) {
+					msg, code := ExpiredKeyMessage(err, user.KeyExpiresAt)
+					writeJSON(w, http.StatusUnauthorized, errorResponse{Error: msg, Code: code})
+					return
+				}
 				if errors.Is(err, sql.ErrNoRows) {
 					writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "invalid API key: the X-API-Key you sent is not recognized (it may have been revoked, or the account signed out). Sign in again via POST /v1/auth for a new key.", Code: "invalid_api_key"})
 					return
@@ -105,6 +112,22 @@ func Middleware(adminAPIKey, adminUserID string, database *sql.DB) func(http.Han
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// ExpiredKeyMessage is the 401 a stored key that stopped working gets, and its
+// code: key_expired (past the expiry chosen at mint) or key_expired_idle
+// (unused for KEY_IDLE_EXPIRY_DAYS).
+func ExpiredKeyMessage(err error, expiredAt *time.Time) (string, string) {
+	if errors.Is(err, db.ErrKeyExpired) {
+		msg := "this API key has expired"
+		if expiredAt != nil {
+			msg += " (on " + expiredAt.UTC().Format("2 January 2006") + ")"
+		}
+		return msg + ". Create a new key from the Keys panel on your Simple Host page, or sign in again via POST /v1/auth.", "key_expired"
+	}
+	days := int(db.KeyIdleExpiry().Hours() / 24)
+	return fmt.Sprintf("this API key stopped working because it was not used for %d days. "+
+		"Create a new key from the Keys panel on your Simple Host page, or sign in again via POST /v1/auth.", days), "key_expired_idle"
 }
 
 // SuspendedMessage is the error text a suspended person sees, with the

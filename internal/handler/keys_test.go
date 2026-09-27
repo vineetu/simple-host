@@ -262,7 +262,7 @@ func TestCreateKeyRacesRevoke(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		plain, _ := auth.GenerateAPIKey()
-		_, err := db.CreateAPIKey(ctx, a.database, u.ID, u.KeyHash, plain, "racer")
+		_, err := db.CreateAPIKey(ctx, a.database, u.ID, u.KeyHash, plain, "racer", "", nil)
 		done <- err
 	}()
 	select {

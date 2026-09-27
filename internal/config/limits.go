@@ -25,6 +25,7 @@ type Limits struct {
 	// Accounts and keys.
 	SigninCodeTTL      time.Duration // SIGNIN_CODE_TTL_MINUTES
 	MaxKeysPerAccount  int           // MAX_KEYS_PER_ACCOUNT
+	KeyIdleExpiry      time.Duration // KEY_IDLE_EXPIRY_DAYS (0 = never)
 	HandleRenameEvery  time.Duration // HANDLE_RENAME_EVERY_DAYS
 	EmailChangeUndoTTL time.Duration // EMAIL_CHANGE_UNDO_DAYS
 
@@ -218,6 +219,7 @@ func DefaultLimits() Limits {
 	return Limits{
 		SigninCodeTTL:      15 * time.Minute,
 		MaxKeysPerAccount:  50,
+		KeyIdleExpiry:      180 * day,
 		HandleRenameEvery:  30 * day,
 		EmailChangeUndoTTL: 7 * day,
 
@@ -384,6 +386,8 @@ func Knobs() []Knob {
 	return []Knob{
 		durKnob("SIGNIN_CODE_TTL_MINUTES", "minutes", m, 5, 60, func(l *Limits) *time.Duration { return &l.SigninCodeTTL }),
 		intKnob("MAX_KEYS_PER_ACCOUNT", "keys", 1, 1000, func(l *Limits) *int { return &l.MaxKeysPerAccount }),
+		// 0 turns idle expiry off: keys then work until revoked.
+		durKnob("KEY_IDLE_EXPIRY_DAYS", "days", d, 0, 3650, func(l *Limits) *time.Duration { return &l.KeyIdleExpiry }),
 		durKnob("HANDLE_RENAME_EVERY_DAYS", "days", d, 7, 365, func(l *Limits) *time.Duration { return &l.HandleRenameEvery }),
 		durKnob("EMAIL_CHANGE_UNDO_DAYS", "days", d, 1, 90, func(l *Limits) *time.Duration { return &l.EmailChangeUndoTTL }),
 

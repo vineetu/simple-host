@@ -197,7 +197,11 @@ func main() {
 	// The connector: OAuth 2.1 authorization server + remote MCP endpoint.
 	// Tool calls are served into the bare mux, as the person, so they meet the
 	// same checks as the REST call they stand for.
-	connector := handler.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, mux)
+	// Deploy-only keys are refused everywhere but the deploy routes, in this
+	// one gate (internal/auth/scope.go). The MCP server calls back into the
+	// gated mux, so its tools follow the same table.
+	gated := auth.ScopeGate(db, mux)
+	connector := handler.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, gated)
 	connector.Register(mux, authMW)
 	connector.EnableReviewerSignIn(cfg.ReviewAccountEmail, cfg.ReviewAccountPasswordHash)
 	userHandler.SetReviewerEmail(cfg.ReviewAccountEmail)
@@ -279,7 +283,7 @@ func main() {
 	// own address when SITE_HOSTS is on (sitehost.go); an account's handle is
 	// its own address when PERSON_HOSTS is on (personhost.go); every other single-label name
 	// keeps the legacy 301 to its path URL.
-	app := handler.SecurityHeaders(handler.CORS(apiMetrics.Wrap(connector.BearerAuth(mux))))
+	app := handler.SecurityHeaders(handler.CORS(apiMetrics.Wrap(connector.BearerAuth(gated))))
 	server := &http.Server{
 		Addr:              net.JoinHostPort(cfg.BindAddr, cfg.Port),
 		Handler:           siteHandler.BoundSubdomains(app, siteHandler.SiteHosts(app, siteHandler.PersonHosts(app, siteHandler.LegacyHostRedirect(app)))),

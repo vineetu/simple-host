@@ -67,7 +67,10 @@ CREATE TABLE api_keys (
   name         TEXT,          -- "dashboard sign-in", "agent sign-in", "event account", or typed
   last4        TEXT,          -- last 4 characters of the key, for recognising it
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-  last_used_at TIMESTAMPTZ    -- written at most every 5 minutes
+  last_used_at TIMESTAMPTZ,   -- written at most every 5 minutes
+  scope        TEXT NOT NULL DEFAULT 'full',  -- 'full', or 'deploy': create/update/roll back/list sites and preview links only
+  expires_at   TIMESTAMPTZ,   -- optional fixed expiry, chosen when minting from the Keys panel
+  idle_from    TIMESTAMPTZ NOT NULL DEFAULT now()  -- idle expiry (KEY_IDLE_EXPIRY_DAYS) counts from the later of this and last_used_at
 );
 CREATE INDEX api_keys_user_idx ON api_keys (user_id);
 

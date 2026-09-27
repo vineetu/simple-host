@@ -75,6 +75,14 @@ var limitPhrases = []limitPhrase{
 	phrase("older than 15 minutes", knob("SIGNIN_CODE_TTL_MINUTES"), func(l *config.Limits) string { return "older than " + limitSpan(l.SigninCodeTTL) }),
 	phrase("(15-minute code", knob("SIGNIN_CODE_TTL_MINUTES"), func(l *config.Limits) string { return "(" + limitSpanAdj(l.SigninCodeTTL) + " code" }),
 
+	// KEY_IDLE_EXPIRY_DAYS (0 = never)
+	phrase("A key unused for 180 days stops working.", knob("KEY_IDLE_EXPIRY_DAYS"), func(l *config.Limits) string {
+		if l.KeyIdleExpiry <= 0 {
+			return "Unused keys keep working until revoked."
+		}
+		return "A key unused for " + limitSpan(l.KeyIdleExpiry) + " stops working."
+	}),
+
 	// MAX_KEYS_PER_ACCOUNT
 	phrase("at most 50 keys", knob("MAX_KEYS_PER_ACCOUNT"), func(l *config.Limits) string { return "at most " + limitNum(l.MaxKeysPerAccount) + " keys" }),
 	phrase("holds 50 keys", knob("MAX_KEYS_PER_ACCOUNT"), func(l *config.Limits) string { return "holds " + limitNum(l.MaxKeysPerAccount) + " keys" }),

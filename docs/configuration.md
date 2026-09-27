@@ -45,6 +45,7 @@ simple-host.app runs, so an install that sets none of them behaves exactly as be
 |---|---|---|---|
 | `SIGNIN_CODE_TTL_MINUTES` | 15 | 5–60 | How long an emailed sign-in code (and link) or email-change code works. |
 | `MAX_KEYS_PER_ACCOUNT` | 50 | 1–1000 | API keys one account may create from the Keys panel (`POST /v1/me/keys`, 409 `key_limit`). Sign-in keys are not refused. |
+| `KEY_IDLE_EXPIRY_DAYS` | 180 | 0–3650 | An API key not used for this many days stops working (401 `key_expired_idle`, saying to create a new key); `0` = never. Counted from the key's last use, or from its creation (keys that existed before this setting: from the day it shipped). A key minted from the Keys panel may also carry its own fixed expiry (`expires_in_days`). |
 | `HANDLE_RENAME_EVERY_DAYS` | 30 | 7–365 | Once something is published, an account may change its handle once in this many days (429 with `next_change_after`). |
 | `EMAIL_CHANGE_UNDO_DAYS` | 7 | 1–90 | How long the undo link sent to the old address after a sign-in email change works. |
 

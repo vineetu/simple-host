@@ -1205,25 +1205,8 @@ func (h *SiteHandler) createSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !h.publishOnCreate(w, r) {
+	if !h.newSiteChecks(w, r, user) {
 		return
-	}
-
-	// Per-user site quota (admins exempt). Checked before we read the upload so
-	// an over-quota request is cheap to reject. Updates to existing sites are
-	// not affected — this only gates new-site creation.
-	if !user.IsAdmin {
-		// Sites in Recently deleted count: delete-then-create must not
-		// get round the cap (their files are still on disk).
-		existing, err := db.CountSitesByUser(r.Context(), h.database, user.ID)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-			return
-		}
-		if existing >= maxSitesPerUser() {
-			writeJSON(w, http.StatusForbidden, errorResponse{Error: fmt.Sprintf("site quota reached: an account holds at most %d sites (sites in Recently deleted count until they are removed)", maxSitesPerUser()), Code: "site_quota_reached"})
-			return
-		}
 	}
 
 	files, archiveSHA, err := h.readAndValidateFiles(w, r, siteName)
@@ -1281,7 +1264,7 @@ func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user
 				writeJSON(w, http.StatusConflict, map[string]any{"error": msg, "code": "recently_deleted", "recently_deleted": true})
 				return
 			}
-			writeJSON(w, http.StatusConflict, errorResponse{Error: "site already exists", Code: "site_exists"})
+			writeJSON(w, http.StatusConflict, errorResponse{Error: "site already exists: use PUT to update it (PUT /v1/sites/" + siteName + " or PUT /v1/sites/" + siteName + "/files); add ?create=1 to a PUT to create or update in one call", Code: "site_exists"})
 			return
 		}
 
@@ -1380,11 +1363,19 @@ func (h *SiteHandler) updateSite(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	create, ok := h.createIfMissing(w, r, user, siteName)
+	if !ok {
+		return
+	}
 	files, archiveSHA, err := h.readAndValidateFiles(w, r, siteName)
 	if err != nil {
 		return
 	}
 
+	if create {
+		h.commitNewSite(w, r, user, siteName, files, archiveSHA)
+		return
+	}
 	h.commitSiteUpdate(w, r, user, siteName, files, archiveSHA, publish)
 }
 
@@ -1407,7 +1398,7 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found: create it with POST, or add ?create=1 to this PUT to create it when missing", Code: "not_found"})
 			return
 		}
 
@@ -1610,22 +1601,8 @@ func (h *SiteHandler) createSiteFiles(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "name_reserved"})
 		return
 	}
-	if !h.publishOnCreate(w, r) {
+	if !h.newSiteChecks(w, r, user) {
 		return
-	}
-
-	if !user.IsAdmin {
-		// Sites in Recently deleted count: delete-then-create must not
-		// get round the cap (their files are still on disk).
-		existing, err := db.CountSitesByUser(r.Context(), h.database, user.ID)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-			return
-		}
-		if existing >= maxSitesPerUser() {
-			writeJSON(w, http.StatusForbidden, errorResponse{Error: fmt.Sprintf("site quota reached: an account holds at most %d sites (sites in Recently deleted count until they are removed)", maxSitesPerUser()), Code: "site_quota_reached"})
-			return
-		}
 	}
 
 	files, digest, err := h.readJSONFiles(w, r, siteName)
@@ -1634,6 +1611,60 @@ func (h *SiteHandler) createSiteFiles(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.commitNewSite(w, r, user, siteName, files, digest)
+}
+
+// newSiteChecks is what creating a site checks before reading the upload,
+// shared by POST and by PUT ?create=1: publish=false is refused (a first
+// version always goes live) and the per-account site quota (admins exempt).
+// Updates to existing sites are never gated by the quota. False after writing
+// the answer.
+func (h *SiteHandler) newSiteChecks(w http.ResponseWriter, r *http.Request, user *db.User) bool {
+	if !h.publishOnCreate(w, r) {
+		return false
+	}
+	if !user.IsAdmin {
+		// Sites in Recently deleted count: delete-then-create must not
+		// get round the cap (their files are still on disk).
+		existing, err := db.CountSitesByUser(r.Context(), h.database, user.ID)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return false
+		}
+		if existing >= maxSitesPerUser() {
+			writeJSON(w, http.StatusForbidden, errorResponse{Error: fmt.Sprintf("site quota reached: an account holds at most %d sites (sites in Recently deleted count until they are removed)", maxSitesPerUser()), Code: "site_quota_reached"})
+			return false
+		}
+	}
+	return true
+}
+
+// createIfMissing is PUT ?create=1 (one call from CI whether or not the site
+// exists yet): when the caller has no live site of that name it runs the
+// create checks and reports create=true, so the upload is committed as a new
+// site. ok is false after writing the answer.
+func (h *SiteHandler) createIfMissing(w http.ResponseWriter, r *http.Request, user *db.User, siteName string) (create, ok bool) {
+	switch v := r.URL.Query().Get("create"); v {
+	case "", "0", "false":
+		return false, true
+	case "1", "true":
+	default:
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "create must be 1 or 0", Code: "invalid_request"})
+		return false, false
+	}
+	if _, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName); err == nil {
+		return false, true
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return false, false
+	}
+	if err := validateSiteReserved(siteName); err != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "name_reserved"})
+		return false, false
+	}
+	if !h.newSiteChecks(w, r, user) {
+		return false, false
+	}
+	return true, true
 }
 
 // updateSiteFiles is the JSON update path. Mirrors updateSite's pre-checks, then
@@ -1659,11 +1690,19 @@ func (h *SiteHandler) updateSiteFiles(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	create, ok := h.createIfMissing(w, r, user, siteName)
+	if !ok {
+		return
+	}
 	files, digest, err := h.readJSONFiles(w, r, siteName)
 	if err != nil {
 		return
 	}
 
+	if create {
+		h.commitNewSite(w, r, user, siteName, files, digest)
+		return
+	}
 	h.commitSiteUpdate(w, r, user, siteName, files, digest, publish)
 }
 
