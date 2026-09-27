@@ -103,6 +103,41 @@ func (h *SiteHandler) checkDomain(ctx context.Context, d db.BoundDomain, ours ma
 		}
 	}
 	h.applyDomainCheck(ctx, d, status, reason, cert)
+	if status != "active" && d.PreviousDomain != "" && !h.isPlatformSubdomainHost(d.PreviousDomain) {
+		h.checkPreviousDomain(ctx, d, ours)
+	}
+}
+
+// checkPreviousDomain proves the earlier address a site still serves while its
+// new domain is pending. One that keeps failing for domainLapseAfter is let
+// go: the site stops serving there and the domain is free for whoever holds it.
+func (h *SiteHandler) checkPreviousDomain(ctx context.Context, d db.BoundDomain, ours map[string]bool) {
+	status, _, _ := h.verifyDomain(ctx, d.PreviousDomain, ours)
+	since, err := db.SetPreviousDomainCheck(ctx, h.database, d.SiteID, d.PreviousDomain, status == "active")
+	if err != nil {
+		log.Printf("domain check %s (earlier address): %v", d.PreviousDomain, err)
+		return
+	}
+	if !since.Valid || time.Since(since.Time) < domainLapseAfter {
+		return
+	}
+	info, ok, err := db.GetSiteDomainInfo(ctx, h.database, d.SiteID)
+	if err != nil || !ok {
+		return
+	}
+	lapsed, err := db.LapsePreviousDomain(ctx, h.database, d.SiteID, d.PreviousDomain)
+	if err != nil {
+		log.Printf("domain %s: lapse earlier address: %v", d.PreviousDomain, err)
+		return
+	}
+	if !lapsed {
+		return
+	}
+	if _, err := h.disk.UnbindDomainOf(d.PreviousDomain, info.UserID, info.Name); err != nil {
+		log.Printf("domain: unbind earlier %s: %v", d.PreviousDomain, err)
+	}
+	h.syncDomainRedirect(ctx, d.SiteID)
+	log.Printf("domain %s: earlier address of %s failing since %s; let go", d.PreviousDomain, info.Name, since.Time.UTC().Format(time.RFC3339))
 }
 
 // applyDomainCheck records one check's verdict and acts on it.

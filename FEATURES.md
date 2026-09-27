@@ -42,7 +42,7 @@ Upload a static site (tar.gz/zip or inline JSON files); versions, rollback, rena
 export, public/unlisted listing. Delete is recoverable: the site goes offline at once and stays in
 Recently deleted for 7 days (row kept with `deleted_at`, files moved to `DATA_DIR/deleted/<user>/<site_id>`,
 name, saved data, collections and claimed names kept), `restore` brings it back whole, and an
-hourly in-process sweep purges it after the window. Deleting a whole account (admin) is immediate.
+hourly in-process sweep purges it after the window (except a taken-down site, or one of a suspended account: kept until the operator acts). Deleting a whole account (admin) is immediate.
 **Status: live.**
 
 | Surface | Details |
@@ -53,7 +53,7 @@ hourly in-process sweep purges it after the window. Deleting a whole account (ad
 | Pages | owner app `st/showcase.html` (site inventory with live address, version and last deploy; versions, rename, visibility, Download (export), taken-down sites with the reason, delete with a count of what goes and "Download first", Recently deleted with Restore) · `st/index.html` at `/dashboard` (site cards; for an account with a handle only a list with Manage links to the owner app; full controls for accounts without one and in the admin tab) · `st/notfound.html` |
 | Go | `h/site.go` (create/update/list/rename/visibility, route table), `h/deleted.go` (delete, restore, Recently deleted list, purge sweep), `h/versions.go`, `h/versionfiles.go`, `h/export.go`, `h/exportlink.go`, `h/sitename.go`, `h/usage.go` (per-site cap), `internal/tarball/{extract,sanitize,validate}.go`, `internal/storage/disk.go` (by-id layout, `handles/` symlinks), `internal/storage/trash.go` (`deleted/` area), `internal/db/queries.go`, `internal/db/deleted.go` |
 | DB | `sites` (`deleted_at`: every serving and listing lookup skips deleted rows), `versions` |
-| Limits | 100 sites per account (admins exempt; deleted sites do not count, restore re-checks); uploads serialised per site; upload limiter 30 burst, 0.1/s; Recently deleted keeps a site 7 days |
+| Limits | 100 sites per account (admins exempt; sites in Recently deleted count, so restore needs no check); uploads, rollback, rename, delete, restore and take-down serialised per account+site; upload limiter 30 burst, 0.1/s; delete/rename/restore limiter 30 burst, 0.5/s; Recently deleted keeps a site 7 days |
 | Env | `DATA_DIR`, `MAX_ARCHIVE_MB`, `KEEP_VERSIONS`, `DEPLOY_SCRIPT`, `PREVIEW_ACCOUNTS`, `PREVIEW_TTL_HOURS` (preview-site expiry sweep) |
 | External | nginx serves files from `/srv/simple-host/sites/handles/<h>/<s>/` on the content host; Caddy does the same on event instances (`deploy/compose/Caddyfile`) |
 
@@ -92,7 +92,11 @@ site lives only there; its other addresses redirect. Connecting a new domain kee
 current own address serving (`previous_domain`) until the new one is verified with its
 certificate; then the old address redirects to it. A verified domain that fails its checks for
 24 h emails the owner (`last_error`); after 72 h its verification is cleared, so the site's own
-address serves again and the domain can be claimed afresh. A free name the site lets go
+address serves again and the domain can be claimed afresh. The earlier address kept while a new
+domain is pending is checked too, and let go after 72 h of failing; a new domain whose DNS points
+here but never proves (its certificate keeps failing) is released after 7 days and the earlier
+address comes back. `DELETE .../domain?domain=<d>` drops only that domain (409 `domain_changed`
+otherwise; `remove_domain` always sends it). A free name the site lets go
 (switch, disconnect, site delete) stays with it in `legacy_hostnames` and 302s to its current
 address, or says "This site was removed". **Status: live.**
 
@@ -103,9 +107,9 @@ address, or says "This site was removed". **Status: live.**
 | Skill | `connect-domain/SKILL.md` §The free address, §The flow (1–5, Disconnect), §Backend on a connected domain, §Gotchas · `connect-domain/references/registrars.md` (Vercel, GoDaddy, Porkbun, other) · `website-deploy/references/operations.md` §A nicer address · `website-deploy-builder/SKILL.md` §8 |
 | Pages | `st/showcase.html` owner app (connect, disconnect, status; for a domain not live yet the certificate status, DNS record, last problem, expiry and Check again) · `st/index.html` (connect/disconnect on the site card, accounts without a handle and admin tab) |
 | Go | `h/domains.go` (bind, status, delete, `tlsAsk`, `domainRedirect`), `h/domaincheck.go` (background re-verify, switch of address, lapse + owner email), `h/domaincert.go` (certificate hand-off), `h/platformsubdomain.go` (free names, `reservedSubdomainLabels`, `BoundSubdomains`, `siteOwnDomain`, `syncDomainRedirect`), `h/legacyhost.go` (retired names), `internal/db/domains.go`, `internal/db/namespace.go`, `internal/email/resend.go` (`SendNotice`) |
-| DB | `sites.custom_domain`, `domain_status`, `domain_verified_at`, `domain_last_error`, `domain_bound_at`, `previous_domain`, `domain_cert_status`, `domain_failing_since`, `domain_lapse_notified_at`; `legacy_hostnames` (`site_id` NULL once the site is deleted) |
+| DB | `sites.custom_domain`, `domain_status`, `domain_verified_at`, `domain_last_error`, `domain_bound_at`, `previous_domain`, `previous_domain_failing_since`, `domain_cert_status`, `domain_failing_since`, `domain_lapse_notified_at`; `legacy_hostnames` (`site_id` NULL once the site is deleted) |
 | Env | `CNAME_TARGET` (subdomain CNAME), `CUSTOM_DOMAIN_IP` (apex A record), `SITE_DOMAIN`, `DOMAIN_CERT_DIR` (e.g. `/var/lib/simple-host-domain-certs`: `requests/<domain>` written by the app, `ready/<domain>` and `failed/<domain>` by the issuer; unset = certificates by hand) |
-| Timing | unverified binding expires 24 h after bind unless DNS points here; re-check every 2 min, active verdict re-proved hourly; issuer every 10 min + on request (50 new/day, failed retried after 6 h, DNS problems after 15 min); failing verified domain: email at 24 h, let go at 72 h |
+| Timing | unverified binding expires 24 h after bind unless DNS points here, and 7 days after bind in any case; re-check every 2 min, active verdict re-proved hourly; issuer every 10 min + on request (50 new/day, failed retried after 6 h, DNS problems after 15 min); failing verified domain: email at 24 h, let go at 72 h |
 | External | issuer `deploy/domain-certs/` (root timer + path unit; certbot webroot `/var/www/acme`; writes `sites-enabled/simple-host-domain-<domain>` from its template and removes it on disconnect; leaves alone any domain another enabled server already names in `server_name`; the take-down marker is checked in `location /` so `/v1/` still reaches the app; sandbox test `deploy/domain-certs/issue_test.sh`) + Let's Encrypt on prod; Caddy on-demand TLS on event instances; `scripts/check-reserved-subdomains.sh` compares reserved labels against live nginx |
 
 ## 4. Saved state (shared JSON per site)

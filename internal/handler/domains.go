@@ -249,13 +249,13 @@ func (h *SiteHandler) bindDomain(w http.ResponseWriter, r *http.Request) {
 	}
 	// Back to the earlier address the site still serves at: drop the pending one.
 	if has && current.PreviousDomain == domain {
-		dropped, _, err := db.DropCustomDomain(r.Context(), h.database, site.ID)
+		dropped, _, err := db.DropCustomDomain(r.Context(), h.database, site.ID, current.Domain)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
 		}
 		if dropped != "" {
-			if err := h.disk.UnbindDomain(dropped); err != nil {
+			if _, err := h.disk.UnbindDomainOf(dropped, site.UserID, site.Name); err != nil {
 				log.Printf("domain: unbind %s: %v", dropped, err)
 			}
 		}
@@ -269,7 +269,7 @@ func (h *SiteHandler) bindDomain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	holder, err := db.BindCustomDomain(r.Context(), h.database, site.ID, domain)
+	holder, replaced, err := db.BindCustomDomain(r.Context(), h.database, site.ID, domain)
 	if err != nil {
 		if errors.Is(err, db.ErrDomainTaken) {
 			writeJSON(w, http.StatusConflict, struct {
@@ -287,12 +287,14 @@ func (h *SiteHandler) bindDomain(w http.ResponseWriter, r *http.Request) {
 		h.releaseDomainFiles(*holder)
 		tookOverFrom = holder.Handle + "/" + holder.Name
 	}
-	// A pending domain this one replaces stops pointing at the site. A proven
-	// one is kept (previous_domain) and keeps serving until this one is live.
-	if has && current.Domain != domain && !current.VerifiedAt.Valid {
-		if err := h.disk.UnbindDomain(current.Domain); err != nil {
-			log.Printf("domain: unbind replaced %s: %v", current.Domain, err)
+	// A pending domain this one replaces stops pointing at the site (as read
+	// under the bind's lock, not the earlier read). A proven one is kept
+	// (previous_domain) and keeps serving until this one is live.
+	if replaced != "" {
+		if _, err := h.disk.UnbindDomainOf(replaced, site.UserID, site.Name); err != nil {
+			log.Printf("domain: unbind replaced %s: %v", replaced, err)
 		}
+		h.cancelDomainCert(replaced)
 	}
 	if err := h.disk.BindDomain(site.UserID, site.Name, domain); err != nil {
 		log.Printf("domain: bind %s for %s/%s: %v", domain, site.UserID, site.Name, err)
@@ -351,8 +353,13 @@ func setDomainTimes(resp *domainResponse, info db.SiteDomainInfo) {
 	if info.BoundAt.Valid {
 		t := info.BoundAt.Time
 		resp.BoundAt = &t
-		if info.Status == "pending" && !info.VerifiedAt.Valid {
+		if !info.VerifiedAt.Valid {
+			// DNS not pointed here: 24 hours. Pointed here but never proven
+			// (the certificate keeps failing): db.UnprovenDomainMaxAge.
 			expires := t.Add(24 * time.Hour)
+			if info.CertStatus != "" && info.CertStatus != "pending" {
+				expires = t.Add(db.UnprovenDomainMaxAge)
+			}
 			resp.ExpiresAt = &expires
 		}
 	}
@@ -392,13 +399,23 @@ func (h *SiteHandler) deleteDomain(w http.ResponseWriter, r *http.Request) {
 	// Drops the domain shown by GET: a pending one gives the site back the
 	// earlier address it still serves at; a claimed <name>.<SITE_DOMAIN> stays
 	// with the site as a retired name that redirects to its current address.
-	dropped, _, err := db.DropCustomDomain(r.Context(), h.database, site.ID)
+	// ?domain= names the address the caller means to drop (what it was shown);
+	// if the site's domain changed since, nothing is dropped.
+	expected := ""
+	if q := strings.TrimSpace(r.URL.Query().Get("domain")); q != "" {
+		expected = domainCandidate(q)
+	}
+	dropped, _, err := db.DropCustomDomain(r.Context(), h.database, site.ID, expected)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	if expected != "" && dropped == "" {
+		writeJSON(w, http.StatusConflict, errorResponse{Error: "the site's domain is not " + expected + " (it changed); nothing was changed", Code: "domain_changed"})
+		return
+	}
 	if dropped != "" {
-		if err := h.disk.UnbindDomain(dropped); err != nil {
+		if _, err := h.disk.UnbindDomainOf(dropped, site.UserID, site.Name); err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
 		}

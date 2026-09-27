@@ -66,6 +66,30 @@ func (d *DiskStorage) RestoreSite(userID, siteName, siteID string) error {
 	return nil
 }
 
+// SetTrashedSuspended writes (on) or removes (off) the take-down marker in a
+// deleted site's folder, so the folder comes back from Restore already marked
+// and is never served, even for a moment, without it. A deleted site with no
+// files is fine.
+func (d *DiskStorage) SetTrashedSuspended(userID, siteID string, on bool) error {
+	if !validPathKey(userID) || !validPathKey(siteID) {
+		return fmt.Errorf("invalid site path")
+	}
+	dir := d.TrashDir(userID, siteID)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	p := filepath.Join(dir, suspendedMarker)
+	if !on {
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	}
+	return os.WriteFile(p, []byte("taken down by the operator\n"), 0o644)
+}
+
 // PurgeTrashedSite removes a deleted site's files for good. Missing is fine.
 func (d *DiskStorage) PurgeTrashedSite(userID, siteID string) error {
 	if !validPathKey(userID) || !validPathKey(siteID) {
@@ -87,9 +111,27 @@ func (d *DiskStorage) PurgeTrashedSiteLinks(userID, siteName, domain string) err
 	if domain == "" || !validDomainKey(domain) {
 		return nil
 	}
-	link := filepath.Join(d.dataDir, "domains", domain)
-	if cur, err := os.Readlink(link); err == nil && cur == filepath.Join("..", "by-id", userID, siteName) {
-		return os.Remove(link)
+	_, err := d.UnbindDomainOf(domain, userID, siteName)
+	return err
+}
+
+// UnbindDomainOf removes domains/<domain> only while it points at this
+// account's site of that name: a domain someone else has bound since is left
+// alone. mine is false exactly when the link points elsewhere.
+func (d *DiskStorage) UnbindDomainOf(domain, userID, siteName string) (mine bool, err error) {
+	if !validDomainKey(domain) || !validPathKey(userID) || !validPathKey(siteName) {
+		return false, fmt.Errorf("invalid domain link")
 	}
-	return nil
+	link := filepath.Join(d.dataDir, "domains", domain)
+	cur, err := os.Readlink(link)
+	if os.IsNotExist(err) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if cur != filepath.Join("..", "by-id", userID, siteName) {
+		return false, nil
+	}
+	return true, os.Remove(link)
 }

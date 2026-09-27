@@ -293,7 +293,10 @@ func (d *DiskStorage) EnsureHandleLink(handle, userID string) error {
 	return nil
 }
 
-func (d *DiskStorage) RenameSite(userID, oldName, newName, domain string) error {
+// RenameSite moves a site's directory and re-points every domains/<d> link of
+// the site (its custom domain and the earlier address it still serves while a
+// new one is pending). On failure everything is put back as it was.
+func (d *DiskStorage) RenameSite(userID, oldName, newName string, domains ...string) error {
 	if !validPathKey(userID) || !validPathKey(oldName) || !validPathKey(newName) {
 		return fmt.Errorf("invalid site path")
 	}
@@ -302,19 +305,39 @@ func (d *DiskStorage) RenameSite(userID, oldName, newName, domain string) error 
 	if err := os.Rename(oldDir, newDir); err != nil {
 		return fmt.Errorf("rename site dir: %w", err)
 	}
-	if domain == "" {
-		return nil
+	var moved []string
+	undo := func() {
+		for _, dom := range moved {
+			_ = d.pointDomain(dom, userID, oldName)
+		}
+		_ = os.Rename(newDir, oldDir)
+	}
+	for _, dom := range domains {
+		if dom == "" {
+			continue
+		}
+		if err := d.pointDomain(dom, userID, newName); err != nil {
+			undo()
+			return err
+		}
+		moved = append(moved, dom)
+	}
+	return nil
+}
+
+// pointDomain atomically (re)points domains/<domain> at by-id/<user>/<site>.
+func (d *DiskStorage) pointDomain(domain, userID, siteName string) error {
+	if !validDomainKey(domain) {
+		return fmt.Errorf("invalid domain %q", domain)
 	}
 	linkPath := filepath.Join(d.dataDir, "domains", domain)
 	tmpLink := linkPath + ".rename.tmp"
 	_ = os.Remove(tmpLink)
-	if err := os.Symlink(filepath.Join("..", "by-id", userID, newName), tmpLink); err != nil {
-		_ = os.Rename(newDir, oldDir)
+	if err := os.Symlink(filepath.Join("..", "by-id", userID, siteName), tmpLink); err != nil {
 		return fmt.Errorf("create renamed domain link: %w", err)
 	}
 	if err := os.Rename(tmpLink, linkPath); err != nil {
 		_ = os.Remove(tmpLink)
-		_ = os.Rename(newDir, oldDir)
 		return fmt.Errorf("replace domain link: %w", err)
 	}
 	return nil
@@ -525,7 +548,14 @@ func (d *DiskStorage) SetSuspended(userID, siteName string, on bool) error {
 		}
 		return nil
 	}
-	if err := os.MkdirAll(d.SiteDir(userID, siteName), 0o755); err != nil {
+	// Only ever into an existing site folder: a site that was deleted (its
+	// folder is in deleted/) or renamed meanwhile must not get a new, empty
+	// folder under its old name. A site with no folder serves nothing; its
+	// marker is written when the folder comes back (restore, see
+	// SetTrashedSuspended).
+	if _, err := os.Stat(d.SiteDir(userID, siteName)); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
 		return err
 	}
 	return os.WriteFile(p, []byte("taken down by the operator\n"), 0o644)

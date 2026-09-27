@@ -117,6 +117,11 @@ func RotateAPIKey(ctx context.Context, db *sql.DB, userID, currentKeyHash, newKe
 	}
 	defer tx.Rollback()
 	var one int
+	// Users row first, like CreateAPIKey and the admin reissue, so a key
+	// minted concurrently is either deleted here or minted after.
+	if err := tx.QueryRowContext(ctx, `SELECT 1 FROM users WHERE id = $1 FOR UPDATE`, userID).Scan(&one); err != nil {
+		return err
+	}
 	if err := tx.QueryRowContext(ctx,
 		`SELECT 1 FROM api_keys WHERE key_hash = $1 AND user_id = $2 FOR UPDATE`,
 		currentKeyHash, userID).Scan(&one); err != nil {
@@ -1071,9 +1076,11 @@ func ActivateVersion(ctx context.Context, db Querier, versionID string) error {
 
 // LockSiteForUpdate takes a row-level lock on the sites row so concurrent
 // uploads to the same site serialize their version allocation. Must be called
-// inside a transaction; the lock releases on commit/rollback.
+// inside a transaction; the lock releases on commit/rollback. sql.ErrNoRows
+// when the site is gone or in Recently deleted (also when a delete committed
+// while this waited for the lock).
 func LockSiteForUpdate(ctx context.Context, db Querier, siteID string) error {
-	const query = `SELECT id FROM sites WHERE id = $1 FOR UPDATE`
+	const query = `SELECT id FROM sites WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`
 	var id string
 	return db.QueryRowContext(ctx, query, siteID).Scan(&id)
 }

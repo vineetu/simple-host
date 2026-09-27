@@ -245,10 +245,11 @@ for it (401 `use_custom_domain`, even with a key — reads stay public).
 With the connector: `remove_domain`, after the person confirms, with the domain typed out as
 `confirm_domain`. Without it:
 ```
-DELETE /v1/sites/{site}/domain
+DELETE /v1/sites/{site}/domain?domain=<the domain being removed>
 X-API-Key: <api_key>
 ```
-Unbinds the domain (the site stays live at `https://<site>.<handle>.simple-host.app/`, or, if
+`domain` names the address you mean to remove; if the site's domain changed since you looked,
+nothing is removed and the answer is 409 `domain_changed` (look again with GET). Unbinds the domain (the site stays live at `https://<site>.<handle>.simple-host.app/`, or, if
 the domain was still pending, at the earlier address it was still using). A disconnected free
 `<name>.simple-host.app` keeps redirecting to the site.
 Disconnecting reverses both changes immediately — that address stops redirecting and

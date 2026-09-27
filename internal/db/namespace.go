@@ -138,6 +138,20 @@ func RenameHandleTx(ctx context.Context, tx *sql.Tx, userID, newHandle string) (
 	if err := tx.QueryRowContext(ctx, `SELECT handle FROM users WHERE id = $1 FOR UPDATE`, userID).Scan(&old); err != nil {
 		return "", err
 	}
+	// The old handle becomes an alias, a name in the shared namespace: hold its
+	// lock too (both in one order, so two renames never wait on each other in
+	// a circle), so a claim of <old>.<SITE_DOMAIN> cannot slip in between.
+	if domain := currentPlatformDomain(); domain != "" && old.Valid && old.String != "" {
+		names := []string{strings.ToLower(old.String), strings.ToLower(newHandle)}
+		if names[1] < names[0] {
+			names[0], names[1] = names[1], names[0]
+		}
+		for _, n := range names {
+			if err := lockPlatformName(ctx, tx, n+"."+domain); err != nil {
+				return "", err
+			}
+		}
+	}
 	ok, err := HandleAvailable(ctx, tx, userID, newHandle)
 	if err != nil {
 		return "", err
@@ -156,7 +170,9 @@ func RenameHandleTx(ctx context.Context, tx *sql.Tx, userID, newHandle string) (
 		}
 	}
 	// The new handle stops being anyone's alias.
-	if _, err := tx.ExecContext(ctx, `DELETE FROM handle_aliases WHERE handle = $1`, newHandle); err != nil {
+	// Only this account's own old alias: another account's alias is never
+	// removed here (with namespace checks off, HandleAvailable does not stop it).
+	if _, err := tx.ExecContext(ctx, `DELETE FROM handle_aliases WHERE handle = $1 AND user_id = $2`, newHandle, userID); err != nil {
 		return "", err
 	}
 	return old.String, nil

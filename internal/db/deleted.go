@@ -66,6 +66,14 @@ func scanDeletedSite(sc interface{ Scan(...any) error }) (DeletedSite, error) {
 	return d, err
 }
 
+// CountSitesByUser counts the account's sites including those in Recently
+// deleted, which still hold their name and files: the per-account cap.
+func CountSitesByUser(ctx context.Context, q Querier, userID string) (int, error) {
+	var n int
+	err := q.QueryRowContext(ctx, `SELECT count(*) FROM sites WHERE user_id = $1`, userID).Scan(&n)
+	return n, err
+}
+
 // GetDeletedSiteByUser returns the account's site of that name when it is in
 // Recently deleted, or sql.ErrNoRows.
 func GetDeletedSiteByUser(ctx context.Context, q Querier, userID, name string) (DeletedSite, error) {
@@ -80,10 +88,17 @@ func ListDeletedSitesByUser(ctx context.Context, database *sql.DB, userID string
 		`SELECT `+deletedSiteCols+` FROM sites WHERE user_id = $1 AND deleted_at IS NOT NULL ORDER BY deleted_at DESC, name`, userID)
 }
 
-// ListPurgeableSites returns deleted sites whose restore window has passed.
+// notTakenDown keeps a site the operator took down (or whose owner's account
+// is suspended) out of the purge: its files are the evidence the take-down
+// rests on, and they stay until the operator lifts it or removes the account.
+const notTakenDown = `suspended_at IS NULL
+	AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = sites.user_id AND u.suspended_at IS NOT NULL)`
+
+// ListPurgeableSites returns deleted sites whose restore window has passed,
+// except taken-down ones.
 func ListPurgeableSites(ctx context.Context, database *sql.DB) ([]DeletedSite, error) {
 	return queryDeletedSites(ctx, database,
-		`SELECT `+deletedSiteCols+` FROM sites WHERE deleted_at IS NOT NULL AND deleted_at < now() - ($1 * interval '1 second') ORDER BY deleted_at LIMIT 500`,
+		`SELECT `+deletedSiteCols+` FROM sites WHERE deleted_at IS NOT NULL AND deleted_at < now() - ($1 * interval '1 second') AND `+notTakenDown+` ORDER BY deleted_at LIMIT 500`,
 		int64(DeletedSiteRetention.Seconds()))
 }
 
@@ -117,7 +132,7 @@ func PurgeDeletedSite(ctx context.Context, database *sql.DB, siteID string) ([]s
 	defer tx.Rollback()
 	var id string
 	err = tx.QueryRowContext(ctx, `SELECT id FROM sites WHERE id = $1 AND deleted_at IS NOT NULL
-		AND deleted_at < now() - ($2 * interval '1 second') FOR UPDATE`, siteID, int64(DeletedSiteRetention.Seconds())).Scan(&id)
+		AND deleted_at < now() - ($2 * interval '1 second') AND `+notTakenDown+` FOR UPDATE`, siteID, int64(DeletedSiteRetention.Seconds())).Scan(&id)
 	if err != nil {
 		return nil, err
 	}

@@ -50,6 +50,7 @@ CREATE TABLE sites (
   domain_cert_status TEXT,          -- pending | issuing | live | failed (NULL = none)
   domain_failing_since     TIMESTAMPTZ, -- a verified domain first failed its checks
   domain_lapse_notified_at TIMESTAMPTZ, -- the owner was emailed about the failing domain
+  previous_domain_failing_since TIMESTAMPTZ, -- the earlier address first failed its checks (let go after 72 h)
   -- Per-site JSON datastore. `state_version` backs the atomic set/inc/append
   -- ops and the ETag, so it must exist for the state API to work at all.
   state          JSONB,

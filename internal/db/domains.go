@@ -59,7 +59,8 @@ func SetCustomDomain(ctx context.Context, database Querier, siteID, domain strin
 		    domain_verified_at = NULL,
 		    domain_cert_status = NULL,
 		    domain_failing_since = NULL,
-		    domain_lapse_notified_at = NULL
+		    domain_lapse_notified_at = NULL,
+		    previous_domain_failing_since = NULL
 		WHERE id = $1
 	`
 	_, err := database.ExecContext(ctx, query, siteID, domain)
@@ -77,32 +78,35 @@ const restorePreviousSet = `
 	domain_last_error = NULL,
 	domain_failing_since = NULL,
 	domain_lapse_notified_at = NULL,
-	previous_domain = NULL`
+	previous_domain = NULL,
+	previous_domain_failing_since = NULL`
 
 // DropCustomDomain unbinds siteID's current domain. When the site still had
 // an earlier proven address (the dropped domain was pending), that address
 // becomes its domain again. A dropped claimed <name>.<SITE_DOMAIN> stays with
 // the site as a retired name. Returns the dropped and the restored domain.
-func DropCustomDomain(ctx context.Context, database *sql.DB, siteID string) (dropped, restored string, err error) {
+// With expected set, only that domain is dropped: when the site's domain is
+// something else by now, nothing changes and dropped is "".
+func DropCustomDomain(ctx context.Context, database *sql.DB, siteID, expected string) (dropped, restored string, err error) {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return "", "", err
 	}
 	defer tx.Rollback()
-	dropped, restored, err = dropCustomDomain(ctx, tx, siteID)
+	dropped, restored, err = dropCustomDomain(ctx, tx, siteID, expected)
 	if err != nil {
 		return "", "", err
 	}
 	return dropped, restored, tx.Commit()
 }
 
-func dropCustomDomain(ctx context.Context, tx *sql.Tx, siteID string) (dropped, restored string, err error) {
+func dropCustomDomain(ctx context.Context, tx *sql.Tx, siteID, expected string) (dropped, restored string, err error) {
 	var userID string
 	err = tx.QueryRowContext(ctx, `
-		WITH old AS (SELECT id, custom_domain FROM sites WHERE id = $1 FOR UPDATE)
+		WITH old AS (SELECT id, custom_domain FROM sites WHERE id = $1 AND ($2 = '' OR custom_domain = $2) FOR UPDATE)
 		UPDATE sites s SET `+restorePreviousSet+`
 		FROM old WHERE s.id = old.id
-		RETURNING COALESCE(old.custom_domain, ''), COALESCE(s.custom_domain, ''), s.user_id`, siteID).Scan(&dropped, &restored, &userID)
+		RETURNING COALESCE(old.custom_domain, ''), COALESCE(s.custom_domain, ''), s.user_id`, siteID, expected).Scan(&dropped, &restored, &userID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", "", nil
 	}
@@ -268,6 +272,49 @@ func LapseDomain(ctx context.Context, database *sql.DB, siteID, domain string) (
 	return n > 0, err
 }
 
+// SetPreviousDomainCheck records one check of the earlier address siteID
+// still serves while its new domain is pending: ok clears its failing clock, a
+// failure starts (or keeps) it. Returns since when it has been failing (not
+// valid when it passed, or when prev is no longer the site's earlier address).
+func SetPreviousDomainCheck(ctx context.Context, database *sql.DB, siteID, prev string, ok bool) (sql.NullTime, error) {
+	var since sql.NullTime
+	err := database.QueryRowContext(ctx, `
+		UPDATE sites SET previous_domain_failing_since = CASE WHEN $3 THEN NULL ELSE COALESCE(previous_domain_failing_since, now()) END
+		WHERE id = $1 AND previous_domain = $2
+		RETURNING previous_domain_failing_since`, siteID, prev, ok).Scan(&since)
+	if errors.Is(err, sql.ErrNoRows) {
+		return sql.NullTime{}, nil
+	}
+	return since, err
+}
+
+// LapsePreviousDomain lets go of an earlier address that has stopped
+// answering: the site no longer serves there, and whoever really holds the
+// domain now can connect it. A claimed <name>.<SITE_DOMAIN> stays with the
+// site as a retired name. False when prev is no longer the site's earlier
+// address.
+func LapsePreviousDomain(ctx context.Context, database *sql.DB, siteID, prev string) (bool, error) {
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	var userID string
+	err = tx.QueryRowContext(ctx, `
+		UPDATE sites SET previous_domain = NULL, previous_domain_failing_since = NULL
+		WHERE id = $1 AND previous_domain = $2 RETURNING user_id`, siteID, prev).Scan(&userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if err := retirePlatformName(ctx, tx, prev, siteID, userID); err != nil {
+		return false, err
+	}
+	return true, tx.Commit()
+}
+
 // PromoteDomain finishes a switch of address once the new domain is verified:
 // the site's earlier address is let go (a claimed <name>.<SITE_DOMAIN> stays
 // with the site as a retired name that redirects). Returns that earlier
@@ -281,7 +328,7 @@ func PromoteDomain(ctx context.Context, database *sql.DB, siteID string) (string
 	var prev, userID string
 	err = tx.QueryRowContext(ctx, `
 		WITH old AS (SELECT id, previous_domain FROM sites WHERE id = $1 AND previous_domain IS NOT NULL AND domain_verified_at IS NOT NULL FOR UPDATE)
-		UPDATE sites s SET previous_domain = NULL FROM old WHERE s.id = old.id
+		UPDATE sites s SET previous_domain = NULL, previous_domain_failing_since = NULL FROM old WHERE s.id = old.id
 		RETURNING old.previous_domain, s.user_id`, siteID).Scan(&prev, &userID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
@@ -301,24 +348,35 @@ var ErrDomainTaken = errors.New("domain is connected to another site")
 // BindCustomDomain releases an unproven holder and binds the requester atomically.
 // Lock the holder so verification cannot change the takeover decision mid-transaction.
 // The returned holder's Domain is what it lost; its PreviousDomain is the
-// address it was given back (if any).
-func BindCustomDomain(ctx context.Context, database *sql.DB, siteID, domain string) (*SiteDomainInfo, error) {
+// address it was given back (if any). replaced is the requester's own pending
+// domain this bind dropped, read under the same lock (so a concurrent change
+// of the site's domain cannot make the caller unbind the wrong one).
+func BindCustomDomain(ctx context.Context, database *sql.DB, siteID, domain string) (*SiteDomainInfo, string, error) {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	defer tx.Rollback()
 	// Serialize binds for this name even when no holder row exists yet.
 	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, domain); err != nil {
-		return nil, err
+		return nil, "", err
+	}
+	var cur string
+	var curVerified bool
+	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(custom_domain, ''), domain_verified_at IS NOT NULL FROM sites WHERE id = $1 FOR UPDATE`, siteID).Scan(&cur, &curVerified); err != nil {
+		return nil, "", err
+	}
+	replaced := ""
+	if cur != "" && cur != domain && !curVerified {
+		replaced = cur
 	}
 	// A proven earlier address of another site, still serving it, is its own.
 	var keptElsewhere bool
 	if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM sites WHERE previous_domain = $1 AND id <> $2)`, domain, siteID).Scan(&keptElsewhere); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if keptElsewhere {
-		return nil, ErrDomainTaken
+		return nil, "", ErrDomainTaken
 	}
 	var holder SiteDomainInfo
 	err = tx.QueryRowContext(ctx, `
@@ -327,46 +385,51 @@ func BindCustomDomain(ctx context.Context, database *sql.DB, siteID, domain stri
 		WHERE s.custom_domain = $1 FOR UPDATE OF s`, domain).Scan(
 		&holder.SiteID, &holder.UserID, &holder.Name, &holder.Domain, &holder.VerifiedAt, &holder.Handle)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, err
+		return nil, "", err
 	}
 	var released *SiteDomainInfo
 	if err == nil && holder.SiteID != siteID {
 		if holder.VerifiedAt.Valid {
-			return nil, ErrDomainTaken
+			return nil, "", ErrDomainTaken
 		}
-		_, restored, err := dropCustomDomain(ctx, tx, holder.SiteID)
+		_, restored, err := dropCustomDomain(ctx, tx, holder.SiteID, domain)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		holder.PreviousDomain = restored
 		released = &holder
 	}
 	if err := SetCustomDomain(ctx, tx, siteID, domain); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if err := tx.Commit(); err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return released, nil
+	return released, replaced, nil
 }
+
+// UnprovenDomainMaxAge is how long a binding whose DNS points here may stay
+// unproven (its certificate keeps failing, or HTTPS never answers) before it
+// is released like any other unproven binding.
+const UnprovenDomainMaxAge = 7 * 24 * time.Hour
 
 // ReleaseExpiredDomains clears bindings that were never proven within 24
 // hours, unless DNS already points here (the certificate status is past
-// "pending": it is being issued, is live, or failed and will be retried). A
-// site that still had an earlier proven address gets it back; it is returned
-// as the released row's PreviousDomain.
+// "pending": it is being issued, is live, or failed and will be retried); those
+// get UnprovenDomainMaxAge. A site that still had an earlier proven address
+// gets it back; it is returned as the released row's PreviousDomain.
 func ReleaseExpiredDomains(ctx context.Context, database *sql.DB) ([]SiteDomainInfo, error) {
 	rows, err := database.QueryContext(ctx, `
 		WITH expired AS (
 		SELECT id, user_id, name, custom_domain FROM sites
 		WHERE custom_domain IS NOT NULL AND domain_verified_at IS NULL AND deleted_at IS NULL
-		AND domain_bound_at < now() - interval '24 hours'
-		AND COALESCE(domain_cert_status, 'pending') = 'pending'
+		AND ((domain_bound_at < now() - interval '24 hours' AND COALESCE(domain_cert_status, 'pending') = 'pending')
+		     OR domain_bound_at < now() - ($1 * interval '1 second'))
 		FOR UPDATE
 		)
 		UPDATE sites s SET `+restorePreviousSet+`
 		FROM expired e WHERE s.id = e.id
-		RETURNING e.id, e.user_id, e.name, e.custom_domain, COALESCE(s.custom_domain, '')`)
+		RETURNING e.id, e.user_id, e.name, e.custom_domain, COALESCE(s.custom_domain, '')`, int64(UnprovenDomainMaxAge.Seconds()))
 	if err != nil {
 		return nil, err
 	}
@@ -515,7 +578,8 @@ func ClaimPlatformSubdomain(ctx context.Context, database *sql.DB, siteID, host 
 		    domain_cert_status = NULL,
 		    domain_failing_since = NULL,
 		    domain_lapse_notified_at = NULL,
-		    previous_domain = NULL
+		    previous_domain = NULL,
+		    previous_domain_failing_since = NULL
 		WHERE id = $1`, siteID, host); err != nil {
 		return nil, err
 	}

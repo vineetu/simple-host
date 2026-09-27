@@ -113,9 +113,11 @@ type SiteHandler struct {
 	publicBaseURL string
 }
 
-// lockSite acquires the per-site upload mutex and returns its unlock func.
-func (h *SiteHandler) lockSite(name string) func() {
-	mu, _ := h.uploadLocks.LoadOrStore(name, &sync.Mutex{})
+// lockSite acquires the per-site upload mutex for one account's site name and
+// returns its unlock func. Keyed by account and name: two people's sites of the
+// same name never wait on each other.
+func (h *SiteHandler) lockSite(userID, name string) func() {
+	mu, _ := h.uploadLocks.LoadOrStore(userID+"/"+name, &sync.Mutex{})
 	m := mu.(*sync.Mutex)
 	m.Lock()
 	return m.Unlock
@@ -244,7 +246,7 @@ func (h *SiteHandler) sweepExpiredSites() {
 		return
 	}
 	for _, s := range expired {
-		unlock := h.lockSite(s.Name)
+		unlock := h.lockSite(s.UserID, s.Name)
 		if err := db.DeleteSite(ctx, h.database, s.ID); err != nil {
 			log.Printf("expiry sweep: delete row %s (%s): %v", s.Name, s.ID, err)
 			unlock()
@@ -261,9 +263,13 @@ func (h *SiteHandler) sweepExpiredSites() {
 func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddleware func(http.Handler) http.Handler) {
 	mux.Handle("POST /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.createSite)))))
 	mux.Handle("PUT /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.updateSite)))))
-	mux.Handle("DELETE /v1/sites/{sitename}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.deleteSite))))
-	mux.Handle("PATCH /v1/sites/{sitename}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.renameSite))))
-	mux.Handle("POST /v1/sites/{sitename}/restore", noticeMiddleware(authMiddleware(http.HandlerFunc(h.restoreSite))))
+	// Delete, rename and restore each take per-site locks: rate-limited so a
+	// loop cannot pile up locks or disk moves.
+	siteOpLimiter := newRateLimiter(30, 0.5)
+	siteOpLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	mux.Handle("DELETE /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.deleteSite)))))
+	mux.Handle("PATCH /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.renameSite)))))
+	mux.Handle("POST /v1/sites/{sitename}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.restoreSite)))))
 	mux.Handle("GET /v1/me/deleted-sites", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDeletedSites))))
 	mux.Handle("GET /v1/sites", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listSites))))
 	mux.Handle("POST /v1/admin/users", authMiddleware(http.HandlerFunc(h.createAccounts)))
@@ -426,13 +432,17 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "new site name must be different"})
 		return
 	}
+	if _, err := db.GetSiteByUser(r.Context(), h.database, user.ID, oldName); err != nil {
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+		return
+	}
 	first, second := oldName, newName
 	if second < first {
 		first, second = second, first
 	}
-	unlockFirst := h.lockSite(first)
+	unlockFirst := h.lockSite(user.ID, first)
 	defer unlockFirst()
-	unlockSecond := h.lockSite(second)
+	unlockSecond := h.lockSite(user.ID, second)
 	defer unlockSecond()
 
 	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, oldName)
@@ -463,12 +473,21 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request) {
 	if site.CustomDomain.Valid {
 		domain = site.CustomDomain.String
 	}
-	if err := h.disk.RenameSite(user.ID, oldName, newName, domain); err != nil {
+	// The earlier address a site keeps serving while a new domain is pending
+	// has its own link, which must follow the rename too.
+	domains := []string{domain}
+	if info, ok, err := db.GetSiteDomainInfo(r.Context(), h.database, site.ID); err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	} else if ok && info.PreviousDomain != "" {
+		domains = append(domains, info.PreviousDomain)
+	}
+	if err := h.disk.RenameSite(user.ID, oldName, newName, domains...); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "could not move site files"})
 		return
 	}
 	if err := db.RenameSite(r.Context(), h.database, site.ID, newName, newURL); err != nil {
-		_ = h.disk.RenameSite(user.ID, newName, oldName, domain)
+		_ = h.disk.RenameSite(user.ID, newName, oldName, domains...)
 		if isUniqueViolation(err) {
 			writeJSON(w, http.StatusConflict, errorResponse{Error: "you already have a site with that name", Code: "site_exists"})
 			return
@@ -1036,13 +1055,15 @@ func (h *SiteHandler) createSite(w http.ResponseWriter, r *http.Request) {
 	// an over-quota request is cheap to reject. Updates to existing sites are
 	// not affected — this only gates new-site creation.
 	if !user.IsAdmin {
-		existing, err := db.ListSitesByUser(r.Context(), h.database, user.ID)
+		// Sites in Recently deleted count: delete-then-create must not
+		// get round the cap (their files are still on disk).
+		existing, err := db.CountSitesByUser(r.Context(), h.database, user.ID)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
 		}
-		if len(existing) >= maxSitesPerUser {
-			writeJSON(w, http.StatusForbidden, errorResponse{Error: "site quota reached", Code: "site_quota_reached"})
+		if existing >= maxSitesPerUser {
+			writeJSON(w, http.StatusForbidden, errorResponse{Error: "site quota reached (sites in Recently deleted count until they are removed)", Code: "site_quota_reached"})
 			return
 		}
 	}
@@ -1071,7 +1092,7 @@ func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user
 
 	// Serialize all write+promote activity for this site so concurrent uploads
 	// cannot race on version numbers or the `current` swap.
-	unlock := h.lockSite(siteName)
+	unlock := h.lockSite(user.ID, siteName)
 	defer unlock()
 
 	tx, err := h.database.BeginTx(r.Context(), nil)
@@ -1202,6 +1223,14 @@ func (h *SiteHandler) updateSite(w http.ResponseWriter, r *http.Request) {
 // it after commit. Shared by the archive upload (updateSite) and the JSON upload
 // (updateSiteFiles).
 func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string) {
+	// Serialize write+promote for this site (in-process), and read the site
+	// only once the lock is held: a delete or rename that finished while this
+	// upload waited must not be undone by a stale copy. The DB row lock below
+	// makes version allocation safe across instances and refuses a site that
+	// was deleted meanwhile.
+	unlock := h.lockSite(user.ID, siteName)
+	defer unlock()
+
 	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -1216,11 +1245,6 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 		return
 	}
 
-	// Serialize write+promote for this site (in-process), and take a DB row
-	// lock so version allocation is safe even across multiple binary instances.
-	unlock := h.lockSite(siteName)
-	defer unlock()
-
 	tx, err := h.database.BeginTx(r.Context(), nil)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -1229,6 +1253,10 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 	defer tx.Rollback()
 
 	if err := db.LockSiteForUpdate(r.Context(), tx, site.ID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			return
+		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
@@ -1397,13 +1425,15 @@ func (h *SiteHandler) createSiteFiles(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !user.IsAdmin {
-		existing, err := db.ListSitesByUser(r.Context(), h.database, user.ID)
+		// Sites in Recently deleted count: delete-then-create must not
+		// get round the cap (their files are still on disk).
+		existing, err := db.CountSitesByUser(r.Context(), h.database, user.ID)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
 		}
-		if len(existing) >= maxSitesPerUser {
-			writeJSON(w, http.StatusForbidden, errorResponse{Error: "site quota reached", Code: "site_quota_reached"})
+		if existing >= maxSitesPerUser {
+			writeJSON(w, http.StatusForbidden, errorResponse{Error: "site quota reached (sites in Recently deleted count until they are removed)", Code: "site_quota_reached"})
 			return
 		}
 	}
@@ -1516,6 +1546,11 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Same lock as a deploy, delete or rename of this site: a rollback never
+	// re-points `current` of a site that was deleted or renamed meanwhile.
+	unlock := h.lockSite(user.ID, siteName)
+	defer unlock()
+
 	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -1551,12 +1586,31 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	tx, err := h.database.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	defer tx.Rollback()
+	if err := db.LockSiteForUpdate(r.Context(), tx, site.ID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+
 	if err := h.disk.UpdateCurrent(site.UserID, site.Name, req.VersionNumber); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
 
-	if err := db.UpdateSiteActiveVersion(r.Context(), h.database, site.ID, req.VersionNumber); err != nil {
+	if err := db.UpdateSiteActiveVersion(r.Context(), tx, site.ID, req.VersionNumber); err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	if err := tx.Commit(); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}

@@ -207,8 +207,29 @@ func (h *SiteHandler) setSiteSuspension(on bool) http.HandlerFunc {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
 		}
-		unlock := h.lockSite(site.Name)
-		defer unlock()
+		// Lock, then re-read: a rename or delete that finished while this
+		// waited would otherwise be undone by the stale copy (a marker, and
+		// folders, written under the old name).
+		for {
+			unlock := h.lockSite(site.UserID, site.Name)
+			fresh, err := db.GetSiteByID(r.Context(), h.database, id)
+			if err != nil {
+				unlock()
+				if errors.Is(err, sql.ErrNoRows) {
+					writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+					return
+				}
+				writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+				return
+			}
+			if fresh.UserID == site.UserID && fresh.Name == site.Name {
+				site = fresh
+				defer unlock()
+				break
+			}
+			unlock()
+			site = fresh
+		}
 		if err := db.SetSiteSuspended(r.Context(), h.database, site.ID, reason); err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return

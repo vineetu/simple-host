@@ -64,7 +64,17 @@ func (h *SiteHandler) deleteSite(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
 		return
 	}
-	unlock := h.lockSite(siteName)
+	if err := validateSiteShape(siteName); err != nil {
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+		return
+	}
+	// Look the site up before taking its lock, so a request for a name the
+	// account does not have never adds a lock; read it again under the lock.
+	if _, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName); errors.Is(err, sql.ErrNoRows) {
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+		return
+	}
+	unlock := h.lockSite(user.ID, siteName)
 	defer unlock()
 
 	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
@@ -137,8 +147,17 @@ func (h *SiteHandler) restoreSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	siteName := strings.TrimSpace(r.PathValue("sitename"))
-	unlock := h.lockSite(siteName)
-	defer unlock()
+	if err := validateSiteShape(siteName); err != nil {
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no site with that name in Recently deleted"})
+		return
+	}
+	// Lock only a name the account really has in Recently deleted (checked
+	// again under the lock below); the answers for other names need no lock.
+	unlock := func() {}
+	if _, err := db.GetDeletedSiteByUser(r.Context(), h.database, user.ID, siteName); err == nil {
+		unlock = h.lockSite(user.ID, siteName)
+	}
+	defer func() { unlock() }()
 
 	d, err := db.GetDeletedSiteByUser(r.Context(), h.database, user.ID, siteName)
 	if err != nil {
@@ -153,16 +172,20 @@ func (h *SiteHandler) restoreSite(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	if !user.IsAdmin {
-		existing, err := db.ListSitesByUser(r.Context(), h.database, user.ID)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-			return
-		}
-		if len(existing) >= maxSitesPerUser {
-			writeJSON(w, http.StatusForbidden, errorResponse{Error: "site quota reached; delete another site first"})
-			return
-		}
+	// No quota check: a site in Recently deleted already counts toward it.
+	//
+	// It comes back as it was, taken down included (the operator may have
+	// taken it down while it was deleted): the marker goes into its folder
+	// before the folder is served again, so it is never live without it.
+	full, err := db.GetSiteByID(r.Context(), h.database, d.ID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	if err := h.disk.SetTrashedSuspended(d.UserID, d.ID, full.Suspended()); err != nil {
+		log.Printf("restore site %s: suspend marker: %v", d.ID, err)
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "could not restore the site's files"})
+		return
 	}
 	tx, err := h.database.BeginTx(r.Context(), nil)
 	if err != nil {
@@ -202,8 +225,7 @@ func (h *SiteHandler) restoreSite(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	// It comes back as it was, taken down included (the operator may have
-	// taken it down while it was deleted): the disk marker follows the record.
+	// The operator may have acted since: make the marker follow the record.
 	if err := h.syncSiteMarker(site); err != nil {
 		log.Printf("restore site %s: suspend marker: %v", site.ID, err)
 	}
@@ -219,7 +241,7 @@ func (h *SiteHandler) purgeDeletedSites(ctx context.Context) {
 		return
 	}
 	for _, d := range list {
-		unlock := h.lockSite(d.Name)
+		unlock := h.lockSite(d.UserID, d.Name)
 		domains, err := db.PurgeDeletedSite(ctx, h.database, d.ID)
 		unlock()
 		if err != nil {
@@ -235,10 +257,16 @@ func (h *SiteHandler) purgeDeletedSites(ctx context.Context) {
 			log.Printf("deleted-site purge: links of %s: %v", d.ID, err)
 		}
 		for _, dom := range domains {
-			if err := h.disk.UnbindDomain(dom); err != nil {
+			// Only while the link is still this site's: the domain may have
+			// been bound to another site since this one was deleted.
+			mine, err := h.disk.UnbindDomainOf(dom, d.UserID, d.Name)
+			if err != nil {
 				log.Printf("deleted-site purge: unbind %s: %v", dom, err)
+				continue
 			}
-			h.cancelDomainCert(dom)
+			if mine {
+				h.cancelDomainCert(dom)
+			}
 		}
 		log.Printf("deleted-site purge: removed %s (%s)", d.Name, d.ID)
 	}
