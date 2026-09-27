@@ -168,6 +168,7 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		"POST /v1/u/ann/sites/blog/collections/rsvps":   fixed(201, `{"id":13,"data":{"name":"Bo"},"created_at":"2026-09-04T00:00:00Z"}`),
 		"PUT /v1/sites/blog/collections/orders/privacy": fixed(200, `{"private":true,"domain":"rsvp.example.com","message":"orders is now private."}`),
 		"PUT /v1/sites/blog/collections/rsvps/privacy":  fixed(200, `{"private":false}`),
+		"PUT /v1/sites/blog/keep":                       fixed(200, `{"name":"blog","keep":true}`),
 		"PATCH /v1/u/ann/sites/blog/collections/orders/items/5": fixed(200, `{"id":5,"data":{"item":"mug","status":"done",`+
 			`"_submitted_by":"v@example.com","_submitted_at":"2026-09-03T00:00:00Z"},"created_at":"2026-09-03T00:00:00Z"}`),
 		"DELETE /v1/u/ann/sites/blog/collections/orders/items/5": fixed(204, ""),
@@ -208,6 +209,7 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		{"list_deleted_sites", map[string]any{}},
 		{"restore_site", map[string]any{"site": "old"}},
 		{"set_visibility", map[string]any{"site": "blog", "visibility": "unlisted"}},
+		{"keep_site", map[string]any{"site": "blog"}},
 		{"get_state", map[string]any{"site": "blog"}},
 		{"update_state", map[string]any{"site": "blog", "ops": []any{map[string]any{"op": "inc", "path": "count", "by": 1}}}},
 		{"update_state", map[string]any{"site": "blog", "replace": map[string]any{"a": 1}}},

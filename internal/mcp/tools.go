@@ -966,6 +966,42 @@ func Tools() []Tool {
 			},
 		},
 		{
+			Name:  "keep_site",
+			Title: "Keep a site up for good",
+			Description: "Mark a site Keep (or clear the mark). Simple Host emails the owner about a site nobody has visited or updated for 90 days and moves it to Recently deleted 30 days later unless it is kept; a site marked Keep is never flagged. " +
+				"Sites with their own domain or claimed name are never flagged either.",
+			InputSchema: object(map[string]any{
+				"site": str(siteDesc),
+				"keep": map[string]any{"type": "boolean", "description": "true (default) keeps the site up for good; false lets it be flagged again when idle."},
+			}, "site"),
+			// Changes a flag on the person's own site; reversible.
+			Annotations: writes(false, false, true),
+			run: func(c *call, args map[string]any) (output, error) {
+				name, err := siteArg(args)
+				if err != nil {
+					return output{}, err
+				}
+				keep := true
+				if v, ok := args["keep"]; ok {
+					b, isBool := v.(bool)
+					if !isBool {
+						return output{}, errors.New("keep must be true or false")
+					}
+					keep = b
+				}
+				body, _ := json.Marshal(map[string]bool{"keep": keep})
+				res := c.do(http.MethodPut, "/v1/sites/"+url.PathEscape(name)+"/keep", body, nil)
+				if !res.ok() {
+					return output{}, restError("keep_site", res)
+				}
+				text := name + " is marked Keep: it stays up even if nobody visits it."
+				if !keep {
+					text = name + " is no longer marked Keep: if nobody visits or updates it for 90 days, its owner is emailed before anything happens."
+				}
+				return output{Text: text, Structured: map[string]any{"site": name, "keep": keep}}, nil
+			},
+		},
+		{
 			Name:        "get_state",
 			Title:       "Read a site's saved state",
 			Description: "Read a site's shared JSON state document (what its pages save with SH.state / PATCH state), with its etag. Anyone can read this data; it is public.",

@@ -235,6 +235,11 @@ func outputSchemas() map[string]map[string]any {
 			"visibility": outEnum("public: listed on the account's public page; unlisted: left off it (still public to anyone with the address).", "public", "unlisted"),
 		}, "site", "visibility"),
 
+		"keep_site": outObject(map[string]any{
+			"site": outString(outSiteName),
+			"keep": outBool("true: kept up for good, never flagged as idle; false: flagged (with an email first) after 90 days without visits or updates."),
+		}, "site", "keep"),
+
 		"get_state": outObject(map[string]any{
 			"site":  outString(outSiteName),
 			"etag":  outString("Version tag of the document; pass it as if_match to update_state with replace."),

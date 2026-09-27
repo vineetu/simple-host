@@ -2039,6 +2039,8 @@ function parseAnalyticsSummary(data) {
             '<div class="inv-meta">' + meta + '</div>' +
             (s.suspended ? '<div class="inv-down">Taken down by the operator' + (s.suspended_reason ? ': ' + esc(s.suspended_reason) : '') +
               '. Every address shows a &ldquo;taken down&rdquo; page and changes are refused until it is restored. Nothing has been deleted.</div>' : '') +
+            (s.idle_removal_at && own ? '<div class="inv-down" data-idle-note="' + name + '">No visitors or updates for 90 days: this site moves to Recently deleted on ' +
+              esc(new Date(s.idle_removal_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })) + ' unless you keep it.</div>' : '') +
           '</div>' +
         '</div>' +
         (s.suspended ? (own ? '<div class="inv-actions">' +
@@ -2051,6 +2053,7 @@ function parseAnalyticsSummary(data) {
           '<button type="button" class="btn-small btn-secondary" data-act="openRename" data-name="' + name + '">Rename</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="openDomain" data-name="' + name + '">' + (s.custom_domain ? 'Domain' : 'Connect domain') + '</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="downloadSite" data-name="' + name + '">Download</button>' +
+          (!s.custom_domain ? '<button type="button" class="btn-small btn-secondary" data-act="toggleKeep" data-name="' + name + '" data-keep="' + (s.keep ? '1' : '') + '" data-keep-btn="' + name + '" title="A site nobody visits or updates for 90 days is flagged (you get an email first). Kept sites never are.">' + (s.keep ? 'Kept for good ✓' : 'Keep for good') + '</button>' : '') +
           '<button type="button" class="btn-small btn-ghost" data-act="confirmDelete" data-name="' + name + '">Delete</button>' : '') +
         '</div>') +
         '<div class="versions-panel" data-versions="' + name + '" hidden></div>' +
@@ -2396,6 +2399,27 @@ function parseAnalyticsSummary(data) {
         toast(name + ' is now ' + next, 'success');
       } catch (e) {
         toast('Could not change visibility', 'error');
+      }
+    }
+
+    // Keep for good (PUT /v1/sites/{site}/keep): a kept site is never flagged
+    // as idle; keeping it also ends a pending idle warning.
+    async function toggleKeep(name, kept) {
+      var next = !kept;
+      try {
+        var res = await api('PUT', '/v1/sites/' + encodeURIComponent(name) + '/keep', { keep: next });
+        if (!res.ok) {
+          var err = await res.json().catch(function () { return null; });
+          toast((err && err.error) || 'Could not change this', 'error');
+          return;
+        }
+        var btn = document.querySelector('[data-keep-btn="' + cssEsc(name) + '"]');
+        if (btn) { btn.setAttribute('data-keep', next ? '1' : ''); btn.textContent = next ? 'Kept for good ✓' : 'Keep for good'; }
+        var note = document.querySelector('[data-idle-note="' + cssEsc(name) + '"]');
+        if (note && next) note.remove();
+        toast(next ? name + ' stays up for good' : name + ' is no longer kept for good', 'success');
+      } catch (e) {
+        toast('Could not change this', 'error');
       }
     }
 
@@ -3454,6 +3478,7 @@ function parseAnalyticsSummary(data) {
       hideAiCreate: function () { toggleOnboarding('aiCreate', false); },
       showAiCreate: function () { toggleOnboarding('aiCreate', true); },
       toggleVis: function (d) { toggleVis(d.name, d.vis); },
+      toggleKeep: function (d) { toggleKeep(d.name, !!d.keep); },
       toggleVersions: function (d) { toggleVersions(d.name); },
       confirmDelete: function (d) { confirmDelete(d.name); },
       doDelete: function (d, el) { doDelete(d.name, el); },

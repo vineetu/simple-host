@@ -71,6 +71,7 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	call("list_versions", map[string]any{"site": "shop"})
 	call("rollback_site", map[string]any{"site": "shop", "version": 1})
 	call("set_visibility", map[string]any{"site": "shop", "visibility": "public"})
+	call("keep_site", map[string]any{"site": "shop", "keep": false})
 
 	state := call("get_state", map[string]any{"site": "shop"})
 	call("update_state", map[string]any{"site": "shop", "ops": []any{map[string]any{"op": "inc", "path": "count", "by": 1}}})
