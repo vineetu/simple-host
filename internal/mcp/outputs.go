@@ -267,5 +267,11 @@ func outputSchemas() map[string]map[string]any {
 			"totals":     trafficSplitSchema("Traffic over the whole window. Visitors are unique across the window."),
 			"last_24h":   trafficSplitSchema("Traffic over the last 24 hours."),
 		}, "site", "range_days", "totals", "last_24h"),
+
+		"export_site": outObject(map[string]any{
+			"site":       outString(outSiteName),
+			"url":        outString("The download link: a .tar.gz with the site's files, state.json and collections.json. Give it to the person; it opens without signing in, so do not post it publicly."),
+			"expires_at": outString("When the link stops working (RFC 3339), 10 minutes after it was made."),
+		}, "site", "url", "expires_at"),
 	}
 }

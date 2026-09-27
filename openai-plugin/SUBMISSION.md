@@ -91,7 +91,7 @@ Portal → **Create plugin** → **With MCP**. Package name `simple-host` (it mu
 | Content security policy | none: the server returns no UI |
 | Domain verification | the portal shows a token → put it in `/etc/simple-host.env` as `OPENAI_APPS_CHALLENGE=<token>`, restart, confirm `curl -s https://simple-host.app/.well-known/openai-apps-challenge` prints exactly the token, then **Verify Domain**. Leave Challenge Base URL empty (it defaults to the MCP host). nginx already proxies `/.well-known/*` on the apex to the app. |
 
-Then **Scan Tools**. Expect 22 tools, no UI templates, the server `instructions`, no imported
+Then **Scan Tools**. Expect 23 tools, no UI templates, the server `instructions`, no imported
 skills (the server does not offer the skills extension; skills are uploaded instead).
 Every tool declares an `outputSchema` describing its `structuredContent`
 (`internal/mcp/outputs.go`), so the scan should raise no "Add an outputSchema" recommendation.
@@ -115,6 +115,7 @@ Values are set by the server (`internal/mcp/tools.go`) and pinned by
 | read_collection | true | false | false | Reads items a site has saved, newest first, including the owner's private collections. Changes nothing. |
 | domain_status | true | false | false | Reports whether a site's custom domain is connected yet. Changes nothing. |
 | site_analytics | true | false | false | Returns visit totals for one of the person's sites. Changes nothing. |
+| export_site | true | false | false | Returns a 10-minute download link for a copy of one of the person's own sites (files and saved data). Changes nothing; the link is given to the person, nothing is published or sent anywhere. |
 | create_site | false | false | true | Publishes a new website to the public internet at a public address (open world). Creates only: it fails if a site of that name exists, so nothing is overwritten or deleted. |
 | update_site | false | true | true | Replaces the live files of an existing public site: an overwrite, so destructive, even though the previous version is kept and `rollback_site` can restore it. Publishes to the public internet. |
 | rollback_site | false | false | true | Makes an earlier version live on the public site (changes what the public sees). Nothing is deleted: the replaced version is kept and can be made live again the same way. |

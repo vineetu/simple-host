@@ -464,7 +464,7 @@ func (h *SiteHandler) updatePrivateItem(w http.ResponseWriter, r *http.Request) 
 	case errors.Is(err, errTooLarge):
 		writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large"})
 	case errors.Is(err, errNotObject):
-		writeJSON(w, http.StatusConflict, errorResponse{Error: "this item is not a JSON object, so it has no fields to change; delete it instead"})
+		writeJSON(w, http.StatusConflict, errorResponse{Error: "this item is not a JSON object, so it has no fields to change; delete it instead", Code: "not_an_object"})
 	case err != nil:
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 	default:

@@ -6,6 +6,8 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 - Upgrading a small box is re-running the install command: it now applies the new release's database changes (`simple-host migrate`) before starting the new app, instead of the app crash-looping on "database is behind this build". Migrations are tracked in a new `schema_migrations` table, applied in order, each once, under a lock; `migrate -status` lists them and `migrate -mark FILE` records one applied by hand. The server never migrates by itself. Skills 0.19.3 (run-hackathon: Upgrading section, fixed troubleshooting line).
 - Every binary knows its release and commit: printed at startup, by `simple-host version`, and on the admin page, which also shows how many deploys of each website are kept. `GET /v1/admin/usage` adds `version`, `commit` and `keep_versions`.
+- Download a copy of a site from a chat app: the new `export_site` tool gives the person a link that downloads the site's files, saved state and lists (private ones included) as a .tar.gz. The link works for 10 minutes, only for that site, and stops if the site is deleted. Owners with a key can mint one too (`POST /v1/sites/{site}/export-link`). Skills 0.19.3.
+- Chat-app tools give the right advice when a call is refused: the hint now follows the error's code, so "that address is taken", "public lists cannot be edited" and "the site needs its own address first" no longer get the "site already exists, use update_site" answer. API errors gained a `code` where one status had several meanings: `site_exists`, `invalid_name`, `name_reserved`, `invalid_domain`, `site_quota_reached`, `not_an_object`, `missing_api_key`, `invalid_api_key` (messages and statuses unchanged).
 
 ## 2026-09-26
 

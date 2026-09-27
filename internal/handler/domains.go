@@ -196,7 +196,7 @@ func (h *SiteHandler) bindDomain(w http.ResponseWriter, r *http.Request) {
 
 	domain, err := h.normalizeDomain(req.Domain)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "invalid_domain"})
 		return
 	}
 

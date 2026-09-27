@@ -242,7 +242,7 @@ func TestCreateAndUpdateSite(t *testing.T) {
 	created := func() (int, string) {
 		return 201, `{"id":"9b1c","user_id":"u-1","name":"blog","active_version":1,"site_url":"https://sites.simple-host.app/ann/blog/","created_at":"2026-09-24T10:00:00Z","updated_at":"2026-09-24T10:00:00Z"}`
 	}
-	exists := func() (int, string) { return 409, `{"error":"site already exists"}` }
+	exists := func() (int, string) { return 409, `{"error":"site already exists","code":"site_exists"}` }
 	missing := func() (int, string) { return 404, `{"error":"site not found"}` }
 	updated := func() (int, string) {
 		return 200, `{"id":"9b1c","user_id":"u-1","name":"blog","active_version":4,"site_url":"https://sites.simple-host.app/ann/blog/","updated_at":"2026-09-24T10:00:00Z"}`
@@ -301,6 +301,7 @@ func TestAnnotationsMatchBehaviour(t *testing.T) {
 		"read_collection":   {true, false, false},
 		"domain_status":     {true, false, false},
 		"site_analytics":    {true, false, false},
+		"export_site":       {true, false, false},
 		"create_site":       {false, false, true},
 		"update_site":       {false, true, true},
 		"rollback_site":     {false, false, true},

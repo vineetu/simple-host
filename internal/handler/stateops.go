@@ -102,7 +102,7 @@ func (h *SiteHandler) patchSiteState(w http.ResponseWriter, r *http.Request) {
 
 	root, err := stateRootObject(cur)
 	if err != nil {
-		writeJSON(w, http.StatusConflict, errorResponse{Error: "state is not a JSON object; PATCH requires an object root"})
+		writeJSON(w, http.StatusConflict, errorResponse{Error: "state is not a JSON object; PATCH requires an object root", Code: "not_an_object"})
 		return
 	}
 

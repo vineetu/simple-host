@@ -79,6 +79,9 @@ type authResponse struct {
 
 type errorResponse struct {
 	Error string `json:"error"`
+	// Code is a stable snake_case name for the failure, set where one error
+	// status has more than one meaning (the MCP tools key their hints on it).
+	Code string `json:"code,omitempty"`
 }
 
 func NewUserHandler(database *sql.DB, mailer email.Sender, publicBaseURL string) *UserHandler {

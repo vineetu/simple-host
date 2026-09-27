@@ -170,6 +170,7 @@ func main() {
 	siteHandler := handler.NewSiteHandler(db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID, mailer, userHandler.EmailLimiter())
 	siteHandler.SetPersonHosts(cfg.PersonHosts)
 	siteHandler.SetSiteHosts(cfg.SiteHosts, cfg.SiteCertDir)
+	siteHandler.SetPublicBaseURL(cfg.PublicBaseURL)
 	userHandler.SetPublicPage(siteHandler.PersonPageURL)
 	dbpkg.SetPlatformDomain(cfg.SiteDomain)
 	log.Printf("person hosts: %s; site hosts: %s", cfg.PersonHosts, cfg.SiteHosts)

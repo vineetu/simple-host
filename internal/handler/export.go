@@ -41,14 +41,20 @@ func (h *SiteHandler) exportSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.writeExport(w, r, site)
+}
+
+// writeExport streams the archive for one site, already authorized. Shared by
+// the keyed route and the short-lived download link (exportlink.go).
+func (h *SiteHandler) writeExport(w http.ResponseWriter, r *http.Request, site db.Site) {
 	w.Header().Set("Content-Type", "application/gzip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.tar.gz"`, name))
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.tar.gz"`, site.Name))
 
 	gz := gzip.NewWriter(w)
 	defer gz.Close()
 	tw := tar.NewWriter(gz)
 	defer tw.Close()
-	_ = h.writeSiteTar(r.Context(), tw, name, site)
+	_ = h.writeSiteTar(r.Context(), tw, site.Name, site)
 }
 
 // exportAll streams every site on the instance as one .tar.gz, each under

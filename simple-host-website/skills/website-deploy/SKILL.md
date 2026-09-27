@@ -69,7 +69,7 @@ some install methods fetch only `SKILL.md` — fetch the URL instead.
 | Detect a framework and build it for path hosting | `references/frameworks.md` · https://simple-host.app/v1/skills/website-deploy/references/frameworks.md |
 | Validate, package, upload, verify | `references/packaging-and-validation.md` · https://simple-host.app/v1/skills/website-deploy/references/packaging-and-validation.md |
 | Shared state, collections, saving from a page or an agent (connector: `get_state`, `update_state`, `read_collection`, `add_to_collection`) | `references/backend.md` · https://simple-host.app/v1/skills/website-deploy/references/backend.md |
-| Versions, rollback, delete, analytics (connector: `list_versions`, `rollback_site`, `delete_site`, `site_analytics`) | `references/operations.md` · https://simple-host.app/v1/skills/website-deploy/references/operations.md |
+| Versions, rollback, delete, download a copy, analytics (connector: `list_versions`, `rollback_site`, `delete_site`, `export_site`, `site_analytics`) | `references/operations.md` · https://simple-host.app/v1/skills/website-deploy/references/operations.md |
 | Private collections (orders, RSVPs, sign-ups, anything personal; connector: `set_collection_privacy`) | `references/backend.md` · https://simple-host.app/v1/skills/website-deploy/references/backend.md |
 | A nicer address (optional): a free `<name>.simple-host.app` or a custom domain | the `connect-domain` skill · https://simple-host.app/v1/skills/connect-domain |
 

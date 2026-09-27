@@ -670,6 +670,65 @@ paths:
               schema: { type: string, format: binary }
         '404': { description: Not found, or not yours }
 
+  /v1/sites/{sitename}/export-link:
+    post:
+      operationId: createExportLink
+      summary: Make a 10-minute download link for a site's export
+      description: >-
+        Returns a link that downloads the same archive as `export.tar.gz`
+        without an API key, for people who use Simple Host only through a chat
+        app's connector (the `export_site` tool). The link is signed for this
+        owner and this site, expires after 10 minutes, and stops working if
+        the site is deleted or the server restarts. Anyone holding it can
+        download the copy until then, so hand it to the person only.
+      tags: [Sites]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { name: sitename, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: The link
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [site, url, expires_at, expires_in]
+                properties:
+                  site: { type: string }
+                  url: { type: string, example: 'https://simple-host.app/v1/export?token=...' }
+                  expires_at: { type: string, format: date-time }
+                  expires_in: { type: integer, description: Seconds until it expires (600) }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/export:
+    get:
+      operationId: downloadExport
+      summary: Download a site's export through a link from export-link
+      description: >-
+        No API key: the signed `token` is the whole authorization, for one
+        site, for 10 minutes. Streams the archive described under
+        `export.tar.gz`. An expired, altered or unknown token, or one for a
+        site since deleted or moved to another account, answers 404 with code
+        `export_link_invalid`.
+      tags: [Sites]
+      security: []
+      parameters:
+        - { name: token, in: query, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: A gzipped tar archive
+          content:
+            application/gzip:
+              schema: { type: string, format: binary }
+        '404':
+          description: The link is not valid or has expired
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: this download link is not valid or has expired, code: export_link_invalid }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
   /v1/sites/{sitename}/versions:
     get:
       operationId: getSitesBySitenameVersions
@@ -3054,14 +3113,34 @@ components:
 
     Error:
       type: object
-      properties: { error: { type: string } }
+      required: [error]
+      properties:
+        error: { type: string, description: What went wrong, in plain words. The wording may change; branch on `code`. }
+        code:
+          type: string
+          description: >-
+            A stable snake_case name for the refusal, present where one status
+            has more than one meaning. site_exists (409: this account already
+            has a site of that name), domain_taken (409: the address belongs to
+            another site or person), invalid_name (400: not 1-63 lowercase
+            letters, digits and hyphens), name_reserved (400: reserved by the
+            platform), invalid_domain (400: not a domain that can be connected),
+            site_quota_reached (403), append_only (409: public list items cannot
+            be edited or deleted), custom_domain_required (409: the site needs
+            its own address first), not_an_object (409: the saved value is not a
+            JSON object), private_visitor_only and private_needs_own_domain
+            (403), use_custom_domain and visitor_auth_required (401),
+            missing_api_key and invalid_api_key (401), csrf_required (403),
+            not_found (404, private collections), export_link_invalid (404:
+            the download link expired or is not valid). New codes may be added.
+          example: domain_taken
 
   responses:
     BadRequest: { description: Invalid request, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     Unauthorized: { description: "Missing or invalid API key — send the X-API-Key header, not Authorization Bearer", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     Forbidden: { description: Admin access required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     NotFound: { description: Not found, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-    Conflict: { description: Site name already exists, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Conflict: { description: "Conflict: the code says which (site_exists, domain_taken, append_only, custom_domain_required, not_an_object)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     TooLarge: { description: Payload too large, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     TooManyRequests: { description: Rate limited, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     OriginMismatch: { description: Origin/Referer does not match the site, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
