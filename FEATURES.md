@@ -313,7 +313,9 @@ a handle.
 **Sign-in alerts (2026-09-27).** After each successful owner sign-in (emailed code or link,
 Google) and each app connected on the consent screen, one short email: the time (UTC), the
 browser or app in a few words (`summarizeUserAgent`: "Chrome on macOS", "curl"; never the IP or
-a location; a connected app's self-declared name is quoted in the body, not the subject), and
+a location; a connected app's self-declared name, and the browser/app words, are quoted in the
+body as "reported by the app", cut to 40 characters with addresses, links and domain-like words
+removed, never in the subject), and
 a link to the owner app (`/dashboard` without a handle) where "Sign out everywhere" and the
 switch are. At most one per account, browser/app summary (plus app name for a connection) and
 UTC day (`signin_alerts_sent`, pruned after two days). None for API key calls, event accounts

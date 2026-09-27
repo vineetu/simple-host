@@ -91,20 +91,52 @@ func (a *SignInAlerts) ownerAppURL(handle string) string {
 	return a.publicBaseURL + "/dashboard"
 }
 
+var (
+	reportedEmail = regexp.MustCompile(`\S*@\S*`)
+	reportedURL   = regexp.MustCompile(`(?i)\S*(://|www\.)\S*`)
+	reportedHost  = regexp.MustCompile(`\S*\w\.\w\S*`)
+	reportedOdd   = regexp.MustCompile(`[^\p{L}\p{N} ()_+-]+`)
+	reportedSpace = regexp.MustCompile(`\s+`)
+)
+
+// reportedName makes a name an app or browser gave about itself safe to
+// quote in an email: addresses, links and anything that looks like a domain
+// are dropped (mail clients turn those into links), odd characters go, and it
+// is cut to 40 characters. "" when nothing is left.
+func reportedName(s string) string {
+	s = reportedEmail.ReplaceAllString(s, " ")
+	s = reportedURL.ReplaceAllString(s, " ")
+	s = reportedHost.ReplaceAllString(s, " ")
+	s = reportedOdd.ReplaceAllString(s, " ")
+	s = strings.TrimSpace(reportedSpace.ReplaceAllString(s, " "))
+	if r := []rune(s); len(r) > 40 {
+		s = strings.TrimSpace(string(r[:40]))
+	}
+	return s
+}
+
 func signInAlertText(to, link, summary, app string, at time.Time) (string, string) {
 	when := at.Format("2 Jan 2006, 15:04") + " UTC"
 	subject := "New sign-in to your Simple Host account"
 	what := "Your Simple Host account (" + to + ") was signed in to."
 	if app != "" {
 		// The name is self-declared by the app, so it stays out of the
-		// subject and is quoted in the body.
+		// subject and is quoted, cleaned, as what the app reported.
 		subject = "An app was connected to your Simple Host account"
-		what = "An app called \"" + app + "\" was connected to your Simple Host account (" + to + "). It can now publish and manage your sites for you."
+		name := reportedName(app)
+		if name == "" {
+			name = "an unnamed app"
+		}
+		what = "An app (\"" + name + "\", as reported by the app) was connected to your Simple Host account (" + to + "). It can now publish and manage your sites for you."
+	}
+	from := reportedName(summary)
+	if from == "" {
+		from = "an unknown browser or app"
 	}
 	text := fmt.Sprintf(`%s
 
 When: %s
-From: %s
+From: "%s" (as reported by the browser or app)
 
 If this was you, there is nothing to do.
 
@@ -113,7 +145,7 @@ If it wasn't, open %s and press "Sign out everywhere": every key stops working a
 You can turn these emails off on the same page.
 
 Simple Host
-`, what, when, summary, link)
+`, what, when, from, link)
 	return subject, text
 }
 

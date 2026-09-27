@@ -345,7 +345,7 @@ func TestSignInAlerts(t *testing.T) {
 
 	signInWith(t, a, mb, p.email, uaMacChrome)
 	got := mb.to(p.email)
-	if len(got) != 1 || !strings.Contains(got[0], "New sign-in") || !strings.Contains(got[0], "From: Chrome on macOS") ||
+	if len(got) != 1 || !strings.Contains(got[0], "New sign-in") || !strings.Contains(got[0], `From: "Chrome on macOS" (as reported by the browser or app)`) ||
 		!strings.Contains(got[0], " UTC") || !strings.Contains(got[0], a.srv.URL+"/") || !strings.Contains(got[0], "Sign out everywhere") {
 		t.Fatalf("first alert: %v", got)
 	}
@@ -418,7 +418,7 @@ func TestConnectAppAlerts(t *testing.T) {
 	client := a.registerClient(t, redirect)
 	a.connect(t, p, client, redirect)
 	got := mb.to(p.email)
-	if len(got) != 1 || !strings.Contains(got[0], `An app called "Test Chat" was connected`) {
+	if len(got) != 1 || !strings.Contains(got[0], `An app ("Test Chat", as reported by the app) was connected`) {
 		t.Fatalf("connect alert: %v", got)
 	}
 }
@@ -437,6 +437,19 @@ func TestSummarizeUserAgent(t *testing.T) {
 	for ua, want := range cases {
 		if got := summarizeUserAgent(ua); got != want {
 			t.Errorf("summarizeUserAgent(%q) = %q, want %q", ua, got, want)
+		}
+	}
+	for in, want := range map[string]string{
+		"Test Chat":                              "Test Chat",
+		"Simple Host Security: call +1-800-555":  "Simple Host Security call +1-800-555",
+		"verify at simple-host-support.com now":  "verify at now",
+		"write to help@evil.example":             "write to",
+		"see https://evil.example/x or www.x.io": "see or",
+		"evil-support.com":                       "",
+		strings.Repeat("a", 60):                  strings.Repeat("a", 40),
+	} {
+		if got := reportedName(in); got != want {
+			t.Errorf("reportedName(%q) = %q, want %q", in, got, want)
 		}
 	}
 	if got := maskEmail("new.person@example.com"); got != "n***@example.com" {
