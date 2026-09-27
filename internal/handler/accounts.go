@@ -150,7 +150,7 @@ func (h *SiteHandler) createAccounts(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if err == nil {
-			err = db.AddAPIKey(r.Context(), tx, id, key)
+			err = db.AddAPIKey(r.Context(), tx, id, key, db.KeyNameEvent)
 		}
 		if err != nil {
 			writeJSON(w, 500, errorResponse{Error: "internal server error"})
@@ -224,6 +224,52 @@ func (h *SiteHandler) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// reissueAccountKey handles POST /v1/admin/users/{id}/key: the organiser's
+// answer to "I lost my key". Every key the account holds is replaced by one
+// new key, returned once. Sites, data and connected apps are untouched.
+func (h *SiteHandler) reissueAccountKey(w http.ResponseWriter, r *http.Request) {
+	if !accountAdmin(w, r) {
+		return
+	}
+	tx, err := h.database.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeJSON(w, 500, errorResponse{Error: "internal server error"})
+		return
+	}
+	defer tx.Rollback()
+	var id, username string
+	var handle sql.NullString
+	var admin bool
+	err = tx.QueryRowContext(r.Context(), `SELECT id, username, handle, is_admin FROM users WHERE id::text=$1 FOR UPDATE`, r.PathValue("id")).Scan(&id, &username, &handle, &admin)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeJSON(w, 404, errorResponse{Error: "not found"})
+		return
+	}
+	if err != nil {
+		writeJSON(w, 500, errorResponse{Error: "internal server error"})
+		return
+	}
+	if admin || id == h.adminUserID {
+		writeJSON(w, 400, errorResponse{Error: "cannot reissue an admin account's key here"})
+		return
+	}
+	key, err := auth.GenerateAPIKey()
+	if err == nil {
+		err = db.ReplaceAPIKeys(r.Context(), tx, id, key, db.KeyNameEvent)
+	}
+	if err == nil {
+		err = tx.Commit()
+	}
+	if err != nil {
+		writeJSON(w, 500, errorResponse{Error: "internal server error"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{
+		"id": id, "username": username, "handle": handle.String, "api_key": key,
+		"message": "Every earlier key for this account stopped working. Hand this one over now; it is not shown again.",
+	})
 }
 
 func (h *SiteHandler) patchMe(w http.ResponseWriter, r *http.Request) {

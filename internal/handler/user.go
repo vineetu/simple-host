@@ -66,6 +66,9 @@ type verifyRequest struct {
 	// Nonce accompanies Token: the browser's nonce whose hash the token was
 	// issued with.
 	Nonce string `json:"nonce"`
+	// Name labels the key this sign-in issues (Keys panel). Optional: a link
+	// or Google sign-in defaults to "dashboard sign-in", a code to "agent sign-in".
+	Name string `json:"name"`
 }
 
 type authResponse struct {
@@ -102,6 +105,10 @@ func (h *UserHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("POST /v1/auth/verify", noticeMiddleware(rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.verifySignIn))))
 	mux.Handle("GET /v1/me", noticeMiddleware(authMiddleware(http.HandlerFunc(h.me))))
 	mux.Handle("POST /v1/me/api-key/rotate", noticeMiddleware(authMiddleware(http.HandlerFunc(h.rotateAPIKey))))
+	mux.Handle("POST /v1/me/sign-out", noticeMiddleware(authMiddleware(http.HandlerFunc(h.signOut))))
+	mux.Handle("GET /v1/me/keys", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listKeys))))
+	mux.Handle("POST /v1/me/keys", noticeMiddleware(authMiddleware(http.HandlerFunc(h.createKey))))
+	mux.Handle("DELETE /v1/me/keys/{id}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.deleteKey))))
 }
 
 func (h *UserHandler) rotateAPIKey(w http.ResponseWriter, r *http.Request) {
@@ -120,7 +127,7 @@ func (h *UserHandler) rotateAPIKey(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	if err := db.RotateAPIKey(r.Context(), h.database, user.ID, user.KeyHash, newKey); err != nil {
+	if err := db.RotateAPIKey(r.Context(), h.database, user.ID, user.KeyHash, newKey, db.KeyNameRotated); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
@@ -190,6 +197,17 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
 		return
 	}
+	keyName, err := normalizeKeyName(req.Name)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		return
+	}
+	if keyName == "" {
+		keyName = db.KeyNameAgent
+		if req.Token != "" {
+			keyName = db.KeyNameDashboard
+		}
+	}
 
 	user, created, status, body := verifyEmailCode(r.Context(), h.database, h.emailLimiter, req, "dashboard", sql.NullString{})
 	if status != 0 {
@@ -205,7 +223,7 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 	// keys from earlier sign-ins keep working until the person rotates.
 	apiKey, err := auth.GenerateAPIKey()
 	if err == nil {
-		err = db.AddAPIKey(r.Context(), h.database, user.ID, apiKey)
+		err = db.AddAPIKey(r.Context(), h.database, user.ID, apiKey, keyName)
 	}
 	if err != nil {
 		log.Printf("auth: issue key after verify: %v", err)

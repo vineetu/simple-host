@@ -13,11 +13,17 @@ CREATE TABLE users (
 );
 
 -- Account API keys, stored only as hex SHA-256. An account can hold several
--- (each sign-in issues one); rotating replaces them all.
+-- (each sign-in issues one); each can be revoked on its own, and rotating
+-- replaces them all. name and last4 are NULL on keys issued before
+-- cp-keys-key-names.sql ("Earlier key" in the Keys panel).
 CREATE TABLE api_keys (
-  key_hash   TEXT PRIMARY KEY,
-  user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  id           UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+  key_hash     TEXT PRIMARY KEY,
+  user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name         TEXT,          -- "dashboard sign-in", "agent sign-in", "event account", or typed
+  last4        TEXT,          -- last 4 characters of the key, for recognising it
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_used_at TIMESTAMPTZ    -- written at most every 5 minutes
 );
 CREATE INDEX api_keys_user_idx ON api_keys (user_id);
 

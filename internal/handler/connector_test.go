@@ -864,7 +864,7 @@ func TestAPIKeysStoredHashed(t *testing.T) {
 		t.Fatal(err)
 	}
 	second, _ := auth.GenerateAPIKey()
-	if err := db.AddAPIKey(context.Background(), a.database, u.ID, second); err != nil {
+	if err := db.AddAPIKey(context.Background(), a.database, u.ID, second, db.KeyNameAgent); err != nil {
 		t.Fatal(err)
 	}
 	if me(p.key) != http.StatusOK || me(second) != http.StatusOK {

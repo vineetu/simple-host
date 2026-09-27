@@ -51,16 +51,31 @@
       window.shAuthRender = render;
       var shownSignedIn = render();
 
-      // Sign out forgets everything that signs this browser in: the key and
-      // any half-finished sign-in (the nonces that bind an emailed link or a
-      // Google return to this browser). There is no server session to end:
-      // the apex sets no sign-in cookie. Other tabs hear the storage change.
+      // Sign out first ends this browser's key on the server
+      // (POST /v1/me/sign-out deletes the key the request came with), then
+      // forgets everything that signs this browser in: the key and any
+      // half-finished sign-in (the nonces that bind an emailed link or a
+      // Google return to this browser). Other tabs hear the storage change.
       // Display preferences (theme, collapsed sections) stay.
+      var signingOut = false;
       window.shSignOut = function () {
-        ['apiKey', 'sh-email-nonce'].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
-        ['sh-google-nonce', 'sh-connect-nonce'].forEach(function (k) { try { sessionStorage.removeItem(k); } catch (e) {} });
-        // replace, not assign: Back must not return to a page full of the account.
-        location.replace('{{.Base}}/');
+        if (signingOut) return;
+        signingOut = true;
+        var key = null;
+        try { key = localStorage.getItem('apiKey'); } catch (e) {}
+        var finish = function (warn) {
+          ['apiKey', 'sh-email-nonce'].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
+          ['sh-google-nonce', 'sh-connect-nonce'].forEach(function (k) { try { sessionStorage.removeItem(k); } catch (e) {} });
+          if (warn) alert('Signed out of this browser, but the server could not be reached to end its key. If this is a shared computer, sign in again and choose "Sign out everywhere".');
+          // replace, not assign: Back must not return to a page full of the account.
+          location.replace('{{.Base}}/');
+        };
+        if (!key) { finish(false); return; }
+        // 204 ended it; 401 means it was already dead; 400 is a key the
+        // server does not store (the admin key), which has nothing to end.
+        fetch('/v1/me/sign-out', { method: 'POST', headers: { 'X-API-Key': key }, keepalive: true })
+          .then(function (r) { finish(!(r.ok || r.status === 401 || r.status === 400)); })
+          .catch(function () { finish(true); });
       };
       Array.prototype.forEach.call(header.querySelectorAll('[data-sh-signout]'), function (b) {
         b.addEventListener('click', function () { window.shSignOut(); });

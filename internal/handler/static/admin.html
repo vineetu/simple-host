@@ -155,7 +155,7 @@ table.apx td.err{color:var(--error)}
     </div>
     <div id="issued" hidden>
       <table class="apx"><thead><tr><th>Account</th><th>Address</th><th>Key</th></tr></thead><tbody id="issued-rows"></tbody></table>
-      <p class="ph warn">Copy these now. Keys are never shown again, and re-running will skip these accounts rather than reissue them.</p>
+      <p class="ph warn">Copy these now. Keys are never shown again, and re-running skips existing accounts. If someone loses their key, use New key on their account below.</p>
     </div>
   </div>
 
@@ -213,6 +213,7 @@ function userCard(u){
   var head='<div class="user-head"><span class="name">'+esc(u.username)+'</span>'+
     (u.handle?'<span class="handle">/'+esc(u.handle)+'</span>':'')+
     (u.is_admin?'<span class="badge admin">admin</span>':'')+
+    (u.is_admin?'':'<button class="btn ghost" style="padding:1px 8px;font-size:13px" data-newkey-id="'+esc(u.id)+'" data-newkey-name="'+esc(u.username)+'">New key</button>')+
     (u.is_admin?'':'<button class="btn ghost" style="padding:1px 8px;font-size:13px" data-delete-id="'+esc(u.id)+'" data-delete-name="'+esc(u.username)+'">Delete</button>')+
     '<span class="badge count">'+u.site_count+' site'+(u.site_count===1?'':'s')+'</span>'+
     '<span class="when">joined '+fmtDate(u.created_at)+'</span></div>';
@@ -297,17 +298,35 @@ async function issueAccounts(){
     var res=await fetch('/v1/admin/users',{method:'POST',headers:{'X-API-Key':apiKey,'Content-Type':'application/json'},body:JSON.stringify(body)});
     var d=await res.json();
     if(!res.ok){ status(d.error||'Could not create accounts', true); return; }
-    lastIssued=d.created||[];
-    document.getElementById('issued-rows').innerHTML=lastIssued.map(function(c){
-      return '<tr><td>'+esc(c.username)+'</td><td>/'+esc(c.handle)+'</td><td class="keycell">'+esc(c.api_key)+'</td></tr>';
-    }).join('');
-    document.getElementById('issued').hidden=lastIssued.length===0;
-    document.getElementById('csv-btn').hidden=lastIssued.length===0;
+    showIssued(d.created||[]);
     var skipped=(d.skipped||[]).length;
     status('Created '+lastIssued.length+' account'+(lastIssued.length===1?'':'s')+(skipped?', skipped '+skipped+' that already existed':'')+'.');
     load();
   }catch(e){ status('Cannot reach server', true); }
   finally{ btn.disabled=false; }
+}
+
+function showIssued(list){
+  lastIssued=list;
+  document.getElementById('issued-rows').innerHTML=lastIssued.map(function(c){
+    return '<tr><td>'+esc(c.username)+'</td><td>/'+esc(c.handle)+'</td><td class="keycell">'+esc(c.api_key)+'</td></tr>';
+  }).join('');
+  document.getElementById('issued').hidden=lastIssued.length===0;
+  document.getElementById('csv-btn').hidden=lastIssued.length===0;
+}
+
+// A participant lost their key: replace every key on that account with one
+// new key, shown once in the same table as a fresh batch.
+async function reissueKey(id, username){
+  if(!confirm('Give '+username+' a new key? Every key they hold now stops working. Their sites and data stay.')) return;
+  try{
+    var res=await fetch('/v1/admin/users/'+encodeURIComponent(id)+'/key',{method:'POST',headers:{'X-API-Key':apiKey}});
+    var d=await res.json().catch(function(){return {};});
+    if(!res.ok){ status(d.error||'Could not issue a new key', true); return; }
+    showIssued([{username:d.username, handle:d.handle, api_key:d.api_key}]);
+    status('New key for '+username+'. Copy it now; it is not shown again.');
+    document.getElementById('issued').scrollIntoView({block:'center'});
+  }catch(e){ status('Cannot reach server', true); }
 }
 
 function downloadCSV(){
@@ -393,6 +412,8 @@ document.getElementById('entry-filter').addEventListener('input', renderEntries)
 document.getElementById('entries-csv-btn').addEventListener('click', downloadEntries);
 document.getElementById('entries-copy-btn').addEventListener('click', copyEntries);
 document.getElementById('users').addEventListener('click', function(e){
+  var k=e.target.closest('[data-newkey-id]');
+  if(k){ reissueKey(k.dataset.newkeyId, k.dataset.newkeyName); return; }
   var b=e.target.closest('[data-delete-id]');
   if(b) deleteAccount(b.dataset.deleteId, b.dataset.deleteName);
 });

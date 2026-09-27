@@ -54,11 +54,14 @@ func HashAPIKey(key string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// AddAPIKey stores one more key for an account. Every sign-in hands out a new
-// key this way, because a stored hash cannot be handed back; the keys an
-// account already holds keep working until the person rotates.
-func AddAPIKey(ctx context.Context, q Querier, userID, apiKey string) error {
-	_, err := q.ExecContext(ctx, `INSERT INTO api_keys (key_hash, user_id) VALUES ($1, $2)`, HashAPIKey(apiKey), userID)
+// AddAPIKey stores one more key for an account under name (see the Key*
+// names). Every sign-in hands out a new key this way, because a stored hash
+// cannot be handed back; the keys an account already holds keep working until
+// the person revokes them or rotates.
+func AddAPIKey(ctx context.Context, q Querier, userID, apiKey, name string) error {
+	_, err := q.ExecContext(ctx,
+		`INSERT INTO api_keys (key_hash, user_id, name, last4) VALUES ($1, $2, $3, $4)`,
+		HashAPIKey(apiKey), userID, name, keyLast4(apiKey))
 	return err
 }
 
@@ -88,13 +91,16 @@ func GetUserByAPIKey(ctx context.Context, db *sql.DB, apiKey string) (User, erro
 		&user.DisplayName,
 		&user.KeyHash,
 	)
+	if err == nil {
+		touchAPIKey(ctx, db, user.KeyHash)
+	}
 	return user, err
 }
 
 // RotateAPIKey replaces every key the account holds with newKey, but only if
 // the key the request was made with (currentKeyHash) is still one of them, so
 // two concurrent rotations cannot both succeed.
-func RotateAPIKey(ctx context.Context, db *sql.DB, userID, currentKeyHash, newKey string) error {
+func RotateAPIKey(ctx context.Context, db *sql.DB, userID, currentKeyHash, newKey, name string) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -109,7 +115,7 @@ func RotateAPIKey(ctx context.Context, db *sql.DB, userID, currentKeyHash, newKe
 	if _, err := tx.ExecContext(ctx, `DELETE FROM api_keys WHERE user_id = $1`, userID); err != nil {
 		return err
 	}
-	if err := AddAPIKey(ctx, tx, userID, newKey); err != nil {
+	if err := AddAPIKey(ctx, tx, userID, newKey, name); err != nil {
 		return err
 	}
 	return tx.Commit()

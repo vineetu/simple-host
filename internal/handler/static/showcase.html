@@ -117,6 +117,18 @@
                 padding: 12px 0; border-top: 1px solid var(--border); }
     .conn-row b { color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
     .conn-row small { display: block; color: var(--text-secondary); font-size: 13px; }
+    /* Keys panel (owner-keys) */
+    .key-new { display: flex; gap: 8px; margin: 0 0 12px; }
+    .key-new input {
+      flex: 1; min-width: 0; padding: 7px 12px; font-size: 15px; font-family: var(--font);
+      border: 1px solid var(--border-hi); border-radius: 8px; background: var(--bg); color: var(--text); outline: none;
+    }
+    .key-new input:focus { border-color: var(--accent); }
+    .key-shown { margin: 0 0 12px; padding: 12px; border: 1px solid var(--border-hi); border-radius: 8px; font-size: 14px; color: var(--text-secondary); }
+    .key-shown code { display: block; margin: 8px 0; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); user-select: all; overflow-wrap: anywhere; font-size: 13px; }
+    .key-tag { color: var(--accent); font-weight: 600; }
+    .keys-everywhere { display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--border); }
+    .keys-everywhere small { color: var(--text-secondary); font-size: 13px; flex: 1; min-width: 200px; }
     .section-num {
       display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
       margin-bottom: 16px;
@@ -751,6 +763,29 @@
         <div id="connections-list"></div>
       </div>
 
+      <!-- Keys: every API key on the account, one row each (GET/POST/DELETE
+           /v1/me/keys). Self-contained: this block, the "Keys panel" CSS and the
+           "Keys" script section. Shown only to the account's own owner. -->
+      <div class="section" id="owner-keys" hidden>
+        <div class="section-num"><h2>Keys</h2><span class="line"></span></div>
+        <p class="conn-note">Every sign-in and every agent holds its own key. Revoke one you no longer use; the rest keep working.</p>
+        <form class="key-new" id="key-new-form">
+          <input type="text" id="key-new-name" maxlength="60" placeholder="Name a new key, e.g. GitHub Actions" autocomplete="off" aria-label="New key name">
+          <button class="btn btn-primary btn-small" type="submit">Create key</button>
+        </form>
+        <div class="key-shown" id="key-shown" hidden>
+          <span id="key-shown-note">Copy this key now. It is not shown again.</span>
+          <code id="key-shown-value"></code>
+          <button type="button" class="btn btn-secondary btn-small" id="key-shown-copy">Copy</button>
+          <button type="button" class="btn btn-ghost btn-small" id="key-shown-done">Done</button>
+        </div>
+        <div id="keys-list"></div>
+        <div class="keys-everywhere">
+          <button type="button" class="btn btn-secondary btn-small" id="keys-signout-all">Sign out everywhere</button>
+          <small>Every key stops working and connected apps are disconnected. This browser stays signed in with a new key.</small>
+        </div>
+      </div>
+
       <!-- Analytics view (dedicated screen) -->
       <div class="section" id="owner-analytics-view" hidden>
         <div class="section-num"><h2>Analytics</h2><span class="line"></span></div>
@@ -1030,6 +1065,92 @@ function parseAnalyticsSummary(data) {
       });
     }
 
+    // ---- Keys ------------------------------------------------------------------
+    // One row per API key (GET /v1/me/keys). Keys from before keys had names
+    // show as "Earlier key". The row for this browser's own key signs out
+    // instead of revoking, so the page never holds a dead key.
+    function keyRowWhen(k) {
+      var bits = [];
+      if (k.last4) bits.push('…' + esc(k.last4));
+      bits.push('created ' + fmtDate(k.created_at));
+      bits.push(k.last_used_at ? 'last used ' + fmtDate(k.last_used_at) : 'not used yet');
+      return bits.join(' · ');
+    }
+    function showNewKey(key, note) {
+      document.getElementById('key-shown-note').textContent = note;
+      document.getElementById('key-shown-value').textContent = key;
+      document.getElementById('key-shown').hidden = false;
+    }
+    async function loadKeys() {
+      var box = document.getElementById('owner-keys');
+      var list = document.getElementById('keys-list');
+      if (!box || !list) return;
+      var keys = null;
+      try {
+        var res = await api('GET', '/v1/me/keys');
+        if (res.ok) keys = (await res.json()).keys || [];
+      } catch (e) {}
+      if (!keys) return;
+      box.hidden = false;
+      list.innerHTML = keys.map(function (k, i) {
+        return '<div class="conn-row"><span><b>' + esc(k.name || 'Earlier key') + '</b>' +
+          (k.current ? ' <span class="key-tag">This browser</span>' : '') +
+          '<small>' + keyRowWhen(k) + '</small></span>' +
+          '<button type="button" class="btn btn-ghost btn-small" data-key="' + i + '">' + (k.current ? 'Sign out' : 'Revoke') + '</button></div>';
+      }).join('');
+      Array.prototype.forEach.call(list.querySelectorAll('[data-key]'), function (btn) {
+        btn.addEventListener('click', async function () {
+          var k = keys[Number(btn.getAttribute('data-key'))];
+          if (k.current) { window.shSignOut(); return; }
+          if (!confirm('Revoke "' + (k.name || 'Earlier key') + '"? Anything using it stops working now.')) return;
+          btn.disabled = true;
+          try {
+            var r = await api('DELETE', '/v1/me/keys/' + encodeURIComponent(k.id));
+            if (!r.ok && r.status !== 404) toast('Could not revoke that key. Try again.', 'error');
+          } catch (e) { toast('Could not revoke that key. Try again.', 'error'); }
+          loadKeys();
+        });
+      });
+    }
+    (function () {
+      var form = document.getElementById('key-new-form');
+      if (!form) return;
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var input = document.getElementById('key-new-name');
+        var name = input.value.trim();
+        if (!name) { input.focus(); toast('Name the key after where it will live, e.g. GitHub Actions.', 'error'); return; }
+        var res, body = {};
+        try { res = await api('POST', '/v1/me/keys', { name: name }); body = await res.json().catch(function () { return {}; }); } catch (err) {}
+        if (!res || !res.ok) { toast(body.error || 'Could not create a key. Try again.', 'error'); return; }
+        input.value = '';
+        showNewKey(body.api_key, 'Copy "' + name + '" now. It is not shown again.');
+        loadKeys();
+      });
+      document.getElementById('key-shown-done').addEventListener('click', function () {
+        document.getElementById('key-shown-value').textContent = '';
+        document.getElementById('key-shown').hidden = true;
+      });
+      document.getElementById('key-shown-copy').addEventListener('click', function () {
+        var btn = this, text = document.getElementById('key-shown-value').textContent;
+        var ok = function () { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = 'Copy'; }, 1500); };
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok).catch(function () {});
+      });
+      // "Sign out everywhere" is rotate: every key and connected app is cut
+      // off, and this browser keeps working with the one new key.
+      document.getElementById('keys-signout-all').addEventListener('click', async function () {
+        if (!confirm('Sign out everywhere? Every key on this account stops working, and connected apps (ChatGPT, Claude, Grok) are disconnected. This browser stays signed in; your agents will need the new key.')) return;
+        var res, body = {};
+        try { res = await api('POST', '/v1/me/api-key/rotate'); body = await res.json().catch(function () { return {}; }); } catch (err) {}
+        if (!res || !res.ok) { toast(body.error || 'Could not sign out everywhere. Try again.', 'error'); return; }
+        apiKey = body.api_key;
+        try { localStorage.setItem('apiKey', apiKey); } catch (err) {}
+        showNewKey(apiKey, 'Signed out everywhere. This is the only key now: copy it for your agent or CLI. It is not shown again.');
+        loadKeys();
+        loadConnections();
+      });
+    })();
+
     // ---- Skill installer: pick agents -> generated command -------------------
     // Every agent reads the SAME three skills, just from its own folder, so
     // installing for several is one download unzipped into several directories.
@@ -1232,6 +1353,7 @@ function parseAnalyticsSummary(data) {
 
       ownerSites = allSites;
       showOwner();
+      if (me.handle && me.handle === HANDLE) loadKeys();
       renderInventory(allSites);
       initOwnerTabs();
       initRangeSelector();
@@ -2482,7 +2604,7 @@ function parseAnalyticsSummary(data) {
         var res = await fetch('/v1/auth/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: pendingAuthEmail, code: code })
+          body: JSON.stringify({ email: pendingAuthEmail, code: code, name: 'dashboard sign-in' })
         });
         var data = await res.json().catch(function () { return {}; });
         if (res.ok && data.api_key) {

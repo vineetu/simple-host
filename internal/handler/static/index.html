@@ -921,7 +921,7 @@
   <div class="app-bar" id="user-actions" style="display:none">
     <div class="container">
       <span class="user-badge" id="username-display"></span>
-      <button class="btn-ghost" data-act="rotateAPIKey">Rotate API key</button>
+      <button class="btn-ghost" data-act="rotateAPIKey" title="Every key stops working and connected apps are disconnected; this browser gets a new key">Sign out everywhere</button>
       <button class="btn-ghost" data-act="logout">Sign out</button>
     </div>
   </div>
@@ -1369,7 +1369,7 @@ function parseAnalyticsSummary(data) {
         const res = await fetch('/v1/auth/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: pendingEmail, code })
+          body: JSON.stringify({ email: pendingEmail, code, name: 'dashboard sign-in' })
         });
         const data = await res.json();
         if (res.ok) completeSignIn(data);
@@ -2070,17 +2070,17 @@ function parseAnalyticsSummary(data) {
     }
 
     async function rotateAPIKey() {
-      if (!confirm('Rotate your API key? All your current keys stop working immediately, and your agent or CLI will need the new key.')) return;
+      if (!confirm('Sign out everywhere? Every key on this account stops working, and connected apps (ChatGPT, Claude, Grok) are disconnected. This browser stays signed in; your agents will need the new key.')) return;
       const res = await api('POST', '/v1/me/api-key/rotate');
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast(body.error || 'Could not rotate API key', 'error');
+        toast(body.error || 'Could not sign out everywhere', 'error');
         return;
       }
       apiKey = body.api_key;
       localStorage.setItem('apiKey', apiKey);
-      window.prompt('API key rotated. Copy this now and update your agent or CLI:', apiKey);
-      toast('API key rotated; your agent or CLI needs the new key.', 'success');
+      window.prompt('Signed out everywhere. This is the only key now; copy it for your agent or CLI:', apiKey);
+      toast('Signed out everywhere; your agents need the new key.', 'success');
     }
 
     async function connectDomain(name) {

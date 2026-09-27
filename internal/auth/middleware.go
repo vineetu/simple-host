@@ -17,9 +17,17 @@ type contextKey int
 
 const userContextKey contextKey = iota
 
+// errorResponse carries a machine-readable code on every 401 so a script can
+// branch on it: missing_api_key, wrong_auth_header or invalid_api_key.
 type errorResponse struct {
 	Error string `json:"error"`
+	Code  string `json:"code,omitempty"`
 }
+
+// APIKeyPrefix starts every newly issued account key, so secret scanners (and
+// people) recognise one in a log, a commit or a paste. Lookup is by the hash of
+// whatever is sent, so keys issued before the prefix (bare hex) keep working.
+const APIKeyPrefix = "shk_"
 
 func GenerateAPIKey() (string, error) {
 	key := make([]byte, 32)
@@ -27,7 +35,7 @@ func GenerateAPIKey() (string, error) {
 		return "", err
 	}
 
-	return hex.EncodeToString(key), nil
+	return APIKeyPrefix + hex.EncodeToString(key), nil
 }
 
 // Middleware authenticates X-API-Key. adminUserID is the real UUID of the
@@ -43,12 +51,14 @@ func Middleware(adminAPIKey, adminUserID string, database *sql.DB) func(http.Han
 				// point them at the right header instead of a bare "unauthorized".
 				msg := "missing API key: send it as the header 'X-API-Key: <key>'. " +
 					"Get a key via POST /v1/auth then POST /v1/auth/verify. See /llms.txt."
+				code := "missing_api_key"
 				if r.Header.Get("Authorization") != "" {
 					msg = "missing X-API-Key header: this API authenticates with " +
 						"'X-API-Key: <key>', not 'Authorization: Bearer'. Resend your key " +
 						"in the X-API-Key header. See /llms.txt."
+					code = "wrong_auth_header"
 				}
-				writeJSON(w, http.StatusUnauthorized, errorResponse{Error: msg})
+				writeJSON(w, http.StatusUnauthorized, errorResponse{Error: msg, Code: code})
 				return
 			}
 
@@ -68,7 +78,7 @@ func Middleware(adminAPIKey, adminUserID string, database *sql.DB) func(http.Han
 			user, err := db.GetUserByAPIKey(r.Context(), database, apiKey)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
-					writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "invalid API key: the X-API-Key you sent is not recognized. If it expired or leaked, sign in again via POST /v1/auth."})
+					writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "invalid API key: the X-API-Key you sent is not recognized (it may have been revoked, or the account signed out). Sign in again via POST /v1/auth for a new key.", Code: "invalid_api_key"})
 					return
 				}
 

@@ -253,7 +253,7 @@
       var code = el('code').value.replace(/[^0-9]/g, '');
       el('code-btn').disabled = true;
       try {
-        var r = await post('/v1/auth/verify', { email: pendingEmail, code: code });
+        var r = await post('/v1/auth/verify', { email: pendingEmail, code: code, name: 'dashboard sign-in' });
         if (!r.ok || !r.body.api_key) { el('signin-msg').textContent = r.body.error || 'That code did not work.'; return; }
         setKey(r.body.api_key);
         el('code-form').hidden = true;
