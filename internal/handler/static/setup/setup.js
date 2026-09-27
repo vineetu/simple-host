@@ -47,6 +47,14 @@
     errors: {}
   };
 
+  // ?product=enterprise or ?product=small-box (the links on the enterprise and
+  // hosted pages) preselects the first choice.
+  try {
+    var want = new URLSearchParams(location.search).get('product');
+    if (want === 'enterprise') S.product = 'ent';
+    else if (want === 'small-box') S.product = 'small';
+  } catch (e) { /* keep the default */ }
+
   var app = document.getElementById('app');
 
   // ── Small DOM helpers ──

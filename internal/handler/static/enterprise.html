@@ -61,7 +61,8 @@
         <p class="lede">Someone signs in with your company account, describes a page to the AI agent they already use, and it is live at their own address a minute later. No ticket, no repository, no one to ask.</p>
         <p>You run it. One service on your own Kubernetes cluster, against your own database, your own storage and your own identity provider — on whichever cloud you are already on. You decide how it is exposed — AI apps can connect only if they can reach it — and every change and every visit is written down.</p>
         <p>
-          <a class="cta solid" href="#install">How to install it</a>
+          <a class="cta solid" href="/setup?product=enterprise">Try it in your organization → Set up</a>
+          <a class="cta" href="#install">How to install it</a>
           <a class="cta" href="https://github.com/vineetu/simple-host-enterprise">Source on GitHub</a>
         </p>
       </div>
@@ -135,10 +136,10 @@
         <h2>Install it</h2>
         <p class="lede">A local cluster first, on your own machine, in about five minutes.</p>
         <p>Docker Desktop with Kubernetes turned on, or minikube. One command brings up ingress, certificates, Postgres, storage and a test identity provider alongside the app, and prints two accounts to sign in with. When you have seen it work, the same manifests point at your real database, storage and provider.</p>
-        <p>The package documents every setting and what happens when it is wrong, gives a checklist per cloud for the pieces a real install needs, and ships its security review: the threat model, what closes each finding, the author's own scripted security tests and their results, and the limitations that are accepted rather than solved. The <a href="/setup">setup helper</a> writes your <code>config.env</code>, a template of the secrets to fill in, and the commands to apply them, in your browser. No independent penetration test has been done yet: it is a side project built by one person, so review it before you depend on it.</p>
+        <p>The package documents every setting and what happens when it is wrong, gives a checklist per cloud for the pieces a real install needs, and ships its security review: the threat model, what closes each finding, the author's own scripted security tests and their results, and the limitations that are accepted rather than solved. The <a href="/setup?product=enterprise">setup helper</a> writes your <code>config.env</code>, a template of the secrets to fill in, and the commands to apply them, in your browser. No independent penetration test has been done yet: it is a side project built by one person, so review it before you depend on it.</p>
         <p>
           <a class="cta solid" href="https://github.com/vineetu/simple-host-enterprise">Source on GitHub</a>
-          <a class="cta" href="/setup">Setup helper</a>
+          <a class="cta" href="/setup?product=enterprise">Try it in your organization → Set up</a>
           <a class="cta" href="https://simple-host.app/">Try the hosted one</a>
           <a class="cta" href="/hackathons">For hackathons</a>
         </p>

@@ -378,6 +378,22 @@ func TestAskPacksHoldNoInternalDetails(t *testing.T) {
 // characters a token): the enterprise one within about 12k tokens, the Simple
 // Host one (the long features page plus the curated architecture summary)
 // within about 14k.
+// Each pack tells its assistant where to send someone who wants to install
+// or try it: the lines survive the forbidden-line filter.
+func TestAskPacksLinkTheSetupHelper(t *testing.T) {
+	for key, want := range map[string][]string{
+		"simple-host": {"https://simple-host.app/setup?product=small-box", "https://simple-host.app/setup?product=enterprise", "sign up free at https://simple-host.app/"},
+		"enterprise":  {"https://simple-host.app/setup?product=enterprise"},
+	} {
+		pack := askPack(key)
+		for _, w := range want {
+			if !strings.Contains(pack, w) {
+				t.Errorf("%s pack lacks %q", key, w)
+			}
+		}
+	}
+}
+
 func TestAskPromptSizes(t *testing.T) {
 	for key, maxTokens := range map[string]int{"enterprise": 12000, "simple-host": 14000} {
 		a := askAssistantByKey(key)
@@ -442,11 +458,17 @@ func TestAskCleanAnswer(t *testing.T) {
 		"[brief](https://simple-host.app/enterprise/brief#costs) and [how](https://simple-host.app/enterprise/architecture)": "[brief](https://simple-host.app/enterprise/brief#costs) and [how](https://simple-host.app/enterprise/architecture)",
 		"[details](https://simple-host.app/enterprise) not [docs](https://simple-host.app/docs.html)":                        "[details](https://simple-host.app/enterprise) not docs",
 		"[support](https://simple-host.app/support)":                                                                         "support",
+		"[Set up](https://simple-host.app/setup?product=enterprise) or [box](https://simple-host.app/setup?product=small-box)": "[Set up](https://simple-host.app/setup?product=enterprise) or box",
 	}
 	for in, want := range entCases {
 		if got := cleanAnswer(in, ent); got != want {
 			t.Errorf("enterprise cleanAnswer(%q):\n got %q\nwant %q", in, got, want)
 		}
+	}
+	// The setup helper links keep their ?product=; any other query is dropped.
+	setup := "[Run your own](https://simple-host.app/setup?product=small-box), [company](https://simple-host.app/setup?product=enterprise), [x](https://simple-host.app/setup?product=evil) [y](https://simple-host.app/features?x=y)"
+	if got, want := cleanAnswer(setup, hosted), "[Run your own](https://simple-host.app/setup?product=small-box), [company](https://simple-host.app/setup?product=enterprise), x y"; got != want {
+		t.Errorf("setup links:\n got %q\nwant %q", got, want)
 	}
 	if got := cleanAnswer("[brief](https://simple-host.app/enterprise/brief)", hosted); got != "brief" {
 		t.Errorf("the Simple Host assistant linked an enterprise page: %q", got)

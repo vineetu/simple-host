@@ -170,7 +170,7 @@ var askAssistants = []*askAssistant{
 		links: map[string]bool{
 			"/": true, "/features": true, "/architecture.html": true, "/docs.html": true,
 			"/install.html": true, "/privacy.html": true, "/terms": true, "/support": true,
-			"/enterprise": true,
+			"/enterprise": true, "/setup": true, "/setup?product=small-box": true, "/setup?product=enterprise": true,
 		},
 	},
 	{
@@ -186,7 +186,7 @@ var askAssistants = []*askAssistant{
 		},
 		links: map[string]bool{
 			"/enterprise": true, "/enterprise/brief": true, "/enterprise/architecture": true,
-			"/": true, "/privacy.html": true,
+			"/": true, "/privacy.html": true, "/setup?product=enterprise": true,
 		},
 	},
 }
@@ -820,14 +820,15 @@ var (
 	askMDLink    = regexp.MustCompile(`\[([^\]\n]+)\]\(([^)\s]+)\)`)
 	askMDNoise   = regexp.MustCompile("(?m)^#{1,6}\\s+|\\*\\*|`")
 	askMDUnder   = regexp.MustCompile(`(^|[\s(])__([^_\n]+)__`)
-	askLinkOK    = regexp.MustCompile(`^https://simple-host\.app(/[A-Za-z0-9/._-]*)?(#[A-Za-z0-9_-]+)?$`)
+	askLinkOK    = regexp.MustCompile(`^https://simple-host\.app(/[A-Za-z0-9/._-]*)?(\?[a-z]+=[a-z-]+)?(#[A-Za-z0-9_-]+)?$`)
 	askBareURL   = regexp.MustCompile(`(?i)\bhttps?://[^\s)\]]+|\bwww\.[^\s)\]]+`)
 	askURLish    = regexp.MustCompile(`(?i)://|\bwww\.|^[a-z0-9-]+(\.[a-z0-9-]+)+(/\S*)?$`)
 	askSpaceRuns = regexp.MustCompile(`[ \t]{2,}`)
 )
 
 // askLinkAllowed reports whether u is a link to one of the paths in links
-// (an assistant's allowed pages).
+// (an assistant's allowed pages). A query is allowed only where links names
+// the path with that exact query (the setup helper's ?product=).
 func askLinkAllowed(u string, links map[string]bool) bool {
 	m := askLinkOK.FindStringSubmatch(u)
 	if m == nil {
@@ -837,7 +838,7 @@ func askLinkAllowed(u string, links map[string]bool) bool {
 	if path == "" {
 		path = "/"
 	}
-	return links[path]
+	return links[path+m[2]]
 }
 
 // cleanAnswer keeps the answer plain: markdown emphasis removed, links kept

@@ -3,6 +3,7 @@
 Ask your AI app for a website, and it goes live at its own address, `https://<site>.<handle>.simple-host.app/`, with a place to save things (RSVPs, votes, sign-ups).
 
 - **Try it:** https://simple-host.app/
+- **Run your own → https://simple-host.app/setup?product=small-box**
 - **Features:** https://simple-host.app/features
 - **Architecture:** https://simple-host.app/architecture.html
 - **For agents and developers:** [`llms.txt`](https://simple-host.app/llms.txt) · [OpenAPI spec](https://simple-host.app/openapi.yaml) · [API docs](https://simple-host.app/docs.html) · [Get started in your AI app](https://simple-host.app/install.html)
@@ -70,7 +71,7 @@ Then ask: *"Build me a wedding RSVP page and put it online."*
 - One Go binary, one Postgres, one folder on disk. Runs on 1 CPU and 1 GB of RAM.
 - A Docker Compose install for a fresh server ([`deploy/install/install.sh`](deploy/install/install.sh)). Re-running it upgrades.
 - A hackathon edition: an organiser stands up a private instance for an event and hands each participant a key. See https://simple-hack.app/.
-- A setup helper, https://simple-host.app/setup, writes the install command and settings; [docs/advanced/](docs/advanced/README.md) explains every setting.
+- A setup helper, https://simple-host.app/setup?product=small-box, writes the install command and settings; [docs/advanced/](docs/advanced/README.md) explains every setting.
 
 ## How it works
 
@@ -97,8 +98,9 @@ GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o ./simple-host ./cmd/server
 ### Configuration and advanced settings
 
 `DB_DSN` and `ADMIN_API_KEY` are required; everything else has a default. The setup helper at
-https://simple-host.app/setup writes the install command and `.env` for a small box (it runs in
-your browser and sends nothing anywhere). Every setting, by area with recipes (stricter sign-in,
+https://simple-host.app/setup?product=small-box writes the install command and `.env` for a small
+box. It runs in your browser and never asks for a password or key; where the server has its model
+backend, an optional check of your changed settings sends only their names and values. Every setting, by area with recipes (stricter sign-in,
 shorter retention, a small hackathon box): [docs/advanced/](docs/advanced/README.md). The full
 reference: [docs/configuration.md](docs/configuration.md).
 

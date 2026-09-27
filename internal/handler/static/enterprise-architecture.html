@@ -68,6 +68,8 @@
     .arch h1 { font-size: clamp(32px, 5vw, 50px); font-weight: 650; line-height: 1.08; letter-spacing: -.02em; color: var(--ink); margin: 0 0 18px; }
     .arch .lede { font-size: 17.5px; line-height: 1.65; color: var(--ink-soft); margin: 0 0 16px; max-width: 700px; }
     .arch .meta { font-family: var(--a-mono); font-size: 12px; letter-spacing: .04em; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 0; margin-top: 18px; }
+    .arch .try { margin: 22px 0 0; font-weight: 600; }
+    .arch .try a { color: var(--navy); text-underline-offset: 3px; }
     .arch .meta span + span::before { content: "·"; margin: 0 12px; }
 
     .arch section { padding: 48px 0; border-top: 1px solid var(--hair); background: var(--bg); }
@@ -169,6 +171,7 @@
         <h1>How Simple Host Enterprise is built</h1>
         <p class="lede">Simple Host Enterprise is one Go service that runs in your own Kubernetes cluster. It serves static pages plus the data those pages save. Every site lives at its own address under its owner's name, and is its own browser origin, so no page can read another site's, not even a sibling site of the same person. Everyone signs in through your identity provider, unless an admin has opened a site to the whole network. Uploaded files are stored and served as bytes; they never execute on the server.</p>
         <div class="meta"><span>One service</span><span>Your cluster</span><span>Your Postgres</span><span>Your bucket</span><span>Your identity provider</span></div>
+        <p class="try"><a href="/setup?product=enterprise">Try it in your organization → Set up</a></p>
       </div>
       <!--sh:ask enterprise-->
     </div>
@@ -605,6 +608,7 @@
         <nav class="back" aria-label="Enterprise">
           <a href="/enterprise/brief">← Back to the brief</a>
           <a href="/enterprise">Simple Host for companies</a>
+          <a href="/setup?product=enterprise">Try it in your organization → Set up</a>
         </nav>
       </div>
     </div>

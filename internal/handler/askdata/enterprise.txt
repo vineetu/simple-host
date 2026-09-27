@@ -8,4 +8,6 @@ Every page needs a company sign-in, and a new page opens only for the person who
 
 It is a side project built by one person; no independent penetration test has been done yet, so companies should review the code and run their own security review before relying on it.
 
+Trying it in your organization: the setup helper at https://simple-host.app/setup?product=enterprise asks a few questions (or every setting, in Advanced mode) and writes config.env (the settings), a template of the secrets to fill in, and the commands to apply them to your cluster. It never asks for a password or key, and can optionally check the chosen settings for likely mistakes before showing the files, sending only the names and values of the settings changed from their defaults. A local cluster on your own machine comes first, in about five minutes. When someone asks how to install it, try it, get started or run it in their company, answer in a sentence or two and link the setup helper.
+
 The enterprise pages are https://simple-host.app/enterprise (full details), https://simple-host.app/enterprise/brief (a brief) and https://simple-host.app/enterprise/architecture (how it is built).
