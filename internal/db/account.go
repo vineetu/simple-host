@@ -100,6 +100,22 @@ type ErasedAccount struct {
 // handle, old handles and claimed names are retired, not freed.
 func EraseAccount(ctx context.Context, tx *sql.Tx, a AccountForDelete) (ErasedAccount, error) {
 	out := ErasedAccount{UserID: a.ID, Handle: a.Handle}
+	// Take what a save on these sites takes, in the order a save takes it:
+	// the names' declaration rows, then their items, then the site rows
+	// (the size triggers update those). A save already under way finishes
+	// first; one that starts later waits for the erase. Taken in another
+	// order, the erase and a visitor's save could each hold what the other
+	// needs (a deadlock that aborts the erase).
+	for _, q := range []string{
+		`SELECT count(*) FROM (SELECT 1 FROM collection_settings WHERE site_id IN (SELECT id FROM sites WHERE user_id = $1) ORDER BY site_id, collection FOR UPDATE) x`,
+		`SELECT count(*) FROM (SELECT 1 FROM collection_items WHERE site_id IN (SELECT id FROM sites WHERE user_id = $1) ORDER BY id FOR UPDATE) x`,
+		`SELECT count(*) FROM (SELECT 1 FROM sites WHERE user_id = $1 ORDER BY id FOR UPDATE) x`,
+	} {
+		var n int64
+		if err := tx.QueryRowContext(ctx, q, a.ID).Scan(&n); err != nil {
+			return out, err
+		}
+	}
 	rows, err := tx.QueryContext(ctx, `SELECT id, name FROM sites WHERE user_id = $1 ORDER BY name`, a.ID)
 	if err != nil {
 		return out, err

@@ -274,3 +274,70 @@ func TestDigestCountsByID(t *testing.T) {
 		t.Fatalf("counted twice: %+v", again)
 	}
 }
+
+// L4: erasing an account while a visitor's save on its site is under way
+// never deadlocks: the erase takes the save's locks in the save's order.
+func TestEraseAccountWaitsForVisitorSave(t *testing.T) {
+	s := newKindsSite(t, true)
+	ctx := context.Background()
+	s.declare(t, "menu", map[string]any{"kind": "content"})
+	if r := s.owner(t, "PUT", "/v1/sites/shop/data/menu", map[string]any{"soup": 1}); r.status != 200 {
+		t.Fatalf("owner page info: %d %s", r.status, r.body)
+	}
+	s.declare(t, "todo", map[string]any{"kind": "board"})
+	item := idOf(t, s.as(t, s.vicCooky, "POST", "/v1/sites/shop/data/todo", map[string]any{"text": "milk"}))
+
+	// The visitor's save: the declaration row, then its item, as SavePersonal
+	// and the board do; its size trigger then needs the site row.
+	v, err := s.a.database.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer v.Rollback()
+	var one int
+	if err := v.QueryRow(`SELECT 1 FROM collection_settings WHERE site_id = $1 AND collection = 'todo' FOR UPDATE`, s.shopID).Scan(&one); err != nil {
+		t.Fatal(err)
+	}
+	if err := v.QueryRow(`SELECT 1 FROM collection_items WHERE id = $1 FOR UPDATE`, item).Scan(&one); err != nil {
+		t.Fatal(err)
+	}
+
+	oliveID, _ := s.a.userID(t, s.olive)
+	erased := make(chan error, 1)
+	go func() {
+		tx, err := s.a.database.BeginTx(ctx, nil)
+		if err != nil {
+			erased <- err
+			return
+		}
+		defer tx.Rollback()
+		acct, err := db.LockAccountForDelete(ctx, tx, oliveID)
+		if err == nil {
+			_, err = db.EraseAccount(ctx, tx, acct)
+		}
+		if err == nil {
+			err = tx.Commit()
+		}
+		erased <- err
+	}()
+	time.Sleep(500 * time.Millisecond) // the erase is now waiting on the save
+	if _, err := v.Exec(`UPDATE collection_items SET data = '{"text":"oat milk"}'::jsonb WHERE id = $1`, item); err != nil {
+		t.Fatalf("the visitor's save: %v", err)
+	}
+	if err := v.Commit(); err != nil {
+		t.Fatalf("the visitor's commit: %v", err)
+	}
+	select {
+	case err := <-erased:
+		if err != nil {
+			t.Fatalf("erase: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("erase did not finish")
+	}
+	var n int
+	_ = s.a.database.QueryRow(`SELECT count(*) FROM sites WHERE id = $1`, s.shopID).Scan(&n)
+	if n != 0 {
+		t.Fatal("site still there after the erase")
+	}
+}
