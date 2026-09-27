@@ -38,7 +38,7 @@
     },
     {
       "name": "Custom domains",
-      "description": "Give a site a nicer address \u2014 a free <name>.simple-host.app or one custom domain (CNAME or A record; its certificate is issued automatically once DNS points here). Optional."
+      "description": "Give a site a nicer address \u2014 a free <name>.simple-host.app or one custom domain (CNAME or A record plus a TXT ownership record; its certificate is issued automatically once both are seen). Optional."
     },
     {
       "name": "Analytics",
@@ -4999,7 +4999,7 @@
       "post": {
         "operationId": "postSitesBySitenameDomain",
         "summary": "Give this site a nicer address (free <name>.simple-host.app or a custom domain)",
-        "description": "Optional. Every site already lives at its own address `https://<site>.<handle>.simple-host.app/`, with sign-in and private lists. This gives it a nicer address; the site moves there and its old address redirects. A free address: send `{\"domain\": \"<name>.simple-host.app\"}` (one DNS label: lowercase letters, digits and hyphens, not at the start or end, up to 63 characters). It is active at once with no DNS step \u2014 the answer has `status: active` and `verified_at`, and no `dns`. First come, first served: 409 domain_taken if another site holds it or it is already someone's handle (handles and free names share one namespace); reserved names (www, sites, api, admin, mail, cname and the platform's own hosts) get 400 name_reserved; anything else malformed gets 400 invalid_name. Once claimed it behaves exactly like a custom domain: the site is served at its root with a same-origin /v1 API and visitor sign-in, its person-address URL 302s there, and private collections take submissions there. A site has one own address: claiming one replaces a custom domain and vice versa. A free name the site lets go (switching, DELETE, or deleting the site) stays with it: it redirects to the site's current address and nobody else can claim it. A custom domain: bind ONE domain to the site (status starts as `pending`). Returns the DNS record the owner must create (CNAME for a subdomain, A for an apex). Once DNS points here, its certificate is requested automatically (`certificate_status`: pending \u2192 issuing \u2192 live, or failed with the reason in `last_error`, retried) and the domain is served at its root, usually within minutes. If the site already has a working own address (a free name or an earlier domain), it keeps serving there (`previous_domain`) until the new domain is verified; then the old address redirects to it. Binding the site's current working domain again changes nothing; binding its `previous_domain` drops the pending one. Until first verified, a binding is provisional: another site can take it over, and it expires 24 hours after binding unless DNS already points here. A verified domain stays exclusive while it works; if it fails every check for 24 hours the owner is emailed, and after 72 hours it stops being the site's address (the site's own address serves again) and can be connected afresh by whoever holds it. Hijacking the platform zone is rejected. Owner only (API key).",
+        "description": "Optional. Every site already lives at its own address `https://<site>.<handle>.simple-host.app/`, with sign-in and private lists. This gives it a nicer address; the site moves there and its old address redirects. A free address: send `{\"domain\": \"<name>.simple-host.app\"}` (one DNS label: lowercase letters, digits and hyphens, not at the start or end, up to 63 characters). It is active at once with no DNS step \u2014 the answer has `status: active` and `verified_at`, and no `dns`. First come, first served: 409 domain_taken if another site holds it or it is already someone's handle (handles and free names share one namespace); reserved names (www, sites, api, admin, mail, cname and the platform's own hosts) get 400 name_reserved; anything else malformed gets 400 invalid_name. Once claimed it behaves exactly like a custom domain: the site is served at its root with a same-origin /v1 API and visitor sign-in, its person-address URL 302s there, and private collections take submissions there. A site has one own address: claiming one replaces a custom domain and vice versa. A free name the site lets go (switching, DELETE, or deleting the site) stays with it: it redirects to the site's current address and nobody else can claim it. A custom domain: bind ONE domain to the site (status starts as `pending`). Returns the two DNS records the owner must create: `dns` (CNAME for a subdomain, A for an apex) and `dns_txt`, the ownership record (TXT `_simple-host.<domain>` holding this site's token), which proves the domain is theirs and must stay in place. Nothing is verified or certified without it. A name another site on this server already serves is refused by the certificate issuer (failed, \"already served here\"). Once both records are seen, its certificate is requested automatically (at most 5 new domain certificates per account per day) (`certificate_status`: pending \u2192 issuing \u2192 live, or failed with the reason in `last_error`, retried) and the domain is served at its root, usually within minutes. If the site already has a working own address (a free name or an earlier domain), it keeps serving there (`previous_domain`) until the new domain is verified; then the old address redirects to it. Binding the site's current working domain again changes nothing; binding its `previous_domain` drops the pending one. Until first verified, a binding is provisional: another site can take it over until it has passed its ownership proof, and it expires 24 hours after binding unless DNS already points here. A verified domain stays exclusive while it works; if it fails every check for 24 hours the owner is emailed, and after 72 hours it is disconnected (the site's own address serves again) and can be connected afresh, with the TXT record, by whoever holds it; while it is being released, binding it answers 409 domain_releasing. Hijacking the platform zone is rejected. Owner only (API key).",
         "tags": [
           "Custom domains"
         ],
@@ -5089,7 +5089,7 @@
                       "example": "clay-studio.simple-host.app"
                     },
                     "dns": {
-                      "description": "The record to add at the registrar; absent for a free <name>.simple-host.app address",
+                      "description": "The record that points the domain here, to add at the registrar; absent for a free <name>.simple-host.app address",
                       "type": "object",
                       "properties": {
                         "type": {
@@ -5103,6 +5103,24 @@
                         "value": {
                           "type": "string",
                           "example": "cname.simple-host.app"
+                        }
+                      }
+                    },
+                    "dns_txt": {
+                      "description": "The ownership record: TXT _simple-host.<domain> holding this site's token. Needed (and kept in place) before the domain is verified or gets a certificate. Absent for a free <name>.simple-host.app address.",
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "TXT"
+                        },
+                        "host": {
+                          "type": "string",
+                          "example": "_simple-host.www.example.com"
+                        },
+                        "value": {
+                          "type": "string",
+                          "example": "sh-0123456789abcdef0123456789abcdef"
                         }
                       }
                     }
@@ -5154,7 +5172,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "Domain has been verified by another site at least once, or the <name>.simple-host.app address is held by another site or is someone's handle",
+            "description": "domain_taken: the domain is verified (or past its ownership proof) for another site, or the <name>.simple-host.app address is held by another site or is someone's handle. domain_releasing: the domain was just disconnected and the certificate issuer is still letting go of it; try again in 10 minutes.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5169,13 +5187,15 @@
                       "type": "string",
                       "enum": [
                         "domain is connected to another site",
-                        "that address is taken by another site; pick another name"
+                        "that address is taken by another site; pick another name",
+                        "this domain was just disconnected and is still being released; try again in 10 minutes"
                       ]
                     },
                     "code": {
                       "type": "string",
                       "enum": [
-                        "domain_taken"
+                        "domain_taken",
+                        "domain_releasing"
                       ]
                     }
                   }
@@ -5192,7 +5212,7 @@
       "get": {
         "operationId": "getSitesBySitenameDomain",
         "summary": "Get the custom domain binding for this site",
-        "description": "Returns the bound domain and status, or `{domain:null,status:null}` when none is set. Includes the DNS record to add when a custom domain is bound, the certificate's progress, the earlier address still serving while the domain is pending, and `failing_since` when a verified domain has stopped passing its checks. Owner only (API key).",
+        "description": "Returns the bound domain and status, or `{domain:null,status:null}` when none is set. Includes the two DNS records to add when a custom domain is bound (`dns` and the TXT ownership record `dns_txt`), the certificate's progress, the earlier address still serving while the domain is pending, and `failing_since` when a verified domain has stopped passing its checks. Owner only (API key).",
         "tags": [
           "Custom domains"
         ],
@@ -5281,6 +5301,24 @@
                           "type": "string"
                         }
                       }
+                    },
+                    "dns_txt": {
+                      "description": "The ownership record: TXT _simple-host.<domain> holding this site's token. Needed (and kept in place) before the domain is verified or gets a certificate. Absent for a free <name>.simple-host.app address.",
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "TXT"
+                        },
+                        "host": {
+                          "type": "string",
+                          "example": "_simple-host.www.example.com"
+                        },
+                        "value": {
+                          "type": "string",
+                          "example": "sh-0123456789abcdef0123456789abcdef"
+                        }
+                      }
                     }
                   }
                 }
@@ -5348,7 +5386,7 @@
       "post": {
         "operationId": "checkSitesBySitenameDomain",
         "summary": "Check this site's domain again now",
-        "description": "Re-proves the site's own domain at once (it resolves here and serves the site over HTTPS), instead of waiting for the background check every two minutes, then answers exactly like GET .../domain with the new status and `last_error`. A free <name>.simple-host.app address needs no proof and is answered as is. Owner only (API key); rate-limited per IP.",
+        "description": "Re-proves the site's own domain at once (its TXT ownership record holds the site's token, it resolves here and serves the site over HTTPS; the check connects only to this server's public address and never follows a redirect), instead of waiting for the background check every two minutes, then answers exactly like GET .../domain with the new status and `last_error`. A free <name>.simple-host.app address needs no proof and is answered as is. Owner only (API key); rate-limited per IP and per account (a few at once, then one per 30 seconds; 429 with code rate_limited).",
         "tags": [
           "Custom domains"
         ],
@@ -5397,6 +5435,21 @@
                     },
                     "dns": {
                       "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string"
+                        },
+                        "host": {
+                          "type": "string"
+                        },
+                        "value": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "dns_txt": {
+                      "type": "object",
+                      "description": "The TXT ownership record (see GET .../domain)",
                       "properties": {
                         "type": {
                           "type": "string"
@@ -8193,7 +8246,7 @@
             "description": "Site list only, for a domain not live yet: the earlier address the site keeps answering at until it is"
           },
           "domain_dns": {
-            "description": "Site list only, for an own domain that is not active: the DNS record to add at the registrar",
+            "description": "Site list only, for an own domain that is not active: the DNS record that points it here, to add at the registrar",
             "type": "object",
             "properties": {
               "type": {
@@ -8205,6 +8258,24 @@
               },
               "value": {
                 "type": "string"
+              }
+            }
+          },
+          "domain_dns_txt": {
+            "description": "Site list only, for an own domain that is not active: the TXT ownership record to add next to domain_dns (_simple-host.<domain> holding the site's token)",
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "example": "TXT"
+              },
+              "host": {
+                "type": "string",
+                "example": "_simple-host.www.example.com"
+              },
+              "value": {
+                "type": "string",
+                "example": "sh-0123456789abcdef0123456789abcdef"
               }
             }
           },

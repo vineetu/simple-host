@@ -1,6 +1,6 @@
 ---
 name: connect-domain
-description: Give a site already deployed on simple-host a nicer address — the user's own custom domain (subdomain e.g. recipes.brand.com via CNAME, or apex e.g. brand.com via A record) or a free <name>.simple-host.app (one call, active at once, no DNS). Use when a user wants their site served from their own domain or a short name over HTTPS. Optional: every site already has its own address, https://<site>.<handle>.simple-host.app/, where visitor sign-in and private collections work. Drives the bind → DNS → verify → live flow; the agent does the API work and relays the one DNS record the human must add at their registrar.
+description: Give a site already deployed on simple-host a nicer address — the user's own custom domain (subdomain e.g. recipes.brand.com via CNAME, or apex e.g. brand.com via A record) or a free <name>.simple-host.app (one call, active at once, no DNS). Use when a user wants their site served from their own domain or a short name over HTTPS. Optional: every site already has its own address, https://<site>.<handle>.simple-host.app/, where visitor sign-in and private collections work. Drives the bind → DNS → verify → live flow; the agent does the API work and relays the two DNS records (the address record and a TXT ownership record) the human must add at their registrar.
 ---
 
 # Connect a Custom Domain
@@ -56,10 +56,10 @@ to confirm, and you are done; skip steps 3 and 4 below.
   connecting a custom domain replaces the free name only once the domain is live — until then
   the site keeps serving at the free name, which then redirects to the domain.
 
-**This is agent-driven.** You do every API call and compute the exact DNS record. Then either
-**add that record yourself** if you have DNS access for the domain (a provider MCP/API — see step
-3b; ask permission first), or hand the human the single record to paste. Buying a domain (when
-they have none) and — absent your own DNS access — pasting the record are the only human steps.
+**This is agent-driven.** You do every API call and relay the exact DNS records. Then either
+**add those records yourself** if you have DNS access for the domain (a provider MCP/API — see step
+3b; ask permission first), or hand the human the two records to paste. Buying a domain (when
+they have none) and — absent your own DNS access — pasting the records are the only human steps.
 
 ## When to use this
 
@@ -86,7 +86,8 @@ CNAME. Prefer a subdomain when the user has no strong preference; use apex when
 they want the bare domain.
 
 ### 2. Bind the domain
-With the connector: `connect_domain` (it returns the same `dns` record). Without it:
+With the connector: `connect_domain` (it returns the same records, as `dns_record` and
+`ownership_record`). Without it:
 ```
 POST /v1/sites/{site}/domain
 X-API-Key: <api_key>
@@ -99,18 +100,25 @@ Response (subdomain example — CNAME):
 {
   "domain": "recipes.brand.com",
   "status": "pending",
-  "dns": { "type": "CNAME", "host": "recipes.brand.com", "value": "cname.simple-host.app" }
+  "dns": { "type": "CNAME", "host": "recipes.brand.com", "value": "cname.simple-host.app" },
+  "dns_txt": { "type": "TXT", "host": "_simple-host.recipes.brand.com", "value": "sh-0123456789abcdef0123456789abcdef" }
 }
 ```
+`dns_txt` is the **ownership record**: a TXT record whose value is this site's own token. It
+proves the domain is the person's. Nothing is verified and no certificate is issued without it,
+and it must **stay in place** afterwards (the domain is re-proved with it; removing it makes the
+domain fail its checks and, after three days, be disconnected). Relay the value exactly.
 For an apex (`brand.com`), `dns.type` is `A` and `dns.value` is the IP to point at —
 relay whatever the response returns; don't invent the target.
 If the site already had a working address of its own (a free name or an earlier domain), the
 answer also has `previous_domain`: the site keeps serving there until the new domain is live,
 then that address redirects to the new one. Nothing goes dark in between.
 `409` (`domain_taken`) means the domain is connected to another site **and that binding was
-actually verified**. `400` means the domain is malformed or is one of our own hostnames.
+verified or has passed its ownership proof**. `409` (`domain_releasing`) means the domain was just
+disconnected and is still being released; try again in 10 minutes. `400` means the domain is
+malformed or is one of our own hostnames.
 
-**A binding is provisional until DNS proves it.** Until the domain resolves here and serves, the
+**A binding is provisional until DNS proves it.** Until its TXT ownership record is seen, the
 bind is just a claim: another site can bind the same domain and take it over, and the claim
 **expires after 24 hours** if DNS never points here (once the record is seen, it waits for its
 certificate instead of expiring). `GET .../domain` shows `bound_at` and, while
@@ -118,22 +126,24 @@ unproven, `expires_at`. So do not bind days ahead of the DNS change — bind, ge
 added, and verify in one sitting; if the human can't add the record today, bind again when they
 can (rebinding is cheap and idempotent for the same site).
 
-### 3. Relay the DNS record to the human (their only task)
-Give them the record from the `dns` object, in plain terms. Subdomain (CNAME) example:
+### 3. Relay the DNS records to the human (their only task)
+Give them both records, from the `dns` and `dns_txt` objects, in plain terms. Subdomain
+(CNAME) example:
 
-> Add this record at your domain registrar (where you bought the domain), then tell me when
-> it's saved:
+> Add these two records at your domain registrar (where you bought the domain), then tell me
+> when they're saved:
 >
-> - **Type:** CNAME
-> - **Name/Host:** `recipes` (the part before your domain — many registrars want just the
->   subdomain label, not the full name)
-> - **Value/Target:** `cname.simple-host.app`
+> 1. **Type:** CNAME · **Name/Host:** `recipes` (the part before your domain — many registrars
+>    want just the subdomain label, not the full name) · **Value/Target:** `cname.simple-host.app`
+> 2. **Type:** TXT · **Name/Host:** `_simple-host.recipes` · **Value:**
+>    `sh-0123456789abcdef0123456789abcdef` (this shows the domain is yours; keep it in place)
 >
 > Leave your other records (especially MX / email) untouched.
 
 For apex, use the returned A record (`Type: A`, host `@` or the bare domain, value =
-the IP from the response). Do not ask them to change nameservers or delete anything.
-Only this one record is added.
+the IP from the response) and the TXT record at `_simple-host` (the full name is
+`_simple-host.brand.com`). Do not ask them to change nameservers or delete anything.
+Only these two records are added.
 
 Ask which registrar (or DNS host) holds the domain's DNS, then give them that section's exact
 menu path and fields from `references/registrars.md` ·
@@ -146,11 +156,12 @@ Instead of handing the record to the human, you MAY add it yourself **if you hav
 that domain's DNS** (for example an API or an MCP server for wherever the domain is hosted). Work
 out the current provider and the right tool yourself — those specifics change over time.
 
-The record is the same one from the bind response: a **CNAME → `cname.simple-host.app`** for a
-subdomain, or the **A record** for an apex. Rules (non-negotiable):
+The records are the ones from the bind response: a **CNAME → `cname.simple-host.app`** for a
+subdomain, or the **A record** for an apex, plus the **TXT ownership record** (`dns_txt`).
+Rules (non-negotiable):
 
 - **Ask the human's permission first**, naming the exact record you'll add. Never change DNS silently.
-- **Add only that one record.** Leave everything else — MX/email, other DNS records — untouched.
+- **Add only those two records.** Leave everything else — MX/email, other DNS records — untouched.
 - Apex **replaces** the domain's current root target, so only do that if the human wants the whole
   domain moved; otherwise use a subdomain, which is purely additive.
 - No tool, or any doubt about what's safe to touch → just give the human the record (step 3).
@@ -188,10 +199,12 @@ X-API-Key: <api_key>
 Returns `{"domain": "...", "status": "...", "certificate_status": "...", "verified_at": ..., "last_error": ...}`
 (plus `previous_domain` while the site is still served at its earlier address).
 
-- **`active`** — the domain resolves to us *and* served a page over HTTPS. `verified_at` is when
+- **`active`** — its TXT ownership record matches, the domain resolves to us *and* served a page over HTTPS. `verified_at` is when
   that was last proved. It is re-proved hourly, so a domain that breaks leaves `active` on its own.
-- **`pending`** — not serving yet; `last_error` says which half is missing:
-  `domain does not resolve yet` (propagation, or the record isn't saved),
+- **`pending`** — not serving yet; `last_error` says what is missing:
+  `add the ownership record ...` or `the TXT record ... does not hold this site's value` (the
+  TXT record from `dns_txt` is not seen yet or has a different value — nothing else is checked
+  until it matches), `domain does not resolve yet` (propagation, or the record isn't saved),
   `resolves to <ip>, not to this server` (the record points somewhere else — compare it against
   the bind response), or `resolves to this server; its certificate is being issued` (the DNS
   half is done; the certificate follows on its own, usually within minutes — see 4b).
@@ -202,16 +215,20 @@ A domain you just bound reads `pending` until the first background check runs, s
 immediate `pending` as a verdict — fetch, and re-read the status a couple of minutes later.
 
 ### 4b. The certificate
-Nobody uploads or requests a certificate: once the DNS record is seen, the server asks for one
-and the domain goes live on its own, usually within minutes. `certificate_status` shows where
-it is:
+Nobody uploads or requests a certificate: once both DNS records are seen, the server asks for
+one and the domain goes live on its own, usually within minutes. `certificate_status` shows
+where it is:
 
-- `pending` — the DNS record is not seen yet (step 3).
+- `pending` — the DNS records are not seen yet (step 3).
 - `issuing` — the record is seen; the certificate is on its way. Wait a few minutes and check again.
 - `live` — issued. If `status` is still not `active`, `last_error` says what the site answered.
 - `failed` — it could not be issued; `last_error` says why and it is retried every few hours.
   The usual causes are fixable at the registrar: an IPv6 (`AAAA`) record for the domain that
   points somewhere else (remove it), or a CAA record that does not allow Let's Encrypt.
+  `this name is already served here by another site on this server` means the name belongs to
+  another site on Simple Host's server and cannot be connected; pick another name. Each account
+  gets at most 5 new domain certificates a day; the next one says so in `last_error` and is
+  asked for automatically once the day is over.
 
 If `http://` redirects but `https://` fails, the DNS half is done and the certificate is being
 issued — say so, rather than blaming propagation. (A self-hosted instance with its own edge
@@ -225,9 +242,10 @@ extra step: it starts once the domain is live and stops on disconnect.
 ### If a working domain stops working
 The server keeps re-checking a live domain. If it fails every check for a day (the domain
 lapsed at the registrar, or its DNS was moved), the owner gets an email with the reason. After
-three days the site stops treating it as its address: the site serves at
+three days the domain is disconnected: the site serves at
 `https://<site>.<handle>.simple-host.app/` again, and whoever holds the domain now can connect
-it. Fixing the DNS before then brings it straight back; after, bind it again.
+it (with its own TXT ownership record). Fixing the DNS before then brings it straight back;
+after, bind it again and add the TXT record again if it was removed.
 
 ### 5. Confirm it's live
 Once `https://recipes.brand.com/` returns 200, it serves the connected site over HTTPS,
@@ -279,10 +297,10 @@ the `website-deploy` skill's `references/backend.md`.
 
 ## Gotchas
 
-- **Add the DNS record, don't replace anything.** Never touch MX/email records — whether the
-  human adds it or you do it via an API/MCP.
+- **Add the two DNS records, don't replace anything.** Never touch MX/email records — whether
+  the human adds them or you do it via an API/MCP. The TXT ownership record stays in place.
 - **If you have DNS access, do it yourself — but ask first (step 3b).** Explicit human consent
-  every time; add only the one record. No tool or any doubt → hand the record to the human.
+  every time; add only the two records. No tool or any doubt → hand the records to the human.
 - **Subdomain or apex.** Subdomains (`recipes.brand.com`) use a CNAME — simplest path.
   Apex domains (`brand.com`) work too via the A record returned by the bind. Prefer a
   subdomain when the user has no preference for the bare domain.
@@ -290,7 +308,7 @@ the `website-deploy` skill's `references/backend.md`.
   minutes, so `active` means "resolved here and served over HTTPS", not "someone hoped so".
   Fetching the domain is still the immediate answer; read `last_error` to see which half is
   missing (step 4).
-- **Users never upload certificates.** The server issues one once DNS points here (step 4b).
+- **Users never upload certificates.** The server issues one once both records are seen (step 4b).
   `certificate_status: failed` comes with the reason in `last_error`; relay it.
 - **`http://` 301 but `https://` failing is NOT propagation.** DNS is already correct; the
   certificate is on its way (`certificate_status: issuing`). Check again in a few minutes.
@@ -299,5 +317,5 @@ the `website-deploy` skill's `references/backend.md`.
   (`references/registrars.md`); a public resolver can hold the old answer for the old TTL.
 - **A bind is provisional until DNS proves it.** An unproven binding can be taken over by
   another site and expires after 24 hours unless its DNS already points here (`GET .../domain`
-  shows `bound_at` and `expires_at` while unproven). Bind and add the record in the same sitting; `409 domain_taken` only fires
-  against a binding that was actually verified.
+  shows `bound_at` and `expires_at` while unproven). Bind and add the records in the same sitting; `409 domain_taken` only fires
+  against a binding that was verified or passed its ownership proof.

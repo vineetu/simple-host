@@ -60,6 +60,8 @@ run "collections"           "SELECT id, data FROM collection_items WHERE site_id
 run "private collections"   "SELECT s.private, i.submitted_by FROM collection_settings s LEFT JOIN collection_items i ON i.site_id = s.site_id AND i.collection = s.collection WHERE s.site_id='$NIL'"
 run "custom domains"        "SELECT custom_domain, domain_status FROM sites WHERE custom_domain='x'"
 run "domain certificates"   "SELECT previous_domain, domain_cert_status, domain_failing_since, domain_lapse_notified_at FROM sites WHERE previous_domain='x'"
+run "domain ownership"      "SELECT domain_token, custom_domain = ANY(domain_proof_exempt) FROM sites WHERE custom_domain='x'"
+run "domain cert cap"       "SELECT count(DISTINCT domain) FROM domain_cert_requests WHERE user_id='$NIL' AND requested_at > now() - interval '24 hours'"
 run "recently deleted"      "SELECT id, name, deleted_at FROM sites WHERE user_id='$NIL' AND deleted_at IS NOT NULL"
 run "take-down"             "SELECT s.suspended_at, s.suspended_reason, u.suspended_at, u.suspended_reason FROM sites s JOIN users u ON u.id = s.user_id WHERE s.id='$NIL'"
 run "migrations record"     "SELECT name, applied_at FROM schema_migrations"

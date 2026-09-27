@@ -444,6 +444,11 @@ func domainSummary(site string, body []byte) map[string]any {
 			Host  string `json:"host"`
 			Value string `json:"value"`
 		} `json:"dns"`
+		TXT *struct {
+			Type  string `json:"type"`
+			Host  string `json:"host"`
+			Value string `json:"value"`
+		} `json:"dns_txt"`
 	}
 	_ = json.Unmarshal(body, &d)
 	out := map[string]any{"site": site}
@@ -458,6 +463,9 @@ func domainSummary(site string, body []byte) map[string]any {
 	}
 	if d.DNS != nil {
 		out["dns_record"] = map[string]any{"type": d.DNS.Type, "host": d.DNS.Host, "value": d.DNS.Value}
+	}
+	if d.TXT != nil {
+		out["ownership_record"] = map[string]any{"type": d.TXT.Type, "host": d.TXT.Host, "value": d.TXT.Value}
 	}
 	if d.LastError != "" {
 		out["last_check"] = d.LastError
@@ -475,7 +483,7 @@ func domainSummary(site string, body []byte) map[string]any {
 		out["url"] = "https://" + *d.Domain + "/"
 	}
 	if d.Status != nil && *d.Status == "pending" {
-		out["note"] = "Add the DNS record at the domain's registrar within 24 hours; until DNS proves it, the binding is provisional. Once the record is seen, the certificate is issued automatically and the domain goes live within minutes."
+		out["note"] = "Add both DNS records at the domain's registrar within 24 hours: dns_record points the domain here, and ownership_record (a TXT record) proves it is the person's; keep the TXT record in place afterwards. Until both are seen, the binding is provisional. Then the certificate is issued automatically and the domain goes live within minutes."
 	}
 	return out
 }
@@ -1316,7 +1324,7 @@ func Tools() []Tool {
 			Name:  "connect_domain",
 			Title: "Connect a custom domain",
 			Description: "Give a site a nicer address (optional: every site already has its own at https://<site>.<handle>.simple-host.app/). Either a free `<name>.simple-host.app` address (e.g. `clay-studio.simple-host.app`): active at once, no DNS step, first come first served. " +
-				"Or the person's own domain (e.g. `rsvp.example.com` or `example.com`): returns the one DNS record they must add at their domain registrar; relay it exactly, then check with domain_status until it is active. " +
+				"Or the person's own domain (e.g. `rsvp.example.com` or `example.com`): returns the two DNS records they must add at their domain registrar, the address record (dns_record) and a TXT ownership record (ownership_record, to keep in place); relay both exactly, then check with domain_status until it is active. " +
 				"Once active the site lives only at that address, its old address redirects there, and visitors sign in and save there.",
 			InputSchema: object(map[string]any{
 				"site":   str(siteDesc),
@@ -1346,7 +1354,7 @@ func Tools() []Tool {
 		{
 			Name:        "domain_status",
 			Title:       "Check a custom domain",
-			Description: "Check whether a site's custom domain is connected: pending (the DNS record is not seen yet, or its certificate is being issued) or active. Shows the certificate's progress and, while pending, the earlier address the site is still served at.",
+			Description: "Check whether a site's custom domain is connected: pending (the DNS records are not seen yet, or its certificate is being issued) or active. Shows the certificate's progress and, while pending, the earlier address the site is still served at.",
 			InputSchema: object(map[string]any{"site": str(siteDesc)}, "site"),
 			Annotations: readOnly(),
 			run: func(c *call, args map[string]any) (output, error) {

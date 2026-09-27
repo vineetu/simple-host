@@ -41,7 +41,7 @@ tags:
   - name: Collections
     description: Append-only per-site lists (POST is a write)
   - name: Custom domains
-    description: Give a site a nicer address — a free <name>.simple-host.app or one custom domain (CNAME or A record; its certificate is issued automatically once DNS points here). Optional.
+    description: Give a site a nicer address — a free <name>.simple-host.app or one custom domain (CNAME or A record plus a TXT ownership record; its certificate is issued automatically once both are seen). Optional.
   - name: Analytics
     description: Per-site visitor analytics (server-side, owner-scoped)
   - name: AI
@@ -2230,8 +2230,13 @@ paths:
         name the site lets go (switching, DELETE, or deleting the site) stays with
         it: it redirects to the site's current address and nobody else can claim it.
         A custom domain: bind ONE domain to the site (status starts as `pending`). Returns
-        the DNS record the owner must create (CNAME for a subdomain, A for an apex).
-        Once DNS points here, its certificate is requested automatically
+        the two DNS records the owner must create: `dns` (CNAME for a subdomain, A for an
+        apex) and `dns_txt`, the ownership record (TXT `_simple-host.<domain>` holding
+        this site's token), which proves the domain is theirs and must stay in place.
+        Nothing is verified or certified without it. A name another site on this
+        server already serves is refused by the certificate issuer (failed, "already
+        served here"). Once both records are seen, its certificate is requested
+        automatically (at most 5 new domain certificates per account per day)
         (`certificate_status`: pending → issuing → live, or failed with the reason in
         `last_error`, retried) and the domain is served at its root, usually within
         minutes. If the site already has a working own address (a free name or an
@@ -2239,11 +2244,13 @@ paths:
         domain is verified; then the old address redirects to it. Binding the
         site's current working domain again changes nothing; binding its
         `previous_domain` drops the pending one. Until first verified, a binding is
-        provisional: another site can take it over, and it expires 24 hours after
-        binding unless DNS already points here. A verified domain stays exclusive
-        while it works; if it fails every check for 24 hours the owner is emailed,
-        and after 72 hours it stops being the site's address (the site's own
-        address serves again) and can be connected afresh by whoever holds it.
+        provisional: another site can take it over until it has passed its ownership
+        proof, and it expires 24 hours after binding unless DNS already points here.
+        A verified domain stays exclusive while it works; if it fails every check for
+        24 hours the owner is emailed, and after 72 hours it is disconnected (the
+        site's own address serves again) and can be connected afresh, with the TXT
+        record, by whoever holds it; while it is being released, binding it answers
+        409 domain_releasing.
         Hijacking the platform zone is rejected. Owner only (API key).
       tags: [Custom domains]
       security: [{ apiKey: [] }]
@@ -2274,12 +2281,19 @@ paths:
                   certificate_status: { type: string, enum: [pending, issuing, live, failed], description: "The custom domain's certificate: pending (DNS not pointed here yet), issuing, live, or failed (why in last_error; retried). Absent for a free <name>.simple-host.app address." }
                   previous_domain: { type: string, description: "The site's earlier own address, still serving it until this domain is verified (then it redirects here). Present only while the new domain is pending.", example: clay-studio.simple-host.app }
                   dns:
-                    description: The record to add at the registrar; absent for a free <name>.simple-host.app address
+                    description: The record that points the domain here, to add at the registrar; absent for a free <name>.simple-host.app address
                     type: object
                     properties:
                       type: { type: string, example: CNAME }
                       host: { type: string, example: www.example.com }
                       value: { type: string, example: cname.simple-host.app }
+                  dns_txt:
+                    description: "The ownership record: TXT _simple-host.<domain> holding this site's token. Needed (and kept in place) before the domain is verified or gets a certificate. Absent for a free <name>.simple-host.app address."
+                    type: object
+                    properties:
+                      type: { type: string, example: TXT }
+                      host: { type: string, example: _simple-host.www.example.com }
+                      value: { type: string, example: sh-0123456789abcdef0123456789abcdef }
         '400':
           description: Invalid domain. For a <name>.simple-host.app address, `code` is name_reserved or invalid_name.
           content:
@@ -2291,7 +2305,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: Domain has been verified by another site at least once, or the <name>.simple-host.app address is held by another site or is someone's handle
+          description: "domain_taken: the domain is verified (or past its ownership proof) for another site, or the <name>.simple-host.app address is held by another site or is someone's handle. domain_releasing: the domain was just disconnected and the certificate issuer is still letting go of it; try again in 10 minutes."
           content:
             application/json:
               schema:
@@ -2299,15 +2313,16 @@ paths:
                 required: [error, code]
                 additionalProperties: false
                 properties:
-                  error: { type: string, enum: [domain is connected to another site, "that address is taken by another site; pick another name"] }
-                  code: { type: string, enum: [domain_taken] }
+                  error: { type: string, enum: [domain is connected to another site, "that address is taken by another site; pick another name", "this domain was just disconnected and is still being released; try again in 10 minutes"] }
+                  code: { type: string, enum: [domain_taken, domain_releasing] }
               example: { error: domain is connected to another site, code: domain_taken }
     get:
       operationId: getSitesBySitenameDomain
       summary: Get the custom domain binding for this site
       description: >-
         Returns the bound domain and status, or `{domain:null,status:null}` when
-        none is set. Includes the DNS record to add when a custom domain is bound,
+        none is set. Includes the two DNS records to add when a custom domain is bound
+        (`dns` and the TXT ownership record `dns_txt`),
         the certificate's progress, the earlier address still serving while the
         domain is pending, and `failing_since` when a verified domain has stopped
         passing its checks. Owner only (API key).
@@ -2337,6 +2352,13 @@ paths:
                       type: { type: string, example: CNAME }
                       host: { type: string }
                       value: { type: string }
+                  dns_txt:
+                    description: "The ownership record: TXT _simple-host.<domain> holding this site's token. Needed (and kept in place) before the domain is verified or gets a certificate. Absent for a free <name>.simple-host.app address."
+                    type: object
+                    properties:
+                      type: { type: string, example: TXT }
+                      host: { type: string, example: _simple-host.www.example.com }
+                      value: { type: string, example: sh-0123456789abcdef0123456789abcdef }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
     delete:
@@ -2374,11 +2396,13 @@ paths:
       operationId: checkSitesBySitenameDomain
       summary: Check this site's domain again now
       description: >-
-        Re-proves the site's own domain at once (it resolves here and serves the
-        site over HTTPS), instead of waiting for the background check every two
+        Re-proves the site's own domain at once (its TXT ownership record holds the
+        site's token, it resolves here and serves the site over HTTPS; the check
+        connects only to this server's public address and never follows a redirect), instead of waiting for the background check every two
         minutes, then answers exactly like GET .../domain with the new status and
         `last_error`. A free <name>.simple-host.app address needs no proof and is
-        answered as is. Owner only (API key); rate-limited per IP.
+        answered as is. Owner only (API key); rate-limited per IP and per account
+        (a few at once, then one per 30 seconds; 429 with code rate_limited).
       tags: [Custom domains]
       security: [{ apiKey: [] }]
       parameters: [ { $ref: '#/components/parameters/sitename' } ]
@@ -2396,6 +2420,7 @@ paths:
                   expires_at: { type: string, format: date-time }
                   verified_at: { type: string, format: date-time, nullable: true }
                   dns: { type: object, properties: { type: { type: string }, host: { type: string }, value: { type: string } } }
+                  dns_txt: { type: object, description: "The TXT ownership record (see GET .../domain)", properties: { type: { type: string }, host: { type: string }, value: { type: string } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404':
           description: No such site, or the site has no domain connected (no_domain)
@@ -3654,12 +3679,19 @@ components:
         domain_certificate_status: { type: string, enum: [pending, issuing, live, failed], description: "Site list only, for a domain not live yet: its certificate" }
         previous_domain: { type: string, description: "Site list only, for a domain not live yet: the earlier address the site keeps answering at until it is" }
         domain_dns:
-          description: "Site list only, for an own domain that is not active: the DNS record to add at the registrar"
+          description: "Site list only, for an own domain that is not active: the DNS record that points it here, to add at the registrar"
           type: object
           properties:
             type: { type: string, example: CNAME }
             host: { type: string }
             value: { type: string }
+        domain_dns_txt:
+          description: "Site list only, for an own domain that is not active: the TXT ownership record to add next to domain_dns (_simple-host.<domain> holding the site's token)"
+          type: object
+          properties:
+            type: { type: string, example: TXT }
+            host: { type: string, example: _simple-host.www.example.com }
+            value: { type: string, example: sh-0123456789abcdef0123456789abcdef }
         suspended: { type: boolean, description: "Present and true when the operator has taken the site down (on its own or with its owner's account): every address shows a \"taken down\" page and changes are refused until it is restored. Nothing is deleted." }
         suspended_reason: { type: string, description: The operator's one-line reason, when suspended. }
 

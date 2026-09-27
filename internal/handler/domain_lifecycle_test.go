@@ -17,33 +17,45 @@ import (
 // The certificate hand-off with the root issuer, file by file.
 func TestDomainCertProgress(t *testing.T) {
 	h := &SiteHandler{}
-	if st, _ := h.domainCertProgress("shop.example.com"); st != "issuing" {
+	d := db.BoundDomain{Domain: "shop.example.com", UserID: "u", Name: "shop", Token: "sh-0123456789abcdef0123456789abcdef"}
+	if st, _ := h.domainCertProgress(context.Background(), d); st != "issuing" {
 		t.Fatalf("no hand-off dir: %q (the operator issues by hand)", st)
 	}
+	a := newPersonApp(t, "canonical")
+	olive := a.newPerson(t, "olive")
+	d.UserID, _ = a.userID(t, olive)
+	h = a.sites
 	dir := t.TempDir()
-	for _, d := range []string{"requests", "ready", "failed"} {
-		if err := os.MkdirAll(filepath.Join(dir, d), 0o755); err != nil {
+	for _, sub := range []string{"requests", "ready", "failed"} {
+		if err := os.MkdirAll(filepath.Join(dir, sub), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
 	h.SetDomainCerts(dir)
-	const dom = "shop.example.com"
-	if st, _ := h.domainCertProgress(dom); st != "issuing" {
+	dom := uniq("shop") + ".example.com"
+	d.Domain = dom
+	if st, _ := h.domainCertProgress(context.Background(), d); st != "issuing" {
 		t.Fatalf("first check: %q", st)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "requests", dom)); err != nil {
 		t.Fatalf("no request written: %v", err)
 	}
+	// An out-of-date request (the site was renamed) is brought up to date.
+	d.Name = "shop2"
+	h.domainCertProgress(context.Background(), d)
+	if b, _ := os.ReadFile(filepath.Join(dir, "requests", dom)); !strings.HasSuffix(string(b), "/shop2\n") {
+		t.Fatalf("request not rewritten: %q", b)
+	}
 	if err := os.WriteFile(filepath.Join(dir, "failed", dom), []byte("CAA record forbids Let's Encrypt\nmore\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if st, why := h.domainCertProgress(dom); st != "failed" || !strings.Contains(why, "CAA record forbids") || strings.Contains(why, "more") {
+	if st, why := h.domainCertProgress(context.Background(), d); st != "failed" || !strings.Contains(why, "CAA record forbids") || strings.Contains(why, "more") {
 		t.Fatalf("failed: %q %q", st, why)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "ready", dom), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if st, _ := h.domainCertProgress(dom); st != "live" {
+	if st, _ := h.domainCertProgress(context.Background(), d); st != "live" {
 		t.Fatalf("ready: %q", st)
 	}
 	h.cancelDomainCert(dom)
@@ -289,8 +301,11 @@ func TestLapsedDomainLetsGo(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.sites.applyDomainCheck(ctx, failing, "pending", "resolves to 192.0.2.9, not to this server", "pending")
-	if info := a.domainInfo(t, shopID); info.VerifiedAt.Valid {
-		t.Fatalf("lapsed domain still verified: %+v", info)
+	if info, has, _ := db.GetSiteDomainInfo(ctx, a.database, shopID); has {
+		t.Fatalf("lapsed domain still bound: %+v", info)
+	}
+	if _, err := os.Lstat(filepath.Join(a.sites.disk.DataDir(), "domains", dom)); !os.IsNotExist(err) {
+		t.Fatalf("lapsed domain's link kept: %v", err)
 	}
 	if r := a.at(t, "GET", handle+"."+pcSiteDomain, "/shop/", nil, nil); r.status != http.StatusOK {
 		t.Fatalf("site's own address after lapse: %d %q", r.status, r.header.Get("Location"))

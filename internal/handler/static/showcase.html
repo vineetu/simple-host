@@ -371,6 +371,8 @@
     .row-panel .panel-note { color: var(--text-secondary); }
     .row-panel .panel-err { color: var(--error); }
     .dns-rec { display: flex; gap: 14px; flex-wrap: wrap; font-family: var(--mono); padding: 6px 10px; background: var(--surface); border-radius: 6px; }
+    .dns-rec + .dns-rec { margin-top: 6px; }
+    .dns-rec span { overflow-wrap: anywhere; }
     .state-pre {
       max-height: 320px; overflow: auto; margin: 0; padding: 8px 10px;
       font-family: var(--mono); font-size: 12px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere;
@@ -2114,7 +2116,7 @@ function parseAnalyticsSummary(data) {
         var id = 'domain-' + n;
         panel.innerHTML = '<label for="' + id + '">Give <b>' + esc(s.name) + '</b> another address</label>' +
           '<input type="text" id="' + id + '" placeholder="shop.example.com or a free name.simple-host.app" autocomplete="off" spellcheck="false">' +
-          '<div class="panel-note">A free <i>name</i>.simple-host.app works at once. Your own domain needs one DNS record at your registrar, shown next. Once it is live, the site lives only at that address.</div>' +
+          '<div class="panel-note">A free <i>name</i>.simple-host.app works at once. Your own domain needs two DNS records at your registrar, shown next. Once it is live, the site lives only at that address.</div>' +
           '<div class="panel-err" hidden></div>' +
           '<div class="panel-btns">' +
             '<button type="button" class="btn-small btn-primary" data-act="connectDomain" data-name="' + n + '">Connect</button>' +
@@ -2128,8 +2130,12 @@ function parseAnalyticsSummary(data) {
       if (!domainActive(s)) {
         html += '<div class="panel-note">Until it is live, the site keeps answering at <b>' + esc(siteOpenUrl(s).replace(/^https?:\/\//, '').replace(/\/$/, '')) + '</b>.</div>';
         if (s.domain_dns) {
-          html += '<div class="panel-note">Add this record at your domain registrar:</div>' +
-            '<div class="dns-rec"><span>' + esc(s.domain_dns.type) + '</span><span>' + esc(s.domain_dns.host) + '</span><span>' + esc(s.domain_dns.value) + '</span></div>';
+          var recs = [s.domain_dns].concat(s.domain_dns_txt ? [s.domain_dns_txt] : []);
+          html += '<div class="panel-note">Add ' + (recs.length > 1 ? 'these records' : 'this record') + ' at your domain registrar' +
+            (s.domain_dns_txt ? ' (the TXT record shows the domain is yours; keep it in place)' : '') + ':</div>' +
+            recs.map(function (r) {
+              return '<div class="dns-rec"><span>' + esc(r.type) + '</span><span>' + esc(r.host) + '</span><span>' + esc(r.value) + '</span></div>';
+            }).join('');
         }
         if (s.domain_last_error) html += '<div class="panel-err">Last check: ' + esc(s.domain_last_error) + '</div>';
         if (s.domain_expires_at) html += '<div class="panel-note">If it is not working by ' + fmtDateTime(s.domain_expires_at) + ', the domain is released and you can connect it again.</div>';
@@ -2160,7 +2166,7 @@ function parseAnalyticsSummary(data) {
         var res = await api('POST', sitePathPart(name) + '/domain', { domain: d });
         var body = await res.json().catch(function () { return {}; });
         if (!res.ok) { errEl.textContent = body.error || 'Could not connect the domain'; errEl.hidden = false; btn.disabled = false; return; }
-        toast(body.status === 'active' ? d + ' is live' : 'Connected. Add the DNS record shown.', 'success');
+        toast(body.status === 'active' ? d + ' is live' : 'Connected. Add the DNS records shown.', 'success');
         await reopenDomain(name);
       } catch (e) {
         errEl.textContent = 'Could not connect the domain'; errEl.hidden = false; btn.disabled = false;

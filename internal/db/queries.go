@@ -564,7 +564,7 @@ func DeleteSite(ctx context.Context, db Querier, siteID string) error {
 func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 	const query = `
 		SELECT s.id, s.user_id, s.name, s.active_version, COALESCE(s.site_url, ''), s.created_at, s.updated_at, s.custom_domain, s.domain_status, s.visibility, u.username, COALESCE(u.handle, ''),
-		       s.domain_last_error, s.domain_bound_at, s.domain_verified_at, COALESCE(s.previous_domain, ''), COALESCE(s.domain_cert_status, ''), (SELECT max(v.created_at) FROM versions v WHERE v.site_id = s.id AND v.status = 'active'),
+		       s.domain_last_error, s.domain_bound_at, s.domain_verified_at, COALESCE(s.previous_domain, ''), COALESCE(s.domain_cert_status, ''), COALESCE(s.domain_token, ''), (SELECT max(v.created_at) FROM versions v WHERE v.site_id = s.id AND v.status = 'active'),
 		       s.suspended_at IS NOT NULL, COALESCE(s.suspended_reason, ''),
 		       u.suspended_at IS NOT NULL, COALESCE(u.suspended_reason, '')
 		FROM sites s
@@ -600,6 +600,7 @@ func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 			&site.DomainVerifiedAt,
 			&site.PreviousDomain,
 			&site.DomainCertStatus,
+			&site.DomainToken,
 			&site.LastDeployedAt,
 			&site.SiteSuspended,
 			&site.SiteSuspendedReason,
@@ -648,7 +649,7 @@ func ListSitesByUser(ctx context.Context, db *sql.DB, userID string) ([]Site, er
 	const query = `
 		SELECT id, user_id, name, active_version, COALESCE(site_url, ''), created_at, updated_at, custom_domain, domain_status, visibility,
 		       (SELECT COALESCE(u.handle, '') FROM users u WHERE u.id = sites.user_id),
-		       domain_last_error, domain_bound_at, domain_verified_at, COALESCE(previous_domain, ''), COALESCE(domain_cert_status, ''),
+		       domain_last_error, domain_bound_at, domain_verified_at, COALESCE(previous_domain, ''), COALESCE(domain_cert_status, ''), COALESCE(domain_token, ''),
 		       (SELECT max(v.created_at) FROM versions v WHERE v.site_id = sites.id AND v.status = 'active'),
 		       sites.suspended_at IS NOT NULL, COALESCE(sites.suspended_reason, ''),
 		       COALESCE((SELECT su.suspended_at IS NOT NULL FROM users su WHERE su.id = sites.user_id), false),
@@ -706,6 +707,7 @@ func scanSiteRows(rows *sql.Rows) ([]Site, error) {
 			&site.DomainVerifiedAt,
 			&site.PreviousDomain,
 			&site.DomainCertStatus,
+			&site.DomainToken,
 			&site.LastDeployedAt,
 			&site.SiteSuspended,
 			&site.SiteSuspendedReason,

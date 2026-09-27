@@ -919,6 +919,8 @@
     .status-dot.pending { background: #d4a843; }
     .status-dot.down { background: var(--error); }
     .site-down { font-size: 13px; color: var(--error); margin-top: 6px; }
+    .site-dns { font-size: 13px; color: var(--text-secondary, inherit); margin-top: 6px; overflow-wrap: anywhere; }
+    .site-dns code { font-size: 12px; }
     /* Your data (accounts without a handle; the owner app has its own) */
     .my-data { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 14px; color: var(--text-secondary); }
     .my-data h2 { font-size: 18px; color: var(--text); margin: 0 0 8px; }
@@ -1809,6 +1811,7 @@ function parseAnalyticsSummary(data) {
               ${hasSiteURL ? `<a class="site-url" href="${esc(site.site_url)}" target="_blank">${esc(site.site_url)}</a>` : ''}
               ${site.custom_domain ? `<span class="owner-badge domain-badge">🌐 ${esc(site.custom_domain)}${site.domain_status ? ' · ' + esc(site.domain_status) : ''}</span>` : ''}
             </div>
+            ${site.domain_dns ? `<p class="site-dns">To connect ${esc(site.custom_domain)}, add at your registrar: ${[site.domain_dns].concat(site.domain_dns_txt ? [site.domain_dns_txt] : []).map(r => `<code>${esc(r.type)} ${esc(r.host)} → ${esc(r.value)}</code>`).join(' and ')}${site.domain_dns_txt ? ' (the TXT record shows the domain is yours; keep it in place)' : ''}.${site.domain_last_error ? ' Last check: ' + esc(site.domain_last_error) : ''}</p>` : ''}
             ${site.suspended ? `<p class="site-down">Taken down by the operator${site.suspended_reason ? ': ' + esc(site.suspended_reason) : ''}. Every address shows a "taken down" page and changes are refused until it is restored. Nothing has been deleted.</p>` : ''}
             <div class="site-analytics" id="an-${name}" data-site="${name}"></div>
           </div>
@@ -2221,8 +2224,8 @@ function parseAnalyticsSummary(data) {
           toast(body.error || 'Could not connect domain', 'error');
           return;
         }
-        const rec = body.dns ? `${body.dns.type} ${body.dns.host} -> ${body.dns.value}` : '';
-        toast(`Domain pending — add this DNS record: ${rec}. It turns active once the domain serves the site over HTTPS.`, 'success');
+        const recs = [body.dns, body.dns_txt].filter(Boolean).map(r => `${r.type} ${r.host} -> ${r.value}`).join(' and ');
+        toast(body.status === 'active' ? `${d.trim()} is live` : `Domain pending — add ${recs} at your registrar (shown on the site's card). It turns active once both are seen and the domain serves the site over HTTPS.`, 'success');
         await loadSites();
       } catch {
         toast('Could not connect domain', 'error');

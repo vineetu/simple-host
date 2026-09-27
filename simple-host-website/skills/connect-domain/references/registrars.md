@@ -1,8 +1,10 @@
-# Adding the DNS record at the registrar
+# Adding the DNS records at the registrar
 
-Companion to the `connect-domain` skill, step 3 / 3b. The record is always the one from the
+Companion to the `connect-domain` skill, step 3 / 3b. The records are always the two from the
 bind response: **CNAME `<label>` → `cname.simple-host.app`** for a subdomain, or **A `@` →
-the IP the bind returned** for an apex. Nothing else changes. Ask the user which service hosts
+the IP the bind returned** for an apex, and the **TXT ownership record** (`dns_txt`):
+**TXT `_simple-host.<label>`** (apex: `_simple-host`) holding the site's token
+(`sh-` + 32 characters). Nothing else changes. Ask the user which service hosts
 the domain's DNS (it is the registrar unless they moved nameservers — `dig NS <zone> +short`
 tells you), then follow that section.
 
@@ -11,6 +13,11 @@ Rules that apply everywhere:
 - **Never CNAME an apex.** A CNAME at `@` breaks MX/TXT/everything at the root and most
   registrars refuse it. Apex = A record (or ALIAS/ANAME where the provider offers one, pointed
   at `cname.simple-host.app`).
+- **The TXT record is added the same way as the address record,** with type `TXT`, the name
+  from `dns_txt.host` (label form: drop the zone, e.g. `_simple-host.recipes`) and the value
+  exactly as given (some panels add the quotes themselves). It does not replace any existing TXT
+  record, and it stays in place after the domain is live. Every API call below takes it with
+  the same body, `type` `TXT`.
 - **TTL 60–300 s while connecting.** Low TTL means a typo is fixable in minutes, not an hour.
   Raise it later if the user cares; the server doesn't.
 - **Add, don't replace** — except at the apex, where a parking/default A or ALIAS at `@`
@@ -187,7 +194,7 @@ dig +short recipes.brand.com @curitiba.ns.porkbun.com
 
 ## Any other registrar / DNS host
 
-Same record, same rules. Work out where DNS actually lives (`dig NS <zone> +short` — Cloudflare,
+Same two records, same rules. Work out where DNS actually lives (`dig NS <zone> +short` — Cloudflare,
 Route 53, Namecheap, Google/Squarespace, etc. all show up here), then:
 
 - **UI:** the DNS editor is under the domain's settings, usually named *DNS*, *DNS Records*,
@@ -199,6 +206,7 @@ Route 53, Namecheap, Google/Squarespace, etc. all show up here), then:
   CNAME at the apex, so there a `CNAME @ → cname.simple-host.app` is acceptable.
 - **API:** only if the user offers credentials and you can find the vendor's current docs;
   otherwise hand over the record. Same rule: one write, a read-back, forget the key.
-- **Check it landed:** `dig NS <zone> +short`, then `dig +short <host> @<that nameserver>`.
+- **Check it landed:** `dig NS <zone> +short`, then `dig +short <host> @<that nameserver>` and
+  `dig +short TXT _simple-host.<host> @<that nameserver>`.
   Only after the authoritative server answers correctly is a wrong answer from `8.8.8.8` a
   cache issue worth waiting out (the old TTL, worst case an hour or a day).

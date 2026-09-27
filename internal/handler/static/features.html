@@ -659,7 +659,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone with a brand, a business or a domain already bought.</dd>
                 <dt>Where</dt><dd><strong>Connect domain</strong> next to the site on your sites page. Your agent can also do it, and there is a skill for exactly this.</dd>
-                <dt>Limits</dt><dd class="lim"><b>One domain per site.</b> A binding is provisional until DNS proves it: another site can take an unproven one over, and it lapses after 24 hours; only a verified domain is exclusive (<code>409 domain_taken</code>).</dd>
+                <dt>Limits</dt><dd class="lim"><b>One domain per site.</b> A binding is provisional until its TXT ownership record proves it: another site can take an unproven one over, and it lapses after 24 hours; a proven domain is exclusive (<code>409 domain_taken</code>). A name another site on this server already serves cannot be connected.</dd>
               </dl>
             </div>
           </div>
@@ -667,8 +667,8 @@
           <div class="feat" id="custom-domain-dns-record">
             <div class="fid">custom-domain-dns-record</div>
             <div>
-              <h3>You are told the exact record to add</h3>
-              <p class="fw">Connecting hands back the single DNS record to paste into your registrar — no guessing, no documentation to read.</p>
+              <h3>You are told the exact records to add</h3>
+              <p class="fw">Connecting hands back the two DNS records to paste into your registrar — the one that points your domain here, and a TXT record that shows the domain is yours (keep it in place). No guessing, no documentation to read.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Whoever has the login to the domain registrar; often not the person building the site.</dd>
                 <dt>Where</dt><dd>Shown when you connect, and repeatable by your agent afterwards.</dd>
@@ -694,7 +694,7 @@
             <div class="fid">custom-domain-status</div>
             <div>
               <h3>The connection badge</h3>
-              <p class="fw">Your sites page shows the domain you attached, with its status. Until it is live, <strong>Domain</strong> shows the DNS record to add, what the last check found, when an unproven connection lapses, and <strong>Check again</strong>.</p>
+              <p class="fw">Your sites page shows the domain you attached, with its status. Until it is live, <strong>Domain</strong> shows the two DNS records to add, what the last check found, when an unproven connection lapses, and <strong>Check again</strong>.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone checking whether the connection worked.</dd>
                 <dt>Where</dt><dd>Next to the site's name on your sites page, and under <strong>Domain</strong>.</dd>

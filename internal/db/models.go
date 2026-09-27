@@ -52,6 +52,9 @@ type Site struct {
 	// failed ("" = not known yet).
 	PreviousDomain   string
 	DomainCertStatus string
+	// DomainToken is the site's custom-domain ownership token (the value of
+	// the TXT record _simple-host.<domain>).
+	DomainToken string
 
 	// Operator take-down. SiteSuspended is this site's own flag; OwnerSuspended
 	// is its owner's account being suspended, which takes every site of theirs

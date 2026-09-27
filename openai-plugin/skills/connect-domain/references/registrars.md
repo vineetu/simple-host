@@ -1,10 +1,11 @@
 <!-- Derived from simple-host-website/skills/connect-domain/references/registrars.md. Keep in step. -->
 
-# Adding the DNS record at the registrar
+# Adding the DNS records at the registrar
 
-The record is always the one `connect_domain` returned: **CNAME `<label>` →
-`cname.simple-host.app`** for a subdomain, or **A `@` → the IP returned** for an apex. Nothing
-else changes. Give the person the section for the service that manages their DNS. That is
+The records are always the two `connect_domain` returned: **CNAME `<label>` →
+`cname.simple-host.app`** for a subdomain, or **A `@` → the IP returned** for an apex, and the
+**TXT ownership record** (`ownership_record`): **TXT `_simple-host.<label>`** (apex:
+`_simple-host`) holding the site's value. Nothing else changes. Give the person the section for the service that manages their DNS. That is
 where they bought the domain, unless they moved its nameservers elsewhere (for example to
 Cloudflare or Vercel); if unsure, they can check which company the domain's nameservers belong
 to in their registrar's settings.
@@ -13,6 +14,9 @@ Rules everywhere:
 
 - **Never a CNAME at the apex.** Apex = A record (or ALIAS/ANAME to `cname.simple-host.app`
   where offered; Cloudflare's flattened CNAME is fine too). Prefer the A record returned.
+- **The TXT record is added the same way,** with type `TXT`, the name from
+  `ownership_record.host` (label form, e.g. `_simple-host.rsvp`) and the value exactly as given
+  (some panels add the quotes themselves). It stays in place after the domain is live.
 - **Low TTL while connecting** (60-300 s, or the provider's minimum), so a typo is fixable in
   minutes.
 - **Add, don't replace**, except at the apex, where an existing parking/default A, ALIAS or

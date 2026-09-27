@@ -1,6 +1,6 @@
 ---
 name: connect-domain
-description: Give a Simple Host site a shorter or custom address, either a free <name>.simple-host.app (one call, no DNS) or the person's own domain or subdomain (for example rsvp.example.com via a CNAME record, or example.com via an A record) to a site they already have on Simple Host, using the connect_domain, domain_status and remove_domain tools. Use when the person wants their site on a nicer or shorter address, or asks how to point a domain they bought (Vercel, GoDaddy, Porkbun, Namecheap, Cloudflare, Squarespace and others) at their site. Optional, since every site already has its own address where sign-in and private collections work. Gets the one DNS record, relays it with registrar-specific steps, and checks until the domain is live.
+description: Give a Simple Host site a shorter or custom address, either a free <name>.simple-host.app (one call, no DNS) or the person's own domain or subdomain (for example rsvp.example.com via a CNAME record, or example.com via an A record) to a site they already have on Simple Host, using the connect_domain, domain_status and remove_domain tools. Use when the person wants their site on a nicer or shorter address, or asks how to point a domain they bought (Vercel, GoDaddy, Porkbun, Namecheap, Cloudflare, Squarespace and others) at their site. Optional, since every site already has its own address where sign-in and private collections work. Gets the two DNS records (the address and a TXT ownership record), relays them with registrar-specific steps, and checks until the domain is live.
 ---
 
 <!-- Derived from simple-host-website/skills/connect-domain/SKILL.md (+ references/registrars.md). Keep in step. -->
@@ -11,7 +11,7 @@ A Simple Host site is already live at its own address, `https://<site>.<handle>.
 where visitor sign-in and private collections already work. This is optional and gives it a
 nicer or shorter address, served over HTTPS: a free `<name>.simple-host.app`, or the person's
 own domain. You do the Simple Host side with the
-tools; the person adds one DNS record where their domain is managed. The person's own explicit
+tools; the person adds two DNS records where their domain is managed. The person's own explicit
 instructions take priority over this guidance.
 
 You are already signed in as the person. Never ask for a Simple Host email, code or password.
@@ -53,33 +53,42 @@ domain of their own.
    alone; use the **apex** (`example.com`) only if they want the bare domain, which moves
    whatever the root currently points at. One bound address per site (this replaces a free
    `<name>.simple-host.app` if the site has one).
-2. **Bind it:** `connect_domain` with `site` and `domain` (no `https://`). It returns the one DNS
-   record: a CNAME to `cname.simple-host.app` for a subdomain, or an A record with an IP for an
-   apex. Relay whatever it returns; never invent a target. A "domain taken" error means another
-   site holds a verified binding for that domain.
-   The binding is provisional until DNS proves it: another site can take it over, and it
-   expires after 24 hours unless the record is already seen. Bind and add the record in the
+2. **Bind it:** `connect_domain` with `site` and `domain` (no `https://`). It returns two DNS
+   records: `dns_record` (a CNAME to `cname.simple-host.app` for a subdomain, or an A record
+   with an IP for an apex) and `ownership_record`, a TXT record at `_simple-host.<domain>`
+   holding this site's own value, which proves the domain is theirs. Nothing is verified or
+   certified without it, and it stays in place afterwards. Relay whatever it returns; never
+   invent a target or value. A "domain taken" error means another site holds a verified (or
+   ownership-proven) binding for that domain; "domain releasing" means it was just
+   disconnected: try again in 10 minutes.
+   The binding is provisional until its ownership record is seen: another site can take it
+   over, and it expires after 24 hours unless the records are already seen. Bind and add the records in the
    same sitting; binding again later is fine. If the site already had an address of its own,
    `serving_at` shows it: the site stays there until the new domain is live.
-3. **Relay the record.** Ask where the domain's DNS is managed (usually where they bought it),
-   then give the record in plain terms:
+3. **Relay the records.** Ask where the domain's DNS is managed (usually where they bought it),
+   then give both records in plain terms:
 
-   > Add this record where you manage your domain's DNS, then tell me when it is saved:
-   > - **Type:** CNAME
-   > - **Name / Host:** `rsvp` (just the part before your domain)
-   > - **Value / Target:** `cname.simple-host.app`
+   > Add these two records where you manage your domain's DNS, then tell me when they are saved:
+   > 1. **Type:** CNAME · **Name / Host:** `rsvp` (just the part before your domain) ·
+   >    **Value / Target:** `cname.simple-host.app`
+   > 2. **Type:** TXT · **Name / Host:** `_simple-host.rsvp` · **Value:** the value from
+   >    `ownership_record` (it shows the domain is yours; keep it in place)
    > - **TTL:** the lowest offered (60-600 seconds)
    >
    > Leave your other records, especially email (MX), as they are.
 
-   For an apex: Type `A`, Name `@` (or blank), Value = the IP returned. If an A, ALIAS or
+   For an apex: Type `A`, Name `@` (or blank), Value = the IP returned, and the TXT record at
+   Name `_simple-host`. If an A, ALIAS or
    forwarding record already exists at the root, it must be edited to the new IP, not
    duplicated. Never ask them to change nameservers or delete unrelated records.
    For step-by-step screens at **Vercel, GoDaddy, Porkbun, Cloudflare, Namecheap** and others,
    load `references/registrars.md` and give them that section.
 4. **Check:** `domain_status`. A freshly bound domain reads `pending` until the first
    background check (every couple of minutes), so check again after the person says the record
-   is saved, and a few minutes later if needed. `last_error` says what is missing:
+   is saved, and a few minutes later if needed. `last_check` says what is missing:
+   - `add the ownership record ...` or `the TXT record ... does not hold this site's value`:
+     the TXT record is not saved yet or has a different value; nothing else is checked until it
+     matches.
    - `domain does not resolve yet`: the record is not saved yet or is still propagating; have
      them double-check it against the record from step 2, then wait a few minutes.
    - `resolves to <ip>, not to this server`: the record points elsewhere (often an old parking
@@ -89,6 +98,9 @@ domain of their own.
      person their part is finished and check again shortly.
    - `certificate: failed`: `last_check` says why (usually an IPv6 `AAAA` record for the
      domain pointing elsewhere, which they should remove); it is retried every few hours.
+     "already served here by another site" means the name belongs to another site on Simple
+     Host's server and cannot be connected. Each account gets at most 5 new domain certificates
+     a day; the next says so and follows the day after.
    - `error` with e.g. `HTTPS returned 404`: the domain reaches Simple Host but the site serves
      nothing; check the site has content.
 5. **Done** when the status is `active`. Give the person `https://<their domain>/` and remind
@@ -96,10 +108,10 @@ domain of their own.
 
 ## Registrar credentials
 
-Relaying the record is the default. Do not ask for registrar logins or access tokens. If the
-person offers to let you add the record yourself and you have a way to call their DNS
-provider, `references/registrars.md` has the calls; ask permission naming the exact record,
-add only that record, read it back, and never store or repeat the credentials.
+Relaying the records is the default. Do not ask for registrar logins or access tokens. If the
+person offers to let you add the records yourself and you have a way to call their DNS
+provider, `references/registrars.md` has the calls; ask permission naming the exact records,
+add only those two, read them back, and never store or repeat the credentials.
 
 ## Disconnecting
 
@@ -110,4 +122,5 @@ using). A removed free address keeps redirecting to the site; links to a removed
 stop working.
 
 If a live domain stops working (it lapsed, or its DNS moved), the owner is emailed after a day,
-and after three days the site goes back to its own address.
+and after three days the domain is disconnected and the site goes back to its own address;
+connecting it again needs the TXT ownership record again.

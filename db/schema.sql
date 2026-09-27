@@ -51,6 +51,12 @@ CREATE TABLE sites (
   domain_failing_since     TIMESTAMPTZ, -- a verified domain first failed its checks
   domain_lapse_notified_at TIMESTAMPTZ, -- the owner was emailed about the failing domain
   previous_domain_failing_since TIMESTAMPTZ, -- the earlier address first failed its checks (let go after 72 h)
+  -- Proof a custom domain is the owner's: a DNS TXT record _simple-host.<domain>
+  -- whose value is this token (per site, never changes).
+  domain_token TEXT DEFAULT ('sh-' || replace(gen_random_uuid()::text, '-', '')),
+  -- Domains verified before the TXT proof existed (2026-09-27): they keep
+  -- working without it while they stay verified; a lapse needs the proof.
+  domain_proof_exempt TEXT[] NOT NULL DEFAULT '{}',
   -- Per-site JSON datastore. `state_version` backs the atomic set/inc/append
   -- ops and the ETag, so it must exist for the state API to work at all.
   state          JSONB,
@@ -517,6 +523,14 @@ ALTER TABLE auth_tokens ADD COLUMN IF NOT EXISTS nonce_hash TEXT;
 -- recorded with `migrate -mark`). A database built from this file already has
 -- every migration's effect; migrate still runs each new (idempotent) file once
 -- and records it. Historical hand-applied files are never recorded here.
+-- New custom-domain certificates asked for, per account (a cap of a few a day).
+CREATE TABLE IF NOT EXISTS domain_cert_requests (
+  user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  domain       TEXT NOT NULL,
+  requested_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS domain_cert_requests_user ON domain_cert_requests (user_id, requested_at);
+
 CREATE TABLE IF NOT EXISTS schema_migrations (
   name       TEXT PRIMARY KEY,
   applied_at TIMESTAMPTZ NOT NULL DEFAULT now()

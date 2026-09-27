@@ -172,11 +172,11 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		"DELETE /v1/u/ann/sites/blog/collections/orders/items/5": fixed(204, ""),
 		"DELETE /v1/u/ann/sites/blog/collections/rsvps":          fixed(200, `{"site":"blog","collection":"rsvps","deleted":3}`),
 		"POST /v1/sites/pend/domain": fixed(200, `{"domain":"pend.example.com","status":"pending","took_over_from":"x/y","certificate_status":"pending","previous_domain":"pend.simple-host.app",`+
-			`"dns":{"type":"CNAME","host":"pend.example.com","value":"sites.simple-host.app"}}`),
+			`"dns":{"type":"CNAME","host":"pend.example.com","value":"sites.simple-host.app"},"dns_txt":{"type":"TXT","host":"_simple-host.pend.example.com","value":"sh-0123456789abcdef0123456789abcdef"}}`),
 		"POST /v1/sites/blog/domain": fixed(200, `{"domain":"blog.simple-host.app","status":"active"}`),
 		"GET /v1/sites/blog/domain":  fixed(200, `{"domain":"rsvp.example.com","status":"active","verified_at":"2026-09-01T00:00:00Z","dns":{"type":"A","host":"rsvp.example.com","value":"192.0.2.1"}}`),
 		"GET /v1/sites/pend/domain": fixed(200, `{"domain":"pend.example.com","status":"pending","bound_at":"2026-09-01T00:00:00Z","expires_at":"2026-09-02T00:00:00Z","certificate_status":"issuing","previous_domain":"pend.simple-host.app",`+
-			`"dns":{"type":"CNAME","host":"pend.example.com","value":"sites.simple-host.app"}}`),
+			`"dns":{"type":"CNAME","host":"pend.example.com","value":"sites.simple-host.app"},"dns_txt":{"type":"TXT","host":"_simple-host.pend.example.com","value":"sh-0123456789abcdef0123456789abcdef"}}`),
 		"GET /v1/sites/draft/domain":      fixed(200, `{"domain":null,"status":null}`),
 		"GET /v1/sites/broken/domain":     fixed(200, `{"domain":"broken.example.com","status":"error","last_error":"HTTPS returned 502","certificate_status":"live","failing_since":"2026-09-01T00:00:00Z","dns":{"type":"CNAME","host":"broken.example.com","value":"sites.simple-host.app"}}`),
 		"DELETE /v1/sites/blog/domain":    fixed(204, ""),

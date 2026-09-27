@@ -128,6 +128,8 @@ What follows from that, and is not negotiable without changing the line above:
   place to save, one place to sign in, and no back door around per-person writes.
 - **2026-09-06. A domain binding is provisional until DNS proves it.** Unproven bindings can be
   taken over by another site and expire after 24 hours; only a verified binding is exclusive.
+  Refined 2026-09-27: the proof is a TXT ownership record, and a binding past it cannot be taken
+  over either.
   Reason: a name could otherwise be squatted forever by binding it without owning it.
 - **2026-09-06. The connect-domain skill must carry registrar-specific help** for at least Vercel,
   GoDaddy and Porkbun, including the API call an agent can make with the user's credentials.
@@ -279,6 +281,18 @@ What follows from that, and is not negotiable without changing the line above:
   was removed) and nobody else can claim it. Owner approved ("automate"), completeness plan.
   Reason: the self-serve flow could not finish without the operator, and a lapsed or switched
   address stranded visitors.
+- **2026-09-27. Custom domains need a TXT ownership record.** A custom domain counts as verified
+  (and gets a certificate) only while the DNS TXT record `_simple-host.<domain>` holds the site's
+  own random token; "something on this server answered HTTPS" no longer proves anything. The
+  issuer refuses any name another server on the box already answers (exact, wildcard or regex
+  `server_name`) and reuses only certificates it issued. A lapsed domain is released completely
+  (no live server or certificate left behind) and needs the TXT record to be connected again.
+  Each account asks for at most 5 new domain certificates a day; taken-down sites get no checks
+  or certificates. Domains verified before this decision keep working without the record while
+  they stay verified. Refines 2026-09-06 ("provisional until DNS proves it") and the decision
+  above. Reason: a security review found any account could bind operator and customer
+  hostnames on this box (trip.chhotabreak.com, *.quotes.chhotabreak.com) and be marked verified
+  for them. Orchestrator-mandated security fix, 2026-09-27.
 
 - **2026-09-27. People can download all their data and delete their account and all data
   themselves; deletion is immediate and final.** "Download my data" and "Delete my account" in

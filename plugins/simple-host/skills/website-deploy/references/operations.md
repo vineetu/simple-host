@@ -58,9 +58,9 @@ Preview a retained version before restoring it (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.3"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.4"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.3"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.4"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte
@@ -185,8 +185,9 @@ site already lives at its own `https://<sitename>.<handle>.simple-host.app/`. In
 
 - A free `<name>.simple-host.app` (`{"domain":"clay-studio.simple-host.app"}`)
   answers `active` at once. No DNS step.
-- The person's own domain returns one DNS record for the human to add at their
-  registrar; poll `GET /v1/sites/<sitename>/domain` until `active`.
+- The person's own domain returns two DNS records for the human to add at their
+  registrar: the address record (`dns`) and a TXT ownership record (`dns_txt`,
+  kept in place); poll `GET /v1/sites/<sitename>/domain` until `active`.
 
 The site moves there and its old address redirects. Sign-in and private
 collections work either way: visitors sign in with Google or an emailed code on

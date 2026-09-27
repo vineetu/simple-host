@@ -114,7 +114,12 @@ func domainSchema(justConnected bool) map[string]any {
 			"type":  outString("Record type to add: CNAME for a subdomain, A for an apex domain."),
 			"host":  outString("The name the record is added for."),
 			"value": outString("The record's value."),
-		}, "type", "host", "value"), "The one DNS record the person must add at their registrar. Absent for a free simple-host.app address, which needs none."),
+		}, "type", "host", "value"), "The DNS record that points the domain here, to add at the registrar. Absent for a free simple-host.app address, which needs none."),
+		"ownership_record": withDescription(outObject(map[string]any{
+			"type":  outString("Always TXT."),
+			"host":  outString("_simple-host.<domain>, the name the TXT record is added for."),
+			"value": outString("This site's ownership token, the record's value."),
+		}, "type", "host", "value"), "The TXT record that proves the domain is the person's, to add at the registrar next to dns_record and keep in place. Nothing is verified or certified without it. Absent for a free simple-host.app address."),
 		"last_check":    outString("Why the domain is not active yet, from the most recent check. Present only after a failed check."),
 		"url":           outString("The site's address on this domain. Present only when status is active."),
 		"certificate":   outEnum("The domain's HTTPS certificate: pending (DNS not pointed here yet), issuing (automatic, usually minutes), live, or failed (last_check says why; it is retried). Absent for a free simple-host.app address.", "pending", "issuing", "live", "failed"),
@@ -124,7 +129,7 @@ func domainSchema(justConnected bool) map[string]any {
 	}
 	if justConnected {
 		props["domain"] = outString("The domain just connected.")
-		props["status"] = outEnum("pending (add the DNS record in dns_record, then check with domain_status) or active (a free simple-host.app address, live at once).", "pending", "active")
+		props["status"] = outEnum("pending (add the DNS records in dns_record and ownership_record, then check with domain_status) or active (a free simple-host.app address, live at once).", "pending", "active")
 		delete(props, "last_check")
 		delete(props, "failing_since")
 	}

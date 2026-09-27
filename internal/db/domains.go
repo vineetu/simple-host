@@ -26,18 +26,26 @@ type SiteDomainInfo struct {
 	// CertStatus is pending | issuing | live | failed ("" = not known yet).
 	CertStatus   string
 	FailingSince sql.NullTime
+	// Token is the site's ownership token: the value of the DNS TXT record
+	// _simple-host.<domain> that proves a custom domain is the owner's.
+	Token string
+	// ProofExempt: Domain was verified before the TXT proof existed and keeps
+	// working without it while it stays verified.
+	ProofExempt bool
 }
 
 // domainColumns is the column list scanDomainInfo reads, in order.
 const domainColumns = `id, user_id, name, COALESCE(custom_domain, ''), COALESCE(domain_status, ''),
 	domain_verified_at, domain_bound_at, COALESCE(domain_last_error, ''),
-	COALESCE(previous_domain, ''), COALESCE(domain_cert_status, ''), domain_failing_since`
+	COALESCE(previous_domain, ''), COALESCE(domain_cert_status, ''), domain_failing_since,
+	COALESCE(domain_token, ''), COALESCE(custom_domain = ANY(domain_proof_exempt), false)`
 
 func scanDomainInfo(row interface{ Scan(...any) error }) (SiteDomainInfo, error) {
 	var info SiteDomainInfo
 	err := row.Scan(&info.SiteID, &info.UserID, &info.Name, &info.Domain, &info.Status,
 		&info.VerifiedAt, &info.BoundAt, &info.LastError,
-		&info.PreviousDomain, &info.CertStatus, &info.FailingSince)
+		&info.PreviousDomain, &info.CertStatus, &info.FailingSince,
+		&info.Token, &info.ProofExempt)
 	return info, err
 }
 
@@ -60,7 +68,8 @@ func SetCustomDomain(ctx context.Context, database Querier, siteID, domain strin
 		    domain_cert_status = NULL,
 		    domain_failing_since = NULL,
 		    domain_lapse_notified_at = NULL,
-		    previous_domain_failing_since = NULL
+		    previous_domain_failing_since = NULL,
+		    domain_token = COALESCE(domain_token, 'sh-' || replace(gen_random_uuid()::text, '-', ''))
 		WHERE id = $1
 	`
 	_, err := database.ExecContext(ctx, query, siteID, domain)
@@ -176,6 +185,21 @@ type BoundDomain struct {
 	Status         string
 	Verified       bool
 	PreviousDomain string
+	UserID         string
+	Name           string
+	// Token is the site's ownership token (TXT _simple-host.<domain>).
+	Token string
+	// ProofExempt: verified before the TXT proof existed (see SiteDomainInfo).
+	ProofExempt bool
+	// Suspended: the site or its owner's account is taken down; it gets no
+	// checks and no certificate.
+	Suspended bool
+}
+
+// BoundDomainOf is the check view of a site's binding.
+func BoundDomainOf(info SiteDomainInfo) BoundDomain {
+	return BoundDomain{SiteID: info.SiteID, Domain: info.Domain, Status: info.Status, Verified: info.VerifiedAt.Valid,
+		PreviousDomain: info.PreviousDomain, UserID: info.UserID, Name: info.Name, Token: info.Token, ProofExempt: info.ProofExempt}
 }
 
 // ListDomainsToCheck returns bound domains due for verification: every binding
@@ -184,15 +208,17 @@ type BoundDomain struct {
 // back to error/pending, so "active" is a claim with an expiry, not a latch.
 func ListDomainsToCheck(ctx context.Context, database *sql.DB, activeAge time.Duration) ([]BoundDomain, error) {
 	const query = `
-		SELECT id, custom_domain, COALESCE(domain_status, ''), domain_verified_at IS NOT NULL, COALESCE(previous_domain, '')
-		FROM sites
-		WHERE custom_domain IS NOT NULL
-		  AND custom_domain <> ''
-		  AND deleted_at IS NULL
-		  AND (domain_status IS DISTINCT FROM 'active'
-		       OR domain_verified_at IS NULL
-		       OR domain_verified_at < now() - ($1 * interval '1 second'))
-		ORDER BY custom_domain
+		SELECT s.id, s.custom_domain, COALESCE(s.domain_status, ''), s.domain_verified_at IS NOT NULL, COALESCE(s.previous_domain, ''),
+		       s.user_id, s.name, COALESCE(s.domain_token, ''), COALESCE(s.custom_domain = ANY(s.domain_proof_exempt), false),
+		       s.suspended_at IS NOT NULL OR u.suspended_at IS NOT NULL
+		FROM sites s JOIN users u ON u.id = s.user_id
+		WHERE s.custom_domain IS NOT NULL
+		  AND s.custom_domain <> ''
+		  AND s.deleted_at IS NULL
+		  AND (s.domain_status IS DISTINCT FROM 'active'
+		       OR s.domain_verified_at IS NULL
+		       OR s.domain_verified_at < now() - ($1 * interval '1 second'))
+		ORDER BY s.custom_domain
 	`
 	rows, err := database.QueryContext(ctx, query, int64(activeAge.Seconds()))
 	if err != nil {
@@ -203,7 +229,8 @@ func ListDomainsToCheck(ctx context.Context, database *sql.DB, activeAge time.Du
 	var out []BoundDomain
 	for rows.Next() {
 		var d BoundDomain
-		if err := rows.Scan(&d.SiteID, &d.Domain, &d.Status, &d.Verified, &d.PreviousDomain); err != nil {
+		if err := rows.Scan(&d.SiteID, &d.Domain, &d.Status, &d.Verified, &d.PreviousDomain,
+			&d.UserID, &d.Name, &d.Token, &d.ProofExempt, &d.Suspended); err != nil {
 			return nil, err
 		}
 		out = append(out, d)
@@ -254,22 +281,34 @@ func MarkDomainLapseNotified(ctx context.Context, database *sql.DB, siteID, doma
 	return err
 }
 
-// LapseDomain stops treating a long-failing domain as proven: its
-// verification is cleared, so the site's own address serves again and the
-// domain can be claimed by whoever really holds it now. The binding itself is
-// released later by ReleaseExpiredDomains once DNS no longer points here.
+// LapseDomain lets a long-failing verified domain go completely: the site
+// no longer has it (an earlier proven address, if any, comes back), its
+// grandfathering ends, and the caller unbinds its link so the issuer drops
+// the server and certificate. Nobody can inherit a live server; connecting it
+// again (by anyone) needs the TXT ownership proof. False when domain is no
+// longer the site's verified domain.
 func LapseDomain(ctx context.Context, database *sql.DB, siteID, domain string) (bool, error) {
-	res, err := database.ExecContext(ctx, `
-		UPDATE sites
-		SET domain_verified_at = NULL,
-		    domain_failing_since = NULL,
-		    domain_lapse_notified_at = NULL
-		WHERE id = $1 AND custom_domain = $2 AND domain_verified_at IS NOT NULL`, siteID, domain)
+	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return false, err
 	}
-	n, err := res.RowsAffected()
-	return n > 0, err
+	defer tx.Rollback()
+	var userID string
+	err = tx.QueryRowContext(ctx, `
+		UPDATE sites SET `+restorePreviousSet+`,
+		    domain_proof_exempt = array_remove(domain_proof_exempt, $2)
+		WHERE id = $1 AND custom_domain = $2 AND domain_verified_at IS NOT NULL
+		RETURNING user_id`, siteID, domain).Scan(&userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if err := retirePlatformName(ctx, tx, domain, siteID, userID); err != nil {
+		return false, err
+	}
+	return true, tx.Commit()
 }
 
 // SetPreviousDomainCheck records one check of the earlier address siteID
@@ -380,16 +419,18 @@ func BindCustomDomain(ctx context.Context, database *sql.DB, siteID, domain stri
 	}
 	var holder SiteDomainInfo
 	err = tx.QueryRowContext(ctx, `
-		SELECT s.id, s.user_id, s.name, s.custom_domain, s.domain_verified_at, COALESCE(u.handle, '')
+		SELECT s.id, s.user_id, s.name, s.custom_domain, s.domain_verified_at, COALESCE(u.handle, ''), COALESCE(s.domain_cert_status, '')
 		FROM sites s JOIN users u ON u.id = s.user_id
 		WHERE s.custom_domain = $1 FOR UPDATE OF s`, domain).Scan(
-		&holder.SiteID, &holder.UserID, &holder.Name, &holder.Domain, &holder.VerifiedAt, &holder.Handle)
+		&holder.SiteID, &holder.UserID, &holder.Name, &holder.Domain, &holder.VerifiedAt, &holder.Handle, &holder.CertStatus)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, "", err
 	}
 	var released *SiteDomainInfo
 	if err == nil && holder.SiteID != siteID {
-		if holder.VerifiedAt.Valid {
+		// Proven, or past its ownership proof (a certificate is asked for
+		// only once the holder's TXT record matched): not up for grabs.
+		if holder.VerifiedAt.Valid || (holder.CertStatus != "" && holder.CertStatus != "pending") {
 			return nil, "", ErrDomainTaken
 		}
 		_, restored, err := dropCustomDomain(ctx, tx, holder.SiteID, domain)
@@ -597,4 +638,46 @@ func ClaimPlatformSubdomain(ctx context.Context, database *sql.DB, siteID, host 
 		}
 	}
 	return released, tx.Commit()
+}
+
+// DomainCertDailyCap is how many new custom-domain certificates one account
+// may ask for in a rolling day.
+const DomainCertDailyCap = 5
+
+// AllowDomainCertRequest records that userID asks for a certificate for
+// domain, unless that would be more than DomainCertDailyCap different domains
+// in the last 24 hours. Asking again for a domain already asked for within
+// the day is always allowed and not counted twice.
+func AllowDomainCertRequest(ctx context.Context, database *sql.DB, userID, domain string) (bool, error) {
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('domain-cert:' || $1, 0))`, userID); err != nil {
+		return false, err
+	}
+	var again bool
+	var n int
+	if err := tx.QueryRowContext(ctx, `
+		SELECT COALESCE(bool_or(domain = $2), false), count(DISTINCT domain)
+		FROM domain_cert_requests WHERE user_id = $1 AND requested_at > now() - interval '24 hours'`, userID, domain).Scan(&again, &n); err != nil {
+		return false, err
+	}
+	if again {
+		return true, nil
+	}
+	if n >= DomainCertDailyCap {
+		return false, nil
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO domain_cert_requests (user_id, domain) VALUES ($1, $2)`, userID, domain); err != nil {
+		return false, err
+	}
+	return true, tx.Commit()
+}
+
+// PruneDomainCertRequests forgets requests older than two days.
+func PruneDomainCertRequests(ctx context.Context, database *sql.DB) error {
+	_, err := database.ExecContext(ctx, `DELETE FROM domain_cert_requests WHERE requested_at < now() - interval '2 days'`)
+	return err
 }

@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -19,8 +20,7 @@ const (
 	domainCheckInterval = 2 * time.Minute
 	// domainActiveAge is how long an "active" verdict stands before it must be
 	// proved again.
-	domainActiveAge    = time.Hour
-	domainProbeTimeout = 10 * time.Second
+	domainActiveAge = time.Hour
 	// domainPassTimeout bounds one whole pass over the due domains.
 	domainPassTimeout = 2 * time.Minute
 	// A verified domain that keeps failing its checks: its owner is emailed
@@ -30,7 +30,89 @@ const (
 	domainLapseAfter     = 72 * time.Hour
 )
 
-var domainProbe = &http.Client{Timeout: domainProbeTimeout}
+// lookupTXT and lookupHost read DNS (variables so tests can stand in).
+// domainProbeTimeout bounds one HTTPS probe (a variable so tests can shorten it).
+var domainProbeTimeout = 10 * time.Second
+
+var (
+	lookupTXT  = net.DefaultResolver.LookupTXT
+	lookupHost = net.DefaultResolver.LookupHost
+)
+
+// domainProofHost is where a custom domain's ownership record lives.
+func domainProofHost(domain string) string { return "_simple-host." + domain }
+
+// domainProof reports whether the DNS TXT record _simple-host.<domain> holds
+// the site's token: the proof that whoever connected the domain controls it.
+// Only this counts; something on this server answering the domain proves
+// nothing about who owns it.
+func domainProof(ctx context.Context, domain, token string) (bool, string) {
+	why := "add the ownership record at your domain's registrar: TXT " + domainProofHost(domain) + " with the value " + token
+	if token == "" {
+		return false, "the ownership record could not be checked yet"
+	}
+	recs, err := lookupTXT(ctx, domainProofHost(domain))
+	if err != nil {
+		return false, why
+	}
+	for _, r := range recs {
+		if strings.Trim(strings.TrimSpace(r), `"`) == token {
+			return true, ""
+		}
+	}
+	return false, "the TXT record " + domainProofHost(domain) + " does not hold this site's value (" + token + ")"
+}
+
+// domainProbeVia is the HTTPS client for one check: it connects only to ip
+// (an address of this server the domain resolved to, so a second DNS answer
+// cannot send the request anywhere else) and never follows a redirect.
+func domainProbeVia(ip string) *http.Client {
+	dialer := &net.Dialer{Timeout: domainProbeTimeout}
+	return &http.Client{
+		Timeout: domainProbeTimeout,
+		Transport: &http.Transport{
+			Proxy: nil,
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				_, port, err := net.SplitHostPort(addr)
+				if err != nil {
+					return nil, err
+				}
+				return dialer.DialContext(ctx, network, net.JoinHostPort(ip, port))
+			},
+			TLSHandshakeTimeout: domainProbeTimeout,
+			DisableKeepAlives:   true,
+		},
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
+}
+
+// isPublicIP: a globally routable unicast address (not loopback, private,
+// link-local, carrier-grade NAT, unspecified or multicast).
+func isPublicIP(s string) bool {
+	ip, err := netip.ParseAddr(s)
+	if err != nil {
+		return false
+	}
+	ip = ip.Unmap()
+	if !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
+		return false
+	}
+	for _, p := range nonPublicPrefixes {
+		if p.Contains(ip) {
+			return false
+		}
+	}
+	return true
+}
+
+var nonPublicPrefixes = []netip.Prefix{
+	netip.MustParsePrefix("0.0.0.0/8"),
+	netip.MustParsePrefix("100.64.0.0/10"),
+	netip.MustParsePrefix("192.0.0.0/24"),
+	netip.MustParsePrefix("198.18.0.0/15"),
+	netip.MustParsePrefix("240.0.0.0/4"),
+	netip.MustParsePrefix("64:ff9b::/96"),
+}
 
 // startDomainChecks re-verifies bound custom domains in the background, so
 // domain_status reflects what the domain actually does rather than what was
@@ -49,6 +131,9 @@ func (h *SiteHandler) checkBoundDomains() {
 	ctx, cancel := context.WithTimeout(context.Background(), domainPassTimeout)
 	defer cancel()
 
+	if err := db.PruneDomainCertRequests(ctx, h.database); err != nil {
+		log.Printf("domain check: prune certificate requests: %v", err)
+	}
 	released, err := db.ReleaseExpiredDomains(ctx, h.database)
 	if err != nil {
 		log.Printf("domain check: expiry failed: %v", err)
@@ -81,20 +166,38 @@ func (h *SiteHandler) checkBoundDomains() {
 }
 
 // checkDomain proves one bound custom domain and acts on the result: asks for
-// its certificate once DNS points here, finishes a switch of address once it
-// is verified, and lets a long-failing verified domain go.
+// its certificate once its ownership record matches and DNS points here,
+// finishes a switch of address once it is verified, and lets a long-failing
+// verified domain go. A taken-down site gets no check and no certificate.
 func (h *SiteHandler) checkDomain(ctx context.Context, d db.BoundDomain, ours map[string]bool) {
-	status, reason, pointsHere := h.verifyDomain(ctx, d.Domain, ours)
+	if d.Suspended {
+		h.cancelDomainCert(d.Domain)
+		return
+	}
+	var status, reason string
+	var pointsHere bool
+	// Ownership first: a domain verified before the TXT proof existed keeps
+	// working without it while it stays verified; everything else needs it.
+	proven, why := true, ""
+	if !(d.Verified && d.ProofExempt) {
+		proven, why = domainProof(ctx, d.Domain, d.Token)
+	}
+	if proven {
+		status, reason, pointsHere = h.verifyDomain(ctx, d.Domain, ours)
+	} else {
+		status, reason = "pending", why
+	}
 	cert := "pending"
 	switch {
+	case !proven:
+		h.cancelDomainCert(d.Domain)
 	case status == "active":
 		cert = "live"
 		h.cancelDomainCert(d.Domain)
 	case !pointsHere:
 		h.cancelDomainCert(d.Domain)
 	default:
-		var why string
-		cert, why = h.domainCertProgress(d.Domain)
+		cert, why = h.domainCertProgress(ctx, d)
 		switch cert {
 		case "failed":
 			reason = why
@@ -165,8 +268,14 @@ func (h *SiteHandler) applyDomainCheck(ctx context.Context, d db.BoundDomain, st
 		if lapsed, err := db.LapseDomain(ctx, h.database, d.SiteID, d.Domain); err != nil {
 			log.Printf("domain %s: lapse: %v", d.Domain, err)
 		} else if lapsed {
+			// Released fully: the link goes, so the issuer drops its server and
+			// certificate and nobody inherits a live address.
+			if _, err := h.disk.UnbindDomainOf(d.Domain, check.UserID, check.Name); err != nil {
+				log.Printf("domain: unbind lapsed %s: %v", d.Domain, err)
+			}
+			h.cancelDomainCert(d.Domain)
 			h.syncDomainRedirect(ctx, d.SiteID)
-			log.Printf("domain %s: failing for %s; no longer the home of %s", d.Domain, failing.Round(time.Hour), check.Name)
+			log.Printf("domain %s: failing for %s; released from %s", d.Domain, failing.Round(time.Hour), check.Name)
 		}
 	case failing >= domainLapseWarnAfter && !check.Notified:
 		h.emailDomainFailing(ctx, d, check.Name, reason)
@@ -216,7 +325,7 @@ What the last check saw: %s
 
 If you moved the domain or let it lapse on purpose, there is nothing to do. Otherwise, check the DNS record at your domain registrar.
 
-If it is still failing two days from now, %s stops being the site's address: the site serves at its own Simple Host address again, and the domain can be connected afresh by whoever holds it.
+If it is still failing two days from now, %s is disconnected from the site: the site serves at its own Simple Host address again. Connecting the domain again (by you or whoever holds it then) needs its DNS ownership record (TXT _simple-host.<domain>) once more.
 
 Simple Host
 `, siteName, d.Domain, reason, d.Domain)
@@ -239,7 +348,7 @@ func (h *SiteHandler) serverAddrs(ctx context.Context) map[string]bool {
 	if h.customDomainIP != "" {
 		ours[h.customDomainIP] = true
 	}
-	if ips, err := net.DefaultResolver.LookupHost(ctx, h.cnameTarget); err == nil {
+	if ips, err := lookupHost(ctx, h.cnameTarget); err == nil {
 		for _, ip := range ips {
 			ours[ip] = true
 		}
@@ -253,25 +362,27 @@ func (h *SiteHandler) serverAddrs(ctx context.Context) map[string]bool {
 // DNS is read to explain a failed fetch and to know when to ask for the
 // domain's certificate (pointsHere).
 func (h *SiteHandler) verifyDomain(ctx context.Context, domain string, ours map[string]bool) (status, reason string, pointsHere bool) {
-	ips, err := net.DefaultResolver.LookupHost(ctx, domain)
+	ips, err := lookupHost(ctx, domain)
 	if err != nil {
 		return "pending", "domain does not resolve yet", false
 	}
+	here := ""
 	for _, ip := range ips {
-		if ours[ip] {
-			pointsHere = true
+		if ours[ip] && isPublicIP(ip) {
+			here = ip
 			break
 		}
 	}
-	if !pointsHere {
+	if here == "" {
 		return "pending", "resolves to " + strings.Join(ips, ", ") + ", not to this server", false
 	}
+	pointsHere = true
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://"+domain+"/", nil)
 	if err != nil {
 		return "pending", err.Error(), true
 	}
-	resp, err := domainProbe.Do(req)
+	resp, err := domainProbeVia(here).Do(req)
 	if err != nil {
 		return "pending", "resolves to this server but HTTPS is not answering yet (certificate not issued)", true
 	}
@@ -305,6 +416,12 @@ func (h *SiteHandler) checkDomainNow(w http.ResponseWriter, r *http.Request) {
 	if refuseSuspendedSite(w, site) {
 		return
 	}
+	// Each check reaches out to the domain; a few per account at a time.
+	if h.domainCheckUserLimiter != nil && !h.domainCheckUserLimiter.allow(user.ID) {
+		w.Header().Set("Retry-After", "30")
+		writeJSON(w, http.StatusTooManyRequests, errorResponse{Error: "checked a moment ago; try again in half a minute (domains are also checked every few minutes on their own)", Code: "rate_limited"})
+		return
+	}
 	info, ok, err := db.GetSiteDomainInfo(r.Context(), h.database, site.ID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -319,8 +436,7 @@ func (h *SiteHandler) checkDomainNow(w http.ResponseWriter, r *http.Request) {
 		defer cancel()
 		// The same check, certificate hand-off and switch of address as the
 		// background pass.
-		h.checkDomain(ctx, db.BoundDomain{SiteID: site.ID, Domain: info.Domain, Status: info.Status,
-			Verified: info.VerifiedAt.Valid, PreviousDomain: info.PreviousDomain}, h.serverAddrs(ctx))
+		h.checkDomain(ctx, db.BoundDomainOf(info), h.serverAddrs(ctx))
 	}
 	h.getDomain(w, r)
 }

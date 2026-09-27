@@ -141,6 +141,15 @@ func (h *SiteHandler) dnsRecordFor(domain string) dnsRecord {
 	}
 }
 
+// proofRecordFor is the DNS TXT record that proves the domain is the
+// owner's: _simple-host.<domain> holding the site's token. nil without a token.
+func proofRecordFor(domain, token string) *dnsRecord {
+	if token == "" {
+		return nil
+	}
+	return &dnsRecord{Type: "TXT", Host: domainProofHost(domain), Value: token}
+}
+
 type domainBindRequest struct {
 	Domain string `json:"domain"`
 }
@@ -154,6 +163,9 @@ type domainResponse struct {
 	VerifiedAt   *time.Time `json:"verified_at,omitempty"`
 	LastError    string     `json:"last_error,omitempty"`
 	DNS          *dnsRecord `json:"dns,omitempty"`
+	// DNSTXT is the ownership record: TXT _simple-host.<domain> = the site's
+	// token. Required before a domain is verified or gets a certificate.
+	DNSTXT *dnsRecord `json:"dns_txt,omitempty"`
 	// CertStatus is the domain's certificate: pending (DNS not pointed here
 	// yet), issuing, live or failed (last_error says why; retried).
 	CertStatus string `json:"certificate_status,omitempty"`
@@ -176,6 +188,7 @@ func (h *SiteHandler) domainResponseFor(info db.SiteDomainInfo) domainResponse {
 	if !h.isPlatformSubdomainHost(info.Domain) {
 		rec := h.dnsRecordFor(info.Domain)
 		resp.DNS = &rec
+		resp.DNSTXT = proofRecordFor(info.Domain, info.Token)
 		resp.CertStatus = info.CertStatus
 		if resp.CertStatus == "" {
 			resp.CertStatus = "pending"
@@ -269,6 +282,15 @@ func (h *SiteHandler) bindDomain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The issuer still serves this domain for a binding that just ended
+	// (disconnected or lapsed): wait until it has let go, so nobody inherits
+	// a live server and certificate.
+	if fileExists(h.domainCertFile("ready", domain)) {
+		if _, err := db.GetSiteByCustomDomain(r.Context(), h.database, domain); errors.Is(err, sql.ErrNoRows) {
+			writeJSON(w, http.StatusConflict, errorResponse{Error: "this domain was just disconnected and is still being released; try again in 10 minutes", Code: "domain_releasing"})
+			return
+		}
+	}
 	holder, replaced, err := db.BindCustomDomain(r.Context(), h.database, site.ID, domain)
 	if err != nil {
 		if errors.Is(err, db.ErrDomainTaken) {
@@ -284,6 +306,7 @@ func (h *SiteHandler) bindDomain(w http.ResponseWriter, r *http.Request) {
 
 	tookOverFrom := ""
 	if holder != nil {
+		h.cancelDomainCert(domain)
 		h.releaseDomainFiles(*holder)
 		tookOverFrom = holder.Handle + "/" + holder.Name
 	}

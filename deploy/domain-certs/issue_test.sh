@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Sandbox test for issue.sh: runs it against a temp tree with fake certbot,
-# nginx, dig, systemctl and install, and checks that it never takes over a
-# server the operator wrote by hand, issues for the rest, and cleans up
-# failure notes for disconnected domains.
+# nginx, dig, systemctl and install, and checks that it never takes a name
+# another nginx server answers (exact, wildcard or regex server_name), never
+# reuses a certificate it did not issue, issues only with a matching TXT
+# ownership record for the site the domain is still bound to, skips taken-down
+# sites, and cleans up after disconnected domains.
 #
 #   bash deploy/domain-certs/issue_test.sh
 set -euo pipefail
@@ -10,11 +12,13 @@ here=$(cd "$(dirname "$0")" && pwd)
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 
-mkdir -p "$T/bin" "$T/state/requests" "$T/sites/by-id/u/s" "$T/avail" "$T/enabled" "$T/live" "$T/webroot"
+mkdir -p "$T/bin" "$T/state/requests" "$T/state/ready" "$T/state/owned" "$T/state/failed" \
+  "$T/sites/domains" "$T/sites/by-id/u/s" "$T/sites/by-id/u/down" "$T/avail" "$T/enabled" "$T/confd" "$T/live" "$T/webroot" "$T/txt"
+S=$T/sites/domains
 cp "$here/vhost.conf.template" "$T/template"
 cat > "$T/conf" <<EOF
 STATE=$T/state
-SITES=$T/sites
+SITES=$S
 WEBROOT=$T/webroot
 TEMPLATE=$T/template
 AVAILABLE=$T/avail
@@ -31,8 +35,31 @@ if [ "\$1" = certonly ]; then
   mkdir -p "$T/live/\$d" && touch "$T/live/\$d/fullchain.pem" "$T/live/\$d/privkey.pem"
 fi
 EOF
-printf '#!/bin/sh\necho 203.0.113.7\n' > "$T/bin/dig"
-printf '#!/bin/sh\nexit 0\n' > "$T/bin/nginx"
+# dig: every A record points here; TXT answers come from $T/txt/<domain>.
+cat > "$T/bin/dig" <<EOF
+#!/usr/bin/env bash
+t=; n=
+for a in "\$@"; do case \$a in +short) ;; A|AAAA|TXT) t=\$a ;; *) n=\$a ;; esac; done
+case \$t in
+  A) echo 203.0.113.7 ;;
+  TXT) f="$T/txt/\${n#_simple-host.}"; [ -f "\$f" ] && sed 's/.*/"&"/' "\$f" ;;
+esac
+exit 0
+EOF
+# nginx: -T dumps every enabled file plus conf.d the way nginx does.
+cat > "$T/bin/nginx" <<EOF
+#!/usr/bin/env bash
+if [ "\${1:-}" = -T ]; then
+  [ -f "$T/nginx-T-fails" ] && exit 1
+  echo "nginx: the configuration file /etc/nginx/nginx.conf syntax is ok" >&2
+  for f in "$T/confd"/* "$T/enabled"/*; do
+    [ -e "\$f" ] || continue
+    echo "# configuration file \$f:"
+    cat "\$f"; echo
+  done
+fi
+exit 0
+EOF
 printf '#!/bin/sh\necho "systemctl $*" >> %s/calls\n' "$T" > "$T/bin/systemctl"
 # install without -o/-g (not root here).
 cat > "$T/bin/install" <<'EOF'
@@ -43,40 +70,95 @@ EOF
 chmod +x "$T/bin/"*
 touch "$T/calls"
 
-# Hand-made servers on the live box are named after the site, not customdomain-*.
+TOK=sh-0123456789abcdef0123456789abcdef
+OTHER=sh-ffffffffffffffffffffffffffffffff
+touch "$T/sites/by-id/u/down/suspended"
+
+# Servers the operator wrote (names like the live box's).
 printf 'server {\n  listen 443 ssl;\n  server_name vineetsriram.com\n              www.vineetsriram.com;\n}\n' > "$T/enabled/vineetsriram.com"
 printf 'server { server_name ielts.vineetsriram.com; }\n' > "$T/enabled/ielts.vineetsriram.com"
 printf 'server { server_name *.wild.test; }\n# server_name commented.test;\n' > "$T/enabled/wild"
-# A hand lineage exists for the hand-made domain (the old takeover path).
-mkdir -p "$T/live/vineetsriram.com" && touch "$T/live/vineetsriram.com/fullchain.pem" "$T/live/vineetsriram.com/privkey.pem"
+printf 'server {\n    server_name ~^(?<client>[a-z0-9-]+)\\.quotes\\.example\\.com$;\n    location / { return 404; }\n}\n' > "$T/enabled/sub-quotes.example.com"
+printf 'server { server_name "~^[a-z]{2,3}\\.re\\.test$"; }\n' > "$T/enabled/quoted-regex"
+printf 'server { server_name .dot.test; }\nmap $ssl_server_name $x { default 1; }\n' > "$T/enabled/dot"
+printf 'server { server_name shop.*; }\n' > "$T/enabled/trailing"
+printf 'server { listen 80 default_server; server_name _ ""; }\n' > "$T/confd/default.conf"
+# A hand lineage exists for the hand-made domain (the old takeover path),
+# and one for a name no server names (a foreign certificate).
+for d in vineetsriram.com foreign.test; do
+  mkdir -p "$T/live/$d" && touch "$T/live/$d/fullchain.pem" "$T/live/$d/privkey.pem"
+done
+# Our own lineage from an earlier issue: reused.
+mkdir -p "$T/live/again.test" && touch "$T/live/again.test/fullchain.pem" "$T/live/again.test/privkey.pem" "$T/state/owned/again.test"
 # A server of ours written before the hand-made one appeared.
 echo "old" > "$T/avail/simple-host-domain-ielts.vineetsriram.com"
 ln -s "$T/avail/simple-host-domain-ielts.vineetsriram.com" "$T/enabled/simple-host-domain-ielts.vineetsriram.com"
+# A ready domain of ours that a hand-made server now names.
+echo "ours" > "$T/avail/simple-host-domain-late.test"
+ln -s "$T/avail/simple-host-domain-late.test" "$T/enabled/simple-host-domain-late.test"
+touch "$T/state/ready/late.test"
+printf 'server { server_name late.test; }\n' > "$T/enabled/late.test"
+# A certificate of ours whose domain was disconnected (no link, no ready).
+mkdir -p "$T/live/gone2.test" && touch "$T/state/owned/gone2.test"
 
-for d in vineetsriram.com ielts.vineetsriram.com a.wild.test fresh.test sub.vineetsriram.com commented.test kept.test; do
-  ln -s by-id/u/s "$T/sites/$d"
+hand="vineetsriram.com ielts.vineetsriram.com a.wild.test acme.quotes.example.com ab.re.test dot.test x.dot.test shop.example"
+issue="fresh.test sub.vineetsriram.com commented.test b.quotes.example.com.evil.test"
+for d in $hand $issue again.test foreign.test notxt.test wrongtxt.test moved.test late.test kept.test oldstyle.test; do
+  ln -s ../by-id/u/s "$S/$d"
 done
-for d in vineetsriram.com ielts.vineetsriram.com a.wild.test fresh.test sub.vineetsriram.com commented.test; do
-  touch "$T/state/requests/$d"
+ln -s ../by-id/u/down "$S/down.test"
+for d in $hand $issue again.test foreign.test notxt.test wrongtxt.test down.test; do
+  echo "$TOK" > "$T/txt/$d"
 done
-mkdir -p "$T/state/failed"
+echo "$OTHER" > "$T/txt/wrongtxt.test"
+rm -f "$T/txt/notxt.test"
+echo "$TOK" > "$T/txt/moved.test"
+for d in $hand $issue again.test foreign.test notxt.test wrongtxt.test; do
+  printf '%s\n../by-id/u/s\n' "$TOK" > "$T/state/requests/$d"
+done
+printf '%s\n../by-id/u/down\n' "$TOK" > "$T/state/requests/down.test"
+# Made for an earlier binding: the link now points at another site.
+printf '%s\n../by-id/u/other\n' "$TOK" > "$T/state/requests/moved.test"
+: > "$T/state/requests/oldstyle.test"
 echo "old failure" > "$T/state/failed/gone.test"
 echo "dns" > "$T/state/failed/kept.test"
 touch -d '@0' "$T/state/failed/kept.test"
 
-PATH="$T/bin:$PATH" SIMPLE_HOST_DOMAIN_CERTS_CONF="$T/conf" bash "$here/issue.sh" > "$T/out" 2>&1 || { cat "$T/out"; echo "FAIL: issue.sh exited non-zero"; exit 1; }
+run() { PATH="$T/bin:$PATH" SIMPLE_HOST_DOMAIN_CERTS_CONF="$T/conf" bash "$here/issue.sh" > "$T/out" 2>&1 || { cat "$T/out"; echo "FAIL: issue.sh exited non-zero"; exit 1; }; }
+run
 
 fail=0
 check() { if eval "$2"; then echo "  ok   $1"; else echo "  FAIL $1"; fail=1; fi; }
-for d in vineetsriram.com ielts.vineetsriram.com a.wild.test; do
-  check "$d: hand-made server left alone, marked ready" "[ -f '$T/state/ready/$d' ] && [ ! -e '$T/avail/simple-host-domain-$d' ] && [ ! -e '$T/enabled/simple-host-domain-$d' ] && ! grep -q -- '-d $d\$' '$T/calls'"
+issued() { grep -q -- "-d $1\$" "$T/calls"; }
+for d in $hand; do
+  check "$d: served by another server: failed, never ready, nothing of ours, no certificate" \
+    "[ ! -e '$T/state/ready/$d' ] && grep -q 'already served here' '$T/state/failed/$d' && [ ! -e '$T/avail/simple-host-domain-$d' ] && [ ! -e '$T/enabled/simple-host-domain-$d' ] && ! issued $d"
 done
 check "hand-made files untouched" "grep -q 'www.vineetsriram.com' '$T/enabled/vineetsriram.com' && [ -f '$T/enabled/ielts.vineetsriram.com' ]"
-for d in fresh.test sub.vineetsriram.com commented.test; do
-  check "$d: issued and served by ours" "[ -f '$T/state/ready/$d' ] && [ -L '$T/enabled/simple-host-domain-$d' ] && grep -q -- '-d $d\$' '$T/calls'"
+for d in $issue; do
+  check "$d: issued and served by ours" "[ -f '$T/state/ready/$d' ] && [ -L '$T/enabled/simple-host-domain-$d' ] && issued $d && [ -f '$T/state/owned/$d' ]"
 done
 check "template carries the take-down check" "grep -q 'domains/fresh.test/suspended' '$T/avail/simple-host-domain-fresh.test'"
+check "again.test: our own certificate reused, no new issue" "[ -f '$T/state/ready/again.test' ] && [ -L '$T/enabled/simple-host-domain-again.test' ] && ! issued again.test"
+check "foreign.test: a certificate we did not issue is never reused" "[ ! -e '$T/state/ready/foreign.test' ] && grep -q 'already served here' '$T/state/failed/foreign.test' && [ ! -e '$T/enabled/simple-host-domain-foreign.test' ] && ! issued foreign.test"
+check "notxt.test: no ownership record, no certificate" "[ ! -e '$T/state/ready/notxt.test' ] && grep -q 'ownership record' '$T/state/failed/notxt.test' && ! issued notxt.test"
+check "wrongtxt.test: another site's token, no certificate" "[ ! -e '$T/state/ready/wrongtxt.test' ] && grep -q 'ownership record' '$T/state/failed/wrongtxt.test' && ! issued wrongtxt.test"
+check "moved.test: request for an earlier binding left alone" "[ -f '$T/state/requests/moved.test' ] && [ ! -e '$T/state/ready/moved.test' ] && ! issued moved.test"
+check "oldstyle.test: unreadable request kept for the app to rewrite" "[ -f '$T/state/requests/oldstyle.test' ] && ! issued oldstyle.test"
+check "down.test: taken-down site gets no certificate" "[ ! -e '$T/state/requests/down.test' ] && [ ! -e '$T/state/ready/down.test' ] && ! issued down.test"
+check "late.test: ours withdrawn once a hand-made server names it" "[ ! -e '$T/state/ready/late.test' ] && [ ! -e '$T/enabled/simple-host-domain-late.test' ] && grep -q 'already served here' '$T/state/failed/late.test'"
+check "gone2.test: our certificate deleted once its binding is gone" "grep -q 'delete --non-interactive --quiet --cert-name gone2.test' '$T/calls' && [ ! -e '$T/state/owned/gone2.test' ]"
 check "failure note of a disconnected domain removed" "[ ! -e '$T/state/failed/gone.test' ]"
 check "failure note of a connected domain kept" "[ -e '$T/state/failed/kept.test' ]"
+check "no nginx configuration in the output" "! grep -q 'server_name' '$T/out'"
+
+# Without a readable nginx configuration nothing is issued.
+touch "$T/nginx-T-fails"
+ln -s ../by-id/u/s "$S/blind.test"
+echo "$TOK" > "$T/txt/blind.test"
+printf '%s\n../by-id/u/s\n' "$TOK" > "$T/state/requests/blind.test"
+run
+check "blind.test: nginx -T failing issues nothing and keeps the request" "! issued blind.test && [ -f '$T/state/requests/blind.test' ] && [ ! -e '$T/state/ready/blind.test' ]"
+
 [ "$fail" = 0 ] || { echo "--- issue.sh output"; cat "$T/out"; exit 1; }
 echo "issue.sh sandbox: ok"

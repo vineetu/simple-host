@@ -85,6 +85,8 @@ type SiteHandler struct {
 	stateLimiter       *rateLimiter
 	visitorAuthLimiter *rateLimiter
 	domainCheckLimiter *rateLimiter
+	// domainCheckUserLimiter: "Check again" per account.
+	domainCheckUserLimiter *rateLimiter
 
 	// previewAccounts (by username/email) get ephemeral sites: a site they create
 	// expires after previewTTL and is removed by the background sweep. Empty =off.
@@ -137,6 +139,9 @@ type siteResponse struct {
 	// yet, the DNS record it needs, and when an unproven binding lapses.
 	DomainLastError string     `json:"domain_last_error,omitempty"`
 	DomainDNS       *dnsRecord `json:"domain_dns,omitempty"`
+	// DomainDNSTXT is the ownership record the domain also needs (TXT
+	// _simple-host.<domain> = the site's token).
+	DomainDNSTXT    *dnsRecord `json:"domain_dns_txt,omitempty"`
 	DomainExpiresAt *time.Time `json:"domain_expires_at,omitempty"`
 	// DomainCertStatus is the pending domain's certificate (pending, issuing,
 	// live, failed) and PreviousDomain the earlier address the site keeps
@@ -169,30 +174,33 @@ func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, con
 	visitorAuthLimiter := newRateLimiter(20, 0.2)
 	domainCheckLimiter := newRateLimiter(10, 0.1)
 	domainCheckLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	domainCheckUserLimiter := newRateLimiter(3, 1.0/30)
+	domainCheckUserLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	visitorAuthLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	uploadLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	stateLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 
 	h := &SiteHandler{
-		mailer:             mailer,
-		emailLimiter:       emailLimiter,
-		database:           database,
-		disk:               disk,
-		siteDomain:         siteDomain,
-		contentHost:        contentHost,
-		cnameTarget:        cnameTarget,
-		customDomainIP:     customDomainIP,
-		deployScript:       deployScript,
-		uploadLimiter:      uploadLimiter,
-		stateLimiter:       stateLimiter,
-		visitorAuthLimiter: visitorAuthLimiter,
-		domainCheckLimiter: domainCheckLimiter,
-		previewAccounts:    previewAccounts,
-		previewTTL:         previewTTL,
-		writeAuthMode:      writeAuthMode,
-		adminAPIKey:        adminAPIKey,
-		adminUserID:        adminUserID,
-		exportKey:          newExportKey(),
+		mailer:                 mailer,
+		emailLimiter:           emailLimiter,
+		database:               database,
+		disk:                   disk,
+		siteDomain:             siteDomain,
+		contentHost:            contentHost,
+		cnameTarget:            cnameTarget,
+		customDomainIP:         customDomainIP,
+		deployScript:           deployScript,
+		uploadLimiter:          uploadLimiter,
+		stateLimiter:           stateLimiter,
+		visitorAuthLimiter:     visitorAuthLimiter,
+		domainCheckLimiter:     domainCheckLimiter,
+		domainCheckUserLimiter: domainCheckUserLimiter,
+		previewAccounts:        previewAccounts,
+		previewTTL:             previewTTL,
+		writeAuthMode:          writeAuthMode,
+		adminAPIKey:            adminAPIKey,
+		adminUserID:            adminUserID,
+		exportKey:              newExportKey(),
 	}
 	if len(previewAccounts) > 0 {
 		ttlHours := int(previewTTL.Hours())
@@ -1869,6 +1877,7 @@ func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
 		if !h.isPlatformSubdomainHost(site.CustomDomain.String) {
 			rec := h.dnsRecordFor(site.CustomDomain.String)
 			resp.DomainDNS = &rec
+			resp.DomainDNSTXT = proofRecordFor(site.CustomDomain.String, site.DomainToken)
 		}
 		resp.DomainCertStatus = site.DomainCertStatus
 		resp.PreviousDomain = site.PreviousDomain
