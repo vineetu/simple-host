@@ -8,8 +8,11 @@
   var send = box.querySelector('.sh-ask-send');
   var out = box.querySelector('.sh-ask-answer');
   var busy = false;
-  // Links are kept only to simple-host.app pages; the server enforces the same.
-  var link = /\[([^\]\n]+)\]\((https:\/\/simple-host\.app(?:\/[A-Za-z0-9\/_.#?=&-]*)?)\)/g;
+  // Markdown links become links only when they point at this site's own pages
+  // (the server already drops any other); everything else stays text.
+  var link = /\[([^\]\n]+)\]\((https:\/\/[^)\s]+)\)/g;
+  var origin = location.origin;
+  function own(u) { return u === origin || u.indexOf(origin + '/') === 0; }
 
   function show(text, state) {
     out.hidden = false;
@@ -20,11 +23,12 @@
     link.lastIndex = 0;
     while ((m = link.exec(text))) {
       out.appendChild(document.createTextNode(text.slice(last, m.index)));
+      last = m.index + m[0].length;
+      if (!own(m[2])) { out.appendChild(document.createTextNode(m[1])); continue; }
       var a = document.createElement('a');
       a.href = m[2];
       a.textContent = m[1];
       out.appendChild(a);
-      last = m.index + m[0].length;
     }
     out.appendChild(document.createTextNode(text.slice(last)));
   }
