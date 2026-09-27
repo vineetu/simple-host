@@ -157,7 +157,7 @@ func TestPurgeKeepsTakenDownSites(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE users SET suspended_at = now(), suspended_reason = 'x' WHERE id = $1`, oscarID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.database.Exec(`UPDATE sites SET deleted_at = now() - interval '8 days' WHERE id IN ($1, $2)`, shopID, homeID); err != nil {
+	if _, err := a.database.Exec(`UPDATE sites SET deleted_at = now() - interval '8 days', purge_at = now() - interval '1 day' WHERE id IN ($1, $2)`, shopID, homeID); err != nil {
 		t.Fatal(err)
 	}
 	a.sites.purgeDeletedSites(context.Background())
@@ -259,7 +259,7 @@ func TestPurgeLeavesAnotherSitesDomainLink(t *testing.T) {
 	if err := os.Symlink(other, link); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.database.Exec(`UPDATE sites SET deleted_at = now() - interval '8 days' WHERE id = $1`, siteID); err != nil {
+	if _, err := a.database.Exec(`UPDATE sites SET deleted_at = now() - interval '8 days', purge_at = now() - interval '1 day' WHERE id = $1`, siteID); err != nil {
 		t.Fatal(err)
 	}
 	a.sites.purgeDeletedSites(context.Background())

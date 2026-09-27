@@ -160,6 +160,13 @@ ALTER TABLE sites ADD COLUMN IF NOT EXISTS idle_kept_at TIMESTAMPTZ;
 ALTER TABLE sites ADD COLUMN IF NOT EXISTS idle_warned_at TIMESTAMPTZ;
 ALTER TABLE sites ADD COLUMN IF NOT EXISTS idle_removed_at TIMESTAMPTZ;
 ALTER TABLE sites ADD COLUMN IF NOT EXISTS idle_token_hash BYTEA;
+-- Promised dates (mirrors db/migrations/knobs-promised-dates.sql), stored when
+-- the promise is made so a later settings change applies to new events only:
+-- purge_at (deleted site removed for good), idle_remove_at (idle-warned site
+-- moves to Recently deleted), domain_release_at (failing domain disconnected).
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS purge_at TIMESTAMPTZ;
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS idle_remove_at TIMESTAMPTZ;
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS domain_release_at TIMESTAMPTZ;
 
 -- Append-only per-site collections (guestbooks, RSVPs, signups). The other half
 -- of the built-in backend alongside sites.state.

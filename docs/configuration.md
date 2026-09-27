@@ -25,7 +25,19 @@ simple-host.app runs, so an install that sets none of them behaves exactly as be
   numbers. A rate limit is `<burst>,<every>`: that many requests at once, then one more every
   `<every>` (a Go duration: `500ms`, `5s`, `6m`, `1h`). For example `RATE_LIMIT_SIGNIN_IP=20,5s`
   allows 20 sign-in requests from one address at once, then one every 5 seconds. Burst 1 to
-  100,000; `<every>` 1ms to 24h.
+  100,000; `<every>` 1ms to 24h, except the security-sensitive limits (see Rate limits).
+- **Changes apply to new deletions and warnings.** The date a person was promised is stored
+  when the promise is made: a deleted site keeps its purge date (`DELETED_RETENTION_DAYS`), an
+  idle-warned site its removal date (`IDLE_GRACE_DAYS`), a failing domain whose owner was
+  emailed its disconnect date (`DOMAIN_LAPSE_HOURS`). Shortening one never removes anything
+  earlier than its email said; lengthening one does not extend what was already promised.
+  Likewise, tightened token and session lifetimes (`OAUTH_*_TTL_*`, `VISITOR_SESSION_*`,
+  `PREVIEW_LINK_TTL_MINUTES`, `EXPORT_LINK_TTL_MINUTES`, `SIGNIN_CODE_TTL_MINUTES`) don't
+  shorten ones already issued: each carries the expiry it was issued with.
+- **Skills and cached copies.** The skills served from this install state its limits, but their
+  advertised version (`/skills/version`) follows the skills' text, not the settings, so an
+  agent that already installed them keeps the old numbers until it reinstalls. Reinstall the
+  skills (or tell people to) after changing a limit they state.
 
 ## Accounts and keys
 
@@ -33,7 +45,7 @@ simple-host.app runs, so an install that sets none of them behaves exactly as be
 |---|---|---|---|
 | `SIGNIN_CODE_TTL_MINUTES` | 15 | 5–60 | How long an emailed sign-in code (and link) or email-change code works. |
 | `MAX_KEYS_PER_ACCOUNT` | 50 | 1–1000 | API keys one account may create from the Keys panel (`POST /v1/me/keys`, 409 `key_limit`). Sign-in keys are not refused. |
-| `HANDLE_RENAME_EVERY_DAYS` | 30 | 1–365 | Once something is published, an account may change its handle once in this many days (429 with `next_change_after`). |
+| `HANDLE_RENAME_EVERY_DAYS` | 30 | 7–365 | Once something is published, an account may change its handle once in this many days (429 with `next_change_after`). |
 | `EMAIL_CHANGE_UNDO_DAYS` | 7 | 1–90 | How long the undo link sent to the old address after a sign-in email change works. |
 
 ## Sites
@@ -41,9 +53,9 @@ simple-host.app runs, so an install that sets none of them behaves exactly as be
 | Variable | Default | Range | What it controls |
 |---|---|---|---|
 | `MAX_SITES_PER_ACCOUNT` | 100 | 1–100000 | Sites one non-admin account may hold (sites in Recently deleted count). 403 `site_quota_reached`. |
-| `MAX_FILES_PER_SITE` | 50000 | 100–500000 | Files in one upload. When `MAX_ARCHIVE_MB` is set, the smaller of this and one file per 4 KB of that budget applies. |
+| `MAX_FILES_PER_SITE` | 50000 | 100–50000 | Files in one upload (it can only be lowered: the upload pipeline and disk are sized for 50,000). When `MAX_ARCHIVE_MB` is set, the smaller of this and one file per 4 KB of that budget applies. |
 | `PREVIEW_LINK_TTL_MINUTES` | 60 | 5–10080 | How long a share-preview link to a stored version works. |
-| `EXPORT_LINK_TTL_MINUTES` | 10 | 1–1440 | How long a site-export download link works. |
+| `EXPORT_LINK_TTL_MINUTES` | 10 | 1–60 | How long a site-export download link works. At most an hour: the link is not single-use and the archive holds private collections. |
 
 ## Visitors signed in on a site's own address
 
@@ -67,19 +79,19 @@ simple-host.app runs, so an install that sets none of them behaves exactly as be
 | `DOMAIN_UNPROVEN_HOURS` | 24 | 1–720 | A bound domain whose DNS never points here is released after this long. |
 | `DOMAIN_UNPROVEN_MAX_DAYS` | 7 | 1–90 | A bound domain whose DNS points here but that never goes live (certificate or HTTPS failing) is released after this long. Must not be shorter than `DOMAIN_UNPROVEN_HOURS`. |
 | `DOMAIN_LAPSE_WARN_HOURS` | 24 | 1–720 | A verified domain failing every check: its owner is emailed after this long. |
-| `DOMAIN_LAPSE_HOURS` | 72 | 2–2160 | ... and it stops being the site's address after this long. Must be longer than `DOMAIN_LAPSE_WARN_HOURS`. |
+| `DOMAIN_LAPSE_HOURS` | 72 | 2–2160 | ... and it stops being the site's address after this long. Must be longer than `DOMAIN_LAPSE_WARN_HOURS`. Once the owner was emailed, the date in that email holds. |
 | `DOMAIN_CHECK_INTERVAL_MINUTES` | 2 | 1–60 | How often the background domain check runs. |
 | `DOMAIN_CERTS_PER_ACCOUNT_DAILY` | 5 | 1–1000 | New custom-domain certificates one account may ask for in a rolling day. |
-| `EVENT_TTL_DAYS` | 21 | 1–365 | How long a claimed event hostname lives before the sweep removes it (re-claiming extends it). Only where `EVENT_DNS_TOKEN` is set. |
+| `EVENT_TTL_DAYS` | 21 | 1–60 | How long a claimed event hostname lives before the sweep removes it (re-claiming extends it). Only where `EVENT_DNS_TOKEN` is set. At most 60, so a forgotten claim does not point a name under this domain at a recycled cloud address for months. |
 | `EVENT_MAX_CLAIMS` | 5 | 1–100 | Event hostnames one account may hold at once. |
 
 ## Cleanup and retention
 
 | Variable | Default | Range | What it controls |
 |---|---|---|---|
-| `DELETED_RETENTION_DAYS` | 7 | 1–365 | How long a deleted site stays restorable in Recently deleted (its name stays held until then). |
+| `DELETED_RETENTION_DAYS` | 7 | 1–365 | How long a deleted site stays restorable in Recently deleted (its name stays held until then). Applies to sites deleted after the change. |
 | `IDLE_AFTER_DAYS` | 90 | 7–3650 | Idle cleanup (`IDLE_CLEANUP=on`): a site with no visits, deploys or saves for this long gets its owner a warning email. |
-| `IDLE_GRACE_DAYS` | 30 | 1–365 | ... and moves to Recently deleted this long after the warning if nothing is done. |
+| `IDLE_GRACE_DAYS` | 30 | 1–365 | ... and moves to Recently deleted this long after the warning if nothing is done. Applies to warnings sent after the change. |
 | `IDLE_REPLY_TO` | support@simple-host.app | an email address | Reply-To of the idle-cleanup emails. |
 | `ANALYTICS_RETENTION_DAYS` | 400 | 1–3650 | How long visit analytics aggregates are kept. |
 | `API_METRICS_RETENTION_DAYS` | 30 | 1–3650 | How long the admin API-call counts and shortened caller IPs are kept. |
@@ -96,25 +108,33 @@ simple-host.app runs, so an install that sets none of them behaves exactly as be
 
 Each is `<burst>,<every>` (see Units above). Keys are per client address unless noted.
 
-| Variable | Default | What it limits |
-|---|---|---|
-| `RATE_LIMIT_SIGNIN_IP` | 20,5s | Sign-in and email-change requests per address. |
-| `RATE_LIMIT_SIGNIN_EMAIL` | 5,50s | Sign-in codes aimed at one email address. |
-| `RATE_LIMIT_VISITOR_OAUTH` | 20,5s | Visitor Google sign-in starts and callbacks per address. |
-| `RATE_LIMIT_VISITOR_AUTH` | 20,5s | Visitor email-code sign-in per address. |
-| `RATE_LIMIT_VISITOR` | 20,5s | Finishing a visitor sign-in and signing out, per address. |
-| `RATE_LIMIT_UPLOAD` | 30,10s | Uploads and deploys per client. |
-| `RATE_LIMIT_STATE` | 60,1s | Saved-data and list writes per client. |
-| `RATE_LIMIT_SITE_OPS` | 30,2s | Deleting, changing and restoring sites, and deleting the account, per address. |
-| `RATE_LIMIT_EXPORT` | 10,10s | Export downloads per address. |
-| `RATE_LIMIT_DOMAIN_CHECK` | 10,10s | "Check again" on a domain, per address. |
-| `RATE_LIMIT_DOMAIN_CHECK_USER` | 3,30s | "Check again" on a domain, per account. |
-| `RATE_LIMIT_OAUTH_REGISTER` | 10,6m | Connector app registrations per address. |
-| `RATE_LIMIT_OAUTH_AUTHORIZE` | 30,2s | Connector authorization requests per address. |
-| `RATE_LIMIT_OAUTH_TOKEN` | 30,2s | Connector token requests per address. |
-| `RATE_LIMIT_AI_IP` | 20,12s | AI create requests per address. |
-| `RATE_LIMIT_AI_USER` | 30,10s | AI create requests per account. |
-| `RATE_LIMIT_TRANSCRIBE` | 60,3s | Voice input, per address and per account (each). |
+**Security-sensitive** limits (sign-in and email codes, visitor sign-in, the connector's OAuth
+register, authorize and token endpoints) can be made stricter freely but at most 4 times looser
+than the default: a burst at most 4 times the default and an `<every>` at least a quarter of it.
+Anything looser stops the server at startup with a message naming the ceiling; the Loosest column
+gives it. The others keep the wide range, and the startup log prints a `WARNING` for any set more
+than 10 times looser than its default. A `RATE_LIMIT_*` variable that is not one of these names
+(a typo) is ignored, with a `WARNING` naming it at startup.
+
+| Variable | Default | Loosest | What it limits |
+|---|---|---|---|
+| `RATE_LIMIT_SIGNIN_IP` | 20,5s | **80,1.25s** (security-sensitive) | Sign-in and email-change requests per address. |
+| `RATE_LIMIT_SIGNIN_EMAIL` | 5,50s | **20,12.5s** (security-sensitive) | Sign-in codes aimed at one email address. |
+| `RATE_LIMIT_VISITOR_OAUTH` | 20,5s | **80,1.25s** (security-sensitive) | Visitor Google sign-in starts and callbacks per address. |
+| `RATE_LIMIT_VISITOR_AUTH` | 20,5s | **80,1.25s** (security-sensitive) | Visitor email-code sign-in per address. |
+| `RATE_LIMIT_VISITOR` | 20,5s | **80,1.25s** (security-sensitive) | Finishing a visitor sign-in and signing out, per address. |
+| `RATE_LIMIT_UPLOAD` | 30,10s | any (warns past 10×) | Uploads and deploys per client. |
+| `RATE_LIMIT_STATE` | 60,1s | any (warns past 10×) | Saved-data and list writes per client. |
+| `RATE_LIMIT_SITE_OPS` | 30,2s | any (warns past 10×) | Deleting, changing and restoring sites, and deleting the account, per address. |
+| `RATE_LIMIT_EXPORT` | 10,10s | any (warns past 10×) | Export downloads per address. |
+| `RATE_LIMIT_DOMAIN_CHECK` | 10,10s | any (warns past 10×) | "Check again" on a domain, per address. |
+| `RATE_LIMIT_DOMAIN_CHECK_USER` | 3,30s | any (warns past 10×) | "Check again" on a domain, per account. |
+| `RATE_LIMIT_OAUTH_REGISTER` | 10,6m | **40,1m30s** (security-sensitive) | Connector app registrations per address. |
+| `RATE_LIMIT_OAUTH_AUTHORIZE` | 30,2s | **120,500ms** (security-sensitive) | Connector authorization requests per address. |
+| `RATE_LIMIT_OAUTH_TOKEN` | 30,2s | **120,500ms** (security-sensitive) | Connector token requests per address. |
+| `RATE_LIMIT_AI_IP` | 20,12s | any (warns past 10×) | AI create requests per address. |
+| `RATE_LIMIT_AI_USER` | 30,10s | any (warns past 10×) | AI create requests per account. |
+| `RATE_LIMIT_TRANSCRIBE` | 60,3s | any (warns past 10×) | Voice input, per address and per account (each). |
 
 ## Settings that were configurable already
 

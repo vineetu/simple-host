@@ -165,7 +165,7 @@ func (h *SiteHandler) runIdleCleanup(ctx context.Context, now time.Time) {
 	}
 	budget := h.idleEmailCap()
 
-	remove, err := db.ListIdleSitesToRemove(ctx, h.database, h.idleExempt, now.Add(-idleGrace()), budget)
+	remove, err := db.ListIdleSitesToRemove(ctx, h.database, h.idleExempt, now, idleGrace(), budget)
 	if err != nil {
 		log.Printf("idle-site cleanup: list removals: %v", err)
 		return
@@ -248,14 +248,15 @@ func (h *SiteHandler) warnIdleSite(ctx context.Context, mailer replyNoticeSender
 		return
 	}
 	defer tx.Rollback()
-	if err := db.MarkIdleWarned(ctx, tx, h.idleExempt, s.SiteID, hash, now.Add(-idleAfter())); err != nil {
+	removeAt := now.Add(idleGrace())
+	if err := db.MarkIdleWarned(ctx, tx, h.idleExempt, s.SiteID, hash, now.Add(-idleAfter()), removeAt); err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			log.Printf("idle-site cleanup: mark %s warned: %v", s.SiteID, err)
 		}
 		return
 	}
 	days := int(now.Sub(s.LastActivity).Hours() / 24)
-	removeOn := now.Add(idleGrace()).UTC().Format("2 January 2006")
+	removeOn := removeAt.UTC().Format("2 January 2006")
 	subject := "Your site " + s.Name + " has had no visitors for " + fmt.Sprint(days) + " days"
 	text := fmt.Sprintf(`Your Simple Host site %s (%s) has had no visitors, no new versions and no saved data for %d days.
 
@@ -299,6 +300,14 @@ func (h *SiteHandler) removeIdleSite(ctx context.Context, mailer replyNoticeSend
 	}
 	tok, hash := newIdleToken()
 	purge := time.Now().Add(db.DeletedSiteRetention()).UTC().Format("2 January 2006")
+	// How long ago the warning went, as it was (the grace in force then may
+	// differ from today's).
+	warnedAgo := config.Span(idleGrace())
+	if s.WarnedAt.Valid {
+		if d := int(now.Sub(s.WarnedAt.Time) / (24 * time.Hour)); d >= 1 {
+			warnedAgo = config.Count(d, "day")
+		}
+	}
 	subject := "Your site " + s.Name + " was moved to Recently deleted"
 	text := fmt.Sprintf(`Your Simple Host site %s had no visitors for over %s, and nobody chose to keep it after our email %s ago, so it was moved to Recently deleted.
 
@@ -313,9 +322,9 @@ After that it is removed for good. If you meant to let it go, there is nothing t
 Questions? Just reply to this email.
 
 Simple Host
-`, s.Name, config.Span(idleAfter()+idleGrace()), config.Span(idleGrace()), purge, h.idleLink("restore", tok), h.idleOwnerApp(s))
+`, s.Name, config.Span(idleAfter()+idleGrace()), warnedAgo, purge, h.idleLink("restore", tok), h.idleOwnerApp(s))
 	err = h.trashSite(ctx, site, func(tx *sql.Tx) error {
-		if err := db.MarkIdleRemoved(ctx, tx, h.idleExempt, site.ID, hash, now.Add(-idleGrace())); err != nil {
+		if err := db.MarkIdleRemoved(ctx, tx, h.idleExempt, site.ID, hash, now, idleGrace()); err != nil {
 			return err
 		}
 		return mailer.SendNoticeReplyTo(s.OwnerEmail, idleReplyTo(), subject, text)
@@ -529,7 +538,7 @@ func (h *SiteHandler) adminIdleSites(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	remove, err := db.ListIdleSitesToRemove(r.Context(), h.database, h.idleExempt, now.Add(-idleGrace()), show)
+	remove, err := db.ListIdleSitesToRemove(r.Context(), h.database, h.idleExempt, now, idleGrace(), show)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return

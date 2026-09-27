@@ -29,7 +29,8 @@ var requiredColumns = map[string][]string{
 	"signin_alerts_sent": {"user_id", "summary", "day"},
 	// hash-api-keys.sql, cp-keys-key-names.sql
 	"api_keys": {"id", "key_hash", "user_id", "name", "last4", "created_at", "last_used_at"},
-	"sites":    {"id", "user_id", "name", "active_version", "visibility", "state", "custom_domain", "deleted_at", "previous_domain", "domain_cert_status", "domain_failing_since", "domain_lapse_notified_at", "previous_domain_failing_since", "suspended_at", "suspended_reason", "domain_token", "domain_proof_exempt", "offline_at", "idle_keep", "idle_kept_at", "idle_warned_at", "idle_removed_at", "idle_token_hash"},
+	"sites":    {"id", "user_id", "name", "active_version", "visibility", "state", "custom_domain", "deleted_at", "previous_domain", "domain_cert_status", "domain_failing_since", "domain_lapse_notified_at", "previous_domain_failing_since", "suspended_at", "suspended_reason", "domain_token", "domain_proof_exempt", "offline_at", "idle_keep", "idle_kept_at", "idle_warned_at", "idle_removed_at", "idle_token_hash", "purge_at", "idle_remove_at", "domain_release_at"},
+	// knobs-promised-dates.sql adds purge_at, idle_remove_at and domain_release_at.
 	// w2-sites-offline.sql adds offline_at; w2-addr-idle-cleanup.sql the idle_* columns.
 	// w2-sites-old-names.sql
 	"site_name_aliases": {"user_id", "name", "site_id"},

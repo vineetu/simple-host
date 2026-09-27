@@ -200,10 +200,95 @@ func TestIdleCleanupFollowsSettings(t *testing.T) {
 	if warn == "" || !strings.Contains(warn, "|help@example.org|") || !strings.Contains(warn, "restored for 20 days before") {
 		t.Fatalf("warning after 40 idle days: %q (all: %d)", warn, len(m.sent))
 	}
-	exec(`UPDATE sites SET idle_warned_at = now() - interval '11 days' WHERE id = $1`, id)
+	// The warning's date is kept: a shorter IDLE_GRACE_DAYS set after it
+	// does not bring the removal forward.
+	var removeAt time.Time
+	if err := a.database.QueryRowContext(ctx, `SELECT idle_remove_at FROM sites WHERE id = $1`, id).Scan(&removeAt); err != nil || !near(removeAt, time.Now().Add(10*24*time.Hour)) {
+		t.Fatalf("stored removal date %v (%v), want 10 days out", removeAt, err)
+	}
+	withLimits(t, map[string]string{"IDLE_AFTER_DAYS": "40", "IDLE_GRACE_DAYS": "1", "DELETED_RETENTION_DAYS": "20", "IDLE_REPLY_TO": "help@example.org"})
+	exec(`UPDATE sites SET idle_warned_at = now() - interval '2 days' WHERE id = $1`, id)
+	a.sites.runIdleCleanup(ctx, time.Now())
+	if got := m.last(site); got != warn {
+		t.Fatalf("removed before the date the warning gave: %q", got)
+	}
+	exec(`UPDATE sites SET idle_warned_at = now() - interval '10 days 1 hour', idle_remove_at = now() - interval '1 hour' WHERE id = $1`, id)
 	a.sites.runIdleCleanup(ctx, time.Now())
 	gone := m.last(site)
-	if !strings.Contains(gone, "no visitors for over 50 days") || !strings.Contains(gone, "our email 10 days ago") {
+	if !strings.Contains(gone, "no visitors for over 41 days") || !strings.Contains(gone, "our email 10 days ago") {
 		t.Fatalf("removal email: %q", gone)
+	}
+}
+
+// A deleted site keeps the purge date it was promised when it was deleted: a
+// shorter DELETED_RETENTION_DAYS set later applies to new deletions only.
+// Rows deleted before the date was stored fall back to the setting.
+func TestDeletedSiteKeepsPromisedPurgeDate(t *testing.T) {
+	a := newPersonApp(t, "serve")
+	ctx := context.Background()
+	withLimits(t, map[string]string{"DELETED_RETENTION_DAYS": "30"})
+	olive := a.newPerson(t, "promised")
+	key := map[string]string{"X-API-Key": olive.key}
+	for _, name := range []string{"kept", "legacy"} {
+		a.deploy(t, olive, name)
+		if r := a.at(t, "DELETE", "simple-host.test", "/v1/sites/"+name, nil, key); r.status != http.StatusNoContent {
+			t.Fatalf("delete %s: %d %s", name, r.status, r.body)
+		}
+	}
+	uid, _ := a.userID(t, olive)
+	kept, legacy := a.siteIDAny(t, uid, "kept"), a.siteIDAny(t, uid, "legacy")
+	withLimits(t, map[string]string{"DELETED_RETENTION_DAYS": "1"})
+	if _, err := a.database.ExecContext(ctx, `UPDATE sites SET deleted_at = now() - interval '2 days' WHERE id IN ($1, $2)`, kept, legacy); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.database.ExecContext(ctx, `UPDATE sites SET purge_at = NULL WHERE id = $1`, legacy); err != nil {
+		t.Fatal(err)
+	}
+	purgeable, err := db.ListPurgeableSites(ctx, a.database)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := map[string]bool{}
+	for _, d := range purgeable {
+		found[d.ID] = true
+	}
+	if found[kept] || !found[legacy] {
+		t.Fatalf("purgeable: kept %v (want false), legacy %v (want true)", found[kept], found[legacy])
+	}
+	d, err := db.GetDeletedSiteByUser(ctx, a.database, uid, "kept")
+	if err != nil || !near(d.PurgeAt(), time.Now().Add(30*24*time.Hour)) {
+		t.Fatalf("kept purges at %v (%v), want the promised 30 days after deletion", d.PurgeAt(), err)
+	}
+	if _, err := db.PurgeDeletedSite(ctx, a.database, kept); err == nil {
+		t.Fatal("purged a site before its promised date")
+	}
+}
+
+// A failing domain whose owner was emailed is disconnected on the date the
+// email gave, not earlier when DOMAIN_LAPSE_HOURS is shortened afterwards.
+func TestDomainLapseKeepsPromisedDate(t *testing.T) {
+	a := newPersonApp(t, "serve")
+	ctx := context.Background()
+	olive := a.newPerson(t, "lapsedate")
+	a.deploy(t, olive, "shop")
+	id := a.siteID(t, olive, "shop")
+	domain := "shop-" + uniq("") + ".example.test"
+	if _, err := a.database.ExecContext(ctx, `UPDATE sites SET custom_domain = $2, domain_status = 'error', domain_verified_at = now() - interval '10 days',
+		domain_failing_since = now() - interval '100 hours', domain_lapse_notified_at = now() - interval '76 hours',
+		domain_release_at = now() + interval '1 hour' WHERE id = $1`, id, domain); err != nil {
+		t.Fatal(err)
+	}
+	bd := db.BoundDomain{SiteID: id, Domain: domain, Status: "error", Verified: true}
+	a.sites.applyDomainCheck(ctx, bd, "error", "no answer", "")
+	var cur *string
+	if err := a.database.QueryRowContext(ctx, `SELECT custom_domain FROM sites WHERE id = $1`, id).Scan(&cur); err != nil || cur == nil || *cur != domain {
+		t.Fatalf("disconnected before the emailed date: %v %v", cur, err)
+	}
+	if _, err := a.database.ExecContext(ctx, `UPDATE sites SET domain_release_at = now() - interval '1 minute' WHERE id = $1`, id); err != nil {
+		t.Fatal(err)
+	}
+	a.sites.applyDomainCheck(ctx, bd, "error", "no answer", "")
+	if err := a.database.QueryRowContext(ctx, `SELECT custom_domain FROM sites WHERE id = $1`, id).Scan(&cur); err != nil || cur != nil {
+		t.Fatalf("still connected after the emailed date: %v %v", cur, err)
 	}
 }

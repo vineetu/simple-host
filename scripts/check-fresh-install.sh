@@ -63,6 +63,7 @@ run "domain certificates"   "SELECT previous_domain, domain_cert_status, domain_
 run "domain ownership"      "SELECT domain_token, custom_domain = ANY(domain_proof_exempt) FROM sites WHERE custom_domain='x'"
 run "domain cert cap"       "SELECT count(DISTINCT domain) FROM domain_cert_requests WHERE user_id='$NIL' AND requested_at > now() - interval '24 hours'"
 run "recently deleted"      "SELECT id, name, deleted_at FROM sites WHERE user_id='$NIL' AND deleted_at IS NOT NULL"
+run "promised dates"        "SELECT purge_at, idle_remove_at, domain_release_at FROM sites WHERE user_id='$NIL'"
 run "take-down"             "SELECT s.suspended_at, s.suspended_reason, u.suspended_at, u.suspended_reason FROM sites s JOIN users u ON u.id = s.user_id WHERE s.id='$NIL'"
 run "migrations record"     "SELECT name, applied_at FROM schema_migrations"
 run "auth tokens"           "SELECT id, email, code, link_token, nonce_hash FROM auth_tokens WHERE link_token='x'"

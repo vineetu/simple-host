@@ -245,6 +245,9 @@ type DomainCheck struct {
 	Name         string
 	FailingSince sql.NullTime
 	Notified     bool
+	// ReleaseAt is the disconnect date the owner's email gave (only while
+	// Notified, and NULL for emails sent before it was stored).
+	ReleaseAt sql.NullTime
 }
 
 // SetDomainStatus records one check of siteID's bound domain: status
@@ -264,10 +267,11 @@ func SetDomainStatus(ctx context.Context, database *sql.DB, siteID, domain, stat
 		        ELSE COALESCE(domain_failing_since, now()) END,
 		    domain_lapse_notified_at = CASE WHEN $3 = 'active' THEN NULL ELSE domain_lapse_notified_at END
 		WHERE id = $1 AND custom_domain = $2
-		RETURNING user_id, name, domain_failing_since, domain_lapse_notified_at IS NOT NULL
+		RETURNING user_id, name, domain_failing_since, domain_lapse_notified_at IS NOT NULL,
+		          CASE WHEN domain_lapse_notified_at IS NOT NULL THEN domain_release_at END
 	`
 	var c DomainCheck
-	err := database.QueryRowContext(ctx, query, siteID, domain, status, lastErr, certStatus).Scan(&c.UserID, &c.Name, &c.FailingSince, &c.Notified)
+	err := database.QueryRowContext(ctx, query, siteID, domain, status, lastErr, certStatus).Scan(&c.UserID, &c.Name, &c.FailingSince, &c.Notified, &c.ReleaseAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return DomainCheck{}, nil
 	}
@@ -275,9 +279,10 @@ func SetDomainStatus(ctx context.Context, database *sql.DB, siteID, domain, stat
 }
 
 // MarkDomainLapseNotified records that the owner was emailed about their
-// failing domain.
-func MarkDomainLapseNotified(ctx context.Context, database *sql.DB, siteID, domain string) error {
-	_, err := database.ExecContext(ctx, `UPDATE sites SET domain_lapse_notified_at = now() WHERE id = $1 AND custom_domain = $2`, siteID, domain)
+// failing domain, and the disconnect date the email gave: the domain is let
+// go then, whatever DOMAIN_LAPSE_HOURS says later.
+func MarkDomainLapseNotified(ctx context.Context, database *sql.DB, siteID, domain string, releaseAt time.Time) error {
+	_, err := database.ExecContext(ctx, `UPDATE sites SET domain_lapse_notified_at = now(), domain_release_at = $3 WHERE id = $1 AND custom_domain = $2`, siteID, domain, releaseAt)
 	return err
 }
 

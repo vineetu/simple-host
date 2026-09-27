@@ -134,7 +134,7 @@ func TestRecentlyDeletedAndRestore(t *testing.T) {
 	if _, err := db.GetDeletedSiteByUser(ctx, a.database, uid, "shop"); err != nil {
 		t.Fatalf("purged inside the window: %v", err)
 	}
-	if _, err := a.database.Exec(`UPDATE sites SET deleted_at = now() - interval '8 days' WHERE id = $1`, siteID); err != nil {
+	if _, err := a.database.Exec(`UPDATE sites SET deleted_at = now() - interval '8 days', purge_at = now() - interval '1 day' WHERE id = $1`, siteID); err != nil {
 		t.Fatal(err)
 	}
 	a.sites.purgeDeletedSites(ctx)

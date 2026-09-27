@@ -1815,7 +1815,7 @@ func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 		if f, ok := flags[site.ID]; ok {
 			resp.Keep = f.Keep
 			if f.WarnedAt.Valid && !f.Keep {
-				t := f.WarnedAt.Time.Add(idleGrace()).UTC()
+				t := f.RemovalAt(idleGrace()).UTC()
 				resp.IdleRemovalAt = &t
 			}
 		}
