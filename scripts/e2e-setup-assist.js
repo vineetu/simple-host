@@ -12,7 +12,9 @@
 // offers a reset that, applied on the files step, updates the files at once;
 // a pasted error is redacted, shown for review, and sent only on "Send for
 // help", and its diagnosis offers a setting to apply; /setup#help opens the
-// assistant ready for a paste; the files step has the block for your AI agent;
+// assistant ready for a paste; a basic answer applied on the files step
+// (Google sign-in with no company domains) sends the visitor back to Basics
+// and no files show until it is fixed; the files step has the block for your AI agent;
 // the panel's basics of accessibility (dialog name, button names, Escape and
 // focus). Screenshots at 390 and 1280 px go to <shots-dir>.
 //
@@ -156,6 +158,38 @@ async function enterprise(browser, width) {
   await page.close();
 }
 
+// A basic answer applied past the Basics step goes through the Basics checks
+// again: Google sign-in with no company domains sends the visitor back to
+// Basics with the error, and no files are shown until the domains are in.
+// (The server keeps basic answers only on the choose and basics steps; this
+// is the page's own guard, applied as an Apply on an item would.)
+async function googleNeedsDomains(browser, width) {
+  const page = await browser.newPage({ viewport: { width, height: width < 600 ? 844 : 900 } });
+  await page.goto(base + '/setup?product=enterprise');
+  await page.getByRole('button', { name: 'Next' }).click();
+  await page.fill('#f-host', 'sites.example.com');
+  await page.fill('#f-admins', 'platform@example.com');
+  await page.fill('#f-clientId', 'client-123');
+  await page.fill('#f-issuer', 'https://acme.okta.com');
+  await page.fill('#f-issuerName', 'internal-ca');
+  await page.fill('#f-bucketName', 'sh-sites');
+  await page.fill('#f-dbHost', 'db.example.com');
+  await page.getByRole('button', { name: 'Show my files' }).click();
+  await page.waitForSelector('#files pre');
+  const err = await page.evaluate(() => { const e = window.shSetup.applyBasic('idp', 'google'); window.shSetup.refresh(['idp']); return e; });
+  assert(err === '', 'the provider answer applies');
+  assert(await page.locator('#files').count() === 0 && (await page.locator('h2').first().innerText()) === 'Your Enterprise install', 'Google with no company domains goes back to Basics, with no files: ' + width);
+  assert(await page.locator('#f-domains.bad').count() === 1 && /anyone with a Google account/.test(await page.locator('#app').innerText()), 'the domains field shows why');
+  await page.getByRole('button', { name: 'Show my files' }).click();
+  assert(await page.locator('#files').count() === 0, 'and the files stay out of reach until it is filled in');
+  await page.fill('#f-domains', 'example.com');
+  await page.getByRole('button', { name: 'Show my files' }).click();
+  await page.waitForSelector('#files pre');
+  const cfg = await page.locator('#files pre').first().innerText();
+  assert(cfg.includes('ALLOWED_EMAIL_DOMAINS=example.com') && cfg.includes('OIDC_ISSUER=https://accounts.google.com'), 'with the domains in, the files have Google and the domains');
+  await page.close();
+}
+
 // The small box's "Where it runs": UpCloud recommended and chosen, its
 // sign-up button the referral link (new tab, noopener) with the note beside
 // it, the steps, and nowhere on the page a field for a credential.
@@ -263,6 +297,7 @@ async function smallBox(browser, width) {
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || '/usr/local/bin/chromium' });
   for (const width of [1280, 390]) {
     await enterprise(browser, width);
+    await googleNeedsDomains(browser, width);
     await smallBox(browser, width);
   }
   await browser.close();

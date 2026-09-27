@@ -180,7 +180,7 @@ func TestSetupAssistChangesValidated(t *testing.T) {
 		{"setting":"MAX_SITES_PER_ACCOUNT","value":"20","why":"A cap per person."}
 	],"basics":{"codes":"false","google":"true","idp":"entra"}}`)}
 	_, mux = newTestSetupAssist(t, f, AskOptions{})
-	got = decodeAssist(t, postAssist(mux, `{"product":"small-box","step":"files","basics":{"codes":"true","google":"false"},"message":"stricter"}`, nil))
+	got = decodeAssist(t, postAssist(mux, `{"product":"small-box","step":"basics","basics":{"codes":"true","google":"false"},"message":"stricter"}`, nil))
 	names = nil
 	for _, c := range got.Changes {
 		names = append(names, c.Setting+"="+c.Value)
@@ -191,6 +191,21 @@ func TestSetupAssistChangesValidated(t *testing.T) {
 	}
 	if len(got.Basics) != 2 || got.Basics["codes"] != "false" || got.Basics["google"] != "true" {
 		t.Errorf("small box basics = %v", got.Basics)
+	}
+
+	// Past the Basics step, basic answers are dropped (the page could not
+	// check the fields they need there); setting changes still come.
+	for _, step := range []string{"advanced", "files"} {
+		got = decodeAssist(t, postAssist(mux, `{"product":"small-box","step":"`+step+`","basics":{"codes":"true","google":"false"},"message":"stricter"}`, nil))
+		if len(got.Basics) != 0 || len(got.Changes) != 3 {
+			t.Errorf("step %s: basics = %v, %d changes; want no basics, 3 changes", step, got.Basics, len(got.Changes))
+		}
+	}
+	f = &fakeSidecar{answer: assistReply("Go back to Basics to switch to Google.", `{"changes":[],"basics":{"idp":"google"}}`)}
+	_, mux = newTestSetupAssist(t, f, AskOptions{})
+	got = decodeAssist(t, postAssist(mux, `{"product":"enterprise","step":"files","basics":{"idp":"okta"},"message":"we use Google Workspace"}`, nil))
+	if len(got.Basics) != 0 {
+		t.Errorf("enterprise files step: basics = %v, want none", got.Basics)
 	}
 }
 

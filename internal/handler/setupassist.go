@@ -183,6 +183,7 @@ func setupAssistSystemPrompt(r *setupRegistry) string {
 		"- Be short: 1 to 3 plain sentences, unless the person asks for detail or an explanation (then at most about 120 words; a list is short lines starting with \"- \"). No headings, bold, tables, code blocks or links.\n" +
 		"- Propose changes when the person asks you to set something up, change something or clean up, not when they only ask a question. Say briefly in your text what you propose and why; the page lists each change for them to apply.\n" +
 		"- Only propose settings from SETTINGS whose type is not text, and basic answers listed as proposable. Never propose a secret or free text (hostnames, addresses, emails, names, IDs): say which field the person fills in themselves.\n" +
+		"- Propose basic answers only when where.step is choose or basics. On the advanced or files step, say in one sentence to go Back to Basics to change that answer (it needs other basic fields checked there); do not put it in \"basics\".\n" +
 		"- For a setting marked security, never propose a value weaker than both its default and the current value (a longer lifetime, a bigger burst or shorter interval, a later value in its list, 0 where 0 means never). If the person asks for something weaker, explain the risk in one sentence and say they can change it in the form themselves; do not propose it.\n" +
 		"- Never propose a value equal to the current one. Propose only what the request needs: many defaults already fit.\n" +
 		"- \"Clean up my choices\": go through the current choices. For each that looks odd, risky, unintended, or in conflict with another choice, say why in a few words and propose a better value, usually the default. Say nothing about choices that look fine; if all look fine, say so in one sentence.\n" +
@@ -317,8 +318,11 @@ func setupAssistCut(s string) int {
 const setupAssistHold = len(setupAssistMarker)
 
 // setupAssistParse splits the model's raw reply into the cleaned answer and
-// the checked changes. choices and basics are what the page sent.
-func setupAssistParse(r *setupRegistry, raw string, choices, basics map[string]string) setupAssistReply {
+// the checked changes. step, choices and basics are what the page sent.
+// Basic answers are kept only on the choose and basics steps: past them, a
+// changed answer (Google sign-in, say) needs other basic fields filled in and
+// checked, which only the Basics step does, so the model says to go back there.
+func setupAssistParse(r *setupRegistry, raw, step string, choices, basics map[string]string) setupAssistReply {
 	text, rest := raw, ""
 	if i := setupAssistCut(raw); i >= 0 {
 		text, rest = raw[:i], raw[i:]
@@ -358,6 +362,9 @@ func setupAssistParse(r *setupRegistry, raw string, choices, basics map[string]s
 		out.Changes = append(out.Changes, setupChange{Setting: s.Name, Value: v, Why: why})
 	}
 	for k, raw := range reply.Basics {
+		if step != "choose" && step != "basics" {
+			break
+		}
 		c := setupBasicChoiceOf(r.product, k)
 		v, ok := setupAssistValue(raw)
 		if c == nil || !ok || !slices.Contains(c.values, v) || basics[k] == v {
@@ -584,7 +591,7 @@ func (h *AskHandler) setupAssist(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	finish := func(raw, reason string) (setupAssistReply, error) {
-		out := setupAssistParse(reg, raw, req.Choices, req.Basics)
+		out := setupAssistParse(reg, raw, req.Step, req.Choices, req.Basics)
 		if out.Answer == "" {
 			if len(out.Changes) == 0 && len(out.Basics) == 0 {
 				return out, errors.New("llm: empty answer")

@@ -985,6 +985,8 @@
     });
   }
 
+  // basicApplied: a basic answer came from the assistant since the last refresh.
+  var basicApplied = false;
   window.shSetup = {
     product: function () { return S.product; },
     // ready loads the chosen product's settings list (the first step may
@@ -1034,12 +1036,28 @@
       else if (key === 'idp') { b.idp = value; IDPS.forEach(function (p) { if (p.id === value) b.issuer = p.issuer; }); }
       else if (key === 'bucket') { b.bucket = value; BUCKETS.forEach(function (p) { if (p.id === value) { b.endpoint = p.endpoint; b.region = p.region; } }); }
       else b[key] = value;
+      basicApplied = true;
       return '';
     },
     // refresh draws the page again after changes, keeping the scroll. On the
     // files step the changes are the visitor's decision, already checked
     // against the settings list: the files follow them without another check.
+    // A basic answer changed past the Basics step goes through the Basics
+    // checks again (Google needs company domains, SMTP a From address, a
+    // provider's template address its real value); when they fail, the page
+    // goes back to Basics with the errors shown, and no files are offered
+    // until they pass.
     refresh: function (names) {
+      if (basicApplied) {
+        basicApplied = false;
+        if (S.step > 1 && !checkBasics()) {
+          if (S.check.state === 'running') stopCheck();
+          go(1);
+          var bad = app.querySelector('.bad');
+          if (bad) bad.focus();
+          return;
+        }
+      }
       if (S.step === 3) {
         if (S.check.state === 'running') stopCheck();
         var key = checkKey(), review = S.check.state === 'review';
