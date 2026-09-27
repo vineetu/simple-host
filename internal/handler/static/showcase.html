@@ -376,6 +376,13 @@
     .row-panel .panel-btns { display: flex; gap: 8px; flex-wrap: wrap; }
     .row-panel .panel-note { color: var(--text-secondary); }
     .row-panel .panel-err { color: var(--error); }
+    .row-panel select, .row-panel textarea {
+      max-width: 420px; padding: 6px 8px; font: inherit; font-size: 13px;
+      border: 1px solid var(--border-hi); border-radius: 8px; background: var(--bg); color: var(--text);
+    }
+    .row-panel textarea { width: 100%; min-height: 64px; font-family: var(--mono); }
+    .row-panel .panel-field { display: flex; flex-direction: column; gap: 4px; }
+    .row-panel .panel-check { display: flex; align-items: center; gap: 6px; }
     .dns-rec { display: flex; gap: 14px; flex-wrap: wrap; font-family: var(--mono); padding: 6px 10px; background: var(--surface); border-radius: 6px; }
     .dns-rec + .dns-rec { margin-top: 6px; }
     .dns-rec span { overflow-wrap: anywhere; }
@@ -1651,13 +1658,16 @@ function parseAnalyticsSummary(data) {
     // What a site holds: its lists (every one, public and private) and its
     // saved page data. null when the lists could not be read.
     async function fetchSiteData(name) {
-      var lists = [], stateText = '';
+      var lists = [], stateText = '', savers = null, legacy = true;
       try {
-        var res = await api('GET', sitePathPart(name) + '/collections');
+        // Every data name with its kind and settings, and who may save.
+        var res = await api('GET', sitePathPart(name) + '/data');
         if (!res.ok) return null;
         var body = await res.json();
-        lists = (body && Array.isArray(body.collections) ? body.collections : [])
+        lists = (body && Array.isArray(body.names) ? body.names : [])
           .filter(function (c) { return c && c.name; });
+        savers = body && body.savers;
+        legacy = !(body && body.undeclared_names_take_saves === false);
       } catch (e) { return null; }
       try {
         var sres = await api('GET', sitePathPart(name) + '/state');
@@ -1675,7 +1685,7 @@ function parseAnalyticsSummary(data) {
       }
       var entries = 0;
       lists.forEach(function (c) { entries += Number.isFinite(Number(c.count)) ? Math.trunc(Number(c.count)) : 0; });
-      return { lists: lists, entries: entries, stateText: empty ? '' : stateText, stateSize: empty ? 0 : new Blob([stateText]).size, stateHistory: stateHistory };
+      return { lists: lists, entries: entries, stateText: empty ? '' : stateText, stateSize: empty ? 0 : new Blob([stateText]).size, stateHistory: stateHistory, savers: savers, legacy: legacy };
     }
     async function loadPrivateLists(name, force) {
       var box = document.querySelector('[data-plists="' + cssEsc(name) + '"]');
@@ -1687,8 +1697,16 @@ function parseAnalyticsSummary(data) {
       var sa = ' data-site="' + escAttr(name) + '"';
       var html = '';
       if (info.lists.length) {
-        html += '<div class="plists-head">Lists</div>' +
+        html += '<div class="plists-head">Lists and page info</div>' +
           '<div class="versions-list">' + info.lists.map(function (c) { return renderListRow(name, c); }).join('') + '</div>';
+        html += '<div class="plists-head plists-gap">Who may save here</div>' +
+          '<div class="versions-list"><div class="plist">' +
+            '<div class="version-row plist-row">' +
+              '<span class="plist-meta">' + esc(saversSummary(info.savers)) + '</span>' +
+              '<span class="plist-btns"><button type="button" class="btn-small btn-secondary" data-savers-open' + ' data-site="' + escAttr(name) + '" aria-expanded="false">Change</button></span>' +
+            '</div>' +
+            '<div class="row-panel plist-savers" hidden></div>' +
+          '</div></div>';
       }
       if (info.stateSize || info.stateHistory) {
         html += '<div class="plists-head plists-gap">Saved data</div>' +
@@ -1707,29 +1725,45 @@ function parseAnalyticsSummary(data) {
           '</div></div>';
       }
       box.innerHTML = html;
+      box._savers = info.savers || { mode: 'anyone', allow: [], block: [] };
       box.hidden = false;
     }
+    function saversSummary(sv) {
+      sv = sv || {};
+      var allow = Array.isArray(sv.allow) ? sv.allow.length : 0, block = Array.isArray(sv.block) ? sv.block.length : 0;
+      var t = sv.mode === 'listed' ? 'Only the ' + allow + (allow === 1 ? ' email or domain' : ' emails and domains') + ' you listed (and you)' : 'Anyone who signs in';
+      if (block) t += ' · ' + block + ' blocked';
+      return t;
+    }
+    var KIND_LABELS = { content: 'page info', entries: 'submissions' };
     function renderListRow(name, c) {
       var coll = String(c.name || '');
       var count = Number.isFinite(Number(c.count)) ? Math.trunc(Number(c.count)) : 0;
       var priv = c.private === true;
       var gone = Number.isFinite(Number(c.deleted)) ? Math.trunc(Number(c.deleted)) : 0;
-      var a = ' data-site="' + escAttr(name) + '" data-coll="' + escAttr(coll) + '" data-private="' + (priv ? '1' : '0') + '"';
+      var kind = c.kind === 'content' || c.kind === 'entries' ? c.kind : '';
+      var page = kind === 'content';
+      var a = ' data-site="' + escAttr(name) + '" data-coll="' + escAttr(coll) + '" data-private="' + (priv ? '1' : '0') + '"' +
+        ' data-kind="' + kind + '" data-one="' + (c.one_per_person ? '1' : '0') + '" data-notify="' + escAttr(c.notify || 'off') + '"';
       return '<div class="plist">' +
         '<div class="version-row plist-row">' +
           '<span class="plist-name">' + esc(coll) + '</span>' +
-          '<span class="vis-badge ' + (priv ? 'private' : 'unlisted') + '">' + (priv ? 'private' : 'public') + '</span>' +
-          '<span class="plist-meta" data-count="' + count + '" data-last="' + escAttr(c.last_at || '') + '">' + plistMeta(count, c.last_at) + '</span>' +
+          (kind ? '<span class="vis-badge unlisted">' + KIND_LABELS[kind] + '</span>' : '') +
+          (page ? '' : '<span class="vis-badge ' + (priv ? 'private' : 'unlisted') + '">' + (priv ? 'private' : 'public') + '</span>') +
+          (c.one_per_person ? '<span class="vis-badge unlisted">one per person</span>' : '') +
+          '<span class="plist-meta" data-count="' + count + '" data-last="' + escAttr(c.last_at || '') + '">' + (page ? (count ? 'saved' : 'empty now') + (c.last_at ? ' · ' + esc(new Date(c.last_at).toLocaleString()) : '') : plistMeta(count, c.last_at)) + '</span>' +
           '<span class="plist-btns">' +
-            (count ? '<button type="button" class="btn-small btn-secondary" data-plist-view' + a + ' aria-expanded="false">View items</button>' : '') +
-            (count ? '<button type="button" class="btn-small btn-secondary" data-plist-csv' + a + '>Download spreadsheet</button>' : '') +
-            '<button type="button" class="btn-small btn-secondary" data-plist-privacy' + a + '>' + (priv ? 'Make public' : 'Make private') + '</button>' +
+            (count ? '<button type="button" class="btn-small btn-secondary" data-plist-view' + a + ' aria-expanded="false">' + (page ? 'View' : 'View items') + '</button>' : '') +
+            (count && !page ? '<button type="button" class="btn-small btn-secondary" data-plist-csv' + a + '>Download spreadsheet</button>' : '') +
+            (page ? '' : '<button type="button" class="btn-small btn-secondary" data-plist-privacy' + a + '>' + (priv ? 'Make public' : 'Make private') + '</button>') +
+            '<button type="button" class="btn-small btn-secondary" data-kind-open' + a + ' aria-expanded="false">Settings</button>' +
             '<button type="button" class="btn-small btn-secondary" data-hist-open' + a + ' aria-expanded="false">History</button>' +
             (gone ? '<button type="button" class="btn-small btn-secondary" data-del-open' + a + ' aria-expanded="false">Recently deleted (' + gone + ')</button>' : '') +
-            (count ? '<button type="button" class="btn-small btn-ghost" data-plist-clear' + a + '>Clear list</button>' : '') +
+            (count && !page ? '<button type="button" class="btn-small btn-ghost" data-plist-clear' + a + '>Clear list</button>' : '') +
           '</span>' +
         '</div>' +
         '<div class="row-panel plist-clear" hidden></div>' +
+        '<div class="row-panel plist-kind" hidden></div>' +
         '<div class="plist-view" hidden></div>' +
         '<div class="plist-view plist-extra" hidden></div>' +
       '</div>';
@@ -1739,8 +1773,13 @@ function parseAnalyticsSummary(data) {
         (lastAt ? ' · last saved ' + esc(new Date(lastAt).toLocaleString()) : '');
     }
     function onPrivateListClick(e) {
-      var t = e.target && e.target.closest ? e.target.closest('[data-plist-view],[data-plist-csv],[data-plist-act],[data-plist-privacy],[data-plist-clear],[data-plist-clear-go],[data-plist-clear-cancel],[data-state-view],[data-state-dl],[data-hist-open],[data-del-open],[data-undo]') : null;
+      var t = e.target && e.target.closest ? e.target.closest('[data-plist-view],[data-plist-csv],[data-plist-act],[data-plist-privacy],[data-plist-clear],[data-plist-clear-go],[data-plist-clear-cancel],[data-state-view],[data-state-dl],[data-hist-open],[data-del-open],[data-undo],[data-kind-open],[data-kind-save],[data-savers-open],[data-savers-save],[data-panel-cancel]') : null;
       if (!t) return;
+      if (t.hasAttribute('data-panel-cancel')) { closePanel(t); return; }
+      if (t.hasAttribute('data-kind-open')) { openKindPanel(t); return; }
+      if (t.hasAttribute('data-kind-save')) { saveKind(t); return; }
+      if (t.hasAttribute('data-savers-open')) { openSaversPanel(t); return; }
+      if (t.hasAttribute('data-savers-save')) { saveSavers(t); return; }
       if (t.hasAttribute('data-plist-act')) { onPrivateItemAction(t); return; }
       if (t.hasAttribute('data-undo')) { onUndoAction(t); return; }
       if (t.hasAttribute('data-hist-open')) { toggleUndoPanel(t, 'history'); return; }
@@ -1767,6 +1806,111 @@ function parseAnalyticsSummary(data) {
     function closePanel(t) {
       var panel = t.closest('.row-panel');
       if (panel) { panel.hidden = true; panel.innerHTML = ''; }
+    }
+    // ---- What each name is (kind), and who may save ----
+    function panelOf(btn, cls) {
+      var wrap = btn.closest('.plist');
+      return wrap && wrap.querySelector('.' + cls);
+    }
+    function openKindPanel(btn) {
+      var panel = panelOf(btn, 'plist-kind');
+      if (!panel) return;
+      if (!panel.hidden) { panel.hidden = true; panel.innerHTML = ''; btn.setAttribute('aria-expanded', 'false'); return; }
+      var kind = btn.getAttribute('data-kind') || 'entries';
+      var one = btn.getAttribute('data-one') === '1', notify = btn.getAttribute('data-notify') || 'off';
+      var id = 'kind-' + escAttr(btn.getAttribute('data-site')) + '-' + escAttr(btn.getAttribute('data-coll'));
+      var a = ' data-site="' + escAttr(btn.getAttribute('data-site')) + '" data-coll="' + escAttr(btn.getAttribute('data-coll')) + '" data-private="' + btn.getAttribute('data-private') + '"';
+      panel.innerHTML =
+        '<div class="panel-field"><label for="' + id + '-k">What is this?</label>' +
+          '<select id="' + id + '-k" data-kind-field="kind">' +
+            '<option value="entries"' + (kind !== 'content' ? ' selected' : '') + '>Submissions: visitors send them; each sees and changes their own</option>' +
+            '<option value="content"' + (kind === 'content' ? ' selected' : '') + '>Page info: only you write it; everyone reads it</option>' +
+          '</select></div>' +
+        '<label class="panel-check"><input type="checkbox" data-kind-field="one"' + (one ? ' checked' : '') + '> One entry per person (votes, one RSVP each)</label>' +
+        '<div class="panel-field"><label for="' + id + '-n">Email me about new entries</label>' +
+          '<select id="' + id + '-n" data-kind-field="notify">' +
+            '<option value="off"' + (notify === 'off' ? ' selected' : '') + '>No</option>' +
+            '<option value="each"' + (notify === 'each' ? ' selected' : '') + '>Soon after they arrive (grouped)</option>' +
+            '<option value="daily"' + (notify === 'daily' ? ' selected' : '') + '>Once a day</option>' +
+          '</select></div>' +
+        '<div class="panel-err" hidden></div>' +
+        '<div class="panel-btns">' +
+          '<button type="button" class="btn-small btn-primary" data-kind-save' + a + '>Save</button>' +
+          '<button type="button" class="btn-small btn-ghost" data-panel-cancel>Cancel</button>' +
+        '</div>';
+      panel.hidden = false;
+      btn.setAttribute('aria-expanded', 'true');
+    }
+    async function saveKind(btn) {
+      var panel = btn.closest('.row-panel');
+      var name = btn.getAttribute('data-site'), coll = btn.getAttribute('data-coll');
+      var field = function (f) { return panel.querySelector('[data-kind-field="' + f + '"]'); };
+      var kind = field('kind').value;
+      var body = { kind: kind };
+      if (kind === 'entries') {
+        body.visibility = btn.getAttribute('data-private') === '1' ? 'owner' : 'public';
+        body.one_per_person = field('one').checked;
+        body.notify = field('notify').value;
+      }
+      var err = panel.querySelector('.panel-err');
+      btn.disabled = true;
+      try {
+        var res = await api('PUT', sitePathPart(name) + '/data/' + encodeURIComponent(coll) + '/kind', body);
+        var out = await res.json().catch(function () { return null; });
+        if (!res.ok) { err.textContent = (out && out.error) || 'Could not save'; err.hidden = false; btn.disabled = false; return; }
+        toast((out && out.message) || 'Saved', 'success');
+        loadPrivateLists(name, true);
+      } catch (e) {
+        err.textContent = 'Could not save'; err.hidden = false; btn.disabled = false;
+      }
+    }
+    function openSaversPanel(btn) {
+      var panel = panelOf(btn, 'plist-savers');
+      if (!panel) return;
+      if (!panel.hidden) { panel.hidden = true; panel.innerHTML = ''; btn.setAttribute('aria-expanded', 'false'); return; }
+      var name = btn.getAttribute('data-site');
+      var box = btn.closest('[data-plists]');
+      var sv = (box && box._savers) || { mode: 'anyone', allow: [], block: [] };
+      var id = 'savers-' + escAttr(name);
+      panel.innerHTML =
+        '<label class="panel-check"><input type="radio" name="' + id + '" value="anyone" data-savers-field="mode"' + (sv.mode !== 'listed' ? ' checked' : '') + '> Anyone who signs in</label>' +
+        '<label class="panel-check"><input type="radio" name="' + id + '" value="listed" data-savers-field="mode"' + (sv.mode === 'listed' ? ' checked' : '') + '> Only these people (you always can)</label>' +
+        '<div class="panel-field"><label for="' + id + '-a">Emails or whole domains, one per line (e.g. ann@example.com or @company.com)</label>' +
+          '<textarea id="' + id + '-a" spellcheck="false" data-savers-field="allow">' + esc((sv.allow || []).join('\n')) + '</textarea></div>' +
+        '<div class="panel-field"><label for="' + id + '-b">Blocked: never able to save here, in either case</label>' +
+          '<textarea id="' + id + '-b" spellcheck="false" data-savers-field="block">' + esc((sv.block || []).join('\n')) + '</textarea></div>' +
+        '<div class="panel-err" hidden></div>' +
+        '<div class="panel-btns">' +
+          '<button type="button" class="btn-small btn-primary" data-savers-save data-site="' + escAttr(name) + '">Save</button>' +
+          '<button type="button" class="btn-small btn-ghost" data-panel-cancel>Cancel</button>' +
+        '</div>';
+      panel.hidden = false;
+      btn.setAttribute('aria-expanded', 'true');
+    }
+    function linesOf(text) {
+      return String(text || '').split(/[\n,]+/).map(function (x) { return x.trim(); }).filter(Boolean);
+    }
+    async function saveSavers(btn) {
+      var panel = btn.closest('.row-panel');
+      var name = btn.getAttribute('data-site');
+      var mode = panel.querySelector('[data-savers-field="mode"]:checked');
+      var body = {
+        mode: mode ? mode.value : 'anyone',
+        allow: linesOf(panel.querySelector('[data-savers-field="allow"]').value),
+        block: linesOf(panel.querySelector('[data-savers-field="block"]').value)
+      };
+      var err = panel.querySelector('.panel-err');
+      if (body.mode === 'listed' && !body.allow.length && !confirm('Nobody is listed, so only you will be able to save on this site. Save anyway?')) return;
+      btn.disabled = true;
+      try {
+        var res = await api('PUT', sitePathPart(name) + '/savers', body);
+        var out = await res.json().catch(function () { return null; });
+        if (!res.ok) { err.textContent = (out && out.error) || 'Could not save'; err.hidden = false; btn.disabled = false; return; }
+        toast((out && out.message) || 'Saved', 'success');
+        loadPrivateLists(name, true);
+      } catch (e) {
+        err.textContent = 'Could not save'; err.hidden = false; btn.disabled = false;
+      }
     }
     async function toggleListPrivacy(btn, name, coll) {
       var priv = btn.getAttribute('data-private') === '1';
@@ -1894,6 +2038,7 @@ function parseAnalyticsSummary(data) {
           '<td class="plist-acts"><span class="plist-btns">' +
             (st.priv ? '<button type="button" class="btn-small btn-secondary" data-plist-act="edit" data-id="' + id + '">Edit</button>' : '') +
             '<button type="button" class="btn-small btn-ghost" data-plist-act="delete" data-id="' + id + '">Delete</button>' +
+            ((it.by || d._submitted_by) ? '<button type="button" class="btn-small btn-ghost" data-plist-act="block" data-id="' + id + '">Block</button>' : '') +
           '</span></td>' +
           (plain ? '<td>' + (isObj ? '' : plistCell(it.data)) + '</td>' : '') +
           keys.map(function (k) {
@@ -1975,6 +2120,24 @@ function parseAnalyticsSummary(data) {
           toast('Saved', 'success');
         } catch (e) {
           showErr('Could not save the item');
+        } finally {
+          t.disabled = false;
+        }
+        return;
+      }
+      if (act === 'block') {
+        var person = plistData(item)._submitted_by || item.by;
+        if (!confirm('Block ' + person + ' from saving anything more on this site? What they already sent stays until you delete it. You can unblock them under "Who may save here".')) return;
+        t.disabled = true;
+        try {
+          var bres = await api('POST', sitePathPart(st.name) + '/savers/block', { collection: st.coll, id: Number(id) });
+          var bout = await bres.json().catch(function () { return null; });
+          if (!bres.ok) { toast((bout && bout.error) || 'Could not block', 'error'); t.disabled = false; return; }
+          toast((bout && bout.message) || 'Blocked', 'success');
+          var pbox = view.closest('[data-plists]');
+          if (pbox && pbox._savers && bout && bout.blocked && pbox._savers.block.indexOf(bout.blocked) < 0) pbox._savers.block.push(bout.blocked);
+        } catch (e) {
+          toast('Could not block', 'error');
         } finally {
           t.disabled = false;
         }
