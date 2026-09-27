@@ -204,15 +204,18 @@ type Config struct {
 	DomainCertDir string
 	// "Ask about this page" (POST /v1/ask) on the architecture, features and
 	// enterprise pages. Uses the LLM_* backend (the Grok sidecar) and is on
-	// whenever that is configured, unless ASK_ENABLED=off. AskBurst questions
-	// per IP, then one every AskEverySeconds (ASK_BURST, default 5;
-	// ASK_EVERY_SECONDS, default 20); AskDailyMax questions per UTC day across
-	// everyone (ASK_DAILY_MAX, default 500), because the subscription behind
-	// the sidecar is shared.
+	// whenever that is configured, unless ASK_ENABLED is off/false/0/no.
+	// AskBurst questions per IP, then one every AskEverySeconds (ASK_BURST,
+	// 1-50, default 5; ASK_EVERY_SECONDS, 1-3600, default 20); AskDailyMax
+	// questions per UTC day across everyone (ASK_DAILY_MAX, 0-100000, default
+	// 500, counted in Postgres), because the subscription behind the sidecar is
+	// shared; at most AskMaxInFlight answered at once (ASK_MAX_IN_FLIGHT, 1-32,
+	// default 4). A value out of range is a startup error.
 	AskEnabled      bool
 	AskBurst        int
 	AskEverySeconds int
 	AskDailyMax     int
+	AskMaxInFlight  int
 	// IdleCleanup is IDLE_CLEANUP=on (default off): warn owners of sites
 	// idle for 90 days, move them to Recently deleted 30 days later unless
 	// kept. IdleCleanupMaxEmails caps the emails one run sends (default 50).
@@ -372,10 +375,28 @@ func Load() (Config, error) {
 		}
 	}
 
-	cfg.AskEnabled = !strings.EqualFold(strings.TrimSpace(os.Getenv("ASK_ENABLED")), "off")
-	cfg.AskBurst = positiveEnvInt("ASK_BURST", 5)
-	cfg.AskEverySeconds = positiveEnvInt("ASK_EVERY_SECONDS", 20)
-	cfg.AskDailyMax = positiveEnvInt("ASK_DAILY_MAX", 500)
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("ASK_ENABLED"))) {
+	case "off", "false", "0", "no":
+		cfg.AskEnabled = false
+	default:
+		cfg.AskEnabled = true
+	}
+	for _, k := range []struct {
+		dst           *int
+		key           string
+		def, min, max int
+	}{
+		{&cfg.AskBurst, "ASK_BURST", 5, 1, 50},
+		{&cfg.AskEverySeconds, "ASK_EVERY_SECONDS", 20, 1, 3600},
+		{&cfg.AskDailyMax, "ASK_DAILY_MAX", 500, 0, 100000},
+		{&cfg.AskMaxInFlight, "ASK_MAX_IN_FLIGHT", 4, 1, 32},
+	} {
+		n, err := rangeEnvInt(k.key, k.def, k.min, k.max)
+		if err != nil {
+			return cfg, err
+		}
+		*k.dst = n
+	}
 
 	cfg.PreviewAccounts = map[string]bool{}
 	for _, a := range strings.Split(os.Getenv("PREVIEW_ACCOUNTS"), ",") {
@@ -433,19 +454,18 @@ func xorNonEmpty(a, b string) bool {
 	return (a == "") != (b == "")
 }
 
-// positiveEnvInt reads a positive integer knob, warning and using def when it
-// is set to anything else.
-func positiveEnvInt(key string, def int) int {
+// rangeEnvInt reads an integer knob: def when unset, an error when it is not
+// a whole number from min to max.
+func rangeEnvInt(key string, def, min, max int) (int, error) {
 	v := strings.TrimSpace(os.Getenv(key))
 	if v == "" {
-		return def
+		return def, nil
 	}
 	n, err := strconv.Atoi(v)
-	if err != nil || n <= 0 {
-		log.Printf("warning: invalid %s %q; using %d", key, v, def)
-		return def
+	if err != nil || n < min || n > max {
+		return 0, fmt.Errorf("%s must be a whole number from %d to %d, got %q", key, min, max, v)
 	}
-	return n
+	return n, nil
 }
 
 func getEnvOrDefault(key, fallback string) string {

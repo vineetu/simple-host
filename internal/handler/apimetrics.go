@@ -70,7 +70,9 @@ func NewAPIMetrics(db *sql.DB, geo *geoip.DB) *APIMetrics {
 // not visitor analytics (that already exists per site).
 func (m *APIMetrics) Wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, "/v1/") {
+		// "Ask about this page" is left out entirely: its visitors are readers
+		// of a public page, and nothing about them is kept for it.
+		if !strings.HasPrefix(r.URL.Path, "/v1/") || r.URL.Path == "/v1/ask" {
 			next.ServeHTTP(w, r)
 			return
 		}

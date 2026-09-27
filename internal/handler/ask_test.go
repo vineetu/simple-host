@@ -1,10 +1,16 @@
 package handler
 
 import (
+	"bytes"
+	"context"
+	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -43,17 +49,24 @@ func (f *fakeSidecar) server(t *testing.T) *httptest.Server {
 	return srv
 }
 
+const testApex = "https://simple-host.app"
+
 func newTestAsk(t *testing.T, f *fakeSidecar, burst, daily int) (*AskHandler, *http.ServeMux) {
+	return newTestAskOpts(t, f, AskOptions{Burst: burst, Every: 20 * time.Second, DailyMax: daily, MaxInFlight: 4})
+}
+
+func newTestAskOpts(t *testing.T, f *fakeSidecar, o AskOptions) (*AskHandler, *http.ServeMux) {
 	srv := f.server(t)
-	h := NewAskHandler("sidecar-key", srv.URL+"/v1", "grok-test", burst, 20*time.Second, daily)
+	h := newAskHandler("sidecar-key", srv.URL+"/v1", "grok-test", testApex+"/", &askMemCounter{}, o)
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /v1/ask", h.ask)
 	return h, mux
 }
 
-func postAsk(mux *http.ServeMux, body string, mod func(*http.Request)) *httptest.ResponseRecorder {
+func postAsk(mux http.Handler, body string, mod func(*http.Request)) *httptest.ResponseRecorder {
 	r := httptest.NewRequest("POST", "/v1/ask", strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("Origin", testApex)
 	r.RemoteAddr = "198.51.100.7:4321"
 	if mod != nil {
 		mod(r)
@@ -144,7 +157,7 @@ func TestAskPageRouting(t *testing.T) {
 	f := &fakeSidecar{answer: "An answer."}
 	_, mux := newTestAsk(t, f, 100, 100)
 	want := map[string][]string{
-		"architecture":            {"About Simple Host (public summary)", "Every place", "support@simple-host.app"},
+		"architecture":            {"About Simple Host (public summary)", "How Simple Host is built (public summary", "support@simple-host.app"},
 		"features":                {"About Simple Host (public summary)", "Everything it does."},
 		"enterprise-brief":        {"About Simple Host Enterprise", "Stateful static websites, on your own infrastructure.", "Give everyone in the company a place to build.", "I don't know from these pages."},
 		"enterprise-architecture": {"About Simple Host Enterprise", "How Simple Host Enterprise is built", "I don't know from these pages."},
@@ -236,23 +249,71 @@ func TestAskModelFailure(t *testing.T) {
 	}
 }
 
-// The knowledge packs are built from public pages, but lines naming machine
-// details or the operator's personal details never reach the model.
+// askForbiddenSamples are strings the line filter must catch. The pack test
+// checks the same filter (askLineForbidden) over every line the model gets,
+// so the list and the regex cannot drift apart.
+var askForbiddenSamples = []string{
+	"/etc/simple-host.env", "reads /opt/x", "(/srv/simple-host/sites)", "/var/log/a", "/usr/local/bin", "/home/ubuntu", "/root/.x", "/mnt/disk", "/data/x", "/lib/x",
+	"127.0.0.1", "localhost", "10.0.0.8", "listens on ::1", "[::1]:80", "fe80::1", "2001:db8:0:1::5", "2001:db8:85a3:0:0:8a2e:370:7334",
+	"on :8090", "port 8102", "deploy/domain-certs/issue.sh", "scripts/check.sh", "internal/handler/ask.go", "./cmd/server", "~/.config", "GET /internal/showcase/x", "db.internal", "box.local",
+	"the ADMIN_API_KEY", "LLM_API_KEY", "ANALYTICS_SALT_SECRET", "RESEND_API_KEYS", "TRANSCRIBE_TICKET_TOKEN",
+	"call (415) 555-0132", "+44 20 7946 0958", "+1 510 555 3956",
+	"someone@example.com", "vineetu@gmail.com", "Vineet", "Sriram",
+	"systemd unit", "journalctl -u x", "sudo cp", "cliproxy", "the sidecar", "over loopback", "the simplehost user", "INTENT.md", "PARITY.md", "burst 20",
+}
+
+func TestAskFilterCatchesSamples(t *testing.T) {
+	for _, s := range askForbiddenSamples {
+		if !askLineForbidden(s) {
+			t.Errorf("filter lets through %q", s)
+		}
+	}
+	// Honest public lines stay.
+	for _, s := range []string{
+		"Contact: support@simple-host.app.",
+		"There are no local accounts and no admin key.",
+		"There is no master key anywhere in the product.",
+		"Uploads are data only; .env files and server scripts such as .php are refused.",
+		"Sign in by 10:30 to keep your place.",
+		"Simple Host is one Go program, one Postgres database and one folder of files.",
+		"Every site lives at https://<site>.<handle>.simple-host.app/.",
+	} {
+		if askLineForbidden(s) {
+			t.Errorf("filter drops the public line %q", s)
+		}
+	}
+}
+
+// The knowledge packs are built from public pages and askdata, but lines
+// naming machine details or the operator's personal details never reach the
+// model: every line of every system prompt passes the filter.
 func TestAskPacksHoldNoInternalDetails(t *testing.T) {
-	forbidden := []string{"/etc/", "/opt/", "/srv/", "/var/", "/usr/local", "/home/", "/root/", "127.0.0.1", "localhost", ":8102", "vineetu@gmail", "@gmail.com", "cliproxy", "CLIProxy", "simple-host.env", "journalctl", "INTENT.md", "PARITY.md", "Vineet"}
 	for page := range askPages {
 		pack := askPack(page)
 		if len(pack) < 2000 {
 			t.Errorf("%s: pack suspiciously small (%d bytes)", page, len(pack))
 		}
-		for _, s := range forbidden {
-			if strings.Contains(pack, s) {
-				t.Errorf("%s: pack contains %q", page, s)
+		for _, line := range strings.Split(askSystemPrompt(page), "\n") {
+			if askLineForbidden(line) {
+				t.Errorf("%s: a forbidden line reaches the model: %q", page, line)
 			}
 		}
 		if strings.Contains(pack, "<script") || strings.Contains(pack, "{ max-width") {
 			t.Errorf("%s: pack contains markup or CSS", page)
 		}
+	}
+	// The architecture page answers from the curated summary, not the page.
+	arch := askPack("architecture")
+	if !strings.Contains(arch, "How Simple Host is built (public summary") {
+		t.Errorf("architecture pack lacks the curated summary")
+	}
+	for _, s := range []string{"blast-radius", "archive_sha256", "WRITE_AUTH_MODE", "Feature map", "api_ip_daily"} {
+		if strings.Contains(arch, s) {
+			t.Errorf("architecture pack carries page detail %q", s)
+		}
+	}
+	if n := len(strings.Fields(arch)); n > 2000 {
+		t.Errorf("architecture pack is %d words; it should be the short summary", n)
 	}
 }
 
@@ -266,6 +327,29 @@ func TestAskCleanAnswer(t *testing.T) {
 	long := strings.Repeat("word ", 250)
 	if n := len(strings.Fields(cleanAnswer(long))); n != askMaxAnswerWords {
 		t.Fatalf("long answer kept %d words", n)
+	}
+	cases := map[string]string{
+		// A rejected link whose label is itself an address loses the label.
+		"Log in at [https://evil.example/login](https://evil.example).": "Log in at .",
+		"Try [www.evil.example](https://evil.example) now.":             "Try now.",
+		"Go to [evil.example/login](https://evil.example/login) now.":   "Go to now.",
+		// Bare addresses elsewhere go, unless they are a known page.
+		"See https://evil.example/x or https://simple-host.app/terms.": "See or https://simple-host.app/terms.",
+		// Only known public pages are linked.
+		"[docs](https://simple-host.app/docs.html) [me](https://simple-host.app/vineetu) [api](https://simple-host.app/v1/sites)": "[docs](https://simple-host.app/docs.html) me api",
+		"[home](https://simple-host.app) [brief](https://simple-host.app/enterprise/brief#costs)":                                 "[home](https://simple-host.app) [brief](https://simple-host.app/enterprise/brief#costs)",
+		// Identifiers with underscores survive; __bold__ does not.
+		"The cookie is __Host-sh_vsess and __this__ is bold.": "The cookie is __Host-sh_vsess and this is bold.",
+	}
+	for in, want := range cases {
+		if got := cleanAnswer(in); got != want {
+			t.Errorf("cleanAnswer(%q):\n got %q\nwant %q", in, got, want)
+		}
+	}
+	for p := range askLinkPaths {
+		if !askLinkAllowed("https://simple-host.app" + p) {
+			t.Errorf("known page %s not linkable", p)
+		}
 	}
 }
 
@@ -303,5 +387,224 @@ func TestAskWidgetOnlyWhenEnabled(t *testing.T) {
 		if strings.Contains(string(body), `class="sh-ask"`) {
 			t.Errorf("/enterprise got the box")
 		}
+	}
+}
+
+// Only the apex's own pages may ask: any other Origin, or none, is refused
+// before the model or the daily count is touched.
+func TestAskSameOriginOnly(t *testing.T) {
+	f := &fakeSidecar{answer: "ok"}
+	h, mux := newTestAsk(t, f, 100, 100)
+	body := `{"question":"what is it?","page":"features"}`
+	for _, o := range []string{"", "https://evil.example", "https://madurai-idly.vineetu.simple-host.app", "https://vineetu.simple-host.app", "http://simple-host.app", "https://simple-host.app.evil.com", "null"} {
+		w := postAsk(mux, body, func(r *http.Request) {
+			if o == "" {
+				r.Header.Del("Origin")
+			} else {
+				r.Header.Set("Origin", o)
+			}
+		})
+		if w.Code != http.StatusForbidden || askCode(t, w) != "forbidden_origin" {
+			t.Errorf("Origin %q: got %d %s, want 403", o, w.Code, w.Body.String())
+		}
+	}
+	for _, ct := range []string{"", "text/plain", "application/x-www-form-urlencoded", "multipart/form-data; boundary=x"} {
+		w := postAsk(mux, body, func(r *http.Request) { r.Header.Set("Content-Type", ct) })
+		if w.Code != http.StatusUnsupportedMediaType {
+			t.Errorf("Content-Type %q: got %d, want 415", ct, w.Code)
+		}
+	}
+	if len(f.bodies) != 0 {
+		t.Fatalf("refused requests reached the model: %d", len(f.bodies))
+	}
+	if n := h.daily.(*askMemCounter).count; n != 0 {
+		t.Fatalf("refused requests used %d daily slots", n)
+	}
+	if w := postAsk(mux, body, func(r *http.Request) { r.Header.Set("Content-Type", "application/json; charset=utf-8") }); w.Code != http.StatusOK {
+		t.Fatalf("JSON with charset: got %d", w.Code)
+	}
+	// Another instance accepts its own apex.
+	h2 := newAskHandler("k", "http://x/v1", "m", "https://hosting.example.org", &askMemCounter{}, AskOptions{Burst: 1, Every: time.Second, DailyMax: 1, MaxInFlight: 1})
+	if h2.origin != "https://hosting.example.org" {
+		t.Fatalf("instance apex origin %q", h2.origin)
+	}
+}
+
+// The global CORS policy leaves /v1/ask alone: no grant, no preflight answer.
+func TestAskHasNoCORSGrant(t *testing.T) {
+	f := &fakeSidecar{answer: "ok"}
+	_, mux := newTestAsk(t, f, 100, 100)
+	app := CORS(mux)
+	w := postAsk(app, `{"question":"q","page":"features"}`, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("same-origin ask: %d", w.Code)
+	}
+	if v := w.Header().Get("Access-Control-Allow-Origin"); v != "" {
+		t.Fatalf("POST /v1/ask carries Access-Control-Allow-Origin %q", v)
+	}
+	r := httptest.NewRequest(http.MethodOptions, "/v1/ask", nil)
+	r.Header.Set("Origin", "https://evil.example")
+	r.Header.Set("Access-Control-Request-Method", "POST")
+	pw := httptest.NewRecorder()
+	app.ServeHTTP(pw, r)
+	if pw.Header().Get("Access-Control-Allow-Origin") != "" || pw.Header().Get("Access-Control-Allow-Methods") != "" {
+		t.Fatalf("preflight for /v1/ask was granted: %d %v", pw.Code, pw.Header())
+	}
+}
+
+// No shortened IP (or anything else) is kept for /v1/ask in the API metrics.
+func TestAskLeftOutOfAPIMetrics(t *testing.T) {
+	m := &APIMetrics{routes: map[routeKey]int64{}, ips: map[string]*ipAgg{}}
+	f := &fakeSidecar{answer: "ok"}
+	_, mux := newTestAsk(t, f, 100, 100)
+	if w := postAsk(m.Wrap(mux), `{"question":"q","page":"features"}`, nil); w.Code != http.StatusOK {
+		t.Fatalf("ask: %d", w.Code)
+	}
+	if len(m.routes) != 0 || len(m.ips) != 0 {
+		t.Fatalf("ask was counted: routes=%v ips=%d", m.routes, len(m.ips))
+	}
+	// Other API calls still are.
+	m.Wrap(http.NotFoundHandler()).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/v1/me", nil))
+	if len(m.ips) != 1 {
+		t.Fatalf("other /v1 calls are no longer counted")
+	}
+}
+
+// With every slot busy, a question gets 503 "busy" and no daily slot.
+func TestAskInFlightCap(t *testing.T) {
+	release := make(chan struct{})
+	entered := make(chan struct{}, 4)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		entered <- struct{}{}
+		<-release
+		json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"message": map[string]any{"content": "ok"}}}})
+	}))
+	t.Cleanup(srv.Close)
+	counter := &askMemCounter{}
+	h := newAskHandler("k", srv.URL+"/v1", "m", testApex, counter, AskOptions{Burst: 100, Every: time.Second, DailyMax: 100, MaxInFlight: 2})
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /v1/ask", h.ask)
+	body := `{"question":"q","page":"features"}`
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			postAsk(mux, body, func(r *http.Request) { r.RemoteAddr = fmt.Sprintf("192.0.%d.1:1", i) })
+		}(i)
+	}
+	<-entered
+	<-entered
+	w := postAsk(mux, body, func(r *http.Request) { r.RemoteAddr = "192.0.9.1:1" })
+	if w.Code != http.StatusServiceUnavailable || askCode(t, w) != "busy" {
+		t.Fatalf("third at once: got %d %s, want 503 busy", w.Code, w.Body.String())
+	}
+	close(release)
+	wg.Wait()
+	if counter.count != 2 {
+		t.Fatalf("daily count %d, want 2 (busy must not use a slot)", counter.count)
+	}
+	if w := postAsk(mux, body, func(r *http.Request) { r.RemoteAddr = "192.0.9.1:1" }); w.Code != http.StatusOK {
+		t.Fatalf("after the others finished: %d", w.Code)
+	}
+}
+
+// One network (/24) gets askNetShare visitors' worth, then waits.
+func TestAskPerNetworkLimit(t *testing.T) {
+	f := &fakeSidecar{answer: "ok"}
+	_, mux := newTestAsk(t, f, 1, 1000)
+	body := `{"question":"q","page":"features"}`
+	for i := 1; i <= askNetShare; i++ {
+		if w := postAsk(mux, body, func(r *http.Request) { r.RemoteAddr = fmt.Sprintf("203.0.113.%d:1", i) }); w.Code != http.StatusOK {
+			t.Fatalf("address %d in the /24: %d", i, w.Code)
+		}
+	}
+	if w := postAsk(mux, body, func(r *http.Request) { r.RemoteAddr = "203.0.113.200:1" }); w.Code != http.StatusTooManyRequests {
+		t.Fatalf("one more in the same /24: got %d, want 429", w.Code)
+	}
+	if w := postAsk(mux, body, func(r *http.Request) { r.RemoteAddr = "198.51.100.1:1" }); w.Code != http.StatusOK {
+		t.Fatalf("another network: %d", w.Code)
+	}
+}
+
+// A failed call is one upstream request, and nothing the upstream sent back
+// (which might echo the question) reaches the log.
+func TestAskUpstreamErrorsLogStatusOnly(t *testing.T) {
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+	const secret = "my-private-question-text"
+	for _, reply := range []func(w http.ResponseWriter){
+		func(w http.ResponseWriter) {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":{"message":"rejected: ` + secret + `"}}`))
+		},
+		func(w http.ResponseWriter) {
+			w.Write([]byte(`{"error":{"message":"policy: ` + secret + `"}}`))
+		},
+		func(w http.ResponseWriter) { w.Write([]byte(`not json ` + secret)) },
+	} {
+		calls := 0
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls++; reply(w) }))
+		h := newAskHandler("k", srv.URL+"/v1", "m", testApex, &askMemCounter{}, AskOptions{Burst: 10, Every: time.Second, DailyMax: 10, MaxInFlight: 1})
+		mux := http.NewServeMux()
+		mux.HandleFunc("POST /v1/ask", h.ask)
+		w := postAsk(mux, `{"question":"`+secret+`","page":"features"}`, nil)
+		srv.Close()
+		if w.Code != http.StatusBadGateway {
+			t.Errorf("got %d, want 502", w.Code)
+		}
+		if calls != 1 {
+			t.Errorf("upstream called %d times, want 1", calls)
+		}
+	}
+	if strings.Contains(buf.String(), secret) {
+		t.Fatalf("upstream text reached the log:\n%s", buf.String())
+	}
+	if !strings.Contains(buf.String(), "llm status 400") {
+		t.Fatalf("status code not logged:\n%s", buf.String())
+	}
+}
+
+// The daily count in Postgres survives a restart (a new handler) and stops at
+// the cap. Needs ASK_TEST_DSN or MIGRATE_TEST_DSN; uses a temporary table, so
+// it leaves the database as it found it.
+func TestAskDailyCountInPostgres(t *testing.T) {
+	dsn := os.Getenv("ASK_TEST_DSN")
+	if dsn == "" {
+		dsn = os.Getenv("MIGRATE_TEST_DSN")
+	}
+	if dsn == "" {
+		t.Skip("ASK_TEST_DSN / MIGRATE_TEST_DSN not set")
+	}
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	db.SetMaxOpenConns(1) // the temporary table lives on one connection
+	if _, err := db.Exec(`CREATE TEMP TABLE ask_daily (day DATE PRIMARY KEY, count INTEGER NOT NULL DEFAULT 0)`); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	first := askDBCounter{db}
+	for want := 1; want <= 2; want++ {
+		n, ok, err := first.take(ctx, "2026-09-27", 3)
+		if err != nil || !ok || n != want {
+			t.Fatalf("take %d: %d %v %v", want, n, ok, err)
+		}
+	}
+	restarted := askDBCounter{db}
+	if n, ok, err := restarted.take(ctx, "2026-09-27", 3); err != nil || !ok || n != 3 {
+		t.Fatalf("after restart: %d %v %v", n, ok, err)
+	}
+	if _, ok, err := restarted.take(ctx, "2026-09-27", 3); err != nil || ok {
+		t.Fatalf("over the cap: ok=%v err=%v", ok, err)
+	}
+	if n, ok, err := restarted.take(ctx, "2026-09-28", 3); err != nil || !ok || n != 1 {
+		t.Fatalf("next day: %d %v %v", n, ok, err)
+	}
+	if _, ok, _ := restarted.take(ctx, "2026-09-28", 0); ok {
+		t.Fatalf("ASK_DAILY_MAX=0 must refuse every question")
 	}
 }

@@ -212,9 +212,12 @@ func main() {
 	// the same single backend, answering only from text built into the binary.
 	// The box is rendered only when this is on.
 	if cfg.LLMAPIKey != "" && cfg.AskEnabled {
-		handler.NewAskHandler(cfg.LLMAPIKey, cfg.LLMBaseURL, cfg.LLMModel, cfg.AskBurst, time.Duration(cfg.AskEverySeconds)*time.Second, cfg.AskDailyMax).Register(mux)
+		handler.NewAskHandler(cfg.LLMAPIKey, cfg.LLMBaseURL, cfg.LLMModel, cfg.PublicBaseURL, db, handler.AskOptions{
+			Burst: cfg.AskBurst, Every: time.Duration(cfg.AskEverySeconds) * time.Second,
+			DailyMax: cfg.AskDailyMax, MaxInFlight: cfg.AskMaxInFlight,
+		}).Register(mux)
 		handler.EnableAskWidget()
-		log.Printf("ask about this page enabled (/v1/ask; %d per IP then 1 per %ds, %d a day)", cfg.AskBurst, cfg.AskEverySeconds, cfg.AskDailyMax)
+		log.Printf("ask about this page enabled (/v1/ask; %d per IP then 1 per %ds, %d at once, %d a day)", cfg.AskBurst, cfg.AskEverySeconds, cfg.AskMaxInFlight, cfg.AskDailyMax)
 	} else {
 		log.Printf("/v1/ask (ask about this page) disabled")
 	}

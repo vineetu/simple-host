@@ -60,7 +60,7 @@
       if (res.ok && res.j && res.j.answer) { show(res.j.answer); return; }
       if (res.status === 429 && res.j && res.j.code === 'daily_limit') {
         show("Couldn't answer right now. Questions are paused until tomorrow.", 'error');
-      } else if (res.status === 429) {
+      } else if (res.status === 429 || (res.status === 503 && res.j && res.j.code === 'busy')) {
         show("Couldn't answer right now. Give it a minute, then ask again.", 'error');
       } else {
         show("Couldn't answer right now.", 'error');

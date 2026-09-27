@@ -497,14 +497,15 @@ from that page. **Status: live when the model backend is configured** (`LLM_API_
 
 | Surface | Details |
 |---|---|
-| Route | `POST /v1/ask` `{question, page}` → `{answer}`; `page` ∈ `architecture`, `features`, `enterprise-brief`, `enterprise-architecture`; no sign-in, no cookies (`credentials: 'omit'`) |
+| Route | `POST /v1/ask` `{question, page}` → `{answer}`; `page` ∈ `architecture`, `features`, `enterprise-brief`, `enterprise-architecture`; no sign-in, no cookies (`credentials: 'omit'`). Same-origin only: no CORS grant (left out of `h/cors.go`), `Content-Type: application/json` required (415), `Origin` must be exactly the instance's apex from `PUBLIC_BASE_URL` (403 `forbidden_origin`, also when missing) |
 | Pages | the `<!--sh:ask-->` marker in `st/architecture.html`, `st/features.html`, `st/enterprise-brief.html`, `st/enterprise-architecture.html` (navy overrides in that page's style) → `st/partials/ask.html`; `st/ask.js`; styles in `st/site.css` (`.sh-ask`, page tokens only) |
-| Go | `h/ask.go` (knowledge packs, prompt, limits), `h/chrome.go` (`Ask` in `chromeData`), `cmd/server/main.go` |
-| Knowledge | built at boot from the embedded pages' visible text (lines naming machine paths, loopback/private addresses, ports or the operator's details dropped) plus `h/askdata/hosted.txt` or, for the enterprise pages, `h/askdata/enterprise.txt` + the text of `/enterprise`. Hosted answers fall back to "ask support@simple-host.app"; enterprise answers carry no contact details |
-| Privacy | only the question and the knowledge text go to the model — no IP, user agent, cookie or identifier; the question is never stored or logged (log line: page and the day's count) |
-| Env | `ASK_ENABLED` (default on when `LLM_API_KEY` is set), `ASK_BURST` (5), `ASK_EVERY_SECONDS` (20), `ASK_DAILY_MAX` (500, per UTC day across everyone, in memory — a restart resets it) |
-| External | the Grok sidecar (`LLM_*`), same as §14; no fallback |
-| Limits | 5 burst then 1 per 20 s per IP; 500 a day in total (429 `daily_limit`); question ≤ 500 characters; answer ≤ 200 words, links only to simple-host.app; 30 s timeout (502 `unavailable`) |
+| Go | `h/ask.go` (knowledge packs, prompt, limits, daily count), `h/chrome.go` (`Ask` in `chromeData`), `cmd/server/main.go` |
+| Knowledge | built at boot: `h/askdata/hosted.txt` (or, for the enterprise pages, `h/askdata/enterprise.txt` + the text of `/enterprise`) plus the visible text of the page — except the architecture page, which answers from the curated `h/askdata/architecture.txt` (a product-level summary), not the page. Every line, askdata included, goes through one filter that drops machine and repo paths, IPv4/IPv6 addresses, ports, internal routes, secret and key names, phone numbers, email addresses other than @simple-host.app and the operator's details; the test checks every line the model gets against it. Hosted answers fall back to "ask support@simple-host.app"; enterprise answers carry no contact details |
+| Privacy | only the question and the knowledge text go to the model (xAI's Grok) — no IP, user agent, cookie or identifier. The question text is never stored or logged (log line: page and the day's count; upstream errors log a status code only). `/v1/ask` is left out of the API IP metrics (`h/apimetrics.go`); standard web server logs apply. Disclosed on `privacy.html` |
+| Env | `ASK_ENABLED` (default on when `LLM_API_KEY` is set; `off`/`false`/`0`/`no` turn it off), `ASK_BURST` (5; 1–50), `ASK_EVERY_SECONDS` (20; 1–3600), `ASK_DAILY_MAX` (500; 0–100000; per UTC day across everyone), `ASK_MAX_IN_FLIGHT` (4; 1–32). Out of range is a startup error |
+| Tables | `ask_daily` (day, count) — the day's count, so a restart does not reset it (`db/migrations/ask-daily-count.sql`) |
+| External | the Grok sidecar (`LLM_*`), same as §14; no fallback. One ask is one request from us, never retried here (the sidecar's own retry setting is global to it) |
+| Limits | 5 burst then 1 per 20 s per IP, and 4× that per /24 (IPv6 /48); at most 4 answered at once (503 `busy`, no daily slot used); 500 a day in total (429 `daily_limit`); question ≤ 500 characters; answer ≤ 200 words, links only to the known public pages (`/`, `/features`, `/architecture.html`, `/enterprise`, `/enterprise/brief`, `/enterprise/architecture`, `/docs.html`, `/install.html`, `/privacy.html`, `/terms`, `/support`), other addresses removed; 30 s timeout (502 `unavailable`) |
 
 ## 17. Legal and support pages
 

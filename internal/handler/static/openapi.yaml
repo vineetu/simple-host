@@ -3178,14 +3178,19 @@ paths:
       description: >-
         Powers the "Ask about this page" box on the architecture, features and
         enterprise brief / architecture pages. Answers in a few sentences, only
-        from text built into the server (that page's visible text plus a short
-        public summary; the enterprise pages answer about Simple Host
-        Enterprise). Runs on the same single model backend as AI create, with no
-        fallback. Only the question and that text are sent to the model —
-        nothing about the visitor. The question is not stored. No sign-in.
-        Rate limited per IP (default 5, then 1 every 20 s) and capped per day
-        across everyone (default 500). Absent when the server has no model
-        backend configured or ASK_ENABLED=off.
+        from text built into the server (a short public summary plus that
+        page's visible text, or for the architecture page a curated summary;
+        the enterprise pages answer about Simple Host Enterprise). Runs on the
+        same single model backend as AI create (xAI's Grok), with no fallback.
+        Only the question and that text are sent to the model — nothing about
+        the visitor. The question text is never stored or logged; standard web
+        server logs apply. No sign-in. Same-origin only: there is no CORS
+        grant, the body must be application/json, and the Origin header must
+        be exactly this server's own address (not a hosted site). Rate limited
+        per IP (default 5, then 1 every 20 s) and per network, at most a few
+        answered at once, and capped per day across everyone (default 500).
+        Absent when the server has no model backend configured or ASK_ENABLED
+        is off.
       tags: [AI]
       security: []
       requestBody:
@@ -3202,7 +3207,9 @@ paths:
         '200':
           description: >-
             The answer, plain text of at most 200 words. The only links it may
-            hold are markdown links to https://simple-host.app pages.
+            hold are markdown links to the main public pages of
+            https://simple-host.app (home, features, architecture, enterprise,
+            docs, install, privacy, terms, support).
           content:
             application/json:
               schema:
@@ -3212,11 +3219,20 @@ paths:
         '400':
           description: invalid_body, unknown_page, empty_question or question_too_long
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '403':
+          description: the Origin header is missing or is not this server's own address (code forbidden_origin)
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '415':
+          description: the body is not application/json (code unsupported_media_type)
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
         '429':
-          description: Rate limited per IP, or code daily_limit when today's questions are used up
+          description: Rate limited per IP or per network, or code daily_limit when today's questions are used up
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
         '502':
           description: the model did not answer in time (code unavailable)
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '503':
+          description: busy, too many questions being answered at once (code busy; does not count against the day), or the day's count is unavailable (code unavailable)
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
 
   /v1/generate:
