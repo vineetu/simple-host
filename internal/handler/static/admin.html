@@ -196,6 +196,15 @@ table.apx td.err{color:var(--error)}
     </details>
   </div>
 
+  <!-- Saved-data watch (GET /v1/admin/data-watch): how pages use saved data in
+       the ways a later step makes owner-only or bounded, before anything is
+       enforced. Counts only, never content. -->
+  <div class="panel" id="dwatch" hidden>
+    <h2>Saved-data watch</h2>
+    <p class="ph" id="dwatch-note"></p>
+    <table class="apx"><thead><tr><th>Website</th><th>Owner</th><th>Visitor replaces</th><th>Not an object</th><th>Visitor ops</th><th>Large incs</th><th>New list names</th><th>Large items</th><th>Last</th></tr></thead><tbody id="dwatch-rows"></tbody></table>
+  </div>
+
   <div class="users" id="users"></div>
 
   <div id="apitraffic" hidden>
@@ -466,6 +475,7 @@ async function load(){
     collectEntries(users);
     loadTraffic();
     loadIdle();
+    loadDataWatch();
   }catch(e){ status('Could not reach the server: '+(e.message||e), true); }
 }
 
@@ -512,6 +522,27 @@ async function loadIdle(){
       return '<tr><td>'+esc(x.site)+'</td><td>'+esc(x.owner)+'</td><td>'+esc(fmtDate(x.warned_at))+'</td></tr>';
     }).join('')||'<tr><td colspan="3" style="color:var(--dim)">None.</td></tr>';
     document.getElementById('idle').hidden=false;
+  }catch(e){}
+}
+
+async function loadDataWatch(){
+  try{
+    var res=await fetch('/v1/admin/data-watch',{headers:{'X-API-Key':apiKey}});
+    if(!res.ok) return; // older server: section stays hidden
+    var d=await res.json();
+    var sites=d.sites||[];
+    var since=d.since?('Counting since '+d.since+' ('+d.days_counted+' of '+d.watch_days+' days). '):'Nothing counted yet. ';
+    document.getElementById('dwatch-note').textContent=since+'Last '+d.days+' days, per site: whole-document replaces by visitors, documents that are not a JSON object, visitor state ops by type, visitor increments larger than '+
+      d.thresholds.inc_max+', list names a visitor started, and list items over '+d.thresholds.item_kb+' KB. These are the pages to check before the owner-only replace, object-only documents and bounded increments are switched on.';
+    document.getElementById('dwatch-rows').innerHTML=sites.map(function(x){
+      var m=x.metrics||{}, ops=[];
+      Object.keys(m).sort().forEach(function(k){ if(k.indexOf('visitor_op_')===0) ops.push(k.slice(11)+' '+m[k]); });
+      var n=function(k){ return m[k]?String(m[k]):''; };
+      return '<tr><td>'+esc(x.site)+'</td><td>'+esc(x.handle)+'</td><td class="num">'+n('put_by_visitor')+'</td><td class="num">'+n('put_not_object')+
+        '</td><td>'+esc(ops.join(', '))+'</td><td class="num">'+n('visitor_inc_large')+'</td><td class="num">'+n('new_list_name')+
+        '</td><td class="num">'+n('item_large')+'</td><td>'+esc(fmtWhen(x.last_at))+'</td></tr>';
+    }).join('')||'<tr><td colspan="9" style="color:var(--dim)">Nothing yet.</td></tr>';
+    document.getElementById('dwatch').hidden=false;
   }catch(e){}
 }
 
