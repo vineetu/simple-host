@@ -144,6 +144,11 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	docs := call("data_history", map[string]any{"site": "shop", "limit": 5})
 	first := docs["changes"].([]any)[0].(map[string]any)["version"].(string)
 	call("restore_data", map[string]any{"site": "shop", "version": first})
+	// Delete for good: one Recently deleted item, the rest, then the history.
+	call("delete_collection_item", map[string]any{"site": "shop", "collection": "orders", "id": id, "confirm_id": id})
+	call("delete_forever", map[string]any{"site": "shop", "collection": "orders", "id": id, "confirm_id": id})
+	call("delete_forever", map[string]any{"site": "shop", "collection": "orders", "all": true, "confirm_collection": "orders"})
+	call("delete_forever", map[string]any{"site": "shop", "history": true, "confirm_site": "shop"})
 
 	call("site_analytics", map[string]any{"site": "shop", "days": 7})
 	call("export_site", map[string]any{"site": "shop"})
