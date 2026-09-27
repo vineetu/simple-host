@@ -36,6 +36,7 @@ func ApplyLimits(l config.Limits) {
 		DomainUnprovenTTL:    l.DomainUnprovenTTL,
 		DomainLapseWarnAfter: l.DomainLapseWarnAfter,
 		DomainLapseAfter:     l.DomainLapseAfter,
+		UndoDays:             time.Duration(l.SavedData.UndoDays) * 24 * time.Hour,
 	})
 	tarball.SetMaxEntries(l.MaxFilesPerSite)
 	instanceLimits = newLimitsRewriter(l)

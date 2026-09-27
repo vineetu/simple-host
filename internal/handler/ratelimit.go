@@ -73,16 +73,23 @@ func (rl *rateLimiter) startCleanup(every, idle time.Duration) {
 		ticker := time.NewTicker(every)
 		defer ticker.Stop()
 		for range ticker.C {
-			rl.mu.Lock()
-			cutoff := rl.now().Add(-idle)
-			for k, b := range rl.buckets {
-				if b.tokens >= rl.capacity-0.0001 && b.last.Before(cutoff) {
-					delete(rl.buckets, k)
-				}
-			}
-			rl.mu.Unlock()
+			rl.evictIdle(idle)
 		}
 	}()
+}
+
+// evictIdle drops buckets unused for idle that have refilled: a new bucket
+// starts full, so forgetting them changes nothing.
+func (rl *rateLimiter) evictIdle(idle time.Duration) {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	now := rl.now()
+	cutoff := now.Add(-idle)
+	for k, b := range rl.buckets {
+		if b.last.Before(cutoff) && b.tokens+now.Sub(b.last).Seconds()*rl.rate >= rl.capacity-0.0001 {
+			delete(rl.buckets, k)
+		}
+	}
 }
 
 // clientIP returns the originating client address. We sit behind the trusted
@@ -115,7 +122,7 @@ func rateLimitByIP(rl *rateLimiter, next http.Handler) http.Handler {
 
 func tooManyRequests(w http.ResponseWriter) {
 	w.Header().Set("Retry-After", "60")
-	writeJSON(w, http.StatusTooManyRequests, errorResponse{Error: "rate limit exceeded, slow down"})
+	writeJSON(w, http.StatusTooManyRequests, errorResponse{Error: "rate limit exceeded, slow down", Code: "rate_limited"})
 }
 
 // SecurityHeaders adds X-Content-Type-Options: nosniff to every response.

@@ -232,35 +232,39 @@ func writeVisitorAuthRequired(w http.ResponseWriter) {
 
 // visitorWriteOK is the write gate for PUT/PATCH state and POST collections.
 // See docs/history/SPEC.md §4.4. Returns false after writing the error response.
-func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, siteID, siteName, route, collection string) bool {
+// On success it also says who is writing (db.Actor, without the email; see
+// actorWithEmail): the site's owner or the platform admin (their key, or the
+// owner signed in on the site), another signed-in visitor, or nobody known.
+func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, siteID, siteName, route, collection string) (db.Actor, bool) {
+	anon := db.Actor{Kind: actorAnonymous}
 	ownerID, allowAnon, err := db.GetSiteWriteGate(r.Context(), h.database, siteID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return false
+			return anon, false
 		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return false
+		return anon, false
 	}
 	// A taken-down site (or one whose owner is suspended) takes no writes
 	// from anyone, the admin included; restore it first.
 	if h.refuseSuspendedSiteID(w, r, siteID) {
-		return false
+		return anon, false
 	}
 	// A site its owner took offline takes no saves from visitors; the
 	// owner's (or admin's) key and connector keep writing (offline.go).
 	if off, err := db.SiteOffline(r.Context(), h.database, siteID); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return false
+		return anon, false
 	} else if off && !h.ownerKeyWrite(r, ownerID) {
 		writeSiteOffline(w)
-		return false
+		return anon, false
 	}
 	// A page opened as a preview of a version (preview.go) never saves into
 	// the live site's data.
 	if previewReferer(r) && r.Header.Get("X-API-Key") == "" {
 		writePreviewReadOnly(w)
-		return false
+		return anon, false
 	}
 
 	mode := h.writeAuthMode
@@ -279,9 +283,9 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 				"code":   "use_custom_domain",
 				"domain": domain,
 			})
-			return false
+			return anon, false
 		}
-		return true
+		return h.keyActor(r, ownerID), true
 	}
 	if strings.EqualFold(requestHostName(r), h.contentHost) {
 		if info, ok, _ := db.GetSiteDomainInfo(r.Context(), h.database, siteID); ok && info.Domain != "" {
@@ -297,9 +301,9 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 					"code":   "use_custom_domain",
 					"domain": info.Domain,
 				})
-				return false
+				return anon, false
 			}
-			return true
+			return h.keyActor(r, ownerID), true
 		}
 	}
 
@@ -307,7 +311,7 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 		u, ok, resolveErr := h.resolveWriterKey(r.Context(), key)
 		if resolveErr != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-			return false
+			return anon, false
 		}
 		// A key writes only to its own account's sites (the platform admin
 		// to any). Any other account's key gets the same 404 as a missing
@@ -317,21 +321,24 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 		if ok && !u.IsAdmin && u.ID != ownerID {
 			log.Printf("key_write_refused user_id=%s site_id=%s name=%s route=%s collection=%s", u.ID, siteID, siteName, route, collection)
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return false
+			return anon, false
 		}
 		if ok {
 			log.Printf("key_write user_id=%s site_id=%s name=%s route=%s collection=%s", u.ID, siteID, siteName, route, collection)
-			return true
+			if u.IsAdmin && u.ID != ownerID {
+				return db.Actor{ID: u.ID, Kind: actorAdmin}, true
+			}
+			return db.Actor{ID: u.ID, Kind: actorOwner}, true
 		}
 		writeJSON(w, http.StatusUnauthorized, struct {
 			Error string `json:"error"`
 			Code  string `json:"code"`
 		}{Error: "invalid API key", Code: "invalid_api_key"})
-		return false
+		return anon, false
 	}
 
 	if mode == "off" {
-		return true
+		return anon, true
 	}
 
 	// Shared content host. With PERSON_HOSTS=canonical every page lives on its
@@ -349,7 +356,7 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 	onContentHost := strings.EqualFold(requestHostName(r), h.contentHost)
 	if onContentHost && !h.personHostsCanonical() {
 		h.logAnonWrite(r, siteID, siteName, route, collection, mode, "public_host")
-		return true
+		return anon, true
 	}
 
 	if raw := h.sessionCookieFor(r); raw != "" && !onContentHost {
@@ -361,21 +368,24 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 					// A failed lookup is a server error, not a suspension.
 					if susp, serr := db.UserSuspended(r.Context(), h.database, sess.UserID); serr != nil {
 						writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-						return false
+						return anon, false
 					} else if susp {
 						writeAccountSuspended(w)
-						return false
+						return anon, false
 					}
 					if r.Header.Get(visitorCSRFHeader) == visitorCSRFValue {
 						_ = db.TouchVisitorSession(r.Context(), h.database, id)
-						return true
+						if sess.UserID == ownerID {
+							return db.Actor{ID: sess.UserID, Kind: actorOwner}, true
+						}
+						return db.Actor{ID: sess.UserID, Kind: actorVisitor}, true
 					}
 					if mode == "on" {
 						writeJSON(w, http.StatusForbidden, struct {
 							Error string `json:"error"`
 							Code  string `json:"code"`
 						}{Error: "missing CSRF header", Code: "csrf_required"})
-						return false
+						return anon, false
 					}
 					// log: treat missing CSRF as anonymous so existing pages still write.
 				}
@@ -394,9 +404,29 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 	h.logAnonWrite(r, siteID, siteName, route, collection, mode, outcome)
 	if outcome == "rejected" {
 		writeVisitorAuthRequired(w)
-		return false
+		return anon, false
 	}
-	return true
+	return anon, true
+}
+
+// keyActor is who a write that passed without the key check was made by, for
+// the record (history, authors, the watch): the site's owner or the admin
+// when the request carries their valid key, otherwise nobody signed in.
+func (h *SiteHandler) keyActor(r *http.Request, ownerID string) db.Actor {
+	key := r.Header.Get("X-API-Key")
+	if key == "" {
+		return db.Actor{Kind: actorAnonymous}
+	}
+	u, ok, err := h.resolveWriterKey(r.Context(), key)
+	switch {
+	case err != nil || !ok:
+		return db.Actor{Kind: actorAnonymous}
+	case u.ID == ownerID:
+		return db.Actor{ID: u.ID, Kind: actorOwner}
+	case u.IsAdmin:
+		return db.Actor{ID: u.ID, Kind: actorAdmin}
+	}
+	return db.Actor{Kind: actorAnonymous}
 }
 
 func (h *SiteHandler) resolveWriterKey(ctx context.Context, key string) (db.User, bool, error) {

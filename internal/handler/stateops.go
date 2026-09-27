@@ -1,12 +1,19 @@
 package handler
 
 import (
+	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log"
+	"math"
+	"math/big"
 	"net/http"
 	"reflect"
+	"strconv"
 	"strings"
 
 	db "github.com/vsriram/simple-host/internal/db"
@@ -27,7 +34,7 @@ type stateOp struct {
 	Op    string          `json:"op"`
 	Path  string          `json:"path"`
 	Value json.RawMessage `json:"value,omitempty"`
-	By    *float64        `json:"by,omitempty"`
+	By    json.RawMessage `json:"by,omitempty"`
 	Match map[string]any  `json:"match,omitempty"`
 }
 
@@ -57,20 +64,30 @@ func (h *SiteHandler) patchSiteState(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	if !h.visitorWriteOK(w, r, siteID, siteName, writeRouteStatePatch, "") {
+	actor, ok := h.visitorWriteOK(w, r, siteID, siteName, writeRouteStatePatch, "")
+	if !ok {
 		return
 	}
+	actor = h.withAuthorEmail(r.Context(), actor)
 
-	r.Body = http.MaxBytesReader(w, r.Body, maxSiteStateSize)
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxSiteStateSize))
+	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "request body too large", Code: "item_too_large"})
+			return
+		}
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid JSON body"})
+		return
+	}
 	var req struct {
 		Ops []stateOp `json:"ops"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		var maxBytesErr *http.MaxBytesError
-		if errors.As(err, &maxBytesErr) {
-			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "request body too large"})
-			return
-		}
+	// UseNumber: numbers keep their exact digits (a large id or a precise
+	// amount is not rounded through float64).
+	dec := json.NewDecoder(bytes.NewReader(body))
+	dec.UseNumber()
+	if err := dec.Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid JSON body"})
 		return
 	}
@@ -82,59 +99,97 @@ func (h *SiteHandler) patchSiteState(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: fmt.Sprintf("too many ops (max %d)", maxStateOps)})
 		return
 	}
-
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	defer tx.Rollback()
-
-	cur, _, err := db.GetSiteStateForUpdateByID(r.Context(), tx, siteID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+	// A retry answers with the document as it is now and its version.
+	claim, handled := h.idemBegin(w, r, siteID, "PATCH state", actor, body, func(prev db.IdempotentResponse) {
+		state, ver, err := db.GetSiteStateByID(r.Context(), h.database, siteID)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
 		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("ETag", stateETag(ver))
+		w.WriteHeader(prev.Status)
+		w.Write(state)
+	})
+	if handled {
+		return
+	}
+	defer h.idemEnd(r, claim)
+
+	// The row is locked while the ops apply, so concurrent PATCHes
+	// serialize; what changed goes to the site's history (undo).
+	var reply *patchReply
+	patch, newVersion, err := h.patchState(r, siteID, actor, req.Ops)
+	switch {
+	case errors.As(err, &reply):
+		writeJSON(w, reply.status, errorResponse{Error: reply.msg, Code: reply.code})
+		return
+	case errors.Is(err, sql.ErrNoRows):
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+		return
+	case errors.Is(err, db.ErrSiteFull):
+		h.writeSiteFull(w)
+		return
+	case err != nil:
+		log.Printf("state patch site_id=%s: %v", siteID, err)
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-
-	root, err := stateRootObject(cur)
-	if err != nil {
-		writeJSON(w, http.StatusConflict, errorResponse{Error: "state is not a JSON object; PATCH requires an object root", Code: "not_an_object"})
-		return
+	if isVisitorActor(actor) {
+		h.watchVisitorOps(r.Context(), siteID, req.Ops)
 	}
-
-	if err := applyStateOps(root, req.Ops); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
-		return
-	}
-
-	newBytes, err := json.Marshal(root)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	if len(newBytes) > maxSiteStateSize {
-		writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "resulting state exceeds size limit"})
-		return
-	}
-
-	newVersion, err := db.SetSiteStateByID(r.Context(), tx, siteID, newBytes)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
+	h.idemSave(r, claim, http.StatusOK, stateETag(newVersion), int64(newVersion))
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("ETag", stateETag(newVersion))
 	w.WriteHeader(http.StatusOK)
-	w.Write(newBytes)
+	w.Write(patch.Next)
+}
+
+// patchReply is a PATCH refused for what its ops ask (written as is).
+type patchReply struct {
+	status    int
+	msg, code string
+}
+
+func (e *patchReply) Error() string { return e.msg }
+
+// patchState applies ops to the document in one locked transaction.
+func (h *SiteHandler) patchState(r *http.Request, siteID string, actor db.Actor, ops []stateOp) (db.StatePatch, int, error) {
+	var out db.StatePatch
+	ver, err := db.PatchSiteState(r.Context(), h.database, siteID, actor, h.siteMaxBytes(), h.savedData.SnapshotEvery, func(cur json.RawMessage) (db.StatePatch, error) {
+		root, err := stateRootObject(cur)
+		if err != nil {
+			return db.StatePatch{}, &patchReply{http.StatusConflict, "state is not a JSON object; PATCH requires an object root", "not_an_object"}
+		}
+		// Before is decoded separately: the ops change root in place.
+		before, err := decodeJSON(cur)
+		if err != nil {
+			return db.StatePatch{}, err
+		}
+		if err := applyStateOps(root, ops); err != nil {
+			return db.StatePatch{}, &patchReply{http.StatusBadRequest, err.Error(), ""}
+		}
+		next, err := json.Marshal(root)
+		if err != nil {
+			return db.StatePatch{}, err
+		}
+		if len(next) > maxSiteStateSize {
+			return db.StatePatch{}, &patchReply{http.StatusRequestEntityTooLarge, "resulting state exceeds size limit", "item_too_large"}
+		}
+		out = db.StatePatch{Before: before, After: root, Next: next}
+		return out, nil
+	})
+	return out, ver, err
+}
+
+// decodeJSON decodes a stored document keeping exact numbers.
+func decodeJSON(raw json.RawMessage) (any, error) {
+	var v any
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	err := dec.Decode(&v)
+	return v, err
 }
 
 // stateRootObject parses the stored state into an object map. A null/empty doc
@@ -145,7 +200,9 @@ func stateRootObject(cur json.RawMessage) (map[string]any, error) {
 		return map[string]any{}, nil
 	}
 	var root map[string]any
-	if err := json.Unmarshal(cur, &root); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(cur))
+	dec.UseNumber()
+	if err := dec.Decode(&root); err != nil {
 		return nil, err
 	}
 	if root == nil {
@@ -175,19 +232,19 @@ func applyStateOps(root map[string]any, ops []stateOp) error {
 			parent[last] = v
 
 		case "inc":
-			by := 1.0
-			if op.By != nil {
-				by = *op.By
+			by, err := incBy(op.By)
+			if err != nil {
+				return fmt.Errorf("op %d (inc): %v", i, err)
 			}
 			parent, last, err := navigate(root, keys, true)
 			if err != nil {
 				return fmt.Errorf("op %d (inc): %v", i, err)
 			}
-			cur, err := toFloat(parent[last])
+			sum, err := addNumbers(parent[last], by)
 			if err != nil {
 				return fmt.Errorf("op %d (inc): %v", i, err)
 			}
-			parent[last] = cur + by
+			parent[last] = sum
 
 		case "append":
 			v, err := decodeValue(op.Value)
@@ -285,21 +342,61 @@ func decodeValue(raw json.RawMessage) (any, error) {
 		return nil, fmt.Errorf("missing value")
 	}
 	var v any
-	if err := json.Unmarshal(raw, &v); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	if err := dec.Decode(&v); err != nil {
 		return nil, fmt.Errorf("invalid value")
 	}
 	return v, nil
 }
 
-func toFloat(v any) (float64, error) {
-	switch n := v.(type) {
-	case nil:
-		return 0, nil
-	case float64:
-		return n, nil
-	default:
-		return 0, fmt.Errorf("existing value is not a number")
+// incBy is an inc's amount: 1 when it is missing or null, otherwise a JSON
+// number, kept as written.
+func incBy(raw json.RawMessage) (json.Number, error) {
+	t := bytes.TrimSpace(raw)
+	if len(t) == 0 || string(t) == "null" {
+		return "1", nil
 	}
+	if t[0] == '"' {
+		return "", fmt.Errorf("by must be a number")
+	}
+	n := json.Number(t)
+	if _, err := n.Float64(); err != nil {
+		return "", fmt.Errorf("by must be a number")
+	}
+	return n, nil
+}
+
+// addNumbers is inc: whole numbers add exactly (a count past 2^53 stays
+// right); anything else adds as before, in float64. A missing value is 0.
+func addNumbers(cur any, by json.Number) (any, error) {
+	var n json.Number
+	switch v := cur.(type) {
+	case nil:
+		n = "0"
+	case json.Number:
+		n = v
+	case float64:
+		n = json.Number(strconv.FormatFloat(v, 'g', -1, 64))
+	default:
+		return nil, fmt.Errorf("existing value is not a number")
+	}
+	if a, err := strconv.ParseInt(string(n), 10, 64); err == nil {
+		if b, err := strconv.ParseInt(string(by), 10, 64); err == nil {
+			if s := a + b; (b >= 0) == (s >= a) { // no overflow
+				return json.Number(strconv.FormatInt(s, 10)), nil
+			}
+		}
+	}
+	a, err := n.Float64()
+	if err != nil {
+		return nil, fmt.Errorf("existing value is not a number")
+	}
+	b, _ := by.Float64()
+	if s := a + b; !math.IsInf(s, 0) && !math.IsNaN(s) {
+		return s, nil
+	}
+	return nil, fmt.Errorf("the result is too large a number")
 }
 
 func matchesAll(el map[string]any, match map[string]any) bool {
@@ -307,9 +404,92 @@ func matchesAll(el map[string]any, match map[string]any) bool {
 		return false // an empty match must not delete everything
 	}
 	for k, want := range match {
-		if !reflect.DeepEqual(el[k], want) {
+		if !jsonEqual(el[k], want) {
 			return false
 		}
 	}
 	return true
+}
+
+// jsonEqual compares two decoded JSON values, numbers by value (1 == 1.0),
+// as matching did when every number was a float64.
+func jsonEqual(a, b any) bool {
+	an, aNum := asFloat(a)
+	bn, bNum := asFloat(b)
+	if aNum || bNum {
+		if !aNum || !bNum {
+			return false
+		}
+		// Two whole numbers compare exactly, at any size: a 20-digit id
+		// never matches its neighbour through float64 rounding.
+		ai, aok := new(big.Int).SetString(numberText(a), 10)
+		bi, bok := new(big.Int).SetString(numberText(b), 10)
+		if aok && bok {
+			return ai.Cmp(bi) == 0
+		}
+		return an == bn
+	}
+	switch av := a.(type) {
+	case map[string]any:
+		bv, ok := b.(map[string]any)
+		if !ok || len(av) != len(bv) {
+			return false
+		}
+		for k, v := range av {
+			w, ok := bv[k]
+			if !ok || !jsonEqual(v, w) {
+				return false
+			}
+		}
+		return true
+	case []any:
+		bv, ok := b.([]any)
+		if !ok || len(av) != len(bv) {
+			return false
+		}
+		for i := range av {
+			if !jsonEqual(av[i], bv[i]) {
+				return false
+			}
+		}
+		return true
+	}
+	return reflect.DeepEqual(a, b)
+}
+
+func asFloat(v any) (float64, bool) {
+	switch n := v.(type) {
+	case json.Number:
+		f, err := n.Float64()
+		return f, err == nil
+	case float64:
+		return n, true
+	}
+	return 0, false
+}
+
+func numberText(v any) string {
+	if n, ok := v.(json.Number); ok {
+		return string(n)
+	}
+	return ""
+}
+
+// watchVisitorOps counts a visitor's PATCH ops by type, and increments
+// larger than SAVED_DATA_WATCH_INC_MAX, for the watch.
+func (h *SiteHandler) watchVisitorOps(ctx context.Context, siteID string, ops []stateOp) {
+	counts := map[string]int64{}
+	for _, op := range ops {
+		counts[watchVisitorOp+op.Op]++
+		if op.Op == "inc" {
+			if by, err := incBy(op.By); err == nil {
+				if f, err := by.Float64(); err == nil && math.Abs(f) > float64(h.savedData.WatchIncMax) {
+					counts[watchIncLarge]++
+				}
+			}
+		}
+	}
+	for m, n := range counts {
+		h.watch(ctx, siteID, m, n)
+	}
 }

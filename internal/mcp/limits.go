@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 )
@@ -19,6 +20,7 @@ type Limits struct {
 	DomainUnprovenTTL    time.Duration // DOMAIN_UNPROVEN_HOURS
 	DomainLapseWarnAfter time.Duration // DOMAIN_LAPSE_WARN_HOURS
 	DomainLapseAfter     time.Duration // DOMAIN_LAPSE_HOURS
+	UndoDays             time.Duration // SAVED_DATA_UNDO_DAYS
 }
 
 // DefaultLimits is today's behaviour. internal/handler's tests check it
@@ -34,6 +36,7 @@ func DefaultLimits() Limits {
 		DomainUnprovenTTL:    24 * time.Hour,
 		DomainLapseWarnAfter: 24 * time.Hour,
 		DomainLapseAfter:     72 * time.Hour,
+		UndoDays:             30 * day,
 	}
 }
 
@@ -64,6 +67,13 @@ func span(d time.Duration) string {
 		return "one " + unit
 	}
 	return strconv.Itoa(n) + " " + unit + "s"
+}
+
+// spanAdj is span as an adjective: "30-day", "one-day".
+func spanAdj(d time.Duration) string {
+	n, unit, _ := strings.Cut(span(d), " ")
+	unit = strings.TrimSuffix(unit, "s")
+	return n + "-" + unit
 }
 
 // Span is span, exported for that test.

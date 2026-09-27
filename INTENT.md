@@ -324,6 +324,39 @@ What follows from that, and is not negotiable without changing the line above:
   answers it; otherwise it is reported as not set up, with why. Owner approved 2026-09-27
   (completeness plan).
 
+- **2026-09-27. Saved-data redesign approved: kinds Page info, Submissions, Personal, Shared
+  board; every number configurable.** Every piece of saved data gets a name and one kind, picked
+  once by the owner's agent: **Page info** (`content`, the owner writes, anyone reads),
+  **Submissions** (`entries`, visitors add; private to the owner unless made public; a visitor
+  sees, changes and withdraws their own), **Personal** (`mine`, one private record per person)
+  and **Shared board** (`board`, a list a group edits). All four will be built, in steps. The
+  nine recommendations are accepted: a key writes only its own account's sites (already live);
+  undo reaches back 30 days by time, always keeping one version per item per day; visitor
+  whole-document replaces are logged for 7 days and then become owner-only; the four kinds, with
+  a wrong choice failing safe; Submissions private to the owner by default; Enterprise encryption
+  with a cluster secret first, a KMS later; live updates wait (polling covers today); `notify`
+  daily by default on private Submissions, off on public ones; "Only these people" accepts whole
+  domains. Every time, limit and size is an env knob whose default is the plan's value
+  (`SAVED_DATA_*`). Step 1 (the safety floor) is built first and changes nothing a page may do:
+  30-day history and undo for saved data and list items, recoverable deletes and clears, the
+  author recorded on every write (shown only to the owner; this supersedes "the store records no
+  actor" in 2026-09-05), idempotency keys, exact numbers, stable limit codes, a read rate limit and
+  a per-site total, and the 7-day watch; the three tightenings (owner-only whole replace,
+  object-only documents, bounded visitor `inc`) come in a later step after the watch. Every site
+  existing before the kinds keeps today's behaviour (`legacy_data`). Reason: saved data could be
+  wiped with no way back and without knowing who did it, and the open model does not scale to
+  the forms people actually build. Owner approved 2026-09-27 (state-review page, plan).
+- **2026-09-27. Saved data step 1, review fixes.** The per-site total counts live data only
+  (page data and live list items; history keeps its own thinned cap, Recently deleted is not
+  counted) and refuses only writes that grow it, so a flood can never lock an owner out of their
+  own site and clearing a list makes room at once. The owner can delete for good what the undo
+  holds (one Recently deleted item, a list's whole Recently deleted, a site's history), behind a
+  typed confirmation, logged, for erase requests and floods. `Idempotency-Key` applies only to a
+  writer with an identity (owner key, connector, signed-in visitor) and never stores a response
+  body. The operator's moderation is shown to owners as "Simple Host (operator)". Reason: the
+  review of step 1 found a flood could fill a site for 30 days with no way out, and replayed
+  answers could fill the shared disk. Decided under the approved plan; the owner may overrule.
+
 ## Open, deliberately parked
 
 - Whether a site that disconnects its domain should be migrated back to a "normal" shared-host site in some

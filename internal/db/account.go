@@ -152,6 +152,9 @@ func EraseAccount(ctx context.Context, tx *sql.Tx, a AccountForDelete) (ErasedAc
 		// GDPR erasure: what this person submitted to anyone's list goes.
 		// (Their own sites' items go with the sites.)
 		{`DELETE FROM collection_items WHERE submitted_by = $1`, []any{a.ID}},
+		// Their address leaves the history of other people's saved data
+		// (the rows stay: they hold the site owner's earlier data).
+		{`UPDATE data_history SET actor_email = NULL WHERE actor_id = $1`, []any{a.ID}},
 		// Old handles and retired names stay held, by nobody.
 		{`UPDATE handle_aliases SET user_id = NULL WHERE user_id = $1`, []any{a.ID}},
 		{`UPDATE legacy_hostnames SET user_id = NULL WHERE user_id = $1`, []any{a.ID}},
@@ -364,16 +367,16 @@ type ExportItem struct {
 }
 
 // ListExportItems returns every item of every list of a site, with its id,
-// time and (on private lists) who submitted it. That is the item's own
-// stamped _submitted_by, the address the visitor signed in with on the site,
+// time and who submitted it (items sent while signed in). That is the address
+// the visitor signed in with on the site, kept with the item,
 // never a join to their account: the account's email may be one they did
 // not give the site owner, and it changes later.
 func ListExportItems(ctx context.Context, database *sql.DB, siteID string) ([]ExportItem, error) {
 	rows, err := database.QueryContext(ctx, `
 		SELECT ci.id, ci.collection, ci.data, ci.created_at,
-		       CASE WHEN ci.submitted_by IS NOT NULL THEN COALESCE(ci.data->>'_submitted_by', '') ELSE '' END
+		       CASE WHEN ci.submitted_by IS NOT NULL THEN COALESCE(ci.submitted_email, ci.data->>'_submitted_by', '') ELSE '' END
 		  FROM collection_items ci
-		 WHERE ci.site_id = $1 ORDER BY ci.collection, ci.id`, siteID)
+		 WHERE ci.site_id = $1 AND ci.deleted_at IS NULL ORDER BY ci.collection, ci.id`, siteID)
 	if err != nil {
 		return nil, err
 	}

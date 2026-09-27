@@ -181,6 +181,7 @@ func main() {
 	siteHandler.SetSiteHosts(cfg.SiteHosts, cfg.SiteCertDir)
 	siteHandler.SetDomainCerts(cfg.DomainCertDir)
 	siteHandler.SetIdleCleanup(cfg.IdleCleanup, cfg.IdleCleanupMaxEmails)
+	siteHandler.SetSavedData(cfg.Limits.SavedData)
 	siteHandler.SetIdleExempt(cfg.IdleCleanupExemptHandles, cfg.ReviewAccountEmail)
 	siteHandler.SetPublicBaseURL(cfg.PublicBaseURL)
 	userHandler.SetPublicPage(siteHandler.PersonPageURL)
@@ -275,6 +276,7 @@ func main() {
 	siteHandler.StartSiteCertRequests(ctx, 10*time.Minute)
 	siteHandler.StartDeletedSitePurge(ctx, time.Hour)
 	siteHandler.StartIdleCleanup(ctx)
+	siteHandler.StartSavedDataSweep(ctx)
 
 	serverErr := make(chan error, 1)
 

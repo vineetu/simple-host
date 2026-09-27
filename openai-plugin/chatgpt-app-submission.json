@@ -293,7 +293,7 @@
       "justifications": {
         "read_only_justification": "It deletes an item from one of the owner's lists, so it modifies data.",
         "open_world_justification": "It only removes data from the owner's own site; nothing is published or sent to any third party.",
-        "destructive_justification": "It permanently removes the item, with no undo. It requires the item id to be repeated as confirmation."
+        "destructive_justification": "It removes the item from the list. It stays in the list's recently deleted for 30 days (restore_item brings it back). It requires the item id to be repeated as confirmation."
       }
     },
     "clear_collection": {
@@ -305,7 +305,67 @@
       "justifications": {
         "read_only_justification": "It deletes every item in one of the owner's lists, so it modifies data.",
         "open_world_justification": "It only removes data from the owner's own site; nothing is published or sent to any third party.",
-        "destructive_justification": "It permanently removes every item in the list, with no undo. It requires the list name to be repeated as confirmation."
+        "destructive_justification": "It removes every item in the list. They stay in the list's recently deleted for 30 days (restore_item with all: true brings them back). It requires the list name to be repeated as confirmation."
+      }
+    },
+    "data_history": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It only lists earlier versions of a site's saved data (who changed what, when) and can show one; it changes nothing.",
+        "open_world_justification": "It reads only the person's own site.",
+        "destructive_justification": "It changes nothing."
+      }
+    },
+    "restore_data": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It puts an earlier version of saved data back, so it modifies data.",
+        "open_world_justification": "The saved data is shown on the public site.",
+        "destructive_justification": "Nothing is lost: the value it replaces is kept in history for 30 days and can be put back the same way."
+      }
+    },
+    "list_deleted": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It only lists items deleted from one of the owner's lists in the last 30 days; it changes nothing.",
+        "open_world_justification": "It reads only the person's own site.",
+        "destructive_justification": "It changes nothing."
+      }
+    },
+    "restore_item": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It brings deleted list items back, so it modifies data.",
+        "open_world_justification": "The restored items appear on the public site again.",
+        "destructive_justification": "Nothing is deleted or overwritten: the items come back as they were."
+      }
+    },
+    "delete_forever": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "It removes, for good, saved data the 30-day undo still holds (items in a list's recently deleted, or the site's history), so it modifies data.",
+        "open_world_justification": "It only removes data from the owner's own site; nothing is published or sent to any third party.",
+        "destructive_justification": "It is irreversible: what it removes cannot be brought back. It only touches data already deleted or earlier versions, never live data, requires the id, list name or site name to be repeated as confirmation, and the description tells the model to get explicit confirmation of exactly what."
       }
     },
     "connect_domain": {

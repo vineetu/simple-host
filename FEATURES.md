@@ -199,17 +199,43 @@ cookie write gets 401 `visitor_auth_required` (INTENT 2026-09-24, built 2026-09-
 `outcome=public_host`). A site with its own domain takes no writes on its shared URL.
 **Status: live** (`WRITE_AUTH_MODE=on`).
 
+**History and undo (saved-data redesign step 1, INTENT 2026-09-27).** Every PUT, PATCH and
+restore keeps the document from before it in `data_history` for 30 days by time
+(`SAVED_DATA_UNDO_DAYS`), with who made it (account id, the address they were signed in
+with, and owner/admin/visitor/anonymous; the operator's moderation shows as "Simple Host
+(operator)", never the admin's address) and when; a write that leaves the document as it was
+records nothing. A PATCH keeps only what it changed (a reverse diff in `data_history.diff`),
+with a full copy on each day's first change and at least every `SAVED_DATA_SNAPSHOT_EVERY` (50)
+changes; any version is rebuilt exactly from the nearest newer full copy. Past
+`SAVED_DATA_HISTORY_MAX_MB` (20) per site the oldest versions are thinned, always keeping each
+day's first full copy and the rows that hold no value (who deleted what). The owner (key,
+connector, admin) lists changes, reads a version and restores it (a restore is itself a
+change), and can **clear the site's history** for good (`{"confirm": "<site>"}`, logged).
+PATCH keeps numbers exact (`UseNumber`; a whole-number `inc` adds exactly; whole numbers of any
+size match exactly in `removeWhere`, 1 and 1.0 still match; a float sum that overflows is a
+400). `Idempotency-Key` on PATCH is saved once for a writer with an identity (§18).
+
+**The per-site cap** (review fix 2026-09-27): a site's **live** saved data, the document plus
+live list items, may not grow past `SAVED_DATA_SITE_MAX_MB` (50); history and Recently deleted
+are not counted (history has its own cap above). Only a write that grows it is refused (507
+`site_full`); a shrinking or same-size write always goes through, owner included, and deleting
+items or clearing a list makes room at once. The size is a running counter,
+`sites.data_bytes` (+ `state_bytes`), kept by triggers in the same transaction as every write,
+so the check is one row read, never a scan. Nothing a page may do changed: visitor PUT,
+non-object documents and any `inc` size still work; the watch (§11) counts them for the
+`SAVED_DATA_WATCH_DAYS` (7) window before a later step tightens them. **Status: live once deployed.**
+
 | Surface | Details |
 |---|---|
-| Routes | `GET /v1/sites/{sitename}/state` · `PUT /v1/sites/{sitename}/state` (whole doc, `If-Match` CAS) · `PATCH /v1/sites/{sitename}/state` (op list) · `OPTIONS /v1/sites/{sitename}/state` — all `(+/v1/u)` · `PUT /v1/sites/{sitename}/allowed-origins` (owner: extra origins allowed to call) |
-| MCP tools | `get_state`, `update_state` |
+| Routes | `GET /v1/sites/{sitename}/state` · `PUT /v1/sites/{sitename}/state` (whole doc, `If-Match` CAS) · `PATCH /v1/sites/{sitename}/state` (op list, `Idempotency-Key`) · `OPTIONS /v1/sites/{sitename}/state` — all `(+/v1/u)` · `PUT /v1/sites/{sitename}/allowed-origins` (owner: extra origins allowed to call) · owner: `GET /v1/sites/{sitename}/state/history` (changes, newest first) · `GET /v1/sites/{sitename}/state/history/{id}` (the document before that change) · `POST /v1/sites/{sitename}/state/history/{id}/restore` · `DELETE /v1/sites/{sitename}/history` (`{"confirm": "<site>"}`: every earlier version of the site's saved data and lists, for good) · the same by handle: `GET /v1/u/{handle}/sites/{sitename}/state/history` · `GET /v1/u/{handle}/sites/{sitename}/state/history/{id}` · `POST /v1/u/{handle}/sites/{sitename}/state/history/{id}/restore` · `DELETE /v1/u/{handle}/sites/{sitename}/history` |
+| MCP tools | `get_state`, `update_state`, `data_history`, `restore_data`, `delete_forever` (`history: true`) |
 | Skill | `website-deploy/references/backend.md` §Trust model, §Shared JSON state, §Saving from a page with the hosted helper, §Saving from an agent · `website-deploy-builder/SKILL.md` §Capability tree 2 |
-| Pages | `st/auth.js` (`SH.state.get/put/patch`) · `st/showcase.html` owner app (saved data read-only, size against the 1 MB limit, Download JSON; the owner's key reads it from any page) |
+| Pages | `st/auth.js` (`SH.state.get/put/patch`) · `st/showcase.html` owner app (saved data read-only, size against the 1 MB limit, Download JSON, **History** with View before and Restore, and **Clear history** behind the typed site name, shown while the data is empty too; the owner's key reads it from any page) |
 | Ops | `set`, `inc`, `append`, `remove`, `removeWhere`; `PUT` uses ETag/`If-Match` |
-| Go | `h/site.go` (`getSiteState`, `putSiteState`, `patchSiteState`, origin check `authorizeStateOrigin`), `h/stateops.go` (op set, max 100 ops), `h/visitorsession.go` (`visitorWriteOK`), `internal/db/queries.go` (`UpdateSiteStateCAS`) |
-| DB | `sites.state`, `sites.allowed_origins`, `sites.allow_anonymous_writes` |
-| Env | `WRITE_AUTH_MODE` (off/log/on) |
-| Limits | 1 MB per state doc; `stateLimiter` 60 burst, 1/s per IP |
+| Go | `h/site.go` (`getSiteState`, `putSiteState`, `patchSiteState`, origin check `authorizeStateOrigin`), `h/stateops.go` (op set, max 100 ops, exact numbers, `watchVisitorOps`), `h/visitorsession.go` (`visitorWriteOK`, returns who writes), `h/saveddata.go` (history routes, delete for good, `siteHasRoom`, `idemBegin`/`idemSave`, `limitReads`, `allowAppend`, sweep), `internal/db/datahistory.go` (`WriteSiteState`, `PatchSiteState`, `RecordStateChange`, `stateBefore`, `RestoreStateVersion`, `ThinSiteHistory`, `PurgeSavedData`, `ClearSiteHistory`, `HasRoom`), `internal/db/statediff.go` (reverse diffs) |
+| DB | `sites.state`, `sites.allowed_origins`, `sites.allow_anonymous_writes`, `sites.legacy_data` (true for every site until the kinds step), `sites.state_bytes` + `sites.data_bytes` (triggers `sites_state_bytes`, `collection_items_bytes_*`), `data_history` (`prev` or `diff`), `idempotency_keys` (status, ETag, ref, body hash; never a body), `data_watch` (migrations `sd1-saved-data-safety.sql`, `sd1-saved-data-safety2-limits.sql`) |
+| Env | `WRITE_AUTH_MODE` (off/log/on) · `SAVED_DATA_UNDO_DAYS` (30) · `SAVED_DATA_HISTORY_MAX_MB` (20) · `SAVED_DATA_SITE_MAX_MB` (50) · `SAVED_DATA_SWEEP_MINUTES` (15) · `SAVED_DATA_WATCH_DAYS` (7) · `SAVED_DATA_WATCH_INC_MAX` (10) · `SAVED_DATA_WATCH_ITEM_KB` (16) · `SAVED_DATA_IDEMPOTENCY_HOURS` (24) · `SAVED_DATA_IDEMPOTENCY_MAX_PER_SITE` (10000) · `SAVED_DATA_READ_PER_SEC` (30) · `SAVED_DATA_READ_BURST` (60) · `SAVED_DATA_APPEND_PER_MIN` (30) · `SAVED_DATA_APPEND_BURST` (30) · `SAVED_DATA_SNAPSHOT_EVERY` (50) · `SAVED_DATA_WATCH_KEEP_DAYS` (90) |
+| Limits | 1 MB per state doc; `stateLimiter` 60 burst, 1/s per IP; reads 30/s, burst 60 (429 `rate_limited`) per site and address, or per account for a valid key or connector; a site's live saved data at most 50 MB, refusing only growth (507 `site_full`); size errors carry `item_too_large` |
 
 ## 5. Collections, including private collections
 
@@ -222,16 +248,30 @@ single items in any list, public included, and empties a whole list after repeat
 private: `_submitted_by` is left out of every read but the owner's (key, or signed in on the
 site's own address) and the operator's (`withoutSubmitter`, `ownerBrowserView`). **Status: live.**
 
+Step 1 of the saved-data redesign (INTENT 2026-09-27): every item sent while signed in records
+who sent it (`collection_items.submitted_by` + `submitted_email`), public lists included; the
+owner's reads add `by` (and the CSV a last `sent_by` column), public reads and the POST answer
+are unchanged, and deleting an account takes that person's entries in every list. Deleting an
+item or clearing a list keeps the items in the list's **Recently deleted** for 30 days
+(`deleted_at`); every edit, delete, clear and restore is in the list's history. The owner
+restores one item, all of them, or undoes one change, and can **delete for good** one item of
+Recently deleted or all of it (`{"confirm": "<coll>"}`), with its history: for a visitor who
+asks to be erased, or a flood of spam (logged; live items are never touched). Recently deleted
+does not count toward the site's cap, so clearing a flooded list makes room at once. Items added
+without the owner's key are limited per address (`SAVED_DATA_APPEND_PER_MIN`, 429
+`rate_limited`). `Idempotency-Key` on POST saves a retried item once for a writer with an
+identity. Recently deleted pages by (`deleted_at`, `id`); `next` is an opaque cursor.
+
 | Surface | Details |
 |---|---|
-| Routes | `GET /v1/sites/{sitename}/collections/{coll}` · `POST /v1/sites/{sitename}/collections/{coll}` · `OPTIONS /v1/sites/{sitename}/collections/{coll}` — `(+/v1/u)` · `GET /v1/sites/{sitename}/collections` (owner list) · `GET /v1/sites/{sitename}/collections/{coll}/export.csv` (owner) · `PUT /v1/sites/{sitename}/collections/{coll}/privacy` (owner) · `DELETE /v1/sites/{sitename}/collections/{coll}/items/{id}` (any list) and `PATCH` (private lists only) `(+/v1/u)` · `DELETE /v1/sites/{sitename}/collections/{coll}` `(+/v1/u)` with `{"confirm": "<coll>"}` (clear list) — owner key, connector, owner session on own origin, or admin |
-| MCP tools | `list_collections`, `read_collection`, `add_to_collection`, `set_collection_privacy`, `update_collection_item`, `delete_collection_item`, `clear_collection` |
+| Routes | `GET /v1/sites/{sitename}/collections/{coll}` · `POST /v1/sites/{sitename}/collections/{coll}` · `OPTIONS /v1/sites/{sitename}/collections/{coll}` — `(+/v1/u)` · `GET /v1/sites/{sitename}/collections` (owner list) · `GET /v1/sites/{sitename}/collections/{coll}/export.csv` (owner) · `PUT /v1/sites/{sitename}/collections/{coll}/privacy` (owner) · `DELETE /v1/sites/{sitename}/collections/{coll}/items/{id}` (any list) and `PATCH` (private lists only) `(+/v1/u)` · `DELETE /v1/sites/{sitename}/collections/{coll}` `(+/v1/u)` with `{"confirm": "<coll>"}` (clear list; items to Recently deleted) — owner key, connector, owner session on own origin, or admin · owner key/connector/admin: `GET /v1/sites/{sitename}/collections/{coll}/history` · `GET /v1/sites/{sitename}/collections/{coll}/history/{id}` · `POST /v1/sites/{sitename}/collections/{coll}/history/{id}/restore` · `GET /v1/sites/{sitename}/collections/{coll}/deleted` · `POST /v1/sites/{sitename}/collections/{coll}/items/{id}/restore` · `POST /v1/sites/{sitename}/collections/{coll}/deleted/restore` (`{"all": true}`) · `DELETE /v1/sites/{sitename}/collections/{coll}/deleted/{id}` (one item, for good) · `DELETE /v1/sites/{sitename}/collections/{coll}/deleted` (`{"confirm": "<coll>"}`: all of it, for good) · the same by handle: `GET /v1/u/{handle}/sites/{sitename}/collections/{coll}/history` · `GET /v1/u/{handle}/sites/{sitename}/collections/{coll}/history/{id}` · `POST /v1/u/{handle}/sites/{sitename}/collections/{coll}/history/{id}/restore` · `GET`/`DELETE /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted` · `POST /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted/restore` · `DELETE /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted/{id}` · `POST /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}/restore` |
+| MCP tools | `list_collections` (with `deleted` counts), `read_collection` (with `by`), `add_to_collection`, `set_collection_privacy`, `update_collection_item`, `delete_collection_item`, `clear_collection`, `data_history`, `restore_data`, `list_deleted`, `restore_item`, `delete_forever` |
 | Skill | `website-deploy/SKILL.md` §Personal details go in a private collection · `references/backend.md` §Append-only collections, §Private collections (1–3, editing, reading as owner, errors) · `references/operations.md` §Private collections · `website-deploy-builder/SKILL.md` §Capability tree |
-| Pages | `st/auth.js` (`SH.collection(...).list/append/update/remove`), `st/showcase.html` owner app (every list with a public/private badge and switch, view, CSV, delete any entry, edit private entries, Clear list behind the typed name) · `st/index.html` (data tab, CSV export; accounts without a handle) |
-| Go | `h/collections.go`, `h/privatecollections.go` (`onOwnDomain`, `strictVisitorSession`, `appendPrivate`, `privateManager`), `internal/db/collections.go`, `h/export.go` (collections in site export) |
-| DB | `collection_items`, `collection_settings` (privacy flag) |
-| Env | `WRITE_AUTH_MODE` |
-| Limits | 64 KB per item; page size 50 default / 200 max; `stateLimiter`; a site with no address of its own (only on instances with `PERSON_HOSTS=off` and no domain) gets 409 `custom_domain_required` for privacy; CSV export is formula-safe |
+| Pages | `st/auth.js` (`SH.collection(...).list/append/update/remove`), `st/showcase.html` owner app (every list with a public/private badge and switch, view with a "sent by" column, CSV, delete any entry, edit private entries, Clear list behind the typed name, **History** and **Recently deleted (N)** with Restore, Restore all, Delete forever (type `delete`) and Delete all forever (type the list name)) · `st/index.html` (data tab, CSV export; accounts without a handle) |
+| Go | `h/collections.go`, `h/privatecollections.go` (`onOwnDomain`, `strictVisitorSession`, `appendPrivate`, `privateManager`), `h/saveddata.go` (history, Recently deleted, restore, delete for good), `internal/db/collections.go`, `internal/db/datahistory.go` (`SoftDeleteItem`, `SoftClearCollection`, `UndeleteItems`, `RestoreItemVersion`, `ListDeletedItems`, `PurgeDeletedItems`), `h/export.go` (collections in site export, live items only) |
+| DB | `collection_items` (`deleted_at`, `submitted_by`, `submitted_email`), `collection_settings` (privacy flag), `data_history` |
+| Env | `WRITE_AUTH_MODE` · the `SAVED_DATA_*` knobs of §4 |
+| Limits | 64 KB per item (413 `item_too_large`); deleted items kept 30 days; page size 50 default / 200 max; `stateLimiter`; a site with no address of its own (only on instances with `PERSON_HOSTS=off` and no domain) gets 409 `custom_domain_required` for privacy; CSV export is formula-safe |
 
 ## 6. Visitor sign-in (Google, emailed code)
 
@@ -363,7 +403,7 @@ as the person, so they meet the same checks as REST. Connector tokens are stored
 ## 9. Skills and plugin distribution
 
 Skills source is `simple-host-website/skills/` (embedded via `simple-host-website/embed.go`) at
-version **0.21.2**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
+version **0.23.0**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live**
 (ChatGPT and Claude directory listings submitted 2026-09-24, pending).
 
@@ -373,7 +413,7 @@ standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: 
 | Skills | `website-deploy` (SKILL.md + references `backend.md`, `operations.md`, `packaging-and-validation.md`, `register.md`, `frameworks.md`), `website-deploy-builder`, `connect-domain` (+ `references/registrars.md`), `run-hackathon` (source only; not in the plugin or `/skills.zip`) |
 | Pages | `st/install.html`, `st/llms.txt`, `st/openapi.yaml` / `st/openapi.json`, `st/docs.html` (Swagger UI) |
 | Go | `h/ui.go` (zips, install scripts, `PluginVersion`), `h/skillshub.go` (catalog; not host-rewritten), `h/instancehost.go` (`rewrittenAssets`, `controlPlaneSkills`), `h/notice_middleware.go` (`X-Skill-Version` → `_notice`), `h/openaichallenge.go`, `simple-host-website/embed.go` |
-| Packaging | `plugins/simple-host/` (Claude plugin: `.claude-plugin/plugin.json`, `.mcp.json` → `https://simple-host.app/mcp`), `.claude-plugin/marketplace.json`, `openai-plugin/` (plugin.json 0.4.2, mcp.json, skills rewrite, assets, demo-sites, SUBMISSION.md), `dist/*.zip`, `simple-host-website/` (legacy plugin, `mcp-server/` Node stdio MCP, `setup.sh`, `template/`) |
+| Packaging | `plugins/simple-host/` (Claude plugin: `.claude-plugin/plugin.json`, `.mcp.json` → `https://simple-host.app/mcp`), `.claude-plugin/marketplace.json`, `openai-plugin/` (plugin.json 0.5.1, mcp.json, skills rewrite, assets, demo-sites, SUBMISSION.md), `dist/*.zip`, `simple-host-website/` (legacy plugin, `mcp-server/` Node stdio MCP, `setup.sh`, `template/`) |
 | Scripts | `scripts/sync-claude-plugin.sh` (copy source → plugin, stamp version), `scripts/check-claude-plugin.sh` (drift + `X-Skill-Version` literals), `scripts/publish-claude-plugin-repo.sh` (→ github.com/vineetu/simple-host-plugin, tag `v$V`), `scripts/build-openai-plugin.sh`, `scripts/check-docs-sync.sh` (routes ↔ openapi ↔ llms.txt ↔ skills) |
 | Env | `PUBLIC_BASE_URL`, `SITE_DOMAIN`, `CONTENT_HOST`, `CNAME_TARGET` (host rewriting), `OPENAI_APPS_CHALLENGE` |
 | External | Claude plugin directory, OpenAI apps portal, GitHub `vineetu/simple-host-plugin`, skills CLI (`npx skills`) |
@@ -407,8 +447,8 @@ traffic. Admin = `ADMIN_API_KEY` or the admin user. **Status: live.**
 
 | Surface | Details |
 |---|---|
-| Routes | `GET /admin` (public shell) · `GET /v1/admin/users` (users with their sites, ids and suspension state) · `POST /v1/admin/users` (bulk-create participant accounts, returns keys) · `POST /v1/admin/users/{id}/key` (replace that account's keys with one new key, shown once; refused while suspended) · `DELETE /v1/admin/users/{id}` (the same erasure as `DELETE /v1/me`, suspended accounts included) · `POST /v1/admin/sites/{id}/suspend` (`{"reason"}`) and `POST /v1/admin/sites/{id}/restore` (take a site down / put it back) · `POST /v1/admin/users/{id}/suspend` (`{"reason"}`) and `POST /v1/admin/users/{id}/enable` (suspend / re-enable a person) · `GET /v1/admin/export.tar.gz` (every site with saved data and lists, one archive) · `GET /internal/suspended` (the take-down page nginx and Caddy hand off to) · `GET /v1/admin/usage` · `GET /v1/admin/api-analytics` · `GET /v1/admin/idle-sites` (idle-cleanup dry run: would warn / would remove, whether visit data can be trusted, on or off) · `PUT /v1/sites/{sitename}/allow-anonymous-writes?owner=` (`RequireAdmin`; `owner` picks that person's site, else the oldest of the name) · `GET /v1/sites/{sitename}/analytics?owner=` and `/analytics/geo?owner=`, `GET /v1/analytics/sites?all=1` (admin reads any site) |
-| Pages | `st/admin.html` (tiles Users/Websites/Disk; line with versions kept and running release/commit from usage; Biggest websites; Issue participant accounts; Entries: Entry/Account/Link/**Analytics**/Status with Take down / Restore, Download CSV, Copy links, Download all entries; user cards with **New key**, Suspend / Re-enable / Delete; API traffic tables; **Idle sites** panel: on/off, sites that would be warned / removed); `st/index.html` site cards and `st/showcase.html` owner inventory show a taken-down site and its reason, `st/index.html` Admin tab |
+| Routes | `GET /admin` (public shell) · `GET /v1/admin/users` (users with their sites, ids and suspension state) · `POST /v1/admin/users` (bulk-create participant accounts, returns keys) · `POST /v1/admin/users/{id}/key` (replace that account's keys with one new key, shown once; refused while suspended) · `DELETE /v1/admin/users/{id}` (the same erasure as `DELETE /v1/me`, suspended accounts included) · `POST /v1/admin/sites/{id}/suspend` (`{"reason"}`) and `POST /v1/admin/sites/{id}/restore` (take a site down / put it back) · `POST /v1/admin/users/{id}/suspend` (`{"reason"}`) and `POST /v1/admin/users/{id}/enable` (suspend / re-enable a person) · `GET /v1/admin/export.tar.gz` (every site with saved data and lists, one archive) · `GET /internal/suspended` (the take-down page nginx and Caddy hand off to) · `GET /v1/admin/usage` · `GET /v1/admin/api-analytics` · `GET /v1/admin/idle-sites` (idle-cleanup dry run: would warn / would remove, whether visit data can be trusted, on or off) · `GET /v1/admin/data-watch` (the saved-data watch: per site, visitor replaces, non-object documents, visitor ops by type, large incs, new list names, large items; `?days=`) · `PUT /v1/sites/{sitename}/allow-anonymous-writes?owner=` (`RequireAdmin`; `owner` picks that person's site, else the oldest of the name) · `GET /v1/sites/{sitename}/analytics?owner=` and `/analytics/geo?owner=`, `GET /v1/analytics/sites?all=1` (admin reads any site) |
+| Pages | `st/admin.html` (tiles Users/Websites/Disk; line with versions kept and running release/commit from usage; Biggest websites; Issue participant accounts; Entries: Entry/Account/Link/**Analytics**/Status with Take down / Restore, Download CSV, Copy links, Download all entries; user cards with **New key**, Suspend / Re-enable / Delete; API traffic tables; **Idle sites** panel: on/off, sites that would be warned / removed; **Saved-data watch** panel); `st/index.html` site cards and `st/showcase.html` owner inventory show a taken-down site and its reason, `st/index.html` Admin tab |
 | Go | `h/site.go` (`adminUsers`, `adminUsage`), `h/suspend.go` (take-down: admin calls, `serveTakedown`, refusals, boot marker sync), `h/export.go` (`exportAll`), `h/accounts.go` (`createAccounts`, `reissueAccountKey`, `deleteAccount`, `accountAdmin`), `internal/db/suspend.go`, `internal/storage/disk.go` (`SetSuspended`/`IsSuspended`, the `suspended` marker file), `internal/capacity/capacity.go`, `h/apimetrics.go` (`AdminSummary`), `internal/auth/middleware.go` |
 | DB | `users` (`suspended_at`, `suspended_reason`), `sites` (`suspended_at`, `suspended_reason`), `versions`, `api_keys`, `api_request_daily`, `api_ip_daily` |
 | Take-down | A suspended site keeps everything; Go answers 410 "This site has been taken down" on every path of its site host, person path and claimed name; nginx (custom domains, content host) and Caddy (event boxes) check the `suspended` marker in the site folder and hand off to `/internal/suspended` (`deploy/prod/nginx-suspended-marker.sh` adds the check to live vhosts; `deploy/compose/Caddyfile`). Deploy, rollback, rename, delete, visibility, address and origin changes, state/list writes and public reads of its data answer 403 `site_suspended`; the owner's key still reads and exports. A suspended person's key, connector token, MCP calls and visitor sessions answer 403 `account_suspended` (with the reason), sign-in is refused, refresh tokens are refused unspent, their sites are down; nothing is deleted and re-enable reverses it (a site taken down on its own stays down). Markers are re-synced from the database at boot. |
@@ -501,7 +541,10 @@ listings; public contact is support@simple-host.app. Go: `h/ui.go`.
 | Guard | Where |
 |---|---|
 | Per-IP token buckets | `h/ratelimit.go`; instances listed in each section (upload 30 burst/0.1 s⁻¹, state 60/1 s⁻¹, auth 20/0.2, email 5/0.02, connector, generate, transcribe, events, setup, reviewer); each user-facing one is a `RATE_LIMIT_*` setting (`docs/configuration.md`) |
-| Size caps | per-site archive `MAX_ARCHIVE_MB` (default 100 MB, `h/usage.go`), tarball total/file/path caps (`internal/tarball/extract.go`), state 1 MB, collection item 64 KB, ≤100 PATCH ops |
+| Size caps | per-site archive `MAX_ARCHIVE_MB` (default 100 MB, `h/usage.go`), tarball total/file/path caps (`internal/tarball/extract.go`), state 1 MB, collection item 64 KB, ≤100 PATCH ops, a site's live saved data 50 MB, refusing only growth (`SAVED_DATA_SITE_MAX_MB`, 507 `site_full`) |
+| Saved-data reads | `limitReads`: 30/s, burst 60 per site and address, or per account for a valid key or connector (`SAVED_DATA_READ_PER_SEC`, `SAVED_DATA_READ_BURST`), 429 `rate_limited` (every 429 now carries that code) |
+| List appends | `allowAppend`: items added without the owner's key, 30/min per address, burst 30 (`SAVED_DATA_APPEND_PER_MIN`, `SAVED_DATA_APPEND_BURST`), 429 `rate_limited` |
+| Idempotency | `Idempotency-Key` on list POST and state PATCH (`h/saveddata.go` `idemBegin`, table `idempotency_keys`, 24 h `SAVED_DATA_IDEMPOTENCY_HOURS`, at most `SAVED_DATA_IDEMPOTENCY_MAX_PER_SITE` per site), scoped by site, route and a signed-in identity only (no identity, no idempotency); keeps status, ETag, version or item id and a body hash, never a response body; another body under the same key is 409 `idempotency_key_reused` |
 | Blocked upload types | `internal/tarball/validate.go` `blockedExtensions` |
 | Write auth | `WRITE_AUTH_MODE`, `visitorWriteOK` (shared host key-only when `PERSON_HOSTS=canonical`), admin-only `allow_anonymous_writes` hatch (`PUT /v1/sites/{sitename}/allow-anonymous-writes`) |
 | Origin checks | `authorizeStateOrigin`, `allowed_origins` (`PUT /v1/sites/{sitename}/allowed-origins`), `h/cors.go` |
@@ -530,10 +573,10 @@ responses (§9) is the only in-band notice.
 | CLI subcommands | `simple-host migrate` (apply pending; `-status`; `-mark FILE` records without running), `simple-host version` (release, commit, migrations in this build; no DB), `simple-host oauth-client`, `simple-host review-account`, `simple-host geoip-verify` (`cmd/server/`); `cmd/analytics-rebuild`, `cmd/ip-country-load` |
 | Small-box upgrade | re-run `deploy/install/install.sh`: pulls the pinned release, `docker compose up -d db`, `docker compose run --rm app migrate`, then starts the new app; a failed migrate leaves the app as it was |
 | Env | `DB_DSN`, `PORT`, `BIND_ADDR`, `DATA_DIR`, `SITE_DOMAIN`, `PUBLIC_BASE_URL`, `CONTENT_HOST`; dev-only `CHROME_SERVE_ADDR`, `CHROME_SERVE_FOR`; migration-only `UNIFY_KEEP` |
-| Operational times and limits | 47 env vars (`SIGNIN_CODE_TTL_MINUTES`, `MAX_SITES_PER_ACCOUNT`, `DELETED_RETENTION_DAYS`, `RATE_LIMIT_*`, …), read once at startup with range checks in `internal/config/limits.go` (a bad value stops the server; the sign-in, visitor sign-in and connector OAuth limiters at most 4× looser than default; other rate limits warn past 10×, unknown `RATE_LIMIT_*` names warn), default today's values; promised dates are stored when made (`sites.purge_at`, `idle_remove_at`, `domain_release_at`), so a changed retention or grace applies to new deletions and warnings only; `handler.ApplyLimits` hands db/mcp/tarball their share; copy that states a value follows it (Go text formats it, served pages/docs/skills are rewritten by `h/limitstext.go`, nil at the defaults). Full table, and the issuers' `/etc/simple-host-{domain,site}-certs.conf`: `docs/configuration.md` |
+| Operational times and limits | 62 env vars (`SIGNIN_CODE_TTL_MINUTES`, `MAX_SITES_PER_ACCOUNT`, `DELETED_RETENTION_DAYS`, `RATE_LIMIT_*`, `SAVED_DATA_*`, …), read once at startup with range checks in `internal/config/limits.go` (a bad value stops the server; the sign-in, visitor sign-in and connector OAuth limiters at most 4× looser than default; other rate limits warn past 10×, unknown `RATE_LIMIT_*` names warn), default today's values; promised dates are stored when made (`sites.purge_at`, `idle_remove_at`, `domain_release_at`), so a changed retention or grace applies to new deletions and warnings only; `handler.ApplyLimits` hands db/mcp/tarball their share; copy that states a value follows it (Go text formats it, served pages/docs/skills are rewritten by `h/limitstext.go`, nil at the defaults). Full table, and the issuers' `/etc/simple-host-{domain,site}-certs.conf`: `docs/configuration.md` |
 | Deploy | `/usr/local/bin/simple-host` as `simple-host.service`, env `/etc/simple-host.env`; `deploy/prod/*` (incl. log retention `logrotate-analytics.conf` and `journald-retention.conf`, 30 days), `Dockerfile`, `compose.yaml`, `Makefile`; checks `scripts/check-{docs-sync,features,html,layering,claude-plugin,reserved-subdomains,fresh-install}.sh` |
 
-## 21. MCP tool index (`internal/mcp/tools.go`, 30 tools)
+## 21. MCP tool index (`internal/mcp/tools.go`, 35 tools)
 
 | Tool | REST call | § |
 |---|---|---|
@@ -559,6 +602,11 @@ responses (§9) is the only in-band notice.
 | `update_collection_item` | `PATCH …/collections/{c}/items/{id}` | 5 |
 | `delete_collection_item` | `DELETE …/collections/{c}/items/{id}` | 5 |
 | `clear_collection` | `DELETE …/collections/{c}` | 5 |
+| `data_history` | `GET /v1/sites/{s}/state/history[/{id}]` or `…/collections/{c}/history[/{id}]` | 4, 5 |
+| `restore_data` | `POST …/state/history/{id}/restore` or `…/collections/{c}/history/{id}/restore` | 4, 5 |
+| `list_deleted` | `GET /v1/sites/{s}/collections/{c}/deleted` | 5 |
+| `restore_item` | `POST …/collections/{c}/items/{id}/restore` or `…/deleted/restore` | 5 |
+| `delete_forever` | `DELETE …/collections/{c}/deleted/{id}`, `DELETE …/collections/{c}/deleted` or `DELETE /v1/sites/{s}/history` | 4, 5 |
 | `connect_domain` | `POST /v1/sites/{s}/domain` | 3 |
 | `domain_status` | `GET /v1/sites/{s}/domain` | 3 |
 | `remove_domain` | `DELETE /v1/sites/{s}/domain` | 3 |
@@ -568,7 +616,7 @@ responses (§9) is the only in-band notice.
 ## 22. Unplaced routes and tools
 
 None. Every `mux.Handle`/`HandleFunc` registration in `cmd/server` and `internal/handler`
-(136 distinct method+path patterns, plus the looped `/mcp`, `/skills/{dir}.*` and
-`rewrittenAssets` routes) and all 28 MCP tools are placed above. Routes that exist outside
+(146 distinct method+path patterns, plus the looped `/mcp`, `/skills/{dir}.*` and
+`rewrittenAssets` routes) and all 34 MCP tools are placed above. Routes that exist outside
 the mux: host-routed site hosts / person hosts / claimed names / custom domains (§2, §3) and the
 nginx-only `/v1/transcribe/stream` (§14).

@@ -873,7 +873,7 @@
       <div class="section" id="owner-data" hidden>
         <div class="section-num"><h2>Your data</h2><span class="line"></span></div>
         <div class="conn-row">
-          <span><b>Download my data</b><small>One archive with every site (files, saved data and lists), your account, your keys' names (never the keys), connected apps, and the entries you sent to other people's private lists while signed in. Entries on public lists and data saved by pages aren't linked to you; for help with those, write to support@simple-host.app.</small></span>
+          <span><b>Download my data</b><small>One archive with every site (files, saved data and lists), your account, your keys' names (never the keys), connected apps, the entries you sent to other people's lists while signed in, and the changes you made to other people's page data while signed in. Changes made without signing in and older public-list entries aren't linked to you; for help with those, write to support@simple-host.app.</small></span>
           <button type="button" class="btn btn-secondary btn-small" id="data-download">Download my data</button>
         </div>
         <div class="conn-row" id="data-delete-row">
@@ -885,10 +885,10 @@
           <ul>
             <li>every site, including any in Recently deleted, with its files, every version, saved data and lists</li>
             <li>your keys and connected apps (ChatGPT, Claude, Grok)</li>
-            <li>the entries you sent to other people's private lists while signed in, which disappear from their lists</li>
+            <li>the entries you sent to other people's lists while signed in, which disappear from their lists</li>
             <li>your address <b id="data-delete-handle"></b>, your sites' names and custom domains; the names are retired, never given to anyone else</li>
           </ul>
-          <div>Entries on public lists and data saved by pages aren't linked to you and stay; for help with those, write to support@simple-host.app. Nothing goes to Recently deleted and nothing can be restored. Download your data first if you want a copy.</div>
+          <div>Changes you made to other people's page data stay with their sites, with your address taken off them. Changes made without signing in and older public-list entries aren't linked to you and stay; for help with those, write to support@simple-host.app. Nothing goes to Recently deleted and nothing can be restored. Download your data first if you want a copy.</div>
           <label for="data-delete-input">Type <b id="data-delete-word"></b> to confirm</label>
           <input type="text" id="data-delete-input" autocomplete="off" spellcheck="false">
           <div class="panel-btns">
@@ -1665,9 +1665,17 @@ function parseAnalyticsSummary(data) {
       } catch (e) { /* lists still show */ }
       var trimmed = stateText.trim();
       var empty = !trimmed || trimmed === '{}' || trimmed === 'null';
+      // Emptied saved data still has its earlier versions to restore.
+      var stateHistory = false;
+      if (empty) {
+        try {
+          var hres = await api('GET', sitePathPart(name) + '/state/history?limit=1');
+          if (hres.ok) { var hb = await hres.json(); stateHistory = !!(hb && hb.history && hb.history.length); }
+        } catch (e) { /* no history button */ }
+      }
       var entries = 0;
       lists.forEach(function (c) { entries += Number.isFinite(Number(c.count)) ? Math.trunc(Number(c.count)) : 0; });
-      return { lists: lists, entries: entries, stateText: empty ? '' : stateText, stateSize: empty ? 0 : new Blob([stateText]).size };
+      return { lists: lists, entries: entries, stateText: empty ? '' : stateText, stateSize: empty ? 0 : new Blob([stateText]).size, stateHistory: stateHistory };
     }
     async function loadPrivateLists(name, force) {
       var box = document.querySelector('[data-plists="' + cssEsc(name) + '"]');
@@ -1675,25 +1683,27 @@ function parseAnalyticsSummary(data) {
       box.setAttribute('data-loaded', '1');
       var info = await fetchSiteData(name);
       if (!info) return;
-      if (!info.lists.length && !info.stateSize) { box.innerHTML = ''; box.hidden = true; return; }
+      if (!info.lists.length && !info.stateSize && !info.stateHistory) { box.innerHTML = ''; box.hidden = true; return; }
       var sa = ' data-site="' + escAttr(name) + '"';
       var html = '';
       if (info.lists.length) {
         html += '<div class="plists-head">Lists</div>' +
           '<div class="versions-list">' + info.lists.map(function (c) { return renderListRow(name, c); }).join('') + '</div>';
       }
-      if (info.stateSize) {
+      if (info.stateSize || info.stateHistory) {
         html += '<div class="plists-head plists-gap">Saved data</div>' +
           '<div class="versions-list"><div class="plist">' +
             '<div class="version-row plist-row">' +
               '<span class="plist-name">page data</span>' +
-              '<span class="plist-meta">' + esc(fmtBytes(info.stateSize)) + ' of ' + esc(fmtBytes(STATE_LIMIT)) + '</span>' +
+              '<span class="plist-meta">' + (info.stateSize ? esc(fmtBytes(info.stateSize)) + ' of ' + esc(fmtBytes(STATE_LIMIT)) : 'empty now') + '</span>' +
               '<span class="plist-btns">' +
-                '<button type="button" class="btn-small btn-secondary" data-state-view' + sa + ' aria-expanded="false">View</button>' +
-                '<button type="button" class="btn-small btn-secondary" data-state-dl' + sa + '>Download JSON</button>' +
+                (info.stateSize ? '<button type="button" class="btn-small btn-secondary" data-state-view' + sa + ' aria-expanded="false">View</button>' : '') +
+                (info.stateSize ? '<button type="button" class="btn-small btn-secondary" data-state-dl' + sa + '>Download JSON</button>' : '') +
+                '<button type="button" class="btn-small btn-secondary" data-hist-open' + sa + ' aria-expanded="false">History</button>' +
               '</span>' +
             '</div>' +
             '<div class="plist-view" hidden></div>' +
+            '<div class="plist-view plist-extra" hidden></div>' +
           '</div></div>';
       }
       box.innerHTML = html;
@@ -1703,6 +1713,7 @@ function parseAnalyticsSummary(data) {
       var coll = String(c.name || '');
       var count = Number.isFinite(Number(c.count)) ? Math.trunc(Number(c.count)) : 0;
       var priv = c.private === true;
+      var gone = Number.isFinite(Number(c.deleted)) ? Math.trunc(Number(c.deleted)) : 0;
       var a = ' data-site="' + escAttr(name) + '" data-coll="' + escAttr(coll) + '" data-private="' + (priv ? '1' : '0') + '"';
       return '<div class="plist">' +
         '<div class="version-row plist-row">' +
@@ -1713,11 +1724,14 @@ function parseAnalyticsSummary(data) {
             (count ? '<button type="button" class="btn-small btn-secondary" data-plist-view' + a + ' aria-expanded="false">View items</button>' : '') +
             (count ? '<button type="button" class="btn-small btn-secondary" data-plist-csv' + a + '>Download spreadsheet</button>' : '') +
             '<button type="button" class="btn-small btn-secondary" data-plist-privacy' + a + '>' + (priv ? 'Make public' : 'Make private') + '</button>' +
+            '<button type="button" class="btn-small btn-secondary" data-hist-open' + a + ' aria-expanded="false">History</button>' +
+            (gone ? '<button type="button" class="btn-small btn-secondary" data-del-open' + a + ' aria-expanded="false">Recently deleted (' + gone + ')</button>' : '') +
             (count ? '<button type="button" class="btn-small btn-ghost" data-plist-clear' + a + '>Clear list</button>' : '') +
           '</span>' +
         '</div>' +
         '<div class="row-panel plist-clear" hidden></div>' +
         '<div class="plist-view" hidden></div>' +
+        '<div class="plist-view plist-extra" hidden></div>' +
       '</div>';
     }
     function plistMeta(count, lastAt) {
@@ -1725,9 +1739,12 @@ function parseAnalyticsSummary(data) {
         (lastAt ? ' · last saved ' + esc(new Date(lastAt).toLocaleString()) : '');
     }
     function onPrivateListClick(e) {
-      var t = e.target && e.target.closest ? e.target.closest('[data-plist-view],[data-plist-csv],[data-plist-act],[data-plist-privacy],[data-plist-clear],[data-plist-clear-go],[data-plist-clear-cancel],[data-state-view],[data-state-dl]') : null;
+      var t = e.target && e.target.closest ? e.target.closest('[data-plist-view],[data-plist-csv],[data-plist-act],[data-plist-privacy],[data-plist-clear],[data-plist-clear-go],[data-plist-clear-cancel],[data-state-view],[data-state-dl],[data-hist-open],[data-del-open],[data-undo]') : null;
       if (!t) return;
       if (t.hasAttribute('data-plist-act')) { onPrivateItemAction(t); return; }
+      if (t.hasAttribute('data-undo')) { onUndoAction(t); return; }
+      if (t.hasAttribute('data-hist-open')) { toggleUndoPanel(t, 'history'); return; }
+      if (t.hasAttribute('data-del-open')) { toggleUndoPanel(t, 'deleted'); return; }
       var name = t.getAttribute('data-site'), coll = t.getAttribute('data-coll');
       if (t.hasAttribute('data-plist-csv')) downloadPrivateList(name, coll, t);
       else if (t.hasAttribute('data-plist-privacy')) toggleListPrivacy(t, name, coll);
@@ -1776,7 +1793,7 @@ function parseAnalyticsSummary(data) {
       var a = ' data-site="' + escAttr(name) + '" data-coll="' + escAttr(coll) + '"';
       var id = 'clear-' + escAttr(name) + '-' + escAttr(coll);
       panel.innerHTML = '<label for="' + id + '">This deletes all ' + n + (n === 1 ? ' entry' : ' entries') + ' in <b>' + esc(coll) +
-          '</b> for good. Type the list name to confirm.</label>' +
+          '</b>. They stay in Recently deleted for ' + UNDO_DAYS + ' days, where you can bring them back. Type the list name to confirm.</label>' +
         '<input type="text" id="' + id + '" autocomplete="off" spellcheck="false" data-confirm-input>' +
         '<div class="panel-btns">' +
           '<button type="button" class="btn-small btn-danger" data-plist-clear-go data-confirm-for="' + escAttr(coll) + '"' + a + ' disabled>Clear list</button>' +
@@ -1794,7 +1811,7 @@ function parseAnalyticsSummary(data) {
         var body = await res.json().catch(function () { return null; });
         if (!res.ok) { toast((body && body.error) || 'Could not clear the list', 'error'); btn.disabled = false; return; }
         var n = body && Number(body.deleted) || 0;
-        toast('Cleared ' + coll + ': ' + n + (n === 1 ? ' entry' : ' entries') + ' deleted', 'success');
+        toast('Cleared ' + coll + ': ' + n + (n === 1 ? ' entry' : ' entries') + ' moved to Recently deleted', 'success');
         loadPrivateLists(name, true);
       } catch (e) {
         toast('Could not clear the list', 'error');
@@ -1864,9 +1881,11 @@ function parseAnalyticsSummary(data) {
       var keys = Object.keys(keySet).filter(function (k) { return PLIST_STAMPS.indexOf(k) < 0; }).sort()
         .concat(PLIST_STAMPS.filter(function (k) { return keySet[k]; }));
       var saved = !keySet._submitted_at; // older items without the stamp: show when they were saved
+      // Who sent each item (the owner sees it; the public list never does).
+      var sentBy = !keySet._submitted_by && items.some(function (it) { return it && it.by; });
       // An item that is not an object (a page may append a bare string) shows as its value.
       var plain = items.some(function (it) { return it && (it.data === null || typeof it.data !== 'object' || Array.isArray(it.data)); });
-      var head = '<th></th>' + (plain ? '<th>value</th>' : '') + keys.map(function (k) { return '<th>' + esc(k) + '</th>'; }).join('') + (saved ? '<th>saved</th>' : '');
+      var head = '<th></th>' + (plain ? '<th>value</th>' : '') + keys.map(function (k) { return '<th>' + esc(k) + '</th>'; }).join('') + (saved ? '<th>saved</th>' : '') + (sentBy ? '<th>sent by</th>' : '');
       var rows = items.map(function (it) {
         var d = plistData(it);
         var id = escAttr(it.id);
@@ -1882,6 +1901,7 @@ function parseAnalyticsSummary(data) {
             return '<td title="' + escAttr(raw) + '">' + plistCell(d[k]) + '</td>';
           }).join('') +
           (saved ? '<td>' + (it.created_at ? esc(new Date(it.created_at).toLocaleString()) : '') + '</td>' : '') +
+          (sentBy ? '<td>' + esc(it.by || '') + '</td>' : '') +
           '</tr>';
       }).join('');
       view.innerHTML = '<div class="plist-table-wrap"><table class="plist-table"><thead><tr>' + head +
@@ -1961,8 +1981,8 @@ function parseAnalyticsSummary(data) {
         return;
       }
       if (act === 'delete') {
-        var who = plistData(item)._submitted_by;
-        if (!confirm('Delete item ' + id + (who ? ' from ' + who : '') + '?' + (st.priv ? '' : ' It disappears from the public list.') + ' This cannot be undone.')) return;
+        var who = plistData(item)._submitted_by || item.by;
+        if (!confirm('Delete item ' + id + (who ? ' from ' + who : '') + '?' + (st.priv ? '' : ' It disappears from the public list.') + ' You can bring it back from Recently deleted for ' + UNDO_DAYS + ' days.')) return;
         t.disabled = true;
         try {
           var dres = await api('DELETE', plistItemPath(st, id));
@@ -1970,11 +1990,198 @@ function parseAnalyticsSummary(data) {
           st.items.splice(idx, 1);
           renderPrivateItems(view);
           plistSetCount(view, -1);
-          toast('Deleted', 'success');
+          toast('Deleted. It is in Recently deleted for ' + UNDO_DAYS + ' days.', 'success');
         } catch (e) {
           toast('Could not delete the item', 'error');
           t.disabled = false;
         }
+      }
+    }
+    // ---- History and Recently deleted (saved data, 30-day undo) ----
+    var UNDO_DAYS = 30; // the server says how long in every answer (undo_days)
+    var UNDO_OPS = { replace: 'Replaced', change: 'Changed', edit: 'Edited', 'delete': 'Deleted', clear: 'Cleared', undelete: 'Brought back', restore: 'Restored' };
+    function undoBase(name, coll) {
+      return sitePathPart(name) + (coll ? '/collections/' + encodeURIComponent(coll) : '/state');
+    }
+    function undoWho(e) {
+      if (e.by) return e.by;
+      return e.by_kind === 'anonymous' ? 'not signed in' : (e.by_kind || '');
+    }
+    async function toggleUndoPanel(btn, mode) {
+      var wrap = btn.closest('.plist');
+      var panel = wrap && wrap.querySelector('.plist-extra');
+      if (!panel) return;
+      if (!panel.hidden && panel.getAttribute('data-mode') === mode) {
+        panel.hidden = true; panel.innerHTML = ''; btn.setAttribute('aria-expanded', 'false');
+        return;
+      }
+      Array.prototype.forEach.call(wrap.querySelectorAll('[data-hist-open],[data-del-open]'), function (b) { b.setAttribute('aria-expanded', 'false'); });
+      btn.setAttribute('aria-expanded', 'true');
+      panel.setAttribute('data-mode', mode);
+      panel._undo = { name: btn.getAttribute('data-site'), coll: btn.getAttribute('data-coll') || '' };
+      panel.hidden = false;
+      await renderUndoPanel(panel);
+    }
+    async function renderUndoPanel(panel) {
+      var st = panel._undo, mode = panel.getAttribute('data-mode');
+      panel.innerHTML = '<div class="versions-status">Loading…</div>';
+      try {
+        var res = await api('GET', undoBase(st.name, st.coll) + (mode === 'deleted' ? '/deleted' : '/history') + '?limit=50');
+        if (!res.ok) { panel.innerHTML = '<div class="versions-status">' + esc(await plistError(res, 'Could not load it')) + '</div>'; return; }
+        var body = await res.json();
+        if (body && body.undo_days) UNDO_DAYS = body.undo_days;
+        panel.innerHTML = mode === 'deleted' ? deletedHTML(st, body) : historyHTML(st, body);
+      } catch (e) {
+        panel.innerHTML = '<div class="versions-status">Could not load it</div>';
+      }
+    }
+    function historyHTML(st, body) {
+      var list = (body && Array.isArray(body.history)) ? body.history : [];
+      var intro = '<div class="versions-status">Every change in the last ' + UNDO_DAYS + ' days, newest first. Restore puts back ' +
+        (st.coll ? 'the item' : 'the saved data') + ' as it was just before that change; a restore is itself a change you can undo.</div>';
+      if (!list.length) return intro + '<div class="versions-status">No changes yet.</div>' + clearHistoryHTML();
+      var rows = list.map(function (e) {
+        var id = escAttr(e.id);
+        var what = esc(UNDO_OPS[e.op] || e.op) + (e.item_id ? ' item ' + esc(e.item_id) : '');
+        var canView = !st.coll || e.op === 'edit' || e.op === 'restore';
+        return '<tr>' +
+          '<td class="plist-acts"><span class="plist-btns">' +
+            (canView ? '<button type="button" class="btn-small btn-secondary" data-undo="view" data-id="' + id + '">View before</button>' : '') +
+            (e.op === 'undelete' ? '' : '<button type="button" class="btn-small btn-secondary" data-undo="restore" data-id="' + id + '">Restore</button>') +
+          '</span></td>' +
+          '<td>' + esc(new Date(e.at).toLocaleString()) + '</td>' +
+          '<td>' + what + '</td>' +
+          '<td>' + esc(undoWho(e)) + '</td>' +
+        '</tr>';
+      }).join('');
+      return intro + '<div class="plist-table-wrap"><table class="plist-table"><thead><tr><th></th><th>when</th><th>what</th><th>who</th></tr></thead><tbody>' +
+        rows + '</tbody></table></div>' + (body.next ? '<div class="versions-status">Latest 50 changes shown.</div>' : '') +
+        '<div class="plist-undo-value" hidden></div>' + clearHistoryHTML();
+    }
+    function clearHistoryHTML() {
+      return '<div class="panel-btns" style="margin:8px 0 0;"><button type="button" class="btn-small btn-ghost" data-undo="clear-history">Clear history</button></div>' +
+        '<div class="row-panel undo-confirm" hidden></div>';
+    }
+    // A typed confirmation inside the History or Recently deleted panel.
+    function openUndoConfirm(panel, label, word, act, goLabel, id) {
+      var box = panel.querySelector('.undo-confirm');
+      if (!box) return;
+      var fid = 'undo-confirm-' + Math.random().toString(36).slice(2);
+      box.innerHTML = '<label for="' + fid + '">' + label + ' Type <b>' + esc(word) + '</b> to confirm.</label>' +
+        '<input type="text" id="' + fid + '" autocomplete="off" spellcheck="false" data-confirm-input>' +
+        '<div class="panel-btns">' +
+          '<button type="button" class="btn-small btn-danger" data-undo="' + escAttr(act) + '" data-confirm-for="' + escAttr(word) + '"' +
+            (id ? ' data-id="' + escAttr(id) + '"' : '') + ' disabled>' + esc(goLabel) + '</button>' +
+          '<button type="button" class="btn-small btn-ghost" data-undo="cancel">Cancel</button>' +
+        '</div>';
+      box.hidden = false;
+      if (box.scrollIntoView) box.scrollIntoView({ block: 'nearest' });
+      var inp = box.querySelector('input');
+      if (inp) inp.focus();
+    }
+    function deletedHTML(st, body) {
+      var items = (body && Array.isArray(body.items)) ? body.items : [];
+      var intro = '<div class="versions-status">Deleted in the last ' + UNDO_DAYS + ' days. After that they are gone for good; Delete forever removes one sooner.</div>';
+      if (!items.length) return intro + '<div class="versions-status">Nothing deleted.</div>';
+      var rows = items.map(function (it) {
+        var id = escAttr(it.id);
+        var text = typeof it.data === 'object' ? JSON.stringify(it.data) : String(it.data);
+        return '<tr>' +
+          '<td class="plist-acts"><span class="plist-btns"><button type="button" class="btn-small btn-secondary" data-undo="undelete" data-id="' + id + '">Restore</button>' +
+            '<button type="button" class="btn-small btn-ghost" data-undo="purge" data-id="' + id + '">Delete forever</button></span></td>' +
+          '<td title="' + escAttr(text) + '">' + esc(text.length > 120 ? text.slice(0, 120) + '…' : text) + '</td>' +
+          '<td>' + esc(it.by || '') + '</td>' +
+          '<td>' + esc(new Date(it.deleted_at).toLocaleString()) + '</td>' +
+        '</tr>';
+      }).join('');
+      return intro +
+        '<div class="panel-btns" style="margin:6px 0 8px;"><button type="button" class="btn-small btn-secondary" data-undo="undelete-all">Restore all</button>' +
+          '<button type="button" class="btn-small btn-ghost" data-undo="purge-all">Delete all forever</button></div>' +
+        '<div class="row-panel undo-confirm" hidden></div>' +
+        '<div class="plist-table-wrap"><table class="plist-table"><thead><tr><th></th><th>item</th><th>sent by</th><th>deleted</th></tr></thead><tbody>' +
+        rows + '</tbody></table></div>' + (body.next ? '<div class="versions-status">Latest 50 shown; Restore all brings back every one.</div>' : '');
+    }
+    async function onUndoAction(t) {
+      var panel = t.closest('.plist-extra');
+      var st = panel && panel._undo;
+      if (!st) return;
+      var act = t.getAttribute('data-undo'), id = t.getAttribute('data-id');
+      var base = undoBase(st.name, st.coll);
+      // Deleting for good: a typed confirmation first, then the call.
+      if (act === 'cancel') {
+        var cb = t.closest('.undo-confirm');
+        if (cb) { cb.hidden = true; cb.innerHTML = ''; }
+        return;
+      }
+      if (act === 'purge') {
+        openUndoConfirm(panel, 'Delete item ' + esc(id) + ' for good? It and its earlier versions cannot be brought back.', 'delete', 'purge-go', 'Delete forever', id);
+        return;
+      }
+      if (act === 'purge-all') {
+        openUndoConfirm(panel, 'Delete everything in Recently deleted of <b>' + esc(st.coll) + '</b> for good? None of it can be brought back. The list itself is not touched.', st.coll, 'purge-all-go', 'Delete all forever');
+        return;
+      }
+      if (act === 'clear-history') {
+        openUndoConfirm(panel, 'Clear every earlier version of <b>' + esc(st.name) + '</b>\'s saved data and lists, for good? The data as it is now stays, and so does Recently deleted.', st.name, 'clear-history-go', 'Clear history');
+        return;
+      }
+      if (act === 'purge-go' || act === 'purge-all-go' || act === 'clear-history-go') {
+        var dpath, dbody;
+        if (act === 'purge-go') dpath = base + '/deleted/' + encodeURIComponent(id);
+        else if (act === 'purge-all-go') { dpath = base + '/deleted'; dbody = { confirm: st.coll }; }
+        else { dpath = sitePathPart(st.name) + '/history'; dbody = { confirm: st.name }; }
+        t.disabled = true;
+        try {
+          var pres = await api('DELETE', dpath, dbody);
+          if (!pres.ok) { toast(await plistError(pres, 'Could not delete it'), 'error'); t.disabled = false; return; }
+          toast(act === 'clear-history-go' ? 'History cleared' : 'Deleted for good', 'success');
+          if (act === 'clear-history-go') await renderUndoPanel(panel);
+          else loadPrivateLists(st.name, true);
+        } catch (e) {
+          toast('Could not delete it', 'error');
+          t.disabled = false;
+        }
+        return;
+      }
+      if (act === 'view') {
+        var out = panel.querySelector('.plist-undo-value');
+        t.disabled = true;
+        try {
+          var vres = await api('GET', base + '/history/' + encodeURIComponent(id));
+          if (!vres.ok) { toast(await plistError(vres, 'Could not load that version'), 'error'); return; }
+          var v = await vres.json();
+          out.innerHTML = '<div class="versions-status">As it was just before this change:</div><pre class="state-pre">' + esc(JSON.stringify(v.value, null, 2)) + '</pre>';
+          out.hidden = false;
+          if (out.scrollIntoView) out.scrollIntoView({ block: 'nearest' });
+        } catch (e) {
+          toast('Could not load that version', 'error');
+        } finally { t.disabled = false; }
+        return;
+      }
+      var path, body, ask, done;
+      if (act === 'restore') {
+        path = base + '/history/' + encodeURIComponent(id) + '/restore';
+        ask = st.coll ? 'Undo this change to the list "' + st.coll + '"?' : 'Put this site\'s saved data back as it was just before this change? Its pages show it at once. You can undo this too.';
+        done = 'Restored';
+      } else if (act === 'undelete') {
+        path = base + '/items/' + encodeURIComponent(id) + '/restore';
+        done = 'Brought back';
+      } else if (act === 'undelete-all') {
+        path = base + '/deleted/restore';
+        body = { all: true };
+        ask = 'Bring back every deleted item in "' + st.coll + '"?';
+        done = 'Brought back';
+      } else return;
+      if (ask && !confirm(ask)) return;
+      t.disabled = true;
+      try {
+        var res = await api('POST', path, body);
+        if (!res.ok) { toast(await plistError(res, 'Could not restore it'), 'error'); t.disabled = false; return; }
+        toast(done, 'success');
+        loadPrivateLists(st.name, true);
+      } catch (e) {
+        toast('Could not restore it', 'error');
+        t.disabled = false;
       }
     }
     function saveBlob(blob, filename) {

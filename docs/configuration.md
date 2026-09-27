@@ -104,6 +104,31 @@ simple-host.app runs, so an install that sets none of them behaves exactly as be
 | `AI_MAX_JOBS` | 64 | 1–1000 | Builds running at once on the whole install. |
 | `AI_JOB_TIMEOUT_MINUTES` | 8 | 1–8 | How long one build may run. At most 8: the builder page waits 9 minutes for an answer. |
 
+## Saved data
+
+What pages save (page data and lists): how long changes can be undone, the size limits, the
+limits on reads and list additions, and the saved-data watch on the admin page. Unlike the
+promised dates above, `SAVED_DATA_UNDO_DAYS` applies to what is already kept: shortening it
+removes older history and Recently deleted items at the next sweep.
+
+| Variable | Default | Range | What it controls |
+|---|---|---|---|
+| `SAVED_DATA_UNDO_DAYS` | 30 | 1–365 | Days every change to saved data, and every deleted list item, can be restored by the site owner. |
+| `SAVED_DATA_HISTORY_MAX_MB` | 20 | 1–10240 | A site's history above this is thinned, oldest first, keeping each item's first change of every day. |
+| `SAVED_DATA_SITE_MAX_MB` | 50 | 1–10240 | A site's live saved data (page data and list items; not history or Recently deleted). A write that would grow it past this is refused (507 `site_full`); writes that do not grow it always go through. |
+| `SAVED_DATA_SNAPSHOT_EVERY` | 50 | 1–10000 | A change made with ops keeps only what it changed in history, with a full copy at least this often and on the first change of each day. |
+| `SAVED_DATA_SWEEP_MINUTES` | 15 | 1–1440 | How often expired history and deleted items are removed. |
+| `SAVED_DATA_WATCH_DAYS` | 7 | 1–365 | The window the saved-data watch (`GET /v1/admin/data-watch`) reports. |
+| `SAVED_DATA_WATCH_INC_MAX` | 10 | 1–1000000000 | A visitor increment larger than this is counted as large by the watch. |
+| `SAVED_DATA_WATCH_ITEM_KB` | 16 | 1–64 | A list item larger than this is counted as large by the watch. |
+| `SAVED_DATA_WATCH_KEEP_DAYS` | 90 | 1–3650 | Watch counts older than this are removed. Must not be shorter than `SAVED_DATA_WATCH_DAYS`. |
+| `SAVED_DATA_IDEMPOTENCY_HOURS` | 24 | 1–720 | How long a write's first answer is replayed for a retry with the same `Idempotency-Key`. |
+| `SAVED_DATA_IDEMPOTENCY_MAX_PER_SITE` | 10000 | 100–1000000 | Remembered `Idempotency-Key`s per site; the oldest past this are dropped. |
+| `SAVED_DATA_READ_PER_SEC` | 30 | 1–10000 | Saved-data reads per second per site and address (per account for owner keys and the connector). |
+| `SAVED_DATA_READ_BURST` | 60 | 1–100000 | Reads allowed at once above that rate. |
+| `SAVED_DATA_APPEND_PER_MIN` | 30 | 1–10000 | List items one address may add per minute without the owner's key. |
+| `SAVED_DATA_APPEND_BURST` | 30 | 1–100000 | Items allowed at once above that rate. |
+
 ## Rate limits
 
 Each is `<burst>,<every>` (see Units above). Keys are per client address unless noted.

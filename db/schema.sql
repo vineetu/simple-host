@@ -194,6 +194,148 @@ CREATE TABLE IF NOT EXISTS collection_settings (
   PRIMARY KEY (site_id, collection)
 );
 
+-- Saved data, step 1 (mirrors db/migrations/sd1-saved-data-safety.sql):
+-- history and undo, recoverable deletes, authors, idempotency, the watch.
+-- Every site that exists before the kinds arrive keeps today's open behaviour.
+-- The default is true until the step that introduces kinds flips it.
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS legacy_data BOOLEAN NOT NULL DEFAULT true;
+
+-- Deleted and cleared items stay for the undo window (NULL = live), and the
+-- address the author wrote from is kept beside the account id.
+ALTER TABLE collection_items ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE collection_items ADD COLUMN IF NOT EXISTS submitted_email TEXT;
+CREATE INDEX IF NOT EXISTS idx_collection_items_deleted
+  ON collection_items (site_id, collection, deleted_at) WHERE deleted_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_collection_items_submitted_by
+  ON collection_items (submitted_by) WHERE submitted_by IS NOT NULL;
+
+-- One row per change: the value before it (prev), what changed, who and when.
+-- kind 'state' is the site's saved-data document (name ''), kind 'list' one
+-- item of a list (item_id). Kept 30 days by time, thinned past a per-site cap
+-- but always keeping each item's first change of every day.
+CREATE TABLE IF NOT EXISTS data_history (
+  id          BIGSERIAL PRIMARY KEY,
+  site_id     UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  kind        TEXT NOT NULL CHECK (kind IN ('state', 'list')),
+  name        TEXT NOT NULL DEFAULT '',
+  item_id     BIGINT REFERENCES collection_items(id) ON DELETE CASCADE,
+  op          TEXT NOT NULL,
+  prev        JSONB,
+  actor_id    UUID REFERENCES users(id) ON DELETE SET NULL,
+  actor_kind  TEXT NOT NULL,
+  actor_email TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_data_history_target ON data_history (site_id, kind, name, id DESC);
+CREATE INDEX IF NOT EXISTS idx_data_history_item ON data_history (item_id) WHERE item_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_data_history_created ON data_history (created_at);
+CREATE INDEX IF NOT EXISTS idx_data_history_actor ON data_history (actor_id) WHERE actor_id IS NOT NULL;
+
+-- A write retried with the same Idempotency-Key is saved once: the first
+-- answer is kept (24 hours) and replayed. scope is a hash of the key, the
+-- route and the caller; status 0 = the first request is still running.
+CREATE TABLE IF NOT EXISTS idempotency_keys (
+  scope        BYTEA PRIMARY KEY,
+  status       INTEGER NOT NULL DEFAULT 0,
+  etag         TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_idempotency_keys_created ON idempotency_keys (created_at);
+
+-- The 7-day watch: per site and day, how often each saved-data use that a
+-- later step tightens happened (visitor whole-document replace, non-object
+-- documents, visitor ops by type, large visitor increments, new list names,
+-- large list items). Counts only, never content. Read by /v1/admin/data-watch.
+CREATE TABLE IF NOT EXISTS data_watch (
+  day     DATE NOT NULL,
+  site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  metric  TEXT NOT NULL,
+  count   BIGINT NOT NULL DEFAULT 0,
+  last_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (day, site_id, metric)
+);
+
+-- Saved data, step 1, review fixes (mirrors
+-- db/migrations/sd1-saved-data-safety2-limits.sql).
+
+-- What a site's live saved data takes: the page-data document (state_bytes)
+-- plus every live list item (deleted items and history are not counted).
+-- Kept by the triggers below in the same transaction as every write, so the
+-- per-site cap (SAVED_DATA_SITE_MAX_MB) is one row read, never a scan.
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS state_bytes BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS data_bytes BIGINT NOT NULL DEFAULT 0;
+
+CREATE OR REPLACE FUNCTION sh_sites_state_bytes() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+  s BIGINT := COALESCE(octet_length(NEW.state::text), 0);
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    NEW.data_bytes := s;
+  ELSE
+    NEW.data_bytes := NEW.data_bytes + s - OLD.state_bytes;
+  END IF;
+  NEW.state_bytes := s;
+  RETURN NEW;
+END $$;
+
+CREATE OR REPLACE FUNCTION sh_items_live_bytes() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    UPDATE sites s SET data_bytes = s.data_bytes + d.n
+      FROM (SELECT site_id, sum(octet_length(data::text)) AS n FROM sh_new
+             WHERE deleted_at IS NULL GROUP BY site_id) d
+     WHERE s.id = d.site_id;
+  ELSIF TG_OP = 'DELETE' THEN
+    UPDATE sites s SET data_bytes = s.data_bytes - d.n
+      FROM (SELECT site_id, sum(octet_length(data::text)) AS n FROM sh_old
+             WHERE deleted_at IS NULL GROUP BY site_id) d
+     WHERE s.id = d.site_id;
+  ELSE
+    UPDATE sites s SET data_bytes = s.data_bytes + d.n
+      FROM (SELECT site_id, sum(n) AS n FROM (
+              SELECT site_id, octet_length(data::text) AS n FROM sh_new WHERE deleted_at IS NULL
+              UNION ALL
+              SELECT site_id, -octet_length(data::text) FROM sh_old WHERE deleted_at IS NULL) x
+             GROUP BY site_id) d
+     WHERE s.id = d.site_id AND d.n <> 0;
+  END IF;
+  RETURN NULL;
+END $$;
+
+DROP TRIGGER IF EXISTS sites_state_bytes ON sites;
+CREATE TRIGGER sites_state_bytes BEFORE INSERT OR UPDATE OF state ON sites
+  FOR EACH ROW EXECUTE FUNCTION sh_sites_state_bytes();
+DROP TRIGGER IF EXISTS collection_items_bytes_ins ON collection_items;
+CREATE TRIGGER collection_items_bytes_ins AFTER INSERT ON collection_items
+  REFERENCING NEW TABLE AS sh_new FOR EACH STATEMENT EXECUTE FUNCTION sh_items_live_bytes();
+DROP TRIGGER IF EXISTS collection_items_bytes_upd ON collection_items;
+CREATE TRIGGER collection_items_bytes_upd AFTER UPDATE ON collection_items
+  REFERENCING OLD TABLE AS sh_old NEW TABLE AS sh_new FOR EACH STATEMENT EXECUTE FUNCTION sh_items_live_bytes();
+DROP TRIGGER IF EXISTS collection_items_bytes_del ON collection_items;
+CREATE TRIGGER collection_items_bytes_del AFTER DELETE ON collection_items
+  REFERENCING OLD TABLE AS sh_old FOR EACH STATEMENT EXECUTE FUNCTION sh_items_live_bytes();
+
+-- Backfill (a no-op on a new database). The UPDATE does not name state, so
+-- the state trigger does not fire.
+UPDATE sites s SET
+  state_bytes = COALESCE(octet_length(s.state::text), 0),
+  data_bytes  = COALESCE(octet_length(s.state::text), 0)
+              + COALESCE((SELECT sum(octet_length(ci.data::text)) FROM collection_items ci
+                           WHERE ci.site_id = s.id AND ci.deleted_at IS NULL), 0);
+
+-- A change made with PATCH ops keeps only what it changed (diff: how to turn
+-- the document after it back into the one before), with a full copy (prev)
+-- at least every SAVED_DATA_SNAPSHOT_EVERY changes and on each day's first.
+ALTER TABLE data_history ADD COLUMN IF NOT EXISTS diff JSONB;
+
+-- Idempotency-Key answers keep the status, the version or item id (ref) and
+-- a hash of the request body (a reused key with another body is refused),
+-- never the response body. site_id bounds the rows kept per site.
+ALTER TABLE idempotency_keys ADD COLUMN IF NOT EXISTS site_id UUID REFERENCES sites(id) ON DELETE CASCADE;
+ALTER TABLE idempotency_keys ADD COLUMN IF NOT EXISTS ref BIGINT;
+ALTER TABLE idempotency_keys ADD COLUMN IF NOT EXISTS body_hash BYTEA;
+CREATE INDEX IF NOT EXISTS idx_idempotency_keys_site ON idempotency_keys (site_id, created_at);
+
 -- Frozen legacy per-site hostnames (e.g. mysite.simple-host.app) bound to a
 -- site_id. Populated by a later backfill; not wired into request paths yet.
 -- Old handles kept after an operator rename, so links naming them resolve.

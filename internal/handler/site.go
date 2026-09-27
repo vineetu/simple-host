@@ -114,6 +114,12 @@ type SiteHandler struct {
 	// process, used for nothing else. publicBaseURL is the apex they point at.
 	exportKey     []byte
 	publicBaseURL string
+
+	// savedData is the SAVED_DATA_* knobs, and readLimiter and appendLimiter
+	// the saved-data read and list-append limits built from them (saveddata.go).
+	savedData     config.SavedData
+	readLimiter   *rateLimiter
+	appendLimiter *rateLimiter
 }
 
 // lockSite acquires the per-site upload mutex for one account's site name and
@@ -228,6 +234,7 @@ func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, con
 		adminUserID:            adminUserID,
 		exportKey:              newExportKey(),
 	}
+	h.SetSavedData(config.DefaultSavedData())
 	if len(previewAccounts) > 0 {
 		ttlHours := int(previewTTL.Hours())
 		for u := range previewAccounts {
@@ -420,7 +427,36 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.deletePrivateItem)))
 	mux.Handle("DELETE /v1/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.clearCollection)))
 	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.clearCollection)))
-	mux.HandleFunc("GET /v1/sites/{sitename}/collections/{coll}", h.listCollection)
+	// History, Recently deleted, restore and delete for good (saveddata.go):
+	// owner or admin only, key or connector token; the {handle} forms name
+	// the site exactly.
+	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}/history", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDataHistory))))
+	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}/history/{id}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getDataHistory))))
+	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}/history/{id}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreListHistory)))))
+	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}/deleted", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDeletedItems))))
+	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}/deleted/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreDeletedItem)))))
+	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}/items/{id}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreDeletedItem)))))
+	mux.Handle("DELETE /v1/sites/{sitename}/collections/{coll}/deleted", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.purgeDeletedItems)))))
+	mux.Handle("DELETE /v1/sites/{sitename}/collections/{coll}/deleted/{id}", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.purgeDeletedItems)))))
+	mux.Handle("GET /v1/sites/{sitename}/state/history", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDataHistory))))
+	mux.Handle("GET /v1/sites/{sitename}/state/history/{id}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getDataHistory))))
+	mux.Handle("POST /v1/sites/{sitename}/state/history/{id}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreStateHistory)))))
+	mux.Handle("DELETE /v1/sites/{sitename}/history", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.clearDataHistory)))))
+	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/collections/{coll}/history", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDataHistory))))
+	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/collections/{coll}/history/{id}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getDataHistory))))
+	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/collections/{coll}/history/{id}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreListHistory)))))
+	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDeletedItems))))
+	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreDeletedItem)))))
+	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreDeletedItem)))))
+	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.purgeDeletedItems)))))
+	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted/{id}", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.purgeDeletedItems)))))
+	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/state/history", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDataHistory))))
+	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/state/history/{id}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getDataHistory))))
+	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/state/history/{id}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreStateHistory)))))
+	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/history", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.clearDataHistory)))))
+	// The saved-data watch: what the later tightening would affect.
+	mux.Handle("GET /v1/admin/data-watch", authMiddleware(auth.RequireAdmin(http.HandlerFunc(h.adminDataWatch))))
+	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}", h.limitReads(h.listCollection))
 	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection)))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/collections/{coll}", h.optionsCollection)
 
@@ -430,14 +466,14 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/visitor/auth", h.optionsVisitorEmail)
 	mux.HandleFunc("POST /v1/sites/{sitename}/visitor/auth/verify", h.verifyVisitorEmail)
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/visitor/auth/verify", h.optionsVisitorEmail)
-	mux.HandleFunc("GET /v1/sites/{sitename}/state", h.getSiteState)
+	mux.Handle("GET /v1/sites/{sitename}/state", h.limitReads(h.getSiteState))
 	mux.Handle("PUT /v1/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSiteState)))
 	mux.Handle("PATCH /v1/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchSiteState)))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/state", h.optionsSiteState)
 
 	// v3 user-scoped state/collections: unambiguous after UNIQUE(name) drops.
 	// Same handlers as above; resolveSiteID reads {handle} when present.
-	mux.HandleFunc("GET /v1/u/{handle}/sites/{sitename}/collections/{coll}", h.listCollection)
+	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/collections/{coll}", h.limitReads(h.listCollection))
 	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection)))
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/collections/{coll}", h.optionsCollection)
 
@@ -447,7 +483,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/visitor/auth", h.optionsVisitorEmail)
 	mux.HandleFunc("POST /v1/u/{handle}/sites/{sitename}/visitor/auth/verify", h.verifyVisitorEmail)
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/visitor/auth/verify", h.optionsVisitorEmail)
-	mux.HandleFunc("GET /v1/u/{handle}/sites/{sitename}/state", h.getSiteState)
+	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/state", h.limitReads(h.getSiteState))
 	mux.Handle("PUT /v1/u/{handle}/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSiteState)))
 	mux.Handle("PATCH /v1/u/{handle}/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchSiteState)))
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/state", h.optionsSiteState)
@@ -914,7 +950,7 @@ func (h *SiteHandler) optionsSiteState(w http.ResponseWriter, r *http.Request) {
 	// If-Match / If-None-Match carry the state version for optimistic-concurrency
 	// PUTs and conditional GETs; PATCH sends ops as JSON. X-SH-CSRF is required
 	// on cookie-authenticated writes.
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, If-Match, If-None-Match, X-SH-CSRF")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, If-Match, If-None-Match, X-SH-CSRF, Idempotency-Key")
 	w.Header().Set("Access-Control-Max-Age", "600")
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -1028,7 +1064,8 @@ func (h *SiteHandler) putSiteState(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	if !h.visitorWriteOK(w, r, siteID, siteName, writeRouteStatePut, "") {
+	actor, ok := h.visitorWriteOK(w, r, siteID, siteName, writeRouteStatePut, "")
+	if !ok {
 		return
 	}
 
@@ -1037,7 +1074,7 @@ func (h *SiteHandler) putSiteState(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
-			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "request body too large"})
+			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "request body too large", Code: "item_too_large"})
 			return
 		}
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
@@ -1053,25 +1090,31 @@ func (h *SiteHandler) putSiteState(w http.ResponseWriter, r *http.Request) {
 
 	// Optimistic concurrency is OPT-IN: if the caller sends If-Match, we only
 	// write when the stored version matches (compare-and-swap). Without it,
-	// behavior is the historical last-write-wins.
-	var newVersion int
+	// behavior is the historical last-write-wins. Either way the document
+	// from before goes to the site's history (undo).
+	expected := -1
 	if ifMatch := r.Header.Get("If-Match"); strings.TrimSpace(ifMatch) != "" {
-		expected, ok := parseIfMatch(ifMatch)
+		v, ok := parseIfMatch(ifMatch)
 		if !ok {
 			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid If-Match header"})
 			return
 		}
-		newVersion, err = db.UpdateSiteStateCASByID(r.Context(), h.database, siteID, state, expected)
-		if errors.Is(err, db.ErrStateVersionConflict) {
-			// Hand back the current version so the client can re-read and retry.
-			if _, cur, gerr := db.GetSiteStateByID(r.Context(), h.database, siteID); gerr == nil {
-				w.Header().Set("ETag", stateETag(cur))
-			}
-			writeJSON(w, http.StatusPreconditionFailed, errorResponse{Error: "state version conflict — re-read and retry"})
-			return
+		expected = v
+	}
+	// A replace that grows the site past SAVED_DATA_SITE_MAX_MB is refused
+	// (site_full); one that does not grow it always goes through.
+	newVersion, err := db.WriteSiteState(r.Context(), h.database, siteID, state, expected, db.OpReplace, h.withAuthorEmail(r.Context(), actor), h.siteMaxBytes())
+	if errors.Is(err, db.ErrSiteFull) {
+		h.writeSiteFull(w)
+		return
+	}
+	if errors.Is(err, db.ErrStateVersionConflict) {
+		// Hand back the current version so the client can re-read and retry.
+		if _, cur, gerr := db.GetSiteStateByID(r.Context(), h.database, siteID); gerr == nil {
+			w.Header().Set("ETag", stateETag(cur))
 		}
-	} else {
-		newVersion, err = db.UpdateSiteStateByID(r.Context(), h.database, siteID, state)
+		writeJSON(w, http.StatusPreconditionFailed, errorResponse{Error: "state version conflict — re-read and retry"})
+		return
 	}
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -1080,6 +1123,14 @@ func (h *SiteHandler) putSiteState(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
+	}
+	// The watch: whole-document replaces not made by the owner, and
+	// documents that are not an object, before either is refused.
+	if isVisitorActor(actor) {
+		h.watch(r.Context(), siteID, watchPutByVisitor, 1)
+	}
+	if t := bytes.TrimSpace(body); len(t) == 0 || t[0] != '{' {
+		h.watch(r.Context(), siteID, watchPutNotObject, 1)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

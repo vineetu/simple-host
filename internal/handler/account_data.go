@@ -26,14 +26,16 @@ import (
 //                                caller: every live site's export, the
 //                                account, keys (never the keys themselves),
 //                                connected apps, and what they did as a
-//                                visitor: sign-ins, and entries sent to other
-//                                people's private lists while signed in.
-//                                Public-list entries and shared page data
-//                                carry no link to anyone, so neither lists them.
+//                                visitor: sign-ins, entries sent to other
+//                                people's lists and changes made to their
+//                                saved data while signed in. Writes made
+//                                without signing in, and public-list entries
+//                                sent before authors were recorded, carry no
+//                                link to anyone.
 //   DELETE /v1/me                {"confirm": "<handle, or email with no handle>"}
 //                                deletes the account and all its data at once
 //                                and for good, including the items they sent
-//                                to other people's private lists while signed in.
+//                                to other people's lists while signed in.
 //
 // DELETE /v1/admin/users/{id} (accounts.go) runs the same erasure.
 
@@ -215,7 +217,7 @@ func (h *SiteHandler) emailAccountDeleted(to string) {
 	}
 	text := `Your Simple Host account and all its data were deleted.
 
-Your sites, their files and saved data, your keys and connected apps, and the entries you sent to other people's private lists while signed in are gone for good. Your address is not given to anyone else.
+Your sites, their files and saved data, your keys and connected apps, and the entries you sent to other people's lists while signed in are gone for good. Your address is not given to anyone else.
 
 Entries on public lists and data saved by pages were never linked to you, so they stay on those sites. For help with those, write to support@simple-host.app.
 
@@ -318,6 +320,10 @@ func (h *SiteHandler) accountDocuments(ctx context.Context, me db.User) ([]expor
 		return nil, err
 	}
 	subs, err := db.ListSubmissionsElsewhere(ctx, h.database, me.ID)
+	if err != nil {
+		return nil, err
+	}
+	changes, err := db.ListChangesElsewhere(ctx, h.database, me.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -440,7 +446,24 @@ func (h *SiteHandler) accountDocuments(ctx context.Context, me db.User) ([]expor
 	for _, s := range subs {
 		subList = append(subList, submission{Site: siteAddr(s.SiteID, "(a site that has since been deleted)"), List: s.Collection, ID: s.ID, CreatedAt: s.CreatedAt.UTC(), Item: json.RawMessage(s.Data)})
 	}
-	visitor := map[string]any{"signed_in_to": signInList, "submitted": subList}
+	// Changes to other people's saved data made while signed in: where,
+	// what and when, never the data (it is the site owner's).
+	type change struct {
+		Site   string    `json:"site"`
+		What   string    `json:"what"`
+		ItemID *int64    `json:"item_id,omitempty"`
+		Change string    `json:"change"`
+		At     time.Time `json:"at"`
+	}
+	changeList := []change{}
+	for _, c := range changes {
+		what := "page data"
+		if c.Kind == db.HistoryList {
+			what = "list " + c.Name
+		}
+		changeList = append(changeList, change{Site: siteAddr(c.SiteID, "(a site that has since been deleted)"), What: what, ItemID: c.ItemID, Change: c.Op, At: c.At.UTC()})
+	}
+	visitor := map[string]any{"signed_in_to": signInList, "submitted": subList, "changed": changeList}
 
 	out := []exportDoc{{name: "README.txt", body: []byte(exportReadme)}}
 	for _, d := range []struct {
@@ -477,15 +500,18 @@ connected_apps.json  Apps connected through the Simple Host connector
                      (ChatGPT, Claude, Grok): name, when connected, last used.
 visitor.json         Sites where you are signed in as a visitor (first sign-in
                      and last seen; a sign-in is kept only until it expires),
-                     and every entry you sent to other people's private
-                     lists while signed in. Entries on public lists and data
-                     saved by pages are not linked to you, so they are not
-                     here; for help with those, write to
-                     support@simple-host.app.
+                     every entry you sent to other people's lists while
+                     signed in, and every change you made to other people's
+                     page data or list entries while signed in in the last
+                     30 days (which site, what and when; the site's owner
+                     sees your address next to each). Changes made without
+                     signing in, and older public-list entries, are not
+                     linked to you, so they are not here; for help with
+                     those, write to support@simple-host.app.
 sites/<name>/        One folder per site, the same as that site's download:
                      files/ (the live version), state.json (saved data) and
                      collections.json (every list, with each entry's id, time
-                     and, on private lists, who sent it). Sites in Recently
+                     and who sent it, when they were signed in). Sites in Recently
                      deleted are not included; restore one to include it.
 
 Visitor analytics hold no personal data: visitors are counted by a salted

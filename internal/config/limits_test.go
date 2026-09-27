@@ -76,6 +76,8 @@ func TestLimitsOverrides(t *testing.T) {
 		"RATE_LIMIT_OAUTH_REGISTER": "5, 1h",
 		"IDLE_REPLY_TO":             "help@example.org",
 		"AI_JOB_TIMEOUT_MINUTES":    "5",
+		"SAVED_DATA_UNDO_DAYS":      "14",
+		"SAVED_DATA_SITE_MAX_MB":    "200",
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -92,7 +94,10 @@ func TestLimitsOverrides(t *testing.T) {
 		"register":                {l.RateOAuthRegister, Rate{5, time.Hour}},
 		"reply-to":                {l.IdleReplyTo, "help@example.org"},
 		"ai":                      {l.AIJobTimeout, 5 * time.Minute},
+		"undo":                    {l.SavedData.UndoDays, 14},
+		"site max":                {l.SavedData.SiteMaxMB, 200},
 		"untouched stays default": {l.ExportLinkTTL, 10 * time.Minute},
+		"saved data untouched":    {l.SavedData.ReadPerSec, 30},
 	} {
 		if c.got != c.want {
 			t.Errorf("%s: got %v, want %v", name, c.got, c.want)
@@ -140,6 +145,9 @@ func TestLimitsInvalid(t *testing.T) {
 		"no limit on codes":    {"RATE_LIMIT_SIGNIN_EMAIL": "100000,1ms"},
 		"token loose":          {"RATE_LIMIT_OAUTH_TOKEN": "30,100ms"},
 		"visitor auth loose":   {"RATE_LIMIT_VISITOR_AUTH": "1000,5s"},
+		"undo zero":            {"SAVED_DATA_UNDO_DAYS": "0"},
+		"watch item past cap":  {"SAVED_DATA_WATCH_ITEM_KB": "65"},
+		"watch keep too short": {"SAVED_DATA_WATCH_DAYS": "30", "SAVED_DATA_WATCH_KEEP_DAYS": "10"},
 	}
 	for name, m := range cases {
 		_, err := LoadLimits(env(m))

@@ -83,6 +83,45 @@ type Limits struct {
 	RateAIIP            Rate // RATE_LIMIT_AI_IP
 	RateAIUser          Rate // RATE_LIMIT_AI_USER
 	RateTranscribe      Rate // RATE_LIMIT_TRANSCRIBE
+
+	// Saved data (SAVED_DATA_*): history, undo, the watch and the limits.
+	SavedData SavedData
+}
+
+// SavedData is every number behind saved-data history, undo, the watch and
+// the limits (saved-data redesign step 1, 2026-09-27). Each is a knob in
+// Knobs(); the defaults are the approved plan's values.
+type SavedData struct {
+	UndoDays         int // SAVED_DATA_UNDO_DAYS: history and deleted items are kept this long (30)
+	HistoryMaxMB     int // SAVED_DATA_HISTORY_MAX_MB: per-site history cap before thinning (20)
+	SiteMaxMB        int // SAVED_DATA_SITE_MAX_MB: per-site live saved data (page data + list items; not history or Recently deleted) (50)
+	SweepMinutes     int // SAVED_DATA_SWEEP_MINUTES: how often expired history is removed (15)
+	WatchDays        int // SAVED_DATA_WATCH_DAYS: the watch window before tightening (7)
+	WatchIncMax      int // SAVED_DATA_WATCH_INC_MAX: a visitor inc larger than this is counted as large (10)
+	WatchItemKB      int // SAVED_DATA_WATCH_ITEM_KB: a list item larger than this is counted as large (16)
+	IdempotencyHours int // SAVED_DATA_IDEMPOTENCY_HOURS: how long a write's first answer is replayed (24)
+	ReadPerSec       int // SAVED_DATA_READ_PER_SEC: saved-data reads per second per site and address, or per key (30)
+	ReadBurst        int // SAVED_DATA_READ_BURST: burst above that rate (60)
+	// SAVED_DATA_APPEND_PER_MIN / _BURST: list items one address may add per
+	// minute when not writing with the owner's key (30 / 30).
+	AppendPerMin int
+	AppendBurst  int
+	// SAVED_DATA_IDEMPOTENCY_MAX_PER_SITE: remembered Idempotency-Keys kept
+	// per site; the sweep drops the oldest past it (10000).
+	IdempotencyMaxPerSite int
+	// SAVED_DATA_SNAPSHOT_EVERY: a PATCH's history keeps only what it
+	// changed, with a full copy of the document at least every this many
+	// changes and on the first change of each day (50).
+	SnapshotEvery int
+	// SAVED_DATA_WATCH_KEEP_DAYS: watch counts older than this are removed (90).
+	WatchKeepDays int
+}
+
+// DefaultSavedData is the approved plan's values.
+func DefaultSavedData() SavedData {
+	return SavedData{UndoDays: 30, HistoryMaxMB: 20, SiteMaxMB: 50, SweepMinutes: 15, WatchDays: 7,
+		WatchIncMax: 10, WatchItemKB: 16, IdempotencyHours: 24, ReadPerSec: 30, ReadBurst: 60,
+		AppendPerMin: 30, AppendBurst: 30, IdempotencyMaxPerSite: 10000, SnapshotEvery: 50, WatchKeepDays: 90}
 }
 
 // Rate is a token bucket: Burst requests at once, then one more every Every.
@@ -169,6 +208,8 @@ func DefaultLimits() Limits {
 		RateAIIP:            Rate{20, 12 * time.Second},
 		RateAIUser:          Rate{30, 10 * time.Second},
 		RateTranscribe:      Rate{60, 3 * time.Second},
+
+		SavedData: DefaultSavedData(),
 	}
 }
 
@@ -314,6 +355,22 @@ func Knobs() []Knob {
 		rateKnob("RATE_LIMIT_AI_IP", func(l *Limits) *Rate { return &l.RateAIIP }),
 		rateKnob("RATE_LIMIT_AI_USER", func(l *Limits) *Rate { return &l.RateAIUser }),
 		rateKnob("RATE_LIMIT_TRANSCRIBE", func(l *Limits) *Rate { return &l.RateTranscribe }),
+
+		intKnob("SAVED_DATA_UNDO_DAYS", "days", 1, 365, func(l *Limits) *int { return &l.SavedData.UndoDays }),
+		intKnob("SAVED_DATA_HISTORY_MAX_MB", "MB", 1, 10_240, func(l *Limits) *int { return &l.SavedData.HistoryMaxMB }),
+		intKnob("SAVED_DATA_SITE_MAX_MB", "MB", 1, 10_240, func(l *Limits) *int { return &l.SavedData.SiteMaxMB }),
+		intKnob("SAVED_DATA_SNAPSHOT_EVERY", "changes", 1, 10_000, func(l *Limits) *int { return &l.SavedData.SnapshotEvery }),
+		intKnob("SAVED_DATA_SWEEP_MINUTES", "minutes", 1, 1440, func(l *Limits) *int { return &l.SavedData.SweepMinutes }),
+		intKnob("SAVED_DATA_WATCH_DAYS", "days", 1, 365, func(l *Limits) *int { return &l.SavedData.WatchDays }),
+		intKnob("SAVED_DATA_WATCH_INC_MAX", "count", 1, 1_000_000_000, func(l *Limits) *int { return &l.SavedData.WatchIncMax }),
+		intKnob("SAVED_DATA_WATCH_ITEM_KB", "KB", 1, 64, func(l *Limits) *int { return &l.SavedData.WatchItemKB }),
+		intKnob("SAVED_DATA_WATCH_KEEP_DAYS", "days", 1, 3650, func(l *Limits) *int { return &l.SavedData.WatchKeepDays }),
+		intKnob("SAVED_DATA_IDEMPOTENCY_HOURS", "hours", 1, 720, func(l *Limits) *int { return &l.SavedData.IdempotencyHours }),
+		intKnob("SAVED_DATA_IDEMPOTENCY_MAX_PER_SITE", "keys", 100, 1_000_000, func(l *Limits) *int { return &l.SavedData.IdempotencyMaxPerSite }),
+		intKnob("SAVED_DATA_READ_PER_SEC", "reads", 1, 10_000, func(l *Limits) *int { return &l.SavedData.ReadPerSec }),
+		intKnob("SAVED_DATA_READ_BURST", "reads", 1, 100_000, func(l *Limits) *int { return &l.SavedData.ReadBurst }),
+		intKnob("SAVED_DATA_APPEND_PER_MIN", "items", 1, 10_000, func(l *Limits) *int { return &l.SavedData.AppendPerMin }),
+		intKnob("SAVED_DATA_APPEND_BURST", "items", 1, 100_000, func(l *Limits) *int { return &l.SavedData.AppendBurst }),
 	}
 }
 
@@ -344,6 +401,9 @@ func LoadLimits(getenv func(string) string) (Limits, error) {
 			l.DomainUnprovenMaxAge/day, l.DomainUnprovenTTL/time.Hour)
 	case l.AIMaxJobsPerUser > l.AIMaxJobs:
 		return DefaultLimits(), fmt.Errorf("AI_MAX_JOBS_PER_USER (%d) must not be more than AI_MAX_JOBS (%d)", l.AIMaxJobsPerUser, l.AIMaxJobs)
+	case l.SavedData.WatchKeepDays < l.SavedData.WatchDays:
+		return DefaultLimits(), fmt.Errorf("SAVED_DATA_WATCH_KEEP_DAYS (%d) must not be shorter than SAVED_DATA_WATCH_DAYS (%d): the watch reads that many days of counts",
+			l.SavedData.WatchKeepDays, l.SavedData.WatchDays)
 	}
 	return l, nil
 }

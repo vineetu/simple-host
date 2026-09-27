@@ -27,7 +27,7 @@ append-only collections) that its own page JavaScript can call.
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.21.2`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.23.0`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -179,8 +179,15 @@ Full code and error codes: `references/backend.md`.
   collection, which only the owner reads. The visitor
   session is site-scoped and is **not** an API key — it cannot deploy or delete.
   On a failed write keep the form, never claim success on a non-2xx, and never
-  re-POST a collection item after a partial write. Pair every form with a page
-  that shows what was collected.
+  re-POST a collection item after a partial write (to retry safely, send the same
+  `Idempotency-Key` header again). Pair every form with a page that shows what
+  was collected.
+- **Saved data has a 30-day undo.** Every change to state and every edit,
+  delete or clear of list items is kept, with who made it; the owner restores
+  from the owner app, or you do with `data_history` / `restore_data` and
+  `list_deleted` / `restore_item` (see `references/backend.md`). Deleting is
+  still an act to confirm with the person first; `delete_forever` (removing
+  Recently deleted items or history for good) cannot be undone at all.
 - **Origin-gating trips up non-browser reads.** A `curl`/script read with no
   `Origin` gets **403**. Send one:
   `curl -H "Origin: https://<name>.<handle>.simple-host.app" https://<name>.<handle>.simple-host.app/v1/sites/<name>/state`
