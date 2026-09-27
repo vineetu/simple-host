@@ -27,13 +27,13 @@ import (
 //                                account, keys (never the keys themselves),
 //                                connected apps, and what they did as a
 //                                visitor: sign-ins, and entries sent to other
-//                                people's private lists while signed in.
-//                                Public-list entries and shared page data
-//                                carry no link to anyone, so neither lists them.
+//                                people's lists while signed in. Shared page
+//                                data and public-list entries sent before
+//                                authors were recorded carry no link to anyone.
 //   DELETE /v1/me                {"confirm": "<handle, or email with no handle>"}
 //                                deletes the account and all its data at once
 //                                and for good, including the items they sent
-//                                to other people's private lists while signed in.
+//                                to other people's lists while signed in.
 //
 // DELETE /v1/admin/users/{id} (accounts.go) runs the same erasure.
 
@@ -215,7 +215,7 @@ func (h *SiteHandler) emailAccountDeleted(to string) {
 	}
 	text := `Your Simple Host account and all its data were deleted.
 
-Your sites, their files and saved data, your keys and connected apps, and the entries you sent to other people's private lists while signed in are gone for good. Your address is not given to anyone else.
+Your sites, their files and saved data, your keys and connected apps, and the entries you sent to other people's lists while signed in are gone for good. Your address is not given to anyone else.
 
 Entries on public lists and data saved by pages were never linked to you, so they stay on those sites. For help with those, write to support@simple-host.app.
 
@@ -477,15 +477,15 @@ connected_apps.json  Apps connected through the Simple Host connector
                      (ChatGPT, Claude, Grok): name, when connected, last used.
 visitor.json         Sites where you are signed in as a visitor (first sign-in
                      and last seen; a sign-in is kept only until it expires),
-                     and every entry you sent to other people's private
-                     lists while signed in. Entries on public lists and data
-                     saved by pages are not linked to you, so they are not
-                     here; for help with those, write to
+                     and every entry you sent to other people's lists
+                     while signed in. Data saved by pages and older
+                     public-list entries are not linked to you, so they are
+                     not here; for help with those, write to
                      support@simple-host.app.
 sites/<name>/        One folder per site, the same as that site's download:
                      files/ (the live version), state.json (saved data) and
                      collections.json (every list, with each entry's id, time
-                     and, on private lists, who sent it). Sites in Recently
+                     and who sent it, when they were signed in). Sites in Recently
                      deleted are not included; restore one to include it.
 
 Visitor analytics hold no personal data: visitors are counted by a salted

@@ -3338,13 +3338,16 @@
           },
           "403": {
             "$ref": "#/components/responses/OriginMismatch"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         }
       },
       "put": {
         "operationId": "putSitesBySitenameState",
         "summary": "Replace per-site JSON state",
-        "description": "Overwrites the whole blob (\u2264 1 MB), last-write-wins. Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}.",
+        "description": "Overwrites the whole blob (\u2264 1 MB), last-write-wins. The document from before is kept for 30 days (GET .../state/history; restore with POST .../state/history/{id}/restore). Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}.",
         "tags": [
           "State"
         ],
@@ -3450,13 +3453,16 @@
           },
           "413": {
             "$ref": "#/components/responses/TooLarge"
+          },
+          "507": {
+            "$ref": "#/components/responses/SiteFull"
           }
         }
       },
       "patch": {
         "operationId": "patchSitesBySitenameState",
         "summary": "Atomically update per-site state",
-        "description": "Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Ops \u2014 `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match).",
+        "description": "Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Ops \u2014 `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match). Numbers keep their exact digits (a whole-number `inc` adds exactly). Every change keeps the document from before it for 30 days (GET .../state/history).",
         "tags": [
           "State"
         ],
@@ -3466,6 +3472,9 @@
           },
           {
             "$ref": "#/components/parameters/csrf"
+          },
+          {
+            "$ref": "#/components/parameters/idempotencyKey"
           }
         ],
         "requestBody": {
@@ -3600,6 +3609,22 @@
           },
           "403": {
             "$ref": "#/components/responses/OriginMismatch"
+          },
+          "409": {
+            "description": "A retry with the same Idempotency-Key is still running (idempotency_in_progress), or the document is not an object (not_an_object)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "507": {
+            "$ref": "#/components/responses/SiteFull"
           }
         }
       }
@@ -3608,7 +3633,7 @@
       "get": {
         "operationId": "getSitesBySitenameCollections",
         "summary": "List collections a site has saved",
-        "description": "Owner-only inventory of named collections on this site, with row count, most-recent write and whether the list is private. A private list is listed even while empty (then `count` is 0 and `last_at` is null). Empty site returns `{collections:[]}`.",
+        "description": "Owner-only inventory of named collections on this site, with row count, most-recent write, whether the list is private and how many items are in its Recently deleted. A private list, and a list whose items were all deleted in the last 30 days, is listed even while empty (then `count` is 0 and `last_at` is null). Empty site returns `{collections:[]}`.",
         "tags": [
           "Collections"
         ],
@@ -3653,6 +3678,11 @@
                             "type": "boolean",
                             "example": false,
                             "description": "true when only the owner can read it (see PUT .../collections/{coll}/privacy)"
+                          },
+                          "deleted": {
+                            "type": "integer",
+                            "example": 0,
+                            "description": "items in the list's Recently deleted (GET .../collections/{coll}/deleted)"
                           }
                         }
                       }
@@ -3675,7 +3705,7 @@
       "delete": {
         "operationId": "clearCollection",
         "summary": "Empty a list (owner only)",
-        "description": "Deletes every item in one list, public or private, for good; the list keeps its private/public setting. The body must repeat the list's name, `{\"confirm\": \"<coll>\"}`, or nothing is deleted (400 confirm_required). Allowed for the site owner (X-API-Key, connector token, or the owner's own visitor session on the site's own address with `X-SH-CSRF: 1`) and the Simple Host operator, for moderation. Everyone else gets 404 not_found. Visitors only ever append.",
+        "description": "Deletes every item in one list, public or private; the items stay in the list's Recently deleted for 30 days (SAVED_DATA_UNDO_DAYS; GET .../deleted, POST .../deleted/restore brings them all back), and the list keeps its private/public setting. The answer adds `restorable_days`. The body must repeat the list's name, `{\"confirm\": \"<coll>\"}`, or nothing is deleted (400 confirm_required). Allowed for the site owner (X-API-Key, connector token, or the owner's own visitor session on the site's own address with `X-SH-CSRF: 1`) and the Simple Host operator, for moderation. Everyone else gets 404 not_found. Visitors only ever append.",
         "tags": [
           "Collections"
         ],
@@ -3778,7 +3808,7 @@
       "post": {
         "operationId": "postSitesBySitenameCollectionsByColl",
         "summary": "Append an item to a collection",
-        "description": "Append-only list (O(1) insert). For signups, RSVPs, submissions. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Each item \u2264 64 KB. PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.",
+        "description": "Append-only list (O(1) insert). For signups, RSVPs, submissions. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Each item \u2264 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged. PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.",
         "tags": [
           "Collections"
         ],
@@ -3791,6 +3821,9 @@
           },
           {
             "$ref": "#/components/parameters/csrf"
+          },
+          {
+            "$ref": "#/components/parameters/idempotencyKey"
           }
         ],
         "requestBody": {
@@ -3844,6 +3877,19 @@
           },
           "413": {
             "$ref": "#/components/responses/TooLarge"
+          },
+          "409": {
+            "description": "A retry with the same Idempotency-Key is still running (idempotency_in_progress)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "507": {
+            "$ref": "#/components/responses/SiteFull"
           },
           "401": {
             "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) \u2014 such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. use_custom_domain is never returned for a site that has no domain. A private list answers visitor_auth_required whenever no visitor is signed in on the site's own address.",
@@ -4007,6 +4053,10 @@
                           "created_at": {
                             "type": "string",
                             "format": "date-time"
+                          },
+                          "by": {
+                            "type": "string",
+                            "description": "who sent it (the address a visitor was signed in with); only in the owner's reads (owner or admin key, or the owner signed in on the site), never in public ones"
                           }
                         }
                       }
@@ -4027,6 +4077,9 @@
           },
           "403": {
             "$ref": "#/components/responses/OriginMismatch"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "404": {
             "description": "Site not found, or a private list and the caller is not its owner (code not_found)",
@@ -4306,7 +4359,7 @@
       "delete": {
         "operationId": "deleteCollectionItem",
         "summary": "Delete an item from a list",
-        "description": "Removes the item for everyone. There is no undo. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else \u2014 visitors including the one who submitted the item, other accounts, anything through another address \u2014 gets 404 not_found. Works in any list, public included (spam); visitors only ever append.",
+        "description": "Removes the item for everyone. It stays in the list's Recently deleted for 30 days (SAVED_DATA_UNDO_DAYS), where POST .../items/{id}/restore brings it back. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else \u2014 visitors including the one who submitted the item, other accounts, anything through another address \u2014 gets 404 not_found. Works in any list, public included (spam); visitors only ever append.",
         "tags": [
           "Collections"
         ],
@@ -4354,6 +4407,850 @@
                 "example": {
                   "error": "not found",
                   "code": "not_found"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/state/history": {
+      "get": {
+        "operationId": "getStateHistory",
+        "summary": "Changes to a site's saved data (owner)",
+        "description": "Every change to the site's saved-data document in the last 30 days (SAVED_DATA_UNDO_DAYS), newest first, without the values: what happened (`op`: replace for a PUT, change for a PATCH, restore), who made it (`by`, the address they were signed in with; `by_kind` owner, admin, visitor or anonymous) and when. A write that leaves the document as it was is not recorded. Past a per-site cap (SAVED_DATA_HISTORY_MAX_MB, 20 MB) the oldest versions are thinned, but the first change of each day is always kept. Owner (X-API-Key or connector token) or the operator only.",
+        "tags": [
+          "State"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "cursor for older changes (`next`)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Changes, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "site": {
+                      "type": "string"
+                    },
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "description": "the change's id, for .../history/{id} and .../restore"
+                          },
+                          "item_id": {
+                            "type": "integer",
+                            "description": "the list item it changed (lists only)"
+                          },
+                          "op": {
+                            "type": "string",
+                            "enum": [
+                              "replace",
+                              "change",
+                              "edit",
+                              "delete",
+                              "clear",
+                              "undelete",
+                              "restore"
+                            ]
+                          },
+                          "by": {
+                            "type": "string",
+                            "description": "who made it: the address they were signed in with; absent when nobody was signed in"
+                          },
+                          "by_kind": {
+                            "type": "string",
+                            "enum": [
+                              "owner",
+                              "admin",
+                              "visitor",
+                              "anonymous"
+                            ]
+                          },
+                          "at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "size": {
+                            "type": "integer",
+                            "description": "bytes of the value from before the change"
+                          }
+                        }
+                      }
+                    },
+                    "next": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "undo_days": {
+                      "type": "integer",
+                      "example": 30
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/state/history/{id}": {
+      "get": {
+        "operationId": "getStateHistoryEntry",
+        "summary": "One change, with the saved data from just before it (owner)",
+        "tags": [
+          "State"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The change; `value` is the document as it was just before it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "description": "the change's id, for .../history/{id} and .../restore"
+                        },
+                        "item_id": {
+                          "type": "integer",
+                          "description": "the list item it changed (lists only)"
+                        },
+                        "op": {
+                          "type": "string",
+                          "enum": [
+                            "replace",
+                            "change",
+                            "edit",
+                            "delete",
+                            "clear",
+                            "undelete",
+                            "restore"
+                          ]
+                        },
+                        "by": {
+                          "type": "string",
+                          "description": "who made it: the address they were signed in with; absent when nobody was signed in"
+                        },
+                        "by_kind": {
+                          "type": "string",
+                          "enum": [
+                            "owner",
+                            "admin",
+                            "visitor",
+                            "anonymous"
+                          ]
+                        },
+                        "at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "size": {
+                          "type": "integer",
+                          "description": "bytes of the value from before the change"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "description": "the saved data before the change"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/state/history/{id}/restore": {
+      "post": {
+        "operationId": "restoreStateVersion",
+        "summary": "Put the saved data back as it was before a change (owner)",
+        "description": "The document goes back to exactly how it was just before change `id`; pages see it at once. The restore is itself a change (op restore), so it can be undone the same way. Refused on a taken-down site.",
+        "tags": [
+          "State"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Restored",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "site": {
+                      "type": "string"
+                    },
+                    "restored": {
+                      "type": "integer"
+                    },
+                    "version": {
+                      "type": "integer"
+                    },
+                    "state": {
+                      "description": "the document now"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The change holds no earlier value (nothing_to_restore)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/collections/{coll}/history": {
+      "get": {
+        "operationId": "getCollectionHistory",
+        "summary": "Changes to a list's items (owner)",
+        "description": "Every edit, delete, clear, undelete and restore of the list's items in the last 30 days, newest first (`item_id` names the item). Appends are not listed: the items themselves carry their time and, for the owner, who sent them. Owner (X-API-Key or connector token) or the operator only; a private list is not answered through the shared host.",
+        "tags": [
+          "Collections"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/coll"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Changes, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "site": {
+                      "type": "string"
+                    },
+                    "collection": {
+                      "type": "string"
+                    },
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "description": "the change's id, for .../history/{id} and .../restore"
+                          },
+                          "item_id": {
+                            "type": "integer",
+                            "description": "the list item it changed (lists only)"
+                          },
+                          "op": {
+                            "type": "string",
+                            "enum": [
+                              "replace",
+                              "change",
+                              "edit",
+                              "delete",
+                              "clear",
+                              "undelete",
+                              "restore"
+                            ]
+                          },
+                          "by": {
+                            "type": "string",
+                            "description": "who made it: the address they were signed in with; absent when nobody was signed in"
+                          },
+                          "by_kind": {
+                            "type": "string",
+                            "enum": [
+                              "owner",
+                              "admin",
+                              "visitor",
+                              "anonymous"
+                            ]
+                          },
+                          "at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "size": {
+                            "type": "integer",
+                            "description": "bytes of the value from before the change"
+                          }
+                        }
+                      }
+                    },
+                    "next": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "undo_days": {
+                      "type": "integer",
+                      "example": 30
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/collections/{coll}/history/{id}": {
+      "get": {
+        "operationId": "getCollectionHistoryEntry",
+        "summary": "One list change, with the item's data from just before it (owner)",
+        "tags": [
+          "Collections"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/coll"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The change; `value` is the item's data before an edit or restore (null for a delete or clear, whose item still holds its data)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "description": "the change's id, for .../history/{id} and .../restore"
+                        },
+                        "item_id": {
+                          "type": "integer",
+                          "description": "the list item it changed (lists only)"
+                        },
+                        "op": {
+                          "type": "string",
+                          "enum": [
+                            "replace",
+                            "change",
+                            "edit",
+                            "delete",
+                            "clear",
+                            "undelete",
+                            "restore"
+                          ]
+                        },
+                        "by": {
+                          "type": "string",
+                          "description": "who made it: the address they were signed in with; absent when nobody was signed in"
+                        },
+                        "by_kind": {
+                          "type": "string",
+                          "enum": [
+                            "owner",
+                            "admin",
+                            "visitor",
+                            "anonymous"
+                          ]
+                        },
+                        "at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "size": {
+                          "type": "integer",
+                          "description": "bytes of the value from before the change"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "value": {}
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/collections/{coll}/history/{id}/restore": {
+      "post": {
+        "operationId": "restoreCollectionChange",
+        "summary": "Undo one list change (owner)",
+        "description": "A delete or clear brings its item back; an edit or restore puts back the item's data from before it (and brings the item back if it was deleted since). Recorded as a change itself. Refused on a taken-down site.",
+        "tags": [
+          "Collections"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/coll"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Undone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "site": {
+                      "type": "string"
+                    },
+                    "collection": {
+                      "type": "string"
+                    },
+                    "restored": {
+                      "type": "integer"
+                    },
+                    "item": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "data": {},
+                        "created_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The change holds no earlier value (nothing_to_restore)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/collections/{coll}/deleted": {
+      "get": {
+        "operationId": "getCollectionDeleted",
+        "summary": "A list's Recently deleted (owner)",
+        "description": "Items deleted from the list (one by one or by clearing it) in the last 30 days, most recently deleted first, with who sent each (`by`). After 30 days (SAVED_DATA_UNDO_DAYS) they are removed for good. Owner or operator only.",
+        "tags": [
+          "Collections"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/coll"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "site": {
+                      "type": "string"
+                    },
+                    "collection": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "data": {},
+                          "created_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "deleted_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "by": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "next": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "undo_days": {
+                      "type": "integer",
+                      "example": 30
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/collections/{coll}/deleted/restore": {
+      "post": {
+        "operationId": "restoreCollectionDeleted",
+        "summary": "Bring back every deleted item in a list (owner)",
+        "description": "The body must be `{\"all\": true}` (400 confirm_required otherwise). Undoes a clear. Refused on a taken-down site.",
+        "tags": [
+          "Collections"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/coll"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "all": {
+                    "type": "boolean",
+                    "enum": [
+                      true
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "How many came back",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "site": {
+                      "type": "string"
+                    },
+                    "collection": {
+                      "type": "string"
+                    },
+                    "restored": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/collections/{coll}/items/{id}/restore": {
+      "post": {
+        "operationId": "restoreCollectionItem",
+        "summary": "Bring back one deleted item (owner)",
+        "tags": [
+          "Collections"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/coll"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Back in the list, with its original time",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "site": {
+                      "type": "string"
+                    },
+                    "collection": {
+                      "type": "string"
+                    },
+                    "restored": {
+                      "type": "integer",
+                      "enum": [
+                        1
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "Not in the list's Recently deleted (not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -4596,13 +5493,16 @@
           },
           "403": {
             "$ref": "#/components/responses/OriginMismatch"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         }
       },
       "put": {
         "operationId": "putSiteStateByHandle",
         "summary": "Replace per-site JSON state (v3, by handle)",
-        "description": "Overwrites the whole blob (\u2264 1 MB), last-write-wins. Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Overwrites the whole blob (\u2264 1 MB), last-write-wins. The document from before is kept for 30 days (GET .../state/history; restore with POST .../state/history/{id}/restore). Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "tags": [
           "State"
         ],
@@ -4717,13 +5617,16 @@
           },
           "413": {
             "$ref": "#/components/responses/TooLarge"
+          },
+          "507": {
+            "$ref": "#/components/responses/SiteFull"
           }
         }
       },
       "patch": {
         "operationId": "patchSiteStateByHandle",
         "summary": "Atomically update per-site state (v3, by handle)",
-        "description": "Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Ops \u2014 `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match). v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Ops \u2014 `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match). Numbers keep their exact digits (a whole-number `inc` adds exactly). Every change keeps the document from before it for 30 days (GET .../state/history). v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "tags": [
           "State"
         ],
@@ -4742,6 +5645,9 @@
           },
           {
             "$ref": "#/components/parameters/csrf"
+          },
+          {
+            "$ref": "#/components/parameters/idempotencyKey"
           }
         ],
         "requestBody": {
@@ -4876,6 +5782,22 @@
           },
           "403": {
             "$ref": "#/components/responses/OriginMismatch"
+          },
+          "409": {
+            "description": "A retry with the same Idempotency-Key is still running (idempotency_in_progress), or the document is not an object (not_an_object)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "507": {
+            "$ref": "#/components/responses/SiteFull"
           }
         }
       }
@@ -4884,7 +5806,7 @@
       "delete": {
         "operationId": "clearCollectionByHandle",
         "summary": "Empty a list (owner only, by handle)",
-        "description": "Deletes every item in one list, public or private, for good; the list keeps its private/public setting. The body must repeat the list's name, `{\"confirm\": \"<coll>\"}`, or nothing is deleted (400 confirm_required). Allowed for the site owner (X-API-Key, connector token, or the owner's own visitor session on the site's own address with `X-SH-CSRF: 1`) and the Simple Host operator, for moderation. Everyone else gets 404 not_found. Visitors only ever append.",
+        "description": "Deletes every item in one list, public or private; the items stay in the list's Recently deleted for 30 days (SAVED_DATA_UNDO_DAYS; GET .../deleted, POST .../deleted/restore brings them all back), and the list keeps its private/public setting. The answer adds `restorable_days`. The body must repeat the list's name, `{\"confirm\": \"<coll>\"}`, or nothing is deleted (400 confirm_required). Allowed for the site owner (X-API-Key, connector token, or the owner's own visitor session on the site's own address with `X-SH-CSRF: 1`) and the Simple Host operator, for moderation. Everyone else gets 404 not_found. Visitors only ever append.",
         "tags": [
           "Collections"
         ],
@@ -4996,7 +5918,7 @@
       "post": {
         "operationId": "postCollectionByHandle",
         "summary": "Append an item to a collection (v3, by handle)",
-        "description": "Append-only list (O(1) insert). For signups, RSVPs, submissions. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Each item \u2264 64 KB. PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Append-only list (O(1) insert). For signups, RSVPs, submissions. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Each item \u2264 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged. PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "tags": [
           "Collections"
         ],
@@ -5018,6 +5940,9 @@
           },
           {
             "$ref": "#/components/parameters/csrf"
+          },
+          {
+            "$ref": "#/components/parameters/idempotencyKey"
           }
         ],
         "requestBody": {
@@ -5071,6 +5996,19 @@
           },
           "413": {
             "$ref": "#/components/responses/TooLarge"
+          },
+          "409": {
+            "description": "A retry with the same Idempotency-Key is still running (idempotency_in_progress)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "507": {
+            "$ref": "#/components/responses/SiteFull"
           },
           "401": {
             "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) \u2014 such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. use_custom_domain is never returned for a site that has no domain. A private list answers visitor_auth_required whenever no visitor is signed in on the site's own address.",
@@ -5243,6 +6181,10 @@
                           "created_at": {
                             "type": "string",
                             "format": "date-time"
+                          },
+                          "by": {
+                            "type": "string",
+                            "description": "who sent it (the address a visitor was signed in with); only in the owner's reads (owner or admin key, or the owner signed in on the site), never in public ones"
                           }
                         }
                       }
@@ -5263,6 +6205,9 @@
           },
           "403": {
             "$ref": "#/components/responses/OriginMismatch"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "404": {
             "description": "Site not found, or a private list and the caller is not its owner (code not_found)",
@@ -5417,7 +6362,7 @@
       "delete": {
         "operationId": "deleteCollectionItemByHandle",
         "summary": "Delete an item from a list (v3, by handle)",
-        "description": "Removes the item for everyone. There is no undo. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else \u2014 visitors including the one who submitted the item, other accounts, anything through another address \u2014 gets 404 not_found. Works in any list, public included (spam); visitors only ever append.",
+        "description": "Removes the item for everyone. It stays in the list's Recently deleted for 30 days (SAVED_DATA_UNDO_DAYS), where POST .../items/{id}/restore brings it back. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else \u2014 visitors including the one who submitted the item, other accounts, anything through another address \u2014 gets 404 not_found. Works in any list, public included (spam); visitors only ever append.",
         "tags": [
           "Collections"
         ],
@@ -6280,6 +7225,106 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/admin/data-watch": {
+      "get": {
+        "operationId": "getAdminDataWatch",
+        "summary": "The saved-data watch (admin)",
+        "description": "Admin-only (403 for anyone else). Per site and summed over the last `days` days (default SAVED_DATA_WATCH_DAYS, 7; at most 90): how often each saved-data use that a later step makes owner-only or bounded happened, before anything is enforced. Counts only, never content. Metrics: put_by_visitor (a whole-document replace not by the owner), put_not_object (a document replaced by something other than an object), visitor_op_<op> (visitor PATCH ops by type), visitor_inc_large (a visitor inc beyond SAVED_DATA_WATCH_INC_MAX, 10), new_list_name (a visitor started a list name never used on the site), item_large (a list item over SAVED_DATA_WATCH_ITEM_KB, 16 KB).",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 90
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The watch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "days": {
+                      "type": "integer"
+                    },
+                    "watch_days": {
+                      "type": "integer",
+                      "example": 7
+                    },
+                    "since": {
+                      "type": "string",
+                      "format": "date",
+                      "description": "first day anything was counted"
+                    },
+                    "days_counted": {
+                      "type": "integer"
+                    },
+                    "thresholds": {
+                      "type": "object",
+                      "properties": {
+                        "inc_max": {
+                          "type": "integer"
+                        },
+                        "item_kb": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "sites": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "site_id": {
+                            "type": "string"
+                          },
+                          "site": {
+                            "type": "string"
+                          },
+                          "handle": {
+                            "type": "string"
+                          },
+                          "metrics": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "integer"
+                            }
+                          },
+                          "last_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
         }
       }
@@ -8844,6 +9889,16 @@
           ]
         },
         "description": "Required on cookie-authenticated writes"
+      },
+      "idempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "maxLength": 255
+        },
+        "description": "Any unique string per write (e.g. a random UUID). A retry with the same key (same route, same caller) is saved once: the first successful answer is replayed for 24 hours (SAVED_DATA_IDEMPOTENCY_HOURS) with `Idempotent-Replayed: true`. While the first request is still running a retry gets 409 idempotency_in_progress; a failed request is not remembered. Longer than 255 characters: 400 invalid_idempotency_key."
       }
     },
     "schemas": {
@@ -9356,7 +10411,7 @@
         }
       },
       "TooLarge": {
-        "description": "Payload too large",
+        "description": "Payload too large (on saved data, code item_too_large)",
         "content": {
           "application/json": {
             "schema": {
@@ -9366,11 +10421,25 @@
         }
       },
       "TooManyRequests": {
-        "description": "Rate limited",
+        "description": "Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).",
         "content": {
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "SiteFull": {
+        "description": "The site's saved data, history included, would pass 50 MB (SAVED_DATA_SITE_MAX_MB), even after old history was thinned (code site_full). The owner can clear lists or data.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": "this site's saved data is full (50 MB, history included); the owner can clear lists or old data",
+              "code": "site_full"
             }
           }
         }

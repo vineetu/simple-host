@@ -70,6 +70,16 @@ PATCH /v1/sites/<sitename>/state    # atomic ops — use these
 
 `GET` returns the document with an `ETag`; send `If-None-Match: <etag>` to get
 `304` when nothing changed (cheap polling). The document is capped at ~1 MB.
+Numbers keep their exact digits. Reads are limited to 30 a second per visitor
+address (429 `rate_limited`): poll every few seconds, not in a tight loop.
+
+Every change is kept for 30 days: the owner sees who changed what and when, and
+can put an earlier version back (owner app **History**; connector
+`data_history` and `restore_data`; `GET /v1/sites/<sitename>/state/history`,
+`GET .../state/history/<id>` for the value before that change,
+`POST .../state/history/<id>/restore`, all with the owner's key). A wiped or
+overwritten document is recoverable, but still prefer `PATCH` ops to a whole
+`PUT`.
 
 For **per-visitor** state (a draft, a preference, a dismissed banner) use
 `localStorage` in the page instead — it never belongs in shared state.
@@ -88,16 +98,29 @@ page fills, `next` is the cursor for the older page: `?limit=50&before=<next>`;
 `next` is absent on the last page.
 
 If an append succeeds and a follow-up `state` patch (a live count) fails, retry
-only the patch — never re-append.
+only the patch — never re-append. A write that may have landed can be retried
+safely with the same `Idempotency-Key` header (any unique string per write,
+e.g. `crypto.randomUUID()`): a POST or PATCH retried with the same key is saved
+once and the first answer comes back (`Idempotent-Replayed: true`).
+
+Every item sent by a signed-in visitor records who sent it. The owner sees it
+(`by` on each item in the owner's reads, a `sent_by` column in the CSV); public
+reads and the POST answer never show it.
 
 Visitors only append. The site owner can remove entries from any list, public
 included (spam in a guestbook, test entries before launch): one item with
 `DELETE /v1/sites/<sitename>/collections/<name>/items/<id>`, or the whole list
 with `DELETE /v1/sites/<sitename>/collections/<name>` and the body
-`{"confirm": "<name>"}` (answers `{"deleted": <n>}`; 400 `confirm_required`
-without the matching name). Connector: `delete_collection_item`,
+`{"confirm": "<name>"}` (answers `{"deleted": <n>, "restorable_days": 30}`; 400
+`confirm_required` without the matching name). Connector: `delete_collection_item`,
 `clear_collection`. The owner app on the person's page does both too. Confirm
-with the person before either; nothing brings entries back.
+with the person before either. Deleted entries stay in the list's **Recently
+deleted** for 30 days: `GET .../collections/<name>/deleted`,
+`POST .../collections/<name>/items/<id>/restore` for one, or
+`POST .../collections/<name>/deleted/restore` with `{"all": true}` to undo a clear
+(connector `list_deleted`, `restore_item`; owner app Recently deleted). Every
+edit, delete and clear is in `GET .../collections/<name>/history` and can be
+undone with `POST .../history/<id>/restore` (`data_history`, `restore_data`).
 
 **Pair every form with a viewer page.** A form with nowhere to read the results
 is half a feature. Add a second page (e.g. `admin.html`) that GETs the collection
@@ -322,7 +345,9 @@ The `/v1/u/<handle>/sites/<sitename>/...` twins work too. `<id>` is
   removed (ignored if sent), and `created_at` never changes. Answers 200 with the
   item `{id, data, created_at}`. 400 if the body is not an object, 413 if the
   item is over 64 KB after the merge.
-- **DELETE** answers 204. The item is gone for good; confirm with the owner first.
+- **DELETE** answers 204. The item leaves the list at once and stays in its
+  Recently deleted for 30 days, where the owner can restore it; confirm with the
+  owner first. An edit can be undone from the list's history the same way.
 - **Who:** the site owner — with `X-API-Key`, the connector
   (`update_collection_item`, `delete_collection_item`), or the owner's own
   sign-in on the site's own address from a page there (send `X-SH-CSRF: 1`; the
@@ -361,7 +386,7 @@ the old `sites.simple-host.app` address answers 404 for it, even with a key.
 | 403 | `private_needs_own_domain` | Sent from anywhere other than the site's own address (`<site>.<handle>.simple-host.app` or, while a new account uses it, the `<handle>.simple-host.app/<site>/` fallback; or its domain if it has one). |
 | 401 | `use_custom_domain` (+ `domain`) | The site has a domain and this was sent through its previous address. Link the visitor to the same page on `domain`. |
 | 400 | — | The item is not one JSON object. |
-| 413 | — | The item is over 64 KB. |
+| 413 | `item_too_large` | The item is over 64 KB. |
 
 ## Saving from an agent (API key)
 
@@ -403,6 +428,10 @@ management. An agent that already holds the owner's key needs none of this.
 | 404 | `{"error":"site not found"}` | On a write with a key: the key's account does not own this site (or it does not exist). Use the owner's key; do not retry. |
 | 401 | `{"error":"this site saves on its own domain","code":"use_custom_domain","domain":"recipes.brand.com"}` | The site has a domain and this was sent through its previous address: that address takes no writes for it, key or not (its page URL itself 302s to the domain). Pages: link the visitor to the same page on `domain`. Agents: write through the apex `https://simple-host.app/v1/...` or the domain's `/v1/`. Do not retry here. |
 | 403 | (reads) | No `Origin` header on a non-browser read. Send one. |
+| 413 | `{"error":"item too large","code":"item_too_large"}` | Over 64 KB (an item) or 1 MB (the document). |
+| 429 | `{"error":"rate limit exceeded, slow down","code":"rate_limited"}` | Too many requests from this address. Wait (`Retry-After`) and poll less often. |
+| 507 | `{"error":"…","code":"site_full"}` | The site's saved data, history included, is at 50 MB. The owner clears lists or old data. |
+| 409 | `{"code":"idempotency_in_progress"}` | The first request with this `Idempotency-Key` is still being saved. Retry in a moment with the same key. |
 
 On any of these: keep the form, never claim success, and never re-POST a
 collection item after a partial write.

@@ -155,7 +155,7 @@ func writeTarBytes(tw *tar.Writer, name string, b []byte) error {
 }
 
 // exportItem is one list entry in collections.json: its id, when it was
-// saved, who sent it (private lists only) and what the page saved.
+// saved, who sent it (when they were signed in) and what the page saved.
 type exportItem struct {
 	ID          int64           `json:"id"`
 	CreatedAt   time.Time       `json:"created_at"`

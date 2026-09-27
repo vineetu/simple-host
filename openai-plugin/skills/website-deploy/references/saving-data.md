@@ -247,7 +247,8 @@ Page through older items with `before: r.next`, as in `loadAll` above.
 - `SH.collection(name).update(id, fields)` merges `fields` into the item (a field sent as
   `null` is removed) and resolves with the item `{ id, data, created_at }`. `_submitted_by`,
   `_submitted_at` and `created_at` never change.
-- `SH.collection(name).remove(id)` deletes the item for everyone. There is no undo.
+- `SH.collection(name).remove(id)` deletes the item for everyone. It stays in the list's
+  recently deleted for 30 days, where the owner can bring it back (`restore_item`).
 - Both work only on a private list, only for the owner signed in on the site's own address.
   On a public list they are refused with 409 `append_only`.
 
@@ -256,7 +257,8 @@ columns appear like any other key). You read it with `read_collection` (its answ
 `private: true` and each item's `id`) and change it with:
 
 - `update_collection_item` `{site, collection, id, fields}`: e.g. `fields: {"status": "done"}`.
-  Overwrites with no undo; `null` removes a field.
+  Overwrites; `null` removes a field. The earlier fields are kept 30 days (`data_history`,
+  `restore_data`).
 - `delete_collection_item` `{site, collection, id, confirm_id}`: `confirm_id` is the same id
   again. Call it only after the person has explicitly confirmed deleting that specific item.
 
@@ -287,6 +289,12 @@ columns appear like any other key). You read it with `read_collection` (its answ
   emptied with `clear_collection` (after the person confirms that list by name). Items in a
   public collection cannot be edited; items in a private one can, with
   `update_collection_item`.
+- Every change to the state document and every edit, delete or clear of list items is kept
+  for 30 days. `data_history` (site, optional collection) lists them with who made each and
+  when, and shows one earlier value with `version`; `restore_data` puts one back (confirm
+  which with the person first). `list_deleted` and `restore_item` (one `id`, or `all: true`
+  to undo `clear_collection`) bring deleted items back. `read_collection` shows the owner who
+  sent each item (`by`).
 
 ## Errors a page can meet
 
