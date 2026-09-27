@@ -44,7 +44,8 @@
 # name covers both. The partner goes on the same certificate, as a
 # redirect-only host (301 to the chosen name), only when it passes the same
 # checks as any domain: no other server here answers it, no certificate here
-# that we did not issue names it, it is not connected to a site of its own,
+# that we did not issue names it, it is not connected to a site of its own
+# (nor bound to another site that has not proved it yet),
 # its A record points here and no AAAA record points elsewhere. Otherwise the
 # chosen name is served alone and the ready marker says why the partner is
 # not set up. A partner that later proves itself as a site of its own is taken
@@ -236,12 +237,17 @@ ready_partner() {
   case $l in "partner "*) printf '%s' "${l#partner }" ;; esac
 }
 
-# partner_blocked <partner>: 0 (and why on stdout) when the partner may not
-# go on a certificate here.
+# partner_blocked <partner> <the chosen name's link target>: 0 (and why on
+# stdout) when the partner may not go on a certificate here.
 partner_blocked() {
-  local p=$1 who a aaaa
+  local p=$1 target=$2 who a aaaa
   if [ -e "$STATE/ready/$p" ] || [ -e "$AVAILABLE/$PREFIX$p" ]; then
     echo "$p is connected to a site of its own"; return 0
+  fi
+  # Bound to another site (another account's, before it proved itself): its
+  # owner decides what it serves, never this one's redirect.
+  if [ -L "$SITES/$p" ] && [ "$(readlink -- "$SITES/$p")" != "$target" ]; then
+    echo "$p is connected to another site"; return 0
   fi
   if who=$(served_elsewhere "$p"); then
     log "$p (partner): named by ${who:-another server}"
@@ -416,7 +422,7 @@ for d in "${reqs[@]}"; do
   release_partner_of "$d"
   with_p=""
   pwhy=""
-  if [ -n "$partner" ] && ! pwhy=$(partner_blocked "$partner"); then
+  if [ -n "$partner" ] && ! pwhy=$(partner_blocked "$partner" "$target"); then
     with_p=$partner
     pwhy=""
   fi

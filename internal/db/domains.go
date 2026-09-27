@@ -681,3 +681,14 @@ func PruneDomainCertRequests(ctx context.Context, database *sql.DB) error {
 	_, err := database.ExecContext(ctx, `DELETE FROM domain_cert_requests WHERE requested_at < now() - interval '2 days'`)
 	return err
 }
+
+// DomainBoundToOtherSite reports whether a site other than siteID (any
+// account's, Recently deleted included) has domain as its custom domain or
+// the earlier one it still serves: a www / bare partner that is not this
+// site's to redirect.
+func DomainBoundToOtherSite(ctx context.Context, q Querier, domain, siteID string) (bool, error) {
+	var bound bool
+	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM sites
+		 WHERE id::text <> $2 AND (lower(custom_domain) = lower($1) OR lower(previous_domain) = lower($1)))`, domain, siteID).Scan(&bound)
+	return bound, err
+}

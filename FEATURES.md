@@ -168,6 +168,9 @@ and it is not connected to a site of its own; otherwise the chosen name goes liv
 `partner_status: not_set_up` with `partner_note` says why. A live domain whose partner is not set
 up asks the issuer again (certificate expanded) once the partner points here, at most every 6 h.
 A partner that later proves itself as a site of its own is taken off the other server first.
+A partner another site has bound (any account's, even before it proves itself) is neither
+offered nor asked for, and the issuer skips a partner whose `domains/` link points at another
+site.
 Nothing is stored for the partner: it follows from the domain, its state is the ready marker.
 
 | Surface | Details |

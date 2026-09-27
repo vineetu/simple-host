@@ -159,6 +159,12 @@ echo "partner www.late2.test" > "$T/state/ready/late2.test"
 printf 'server { server_name late2.test; }\nserver { server_name www.late2.test; }\n' > "$T/avail/simple-host-domain-late2.test"
 ln -s "$T/avail/simple-host-domain-late2.test" "$T/enabled/simple-host-domain-late2.test"
 printf 'server { server_name www.late2.test; }\n' > "$T/enabled/www.late2.test"
+# The partner is bound to another account's site that has not proved it yet:
+# it stays off this one's certificate.
+ln -s ../by-id/u/s "$S/taken.test"
+ln -s ../by-id/v/theirs "$S/www.taken.test"
+echo "$TOK" > "$T/txt/taken.test"
+printf '%s\n../by-id/u/s\nwww.taken.test\n' "$TOK" > "$T/state/requests/taken.test"
 # Let's Encrypt refuses the partner: the chosen name is issued alone.
 touch "$T/lefail/www.lefail.test"
 printf '%s\n../by-id/u/s\nwww.lefail.test\n' "$TOK" > "$T/state/requests/lefail.test"
@@ -199,6 +205,7 @@ check "nodns.test: partner not pointed here is reported, chosen name live" "issu
 check "bogus.test: a partner that is not www / bare is ignored" "issued bogus.test && ! grep -q evil.example '$T/calls' && [ ! -s '$T/state/ready/bogus.test' ]"
 check "grow.test: certificate expanded with the partner" "grep -q -- '--cert-name grow.test --expand -d grow.test -d www.grow.test' '$T/calls' && grep -qx 'partner www.grow.test' '$T/state/ready/grow.test'"
 check "www.own.test: proven on its own, comes off own.test's server" "grep -q '^partner-not-set-up www.own.test: .*site of its own' '$T/state/ready/own.test' && ! grep -q 'server_name www.own.test' '$T/avail/simple-host-domain-own.test' && issued www.own.test && [ -f '$T/state/ready/www.own.test' ]"
+check "taken.test: partner bound to another site stays off" "issued taken.test && ! issued www.taken.test && grep -q '^partner-not-set-up www.taken.test: .*connected to another site' '$T/state/ready/taken.test' && ! grep -q 'server_name www.taken.test' '$T/avail/simple-host-domain-taken.test'"
 check "lefail.test: partner refused, chosen name issued alone" "grep -q '^partner-not-set-up www.lefail.test: .*refused' '$T/state/ready/lefail.test' && grep -qx lefail.test '$T/state/owned/lefail.test' && ! grep -qx www.lefail.test '$T/state/owned/lefail.test'"
 check "late2.test: partner named by a hand-made server comes off ours" "grep -q '^partner-not-set-up www.late2.test: .*already served here' '$T/state/ready/late2.test' && ! grep -q 'server_name www.late2.test' '$T/avail/simple-host-domain-late2.test' && grep -q 'server_name late2.test' '$T/avail/simple-host-domain-late2.test'"
 check "no nginx configuration in the output" "! grep -q 'server_name' '$T/out'"

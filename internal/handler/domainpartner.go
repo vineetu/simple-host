@@ -46,6 +46,27 @@ func (h *SiteHandler) partnerOf(domain string) string {
 	return domainPartner(domain)
 }
 
+// partnerBoundElsewhere reports whether the partner of a site's domain is
+// bound to another site (any account's): it is then never asked for, and
+// the issuer skips it too (deploy/domain-certs/issue.sh partner_blocked).
+func (h *SiteHandler) partnerBoundElsewhere(ctx context.Context, partner, siteID string) bool {
+	if h.database == nil || partner == "" {
+		return false
+	}
+	bound, err := db.DomainBoundToOtherSite(ctx, h.database, partner, siteID)
+	return err != nil || bound
+}
+
+// requestablePartner is the partner a certificate request for d names: its
+// www / bare partner, unless another site has bound that name.
+func (h *SiteHandler) requestablePartner(ctx context.Context, d db.BoundDomain) string {
+	p := domainPartner(d.Domain)
+	if h.partnerBoundElsewhere(ctx, p, d.SiteID) {
+		return ""
+	}
+	return p
+}
+
 // partnerState reads the partner's state from the issuer's ready marker for
 // domain: "live" (on the certificate, redirecting), "not_set_up" with the
 // issuer's reason, or "pending" while the chosen name has no certificate yet.
@@ -86,12 +107,12 @@ type partnerInfo struct {
 	Note   string
 }
 
-func (h *SiteHandler) partnerInfoFor(domain string) *partnerInfo {
+func (h *SiteHandler) partnerInfoFor(domain, siteID string) *partnerInfo {
 	p := h.partnerOf(domain)
 	// Only where the issuer sets partners up (DOMAIN_CERT_DIR): elsewhere
 	// (certificates by hand, Caddy on event boxes) nothing would serve it,
-	// so it is not offered.
-	if p == "" || h.domainCertDir == "" {
+	// so it is not offered. Nor when another site has bound the partner.
+	if p == "" || h.domainCertDir == "" || h.partnerBoundElsewhere(context.Background(), p, siteID) {
 		return nil
 	}
 	rec := h.dnsRecordFor(p)
@@ -108,7 +129,7 @@ func (h *SiteHandler) partnerInfoFor(domain string) *partnerInfo {
 // partnerRetryAfter (and keeps a request the issuer has not taken yet).
 func (h *SiteHandler) wantPartnerCert(ctx context.Context, d db.BoundDomain, ours map[string]bool) bool {
 	p := h.partnerOf(d.Domain)
-	if p == "" || h.domainCertDir == "" {
+	if p == "" || h.domainCertDir == "" || h.partnerBoundElsewhere(ctx, p, d.SiteID) {
 		return false
 	}
 	state, _, since := h.partnerState(d.Domain)

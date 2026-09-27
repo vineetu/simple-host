@@ -205,7 +205,7 @@ func (h *SiteHandler) domainResponseFor(info db.SiteDomainInfo) domainResponse {
 				resp.CertStatus = "live"
 			}
 		}
-		if p := h.partnerInfoFor(info.Domain); p != nil {
+		if p := h.partnerInfoFor(info.Domain, info.SiteID); p != nil {
 			resp.PartnerDomain, resp.DNSPartner, resp.PartnerStatus, resp.PartnerNote = p.Domain, p.DNS, p.Status, p.Note
 		}
 	}

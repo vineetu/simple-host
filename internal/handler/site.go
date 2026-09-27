@@ -1992,7 +1992,7 @@ func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
 		resp.AddressState = h.siteAddressStateFor(site.OwnerHandle, site.Name)
 	}
 	if site.CustomDomain.Valid && site.CustomDomain.String != "" {
-		if p := h.partnerInfoFor(site.CustomDomain.String); p != nil {
+		if p := h.partnerInfoFor(site.CustomDomain.String, site.ID); p != nil {
 			resp.DomainPartner, resp.DomainPartnerDNS, resp.DomainPartnerStatus, resp.DomainPartnerNote = p.Domain, p.DNS, p.Status, p.Note
 		}
 	}
