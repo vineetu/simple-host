@@ -18,11 +18,12 @@ SKILL_BUILD=simple-host-website/skills/website-deploy-builder/SKILL.md
 
 fail=0
 
-# Registered /v1 routes from the Go source (method+path), minus OPTIONS preflight.
+# Registered /v1 routes from the Go source (method+path), minus OPTIONS preflight
+# and the setup-mode mux's own routes (setup.go; /v1/setup/check is documented).
 routes=$(grep -rh --exclude='*_test.go' -oE 'mux\.Handle(Func)?\("[A-Z]+ /v1/[^"]+"' internal/ cmd/ \
   | sed -E 's/.*"([A-Z]+) (\/v1\/[^"]+)"/\1 \2/' \
   | grep -vE '^OPTIONS ' \
-  | grep -vE ' /v1/setup/' \
+  | grep -vE ' /v1/setup/(state|verify|own-domain|dns-check|free-name|finish)$' \
   | awk '{print $2}' | sed -E 's/\{([[:alnum:]_]+)\.\.\.\}/{\1}/g' | sort -u)
 
 # Paths documented in openapi.yaml (top-level keys under paths:).

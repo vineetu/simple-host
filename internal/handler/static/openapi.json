@@ -11120,7 +11120,7 @@
         },
         "responses": {
           "200": {
-            "description": "The answer, plain text of at most 200 words. The only links it may hold are markdown links to the assistant's own list of public pages of https://simple-host.app (Simple Host: home, features, architecture, docs, install, privacy, terms, support, enterprise; Simple Host Enterprise: the three enterprise pages, home and privacy). With Accept: text/event-stream, a stream of `data:` events instead: `{\"t\":\"...\"}` for each piece of text as the model writes it (raw, to show as plain text), then `{\"done\":true,\"answer\":\"...\"}` with the cleaned full answer that replaces the streamed text, or `{\"error\":\"...\",\"code\":\"unavailable\"}` if the answer stops part-way. A failure before the first piece is a plain 502 JSON error. The stream is sent unbuffered (X-Accel-Buffering: no).",
+            "description": "The answer, plain text of at most 200 words. The only links it may hold are markdown links to the assistant's own list of public pages of https://simple-host.app (Simple Host: home, features, architecture, docs, install, privacy, terms, support, enterprise and the setup helper, /setup?product=small-box or ?product=enterprise; Simple Host Enterprise: the three enterprise pages, home, privacy and /setup?product=enterprise). With Accept: text/event-stream, a stream of `data:` events instead: `{\"t\":\"...\"}` for each piece of text as the model writes it (raw, to show as plain text), then `{\"done\":true,\"answer\":\"...\"}` with the cleaned full answer that replaces the streamed text, or `{\"error\":\"...\",\"code\":\"unavailable\"}` if the answer stops part-way. A failure before the first piece is a plain 502 JSON error. The stream is sent unbuffered (X-Accel-Buffering: no).",
             "content": {
               "application/json": {
                 "schema": {
@@ -11192,6 +11192,155 @@
           },
           "503": {
             "description": "busy, too many questions being answered at once (code busy; does not count against the day), or the day's count is unavailable (code unavailable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/setup/check": {
+      "post": {
+        "operationId": "postSetupCheck",
+        "summary": "Check the setup helper's changed settings for likely mistakes",
+        "description": "Powers the optional \"Check my choices\" step of the setup helper at /setup, just before it shows the files. Send the product and the settings changed from their defaults, names and values only. Only settings of that product's list (the setup helper's settings files) whose type is a number, duration, switch, choice or rate are accepted: a secret is refused (secret_not_accepted) and so is free text such as a hostname or email (setting_not_checkable), and every value must be one the setting allows. The model (the same backend, ASK_MODEL and ASK_REASONING_EFFORT as the Ask assistants) sees those settings, each with its default, plus the settings list and known interactions between settings; nothing about the visitor is sent. Every finding is checked against the settings list before it is returned: one naming an unknown, secret or free-text setting, or suggesting a value outside a setting's allowed range, is dropped. The settings are never stored or logged. No sign-in. Same-origin only, as /v1/ask: no CORS grant, an application/json body, and the Origin must be this server's own address. Shares the Ask per-IP and per-network limits and its limit on answers at once; its own cap per UTC day across everyone (SETUP_CHECK_DAILY_MAX, default 200; 0 turns it off). Absent when the server has no model backend configured or ASK_ENABLED is off; the helper then shows its files without a check.",
+        "tags": [
+          "AI"
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "product",
+                  "settings"
+                ],
+                "properties": {
+                  "product": {
+                    "type": "string",
+                    "enum": [
+                      "small-box",
+                      "enterprise"
+                    ]
+                  },
+                  "settings": {
+                    "type": "object",
+                    "minProperties": 1,
+                    "maxProperties": 80,
+                    "description": "Setting name to value, as the settings file writes it (e.g. {\"MAX_ARCHIVE_MB\":\"500\"}).",
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 100
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The findings, possibly none. severity is warn (likely to cause trouble) or info; settings names the settings it is about; message is plain text; suggest, when present, holds values the settings list allows. At most 8.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "findings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "warn",
+                              "info"
+                            ]
+                          },
+                          "settings": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "suggest": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_body (not exactly {product, settings}), unknown_product, invalid_settings (none, or more than 80), unknown_setting, secret_not_accepted, setting_not_checkable or invalid_value",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "the Origin header is missing or is not this server's own address (code forbidden_origin)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "the body is not application/json (code unsupported_media_type)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited per IP or per network, or code daily_limit when today's checks are used up",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "the model failed, was too slow, or did not answer in the JSON asked for (code unavailable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "busy (code busy), or the day's count is unavailable (code unavailable)",
             "content": {
               "application/json": {
                 "schema": {

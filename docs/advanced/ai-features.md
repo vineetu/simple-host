@@ -6,6 +6,12 @@ backend is set (`LLM_API_KEY` and `LLM_BASE_URL`, or a provider); without one th
 shown. Questions are limited per address, per day across everyone, and in how many are answered
 at once.
 
+**The setup helper's check.** On a server with the backend, the setup helper at `/setup` can check
+a visitor's changed settings just before it writes their files (`POST /v1/setup/check`). It uses
+the same model, reasoning effort, per-address limits and limit on answers at once as the box, with
+its own cap per day, `SETUP_CHECK_DAILY_MAX` (0 turns it off; the helper then shows the files
+without it). Only setting names and values are sent, never free text or secrets.
+
 The same backend serves AI create (building a site from a description), whose settings are listed
 below with one line each. A small box has no model backend, so none of these apply there.
 

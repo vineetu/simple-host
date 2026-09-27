@@ -4,10 +4,14 @@ Simple Host runs with no settings beyond its address, and every default is what
 simple-host.app itself runs. This folder explains each advanced feature in plain terms, lists
 every setting that changes it, and gives recipes for common changes.
 
-**Easiest start: the setup helper at https://simple-host.app/setup.** It asks a few questions (or
-every question, in Advanced mode), keeps the default for anything you skip, and writes the
-one-line install command and the `.env` for a small box. It runs entirely in your browser and
-sends nothing anywhere.
+**Easiest start: the setup helper at https://simple-host.app/setup?product=small-box.** It asks a
+few questions (or every question, in Advanced mode), keeps the default for anything you skip, and
+writes the one-line install command and the `.env` for a small box. It runs in your browser and
+never asks for a password or key. Just before your files it can **check your choices** for likely
+mistakes (a setting that weakens sign-in, a retention or undo promise cut short, an upload size the
+box cannot hold): it sends only the names and values of the numbers, durations, switches and rates
+you changed, never hostnames, emails or secrets, and you Apply or Ignore each suggestion. You can
+skip it; where the server has no model backend it is skipped by itself.
 
 ## Where settings go
 
