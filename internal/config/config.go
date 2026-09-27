@@ -236,20 +236,34 @@ type Config struct {
 type SavedData struct {
 	UndoDays         int // SAVED_DATA_UNDO_DAYS: history and deleted items are kept this long (30)
 	HistoryMaxMB     int // SAVED_DATA_HISTORY_MAX_MB: per-site history cap before thinning (20)
-	SiteMaxMB        int // SAVED_DATA_SITE_MAX_MB: per-site total, history included (50)
+	SiteMaxMB        int // SAVED_DATA_SITE_MAX_MB: per-site live saved data (page data + list items; not history or Recently deleted) (50)
 	SweepMinutes     int // SAVED_DATA_SWEEP_MINUTES: how often expired history is removed (15)
 	WatchDays        int // SAVED_DATA_WATCH_DAYS: the watch window before tightening (7)
 	WatchIncMax      int // SAVED_DATA_WATCH_INC_MAX: a visitor inc larger than this is counted as large (10)
 	WatchItemKB      int // SAVED_DATA_WATCH_ITEM_KB: a list item larger than this is counted as large (16)
 	IdempotencyHours int // SAVED_DATA_IDEMPOTENCY_HOURS: how long a write's first answer is replayed (24)
-	ReadPerSec       int // SAVED_DATA_READ_PER_SEC: saved-data reads per second per address (30)
+	ReadPerSec       int // SAVED_DATA_READ_PER_SEC: saved-data reads per second per site and address, or per key (30)
 	ReadBurst        int // SAVED_DATA_READ_BURST: burst above that rate (60)
+	// SAVED_DATA_APPEND_PER_MIN / _BURST: list items one address may add per
+	// minute when not writing with the owner's key (30 / 30).
+	AppendPerMin int
+	AppendBurst  int
+	// SAVED_DATA_IDEMPOTENCY_MAX_PER_SITE: remembered Idempotency-Keys kept
+	// per site; the sweep drops the oldest past it (10000).
+	IdempotencyMaxPerSite int
+	// SAVED_DATA_SNAPSHOT_EVERY: a PATCH's history keeps only what it
+	// changed, with a full copy of the document at least every this many
+	// changes and on the first change of each day (50).
+	SnapshotEvery int
+	// SAVED_DATA_WATCH_KEEP_DAYS: watch counts older than this are removed (90).
+	WatchKeepDays int
 }
 
 // DefaultSavedData is the approved plan's values.
 func DefaultSavedData() SavedData {
 	return SavedData{UndoDays: 30, HistoryMaxMB: 20, SiteMaxMB: 50, SweepMinutes: 15, WatchDays: 7,
-		WatchIncMax: 10, WatchItemKB: 16, IdempotencyHours: 24, ReadPerSec: 30, ReadBurst: 60}
+		WatchIncMax: 10, WatchItemKB: 16, IdempotencyHours: 24, ReadPerSec: 30, ReadBurst: 60,
+		AppendPerMin: 30, AppendBurst: 30, IdempotencyMaxPerSite: 10000, SnapshotEvery: 50, WatchKeepDays: 90}
 }
 
 // positiveEnv reads a whole number > 0 from name, keeping def when it is
@@ -280,6 +294,12 @@ func loadSavedData() SavedData {
 		IdempotencyHours: positiveEnv("SAVED_DATA_IDEMPOTENCY_HOURS", d.IdempotencyHours),
 		ReadPerSec:       positiveEnv("SAVED_DATA_READ_PER_SEC", d.ReadPerSec),
 		ReadBurst:        positiveEnv("SAVED_DATA_READ_BURST", d.ReadBurst),
+
+		AppendPerMin:          positiveEnv("SAVED_DATA_APPEND_PER_MIN", d.AppendPerMin),
+		AppendBurst:           positiveEnv("SAVED_DATA_APPEND_BURST", d.AppendBurst),
+		IdempotencyMaxPerSite: positiveEnv("SAVED_DATA_IDEMPOTENCY_MAX_PER_SITE", d.IdempotencyMaxPerSite),
+		SnapshotEvery:         positiveEnv("SAVED_DATA_SNAPSHOT_EVERY", d.SnapshotEvery),
+		WatchKeepDays:         positiveEnv("SAVED_DATA_WATCH_KEEP_DAYS", d.WatchKeepDays),
 	}
 }
 

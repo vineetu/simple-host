@@ -183,9 +183,12 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		"GET /v1/sites/blog/collections/rsvps/history":            fixed(200, `{"site":"blog","collection":"rsvps","history":[{"id":4,"item_id":12,"op":"clear","by":"a@example.com","by_kind":"owner","at":"2026-09-27T00:00:00Z","size":0}],"next":null,"undo_days":30}`),
 		"POST /v1/sites/blog/state/history/9/restore":             fixed(200, `{"site":"blog","restored":9,"version":7,"state":{"count":2}}`),
 		"POST /v1/sites/blog/collections/rsvps/history/4/restore": fixed(200, `{"site":"blog","collection":"rsvps","restored":4,"item":{"id":12,"data":{"name":"Ann"},"created_at":"2026-09-03T00:00:00Z"}}`),
-		"GET /v1/sites/blog/collections/rsvps/deleted":            fixed(200, `{"site":"blog","collection":"rsvps","items":[{"id":12,"data":{"name":"Ann"},"created_at":"2026-09-03T00:00:00Z","deleted_at":"2026-09-27T00:00:00Z","by":"v@example.com"}],"next":12,"undo_days":30}`),
+		"GET /v1/sites/blog/collections/rsvps/deleted":            fixed(200, `{"site":"blog","collection":"rsvps","items":[{"id":12,"data":{"name":"Ann"},"created_at":"2026-09-03T00:00:00Z","deleted_at":"2026-09-27T00:00:00Z","by":"v@example.com"}],"next":"1790000000000000_12","undo_days":30}`),
 		"POST /v1/sites/blog/collections/rsvps/items/12/restore":  fixed(200, `{"site":"blog","collection":"rsvps","restored":1}`),
 		"POST /v1/sites/blog/collections/rsvps/deleted/restore":   fixed(200, `{"site":"blog","collection":"rsvps","restored":3}`),
+		"DELETE /v1/sites/blog/collections/rsvps/deleted/12":      fixed(200, `{"site":"blog","collection":"rsvps","deleted_for_good":1}`),
+		"DELETE /v1/sites/blog/collections/rsvps/deleted":         fixed(200, `{"site":"blog","collection":"rsvps","deleted_for_good":3}`),
+		"DELETE /v1/sites/blog/history":                           fixed(200, `{"site":"blog","cleared":40}`),
 		"POST /v1/sites/pend/domain": fixed(200, `{"domain":"pend.example.com","status":"pending","took_over_from":"x/y","certificate_status":"pending","previous_domain":"pend.simple-host.app",`+
 			`"partner_domain":"www.pend.example.com","partner_status":"pending","dns_partner":{"type":"CNAME","host":"www.pend.example.com","value":"sites.simple-host.app"},`+
 			`"dns":{"type":"CNAME","host":"pend.example.com","value":"sites.simple-host.app"},"dns_txt":{"type":"TXT","host":"_simple-host.pend.example.com","value":"sh-0123456789abcdef0123456789abcdef"}}`),
@@ -246,6 +249,9 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		{"list_deleted", map[string]any{"site": "blog", "collection": "rsvps"}},
 		{"restore_item", map[string]any{"site": "blog", "collection": "rsvps", "id": "12"}},
 		{"restore_item", map[string]any{"site": "blog", "collection": "rsvps", "all": true}},
+		{"delete_forever", map[string]any{"site": "blog", "collection": "rsvps", "id": "12", "confirm_id": "12"}},
+		{"delete_forever", map[string]any{"site": "blog", "collection": "rsvps", "all": true, "confirm_collection": "rsvps"}},
+		{"delete_forever", map[string]any{"site": "blog", "history": true, "confirm_site": "blog"}},
 		{"connect_domain", map[string]any{"site": "pend", "domain": "pend.example.com"}},
 		{"connect_domain", map[string]any{"site": "blog", "domain": "blog.simple-host.app"}},
 		{"domain_status", map[string]any{"site": "blog"}},

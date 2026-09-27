@@ -258,8 +258,9 @@ func ForEachCollectionItemByID(ctx context.Context, db *sql.DB, siteID, collecti
 // UpdateCollectionItemByID rewrites one live item's data inside a
 // transaction: fn gets the stored JSON and returns the new JSON; the earlier
 // data goes to the item's history. Returns sql.ErrNoRows when the item is not
-// a live item of that site's collection.
-func UpdateCollectionItemByID(ctx context.Context, db *sql.DB, siteID, collection string, id int64, a Actor, fn func(json.RawMessage) (json.RawMessage, error)) (CollectionItem, error) {
+// a live item of that site's collection, ErrSiteFull when the edit grows the
+// site past maxBytes.
+func UpdateCollectionItemByID(ctx context.Context, db *sql.DB, siteID, collection string, id int64, a Actor, maxBytes int64, fn func(json.RawMessage) (json.RawMessage, error)) (CollectionItem, error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return CollectionItem{}, err
@@ -288,5 +289,20 @@ func UpdateCollectionItemByID(ctx context.Context, db *sql.DB, siteID, collectio
 	if err := recordHistory(ctx, tx, siteID, HistoryList, collection, &id, OpEdit, old, a); err != nil {
 		return CollectionItem{}, err
 	}
+	if len(it.Data) > len(old) {
+		if err := roomAfter(ctx, tx, siteID, maxBytes); err != nil {
+			return CollectionItem{}, err
+		}
+	}
 	return it, tx.Commit()
+}
+
+// GetCollectionItemByID reads one item of a site's list, live or deleted (an
+// Idempotency-Key retry is answered with the item the first request made).
+func GetCollectionItemByID(ctx context.Context, db *sql.DB, siteID, collection string, id int64) (CollectionItem, error) {
+	var it CollectionItem
+	err := db.QueryRowContext(ctx, `
+		SELECT id, data, created_at FROM collection_items
+		 WHERE id = $1 AND site_id = $2 AND collection = $3`, id, siteID, collection).Scan(&it.ID, &it.Data, &it.CreatedAt)
+	return it, err
 }

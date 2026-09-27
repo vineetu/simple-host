@@ -326,6 +326,7 @@ func TestAnnotationsMatchBehaviour(t *testing.T) {
 		"restore_data":           {false, false, true},
 		"list_deleted":           {true, false, false},
 		"restore_item":           {false, false, true},
+		"delete_forever":         {false, true, false},
 	}
 	tools := Tools()
 	if len(tools) != len(want) {

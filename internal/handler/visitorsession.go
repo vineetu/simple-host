@@ -286,7 +286,7 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 			})
 			return anon, false
 		}
-		return anon, true
+		return h.keyActor(r, ownerID), true
 	}
 	if strings.EqualFold(requestHostName(r), h.contentHost) {
 		if info, ok, _ := db.GetSiteDomainInfo(r.Context(), h.database, siteID); ok && info.Domain != "" {
@@ -304,7 +304,7 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 				})
 				return anon, false
 			}
-			return anon, true
+			return h.keyActor(r, ownerID), true
 		}
 	}
 
@@ -408,6 +408,26 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 		return anon, false
 	}
 	return anon, true
+}
+
+// keyActor is who a write that passed without the key check was made by, for
+// the record (history, authors, the watch): the site's owner or the admin
+// when the request carries their valid key, otherwise nobody signed in.
+func (h *SiteHandler) keyActor(r *http.Request, ownerID string) db.Actor {
+	key := r.Header.Get("X-API-Key")
+	if key == "" {
+		return db.Actor{Kind: actorAnonymous}
+	}
+	u, ok, err := h.resolveWriterKey(r.Context(), key)
+	switch {
+	case err != nil || !ok:
+		return db.Actor{Kind: actorAnonymous}
+	case u.ID == ownerID:
+		return db.Actor{ID: u.ID, Kind: actorOwner}
+	case u.IsAdmin:
+		return db.Actor{ID: u.ID, Kind: actorAdmin}
+	}
+	return db.Actor{Kind: actorAnonymous}
 }
 
 func (h *SiteHandler) resolveWriterKey(ctx context.Context, key string) (db.User, bool, error) {

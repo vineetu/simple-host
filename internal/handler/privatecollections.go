@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -239,11 +240,19 @@ func (h *SiteHandler) appendPrivate(w http.ResponseWriter, r *http.Request, site
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "missing CSRF header", "code": "csrf_required"})
 		return
 	}
+	if sess.UserID != info.OwnerID && !h.allowAppend(w, r) {
+		return
+	}
 
-	r.Body = http.MaxBytesReader(w, r.Body, maxCollectionItemSize)
+	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxCollectionItemSize))
 	var fields map[string]json.RawMessage
-	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(&fields); err != nil || fields == nil || dec.More() {
+	if err == nil {
+		dec := json.NewDecoder(bytes.NewReader(raw))
+		if err = dec.Decode(&fields); err == nil && (fields == nil || dec.More()) {
+			err = errors.New("not one object")
+		}
+	}
+	if err != nil {
 		var maxErr *http.MaxBytesError
 		if errors.As(err, &maxErr) {
 			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large", Code: "item_too_large"})
@@ -252,6 +261,11 @@ func (h *SiteHandler) appendPrivate(w http.ResponseWriter, r *http.Request, site
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "a private list takes one JSON object per item"})
 		return
 	}
+	claim, handled := h.idemBegin(w, r, siteID, "POST collections/"+coll, db.Actor{ID: sess.UserID}, raw, h.replayItem(w, r, siteID, coll))
+	if handled {
+		return
+	}
+	defer h.idemEnd(r, claim)
 	email, err := visitorEmail(r.Context(), h.database, sess.UserID)
 	if err != nil || email == "" {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -267,7 +281,7 @@ func (h *SiteHandler) appendPrivate(w http.ResponseWriter, r *http.Request, site
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid item"})
 		return
 	}
-	if !h.siteHasRoom(w, r, siteID, len(body)) {
+	if !h.siteHasRoom(w, r, siteID, int64(len(body))) {
 		return
 	}
 	item, err := db.AppendSubmittedItemByID(r.Context(), h.database, siteID, coll, body, sess.UserID, email)
@@ -281,6 +295,7 @@ func (h *SiteHandler) appendPrivate(w http.ResponseWriter, r *http.Request, site
 	}
 	_ = db.TouchVisitorSession(r.Context(), h.database, sess.ID)
 	h.watchItemSize(r.Context(), siteID, len(body))
+	h.idemSave(r, claim, http.StatusCreated, "", item.ID)
 	writeJSON(w, http.StatusCreated, item)
 }
 
@@ -472,7 +487,7 @@ func (h *SiteHandler) updatePrivateItem(w http.ResponseWriter, r *http.Request) 
 	}
 	errTooLarge := errors.New("too large")
 	errNotObject := errors.New("not an object")
-	item, err := db.UpdateCollectionItemByID(r.Context(), h.database, siteID, coll, id, h.managerActor(r, siteID), func(old json.RawMessage) (json.RawMessage, error) {
+	item, err := db.UpdateCollectionItemByID(r.Context(), h.database, siteID, coll, id, h.managerActor(r, siteID), h.siteMaxBytes(), func(old json.RawMessage) (json.RawMessage, error) {
 		var fields map[string]json.RawMessage
 		if err := json.Unmarshal(old, &fields); err != nil || fields == nil {
 			return nil, errNotObject
@@ -501,6 +516,8 @@ func (h *SiteHandler) updatePrivateItem(w http.ResponseWriter, r *http.Request) 
 		writePrivateNotFound(w)
 	case errors.Is(err, errTooLarge):
 		writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large", Code: "item_too_large"})
+	case errors.Is(err, db.ErrSiteFull):
+		h.writeSiteFull(w)
 	case errors.Is(err, errNotObject):
 		writeJSON(w, http.StatusConflict, errorResponse{Error: "this item is not a JSON object, so it has no fields to change; delete it instead", Code: "not_an_object"})
 	case err != nil:

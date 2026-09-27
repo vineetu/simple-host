@@ -379,6 +379,13 @@ func outputSchemas() map[string]map[string]any {
 			"restored":   outInteger("How many items came back."),
 		}, "site", "collection", "restored"),
 
+		"delete_forever": outObject(map[string]any{
+			"site":             outString(outSiteName),
+			"collection":       outString("The list whose recently deleted items went (item deletes)."),
+			"deleted_for_good": outInteger("How many items were deleted for good (item deletes)."),
+			"history_cleared":  outInteger("How many earlier versions were deleted for good (history: true)."),
+		}, "site"),
+
 		"connect_domain": domainSchema(true),
 		"domain_status":  domainSchema(false),
 		"remove_domain": outObject(map[string]any{

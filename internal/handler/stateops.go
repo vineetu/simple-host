@@ -7,7 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"math"
+	"math/big"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -67,20 +70,24 @@ func (h *SiteHandler) patchSiteState(w http.ResponseWriter, r *http.Request) {
 	}
 	actor = h.withAuthorEmail(r.Context(), actor)
 
-	r.Body = http.MaxBytesReader(w, r.Body, maxSiteStateSize)
-	var req struct {
-		Ops []stateOp `json:"ops"`
-	}
-	// UseNumber: numbers keep their exact digits (a large id or a precise
-	// amount is not rounded through float64).
-	dec := json.NewDecoder(r.Body)
-	dec.UseNumber()
-	if err := dec.Decode(&req); err != nil {
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxSiteStateSize))
+	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
 			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "request body too large", Code: "item_too_large"})
 			return
 		}
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid JSON body"})
+		return
+	}
+	var req struct {
+		Ops []stateOp `json:"ops"`
+	}
+	// UseNumber: numbers keep their exact digits (a large id or a precise
+	// amount is not rounded through float64).
+	dec := json.NewDecoder(bytes.NewReader(body))
+	dec.UseNumber()
+	if err := dec.Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid JSON body"})
 		return
 	}
@@ -92,70 +99,97 @@ func (h *SiteHandler) patchSiteState(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: fmt.Sprintf("too many ops (max %d)", maxStateOps)})
 		return
 	}
-
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	defer tx.Rollback()
-
-	cur, _, err := db.GetSiteStateForUpdateByID(r.Context(), tx, siteID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+	// A retry answers with the document as it is now and its version.
+	claim, handled := h.idemBegin(w, r, siteID, "PATCH state", actor, body, func(prev db.IdempotentResponse) {
+		state, ver, err := db.GetSiteStateByID(r.Context(), h.database, siteID)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("ETag", stateETag(ver))
+		w.WriteHeader(prev.Status)
+		w.Write(state)
+	})
+	if handled {
 		return
 	}
+	defer h.idemEnd(r, claim)
 
-	root, err := stateRootObject(cur)
-	if err != nil {
-		writeJSON(w, http.StatusConflict, errorResponse{Error: "state is not a JSON object; PATCH requires an object root", Code: "not_an_object"})
+	// The row is locked while the ops apply, so concurrent PATCHes
+	// serialize; what changed goes to the site's history (undo).
+	var reply *patchReply
+	patch, newVersion, err := h.patchState(r, siteID, actor, req.Ops)
+	switch {
+	case errors.As(err, &reply):
+		writeJSON(w, reply.status, errorResponse{Error: reply.msg, Code: reply.code})
 		return
-	}
-
-	if err := applyStateOps(root, req.Ops); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+	case errors.Is(err, sql.ErrNoRows):
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
 		return
-	}
-
-	newBytes, err := json.Marshal(root)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+	case errors.Is(err, db.ErrSiteFull):
+		h.writeSiteFull(w)
 		return
-	}
-	if len(newBytes) > maxSiteStateSize {
-		writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "resulting state exceeds size limit", Code: "item_too_large"})
-		return
-	}
-	if !h.siteHasRoom(w, r, siteID, len(newBytes)) {
-		return
-	}
-
-	newVersion, err := db.SetSiteStateByID(r.Context(), tx, siteID, newBytes)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	// The document from before goes to the site's history (undo).
-	if err := db.RecordStateChange(r.Context(), tx, siteID, db.OpChange, cur, newBytes, actor); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	if err := tx.Commit(); err != nil {
+	case err != nil:
+		log.Printf("state patch site_id=%s: %v", siteID, err)
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
 	if isVisitorActor(actor) {
 		h.watchVisitorOps(r.Context(), siteID, req.Ops)
 	}
+	h.idemSave(r, claim, http.StatusOK, stateETag(newVersion), int64(newVersion))
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("ETag", stateETag(newVersion))
 	w.WriteHeader(http.StatusOK)
-	w.Write(newBytes)
+	w.Write(patch.Next)
+}
+
+// patchReply is a PATCH refused for what its ops ask (written as is).
+type patchReply struct {
+	status    int
+	msg, code string
+}
+
+func (e *patchReply) Error() string { return e.msg }
+
+// patchState applies ops to the document in one locked transaction.
+func (h *SiteHandler) patchState(r *http.Request, siteID string, actor db.Actor, ops []stateOp) (db.StatePatch, int, error) {
+	var out db.StatePatch
+	ver, err := db.PatchSiteState(r.Context(), h.database, siteID, actor, h.siteMaxBytes(), h.savedData.SnapshotEvery, func(cur json.RawMessage) (db.StatePatch, error) {
+		root, err := stateRootObject(cur)
+		if err != nil {
+			return db.StatePatch{}, &patchReply{http.StatusConflict, "state is not a JSON object; PATCH requires an object root", "not_an_object"}
+		}
+		// Before is decoded separately: the ops change root in place.
+		before, err := decodeJSON(cur)
+		if err != nil {
+			return db.StatePatch{}, err
+		}
+		if err := applyStateOps(root, ops); err != nil {
+			return db.StatePatch{}, &patchReply{http.StatusBadRequest, err.Error(), ""}
+		}
+		next, err := json.Marshal(root)
+		if err != nil {
+			return db.StatePatch{}, err
+		}
+		if len(next) > maxSiteStateSize {
+			return db.StatePatch{}, &patchReply{http.StatusRequestEntityTooLarge, "resulting state exceeds size limit", "item_too_large"}
+		}
+		out = db.StatePatch{Before: before, After: root, Next: next}
+		return out, nil
+	})
+	return out, ver, err
+}
+
+// decodeJSON decodes a stored document keeping exact numbers.
+func decodeJSON(raw json.RawMessage) (any, error) {
+	var v any
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	err := dec.Decode(&v)
+	return v, err
 }
 
 // stateRootObject parses the stored state into an object map. A null/empty doc
@@ -359,7 +393,10 @@ func addNumbers(cur any, by json.Number) (any, error) {
 		return nil, fmt.Errorf("existing value is not a number")
 	}
 	b, _ := by.Float64()
-	return a + b, nil
+	if s := a + b; !math.IsInf(s, 0) && !math.IsNaN(s) {
+		return s, nil
+	}
+	return nil, fmt.Errorf("the result is too large a number")
 }
 
 func matchesAll(el map[string]any, match map[string]any) bool {
@@ -383,10 +420,12 @@ func jsonEqual(a, b any) bool {
 		if !aNum || !bNum {
 			return false
 		}
-		ai, aerr := strconv.ParseInt(numberText(a), 10, 64)
-		bi, berr := strconv.ParseInt(numberText(b), 10, 64)
-		if aerr == nil && berr == nil {
-			return ai == bi
+		// Two whole numbers compare exactly, at any size: a 20-digit id
+		// never matches its neighbour through float64 rounding.
+		ai, aok := new(big.Int).SetString(numberText(a), 10)
+		bi, bok := new(big.Int).SetString(numberText(b), 10)
+		if aok && bok {
+			return ai.Cmp(bi) == 0
 		}
 		return an == bn
 	}

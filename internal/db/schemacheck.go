@@ -29,16 +29,18 @@ var requiredColumns = map[string][]string{
 	"signin_alerts_sent": {"user_id", "summary", "day"},
 	// hash-api-keys.sql, cp-keys-key-names.sql
 	"api_keys": {"id", "key_hash", "user_id", "name", "last4", "created_at", "last_used_at"},
-	"sites":    {"id", "user_id", "name", "active_version", "visibility", "state", "custom_domain", "deleted_at", "previous_domain", "domain_cert_status", "domain_failing_since", "domain_lapse_notified_at", "previous_domain_failing_since", "suspended_at", "suspended_reason", "domain_token", "domain_proof_exempt", "offline_at", "idle_keep", "idle_kept_at", "idle_warned_at", "idle_removed_at", "idle_token_hash"},
+	"sites":    {"id", "user_id", "name", "active_version", "visibility", "state", "custom_domain", "deleted_at", "previous_domain", "domain_cert_status", "domain_failing_since", "domain_lapse_notified_at", "previous_domain_failing_since", "suspended_at", "suspended_reason", "domain_token", "domain_proof_exempt", "offline_at", "idle_keep", "idle_kept_at", "idle_warned_at", "idle_removed_at", "idle_token_hash", "state_bytes", "data_bytes"},
 	// w2-sites-offline.sql adds offline_at; w2-addr-idle-cleanup.sql the idle_* columns.
 	// w2-sites-old-names.sql
 	"site_name_aliases": {"user_id", "name", "site_id"},
 	// cp-proof-domain-ownership.sql (also the two domain_* columns above)
 	"domain_cert_requests": {"user_id", "domain", "requested_at"},
-	// sd1-saved-data-safety.sql adds deleted_at, submitted_email and the three tables below.
+	// sd1-saved-data-safety.sql adds deleted_at, submitted_email and the three tables below;
+	// sd1-saved-data-safety2-limits.sql adds sites.state_bytes/data_bytes (above),
+	// data_history.diff and idempotency_keys.site_id/ref/body_hash.
 	"collection_items": {"id", "site_id", "collection", "data", "submitted_by", "deleted_at", "submitted_email"},
-	"data_history":     {"id", "site_id", "kind", "name", "item_id", "op", "prev", "actor_id", "actor_kind", "actor_email", "created_at"},
-	"idempotency_keys": {"scope", "status", "content_type", "etag", "body", "created_at"},
+	"data_history":     {"id", "site_id", "kind", "name", "item_id", "op", "prev", "actor_id", "actor_kind", "actor_email", "created_at", "diff"},
+	"idempotency_keys": {"scope", "status", "etag", "created_at", "site_id", "ref", "body_hash"},
 	"data_watch":       {"day", "site_id", "metric", "count", "last_at"},
 	// private-collections.sql
 	"collection_settings": {"site_id", "collection", "private"},

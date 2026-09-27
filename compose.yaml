@@ -65,6 +65,11 @@ services:
       SAVED_DATA_IDEMPOTENCY_HOURS: ${SAVED_DATA_IDEMPOTENCY_HOURS-}
       SAVED_DATA_READ_PER_SEC: ${SAVED_DATA_READ_PER_SEC-}
       SAVED_DATA_READ_BURST: ${SAVED_DATA_READ_BURST-}
+      SAVED_DATA_APPEND_PER_MIN: ${SAVED_DATA_APPEND_PER_MIN-}
+      SAVED_DATA_APPEND_BURST: ${SAVED_DATA_APPEND_BURST-}
+      SAVED_DATA_IDEMPOTENCY_MAX_PER_SITE: ${SAVED_DATA_IDEMPOTENCY_MAX_PER_SITE-}
+      SAVED_DATA_SNAPSHOT_EVERY: ${SAVED_DATA_SNAPSHOT_EVERY-}
+      SAVED_DATA_WATCH_KEEP_DAYS: ${SAVED_DATA_WATCH_KEEP_DAYS-}
       # How many deploys of a site to keep. Every version is a full copy and the
       # live tree is one more, so history — not sites — is what fills a small
       # disk when an agent redeploys a page a dozen times in an afternoon.

@@ -66,6 +66,11 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// Items added without the owner's key: SAVED_DATA_APPEND_PER_MIN per address.
+	if isVisitorActor(actor) && !h.allowAppend(w, r) {
+		return
+	}
+	actor = h.withAuthorEmail(r.Context(), actor)
 
 	r.Body = http.MaxBytesReader(w, r.Body, maxCollectionItemSize)
 	body, err := io.ReadAll(r.Body)
@@ -82,7 +87,12 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "body must be a JSON value"})
 		return
 	}
-	if !h.siteHasRoom(w, r, siteID, len(body)) {
+	claim, handled := h.idemBegin(w, r, siteID, "POST collections/"+coll, actor, body, h.replayItem(w, r, siteID, coll))
+	if handled {
+		return
+	}
+	defer h.idemEnd(r, claim)
+	if !h.siteHasRoom(w, r, siteID, int64(len(body))) {
 		return
 	}
 	// The watch: a visitor starting a list name nobody used before.
@@ -95,7 +105,7 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 
 	// Who sent it is kept with the item (the owner sees it; public reads
 	// never do). Nothing in the item itself changes.
-	item, err := db.AppendCollectionItemByID(r.Context(), h.database, siteID, coll, json.RawMessage(body), h.withAuthorEmail(r.Context(), actor))
+	item, err := db.AppendCollectionItemByID(r.Context(), h.database, siteID, coll, json.RawMessage(body), actor)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
@@ -108,6 +118,7 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 		h.watch(r.Context(), siteID, watchNewList, 1)
 	}
 	h.watchItemSize(r.Context(), siteID, len(body))
+	h.idemSave(r, claim, http.StatusCreated, "", item.ID)
 	writeJSON(w, http.StatusCreated, item)
 }
 
@@ -199,6 +210,13 @@ func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
 	// Who sent each item: the owner's key (or the admin's), or the owner
 	// signed in on the site's own address, only.
 	withAuthor := ownerKey || h.ownerBrowserView(r, siteID)
+	if withAuthor {
+		// The answer carries who sent each item: never kept by a shared
+		// cache or served to anyone else.
+		w.Header().Set("Cache-Control", "private, no-store")
+		w.Header().Add("Vary", "Cookie")
+		w.Header().Add("Vary", "X-API-Key")
+	}
 	items, err := db.ListCollectionItemsByID(r.Context(), h.database, siteID, coll, limit, before, withAuthor)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})

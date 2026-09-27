@@ -120,10 +120,11 @@ type SiteHandler struct {
 	exportKey     []byte
 	publicBaseURL string
 
-	// savedData is the SAVED_DATA_* knobs and readLimiter the saved-data read
-	// limit built from them (saveddata.go).
-	savedData   config.SavedData
-	readLimiter *rateLimiter
+	// savedData is the SAVED_DATA_* knobs, and readLimiter and appendLimiter
+	// the saved-data read and list-append limits built from them (saveddata.go).
+	savedData     config.SavedData
+	readLimiter   *rateLimiter
+	appendLimiter *rateLimiter
 }
 
 // lockSite acquires the per-site upload mutex for one account's site name and
@@ -430,21 +431,34 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.deletePrivateItem)))
 	mux.Handle("DELETE /v1/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.clearCollection)))
 	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.clearCollection)))
-	// History, Recently deleted and restore (saveddata.go): owner or admin
-	// only, key or connector token.
-	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}/history", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDataHistory))))
-	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}/history/{id}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getDataHistory))))
-	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}/history/{id}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreListHistory)))))
-	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}/deleted", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDeletedItems))))
-	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}/deleted/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreDeletedItem)))))
-	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}/items/{id}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreDeletedItem)))))
-	mux.Handle("GET /v1/sites/{sitename}/state/history", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDataHistory))))
-	mux.Handle("GET /v1/sites/{sitename}/state/history/{id}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getDataHistory))))
-	mux.Handle("POST /v1/sites/{sitename}/state/history/{id}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreStateHistory)))))
+	// History, Recently deleted, restore and delete for good (saveddata.go):
+	// owner or admin only, key or connector token; the {handle} forms name
+	// the site exactly.
+	for _, base := range []string{"/v1/sites/{sitename}", "/v1/u/{handle}/sites/{sitename}"} {
+		owner := func(method, path string, fn http.HandlerFunc) {
+			var hd http.Handler = fn
+			if method != http.MethodGet {
+				hd = rateLimitByIP(h.stateLimiter, hd)
+			}
+			mux.Handle(method+" "+base+path, noticeMiddleware(authMiddleware(hd)))
+		}
+		owner("GET", "/collections/{coll}/history", h.listDataHistory)
+		owner("GET", "/collections/{coll}/history/{id}", h.getDataHistory)
+		owner("POST", "/collections/{coll}/history/{id}/restore", h.restoreListHistory)
+		owner("GET", "/collections/{coll}/deleted", h.listDeletedItems)
+		owner("POST", "/collections/{coll}/deleted/restore", h.restoreDeletedItem)
+		owner("POST", "/collections/{coll}/items/{id}/restore", h.restoreDeletedItem)
+		owner("DELETE", "/collections/{coll}/deleted", h.purgeDeletedItems)
+		owner("DELETE", "/collections/{coll}/deleted/{id}", h.purgeDeletedItems)
+		owner("GET", "/state/history", h.listDataHistory)
+		owner("GET", "/state/history/{id}", h.getDataHistory)
+		owner("POST", "/state/history/{id}/restore", h.restoreStateHistory)
+		owner("DELETE", "/history", h.clearDataHistory)
+	}
 	// The saved-data watch: what the later tightening would affect.
 	mux.Handle("GET /v1/admin/data-watch", authMiddleware(auth.RequireAdmin(http.HandlerFunc(h.adminDataWatch))))
 	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}", h.limitReads(h.listCollection))
-	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, h.idempotent(http.HandlerFunc(h.appendCollection))))
+	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection)))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/collections/{coll}", h.optionsCollection)
 
 	mux.HandleFunc("GET /v1/sites/{sitename}/me", h.getVisitorMe)
@@ -455,13 +469,13 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/visitor/auth/verify", h.optionsVisitorEmail)
 	mux.Handle("GET /v1/sites/{sitename}/state", h.limitReads(h.getSiteState))
 	mux.Handle("PUT /v1/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSiteState)))
-	mux.Handle("PATCH /v1/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, h.idempotent(http.HandlerFunc(h.patchSiteState))))
+	mux.Handle("PATCH /v1/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchSiteState)))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/state", h.optionsSiteState)
 
 	// v3 user-scoped state/collections: unambiguous after UNIQUE(name) drops.
 	// Same handlers as above; resolveSiteID reads {handle} when present.
 	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/collections/{coll}", h.limitReads(h.listCollection))
-	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, h.idempotent(http.HandlerFunc(h.appendCollection))))
+	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection)))
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/collections/{coll}", h.optionsCollection)
 
 	mux.HandleFunc("GET /v1/u/{handle}/sites/{sitename}/me", h.getVisitorMe)
@@ -472,7 +486,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/visitor/auth/verify", h.optionsVisitorEmail)
 	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/state", h.limitReads(h.getSiteState))
 	mux.Handle("PUT /v1/u/{handle}/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSiteState)))
-	mux.Handle("PATCH /v1/u/{handle}/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, h.idempotent(http.HandlerFunc(h.patchSiteState))))
+	mux.Handle("PATCH /v1/u/{handle}/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchSiteState)))
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/state", h.optionsSiteState)
 
 	// Visitor session cookie is issued here (content host / custom domain),
@@ -1074,9 +1088,6 @@ func (h *SiteHandler) putSiteState(w http.ResponseWriter, r *http.Request) {
 	}
 
 	state := json.RawMessage(body)
-	if !h.siteHasRoom(w, r, siteID, len(body)) {
-		return
-	}
 
 	// Optimistic concurrency is OPT-IN: if the caller sends If-Match, we only
 	// write when the stored version matches (compare-and-swap). Without it,
@@ -1091,7 +1102,13 @@ func (h *SiteHandler) putSiteState(w http.ResponseWriter, r *http.Request) {
 		}
 		expected = v
 	}
-	newVersion, err := db.WriteSiteState(r.Context(), h.database, siteID, state, expected, db.OpReplace, h.withAuthorEmail(r.Context(), actor))
+	// A replace that grows the site past SAVED_DATA_SITE_MAX_MB is refused
+	// (site_full); one that does not grow it always goes through.
+	newVersion, err := db.WriteSiteState(r.Context(), h.database, siteID, state, expected, db.OpReplace, h.withAuthorEmail(r.Context(), actor), h.siteMaxBytes())
+	if errors.Is(err, db.ErrSiteFull) {
+		h.writeSiteFull(w)
+		return
+	}
 	if errors.Is(err, db.ErrStateVersionConflict) {
 		// Hand back the current version so the client can re-read and retry.
 		if _, cur, gerr := db.GetSiteStateByID(r.Context(), h.database, siteID); gerr == nil {

@@ -46,14 +46,12 @@ CREATE INDEX IF NOT EXISTS idx_data_history_created ON data_history (created_at)
 CREATE INDEX IF NOT EXISTS idx_data_history_actor ON data_history (actor_id) WHERE actor_id IS NOT NULL;
 
 -- A write retried with the same Idempotency-Key is saved once: the first
--- answer is kept (24 hours) and replayed. scope is a hash of the key, the
+-- answer's status is kept (24 hours) and replayed. scope is a hash of the key, the
 -- route and the caller; status 0 = the first request is still running.
 CREATE TABLE IF NOT EXISTS idempotency_keys (
   scope        BYTEA PRIMARY KEY,
   status       INTEGER NOT NULL DEFAULT 0,
-  content_type TEXT,
   etag         TEXT,
-  body         BYTEA,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_idempotency_keys_created ON idempotency_keys (created_at);
