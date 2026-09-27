@@ -50,11 +50,13 @@ done <<<"$documented"
 # collections: pages call them with the visitor cookie, and each handler
 # decides who may do what (kinds.go: owner key or the owner's own visitor
 # session for Page info writes and owner edits, the visitor's own entry for
-# theirs). The owner's /data list and /data/{coll}/kind PUT are wrapped.
+# theirs; personal.go: a Personal record and its history, its own visitor
+# only; board.go: a Shared board's items). The owner's /data list and
+# /data/{coll}/kind PUT are wrapped.
 echo "== owner routes wrapped with authMiddleware =="
 unwrapped=$(grep -rh --exclude='*_test.go' -oE 'mux\.Handle(Func)?\("[A-Z]+ /v1/sites/[^"]+"[^)]*' internal/handler \
   | grep -vE '/state"|/me"|/visitor/auth|/collections/\{coll\}"|/collections/\{coll\}/items/\{id\}"' \
-  | grep -vE '"(GET|POST|PUT) /v1/sites/\{sitename\}/data/\{coll\}"|"GET /v1/sites/\{sitename\}/data/\{coll\}/kind"|"(PATCH|DELETE) /v1/sites/\{sitename\}/data/\{coll\}/items/\{id\}"|"POST /v1/sites/\{sitename\}/data/\{coll\}/items/\{id\}/undo"|"OPTIONS /v1/sites/\{sitename\}/data/' \
+  | grep -vE '"(GET|POST|PUT|PATCH|DELETE) /v1/sites/\{sitename\}/data/\{coll\}"|"(GET|POST) /v1/sites/\{sitename\}/data/\{coll\}/history[^"]*"|"GET /v1/sites/\{sitename\}/data/\{coll\}/kind"|"(PATCH|DELETE) /v1/sites/\{sitename\}/data/\{coll\}/items/\{id\}"|"POST /v1/sites/\{sitename\}/data/\{coll\}/items/\{id\}/undo"|"OPTIONS /v1/sites/\{sitename\}/data/' \
   | grep -v authMiddleware || true)
 if [ -n "$unwrapped" ]; then
   echo "$unwrapped" | sed 's/^/  FAIL: owner route missing authMiddleware: /'

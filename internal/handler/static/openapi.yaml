@@ -2020,8 +2020,11 @@ paths:
         Owner only (X-API-Key or a connector token; the operator too). Every data
         name on the site (every list with items, and every name that is private or
         declared) with its kind, as `/collections` lists them plus `kind`
-        (`content` = Page info, `entries` = Submissions, empty = not declared),
-        `label`, `one_per_person` and `notify`; who may save on the site
+        (`content` = Page info, `entries` = Submissions, `mine` = Personal,
+        `board` = Shared board, empty = not declared), `label`, `bytes` (the size
+        of what it holds now), `one_per_person` and `notify`; for a Personal name
+        `count` is how many people have a record, which is all the owner sees of
+        it; who may save on the site
         (`savers`); and `undeclared_names_take_saves`: whether a name nobody
         declared is **Shared** here (anyone reads it, anyone signed in adds to it).
         True unless the install sets SAVED_DATA_DEFAULT_KIND=declare_first and the
@@ -2044,9 +2047,10 @@ paths:
                       type: object
                       properties:
                         name: { type: string, example: rsvps }
-                        kind: { type: string, enum: ['', content, entries] }
-                        label: { type: string, enum: [Page info, Submissions, Shared, Private list, Not set] }
+                        kind: { type: string, enum: ['', content, entries, mine, board] }
+                        label: { type: string, enum: [Page info, Submissions, Personal, Shared board, Shared, Private list, Not set] }
                         count: { type: integer }
+                        bytes: { type: integer }
                         last_at: { type: string, format: date-time, nullable: true }
                         private: { type: boolean }
                         deleted: { type: integer }
@@ -2084,7 +2088,7 @@ paths:
                 properties:
                   name: { type: string }
                   declared: { type: boolean }
-                  kind: { type: string, nullable: true, enum: [content, entries] }
+                  kind: { type: string, nullable: true, enum: [content, entries, mine, board] }
                   label: { type: string }
                   visibility: { type: string, enum: [owner, public] }
                   one_per_person: { type: boolean }
@@ -2119,6 +2123,20 @@ paths:
         `"confirm_public": true`. A private name becomes Page info only while
         it is empty (409 has_entries). Public Submissions are refused on an
         install with WRITE_AUTH_MODE=off (409 visitor_sign_in_off).
+        `{"kind": "mine"}` is **Personal**: one private record per signed-in
+        visitor (a habit tracker, saved progress); only that visitor reads or
+        writes it, and the owner sees only how many people have one and their
+        size; a name must be empty (nothing live or in Recently deleted) to
+        become Personal (409 has_entries), and a Personal name that holds records
+        never becomes another kind (409 has_records); a site declares at most 20
+        Personal names (SAVED_DATA_PERSONAL_NAMES_MAX). `{"kind": "board"}` is a
+        **Shared board**: anyone reads it; signed-in visitors add, change and
+        delete items one at a time; only the owner clears it; private entries
+        become a board only with `confirm_public`; a site declares at most 20
+        Shared board names (SAVED_DATA_BOARD_NAMES_MAX). Neither takes options
+        (400 invalid_kind), and both need the site's own address (409
+        custom_domain_required). Product words are accepted ("Personal",
+        "Shared board").
       tags: [Collections]
       security: [{ apiKey: [] }]
       parameters:
@@ -2132,7 +2150,7 @@ paths:
               type: object
               required: [kind]
               properties:
-                kind: { type: string, enum: [content, entries] }
+                kind: { type: string, enum: [content, entries, mine, board] }
                 visibility: { type: string, enum: [owner, public] }
                 one_per_person: { type: boolean }
                 notify: { type: string, enum: [off, each, daily] }
@@ -2148,8 +2166,8 @@ paths:
                 properties:
                   site: { type: string }
                   name: { type: string }
-                  kind: { type: string, enum: [content, entries] }
-                  label: { type: string, enum: [Page info, Submissions] }
+                  kind: { type: string, enum: [content, entries, mine, board] }
+                  label: { type: string, enum: [Page info, Submissions, Personal, Shared board] }
                   visibility: { type: string, enum: [owner, public] }
                   one_per_person: { type: boolean }
                   notify: { type: string, enum: [off, each, daily] }
@@ -2160,16 +2178,23 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: too_many_names, has_entries, confirm_public, visitor_sign_in_off or custom_domain_required
+          description: too_many_names, has_entries, has_records, confirm_public, visitor_sign_in_off or custom_domain_required
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
 
   /v1/sites/{sitename}/data/{coll}:
     get:
       operationId: getData
-      summary: Read Page info, or Submissions
+      summary: Read Page info, Submissions, your Personal record, or a Shared board
       description: >-
         Page info (`content`) answers `{name, kind, data, saved_at}` (`data` null
-        until the owner saves one) to anyone. Submissions answer exactly as GET
+        until the owner saves one) to anyone. Personal (`mine`) answers the
+        signed-in visitor's own record, `{name, kind, data, version}` (`data` null
+        until they save one; a visitor session on the site's own address, from a
+        page there, else 401 visitor_auth_required), with an `ETag` (304 on a
+        matching `If-None-Match`); the owner's key gets only `?count=1` (how many
+        people have one) and 403 personal_data otherwise. A Shared board
+        (`board`) answers as a public list, each item with its `version`, plus an
+        `ETag` (304 while unchanged: poll with `If-None-Match`). Submissions answer exactly as GET
         .../collections/{coll} does (the owner reads all, with `by`; anyone reads a
         public list, without who sent it; a private list is 404 not_found to
         everyone else), with `?count=1` for `{name, count}` under the same rule,
@@ -2183,10 +2208,13 @@ paths:
         - { $ref: '#/components/parameters/coll' }
         - { name: mine, in: query, required: false, schema: { type: string, enum: ['1'] } }
         - { name: count, in: query, required: false, schema: { type: string, enum: ['1'] } }
+        - { name: If-None-Match, in: header, required: false, schema: { type: string }, description: "Personal and Shared board: the ETag of the last answer; 304 when nothing changed" }
       responses:
         '200':
-          description: The document, the list, the visitor's own entries, or the count
+          description: The document, the list, the visitor's own entries or record, or the count
           content: { application/json: { schema: { type: object } } }
+        '304': { description: "Personal or Shared board: unchanged since the If-None-Match ETag" }
+        '403': { description: "personal_data: a Personal record is read only by its own visitor", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '401': { description: "?mine=1 without a visitor signed in on the site (visitor_auth_required)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: declare_first or wrong_kind, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
@@ -2207,7 +2235,13 @@ paths:
         list route takes; where the install requires declaring first, nothing
         (409 declare_first). The site's who-may-save setting applies to every
         visitor (403 not_allowed_to_save; a block also matches the address with
-        its +tag dropped); the owner always may.
+        its +tag dropped); the owner always may. A Shared board takes one JSON
+        object per item from a signed-in visitor on the site's own address (or
+        the owner's key): each item is at most 16 KB (SAVED_DATA_BOARD_ITEM_MAX_KB)
+        and a board holds at most 2,000 live items (SAVED_DATA_BOARD_MAX, 409
+        list_full); the answer carries the item's `version` (1). A Personal name
+        takes no items (409 wrong_kind): its visitor writes their record with PUT
+        or PATCH.
       tags: [Collections]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -2236,7 +2270,14 @@ paths:
         `X-SH-CSRF: 1`. Anyone else: 403 owner_only (another account's key: 404).
         The earlier document goes to the name's history (GET
         .../collections/{coll}/history; restore with .../history/{id}/restore).
-        Submissions: 409 wrong_kind; undeclared: 409 declare_first.
+        Submissions and Shared boards: 409 wrong_kind; undeclared: 409 declare_first.
+        On a Personal name this is the signed-in visitor replacing their own
+        record with one JSON object (a visitor session on the site's own address,
+        `X-SH-CSRF: 1`, who may save here; the per-address write rate applies;
+        `Idempotency-Key` honoured); A personal record is at most 64 KB
+        (SAVED_DATA_PERSONAL_MAX_KB; 413 item_too_large). The answer is
+        `{name, kind, data, version}`. A key never writes anyone's record (403
+        personal_data).
       tags: [Collections]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -2255,6 +2296,105 @@ paths:
         '409': { description: "declare_first or wrong_kind", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '413': { description: item_too_large, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '507': { description: site_full, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    patch:
+      operationId: patchPersonal
+      summary: Change your Personal record with ops
+      description: >-
+        Personal names only (anything else: 409 wrong_kind or declare_first). The
+        signed-in visitor changes their own record with the same ops as PATCH
+        .../state (`{"ops": [{"op": "set", "path": "theme", "value": "dark"},
+        {"op": "inc", "path": "streak"}]}`; a bare array works too), starting from
+        `{}` when they have none; at most 100 ops. The result is at most 64 KB
+        (413 item_too_large). Same sign-in, CSRF, who-may-save, rate and
+        `Idempotency-Key` rules as PUT. The earlier record goes to their history.
+      tags: [Collections]
+      parameters:
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+        - { $ref: '#/components/parameters/csrf' }
+        - { $ref: '#/components/parameters/idempotencyKey' }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object }, example: { ops: [ { op: inc, path: streak } ] } } }
+      responses:
+        '200':
+          description: The record now
+          content: { application/json: { schema: { type: object, properties: { name: { type: string }, kind: { type: string }, data: { type: object }, version: { type: integer } } } } }
+        '400': { description: Bad ops, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '401': { description: visitor_auth_required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: "personal_data (a key), not_allowed_to_save or csrf_required", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "wrong_kind or declare_first", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '413': { description: item_too_large, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      operationId: deletePersonal
+      summary: Delete your Personal record
+      description: >-
+        Personal names only. The signed-in visitor deletes their own record
+        (`{"deleted": true, "restorable_days": 30}`); they bring it back from
+        their history (POST .../history/{id}/restore) for 30 days
+        (SAVED_DATA_UNDO_DAYS). 404 not_found when they have none. A blocked
+        visitor can still delete their own. The owner empties a name for
+        everyone with DELETE .../collections/{coll}.
+      tags: [Collections]
+      parameters:
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+        - { $ref: '#/components/parameters/csrf' }
+      responses:
+        '200': { description: Deleted, content: { application/json: { schema: { type: object } } } }
+        '401': { description: visitor_auth_required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: "wrong_kind or declare_first", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /v1/sites/{sitename}/data/{coll}/history:
+    get:
+      operationId: personalHistory
+      summary: Your Personal record's changes
+      description: >-
+        Personal names only. The signed-in visitor's own record's changes, newest
+        first, without their values (`{name, history, next, undo_days}`; `?limit`,
+        `?before`). Nobody else's: the owner's history routes refuse a Personal
+        name (403 personal_data).
+      tags: [Collections]
+      parameters:
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+      responses:
+        '200': { description: The changes, content: { application/json: { schema: { type: object } } } }
+        '401': { description: visitor_auth_required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /v1/sites/{sitename}/data/{coll}/history/{id}:
+    get:
+      operationId: personalHistoryEntry
+      summary: One change to your Personal record
+      description: One change with `value`, the record as it was just before it. 404 not_found for anything not the visitor's own record's.
+      tags: [Collections]
+      parameters:
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: The change, content: { application/json: { schema: { type: object } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/sites/{sitename}/data/{coll}/history/{id}/restore:
+    post:
+      operationId: restorePersonal
+      summary: Put your Personal record back as it was
+      description: >-
+        The visitor's record goes back to how it was just before that change (a
+        delete or a clear brings it back). A restore is itself a change. Same
+        sign-in and CSRF rules as PUT.
+      tags: [Collections]
+      parameters:
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+        - { name: id, in: path, required: true, schema: { type: integer } }
+        - { $ref: '#/components/parameters/csrf' }
+      responses:
+        '200': { description: "The record now, with `restored`", content: { application/json: { schema: { type: object } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: nothing_to_restore, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /v1/sites/{sitename}/data/{coll}/items/{id}:
     patch:
@@ -2267,12 +2407,18 @@ paths:
         their own live entry: 404 not_found. The who-may-save setting applies
         (403 not_allowed_to_save). With an X-API-Key, or from the owner signed in
         on the site, this is the owner's edit (PATCH .../collections/{coll}/items/{id}).
+        On a Shared board any signed-in visitor allowed to save (and the owner)
+        changes any item; `If-Match: "<version>"` makes it conditional: 409
+        version_conflict with `item` (as it is now) when someone changed it
+        first; the answer carries the new `version`; the result is at most 16 KB.
+        A Personal name has no items (409 wrong_kind).
       tags: [Collections]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
         - { $ref: '#/components/parameters/coll' }
         - { name: id, in: path, required: true, schema: { type: integer } }
         - { $ref: '#/components/parameters/csrf' }
+        - { name: If-Match, in: header, required: false, schema: { type: string }, description: 'Shared board: the version the change is for, e.g. "3"' }
       requestBody:
         required: true
         content: { application/json: { schema: { type: object }, example: { guests: 3 } } }
@@ -2281,6 +2427,7 @@ paths:
         '401': { description: visitor_auth_required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '403': { description: "not_allowed_to_save or csrf_required", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: "version_conflict (Shared board, with item) or wrong_kind", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     delete:
       operationId: withdrawOwnEntry
       summary: Withdraw your own Submissions entry
@@ -2290,7 +2437,9 @@ paths:
         for that long (SAVED_DATA_WITHDRAW_UNDO_MINUTES), and the owner can
         restore it for 30 days. A blocked visitor can still withdraw their own.
         With an X-API-Key, or from the owner signed in on the site, this is the
-        owner's delete (204).
+        owner's delete (204). On a Shared board any signed-in visitor allowed to
+        save deletes any item (`{"deleted": id, "undo_minutes": 10}`); only they
+        can undo it.
       tags: [Collections]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -2313,7 +2462,8 @@ paths:
         owner restores from Recently deleted). With `one_per_person`, 409
         one_per_person when they have another entry by now; 409 list_full when
         the name is full by now. The site's owner may always bring back their
-        own.
+        own. On a Shared board, whoever deleted the item brings it back, whoever
+        added it.
       tags: [Collections]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -3355,6 +3505,73 @@ paths:
       responses:
         '200': { description: Saved, content: { application/json: { schema: { type: object } } } }
         '403': { description: owner_only, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    patch:
+      operationId: patchPersonalByHandle
+      summary: Change your Personal record with ops (by handle)
+      description: As PATCH /v1/sites/{sitename}/data/{coll}.
+      tags: [Collections]
+      parameters:
+        - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's URL-safe handle" }
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+        - { $ref: '#/components/parameters/csrf' }
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '200': { description: The record now, content: { application/json: { schema: { type: object } } } }
+    delete:
+      operationId: deletePersonalByHandle
+      summary: Delete your Personal record (by handle)
+      description: As DELETE /v1/sites/{sitename}/data/{coll}.
+      tags: [Collections]
+      parameters:
+        - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's URL-safe handle" }
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+        - { $ref: '#/components/parameters/csrf' }
+      responses:
+        '200': { description: Deleted, content: { application/json: { schema: { type: object } } } }
+
+  /v1/u/{handle}/sites/{sitename}/data/{coll}/history:
+    get:
+      operationId: personalHistoryByHandle
+      summary: Your Personal record's changes (by handle)
+      description: As GET /v1/sites/{sitename}/data/{coll}/history.
+      tags: [Collections]
+      parameters:
+        - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's URL-safe handle" }
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+      responses:
+        '200': { description: The changes, content: { application/json: { schema: { type: object } } } }
+
+  /v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}:
+    get:
+      operationId: personalHistoryEntryByHandle
+      summary: One change to your Personal record (by handle)
+      description: As GET /v1/sites/{sitename}/data/{coll}/history/{id}.
+      tags: [Collections]
+      parameters:
+        - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's URL-safe handle" }
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: The change, content: { application/json: { schema: { type: object } } } }
+
+  /v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}/restore:
+    post:
+      operationId: restorePersonalByHandle
+      summary: Put your Personal record back as it was (by handle)
+      description: As POST /v1/sites/{sitename}/data/{coll}/history/{id}/restore.
+      tags: [Collections]
+      parameters:
+        - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's URL-safe handle" }
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+        - { name: id, in: path, required: true, schema: { type: integer } }
+        - { $ref: '#/components/parameters/csrf' }
+      responses:
+        '200': { description: The record now, content: { application/json: { schema: { type: object } } } }
 
   /v1/u/{handle}/sites/{sitename}/data/{coll}/kind:
     get:
