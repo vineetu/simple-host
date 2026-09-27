@@ -2,8 +2,11 @@ package handler
 
 import (
 	"context"
+	"database/sql"
+	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
@@ -292,5 +295,20 @@ func TestReservedNewNames(t *testing.T) {
 	var h string
 	if err := a.database.QueryRow(`SELECT handle FROM users WHERE id = $1`, uid).Scan(&h); err != nil || h == "support" || !strings.HasPrefix(h, "support-") {
 		t.Fatalf("assigned handle %q %v", h, err)
+	}
+}
+
+// A sign-in may not name its key "event account" either (the sign-in pages'
+// own "dashboard sign-in" stays allowed).
+func TestSignInRefusesEventKeyName(t *testing.T) {
+	a := newConnectorApp(t)
+	ann := a.newPerson(t, "evname")
+	lt, _ := auth.GenerateAPIKey()
+	if err := db.CreateAuthToken(context.Background(), a.database, ann.email, "555555", lt, time.Now().Add(time.Minute), "dashboard", sql.NullString{}, sql.NullString{}); err != nil {
+		t.Fatal(err)
+	}
+	r := a.do(t, http.MethodPost, "/v1/auth/verify", jsonBody(map[string]string{"email": ann.email, "code": "555555", "name": "Event Account"}), map[string]string{"Content-Type": "application/json"})
+	if r.status != http.StatusBadRequest {
+		t.Fatalf("verify with the event name: %d %s", r.status, r.body)
 	}
 }

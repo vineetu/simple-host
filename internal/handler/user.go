@@ -236,10 +236,18 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
 		return
 	}
-	keyName, err := normalizeKeyName(req.Name)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
-		return
+	// The sign-in pages name their key "dashboard sign-in" (the default a
+	// sign-in key gets anyway); the other names Simple Host gives its own
+	// keys stay refused, as in the Keys panel.
+	keyName := strings.TrimSpace(req.Name)
+	if n := strings.ToLower(keyName); n != db.KeyNameDashboard && n != db.KeyNameAgent {
+		var err error
+		if keyName, err = normalizeKeyName(req.Name); err != nil {
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+			return
+		}
+	} else {
+		keyName = n
 	}
 	if keyName == "" {
 		keyName = db.KeyNameAgent
