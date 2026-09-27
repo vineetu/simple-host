@@ -129,6 +129,13 @@
     .key-tag { color: var(--accent); font-weight: 600; }
     .keys-everywhere { display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--border); }
     .keys-everywhere small { color: var(--text-secondary); font-size: 13px; flex: 1; min-width: 200px; }
+    /* Your data (cp/gdpr) */
+    .data-delete { padding: 12px 0; border-top: 1px solid var(--border); font-size: 14px; color: var(--text-secondary); }
+    .data-delete ul { margin: 8px 0 12px; padding-left: 20px; }
+    .data-delete li { margin: 2px 0; }
+    .data-delete b { color: var(--text); }
+    .data-delete input { font: inherit; color: var(--text); padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; width: 16em; max-width: 70vw; margin: 4px 0 12px; display: block; }
+    .data-delete .panel-btns { display: flex; gap: 8px; flex-wrap: wrap; }
     /* Your address (cp/recover) */
     .addr-form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px 0; border-top: 1px solid var(--border); }
     .addr-form label { font-size: 14px; color: var(--text-secondary); }
@@ -845,6 +852,38 @@
         <div id="deleted-list"></div>
       </div>
       <!-- ==== end Your address + Recently deleted ==== -->
+      <!-- ==== Your data (cp/gdpr) ====
+           Self-contained: markup here, the "Your data" CSS, and the matching
+           script block at the end of the page. Owner-only. -->
+      <div class="section" id="owner-data" hidden>
+        <div class="section-num"><h2>Your data</h2><span class="line"></span></div>
+        <div class="conn-row">
+          <span><b>Download my data</b><small>One archive with every site (files, saved data and lists), your account, your keys' names (never the keys), connected apps, and the entries you sent to other people's sites.</small></span>
+          <button type="button" class="btn btn-secondary btn-small" id="data-download">Download my data</button>
+        </div>
+        <div class="conn-row" id="data-delete-row">
+          <span><b>Delete my account</b><small>Deletes your account and all its data at once and for good.</small></span>
+          <button type="button" class="btn btn-secondary btn-small" id="data-delete-open">Delete my account…</button>
+        </div>
+        <div class="data-delete" id="data-delete" hidden>
+          <div>Deleting your account removes, at once and for good:</div>
+          <ul>
+            <li>every site, including any in Recently deleted, with its files, every version, saved data and lists</li>
+            <li>your keys and connected apps (ChatGPT, Claude, Grok)</li>
+            <li>the entries you sent to other people's sites, which disappear from their lists</li>
+            <li>your address <b id="data-delete-handle"></b>, your sites' names and custom domains; the names are retired, never given to anyone else</li>
+          </ul>
+          <div>Nothing goes to Recently deleted and nothing can be restored. Download your data first if you want a copy.</div>
+          <label for="data-delete-input">Type <b id="data-delete-word"></b> to confirm</label>
+          <input type="text" id="data-delete-input" autocomplete="off" spellcheck="false">
+          <div class="panel-btns">
+            <button type="button" class="btn btn-secondary btn-small" id="data-delete-download">Download my data first</button>
+            <button type="button" class="btn btn-danger btn-small" id="data-delete-go" disabled>Delete my account</button>
+            <button type="button" class="btn-ghost btn-small" id="data-delete-cancel">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <!-- ==== end Your data ==== -->
 
       <!-- Analytics view (dedicated screen) -->
       <div class="section" id="owner-analytics-view" hidden>
@@ -3540,6 +3579,69 @@ function parseAnalyticsSummary(data) {
       })();
     })();
     // ==== end Your address + Recently deleted ====
+  </script>
+
+  <script>
+    // ==== Your data (cp/gdpr) ====
+    // Download my data (GET /v1/me/export.tar.gz) and Delete my account
+    // (DELETE /v1/me). Owner-only: uses the page script's api, downloadFrom,
+    // toast, HANDLE and apiKey, and shows nothing unless /v1/me says this
+    // visitor owns HANDLE.
+    (function () {
+      if (!apiKey) return;
+      var box = document.getElementById('owner-data');
+      var panel = document.getElementById('data-delete');
+      var input = document.getElementById('data-delete-input');
+      var go = document.getElementById('data-delete-go');
+      var word = '';
+      async function download(btn) {
+        var ok = await downloadFrom('/v1/me/export.tar.gz', 'simple-host-' + HANDLE + '.tar.gz', 'Could not download your data', btn);
+        if (ok) toast('Downloading your data', 'success');
+      }
+      function openPanel(open) {
+        panel.hidden = !open;
+        document.getElementById('data-delete-row').hidden = open;
+        input.value = '';
+        go.disabled = true;
+        if (open) input.focus();
+      }
+      document.getElementById('data-download').addEventListener('click', function (e) { download(e.currentTarget); });
+      document.getElementById('data-delete-download').addEventListener('click', function (e) { download(e.currentTarget); });
+      document.getElementById('data-delete-open').addEventListener('click', function () { openPanel(true); });
+      document.getElementById('data-delete-cancel').addEventListener('click', function () { openPanel(false); });
+      input.addEventListener('input', function () { go.disabled = input.value.trim().toLowerCase() !== word.toLowerCase(); });
+      go.addEventListener('click', async function () {
+        go.disabled = true;
+        try {
+          var res = await api('DELETE', '/v1/me', { confirm: input.value.trim() });
+          if (res.status !== 204) {
+            var body = await res.json().catch(function () { return null; });
+            toast((body && body.error) || 'Could not delete your account', 'error');
+            go.disabled = false;
+            return;
+          }
+          alert('Your account and all its data were deleted. A confirmation is on its way to your email.');
+          window.shSignOut();
+        } catch (e) {
+          toast('Could not delete your account', 'error');
+          go.disabled = false;
+        }
+      });
+
+      (async function () {
+        try {
+          var res = await api('GET', '/v1/me');
+          if (!res.ok) return;
+          var me = await res.json();
+          if (!me || !me.handle || me.handle !== HANDLE) return;
+          word = me.handle;
+          document.getElementById('data-delete-handle').textContent = me.handle;
+          document.getElementById('data-delete-word').textContent = me.handle;
+          box.hidden = false;
+        } catch (e) {}
+      })();
+    })();
+    // ==== end Your data ====
   </script>
 </body>
 </html>

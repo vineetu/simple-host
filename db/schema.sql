@@ -118,9 +118,11 @@ CREATE TABLE IF NOT EXISTS collection_settings (
 -- Frozen legacy per-site hostnames (e.g. mysite.simple-host.app) bound to a
 -- site_id. Populated by a later backfill; not wired into request paths yet.
 -- Old handles kept after an operator rename, so links naming them resolve.
+-- user_id NULL = retired: the handle of a deleted account, held by nobody
+-- so no one else can take it (cp-gdpr-retired-handles.sql).
 CREATE TABLE IF NOT EXISTS handle_aliases (
   handle     TEXT PRIMARY KEY,
-  user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id    UUID REFERENCES users(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

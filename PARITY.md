@@ -26,6 +26,7 @@ that should get it). Last derived from both `FEATURES.md` files and code on 2026
 | Site rename | `PATCH /v1/sites/{s}`, `rename_site` | none | `gap → enterprise` |
 | Recently deleted and restore | delete takes a site offline and keeps it 7 days (name, data, versions, claimed names held); `GET /v1/me/deleted-sites`, `POST /v1/sites/{s}/restore`, `list_deleted_sites`/`restore_site`, owner app; hourly purge (2026-09-27) | row deleted at once, bucket objects retired after 1 h; no restore | `gap → enterprise` |
 | Change a person's address (handle) | self-serve `PATCH /v1/me` and owner app: free before publishing, then once per 30 days; old handle kept as an alias so every old address redirects; new handle's certificate requested (2026-09-27) | none; the username label comes from the IdP | `gap → enterprise` — an admin rename (with redirects) for when a directory name changes |
+| Data export and account erasure | self-serve: "Download my data" (`GET /v1/me/export.tar.gz`: every site, account, keys' names, apps, visitor activity) and "Delete my account" (`DELETE /v1/me`, immediate and final, incl. the person's entries on others' sites; names retired) (2026-09-27) | admin only: offboard/disable, admin export | `different on purpose` — hosted people own their accounts (GDPR self-service); enterprise accounts belong to the company, whose IT handles offboarding and data requests |
 | Site export with saved data | `export.tar.gz` (files + state + collections); `export_site` tool and a 10-minute signed download link for keyless (connector) users | version archive download only (files, no saved data) | `gap → enterprise` |
 | Per-site hosts `<site>.<owner>.<domain>` | live 2026-09-26; path fallback until the owner's wildcard cert exists | v1.3 2026-09-26; same fallback | `same` |
 | Per-owner certificates | root issuer, certbot DNS-01, 40/week 12/day cap | `owner-hosts` reconciler → cert-manager Ingress per owner | `different on purpose` — box vs cluster tooling |
@@ -93,7 +94,7 @@ Every numbered `FEATURES.md` section, per repo, and the rows above that cover it
 | hosted | Saved state (shared JSON per site) | Saved state; Saved-state history |
 | hosted | Collections, including private collections | Collections and private collections |
 | hosted | Visitor sign-in (Google, emailed code) | Visitor sign-in on a site |
-| hosted | Owner auth (API keys, email codes, profile) | Owner sign-in; API keys rows; Change a person's address |
+| hosted | Owner auth (API keys, email codes, profile) | Owner sign-in; API keys rows; Change a person's address; Data export and account erasure |
 | hosted | MCP connector and OAuth (chat apps) | MCP connector; Connector token lifetime; MCP error hints |
 | hosted | Skills and plugin distribution | Skills and plugin |
 | hosted | Owner dashboard and owner app | Dashboard |

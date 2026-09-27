@@ -280,6 +280,14 @@ What follows from that, and is not negotiable without changing the line above:
   Reason: the self-serve flow could not finish without the operator, and a lapsed or switched
   address stranded visitors.
 
+- **2026-09-27. People can download all their data and delete their account and all data
+  themselves; deletion is immediate and final.** "Download my data" and "Delete my account" in
+  the owner app (and `/dashboard` for accounts without a handle), `GET /v1/me/export.tar.gz` and
+  `DELETE /v1/me`. Deletion bypasses Recently deleted, also removes the person's entries in other
+  people's lists, and retires their handle and names so nobody inherits their links. Refused for
+  suspended and admin accounts and while event hostnames are held. Reason: GDPR and trust.
+  Owner approved 2026-09-27.
+
 ## Open, deliberately parked
 
 - Whether a site that disconnects its domain should be migrated back to a "normal" shared-host site in some

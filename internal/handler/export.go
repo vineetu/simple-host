@@ -91,8 +91,8 @@ func (h *SiteHandler) exportAll(w http.ResponseWriter, r *http.Request) {
 }
 
 // writeSiteTar writes one site into tw under prefix: state.json (saved data),
-// collections.json (every list, private ones included), and files/ (the live
-// version).
+// collections.json (every list, private ones included, each entry with its
+// id, time and submitter), and files/ (the live version).
 func (h *SiteHandler) writeSiteTar(ctx context.Context, tw *tar.Writer, prefix string, site db.Site) error {
 	// The saved data first, because it is the part nothing else preserves: the
 	// files exist in whatever the person built from, the JSON only lives here.
@@ -154,21 +154,25 @@ func writeTarBytes(tw *tar.Writer, name string, b []byte) error {
 	return err
 }
 
-func exportCollections(ctx context.Context, database *sql.DB, siteID string) (map[string][]json.RawMessage, error) {
-	rows, err := database.QueryContext(ctx,
-		`SELECT collection, data FROM collection_items WHERE site_id=$1 ORDER BY collection, id`, siteID)
+// exportItem is one list entry in collections.json: its id, when it was
+// saved, who sent it (private lists only) and what the page saved.
+type exportItem struct {
+	ID          int64           `json:"id"`
+	CreatedAt   time.Time       `json:"created_at"`
+	SubmittedBy string          `json:"submitted_by,omitempty"`
+	Data        json.RawMessage `json:"data"`
+}
+
+func exportCollections(ctx context.Context, database *sql.DB, siteID string) (map[string][]exportItem, error) {
+	items, err := db.ListExportItems(ctx, database, siteID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	out := map[string][]json.RawMessage{}
-	for rows.Next() {
-		var coll string
-		var data []byte
-		if err := rows.Scan(&coll, &data); err != nil {
-			return nil, err
-		}
-		out[coll] = append(out[coll], json.RawMessage(data))
+	out := map[string][]exportItem{}
+	for _, it := range items {
+		out[it.Collection] = append(out[it.Collection], exportItem{
+			ID: it.ID, CreatedAt: it.CreatedAt.UTC(), SubmittedBy: it.SubmittedBy, Data: json.RawMessage(it.Data),
+		})
 	}
-	return out, rows.Err()
+	return out, nil
 }
