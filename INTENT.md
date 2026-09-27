@@ -250,6 +250,17 @@ What follows from that, and is not negotiable without changing the line above:
   of 2026-09-05. Reason: signup is free and the Origin gate stops only browsers, so any stranger
   with a script could overwrite or wipe every site's saved data (state-storage review).
 
+- **2026-09-27. Custom domains go live without the operator.** Once a connected domain's DNS
+  points here its certificate is issued automatically (a root issuer, HTTP-01) and a binding
+  whose DNS points here no longer expires while it waits. Connecting a new domain keeps the
+  site's current address serving until the new one works, then the old one redirects. A
+  working domain that fails every check for a day emails the owner; after three days it stops
+  being the site's address and can be connected afresh by whoever holds it. A free
+  `<name>.simple-host.app` a site lets go stays with that site (it redirects, or says the site
+  was removed) and nobody else can claim it. Owner approved ("automate"), completeness plan.
+  Reason: the self-serve flow could not finish without the operator, and a lapsed or switched
+  address stranded visitors.
+
 ## Open, deliberately parked
 
 - Whether a site that disconnects its domain should be migrated back to a "normal" shared-host site in some

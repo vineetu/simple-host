@@ -91,7 +91,7 @@ Portal → **Create plugin** → **With MCP**. Package name `simple-host` (it mu
 | Content security policy | none: the server returns no UI |
 | Domain verification | the portal shows a token → put it in `/etc/simple-host.env` as `OPENAI_APPS_CHALLENGE=<token>`, restart, confirm `curl -s https://simple-host.app/.well-known/openai-apps-challenge` prints exactly the token, then **Verify Domain**. Leave Challenge Base URL empty (it defaults to the MCP host). nginx already proxies `/.well-known/*` on the apex to the app. |
 
-Then **Scan Tools**. Expect 22 tools, no UI templates, the server `instructions`, no imported
+Then **Scan Tools**. Expect 23 tools, no UI templates, the server `instructions`, no imported
 skills (the server does not offer the skills extension; skills are uploaded instead).
 Every tool declares an `outputSchema` describing its `structuredContent`
 (`internal/mcp/outputs.go`), so the scan should raise no "Add an outputSchema" recommendation.
@@ -127,6 +127,7 @@ Values are set by the server (`internal/mcp/tools.go`) and pinned by
 | update_collection_item | false | true | false | Merges fields into one item of a private collection (e.g. marks an order done). Overwrites or removes field values with no undo, like `update_state`, so destructive. The list is private to the owner; nothing is published. |
 | delete_collection_item | false | true | false | Permanently removes one item from a private collection; irreversible. Requires the item id twice (`confirm_id`) and the description tells the model to get explicit confirmation of that item. The list is private to the owner; nothing is published. |
 | connect_domain | false | false | true | Gives a site its own address: a free `<name>.simple-host.app` (active at once) or an arbitrary outside domain the person names, served once its DNS points here. Either way the site is served at a new public address. Nothing is deleted; an outside domain stays provisional until DNS proves ownership. |
+| remove_domain | false | true | true | Disconnects a site's custom domain or free `<name>.simple-host.app` address, so the site is served at a different public address (open world). Destructive: links to a disconnected custom domain stop working and the domain can then be connected by someone else. Requires the address typed out (`confirm_domain`) and the description tells the model to get explicit confirmation first. |
 
 "Open world" is applied to every tool that puts content in front of the public or reaches an
 outside domain; reads of the person's own account, and changes to the owner's private lists,

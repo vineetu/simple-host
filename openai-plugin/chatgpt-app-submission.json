@@ -271,6 +271,18 @@
         "open_world_justification": "It reads the person's own site statistics; nothing is published or sent anywhere.",
         "destructive_justification": "Nothing is created, changed or deleted."
       }
+    },
+    "remove_domain": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "It disconnects a site's domain, so it modifies data.",
+        "open_world_justification": "The public site moves to a different public address, and the disconnected domain becomes free for someone else on the internet to connect.",
+        "destructive_justification": "Links to a disconnected custom domain stop working; the person must confirm by typing the domain, and the tool asks for explicit confirmation first."
+      }
     }
   },
   "test_cases": [

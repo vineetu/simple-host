@@ -2,6 +2,10 @@
 
 One line per shipped change, newest first. Add a line here in the same commit as any feature change.
 
+## 2026-09-27
+
+- Custom domains go live on their own: once the DNS record is seen, the certificate is issued automatically (new root issuer in `deploy/domain-certs/`, `DOMAIN_CERT_DIR` setting) and the domain status shows its progress (`certificate_status`: pending, issuing, live or failed with the reason). A binding whose DNS points here no longer expires while it waits. Connecting a new domain keeps the site's current address working until the new one is live, then the old one redirects. A working domain that fails every check for a day emails the owner; after three days the site goes back to its own address and the domain can be connected by whoever holds it now. Old `sites.simple-host.app` links follow a domain only once it works. A free `<name>.simple-host.app` a site lets go (switch, disconnect, delete) keeps redirecting to that site, or says it was removed, instead of passing to another site with the same name. New connector tool `remove_domain` (confirm-first). Skills 0.19.3.
+
 ## 2026-09-26
 
 - v0.2.0 released. The small-box installer pins one release: its image, compose file and schema all come from the same tag (before, `latest` pulled v0.1.2 against a newer schema and the app crash-looped on its schema check). The release workflow refuses a tag the installer does not pin.

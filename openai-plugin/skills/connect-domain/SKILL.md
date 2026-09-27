@@ -1,6 +1,6 @@
 ---
 name: connect-domain
-description: Give a Simple Host site a shorter or custom address, either a free <name>.simple-host.app (one call, no DNS) or the person's own domain or subdomain (for example rsvp.example.com via a CNAME record, or example.com via an A record) to a site they already have on Simple Host, using the connect_domain and domain_status tools. Use when the person wants their site on a nicer or shorter address, or asks how to point a domain they bought (Vercel, GoDaddy, Porkbun, Namecheap, Cloudflare, Squarespace and others) at their site. Optional, since every site already has its own address where sign-in and private collections work. Gets the one DNS record, relays it with registrar-specific steps, and checks until the domain is live.
+description: Give a Simple Host site a shorter or custom address, either a free <name>.simple-host.app (one call, no DNS) or the person's own domain or subdomain (for example rsvp.example.com via a CNAME record, or example.com via an A record) to a site they already have on Simple Host, using the connect_domain, domain_status and remove_domain tools. Use when the person wants their site on a nicer or shorter address, or asks how to point a domain they bought (Vercel, GoDaddy, Porkbun, Namecheap, Cloudflare, Squarespace and others) at their site. Optional, since every site already has its own address where sign-in and private collections work. Gets the one DNS record, relays it with registrar-specific steps, and checks until the domain is live.
 ---
 
 <!-- Derived from simple-host-website/skills/connect-domain/SKILL.md (+ references/registrars.md). Keep in step. -->
@@ -30,8 +30,9 @@ domain of their own.
   `invalid_name`: one label, lowercase letters, digits and hyphens.
 - It behaves exactly like a custom domain: everything below applies, and the site's
   `<site>.<handle>.simple-host.app` address redirects there.
-- A site has one bound address. Claiming the free address replaces a custom domain, and
-  connecting a custom domain replaces the free address.
+- A site has one bound address. Claiming the free address replaces a custom domain at once;
+  a custom domain replaces the free address only once it is live, and until then the site
+  keeps serving at the free address. A free address the site lets go keeps redirecting to it.
 
 ## What a bound address changes
 
@@ -56,8 +57,10 @@ domain of their own.
    record: a CNAME to `cname.simple-host.app` for a subdomain, or an A record with an IP for an
    apex. Relay whatever it returns; never invent a target. A "domain taken" error means another
    site holds a verified binding for that domain.
-   The binding is provisional until DNS proves it: it expires after 24 hours and another site
-   can take it over. Bind and add the record in the same sitting; binding again later is fine.
+   The binding is provisional until DNS proves it: another site can take it over, and it
+   expires after 24 hours unless the record is already seen. Bind and add the record in the
+   same sitting; binding again later is fine. If the site already had an address of its own,
+   `serving_at` shows it: the site stays there until the new domain is live.
 3. **Relay the record.** Ask where the domain's DNS is managed (usually where they bought it),
    then give the record in plain terms:
 
@@ -81,9 +84,11 @@ domain of their own.
      them double-check it against the record from step 2, then wait a few minutes.
    - `resolves to <ip>, not to this server`: the record points elsewhere (often an old parking
      record); compare it with step 2 and fix it.
-   - `... HTTPS is not answering yet (certificate not issued)`: DNS is done. This is not
-     propagation and waiting on DNS will not change it; the certificate is on Simple Host's
-     side. Tell the person their part is finished.
+   - `resolves to this server; its certificate is being issued` (`certificate: issuing`): DNS
+     is done and the certificate is issued automatically, usually within minutes. Tell the
+     person their part is finished and check again shortly.
+   - `certificate: failed`: `last_check` says why (usually an IPv6 `AAAA` record for the
+     domain pointing elsewhere, which they should remove); it is retried every few hours.
    - `error` with e.g. `HTTPS returned 404`: the domain reaches Simple Host but the site serves
      nothing; check the site has content.
 5. **Done** when the status is `active`. Give the person `https://<their domain>/` and remind
@@ -96,4 +101,13 @@ person offers to let you add the record yourself and you have a way to call thei
 provider, `references/registrars.md` has the calls; ask permission naming the exact record,
 add only that record, read it back, and never store or repeat the credentials.
 
-Disconnecting a domain is not something these tools do; say so if asked.
+## Disconnecting
+
+`remove_domain` disconnects the site's domain or free address. Only after the person confirms,
+in this conversation, which address to remove; pass it as `confirm_domain`. The site is then
+served at its own address again (or, if the domain was still pending, at the address it was
+using). A removed free address keeps redirecting to the site; links to a removed custom domain
+stop working.
+
+If a live domain stops working (it lapsed, or its DNS moved), the owner is emailed after a day,
+and after three days the site goes back to its own address.

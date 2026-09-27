@@ -41,7 +41,7 @@ tags:
   - name: Collections
     description: Append-only per-site lists (POST is a write)
   - name: Custom domains
-    description: Give a site a nicer address — a free <name>.simple-host.app or one custom domain (CNAME or A record; certificate issued by the operator). Optional.
+    description: Give a site a nicer address — a free <name>.simple-host.app or one custom domain (CNAME or A record; its certificate is issued automatically once DNS points here). Optional.
   - name: Analytics
     description: Per-site visitor analytics (server-side, owner-scoped)
   - name: AI
@@ -1859,14 +1859,24 @@ paths:
         exactly like a custom domain: the site is served at its root with a
         same-origin /v1 API and visitor sign-in, its person-address URL 302s there, and
         private collections take submissions there. A site has one
-        own address: claiming one replaces a custom domain and vice versa. DELETE
-        releases it.
+        own address: claiming one replaces a custom domain and vice versa. A free
+        name the site lets go (switching, DELETE, or deleting the site) stays with
+        it: it redirects to the site's current address and nobody else can claim it.
         A custom domain: bind ONE domain to the site (status starts as `pending`). Returns
-        the DNS CNAME record the owner must create (host → platform CNAME
-        target). Once DNS points at us, the operator issues the certificate and the
-        domain is served at its root. Until first verified, a binding is provisional:
-        another site can take it over, and it expires after 24 hours from binding.
-        A domain verified at least once stays exclusive even if later checks fail.
+        the DNS record the owner must create (CNAME for a subdomain, A for an apex).
+        Once DNS points here, its certificate is requested automatically
+        (`certificate_status`: pending → issuing → live, or failed with the reason in
+        `last_error`, retried) and the domain is served at its root, usually within
+        minutes. If the site already has a working own address (a free name or an
+        earlier domain), it keeps serving there (`previous_domain`) until the new
+        domain is verified; then the old address redirects to it. Binding the
+        site's current working domain again changes nothing; binding its
+        `previous_domain` drops the pending one. Until first verified, a binding is
+        provisional: another site can take it over, and it expires 24 hours after
+        binding unless DNS already points here. A verified domain stays exclusive
+        while it works; if it fails every check for 24 hours the owner is emailed,
+        and after 72 hours it stops being the site's address (the site's own
+        address serves again) and can be connected afresh by whoever holds it.
         Hijacking the platform zone is rejected. Owner only (API key).
       tags: [Custom domains]
       security: [{ apiKey: [] }]
@@ -1893,6 +1903,9 @@ paths:
                   status: { type: string, enum: [pending, active, error], example: pending }
                   bound_at: { type: string, format: date-time }
                   verified_at: { type: string, format: date-time, nullable: true, description: Set at once for a free <name>.simple-host.app address }
+                  expires_at: { type: string, format: date-time, description: bound_at plus 24 hours; included only while pending and never verified }
+                  certificate_status: { type: string, enum: [pending, issuing, live, failed], description: "The custom domain's certificate: pending (DNS not pointed here yet), issuing, live, or failed (why in last_error; retried). Absent for a free <name>.simple-host.app address." }
+                  previous_domain: { type: string, description: "The site's earlier own address, still serving it until this domain is verified (then it redirects here). Present only while the new domain is pending.", example: clay-studio.simple-host.app }
                   dns:
                     description: The record to add at the registrar; absent for a free <name>.simple-host.app address
                     type: object
@@ -1927,8 +1940,10 @@ paths:
       summary: Get the custom domain binding for this site
       description: >-
         Returns the bound domain and status, or `{domain:null,status:null}` when
-        none is set. Includes the CNAME DNS record to add when a domain is bound.
-        Owner only (API key).
+        none is set. Includes the DNS record to add when a custom domain is bound,
+        the certificate's progress, the earlier address still serving while the
+        domain is pending, and `failing_since` when a verified domain has stopped
+        passing its checks. Owner only (API key).
       tags: [Custom domains]
       security: [{ apiKey: [] }]
       parameters: [ { $ref: '#/components/parameters/sitename' } ]
@@ -1945,7 +1960,10 @@ paths:
                   bound_at: { type: string, format: date-time, description: Binding timestamp stored as domain_bound_at; reset on bind }
                   expires_at: { type: string, format: date-time, description: bound_at plus 24 hours; included only while pending and never verified }
                   verified_at: { type: string, format: date-time, nullable: true }
-                  last_error: { type: string }
+                  last_error: { type: string, description: Why the domain is not active, from the latest check }
+                  certificate_status: { type: string, enum: [pending, issuing, live, failed], description: "pending (DNS not pointed here yet), issuing, live, or failed (why in last_error; retried). Absent for a free <name>.simple-host.app address." }
+                  previous_domain: { type: string, description: "The site's earlier own address, still serving it until this domain is verified. Present only while the domain is pending." }
+                  failing_since: { type: string, format: date-time, description: "A verified domain that stopped passing its checks: the owner is emailed after 24 hours; after 72 hours it stops being the site's address." }
                   dns:
                     type: object
                     properties:
@@ -1956,8 +1974,14 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
     delete:
       operationId: deleteSitesBySitenameDomain
-      summary: Unbind the custom domain from this site
-      description: Clears the domain binding and removes the serving symlink. Owner only (API key).
+      summary: Disconnect this site's domain or free address
+      description: >-
+        Disconnects the domain GET shows. If it was still pending and the site kept
+        serving at an earlier address (`previous_domain`), that address becomes the
+        site's domain again; otherwise the site is served at its own address.
+        A disconnected free <name>.simple-host.app stays with the site and redirects
+        to its current address; links to a disconnected custom domain stop working.
+        Owner only (API key).
       tags: [Custom domains]
       security: [{ apiKey: [] }]
       parameters: [ { $ref: '#/components/parameters/sitename' } ]

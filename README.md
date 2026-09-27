@@ -121,6 +121,7 @@ All via environment variables. `DB_DSN` and `ADMIN_API_KEY` are required; the re
 | `PERSON_HOSTS` | | `canonical` gives each account `https://<handle>.<SITE_DOMAIN>/`; `off` (default) keeps sites at `sites.<SITE_DOMAIN>/<handle>/<site>/` |
 | `SITE_HOSTS` | | `canonical` gives each site its own origin, `https://<site>.<handle>.<SITE_DOMAIN>/` (needs `PERSON_HOSTS` and a `*.<handle>` certificate per person); `off` (default) |
 | `SITE_CERT_DIR` | | Where the app asks for and finds those per-person certificates |
+| `DOMAIN_CERT_DIR` | | Where the app asks for and finds custom-domain certificates (issuer in `deploy/domain-certs/`); unset = issued by hand |
 | `ANALYTICS_SALT` | | Salt for the hashed visitor IP in site analytics. Empty = derived from `ADMIN_API_KEY`. |
 
 ## API

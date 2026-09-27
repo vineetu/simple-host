@@ -30,7 +30,7 @@ that should get it). Last derived from both `FEATURES.md` files and code on 2026
 | Small-box path model | `PERSON_HOSTS`/`SITE_HOSTS=off` on event/self-hosted boxes: one shared host, path addresses | n/a (always per-site hosts) | `different on purpose` — a $5 box has no per-owner wildcard DNS/certs |
 | Person / owner index page | `<handle>.<domain>/`, public, lists public sites | `<owner>.<base>/`, sign-in required, only listed sites to others | `different on purpose` — company content stays behind company sign-in |
 | Free `<name>.<domain>` names | first come, verified at once | none | `different on purpose` — enterprise non-goal: the person's name in the address is the identity |
-| Custom domains | CNAME/A bind, 24 h provisional, Caddy on-demand TLS on boxes | none | `different on purpose` — enterprise non-goal (no per-site custom domains) |
+| Custom domains | CNAME/A bind, 24 h provisional (not while DNS points here), certificate issued automatically (HTTP-01 issuer on prod; Caddy on-demand TLS on boxes), old address kept until the new one is live, lapsed domains let go after 72 h, released free names stay with their site | none | `different on purpose` — enterprise non-goal (no per-site custom domains) |
 | Who can open a site | pages always public; `public`/`unlisted` listing only | five levels `only_me`/`specific`/`company`/`listed`/`network`, admin approval (optionally two) for network, named viewers | `different on purpose` — hosted non-goal: no private pages; enterprise default is only-me |
 | Teams | none; one person per account | `team-<name>` namespaces, one role | `different on purpose` — hosted accounts are single people (event participants get their own key) |
 | Saved state | one JSON doc; atomic ops (`set`/`inc`/`append`/`remove`/`removeWhere`) + `PUT` with `If-Match`; 1 MB | one JSON doc; last-write-wins or versioned compare-and-set | `different on purpose` — hosted writes need a signed-in visitor or the owner's key; enterprise: every viewer is signed in and may write, keys included |
@@ -47,7 +47,7 @@ that should get it). Last derived from both `FEATURES.md` files and code on 2026
 | API keys: list and revoke one | none (rotate is all-or-nothing) | mint, list, revoke each | `gap → hosted` |
 | MCP connector and OAuth | DCR, PKCE S256, rotating refresh, reuse revokes the grant, hourly sweep, tokens hashed | same design (hosted's adapter was ported from enterprise) | `same` |
 | Connector token lifetime and reach | refresh 90 d sliding; Bearer also accepted on `/v1/*` | refresh 30 d from sign-in, TTLs capped; Bearer only on `/mcp` | `different on purpose` — hosted: sign in once and stay signed in, and hand-registered GPT Actions call REST |
-| MCP tools | 22 tools, each a REST call | own set incl. teams, viewers, access, state history; each resolves to a route (tested) | `same` — tools follow each side's REST surface |
+| MCP tools | 23 tools, each a REST call | own set incl. teams, viewers, access, state history; each resolves to a route (tested) | `same` — tools follow each side's REST surface |
 | Skills and plugin | `website-deploy`, `-builder`, `connect-domain`, `run-hackathon`; Claude + ChatGPT plugins; stale skill → `_notice` | `simple-host`, `simple-host-builder`, `fix-paths-for-subpath-hosting`; `plugin.zip`; obsolete skill → refused | `different on purpose` — each skill teaches its own product; a company can require current skills |
 | Audit log | none; server log only | every mutation + visit, hash-chained, `audit-verify`, SIEM stdout stream, export, retention | `different on purpose` — hosted decision 2026-09-05: nothing records an author; enterprise constraint: everything on record |
 | Analytics | nginx/Caddy log → views, visitors, local geo; API metrics; `site_analytics` tool | in-app access log → daily views (bots split), downloads, counts only for owners | `different on purpose` — different serving paths; geo is a public-web need |
@@ -101,7 +101,7 @@ Every numbered `FEATURES.md` section, per repo, and the rows above that cover it
 | hosted | Abuse limits and hardening | Rate limits and abuse caps; Quotas; Security headers |
 | hosted | Signals and notifications | Notifications |
 | hosted | Operations (health, schema, CLI) | Health and metrics; Deployment model |
-| hosted | MCP tool index (`internal/mcp/tools.go`, 22 tools) | MCP tools |
+| hosted | MCP tool index (`internal/mcp/tools.go`, 23 tools) | MCP tools |
 | hosted | Unplaced routes and tools | (index of FEATURES itself, no feature) |
 | enterprise | Identity: OIDC sign-in, sessions, hand-off | Owner sign-in and sessions; Visitor sign-in on a site |
 | enterprise | API keys (CI and automation) | API keys rows |
