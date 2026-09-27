@@ -103,6 +103,11 @@ type SiteHandler struct {
 	// siteHosts is SITE_HOSTS and siteCertDir SITE_CERT_DIR (sitehost.go).
 	siteHosts   siteHostMode
 	siteCertDir string
+
+	// exportKey signs short-lived export download links (exportlink.go); per
+	// process, used for nothing else. publicBaseURL is the apex they point at.
+	exportKey     []byte
+	publicBaseURL string
 }
 
 // lockSite acquires the per-site upload mutex and returns its unlock func.
@@ -163,6 +168,7 @@ func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, con
 		writeAuthMode:      writeAuthMode,
 		adminAPIKey:        adminAPIKey,
 		adminUserID:        adminUserID,
+		exportKey:          newExportKey(),
 	}
 	if len(previewAccounts) > 0 {
 		ttlHours := int(previewTTL.Hours())
@@ -245,6 +251,12 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// Take your work with you. An event box is destroyed when the event ends and
 	// nothing is backed up, so the only honest answer is to make leaving easy.
 	mux.Handle("GET /v1/sites/{sitename}/export.tar.gz", authMiddleware(http.HandlerFunc(h.exportSite)))
+	// The same export behind a 10-minute signed link, for people with no API
+	// key (chat-app connector users): minted by the owner, opened by a click.
+	mux.Handle("POST /v1/sites/{sitename}/export-link", noticeMiddleware(authMiddleware(http.HandlerFunc(h.createExportLink))))
+	exportLimiter := newRateLimiter(10, 0.1)
+	exportLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	mux.Handle("GET /v1/export", rateLimitByIP(exportLimiter, http.HandlerFunc(h.downloadExport)))
 	mux.Handle("GET /v1/sites/{sitename}/versions", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listVersions))))
 	mux.Handle("GET /v1/sites/{sitename}/versions/{version}/files", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listVersionFiles))))
 	mux.Handle("GET /v1/sites/{sitename}/versions/{version}/files/{path...}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getVersionFile))))

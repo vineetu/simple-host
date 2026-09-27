@@ -301,6 +301,7 @@ func TestAnnotationsMatchBehaviour(t *testing.T) {
 		"read_collection":   {true, false, false},
 		"domain_status":     {true, false, false},
 		"site_analytics":    {true, false, false},
+		"export_site":       {true, false, false},
 		"create_site":       {false, false, true},
 		"update_site":       {false, true, true},
 		"rollback_site":     {false, false, true},

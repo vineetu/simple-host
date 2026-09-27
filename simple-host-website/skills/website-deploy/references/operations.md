@@ -55,7 +55,20 @@ DELETE /v1/sites/<sitename>
 
 Removes the site, every version, and its state and collections. Not reversible —
 confirm with the user in plain language before calling it, and say what will be
-lost.
+lost. Offer a copy first (below).
+
+## Download a copy
+
+```
+GET /v1/sites/<sitename>/export.tar.gz          (X-API-Key)
+POST /v1/sites/<sitename>/export-link           (X-API-Key) → {"url", "expires_at"}
+```
+
+The archive holds the live files (`<site>/files/…`), the saved state
+(`<site>/state.json`) and every collection's items (`<site>/collections.json`,
+private lists included). The link form (connector: `export_site`) opens the same
+archive without a key for 10 minutes: give it to the person to click, never post
+it publicly, and make a new one if it has expired.
 
 ## Analytics
 

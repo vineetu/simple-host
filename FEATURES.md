@@ -43,11 +43,11 @@ export, public/unlisted listing. **Status: live.**
 
 | Surface | Details |
 |---|---|
-| Routes | `POST`/`PUT /v1/sites/{sitename}` (archive) · `POST`/`PUT /v1/sites/{sitename}/files` (inline JSON, base64 allowed) · `GET /v1/sites` · `PATCH /v1/sites/{sitename}` (rename) · `DELETE /v1/sites/{sitename}` · `GET /v1/sites/{sitename}/versions` · `GET /v1/sites/{sitename}/versions/{version}/files` · `GET /v1/sites/{sitename}/versions/{version}/files/{path...}` · `PUT /v1/sites/{sitename}/active-version` · `PUT /v1/sites/{sitename}/visibility` (`public`/`unlisted`) · `GET /v1/sites/{sitename}/export.tar.gz` (files + saved data) · `GET /internal/notfound` (branded 404, nginx `@notfound`) |
-| MCP tools | `list_sites`, `get_site`, `read_site_file`, `create_site`, `update_site`, `list_versions`, `rollback_site`, `delete_site`, `rename_site`, `set_visibility` |
+| Routes | `POST`/`PUT /v1/sites/{sitename}` (archive) · `POST`/`PUT /v1/sites/{sitename}/files` (inline JSON, base64 allowed) · `GET /v1/sites` · `PATCH /v1/sites/{sitename}` (rename) · `DELETE /v1/sites/{sitename}` · `GET /v1/sites/{sitename}/versions` · `GET /v1/sites/{sitename}/versions/{version}/files` · `GET /v1/sites/{sitename}/versions/{version}/files/{path...}` · `PUT /v1/sites/{sitename}/active-version` · `PUT /v1/sites/{sitename}/visibility` (`public`/`unlisted`) · `GET /v1/sites/{sitename}/export.tar.gz` (files + saved data) · `POST /v1/sites/{sitename}/export-link` (owner mints a 10-minute signed link) · `GET /v1/export` (`?token=`; the same archive, no key: HMAC over owner+site+expiry, per-process key, 404 `export_link_invalid` when expired, tampered, or the site is gone or changed hands) · `GET /internal/notfound` (branded 404, nginx `@notfound`) |
+| MCP tools | `list_sites`, `get_site`, `read_site_file`, `create_site`, `update_site`, `list_versions`, `rollback_site`, `delete_site`, `rename_site`, `set_visibility`, `export_site` (download link) |
 | Skill | `website-deploy/SKILL.md` §Two ways to deploy, §The one rule that breaks sites (relative links), §Rules that always apply, §Completion standard · `references/packaging-and-validation.md` (Package, Upload, Verify) · `references/operations.md` §Listing, §Rename, §Rollback, §Delete · `references/frameworks.md` · `website-deploy-builder/SKILL.md` §Capability tree 1 |
 | Pages | owner app `st/showcase.html` (site inventory, versions, delete, visibility) · `st/index.html` at `/dashboard` (site cards, rename, delete, versions) · `st/notfound.html` |
-| Go | `h/site.go` (create/update/list/delete/rename/visibility, route table), `h/versions.go`, `h/versionfiles.go`, `h/export.go`, `h/sitename.go`, `h/usage.go` (per-site cap), `internal/tarball/{extract,sanitize,validate}.go`, `internal/storage/disk.go` (by-id layout, `handles/` symlinks), `internal/db/queries.go` |
+| Go | `h/site.go` (create/update/list/delete/rename/visibility, route table), `h/versions.go`, `h/versionfiles.go`, `h/export.go`, `h/exportlink.go`, `h/sitename.go`, `h/usage.go` (per-site cap), `internal/tarball/{extract,sanitize,validate}.go`, `internal/storage/disk.go` (by-id layout, `handles/` symlinks), `internal/db/queries.go` |
 | DB | `sites`, `versions` |
 | Limits | 100 sites per account (admins exempt); uploads serialised per site; upload limiter 30 burst, 0.1/s |
 | Env | `DATA_DIR`, `MAX_ARCHIVE_MB`, `KEEP_VERSIONS`, `DEPLOY_SCRIPT`, `PREVIEW_ACCOUNTS`, `PREVIEW_TTL_HOURS` (preview-site expiry sweep) |
@@ -188,7 +188,7 @@ as the person, so they meet the same checks as REST. Connector tokens are stored
 | Surface | Details |
 |---|---|
 | Routes | `GET /.well-known/oauth-protected-resource` · `GET /.well-known/oauth-protected-resource/mcp` · `GET /.well-known/oauth-authorization-server` · `GET /.well-known/oauth-authorization-server/mcp` · `POST /oauth/register` · `GET /oauth/authorize` (consent page) · `POST /oauth/authorize/decision` · `POST /oauth/token` · `POST /oauth/revoke` · `POST /oauth/reviewer-signin` · `POST`/`GET`/`DELETE /mcp` · `GET /v1/me/connections` · `DELETE /v1/me/connections/{client_id}` |
-| MCP tools | all 22 (see §21); server metadata and instructions in `internal/mcp/instructions.go` |
+| MCP tools | all 23 (see §21); server metadata and instructions in `internal/mcp/instructions.go` |
 | Skill | `website-deploy/SKILL.md` §Service, §Two ways to deploy (connector vs key); `openai-plugin/skills/website-deploy/SKILL.md` is the connector-only variant |
 | Pages | `st/connect.html` (consent; own nonce CSP in `consentHeaders`), `st/showcase.html` (Connected apps) |
 | Go | `h/connector.go` (AS, `BearerAuth`, `serveMCP`, connections, hourly sweep), `h/reviewer.go` (password sign-in for one designated store-review account), `internal/mcp/{server,jsonrpc,tools,outputs,instructions}.go`, `internal/db/connector.go`, `internal/db/internalkey.go`, `cmd/server/oauthclient.go` (`simple-host oauth-client …`, hand-registered clients e.g. a GPT Action), `cmd/server/reviewaccount.go` (`simple-host review-account …`) |
@@ -358,7 +358,7 @@ notice.
 | Env | `DB_DSN`, `PORT`, `BIND_ADDR`, `DATA_DIR`, `SITE_DOMAIN`, `PUBLIC_BASE_URL`, `CONTENT_HOST`; dev-only `CHROME_SERVE_ADDR`, `CHROME_SERVE_FOR`; migration-only `UNIFY_KEEP` |
 | Deploy | `/usr/local/bin/simple-host` as `simple-host.service`, env `/etc/simple-host.env`; `deploy/prod/*`, `Dockerfile`, `compose.yaml`, `Makefile`; checks `scripts/check-{docs-sync,features,html,layering,claude-plugin,reserved-subdomains,fresh-install}.sh` |
 
-## 21. MCP tool index (`internal/mcp/tools.go`, 22 tools)
+## 21. MCP tool index (`internal/mcp/tools.go`, 23 tools)
 
 | Tool | REST call | § |
 |---|---|---|
@@ -383,11 +383,12 @@ notice.
 | `connect_domain` | `POST /v1/sites/{s}/domain` | 3 |
 | `domain_status` | `GET /v1/sites/{s}/domain` | 3 |
 | `site_analytics` | `GET /v1/sites/{s}/analytics?days=` | 12 |
+| `export_site` | `POST /v1/sites/{s}/export-link` (returns a link to `GET /v1/export?token=`) | 1 |
 
 ## 22. Unplaced routes and tools
 
 None. Every `mux.Handle`/`HandleFunc` registration in `cmd/server` and `internal/handler`
-(129 distinct method+path patterns, plus the looped `/mcp`, `/skills/{dir}.*` and
-`rewrittenAssets` routes) and all 22 MCP tools are placed above. Routes that exist outside
+(131 distinct method+path patterns, plus the looped `/mcp`, `/skills/{dir}.*` and
+`rewrittenAssets` routes) and all 23 MCP tools are placed above. Routes that exist outside
 the mux: host-routed site hosts / person hosts / claimed names / custom domains (§2, §3) and the
 nginx-only `/v1/transcribe/stream` (§14).

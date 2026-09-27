@@ -24,7 +24,7 @@ that should get it). Last derived from both `FEATURES.md` files and code on 2026
 |---|---|---|---|
 | Sites: deploy, versions, rollback, delete | tar.gz/zip or inline JSON files; `KEEP_VERSIONS`; rollback; delete | tar.gz or MCP file list, `If-Match` ETags; 5 versions kept; rollback; delete | `same` |
 | Site rename | `PATCH /v1/sites/{s}`, `rename_site` | none | `gap → enterprise` |
-| Site export with saved data | `export.tar.gz` (files + state + collections) | version archive download only (files, no saved data) | `gap → enterprise` |
+| Site export with saved data | `export.tar.gz` (files + state + collections); `export_site` tool and a 10-minute signed download link for keyless (connector) users | version archive download only (files, no saved data) | `gap → enterprise` |
 | Per-site hosts `<site>.<owner>.<domain>` | live 2026-09-26; path fallback until the owner's wildcard cert exists | v1.3 2026-09-26; same fallback | `same` |
 | Per-owner certificates | root issuer, certbot DNS-01, 40/week 12/day cap | `owner-hosts` reconciler → cert-manager Ingress per owner | `different on purpose` — box vs cluster tooling |
 | Small-box path model | `PERSON_HOSTS`/`SITE_HOSTS=off` on event/self-hosted boxes: one shared host, path addresses | n/a (always per-site hosts) | `different on purpose` — a $5 box has no per-owner wildcard DNS/certs |
@@ -47,7 +47,7 @@ that should get it). Last derived from both `FEATURES.md` files and code on 2026
 | API keys: list and revoke one | none (rotate is all-or-nothing) | mint, list, revoke each | `gap → hosted` |
 | MCP connector and OAuth | DCR, PKCE S256, rotating refresh, reuse revokes the grant, hourly sweep, tokens hashed | same design (hosted's adapter was ported from enterprise) | `same` |
 | Connector token lifetime and reach | refresh 90 d sliding; Bearer also accepted on `/v1/*` | refresh 30 d from sign-in, TTLs capped; Bearer only on `/mcp` | `different on purpose` — hosted: sign in once and stay signed in, and hand-registered GPT Actions call REST |
-| MCP tools | 22 tools, each a REST call | own set incl. teams, viewers, access, state history; each resolves to a route (tested) | `same` — tools follow each side's REST surface |
+| MCP tools | 23 tools, each a REST call | own set incl. teams, viewers, access, state history; each resolves to a route (tested) | `same` — tools follow each side's REST surface |
 | MCP error hints | hint chosen by the error `code` (taken address, append-only list, reserved/invalid name, own address needed, suspended), HTTP status as fallback | hint per code and per tool family | `same` |
 | Skills and plugin | `website-deploy`, `-builder`, `connect-domain`, `run-hackathon`; Claude + ChatGPT plugins; stale skill → `_notice` | `simple-host`, `simple-host-builder`, `fix-paths-for-subpath-hosting`; `plugin.zip`; obsolete skill → refused | `different on purpose` — each skill teaches its own product; a company can require current skills |
 | Audit log | none; server log only | every mutation + visit, hash-chained, `audit-verify`, SIEM stdout stream, export, retention | `different on purpose` — hosted decision 2026-09-05: nothing records an author; enterprise constraint: everything on record |
@@ -102,7 +102,7 @@ Every numbered `FEATURES.md` section, per repo, and the rows above that cover it
 | hosted | Abuse limits and hardening | Rate limits and abuse caps; Quotas; Security headers |
 | hosted | Signals and notifications | Notifications |
 | hosted | Operations (health, schema, CLI) | Health and metrics; Deployment model |
-| hosted | MCP tool index (`internal/mcp/tools.go`, 22 tools) | MCP tools |
+| hosted | MCP tool index (`internal/mcp/tools.go`, 23 tools) | MCP tools |
 | hosted | Unplaced routes and tools | (index of FEATURES itself, no feature) |
 | enterprise | Identity: OIDC sign-in, sessions, hand-off | Owner sign-in and sessions; Visitor sign-in on a site |
 | enterprise | API keys (CI and automation) | API keys rows |

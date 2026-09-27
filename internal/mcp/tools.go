@@ -1288,6 +1288,40 @@ func Tools() []Tool {
 				return output{Text: jsonText(out), Structured: out}, nil
 			},
 		},
+		{
+			Name:  "export_site",
+			Title: "Download a copy of a site",
+			Description: "Make a download link for a copy of one of the person's sites: a .tar.gz holding its live files, its saved state (state.json) " +
+				"and every collection's items (collections.json, private lists included). The link works for 10 minutes and only for that site; " +
+				"give it to the person to click, and make a new one if it has expired. Do not post it anywhere public: until it expires, anyone with it can download the copy.",
+			InputSchema: object(map[string]any{"site": str(siteDesc)}, "site"),
+			Annotations: readOnly(),
+			run: func(c *call, args map[string]any) (output, error) {
+				name, err := siteArg(args)
+				if err != nil {
+					return output{}, err
+				}
+				res := c.do(http.MethodPost, "/v1/sites/"+url.PathEscape(name)+"/export-link", nil, nil)
+				if !res.ok() {
+					return output{}, restError("export_site", res)
+				}
+				var link struct {
+					Site      string `json:"site"`
+					URL       string `json:"url"`
+					ExpiresAt string `json:"expires_at"`
+				}
+				_ = json.Unmarshal(res.body, &link)
+				if link.URL == "" {
+					return output{}, errors.New("export_site failed: the server returned no link; try again in a moment")
+				}
+				if link.Site == "" {
+					link.Site = name
+				}
+				out := map[string]any{"site": link.Site, "url": link.URL, "expires_at": link.ExpiresAt}
+				text := fmt.Sprintf("Download link for a copy of %s (files, saved state and collections), valid until %s: %s", link.Site, link.ExpiresAt, link.URL)
+				return output{Text: text, Structured: out}, nil
+			},
+		},
 	}
 	schemas := outputSchemas()
 	for i := range tools {

@@ -271,6 +271,18 @@
         "open_world_justification": "It reads the person's own site statistics; nothing is published or sent anywhere.",
         "destructive_justification": "Nothing is created, changed or deleted."
       }
+    },
+    "export_site": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It only returns a short-lived download link for a copy of one of the person's own sites; it changes nothing.",
+        "open_world_justification": "The link is handed to the person in the chat; nothing is published or sent anywhere.",
+        "destructive_justification": "Nothing is created, changed or deleted."
+      }
     }
   },
   "test_cases": [

@@ -39,7 +39,12 @@ func (h *SiteHandler) exportSite(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found"})
 		return
 	}
+	h.writeExport(w, r, site.ID, site.UserID, name)
+}
 
+// writeExport streams the archive for one site, already authorized. Shared by
+// the keyed route and the short-lived download link (exportlink.go).
+func (h *SiteHandler) writeExport(w http.ResponseWriter, r *http.Request, siteID, ownerID, name string) {
 	w.Header().Set("Content-Type", "application/gzip")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.tar.gz"`, name))
 
@@ -51,19 +56,19 @@ func (h *SiteHandler) exportSite(w http.ResponseWriter, r *http.Request) {
 	// The saved data first, because it is the part nothing else preserves: the
 	// files exist in whatever the person built from, the JSON only lives here.
 	state := "null"
-	if raw, _, err := db.GetSiteStateByID(r.Context(), h.database, site.ID); err == nil && len(raw) > 0 {
+	if raw, _, err := db.GetSiteStateByID(r.Context(), h.database, siteID); err == nil && len(raw) > 0 {
 		state = string(raw)
 	}
 	if err := writeTarBytes(tw, name+"/state.json", []byte(state)); err != nil {
 		return
 	}
-	if items, err := exportCollections(r, h.database, site.ID); err == nil && len(items) > 0 {
+	if items, err := exportCollections(r, h.database, siteID); err == nil && len(items) > 0 {
 		if b, err := json.MarshalIndent(items, "", "  "); err == nil {
 			_ = writeTarBytes(tw, name+"/collections.json", b)
 		}
 	}
 
-	root := h.disk.SiteDir(site.UserID, name)
+	root := h.disk.SiteDir(ownerID, name)
 	current := filepath.Join(root, "current")
 	if _, err := os.Stat(current); err != nil {
 		return // nothing published yet; the data above is still worth having
