@@ -155,7 +155,7 @@ or admin reads, everyone else gets 404.
   `simple-host migrate`: pending files in lexical order, each once, tracked in
   `schema_migrations`, under an advisory lock; historical files are a fixed baseline, never run.
 - Outside Go: `db/schema.sql` (canonical, for a new database) and `db/migrations/*.sql`;
-  `deploy/prod/` nginx, logrotate, geoip timer; `simple-host-website/` the Website Deploy
+  `deploy/prod/` nginx, logrotate, journald retention, geoip timer; `simple-host-website/` the Website Deploy
   skills and plugin, embedded in the binary; `plugins/simple-host/` the Claude directory plugin
   (generated skill copies); `openai-plugin/` the ChatGPT package; `scripts/` checks and ops.
 
@@ -204,6 +204,11 @@ Tables (`db/schema.sql`):
   `simple-host migrate` from `install.sh`. The binary refuses to start if a column it reads is
   missing (`schemacheck.go`).
 - nginx edits are by hand, with a dated `.bak` first, then `nginx -t` and reload.
+- Log retention matches the privacy page's 30 days: `deploy/prod/logrotate-analytics.conf`
+  (installed as `/etc/logrotate.d/simple-host-analytics`; live day + 29 daily archives) and
+  `deploy/prod/journald-retention.conf` (installed as
+  `/etc/systemd/journald.conf.d/30-retention.conf`, `MaxRetentionSec=30day`, box-wide).
+  `analytics-rebuild` replays those archives, so a rebuild reaches back about 30 days.
 
 ## Invariants
 

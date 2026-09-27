@@ -137,3 +137,34 @@ func TestTruncateIP(t *testing.T) {
 		}
 	}
 }
+
+// flushLoop must prune before waiting on its 6-hour ticker. Restarts more
+// often than that would otherwise starve the prune and keep shortened IPs past
+// the 30 days the privacy page promises (seen on 2026-09-26: rows 31 days old).
+func TestAPIMetricsPrunesAtStartup(t *testing.T) {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "apimetrics.go", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range f.Decls {
+		fn, ok := d.(*ast.FuncDecl)
+		if !ok || fn.Name.Name != "flushLoop" {
+			continue
+		}
+		for _, st := range fn.Body.List {
+			if _, isFor := st.(*ast.ForStmt); isFor {
+				break
+			}
+			if es, ok := st.(*ast.ExprStmt); ok {
+				if call, ok := es.X.(*ast.CallExpr); ok {
+					if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "pruneOld" {
+						return
+					}
+				}
+			}
+		}
+		t.Fatal("flushLoop does not call pruneOld before its loop")
+	}
+	t.Fatal("flushLoop not found")
+}

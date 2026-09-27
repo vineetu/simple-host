@@ -5,6 +5,7 @@ package analytics
 
 import (
 	"bufio"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -160,18 +161,11 @@ func (i *Ingester) runOnce(ctx context.Context) error {
 	)
 
 	if rotated {
-		// Inode change → old file should be logPath+".1" (logrotate create, not
-		// copytruncate). Same-inode truncate has no .1; skip straight to active@0.
+		// Inode change → finish the file we were reading first (see
+		// previousLog), then the active file from 0. Same-inode truncate has
+		// no predecessor; skip straight to active@0.
 		if activeInode != storedInode {
-			rotPath := i.logPath + ".1"
-			if rotInfo, rerr := os.Stat(rotPath); rerr == nil {
-				rotInode := fileInode(rotInfo)
-				// Resume from stored offset when .1 is the file we were reading
-				// (inode matches). Otherwise start .1 from 0 (accept small gap).
-				from := int64(0)
-				if rotInode == storedInode {
-					from = storedOffset
-				}
+			if rotPath, rotInode, from, ok := i.previousLog(storedInode, storedOffset); ok {
 				lines, newOff, rerr := readLines(rotPath, from, remaining)
 				if rerr != nil {
 					return fmt.Errorf("read rotated: %w", rerr)
@@ -179,7 +173,7 @@ func (i *Ingester) runOnce(ctx context.Context) error {
 				allLines = append(allLines, lines...)
 				remaining -= len(lines)
 				if remaining <= 0 {
-					// Capped mid-rotated file: persist progress into .1 so the
+					// Capped mid-rotated file: persist progress into it so the
 					// next run continues (inode still != active → drain again).
 					return i.processAndCommit(ctx, allLines, rotInode, newOff)
 				}
@@ -211,7 +205,46 @@ func (i *Ingester) runOnce(ctx context.Context) error {
 	return i.processAndCommit(ctx, allLines, finalInode, finalOff)
 }
 
+// previousLog finds the file the ingester was reading before the active log
+// was rotated away, and the offset to resume it from.
+//
+// logrotate (`create`, `delaycompress`) leaves it as plain `<log>.1`: resume
+// at the stored offset when the inode matches, otherwise read it from 0
+// (accept a small gap). Caddy has no `.1`; it renames the file to
+// `access-<timestamp>-<reason>.log` and gzips it moments later, which changes
+// the inode. So without a `.1`, take Caddy's newest roll: plain with a
+// matching inode, or gzip, resumes at the stored offset (offsets count
+// uncompressed bytes, which gzip preserves); plain with another inode is read
+// from 0 like `.1`.
+func (i *Ingester) previousLog(storedInode, storedOffset int64) (path string, inode, from int64, ok bool) {
+	candidate := i.logPath + ".1"
+	if _, err := os.Stat(candidate); err != nil {
+		rolls := caddyRolls(i.logPath)
+		if len(rolls) == 0 {
+			return "", 0, 0, false
+		}
+		candidate = rolls[len(rolls)-1]
+	}
+	info, err := os.Stat(candidate)
+	if err != nil {
+		return "", 0, 0, false
+	}
+	inode = fileInode(info)
+	if inode == storedInode || strings.HasSuffix(candidate, ".gz") {
+		from = storedOffset
+	}
+	return candidate, inode, from, true
+}
+
 func (i *Ingester) processAndCommit(ctx context.Context, lines []string, inode, offset int64) error {
+	return i.commitLines(ctx, lines, true, inode, offset)
+}
+
+// commitLines aggregates lines and upserts them in one transaction. With
+// saveState it also advances the ingest position to (inode, offset) in that
+// transaction; a rebuild replaying archives passes false, since archives are
+// not a position the live loop can resume.
+func (i *Ingester) commitLines(ctx context.Context, lines []string, saveState bool, inode, offset int64) error {
 	maps, err := i.buildAttrMaps(ctx)
 	if err != nil {
 		return fmt.Errorf("attr maps: %w", err)
@@ -347,15 +380,17 @@ func (i *Ingester) processAndCommit(ctx context.Context, lines []string, inode, 
 	}
 
 	// P0: offset advance is in the SAME transaction as the upserts.
-	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO analytics_ingest_state (logfile, offset_bytes, inode, updated_at)
-		VALUES ($1, $2, $3, now())
-		ON CONFLICT (logfile) DO UPDATE SET
-			offset_bytes = EXCLUDED.offset_bytes,
-			inode        = EXCLUDED.inode,
-			updated_at   = now()
-	`, i.logPath, offset, inode); err != nil {
-		return fmt.Errorf("update ingest state: %w", err)
+	if saveState {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO analytics_ingest_state (logfile, offset_bytes, inode, updated_at)
+			VALUES ($1, $2, $3, now())
+			ON CONFLICT (logfile) DO UPDATE SET
+				offset_bytes = EXCLUDED.offset_bytes,
+				inode        = EXCLUDED.inode,
+				updated_at   = now()
+		`, i.logPath, offset, inode); err != nil {
+			return fmt.Errorf("update ingest state: %w", err)
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -509,9 +544,10 @@ type logLine struct {
 //
 //	ts \t host \t status \t method \t request_uri \t remote_addr \t user_agent
 //
-// This is what simple-host.app itself writes and what 400 days of retained log
-// is in, so it must keep parsing exactly as before: an analytics rebuild
-// replays the whole file.
+// This is what simple-host.app itself writes, and an analytics rebuild replays
+// every retained archive of it (about 30 days, see
+// deploy/prod/logrotate-analytics.conf), so it must keep parsing old lines
+// exactly as before.
 func parseTSV(line string) (logLine, bool) {
 	fields := strings.Split(line, "\t")
 	if len(fields) < 6 {
@@ -820,46 +856,70 @@ func readLines(path string, fromOffset int64, maxLines int) (lines []string, new
 	}
 	defer f.Close()
 
-	info, err := f.Stat()
-	if err != nil {
-		return nil, fromOffset, err
-	}
-	size := info.Size()
-	if fromOffset > size {
-		// Truncation already handled by caller; defensive clamp.
-		fromOffset = 0
-	}
-	if fromOffset == size {
-		return nil, fromOffset, nil
-	}
-	if _, err := f.Seek(fromOffset, io.SeekStart); err != nil {
-		return nil, fromOffset, err
+	var src io.Reader = f
+	if strings.HasSuffix(path, ".gz") {
+		// A rolled archive: offsets count uncompressed bytes, so skip forward
+		// through the decompressed stream instead of seeking.
+		zr, err := gzip.NewReader(f)
+		if err != nil {
+			return nil, fromOffset, err
+		}
+		defer zr.Close()
+		if n, err := io.CopyN(io.Discard, zr, fromOffset); err != nil {
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				return nil, fromOffset, nil // shorter than the offset: nothing new
+			}
+			return nil, fromOffset + n, err
+		}
+		src = zr
+	} else {
+		info, err := f.Stat()
+		if err != nil {
+			return nil, fromOffset, err
+		}
+		size := info.Size()
+		if fromOffset > size {
+			// Truncation already handled by caller; defensive clamp.
+			fromOffset = 0
+		}
+		if fromOffset == size {
+			return nil, fromOffset, nil
+		}
+		if _, err := f.Seek(fromOffset, io.SeekStart); err != nil {
+			return nil, fromOffset, err
+		}
 	}
 
-	r := bufio.NewReaderSize(f, 256*1024)
-	offset := fromOffset
+	lines, n, err := readChunk(bufio.NewReaderSize(src, 256*1024), maxLines)
+	return lines, fromOffset + n, err
+}
+
+// readChunk reads up to maxLines complete lines from r and returns them with
+// the number of bytes they occupied. An incomplete trailing line is left
+// unread (and uncounted).
+func readChunk(r *bufio.Reader, maxLines int) (lines []string, consumed int64, err error) {
 	for len(lines) < maxLines {
 		line, rerr := r.ReadString('\n')
 		if len(line) == 0 && rerr != nil {
 			if rerr == io.EOF {
 				break
 			}
-			return lines, offset, rerr
+			return lines, consumed, rerr
 		}
 		// Incomplete last line (EOF without newline): do not advance past it.
 		if rerr == io.EOF && !strings.HasSuffix(line, "\n") {
 			break
 		}
-		offset += int64(len(line))
+		consumed += int64(len(line))
 		lines = append(lines, strings.TrimRight(line, "\r\n"))
 		if rerr == io.EOF {
 			break
 		}
 		if rerr != nil {
-			return lines, offset, rerr
+			return lines, consumed, rerr
 		}
 	}
-	return lines, offset, nil
+	return lines, consumed, nil
 }
 
 func fileInode(info os.FileInfo) int64 {

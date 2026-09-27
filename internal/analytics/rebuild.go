@@ -1,30 +1,48 @@
 package analytics
 
 import (
+	"bufio"
+	"compress/gzip"
 	"context"
 	"fmt"
+	"io"
 	"log"
+	"os"
+	"strings"
 )
 
-// Rebuild discards every v2 aggregate and re-ingests the configured log from
-// byte zero, so history is rewritten with the current classifier rather than
-// only being fixed going forward.
+// Rebuild discards every v2 aggregate and re-ingests the configured log and
+// its rotated archives from byte zero, so history is rewritten with the
+// current classifier rather than only being fixed going forward.
 //
 // This is needed because the pre-classifier aggregates counted the loopback
 // monitoring probe as real pageviews -- around 2,880 views and one "visitor"
 // per site per day, which swamped the genuine traffic. Reclassifying only new
 // lines would leave a permanent step in every chart.
 //
-// It reads only the live log file. Rotated archives are not replayed: whatever
-// has already scrolled out of the active log is gone from the rebuild, and the
-// caller is told how far back the data actually reaches.
+// It replays every file ReplayFiles lists, oldest first: logrotate's
+// `<log>.N.gz ... <log>.2.gz, <log>.1` or Caddy's `access-<timestamp>.log(.gz)`
+// rolls, then the live log. Archives are kept about 30 days (the privacy
+// promise for raw logs), so that is how far back a rebuild reaches; anything
+// older than the oldest archive is lost from the aggregates. The caller is
+// told the range the rebuilt data covers.
 //
-// Safe to run against a live server: the ingest loop's own transactions either
-// run before the truncate (and get discarded with it) or after (and are simply
-// re-derived), and both write through the same ON CONFLICT upserts.
+// Stop the server first: its ingest loop shares the position in
+// analytics_ingest_state with the rebuild, and a pass of each racing on it
+// would count the same lines twice.
 func (i *Ingester) Rebuild(ctx context.Context) error {
 	if i.logPath == "" {
 		return fmt.Errorf("no analytics log configured")
+	}
+	files := ReplayFiles(i.logPath)
+	var liveInode int64 = -1
+	if len(files) > 0 && files[len(files)-1] == i.logPath {
+		info, err := os.Stat(i.logPath)
+		if err != nil {
+			return fmt.Errorf("stat log: %w", err)
+		}
+		liveInode = fileInode(info)
+		files = files[:len(files)-1]
 	}
 
 	tx, err := i.db.BeginTx(ctx, nil)
@@ -48,11 +66,30 @@ func (i *Ingester) Rebuild(ctx context.Context) error {
 		`DELETE FROM analytics_ingest_state WHERE logfile = $1`, i.logPath); err != nil {
 		return fmt.Errorf("reset ingest state: %w", err)
 	}
+	if liveInode >= 0 {
+		// Point the position at the live file's start. Without this, the
+		// ingest pass below would see "rotated" and read .1 a second time.
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO analytics_ingest_state (logfile, offset_bytes, inode, updated_at)
+			VALUES ($1, 0, $2, now())
+		`, i.logPath, liveInode); err != nil {
+			return fmt.Errorf("reset ingest state: %w", err)
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit reset: %w", err)
 	}
 
-	// Drain the whole file. Each pass consumes at most maxLinesPerRun lines and
+	for _, path := range files {
+		if err := i.replayArchive(ctx, path); err != nil {
+			return fmt.Errorf("replay %s: %w", path, err)
+		}
+	}
+	if liveInode < 0 {
+		return nil
+	}
+
+	// Drain the live file. Each pass consumes at most maxLinesPerRun lines and
 	// persists its offset, so this terminates once the offset stops advancing.
 	var lastOffset int64 = -1
 	for pass := 1; ; pass++ {
@@ -69,5 +106,44 @@ func (i *Ingester) Rebuild(ctx context.Context) error {
 		log.Printf("analytics rebuild: pass %d, offset %d", pass, offset)
 		lastOffset = offset
 	}
+	return nil
+}
+
+// replayArchive ingests one rotated file (plain or .gz) in maxLinesPerRun
+// chunks, without touching the live ingest position.
+func (i *Ingester) replayArchive(ctx context.Context, path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // rotated away while we worked
+		}
+		return err
+	}
+	defer f.Close()
+	var src io.Reader = f
+	if strings.HasSuffix(path, ".gz") {
+		zr, err := gzip.NewReader(f)
+		if err != nil {
+			return err
+		}
+		defer zr.Close()
+		src = zr
+	}
+	r := bufio.NewReaderSize(src, 256*1024)
+	total := 0
+	for {
+		lines, _, err := readChunk(r, maxLinesPerRun)
+		if err != nil {
+			return err
+		}
+		if len(lines) == 0 {
+			break
+		}
+		if err := i.commitLines(ctx, lines, false, 0, 0); err != nil {
+			return err
+		}
+		total += len(lines)
+	}
+	log.Printf("analytics rebuild: %s, %d lines", path, total)
 	return nil
 }
