@@ -137,27 +137,28 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 	split := `{"person":{"views":5,"visitors":2},"bot":{"views":9,"visitors":3},"infra":{"views":1,"visitors":1},"unknown":{"views":0,"visitors":0}}`
 	big := strings.Repeat("a", maxFileText+10)
 	up := &recordingUpstream{answers: map[string]func() (int, string){
-		"GET /v1/me": fixed(200, `{"id":"u-1","username":"a@example.com","handle":"ann","display_name":"Ann"}`),
+		"GET /v1/me": fixed(200, `{"id":"u-1","username":"a@example.com","handle":"ann","display_name":"Ann",`+
+			`"address":{"state":"waiting","address":"https://<site>.ann.simple-host.app/","ready_in_hours":3,"note":"Your sites are at ann.simple-host.app/<site>/ until ..."}}`),
 		"GET /v1/sites": fixed(200, "["+site("blog", 2, "public", "rsvp.example.com", "active")+","+
-			site("draft", 0, "unlisted", "", "")+","+site("pend", 1, "public", "pend.example.com", "pending")+","+
+			strings.TrimSuffix(site("draft", 0, "unlisted", "", ""), "}")+`,"address_state":{"state":"waiting","note":"Your sites are at ann.simple-host.app/<site>/ until ..."}}`+","+site("pend", 1, "public", "pend.example.com", "pending")+","+
 			strings.Replace(site("broken", 1, "unlisted", "broken.example.com", "error"), "{", `{"offline":true,`, 1)+"]"),
 		"GET /v1/sites/blog/versions/2/files":            fixed(200, `{"files":[{"path":"index.html","size":11},{"path":"logo.png","size":4}]}`),
 		"GET /v1/sites/blog/versions/2/files/index.html": fixed(200, "<h1>hi</h1>"),
 		"GET /v1/sites/blog/versions/1/files/logo.png":   fixed(200, "\x89PNG\x00\x01"),
 		"GET /v1/sites/blog/versions/2/files/big.txt":    fixed(200, big),
-		"POST /v1/sites/fresh/files":                     fixed(201, site("fresh", 1, "unlisted", "", "")),
-		"PUT /v1/sites/blog/files":                       fixed(200, site("blog", 3, "public", "rsvp.example.com", "active")),
+		"POST /v1/sites/fresh/files":                     fixed(201, strings.TrimSuffix(site("fresh", 1, "unlisted", "", ""), "}")+`,"address_state":{"state":"waiting","note":"Your sites are at ..."}}`),
+		"PUT /v1/sites/blog/files":                       fixed(200, strings.TrimSuffix(site("blog", 3, "public", "rsvp.example.com", "active"), "}")+`,"address_state":{"state":"waiting","note":"Your sites are at ..."}}`),
 		"GET /v1/sites/blog/versions": fixed(200, `[{"version_number":1,"created_at":"2026-09-01T00:00:00Z","is_active":false,"status":"active"},`+
 			`{"version_number":2,"created_at":"2026-09-02T00:00:00Z","is_active":true,"status":"active"},`+
 			`{"version_number":3,"created_at":"2026-09-03T00:00:00Z","is_active":false,"status":"ready"}]`),
 		"PUT /v1/sites/pend/files": fixed(200, strings.Replace(site("pend", 1, "public", "pend.example.com", "pending"), "{",
 			`{"unpublished_version":2,"preview_url":"https://pend.ann.simple-host.app/__preview/2/abc.def/",`, 1)),
 		"POST /v1/sites/blog/versions/3/preview-link": fixed(200, `{"site":"blog","version":3,"live":false,"url":"https://blog.ann.simple-host.app/__preview/3/abc.def/","expires_at":"2026-09-27T11:00:00Z","expires_in":3600}`),
-		"PUT /v1/sites/blog/active-version":           fixed(200, site("blog", 1, "public", "rsvp.example.com", "active")),
+		"PUT /v1/sites/blog/active-version":           fixed(200, strings.TrimSuffix(site("blog", 1, "public", "rsvp.example.com", "active"), "}")+`,"address_state":{"state":"waiting","note":"Your sites are at ..."}}`),
 		"DELETE /v1/sites/blog":                       fixed(204, ""),
 		"GET /v1/me/deleted-sites":                    fixed(200, `{"sites":[{"name":"old","deleted_at":"2026-09-20T00:00:00Z","purge_at":"2026-09-27T00:00:00Z"}],"retention_days":7}`),
-		"POST /v1/sites/old/restore":                  fixed(200, site("old", 2, "unlisted", "old.example.com", "active")),
-		"PATCH /v1/sites/blog":                        fixed(200, site("journal", 2, "unlisted", "rsvp.example.com", "active")),
+		"POST /v1/sites/old/restore":                  fixed(200, strings.TrimSuffix(site("old", 2, "unlisted", "old.example.com", "active"), "}")+`,"address_state":{"state":"waiting","note":"Your sites are at ..."}}`),
+		"PATCH /v1/sites/blog":                        fixed(200, strings.TrimSuffix(site("journal", 2, "unlisted", "rsvp.example.com", "active"), "}")+`,"address_state":{"state":"failing","note":"Your sites are at ..."}}`),
 		"PUT /v1/sites/blog/visibility":               fixed(200, `{"visibility":"unlisted"}`),
 		"PATCH /v1/sites/draft":                       fixed(200, strings.Replace(site("draft", 0, "unlisted", "", ""), "{", `{"offline":true,`, 1)),
 		"GET /v1/u/ann/sites/blog/state":              fixed(200, `{"count":2,"rsvps":["Ann"]}`),
@@ -172,18 +173,22 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		"POST /v1/u/ann/sites/blog/collections/rsvps":   fixed(201, `{"id":13,"data":{"name":"Bo"},"created_at":"2026-09-04T00:00:00Z"}`),
 		"PUT /v1/sites/blog/collections/orders/privacy": fixed(200, `{"private":true,"domain":"rsvp.example.com","message":"orders is now private."}`),
 		"PUT /v1/sites/blog/collections/rsvps/privacy":  fixed(200, `{"private":false}`),
+		"PUT /v1/sites/blog/keep":                       fixed(200, `{"name":"blog","keep":true}`),
 		"PATCH /v1/u/ann/sites/blog/collections/orders/items/5": fixed(200, `{"id":5,"data":{"item":"mug","status":"done",`+
 			`"_submitted_by":"v@example.com","_submitted_at":"2026-09-03T00:00:00Z"},"created_at":"2026-09-03T00:00:00Z"}`),
 		"DELETE /v1/u/ann/sites/blog/collections/orders/items/5": fixed(204, ""),
 		"DELETE /v1/u/ann/sites/blog/collections/rsvps":          fixed(200, `{"site":"blog","collection":"rsvps","deleted":3}`),
 		"POST /v1/sites/pend/domain": fixed(200, `{"domain":"pend.example.com","status":"pending","took_over_from":"x/y","certificate_status":"pending","previous_domain":"pend.simple-host.app",`+
+			`"partner_domain":"www.pend.example.com","partner_status":"pending","dns_partner":{"type":"CNAME","host":"www.pend.example.com","value":"sites.simple-host.app"},`+
 			`"dns":{"type":"CNAME","host":"pend.example.com","value":"sites.simple-host.app"},"dns_txt":{"type":"TXT","host":"_simple-host.pend.example.com","value":"sh-0123456789abcdef0123456789abcdef"}}`),
 		"POST /v1/sites/blog/domain": fixed(200, `{"domain":"blog.simple-host.app","status":"active"}`),
 		"GET /v1/sites/blog/domain":  fixed(200, `{"domain":"rsvp.example.com","status":"active","verified_at":"2026-09-01T00:00:00Z","dns":{"type":"A","host":"rsvp.example.com","value":"192.0.2.1"}}`),
 		"GET /v1/sites/pend/domain": fixed(200, `{"domain":"pend.example.com","status":"pending","bound_at":"2026-09-01T00:00:00Z","expires_at":"2026-09-02T00:00:00Z","certificate_status":"issuing","previous_domain":"pend.simple-host.app",`+
 			`"dns":{"type":"CNAME","host":"pend.example.com","value":"sites.simple-host.app"},"dns_txt":{"type":"TXT","host":"_simple-host.pend.example.com","value":"sh-0123456789abcdef0123456789abcdef"}}`),
-		"GET /v1/sites/draft/domain":      fixed(200, `{"domain":null,"status":null}`),
-		"GET /v1/sites/broken/domain":     fixed(200, `{"domain":"broken.example.com","status":"error","last_error":"HTTPS returned 502","certificate_status":"live","failing_since":"2026-09-01T00:00:00Z","dns":{"type":"CNAME","host":"broken.example.com","value":"sites.simple-host.app"}}`),
+		"GET /v1/sites/draft/domain": fixed(200, `{"domain":null,"status":null}`),
+		"GET /v1/sites/broken/domain": fixed(200, `{"domain":"broken.example.com","status":"error","last_error":"HTTPS returned 502","certificate_status":"live","failing_since":"2026-09-01T00:00:00Z",`+
+			`"partner_domain":"www.broken.example.com","partner_status":"not_set_up","partner_note":"www.broken.example.com does not point to this server yet","dns_partner":{"type":"CNAME","host":"www.broken.example.com","value":"sites.simple-host.app"},`+
+			`"dns":{"type":"CNAME","host":"broken.example.com","value":"sites.simple-host.app"}}`),
 		"DELETE /v1/sites/blog/domain":    fixed(204, ""),
 		"POST /v1/sites/blog/export-link": fixed(200, `{"site":"blog","url":"https://simple-host.app/v1/export?token=abc.def","expires_at":"2026-09-27T10:10:00Z","expires_in":600}`),
 		"GET /v1/sites/blog/analytics":    fixed(200, `{"range_days":7,"totals":`+split+`,"daily":[],"last_24h":`+split+`,"hourly":[],"classified_from":"2026-09-01"}`),
@@ -212,6 +217,7 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		{"restore_site", map[string]any{"site": "old"}},
 		{"set_visibility", map[string]any{"site": "blog", "visibility": "unlisted"}},
 		{"set_site_offline", map[string]any{"site": "draft", "offline": true}},
+		{"keep_site", map[string]any{"site": "blog"}},
 		{"get_state", map[string]any{"site": "blog"}},
 		{"update_state", map[string]any{"site": "blog", "ops": []any{map[string]any{"op": "inc", "path": "count", "by": 1}}}},
 		{"update_state", map[string]any{"site": "blog", "replace": map[string]any{"a": 1}}},

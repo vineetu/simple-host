@@ -40,6 +40,9 @@ type UserHandler struct {
 
 	// publicPage builds an account's public page address (SiteHandler.PersonPageURL).
 	publicPage func(handle string) string
+	// addressState reports the account's own-address certificate state
+	// (SiteHandler.AddressState).
+	addressState func(handle string) *addressState
 
 	// alerts emails the owner after each sign-in (signin_alert.go).
 	alerts *SignInAlerts
@@ -60,6 +63,9 @@ func (h *UserHandler) SetReviewerEmail(address string) {
 
 // SetPublicPage sets how GET /v1/me names the account's public page.
 func (h *UserHandler) SetPublicPage(f func(handle string) string) { h.publicPage = f }
+
+// SetAddressState sets how GET /v1/me reports the account's own address.
+func (h *UserHandler) SetAddressState(f func(handle string) *addressState) { h.addressState = f }
 
 type authRequest struct {
 	Email string `json:"email"`
@@ -321,6 +327,9 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 	if h.publicPage != nil && user.Handle.String != "" {
 		resp.PublicPage = h.publicPage(user.Handle.String)
 	}
+	if h.addressState != nil && user.Handle.String != "" {
+		resp.Address = h.addressState(user.Handle.String)
+	}
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -335,6 +344,10 @@ type meResponse struct {
 	PublicPage string `json:"public_page,omitempty"`
 	// SignInAlerts: an email after each sign-in (default on).
 	SignInAlerts *bool `json:"signin_alerts,omitempty"`
+	// Address is the state of the account's own site address
+	// (https://<site>.<handle>.<SITE_DOMAIN>/): ready, or waiting / failing
+	// with a rough time, while sites are at <handle>.<SITE_DOMAIN>/<site>/.
+	Address *addressState `json:"address,omitempty"`
 }
 
 func isUniqueViolation(err error) bool {

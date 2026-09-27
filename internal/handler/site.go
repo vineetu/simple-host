@@ -108,6 +108,10 @@ type SiteHandler struct {
 	siteCertDir string
 	// domainCertDir is DOMAIN_CERT_DIR (domaincert.go).
 	domainCertDir string
+	// idleCleanup is IDLE_CLEANUP=on and idleMaxEmails its per-run email cap
+	// (idle.go).
+	idleCleanup   bool
+	idleMaxEmails int
 
 	// exportKey signs short-lived export download links (exportlink.go); per
 	// process, used for nothing else. publicBaseURL is the apex they point at.
@@ -148,6 +152,12 @@ type siteResponse struct {
 	// answering at until the new domain is live.
 	DomainCertStatus string `json:"domain_certificate_status,omitempty"`
 	PreviousDomain   string `json:"previous_domain,omitempty"`
+	// DomainPartner is the custom domain's www / bare partner, a
+	// redirect-only host (see GET /domain: partner_domain and friends).
+	DomainPartner       string     `json:"domain_partner,omitempty"`
+	DomainPartnerDNS    *dnsRecord `json:"domain_partner_dns,omitempty"`
+	DomainPartnerStatus string     `json:"domain_partner_status,omitempty"`
+	DomainPartnerNote   string     `json:"domain_partner_note,omitempty"`
 	// DeployedAt is when the newest version went live (site list only).
 	DeployedAt    *time.Time `json:"deployed_at,omitempty"`
 	Visibility    string     `json:"visibility,omitempty"`
@@ -165,6 +175,16 @@ type siteResponse struct {
 	UnpublishedVersion int        `json:"unpublished_version,omitempty"`
 	PreviewURL         string     `json:"preview_url,omitempty"`
 	PreviewExpiresAt   *time.Time `json:"preview_expires_at,omitempty"`
+	// AddressState: present while the site is handed out at its interim
+	// address (<handle>.<SITE_DOMAIN>/<site>/) because its owner's
+	// certificate is not ready yet — waiting or failing, with a rough time.
+	AddressState *addressState `json:"address_state,omitempty"`
+	// Keep: the owner marked the site to stay up for good; it is never
+	// warned or removed as idle. IdleRemovalAt: the site was found idle and
+	// its owner emailed; it moves to Recently deleted then unless kept,
+	// visited or updated (site list only).
+	Keep          bool       `json:"keep,omitempty"`
+	IdleRemovalAt *time.Time `json:"idle_removal_at,omitempty"`
 }
 
 type versionResponse struct {
@@ -327,6 +347,15 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// actually named "analytics".
 	mux.Handle("GET /v1/analytics/sites", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getAnalyticsSummary))))
 	mux.Handle("PUT /v1/sites/{sitename}/visibility", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setVisibility))))
+	// Idle-site cleanup (idle.go): the Keep flag, the admin dry run, and the
+	// emailed links, which need no sign-in (the token is the authorization).
+	mux.Handle("PUT /v1/sites/{sitename}/keep", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setSiteKeep))))
+	mux.Handle("GET /v1/admin/idle-sites", authMiddleware(http.HandlerFunc(h.adminIdleSites)))
+	idleLinkLimiter := newRateLimiter(10, 0.1)
+	idleLinkLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	mux.Handle("GET /v1/idle/keep", rateLimitByIP(idleLinkLimiter, http.HandlerFunc(h.idleKeep)))
+	mux.Handle("GET /v1/idle/download", rateLimitByIP(idleLinkLimiter, http.HandlerFunc(h.idleDownload)))
+	mux.Handle("GET /v1/idle/restore", rateLimitByIP(idleLinkLimiter, http.HandlerFunc(h.idleRestore)))
 
 	// JSON deploy (LLM-friendly): file contents inline, no archive. Same auth +
 	// rate-limit chain as the archive upload; CORS preflight is handled by the
@@ -1772,9 +1801,26 @@ func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	flagsFor := user.ID
+	if user.IsAdmin {
+		flagsFor = ""
+	}
+	flags, err := db.ListSiteIdleFlags(r.Context(), h.database, flagsFor)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
 	response := make([]siteResponse, 0, len(sites))
 	for _, site := range sites {
-		response = append(response, h.toSiteResponse(site, ""))
+		resp := h.toSiteResponse(site, "")
+		if f, ok := flags[site.ID]; ok {
+			resp.Keep = f.Keep
+			if f.WarnedAt.Valid && !f.Keep {
+				t := f.WarnedAt.Time.Add(idleGrace).UTC()
+				resp.IdleRemovalAt = &t
+			}
+		}
+		response = append(response, resp)
 	}
 
 	writeJSON(w, http.StatusOK, response)
@@ -1939,6 +1985,14 @@ func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
 	if site.LastDeployedAt.Valid {
 		t := site.LastDeployedAt.Time
 		resp.DeployedAt = &t
+	}
+	if !(site.CustomDomain.Valid && site.DomainVerifiedAt.Valid) {
+		resp.AddressState = h.siteAddressStateFor(site.OwnerHandle, site.Name)
+	}
+	if site.CustomDomain.Valid && site.CustomDomain.String != "" {
+		if p := h.partnerInfoFor(site.CustomDomain.String); p != nil {
+			resp.DomainPartner, resp.DomainPartnerDNS, resp.DomainPartnerStatus, resp.DomainPartnerNote = p.Domain, p.DNS, p.Status, p.Note
+		}
 	}
 	if site.CustomDomain.Valid && site.CustomDomain.String != "" && site.DomainStatus.String != "active" {
 		resp.DomainLastError = site.DomainLastError.String

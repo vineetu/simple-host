@@ -313,11 +313,18 @@ func (h *SiteHandler) renderNotFound(w http.ResponseWriter, r *http.Request, ori
 
 // renderNotFoundPage writes the branded 404 with the given words and way back.
 func (h *SiteHandler) renderNotFoundPage(w http.ResponseWriter, r *http.Request, message, subtext, backURL, backLabel string) {
+	h.renderMessagePage(w, r, http.StatusNotFound, message, subtext, backURL, backLabel)
+}
+
+// renderMessagePage is the branded one-message page (the not-found page's
+// layout) with any status. message and subtext are inserted as given: escape
+// anything that did not come from this code.
+func (h *SiteHandler) renderMessagePage(w http.ResponseWriter, r *http.Request, status int, message, subtext, backURL, backLabel string) {
 	tmpl, err := chromePage("notfound.html", chromeDataFor(r, h.chromeBase(r)))
 	if err != nil {
 		// Last-resort inline 404 so a miss never falls through to nginx's default.
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.WriteHeader(http.StatusNotFound)
+		w.WriteHeader(status)
 		_, _ = w.Write([]byte(`<!doctype html><meta charset=utf-8><meta name=robots content=noindex><title>404</title><h1>404</h1><p>` + html.EscapeString(message) + `</p><a href="` + html.EscapeString(backURL) + `">` + html.EscapeString(backLabel) + `</a>`))
 		return
 	}
@@ -327,11 +334,16 @@ func (h *SiteHandler) renderNotFoundPage(w http.ResponseWriter, r *http.Request,
 	page = strings.ReplaceAll(page, "__SH_SUBTEXT__", subtext)
 	page = strings.ReplaceAll(page, "__SH_BACKLINK_URL__", backURL)
 	page = strings.ReplaceAll(page, "__SH_BACKLINK_LABEL__", backLabel)
+	if status != http.StatusNotFound {
+		// Same layout, without the "404".
+		page = strings.Replace(page, `<div class="nf-code">404</div>`, "", 1)
+		page = strings.Replace(page, "<title>404 — Not found · simple·host</title>", "<title>simple·host</title>", 1)
+	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Robots-Tag", "noindex")
-	w.WriteHeader(http.StatusNotFound)
+	w.WriteHeader(status)
 	_, _ = w.Write([]byte(page))
 }
 

@@ -202,6 +202,11 @@ type Config struct {
 	// domain resolves to this server), ready/<domain> and failed/<domain>
 	// (written by the issuer). Empty: certificates are issued by hand.
 	DomainCertDir string
+	// IdleCleanup is IDLE_CLEANUP=on (default off): warn owners of sites
+	// idle for 90 days, move them to Recently deleted 30 days later unless
+	// kept. IdleCleanupMaxEmails caps the emails one run sends (default 50).
+	IdleCleanup          bool
+	IdleCleanupMaxEmails int
 
 	// Visitor OAuth. A provider is enabled only when BOTH of its vars are set.
 	GoogleOAuthClientID     string
@@ -339,6 +344,14 @@ func Load() (Config, error) {
 	}
 	cfg.SiteCertDir = strings.TrimSpace(os.Getenv("SITE_CERT_DIR"))
 	cfg.DomainCertDir = strings.TrimSpace(os.Getenv("DOMAIN_CERT_DIR"))
+	cfg.IdleCleanup = strings.EqualFold(strings.TrimSpace(os.Getenv("IDLE_CLEANUP")), "on")
+	if v := strings.TrimSpace(os.Getenv("IDLE_CLEANUP_MAX_EMAILS")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.IdleCleanupMaxEmails = n
+		} else {
+			log.Printf("warning: invalid IDLE_CLEANUP_MAX_EMAILS %q; using the default", v)
+		}
+	}
 
 	cfg.PreviewAccounts = map[string]bool{}
 	for _, a := range strings.Split(os.Getenv("PREVIEW_ACCOUNTS"), ",") {

@@ -8,8 +8,11 @@
 # Hand-off with the Go service (which never runs certbot):
 #   $STATE/requests/<domain>  written by simple-host once the domain resolves here
 #                             and its ownership record matched: line 1 the site's
-#                             token, line 2 the domain link's target
-#   $STATE/ready/<domain>     written here once nginx serves the certificate
+#                             token, line 2 the domain link's target, line 3
+#                             (optional) its www / bare partner
+#   $STATE/ready/<domain>     written here once nginx serves the certificate;
+#                             line 1 "partner <name>" when the partner is on
+#                             it too, or "partner-not-set-up <name>: <why>"
 #   $STATE/failed/<domain>    written here with one line saying why; retried
 #                             after $RETRY_AFTER seconds (the app shows the line)
 #
@@ -35,6 +38,17 @@
 # (/.well-known/acme-challenge/ from $WEBROOT), then write the server from the
 # template, `nginx -t`, reload. Renewals are certbot's normal `certbot renew`
 # (the lineage keeps the webroot and the reload hook).
+#
+# www and the bare domain: a request may name the domain's partner
+# (www.brand.com for brand.com, or the reverse). The TXT record on the chosen
+# name covers both. The partner goes on the same certificate, as a
+# redirect-only host (301 to the chosen name), only when it passes the same
+# checks as any domain: no other server here answers it, no certificate here
+# that we did not issue names it, it is not connected to a site of its own,
+# its A record points here and no AAAA record points elsewhere. Otherwise the
+# chosen name is served alone and the ready marker says why the partner is
+# not set up. A partner that later proves itself as a site of its own is taken
+# off the other domain's server first.
 set -euo pipefail
 
 SITE_DOMAIN=simple-host.app
@@ -165,10 +179,15 @@ txt_ok() {
   dig +short TXT "_simple-host.$1" | tr -d '" ' | grep -qxF -- "$2"
 }
 
-# write_server <domain>: our nginx server for it, enabled; 0 when nginx accepts it.
+# write_server <domain> [partner]: our nginx server for it (and the partner's
+# redirect when named), enabled; 0 when nginx accepts it.
 write_server() {
-  local d=$1 avail="$AVAILABLE/$PREFIX$1" link="$ENABLED/$PREFIX$1"
-  sed "s/__DOMAIN__/$d/g" "$TEMPLATE" > "$avail.new"
+  local d=$1 p=${2:-} avail="$AVAILABLE/$PREFIX$1" link="$ENABLED/$PREFIX$1"
+  if [ -n "$p" ]; then
+    sed -e '/__PARTNER_BEGIN__/d' -e '/__PARTNER_END__/d' -e "s/__DOMAIN__/$d/g" -e "s/__PARTNER__/$p/g" "$TEMPLATE" > "$avail.new"
+  else
+    sed -e '/__PARTNER_BEGIN__/,/__PARTNER_END__/d' -e "s/__DOMAIN__/$d/g" "$TEMPLATE" > "$avail.new"
+  fi
   mv -f "$avail.new" "$avail"
   ln -sfn "$avail" "$link"
   if nginx -t >/dev/null 2>&1; then
@@ -177,6 +196,83 @@ write_server() {
   fi
   rm -f -- "$link" "$avail"
   return 1
+}
+
+# mark_ready <domain> <partner served, or ""> <partner asked for, or ""> <why not>:
+# the ready marker (line 1 names the partner's state; read by the app).
+mark_ready() {
+  local d=$1 p=$2 want=$3 why=$4
+  why=$(printf '%s' "$why" | tr -d '\r' | tr '\n\t' '  ' | tr -cd '[:print:]' | cut -c1-200)
+  if [ -n "$p" ]; then
+    printf 'partner %s\n' "$p"
+  elif [ -n "$want" ]; then
+    printf 'partner-not-set-up %s: %s\n' "$want" "$why"
+  fi > "$STATE/ready/$d.new"
+  chmod 0644 "$STATE/ready/$d.new"
+  mv -f "$STATE/ready/$d.new" "$STATE/ready/$d"
+}
+
+# serve <domain> <partner to include, or ""> <partner asked for> <why not>:
+# write the server and mark it ready; 1 (and a failure note) when nginx
+# refuses it.
+serve() {
+  local d=$1
+  if write_server "$d" "$2"; then
+    mark_ready "$d" "$2" "$3" "$4"
+    rm -f -- "$STATE/requests/$d" "$STATE/failed/$d"
+    log "ready: $d${2:+ and $2}"
+    return 0
+  fi
+  rm -f -- "$STATE/ready/$d"
+  log "$d: nginx -t failed with this domain's server; removed it"
+  fail "$d" "the web server could not be set up for this domain yet"
+  return 1
+}
+
+# ready_partner <domain>: the partner a ready domain's server includes, if any.
+ready_partner() {
+  local l
+  l=$(head -n1 -- "$STATE/ready/$1" 2>/dev/null || true)
+  case $l in "partner "*) printf '%s' "${l#partner }" ;; esac
+}
+
+# partner_blocked <partner>: 0 (and why on stdout) when the partner may not
+# go on a certificate here.
+partner_blocked() {
+  local p=$1 who a aaaa
+  if [ -e "$STATE/ready/$p" ] || [ -e "$AVAILABLE/$PREFIX$p" ]; then
+    echo "$p is connected to a site of its own"; return 0
+  fi
+  if who=$(served_elsewhere "$p"); then
+    log "$p (partner): named by ${who:-another server}"
+    echo "$p is already served here by another site on this server"; return 0
+  fi
+  if [ -e "$LE_LIVE/$p" ] && [ ! -f "$STATE/owned/$p" ]; then
+    echo "$p already has a certificate on this server that Simple Host did not issue"; return 0
+  fi
+  a=$(dig +short A "$p" | grep -E '^[0-9.]+$' || true)
+  if ! grep -qxF "$IP" <<<"$a"; then
+    echo "$p does not point to this server yet"; return 0
+  fi
+  aaaa=$(dig +short AAAA "$p" | grep -E '^[0-9a-fA-F:]+$' || true)
+  if [ -n "$aaaa" ] && { [ -z "$IP6" ] || ! grep -qixF "$IP6" <<<"$aaaa"; }; then
+    echo "$p has an IPv6 (AAAA) record that does not point to this server"; return 0
+  fi
+  return 1
+}
+
+# release_partner_of <domain>: a domain that has proven itself as a site of
+# its own comes off any other ready domain's server where it was the partner.
+release_partner_of() {
+  local d=$1 f o
+  for f in "$STATE"/ready/*; do
+    [ -f "$f" ] || continue
+    o=$(basename "$f")
+    [ "$o" = "$d" ] && continue
+    [ "$(ready_partner "$o")" = "$d" ] || continue
+    serve "$o" "" "$d" "$d is connected to a site of its own" || true
+    log "$d: taken off $o's server (connected to a site of its own)"
+  done
 }
 
 # Release: our servers whose binding is gone.
@@ -191,6 +287,12 @@ if [ -d "$SITES" ]; then
         rm -f -- "$f"
         log "$d: named by ${who:-another server}"
         fail "$d" "this name is already served here by another site on this server"
+        continue
+      fi
+      # Its partner, once another server here names it, comes off ours.
+      p=$(ready_partner "$d")
+      if [ -n "$p" ] && [ "$NGINX_OK" = 1 ] && served_elsewhere "$p" >/dev/null; then
+        serve "$d" "" "$p" "$p is already served here by another site on this server" || true
       fi
       continue
     fi
@@ -226,6 +328,29 @@ fi
 used_today=$(awk -v t="$((now - 86400))" '$1 >= t' "$STATE/issued.log" | wc -l)
 issued_now=0
 
+# issue_cert <cert-name> [certbot args...]: one certbot run; counts toward the
+# caps when it succeeds, and sets why to Let's Encrypt's reason when not.
+why=""
+issue_cert() {
+  local name=$1 err
+  shift
+  err=$(mktemp)
+  if certbot certonly --non-interactive --agree-tos --quiet \
+      --webroot -w "$WEBROOT" \
+      --deploy-hook "systemctl reload nginx" \
+      --key-type ecdsa --cert-name "$name" "$@" 2>"$err"; then
+    rm -f -- "$err"
+    echo "$(date +%s) $name" >> "$STATE/issued.log"
+    used_today=$((used_today + 1))
+    issued_now=$((issued_now + 1))
+    return 0
+  fi
+  why=$(grep -m1 -E 'Detail:' "$err" | sed 's/.*Detail: *//' || true)
+  [ -n "$why" ] || why=$(grep -v '^[[:space:]]*$' "$err" | tail -1 || true)
+  rm -f -- "$err"
+  return 1
+}
+
 # Oldest request first.
 mapfile -d '' -t reqs < <(find "$STATE/requests" -maxdepth 1 -type f -printf '%T@ %f\0' | sort -zn | cut -z -d' ' -f2-)
 for d in "${reqs[@]}"; do
@@ -244,6 +369,14 @@ for d in "${reqs[@]}"; do
   body=$(head -c 512 -- "$STATE/requests/$d" 2>/dev/null || true)
   token=$(sed -n 1p <<<"$body")
   target=$(sed -n 2p <<<"$body")
+  partner=$(sed -n 3p <<<"$body")
+  # Only the domain's own www / bare partner, never any other name.
+  if [ -n "$partner" ] && ! { [ "$partner" = "www.$d" ] || [ "$d" = "www.$partner" ]; }; then
+    partner=""
+  fi
+  if [ -n "$partner" ] && { [ "${#partner}" -gt 253 ] || ! [[ "$partner" =~ $DOMAIN_RE ]] || [ "$partner" = "$SITE_DOMAIN" ] || [[ "$partner" == *".$SITE_DOMAIN" ]]; }; then
+    partner=""
+  fi
   if ! [[ "$token" =~ ^sh-[0-9a-f]{32}$ ]] || [ -z "$target" ]; then
     # Old-style or half-written: the app rewrites it on its next check.
     continue
@@ -279,19 +412,26 @@ for d in "${reqs[@]}"; do
     fail "$d" "this name is already served here (it has a certificate on this server that Simple Host did not issue)"
     continue
   fi
-  if [ -f "$STATE/owned/$d" ] && [ -f "$lineage/fullchain.pem" ] && [ -f "$lineage/privkey.pem" ]; then
-    # Issued by us before (reconnected, or a server removed by hand): serve it again.
-    if write_server "$d"; then
-      touch "$STATE/ready/$d"
-      rm -f -- "$STATE/requests/$d" "$STATE/failed/$d"
-      log "ready again: $d"
-    else
-      log "$d: nginx -t failed with this domain's server; removed it"
-      fail "$d" "the web server could not be set up for this domain yet"
-    fi
-    continue
+  # Proven: if this name was another domain's partner, it is not any more.
+  release_partner_of "$d"
+  with_p=""
+  pwhy=""
+  if [ -n "$partner" ] && ! pwhy=$(partner_blocked "$partner"); then
+    with_p=$partner
+    pwhy=""
   fi
-  if [ -f "$STATE/failed/$d" ] && [ $((now - $(stat -c %Y "$STATE/failed/$d"))) -lt "$RETRY_AFTER" ]; then
+  expand=0
+  if [ -f "$STATE/owned/$d" ] && [ -f "$lineage/fullchain.pem" ] && [ -f "$lineage/privkey.pem" ]; then
+    # Issued by us before (reconnected, a server removed by hand, or the
+    # partner asked for again): serve it again, unless the partner can now
+    # join a certificate that does not name it yet.
+    if [ -z "$with_p" ] || grep -qxF -- "$with_p" "$STATE/owned/$d"; then
+      serve "$d" "$with_p" "$partner" "$pwhy" || true
+      continue
+    fi
+    expand=1
+  fi
+  if [ "$expand" = 0 ] && [ -f "$STATE/failed/$d" ] && [ $((now - $(stat -c %Y "$STATE/failed/$d"))) -lt "$RETRY_AFTER" ]; then
     continue
   fi
   if [ "$used_today" -ge "$DAILY" ]; then
@@ -316,29 +456,26 @@ for d in "${reqs[@]}"; do
     continue
   fi
 
-  log "issuing $d"
-  err=$(mktemp)
-  if certbot certonly --non-interactive --agree-tos --quiet \
-      --webroot -w "$WEBROOT" \
-      --deploy-hook "systemctl reload nginx" \
-      --key-type ecdsa --cert-name "$d" -d "$d" 2>"$err"; then
-    rm -f -- "$err"
-    echo "$(date +%s) $d" >> "$STATE/issued.log"
-    touch "$STATE/owned/$d"
-    used_today=$((used_today + 1))
-    issued_now=$((issued_now + 1))
-    if write_server "$d"; then
-      touch "$STATE/ready/$d"
-      rm -f -- "$STATE/requests/$d" "$STATE/failed/$d"
-      log "ready: $d"
+  log "issuing $d${with_p:+ and $with_p}"
+  names=(-d "$d")
+  [ -n "$with_p" ] && names+=(-d "$with_p")
+  extra=()
+  [ "$expand" = 1 ] && extra=(--expand)
+  if issue_cert "$d" "${extra[@]}" "${names[@]}"; then
+    printf '%s\n' "$d" ${with_p:+"$with_p"} > "$STATE/owned/$d"
+    serve "$d" "$with_p" "$partner" "$pwhy" || true
+  elif [ -n "$with_p" ]; then
+    # The partner may be what failed: serve the chosen name alone.
+    pwhy="Let's Encrypt refused $with_p: ${why:-unknown error}"
+    if [ "$expand" = 1 ]; then
+      serve "$d" "" "$partner" "$pwhy" || true
+    elif issue_cert "$d" -d "$d"; then
+      printf '%s\n' "$d" > "$STATE/owned/$d"
+      serve "$d" "" "$partner" "$pwhy" || true
     else
-      log "$d: nginx -t failed with this domain's server; removed it"
-      fail "$d" "the web server could not be set up for this domain yet"
+      fail "$d" "Let's Encrypt refused: ${why:-unknown error}"
     fi
   else
-    why=$(grep -m1 -E 'Detail:' "$err" | sed 's/.*Detail: *//' || true)
-    [ -n "$why" ] || why=$(grep -v '^[[:space:]]*$' "$err" | tail -1 || true)
-    rm -f -- "$err"
     fail "$d" "Let's Encrypt refused: ${why:-unknown error}"
   fi
 done

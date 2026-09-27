@@ -86,10 +86,17 @@ func (h *SiteHandler) domainCertProgress(ctx context.Context, d db.BoundDomain) 
 }
 
 // domainCertRequestBody is what a request file holds: the site's ownership
-// token (the issuer checks the TXT record against it) and the domain link's
-// target (the issuer acts only while the link still points at this site).
+// token (the issuer checks the TXT record against it), the domain link's
+// target (the issuer acts only while the link still points at this site) and
+// the domain's www / bare partner, if it has one.
 func domainCertRequestBody(d db.BoundDomain) string {
-	return d.Token + "\n" + filepath.Join("..", "by-id", d.UserID, d.Name) + "\n"
+	body := d.Token + "\n" + filepath.Join("..", "by-id", d.UserID, d.Name) + "\n"
+	// Line 3: the www / bare partner, put on the same certificate as a
+	// redirect when it passes the issuer's checks (domainpartner.go).
+	if p := domainPartner(d.Domain); p != "" {
+		body += p + "\n"
+	}
+	return body
 }
 
 // requestDomainCert writes DOMAIN_CERT_DIR/requests/<domain> (or brings an

@@ -380,6 +380,10 @@ type restSite struct {
 	DomainStatus  string `json:"domain_status"`
 	Visibility    string `json:"visibility"`
 	Offline       bool   `json:"offline"`
+	// AddressState is present while the site is at its interim address.
+	AddressState *struct {
+		Note string `json:"note"`
+	} `json:"address_state"`
 }
 
 // liveURL is the one address to give people: a connected, working custom
@@ -401,6 +405,9 @@ func (s restSite) summary() map[string]any {
 	if s.CustomDomain != "" {
 		m["custom_domain"] = s.CustomDomain
 		m["domain_status"] = s.DomainStatus
+	}
+	if s.AddressState != nil && s.AddressState.Note != "" {
+		m["address_note"] = s.AddressState.Note
 	}
 	return m
 }
@@ -452,6 +459,14 @@ func domainSummary(site string, body []byte) map[string]any {
 			Host  string `json:"host"`
 			Value string `json:"value"`
 		} `json:"dns_txt"`
+		PartnerDomain string `json:"partner_domain"`
+		PartnerStatus string `json:"partner_status"`
+		PartnerNote   string `json:"partner_note"`
+		PartnerDNS    *struct {
+			Type  string `json:"type"`
+			Host  string `json:"host"`
+			Value string `json:"value"`
+		} `json:"dns_partner"`
 	}
 	_ = json.Unmarshal(body, &d)
 	out := map[string]any{"site": site}
@@ -470,6 +485,17 @@ func domainSummary(site string, body []byte) map[string]any {
 	if d.TXT != nil {
 		out["ownership_record"] = map[string]any{"type": d.TXT.Type, "host": d.TXT.Host, "value": d.TXT.Value}
 	}
+	if d.PartnerDomain != "" && d.PartnerDNS != nil {
+		partner := map[string]any{
+			"domain":     d.PartnerDomain,
+			"status":     d.PartnerStatus,
+			"dns_record": map[string]any{"type": d.PartnerDNS.Type, "host": d.PartnerDNS.Host, "value": d.PartnerDNS.Value},
+		}
+		if d.PartnerNote != "" {
+			partner["note"] = d.PartnerNote
+		}
+		out["partner"] = partner
+	}
 	if d.LastError != "" {
 		out["last_check"] = d.LastError
 	}
@@ -487,6 +513,9 @@ func domainSummary(site string, body []byte) map[string]any {
 	}
 	if d.Status != nil && *d.Status == "pending" {
 		out["note"] = "Add both DNS records at the domain's registrar within 24 hours: dns_record points the domain here, and ownership_record (a TXT record) proves it is the person's; keep the TXT record in place afterwards. Until both are seen, the binding is provisional. Then the certificate is issued automatically and the domain goes live within minutes."
+		if _, ok := out["partner"]; ok {
+			out["note"] = out["note"].(string) + " Also add partner.dns_record so " + d.PartnerDomain + " forwards to " + *d.Domain + " (the one ownership record covers both)."
+		}
 	}
 	return out
 }
@@ -550,6 +579,12 @@ func Tools() []Tool {
 					Handle      string `json:"handle"`
 					DisplayName string `json:"display_name"`
 					PublicPage  string `json:"public_page"`
+					Address     *struct {
+						State        string `json:"state"`
+						Address      string `json:"address"`
+						ReadyInHours *int   `json:"ready_in_hours"`
+						Note         string `json:"note"`
+					} `json:"address"`
 				}
 				_ = json.Unmarshal(res.body, &me)
 				out := map[string]any{"email": me.Username}
@@ -564,6 +599,17 @@ func Tools() []Tool {
 				}
 				if me.DisplayName != "" {
 					out["display_name"] = me.DisplayName
+				}
+				if a := me.Address; a != nil && a.State != "" {
+					addr := map[string]any{"state": a.State, "address": a.Address}
+					if a.ReadyInHours != nil {
+						addr["ready_in_hours"] = *a.ReadyInHours
+					}
+					if a.Note != "" {
+						addr["note"] = a.Note
+						text += " " + a.Note
+					}
+					out["address"] = addr
 				}
 				return output{Text: text, Structured: out}, nil
 			},
@@ -1008,6 +1054,42 @@ func Tools() []Tool {
 					text = name + " is offline: " + site.liveURL() + " shows \"This site is offline\" and visitor saves are refused. Nothing was deleted."
 				}
 				return output{Text: text, Structured: out}, nil
+			},
+		},
+		{
+			Name:  "keep_site",
+			Title: "Keep a site up for good",
+			Description: "Mark a site Keep (or clear the mark). Simple Host emails the owner about a site nobody has visited or updated for 90 days and moves it to Recently deleted 30 days later unless it is kept; a site marked Keep is never flagged. " +
+				"Sites with their own domain or claimed name are never flagged either.",
+			InputSchema: object(map[string]any{
+				"site": str(siteDesc),
+				"keep": map[string]any{"type": "boolean", "description": "true (default) keeps the site up for good; false lets it be flagged again when idle."},
+			}, "site"),
+			// Changes a flag on the person's own site; reversible.
+			Annotations: writes(false, false, true),
+			run: func(c *call, args map[string]any) (output, error) {
+				name, err := siteArg(args)
+				if err != nil {
+					return output{}, err
+				}
+				keep := true
+				if v, ok := args["keep"]; ok {
+					b, isBool := v.(bool)
+					if !isBool {
+						return output{}, errors.New("keep must be true or false")
+					}
+					keep = b
+				}
+				body, _ := json.Marshal(map[string]bool{"keep": keep})
+				res := c.do(http.MethodPut, "/v1/sites/"+url.PathEscape(name)+"/keep", body, nil)
+				if !res.ok() {
+					return output{}, restError("keep_site", res)
+				}
+				text := name + " is marked Keep: it stays up even if nobody visits it."
+				if !keep {
+					text = name + " is no longer marked Keep: if nobody visits or updates it for 90 days, its owner is emailed before anything happens."
+				}
+				return output{Text: text, Structured: map[string]any{"site": name, "keep": keep}}, nil
 			},
 		},
 		{

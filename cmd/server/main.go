@@ -171,8 +171,10 @@ func main() {
 	siteHandler.SetPersonHosts(cfg.PersonHosts)
 	siteHandler.SetSiteHosts(cfg.SiteHosts, cfg.SiteCertDir)
 	siteHandler.SetDomainCerts(cfg.DomainCertDir)
+	siteHandler.SetIdleCleanup(cfg.IdleCleanup, cfg.IdleCleanupMaxEmails)
 	siteHandler.SetPublicBaseURL(cfg.PublicBaseURL)
 	userHandler.SetPublicPage(siteHandler.PersonPageURL)
+	userHandler.SetAddressState(siteHandler.AddressState)
 	dbpkg.SetPlatformDomain(cfg.SiteDomain)
 	log.Printf("person hosts: %s; site hosts: %s", cfg.PersonHosts, cfg.SiteHosts)
 	siteHandler.Register(mux, authMW, noticeMW)
@@ -260,6 +262,7 @@ func main() {
 	// certificate (back-fill at boot, then a periodic safety net).
 	siteHandler.StartSiteCertRequests(ctx, 10*time.Minute)
 	siteHandler.StartDeletedSitePurge(ctx, time.Hour)
+	siteHandler.StartIdleCleanup(ctx)
 
 	serverErr := make(chan error, 1)
 

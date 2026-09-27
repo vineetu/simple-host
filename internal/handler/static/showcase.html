@@ -685,6 +685,13 @@
       <span>Your public showcase: <a id="owner-share-link" href="#" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">#</a></span>
     </div>
 
+    <!-- Own address on its way: GET /v1/me "address" while the person's
+         *.<handle> certificate is waiting or failing. Owner-only. -->
+    <div class="owner-note" id="owner-address-note" hidden>
+      <span><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+      <span id="owner-address-text"></span>
+    </div>
+
     <!-- Install the skill. Owner-only: `hidden` in the served HTML and revealed
          by updateOnboarding() once hydrateOwner() has confirmed the owner and
          their site count — in full while the account has no sites, otherwise
@@ -1472,6 +1479,17 @@ function parseAnalyticsSummary(data) {
       var isOwner = (me.handle && me.handle === HANDLE) || me.is_admin === true;
       if (!isOwner) return false;
       ownerMe = me;
+      var addrNote = document.getElementById('owner-address-note');
+      if (addrNote) {
+        var addr = me.address;
+        var own = me.handle && me.handle === HANDLE;
+        if (own && addr && addr.state !== 'ready' && addr.note) {
+          document.getElementById('owner-address-text').textContent = addr.note;
+          addrNote.hidden = false;
+        } else {
+          addrNote.hidden = true;
+        }
+      }
 
       // Load ALL sites (incl unlisted).
       var allSites = [];
@@ -2055,6 +2073,8 @@ function parseAnalyticsSummary(data) {
             (s.suspended ? '<div class="inv-down">Taken down by the operator' + (s.suspended_reason ? ': ' + esc(s.suspended_reason) : '') +
               '. Every address shows a &ldquo;taken down&rdquo; page and changes are refused until it is restored. Nothing has been deleted.</div>' :
               (s.offline ? '<div class="inv-offline">Offline. Every address shows &ldquo;This site is offline&rdquo; and visitors can&rsquo;t save anything. Its files, versions and saved data are kept.</div>' : '')) +
+            (s.idle_removal_at && own ? '<div class="inv-down" data-idle-note="' + name + '">No visitors or updates for 90 days: this site moves to Recently deleted on ' +
+              esc(new Date(s.idle_removal_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })) + ' unless you keep it.</div>' : '') +
           '</div>' +
         '</div>' +
         (s.suspended ? (own ? '<div class="inv-actions">' +
@@ -2068,6 +2088,7 @@ function parseAnalyticsSummary(data) {
           '<button type="button" class="btn-small btn-secondary" data-act="openRename" data-name="' + name + '">Rename</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="openDomain" data-name="' + name + '">' + (s.custom_domain ? 'Domain' : 'Connect domain') + '</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="downloadSite" data-name="' + name + '">Download</button>' +
+          (!s.custom_domain ? '<button type="button" class="btn-small btn-secondary" data-act="toggleKeep" data-name="' + name + '" data-keep="' + (s.keep ? '1' : '') + '" data-keep-btn="' + name + '" title="A site nobody visits or updates for 90 days is flagged (you get an email first). Kept sites never are.">' + (s.keep ? 'Kept for good ✓' : 'Keep for good') + '</button>' : '') +
           '<button type="button" class="btn-small btn-ghost" data-act="confirmDelete" data-name="' + name + '">Delete</button>' : '') +
         '</div>') +
         '<div class="versions-panel" data-versions="' + name + '" hidden></div>' +
@@ -2435,6 +2456,27 @@ function parseAnalyticsSummary(data) {
       } catch (e) {
         toast('Could not change that', 'error');
         btn.disabled = false;
+      }
+    }
+
+    // Keep for good (PUT /v1/sites/{site}/keep): a kept site is never flagged
+    // as idle; keeping it also ends a pending idle warning.
+    async function toggleKeep(name, kept) {
+      var next = !kept;
+      try {
+        var res = await api('PUT', '/v1/sites/' + encodeURIComponent(name) + '/keep', { keep: next });
+        if (!res.ok) {
+          var err = await res.json().catch(function () { return null; });
+          toast((err && err.error) || 'Could not change this', 'error');
+          return;
+        }
+        var btn = document.querySelector('[data-keep-btn="' + cssEsc(name) + '"]');
+        if (btn) { btn.setAttribute('data-keep', next ? '1' : ''); btn.textContent = next ? 'Kept for good ✓' : 'Keep for good'; }
+        var note = document.querySelector('[data-idle-note="' + cssEsc(name) + '"]');
+        if (note && next) note.remove();
+        toast(next ? name + ' stays up for good' : name + ' is no longer kept for good', 'success');
+      } catch (e) {
+        toast('Could not change this', 'error');
       }
     }
 
@@ -3516,6 +3558,7 @@ function parseAnalyticsSummary(data) {
       hideAiCreate: function () { toggleOnboarding('aiCreate', false); },
       showAiCreate: function () { toggleOnboarding('aiCreate', true); },
       toggleVis: function (d) { toggleVis(d.name, d.vis); },
+      toggleKeep: function (d) { toggleKeep(d.name, !!d.keep); },
       toggleVersions: function (d) { toggleVersions(d.name); },
       toggleOffline: function (d, el) { toggleOffline(d.name, !!d.offline, el); },
       confirmDelete: function (d) { confirmDelete(d.name); },

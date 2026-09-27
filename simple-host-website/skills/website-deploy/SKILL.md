@@ -48,7 +48,10 @@ https://<sitename>.<handle>.simple-host.app/
 `site_url` (or connector `url`) the response returned — never compose one.** For a
 brand-new account the site briefly lives at `https://<handle>.simple-host.app/<sitename>/`
 until its certificate is issued (usually within ~10 minutes); the returned URL is
-always the one that works.
+always the one that works. While it is at that fallback, the response carries
+`address_state` (connector: `address_note`; `GET /v1/me` / `who_am_i`: `address`) with
+`state` `waiting` or `failing`, a rough `ready_in_hours`, and a `note`: pass the note on,
+since visitors' sign-ins and browser-kept data start fresh when the address switches.
 
 The same site can be served under a path (that fallback address) or at a domain root,
 so a root-absolute URL like `/css/app.css` can resolve off the site and 404. Use

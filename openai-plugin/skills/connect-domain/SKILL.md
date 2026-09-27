@@ -65,6 +65,12 @@ domain of their own.
    over, and it expires after 24 hours unless the records are already seen. Bind and add the records in the
    same sitting; binding again later is fine. If the site already had an address of its own,
    `serving_at` shows it: the site stays there until the new domain is live.
+   For a bare domain or `www.<bare domain>` the answer also has `partner`: the other name
+   (`partner.domain`) and its record (`partner.dns_record`). With that record added too, the
+   other name forwards to the chosen one, so `example.com` and `www.example.com` both work; the
+   one ownership record covers both. `partner.status` is `pending`, `live`, or `not_set_up`
+   with `partner.note` saying why (not pointed here yet, or another site on this server answers
+   it); it is picked up automatically within a few hours once fixed.
 3. **Relay the records.** Ask where the domain's DNS is managed (usually where they bought it),
    then give both records in plain terms:
 

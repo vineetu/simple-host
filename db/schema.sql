@@ -135,6 +135,16 @@ CREATE TABLE IF NOT EXISTS site_name_aliases (
   PRIMARY KEY (user_id, name)
 );
 CREATE INDEX IF NOT EXISTS idx_site_name_aliases_site ON site_name_aliases (site_id);
+-- Idle-site cleanup (mirrors db/migrations/w2-addr-idle-cleanup.sql).
+-- idle_keep: the owner's Keep flag (never warned or removed); idle_kept_at: the
+-- last "Keep it" (resets the idle clock); idle_warned_at: owner emailed that
+-- the site is idle; idle_removed_at: the cleanup moved it to Recently deleted;
+-- idle_token_hash: SHA-256 of the token the emailed links carry.
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS idle_keep BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS idle_kept_at TIMESTAMPTZ;
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS idle_warned_at TIMESTAMPTZ;
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS idle_removed_at TIMESTAMPTZ;
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS idle_token_hash BYTEA;
 
 -- Append-only per-site collections (guestbooks, RSVPs, signups). The other half
 -- of the built-in backend alongside sites.state.

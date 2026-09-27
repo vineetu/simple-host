@@ -1851,9 +1851,10 @@ function parseAnalyticsSummary(data) {
               <span class="version-badge">v${site.active_version}</span>
               ${showOwner && site.owner_username ? `<span class="owner-badge">${esc(site.owner_username)}</span>` : ''}
               ${hasSiteURL ? `<a class="site-url" href="${esc(site.site_url)}" target="_blank">${esc(site.site_url)}</a>` : ''}
-              ${site.custom_domain ? `<span class="owner-badge domain-badge">🌐 ${esc(site.custom_domain)}${site.domain_status ? ' · ' + esc(site.domain_status) : ''}</span>` : ''}
+              ${site.custom_domain ? `<span class="owner-badge domain-badge">🌐 ${esc(site.custom_domain)}${site.domain_status ? ' · ' + esc(site.domain_status) : ''}${site.domain_partner_status === 'live' ? ' · ' + esc(site.domain_partner) + ' forwards here' : ''}</span>` : ''}
             </div>
-            ${site.domain_dns ? `<p class="site-dns">To connect ${esc(site.custom_domain)}, add at your registrar: ${[site.domain_dns].concat(site.domain_dns_txt ? [site.domain_dns_txt] : []).map(r => `<code>${esc(r.type)} ${esc(r.host)} → ${esc(r.value)}</code>`).join(' and ')}${site.domain_dns_txt ? ' (the TXT record shows the domain is yours; keep it in place)' : ''}.${site.domain_last_error ? ' Last check: ' + esc(site.domain_last_error) : ''}</p>` : ''}
+            ${site.domain_dns ? `<p class="site-dns">To connect ${esc(site.custom_domain)}, add at your registrar: ${[site.domain_dns].concat(site.domain_dns_txt ? [site.domain_dns_txt] : []).map(r => `<code>${esc(r.type)} ${esc(r.host)} → ${esc(r.value)}</code>`).join(' and ')}${site.domain_dns_txt ? ' (the TXT record shows the domain is yours; keep it in place)' : ''}.${site.domain_partner_dns ? ` So ${esc(site.domain_partner)} works too (it forwards to ${esc(site.custom_domain)}), also add <code>${esc(site.domain_partner_dns.type)} ${esc(site.domain_partner_dns.host)} → ${esc(site.domain_partner_dns.value)}</code>.` : ''}${site.domain_last_error ? ' Last check: ' + esc(site.domain_last_error) : ''}</p>` : ''}
+            ${!site.domain_dns && site.domain_partner_status === 'not_set_up' && site.domain_partner_dns ? `<p class="site-dns">${esc(site.domain_partner)} does not forward to ${esc(site.custom_domain)} yet${site.domain_partner_note ? ': ' + esc(site.domain_partner_note) : ''}. To add it, point <code>${esc(site.domain_partner_dns.type)} ${esc(site.domain_partner_dns.host)} → ${esc(site.domain_partner_dns.value)}</code> at your registrar; it is picked up within a few hours.</p>` : ''}
             ${site.suspended ? `<p class="site-down">Taken down by the operator${site.suspended_reason ? ': ' + esc(site.suspended_reason) : ''}. Every address shows a "taken down" page and changes are refused until it is restored. Nothing has been deleted.</p>` : ''}
             <div class="site-analytics" id="an-${name}" data-site="${name}"></div>
           </div>
@@ -2326,7 +2327,7 @@ function parseAnalyticsSummary(data) {
           toast(body.error || 'Could not connect domain', 'error');
           return;
         }
-        const recs = [body.dns, body.dns_txt].filter(Boolean).map(r => `${r.type} ${r.host} -> ${r.value}`).join(' and ');
+        const recs = [body.dns, body.dns_txt, body.dns_partner].filter(Boolean).map(r => `${r.type} ${r.host} -> ${r.value}`).join(' and ');
         toast(body.status === 'active' ? `${d.trim()} is live` : `Domain pending — add ${recs} at your registrar (shown on the site's card). It turns active once both are seen and the domain serves the site over HTTPS.`, 'success');
         await loadSites();
       } catch {
