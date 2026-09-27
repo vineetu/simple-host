@@ -17,8 +17,10 @@ anyone reads it and anyone signed in adds to it. Page info and Submissions are d
 | One thing per visitor: RSVP, survey response, order, sign-up, message | **Submissions** (`kind: "entries"`), private (the default) | the owner reads all; each visitor sees, changes and withdraws their own |
 | A guestbook, public comments | Submissions with `visibility: "public"` | anyone reads them; who sent each stays with the owner |
 | Votes, one RSVP each | Submissions with `one_per_person: true` (public to show a tally; `SH.data(name).count()`) | a second entry is refused; the visitor changes theirs |
-| A draft, a cart, a preference, "already voted" on this device | `localStorage` in the page | per visitor; never shared |
-| Roles, per-field rules, joins, search, several people editing one object | does not fit | say so instead of approximating it |
+| A habit tracker, saved progress, preferences that follow the visitor to any device | **Personal** (`kind: "mine"`), `SH.data(name, 'personal')` | only that visitor reads it; the owner sees how many people have one |
+| A shared shopping list, a kanban, a potluck sign-up | **Shared board** (`kind: "board"`), `SH.data(name, 'board')` | anyone reads; signed-in visitors add, change and delete items; only the owner clears it |
+| A draft, a cart, "already voted" on this device only | `localStorage` in the page | per visitor, this device; never shared |
+| Roles, per-field rules, joins, search, live co-editing of one object, instant updates | does not fit | say so instead of approximating it |
 
 Anything with personal details is private Submissions; when unsure, choose the stricter kind.
 
@@ -35,6 +37,14 @@ const { items } = await rsvps.mine();             // this visitor's own
 await rsvps.update(saved.id, { guests: 3 });
 await rsvps.remove(saved.id);                     // withdraw; rsvps.undo(saved.id) brings it back
 const menu = await SH.data('menu', 'content').get();
+
+const me = SH.data('habits', 'personal');         // this visitor's own record
+await me.set({ streak: 1 }); await me.inc('streak'); const rec = await me.get();
+
+const todo = SH.data('todo', 'board');            // everyone edits, item by item
+const it = await todo.add({ text: 'milk' });
+await todo.update(it.id, { done: true }, { version: it.version });  // 409 version_conflict if someone was first
+const stop = todo.watch(items => render(items));  // polls for others' changes
 ```
 
 ## Page setup (every page that reads or saves)

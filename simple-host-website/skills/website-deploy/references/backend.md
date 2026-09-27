@@ -22,6 +22,8 @@ PUT /v1/sites/<sitename>/data/<name>/kind          (owner: X-API-Key; connector:
 {"kind": "entries", "one_per_person": true}         one entry per signed-in visitor (votes, one RSVP each)
 {"kind": "entries", "notify": "each"}               email: "daily", "each" (batched, soon after they arrive) or "off"
 {"kind": "content"}                                 Page info
+{"kind": "mine"}                                    Personal: one private record per signed-in visitor
+{"kind": "board"}                                   Shared board: a list signed-in visitors edit together
 ```
 
 A field left out keeps what the name had. `GET /v1/sites/<sitename>/data` (connector:
@@ -103,9 +105,84 @@ const menu = await SH.data('menu', 'content').get();       // Page info, for eve
 `SH.data` writes carry an `Idempotency-Key` and are retried once, with the same
 key, after a network error, so they are saved once. Never re-send by hand.
 
+### Personal (`mine`): each visitor's own record
+
+One private JSON object per signed-in visitor per name — a habit tracker, saved
+progress in a course or game, preferences, a reading list — kept on the server
+against their sign-in, so it follows them to their phone and laptop. Declare the
+name while it is still empty (a name that already holds data answers 409
+`has_entries`).
+
+- **Only that visitor** reads or writes it, signed in on the site's own address.
+  Other visitors each have their own. The owner never reads anyone's: their key,
+  the connector (`read_collection`, `data_history`, `list_deleted`), the owner
+  app and the site's download all answer 403 `personal_data` or leave it out.
+  The owner sees how many people have a record and their total size
+  (`list_data`, `GET .../data/<name>?count=1`), and can clear the name for
+  everyone (`clear_collection`, after the owner confirms); Restore in the owner
+  app then brings back what that clear took.
+- A personal record is at most 64 KB (413 `item_too_large`).
+- It is in the visitor's own "Download my data", and is erased with their account.
+- A Personal name that holds records never becomes another kind (409
+  `has_records`): pick a new name instead.
+
+```js
+const me = SH.data('habits', 'personal');
+await SH.requireSignIn();
+const rec = (await me.get()) || { streak: 0, days: [] };  // null until the first save
+await me.set({ streak: 1, days: ['2026-09-27'] });        // PUT: the whole record
+await me.set('theme', 'dark');                           // one field
+await me.inc('streak');                                  // PATCH with the /state ops
+await me.patch([{ op: 'append', path: 'days', value: '2026-09-28' }]);
+await me.clear();                                        // DELETE their record
+const { history } = await me.history();                  // their own changes (30-day undo)
+await me.restore(history[0].id);                         // back to before that change
+```
+
+REST: `GET`/`PUT`/`PATCH`/`DELETE /v1/sites/<sitename>/data/<name>` (visitor
+cookie, `X-SH-CSRF: 1` on writes), `GET .../data/<name>/history`,
+`POST .../data/<name>/history/<id>/restore`. A `GET` answers
+`{name, kind, data, version}` with an `ETag`.
+
+### Shared board (`board`): a list everyone edits
+
+A list a group keeps together — a shared shopping list, a kanban, a potluck
+sign-up, a team's to-dos. Anyone who can open the site reads it (who added each
+item stays the owner's to see); signed-in visitors allowed to save add items
+and change or delete **any** item, one at a time. Only the owner empties it
+(`clear_collection`); nobody else can touch more than one item per call.
+
+- Items are JSON objects. A board item is at most 16 KB, and a board holds at most 2,000 live items (409 `list_full`).
+- Every item has a `version`. Pass it when changing an item; if someone changed
+  it first you get 409 `version_conflict` with `item` as it is now — show it,
+  and let the visitor apply their change again.
+- Whoever deleted an item can bring it back for a few minutes (`undo`); the
+  owner restores anything from History and Recently deleted.
+- There is no live feed: `watch` polls, and an unchanged board answers 304, so
+  polling every few seconds is cheap.
+
+```js
+const todo = SH.data('todo', 'board');
+const { items } = await todo.list();                 // anyone
+await SH.requireSignIn();
+const it = await todo.add({ text: 'milk', done: false });
+try {
+  await todo.update(it.id, { done: true }, { version: it.version });
+} catch (e) {
+  if (e.code === 'version_conflict') showLatest(e.body.item);  // someone was first
+}
+await todo.remove(it.id);                            // await todo.undo(it.id) brings it back
+const stop = todo.watch(items => render(items), { every: 5000 });
+```
+
+REST: `GET`/`POST /v1/sites/<sitename>/data/<name>`,
+`PATCH`/`DELETE .../data/<name>/items/<id>` (`If-Match: "<version>"` on PATCH),
+`POST .../items/<id>/undo`; reads send `If-None-Match` for a 304.
+
 **What does not fit** (say so rather than approximating it): roles, per-field
-rules, joins, search, or several people editing one shared object. Per-visitor
-things nobody else needs (drafts, preferences) belong in `localStorage`.
+rules, joins, search, live co-editing of one object, or instant updates.
+Per-visitor things that stay on one device (a draft) belong in `localStorage`;
+ones that should follow the visitor to another device are Personal.
 
 | Status | Code | Meaning |
 |---|---|---|
@@ -119,7 +196,11 @@ things nobody else needs (drafts, preferences) belong in `localStorage`.
 | 409 | `list_full` | The name holds as many entries as it may. The owner deletes or clears. |
 | 403 | `not_allowed_to_save` | The owner has not allowed this account to save here (or blocked it). Tell the visitor; do not retry. |
 | 409 | `undo_expired` | Only a visitor's own withdrawal, within the window, comes back; the owner restores older ones. |
-| 413 | `item_too_large` | Over the entry or Page info size above. |
+| 413 | `item_too_large` | Over the entry, Page info, personal record or board item size above. |
+| 403 | `personal_data` | A Personal record is read and written only by its own visitor, signed in on the site; the owner gets counts only. |
+| 409 | `has_records` | A Personal name that holds records cannot become another kind. Use a new name. |
+| 409 | `has_entries` | The name holds data, so it cannot become Personal (or several entries cannot become Page info). Use a new name. |
+| 409 | `version_conflict` | A board item changed since the version sent; `item` in the body is how it is now. |
 
 ## Trust model
 
