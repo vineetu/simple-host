@@ -241,3 +241,56 @@ func TestTakenDownSiteSignsNobodyIn(t *testing.T) {
 		t.Fatalf("visitor sign-in on a taken-down site: %d %s", r.status, r.body)
 	}
 }
+
+// Owner decision 2026-09-27: impersonation-prone names are refused to new
+// handles, new claimed names and (the platform-sounding subset) new sites;
+// holders from before keep theirs.
+func TestReservedNewNames(t *testing.T) {
+	for _, n := range []string{"support", "info", "hello", "billing", "simple-host", "no-reply", "verify", "staging"} {
+		if err := validateHandle(n); err == nil || err.Error() != "this name is reserved; pick another" {
+			t.Errorf("handle %q: %v", n, err)
+		}
+	}
+	for _, n := range []string{"support", "admin", "login", "simplehack"} {
+		if validateSiteReserved(n) == nil {
+			t.Errorf("site %q allowed", n)
+		}
+	}
+	for _, n := range []string{"blog", "docs", "team", "test", "my-shop"} {
+		if err := validateSiteReserved(n); err != nil {
+			t.Errorf("site %q refused: %v", n, err)
+		}
+	}
+	if err := validateHandle("olive-shop"); err != nil {
+		t.Fatal(err)
+	}
+	// Grandfathered: an account that already holds such a handle keeps its
+	// address (the serving check is the older, shorter list).
+	if !handleAddressable("info") || !handleAddressable("hello") {
+		t.Fatal("an existing holder of a newly reserved handle lost its address")
+	}
+
+	a := newPersonApp(t, "serve")
+	p := a.newPerson(t, "claimer")
+	a.deploy(t, p, "shop")
+	key := map[string]string{"X-API-Key": p.key}
+	for _, n := range []string{"support", "hello"} {
+		r := a.at(t, "POST", pcSiteDomain, "/v1/sites/shop/domain", map[string]string{"domain": n + "." + pcSiteDomain}, key)
+		if r.status != 400 || r.json(t)["code"] != "name_reserved" {
+			t.Fatalf("claim %s: %d %s", n, r.status, r.body)
+		}
+	}
+	if r := a.at(t, "PATCH", pcSiteDomain, "/v1/me", map[string]string{"handle": "security"}, key); r.status != 400 || !strings.Contains(string(r.body), "reserved; pick another") {
+		t.Fatalf("handle change: %d %s", r.status, r.body)
+	}
+	// A sign-up whose address would make a reserved handle gets another.
+	uid, _ := a.userID(t, p)
+	if _, err := a.database.Exec(`UPDATE users SET handle = NULL WHERE id = $1`, uid); err != nil {
+		t.Fatal(err)
+	}
+	assignHandle(context.Background(), a.database, uid, "support@example.com")
+	var h string
+	if err := a.database.QueryRow(`SELECT handle FROM users WHERE id = $1`, uid).Scan(&h); err != nil || h == "support" || !strings.HasPrefix(h, "support-") {
+		t.Fatalf("assigned handle %q %v", h, err)
+	}
+}

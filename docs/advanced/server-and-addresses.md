@@ -31,6 +31,34 @@ handing them out; `canonical` hands them out and redirects the old ones.
 | `OPENAI_APPS_CHALLENGE` | none | text | The OpenAI plugin portal's domain-verification token. Unset: not served. |
 <!-- /settings -->
 
+## Reserved names
+
+Some names read as the service, its operator or a sensitive function, so nobody new may take
+them. They are refused, with "this name is reserved; pick another", to a new or changed
+handle, to a newly claimed free address `<name>.<domain>`, and to an account's automatic
+handle at sign-up (it gets `<name>-2` instead). Accounts and sites that already hold one keep it,
+and it keeps working. The list lives in one place in the code (`reservedNewNames` in
+`internal/handler/platformsubdomain.go`):
+
+admin, administrator, root, sys, system, support, help, helpdesk, info, contact, hello,
+security, abuse, postmaster, hostmaster, webmaster, noreply, no-reply, mail, email, smtp, www,
+api, app, apps, status, billing, payments, pay, login, signin, sign-in, signup, sign-up, auth,
+oauth, sso, account, accounts, dashboard, console, docs, doc, blog, cdn, static, assets, media,
+files, download, downloads, setup, enterprise, legal, privacy, terms, policy, team, staff,
+official, verify, verification, update, secure, simplehost, simple-host, simplehack,
+simple-hack, test, dev, staging, prod, internal, localhost.
+
+A site name only ever appears under its owner's address (`<site>.<handle>.<domain>`), so for
+new sites only the names that pass for the service or its operator are refused: admin,
+administrator, root, sys, system, support, helpdesk, security, abuse, postmaster, hostmaster,
+webmaster, noreply, no-reply, billing, payments, login, signin, sign-in, signup, sign-up, auth,
+oauth, sso, account, accounts, verify, verification, secure, official, simplehost, simple-host,
+simplehack, simple-hack, internal, localhost. Everyday names such as blog, docs or team stay
+free for sites.
+
+The names the server itself routes (v1, internal, sites, skills, the platform's own hosts and
+the ones nginx answers itself) were reserved before and stay refused everywhere.
+
 ## Recipes
 
 **A small box for an event.** Point `hack.example.com` and `sites.hack.example.com` at the

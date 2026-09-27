@@ -78,11 +78,18 @@ func bulkUsernames(req bulkUsersRequest) ([]string, error) {
 }
 
 func validateHandle(handle string) error {
-	if !visitorHandleRe.MatchString(handle) || labelReserved(handle) || !handleIsLabel(handle) {
+	if !visitorHandleRe.MatchString(handle) || !handleIsLabel(handle) {
 		return errors.New("handle must contain 1 to 39 lowercase letters, digits or hyphens (not at the start or end) and must not be reserved")
+	}
+	if labelReservedForNew(handle) {
+		return errReservedName
 	}
 	return nil
 }
+
+// errReservedName: a new handle, claimed name or site name that is reserved
+// (labelReservedForNew, reservedNewSiteNames).
+var errReservedName = errors.New("this name is reserved; pick another")
 
 // handleIsLabel: the handle is usable as a DNS label, since it is also the
 // account's address (<handle>.<SITE_DOMAIN>).

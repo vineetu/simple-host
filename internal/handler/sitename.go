@@ -43,8 +43,8 @@ func validateSiteShape(name string) error {
 // validateSiteReserved rejects names reserved for platform infrastructure.
 // Call on CREATE only.
 func validateSiteReserved(name string) error {
-	if _, reserved := reservedSiteNames[name]; reserved {
-		return errors.New("site name is reserved")
+	if _, reserved := reservedSiteNames[name]; reserved || reservedNewSiteNameSet[name] {
+		return errors.New("this name is reserved; pick another")
 	}
 	return nil
 }

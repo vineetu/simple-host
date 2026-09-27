@@ -68,6 +68,63 @@ func labelReserved(label string) bool {
 	return reservedSubdomainSet[strings.ToLower(label)]
 }
 
+// reservedNewNames (owner decision 2026-09-27) are names that read as the
+// platform, its operator or a sensitive function, so a stranger holding one
+// could pass for Simple Host. They are refused to NEW claims only: a new or
+// changed handle, a newly claimed <name>.<SITE_DOMAIN>, and (the subset in
+// reservedNewSiteNames) a new or renamed site. Accounts and sites that
+// already hold one keep it and keep working (it is not a serving check), so
+// this list never goes into reservedSubdomainSet. docs/advanced/
+// server-and-addresses.md lists it; keep the two together.
+var reservedNewNames = []string{
+	"admin", "administrator", "root", "sys", "system", "support", "help",
+	"helpdesk", "info", "contact", "hello", "security", "abuse", "postmaster",
+	"hostmaster", "webmaster", "noreply", "no-reply", "mail", "email", "smtp",
+	"www", "api", "app", "apps", "status", "billing", "payments", "pay",
+	"login", "signin", "sign-in", "signup", "sign-up", "auth", "oauth", "sso",
+	"account", "accounts", "dashboard", "console", "docs", "doc", "blog",
+	"cdn", "static", "assets", "media", "files", "download", "downloads",
+	"setup", "enterprise", "legal", "privacy", "terms", "policy", "team",
+	"staff", "official", "verify", "verification", "update", "secure",
+	"simplehost", "simple-host", "simplehack", "simple-hack", "test", "dev",
+	"staging", "prod", "internal", "localhost",
+}
+
+// reservedNewSiteNames is the part of reservedNewNames that impersonates the
+// platform or its operator. A site name only ever appears under its owner's
+// address (<site>.<handle>.<SITE_DOMAIN>), so everyday names such as blog,
+// docs, team or test stay free for sites.
+var reservedNewSiteNames = []string{
+	"admin", "administrator", "root", "sys", "system", "support", "helpdesk",
+	"security", "abuse", "postmaster", "hostmaster", "webmaster", "noreply",
+	"no-reply", "billing", "payments", "login", "signin", "sign-in", "signup",
+	"sign-up", "auth", "oauth", "sso", "account", "accounts", "verify",
+	"verification", "secure", "official", "simplehost", "simple-host",
+	"simplehack", "simple-hack", "internal", "localhost",
+}
+
+func nameSet(names ...[]string) map[string]bool {
+	m := map[string]bool{}
+	for _, l := range names {
+		for _, n := range l {
+			m[n] = true
+		}
+	}
+	return m
+}
+
+var (
+	reservedNewNameSet     = nameSet(reservedNewNames)
+	reservedNewSiteNameSet = nameSet(reservedNewSiteNames)
+)
+
+// labelReservedForNew reports whether a NEW handle or claimed name may not
+// be label: reserved in the shared namespace, or one of reservedNewNames.
+func labelReservedForNew(label string) bool {
+	l := strings.ToLower(label)
+	return reservedSubdomainSet[l] || reservedNewNameSet[l]
+}
+
 // platformSubdomainLabel reports whether host is exactly one DNS label under
 // siteDomain (e.g. "clay" for clay.simple-host.app) and returns that label.
 // Multi-label hosts (x.lab.simple-host.app), the apex and non-platform hosts
@@ -117,7 +174,7 @@ func (h *SiteHandler) claimableSubdomain(host string) (string, error) {
 		return "", errors.New("internationalised names are not supported")
 	}
 	full := label + "." + strings.ToLower(h.siteDomain)
-	if reservedSubdomainSet[label] || strings.EqualFold(full, h.contentHost) || strings.EqualFold(full, h.cnameTarget) {
+	if labelReservedForNew(label) || strings.EqualFold(full, h.contentHost) || strings.EqualFold(full, h.cnameTarget) {
 		return "", errSubdomainReserved
 	}
 	return full, nil
