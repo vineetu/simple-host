@@ -5989,7 +5989,7 @@ components:
           example: domain_taken
 
   responses:
-    BadRequest: { description: Invalid request, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    BadRequest: { description: "Invalid request. A saved-data write whose JSON holds a NUL character (\\u0000), half of a surrogate pair or bytes that are not UTF-8 is code invalid_json.", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     Unauthorized: { description: "Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel).", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     Forbidden: { description: Admin access required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     NotFound: { description: Not found, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }

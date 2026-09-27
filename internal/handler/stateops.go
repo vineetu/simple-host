@@ -80,6 +80,9 @@ func (h *SiteHandler) patchSiteState(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid JSON body"})
 		return
 	}
+	if !storableJSON(w, body) {
+		return
+	}
 	var req struct {
 		Ops []stateOp `json:"ops"`
 	}

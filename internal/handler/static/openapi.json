@@ -14563,7 +14563,7 @@
     },
     "responses": {
       "BadRequest": {
-        "description": "Invalid request",
+        "description": "Invalid request. A saved-data write whose JSON holds a NUL character (\\u0000), half of a surrogate pair or bytes that are not UTF-8 is code invalid_json.",
         "content": {
           "application/json": {
             "schema": {

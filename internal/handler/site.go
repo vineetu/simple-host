@@ -1155,6 +1155,9 @@ func (h *SiteHandler) putSiteState(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid json"})
 		return
 	}
+	if !storableJSON(w, body) {
+		return
+	}
 
 	state := json.RawMessage(body)
 

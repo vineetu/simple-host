@@ -546,6 +546,9 @@ func (h *SiteHandler) putContent(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "page info is one JSON object, e.g. {\"items\": [...]}", Code: "not_an_object"})
 		return
 	}
+	if !storableJSON(w, raw) {
+		return
+	}
 	doc, err := db.PutContent(r.Context(), h.database, siteID, name, json.RawMessage(bytes.TrimSpace(raw)), actor, h.siteMaxBytes())
 	h.boundHistory(r, siteID)
 	switch {
@@ -701,16 +704,24 @@ func (h *SiteHandler) updateEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	maxBytes := h.entryMaxBytes(set)
-	r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBytes))
 	var patch map[string]json.RawMessage
-	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(&patch); err != nil || patch == nil || dec.More() {
+	if err == nil {
+		dec := json.NewDecoder(bytes.NewReader(raw))
+		if err = dec.Decode(&patch); err == nil && (patch == nil || dec.More()) {
+			err = errors.New("not one object")
+		}
+	}
+	if err != nil {
 		var maxErr *http.MaxBytesError
 		if errors.As(err, &maxErr) {
 			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large", Code: "item_too_large"})
 			return
 		}
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `send a JSON object of the fields to change, e.g. {"guests": 3}`})
+		return
+	}
+	if !storableJSON(w, raw) {
 		return
 	}
 	errTooLarge := errors.New("too large")

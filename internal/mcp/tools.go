@@ -218,6 +218,7 @@ var codeHints = map[string]string{
 	"not_allowed_to_save":      "The site's owner has not allowed this account to save here (list_data shows who may save; set_who_can_save changes it). Tell the person rather than retrying.",
 	"too_many_names":           "The site has as many names of that kind as it may hold. Keep related settings in one page info document, and reuse a Submissions name for the same kind of thing.",
 	"has_entries":              "That name holds entries (several, or private ones) that the new kind cannot keep as they are: page info is one public document, and a Personal name starts empty. Use another name.",
+	"invalid_json":             "The data holds text the database cannot store: a NUL character (\\u0000), half of a surrogate pair, or bytes that are not UTF-8. Remove it and call again.",
 	"one_document":             "Page info is one document, and bringing that back would make a second one. To put an earlier document back, send it whole with update_data (the current one stays in its history).",
 	"kind_changed":             "The owner changed what this name is while the save was on its way; nothing was saved. Check list_data, then call again if it still fits.",
 	"visitor_sign_in_off":      "This install does not read visitor sign-in on public saves, so public Submissions could never take an entry. Keep them private, or leave the name Shared; tell the person.",

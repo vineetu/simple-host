@@ -117,6 +117,9 @@ func (h *SiteHandler) appendBoard(w http.ResponseWriter, r *http.Request, siteID
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `a board item is one JSON object, e.g. {"text": "milk", "done": false}`, Code: "not_an_object"})
 		return
 	}
+	if !storableJSON(w, raw) {
+		return
+	}
 	body := json.RawMessage(bytes.TrimSpace(raw))
 	// The server's own stamp keys are never the visitor's to set.
 	stamped := false
@@ -184,15 +187,24 @@ func (h *SiteHandler) updateBoardItem(w http.ResponseWriter, r *http.Request, si
 		ifVersion = int64(n)
 	}
 	maxBytes := h.boardItemMax()
+	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBytes))
 	var patch map[string]json.RawMessage
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBytes))
-	if err := dec.Decode(&patch); err != nil || patch == nil || dec.More() {
+	if err == nil {
+		dec := json.NewDecoder(bytes.NewReader(raw))
+		if err = dec.Decode(&patch); err == nil && (patch == nil || dec.More()) {
+			err = errors.New("not one object")
+		}
+	}
+	if err != nil {
 		var maxErr *http.MaxBytesError
 		if errors.As(err, &maxErr) {
 			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large", Code: "item_too_large"})
 			return
 		}
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `send a JSON object of the fields to change, e.g. {"done": true}`})
+		return
+	}
+	if !storableJSON(w, raw) {
 		return
 	}
 	errTooLarge := errors.New("too large")

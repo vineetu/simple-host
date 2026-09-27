@@ -101,6 +101,9 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "body must be a JSON value"})
 		return
 	}
+	if !storableJSON(w, body) {
+		return
+	}
 	claim, handled := h.idemBegin(w, r, siteID, "POST collections/"+coll, actor, body, h.replayItem(w, r, siteID, coll))
 	if handled {
 		return

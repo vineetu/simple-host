@@ -155,3 +155,67 @@ func TestBigIDsAndCursors(t *testing.T) {
 	wantCode(t, "restore big id", s.owner(t, "POST", "/v1/sites/shop/collections/guestbook/items/3000000000/restore", nil), 404, "not_found")
 	wantCode(t, "purge big id", s.owner(t, "DELETE", "/v1/sites/shop/collections/guestbook/deleted/3000000000", nil), 404, "")
 }
+
+func TestJSONStorable(t *testing.T) {
+	for body, want := range map[string]bool{
+		`{"a":"x"}`:                 true,
+		`{"a":"x\u0000y"}`:          false,
+		`{"a\u0000":1}`:             false,
+		`{"a":"\\u0000"}`:           true, // an escaped backslash, then text
+		`{"a":"\\\u0000"}`:          false,
+		`{"a":"\ud83d\ude00"}`:      true,
+		`{"a":"\ud800"}`:            false,
+		`{"a":"\ud800x"}`:           false,
+		`{"a":"\udc00"}`:            false,
+		`{"a":"\u00e9 \u20ac"}`:     true,
+		"{\"a\":\"\xff\"}":          false,
+		`["\ud800\ud800\udc00"]`:    false,
+		`{"a":"\"\\","b":"\u0001"}`: true,
+	} {
+		if got := jsonStorable([]byte(body)); got != want {
+			t.Errorf("%s: %v, want %v", body, got, want)
+		}
+	}
+}
+
+// L2: text Postgres cannot store is refused with 400 invalid_json on every
+// saved-data write, never a 500.
+func TestSavedDataRefusesUnstorableText(t *testing.T) {
+	s := newKindsSite(t, true)
+	nul := `{"msg":"a\u0000b"}`
+	bad := "{\"msg\":\"\xff\"}"
+	half := `{"msg":"\ud800"}`
+	check := func(what string, r resp) {
+		t.Helper()
+		wantCode(t, what, r, 400, "invalid_json")
+	}
+	for _, body := range []string{nul, bad, half} {
+		check("state put", s.visitor(t, "PUT", "/v1/sites/shop/state", body))
+		check("list add", s.visitor(t, "POST", "/v1/sites/shop/collections/guestbook", body))
+	}
+	check("state patch", s.visitor(t, "PATCH", "/v1/sites/shop/state", `{"ops":[{"op":"set","path":"a","value":"x\u0000"}]}`))
+	check("state patch key", s.visitor(t, "PATCH", "/v1/sites/shop/state", `{"ops":[{"op":"set","path":"a\u0000","value":1}]}`))
+
+	s.declare(t, "menu", map[string]any{"kind": "content"})
+	check("page info", s.owner(t, "PUT", "/v1/sites/shop/data/menu", nul))
+
+	s.declare(t, "rsvps", map[string]any{"kind": "entries"})
+	check("private entry", s.as(t, s.vicCooky, "POST", "/v1/sites/shop/data/rsvps", nul))
+	id := idOf(t, s.as(t, s.vicCooky, "POST", "/v1/sites/shop/data/rsvps", map[string]any{"name": "Vic"}))
+	check("entry edit", s.as(t, s.vicCooky, "PATCH", "/v1/sites/shop/data/rsvps/items/"+id, nul))
+	check("owner edit", s.ownerWrite(t, "PATCH", "/v1/sites/shop/collections/rsvps/items/"+id, nul))
+
+	s.declare(t, "todo", map[string]any{"kind": "board"})
+	check("board add", s.as(t, s.vicCooky, "POST", "/v1/sites/shop/data/todo", nul))
+	bid := idOf(t, s.as(t, s.vicCooky, "POST", "/v1/sites/shop/data/todo", map[string]any{"text": "milk"}))
+	check("board edit", s.as(t, s.vicCooky, "PATCH", "/v1/sites/shop/data/todo/items/"+bid, nul))
+
+	s.declare(t, "prefs", map[string]any{"kind": "mine"})
+	check("personal put", s.as(t, s.vicCooky, "PUT", "/v1/sites/shop/data/prefs", nul))
+	check("personal patch", s.as(t, s.vicCooky, "PATCH", "/v1/sites/shop/data/prefs", `{"ops":[{"op":"set","path":"a","value":"\u0000"}]}`))
+
+	// Ordinary text, escapes included, still saves.
+	if r := s.visitor(t, "POST", "/v1/sites/shop/collections/guestbook", `{"msg":"caf\u00e9 \ud83d\ude00 \\u0000"}`); r.status != 201 {
+		t.Fatalf("ordinary text: %d %s", r.status, r.body)
+	}
+}

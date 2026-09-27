@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
@@ -830,4 +831,59 @@ func (h *SiteHandler) adminDataWatch(w http.ResponseWriter, r *http.Request) {
 		resp["days_counted"] = int(time.Since(first).Hours()/24) + 1
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// storableJSON: saved data is stored as Postgres jsonb, which holds no U+0000
+// (\u0000), no unpaired surrogate (\ud800 alone) and no invalid UTF-8, all of
+// which Go's JSON accepts. A body with any of them is refused here with 400
+// invalid_json instead of failing in the database. Writes the refusal; false
+// then. body is JSON Go already accepts (or about to be checked as such).
+func storableJSON(w http.ResponseWriter, body []byte) bool {
+	if jsonStorable(body) {
+		return true
+	}
+	writeJSON(w, http.StatusBadRequest, errorResponse{
+		Error: `the JSON holds text that cannot be saved: a NUL character (\u0000), half of a surrogate pair (\ud800 alone) or bytes that are not UTF-8. Remove it and send again`,
+		Code:  "invalid_json",
+	})
+	return false
+}
+
+// jsonStorable reports whether JSON text body has none of what jsonb refuses.
+// Backslashes appear only inside strings in JSON, so escapes are found by
+// scanning the bytes.
+func jsonStorable(body []byte) bool {
+	if !utf8.Valid(body) {
+		return false
+	}
+	hex4 := func(i int) (rune, bool) {
+		if i+6 > len(body) || body[i] != '\\' || body[i+1] != 'u' {
+			return 0, false
+		}
+		n, err := strconv.ParseUint(string(body[i+2:i+6]), 16, 32)
+		return rune(n), err == nil
+	}
+	for i := 0; i < len(body); i++ {
+		if body[i] != '\\' {
+			continue
+		}
+		if i+1 < len(body) && body[i+1] == 'u' {
+			r, ok := hex4(i)
+			switch {
+			case !ok:
+			case r == 0:
+				return false
+			case r >= 0xD800 && r <= 0xDBFF:
+				lo, ok := hex4(i + 6)
+				if !ok || lo < 0xDC00 || lo > 0xDFFF {
+					return false
+				}
+				i += 6
+			case r >= 0xDC00 && r <= 0xDFFF:
+				return false
+			}
+		}
+		i++ // the escaped character: \\ never starts another escape
+	}
+	return true
 }

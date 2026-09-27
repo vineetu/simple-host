@@ -292,6 +292,9 @@ func (h *SiteHandler) putPersonal(w http.ResponseWriter, r *http.Request, siteID
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "a personal record is one JSON object, e.g. {\"streak\": 3}", Code: "not_an_object"})
 		return
 	}
+	if !storableJSON(w, raw) {
+		return
+	}
 	doc := json.RawMessage(bytes.TrimSpace(raw))
 	h.savePersonal(w, r, siteID, name, "PUT data/"+name, actor, raw, func(json.RawMessage) (json.RawMessage, error) { return doc, nil })
 }
@@ -312,6 +315,9 @@ func (h *SiteHandler) patchData(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBytes+4096))
 	if err != nil {
 		writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "request body too large", Code: "item_too_large"})
+		return
+	}
+	if !storableJSON(w, body) {
 		return
 	}
 	var req struct {
