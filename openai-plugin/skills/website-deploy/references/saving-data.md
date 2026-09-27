@@ -295,6 +295,13 @@ columns appear like any other key). You read it with `read_collection` (its answ
   which with the person first). `list_deleted` and `restore_item` (one `id`, or `all: true`
   to undo `clear_collection`) bring deleted items back. `read_collection` shows the owner who
   sent each item (`by`).
+- `delete_forever` removes for good what the undo still holds: one item of a list's recently
+  deleted (`collection`, `id`, `confirm_id`), all of it (`collection`, `all: true`,
+  `confirm_collection`), or the site's whole history (`history: true`, `confirm_site`). It
+  cannot be undone: only after the person confirms exactly what (a visitor asked to be erased,
+  a flood of spam).
+- A site's live saved data (state plus list items) is capped at 50 MB: a write that would grow
+  it past that gets 507 `site_full`; deleting items or clearing a list makes room at once.
 
 ## Errors a page can meet
 

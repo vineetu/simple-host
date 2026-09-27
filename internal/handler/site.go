@@ -434,27 +434,30 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// History, Recently deleted, restore and delete for good (saveddata.go):
 	// owner or admin only, key or connector token; the {handle} forms name
 	// the site exactly.
-	for _, base := range []string{"/v1/sites/{sitename}", "/v1/u/{handle}/sites/{sitename}"} {
-		owner := func(method, path string, fn http.HandlerFunc) {
-			var hd http.Handler = fn
-			if method != http.MethodGet {
-				hd = rateLimitByIP(h.stateLimiter, hd)
-			}
-			mux.Handle(method+" "+base+path, noticeMiddleware(authMiddleware(hd)))
-		}
-		owner("GET", "/collections/{coll}/history", h.listDataHistory)
-		owner("GET", "/collections/{coll}/history/{id}", h.getDataHistory)
-		owner("POST", "/collections/{coll}/history/{id}/restore", h.restoreListHistory)
-		owner("GET", "/collections/{coll}/deleted", h.listDeletedItems)
-		owner("POST", "/collections/{coll}/deleted/restore", h.restoreDeletedItem)
-		owner("POST", "/collections/{coll}/items/{id}/restore", h.restoreDeletedItem)
-		owner("DELETE", "/collections/{coll}/deleted", h.purgeDeletedItems)
-		owner("DELETE", "/collections/{coll}/deleted/{id}", h.purgeDeletedItems)
-		owner("GET", "/state/history", h.listDataHistory)
-		owner("GET", "/state/history/{id}", h.getDataHistory)
-		owner("POST", "/state/history/{id}/restore", h.restoreStateHistory)
-		owner("DELETE", "/history", h.clearDataHistory)
-	}
+	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}/history", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDataHistory))))
+	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}/history/{id}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getDataHistory))))
+	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}/history/{id}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreListHistory)))))
+	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}/deleted", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDeletedItems))))
+	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}/deleted/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreDeletedItem)))))
+	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}/items/{id}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreDeletedItem)))))
+	mux.Handle("DELETE /v1/sites/{sitename}/collections/{coll}/deleted", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.purgeDeletedItems)))))
+	mux.Handle("DELETE /v1/sites/{sitename}/collections/{coll}/deleted/{id}", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.purgeDeletedItems)))))
+	mux.Handle("GET /v1/sites/{sitename}/state/history", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDataHistory))))
+	mux.Handle("GET /v1/sites/{sitename}/state/history/{id}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getDataHistory))))
+	mux.Handle("POST /v1/sites/{sitename}/state/history/{id}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreStateHistory)))))
+	mux.Handle("DELETE /v1/sites/{sitename}/history", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.clearDataHistory)))))
+	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/collections/{coll}/history", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDataHistory))))
+	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/collections/{coll}/history/{id}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getDataHistory))))
+	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/collections/{coll}/history/{id}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreListHistory)))))
+	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDeletedItems))))
+	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreDeletedItem)))))
+	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreDeletedItem)))))
+	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.purgeDeletedItems)))))
+	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted/{id}", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.purgeDeletedItems)))))
+	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/state/history", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDataHistory))))
+	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/state/history/{id}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getDataHistory))))
+	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/state/history/{id}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreStateHistory)))))
+	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/history", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.clearDataHistory)))))
 	// The saved-data watch: what the later tightening would affect.
 	mux.Handle("GET /v1/admin/data-watch", authMiddleware(auth.RequireAdmin(http.HandlerFunc(h.adminDataWatch))))
 	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}", h.limitReads(h.listCollection))

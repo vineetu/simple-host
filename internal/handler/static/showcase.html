@@ -873,7 +873,7 @@
       <div class="section" id="owner-data" hidden>
         <div class="section-num"><h2>Your data</h2><span class="line"></span></div>
         <div class="conn-row">
-          <span><b>Download my data</b><small>One archive with every site (files, saved data and lists), your account, your keys' names (never the keys), connected apps, and the entries you sent to other people's lists while signed in. Data saved by pages and older public-list entries aren't linked to you; for help with those, write to support@simple-host.app.</small></span>
+          <span><b>Download my data</b><small>One archive with every site (files, saved data and lists), your account, your keys' names (never the keys), connected apps, the entries you sent to other people's lists while signed in, and the changes you made to other people's page data while signed in. Changes made without signing in and older public-list entries aren't linked to you; for help with those, write to support@simple-host.app.</small></span>
           <button type="button" class="btn btn-secondary btn-small" id="data-download">Download my data</button>
         </div>
         <div class="conn-row" id="data-delete-row">
@@ -888,7 +888,7 @@
             <li>the entries you sent to other people's lists while signed in, which disappear from their lists</li>
             <li>your address <b id="data-delete-handle"></b>, your sites' names and custom domains; the names are retired, never given to anyone else</li>
           </ul>
-          <div>Data saved by pages and older public-list entries aren't linked to you and stay; for help with those, write to support@simple-host.app. Nothing goes to Recently deleted and nothing can be restored. Download your data first if you want a copy.</div>
+          <div>Changes you made to other people's page data stay with their sites, with your address taken off them. Changes made without signing in and older public-list entries aren't linked to you and stay; for help with those, write to support@simple-host.app. Nothing goes to Recently deleted and nothing can be restored. Download your data first if you want a copy.</div>
           <label for="data-delete-input">Type <b id="data-delete-word"></b> to confirm</label>
           <input type="text" id="data-delete-input" autocomplete="off" spellcheck="false">
           <div class="panel-btns">
@@ -2039,10 +2039,10 @@ function parseAnalyticsSummary(data) {
       var list = (body && Array.isArray(body.history)) ? body.history : [];
       var intro = '<div class="versions-status">Every change in the last ' + UNDO_DAYS + ' days, newest first. Restore puts back ' +
         (st.coll ? 'the item' : 'the saved data') + ' as it was just before that change; a restore is itself a change you can undo.</div>';
-      if (!list.length) return intro + '<div class="versions-status">No changes yet.</div>';
+      if (!list.length) return intro + '<div class="versions-status">No changes yet.</div>' + clearHistoryHTML();
       var rows = list.map(function (e) {
         var id = escAttr(e.id);
-        var what = (UNDO_OPS[e.op] || e.op) + (e.item_id ? ' item ' + esc(e.item_id) : '');
+        var what = esc(UNDO_OPS[e.op] || e.op) + (e.item_id ? ' item ' + esc(e.item_id) : '');
         var canView = !st.coll || e.op === 'edit' || e.op === 'restore';
         return '<tr>' +
           '<td class="plist-acts"><span class="plist-btns">' +
@@ -2056,24 +2056,48 @@ function parseAnalyticsSummary(data) {
       }).join('');
       return intro + '<div class="plist-table-wrap"><table class="plist-table"><thead><tr><th></th><th>when</th><th>what</th><th>who</th></tr></thead><tbody>' +
         rows + '</tbody></table></div>' + (body.next ? '<div class="versions-status">Latest 50 changes shown.</div>' : '') +
-        '<div class="plist-undo-value" hidden></div>';
+        '<div class="plist-undo-value" hidden></div>' + clearHistoryHTML();
+    }
+    function clearHistoryHTML() {
+      return '<div class="panel-btns" style="margin:8px 0 0;"><button type="button" class="btn-small btn-ghost" data-undo="clear-history">Clear history</button></div>' +
+        '<div class="row-panel undo-confirm" hidden></div>';
+    }
+    // A typed confirmation inside the History or Recently deleted panel.
+    function openUndoConfirm(panel, label, word, act, goLabel, id) {
+      var box = panel.querySelector('.undo-confirm');
+      if (!box) return;
+      var fid = 'undo-confirm-' + Math.random().toString(36).slice(2);
+      box.innerHTML = '<label for="' + fid + '">' + label + ' Type <b>' + esc(word) + '</b> to confirm.</label>' +
+        '<input type="text" id="' + fid + '" autocomplete="off" spellcheck="false" data-confirm-input>' +
+        '<div class="panel-btns">' +
+          '<button type="button" class="btn-small btn-danger" data-undo="' + escAttr(act) + '" data-confirm-for="' + escAttr(word) + '"' +
+            (id ? ' data-id="' + escAttr(id) + '"' : '') + ' disabled>' + esc(goLabel) + '</button>' +
+          '<button type="button" class="btn-small btn-ghost" data-undo="cancel">Cancel</button>' +
+        '</div>';
+      box.hidden = false;
+      if (box.scrollIntoView) box.scrollIntoView({ block: 'nearest' });
+      var inp = box.querySelector('input');
+      if (inp) inp.focus();
     }
     function deletedHTML(st, body) {
       var items = (body && Array.isArray(body.items)) ? body.items : [];
-      var intro = '<div class="versions-status">Deleted in the last ' + UNDO_DAYS + ' days. After that they are gone for good.</div>';
+      var intro = '<div class="versions-status">Deleted in the last ' + UNDO_DAYS + ' days. After that they are gone for good; Delete forever removes one sooner.</div>';
       if (!items.length) return intro + '<div class="versions-status">Nothing deleted.</div>';
       var rows = items.map(function (it) {
         var id = escAttr(it.id);
         var text = typeof it.data === 'object' ? JSON.stringify(it.data) : String(it.data);
         return '<tr>' +
-          '<td class="plist-acts"><span class="plist-btns"><button type="button" class="btn-small btn-secondary" data-undo="undelete" data-id="' + id + '">Restore</button></span></td>' +
+          '<td class="plist-acts"><span class="plist-btns"><button type="button" class="btn-small btn-secondary" data-undo="undelete" data-id="' + id + '">Restore</button>' +
+            '<button type="button" class="btn-small btn-ghost" data-undo="purge" data-id="' + id + '">Delete forever</button></span></td>' +
           '<td title="' + escAttr(text) + '">' + esc(text.length > 120 ? text.slice(0, 120) + '…' : text) + '</td>' +
           '<td>' + esc(it.by || '') + '</td>' +
           '<td>' + esc(new Date(it.deleted_at).toLocaleString()) + '</td>' +
         '</tr>';
       }).join('');
       return intro +
-        '<div class="panel-btns" style="margin:6px 0 8px;"><button type="button" class="btn-small btn-secondary" data-undo="undelete-all">Restore all</button></div>' +
+        '<div class="panel-btns" style="margin:6px 0 8px;"><button type="button" class="btn-small btn-secondary" data-undo="undelete-all">Restore all</button>' +
+          '<button type="button" class="btn-small btn-ghost" data-undo="purge-all">Delete all forever</button></div>' +
+        '<div class="row-panel undo-confirm" hidden></div>' +
         '<div class="plist-table-wrap"><table class="plist-table"><thead><tr><th></th><th>item</th><th>sent by</th><th>deleted</th></tr></thead><tbody>' +
         rows + '</tbody></table></div>' + (body.next ? '<div class="versions-status">Latest 50 shown; Restore all brings back every one.</div>' : '');
     }
@@ -2083,6 +2107,42 @@ function parseAnalyticsSummary(data) {
       if (!st) return;
       var act = t.getAttribute('data-undo'), id = t.getAttribute('data-id');
       var base = undoBase(st.name, st.coll);
+      // Deleting for good: a typed confirmation first, then the call.
+      if (act === 'cancel') {
+        var cb = t.closest('.undo-confirm');
+        if (cb) { cb.hidden = true; cb.innerHTML = ''; }
+        return;
+      }
+      if (act === 'purge') {
+        openUndoConfirm(panel, 'Delete item ' + esc(id) + ' for good? It and its earlier versions cannot be brought back.', 'delete', 'purge-go', 'Delete forever', id);
+        return;
+      }
+      if (act === 'purge-all') {
+        openUndoConfirm(panel, 'Delete everything in Recently deleted of <b>' + esc(st.coll) + '</b> for good? None of it can be brought back. The list itself is not touched.', st.coll, 'purge-all-go', 'Delete all forever');
+        return;
+      }
+      if (act === 'clear-history') {
+        openUndoConfirm(panel, 'Clear every earlier version of <b>' + esc(st.name) + '</b>\'s saved data and lists, for good? The data as it is now stays, and so does Recently deleted.', st.name, 'clear-history-go', 'Clear history');
+        return;
+      }
+      if (act === 'purge-go' || act === 'purge-all-go' || act === 'clear-history-go') {
+        var dpath, dbody;
+        if (act === 'purge-go') dpath = base + '/deleted/' + encodeURIComponent(id);
+        else if (act === 'purge-all-go') { dpath = base + '/deleted'; dbody = { confirm: st.coll }; }
+        else { dpath = sitePathPart(st.name) + '/history'; dbody = { confirm: st.name }; }
+        t.disabled = true;
+        try {
+          var pres = await api('DELETE', dpath, dbody);
+          if (!pres.ok) { toast(await plistError(pres, 'Could not delete it'), 'error'); t.disabled = false; return; }
+          toast(act === 'clear-history-go' ? 'History cleared' : 'Deleted for good', 'success');
+          if (act === 'clear-history-go') await renderUndoPanel(panel);
+          else loadPrivateLists(st.name, true);
+        } catch (e) {
+          toast('Could not delete it', 'error');
+          t.disabled = false;
+        }
+        return;
+      }
       if (act === 'view') {
         var out = panel.querySelector('.plist-undo-value');
         t.disabled = true;

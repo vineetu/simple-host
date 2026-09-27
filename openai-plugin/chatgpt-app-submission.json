@@ -356,6 +356,18 @@
         "destructive_justification": "Nothing is deleted or overwritten: the items come back as they were."
       }
     },
+    "delete_forever": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "It removes, for good, saved data the 30-day undo still holds (items in a list's recently deleted, or the site's history), so it modifies data.",
+        "open_world_justification": "It only removes data from the owner's own site; nothing is published or sent to any third party.",
+        "destructive_justification": "It is irreversible: what it removes cannot be brought back. It only touches data already deleted or earlier versions, never live data, requires the id, list name or site name to be repeated as confirmation, and the description tells the model to get explicit confirmation of exactly what."
+      }
+    },
     "connect_domain": {
       "annotations": {
         "readOnlyHint": false,

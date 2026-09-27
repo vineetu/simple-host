@@ -91,7 +91,7 @@ Portal → **Create plugin** → **With MCP**. Package name `simple-host` (it mu
 | Content security policy | none: the server returns no UI |
 | Domain verification | the portal shows a token → put it in `/etc/simple-host.env` as `OPENAI_APPS_CHALLENGE=<token>`, restart, confirm `curl -s https://simple-host.app/.well-known/openai-apps-challenge` prints exactly the token, then **Verify Domain**. Leave Challenge Base URL empty (it defaults to the MCP host). nginx already proxies `/.well-known/*` on the apex to the app. |
 
-Then **Scan Tools**. Expect 34 tools, no UI templates, the server `instructions`, no imported
+Then **Scan Tools**. Expect 35 tools, no UI templates, the server `instructions`, no imported
 skills (the server does not offer the skills extension; skills are uploaded instead).
 Every tool declares an `outputSchema` describing its `structuredContent`
 (`internal/mcp/outputs.go`), so the scan should raise no "Add an outputSchema" recommendation.
@@ -137,6 +137,7 @@ Values are set by the server (`internal/mcp/tools.go`) and pinned by
 | restore_data | false | false | true | Puts an earlier version of a site's saved data (or of one list item) back; shown on live pages, hence open world. Nothing is lost: the value it replaces is kept and can be put back the same way. |
 | list_deleted | true | false | false | Lists items deleted from one of the owner's lists in the last 30 days. Changes nothing. |
 | restore_item | false | false | true | Brings deleted list items back onto the site (open world: a public list shows them again). Nothing is deleted or overwritten. |
+| delete_forever | false | true | false | Removes for good what the 30-day undo still holds: one item of a list's recently deleted, all of it, or the site's history (earlier versions). Never touches live data. Irreversible, so it requires the id, list name or site name twice (`confirm_*`) and the description tells the model to get explicit confirmation of exactly what. Removes data only; nothing is published. |
 | connect_domain | false | false | true | Gives a site its own address: a free `<name>.simple-host.app` (active at once) or an arbitrary outside domain the person names, served once its DNS points here and a TXT ownership record proves it is theirs. Either way the site is served at a new public address. Nothing is deleted; an outside domain stays provisional until its TXT record proves ownership. |
 | remove_domain | false | true | true | Disconnects a site's custom domain or free `<name>.simple-host.app` address, so the site is served at a different public address (open world). Destructive: links to a disconnected custom domain stop working and the domain can then be connected by someone else. Requires the address typed out (`confirm_domain`) and the description tells the model to get explicit confirmation first. |
 

@@ -27,7 +27,7 @@ append-only collections) that its own page JavaScript can call.
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.22.0`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.22.1`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -186,7 +186,8 @@ Full code and error codes: `references/backend.md`.
   delete or clear of list items is kept, with who made it; the owner restores
   from the owner app, or you do with `data_history` / `restore_data` and
   `list_deleted` / `restore_item` (see `references/backend.md`). Deleting is
-  still an act to confirm with the person first.
+  still an act to confirm with the person first; `delete_forever` (removing
+  Recently deleted items or history for good) cannot be undone at all.
 - **Origin-gating trips up non-browser reads.** A `curl`/script read with no
   `Origin` gets **403**. Send one:
   `curl -H "Origin: https://<name>.<handle>.simple-host.app" https://<name>.<handle>.simple-host.app/v1/sites/<name>/state`

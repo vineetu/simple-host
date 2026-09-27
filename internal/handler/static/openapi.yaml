@@ -476,9 +476,10 @@ paths:
         Deletes the account at once and for good; nothing goes to Recently deleted and nothing can
         be restored. Removed: every site (including ones in Recently deleted) with its files,
         versions, saved data, lists and analytics; keys; connected apps; visitor sign-ins; and every
-        entry this person sent to other people's private lists while signed in (entries on public
-        lists and shared page data are not linked to anyone and stay; support@simple-host.app helps
-        with those). The handle, old handles and claimed
+        entry this person sent to other people's lists while signed in; their address is taken off the
+        changes they made to other people's page data (writes made without signing in and older
+        public-list entries are not linked to anyone and stay; support@simple-host.app helps with
+        those). The handle, old handles and claimed
         <name>.simple-host.app addresses are retired, never given to anyone else; custom domains are
         released. A confirmation email goes to the account's address. Offer GET /v1/me/export.tar.gz
         first. Refused for a suspended account or one holding a site the operator took down (the
@@ -666,8 +667,9 @@ paths:
         handle, display name, created, earlier handles, claimed names including retired ones, custom
         domains, linked Google/GitHub sign-ins); keys.json (name, last 4 characters, created, last
         used; never keys or hashes); connected_apps.json (name, connected, last used); visitor.json
-        (sites signed in to as a visitor with first sign-in and last seen, and every entry
-        sent to other people's private lists while signed in); and sites/<name>/ for every live site in the same layout
+        (sites signed in to as a visitor with first sign-in and last seen, every entry
+        sent to other people's lists while signed in, and `changed`: every change made to other
+        people's page data or list entries while signed in, as site, what, change and when); and sites/<name>/ for every live site in the same layout
         as GET /v1/sites/{sitename}/export.tar.gz. Visitor analytics hold no personal data (salted
         hashes) and are not included. Needs one of the account's own API keys: a connected app or
         the admin key gets 400 not_an_account_key. A suspended account gets 403 account_suspended
@@ -1788,7 +1790,7 @@ paths:
                 signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
                 useCustomDomain: { value: { error: "this site saves on its own domain", code: use_custom_domain, domain: recipes.brand.com } }
         '403': { $ref: '#/components/responses/OriginMismatch' }
-        '409': { description: "A retry with the same Idempotency-Key is still running (idempotency_in_progress), or the document is not an object (not_an_object)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "A retry with the same Idempotency-Key is still running (idempotency_in_progress), the key was used with another body (idempotency_key_reused), or the document is not an object (not_an_object)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '413': { $ref: '#/components/responses/TooLarge' }
         '507': { $ref: '#/components/responses/SiteFull' }
 
@@ -1895,7 +1897,7 @@ paths:
           description: Invalid body (not JSON; on a private list, not one JSON object)
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
         '413': { $ref: '#/components/responses/TooLarge' }
-        '409': { description: A retry with the same Idempotency-Key is still running (idempotency_in_progress), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "A retry with the same Idempotency-Key is still running (idempotency_in_progress), or the key was used with another body (idempotency_key_reused)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '507': { $ref: '#/components/responses/SiteFull' }
         '401':
           description: No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) — such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. use_custom_domain is never returned for a site that has no domain. A private list answers visitor_auth_required whenever no visitor is signed in on the site's own address.
@@ -2116,10 +2118,14 @@ paths:
         (SAVED_DATA_UNDO_DAYS), newest first, without the values: what happened
         (`op`: replace for a PUT, change for a PATCH, restore), who made it (`by`,
         the address they were signed in with; `by_kind` owner, admin, visitor or
-        anonymous) and when. A write that leaves the document as it was is not
-        recorded. Past a per-site cap (SAVED_DATA_HISTORY_MAX_MB, 20 MB) the
-        oldest versions are thinned, but the first change of each day is always
-        kept. Owner (X-API-Key or connector token) or the operator only.
+        anonymous; the operator's moderation shows as "Simple Host (operator)")
+        and when. A write that leaves the document as it was is not recorded. A
+        PATCH keeps only what it changed, with a full copy on each day's first
+        change and at least every 50 changes (SAVED_DATA_SNAPSHOT_EVERY); every
+        version still reads back whole. Past a per-site cap
+        (SAVED_DATA_HISTORY_MAX_MB, 20 MB) the oldest versions are thinned, but
+        the first full copy of each day is always kept. DELETE /v1/sites/{sitename}/history
+        clears it for good. Owner (X-API-Key or connector token) or the operator only.
       tags: [State]
       security: [{ apiKey: [] }]
       parameters:
@@ -2164,7 +2170,8 @@ paths:
       description: >-
         The document goes back to exactly how it was just before change `id`;
         pages see it at once. The restore is itself a change (op restore), so it
-        can be undone the same way. Refused on a taken-down site.
+        can be undone the same way. Refused on a taken-down site, and when it
+        would grow the site past its cap (507 site_full).
       tags: [State]
       security: [{ apiKey: [] }]
       parameters:
@@ -2178,6 +2185,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: The change holds no earlier value (nothing_to_restore), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '507': { $ref: '#/components/responses/SiteFull' }
 
   /v1/sites/{sitename}/collections/{coll}/history:
     get:
@@ -2236,7 +2244,8 @@ paths:
       description: >-
         A delete or clear brings its item back; an edit or restore puts back the
         item's data from before it (and brings the item back if it was deleted
-        since). Recorded as a change itself. Refused on a taken-down site.
+        since). Recorded as a change itself. Refused on a taken-down site, and
+        when it would grow the site past its cap (507 site_full).
       tags: [Collections]
       security: [{ apiKey: [] }]
       parameters:
@@ -2250,6 +2259,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: The change holds no earlier value (nothing_to_restore), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '507': { $ref: '#/components/responses/SiteFull' }
 
   /v1/sites/{sitename}/collections/{coll}/deleted:
     get:
@@ -2258,14 +2268,15 @@ paths:
       description: >-
         Items deleted from the list (one by one or by clearing it) in the last
         30 days, most recently deleted first, with who sent each (`by`). After 30
-        days (SAVED_DATA_UNDO_DAYS) they are removed for good. Owner or operator only.
+        days (SAVED_DATA_UNDO_DAYS) they are removed for good; DELETE removes
+        them sooner. They do not count toward the site's cap. Owner or operator only.
       tags: [Collections]
       security: [{ apiKey: [] }]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
         - { $ref: '#/components/parameters/coll' }
         - { name: limit, in: query, required: false, schema: { type: integer, default: 50, maximum: 200 } }
-        - { name: before, in: query, required: false, schema: { type: integer } }
+        - { name: before, in: query, required: false, schema: { type: string }, description: "the `next` cursor of the previous page" }
       responses:
         '200':
           description: Deleted items
@@ -2277,8 +2288,75 @@ paths:
                   site: { type: string }
                   collection: { type: string }
                   items: { type: array, items: { type: object, properties: { id: { type: integer }, data: {}, created_at: { type: string, format: date-time }, deleted_at: { type: string, format: date-time }, by: { type: string } } } }
-                  next: { type: integer, nullable: true }
+                  next: { type: string, nullable: true, description: "cursor for the next page (pass as `before`)" }
                   undo_days: { type: integer, example: 30 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: purgeCollectionDeleted
+      summary: Delete everything in a list's Recently deleted for good (owner)
+      description: >-
+        Every item in the list's Recently deleted, with its history, is removed
+        at once and for good; live items are not touched. The body must repeat
+        the list's name, `{"confirm": "<coll>"}` (400 confirm_required
+        otherwise). Logged. Refused on a taken-down site. Owner or operator only.
+      tags: [Collections]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [confirm], properties: { confirm: { type: string, description: the list's name } } } } } }
+      responses:
+        '200':
+          description: How many went
+          content: { application/json: { schema: { type: object, properties: { site: { type: string }, collection: { type: string }, deleted_for_good: { type: integer } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/sites/{sitename}/collections/{coll}/deleted/{id}:
+    delete:
+      operationId: purgeCollectionDeletedItem
+      summary: Delete one item of Recently deleted for good (owner)
+      description: >-
+        The item, which must be in the list's Recently deleted (delete it with
+        DELETE .../items/{id} first), and its history are removed at once and
+        for good: for a visitor who asked to be erased, or data that must not be
+        kept 30 days. Logged. Refused on a taken-down site. Owner or operator only.
+      tags: [Collections]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Gone for good
+          content: { application/json: { schema: { type: object, properties: { site: { type: string }, collection: { type: string }, deleted_for_good: { type: integer, enum: [1] } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Not in the list's Recently deleted (not_found), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /v1/sites/{sitename}/history:
+    delete:
+      operationId: clearSiteHistory
+      summary: Clear a site's history for good (owner)
+      description: >-
+        Every earlier version of the site's saved data and of its list items
+        (GET .../state/history, .../collections/{coll}/history) is removed at
+        once and for good. The data as it is now stays, and so do the lists'
+        Recently deleted. The body must repeat the site's name,
+        `{"confirm": "<sitename>"}` (400 confirm_required otherwise). Logged.
+        Refused on a taken-down site. Owner or operator only.
+      tags: [State]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/sitename' }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [confirm], properties: { confirm: { type: string, description: the site's name } } } } } }
+      responses:
+        '200':
+          description: How many changes went
+          content: { application/json: { schema: { type: object, properties: { site: { type: string }, cleared: { type: integer } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
@@ -2300,6 +2378,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '507': { $ref: '#/components/responses/SiteFull' }
 
   /v1/sites/{sitename}/collections/{coll}/items/{id}/restore:
     post:
@@ -2317,6 +2396,306 @@ paths:
           content: { application/json: { schema: { type: object, properties: { site: { type: string }, collection: { type: string }, restored: { type: integer, enum: [1] } } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Not in the list's Recently deleted (not_found), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /v1/u/{handle}/sites/{sitename}/state/history:
+    get:
+      operationId: getStateHistoryByHandle
+      summary: Changes to a site's saved data (owner, by handle)
+      description: >-
+        Every change to the site's saved-data document in the last 30 days
+        (SAVED_DATA_UNDO_DAYS), newest first, without the values: what happened
+        (`op`: replace for a PUT, change for a PATCH, restore), who made it (`by`,
+        the address they were signed in with; `by_kind` owner, admin, visitor or
+        anonymous; the operator's moderation shows as "Simple Host (operator)")
+        and when. A write that leaves the document as it was is not recorded. A
+        PATCH keeps only what it changed, with a full copy on each day's first
+        change and at least every 50 changes (SAVED_DATA_SNAPSHOT_EVERY); every
+        version still reads back whole. Past a per-site cap
+        (SAVED_DATA_HISTORY_MAX_MB, 20 MB) the oldest versions are thinned, but
+        the first full copy of each day is always kept. DELETE /v1/sites/{sitename}/history
+        clears it for good. Owner (X-API-Key or connector token) or the operator only.
+      tags: [State]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's handle: names the site exactly (the operator reaches any site this way)" }
+        - { $ref: '#/components/parameters/sitename' }
+        - { name: limit, in: query, required: false, schema: { type: integer, default: 50, maximum: 200 } }
+        - { name: before, in: query, required: false, schema: { type: integer }, description: cursor for older changes (`next`) }
+      responses:
+        '200':
+          description: Changes, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  site: { type: string }
+                  history: { type: array, items: { type: object, properties: { id: { type: integer, description: "the change's id, for .../history/{id} and .../restore" }, item_id: { type: integer, description: the list item it changed (lists only) }, op: { type: string, enum: [replace, change, edit, delete, clear, undelete, restore] }, by: { type: string, description: "who made it: the address they were signed in with; absent when nobody was signed in" }, by_kind: { type: string, enum: [owner, admin, visitor, anonymous] }, at: { type: string, format: date-time }, size: { type: integer, description: bytes of the value from before the change } } } }
+                  next: { type: integer, nullable: true }
+                  undo_days: { type: integer, example: 30 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/u/{handle}/sites/{sitename}/state/history/{id}:
+    get:
+      operationId: getStateHistoryEntryByHandle
+      summary: One change, with the saved data from just before it (owner, by handle)
+      tags: [State]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's handle: names the site exactly (the operator reaches any site this way)" }
+        - { $ref: '#/components/parameters/sitename' }
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: The change; `value` is the document as it was just before it
+          content: { application/json: { schema: { allOf: [ { type: object, properties: { id: { type: integer, description: "the change's id, for .../history/{id} and .../restore" }, item_id: { type: integer, description: the list item it changed (lists only) }, op: { type: string, enum: [replace, change, edit, delete, clear, undelete, restore] }, by: { type: string, description: "who made it: the address they were signed in with; absent when nobody was signed in" }, by_kind: { type: string, enum: [owner, admin, visitor, anonymous] }, at: { type: string, format: date-time }, size: { type: integer, description: bytes of the value from before the change } } }, { type: object, properties: { value: { description: the saved data before the change } } } ] } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/u/{handle}/sites/{sitename}/state/history/{id}/restore:
+    post:
+      operationId: restoreStateVersionByHandle
+      summary: Put the saved data back as it was before a change (owner, by handle)
+      description: >-
+        The document goes back to exactly how it was just before change `id`;
+        pages see it at once. The restore is itself a change (op restore), so it
+        can be undone the same way. Refused on a taken-down site, and when it
+        would grow the site past its cap (507 site_full).
+      tags: [State]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's handle: names the site exactly (the operator reaches any site this way)" }
+        - { $ref: '#/components/parameters/sitename' }
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Restored
+          headers: { ETag: { schema: { type: string } } }
+          content: { application/json: { schema: { type: object, properties: { site: { type: string }, restored: { type: integer }, version: { type: integer }, state: { description: the document now } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: The change holds no earlier value (nothing_to_restore), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '507': { $ref: '#/components/responses/SiteFull' }
+
+  /v1/u/{handle}/sites/{sitename}/collections/{coll}/history:
+    get:
+      operationId: getCollectionHistoryByHandle
+      summary: Changes to a list's items (owner, by handle)
+      description: >-
+        Every edit, delete, clear, undelete and restore of the list's items in
+        the last 30 days, newest first (`item_id` names the item). Appends are
+        not listed: the items themselves carry their time and, for the owner,
+        who sent them. Owner (X-API-Key or connector token) or the operator
+        only; a private list is not answered through the shared host.
+      tags: [Collections]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's handle: names the site exactly (the operator reaches any site this way)" }
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+        - { name: limit, in: query, required: false, schema: { type: integer, default: 50, maximum: 200 } }
+        - { name: before, in: query, required: false, schema: { type: integer } }
+      responses:
+        '200':
+          description: Changes, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  site: { type: string }
+                  collection: { type: string }
+                  history: { type: array, items: { type: object, properties: { id: { type: integer, description: "the change's id, for .../history/{id} and .../restore" }, item_id: { type: integer, description: the list item it changed (lists only) }, op: { type: string, enum: [replace, change, edit, delete, clear, undelete, restore] }, by: { type: string, description: "who made it: the address they were signed in with; absent when nobody was signed in" }, by_kind: { type: string, enum: [owner, admin, visitor, anonymous] }, at: { type: string, format: date-time }, size: { type: integer, description: bytes of the value from before the change } } } }
+                  next: { type: integer, nullable: true }
+                  undo_days: { type: integer, example: 30 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/u/{handle}/sites/{sitename}/collections/{coll}/history/{id}:
+    get:
+      operationId: getCollectionHistoryEntryByHandle
+      summary: One list change, with the item's data from just before it (owner, by handle)
+      tags: [Collections]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's handle: names the site exactly (the operator reaches any site this way)" }
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: The change; `value` is the item's data before an edit or restore (null for a delete or clear, whose item still holds its data)
+          content: { application/json: { schema: { allOf: [ { type: object, properties: { id: { type: integer, description: "the change's id, for .../history/{id} and .../restore" }, item_id: { type: integer, description: the list item it changed (lists only) }, op: { type: string, enum: [replace, change, edit, delete, clear, undelete, restore] }, by: { type: string, description: "who made it: the address they were signed in with; absent when nobody was signed in" }, by_kind: { type: string, enum: [owner, admin, visitor, anonymous] }, at: { type: string, format: date-time }, size: { type: integer, description: bytes of the value from before the change } } }, { type: object, properties: { value: {} } } ] } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/u/{handle}/sites/{sitename}/collections/{coll}/history/{id}/restore:
+    post:
+      operationId: restoreCollectionChangeByHandle
+      summary: Undo one list change (owner, by handle)
+      description: >-
+        A delete or clear brings its item back; an edit or restore puts back the
+        item's data from before it (and brings the item back if it was deleted
+        since). Recorded as a change itself. Refused on a taken-down site, and
+        when it would grow the site past its cap (507 site_full).
+      tags: [Collections]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's handle: names the site exactly (the operator reaches any site this way)" }
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Undone
+          content: { application/json: { schema: { type: object, properties: { site: { type: string }, collection: { type: string }, restored: { type: integer }, item: { type: object, properties: { id: { type: integer }, data: {}, created_at: { type: string, format: date-time } } } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: The change holds no earlier value (nothing_to_restore), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '507': { $ref: '#/components/responses/SiteFull' }
+
+  /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted:
+    get:
+      operationId: getCollectionDeletedByHandle
+      summary: A list's Recently deleted (owner, by handle)
+      description: >-
+        Items deleted from the list (one by one or by clearing it) in the last
+        30 days, most recently deleted first, with who sent each (`by`). After 30
+        days (SAVED_DATA_UNDO_DAYS) they are removed for good; DELETE removes
+        them sooner. They do not count toward the site's cap. Owner or operator only.
+      tags: [Collections]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's handle: names the site exactly (the operator reaches any site this way)" }
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+        - { name: limit, in: query, required: false, schema: { type: integer, default: 50, maximum: 200 } }
+        - { name: before, in: query, required: false, schema: { type: string }, description: "the `next` cursor of the previous page" }
+      responses:
+        '200':
+          description: Deleted items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  site: { type: string }
+                  collection: { type: string }
+                  items: { type: array, items: { type: object, properties: { id: { type: integer }, data: {}, created_at: { type: string, format: date-time }, deleted_at: { type: string, format: date-time }, by: { type: string } } } }
+                  next: { type: string, nullable: true, description: "cursor for the next page (pass as `before`)" }
+                  undo_days: { type: integer, example: 30 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: purgeCollectionDeletedByHandle
+      summary: Delete everything in a list's Recently deleted for good (owner, by handle)
+      description: >-
+        Every item in the list's Recently deleted, with its history, is removed
+        at once and for good; live items are not touched. The body must repeat
+        the list's name, `{"confirm": "<coll>"}` (400 confirm_required
+        otherwise). Logged. Refused on a taken-down site. Owner or operator only.
+      tags: [Collections]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's handle: names the site exactly (the operator reaches any site this way)" }
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [confirm], properties: { confirm: { type: string, description: the list's name } } } } } }
+      responses:
+        '200':
+          description: How many went
+          content: { application/json: { schema: { type: object, properties: { site: { type: string }, collection: { type: string }, deleted_for_good: { type: integer } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted/{id}:
+    delete:
+      operationId: purgeCollectionDeletedItemByHandle
+      summary: Delete one item of Recently deleted for good (owner, by handle)
+      description: >-
+        The item, which must be in the list's Recently deleted (delete it with
+        DELETE .../items/{id} first), and its history are removed at once and
+        for good: for a visitor who asked to be erased, or data that must not be
+        kept 30 days. Logged. Refused on a taken-down site. Owner or operator only.
+      tags: [Collections]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's handle: names the site exactly (the operator reaches any site this way)" }
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Gone for good
+          content: { application/json: { schema: { type: object, properties: { site: { type: string }, collection: { type: string }, deleted_for_good: { type: integer, enum: [1] } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Not in the list's Recently deleted (not_found), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted/restore:
+    post:
+      operationId: restoreCollectionDeletedByHandle
+      summary: Bring back every deleted item in a list (owner, by handle)
+      description: 'The body must be `{"all": true}` (400 confirm_required otherwise). Undoes a clear. Refused on a taken-down site.'
+      tags: [Collections]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's handle: names the site exactly (the operator reaches any site this way)" }
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { all: { type: boolean, enum: [true] } } } } } }
+      responses:
+        '200':
+          description: How many came back
+          content: { application/json: { schema: { type: object, properties: { site: { type: string }, collection: { type: string }, restored: { type: integer } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '507': { $ref: '#/components/responses/SiteFull' }
+
+  /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}/restore:
+    post:
+      operationId: restoreCollectionItemByHandle
+      summary: Bring back one deleted item (owner, by handle)
+      tags: [Collections]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's handle: names the site exactly (the operator reaches any site this way)" }
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/coll' }
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Back in the list, with its original time
+          content: { application/json: { schema: { type: object, properties: { site: { type: string }, collection: { type: string }, restored: { type: integer, enum: [1] } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Not in the list's Recently deleted (not_found), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /v1/u/{handle}/sites/{sitename}/history:
+    delete:
+      operationId: clearSiteHistoryByHandle
+      summary: Clear a site's history for good (owner, by handle)
+      description: >-
+        Every earlier version of the site's saved data and of its list items
+        (GET .../state/history, .../collections/{coll}/history) is removed at
+        once and for good. The data as it is now stays, and so do the lists'
+        Recently deleted. The body must repeat the site's name,
+        `{"confirm": "<sitename>"}` (400 confirm_required otherwise). Logged.
+        Refused on a taken-down site. Owner or operator only.
+      tags: [State]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's handle: names the site exactly (the operator reaches any site this way)" }
+        - { $ref: '#/components/parameters/sitename' }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [confirm], properties: { confirm: { type: string, description: the site's name } } } } } }
+      responses:
+        '200':
+          description: How many changes went
+          content: { application/json: { schema: { type: object, properties: { site: { type: string }, cleared: { type: integer } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /v1/u/{handle}/sites/{sitename}/me:
     get:
@@ -2481,7 +2860,7 @@ paths:
                 signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
                 useCustomDomain: { value: { error: "this site saves on its own domain", code: use_custom_domain, domain: recipes.brand.com } }
         '403': { $ref: '#/components/responses/OriginMismatch' }
-        '409': { description: "A retry with the same Idempotency-Key is still running (idempotency_in_progress), or the document is not an object (not_an_object)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "A retry with the same Idempotency-Key is still running (idempotency_in_progress), the key was used with another body (idempotency_key_reused), or the document is not an object (not_an_object)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '413': { $ref: '#/components/responses/TooLarge' }
         '507': { $ref: '#/components/responses/SiteFull' }
 
@@ -2557,7 +2936,7 @@ paths:
           description: Invalid body (not JSON; on a private list, not one JSON object)
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
         '413': { $ref: '#/components/responses/TooLarge' }
-        '409': { description: A retry with the same Idempotency-Key is still running (idempotency_in_progress), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "A retry with the same Idempotency-Key is still running (idempotency_in_progress), or the key was used with another body (idempotency_key_reused)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '507': { $ref: '#/components/responses/SiteFull' }
         '401':
           description: No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) — such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. use_custom_domain is never returned for a site that has no domain. A private list answers visitor_auth_required whenever no visitor is signed in on the site's own address.
@@ -4285,7 +4664,7 @@ components:
     publish: { name: publish, in: query, required: false, schema: { type: boolean, default: true }, description: "false stores the new version without making it live (updates only; a new site's first version always goes live: 400)" }
     coll: { name: coll, in: path, required: true, schema: { type: string }, example: signups }
     csrf: { name: X-SH-CSRF, in: header, required: false, schema: { type: string, enum: ['1'] }, description: Required on cookie-authenticated writes }
-    idempotencyKey: { name: Idempotency-Key, in: header, required: false, schema: { type: string, maxLength: 255 }, description: "Any unique string per write (e.g. a random UUID). A retry with the same key (same route, same caller) is saved once: the first successful answer is replayed for 24 hours (SAVED_DATA_IDEMPOTENCY_HOURS) with `Idempotent-Replayed: true`. While the first request is still running a retry gets 409 idempotency_in_progress; a failed request is not remembered. Longer than 255 characters: 400 invalid_idempotency_key." }
+    idempotencyKey: { name: Idempotency-Key, in: header, required: false, schema: { type: string, maxLength: 255 }, description: "Any unique string per write (e.g. a random UUID). For a writer with an identity (the owner's key or connector, or a visitor signed in on the site) a retry with the same key and the same body on the same site and route is saved once, for 24 hours (SAVED_DATA_IDEMPOTENCY_HOURS), and answered with `Idempotent-Replayed: true`: an append with the item it made, a PATCH with the document as it is now and its ETag. The same key with a different body gets 409 idempotency_key_reused; while the first request is still running, 409 idempotency_in_progress; a failed request is not remembered. Writes made without signing in ignore the header. Longer than 255 characters: 400 invalid_idempotency_key." }
 
   schemas:
     TrafficCounts:
@@ -4497,7 +4876,7 @@ components:
     Conflict: { description: "Conflict: the code says which (site_exists, domain_taken, append_only, custom_domain_required, not_an_object)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     TooLarge: { description: "Payload too large (on saved data, code item_too_large)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     TooManyRequests: { description: "Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-    SiteFull: { description: "The site's saved data, history included, would pass 50 MB (SAVED_DATA_SITE_MAX_MB), even after old history was thinned (code site_full). The owner can clear lists or data.", content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: "this site's saved data is full (50 MB, history included); the owner can clear lists or old data", code: site_full } } } }
+    SiteFull: { description: "The write would grow the site's live saved data (the page-data document plus live list items; history and Recently deleted are not counted) past 50 MB (SAVED_DATA_SITE_MAX_MB) (code site_full). Writes that do not grow it always go through; deleting list items or clearing a list makes room at once.", content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: "this site's saved data is full (50 MB of page data and list items); the owner can delete list items or clear lists to make room", code: site_full } } } }
     OriginMismatch: { description: Origin/Referer does not match the site, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     VisitorAuthRequired:
       description: Visitor sign-in required to write (WRITE_AUTH_MODE=on)

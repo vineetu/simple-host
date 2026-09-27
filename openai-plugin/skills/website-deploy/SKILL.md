@@ -45,6 +45,7 @@ visitors' sign-ins and browser-kept data start fresh when it does.
 | Keep a list owner-only | `set_collection_privacy` |
 | Mark done (private lists), delete an item or empty a list (any list) | `update_collection_item`, `delete_collection_item`, `clear_collection` |
 | Saved data went missing or was overwritten (last 30 days) | `data_history`, `restore_data`; deleted list items: `list_deleted`, `restore_item` |
+| Remove saved data for good (erase request, spam flood) | `delete_forever`, after the person confirms exactly what |
 | A shorter address (optional) | `connect_domain` (free `<name>.simple-host.app`, or their own domain), `domain_status` |
 | Visitors | `site_analytics` (report the `person` numbers) |
 | Download a copy (files, saved data, lists) | `export_site` (a link that works for 10 minutes; give it to the person) |

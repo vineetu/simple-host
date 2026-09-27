@@ -346,6 +346,16 @@ What follows from that, and is not negotiable without changing the line above:
   existing before the kinds keeps today's behaviour (`legacy_data`). Reason: saved data could be
   wiped with no way back and without knowing who did it, and the open model does not scale to
   the forms people actually build. Owner approved 2026-09-27 (state-review page, plan).
+- **2026-09-27. Saved data step 1, review fixes.** The per-site total counts live data only
+  (page data and live list items; history keeps its own thinned cap, Recently deleted is not
+  counted) and refuses only writes that grow it, so a flood can never lock an owner out of their
+  own site and clearing a list makes room at once. The owner can delete for good what the undo
+  holds (one Recently deleted item, a list's whole Recently deleted, a site's history), behind a
+  typed confirmation, logged, for erase requests and floods. `Idempotency-Key` applies only to a
+  writer with an identity (owner key, connector, signed-in visitor) and never stores a response
+  body. The operator's moderation is shown to owners as "Simple Host (operator)". Reason: the
+  review of step 1 found a flood could fill a site for 30 days with no way out, and replayed
+  answers could fill the shared disk. Decided under the approved plan; the owner may overrule.
 
 ## Open, deliberately parked
 

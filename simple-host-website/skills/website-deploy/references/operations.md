@@ -82,9 +82,9 @@ Read a retained version's files (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.22.0"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.22.1"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.22.0"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.22.1"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte
@@ -189,8 +189,9 @@ DELETE /v1/me  {"confirm": "<handle>"}          (X-API-Key; the email if no hand
 The first is one archive of everything held about the person: every live site
 (as above, under `sites/<name>/`), `account.json`, `keys.json` (names only, never
 keys), `connected_apps.json` and `visitor.json` (entries they sent to other
-people's lists while signed in; shared page data and older public-list entries
-are not linked to anyone, so support@simple-host.app helps with those). The connector's `export_site` covers one site; the whole-account archive needs the
+people's lists, and changes they made to other people's page data, while signed
+in; writes made without signing in and older public-list entries are not linked
+to anyone, so support@simple-host.app helps with those). The connector's `export_site` covers one site; the whole-account archive needs the
 person's own key (a connected app gets 400 `not_an_account_key`), so point them to
 "Download my data" on their Simple Host page.
 

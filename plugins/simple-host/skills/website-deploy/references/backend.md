@@ -79,7 +79,13 @@ can put an earlier version back (owner app **History**; connector
 `GET .../state/history/<id>` for the value before that change,
 `POST .../state/history/<id>/restore`, all with the owner's key). A wiped or
 overwritten document is recoverable, but still prefer `PATCH` ops to a whole
-`PUT`.
+`PUT`. `DELETE /v1/sites/<sitename>/history` with `{"confirm": "<sitename>"}`
+(connector `delete_forever` with `history: true`) clears every earlier version
+for good, when the person asks for that; the data as it is now stays.
+
+A site's live saved data (this document plus its list items) is capped at 50 MB.
+Only a write that grows it is refused (507 `site_full`); history and Recently
+deleted do not count, and deleting items or clearing a list makes room at once.
 
 For **per-visitor** state (a draft, a preference, a dismissed banner) use
 `localStorage` in the page instead — it never belongs in shared state.
@@ -100,8 +106,13 @@ page fills, `next` is the cursor for the older page: `?limit=50&before=<next>`;
 If an append succeeds and a follow-up `state` patch (a live count) fails, retry
 only the patch — never re-append. A write that may have landed can be retried
 safely with the same `Idempotency-Key` header (any unique string per write,
-e.g. `crypto.randomUUID()`): a POST or PATCH retried with the same key is saved
-once and the first answer comes back (`Idempotent-Replayed: true`).
+e.g. `crypto.randomUUID()`, never a fixed name like `'vote-a'`): a POST or PATCH
+retried with the same key and body by the same signed-in person (or the owner's
+key) is saved once (`Idempotent-Replayed: true`; an append answers with its item,
+a PATCH with the document as it is now). The same key with another body is 409
+`idempotency_key_reused`. Writes made without signing in ignore the header.
+Items added without the owner's key are limited to 30 a minute per address
+(429 `rate_limited`).
 
 Every item sent by a signed-in visitor records who sent it. The owner sees it
 (`by` on each item in the owner's reads, a `sent_by` column in the CSV); public
@@ -121,6 +132,12 @@ deleted** for 30 days: `GET .../collections/<name>/deleted`,
 (connector `list_deleted`, `restore_item`; owner app Recently deleted). Every
 edit, delete and clear is in `GET .../collections/<name>/history` and can be
 undone with `POST .../history/<id>/restore` (`data_history`, `restore_data`).
+Recently deleted pages with `?before=<next>` (`next` is an opaque cursor). To
+remove something for good sooner (a visitor asked to be erased, a flood of spam):
+`DELETE .../collections/<name>/deleted/<id>` for one item already in Recently
+deleted, or `DELETE .../collections/<name>/deleted` with `{"confirm": "<name>"}`
+for all of it (connector `delete_forever`; owner app **Delete forever**). It
+cannot be undone: confirm exactly what with the person first.
 
 **Pair every form with a viewer page.** A form with nowhere to read the results
 is half a feature. Add a second page (e.g. `admin.html`) that GETs the collection
@@ -430,8 +447,9 @@ management. An agent that already holds the owner's key needs none of this.
 | 403 | (reads) | No `Origin` header on a non-browser read. Send one. |
 | 413 | `{"error":"item too large","code":"item_too_large"}` | Over 64 KB (an item) or 1 MB (the document). |
 | 429 | `{"error":"rate limit exceeded, slow down","code":"rate_limited"}` | Too many requests from this address. Wait (`Retry-After`) and poll less often. |
-| 507 | `{"error":"…","code":"site_full"}` | The site's saved data, history included, is at 50 MB. The owner clears lists or old data. |
+| 507 | `{"error":"…","code":"site_full"}` | The write would grow the site's live saved data (page data plus list items) past 50 MB. The owner deletes items or clears a list; writes that do not grow it still go through. |
 | 409 | `{"code":"idempotency_in_progress"}` | The first request with this `Idempotency-Key` is still being saved. Retry in a moment with the same key. |
+| 409 | `{"code":"idempotency_key_reused"}` | This `Idempotency-Key` was used for a different body. Use a new key for a new write. |
 
 On any of these: keep the form, never claim success, and never re-POST a
 collection item after a partial write.
