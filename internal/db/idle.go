@@ -1,0 +1,202 @@
+package db
+
+import (
+	"context"
+	"database/sql"
+	"time"
+)
+
+// Idle-site cleanup (owner decision 2026-09-27; handler/idle.go).
+//
+// A site's last activity is the latest of: when it was created, its newest
+// version, the last hour a real person (analytics class 'person') viewed it,
+// and when its owner last chose "Keep it". A visit by the owner cannot be told
+// apart from anyone else's (visitor addresses are only kept salted and
+// hashed), so any person's visit counts.
+//
+// Never considered: sites in Recently deleted, taken down, owned by a
+// suspended or admin account, with the Keep flag, with a custom domain or a
+// claimed <name>.<SITE_DOMAIN> (current, earlier or retired), and preview
+// sites (they expire on their own).
+
+// IdleSite is one site the cleanup acts on (or would, in the dry run).
+type IdleSite struct {
+	SiteID       string
+	UserID       string
+	Name         string
+	OwnerEmail   string
+	OwnerHandle  string
+	LastActivity time.Time
+	WarnedAt     sql.NullTime
+}
+
+// idleLastActivity is the SQL expression for a site's last activity (s is
+// the sites row).
+const idleLastActivity = `GREATEST(
+	s.created_at,
+	COALESCE(s.idle_kept_at, s.created_at),
+	COALESCE((SELECT max(v.created_at) FROM versions v WHERE v.site_id = s.id), s.created_at),
+	COALESCE((SELECT max(h.hour) + interval '1 hour' FROM site_view_hourly h WHERE h.site_id = s.id AND h.class = 'person' AND h.views > 0), s.created_at))`
+
+// idleEligible is the WHERE clause every stage shares: the exemptions.
+const idleEligible = `s.deleted_at IS NULL
+	AND s.suspended_at IS NULL
+	AND u.suspended_at IS NULL
+	AND NOT u.is_admin
+	AND NOT s.idle_keep
+	AND s.expires_at IS NULL
+	AND s.custom_domain IS NULL
+	AND s.previous_domain IS NULL
+	AND NOT EXISTS (SELECT 1 FROM legacy_hostnames l WHERE l.site_id = s.id)`
+
+func queryIdleSites(ctx context.Context, database *sql.DB, extra string, args ...any) ([]IdleSite, error) {
+	rows, err := database.QueryContext(ctx, `
+		SELECT id, user_id, name, username, handle, last_activity, idle_warned_at FROM (
+			SELECT s.id, s.user_id::text AS user_id, s.name, u.username, COALESCE(u.handle, '') AS handle,
+			       `+idleLastActivity+` AS last_activity, s.idle_warned_at
+			  FROM sites s JOIN users u ON u.id = s.user_id
+			 WHERE `+idleEligible+`
+		) x WHERE `+extra, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []IdleSite
+	for rows.Next() {
+		var s IdleSite
+		if err := rows.Scan(&s.SiteID, &s.UserID, &s.Name, &s.OwnerEmail, &s.OwnerHandle, &s.LastActivity, &s.WarnedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// ListIdleSitesToWarn: eligible sites idle since before idleBefore that have
+// not been warned, longest idle first, at most limit (0 = all).
+func ListIdleSitesToWarn(ctx context.Context, database *sql.DB, idleBefore time.Time, limit int) ([]IdleSite, error) {
+	q := `idle_warned_at IS NULL AND last_activity < $1 ORDER BY last_activity`
+	if limit > 0 {
+		return queryIdleSites(ctx, database, q+` LIMIT $2`, idleBefore, limit)
+	}
+	return queryIdleSites(ctx, database, q, idleBefore)
+}
+
+// ListIdleSitesToRemove: eligible sites warned before warnedBefore with no
+// activity since the warning, earliest warned first, at most limit (0 = all).
+func ListIdleSitesToRemove(ctx context.Context, database *sql.DB, warnedBefore time.Time, limit int) ([]IdleSite, error) {
+	q := `idle_warned_at IS NOT NULL AND idle_warned_at < $1 AND last_activity <= idle_warned_at ORDER BY idle_warned_at`
+	if limit > 0 {
+		return queryIdleSites(ctx, database, q+` LIMIT $2`, warnedBefore, limit)
+	}
+	return queryIdleSites(ctx, database, q, warnedBefore)
+}
+
+// ClearStaleIdleWarnings drops the warning (and its links) of every live site
+// that was visited or deployed since it was warned, or became exempt: it is
+// no longer idle. Returns how many.
+func ClearStaleIdleWarnings(ctx context.Context, database *sql.DB) (int64, error) {
+	res, err := database.ExecContext(ctx, `
+		UPDATE sites s SET idle_warned_at = NULL, idle_token_hash = NULL
+		  FROM users u
+		 WHERE u.id = s.user_id AND s.idle_warned_at IS NOT NULL AND s.deleted_at IS NULL
+		   AND (NOT (`+idleEligible+`) OR `+idleLastActivity+` > s.idle_warned_at)`)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// MarkIdleWarned records that the owner was warned, with the hash of the
+// token their links carry. Only while the site is still unwarned and live.
+func MarkIdleWarned(ctx context.Context, database *sql.DB, siteID string, tokenHash []byte) error {
+	res, err := database.ExecContext(ctx, `UPDATE sites SET idle_warned_at = now(), idle_token_hash = $2
+		WHERE id = $1 AND deleted_at IS NULL AND idle_warned_at IS NULL`, siteID, tokenHash)
+	return oneRow(res, err)
+}
+
+// MarkIdleRemoved records, in the same transaction that moves the site to
+// Recently deleted, that the cleanup removed it, with its restore link's hash.
+func MarkIdleRemoved(ctx context.Context, q Querier, siteID string, tokenHash []byte) error {
+	res, err := q.ExecContext(ctx, `UPDATE sites SET idle_removed_at = now(), idle_token_hash = $2 WHERE id = $1`, siteID, tokenHash)
+	return oneRow(res, err)
+}
+
+// IdleLink is the site a cleanup link's token belongs to.
+type IdleLink struct {
+	SiteID  string
+	UserID  string
+	Name    string
+	Deleted bool
+	Removed bool // removed by the cleanup (idle_removed_at set)
+}
+
+// GetIdleLink finds the site whose current cleanup token hashes to tokenHash.
+// sql.ErrNoRows when none (used, replaced, or never issued).
+func GetIdleLink(ctx context.Context, database *sql.DB, tokenHash []byte) (IdleLink, error) {
+	var l IdleLink
+	err := database.QueryRowContext(ctx, `SELECT id, user_id::text, name, deleted_at IS NOT NULL, idle_removed_at IS NOT NULL
+		FROM sites WHERE idle_token_hash = $1`, tokenHash).Scan(&l.SiteID, &l.UserID, &l.Name, &l.Deleted, &l.Removed)
+	return l, err
+}
+
+// KeepIdleSite resets a site's idle clock ("Keep it"): the warning and its
+// links end, and the site counts as active from now.
+func KeepIdleSite(ctx context.Context, q Querier, siteID string) error {
+	res, err := q.ExecContext(ctx, `UPDATE sites SET idle_kept_at = now(), idle_warned_at = NULL, idle_removed_at = NULL, idle_token_hash = NULL WHERE id = $1`, siteID)
+	return oneRow(res, err)
+}
+
+// SetSiteKeep sets the Keep flag: a kept site is never warned or removed.
+// Turning it on also ends any warning.
+func SetSiteKeep(ctx context.Context, database *sql.DB, siteID string, keep bool) error {
+	q := `UPDATE sites SET idle_keep = $2 WHERE id = $1 AND deleted_at IS NULL`
+	if keep {
+		q = `UPDATE sites SET idle_keep = $2, idle_warned_at = NULL, idle_token_hash = NULL WHERE id = $1 AND deleted_at IS NULL`
+	}
+	res, err := database.ExecContext(ctx, q, siteID, keep)
+	return oneRow(res, err)
+}
+
+// SiteIdleFlags is a live site's Keep flag and pending warning.
+type SiteIdleFlags struct {
+	Keep     bool
+	WarnedAt sql.NullTime
+}
+
+// ListSiteIdleFlags returns the Keep flag and warning of each of the user's
+// live sites (all live sites when userID is ""), by site id.
+func ListSiteIdleFlags(ctx context.Context, database *sql.DB, userID string) (map[string]SiteIdleFlags, error) {
+	q := `SELECT id, idle_keep, idle_warned_at FROM sites WHERE deleted_at IS NULL AND (idle_keep OR idle_warned_at IS NOT NULL)`
+	args := []any{}
+	if userID != "" {
+		q += ` AND user_id = $1`
+		args = append(args, userID)
+	}
+	rows, err := database.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]SiteIdleFlags{}
+	for rows.Next() {
+		var id string
+		var f SiteIdleFlags
+		if err := rows.Scan(&id, &f.Keep, &f.WarnedAt); err != nil {
+			return nil, err
+		}
+		out[id] = f
+	}
+	return out, rows.Err()
+}
+
+// IdleEvidence says whether visit data can be trusted to call a site idle:
+// the earliest analytics hour on record (visits before it are unknown) and
+// when the log ingester last ran. Zero times when there is none.
+func IdleEvidence(ctx context.Context, database *sql.DB) (since, lastIngest time.Time, err error) {
+	var s, l sql.NullTime
+	if err = database.QueryRowContext(ctx, `SELECT (SELECT min(hour) FROM site_view_hourly), (SELECT max(updated_at) FROM analytics_ingest_state)`).Scan(&s, &l); err != nil {
+		return
+	}
+	return s.Time, l.Time, nil
+}

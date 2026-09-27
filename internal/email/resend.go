@@ -80,14 +80,34 @@ func (s *ResendSender) SendNotice(toEmail, subject, text string) error {
 	return s.send(toEmail, subject, text, html)
 }
 
+// SendNoticeReplyTo is SendNotice with a Reply-To address, for notices the
+// person may want to answer (the answer goes to support, not to the sender).
+func (s *ResendSender) SendNoticeReplyTo(toEmail, replyTo, subject, text string) error {
+	if s.apiKey == "" {
+		return errors.New("RESEND_API_KEY not configured")
+	}
+	html := `<!DOCTYPE html>
+<html><body style="font-family: -apple-system, system-ui, sans-serif; color: #1a1a1a; max-width: 520px; margin: 0 auto; padding: 24px; white-space: pre-wrap;">` +
+		htmlpkg.EscapeString(text) + `</body></html>`
+	return s.sendWith(toEmail, replyTo, subject, text, html)
+}
+
 func (s *ResendSender) send(toEmail, subject, text, html string) error {
-	body, err := json.Marshal(map[string]any{
+	return s.sendWith(toEmail, "", subject, text, html)
+}
+
+func (s *ResendSender) sendWith(toEmail, replyTo, subject, text, html string) error {
+	msg := map[string]any{
 		"from":    s.from,
 		"to":      []string{toEmail},
 		"subject": subject,
 		"text":    text,
 		"html":    html,
-	})
+	}
+	if replyTo != "" {
+		msg["reply_to"] = replyTo
+	}
+	body, err := json.Marshal(msg)
 	if err != nil {
 		return err
 	}

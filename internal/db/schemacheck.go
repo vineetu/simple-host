@@ -24,7 +24,8 @@ var requiredColumns = map[string][]string{
 	"users": {"id", "username", "is_admin", "handle", "display_name", "handle_changed_at", "suspended_at", "suspended_reason"},
 	// hash-api-keys.sql, cp-keys-key-names.sql
 	"api_keys": {"id", "key_hash", "user_id", "name", "last4", "created_at", "last_used_at"},
-	"sites":    {"id", "user_id", "name", "active_version", "visibility", "state", "custom_domain", "deleted_at", "previous_domain", "domain_cert_status", "domain_failing_since", "domain_lapse_notified_at", "previous_domain_failing_since", "suspended_at", "suspended_reason", "domain_token", "domain_proof_exempt"},
+	"sites":    {"id", "user_id", "name", "active_version", "visibility", "state", "custom_domain", "deleted_at", "previous_domain", "domain_cert_status", "domain_failing_since", "domain_lapse_notified_at", "previous_domain_failing_since", "suspended_at", "suspended_reason", "domain_token", "domain_proof_exempt", "idle_keep", "idle_kept_at", "idle_warned_at", "idle_removed_at", "idle_token_hash"},
+	// w2-addr-idle-cleanup.sql adds the idle_* columns above.
 	// cp-proof-domain-ownership.sql (also the two domain_* columns above)
 	"domain_cert_requests": {"user_id", "domain", "requested_at"},
 	"collection_items":     {"id", "site_id", "collection", "data", "submitted_by"},

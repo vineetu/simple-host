@@ -90,13 +90,7 @@ func (h *SiteHandler) deleteSite(w http.ResponseWriter, r *http.Request) {
 	if refuseSuspendedSite(w, site) {
 		return
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	defer tx.Rollback()
-	if err := db.MarkSiteDeleted(r.Context(), tx, site.ID); err != nil {
+	if err := h.trashSite(r.Context(), site, nil); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
 			return
@@ -104,19 +98,39 @@ func (h *SiteHandler) deleteSite(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// trashSite moves a live site to Recently deleted: marked in the database
+// (plus whatever also records in the same transaction), and its files moved
+// out of every served path, with the commit last so a failure leaves the site
+// live and whole. The caller holds the site's lock. sql.ErrNoRows when the
+// site is no longer live.
+func (h *SiteHandler) trashSite(ctx context.Context, site db.Site, also func(tx *sql.Tx) error) error {
+	tx, err := h.database.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := db.MarkSiteDeleted(ctx, tx, site.ID); err != nil {
+		return err
+	}
+	if also != nil {
+		if err := also(tx); err != nil {
+			return err
+		}
+	}
 	if err := h.disk.TrashSite(site.UserID, site.Name, site.ID); err != nil {
 		log.Printf("delete site %s: %v", site.ID, err)
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
+		return err
 	}
 	if err := tx.Commit(); err != nil {
 		if rerr := h.disk.RestoreSite(site.UserID, site.Name, site.ID); rerr != nil {
 			log.Printf("delete site %s: commit failed and files could not be moved back: %v", site.ID, rerr)
 		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
+		return err
 	}
-	w.WriteHeader(http.StatusNoContent)
+	return nil
 }
 
 // listDeletedSites: GET /v1/me/deleted-sites.
@@ -173,63 +187,78 @@ func (h *SiteHandler) restoreSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// No quota check: a site in Recently deleted already counts toward it.
-	//
+	site, err := h.restoreTrashedSite(r.Context(), d, user.Handle.String, nil)
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "no site with that name in Recently deleted"})
+		case errors.Is(err, errRestoreFiles):
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "could not restore the site's files"})
+		default:
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, h.toSiteResponse(site, "Restored with all its versions and saved data."))
+}
+
+var errRestoreFiles = errors.New("could not restore the site's files")
+
+// restoreTrashedSite brings a site in Recently deleted back exactly as it
+// was (plus whatever also records in the same transaction). handle is the
+// owner's current handle ("" if none). The caller holds the site's lock.
+// sql.ErrNoRows when it is not (or no longer) in Recently deleted.
+func (h *SiteHandler) restoreTrashedSite(ctx context.Context, d db.DeletedSite, handle string, also func(tx *sql.Tx) error) (db.Site, error) {
 	// It comes back as it was, taken down included (the operator may have
 	// taken it down while it was deleted): the marker goes into its folder
 	// before the folder is served again, so it is never live without it.
-	full, err := db.GetSiteByID(r.Context(), h.database, d.ID)
+	full, err := db.GetSiteByID(ctx, h.database, d.ID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
+		return db.Site{}, err
 	}
 	if err := h.disk.SetTrashedSuspended(d.UserID, d.ID, full.Suspended()); err != nil {
 		log.Printf("restore site %s: suspend marker: %v", d.ID, err)
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "could not restore the site's files"})
-		return
+		return db.Site{}, errRestoreFiles
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
+	tx, err := h.database.BeginTx(ctx, nil)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
+		return db.Site{}, err
 	}
 	defer tx.Rollback()
-	if err := db.RestoreDeletedSite(r.Context(), tx, d.ID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "no site with that name in Recently deleted"})
-			return
+	if err := db.RestoreDeletedSite(ctx, tx, d.ID); err != nil {
+		return db.Site{}, err
+	}
+	if also != nil {
+		if err := also(tx); err != nil {
+			return db.Site{}, err
 		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
 	}
 	if err := h.disk.RestoreSite(d.UserID, d.Name, d.ID); err != nil {
 		log.Printf("restore site %s: %v", d.ID, err)
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "could not restore the site's files"})
-		return
+		return db.Site{}, errRestoreFiles
 	}
 	if err := tx.Commit(); err != nil {
 		if terr := h.disk.TrashSite(d.UserID, d.Name, d.ID); terr != nil {
 			log.Printf("restore site %s: commit failed and files could not be moved back: %v", d.ID, terr)
 		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
+		return db.Site{}, err
 	}
 	// The handle may have changed while the site was deleted.
-	if user.Handle.Valid && user.Handle.String != "" {
-		if err := h.disk.EnsureHandleLink(user.Handle.String, user.ID); err != nil {
-			log.Printf("restore site: ensure handle link %s: %v", user.Handle.String, err)
+	if handle != "" {
+		if err := h.disk.EnsureHandleLink(handle, d.UserID); err != nil {
+			log.Printf("restore site: ensure handle link %s: %v", handle, err)
 		}
-		h.RequestSiteCert(user.Handle.String)
+		h.RequestSiteCert(handle)
 	}
-	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, d.Name)
+	site, err := db.GetSiteByUser(ctx, h.database, d.UserID, d.Name)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
+		return db.Site{}, err
 	}
 	// The operator may have acted since: make the marker follow the record.
 	if err := h.syncSiteMarker(site); err != nil {
 		log.Printf("restore site %s: suspend marker: %v", site.ID, err)
 	}
-	writeJSON(w, http.StatusOK, h.toSiteResponse(site, "Restored with all its versions and saved data."))
+	return site, nil
 }
 
 // purgeDeletedSites removes sites whose restore window has passed: the row
