@@ -16,7 +16,7 @@ import (
 // testdata/setup-redact-cases.json holds the cases both are tested against.
 //
 // What goes: private key and certificate blocks, passwords in URLs, bearer
-// and basic credentials, the value of any assignment whose name ends in KEY,
+// and basic credentials, a password given to curl -u / --user, the value of any assignment whose name ends in KEY,
 // SECRET, TOKEN, PASSWORD, DSN, SALT, HASH or CREDENTIAL(S) (env lines, YAML,
 // JSON), the same NAME=value pairs inside a line (password=, token=,
 // DB_PASSWORD=), JWTs, Simple Host keys and tokens
@@ -34,6 +34,7 @@ var setupRedactRules = []setupRedactRule{
 	{re: regexp.MustCompile(`(?s)-----BEGIN ([A-Z0-9 ]+)-----.*?(?:-----END [A-Z0-9 ]+-----|$)`), with: "[redacted ${1}]"},
 	{re: regexp.MustCompile(`([A-Za-z][A-Za-z0-9+.-]*://)([^\t\n\f\r :/@]+):([^\t\n\f\r /@]+)@`), with: "${1}${2}:[redacted]@"},
 	{re: regexp.MustCompile(`(?i)\b(bearer|basic)([ \t]+)[A-Za-z0-9._~+/=-]{8,}`), with: "${1}${2}[redacted]"},
+	{re: regexp.MustCompile(`(?m)(^|[ \t])(-u|--user)([ \t]+|=)(?:(['"])([^\n:'"]+):[^\n'"]*|([^\t\n\f\r :'"]+):[^\t\n\f\r '"]+)`), with: "${1}${2}${3}${4}${5}${6}:[redacted]"},
 	{re: regexp.MustCompile(`(?im)^([ \t]*(?:export[ \t]+)?["']?[A-Za-z0-9_.-]*(?:key|secret|token|password|passwd|pwd|dsn|salt|hash|credentials?|key_id)["']?[ \t]*[:=][ \t]*)[^\t\n\f\r ].*$`), with: "${1}[redacted]"},
 	{re: regexp.MustCompile(`(?i)\b([A-Za-z0-9_.-]*(?:key|secret|token|password|passwd|pwd|dsn|salt|credentials?))=[^\t\n\f\r &;'",]+`), with: "${1}=[redacted]"},
 	{re: regexp.MustCompile(`\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}`), with: "[redacted token]"},

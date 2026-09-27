@@ -2,6 +2,8 @@ package handler
 
 import (
 	"net/http"
+	"os"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -41,5 +43,35 @@ func TestSetupHelper(t *testing.T) {
 		if rec := get(t, mux, "simple-host.app", p); rec.Code != http.StatusOK {
 			t.Errorf("%s: status %d", p, rec.Code)
 		}
+	}
+}
+
+// The helper's install command fetches the installer from the release the
+// installer pins, so the two must name the same tag: bumping VERSION in
+// install.sh without setup.js would hand out an older installer.
+func TestSetupHelperInstallerRelease(t *testing.T) {
+	js, err := staticFiles.ReadFile("static/setup/setup.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sh, err := os.ReadFile("../../deploy/install/install.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := regexp.MustCompile(`var INSTALLER_RELEASE = '(v[0-9.]+)';`).FindSubmatch(js)
+	pinned := regexp.MustCompile(`(?m)^VERSION="(v[0-9.]+)"$`).FindSubmatch(sh)
+	if page == nil || pinned == nil {
+		t.Fatalf("release not found: setup.js %q, install.sh %q", page, pinned)
+	}
+	if string(page[1]) != string(pinned[1]) {
+		t.Errorf("setup.js INSTALLER_RELEASE = %s, install.sh pins %s", page[1], pinned[1])
+	}
+	if !strings.Contains(string(js), "'https://raw.githubusercontent.com/vineetu/simple-host/' + INSTALLER_RELEASE + '/deploy/install/install.sh'") {
+		t.Error("the install command must fetch install.sh from the pinned release, not a branch")
+	}
+	// The UpCloud button is the referral link, exactly, opened apart from
+	// this page.
+	if !strings.Contains(string(js), "var UPCLOUD_SIGNUP = 'https://signup.upcloud.com/?promo=JF2WCV';") {
+		t.Error("UPCLOUD_SIGNUP changed")
 	}
 }

@@ -113,12 +113,13 @@ async function enterprise(browser, width) {
   await page.fill('#f-issuer', 'https://login.microsoftonline.com/0000-tenant/v2.0');
   if (width < 600) await closeWithEscape(page);
   await page.getByRole('button', { name: 'Show my files' }).click();
-  await page.waitForSelector('pre');
-  let cfg = await page.locator('pre').first().innerText();
+  await page.waitForSelector('#files pre');
+  let cfg = await page.locator('#files pre').first().innerText();
   for (const line of ['SESSION_TTL=4h', 'SESSION_IDLE=15m', 'API_KEY_MAX_DAYS=30', 'NETWORK_ACCESS_APPROVALS=2', 'OIDC_ISSUER=https://login.microsoftonline.com/0000-tenant/v2.0']) {
     assert(cfg.includes(line), 'config.env has ' + line);
   }
-  const agent = await page.locator('#agent pre').innerText();
+  const agent = await page.locator('#agent pre').last().innerText();
+  assert(await page.locator('#where').count() === 0 && !/UpCloud/.test(agent), 'Enterprise has no UpCloud step');
   assert(/deploy\/overlays\/byo\/config\.env/.test(agent) && agent.includes('SESSION_TTL=4h') && agent.includes('/setup?product=enterprise#help') && agent.includes('OIDC_CLIENT_SECRET='), 'the block for your AI agent has the steps, the files, blanks for secrets and the help link');
   assert(!/Claude|Codex|Cursor|ChatGPT/.test(agent + await page.locator('#agent').innerText()), 'the agent block names no vendor');
   await page.locator('#agent').screenshot({ path: `${shots}/${tag}-files-agent.png` });
@@ -131,7 +132,7 @@ async function enterprise(browser, width) {
   assert(sent[sent.length - 1].message === 'Clean up my choices' && sent[sent.length - 1].choices.SESSION_IDLE === '15m', 'clean-up sends the current choices');
   assert(await turn.locator('.sh-assist-item').count() === 1 && /SESSION_IDLE to 30m/.test(await turn.innerText()), 'clean-up offers a reset to the default');
   await turn.getByRole('button', { name: /^Apply:/ }).click();
-  cfg = await page.locator('pre').first().innerText();
+  cfg = await page.locator('#files pre').first().innerText();
   assert(!/SESSION_IDLE/.test(cfg) && cfg.includes('SESSION_TTL=4h'), 'the files follow at once: SESSION_IDLE back to its default');
   assert((await page.locator('.check-note').innerText()) === 'Updated with the assistant.', 'the files say they were updated, with no second check');
   await shot(page, `${tag}-4-cleanup`);
@@ -155,12 +156,34 @@ async function enterprise(browser, width) {
   await page.close();
 }
 
+// The small box's "Where it runs": UpCloud recommended and chosen, its
+// sign-up button the referral link (new tab, noopener) with the note beside
+// it, the steps, and nowhere on the page a field for a credential.
+async function upcloud(page, tag) {
+  assert(await page.getByRole('radio', { name: /UpCloud \(recommended\)/ }).isChecked(), 'UpCloud is the recommended choice, picked by default');
+  const btn = page.getByRole('link', { name: 'Create your UpCloud account — $300 in credits' });
+  assert(await btn.count() === 1, 'the sign-up button says what it gives');
+  assert(await btn.getAttribute('href') === 'https://signup.upcloud.com/?promo=JF2WCV', 'the button is the referral link, exactly');
+  assert(await btn.getAttribute('target') === '_blank' && /\bnoopener\b/.test(await btn.getAttribute('rel')), 'it opens in a new tab with rel=noopener');
+  const where = await page.locator('#where').innerText();
+  assert(where.includes('Referral link. The $300 credit is UpCloud’s offer for new accounts through this link; their terms apply.'), 'the referral note sits under it');
+  assert(where.includes('The smallest UpCloud server (1 CPU, 1 GB, about $5/month) runs Simple Host comfortably; we test on it.'), 'with one line on why');
+  assert(/create an API user/.test(where) && /copy the prompt into your AI agent/.test(where), 'and the steps: account, API user, this page, the prompt');
+  const creds = await page.evaluate(() => [...document.querySelectorAll('input, textarea, select')].filter(i => i.type !== 'radio' && i.type !== 'checkbox').filter(i => i.type === 'password' || /upcloud|password|token|secret|credential/i.test(i.id + ' ' + i.name + ' ' + (i.labels && i.labels[0] ? i.labels[0].textContent : ''))).map(i => i.id || i.name));
+  assert(creds.length === 0, 'no field on the page takes a credential: ' + creds.join(', '));
+  await page.locator('#where').screenshot({ path: `${shots}/${tag}-0-upcloud.png` });
+  await page.locator('label.choice', { hasText: 'A server I already have' }).click();
+  assert(await btn.count() === 0 && /fresh Ubuntu server/.test(await page.locator('#where').innerText()), 'a server of your own says what it needs instead');
+  await page.locator('label.choice', { hasText: 'UpCloud (recommended)' }).click();
+}
+
 async function smallBox(browser, width) {
   const page = await browser.newPage({ viewport: { width, height: width < 600 ? 844 : 900 } });
   const sent = watch(page);
   const tag = `small-box-${width}`;
   await page.goto(base + '/setup?product=small-box');
   await page.getByRole('button', { name: 'Next' }).click();
+  await upcloud(page, tag);
   await page.fill('#f-domain', 'hack.example.com');
   await openPanel(page);
   await a11y(page, tag);
@@ -180,10 +203,20 @@ async function smallBox(browser, width) {
   await shot(page, `${tag}-3-applied`);
   if (width < 600) await closeWithEscape(page);
   await page.getByRole('button', { name: 'Show my files' }).click();
-  await page.waitForSelector('pre');
-  let env = await page.locator('pre').nth(1).innerText();
+  await page.waitForSelector('#files pre');
+  let env = await page.locator('#files pre').nth(1).innerText();
   for (const line of ['RATE_LIMIT_UPLOAD=120,2s', 'RATE_LIMIT_STATE=240,250ms', 'MAX_SITES_PER_ACCOUNT=20']) assert(env.includes(line), '.env has ' + line);
-  const agent = await page.locator('#agent pre').innerText();
+  assert(await page.locator('#agent').evaluate(n => n === document.querySelector('#app .card')), 'on UpCloud the block for your agent comes first');
+  const creds = await page.locator('#agent pre').first().innerText();
+  assert(/read -r UPCLOUD_USERNAME/.test(creds) && /stty -echo; read -r UPCLOUD_PASSWORD; stty echo/.test(creds) && /export UPCLOUD_USERNAME UPCLOUD_PASSWORD$/.test(creds) && !creds.includes('\n'), 'the terminal line asks for the API user and keeps the password unseen: ' + creds);
+  const agent = await page.locator('#agent pre').last().innerText();
+  const pinned = /curl -fsSL https:\/\/raw\.githubusercontent\.com\/vineetu\/simple-host\/v\d+\.\d+\.\d+\/deploy\/install\/install\.sh -o \/tmp\/install\.sh && sudo bash \/tmp\/install\.sh --host hack\.example\.com --content sites\.hack\.example\.com/;
+  assert(pinned.test(agent) && !/simple-host\/main\//.test(agent), 'the prompt runs the installer from the pinned release with this page\'s flags');
+  assert(pinned.test(await page.locator('#files pre').first().innerText()), 'so does the install command');
+  for (const want of ['UpCloud', 'UPCLOUD_USERNAME', 'upctl', 'STARTER-1xCPU-1GB', 'Ubuntu Server 24.04 LTS', 'tier `standard`', '~/.ssh/simple-host.pub', 'hack.example.com, *.hack.example.com', 'https://hack.example.com/admin', 'https://hack.example.com/healthz', 'root@<the server’s IPv4>'])
+    assert(agent.includes(want), 'the UpCloud prompt has ' + want);
+  assert(/never ask me to paste them into this chat, never print them, and never write them to a file/.test(agent), 'the prompt keeps the UpCloud credentials in the environment');
+  assert(!/UPCLOUD_PASSWORD=\S/.test(agent), 'the prompt holds no credential value');
   assert(agent.includes('dig +short hack.example.com') && agent.includes('RATE_LIMIT_UPLOAD=120,2s') && agent.includes('/healthz') && agent.includes('/setup?product=small-box#help'), 'the block for your AI agent has DNS, the files, the checks and the help link');
   await page.locator('#agent').screenshot({ path: `${shots}/${tag}-files-agent.png` });
 
@@ -192,7 +225,7 @@ async function smallBox(browser, width) {
   await page.waitForFunction(() => !document.querySelector('#sh-assist-panel[aria-busy]') && document.querySelectorAll('.sh-ask-turn').length === 3 && !document.querySelector('.sh-ask-turn:last-child .is-loading'));
   turn = page.locator('.sh-ask-turn').last();
   await turn.getByRole('button', { name: /^Apply:/ }).click();
-  env = await page.locator('pre').nth(1).innerText();
+  env = await page.locator('#files pre').nth(1).innerText();
   assert(!/RATE_LIMIT_STATE/.test(env) && env.includes('RATE_LIMIT_UPLOAD=120,2s'), 'clean-up applied: the files follow');
   await shot(page, `${tag}-4-cleanup`);
   await page.close();
@@ -214,10 +247,14 @@ async function smallBox(browser, width) {
   await help.locator('.sh-assist-item').getByRole('button', { name: /^Apply:/ }).click();
   if (width < 600) await closeWithEscape(help); else await help.getByRole('button', { name: 'Close the assistant' }).click();
   await help.getByRole('button', { name: 'Next' }).click();
+  await help.locator('label.choice', { hasText: 'A server I already have' }).click();
   await help.fill('#f-domain', 'hack.example.com');
   await help.getByRole('button', { name: 'Show my files' }).click();
-  await help.waitForSelector('pre');
-  assert((await help.locator('pre').first().innerText()).includes('--keep-versions 5'), 'the applied fix is in the install command');
+  await help.waitForSelector('#files pre');
+  assert((await help.locator('#files pre').first().innerText()).includes('--keep-versions 5'), 'the applied fix is in the install command');
+  const own = await help.locator('#agent pre').innerText();
+  assert(own.includes('--keep-versions 5') && !/UpCloud|upctl|UPCLOUD/.test(own) && own.includes('fresh Ubuntu server'), 'on a server of your own the prompt has no UpCloud steps');
+  assert(await help.locator('#files').evaluate(n => n === document.querySelector('#app .card')), 'and the files come first');
   await help.close();
 }
 

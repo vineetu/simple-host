@@ -36,6 +36,7 @@
     [/-----BEGIN ([A-Z0-9 ]+)-----[\s\S]*?(?:-----END [A-Z0-9 ]+-----|$)/g, '[redacted $1]'],
     [/([A-Za-z][A-Za-z0-9+.-]*:\/\/)([^\t\n\f\r :\/@]+):([^\t\n\f\r \/@]+)@/g, '$1$2:[redacted]@'],
     [/\b(bearer|basic)([ \t]+)[A-Za-z0-9._~+\/=-]{8,}/gi, '$1$2[redacted]'],
+    [/(^|[ \t])(-u|--user)([ \t]+|=)(?:(['"])([^\n:'"]+):[^\n'"]*|([^\t\n\f\r :'"]+):[^\t\n\f\r '"]+)/gm, '$1$2$3$4$5$6:[redacted]'],
     [/^([ \t]*(?:export[ \t]+)?["']?[A-Za-z0-9_.-]*(?:key|secret|token|password|passwd|pwd|dsn|salt|hash|credentials?|key_id)["']?[ \t]*[:=][ \t]*)[^\t\n\f\r ].*$/gim, '$1[redacted]'],
     [/\b([A-Za-z0-9_.-]*(?:key|secret|token|password|passwd|pwd|dsn|salt|credentials?))=[^\t\n\f\r &;'",]+/gi, '$1=[redacted]'],
     [/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g, '[redacted token]'],
