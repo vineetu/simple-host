@@ -129,10 +129,10 @@ removes older history and Recently deleted items at the next sweep.
 | `SAVED_DATA_APPEND_PER_MIN` | 30 | 1–10000 | List items one address may add per minute without the owner's key. |
 | `SAVED_DATA_APPEND_BURST` | 30 | 1–100000 | Items allowed at once above that rate. |
 
-## Ask about this page
+## Ask assistants
 
-The "Ask about this page" box on the architecture, features and enterprise pages
-(`POST /v1/ask`). It runs only when a model backend is set (`LLM_API_KEY`, `LLM_BASE_URL`);
+The two "Ask" assistants on the public pages (`POST /v1/ask`): Simple Host on the features
+and architecture pages, Simple Host Enterprise on the three enterprise pages. It runs only when a model backend is set (`LLM_API_KEY`, `LLM_BASE_URL`);
 without one the box is not shown, whatever these say. `ASK_ENABLED` is `on` or `off` (also
 `true`/`false`, `1`/`0`, `yes`/`no`); anything else stops the server at startup. Answers are
 streamed as they are written; the first words must arrive within 20 seconds and the whole

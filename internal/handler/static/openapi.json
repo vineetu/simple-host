@@ -9543,8 +9543,8 @@
     "/v1/ask": {
       "post": {
         "operationId": "postAsk",
-        "summary": "Ask a question about a public page (\"Ask about this page\")",
-        "description": "Powers the \"Ask about this page\" box on the architecture, features and enterprise brief / architecture pages. Answers in one to three short sentences (more, up to about 150 words, when the reader asks for detail or steps), only from text built into the server (a short public summary plus that page's visible text, or for the architecture page a curated summary; the enterprise pages answer about Simple Host Enterprise). Runs on the same single model backend as AI create (xAI's Grok), with no fallback. Only the question and that text are sent to the model \u2014 nothing about the visitor. The question text is never stored or logged; standard web server logs apply. No sign-in. Same-origin only: there is no CORS grant, the body must be application/json, and the Origin header must be exactly this server's own address (not a hosted site). Rate limited per IP (default 5, then 1 every 20 s) and per network, at most a few answered at once, and capped per day across everyone (default 500). Send Accept: text/event-stream to get the answer as it is written (the page's widget does); without it the answer comes back in one JSON object. The first words must arrive within 20 seconds and the whole answer within 45. Absent when the server has no model backend configured or ASK_ENABLED is off.",
+        "summary": "Ask one of the \"Ask\" assistants on the public pages",
+        "description": "Powers the two \"Ask\" assistants: Simple Host (on the features and architecture pages) and Simple Host Enterprise (on the three enterprise pages). Answers in one to three short sentences (more, up to about 150 words, when the reader asks for detail or steps), only from the assistant's text built into the server: a short public summary plus the visible text of all its pages (for the architecture page a curated summary). The page the reader is on is preferred, and an answer may link to the assistant's other pages. The older form, page alone without assistant, still works for one release and picks that page's assistant. Runs on the same single model backend as AI create (xAI's Grok), with no fallback. Only the question and that text are sent to the model \u2014 nothing about the visitor. The question text is never stored or logged; standard web server logs apply. No sign-in. Same-origin only: there is no CORS grant, the body must be application/json, and the Origin header must be exactly this server's own address (not a hosted site). Rate limited per IP (default 5, then 1 every 20 s) and per network, at most a few answered at once, and capped per day across everyone (default 500). Send Accept: text/event-stream to get the answer as it is written (the page's widget does); without it the answer comes back in one JSON object. The first words must arrive within 20 seconds and the whole answer within 45. Absent when the server has no model backend configured or ASK_ENABLED is off.",
         "tags": [
           "AI"
         ],
@@ -9556,26 +9556,35 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "question",
-                  "page"
+                  "question"
                 ],
                 "properties": {
                   "question": {
                     "type": "string",
                     "maxLength": 500
                   },
+                  "assistant": {
+                    "type": "string",
+                    "enum": [
+                      "simple-host",
+                      "enterprise"
+                    ],
+                    "description": "Which assistant answers. When absent (the older form, kept for one release), page is required and picks it."
+                  },
                   "page": {
                     "type": "string",
                     "enum": [
-                      "architecture",
                       "features",
+                      "architecture",
+                      "enterprise",
                       "enterprise-brief",
                       "enterprise-architecture"
-                    ]
+                    ],
+                    "description": "The page the reader is on; with assistant it is optional but must be one of that assistant's pages (simple-host: features, architecture; enterprise: enterprise, enterprise-brief, enterprise-architecture)."
                   },
                   "history": {
                     "type": "array",
-                    "description": "Earlier questions and answers from the same open panel, oldest first, so a follow-up (\"tell me more\") has its context. Only the last 4 are used; each answer is cut to 1500 characters. The server keeps nothing between questions.",
+                    "description": "Earlier questions and answers of the same conversation, oldest first, so a follow-up (\"tell me more\") has its context. The widget keeps them in the tab while the reader moves between the assistant's pages. Only the last 4 are used; each answer is cut to 1500 characters. The server keeps nothing between questions.",
                     "items": {
                       "type": "object",
                       "properties": {
@@ -9596,7 +9605,7 @@
         },
         "responses": {
           "200": {
-            "description": "The answer, plain text of at most 200 words. The only links it may hold are markdown links to the main public pages of https://simple-host.app (home, features, architecture, enterprise, docs, install, privacy, terms, support). With Accept: text/event-stream, a stream of `data:` events instead: `{\"t\":\"...\"}` for each piece of text as the model writes it (raw, to show as plain text), then `{\"done\":true,\"answer\":\"...\"}` with the cleaned full answer that replaces the streamed text, or `{\"error\":\"...\",\"code\":\"unavailable\"}` if the answer stops part-way. A failure before the first piece is a plain 502 JSON error. The stream is sent unbuffered (X-Accel-Buffering: no).",
+            "description": "The answer, plain text of at most 200 words. The only links it may hold are markdown links to the assistant's own list of public pages of https://simple-host.app (Simple Host: home, features, architecture, docs, install, privacy, terms, support, enterprise; Simple Host Enterprise: the three enterprise pages, home and privacy). With Accept: text/event-stream, a stream of `data:` events instead: `{\"t\":\"...\"}` for each piece of text as the model writes it (raw, to show as plain text), then `{\"done\":true,\"answer\":\"...\"}` with the cleaned full answer that replaces the streamed text, or `{\"error\":\"...\",\"code\":\"unavailable\"}` if the answer stops part-way. A failure before the first piece is a plain 502 JSON error. The stream is sent unbuffered (X-Accel-Buffering: no).",
             "content": {
               "application/json": {
                 "schema": {
@@ -9617,7 +9626,7 @@
             }
           },
           "400": {
-            "description": "invalid_body, unknown_page, empty_question or question_too_long",
+            "description": "invalid_body, unknown_assistant, unknown_page (not one of the assistant's pages), empty_question or question_too_long",
             "content": {
               "application/json": {
                 "schema": {

@@ -214,7 +214,7 @@ Tables (`db/schema.sql`):
 - Flags in the env file: `PERSON_HOSTS=canonical`, `SITE_HOSTS=canonical`,
   `SITE_CERT_DIR=/var/lib/simple-host-site-certs`,
   `DOMAIN_CERT_DIR=/var/lib/simple-host-domain-certs`, `WRITE_AUTH_MODE=on`, `BIND_ADDR=127.0.0.1`
-  (empty = all interfaces, which Docker needs), `LLM_BASE_URL` (the sidecar; also answers "Ask about this page", `POST /v1/ask`, tuned by `ASK_ENABLED`, `ASK_BURST`, `ASK_EVERY_SECONDS`, `ASK_DAILY_MAX`, `ASK_MAX_IN_FLIGHT`; daily count in table `ask_daily`), `TRANSCRIBE_URL`,
+  (empty = all interfaces, which Docker needs), `LLM_BASE_URL` (the sidecar; also answers the two "Ask" assistants, `POST /v1/ask`, tuned by `ASK_ENABLED`, `ASK_BURST`, `ASK_EVERY_SECONDS`, `ASK_DAILY_MAX`, `ASK_MAX_IN_FLIGHT`; daily count in table `ask_daily`), `TRANSCRIBE_URL`,
   `ANALYTICS_LOG`, `ANALYTICS_SALT` (visitor hash salt; empty = derived from `ADMIN_API_KEY`),
   `GEOIP_DIR`.
 - Schema changes are hand-applied SQL here; add them to `db/schema.sql` and `db/migrations/`

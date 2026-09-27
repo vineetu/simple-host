@@ -31,8 +31,8 @@ Most people never use the dashboard. They ask their AI app or coding agent to pu
 - The Simple Host skill, for coding agents such as Claude Code, Codex and Cursor, which uses the public API with an API key.
 Both are described for agents in https://simple-host.app/llms.txt and the API reference at https://simple-host.app/docs.html.
 
-Create with AI and Ask about this page
-The builder on simple-host.app can write a page from a chat. It uses one AI provider, Grok from xAI, with no fallback provider. The "Ask about this page" panel uses the same provider: the question, the last few questions and answers of the same panel, and a public summary of the page are sent, and nothing about the visitor. Answers appear as they are written. Questions are not stored.
+Create with AI and the Ask assistants
+The builder on simple-host.app can write a page from a chat. It uses one AI provider, Grok from xAI, with no fallback provider. The "Ask" panels (the Simple Host assistant and the Simple Host Enterprise assistant) use the same provider: the question, the last few questions and answers of the conversation (kept in the reader's browser tab only), and a public summary of the pages are sent, and nothing about the visitor. Answers appear as they are written. Questions are not stored.
 
 Visit counts
 Site owners see how many people, bots and monitoring checks visit each site. The counts come from the web server's own log, with no script or cookie added to anyone's page. Visitor addresses are not kept in the analytics database; countries are looked up on the server itself.
