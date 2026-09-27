@@ -1,11 +1,13 @@
 // The setup helper at /setup. Everything happens in this page: the settings
 // lists are the two settings.json files next to this script (generated from
 // each product's code, see docs/advanced/README.md), and secrets are never
-// asked for, only named as blanks. The one request it makes is the optional
+// asked for, only named as blanks. Its own request is the optional
 // check just before the files (POST /v1/setup/check): the product and the
 // names and values of the changed numbers, durations, switches, choices and
 // limits, never free text such as hostnames or emails. Where the server has no model
 // backend, or the check fails or is skipped, the files are shown without it.
+// The assistant (setup/assist.js, loaded only where the server offers it)
+// reads and changes the form through window.shSetup, at the end.
 (function () {
   'use strict';
 
@@ -14,7 +16,9 @@
   // What install.sh writes when its flag is not given (deploy/install/install.sh).
   var INSTALLER_DEFAULTS = { KEEP_VERSIONS: '1', MAX_ARCHIVE_MB: '100' };
 
-  // Settings the basic questions cover, per product; the rest are Advanced.
+  // <setupBasics> Settings the basic questions cover, per product; the rest
+  // are Advanced. The assistant's server keeps the same lists and provider
+  // ids (setupassist.go; a Go test runs this block).
   var SMALL_BASIC = ['SITE_DOMAIN', 'CONTENT_HOST', 'RESEND_API_KEY', 'MAIL_FROM', 'GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET'];
   var ENT_BASIC = ['PUBLIC_BASE_URL', 'SECURE_MODE', 'ADMIN_EMAILS', 'OIDC_ISSUER', 'OIDC_CLIENT_ID', 'OIDC_CLIENT_SECRET',
     'ALLOWED_EMAIL_DOMAINS', 'OWNER_CERTS', 'OWNER_CERT_ISSUER', 'SMTP_URL', 'SMTP_FROM', 'SESSION_SIGNING_KEY',
@@ -36,6 +40,7 @@
     { id: 'upcloud', name: 'UpCloud', endpoint: 'https://YOUR-ENDPOINT.upcloudobjects.com', region: 'us-1' },
     { id: 'other', name: 'Another S3-compatible store', endpoint: '', region: 'us-east-1' }
   ];
+  // </setupBasics>
 
   var S = {
     product: 'small', mode: 'basic', step: 0, area: 0,
@@ -610,6 +615,55 @@
     ]);
   }
 
+  // ── Set it up with your AI agent ──
+  // Where it runs. Each target is what the machine needs; the steps for its
+  // product follow. Today each product has one; a "where do you want to run
+  // it" step can add more (a VPS provider, Fly.io, Render, Railway, a
+  // cloud's Kubernetes) here, each with its own needs and steps, and pick one.
+  var TARGETS = {
+    small: [{ id: 'server', needs: 'a fresh Ubuntu server with 1 CPU, 1 GB of RAM and about 25 GB of disk, a public IPv4 address, ports 80 and 443 open to the internet (in the cloud’s firewall too), and SSH with sudo' }],
+    ent: [{ id: 'kubernetes', needs: 'the company’s Kubernetes cluster (1.30 or later) with an ingress controller and cert-manager, a managed Postgres with point-in-time recovery, and an S3-compatible bucket with versioning on' }]
+  };
+  var FENCE = '```';
+  // handoff is the whole block for the person's own AI agent: what the
+  // machine needs, the steps with this page's files in them, how to check
+  // the result, and where to get help. Secrets are blanks, as in the files.
+  function handoff(r, target) {
+    var p = S.product, b = S.basic[p], t = target || TARGETS[p][0];
+    var origin = location.origin, product = p === 'small' ? 'small-box' : 'enterprise';
+    var L = [];
+    L.push(p === 'small' ? '# Set up Simple Host on a small box' : '# Set up Simple Host Enterprise on Kubernetes', '');
+    L.push('These are instructions for you, my AI agent, from ' + origin + '/setup. Work through them in order. Stop at the first step that fails and show me its exact error. Never print, log or commit a secret: ask me for each secret value and put it straight into the file.', '');
+    L.push('Where it runs: ' + t.needs + '.', '');
+    if (p === 'small') {
+      var content = b.content || 'sites.' + b.domain;
+      L.push('1. DNS: ' + b.domain + ' and ' + content + ' each need an A record pointing at the server’s public IPv4 address. Check that `dig +short ' + b.domain + '` and `dig +short ' + content + '` both print it. Certificates are issued on the first visit, so both names must point here first.', '');
+      L.push('2. Install: on the server, run this. It installs Docker, starts Simple Host and prints the admin key once: give the admin key to me and do not write it anywhere else.', '', FENCE + 'sh', r.cmd, FENCE, '');
+      var n = 3;
+      if (r.env) {
+        L.push(n++ + '. Settings: add these lines to the end of /opt/simple-host/.env (it needs sudo). Ask me for each blank value; do not invent one. Then run `cd /opt/simple-host && sudo docker compose up -d`.', '', FENCE, r.env.replace(/\n$/, ''), FENCE, '');
+      }
+      L.push(n + '. Check it works:');
+      L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' https://' + b.domain + '/healthz` prints 200.');
+      L.push('   - `cd /opt/simple-host && sudo docker compose ps` shows every service running.');
+      L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' https://' + content + '/` prints a status code with no certificate error.', '');
+    } else {
+      L.push('1. Get the package: `git clone https://github.com/vineetu/simple-host-enterprise && cd simple-host-enterprise`. Its INSTALL.md is a runbook written for AI agents: follow it top to bottom, and use the two files below as the config.env and secrets.env it asks for. Name the kubectl context on every call.', '');
+      L.push('2. Save this as deploy/overlays/byo/config.env:', '', FENCE, r.config.replace(/\n$/, ''), FENCE, '');
+      L.push('3. Save this as deploy/overlays/byo/secrets.env and fill in every blank from its hint: generate what can be generated, ask me for the rest. Check that `git check-ignore deploy/overlays/byo/config.env deploy/overlays/byo/secrets.env` prints both paths before writing them.', '', FENCE, r.secrets.replace(/\n$/, ''), FENCE, '');
+      L.push('4. In deploy/overlays/byo, set the image digest in kustomization.yaml and the address in ingress-patch.yaml, and save the database’s CA certificate as db-ca.crt (INSTALL.md, section 5).', '');
+      L.push('5. Apply: `make install OVERLAY=deploy/overlays/byo INSTALL_CONTEXT=<the kubectl context>`, then `kubectl --context <the kubectl context> -n simple-host rollout status deploy/simple-host --timeout=300s`.', '');
+      L.push('6. Check it works:');
+      L.push('   - `curl -fsS https://' + b.host + '/readyz` prints {"status":"ok"}.');
+      L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' https://install-check.' + b.host + '/healthz` prints a status code (401 or 404 is fine; a TLS or DNS error is not).');
+      L.push('   - An admin signs in at https://' + b.host + '/auth/login.', '');
+    }
+    L.push(window.shSetupAssist
+      ? 'If something fails and the output does not tell you how to fix it, tell me: I can paste the error at ' + origin + '/setup?product=' + product + '#help for help.'
+      : 'If something fails and the output does not tell you how to fix it, tell me and show me the error.');
+    return L.join('\n') + '\n';
+  }
+
   // ── The optional check ──
   var CHECKABLE = { number: true, duration: true, choice: true, rate: true };
   // checkPayload is what the check is sent: the changed settings that are
@@ -766,6 +820,12 @@
       card.appendChild(block('secrets.env (the Secret, blanks to fill in)', r.secrets, 'secrets.env'));
     }
     app.appendChild(card);
+    var agent = handoff(r);
+    app.appendChild(el('div', { class: 'card', id: 'agent' }, [
+      el('h2', { text: 'Set it up with your AI agent' }),
+      el('p', { class: 'note', style: 'margin:0 0 4px', text: 'Rather have your AI agent do it? Copy this into the agent you use in your terminal. It has what the machine needs, every step with your files in it, and how to check the result. Secrets stay blanks: the agent asks you for them.' }),
+      block('For your AI agent', agent, 'simple-host-setup.md')
+    ]));
     app.appendChild(el('div', { class: 'card' }, [
       el('h2', { text: 'What you chose' }),
       el('ul', { class: 'summary' }, r.chosen.map(function (c) { return el('li', null, [el('span', { text: c[0] }), el('span', { text: c[1] })]); })),
@@ -778,6 +838,119 @@
       el('button', { class: 'btn', type: 'button', text: 'Start over', onclick: function () { location.reload(); } })
     ]));
   }
+
+  // ── The assistant's view of the form (setup/assist.js) ──
+  // The assistant reads where the visitor is and their non-secret choices,
+  // and applies a proposed change exactly as typing it would: the same
+  // validation, the same state, then the page drawn again.
+  var STEPS = ['choose', 'basics', 'advanced', 'files'];
+  // Basic answers picked from a fixed list: the only ones the assistant sees
+  // or proposes (setupBasicChoices in setupassist.go).
+  var BASIC_CHOICES = {
+    small: {
+      codes: { label: 'Sign-in with an emailed code', values: { 'true': 'Yes', 'false': 'No' } },
+      google: { label: 'Sign-in with Google', values: { 'true': 'Yes', 'false': 'No' } }
+    },
+    ent: {
+      idp: { label: 'Identity provider', values: {} },
+      certs: { label: 'Site certificates', values: { auto: 'cert-manager issues them', manual: 'I issue them myself' } },
+      smtp: { label: 'Email owners about sites nobody uses', values: { 'false': 'No email', 'true': 'Through our SMTP relay' } },
+      bucket: { label: 'Bucket provider', values: {} },
+      creds: { label: 'Bucket credentials', values: { keys: 'Access keys', identity: 'Workload identity (no keys)' } }
+    }
+  };
+  IDPS.forEach(function (p) { BASIC_CHOICES.ent.idp.values[p.id] = p.name; });
+  BUCKETS.forEach(function (p) { BASIC_CHOICES.ent.bucket.values[p.id] = p.name; });
+
+  function basicNow(key) { return String(S.basic[S.product][key]); }
+  function groupName(s) {
+    var gs = S.data[S.product].groups;
+    for (var i = 0; i < gs.length; i++) if (gs[i].id === s.group) return gs[i].name;
+    return '';
+  }
+  // writable is the setting when this helper writes it as a setting of its
+  // own and a value for it can be sent (not a secret, not free text).
+  function writable(name) {
+    var s = byName(name);
+    if (!s || !CHECKABLE[setupKind(s)]) return null;
+    return advancedSettings().indexOf(s) >= 0 ? s : null;
+  }
+  function flash(names) {
+    names.forEach(function (n) {
+      var f = document.getElementById(uid(n)) || app.querySelector('input[name="' + uid(n) + '"]');
+      var field = f && f.closest('.field');
+      if (field) field.classList.add('assisted');
+    });
+  }
+
+  window.shSetup = {
+    product: function () { return S.product; },
+    // ready loads the chosen product's settings list (the first step may
+    // not have yet).
+    ready: function () { return load(S.product); },
+    context: function () {
+      var p = S.product, choices = {}, basics = {};
+      if (S.data[p]) {
+        Object.keys(S.values[p]).forEach(function (k) { if (writable(k)) choices[k] = S.values[p][k]; });
+        // The installer's own defaults are in force unless changed: say so.
+        if (p === 'small') Object.keys(INSTALLER_DEFAULTS).forEach(function (k) {
+          var s = writable(k);
+          if (s && choices[k] == null && INSTALLER_DEFAULTS[k] !== s.default) choices[k] = INSTALLER_DEFAULTS[k];
+        });
+      }
+      Object.keys(BASIC_CHOICES[p]).forEach(function (k) { basics[k] = basicNow(k); });
+      var ctx = { product: p === 'small' ? 'small-box' : 'enterprise', step: STEPS[S.step], mode: S.mode, choices: choices, basics: basics };
+      if (S.step === 2 && S.data[p]) { var a = areas()[S.area]; if (a) ctx.area = a.group.id; }
+      return ctx;
+    },
+    // describe says what applying NAME=value would do here: null when this
+    // helper does not write it, else its current value, default and area,
+    // and error when the form would refuse the value.
+    describe: function (name, value) {
+      var s = writable(name);
+      if (!s) return null;
+      return { current: valueOf(s), def: defaultOf(s), area: groupName(s), error: validate(s, value), security: !!s.security_sensitive };
+    },
+    apply: function (name, value) {
+      var s = writable(name);
+      if (!s) return 'This helper does not write that setting.';
+      var msg = validate(s, value);
+      if (!msg) setValue(s, value);
+      return msg;
+    },
+    describeBasic: function (key, value) {
+      var q = BASIC_CHOICES[S.product][key];
+      if (!q || q.values[value] == null) return null;
+      return { label: q.label, valueLabel: q.values[value], currentLabel: q.values[basicNow(key)] || basicNow(key), same: basicNow(key) === value };
+    },
+    // applyBasic answers a basic question as its own control does: picking
+    // a provider fills in its template address, as the list itself does.
+    applyBasic: function (key, value) {
+      var q = BASIC_CHOICES[S.product][key], b = S.basic[S.product];
+      if (!q || q.values[value] == null) return 'Not an answer this question takes.';
+      if (key === 'codes' || key === 'google' || key === 'smtp') b[key] = value === 'true';
+      else if (key === 'idp') { b.idp = value; IDPS.forEach(function (p) { if (p.id === value) b.issuer = p.issuer; }); }
+      else if (key === 'bucket') { b.bucket = value; BUCKETS.forEach(function (p) { if (p.id === value) { b.endpoint = p.endpoint; b.region = p.region; } }); }
+      else b[key] = value;
+      return '';
+    },
+    // refresh draws the page again after changes, keeping the scroll. On the
+    // files step the changes are the visitor's decision, already checked
+    // against the settings list: the files follow them without another check.
+    refresh: function (names) {
+      if (S.step === 3) {
+        if (S.check.state === 'running') stopCheck();
+        var key = checkKey(), review = S.check.state === 'review';
+        S.check.key = key;
+        if (!review) S.check.state = key ? 'done' : '';
+        S.check.note = key && !review ? 'Updated with the assistant.' : '';
+      }
+      var y = window.scrollY;
+      render();
+      window.scrollTo(0, y);
+      flash(names || []);
+    }
+  };
 
   render();
 })();

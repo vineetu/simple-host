@@ -11,7 +11,12 @@ never asks for a password or key. Just before your files it can **check your cho
 mistakes (a setting that weakens sign-in, a retention or undo promise cut short, an upload size the
 box cannot hold): it sends only the names and values of the numbers, durations, switches, choices and limits
 you changed, never hostnames, emails or secrets, and you Apply or Ignore each suggestion. You can
-skip it; where the server has no model backend it is skipped by itself.
+skip it; where the server has no model backend it is skipped by itself. Where the server has
+one, an **assistant** on the page answers questions about settings, fills in the form from a plain
+request ("a hackathon for 150 people with emailed codes"), cleans up choices, and helps with an
+error you paste (redacted first, and sent only after you review it); you apply each change it
+suggests. The files step also gives one block to hand to **your own AI agent**: what the server
+needs, every step with your files in it, and how to check the result.
 
 ## Where settings go
 

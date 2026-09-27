@@ -76,7 +76,14 @@ type setupRegistry struct {
 	rateSep string // "," on the small box, "/" on Enterprise
 	list    []setupSetting
 	by      map[string]*setupSetting
-	facts   string // the interactions the prompt names
+	groups  []setupGroup // the areas, in the helper's order
+	facts   string       // the interactions the prompt names
+}
+
+// setupGroup is one area of settings, as the helper's Advanced mode shows it.
+type setupGroup struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 var (
@@ -98,12 +105,13 @@ func setupRegistryFor(product string) *setupRegistry {
 				panic("setup check: missing settings list for " + r.product)
 			}
 			var doc struct {
+				Groups   []setupGroup   `json:"groups"`
 				Settings []setupSetting `json:"settings"`
 			}
 			if err := json.Unmarshal(raw, &doc); err != nil {
 				panic("setup check: settings list for " + r.product + ": " + err.Error())
 			}
-			r.list = doc.Settings
+			r.list, r.groups = doc.Settings, doc.Groups
 			r.by = map[string]*setupSetting{}
 			for i := range r.list {
 				setupStrictness(&r.list[i])
@@ -348,6 +356,13 @@ func (r *setupRegistry) looser(s *setupSetting, v, than string) bool {
 	return true
 }
 
+// loosens reports whether v would make s, if security-sensitive, looser than
+// both its default and cur (the value the visitor has now). Such a value is
+// never offered as something to apply.
+func (r *setupRegistry) loosens(s *setupSetting, v, cur string) bool {
+	return s.Security && r.looser(s, v, s.Default) && r.looser(s, v, cur)
+}
+
 // never orders a lifetime where 0 means never (zero_is_never): 0 is longer
 // than any other value.
 func (s *setupSetting) never(n int64) int64 {
@@ -406,38 +421,43 @@ func setupCheckSystemPrompt(r *setupRegistry) string {
 		fmt.Sprintf("- At most %d findings.\n", setupCheckMaxFindings) +
 		"- Answer with JSON only, exactly this shape: {\"findings\":[{\"severity\":\"warn\",\"settings\":[\"NAME\"],\"message\":\"...\",\"suggest\":{\"NAME\":\"value\"}}]}\n\n" +
 		"=== FACTS ===\n" + r.facts + "\n\n=== SETTINGS (name | type | default | allowed | security | what it does) ===\n")
-	for _, s := range r.list {
-		if s.Type == "secret" {
-			continue
+	for i := range r.list {
+		if s := &r.list[i]; s.Type != "secret" {
+			b.WriteString(r.promptLine(s))
 		}
-		allowed := ""
-		switch {
-		case len(s.Allowed) > 0:
-			allowed = strings.Join(s.Allowed, "/")
-		case s.Type == "rate":
-			allowed = "<burst>" + r.rateSep + "<interval>"
-			if s.Loosest != "" {
-				allowed += ", no looser than " + s.Loosest
-			}
-		default:
-			lo, hi := strings.Trim(string(s.Min), `"`), strings.Trim(string(s.Max), `"`)
-			if lo != "" || hi != "" {
-				allowed = lo + ".." + hi
-			}
-			if s.Unit != "" {
-				allowed = strings.TrimSpace(allowed + " " + s.Unit)
-			}
-			if s.ZeroIsNever {
-				allowed += ", 0 = never (loosest)"
-			}
-		}
-		sec := ""
-		if s.Security {
-			sec = "security"
-		}
-		fmt.Fprintf(&b, "%s | %s | %s | %s | %s | %s\n", s.Name, s.Type, s.Default, allowed, sec, s.Description)
 	}
 	return b.String()
+}
+
+// promptLine is one setting as the prompts list it:
+// name | type | default | allowed | security | what it does.
+func (r *setupRegistry) promptLine(s *setupSetting) string {
+	allowed := ""
+	switch {
+	case len(s.Allowed) > 0:
+		allowed = strings.Join(s.Allowed, "/")
+	case s.Type == "rate":
+		allowed = "<burst>" + r.rateSep + "<interval>"
+		if s.Loosest != "" {
+			allowed += ", no looser than " + s.Loosest
+		}
+	default:
+		lo, hi := strings.Trim(string(s.Min), `"`), strings.Trim(string(s.Max), `"`)
+		if lo != "" || hi != "" {
+			allowed = lo + ".." + hi
+		}
+		if s.Unit != "" {
+			allowed = strings.TrimSpace(allowed + " " + s.Unit)
+		}
+		if s.ZeroIsNever {
+			allowed += ", 0 = never (loosest)"
+		}
+	}
+	sec := ""
+	if s.Security {
+		sec = "security"
+	}
+	return fmt.Sprintf("%s | %s | %s | %s | %s | %s\n", s.Name, s.Type, s.Default, allowed, sec, s.Description)
 }
 
 // setupCheckJSON finds the JSON object in the model's reply (it may wrap it
@@ -515,14 +535,12 @@ next:
 				continue next
 			}
 			v = r.canonical(s, v)
-			if s.Security {
-				cur, ok := sent[n]
-				if !ok {
-					cur = s.Default
-				}
-				if r.looser(s, v, s.Default) && r.looser(s, v, cur) {
-					loosens = true
-				}
+			cur, ok := sent[n]
+			if !ok {
+				cur = s.Default
+			}
+			if r.loosens(s, v, cur) {
+				loosens = true
 			}
 			if suggest == nil {
 				suggest = map[string]string{}

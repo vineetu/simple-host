@@ -117,6 +117,53 @@
     .finding .decided { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
     .check-note { font-size: 14px; color: var(--text-secondary); margin: 0 0 12px; }
 
+    /* The assistant (setup/assist.js): the Ask panel's look from site.css,
+       with suggested changes to apply, and beside the form on wide screens. */
+    .field.assisted { animation: assisted 2.4s ease-out; border-radius: 8px; }
+    @keyframes assisted { from { background: #e8eefb; box-shadow: 0 0 0 8px #e8eefb; } to { background: transparent; box-shadow: 0 0 0 8px transparent; } }
+    @media (prefers-reduced-motion: reduce) { .field.assisted { animation: none; outline: 2px solid #c9d6f2; outline-offset: 6px; } }
+    .sh-assist .sh-ask-head > div { min-width: 0; }
+    .sh-assist .sh-assist-for { margin: 1px 0 0; font-size: 12.5px; color: var(--text-secondary); }
+    .sh-assist .sh-assist-intro { padding: 12px 16px 0; font-size: 14px; line-height: 1.5; color: var(--text-secondary); }
+    .sh-assist .sh-assist-intro p { margin: 0 0 10px; }
+    .sh-assist .sh-assist-example { display: block; width: 100%; text-align: left; font: inherit; font-size: 13.5px; line-height: 1.4; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin: 0 0 8px; cursor: pointer; }
+    .sh-assist .sh-assist-example:hover { border-color: var(--accent); }
+    .sh-assist .sh-assist-tools { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 16px 0; }
+    .sh-assist .sh-assist-quick { font: inherit; font-size: 13px; font-weight: 600; color: var(--accent); background: #fff; border: 1px solid var(--border-hi); border-radius: 999px; padding: 6px 12px; min-height: 34px; cursor: pointer; }
+    .sh-assist .sh-assist-quick:hover { border-color: var(--accent); }
+    .sh-assist button:disabled { opacity: .6; cursor: default; }
+    .sh-assist .sh-assist-changes { margin-top: 10px; }
+    .sh-assist .sh-assist-changes ul { list-style: none; margin: 0; padding: 0; }
+    .sh-assist .sh-assist-item { border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 8px; padding: 9px 11px; margin: 0 0 8px; background: #f7f9fd; }
+    .sh-assist .sh-assist-what { margin: 0; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+    .sh-assist .sh-assist-what b { font-weight: 650; }
+    .sh-assist .sh-assist-now { margin: 3px 0 0; font-size: 12.5px; color: var(--text-secondary); overflow-wrap: anywhere; }
+    .sh-assist .sh-assist-acts { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
+    .sh-assist .sh-assist-acts button, .sh-assist .sh-assist-all { font: inherit; font-size: 13px; font-weight: 600; border-radius: 7px; padding: 5px 12px; min-height: 32px; cursor: pointer; border: 1px solid var(--border-hi); background: #fff; color: var(--text); }
+    .sh-assist .sh-assist-apply { background: var(--accent) !important; border-color: var(--accent) !important; color: var(--on-accent) !important; }
+    .sh-assist .sh-assist-apply:hover { background: var(--accent-hover) !important; }
+    .sh-assist .sh-assist-acts button:focus-visible, .sh-assist .sh-assist-all:focus-visible, .sh-assist .sh-assist-quick:focus-visible, .sh-assist .sh-assist-example:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .sh-assist .sh-assist-done { font-size: 12.5px; font-weight: 600; color: var(--text-secondary); }
+    .sh-assist .sh-assist-done.is-applied { color: var(--success); }
+    .sh-assist .sh-assist-done.is-error { color: var(--error); }
+    .sh-assist .sh-assist-all[hidden] { display: none; }
+    .sh-assist .sh-assist-paste { padding: 12px 16px 0; font-size: 14px; }
+    .sh-assist .sh-assist-paste[hidden] { display: none; }
+    .sh-assist .sh-assist-paste label { display: block; font-weight: 600; margin-bottom: 4px; }
+    .sh-assist .sh-assist-hint { margin: 0 0 8px; font-size: 12.5px; line-height: 1.45; color: var(--text-secondary); }
+    .sh-assist textarea { width: 100%; min-height: 110px; resize: vertical; font-family: var(--mono); font-size: 12.5px; line-height: 1.45; color: var(--text); background: var(--bg); border: 1px solid var(--border-hi); border-radius: 8px; padding: 8px 10px; }
+    .sh-assist textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+    .sh-assist .sh-assist-sent, .sh-assist .sh-assist-pasted pre { margin: 0; max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.45; padding: 8px 10px; border-radius: 8px; background: #0f172a; color: #e2e8f0; }
+    .sh-assist .sh-assist-sent:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .sh-assist .sh-assist-pasted { margin: 0 0 8px; font-size: 13px; color: var(--text-secondary); }
+    .sh-assist .sh-assist-pasted summary { cursor: pointer; margin-bottom: 6px; }
+    #agent pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 420px; overflow: auto; }
+    @media (min-width: 1180px) {
+      /* Beside the form: the page makes room, so applied changes show. */
+      .sh-assist .sh-ask-panel { top: 16px; bottom: 16px; max-height: none; width: 380px; }
+      body.sh-assist-open { padding-right: 412px; }
+    }
+
     @media (max-width: 600px) {
       .wrap { padding: 0 16px; }
       main { padding-top: 28px; }
@@ -141,9 +188,10 @@
     <div id="app" aria-live="polite">
       <noscript><p class="card">The setup helper needs JavaScript. Everything it writes is also described in the <a href="https://github.com/vineetu/simple-host/tree/main/docs/advanced">advanced settings docs</a>.</p></noscript>
     </div>
-    <p class="privacy">This page runs in your browser and never asks for a password or key: secrets appear as blanks for you to fill in. Nothing you type is sent anywhere, except for the optional check just before your files, where this server offers it: it sends only the product and the names and values of the numbers, durations, switches, choices and limits you changed (never hostnames, emails or anything about you) to our model provider, and nothing is kept (<a href="/privacy.html">privacy</a>). Every setting is explained in the advanced docs: <a href="https://github.com/vineetu/simple-host/tree/main/docs/advanced">small box</a> · <a href="https://github.com/vineetu/simple-host-enterprise/tree/main/docs/advanced">Enterprise</a>.</p>
+    <p class="privacy">This page runs in your browser and never asks for a password or key: secrets appear as blanks for you to fill in. Nothing you type is sent anywhere, except where this server offers them, for the optional check just before your files and for the assistant when you ask it something. The check sends only the product and the names and values of the numbers, durations, switches, choices and limits you changed; the assistant sends those, the answers you picked from lists (such as your sign-in provider), where you are in the form, your message and its last few turns, and error output only when you paste it and click Send for help, after keys, tokens, passwords and email addresses are removed and you have seen what will go. Nothing from the form's hostnames, emails or secrets, and nothing about you. They go to our model provider to write the answer, and nothing is kept (<a href="/privacy.html">privacy</a>). Every setting is explained in the advanced docs: <a href="https://github.com/vineetu/simple-host/tree/main/docs/advanced">small box</a> · <a href="https://github.com/vineetu/simple-host-enterprise/tree/main/docs/advanced">Enterprise</a>.</p>
   </main>
   <!--sh:footer-->
   <script src="/setup/setup.js"></script>
+  <!--sh:setup-assist-->
 </body>
 </html>

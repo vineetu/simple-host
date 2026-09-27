@@ -12194,6 +12194,208 @@
         }
       }
     },
+    "/v1/setup/assist": {
+      "post": {
+        "operationId": "postSetupAssist",
+        "summary": "Ask the setup helper's assistant, or have it propose changes to the form",
+        "description": "Powers the assistant on the setup helper at /setup: it answers questions about the settings of the product being set up, proposes changes to the form from a plain request, cleans up choices, and diagnoses pasted error output. Send the product, where the visitor is in the form, their choices (exactly what /v1/setup/check accepts: settings of that product's list whose type is a number, duration, switch, choice or rate, with an allowed value; a secret is refused with secret_not_accepted, free text with setting_not_checkable), the basic answers picked from fixed lists (small-box: codes, google; enterprise: idp, certs, smtp, bucket, creds), the message, optionally pasted error output, and the last few turns. Pasted output, the message and earlier questions are redacted on the server (keys, tokens, passwords, secret assignments, private keys, JWTs, email addresses, long secret-looking strings), as the page does before the person reviews and sends them. The model (the same backend, ASK_MODEL and ASK_REASONING_EFFORT as the Ask assistants) answers from the settings list, known interactions, a product guide, the basic questions and troubleshooting notes. Every proposed change is checked before it is returned: a setting the helper does not write (a basic question's, a secret, free text, or on a small box one Compose does not pass through), a value outside the setting's range, a value equal to the current one, or one that would make a security-sensitive setting looser than both its default and the current value (a longer lifetime, a looser rate, an insecure switch on, a less strict choice, 0 where 0 means never) is dropped; basic answers must be one of their list's values. Nothing is applied by the server: the page shows each change for the person to apply. Nothing is stored or logged. No sign-in. Same-origin only, as /v1/ask. Shares the Ask per-IP and per-network rate limits; its own limit on messages at once (SETUP_ASSIST_MAX_IN_FLIGHT, default 1), a cap per network (/24 or /48) per UTC day (SETUP_ASSIST_PER_NETWORK_DAILY, default 40) and a cap per UTC day across everyone (SETUP_ASSIST_DAILY_MAX, default 300; 0 turns it off). With Accept text/event-stream the answer streams as data {\"t\"} pieces, then one data {\"done\":true,\"answer\",\"changes\",\"basics\"} (or {\"error\",\"code\"} if it stops part-way). Absent when the server has no model backend configured or ASK_ENABLED is off; the setup page then shows no assistant.",
+        "tags": [
+          "AI"
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "product",
+                  "step",
+                  "message"
+                ],
+                "properties": {
+                  "product": {
+                    "type": "string",
+                    "enum": [
+                      "small-box",
+                      "enterprise"
+                    ]
+                  },
+                  "step": {
+                    "type": "string",
+                    "enum": [
+                      "choose",
+                      "basics",
+                      "advanced",
+                      "files"
+                    ]
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "basic",
+                      "advanced"
+                    ]
+                  },
+                  "area": {
+                    "type": "string",
+                    "description": "The Advanced area the visitor is on: a group id of the product's settings list."
+                  },
+                  "choices": {
+                    "type": "object",
+                    "maxProperties": 80,
+                    "description": "Setting name to value for the settings changed from their defaults, as /v1/setup/check takes them.",
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 100
+                    }
+                  },
+                  "basics": {
+                    "type": "object",
+                    "description": "Basic answers picked from a list (small-box codes/google true|false; enterprise idp okta|entra|google|keycloak|other, certs auto|manual, smtp true|false, bucket aws|gcs|oci|upcloud|other, creds keys|identity).",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "message": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "pasted": {
+                    "type": "string",
+                    "maxLength": 8192,
+                    "description": "Error output the person chose to send",
+                    "already redacted by the page; redacted again here. At most 8 KB.": null
+                  },
+                  "history": {
+                    "type": "array",
+                    "description": "Earlier turns of this conversation; the last 4 are used.",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "q": {
+                          "type": "string"
+                        },
+                        "a": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The answer (plain text, no links), the checked changes (at most 12; each a setting, a value its list allows, and a short reason) and basic answers to change. JSON, or an event stream with Accept text/event-stream.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "answer": {
+                      "type": "string"
+                    },
+                    "changes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "setting": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          },
+                          "why": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "basics": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_body, unknown_product, invalid_step, invalid_settings (more than 80), unknown_setting, secret_not_accepted, setting_not_checkable, invalid_value, unknown_basic, empty_question, question_too_long or paste_too_long",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "the Origin header is missing or is not this server's own address (code forbidden_origin)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "the body is not application/json (code unsupported_media_type)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited per IP or per network, or code daily_limit when today's messages are used up (across everyone, or from this network)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "the model failed or was too slow (code unavailable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "busy, SETUP_ASSIST_MAX_IN_FLIGHT messages already being answered (code busy), or the day's count is unavailable (code unavailable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/generate": {
       "post": {
         "operationId": "postGenerate",

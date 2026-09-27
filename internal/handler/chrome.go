@@ -40,6 +40,12 @@ const (
 // otherwise the marker becomes nothing.
 var markerAsk = regexp.MustCompile(`<!--sh:ask ([a-z-]+)-->`)
 
+// markerSetupAssist is where the setup helper (setup-helper.html, after
+// setup.js) loads its assistant: the script tag when the assistant is on,
+// nothing otherwise, so a server without it never shows a panel that cannot
+// answer.
+const markerSetupAssist = "<!--sh:setup-assist-->"
+
 var (
 	chromeTemplates = template.Must(template.ParseFS(staticFiles, "static/partials/*.html"))
 
@@ -48,6 +54,16 @@ var (
 		b, err := staticFiles.ReadFile("static/site.css")
 		if err != nil {
 			panic("site.css missing from the embedded static files: " + err.Error())
+		}
+		sum := sha256.Sum256(b)
+		return hex.EncodeToString(sum[:])[:10]
+	}()
+
+	// setupAssistJSVersion busts caches on setup/assist.js the same way.
+	setupAssistJSVersion = func() string {
+		b, err := staticFiles.ReadFile("static/setup/assist.js")
+		if err != nil {
+			panic("setup/assist.js missing from the embedded static files: " + err.Error())
 		}
 		sum := sha256.Sum256(b)
 		return hex.EncodeToString(sum[:])[:10]
@@ -84,6 +100,8 @@ type chromeData struct {
 	AskOn        bool
 	AskPage      string
 	AskJSVersion string
+	// AssistOn: the setup helper's assistant is on.
+	AssistOn bool
 }
 
 // askWidgetData is what partials/ask.html renders: one assistant, and the page
@@ -131,6 +149,7 @@ func chromeDataFor(r *http.Request, base string) chromeData {
 		AskOn:        askEnabled,
 		AskPage:      askPageFor(r.URL.Path),
 		AskJSVersion: askJSVersion,
+		AssistOn:     setupAssistEnabled,
 	}
 }
 
@@ -154,6 +173,13 @@ func withChrome(page []byte, d chromeData) ([]byte, error) {
 			return nil, err
 		}
 		page = bytes.Replace(page, []byte(m.marker), bytes.TrimRight(buf.Bytes(), "\n"), 1)
+	}
+	if bytes.Contains(page, []byte(markerSetupAssist)) {
+		tag := ""
+		if d.AssistOn {
+			tag = `<script src="/setup/assist.js?v=` + setupAssistJSVersion + `"></script>`
+		}
+		page = bytes.Replace(page, []byte(markerSetupAssist), []byte(tag), 1)
 	}
 	if loc := markerAsk.FindSubmatchIndex(page); loc != nil {
 		var out []byte

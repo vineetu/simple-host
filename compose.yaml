@@ -166,6 +166,9 @@ services:
       SETUP_CHECK_DAILY_MAX: ${SETUP_CHECK_DAILY_MAX:-}
       SETUP_CHECK_MAX_IN_FLIGHT: ${SETUP_CHECK_MAX_IN_FLIGHT:-}
       SETUP_CHECK_PER_NETWORK_DAILY: ${SETUP_CHECK_PER_NETWORK_DAILY:-}
+      SETUP_ASSIST_DAILY_MAX: ${SETUP_ASSIST_DAILY_MAX:-}
+      SETUP_ASSIST_MAX_IN_FLIGHT: ${SETUP_ASSIST_MAX_IN_FLIGHT:-}
+      SETUP_ASSIST_PER_NETWORK_DAILY: ${SETUP_ASSIST_PER_NETWORK_DAILY:-}
     volumes:
       - sites:/data/sites
       # Read-only: the ingester only ever reads the access log Caddy writes.

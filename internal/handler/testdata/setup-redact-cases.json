@@ -1,0 +1,132 @@
+[
+ {
+  "name": "plain error kept",
+  "in": "FAILED: the instance did not answer within two minutes.\nDiagnose with: cd /opt/simple-host && docker compose ps",
+  "out": "FAILED: the instance did not answer within two minutes.\nDiagnose with: cd /opt/simple-host && docker compose ps"
+ },
+ {
+  "name": "startup refusal kept",
+  "in": "2026/09/27 10:00:01 load config: KEY_IDLE_EXPIRY_DAYS=\"5000\": want a whole number from 0 to 3650",
+  "out": "2026/09/27 10:00:01 load config: KEY_IDLE_EXPIRY_DAYS=\"5000\": want a whole number from 0 to 3650"
+ },
+ {
+  "name": "env setting that is not a secret kept",
+  "in": "KEY_IDLE_EXPIRY_DAYS=5000\nAPI_KEY_MAX_DAYS=400\nMAX_KEYS_PER_ACCOUNT=10",
+  "out": "KEY_IDLE_EXPIRY_DAYS=5000\nAPI_KEY_MAX_DAYS=400\nMAX_KEYS_PER_ACCOUNT=10"
+ },
+ {
+  "name": "env secrets",
+  "in": "ADMIN_API_KEY=abc\nRESEND_API_KEY=re_live_123\nexport DB_PASSWORD=hunter2\nSESSION_SIGNING_KEY=k1:Zm9vYmFy\nOIDC_CLIENT_SECRET = s3cr3t\nANALYTICS_SALT=pepper",
+  "out": "ADMIN_API_KEY=[redacted]\nRESEND_API_KEY=[redacted]\nexport DB_PASSWORD=[redacted]\nSESSION_SIGNING_KEY=[redacted]\nOIDC_CLIENT_SECRET = [redacted]\nANALYTICS_SALT=[redacted]"
+ },
+ {
+  "name": "empty secret line kept",
+  "in": "RESEND_API_KEY=\nDB_PASSWORD=",
+  "out": "RESEND_API_KEY=\nDB_PASSWORD="
+ },
+ {
+  "name": "secret assignments inside a line",
+  "in": "error: DB_PASSWORD=hunter2 SESSION_SIGNING_KEY=k1:abc KEEP_VERSIONS=3 KEY_IDLE_EXPIRY_DAYS=9",
+  "out": "error: DB_PASSWORD=[redacted] SESSION_SIGNING_KEY=[redacted] KEEP_VERSIONS=3 KEY_IDLE_EXPIRY_DAYS=9"
+ },
+ {
+  "name": "yaml and json",
+  "in": "  password: hunter2\n  \"client_secret\": \"abc\",\n  token: xyz",
+  "out": "  password: [redacted]\n  \"client_secret\": [redacted]\n  token: [redacted]"
+ },
+ {
+  "name": "windows line endings",
+  "in": "DB_PASSWORD=hunter2\r\nok\r\n",
+  "out": "DB_PASSWORD=[redacted]\nok\n"
+ },
+ {
+  "name": "password in a URL",
+  "in": "dial postgres://simplehost:hunter2@db.example.com:5432/simplehost?sslmode=verify-full",
+  "out": "dial postgres://simplehost:[redacted]@db.example.com:5432/simplehost?sslmode=verify-full"
+ },
+ {
+  "name": "smtp url",
+  "in": "SMTP relay smtp://mailer:p%40ss@smtp.example.com:587 refused",
+  "out": "SMTP relay smtp://mailer:[redacted]@smtp.example.com:587 refused"
+ },
+ {
+  "name": "bearer token",
+  "in": "curl -H 'Authorization: Bearer shk_0123456789abcdefghij' https://x.example.com",
+  "out": "curl -H 'Authorization: Bearer [redacted]' https://x.example.com"
+ },
+ {
+  "name": "basic auth",
+  "in": "Authorization: Basic dXNlcjpwYXNzd29yZA==",
+  "out": "Authorization: Basic [redacted]"
+ },
+ {
+  "name": "keyword pairs",
+  "in": "host=db user=app password=hunter2 sslmode=require",
+  "out": "host=db user=app password=[redacted] sslmode=require"
+ },
+ {
+  "name": "token pair in a query",
+  "in": "GET /cb?code=abc&token=zzz123&state=1",
+  "out": "GET /cb?code=abc&token=[redacted]&state=1"
+ },
+ {
+  "name": "jwt",
+  "in": "id_token eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c rejected",
+  "out": "id_token [redacted token] rejected"
+ },
+ {
+  "name": "simple host keys",
+  "in": "key shk_a1b2c3d4e5f6g7h8i9j0 and shat_ZZZZZZZZZZZZZZZZ and shint_0000111122223333",
+  "out": "key [redacted key] and [redacted key] and [redacted key]"
+ },
+ {
+  "name": "provider keys",
+  "in": "re_AbCdEf123456789 sk-proj-abcdefghijklmnop ghp_abcdefghijklmnopqrstuvwxyz0123456789 AKIAIOSFODNN7EXAMPLE",
+  "out": "[redacted key] [redacted key] [redacted key] [redacted key]"
+ },
+ {
+  "name": "words that look like prefixes kept",
+  "in": "the shared_board_names limit, a desk-top, pre_release_candidate",
+  "out": "the shared_board_names limit, a desk-top, pre_release_candidate"
+ },
+ {
+  "name": "emails",
+  "in": "sign-in alert to alex@example.com failed; reply to ops.team+x@corp.example.co.uk",
+  "out": "sign-in alert to [email] failed; reply to [email]"
+ },
+ {
+  "name": "private key block",
+  "in": "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA\nAAAA\n-----END OPENSSH PRIVATE KEY-----\nafter",
+  "out": "[redacted OPENSSH PRIVATE KEY]\nafter"
+ },
+ {
+  "name": "certificate block cut short",
+  "in": "ca: -----BEGIN CERTIFICATE-----\nMIIDdzCCAl+gAwIBAgIE",
+  "out": "ca: [redacted CERTIFICATE]"
+ },
+ {
+  "name": "long hex",
+  "in": "admin key 3f7a9c0e1b2d4f6a8c0e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a4c6e8b0d2f4a printed",
+  "out": "admin key [redacted] printed"
+ },
+ {
+  "name": "mixed base64",
+  "in": "secret Zm9vYmFyQmF6UXV4MTIzNDU2Nzg5MGFiY2RlZg== here",
+  "out": "secret [redacted] here"
+ },
+ {
+  "name": "paths and pod names kept",
+  "in": "/var/lib/docker/volumes/simple-host_sites/_data/alex/site simple-host-7d9f8c6b5-x2x9z ImagePullBackOff",
+  "out": "/var/lib/docker/volumes/simple-host_sites/_data/alex/site simple-host-7d9f8c6b5-x2x9z ImagePullBackOff"
+ },
+ {
+  "name": "hostnames and ips kept",
+  "in": "tls: no certificate for sites.hack.example.com (203.0.113.7): dial tcp 203.0.113.7:80: connect: connection refused",
+  "out": "tls: no certificate for sites.hack.example.com (203.0.113.7): dial tcp 203.0.113.7:80: connect: connection refused"
+ },
+ {
+  "name": "control characters",
+  "in": "ok\u0007\u001b[31mred\u001b[0m\ttab",
+  "out": "ok[31mred[0m\ttab"
+ }
+]

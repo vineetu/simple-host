@@ -1,0 +1,41 @@
+Installing a small box: what goes wrong, how to confirm it, the fix.
+
+Where to look: the installer prints FAILED: and a line to diagnose with. The app's log: cd /opt/simple-host && sudo docker compose logs --tail 100 app. Caddy (certificates, HTTPS): sudo docker compose logs --tail 100 caddy. The database: sudo docker compose logs --tail 50 db. What is running: sudo docker compose ps. Health: curl -fsS https://<domain>/healthz answers 200 when the server is up.
+
+The installer:
+- "FAILED: could not fetch <file> after three attempts": the server cannot reach GitHub (no outbound HTTPS, DNS, or a proxy). Confirm with curl -I https://raw.githubusercontent.com. Fix the server's outbound network, then run the installer again; it is safe to re-run.
+- "FAILED: the database could not be brought up to <version>": the database update failed. Read sudo docker compose logs --tail 50 db. Often the disk is full (df -h) or the database volume is from an incompatible older setup. Free disk, then re-run the installer.
+- "FAILED: the instance did not answer within two minutes": the app did not start. Read the app log; the last lines name the reason (often a setting it refuses, see below). Low memory can also do it: free -m.
+- "FAILED: a database volume exists but .env is missing": the database password lived only in that file. Restore the .env from a backup, or discard the old instance and its data (the installer prints the command).
+- "--max-site-mb must be a whole number" or "must be at least": a flag value is wrong; fix the flag.
+- "unknown argument": a flag the installer does not have; the flags are --host, --content, --email, --max-site-mb, --keep-versions.
+- Docker could not be installed: the installer expects a fresh Ubuntu server with sudo.
+
+Addresses and certificates:
+- A browser shows a certificate error, or curl says "SSL certificate problem" or "tlsv1 alert internal error": Caddy has not got a certificate for that name. Causes: the name does not point at this server (dig +short <name> must print the server's public IPv4), ports 80 or 443 are closed (Let's Encrypt must reach the server on them; open both in the cloud firewall and on the server), or the name is not the box's own domain or sites hostname (certificates are only issued for names the app confirms). Read the caddy log for the name. After fixing DNS or the firewall, visit the name again; Caddy retries.
+- Too many certificates requested: Let's Encrypt limits repeated requests for the same names; wait an hour before retrying, do not reinstall in a loop.
+- Wildcard names do not exist on a small box: sites live at sites.<domain>/<handle>/<site>/, and <handle>.<domain> addresses are off.
+- A cloud's own firewall (security group, network ACL) blocks 80 or 443 even when the server allows them.
+
+The app refuses to start (the app log ends with "load config:" and a reason). A value out of range or in the wrong format stops the server with a message naming it:
+- NAME="value": want a whole number from MIN to MAX. The setting is out of range; the SETTINGS list has its range and default.
+- NAME="value": want "<burst>,<every>". A rate limit is written <burst>,<interval>, like 20,5s.
+- NAME="value" is too loose for a sign-in limit: a sign-in rate limit can be stricter freely, but at most four times looser than its default (its loosest value is in the SETTINGS list).
+- NAME="value": want on or off.
+- VISITOR_SESSION_IDLE_DAYS must not be longer than VISITOR_SESSION_DAYS.
+- DOMAIN_LAPSE_HOURS must be longer than DOMAIN_LAPSE_WARN_HOURS.
+- DOMAIN_UNPROVEN_MAX_DAYS must not be shorter than DOMAIN_UNPROVEN_HOURS.
+- AI_MAX_JOBS_PER_USER must not be more than AI_MAX_JOBS.
+- SAVED_DATA_WATCH_KEEP_DAYS must not be shorter than SAVED_DATA_WATCH_DAYS.
+- "schema check:": the database is behind the app. Re-run the installer; it updates the database before starting the app.
+The fix for a setting is to change that line in /opt/simple-host/.env to an allowed value, then cd /opt/simple-host && sudo docker compose up -d.
+
+Sign-in:
+- Emailed codes never arrive: the Resend key is missing or wrong, or MAIL_FROM is not on a domain verified with Resend. Check the domain's status in Resend, and the app log around the sign-in.
+- Google sign-in says redirect_uri_mismatch: the Google OAuth client's redirect URI must be exactly https://<domain>/v1/auth/oauth/google/callback.
+- Nobody can sign in: with neither emailed codes nor Google set up, only the admin key signs in.
+
+Uploads and disk:
+- Uploads fail with 413 behind your own proxy or load balancer: its body limit must be at least MAX_ARCHIVE_MB (the bundled Caddy sets none).
+- The disk fills: kept versions fill it, not sites. Lower KEEP_VERSIONS, and check df -h.
+- Out of memory with large MAX_ARCHIVE_MB on a 1 GB box: lower MAX_ARCHIVE_MB, or use a bigger server.

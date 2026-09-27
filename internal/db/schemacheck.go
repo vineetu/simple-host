@@ -68,6 +68,8 @@ var requiredColumns = map[string][]string{
 	"ask_daily": {"day", "count"},
 	// v061-setup-check-daily.sql
 	"setup_check_daily": {"day", "count"},
+	// v073-setup-assist-daily.sql
+	"setup_assist_daily": {"day", "count"},
 }
 
 // VerifySchema refuses to start against a database that is behind the code.

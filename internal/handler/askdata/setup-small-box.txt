@@ -1,0 +1,31 @@
+A small box is one server running Simple Host with Docker Compose: for self-hosting, a team, a class or a hackathon. It is meant for 1 CPU, 1 GB of RAM and about 25 GB of disk. The installer installs Docker, starts Simple Host with Caddy in front for certificates, prints the admin key once and keeps any settings added to its .env file when it is run again (which is also how you upgrade).
+
+Every default is what simple-host.app itself runs, except two the installer sets for a small disk: the largest site is 100 MB (MAX_ARCHIVE_MB, installer flag --max-site-mb) and one version is kept (KEEP_VERSIONS=1, flag --keep-versions), so there is no rollback unless you keep more.
+
+Addresses. The box needs one domain it owns, like hack.example.com, and a second hostname for published sites, sites.<domain> by default, so a page someone publishes can never script the dashboard. Both point at the server with an A record each; ports 80 and 443 must be open. A small box has no per-person or per-site addresses (they need wildcard certificates): sites live at sites.<domain>/<handle>/<site>/.
+
+Owner sign-in. Owners sign in with an emailed six-digit code (needs a Resend account with the domain verified, and a sender, MAIL_FROM) or with Google (needs a Google OAuth client, type Web application, with the redirect URI https://<domain>/v1/auth/oauth/google/callback). With neither, only the admin key signs in, and people you hand keys to can still publish. There are no passwords. There is no company sign-in (OIDC, Microsoft, Okta) on a small box: that is Simple Host Enterprise.
+
+Visitors sign in (with Google or an emailed code) only on a site that has its own address, such as an owner's custom domain; VISITOR_SESSION_DAYS and VISITOR_SESSION_IDLE_DAYS set how long they stay signed in there.
+
+Sessions and connections. AI apps connect through the connector with OAuth and keep a short access token (OAUTH_ACCESS_TTL_MINUTES) refreshed until OAUTH_REFRESH_TTL_DAYS unused. API keys stop working after KEY_IDLE_EXPIRY_DAYS unused (0 = never). Sign-in codes last SIGNIN_CODE_TTL_MINUTES.
+
+Saved data. Every site gets one shared JSON document and lists visitors add to. Changes and deleted items can be restored for SAVED_DATA_UNDO_DAYS (a promise to site owners). SAVED_DATA_SITE_MAX_MB caps a site's live data; SAVED_DATA_DEFAULT_KIND=declare_first makes names nobody declared take no saves.
+
+Cleanup and retention. A deleted site waits in Recently deleted for DELETED_RETENTION_DAYS. Idle-site cleanup is off by default; with IDLE_CLEANUP=on, a site unused for IDLE_AFTER_DAYS gets its owner a warning email, and IDLE_GRACE_DAYS later it moves to Recently deleted. It needs email set up. Shortening a window never removes anything earlier than an email promised.
+
+Rate limits are <burst>,<interval>: that many at once, then one more every interval. Sign-in limits are security-sensitive: stricter freely, at most four times looser than the default. The others may be anything, with a startup warning past ten times looser. Many people behind one venue address (a hackathon hall, an office) share one address, so an event may need looser upload and saved-data limits and a sign-in limit up to its loosest.
+
+Sizing. The settings have no per-person setting beyond MAX_SITES_PER_ACCOUNT and the rate limits; the number of people changes little else. What fills the disk is versions, not sites (the median site is about 25 KB). Large uploads are held while they are unpacked, so raising MAX_ARCHIVE_MB far above 100 on a 1 GB box risks running out of memory; a proxy in front of the box needs its own body limit raised to match.
+
+Recipes from the settings docs:
+- Stricter sign-in: SIGNIN_CODE_TTL_MINUTES=5, RATE_LIMIT_SIGNIN_IP=10,10s, RATE_LIMIT_SIGNIN_EMAIL=3,2m, VISITOR_SESSION_DAYS=7, VISITOR_SESSION_IDLE_DAYS=2, OAUTH_REFRESH_TTL_DAYS=30.
+- A busy event on one box (many people behind one venue address): RATE_LIMIT_SIGNIN_IP=80,1250ms, RATE_LIMIT_UPLOAD=120,2s, RATE_LIMIT_STATE=240,250ms.
+- Cap each participant: MAX_SITES_PER_ACCOUNT=20.
+- Keep rollback on a bigger disk: KEEP_VERSIONS=5.
+- Shorter retention: DELETED_RETENTION_DAYS=3, ANALYTICS_RETENTION_DAYS=90, API_METRICS_RETENTION_DAYS=7.
+- Clean up abandoned sites on a long-running box (needs email): IDLE_CLEANUP=on, IDLE_AFTER_DAYS=60, IDLE_GRACE_DAYS=14.
+- Shorter saved-data history: SAVED_DATA_UNDO_DAYS=7, SAVED_DATA_HISTORY_MAX_MB=5. Smaller per-site data on a small disk: SAVED_DATA_SITE_MAX_MB=10.
+- Faster release of abandoned custom domains: DOMAIN_UNPROVEN_HOURS=6, DOMAIN_UNPROVEN_MAX_DAYS=2.
+
+Backups: the database and the site files are two Docker volumes, and the .env file holds the admin key and the database password; back up all three together.

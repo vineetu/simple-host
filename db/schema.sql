@@ -867,6 +867,13 @@ CREATE TABLE IF NOT EXISTS setup_check_daily (
   count INTEGER NOT NULL DEFAULT 0
 );
 
+-- The setup helper's assistant: messages answered per UTC day
+-- (SETUP_ASSIST_DAILY_MAX). Nothing about who asked or what.
+CREATE TABLE IF NOT EXISTS setup_assist_daily (
+  day   DATE PRIMARY KEY,
+  count INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS schema_migrations (
   name       TEXT PRIMARY KEY,
   applied_at TIMESTAMPTZ NOT NULL DEFAULT now()

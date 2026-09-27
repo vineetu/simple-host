@@ -1,0 +1,31 @@
+Simple Host Enterprise runs on the company's own Kubernetes cluster, behind the company's own sign-in (OIDC), with the company's own Postgres and S3-compatible bucket. It needs a handful of values to start: its address, the identity provider, the database and the bucket. Everything else has a default. The helper writes config.env (the ConfigMap), a secrets.env template naming every secret as a blank (the Secret), and the apply commands. After changing a setting, apply again and restart the deployment.
+
+Addresses. An install lives at one address on its own registrable domain, like sites.example.com, never a subdomain of the company's main domain, so a published page can never read the company's cookies. Each person or team gets <owner>.<address> and every site its own origin. One wildcard DNS record covers every depth. Each owner needs a *.<owner>.<address> certificate: with certificates on auto, cert-manager issues them through a ClusterIssuer (an internal CA issuer is recommended; ACME needs DNS-01). TRUSTED_PROXY_CIDRS should name the ingress controller's pod range so rate limits and the audit log see real client addresses.
+
+Sign-in. People sign in only through the company's OIDC provider (Okta, Microsoft Entra ID, Google Workspace, Keycloak or another); an account is created at first sign-in. There are no passwords and no admin key. Admins come from ADMIN_EMAILS or an OIDC claim (OIDC_ADMIN_CLAIM and OIDC_ADMIN_VALUE, refreshed at every sign-in). With Google Workspace, company email domains are required, or anyone with a Google account could sign in. The client is registered as a web application with the redirect URI https://<address>/auth/callback.
+
+Sessions have an absolute limit (SESSION_TTL, default 8h) and an idle limit (SESSION_IDLE, default 30m). Simple Host checks the identity provider only at sign-in, so these are how long a leaver can keep working after being disabled there; disabling the person in the admin page ends everything at once. AI apps connect through the same sign-in and keep a short access token (OAUTH_ACCESS_TTL), refreshed until OAUTH_REFRESH_TTL. API keys for CI have a scope and an expiry (API_KEY_DEFAULT_DAYS, at most API_KEY_MAX_DAYS).
+
+Access. Every site has one of five access levels: only me (the default), specific people and teams, the whole company, listed in the company showcase, or network (anyone who can reach it, no sign-in). Opening a site to the network needs an admin's approval, or two different admins' with NETWORK_ACCESS_APPROVALS=2. Teams are shared places for sites. ACCESS_LOG_VISIBILITY decides whether a site's owner sees counts (the default), who visited (owner), or nothing (admin).
+
+Sites. Every publish is a new version; owners can preview, roll back, rename, move a site into a team and download it. Quotas apply per person or team (sites, and bytes across every kept version). With CLAMD_ADDR set every upload is scanned for malware. Each upload is held in the pod's memory, so MAX_ARCHIVE_BYTES times UPLOAD_CONCURRENCY must fit the pod's memory limit, and the ingress body-size limit must be raised with MAX_ARCHIVE_BYTES.
+
+Cleanup and retention. A deleted site is kept whole for DELETED_RETENTION_DAYS; keep the bucket's old-version retention at least as long. Idle-site cleanup is off until IDLE_CLEANUP_DAYS is set (0 or at least 30); owners are warned on their dashboard, and by email when an SMTP relay is set, and get IDLE_CLEANUP_GRACE_DAYS to keep the site. The audit log, access log and search counts are pruned after their retention windows; audit retention is often set by company policy.
+
+Email is only for idle-site cleanup notices, through the company's SMTP relay; sign-in goes through the identity provider, so there are no sign-in emails.
+
+Storage. Postgres holds accounts, sites, saved data and the audit log: use a managed Postgres with point-in-time recovery, reached over verified TLS. The bucket holds every site version and uploaded file, with server-side encryption and optionally a client-side envelope key; turn on bucket versioning. Pods are stateless. Workload identity can replace bucket access keys.
+
+Security. SECURE_MODE=true is required for a real install; the insecure and plaintext switches are for local evaluation only. Security-sensitive rate limits (sign-in, key minting, admin actions, OAuth) are stricter freely but at most four times looser than built in. Rate limits are <burst>/<interval>.
+
+Sizing. No setting is tied to the number of people; quotas are per person or team, and busy dashboards read by many people may need a higher per-site read limit. Memory per pod follows MAX_ARCHIVE_BYTES times UPLOAD_CONCURRENCY, not the number of people.
+
+Recipes from the settings docs:
+- Stricter sign-in (a shorter working session, AI apps sign in again weekly, short-lived keys): SESSION_TTL=4h, SESSION_IDLE=15m, OAUTH_REFRESH_TTL=168h, API_KEY_MAX_DAYS=30, API_KEY_DEFAULT_DAYS=30, RATE_LIMIT_AUTH_EMAIL=3/2m.
+- Two-person rule for network access: NETWORK_ACCESS_APPROVALS=2.
+- Owners never see who visited: ACCESS_LOG_VISIBILITY=admin.
+- Shorter retention: DELETED_RETENTION_DAYS=14, ACCESS_LOG_RETENTION_DAYS=30, SEARCH_TELEMETRY_RETENTION_DAYS=30.
+- Clean up abandoned sites: IDLE_CLEANUP_DAYS=365, with IDLE_CLEANUP_MAX_EMAILS=200 so the first run does not send a flood.
+- A busy dashboard read by many people: RATE_LIMIT_STATE_READ_SITE=600/100ms.
+- Bigger sites: MAX_ARCHIVE_BYTES=262144000 (250 MiB), the ingress body size 250m, and more pod memory.
+- Reserve hostnames: RESERVED_LABELS=intranet,vpn,hr.

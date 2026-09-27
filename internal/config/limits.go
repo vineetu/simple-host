@@ -121,6 +121,12 @@ type Ask struct {
 	// network (/24 or /48) per UTC day, so one network cannot use up the day.
 	SetupCheckMaxInFlight     int // SETUP_CHECK_MAX_IN_FLIGHT (1)
 	SetupCheckPerNetworkDaily int // SETUP_CHECK_PER_NETWORK_DAILY (20)
+	// The setup helper's assistant (POST /v1/setup/assist): the same backend,
+	// model and per-address limits, with its own count per UTC day (table
+	// setup_assist_daily), its own in-flight cap and count per network.
+	SetupAssistDailyMax        int // SETUP_ASSIST_DAILY_MAX (300); 0 turns the assistant off
+	SetupAssistMaxInFlight     int // SETUP_ASSIST_MAX_IN_FLIGHT (1)
+	SetupAssistPerNetworkDaily int // SETUP_ASSIST_PER_NETWORK_DAILY (40)
 }
 
 // SavedData is every number behind saved-data history, undo, the watch and
@@ -313,7 +319,8 @@ func DefaultLimits() Limits {
 
 		Ask: Ask{Enabled: true, Burst: 5, EverySeconds: 20, DailyMax: 500, MaxInFlight: 4,
 			Model: "grok-4.7", ReasoningEffort: "none", MaxTokens: 300, SetupCheckDailyMax: 200,
-			SetupCheckMaxInFlight: 1, SetupCheckPerNetworkDaily: 20},
+			SetupCheckMaxInFlight: 1, SetupCheckPerNetworkDaily: 20,
+			SetupAssistDailyMax: 300, SetupAssistMaxInFlight: 1, SetupAssistPerNetworkDaily: 40},
 	}
 }
 
@@ -564,6 +571,9 @@ func Knobs() []Knob {
 		intKnob("SETUP_CHECK_DAILY_MAX", "checks", 0, 100_000, func(l *Limits) *int { return &l.Ask.SetupCheckDailyMax }),
 		intKnob("SETUP_CHECK_MAX_IN_FLIGHT", "checks", 1, 64, func(l *Limits) *int { return &l.Ask.SetupCheckMaxInFlight }),
 		intKnob("SETUP_CHECK_PER_NETWORK_DAILY", "checks", 1, 100_000, func(l *Limits) *int { return &l.Ask.SetupCheckPerNetworkDaily }),
+		intKnob("SETUP_ASSIST_DAILY_MAX", "messages", 0, 100_000, func(l *Limits) *int { return &l.Ask.SetupAssistDailyMax }),
+		intKnob("SETUP_ASSIST_MAX_IN_FLIGHT", "messages", 1, 64, func(l *Limits) *int { return &l.Ask.SetupAssistMaxInFlight }),
+		intKnob("SETUP_ASSIST_PER_NETWORK_DAILY", "messages", 1, 100_000, func(l *Limits) *int { return &l.Ask.SetupAssistPerNetworkDaily }),
 	}
 }
 

@@ -16,6 +16,16 @@ turns it off; the helper then shows the files without it). Only setting names an
 sent, never free text or secrets. A suggestion that would loosen a security-sensitive setting
 past both its default and the visitor's own value is never offered.
 
+**The setup helper's assistant.** On the same servers, `/setup` has an assistant
+(`POST /v1/setup/assist`) that answers questions about the settings, fills in the form from a
+plain request, cleans up choices and diagnoses pasted error output. It sends the same kind of
+choices as the check plus the answers picked from lists, the message and the last few turns;
+pasted output is redacted in the browser, shown to the person, and redacted again on the server.
+Every change it proposes is checked like the check's suggestions, and the person applies each one.
+It has its own limit on messages at once (`SETUP_ASSIST_MAX_IN_FLIGHT`), a cap per network per day
+(`SETUP_ASSIST_PER_NETWORK_DAILY`) and a cap per day across everyone, `SETUP_ASSIST_DAILY_MAX`
+(0 turns it off and the page shows no assistant).
+
 The same backend serves AI create (building a site from a description), whose settings are listed
 below with one line each. A small box has no model backend, so none of these apply there.
 
@@ -39,6 +49,9 @@ below with one line each. A small box has no model backend, so none of these app
 | `SETUP_CHECK_DAILY_MAX` | `200` | 0–100000 checks | The setup helper's optional "Check my choices": checks answered per day across everyone, through the Ask model. 0 turns it off. |
 | `SETUP_CHECK_MAX_IN_FLIGHT` | `1` | 1–64 checks | The setup helper's check: checks answered at once on the whole server, apart from Ask's own. |
 | `SETUP_CHECK_PER_NETWORK_DAILY` | `20` | 1–100000 checks | The setup helper's check: checks one network (a /24, or a /48 for IPv6) may run per day. |
+| `SETUP_ASSIST_DAILY_MAX` | `300` | 0–100000 messages | The setup helper's assistant: messages answered per day across everyone, through the Ask model. 0 turns it off and hides its panel. |
+| `SETUP_ASSIST_MAX_IN_FLIGHT` | `1` | 1–64 messages | The setup helper's assistant: messages answered at once on the whole server, apart from Ask's and the check's. |
+| `SETUP_ASSIST_PER_NETWORK_DAILY` | `40` | 1–100000 messages | The setup helper's assistant: messages one network (a /24, or a /48 for IPv6) may send per day. |
 | `LLM_PROVIDER` | `grok` | `custom` / `deepseek` / `grok` / `openai` / `openrouter` / `xai` | The model backend for AI create and Ask. |
 | `LLM_API_KEY` | none | secret | The model backend's key. Ask and AI create run only with a backend set. **Security-sensitive.** |
 | `LLM_BASE_URL` | none | text | The backend's address; wins over the provider's. |
