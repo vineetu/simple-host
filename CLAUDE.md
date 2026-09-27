@@ -24,8 +24,17 @@ https://simple-host.app and runs in production for real users.
 - Skills changed: bump `version` in `simple-host-website/.claude-plugin/plugin.json` (the
   stale-skill notice reads it from the embedded file), then run
   `bash scripts/sync-claude-plugin.sh`. Never hand-edit `plugins/simple-host/skills/`.
-- Schema changed: edit `db/schema.sql`, add a file under `db/migrations/`, apply it by hand
-  before deploying (the binary refuses to start if a column it reads is missing).
+- Schema changed: edit `db/schema.sql` AND add a file under `db/migrations/` (hosted batches:
+  `<batch>-<what>.sql`; lexical order is apply order). The file must be plain SQL, idempotent
+  (`ADD COLUMN IF NOT EXISTS`, `CREATE ... IF NOT EXISTS`) and safe on a live database
+  (additive, defaults, no long locks, no `CONCURRENTLY`): `simple-host migrate` runs every file
+  not yet recorded in `schema_migrations`, including on databases built from `schema.sql` that
+  already have its effect. Full rule: `db/migrations/migrations.go`. The historical files listed
+  there as baseline are never run. Small boxes migrate from `install.sh` on every run; the
+  server never migrates on start. Production: apply the file by hand before deploying (the
+  binary refuses to start if a column it reads is missing), then
+  `simple-host migrate -mark <file>` (or just `simple-host migrate`); `migrate -status` lists
+  what is pending.
 - Parity with Simple Host Enterprise (`PARITY.md`, identical in both repos): any security fix in
   one repo is checked against the other the same day (note it in PARITY.md). A new or changed
   feature updates PARITY.md in the same commit. `scripts/check-parity.sh` (in
@@ -46,11 +55,12 @@ needs a local postgres superuser.) Quick loop: `go test ./internal/handler/` (wr
 Build, back up, install, restart (one line, from the repo root):
 
 ```
-sudo systemd-run --quiet --wait --pipe --collect -p MemoryMax=2G -p WorkingDirectory=$PWD --uid=$(id -u) --gid=$(id -g) -E HOME=$HOME -E PATH=$PATH -E GOCACHE=$(go env GOCACHE) -E GOMODCACHE=$(go env GOMODCACHE) bash -c 'CGO_ENABLED=0 go build -o /tmp/simple-host.new ./cmd/server' && TS=$(date +%Y%m%d-%H%M%S) && sudo cp -p /usr/local/bin/simple-host /usr/local/bin/simple-host.bak-$TS && sudo install -m 755 -o root -g root /tmp/simple-host.new /usr/local/bin/simple-host && sudo systemctl restart simple-host
+sudo systemd-run --quiet --wait --pipe --collect -p MemoryMax=2G -p WorkingDirectory=$PWD --uid=$(id -u) --gid=$(id -g) -E HOME=$HOME -E PATH=$PATH -E GOCACHE=$(go env GOCACHE) -E GOMODCACHE=$(go env GOMODCACHE) bash -c 'CGO_ENABLED=0 go build -ldflags "-X github.com/vsriram/simple-host/internal/buildinfo.Version=$(git describe --tags --always --dirty) -X github.com/vsriram/simple-host/internal/buildinfo.Commit=$(git rev-parse --short HEAD)" -o /tmp/simple-host.new ./cmd/server' && TS=$(date +%Y%m%d-%H%M%S) && sudo cp -p /usr/local/bin/simple-host /usr/local/bin/simple-host.bak-$TS && sudo install -m 755 -o root -g root /tmp/simple-host.new /usr/local/bin/simple-host && sudo systemctl restart simple-host
 ```
 
 Before deploying, check what is live: the repo is not the binary
-(`strings /usr/local/bin/simple-host | grep <feature>`). Rollback: install the `.bak-<ts>`
+(`/usr/local/bin/simple-host version` names the release and commit; the startup log line and
+the admin page say the same; `strings /usr/local/bin/simple-host | grep <feature>` for detail). Rollback: install the `.bak-<ts>`
 and restart.
 
 **Verify from the client, not the server.** "Deployed" is not "visible". After a restart:

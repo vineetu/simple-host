@@ -35,6 +35,13 @@ async function loadDisk(){
       age=secs<90?'':' Measured '+Math.round(secs/60)+' minutes ago.';
     }
     note.textContent=d.message+' Websites are capped at '+d.site_limit_mb+' MB each.'+age;
+    // Settings and release in force, so nobody needs a shell to say which
+    // version this box runs or how much history it keeps.
+    var kv=d.keep_versions, keep=kv===0?'Keeps every deploy of each website.':
+      kv===1?'Keeps the latest deploy of each website.':'Keeps the latest '+kv+' deploys of each website.';
+    var inst=document.getElementById('instance-note');
+    inst.textContent=keep+(d.version?' Running release '+d.version+', commit '+d.commit+'.':'');
+    inst.hidden=false;
     var top=(d.largest||[]);
     if(top.length){
       document.getElementById('disk-rows').innerHTML=top.map(function(t){
@@ -135,6 +142,7 @@ table.apx td.err{color:var(--error)}
   <div id="disk" hidden>
     <div class="bar"><div id="bar-fill"></div></div>
     <p class="ph" id="disk-note"></p>
+    <p class="ph" id="instance-note" hidden></p>
     <details id="disk-top" hidden><summary>Biggest websites</summary>
       <table class="apx"><thead><tr><th>Website</th><th>Size</th></tr></thead><tbody id="disk-rows"></tbody></table>
     </details>
@@ -427,6 +435,13 @@ async function loadDisk(){
       age=secs<90?'':' Measured '+Math.round(secs/60)+' minutes ago.';
     }
     note.textContent=d.message+' Websites are capped at '+d.site_limit_mb+' MB each.'+age;
+    // Settings and release in force, so nobody needs a shell to say which
+    // version this box runs or how much history it keeps.
+    var kv=d.keep_versions, keep=kv===0?'Keeps every deploy of each website.':
+      kv===1?'Keeps the latest deploy of each website.':'Keeps the latest '+kv+' deploys of each website.';
+    var inst=document.getElementById('instance-note');
+    inst.textContent=keep+(d.version?' Running release '+d.version+', commit '+d.commit+'.':'');
+    inst.hidden=false;
     var top=(d.largest||[]);
     if(top.length){
       document.getElementById('disk-rows').innerHTML=top.map(function(t){

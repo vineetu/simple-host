@@ -8,8 +8,13 @@ RUN go mod download
 COPY . .
 ARG TARGETOS
 ARG TARGETARCH
+# Release and commit, shown by `simple-host version`, the startup log and the
+# admin page. The release workflow passes both; a local build says dev/unknown.
+ARG VERSION=dev
+ARG COMMIT=unknown
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
-    go build -trimpath -ldflags="-s -w" -o /out/simple-host ./cmd/server
+    go build -trimpath -ldflags="-s -w -X github.com/vsriram/simple-host/internal/buildinfo.Version=${VERSION} -X github.com/vsriram/simple-host/internal/buildinfo.Commit=${COMMIT}" \
+    -o /out/simple-host ./cmd/server
 # The runtime stage cannot run commands, so the data directory is made here and
 # copied in. This stage is always native, so nothing is emulated.
 RUN mkdir -p /data-empty

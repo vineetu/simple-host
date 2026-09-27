@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/buildinfo"
 	"github.com/vsriram/simple-host/internal/capacity"
 	"github.com/vsriram/simple-host/internal/tarball"
 )
@@ -122,8 +123,13 @@ func (h *SiteHandler) adminUsage(w http.ResponseWriter, r *http.Request) {
 		"accounts":        accounts,
 		"largest":         usage.Largest,
 		"site_limit_mb":   SiteLimit() >> 20,
-		"status":          usage.Status,
-		"message":         usage.Message,
+		// Settings and build in force, so "which release is this box on" and
+		// "how many deploys does it keep" are answered without a shell.
+		"keep_versions": KeepVersions(),
+		"version":       buildinfo.Version,
+		"commit":        buildinfo.Commit,
+		"status":        usage.Status,
+		"message":       usage.Message,
 		// When the walk behind these figures ran. A served-stale reading is
 		// better than a page that hangs, but only if the page can say so.
 		"measured_at": measuredAt.UTC().Format(time.RFC3339),

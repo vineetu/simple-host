@@ -2121,6 +2121,9 @@ paths:
                   sites: { type: integer }
                   accounts: { type: integer, description: Participant accounts, or -1 if the count could not be read }
                   site_limit_mb: { type: integer, description: Per-site cap in force }
+                  keep_versions: { type: integer, description: 'Deploys of each site kept (KEEP_VERSIONS in force); 0 keeps every one' }
+                  version: { type: string, description: 'Release this server was built from, e.g. v0.3.0; "dev" for an unstamped build' }
+                  commit: { type: string, description: 'Short commit hash of the build, or "unknown"' }
                   status: { type: string, enum: [ok, filling, full] }
                   message: { type: string, description: One sentence for an admin screen }
                   measured_at: { type: string, format: date-time, description: When the walk behind these figures ran. Readings up to two minutes old are served while a refresh runs behind the request }
