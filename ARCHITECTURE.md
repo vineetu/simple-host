@@ -149,8 +149,12 @@ or admin reads, everyone else gets 404.
 - `internal/storage/disk.go` — the only writer of site files; owns symlinks and markers.
 - `internal/analytics` — tails the nginx analytics log into aggregates, off the request path.
 - Leaves: `config`, `auth` (API-key middleware; reaches `db`), `tarball`, `email`, `oauth`
-  (Google; GitHub wired, unconfigured), `geoip`, `capacity`, `eventdns`.
-- Outside Go: `db/schema.sql` (canonical) and `db/migrations/` (history, applied by hand);
+  (Google; GitHub wired, unconfigured), `geoip`, `capacity`, `eventdns`, `buildinfo` (release
+  and commit stamped with `-ldflags -X`).
+- `db/migrations` (Go package outside `internal/`) — embeds the migration files and runs
+  `simple-host migrate`: pending files in lexical order, each once, tracked in
+  `schema_migrations`, under an advisory lock; historical files are a fixed baseline, never run.
+- Outside Go: `db/schema.sql` (canonical, for a new database) and `db/migrations/*.sql`;
   `deploy/prod/` nginx, logrotate, geoip timer; `simple-host-website/` the Website Deploy
   skills and plugin, embedded in the binary; `plugins/simple-host/` the Claude directory plugin
   (generated skill copies); `openai-plugin/` the ChatGPT package; `scripts/` checks and ops.
@@ -194,8 +198,11 @@ Tables (`db/schema.sql`):
   (empty = all interfaces, which Docker needs), `LLM_BASE_URL` (the sidecar), `TRANSCRIBE_URL`,
   `ANALYTICS_LOG`, `ANALYTICS_SALT` (visitor hash salt; empty = derived from `ADMIN_API_KEY`),
   `GEOIP_DIR`.
-- Schema changes are hand-applied SQL; add them to `db/schema.sql` and `db/migrations/`.
-  The binary refuses to start if a column it reads is missing (`schemacheck.go`).
+- Schema changes are hand-applied SQL here; add them to `db/schema.sql` and `db/migrations/`
+  (idempotent, rule in `db/migrations/migrations.go`), apply before deploying, then record with
+  `simple-host migrate -mark <file>`. The server never migrates on start; small boxes run
+  `simple-host migrate` from `install.sh`. The binary refuses to start if a column it reads is
+  missing (`schemacheck.go`).
 - nginx edits are by hand, with a dated `.bak` first, then `nginx -t` and reload.
 
 ## Invariants

@@ -89,7 +89,9 @@ func VerifySchema(ctx context.Context, database *sql.DB) error {
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("database is behind this build; missing: %s\n"+
-			"Apply the migrations in db/migrations/, or db/schema.sql on a new database",
+			"Run `simple-host migrate` against this database (on a small box, re-running the install\n"+
+			"command does it), or apply the files in db/migrations/ by hand and record each with\n"+
+			"`simple-host migrate -mark FILE`. A new database takes db/schema.sql",
 			strings.Join(missing, ", "))
 	}
 	return nil

@@ -61,6 +61,7 @@ that should get it). Last derived from both `FEATURES.md` files and code on 2026
 | Event / hackathon instances | setup page, participant accounts, `simple-hack.app` names | none | `different on purpose` — this is the small-box edition's job |
 | Storage backend | local disk (`DATA_DIR`), served by nginx or Caddy | S3-compatible bucket, pod cache, SSE, optional envelope encryption, retire sweep | `different on purpose` — one folder on one box vs replicas |
 | Deployment model | one binary + Postgres + disk: systemd on simple-host.app; `deploy/install/install.sh` + Docker Compose + Caddy for a small box | Kubernetes (kustomize), cert-manager, least-privilege DB role, TLS-only DB and bucket, startup refusals, rollback-safe migrations | `different on purpose` — owner decision: hosted is the small-box edition, enterprise the cluster edition |
+| Schema migrations and version stamp | `simple-host migrate` (tracked in `schema_migrations`, advisory lock, per-file transaction, `-status`, `-mark`) run by `install.sh` on every run; production applies by hand and marks; `simple-host version`, startup log, `version`/`commit`/`keep_versions` in admin usage | migrate init container with advisory lock and per-file transactions, `migrate -status`; `simple-host version`, `simplehost_build_info` | `same` |
 | Health and metrics | `/healthz`, `/readyz` | `/healthz`, `/readyz`, `/metrics` on its own port | `different on purpose` — no metrics stack on a small box |
 | Static, marketing and legal pages | landing, features, enterprise pages, terms, privacy, support | landing, docs, capabilities, install, changelog | `different on purpose` — public service vs internal install |
 | Notifications | none (sign-in email only) | none (SIEM stream only) | `same` |
@@ -100,7 +101,7 @@ Every numbered `FEATURES.md` section, per repo, and the rows above that cover it
 | hosted | Legal and support pages | Static, marketing and legal pages |
 | hosted | Abuse limits and hardening | Rate limits and abuse caps; Quotas; Security headers |
 | hosted | Signals and notifications | Notifications |
-| hosted | Operations (health, schema, CLI) | Health and metrics; Deployment model |
+| hosted | Operations (health, schema, CLI) | Health and metrics; Deployment model; Schema migrations and version stamp |
 | hosted | MCP tool index (`internal/mcp/tools.go`, 22 tools) | MCP tools |
 | hosted | Unplaced routes and tools | (index of FEATURES itself, no feature) |
 | enterprise | Identity: OIDC sign-in, sessions, hand-off | Owner sign-in and sessions; Visitor sign-in on a site |

@@ -2,6 +2,11 @@
 
 One line per shipped change, newest first. Add a line here in the same commit as any feature change.
 
+## 2026-09-27
+
+- Upgrading a small box is re-running the install command: it now applies the new release's database changes (`simple-host migrate`) before starting the new app, instead of the app crash-looping on "database is behind this build". Migrations are tracked in a new `schema_migrations` table, applied in order, each once, under a lock; `migrate -status` lists them and `migrate -mark FILE` records one applied by hand. The server never migrates by itself. Skills 0.19.3 (run-hackathon: Upgrading section, fixed troubleshooting line).
+- Every binary knows its release and commit: printed at startup, by `simple-host version`, and on the admin page, which also shows how many deploys of each website are kept. `GET /v1/admin/usage` adds `version`, `commit` and `keep_versions`.
+
 ## 2026-09-26
 
 - v0.2.0 released. The small-box installer pins one release: its image, compose file and schema all come from the same tag (before, `latest` pulled v0.1.2 against a newer schema and the app crash-looped on its schema check). The release workflow refuses a tag the installer does not pin.

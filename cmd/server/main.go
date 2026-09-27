@@ -17,6 +17,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/analytics"
 	"github.com/vsriram/simple-host/internal/auth"
+	"github.com/vsriram/simple-host/internal/buildinfo"
 	"github.com/vsriram/simple-host/internal/config"
 	dbpkg "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/email"
@@ -42,6 +43,16 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "geoip-verify" {
 		os.Exit(geoipVerify(os.Args[2:]))
 	}
+	// `simple-host migrate [-status | -mark FILE]` applies db/migrations/ to the
+	// database in DB_DSN and exits. The server below never does this itself.
+	if len(os.Args) > 1 && os.Args[1] == "migrate" {
+		os.Exit(runMigrateCommand(os.Args[2:]))
+	}
+	if len(os.Args) > 1 && (os.Args[1] == "version" || os.Args[1] == "--version") {
+		os.Exit(runVersionCommand())
+	}
+
+	log.Printf("%s", buildinfo.String())
 
 	cfg, err := config.Load()
 	if err != nil {

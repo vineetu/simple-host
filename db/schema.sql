@@ -1,6 +1,8 @@
 -- Simple Host schema. Apply once to a fresh Postgres before running the server.
--- There is no migrations framework; apply changes by hand. The trailing ALTERs
--- are idempotent-ish notes for upgrading an existing deployment.
+-- Every later change also adds a file under db/migrations/, applied to existing
+-- databases by `simple-host migrate` (tracked in schema_migrations; the rule for
+-- those files is in db/migrations/migrations.go). The trailing ALTERs are
+-- idempotent notes from before that tool existed.
 
 CREATE TABLE users (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -479,3 +481,12 @@ CREATE INDEX IF NOT EXISTS oauth_tokens_expires_idx ON oauth_tokens (expires_at)
 -- together with the nonce itself. A link token without a hash is never
 -- redeemable; the typed 6-digit code is unaffected.
 ALTER TABLE auth_tokens ADD COLUMN IF NOT EXISTS nonce_hash TEXT;
+
+-- Which db/migrations/ files `simple-host migrate` has applied (or an operator
+-- recorded with `migrate -mark`). A database built from this file already has
+-- every migration's effect; migrate still runs each new (idempotent) file once
+-- and records it. Historical hand-applied files are never recorded here.
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  name       TEXT PRIMARY KEY,
+  applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

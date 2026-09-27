@@ -109,7 +109,9 @@ which is far more alarming than waiting.
 
 One command over SSH, from `references/install.md` (https://simple-host.app/v1/skills/run-hackathon/references/install.md). It is idempotent: if it
 fails halfway, run it again. It installs Docker, pulls the published image,
-starts the stack and prints a JSON summary.
+starts the stack and prints a JSON summary. Re-running it later is also how an
+instance moves to a newer release: it applies the release's database changes
+before the new version starts (`references/install.md`, Upgrading).
 
 Two optional flags set how big a website may be and how many deploys to keep —
 `--max-site-mb` and `--keep-versions`, both covered in `references/install.md`.
@@ -150,7 +152,9 @@ X-API-Key: <the admin key>
 `message` is one sentence to repeat to the organiser, and `status` is `ok`,
 `filling` (75% or more) or `full` (90% or more). On `filling`, tell them before
 the event rather than during it; the fixes are a bigger disk or removing
-whatever `largest` names. The organiser's admin page shows the same figures.
+whatever `largest` names. `version` and `commit` name the release running, and
+`keep_versions` how many deploys of each website are kept. The organiser's admin
+page shows the same figures.
 
 The response gives each participant a username, a handle
 and an **api_key**. Keys are bare hexadecimal with no prefix; do not reject one
