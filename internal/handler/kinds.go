@@ -194,9 +194,10 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 // readSite resolves a page-facing read: the owner's key names the site
 // exactly; a request naming a page passes the Origin gate; a request naming
 // none (curl, an agent) is served as public reads are. ownerKey reports the
-// first. Applies the read limit and, for anyone but the owner, taken-down and
-// offline. Writes the answer on failure.
-func (h *SiteHandler) readSite(w http.ResponseWriter, r *http.Request, siteName, name string) (siteID string, ownerKey, ok bool) {
+// first. Applies the read limit (unless the caller hands the read to a
+// handler that counts it itself) and, for anyone but the owner, taken-down
+// and offline. Writes the answer on failure.
+func (h *SiteHandler) readSite(w http.ResponseWriter, r *http.Request, siteName, name string, countRead bool) (siteID string, ownerKey, ok bool) {
 	if siteName == "" || !validCollectionName.MatchString(name) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid site or data name"})
 		return "", false, false
@@ -217,7 +218,7 @@ func (h *SiteHandler) readSite(w http.ResponseWriter, r *http.Request, siteName,
 			return "", false, false
 		}
 	}
-	if !h.allowRead(w, r, siteID) {
+	if countRead && !h.allowRead(w, r, siteID) {
 		return "", false, false
 	}
 	if !ownerKey && (h.refuseSuspendedSiteID(w, r, siteID) || h.refuseOffline(w, r, siteID)) {
@@ -232,7 +233,7 @@ func (h *SiteHandler) readSite(w http.ResponseWriter, r *http.Request, siteName,
 func (h *SiteHandler) getDataKind(w http.ResponseWriter, r *http.Request) {
 	siteName := strings.TrimSpace(r.PathValue("sitename"))
 	name := strings.TrimSpace(r.PathValue("coll"))
-	siteID, _, ok := h.readSite(w, r, siteName, name)
+	siteID, _, ok := h.readSite(w, r, siteName, name, true)
 	if !ok {
 		return
 	}
@@ -273,12 +274,16 @@ func (h *SiteHandler) getData(w http.ResponseWriter, r *http.Request) {
 		h.listMine(w, r, siteName, name)
 		return
 	}
-	siteID, ownerKey, ok := h.readSite(w, r, siteName, name)
+	// A list read is counted by listCollection itself; everything else here.
+	siteID, ownerKey, ok := h.readSite(w, r, siteName, name, false)
 	if !ok {
 		return
 	}
 	set, ok := h.dataSettings(w, r, siteID, name)
 	if !ok {
+		return
+	}
+	if (set.Kind == db.KindContent || !entriesLike(set) || q.Get("count") != "") && !h.allowRead(w, r, siteID) {
 		return
 	}
 	switch {
