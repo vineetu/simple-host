@@ -47,6 +47,13 @@ owner's key.
 | `SAVED_DATA_NOTIFY_DAILY_HOURS` | `24` | 1–720 hours | "Email me: daily" sends at most one digest per name this often. |
 | `SAVED_DATA_SAVERS_MAX` | `500` | 1–100000 entries | Emails and domains in one site's who-may-save and block lists together. |
 | `SAVED_DATA_ENTRIES_NAMES_MAX` | `50` | 1–1000 names | Submissions names one site may declare. |
+| `SAVED_DATA_PERSONAL_MAX_KB` | `64` | 1–1024 KB | Largest one person's record in one Personal name may be. |
+| `SAVED_DATA_PERSONAL_NAMES_MAX` | `20` | 1–1000 names | Personal names one site may declare. |
+| `SAVED_DATA_BOARD_ITEM_MAX_KB` | `16` | 1–64 KB | Largest one Shared board item may be. |
+| `SAVED_DATA_BOARD_MAX` | `2000` | 1–1000000 items | Live items one Shared board may hold. |
+| `SAVED_DATA_BOARD_NAMES_MAX` | `20` | 1–1000 names | Shared board names one site may declare. |
+| `SAVED_DATA_PERSONAL_PEOPLE_MAX` | `1000` | 1–1000000 people | People who may hold a record in one Personal name. |
+| `SAVED_DATA_BOARD_WRITES_PER_MIN` | `30` | 1–10000 writes | Shared board adds, changes and deletes one signed-in person may make per minute, on top of the per-address rate. |
 | `SAVED_DATA_DEFAULT_KIND` | `shared` | `shared` / `declare_first` | What a name no one declared is on a site made after the kinds. shared: anyone reads it and signed-in visitors save to it. declare_first: it takes no saves until the owner declares it. Older sites are shared either way. **Security-sensitive.** |
 | `WRITE_AUTH_MODE` | `log` | `off` / `log` / `on` | on: page saves need a signed-in visitor or the owner's key. log: allowed, and logged. **Security-sensitive.** |
 <!-- /settings -->

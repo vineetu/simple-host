@@ -170,6 +170,13 @@ var knobDocs = map[string]knobDoc{
 	"SAVED_DATA_NOTIFY_DAILY_HOURS":       {"data", "\"Email me: daily\" sends at most one digest per name this often.", false, true},
 	"SAVED_DATA_SAVERS_MAX":               {"data", "Emails and domains in one site's who-may-save and block lists together.", false, true},
 	"SAVED_DATA_ENTRIES_NAMES_MAX":        {"data", "Submissions names one site may declare.", false, true},
+	"SAVED_DATA_PERSONAL_MAX_KB":          {"data", "Largest one person's record in one Personal name may be.", false, true},
+	"SAVED_DATA_PERSONAL_NAMES_MAX":       {"data", "Personal names one site may declare.", false, true},
+	"SAVED_DATA_PERSONAL_PEOPLE_MAX":      {"data", "People who may hold a record in one Personal name.", false, true},
+	"SAVED_DATA_BOARD_ITEM_MAX_KB":        {"data", "Largest one Shared board item may be.", false, true},
+	"SAVED_DATA_BOARD_MAX":                {"data", "Live items one Shared board may hold.", false, true},
+	"SAVED_DATA_BOARD_NAMES_MAX":          {"data", "Shared board names one site may declare.", false, true},
+	"SAVED_DATA_BOARD_WRITES_PER_MIN":     {"data", "Shared board adds, changes and deletes one signed-in person may make per minute, on top of the per-address rate.", false, true},
 	"SAVED_DATA_DEFAULT_KIND":             {"data", "What a name no one declared is on a site made after the kinds. shared: anyone reads it and signed-in visitors save to it. declare_first: it takes no saves until the owner declares it. Older sites are shared either way.", true, true},
 
 	"ASK_ENABLED":                   {"ai", "Whether the \"Ask about this page\" box is shown (it also needs a model backend).", false, false},

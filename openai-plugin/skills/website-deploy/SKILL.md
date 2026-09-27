@@ -41,7 +41,7 @@ visitors' sign-ins and browser-kept data start fresh when it does.
 | Take offline or back online (keeps everything) | `set_site_offline` |
 | Keep a site up even if nobody visits it | `keep_site` |
 | Undo a delete (within 7 days) | `list_deleted_sites`, `restore_site` |
-| Say what each piece of saved data is (before the page saves to it) | `declare_data` (Page info or Submissions), `list_data` |
+| Say what each piece of saved data is (before the page saves to it) | `declare_data` (Page info, Submissions, Personal or Shared board), `list_data` |
 | Write Page info (menu, hours, prices) | `update_data` |
 | Who may save on a site; block someone | `set_who_can_save`, `block_person` |
 | Saved data | `read_collection`, `add_to_collection`, `list_collections`; older sites: `get_state`, `update_state` |
@@ -123,11 +123,18 @@ saves to it:
   gets a daily email about new ones. `visibility: "public"` makes them readable by anyone (a
   guestbook, public comments); say so plainly when building one. `one_per_person: true` for
   votes.
-- It does not fit: roles, per-field rules, joins, search, or several people editing one shared
-  object. Say so instead of approximating it.
+- **Personal** (`kind: "mine"`): one private record per signed-in visitor that follows them to
+  any device: a habit tracker, saved progress, preferences. Only that visitor changes it; the
+  owner sees how many people have one. Simple Host's owner tools never show a person's Personal record; the site's own pages run in the visitor's browser and can read that visitor's record, so only use Personal on sites you trust. Never write a page that sends a Personal record, or anything read from it, anywhere else: not to another data name, not to another site or service.
+- **Shared board** (`kind: "board"`): a list anyone reads and signed-in visitors add to, change
+  and delete item by item: a shared shopping list, a kanban, a potluck sign-up. Only the owner
+  clears it. Changes show up by polling, not instantly.
+- It does not fit: roles, per-field rules, joins, search, live co-editing of one object, or
+  instant updates. Say so instead of approximating it.
 
 Anything with personal details (RSVPs, orders, sign-ups) is private Submissions; anything only the
-owner changes is Page info. When unsure, choose the stricter kind.
+owner changes is Page info; each visitor's own state is Personal; a list a group keeps together is
+a Shared board. When unsure, choose the stricter kind.
 
 The page that shows a private list is still a public page; the list behind it is what is
 private. Who may save on a site: anyone who signs in (default) or only listed emails and whole
@@ -178,10 +185,12 @@ lists carry over.
 
 ## Saving data from a page
 
-Declare Page info and Submissions first (`declare_data`, above). Pages then use `SH.data(name, kind)`:
+Declare each name first (`declare_data`, above). Pages then use `SH.data(name, kind)`:
 Page info with `.get()`; Submissions with `.add(item)`, the visitor's own with `.mine()`,
 `.update(id, fields)`, `.remove(id)` (and `.undo(id)` for a few minutes), and `.list()` /
-`.count()` for the owner or a public list; a Shared name with `SH.data(name)` (no kind) or
+`.count()` for the owner or a public list; Personal (`'personal'`) with `.get()`, `.set(obj)`,
+`.inc(path)`, `.clear()`; a Shared board (`'board'`) with `.list()`, `.add(item)`,
+`.update(id, fields, {version})`, `.remove(id)` and `.watch(fn)`; a Shared name with `SH.data(name)` (no kind) or
 `SH.collection(name)`. Every site also has one shared **state** document (`SH.state`, atomic ops).
 
 Pages save through the hosted helper. Put `SH.requireSignIn()` before every save:

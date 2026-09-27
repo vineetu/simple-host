@@ -832,6 +832,12 @@ CREATE TABLE IF NOT EXISTS site_savers (
 CREATE INDEX IF NOT EXISTS idx_collection_items_mine
   ON collection_items (site_id, collection, submitted_by, id DESC) WHERE submitted_by IS NOT NULL;
 
+-- Saved data, steps 3 and 4 (mirrors db/migrations/sd3-saved-data-personal-board.sql):
+-- kinds mine (Personal: one private record per signed-in person per name, the
+-- row's submitted_by) and board (Shared board: a list signed-in visitors edit
+-- together). version counts an item's changes, for a board's If-Match check.
+ALTER TABLE collection_items ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 1;
+
 -- Which db/migrations/ files `simple-host migrate` has applied (or an operator
 -- recorded with `migrate -mark`). A database built from this file already has
 -- every migration's effect; migrate still runs each new (idempotent) file once

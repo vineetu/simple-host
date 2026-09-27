@@ -515,29 +515,43 @@ func SoftClearCollection(ctx context.Context, database *sql.DB, siteID, collecti
 }
 
 // UndeleteItems brings back one deleted item (id > 0) or every deleted item
-// of the list (id == 0) and returns how many came back. ErrSiteFull when
-// they would take the site past maxBytes.
-func UndeleteItems(ctx context.Context, database *sql.DB, siteID, collection string, id int64, a Actor, maxBytes int64) (int64, error) {
+// of the list (id == 0) and returns how many came back. onlyCleared brings
+// back only items the owner's clear took (a Personal name: a record its
+// person deleted stays deleted). within > 0 brings back only items deleted
+// that recently. maxItems > 0 (a Shared board) takes the name's declaration
+// lock and refuses with ErrNameFull when the name would hold more than
+// maxItems live items. ErrSiteFull when they would take the site past
+// maxBytes.
+func UndeleteItems(ctx context.Context, database *sql.DB, siteID, collection string, id int64, a Actor, maxBytes int64, onlyCleared bool, within time.Duration, maxItems int) (int64, error) {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
 	}
 	defer tx.Rollback()
+	if err := lockNameFor(ctx, tx, siteID, collection, maxItems); err != nil {
+		return 0, err
+	}
 	var n int64
 	err = tx.QueryRowContext(ctx, `
 		WITH back AS (
 			UPDATE collection_items SET deleted_at = NULL
 			 WHERE site_id = $1 AND collection = $2 AND deleted_at IS NOT NULL AND ($3 = 0 OR id = $3)
+			   AND (NOT $7 OR (SELECT h.op FROM data_history h WHERE h.item_id = collection_items.id
+			                    ORDER BY h.id DESC LIMIT 1) = 'clear')
+			   AND ($8 = 0 OR deleted_at >= now() - make_interval(secs => $8))
 			RETURNING id
 		), hist AS (
 			INSERT INTO data_history (site_id, kind, name, item_id, op, actor_id, actor_kind, actor_email)
 			SELECT $1, 'list', $2, id, 'undelete', $4, $5, $6 FROM back
 		)
-		SELECT count(*) FROM back`, siteID, collection, id, nullIfEmpty(a.ID), a.Kind, nullIfEmpty(a.Email)).Scan(&n)
+		SELECT count(*) FROM back`, siteID, collection, id, nullIfEmpty(a.ID), a.Kind, nullIfEmpty(a.Email), onlyCleared, int64(within.Seconds())).Scan(&n)
 	if err != nil {
 		return 0, err
 	}
 	if n > 0 {
+		if err := itemsWithin(ctx, tx, siteID, collection, maxItems); err != nil {
+			return 0, err
+		}
 		if err := roomAfter(ctx, tx, siteID, maxBytes); err != nil {
 			return 0, err
 		}
@@ -545,16 +559,47 @@ func UndeleteItems(ctx context.Context, database *sql.DB, siteID, collection str
 	return n, tx.Commit()
 }
 
+// lockNameFor takes a capped name's declaration-row lock (maxItems > 0), so
+// a restore and an add cannot both pass the cap.
+func lockNameFor(ctx context.Context, tx *sql.Tx, siteID, name string, maxItems int) error {
+	if maxItems <= 0 {
+		return nil
+	}
+	var one int
+	return tx.QueryRowContext(ctx, `
+		SELECT 1 FROM collection_settings WHERE site_id = $1 AND collection = $2 FOR UPDATE`, siteID, name).Scan(&one)
+}
+
+// itemsWithin is ErrNameFull when a capped name (maxItems > 0) now holds more
+// than maxItems live items.
+func itemsWithin(ctx context.Context, tx *sql.Tx, siteID, name string, maxItems int) error {
+	if maxItems <= 0 {
+		return nil
+	}
+	over, err := NameHoldsItems(ctx, tx, siteID, name, maxItems)
+	if err != nil {
+		return err
+	}
+	if over {
+		return ErrNameFull
+	}
+	return nil
+}
+
 // RestoreItemVersion undoes list change id: a delete or clear brings the item
 // back; an edit or an earlier restore puts back the item's data from before
 // it (and brings the item back if it was deleted since). ErrSiteFull when
-// that grows the site past maxBytes.
-func RestoreItemVersion(ctx context.Context, database *sql.DB, siteID, collection string, id int64, a Actor, maxBytes int64) (CollectionItem, error) {
+// that grows the site past maxBytes; with maxItems > 0 (a Shared board),
+// ErrNameFull when an item brought back would take the name past maxItems.
+func RestoreItemVersion(ctx context.Context, database *sql.DB, siteID, collection string, id int64, a Actor, maxBytes int64, maxItems int) (CollectionItem, error) {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return CollectionItem{}, err
 	}
 	defer tx.Rollback()
+	if err := lockNameFor(ctx, tx, siteID, collection, maxItems); err != nil {
+		return CollectionItem{}, err
+	}
 	e, err := GetHistoryEntry(ctx, tx, siteID, HistoryList, collection, id)
 	if err != nil {
 		return CollectionItem{}, err
@@ -585,7 +630,7 @@ func RestoreItemVersion(ctx context.Context, database *sql.DB, siteID, collectio
 	case e.Value == nil:
 		return CollectionItem{}, ErrNoEarlierValue
 	default:
-		if _, err := tx.ExecContext(ctx, `UPDATE collection_items SET data = $2::jsonb, deleted_at = NULL WHERE id = $1`, itemID, string(e.Value)); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE collection_items SET data = $2::jsonb, deleted_at = NULL, version = version + 1 WHERE id = $1`, itemID, string(e.Value)); err != nil {
 			return CollectionItem{}, err
 		}
 		if err := recordHistory(ctx, tx, siteID, HistoryList, collection, &itemID, OpRestore, cur, a); err != nil {
@@ -593,13 +638,18 @@ func RestoreItemVersion(ctx context.Context, database *sql.DB, siteID, collectio
 		}
 		grew = deleted.Valid || len(e.Value) > len(cur)
 	}
+	if deleted.Valid {
+		if err := itemsWithin(ctx, tx, siteID, collection, maxItems); err != nil {
+			return CollectionItem{}, err
+		}
+	}
 	if grew {
 		if err := roomAfter(ctx, tx, siteID, maxBytes); err != nil {
 			return CollectionItem{}, err
 		}
 	}
 	var it CollectionItem
-	if err := tx.QueryRowContext(ctx, `SELECT id, data, created_at FROM collection_items WHERE id = $1`, itemID).Scan(&it.ID, &it.Data, &it.CreatedAt); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT id, data, created_at, version FROM collection_items WHERE id = $1`, itemID).Scan(&it.ID, &it.Data, &it.CreatedAt, &it.Version); err != nil {
 		return CollectionItem{}, err
 	}
 	return it, tx.Commit()

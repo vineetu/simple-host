@@ -334,6 +334,50 @@ var limitPhrases = []limitPhrase{
 	phrase("declares at most 50 Submissions names", knob("SAVED_DATA_ENTRIES_NAMES_MAX"), func(l *config.Limits) string {
 		return "declares at most " + limitCommas(l.SavedData.EntriesNamesMax) + " Submissions names"
 	}),
+	// Steps 3 and 4, Personal and Shared board: SAVED_DATA_PERSONAL_MAX_KB,
+	// _PERSONAL_NAMES_MAX, _BOARD_ITEM_MAX_KB, _BOARD_MAX, _BOARD_NAMES_MAX
+	phrase("A personal record is at most 64 KB", knob("SAVED_DATA_PERSONAL_MAX_KB"), func(l *config.Limits) string {
+		return "A personal record is at most " + limitKB(l.SavedData.PersonalMaxKB)
+	}),
+	phrase("The result is at most 64 KB", knob("SAVED_DATA_PERSONAL_MAX_KB"), func(l *config.Limits) string {
+		return "The result is at most " + limitKB(l.SavedData.PersonalMaxKB)
+	}),
+	phrase("declares at most 20 Personal names", knob("SAVED_DATA_PERSONAL_NAMES_MAX"), func(l *config.Limits) string {
+		return "declares at most " + limitCommas(l.SavedData.PersonalNamesMax) + " Personal names"
+	}),
+	phrase("A board item is at most 16 KB", knob("SAVED_DATA_BOARD_ITEM_MAX_KB"), func(l *config.Limits) string {
+		return "A board item is at most " + limitKB(l.SavedData.BoardItemMaxKB)
+	}),
+	phrase("each item is at most 16 KB (SAVED_DATA_BOARD_ITEM_MAX_KB", knob("SAVED_DATA_BOARD_ITEM_MAX_KB"), func(l *config.Limits) string {
+		return "each item is at most " + limitKB(l.SavedData.BoardItemMaxKB) + " (SAVED_DATA_BOARD_ITEM_MAX_KB"
+	}),
+	phrase("the result is at most 16 KB.", knob("SAVED_DATA_BOARD_ITEM_MAX_KB"), func(l *config.Limits) string {
+		return "the result is at most " + limitKB(l.SavedData.BoardItemMaxKB) + "."
+	}),
+	phrase("a board holds at most 2,000 live items", knob("SAVED_DATA_BOARD_MAX"), func(l *config.Limits) string {
+		return "a board holds at most " + limitCommas(l.SavedData.BoardMax) + " live items"
+	}),
+	phrase("declares at most 20 Shared board names", knob("SAVED_DATA_BOARD_NAMES_MAX"), func(l *config.Limits) string {
+		return "declares at most " + limitCommas(l.SavedData.BoardNamesMax) + " Shared board names"
+	}),
+	phrase("holds records for at most 1,000 people", knob("SAVED_DATA_PERSONAL_PEOPLE_MAX"), func(l *config.Limits) string {
+		return "holds records for at most " + limitCommas(l.SavedData.PersonalPeopleMax) + " people"
+	}),
+	phrase("the name holds records for 1,000 people", knob("SAVED_DATA_PERSONAL_PEOPLE_MAX"), func(l *config.Limits) string {
+		return "the name holds records for " + limitCommas(l.SavedData.PersonalPeopleMax) + " people"
+	}),
+	phrase("to 30 a minute per signed-in person", knob("SAVED_DATA_BOARD_WRITES_PER_MIN"), func(l *config.Limits) string {
+		return "to " + limitCommas(l.SavedData.BoardWritesPerMin) + " a minute per signed-in person"
+	}),
+	phrase("b.undo(id) within 10 minutes", knob("SAVED_DATA_WITHDRAW_UNDO_MINUTES"), func(l *config.Limits) string {
+		return "b.undo(id) within " + limitSpan(time.Duration(l.SavedData.WithdrawUndoMinutes)*time.Minute)
+	}),
+	phrase("POST .../history/<id>/restore; 30 days)", knob("SAVED_DATA_UNDO_DAYS"), func(l *config.Limits) string {
+		return "POST .../history/<id>/restore; " + undoDays(l) + ")"
+	}),
+	phrase(`"restorable_days": 30}`, knob("SAVED_DATA_UNDO_DAYS"), func(l *config.Limits) string {
+		return `"restorable_days": ` + limitNum(l.SavedData.UndoDays) + "}"
+	}),
 }
 
 // limitKB words a size in KB: "16 KB", "1 MB" (whole megabytes).

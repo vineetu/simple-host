@@ -208,15 +208,18 @@ var codeHints = map[string]string{
 	"site_offline":             "The owner has taken this site offline, so visitors cannot save to it. Put it back online with set_site_offline if the person wants that; the owner's own changes still work.",
 	"declare_first":            "This name has no kind yet, and here that means nothing can be saved under it. Say what it is with declare_data: kind entries for things visitors send, kind content for page info only the owner writes. Then call again.",
 	"confirm_public":           "This name holds private entries, and that change would let anyone read them. Tell the person how many and what becomes public; only if they agree, call the same tool again with confirm_public true.",
-	"wrong_kind":               "This name is declared as another kind. Page info (content) is written whole with update_data; Submissions (entries) take new items with add_to_collection. Check list_data, or change the kind with declare_data if the person wants.",
+	"wrong_kind":               "This name is declared as another kind. Page info (content) is written whole with update_data; Submissions (entries) and Shared boards (board) take new items with add_to_collection; Personal records (mine) are written only by each visitor from the page. Check list_data, or change the kind with declare_data if the person wants.",
+	"personal_data":            "This name is Personal: each visitor's own record, which Simple Host's owner tools never show (the site's own pages read it for that visitor). list_data shows how many people have one and their size; clear_collection empties it for everyone after the person confirms. Tell the person rather than retrying.",
+	"has_records":              "That Personal name holds visitors' records, so it cannot become another kind (their data would become readable). Use another name, or empty it and delete its Recently deleted for good first, after the person confirms.",
+	"version_conflict":         "Someone changed this board item since the version you sent. The answer holds the item as it is now: apply the change to it and send it again.",
 	"owner_only":               "Only the site's owner can change page info. Tell the person; a visitor cannot.",
 	"one_per_person":           "This list takes one entry per person, and this person already has one. Change that entry instead, or withdraw it first.",
 	"list_full":                "This list is full. The owner can delete entries (delete_collection_item) or clear it (clear_collection) to make room.",
 	"not_allowed_to_save":      "The site's owner has not allowed this account to save here (list_data shows who may save; set_who_can_save changes it). Tell the person rather than retrying.",
 	"too_many_names":           "The site has as many names of that kind as it may hold. Keep related settings in one page info document, and reuse a Submissions name for the same kind of thing.",
-	"has_entries":              "That name holds entries (several, or private ones), and page info is one public document. Use another name for the page info.",
+	"has_entries":              "That name holds entries (several, or private ones) that the new kind cannot keep as they are: page info is one public document, and a Personal name starts empty. Use another name.",
 	"visitor_sign_in_off":      "This install does not read visitor sign-in on public saves, so public Submissions could never take an entry. Keep them private, or leave the name Shared; tell the person.",
-	"invalid_kind":             "kind is entries (Submissions) or content (Page info); visibility, one_per_person and notify apply to entries only. Correct the arguments and call again.",
+	"invalid_kind":             "kind is entries (Submissions), content (Page info), mine (Personal) or board (Shared board); visibility, one_per_person and notify apply to entries only. Correct the arguments and call again.",
 	"invalid_savers":           "Send emails (ann@example.com) or whole domains (@company.com). Correct the list and call again.",
 	"too_many_savers":          "The who-may-save and block lists together are full. Remove some entries (set_who_can_save) first.",
 	"no_author":                "That entry was saved without a sign-in, so there is nobody to block. Delete it instead if the person wants.",
@@ -1282,12 +1285,21 @@ func Tools() []Tool {
 						Count   int64  `json:"count"`
 						Private bool   `json:"private"`
 						Deleted int64  `json:"deleted"`
+						Few     bool   `json:"few"`
+						DelFew  bool   `json:"deleted_few"`
 					} `json:"collections"`
 				}
 				_ = json.Unmarshal(res.body, &parsed)
 				colls := make([]any, 0, len(parsed.Collections))
 				for _, col := range parsed.Collections {
-					colls = append(colls, map[string]any{"name": col.Name, "items": col.Count, "private": col.Private, "deleted": col.Deleted})
+					c := map[string]any{"name": col.Name, "items": col.Count, "private": col.Private, "deleted": col.Deleted}
+					if col.Few {
+						c["fewer_than_3"] = true
+					}
+					if col.DelFew {
+						c["deleted_fewer_than_3"] = true
+					}
+					colls = append(colls, c)
 				}
 				out := map[string]any{"site": name, "collections": colls}
 				return output{Text: jsonText(out), Structured: out}, nil
@@ -1795,12 +1807,13 @@ func Tools() []Tool {
 		{
 			Name:        "restore_item",
 			Title:       "Bring back deleted list items",
-			Description: "Bring back items from a list's recently deleted (see list_deleted): one item by `id`, or every deleted item in the list with `all: true` (to undo clear_collection). They are back in the list at once, where they were, with their original time.",
+			Description: "Bring back items from a list's recently deleted (see list_deleted): one item by `id`, or every deleted item in the list with `all: true` (to undo clear_collection; `within_minutes` limits it to items deleted that recently, and a Shared board needs it: ask the person how far back). A Shared board never goes past its cap (list_full). They are back in the list at once, where they were, with their original time.",
 			InputSchema: object(map[string]any{
-				"site":       str(siteDesc),
-				"collection": str("Collection name, e.g. `rsvps`."),
-				"id":         str("The deleted item's id from list_deleted."),
-				"all":        map[string]any{"type": "boolean", "description": "true: bring back every deleted item in the list instead of one."},
+				"site":           str(siteDesc),
+				"collection":     str("Collection name, e.g. `rsvps`."),
+				"id":             str("The deleted item's id from list_deleted."),
+				"all":            map[string]any{"type": "boolean", "description": "true: bring back every deleted item in the list instead of one."},
+				"within_minutes": map[string]any{"type": "integer", "minimum": 1, "description": "With all: only items deleted in the last this many minutes. Required on a Shared board (after someone deletes the lot, bring back what went since then, not what people deleted on purpose before)."},
 			}, "site", "collection"),
 			// Brings data back onto public pages; nothing is lost.
 			Annotations: writes(false, true, true),
@@ -1823,7 +1836,11 @@ func Tools() []Tool {
 				}
 				var res upstreamResult
 				if all {
-					body, _ := json.Marshal(map[string]bool{"all": true})
+					req := map[string]any{"all": true}
+					if n, ok := args["within_minutes"].(float64); ok && n > 0 {
+						req["within_minutes"] = int(n)
+					}
+					body, _ := json.Marshal(req)
 					res = c.do(http.MethodPost, "/v1/sites/"+url.PathEscape(name)+"/collections/"+url.PathEscape(coll)+"/deleted/restore", body, nil)
 				} else {
 					res = c.do(http.MethodPost, "/v1/sites/"+url.PathEscape(name)+"/collections/"+url.PathEscape(coll)+"/items/"+url.PathEscape(id)+"/restore", nil, nil)

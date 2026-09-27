@@ -366,7 +366,8 @@ type ExportItem struct {
 	SubmittedBy string // the identity the visitor sent it as, "" for public lists
 }
 
-// ListExportItems returns every item of every list of a site, with its id,
+// ListExportItems returns every item of every list of a site (other people's
+// Personal records left out), with its id,
 // time and who submitted it (items sent while signed in). That is the address
 // the visitor signed in with on the site, kept with the item,
 // never a join to their account: the account's email may be one they did
@@ -376,7 +377,14 @@ func ListExportItems(ctx context.Context, database *sql.DB, siteID string) ([]Ex
 		SELECT ci.id, ci.collection, ci.data, ci.created_at,
 		       CASE WHEN ci.submitted_by IS NOT NULL THEN COALESCE(ci.submitted_email, ci.data->>'_submitted_by', '') ELSE '' END
 		  FROM collection_items ci
-		 WHERE ci.site_id = $1 AND ci.deleted_at IS NULL ORDER BY ci.collection, ci.id`, siteID)
+		 WHERE ci.site_id = $1 AND ci.deleted_at IS NULL
+		   -- Personal records are their people's own: the site's export
+		   -- carries only the owner's own record, never anyone else's.
+		   AND NOT EXISTS (
+		       SELECT 1 FROM collection_settings cs JOIN sites s ON s.id = cs.site_id
+		        WHERE cs.site_id = ci.site_id AND cs.collection = ci.collection AND cs.kind = 'mine'
+		          AND ci.submitted_by IS DISTINCT FROM s.user_id)
+		 ORDER BY ci.collection, ci.id`, siteID)
 	if err != nil {
 		return nil, err
 	}

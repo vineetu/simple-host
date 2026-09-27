@@ -58,6 +58,11 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 	if !ok || !h.appendAllowed(w, set, siteName) {
 		return
 	}
+	// A Shared board has its own write rule (board.go).
+	if set.Kind == db.KindBoard {
+		h.appendBoard(w, r, siteID, set)
+		return
+	}
 	// A private list has its own, stricter write rule (privatecollections.go);
 	// it never falls back to the public-write gate below.
 	if set.Private {
@@ -182,11 +187,18 @@ func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
 	// Private list: the owner's key reads everything (except through the
 	// shared host, where private lists do not exist); a browser needs the
 	// owner's or a submitter's visitor session on the site's own domain.
-	private, err := db.IsCollectionPrivate(r.Context(), h.database, siteID, coll)
+	set, err := db.GetDataSettings(r.Context(), h.database, siteID, coll)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	// Personal records are read only by their own person, one each, with
+	// GET .../data/{name}: never as a list, by anyone (the owner included).
+	if set.Kind == db.KindPersonal {
+		writePersonalOnly(w, coll)
+		return
+	}
+	private := set.Private
 	if private {
 		w.Header().Set("Cache-Control", "private, no-store")
 		if ownerKey {
@@ -244,9 +256,21 @@ func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
 			items[i].Data = withoutSubmitter(items[i].Data)
 		}
 	}
+	board := set.Kind == db.KindBoard
+	for i := range items {
+		if !board {
+			items[i].Version = 0
+		}
+	}
 	resp := map[string]any{"items": items, "next": next}
 	if private {
 		resp["private"] = true
+	}
+	if board {
+		// A page polls a board with If-None-Match: 304 while nothing changed.
+		resp["kind"] = db.KindBoard
+		writeJSONETag(w, r, resp)
+		return
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -258,7 +282,7 @@ func (h *SiteHandler) optionsCollection(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-SH-CSRF, Idempotency-Key")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-SH-CSRF, Idempotency-Key, If-None-Match")
 	w.Header().Set("Access-Control-Max-Age", "600")
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -412,6 +436,9 @@ func (h *SiteHandler) exportCollectionCSV(w http.ResponseWriter, r *http.Request
 			writePrivateNotFound(w)
 			return
 		}
+	}
+	if h.refusePersonal(w, r, siteID, coll) {
+		return
 	}
 	exists, err := db.CollectionExistsByID(r.Context(), h.database, siteID, coll)
 	if err != nil {

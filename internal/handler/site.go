@@ -120,6 +120,9 @@ type SiteHandler struct {
 	savedData     config.SavedData
 	readLimiter   *rateLimiter
 	appendLimiter *rateLimiter
+	// boardLimiter is SAVED_DATA_BOARD_WRITES_PER_MIN per signed-in person,
+	// so one account on many addresses writes a board no faster (board.go).
+	boardLimiter *rateLimiter
 	// thinLimiter spaces out boundHistory's thinning: once a second per site.
 	thinLimiter *rateLimiter
 }
@@ -485,6 +488,16 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/data/{coll}/kind", h.optionsData)
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/data/{coll}/items/{id}", h.optionsData)
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/data/{coll}/items/{id}/undo", h.optionsData)
+	// Personal (personal.go): a signed-in visitor's own record, its changes and
+	// their restore. Shared boards use the item routes above (board.go).
+	mux.Handle("PATCH /v1/sites/{sitename}/data/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchData)))
+	mux.Handle("DELETE /v1/sites/{sitename}/data/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.deleteData)))
+	mux.Handle("GET /v1/sites/{sitename}/data/{coll}/history", http.HandlerFunc(h.personalHistory))
+	mux.Handle("GET /v1/sites/{sitename}/data/{coll}/history/{id}", http.HandlerFunc(h.personalHistoryEntry))
+	mux.Handle("POST /v1/sites/{sitename}/data/{coll}/history/{id}/restore", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restorePersonal)))
+	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/data/{coll}/history", h.optionsData)
+	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/data/{coll}/history/{id}", h.optionsData)
+	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/data/{coll}/history/{id}/restore", h.optionsData)
 	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/data/{coll}", http.HandlerFunc(h.getData))
 	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/data/{coll}/kind", http.HandlerFunc(h.getDataKind))
 	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/data/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection)))
@@ -496,6 +509,14 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/data/{coll}/kind", h.optionsData)
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}", h.optionsData)
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}/undo", h.optionsData)
+	mux.Handle("PATCH /v1/u/{handle}/sites/{sitename}/data/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchData)))
+	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/data/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.deleteData)))
+	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/data/{coll}/history", http.HandlerFunc(h.personalHistory))
+	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}", http.HandlerFunc(h.personalHistoryEntry))
+	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}/restore", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restorePersonal)))
+	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/data/{coll}/history", h.optionsData)
+	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}", h.optionsData)
+	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}/restore", h.optionsData)
 	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}", http.HandlerFunc(h.listCollection))
 	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection)))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/collections/{coll}", h.optionsCollection)

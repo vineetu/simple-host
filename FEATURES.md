@@ -333,6 +333,66 @@ tightenings wait for the 7-day watch. **Status: built (branch sd/step2).**
 | Env | `SAVED_DATA_CONTENT_MAX_KB`, `SAVED_DATA_CONTENT_NAMES_MAX`, `SAVED_DATA_ENTRY_MAX_KB`, `SAVED_DATA_ENTRIES_MAX`, `SAVED_DATA_WITHDRAW_UNDO_MINUTES`, `SAVED_DATA_NOTIFY_EACH_MINUTES`, `SAVED_DATA_NOTIFY_DAILY_HOURS`, `SAVED_DATA_SAVERS_MAX`, `SAVED_DATA_ENTRIES_NAMES_MAX`, `SAVED_DATA_DEFAULT_KIND` (`shared` \| `declare_first`) |
 | Limits | codes `declare_first`, `wrong_kind`, `owner_only`, `one_per_person`, `list_full`, `not_allowed_to_save`, `undo_expired`, `too_many_names`, `has_entries`, `invalid_kind`, `invalid_savers`, `too_many_savers`, `no_author`, `item_too_large`, `confirm_public`, `visitor_auth_required`, `visitor_sign_in_off` (Submissions) |
 
+### Personal and Shared board (saved data, steps 3 and 4)
+
+Steps 3 and 4 of the saved-data redesign (INTENT 2026-09-27). Two more kinds, stored like the
+others (a row per item in `collection_items`, the kind in `collection_settings`), with the same
+history, undo, size accounting, idempotency and rate limits. **Personal** (`mine`): one private
+record per signed-in visitor per name (a habit tracker, saved progress, preferences), kept on the
+server against their sign-in so it follows them to any device. Only that visitor reads and
+writes it, signed in on the site's own address from a page there: `GET` (their record, `null`
+before they save; `ETag`, 304 on `If-None-Match`), `PUT` (the whole record, one JSON object, at
+most `SAVED_DATA_PERSONAL_MAX_KB`, 64 KB), `PATCH` (the `/state` ops: set, inc, append, remove,
+removeWhere), `DELETE` (their record, restorable), and their own history (`GET .../history`,
+`.../history/{id}`, `POST .../history/{id}/restore`, 30 days). Simple Host's owner tools never
+show a person's Personal record: not other visitors, not the owner's key, connector, CSV, History,
+Recently deleted, Block by entry or the site's download, not the operator (403 `personal_data`).
+The site's own pages run in the visitor's browser and can read that visitor's record, so Personal
+is as private as the site's pages are trustworthy; every surface says so (declare message, MCP
+instructions and tools, skills, owner app, llms.txt, privacy page) and the skills tell the AI never
+to write a page that sends a record anywhere else. The owner sees how many people have a record
+and their total size (`list_data`, owner app, `?count=1`) from 3 people up (one or two: `few`,
+no numbers, no last-save time) and can clear the name for everyone (typed confirmation); Restore
+then brings back only what the clear took, never a record its person deleted (a person can delete
+a record the clear took, and it stays deleted). Each person has one row per name for good (a save
+after a delete writes over it); at most `SAVED_DATA_PERSONAL_PEOPLE_MAX` (1,000) people per name
+(409 `people_full` for someone new). A Personal name is stored `private = true`, so a binary
+from before v0.7.0 treats it as owner-only (no rollback below v0.7.0 once a Personal name or
+board exists). A Personal name must be empty to be declared (409 `has_entries`) and cannot
+become another kind while it holds records (409 `has_records`); both checks run under the name's
+lock, so a save cannot land between the check and the change. Records go into the person's
+"Download my data" and are erased with their account. **Shared board** (`board`): a list a
+group keeps together (a shopping list, a kanban, a potluck sign-up). Anyone who can open the
+site reads it (who added each item is the owner's to see); signed-in visitors allowed to save
+add items (`POST`, one JSON object, at most `SAVED_DATA_BOARD_ITEM_MAX_KB`, 16 KB; at most
+`SAVED_DATA_BOARD_MAX`, 2,000 live, 409 `list_full`), and change (`PATCH`, fields merged) and
+delete (`DELETE`) any item one at a time; every item carries a `version`, and `If-Match: "<n>"`
+on a change is refused with 409 `version_conflict` and the current item when someone changed it
+first. Whoever deleted an item brings it back for `SAVED_DATA_WITHDRAW_UNDO_MINUTES` (`.../undo`);
+the owner restores anything from History and Recently deleted, never past the board's cap (409
+`list_full`); the owner's Restore all on a board names a window (`within_minutes`, required on a
+board; the owner app offers 15 minutes to 30 days), so after vandalism it brings back what went
+since then, not what people deleted on purpose before. Only the owner empties it (the list clear,
+typed confirmation); no visitor route touches more than one item, and visitor adds, changes and
+deletes share the per-address write rate and, per signed-in person whatever their address,
+`SAVED_DATA_BOARD_WRITES_PER_MIN` (30; 429). A visitor's `_submitted_by`/`_submitted_at` are
+dropped on add and change. `GET` carries an `ETag` (304 while unchanged), so pages poll it
+(`SH.data(name, 'board').watch(fn)`, which reads every page of the board, as `list()` does); there
+is no live feed (decided later). Private Submissions become a board only with `confirm_public`. Both kinds need the site
+on an address of its own (409 `custom_domain_required`); at most `SAVED_DATA_PERSONAL_NAMES_MAX`
+and `SAVED_DATA_BOARD_NAMES_MAX` (20 each) names per site. **Status: built (branch sd/step34).**
+
+| Surface | Details |
+|---|---|
+| Routes | page-facing (`(+/v1/u)`): `GET`/`PUT`/`PATCH`/`DELETE /v1/sites/{sitename}/data/{coll}` (Personal: the visitor's own record; a board reads and adds with `GET`/`POST`) · `GET /v1/sites/{sitename}/data/{coll}/history` · `GET /v1/sites/{sitename}/data/{coll}/history/{id}` · `POST /v1/sites/{sitename}/data/{coll}/history/{id}/restore` (Personal, own record only) · `PATCH`/`DELETE /v1/sites/{sitename}/data/{coll}/items/{id}` (board: any signed-in visitor; `If-Match`) · `POST /v1/sites/{sitename}/data/{coll}/items/{id}/undo` (board: whoever deleted it) · `OPTIONS` on each · the same by handle: `GET`/`PUT`/`PATCH`/`DELETE /v1/u/{handle}/sites/{sitename}/data/{coll}` · `GET /v1/u/{handle}/sites/{sitename}/data/{coll}/history` · `GET /v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}` · `POST /v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}/restore` · owner: `PUT .../data/{coll}/kind` with `{"kind": "mine"}` or `{"kind": "board"}` · `DELETE /v1/sites/{sitename}/collections/{coll}` clears either |
+| MCP tools | `declare_data` (kinds `mine`, `board`), `list_data` (counts and `bytes`); `read_collection`, `data_history`, `list_deleted` refuse a Personal name (`personal_data`); `clear_collection` clears it |
+| Skill | `website-deploy/SKILL.md` §What is this data? · `references/backend.md` §Personal, §Shared board · `website-deploy-builder/SKILL.md` §Capability tree |
+| Pages | `st/auth.js` `SH.data(name, 'personal')`: `get`, `set(obj)` / `set(path, value)`, `patch(ops)`, `inc(path)`, `clear`, `history`, `restore(id)`; `SH.data(name, 'board')`: `list`, `add`, `update(id, fields, {version})`, `remove`, `undo`, `watch(fn, {every})` (reads send the last `ETag`) · `st/showcase.html` owner app: "personal" badge with "N people have a record · size", no View, spreadsheet or History, "Clear for everyone" and a Recently deleted panel that only restores what the clear took; "shared board" badge with the list's View, spreadsheet, History and Clear; Settings offers both kinds |
+| Go | `h/personal.go` (`getPersonal`, `putPersonal`, `patchData`, `deleteData`, `personalHistory`, `restorePersonal`, `writePersonalOnly`, `writeJSONETag`), `h/board.go` (`appendBoard`, `updateBoardItem`, `deleteBoardItem`, `undoBoardDelete`, `boardWriter`), `h/kinds.go` (declare, dispatch), `internal/db/kinds.go` (`SavePersonal`, `GetPersonal`, `ListItemHistory`, `NameHasRows`), `internal/db/collections.go` (`UpdateItemVersioned`) |
+| DB | `collection_items.version` (changes counted from 1) · `collection_settings.private = true` for Personal names · migrations `sd3-saved-data-personal-board.sql`, `sd3-saved-data-personal-private.sql` |
+| Env | `SAVED_DATA_PERSONAL_MAX_KB`, `SAVED_DATA_PERSONAL_NAMES_MAX`, `SAVED_DATA_BOARD_ITEM_MAX_KB`, `SAVED_DATA_BOARD_MAX`, `SAVED_DATA_BOARD_NAMES_MAX`, `SAVED_DATA_PERSONAL_PEOPLE_MAX`, `SAVED_DATA_BOARD_WRITES_PER_MIN` |
+| Limits | codes `personal_data`, `has_records`, `people_full`, `window_required`, `invalid_window`, `rate_limited`, `version_conflict`, `item_too_large`, `list_full`, `too_many_names`, `not_allowed_to_save`, `undo_expired`, `wrong_kind` |
+
 ## 6. Visitor sign-in (Google, emailed code)
 
 A visitor on a site's own origin signs in with Google or an emailed code, gets a host-only

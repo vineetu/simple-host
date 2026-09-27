@@ -20,6 +20,7 @@ Email codes need [email](email.md) set up; Google needs an OAuth client whose re
 |---|---|---|---|
 | `SIGNIN_CODE_TTL_MINUTES` | `15` | 5–60 minutes | How long an emailed sign-in code (and link) or email-change code works. **Security-sensitive.** |
 | `MAX_KEYS_PER_ACCOUNT` | `50` | 1–1000 keys | API keys one account may create from the Keys panel. |
+| `KEY_IDLE_EXPIRY_DAYS` | `180` | 0–3650 days; `0` = never | An API key unused this long stops working (counted from its last use, or its creation). 0: keys work until revoked. **Security-sensitive.** |
 | `HANDLE_RENAME_EVERY_DAYS` | `30` | 7–365 days | Once something is published, how often an account may change its handle. |
 | `EMAIL_CHANGE_UNDO_DAYS` | `7` | 1–90 days | How long the undo link sent to the old address after a sign-in email change works. **Security-sensitive.** |
 | `VISITOR_SESSION_DAYS` | `30` | 1–365 days | How long a visitor stays signed in on a site's own address, however active. **Security-sensitive.** |

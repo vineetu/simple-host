@@ -273,10 +273,12 @@ func outputSchemas() map[string]map[string]any {
 		"list_collections": outObject(map[string]any{
 			"site": outString(outSiteName),
 			"collections": outArray("Collections the site has saved into.", outObject(map[string]any{
-				"name":    outString(outCollection),
-				"items":   outInteger("How many items it holds."),
-				"private": outBool("Whether only the owner can read it."),
-				"deleted": outInteger("How many items were deleted in the last " + span(lim().UndoDays) + " (list_deleted, restore_item)."),
+				"name":                 outString(outCollection),
+				"items":                outInteger("How many items it holds."),
+				"private":              outBool("Whether only the owner can read it."),
+				"deleted":              outInteger("How many items were deleted in the last " + span(lim().UndoDays) + " (list_deleted, restore_item)."),
+				"fewer_than_3":         outBool("Personal: one or two people have a record (items is 0), so the number is not shown."),
+				"deleted_fewer_than_3": outBool("Personal: one or two records are in Recently deleted (deleted is 0)."),
 			}, "name", "items", "private", "deleted")),
 		}, "site", "collections"),
 

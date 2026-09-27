@@ -21,15 +21,17 @@ PUBLISHING
 
 WHAT IS PUBLIC
 - Every page, all Page info, the shared state and every public list can be read by anyone who has the link. There are no password-protected pages. set_visibility only controls whether a site is listed on the person's public page; it is not privacy. Never put secrets in a page or in saved data.
-- The one private thing is private Submissions (a private collection): only the site owner (and the Simple Host operator, for moderation) reads them all; each visitor reads only their own. Every site can have them; no domain is needed.
+- The private things are private Submissions (a private collection): only the site owner (and the Simple Host operator, for moderation) reads them all; each visitor reads only their own; and Personal records: Simple Host's owner tools never show a person's Personal record; the site's own pages run in the visitor's browser and can read that visitor's record, so only use Personal on sites you trust. Every site can have them; no domain is needed.
 
 SAVING DATA FROM A PAGE (forms, RSVPs, votes, guestbooks)
 - Every piece of saved data has a name and one kind. A name the page saves to without a declaration is Shared: anyone can read it and anyone signed in can add to it. Declare anything else once with declare_data before the page saves to it (some installs refuse undeclared names: error declare_first). What is this data?
   - Shared (no declaration): public, open data only, like a guestbook or a counter. Never anything with personal details.
   - Page info (kind content): text and settings only the owner writes and everyone reads (a menu, schedule, prices, dashboard numbers). You write it with update_data; the page reads it with SH.data('menu').get().
   - Submissions (kind entries): things visitors send (RSVPs, orders, sign-ups, votes, comments, feedback). Private to the owner by default; visibility public for a guestbook or public comments. Each visitor sees, changes and withdraws only their own. one_per_person for votes or one RSVP each. The owner is emailed a daily digest of new private entries (notify: daily, each or off).
-  - It does not fit: roles, per-field rules, joins, search, or several people editing one shared object. Say so rather than approximating it.
-  - Choosing: anything with personal details (RSVPs, orders, sign-ups, contact forms) is Submissions, kept private; anything only the owner should change is Page info. When unsure, choose the stricter kind.
+  - Personal (kind mine): one private record per signed-in visitor that follows them to any device (a habit tracker, saved progress, preferences). Only that visitor changes it; the owner sees how many people have one (from 3 people up). Simple Host's owner tools never show a person's Personal record; the site's own pages run in the visitor's browser and can read that visitor's record, so only use Personal on sites you trust. Never write a page that sends a Personal record, or anything read from it, anywhere else (another data name, another site or service). const me = SH.data('habits', 'personal'); await me.get(); await me.set({streak: 3}); await me.patch([{op: 'inc', path: 'streak'}]).
+  - Shared board (kind board): a list a group keeps together (a shopping list, a kanban, a potluck sign-up). Anyone reads it; signed-in visitors add items and change or delete any item, one at a time; only the owner clears it. const b = SH.data('todo', 'board'); await b.add({text: 'milk'}); await b.update(id, {done: true}, {version: item.version}); await b.remove(id); b.watch(items => render(items)) polls for changes.
+  - It does not fit: roles, per-field rules, joins, search, live co-editing of one object, or instant updates (a board is polled). Say so rather than approximating it.
+  - Choosing: anything with personal details (RSVPs, orders, sign-ups, contact forms) is Submissions, kept private; anything only the owner should change is Page info; each visitor's own private state is Personal (not localStorage, when it should follow them to another device); a list everyone edits together is a Shared board. When unsure, choose the stricter kind.
 - In the page, load the hosted helper and put SH.requireSignIn() before every save:
   <script>window.SH_CONFIG = { site: "<site-name>" };</script>
   <script src="https://simple-host.app/auth.js" defer></script>
@@ -39,7 +41,7 @@ SAVING DATA FROM A PAGE (forms, RSVPs, votes, guestbooks)
 - On a failed save keep the form filled, show the error, and never claim success. SH.data writes are safe to retry (they carry an idempotency key); never re-send by hand after an error.
 - Who may save on a site: anyone who signs in (the default), or only listed emails and whole @domains (set_who_can_save). block_person stops one person (or domain) from saving more.
 - Sites also have a shared "state" document (SH.state, get_state, update_state) for counters and settings; like a Shared list, anyone signed in can change it.
-- Per-visitor things (drafts, preferences) belong in localStorage, not in saved data.
+- Per-visitor things that stay on one device (a draft) belong in localStorage; ones that should follow the visitor to any device are Personal.
 - list_data shows every name with its kind; read_collection reads Submissions (and a Page info document, as one item); add_to_collection adds to public ones.
 
 PERSONAL DETAILS: ORDERS, RSVPS, SURVEYS, SIGN-UPS
