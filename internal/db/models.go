@@ -34,6 +34,14 @@ type Site struct {
 	// OwnerHandle is the owner's handle ("" if none), populated by the
 	// queries that answer the API so a site's address is computed on read.
 	OwnerHandle string
+
+	// Filled only by the site-list queries (ListSitesByUser, ListAllSites),
+	// so the owner's site list can show a pending domain's problem, its DNS
+	// record and expiry, and when the site was last deployed.
+	DomainLastError  sql.NullString
+	DomainBoundAt    sql.NullTime
+	DomainVerifiedAt sql.NullTime
+	LastDeployedAt   sql.NullTime
 }
 
 type Version struct {

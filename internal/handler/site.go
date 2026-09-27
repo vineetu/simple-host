@@ -84,6 +84,7 @@ type SiteHandler struct {
 	uploadLimiter      *rateLimiter
 	stateLimiter       *rateLimiter
 	visitorAuthLimiter *rateLimiter
+	domainCheckLimiter *rateLimiter
 
 	// previewAccounts (by username/email) get ephemeral sites: a site they create
 	// expires after previewTTL and is removed by the background sweep. Empty =off.
@@ -123,9 +124,16 @@ type siteResponse struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 	CustomDomain  string    `json:"custom_domain,omitempty"`
 	DomainStatus  string    `json:"domain_status,omitempty"`
-	Visibility    string    `json:"visibility,omitempty"`
-	OwnerUsername string    `json:"owner_username,omitempty"`
-	Note          string    `json:"note,omitempty"`
+	// Only in the site list: what is wrong with a domain that is not active
+	// yet, the DNS record it needs, and when an unproven binding lapses.
+	DomainLastError string     `json:"domain_last_error,omitempty"`
+	DomainDNS       *dnsRecord `json:"domain_dns,omitempty"`
+	DomainExpiresAt *time.Time `json:"domain_expires_at,omitempty"`
+	// DeployedAt is when the newest version went live (site list only).
+	DeployedAt    *time.Time `json:"deployed_at,omitempty"`
+	Visibility    string     `json:"visibility,omitempty"`
+	OwnerUsername string     `json:"owner_username,omitempty"`
+	Note          string     `json:"note,omitempty"`
 }
 
 type versionResponse struct {
@@ -141,6 +149,8 @@ func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, con
 	uploadLimiter := newRateLimiter(30, 0.1)
 	stateLimiter := newRateLimiter(60, 1)
 	visitorAuthLimiter := newRateLimiter(20, 0.2)
+	domainCheckLimiter := newRateLimiter(10, 0.1)
+	domainCheckLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	visitorAuthLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	uploadLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	stateLimiter.startCleanup(10*time.Minute, 30*time.Minute)
@@ -158,6 +168,7 @@ func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, con
 		uploadLimiter:      uploadLimiter,
 		stateLimiter:       stateLimiter,
 		visitorAuthLimiter: visitorAuthLimiter,
+		domainCheckLimiter: domainCheckLimiter,
 		previewAccounts:    previewAccounts,
 		previewTTL:         previewTTL,
 		writeAuthMode:      writeAuthMode,
@@ -284,6 +295,9 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("POST /v1/sites/{sitename}/domain", noticeMiddleware(authMiddleware(http.HandlerFunc(h.bindDomain))))
 	mux.Handle("GET /v1/sites/{sitename}/domain", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getDomain))))
 	mux.Handle("DELETE /v1/sites/{sitename}/domain", noticeMiddleware(authMiddleware(http.HandlerFunc(h.deleteDomain))))
+	// "Check again": re-verify this site's pending domain now instead of
+	// waiting for the next background pass.
+	mux.Handle("POST /v1/sites/{sitename}/domain/check", noticeMiddleware(authMiddleware(rateLimitByIP(h.domainCheckLimiter, http.HandlerFunc(h.checkDomainNow)))))
 	mux.HandleFunc("GET /internal/tls-ask", h.tlsAsk)
 	mux.HandleFunc("GET /internal/domain-redirect/{handle}/{sitename}", h.domainRedirect)
 	mux.HandleFunc("GET /internal/domain-redirect/{handle}/{sitename}/{rest...}", h.domainRedirect)
@@ -306,13 +320,15 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// Owner-only: make one list private (owner-only reads, signed-in
 	// submissions on the site's own domain) or public again.
 	mux.Handle("PUT /v1/sites/{sitename}/collections/{coll}/privacy", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setCollectionPrivacy))))
-	// Private lists only: the owner or the platform admin edits or deletes one
-	// item (key, connector token, or the owner's session on the site's own
-	// domain). Public lists stay append-only.
+	// The owner or the platform admin (key, connector token, or the owner's
+	// session on the site's own domain) deletes one item in any list, edits
+	// one in a private list, or empties a whole list. Visitors only append.
 	mux.Handle("PATCH /v1/sites/{sitename}/collections/{coll}/items/{id}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.updatePrivateItem)))
 	mux.Handle("DELETE /v1/sites/{sitename}/collections/{coll}/items/{id}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.deletePrivateItem)))
 	mux.Handle("PATCH /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.updatePrivateItem)))
 	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.deletePrivateItem)))
+	mux.Handle("DELETE /v1/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.clearCollection)))
+	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.clearCollection)))
 	mux.HandleFunc("GET /v1/sites/{sitename}/collections/{coll}", h.listCollection)
 	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection)))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/collections/{coll}", h.optionsCollection)
@@ -790,13 +806,20 @@ func (h *SiteHandler) getSiteState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !h.authorizePublicRead(w, r, siteName) {
+	// The owner's (or admin's) key reads its own site's state from any page,
+	// as it reads a list: that is how the owner app shows saved data. It also
+	// pins the site to the key's owner rather than the oldest same name.
+	siteID, ownerKey := h.ownerSiteIDFromKey(r, siteName)
+	if !ownerKey && !h.authorizePublicRead(w, r, siteName) {
 		writeJSON(w, http.StatusForbidden, errorResponse{Error: "forbidden"})
 		return
 	}
 
 	// Resolve name -> site_id once; all subsequent state ops key by id.
-	siteID, err := h.resolveSiteID(r, siteName)
+	var err error
+	if !ownerKey {
+		siteID, err = h.resolveSiteID(r, siteName)
+	}
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
@@ -1703,7 +1726,7 @@ func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
 	if visibility == "" {
 		visibility = "unlisted" // never guess "public"
 	}
-	return siteResponse{
+	resp := siteResponse{
 		ID:            site.ID,
 		UserID:        site.UserID,
 		Name:          site.Name,
@@ -1717,6 +1740,22 @@ func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
 		OwnerUsername: site.OwnerUsername,
 		Note:          note,
 	}
+	if site.LastDeployedAt.Valid {
+		t := site.LastDeployedAt.Time
+		resp.DeployedAt = &t
+	}
+	if site.CustomDomain.Valid && site.CustomDomain.String != "" && site.DomainStatus.String != "active" {
+		resp.DomainLastError = site.DomainLastError.String
+		if !h.isPlatformSubdomainHost(site.CustomDomain.String) {
+			rec := h.dnsRecordFor(site.CustomDomain.String)
+			resp.DomainDNS = &rec
+		}
+		if site.DomainBoundAt.Valid && !site.DomainVerifiedAt.Valid {
+			t := site.DomainBoundAt.Time.Add(24 * time.Hour)
+			resp.DomainExpiresAt = &t
+		}
+	}
+	return resp
 }
 
 func appendToFile(path, line string) error {

@@ -2423,7 +2423,7 @@
       "get": {
         "operationId": "getSitesBySitenameState",
         "summary": "Read per-site JSON state",
-        "description": "Returns the JSON blob for this site (`null` if unset). PUBLIC store \u2014 no API key. A request with no `Origin` and no `Referer` (curl, an agent) is served as is; a request from a page (`Origin`/`Referer` set) is accepted only from the site's own page (`https://<site>.<handle>.simple-host.app/`, or its domain). The response carries an `ETag`; send `If-None-Match: <etag>` to get a `304` when nothing changed (cheap polling). Never store secrets here.",
+        "description": "Returns the JSON blob for this site (`null` if unset). PUBLIC store \u2014 no API key. A request with no `Origin` and no `Referer` (curl, an agent) is served as is; a request from a page (`Origin`/`Referer` set) is accepted only from the site's own page (`https://<site>.<handle>.simple-host.app/`, or its domain). The site owner's (or the operator's) `X-API-Key` reads it from any page and names the owner's own site (how the owner app shows saved data). The response carries an `ETag`; send `If-None-Match: <etag>` to get a `304` when nothing changed (cheap polling). Never store secrets here.",
         "tags": [
           "State"
         ],
@@ -2795,6 +2795,109 @@
       }
     },
     "/v1/sites/{sitename}/collections/{coll}": {
+      "delete": {
+        "operationId": "clearCollection",
+        "summary": "Empty a list (owner only)",
+        "description": "Deletes every item in one list, public or private, for good; the list keeps its private/public setting. The body must repeat the list's name, `{\"confirm\": \"<coll>\"}`, or nothing is deleted (400 confirm_required). Allowed for the site owner (X-API-Key, connector token, or the owner's own visitor session on the site's own address with `X-SH-CSRF: 1`) and the Simple Host operator, for moderation. Everyone else gets 404 not_found. Visitors only ever append.",
+        "tags": [
+          "Collections"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/coll"
+          },
+          {
+            "$ref": "#/components/parameters/csrf"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "confirm"
+                ],
+                "properties": {
+                  "confirm": {
+                    "type": "string",
+                    "description": "the list's name again"
+                  }
+                },
+                "example": {
+                  "confirm": "guestbook"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The list is empty",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "site": {
+                      "type": "string"
+                    },
+                    "collection": {
+                      "type": "string"
+                    },
+                    "deleted": {
+                      "type": "integer",
+                      "description": "how many items were deleted"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body does not repeat the list's name (confirm_required)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "to empty this list, send {\"confirm\": \"guestbook\"}",
+                  "code": "confirm_required"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A visitor session without `X-SH-CSRF` (csrf_required)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The caller is not the owner or operator (not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "not found",
+                  "code": "not_found"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "operationId": "postSitesBySitenameCollectionsByColl",
         "summary": "Append an item to a collection",
@@ -3203,7 +3306,7 @@
       "patch": {
         "operationId": "patchCollectionItem",
         "summary": "Change fields of an item in a private list",
-        "description": "Merges the JSON object sent into the item. A field sent as null is removed. `_submitted_by` and `_submitted_at` can never be set, changed or removed (ignored if sent), and the item's `created_at` never changes. Only for items in a PRIVATE list. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else \u2014 visitors including the one who submitted the item, other accounts, anything through another address \u2014 gets 404 not_found. Public lists stay append-only: 409 append_only.",
+        "description": "Merges the JSON object sent into the item. A field sent as null is removed. `_submitted_by` and `_submitted_at` can never be set, changed or removed (ignored if sent), and the item's `created_at` never changes. Only for items in a PRIVATE list. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else \u2014 visitors including the one who submitted the item, other accounts, anything through another address \u2014 gets 404 not_found. Items in a public list cannot be edited (the owner can delete them): 409 append_only.",
         "tags": [
           "Collections"
         ],
@@ -3305,14 +3408,14 @@
             }
           },
           "409": {
-            "description": "The list is public and so append-only (append_only), or the stored item is not a JSON object",
+            "description": "The list is public, so its items cannot be edited (append_only), or the stored item is not a JSON object",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 },
                 "example": {
-                  "error": "public lists are append-only; only items in a private list can be edited or deleted",
+                  "error": "items in a public list cannot be edited, only deleted; only items in a private list can be edited",
                   "code": "append_only"
                 }
               }
@@ -3325,8 +3428,8 @@
       },
       "delete": {
         "operationId": "deleteCollectionItem",
-        "summary": "Delete an item from a private list",
-        "description": "Removes the item for everyone. There is no undo. Only for items in a PRIVATE list. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else \u2014 visitors including the one who submitted the item, other accounts, anything through another address \u2014 gets 404 not_found. Public lists stay append-only: 409 append_only.",
+        "summary": "Delete an item from a list",
+        "description": "Removes the item for everyone. There is no undo. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else \u2014 visitors including the one who submitted the item, other accounts, anything through another address \u2014 gets 404 not_found. Works in any list, public included (spam); visitors only ever append.",
         "tags": [
           "Collections"
         ],
@@ -3374,20 +3477,6 @@
                 "example": {
                   "error": "not found",
                   "code": "not_found"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "The list is public and so append-only (append_only)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                },
-                "example": {
-                  "error": "public lists are append-only; only items in a private list can be edited or deleted",
-                  "code": "append_only"
                 }
               }
             }
@@ -3915,6 +4004,118 @@
       }
     },
     "/v1/u/{handle}/sites/{sitename}/collections/{coll}": {
+      "delete": {
+        "operationId": "clearCollectionByHandle",
+        "summary": "Empty a list (owner only, by handle)",
+        "description": "Deletes every item in one list, public or private, for good; the list keeps its private/public setting. The body must repeat the list's name, `{\"confirm\": \"<coll>\"}`, or nothing is deleted (400 confirm_required). Allowed for the site owner (X-API-Key, connector token, or the owner's own visitor session on the site's own address with `X-SH-CSRF: 1`) and the Simple Host operator, for moderation. Everyone else gets 404 not_found. Visitors only ever append.",
+        "tags": [
+          "Collections"
+        ],
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "the site owner's URL-safe handle"
+          },
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/coll"
+          },
+          {
+            "$ref": "#/components/parameters/csrf"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "confirm"
+                ],
+                "properties": {
+                  "confirm": {
+                    "type": "string",
+                    "description": "the list's name again"
+                  }
+                },
+                "example": {
+                  "confirm": "guestbook"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The list is empty",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "site": {
+                      "type": "string"
+                    },
+                    "collection": {
+                      "type": "string"
+                    },
+                    "deleted": {
+                      "type": "integer",
+                      "description": "how many items were deleted"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body does not repeat the list's name (confirm_required)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "to empty this list, send {\"confirm\": \"guestbook\"}",
+                  "code": "confirm_required"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A visitor session without `X-SH-CSRF` (csrf_required)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The caller is not the owner or operator (not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "not found",
+                  "code": "not_found"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "operationId": "postCollectionByHandle",
         "summary": "Append an item to a collection (v3, by handle)",
@@ -4207,7 +4408,7 @@
       "patch": {
         "operationId": "patchCollectionItemByHandle",
         "summary": "Change fields of an item in a private list (v3, by handle)",
-        "description": "Merges the JSON object sent into the item. A field sent as null is removed. `_submitted_by` and `_submitted_at` can never be set, changed or removed (ignored if sent), and the item's `created_at` never changes. Only for items in a PRIVATE list. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else \u2014 visitors including the one who submitted the item, other accounts, anything through another address \u2014 gets 404 not_found. Public lists stay append-only: 409 append_only.",
+        "description": "Merges the JSON object sent into the item. A field sent as null is removed. `_submitted_by` and `_submitted_at` can never be set, changed or removed (ignored if sent), and the item's `created_at` never changes. Only for items in a PRIVATE list. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else \u2014 visitors including the one who submitted the item, other accounts, anything through another address \u2014 gets 404 not_found. Items in a public list cannot be edited (the owner can delete them): 409 append_only.",
         "tags": [
           "Collections"
         ],
@@ -4318,14 +4519,14 @@
             }
           },
           "409": {
-            "description": "The list is public and so append-only (append_only), or the stored item is not a JSON object",
+            "description": "The list is public, so its items cannot be edited (append_only), or the stored item is not a JSON object",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 },
                 "example": {
-                  "error": "public lists are append-only; only items in a private list can be edited or deleted",
+                  "error": "items in a public list cannot be edited, only deleted; only items in a private list can be edited",
                   "code": "append_only"
                 }
               }
@@ -4338,8 +4539,8 @@
       },
       "delete": {
         "operationId": "deleteCollectionItemByHandle",
-        "summary": "Delete an item from a private list (v3, by handle)",
-        "description": "Removes the item for everyone. There is no undo. Only for items in a PRIVATE list. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else \u2014 visitors including the one who submitted the item, other accounts, anything through another address \u2014 gets 404 not_found. Public lists stay append-only: 409 append_only.",
+        "summary": "Delete an item from a list (v3, by handle)",
+        "description": "Removes the item for everyone. There is no undo. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else \u2014 visitors including the one who submitted the item, other accounts, anything through another address \u2014 gets 404 not_found. Works in any list, public included (spam); visitors only ever append.",
         "tags": [
           "Collections"
         ],
@@ -4396,20 +4597,6 @@
                 "example": {
                   "error": "not found",
                   "code": "not_found"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "The list is public and so append-only (append_only)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                },
-                "example": {
-                  "error": "public lists are append-only; only items in a private list can be edited or deleted",
-                  "code": "append_only"
                 }
               }
             }
@@ -4863,6 +5050,99 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/domain/check": {
+      "post": {
+        "operationId": "checkSitesBySitenameDomain",
+        "summary": "Check this site's domain again now",
+        "description": "Re-proves the site's own domain at once (it resolves here and serves the site over HTTPS), instead of waiting for the background check every two minutes, then answers exactly like GET .../domain with the new status and `last_error`. A free <name>.simple-host.app address needs no proof and is answered as is. Owner only (API key); rate-limited per IP.",
+        "tags": [
+          "Custom domains"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The domain binding after the check (same shape as GET .../domain)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "domain": {
+                      "type": "string",
+                      "example": "www.example.com"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "active",
+                        "error"
+                      ]
+                    },
+                    "last_error": {
+                      "type": "string",
+                      "example": "resolves to 203.0.113.9, not to this server"
+                    },
+                    "expires_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "verified_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    },
+                    "dns": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string"
+                        },
+                        "host": {
+                          "type": "string"
+                        },
+                        "value": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No such site, or the site has no domain connected (no_domain)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "this site has no domain connected",
+                  "code": "no_domain"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         }
       }
@@ -7239,6 +7519,55 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "public",
+              "unlisted"
+            ]
+          },
+          "custom_domain": {
+            "type": "string",
+            "description": "The site's free <name>.simple-host.app address or its own domain, when it has one"
+          },
+          "domain_status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "active",
+              "error"
+            ]
+          },
+          "deployed_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the newest version went live (site list only)"
+          },
+          "domain_last_error": {
+            "type": "string",
+            "description": "Site list only, for a domain that is not active: what the last check found"
+          },
+          "domain_expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Site list only: when an unproven domain binding is released (24 h after binding)"
+          },
+          "domain_dns": {
+            "description": "Site list only, for an own domain that is not active: the DNS record to add at the registrar",
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "example": "CNAME"
+              },
+              "host": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              }
+            }
           }
         }
       },

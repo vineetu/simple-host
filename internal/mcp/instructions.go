@@ -22,7 +22,7 @@ WHAT IS PUBLIC
 - The one private thing is a private collection: only the site owner (and the Simple Host operator, for moderation) can read it. Every site can have one; no domain is needed.
 
 SAVING DATA FROM A PAGE (forms, RSVPs, votes, guestbooks)
-- Two stores per site: one shared JSON "state" document (counters, settings, small lists; atomic ops) and append-only "collections" (one item per submission; newest-first, paged).
+- Two stores per site: one shared JSON "state" document (counters, settings, small lists; atomic ops) and "collections" that visitors append to (one item per submission; newest-first, paged; only the owner deletes).
 - In the page, load the hosted helper and put SH.requireSignIn() before every save:
   <script>window.SH_CONFIG = { site: "<site-name>" };</script>
   <script src="https://simple-host.app/auth.js" defer></script>
@@ -39,7 +39,7 @@ PERSONAL DETAILS: ORDERS, RSVPS, SURVEYS, SIGN-UPS
   1. set_collection_privacy {site, collection, private: true} before the form goes live.
   2. The form page: await SH.requireSignIn(); then SH.collection('orders').append({...}). The item must be one object. The server adds _submitted_by (the visitor's verified email) and _submitted_at; show the visitor the item the append returns. Visitors cannot read their items back.
   3. An owner admin page on the site (e.g. orders.html, linked quietly or not at all): await SH.requireSignIn(); then SH.collection('orders').list(). It works only for the owner's own account; everyone else gets not found. Each item has an id: SH.collection('orders').update(id, {status: 'done'}) and .remove(id) let the owner mark or delete items.
-- The owner also sees the list in the dashboard and can download a spreadsheet. You read it with read_collection, and change or delete items with update_collection_item and delete_collection_item (delete only after the person confirms that item). add_to_collection cannot add to a private list. Public lists stay append-only.
+- The owner also sees the list in the dashboard and can download a spreadsheet. You read it with read_collection, and change or delete items with update_collection_item and delete_collection_item (delete only after the person confirms that item). add_to_collection cannot add to a private list. In a public list (guestbook, comments) the owner can delete an item (spam) but not edit it; visitors only add. clear_collection empties a whole list, only after the person confirms that list by name.
 - set_collection_privacy with private: false makes everything already in the list public; confirm with the person first.
 
 CARE

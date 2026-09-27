@@ -164,7 +164,9 @@ so confirm with the user first. The owner reads it with
 `GET /v1/sites/<sitename>/collections` (each entry has `private`), and downloads
 `GET /v1/sites/<sitename>/collections/<name>/export.csv`. The owner edits or
 deletes one item with `PATCH` / `DELETE /v1/sites/<sitename>/collections/<name>/items/<id>`
-(public lists stay append-only: 409 `append_only`). Full flow: `backend.md`.
+(in a public list the owner can delete an item but not edit it: 409 `append_only`),
+and empties a whole list with `DELETE /v1/sites/<sitename>/collections/<name>` and
+`{"confirm": "<name>"}`. Full flow: `backend.md`.
 
 **Pages are always public.** There is no password-locked page. Every deployed
 page is public to anyone with its address, on a custom domain or not. If a user

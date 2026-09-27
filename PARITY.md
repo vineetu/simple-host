@@ -37,7 +37,7 @@ that should get it). Last derived from both `FEATURES.md` files and code on 2026
 | Teams | none; one person per account | `team-<name>` namespaces, one role | `different on purpose` — hosted accounts are single people (event participants get their own key) |
 | Saved state | one JSON doc; atomic ops (`set`/`inc`/`append`/`remove`/`removeWhere`) + `PUT` with `If-Match`; 1 MB | one JSON doc; last-write-wins or versioned compare-and-set | `different on purpose` — hosted writes need a signed-in visitor or the owner's key; enterprise: every viewer is signed in and may write, keys included |
 | Saved-state history and restore | none | last 20 writes kept, owner or team restores | `gap → hosted` — any signed-in visitor can overwrite state, so it needs the same undo |
-| Collections and private collections | append-only lists; private ones on a site's own origin, owner-only read, CSV export | none | `different on purpose` — enterprise decision 2026-09-23: per-site state is the only data store |
+| Collections and private collections | lists visitors append to; the owner deletes entries or empties a list (public ones too, 2026-09-27); private ones on a site's own origin, owner-only read, CSV export | none | `different on purpose` — enterprise decision 2026-09-23: per-site state is the only data store |
 | Assets (runtime file uploads) | none | per-site uploads, served at `/_assets/{id}`, counted in quota | `gap → hosted` |
 | Malware scan on upload | none | optional clamd, fail closed | `different on purpose` — clamd needs ~1 GB RAM, above the small-box floor |
 | Upload validation | `internal/tarball` sanitize, size caps, `blockedExtensions` | same package lineage, same checks | `same` |
@@ -60,7 +60,7 @@ that should get it). Last derived from both `FEATURES.md` files and code on 2026
 | Rate limits and abuse caps | per-IP token buckets in memory; size caps; write auth; reserved names | per-pod buckets plus Postgres-shared counters for sign-in, hand-off, key mint, connector | `different on purpose` — one process needs no shared counters |
 | Security headers and CSP | `SecurityHeaders`, nonce CSP on apex pages | `security.go`, same approach | `same` |
 | Admin | admin key or admin user; usage, bulk participant accounts, delete account, API traffic | IdP admins; disable/enable (revokes sessions, keys, apps), offboard by email, access requests, rankings, export | `different on purpose` — event organiser vs company IT |
-| Dashboard | `/dashboard`, owner app, per-site analytics page | `/dashboard`: keys, sites, access, viewers, assets, usage | `same` — each shows its own features |
+| Dashboard | `/dashboard` (sign-in; with a handle, a list linking to the owner app), owner app (sites: address, versions, rename, domain with DNS record and Check again, lists, saved data, Download, Delete), per-site analytics page | `/dashboard`: keys, sites, access, viewers, assets, usage | `same` — each shows its own features |
 | AI create and voice input | Grok sidecar only, local speech-to-text | none | `different on purpose` — enterprise: the publisher is the person's own agent via MCP; content stays in the cluster |
 | Event / hackathon instances | setup page, participant accounts, `simple-hack.app` names | none | `different on purpose` — this is the small-box edition's job |
 | Storage backend | local disk (`DATA_DIR`), served by nginx or Caddy | S3-compatible bucket, pod cache, SSE, optional envelope encryption, retire sweep | `different on purpose` — one folder on one box vs replicas |

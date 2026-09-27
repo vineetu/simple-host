@@ -170,6 +170,7 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		"PATCH /v1/u/ann/sites/blog/collections/orders/items/5": fixed(200, `{"id":5,"data":{"item":"mug","status":"done",`+
 			`"_submitted_by":"v@example.com","_submitted_at":"2026-09-03T00:00:00Z"},"created_at":"2026-09-03T00:00:00Z"}`),
 		"DELETE /v1/u/ann/sites/blog/collections/orders/items/5": fixed(204, ""),
+		"DELETE /v1/u/ann/sites/blog/collections/rsvps":          fixed(200, `{"site":"blog","collection":"rsvps","deleted":3}`),
 		"POST /v1/sites/pend/domain": fixed(200, `{"domain":"pend.example.com","status":"pending","took_over_from":"x/y",`+
 			`"dns":{"type":"CNAME","host":"pend.example.com","value":"sites.simple-host.app"}}`),
 		"POST /v1/sites/blog/domain": fixed(200, `{"domain":"blog.simple-host.app","status":"active"}`),
@@ -212,6 +213,7 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		{"set_collection_privacy", map[string]any{"site": "blog", "collection": "rsvps", "private": false}},
 		{"update_collection_item", map[string]any{"site": "blog", "collection": "orders", "id": "5", "fields": map[string]any{"status": "done"}}},
 		{"delete_collection_item", map[string]any{"site": "blog", "collection": "orders", "id": 5, "confirm_id": "5"}},
+		{"clear_collection", map[string]any{"site": "blog", "collection": "rsvps", "confirm_collection": "rsvps"}},
 		{"connect_domain", map[string]any{"site": "pend", "domain": "pend.example.com"}},
 		{"connect_domain", map[string]any{"site": "blog", "domain": "blog.simple-host.app"}},
 		{"domain_status", map[string]any{"site": "blog"}},

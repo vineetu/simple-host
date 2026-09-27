@@ -2,6 +2,8 @@ package handler
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -9,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
 )
 
@@ -131,4 +134,44 @@ func (h *SiteHandler) verifyDomain(ctx context.Context, domain string, ours map[
 		return "active", ""
 	}
 	return "error", fmt.Sprintf("HTTPS returned %d", resp.StatusCode)
+}
+
+// checkDomainNow is POST /v1/sites/{sitename}/domain/check: the owner's
+// "Check again". It proves this one site's domain now, the same way the
+// background pass does, and answers like GET /domain.
+func (h *SiteHandler) checkDomainNow(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+		return
+	}
+	siteName := strings.TrimSpace(r.PathValue("sitename"))
+	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	info, ok, err := db.GetSiteDomainInfo(r.Context(), h.database, site.ID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "this site has no domain connected", "code": "no_domain"})
+		return
+	}
+	if !h.isPlatformSubdomainHost(info.Domain) {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*domainProbeTimeout)
+		defer cancel()
+		status, reason := h.verifyDomain(ctx, info.Domain, h.serverAddrs(ctx))
+		if err := db.SetDomainStatus(r.Context(), h.database, site.ID, status, reason); err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return
+		}
+	}
+	h.getDomain(w, r)
 }

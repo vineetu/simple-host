@@ -912,6 +912,9 @@
       margin-right: 6px;
     }
 
+    .manage-defer { font-size: 14px; color: var(--text-secondary); margin: 0 0 12px; }
+    .manage-defer a { color: var(--accent); }
+    .site-actions a.btn { text-decoration: none; display: inline-block; }
     .status-dot.live { background: var(--success); }
     .status-dot.pending { background: #d4a843; }
   </style>
@@ -1665,7 +1668,13 @@ function parseAnalyticsSummary(data) {
             <p>Ask your AI for one and it shows up here</p>
           </div>`;
       } else {
-        myContainer.innerHTML = `<div class="site-list">${sortSites(ownSites).map(s => renderSiteCard(s, false)).join('')}</div>`;
+        // An account with a handle manages its sites in its owner app at
+        // /<handle>; this page only lists them and links there.
+        const handle = currentUser && currentUser.handle;
+        const defer = handle
+          ? `<div class="manage-defer">Rename, addresses, saved data, downloads and deleting are on <a href="/${encodeURIComponent(handle)}">your page</a>.</div>`
+          : '';
+        myContainer.innerHTML = `${defer}<div class="site-list">${sortSites(ownSites).map(s => renderSiteCard(s, false)).join('')}</div>`;
       }
 
       if (currentUser && currentUser.is_admin) {
@@ -1739,7 +1748,9 @@ function parseAnalyticsSummary(data) {
             </div>
             <div class="site-analytics" id="an-${name}" data-site="${name}"></div>
           </div>
-          <div class="site-actions">
+          ${!showOwner && currentUser && currentUser.handle ? `<div class="site-actions">
+            <a class="btn btn-small btn-secondary" href="/${encodeURIComponent(currentUser.handle)}">Manage</a>
+          </div>` : `<div class="site-actions">
             <button type="button" class="btn-small btn-secondary" data-act="toggleVersions" data-name="${name}">Versions</button>
             <button type="button" class="btn-small btn-secondary" data-act="toggleData" data-name="${name}">Data</button>
             ${!showOwner || site.user_id === currentUser.id ? `<button type="button" class="btn-small btn-secondary" data-act="renameSite" data-name="${name}">Rename</button>` : ''}
@@ -1747,7 +1758,7 @@ function parseAnalyticsSummary(data) {
               ? `<button type="button" class="btn-small btn-ghost" data-act="disconnectDomain" data-name="${name}">Disconnect ${esc(site.custom_domain)}</button>`
               : `<button type="button" class="btn-small btn-secondary" data-act="connectDomain" data-name="${name}">Connect domain</button>`}
             <button type="button" class="btn-small btn-ghost" data-act="confirmDelete" data-name="${name}">Delete</button>
-          </div>
+          </div>`}
         </div>
         <div class="site-versions" id="versions-${name}" hidden></div>
         <div class="site-data" id="data-${name}" hidden></div>`;

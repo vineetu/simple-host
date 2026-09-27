@@ -37,7 +37,7 @@ own domain, use the `connect-domain` skill.
 | Undo a delete (within 7 days) | `list_deleted_sites`, `restore_site` |
 | Saved data | `get_state`, `update_state`, `list_collections`, `read_collection`, `add_to_collection` |
 | Keep a list owner-only | `set_collection_privacy` |
-| Mark done or delete an item (private lists) | `update_collection_item`, `delete_collection_item` |
+| Mark done (private lists), delete an item or empty a list (any list) | `update_collection_item`, `delete_collection_item`, `clear_collection` |
 | A shorter address (optional) | `connect_domain` (free `<name>.simple-host.app`, or their own domain), `domain_status` |
 | Visitors | `site_analytics` (report the `person` numbers) |
 
@@ -127,8 +127,10 @@ A private list cannot be filled by you: `add_to_collection` is refused (`private
 You can change it: `update_collection_item` `{site, collection, id, fields}` merges fields (e.g.
 `{"status": "done"}`; `null` removes one), and `delete_collection_item`
 `{site, collection, id, confirm_id}` removes one item for good, only after the person has
-explicitly confirmed that item. Take `id` from `read_collection`. Public lists are append-only
-(`append_only`), and visitors can never edit or delete items.
+explicitly confirmed that item. Take `id` from `read_collection`. In a public list you can
+delete an item (spam) but not edit it (`append_only`). `clear_collection`
+`{site, collection, confirm_collection}` empties a whole list, only after the person has
+confirmed that list by name. Visitors can never edit or delete items.
 
 Making it public again (`private: false`) puts everything already saved on the public internet;
 confirm with the person first.

@@ -311,3 +311,14 @@ func DeleteCollectionItemByID(ctx context.Context, db *sql.DB, siteID, collectio
 	n, err := res.RowsAffected()
 	return n > 0, err
 }
+
+// ClearCollectionByID removes every item in one of a site's collections for
+// good and returns how many went. The list's private/public setting stays.
+func ClearCollectionByID(ctx context.Context, db *sql.DB, siteID, collection string) (int64, error) {
+	res, err := db.ExecContext(ctx, `
+		DELETE FROM collection_items WHERE site_id = $1 AND collection = $2`, siteID, collection)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}

@@ -47,10 +47,10 @@ hourly in-process sweep purges it after the window. Deleting a whole account (ad
 
 | Surface | Details |
 |---|---|
-| Routes | `POST`/`PUT /v1/sites/{sitename}` (archive) · `POST`/`PUT /v1/sites/{sitename}/files` (inline JSON, base64 allowed) · `GET /v1/sites` · `PATCH /v1/sites/{sitename}` (rename) · `DELETE /v1/sites/{sitename}` (to Recently deleted) · `POST /v1/sites/{sitename}/restore` · `GET /v1/me/deleted-sites` · `GET /v1/sites/{sitename}/versions` · `GET /v1/sites/{sitename}/versions/{version}/files` · `GET /v1/sites/{sitename}/versions/{version}/files/{path...}` · `PUT /v1/sites/{sitename}/active-version` · `PUT /v1/sites/{sitename}/visibility` (`public`/`unlisted`) · `GET /v1/sites/{sitename}/export.tar.gz` (files + saved data) · `GET /internal/notfound` (branded 404, nginx `@notfound`) |
+| Routes | `POST`/`PUT /v1/sites/{sitename}` (archive) · `POST`/`PUT /v1/sites/{sitename}/files` (inline JSON, base64 allowed) · `GET /v1/sites` · `PATCH /v1/sites/{sitename}` (rename) · `DELETE /v1/sites/{sitename}` (to Recently deleted) · `POST /v1/sites/{sitename}/restore` · `GET /v1/me/deleted-sites` · `GET /v1/sites/{sitename}/versions` · `GET /v1/sites/{sitename}/versions/{version}/files` · `GET /v1/sites/{sitename}/versions/{version}/files/{path...}` · `PUT /v1/sites/{sitename}/active-version` · `PUT /v1/sites/{sitename}/visibility` (`public`/`unlisted`) · `GET /v1/sites/{sitename}/export.tar.gz` (files + saved data) · `GET /v1/sites` also returns `deployed_at` and, for a domain not live yet, `domain_last_error`, `domain_dns`, `domain_expires_at` · `GET /internal/notfound` (branded 404, nginx `@notfound`) |
 | MCP tools | `list_sites`, `get_site`, `read_site_file`, `create_site`, `update_site`, `list_versions`, `rollback_site`, `delete_site`, `list_deleted_sites`, `restore_site`, `rename_site`, `set_visibility` |
 | Skill | `website-deploy/SKILL.md` §Two ways to deploy, §The one rule that breaks sites (relative links), §Rules that always apply, §Completion standard · `references/packaging-and-validation.md` (Package, Upload, Verify) · `references/operations.md` §Listing, §Rename, §Rollback, §Delete and restore · `references/frameworks.md` · `website-deploy-builder/SKILL.md` §Capability tree 1 |
-| Pages | owner app `st/showcase.html` (site inventory, versions, delete, visibility, Recently deleted with Restore) · `st/index.html` at `/dashboard` (site cards, rename, delete, versions) · `st/notfound.html` |
+| Pages | owner app `st/showcase.html` (site inventory with live address, version and last deploy; versions, rename, visibility, Download (export), delete with a count of what goes and "Download first", Recently deleted with Restore) · `st/index.html` at `/dashboard` (site cards; for an account with a handle only a list with Manage links to the owner app; full controls for accounts without one and in the admin tab) · `st/notfound.html` |
 | Go | `h/site.go` (create/update/list/rename/visibility, route table), `h/deleted.go` (delete, restore, Recently deleted list, purge sweep), `h/versions.go`, `h/versionfiles.go`, `h/export.go`, `h/sitename.go`, `h/usage.go` (per-site cap), `internal/tarball/{extract,sanitize,validate}.go`, `internal/storage/disk.go` (by-id layout, `handles/` symlinks), `internal/storage/trash.go` (`deleted/` area), `internal/db/queries.go`, `internal/db/deleted.go` |
 | DB | `sites` (`deleted_at`: every serving and listing lookup skips deleted rows), `versions` |
 | Limits | 100 sites per account (admins exempt; deleted sites do not count, restore re-checks); uploads serialised per site; upload limiter 30 burst, 0.1/s; Recently deleted keeps a site 7 days |
@@ -90,10 +90,10 @@ lives only there; its other addresses redirect. **Status: live.**
 
 | Surface | Details |
 |---|---|
-| Routes | `POST /v1/sites/{sitename}/domain` (bind; a `<name>.<SITE_DOMAIN>` value takes the free-name path) · `GET /v1/sites/{sitename}/domain` · `DELETE /v1/sites/{sitename}/domain` · `GET /internal/tls-ask` (Caddy on-demand TLS gate) · `GET /internal/domain-redirect/{handle}/{sitename}` · `GET /internal/domain-redirect/{handle}/{sitename}/{rest...}` · host-routed `BoundSubdomains` serves a claimed name or custom domain at its root |
+| Routes | `POST /v1/sites/{sitename}/domain` (bind; a `<name>.<SITE_DOMAIN>` value takes the free-name path) · `GET /v1/sites/{sitename}/domain` · `POST /v1/sites/{sitename}/domain/check` ("Check again": re-prove now, rate-limited) · `DELETE /v1/sites/{sitename}/domain` · `GET /internal/tls-ask` (Caddy on-demand TLS gate) · `GET /internal/domain-redirect/{handle}/{sitename}` · `GET /internal/domain-redirect/{handle}/{sitename}/{rest...}` · host-routed `BoundSubdomains` serves a claimed name or custom domain at its root |
 | MCP tools | `connect_domain`, `domain_status` |
 | Skill | `connect-domain/SKILL.md` §The free address, §The flow (1–5, Disconnect), §Backend on a connected domain, §Gotchas · `connect-domain/references/registrars.md` (Vercel, GoDaddy, Porkbun, other) · `website-deploy/references/operations.md` §A nicer address · `website-deploy-builder/SKILL.md` §8 |
-| Pages | `st/index.html` (connect/disconnect domain on the site card) |
+| Pages | `st/showcase.html` owner app (connect, disconnect, status; for a domain not live yet the DNS record, last problem, expiry and Check again) · `st/index.html` (connect/disconnect on the site card, accounts without a handle and admin tab) |
 | Go | `h/domains.go` (bind, status, delete, `tlsAsk`, `domainRedirect`), `h/domaincheck.go` (background re-verify), `h/platformsubdomain.go` (free names, `reservedSubdomainLabels`, `BoundSubdomains`, `siteOwnDomain`), `internal/db/domains.go`, `internal/db/namespace.go` |
 | DB | `sites.custom_domain`, `domain_status`, `domain_verified_at`, `domain_last_error`, `domain_bound_at`; `legacy_hostnames` |
 | Env | `CNAME_TARGET` (subdomain CNAME), `CUSTOM_DOMAIN_IP` (apex A record), `SITE_DOMAIN` |
@@ -118,7 +118,7 @@ cookie write gets 401 `visitor_auth_required` (INTENT 2026-09-24, built 2026-09-
 | Routes | `GET /v1/sites/{sitename}/state` · `PUT /v1/sites/{sitename}/state` (whole doc, `If-Match` CAS) · `PATCH /v1/sites/{sitename}/state` (op list) · `OPTIONS /v1/sites/{sitename}/state` — all `(+/v1/u)` · `PUT /v1/sites/{sitename}/allowed-origins` (owner: extra origins allowed to call) |
 | MCP tools | `get_state`, `update_state` |
 | Skill | `website-deploy/references/backend.md` §Trust model, §Shared JSON state, §Saving from a page with the hosted helper, §Saving from an agent · `website-deploy-builder/SKILL.md` §Capability tree 2 |
-| Pages | `st/auth.js` (`SH.state.get/put/patch`) |
+| Pages | `st/auth.js` (`SH.state.get/put/patch`) · `st/showcase.html` owner app (saved data read-only, size against the 1 MB limit, Download JSON; the owner's key reads it from any page) |
 | Ops | `set`, `inc`, `append`, `remove`, `removeWhere`; `PUT` uses ETag/`If-Match` |
 | Go | `h/site.go` (`getSiteState`, `putSiteState`, `patchSiteState`, origin check `authorizeStateOrigin`), `h/stateops.go` (op set, max 100 ops), `h/visitorsession.go` (`visitorWriteOK`), `internal/db/queries.go` (`UpdateSiteStateCAS`) |
 | DB | `sites.state`, `sites.allowed_origins`, `sites.allow_anonymous_writes` |
@@ -127,17 +127,19 @@ cookie write gets 401 `visitor_auth_required` (INTENT 2026-09-24, built 2026-09-
 
 ## 5. Collections, including private collections
 
-Append-only lists (comments, RSVPs, votes) read by anyone. A collection can be made **private**
+Lists (comments, RSVPs, votes) that visitors append to, read by anyone. A collection can be made **private**
 on a site's own origin: only signed-in visitors submit, same-origin, never by API key (server
 stamps `_submitted_by`/`_submitted_at`),
-only the owner (or operator) reads, and the owner may edit/delete items. **Status: live.**
+only the owner (or operator) reads, and the owner may edit items. The owner (or operator) deletes
+single items in any list, public included, and empties a whole list after repeating its name
+(INTENT 2026-09-27); visitors only append. **Status: live.**
 
 | Surface | Details |
 |---|---|
-| Routes | `GET /v1/sites/{sitename}/collections/{coll}` · `POST /v1/sites/{sitename}/collections/{coll}` · `OPTIONS /v1/sites/{sitename}/collections/{coll}` — `(+/v1/u)` · `GET /v1/sites/{sitename}/collections` (owner list) · `GET /v1/sites/{sitename}/collections/{coll}/export.csv` (owner) · `PUT /v1/sites/{sitename}/collections/{coll}/privacy` (owner) · `PATCH`/`DELETE /v1/sites/{sitename}/collections/{coll}/items/{id}` `(+/v1/u)` (private lists only: owner key, connector, owner session on own origin, or admin) |
-| MCP tools | `list_collections`, `read_collection`, `add_to_collection`, `set_collection_privacy`, `update_collection_item`, `delete_collection_item` |
+| Routes | `GET /v1/sites/{sitename}/collections/{coll}` · `POST /v1/sites/{sitename}/collections/{coll}` · `OPTIONS /v1/sites/{sitename}/collections/{coll}` — `(+/v1/u)` · `GET /v1/sites/{sitename}/collections` (owner list) · `GET /v1/sites/{sitename}/collections/{coll}/export.csv` (owner) · `PUT /v1/sites/{sitename}/collections/{coll}/privacy` (owner) · `DELETE /v1/sites/{sitename}/collections/{coll}/items/{id}` (any list) and `PATCH` (private lists only) `(+/v1/u)` · `DELETE /v1/sites/{sitename}/collections/{coll}` `(+/v1/u)` with `{"confirm": "<coll>"}` (clear list) — owner key, connector, owner session on own origin, or admin |
+| MCP tools | `list_collections`, `read_collection`, `add_to_collection`, `set_collection_privacy`, `update_collection_item`, `delete_collection_item`, `clear_collection` |
 | Skill | `website-deploy/SKILL.md` §Personal details go in a private collection · `references/backend.md` §Append-only collections, §Private collections (1–3, editing, reading as owner, errors) · `references/operations.md` §Private collections · `website-deploy-builder/SKILL.md` §Capability tree |
-| Pages | `st/auth.js` (`SH.collection(...).list/append/update/remove`), `st/showcase.html` and `st/index.html` (data tab, CSV export, item edit/delete) |
+| Pages | `st/auth.js` (`SH.collection(...).list/append/update/remove`), `st/showcase.html` owner app (every list with a public/private badge and switch, view, CSV, delete any entry, edit private entries, Clear list behind the typed name) · `st/index.html` (data tab, CSV export; accounts without a handle) |
 | Go | `h/collections.go`, `h/privatecollections.go` (`onOwnDomain`, `strictVisitorSession`, `appendPrivate`, `privateManager`), `internal/db/collections.go`, `h/export.go` (collections in site export) |
 | DB | `collection_items`, `collection_settings` (privacy flag) |
 | Env | `WRITE_AUTH_MODE` |
@@ -231,7 +233,12 @@ standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: 
 ## 10. Owner dashboard and owner app
 
 Sign-in page and dashboard at `/dashboard`; the owner app at `/<handle>` on the apex (same
-template as the public person page, hydrated for the owner); per-site analytics page.
+template as the public person page, hydrated for the owner); per-site analytics page. The
+owner app is the one place an account with a handle manages its sites: address, version, last
+deploy, visibility, versions, rename, domain, lists, saved data, Download and Delete
+(INTENT 2026-09-27). `/dashboard` sends such an account there; the apex view it can still reach
+(`/?new=1`) lists the sites with a Manage link. Accounts without a handle and the admin tab keep
+the full apex controls. Rotate API key stays in the apex app bar.
 **Status: live.**
 
 | Surface | Details |
@@ -393,6 +400,7 @@ notice.
 | `set_collection_privacy` | `PUT /v1/sites/{s}/collections/{c}/privacy` | 5 |
 | `update_collection_item` | `PATCH …/collections/{c}/items/{id}` | 5 |
 | `delete_collection_item` | `DELETE …/collections/{c}/items/{id}` | 5 |
+| `clear_collection` | `DELETE …/collections/{c}` | 5 |
 | `connect_domain` | `POST /v1/sites/{s}/domain` | 3 |
 | `domain_status` | `GET /v1/sites/{s}/domain` | 3 |
 | `site_analytics` | `GET /v1/sites/{s}/analytics?days=` | 12 |

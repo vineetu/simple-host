@@ -107,6 +107,7 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	call("update_collection_item", map[string]any{"site": "shop", "collection": "orders", "id": id, "fields": map[string]any{"status": "done"}})
 	call("delete_collection_item", map[string]any{"site": "shop", "collection": "orders", "id": id, "confirm_id": id})
 	call("set_collection_privacy", map[string]any{"site": "shop", "collection": "orders", "private": false})
+	call("clear_collection", map[string]any{"site": "shop", "collection": "orders", "confirm_collection": "orders"})
 
 	call("site_analytics", map[string]any{"site": "shop", "days": 7})
 	call("list_sites", map[string]any{})

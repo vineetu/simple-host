@@ -379,7 +379,10 @@ func (h *SiteHandler) privateManager(w http.ResponseWriter, r *http.Request, sit
 }
 
 // privateItemTarget resolves and authorizes {sitename}/{coll}/{id} for an edit
-// or delete. Public lists stay append-only.
+// or delete. Only the owner (or the platform admin) gets here. Deleting works
+// in any list, public included, so spam can be removed (decision 2026-09-27);
+// editing stays private-only, because a public entry is what its visitor
+// wrote. Visitors still only append.
 func (h *SiteHandler) privateItemTarget(w http.ResponseWriter, r *http.Request) (siteID, coll string, id int64, ok bool) {
 	w.Header().Set("Cache-Control", "private, no-store")
 	siteName := strings.TrimSpace(r.PathValue("sitename"))
@@ -397,9 +400,9 @@ func (h *SiteHandler) privateItemTarget(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return "", "", 0, false
 	}
-	if !private {
+	if !private && r.Method != http.MethodDelete {
 		writeJSON(w, http.StatusConflict, map[string]string{
-			"error": "public lists are append-only; only items in a private list can be edited or deleted",
+			"error": "items in a public list cannot be edited, only deleted; only items in a private list can be edited",
 			"code":  "append_only",
 		})
 		return "", "", 0, false
@@ -488,4 +491,39 @@ func (h *SiteHandler) deletePrivateItem(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// clearCollection is DELETE /v1/sites/{sitename}/collections/{coll}: the owner
+// (or the platform admin) empties one list, public or private, for good. The
+// body must repeat the list's name ({"confirm": "<coll>"}) so a stray call
+// cannot wipe a list. The list's private/public setting stays. Visitors can
+// never do this.
+func (h *SiteHandler) clearCollection(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "private, no-store")
+	siteName := strings.TrimSpace(r.PathValue("sitename"))
+	coll := strings.TrimSpace(r.PathValue("coll"))
+	if siteName == "" || !validCollectionName.MatchString(coll) {
+		writePrivateNotFound(w)
+		return
+	}
+	siteID, ok := h.privateManager(w, r, siteName)
+	if !ok {
+		return
+	}
+	var req struct {
+		Confirm string `json:"confirm"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil || req.Confirm != coll {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": `to empty this list, send {"confirm": "` + coll + `"}`,
+			"code":  "confirm_required",
+		})
+		return
+	}
+	n, err := db.ClearCollectionByID(r.Context(), h.database, siteID, coll)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"site": siteName, "collection": coll, "deleted": n})
 }
