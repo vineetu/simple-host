@@ -256,7 +256,7 @@ st, _, b = req("POST", tok, form={"grant_type": "authorization_code", "code": gc
 gt = json.loads(b)
 check(st == 200, "GPT client (client_secret_post, no PKCE) gets tokens")
 st, _, b = req("GET", "/v1/sites", None, {"Authorization": "Bearer " + gt["access_token"]})
-check(st == 200 and any(s["name"] == ESITE for s in json.loads(b)["data"]), "bearer token acts as carol on REST /v1/sites")
+check(st == 200 and any(s["name"] == ESITE for s in json.loads(b)), "bearer token acts as carol on REST /v1/sites (a bare array, as documented)")
 st, _, b = req("POST", "/v1/sites/gpt-site/files", {"files": {"index.html": "<p>gpt</p>"}}, {"Authorization": "Bearer " + gt["access_token"]})
 check(st == 201, "bearer token deploys over REST")
 st, _, b = req("DELETE", "/v1/sites/"+DSITE+"", None, {"Authorization": "Bearer " + gt["access_token"]})
