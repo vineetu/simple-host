@@ -274,7 +274,7 @@ func TestSummarizeUserAgent(t *testing.T) {
 		uaMacChrome: "Chrome on macOS",
 		uaIPhone:    "Safari on iPhone",
 		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0": "Edge on Windows",
-		"Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0":                                                     "Firefox on Linux",
+		"Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0":                                                        "Firefox on Linux",
 		"curl/8.5.0":            "curl",
 		"python-requests/2.32":  "python-requests",
 		"":                      "an unknown browser or app",
