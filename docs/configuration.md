@@ -142,6 +142,8 @@ removes older history and Recently deleted items at the next sweep.
 | `SAVED_DATA_BOARD_ITEM_MAX_KB` | 16 | 1–64 | One Shared board item (a name declared `board`). Larger adds and changes are refused (413 `item_too_large`). |
 | `SAVED_DATA_BOARD_MAX` | 2000 | 1–1000000 | Live items in one Shared board (409 `list_full`). |
 | `SAVED_DATA_BOARD_NAMES_MAX` | 20 | 1–1000 | Shared board names one site may declare (409 `too_many_names`). |
+| `SAVED_DATA_PERSONAL_PEOPLE_MAX` | 1000 | 1–1000000 | People with a record in one Personal name, counting records in Recently deleted. A new person's first save past it is refused (409 `people_full`); people who have a record keep saving to it. |
+| `SAVED_DATA_BOARD_WRITES_PER_MIN` | 30 | 1–10000 | Shared board adds, changes and deletes per signed-in person per minute, on top of the per-address rate (`SAVED_DATA_APPEND_PER_MIN`), so one account on many addresses goes no faster (429). |
 | `SAVED_DATA_DEFAULT_KIND` | shared | shared, declare_first | What a data name is when the site owner never declared it. `shared` (Shared): anyone who can open the site reads it and signed-in visitors save to it, as before the kinds, so older skills, AI create and uploaded pages keep working. `declare_first`: such a name takes no saves (409 `declare_first`) until the owner declares it Page info or Submissions. Sites that existed before the kinds (migration `sd2-saved-data-kinds.sql`) stay Shared either way; every later site follows this setting as it is now, so switching it changes them all. |
 
 ## Ask assistants

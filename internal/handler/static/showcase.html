@@ -383,6 +383,7 @@
     .row-panel textarea { width: 100%; min-height: 64px; font-family: var(--mono); }
     .row-panel .panel-field { display: flex; flex-direction: column; gap: 4px; }
     .row-panel .panel-check { display: flex; align-items: center; gap: 6px; }
+    .undo-window { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); }
     .dns-rec { display: flex; gap: 14px; flex-wrap: wrap; font-family: var(--mono); padding: 6px 10px; background: var(--surface); border-radius: 6px; }
     .dns-rec + .dns-rec { margin-top: 6px; }
     .dns-rec span { overflow-wrap: anywhere; }
@@ -1742,9 +1743,12 @@ function parseAnalyticsSummary(data) {
       var count = Number.isFinite(Number(c.count)) ? Math.trunc(Number(c.count)) : 0;
       var priv = c.private === true;
       var gone = Number.isFinite(Number(c.deleted)) ? Math.trunc(Number(c.deleted)) : 0;
+      // Personal with one or two records: the server withholds the numbers.
+      var few = c.few === true, goneFew = c.deleted_few === true;
       var kind = KIND_LABELS[c.kind] && c.kind !== 'shared' ? c.kind : '';
       var page = kind === 'content';
-      // Personal: each visitor's own record; the owner sees counts and size only.
+      // Personal: each visitor's own record; the owner sees counts and size
+      // only, and from 3 people up.
       var personal = kind === 'mine';
       var board = kind === 'board';
       var badge = kind || (shared && !priv ? 'shared' : '');
@@ -1752,7 +1756,7 @@ function parseAnalyticsSummary(data) {
       var a = ' data-site="' + escAttr(name) + '" data-coll="' + escAttr(coll) + '" data-private="' + (priv ? '1' : '0') + '"' +
         ' data-kind="' + kind + '" data-one="' + (c.one_per_person ? '1' : '0') + '" data-notify="' + escAttr(c.notify || 'off') + '" data-gone="' + gone + '"';
       var meta = page ? (count ? 'saved' : 'empty now') + (c.last_at ? ' · ' + esc(new Date(c.last_at).toLocaleString()) : '')
-        : personal ? count + (count === 1 ? ' person has' : ' people have') + ' a record' + (count ? ' · ' + esc(fmtBytes(bytes)) + ' in all' : '')
+        : personal ? (few ? 'Fewer than 3 people have a record' : count + (count === 1 ? ' person has' : ' people have') + ' a record' + (count ? ' · ' + esc(fmtBytes(bytes)) + ' in all' : ''))
         : plistMeta(count, c.last_at);
       return '<div class="plist">' +
         '<div class="version-row plist-row">' +
@@ -1767,8 +1771,8 @@ function parseAnalyticsSummary(data) {
             (page || personal || board ? '' : '<button type="button" class="btn-small btn-secondary" data-plist-privacy' + a + '>' + (priv ? 'Make public' : 'Make private') + '</button>') +
             '<button type="button" class="btn-small btn-secondary" data-kind-open' + a + ' aria-expanded="false">Settings</button>' +
             (personal ? '' : '<button type="button" class="btn-small btn-secondary" data-hist-open' + a + ' aria-expanded="false">History</button>') +
-            (gone ? '<button type="button" class="btn-small btn-secondary" data-del-open' + a + ' aria-expanded="false">Recently deleted (' + gone + ')</button>' : '') +
-            (count && !page ? '<button type="button" class="btn-small btn-ghost" data-plist-clear' + a + '>' + (personal ? 'Clear for everyone' : 'Clear list') + '</button>' : '') +
+            (gone || goneFew ? '<button type="button" class="btn-small btn-secondary" data-del-open' + a + ' aria-expanded="false">Recently deleted (' + (goneFew ? 'fewer than 3' : gone) + ')</button>' : '') +
+            ((count || few) && !page ? '<button type="button" class="btn-small btn-ghost" data-plist-clear' + a + '>' + (personal ? 'Clear for everyone' : 'Clear list') + '</button>' : '') +
           '</span>' +
         '</div>' +
         '<div class="row-panel plist-clear" hidden></div>' +
@@ -1836,7 +1840,7 @@ function parseAnalyticsSummary(data) {
             (kind || privNow ? '' : '<option value="" selected>Shared: anyone reads it; people who sign in add to it</option>') +
             '<option value="entries"' + (kind === 'entries' || (!kind && privNow) ? ' selected' : '') + '>Submissions: visitors send them; each sees and changes their own</option>' +
             '<option value="content"' + (kind === 'content' ? ' selected' : '') + '>Page info: only you write it; everyone reads it</option>' +
-            '<option value="mine"' + (kind === 'mine' ? ' selected' : '') + '>Personal: each visitor\'s own private record; you see only how many</option>' +
+            '<option value="mine"' + (kind === 'mine' ? ' selected' : '') + '>Personal: each visitor\'s own record; your tools never show it, your site\'s pages read it for that visitor</option>' +
             '<option value="board"' + (kind === 'board' ? ' selected' : '') + '>Shared board: everyone reads it; people who sign in add, change and delete items</option>' +
           '</select></div>' +
         '<label class="panel-check"><input type="checkbox" data-kind-field="one"' + (one ? ' checked' : '') + '> One entry per person (votes, one RSVP each)</label>' +
@@ -1959,7 +1963,7 @@ function parseAnalyticsSummary(data) {
       var id = 'clear-' + escAttr(name) + '-' + escAttr(coll);
       var personal = btn.getAttribute('data-kind') === 'mine';
       panel.innerHTML = '<label for="' + id + '">' + (personal
-          ? 'This deletes the personal records of all ' + n + (n === 1 ? ' person' : ' people') + ' in <b>' + esc(coll) + '</b>, for everyone. They stay in Recently deleted for ' + UNDO_DAYS + ' days, where you can bring them back. Type the name to confirm.'
+          ? 'This deletes the personal records of ' + (n ? 'all ' + n + (n === 1 ? ' person' : ' people') : 'everyone who has one') + ' in <b>' + esc(coll) + '</b>, for everyone. They stay in Recently deleted for ' + UNDO_DAYS + ' days, where you can bring them back. Type the name to confirm.'
           : 'This deletes all ' + n + (n === 1 ? ' entry' : ' entries') + ' in <b>' + esc(coll) + '</b>. They stay in Recently deleted for ' + UNDO_DAYS + ' days, where you can bring them back. Type the list name to confirm.') + '</label>' +
         '<input type="text" id="' + id + '" autocomplete="off" spellcheck="false" data-confirm-input>' +
         '<div class="panel-btns">' +
@@ -2274,7 +2278,7 @@ function parseAnalyticsSummary(data) {
       if (inp) inp.focus();
     }
     function personalDeletedHTML(st) {
-      return '<div class="versions-status">' + st.gone + (st.gone === 1 ? ' record was' : ' records were') + ' cleared or deleted in the last ' + UNDO_DAYS + ' days. What they hold is their people\'s own, so it is not shown. Restore brings back what your clear took; a record its person deleted stays deleted.</div>' +
+      return '<div class="versions-status">' + (st.gone ? st.gone + (st.gone === 1 ? ' record was' : ' records were') : 'Fewer than 3 records were') + ' cleared or deleted in the last ' + UNDO_DAYS + ' days. What they hold is their people\'s own, so it is not shown. Restore brings back what your clear took; a record its person deleted stays deleted.</div>' +
         '<div class="panel-btns" style="margin:6px 0 8px;"><button type="button" class="btn-small btn-secondary" data-undo="undelete-all">Restore</button>' +
           '<button type="button" class="btn-small btn-ghost" data-undo="purge-all">Delete all forever</button></div>' +
         '<div class="row-panel undo-confirm" hidden></div>';
@@ -2294,8 +2298,15 @@ function parseAnalyticsSummary(data) {
           '<td>' + esc(new Date(it.deleted_at).toLocaleString()) + '</td>' +
         '</tr>';
       }).join('');
+      // A Shared board brings back only what went within a window the owner
+      // picks: after someone deletes the lot, not what people deleted before.
+      var win = st.kind === 'board'
+        ? '<label class="undo-window">deleted in the last <select data-undo-window>' +
+            '<option value="15">15 minutes</option><option value="60" selected>hour</option><option value="360">6 hours</option>' +
+            '<option value="1440">day</option><option value="' + (UNDO_DAYS * 1440) + '">' + UNDO_DAYS + ' days</option></select></label>'
+        : '';
       return intro +
-        '<div class="panel-btns" style="margin:6px 0 8px;"><button type="button" class="btn-small btn-secondary" data-undo="undelete-all">Restore all</button>' +
+        '<div class="panel-btns" style="margin:6px 0 8px;"><button type="button" class="btn-small btn-secondary" data-undo="undelete-all">Restore all</button>' + win +
           '<button type="button" class="btn-small btn-ghost" data-undo="purge-all">Delete all forever</button></div>' +
         '<div class="row-panel undo-confirm" hidden></div>' +
         '<div class="plist-table-wrap"><table class="plist-table"><thead><tr><th></th><th>item</th><th>sent by</th><th>deleted</th></tr></thead><tbody>' +
@@ -2322,7 +2333,7 @@ function parseAnalyticsSummary(data) {
         return;
       }
       if (act === 'clear-history') {
-        openUndoConfirm(panel, 'Clear every earlier version of <b>' + esc(st.name) + '</b>\'s saved data and lists, for good? The data as it is now stays, and so does Recently deleted.', st.name, 'clear-history-go', 'Clear history');
+        openUndoConfirm(panel, 'Clear every earlier version of <b>' + esc(st.name) + '</b>\'s saved data and lists, for good? The data as it is now stays, and so does Recently deleted. Personal records a clear took can then no longer be brought back, by you or by their people.', st.name, 'clear-history-go', 'Clear history');
         return;
       }
       if (act === 'purge-go' || act === 'purge-all-go' || act === 'clear-history-go') {
@@ -2370,6 +2381,11 @@ function parseAnalyticsSummary(data) {
         path = base + '/deleted/restore';
         body = { all: true };
         ask = 'Bring back every deleted item in "' + st.coll + '"?';
+        var winSel = panel.querySelector('[data-undo-window]');
+        if (winSel) {
+          body.within_minutes = Number(winSel.value);
+          ask = 'Bring back every item deleted from "' + st.coll + '" in the last ' + winSel.options[winSel.selectedIndex].text + '?';
+        }
         done = 'Brought back';
       } else return;
       if (ask && !confirm(ask)) return;

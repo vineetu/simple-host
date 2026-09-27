@@ -352,6 +352,15 @@ var limitPhrases = []limitPhrase{
 	phrase("declares at most 20 Shared board names", knob("SAVED_DATA_BOARD_NAMES_MAX"), func(l *config.Limits) string {
 		return "declares at most " + limitCommas(l.SavedData.BoardNamesMax) + " Shared board names"
 	}),
+	phrase("holds records for at most 1,000 people", knob("SAVED_DATA_PERSONAL_PEOPLE_MAX"), func(l *config.Limits) string {
+		return "holds records for at most " + limitCommas(l.SavedData.PersonalPeopleMax) + " people"
+	}),
+	phrase("the name holds records for 1,000 people", knob("SAVED_DATA_PERSONAL_PEOPLE_MAX"), func(l *config.Limits) string {
+		return "the name holds records for " + limitCommas(l.SavedData.PersonalPeopleMax) + " people"
+	}),
+	phrase("to 30 a minute per signed-in person", knob("SAVED_DATA_BOARD_WRITES_PER_MIN"), func(l *config.Limits) string {
+		return "to " + limitCommas(l.SavedData.BoardWritesPerMin) + " a minute per signed-in person"
+	}),
 	phrase("b.undo(id) within 10 minutes", knob("SAVED_DATA_WITHDRAW_UNDO_MINUTES"), func(l *config.Limits) string {
 		return "b.undo(id) within " + limitSpan(time.Duration(l.SavedData.WithdrawUndoMinutes)*time.Minute)
 	}),

@@ -34,8 +34,13 @@ import (
 //     with its typed confirmation); nobody else has a route that touches more
 //     than one item.
 //   - Items are JSON objects of at most SAVED_DATA_BOARD_ITEM_MAX_KB, at most
-//     SAVED_DATA_BOARD_MAX live per name; visitor adds, changes and deletes
-//     share the per-address write rate (SAVED_DATA_APPEND_PER_MIN).
+//     SAVED_DATA_BOARD_MAX live per name (the owner's restores too); visitor
+//     adds, changes and deletes share the per-address write rate
+//     (SAVED_DATA_APPEND_PER_MIN) and, per signed-in person whatever their
+//     address, SAVED_DATA_BOARD_WRITES_PER_MIN.
+//   - The owner's "Restore all" on a board names a window (within_minutes):
+//     after vandalism it brings back what went since then, not what people
+//     deleted on purpose before.
 //   - No live feed (decided later): a page polls GET with If-None-Match and
 //     gets 304 while nothing changed.
 
@@ -59,6 +64,10 @@ func (h *SiteHandler) boardWriter(w http.ResponseWriter, r *http.Request, siteID
 		return db.Actor{}, false
 	}
 	if !h.personSaverOK(w, r, siteID, sess.UserID) || !h.allowAppend(w, r) {
+		return db.Actor{}, false
+	}
+	if h.boardLimiter != nil && !h.boardLimiter.allow("u:"+sess.UserID) {
+		tooManyRequests(w)
 		return db.Actor{}, false
 	}
 	return h.withAuthorEmail(r.Context(), db.Actor{ID: sess.UserID, Kind: actorVisitor}), true
@@ -109,6 +118,20 @@ func (h *SiteHandler) appendBoard(w http.ResponseWriter, r *http.Request, siteID
 		return
 	}
 	body := json.RawMessage(bytes.TrimSpace(raw))
+	// The server's own stamp keys are never the visitor's to set.
+	stamped := false
+	for _, k := range privateStampKeys {
+		if _, ok := obj[k]; ok {
+			delete(obj, k)
+			stamped = true
+		}
+	}
+	if stamped {
+		if body, err = json.Marshal(obj); err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return
+		}
+	}
 	claim, handled := h.idemBegin(w, r, siteID, "POST collections/"+set.Name, actor, body, h.replayItem(w, r, siteID, set.Name))
 	if handled {
 		return

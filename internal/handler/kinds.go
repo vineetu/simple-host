@@ -899,10 +899,7 @@ func (h *SiteHandler) declareData(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if has {
-			writeJSON(w, http.StatusConflict, errorResponse{
-				Error: fmt.Sprintf("%q is Personal and holds records that belong to the people who saved them, so it never becomes another kind while it holds any. Use another name, or empty it and delete what is in its Recently deleted for good first", name),
-				Code:  "has_records",
-			})
+			writeHasRecords(w, name)
 			return
 		}
 	}
@@ -953,8 +950,7 @@ func (h *SiteHandler) declareData(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		if err := db.DeclareData(r.Context(), h.database, siteID, name, db.KindContent, false, false, db.NotifyOff); err != nil {
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		if !h.declareLocked(w, r, siteID, name, db.KindContent, false, false, db.NotifyOff) {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -1024,8 +1020,7 @@ func (h *SiteHandler) declareData(w http.ResponseWriter, r *http.Request) {
 		if prev.Kind != db.KindEntries && !h.entriesNameRoom(w, r, siteID, name) {
 			return
 		}
-		if err := db.DeclareData(r.Context(), h.database, siteID, name, db.KindEntries, private, one, notify); err != nil {
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		if !h.declareLocked(w, r, siteID, name, db.KindEntries, private, one, notify) {
 			return
 		}
 		msg := "Submissions, private: signed-in visitors on https://" + home.Host + " add entries and see, change or withdraw their own; only you read them all."
@@ -1045,6 +1040,40 @@ func (h *SiteHandler) declareData(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `kind is "entries" (Submissions: things visitors send), "content" (Page info: only the owner writes it), "mine" (Personal: one private record per signed-in visitor) or "board" (Shared board: a list signed-in visitors edit together)`, Code: "invalid_kind"})
 	}
+}
+
+// declareLocked writes the declaration under the name's lock, re-checking
+// there that a change to or from Personal finds the name empty (a save may
+// have landed since the checks above). Writes the refusal; false then.
+func (h *SiteHandler) declareLocked(w http.ResponseWriter, r *http.Request, siteID, name, kind string, private, one bool, notify string) bool {
+	err := db.DeclareDataLocked(r.Context(), h.database, siteID, name, kind, private, one, notify)
+	switch {
+	case errors.Is(err, db.ErrNameHasRows) && kind == db.KindPersonal:
+		writeHoldsData(w, name)
+	case errors.Is(err, db.ErrNameHasRows):
+		writeHasRecords(w, name)
+	case err != nil:
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+	default:
+		return true
+	}
+	return false
+}
+
+// writeHasRecords: a Personal name that holds records stays Personal.
+func writeHasRecords(w http.ResponseWriter, name string) {
+	writeJSON(w, http.StatusConflict, errorResponse{
+		Error: fmt.Sprintf("%q is Personal and holds records that belong to the people who saved them, so it never becomes another kind while it holds any. Use another name, or empty it and delete what is in its Recently deleted for good first", name),
+		Code:  "has_records",
+	})
+}
+
+// writeHoldsData: a name that holds data never becomes Personal.
+func writeHoldsData(w http.ResponseWriter, name string) {
+	writeJSON(w, http.StatusConflict, errorResponse{
+		Error: fmt.Sprintf("%q already holds data (or has items in Recently deleted), and Personal records are private to each person, so it would disappear from your view. Use another name, or empty it and delete what is in its Recently deleted for good first", name),
+		Code:  "has_entries",
+	})
 }
 
 func validKind(k string) bool {
@@ -1074,10 +1103,7 @@ func (h *SiteHandler) declarePersonalOrBoard(w http.ResponseWriter, r *http.Requ
 				return
 			}
 			if has {
-				writeJSON(w, http.StatusConflict, errorResponse{
-					Error: fmt.Sprintf("%q already holds data (or has items in Recently deleted), and Personal records are private to each person, so it would disappear from your view. Use another name, or empty it and delete what is in its Recently deleted for good first", name),
-					Code:  "has_entries",
-				})
+				writeHoldsData(w, name)
 				return
 			}
 		}
@@ -1110,11 +1136,10 @@ func (h *SiteHandler) declarePersonalOrBoard(w http.ResponseWriter, r *http.Requ
 	if kind == db.KindBoard && prev.Private && !h.confirmPublicOK(w, r, siteID, name, "a Shared board", confirmPublic) {
 		return
 	}
-	if err := db.DeclareData(r.Context(), h.database, siteID, name, kind, false, false, db.NotifyOff); err != nil {
-		internal()
+	if !h.declareLocked(w, r, siteID, name, kind, false, false, db.NotifyOff) {
 		return
 	}
-	msg := fmt.Sprintf("Personal: each visitor signed in on https://%s keeps one private record here (at most %d KB), on any device; only they read or change it. You see how many people have one, never what they saved.", home.Host, h.savedData.PersonalMaxKB)
+	msg := fmt.Sprintf("Personal: each visitor signed in on https://%s keeps one record here (at most %d KB), on any device; only they change it. You see how many people have one (from 3 people up), never what they saved: Simple Host's owner tools never show a person's Personal record; the site's own pages run in the visitor's browser and can read that visitor's record, so only use Personal on sites you trust. Never publish a page that sends what it reads from a Personal record anywhere else.", home.Host, h.savedData.PersonalMaxKB)
 	if kind == db.KindBoard {
 		msg = fmt.Sprintf("Shared board: anyone who can open the site reads it; visitors signed in on https://%s add items and change or delete any item, one at a time (at most %d items of %d KB). Only you can clear it; changed and deleted items can be restored for %d days.", home.Host, h.savedData.BoardMax, h.savedData.BoardItemMaxKB, h.savedData.UndoDays)
 	}

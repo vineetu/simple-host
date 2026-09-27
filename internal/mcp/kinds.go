@@ -13,14 +13,14 @@ import (
 // is: Page info (kind content: only the owner writes it, anyone reads it) or
 // Submissions (kind entries: visitors send them; the owner reads all; each
 // visitor sees, changes and withdraws their own; private unless made public).
-// Personal (kind mine: one private record per signed-in visitor, which only
-// that visitor reads) and Shared board (kind board: a list signed-in visitors
+// Personal (kind mine: one record per signed-in visitor, which the owner's
+// tools never show; the site's own pages read it for that visitor) and Shared board (kind board: a list signed-in visitors
 // add to and edit item by item; only the owner clears it) came in steps 3-4.
 // A name nobody declared is Shared (public, signed-in visitors add to it),
 // unless the install set SAVED_DATA_DEFAULT_KIND=declare_first.
 
 const kindWords = "`entries` (Submissions: things visitors send, e.g. RSVPs, orders, sign-ups, votes, comments, feedback), `content` (Page info: text and settings only the owner writes and everyone reads, e.g. a menu, schedule, prices), " +
-	"`mine` (Personal: one private record per signed-in visitor that follows them across devices, e.g. a habit tracker, saved progress, preferences; only that visitor reads it, the owner sees only how many people have one) " +
+	"`mine` (Personal: one private record per signed-in visitor that follows them across devices, e.g. a habit tracker, saved progress, preferences; only that visitor changes it, and the owner sees only how many people have one. Simple Host's owner tools never show a person's Personal record; the site's own pages run in the visitor's browser and can read that visitor's record, so only use Personal on sites you trust. Never write a page that sends it anywhere else) " +
 	"or `board` (Shared board: a list anyone reads and signed-in visitors add to, change and delete item by item, e.g. a shared shopping list, a kanban, a potluck sign-up; only the owner clears it)"
 
 func kindTools() []Tool {
@@ -132,6 +132,8 @@ func kindTools() []Tool {
 						Label        string `json:"label"`
 						OnePerPerson bool   `json:"one_per_person"`
 						Notify       string `json:"notify"`
+						Few          bool   `json:"few"`
+						DeletedFew   bool   `json:"deleted_few"`
 					} `json:"names"`
 					Savers struct {
 						Mode  string   `json:"mode"`
@@ -144,6 +146,15 @@ func kindTools() []Tool {
 				names := make([]any, 0, len(parsed.Names))
 				for _, n := range parsed.Names {
 					item := map[string]any{"name": n.Name, "kind": n.Kind, "label": n.Label, "items": n.Count, "deleted": n.Deleted, "bytes": n.Bytes}
+					// Personal with one or two people: how many and their
+					// size are withheld (they would point at one person).
+					if n.Few {
+						item["fewer_than_3"] = true
+						delete(item, "bytes")
+					}
+					if n.DeletedFew {
+						item["deleted_fewer_than_3"] = true
+					}
 					if n.Kind != "content" && n.Kind != "mine" && n.Kind != "board" {
 						item["private"] = n.Private
 					}
@@ -337,15 +348,17 @@ func kindOutputSchemas() map[string]map[string]any {
 		"list_data": outObject(map[string]any{
 			"site": outString(outSiteName),
 			"names": outArray("Every data name on the site.", outObject(map[string]any{
-				"name":           outString("The data name."),
-				"kind":           outString("entries (Submissions), content (Page info), mine (Personal), board (Shared board) or empty (not declared)."),
-				"label":          outString("The kind in product words: Submissions, Page info, Personal, Shared board, Shared (not declared; public), Private list (not declared, made private) or Not set (not declared, takes no saves)."),
-				"items":          outInteger("How many items it holds (Page info: 1 once saved; Personal: how many people have a record)."),
-				"bytes":          outInteger("The size of what it holds now, in bytes."),
-				"deleted":        outInteger("Items in its Recently deleted (list_deleted, restore_item)."),
-				"private":        outBool("Whether only the owner reads it. Absent for Page info, Personal and Shared boards."),
-				"one_per_person": outBool("Submissions: one entry per visitor."),
-				"notify":         outString("Submissions: off, each or daily."),
+				"name":                 outString("The data name."),
+				"kind":                 outString("entries (Submissions), content (Page info), mine (Personal), board (Shared board) or empty (not declared)."),
+				"label":                outString("The kind in product words: Submissions, Page info, Personal, Shared board, Shared (not declared; public), Private list (not declared, made private) or Not set (not declared, takes no saves)."),
+				"items":                outInteger("How many items it holds (Page info: 1 once saved; Personal: how many people have a record, 0 with fewer_than_3)."),
+				"bytes":                outInteger("The size of what it holds now, in bytes (absent with fewer_than_3)."),
+				"deleted":              outInteger("Items in its Recently deleted (list_deleted, restore_item)."),
+				"fewer_than_3":         outBool("Personal: one or two people have a record; how many and their size are not shown, so they never point at one person."),
+				"deleted_fewer_than_3": outBool("Personal: one or two records are in Recently deleted (deleted is 0)."),
+				"private":              outBool("Whether only the owner reads it. Absent for Page info, Personal and Shared boards."),
+				"one_per_person":       outBool("Submissions: one entry per visitor."),
+				"notify":               outString("Submissions: off, each or daily."),
 			}, "name", "kind", "label", "items", "deleted")),
 			"undeclared_names_take_saves": outBool("True when a name nobody declared is Shared (anyone reads it, anyone signed in adds to it): every site unless the install requires declaring first."),
 			"who_can_save": outObject(map[string]any{

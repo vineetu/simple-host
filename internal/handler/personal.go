@@ -25,10 +25,18 @@ import (
 //     address, from a page there (the __Host- cookie, same origin; writes
 //     carry the CSRF header): GET, PUT (the whole record, one JSON object),
 //     PATCH (the /state ops) and DELETE /v1/sites/{s}/data/{name}.
-//   - Nobody else reads it: not other visitors, not the site owner's key or
-//     connector, not the operator. The owner sees how many people have a
-//     record and their total size (list_data), and can clear the name for
-//     everyone (a clear, restorable for SAVED_DATA_UNDO_DAYS).
+//   - Simple Host's owner tools never show it: not the site owner's key,
+//     connector, owner app or exports, not the operator, not other visitors.
+//     The owner sees how many people have a record and their total size
+//     (list_data, from 3 people up), and can clear the name for everyone (a
+//     clear, restorable for SAVED_DATA_UNDO_DAYS). The site's own pages run
+//     in the visitor's browser and can read that visitor's record, so
+//     Personal is as private as the site's pages are trustworthy (the copy
+//     says so everywhere; code cannot enforce it while the owner writes the
+//     pages). Stored private = true, so code that does not know the kinds
+//     fails closed to owner-only.
+//   - At most SAVED_DATA_PERSONAL_PEOPLE_MAX people per name (409
+//     people_full for a new person; people who have a record keep saving).
 //   - At most SAVED_DATA_PERSONAL_MAX_KB per person per name. Every change
 //     keeps the earlier record for SAVED_DATA_UNDO_DAYS; the person lists and
 //     restores their own (GET .../data/{name}/history, POST
@@ -45,7 +53,8 @@ func writePersonalOnly(w http.ResponseWriter, name string) {
 	w.Header().Set("Cache-Control", "private, no-store")
 	writeJSON(w, http.StatusForbidden, errorResponse{
 		Error: fmt.Sprintf("%q is Personal: each signed-in visitor's own private record, read and changed only by that person on the site (SH.data(%q, 'personal')). "+
-			"The site owner sees how many people have one and their size (list_data), and can clear it for everyone, but never reads them", name, name),
+			"Simple Host's owner tools never show a person's record: the site owner sees how many people have one and their size (list_data, from 3 people up) and can clear it for everyone. "+
+			"The site's own pages run in the visitor's browser and can read that visitor's record", name, name),
 		Code: "personal_data",
 	})
 }
@@ -120,6 +129,11 @@ func (h *SiteHandler) getPersonal(w http.ResponseWriter, r *http.Request, siteID
 			n, err := db.CountLiveItems(r.Context(), h.database, siteID, name)
 			if err != nil {
 				writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+				return
+			}
+			// One or two people: "fewer than 3", never the number.
+			if n > 0 && n < db.PersonalFewMax {
+				writeJSON(w, http.StatusOK, map[string]any{"name": name, "count": 0, "few": true})
 				return
 			}
 			writeJSON(w, http.StatusOK, map[string]any{"name": name, "count": n})
@@ -224,7 +238,7 @@ func (h *SiteHandler) savePersonal(w http.ResponseWriter, r *http.Request, siteI
 		return
 	}
 	defer h.idemEnd(r, claim)
-	it, err := db.SavePersonal(r.Context(), h.database, siteID, name, actor, h.siteMaxBytes(), next)
+	it, err := db.SavePersonal(r.Context(), h.database, siteID, name, actor, h.siteMaxBytes(), h.savedData.PersonalPeopleMax, next)
 	h.boundHistory(r, siteID)
 	var reply *patchReply
 	switch {
@@ -235,6 +249,11 @@ func (h *SiteHandler) savePersonal(w http.ResponseWriter, r *http.Request, siteI
 		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("%q is not Personal any more", name), Code: "wrong_kind"})
 	case errors.Is(err, db.ErrSiteFull):
 		h.writeSiteFull(w)
+	case errors.Is(err, db.ErrPeopleFull):
+		writeJSON(w, http.StatusConflict, errorResponse{
+			Error: fmt.Sprintf("%q already keeps a record for %d people, the most one Personal name holds, so it takes no one new; ask the site owner", name, h.savedData.PersonalPeopleMax),
+			Code:  "people_full",
+		})
 	case err != nil:
 		log.Printf("personal save site_id=%s name=%s: %v", siteID, name, err)
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -348,6 +367,11 @@ func (h *SiteHandler) deleteData(w http.ResponseWriter, r *http.Request) {
 	it, found, err := db.GetPersonal(r.Context(), h.database, siteID, name, actor.ID)
 	if err == nil && found {
 		found, err = db.SoftDeleteItem(r.Context(), h.database, siteID, name, it.ID, actor)
+	}
+	// The owner's clear took it: the person's delete still counts, so the
+	// owner's Restore (only what a clear took) leaves it deleted.
+	if err == nil && !found {
+		found, err = db.ForgetClearedPersonal(r.Context(), h.database, siteID, name, actor)
 	}
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -470,7 +494,7 @@ func (h *SiteHandler) restorePersonal(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	it, err := db.RestoreItemVersion(r.Context(), h.database, siteID, name, e.ID, actor, h.siteMaxBytes())
+	it, err := db.RestoreItemVersion(r.Context(), h.database, siteID, name, e.ID, actor, h.siteMaxBytes(), 0)
 	h.boundHistory(r, siteID)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):

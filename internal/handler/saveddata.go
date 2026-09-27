@@ -64,6 +64,7 @@ func (h *SiteHandler) SetSavedData(c config.SavedData) {
 	h.savedData = c
 	h.readLimiter = newRateLimiter(float64(c.ReadBurst), float64(c.ReadPerSec))
 	h.appendLimiter = newRateLimiter(float64(c.AppendBurst), float64(c.AppendPerMin)/60)
+	h.boardLimiter = newRateLimiter(float64(c.BoardWritesPerMin), float64(c.BoardWritesPerMin)/60)
 	h.thinLimiter = newRateLimiter(1, 1)
 }
 
@@ -309,7 +310,7 @@ func (h *SiteHandler) StartSavedDataSweep(ctx context.Context) {
 }
 
 func (h *SiteHandler) sweepSavedData(ctx context.Context) {
-	for _, rl := range []*rateLimiter{h.readLimiter, h.appendLimiter, h.thinLimiter} {
+	for _, rl := range []*rateLimiter{h.readLimiter, h.appendLimiter, h.boardLimiter, h.thinLimiter} {
 		if rl != nil {
 			rl.evictIdle(10 * time.Minute)
 		}
@@ -561,13 +562,19 @@ func (h *SiteHandler) restoreListHistory(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no such change", Code: "not_found"})
 		return
 	}
-	item, err := db.RestoreItemVersion(r.Context(), h.database, siteID, coll, id, h.ownerActor(r.Context(), user, siteID), h.siteMaxBytes())
+	boardMax, ok := h.boardCap(w, r, siteID, coll)
+	if !ok {
+		return
+	}
+	item, err := db.RestoreItemVersion(r.Context(), h.database, siteID, coll, id, h.ownerActor(r.Context(), user, siteID), h.siteMaxBytes(), boardMax)
 	h.boundHistory(r, siteID)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no such change", Code: "not_found"})
 	case errors.Is(err, db.ErrNoEarlierValue):
 		writeJSON(w, http.StatusConflict, errorResponse{Error: err.Error(), Code: "nothing_to_restore"})
+	case errors.Is(err, db.ErrNameFull):
+		h.writeBoardFull(w)
 	case errors.Is(err, db.ErrSiteFull):
 		h.writeSiteFull(w)
 	case err != nil:
@@ -614,14 +621,36 @@ func (h *SiteHandler) restoreDeletedItem(w http.ResponseWriter, r *http.Request)
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "no such deleted item", Code: "not_found"})
 			return
 		}
-	} else {
+	}
+	var within time.Duration
+	if id == 0 {
 		var req struct {
-			All bool `json:"all"`
+			All           bool `json:"all"`
+			WithinMinutes int  `json:"within_minutes"`
 		}
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil || !req.All {
-			writeJSON(w, http.StatusBadRequest, errorResponse{Error: `to bring back every deleted item, send {"all": true}`, Code: "confirm_required"})
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: `to bring back every deleted item, send {"all": true} (and "within_minutes": n for only those deleted in the last n minutes)`, Code: "confirm_required"})
 			return
 		}
+		if req.WithinMinutes < 0 || req.WithinMinutes > h.savedData.UndoDays*24*60 {
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: fmt.Sprintf("within_minutes is 1 to %d (%d days)", h.savedData.UndoDays*24*60, h.savedData.UndoDays), Code: "invalid_window"})
+			return
+		}
+		within = time.Duration(req.WithinMinutes) * time.Minute
+	}
+	boardMax, ok := h.boardCap(w, r, siteID, coll)
+	if !ok {
+		return
+	}
+	// A board's Restore all names how far back: after someone deletes the
+	// lot, the owner brings back what went since then, not what people
+	// deleted on purpose before it.
+	if boardMax > 0 && id == 0 && within == 0 {
+		writeJSON(w, http.StatusBadRequest, errorResponse{
+			Error: fmt.Sprintf(`on a Shared board, say how far back to bring items back: {"all": true, "within_minutes": 60} restores what was deleted in the last hour (up to %d for all %d days)`, h.savedData.UndoDays*24*60, h.savedData.UndoDays),
+			Code:  "window_required",
+		})
+		return
 	}
 	// A Personal name: the owner brings back only what their clear took, all
 	// at once (they never pick out one person's record, and a record its
@@ -634,9 +663,16 @@ func (h *SiteHandler) restoreDeletedItem(w http.ResponseWriter, r *http.Request)
 		writePersonalOnly(w, coll)
 		return
 	}
-	n, err := db.UndeleteItems(r.Context(), h.database, siteID, coll, id, h.ownerActor(r.Context(), user, siteID), h.siteMaxBytes(), personal)
+	n, err := db.UndeleteItems(r.Context(), h.database, siteID, coll, id, h.ownerActor(r.Context(), user, siteID), h.siteMaxBytes(), personal, within, boardMax)
 	if errors.Is(err, db.ErrSiteFull) {
 		h.writeSiteFull(w)
+		return
+	}
+	if errors.Is(err, db.ErrNameFull) {
+		writeJSON(w, http.StatusConflict, errorResponse{
+			Error: fmt.Sprintf("bringing these back would take the board past %d items; delete some first, or restore fewer (a shorter within_minutes, or one at a time)", h.savedData.BoardMax),
+			Code:  "list_full",
+		})
 		return
 	}
 	if err != nil {
@@ -648,6 +684,20 @@ func (h *SiteHandler) restoreDeletedItem(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"site": siteName, "collection": coll, "restored": n})
+}
+
+// boardCap is SAVED_DATA_BOARD_MAX when coll is a Shared board (restores
+// keep its cap), 0 otherwise. Writes the 500; ok=false then.
+func (h *SiteHandler) boardCap(w http.ResponseWriter, r *http.Request, siteID, coll string) (int, bool) {
+	set, err := db.GetDataSettings(r.Context(), h.database, siteID, coll)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return 0, false
+	}
+	if set.Kind == db.KindBoard {
+		return h.savedData.BoardMax, true
+	}
+	return 0, true
 }
 
 // confirmBody reads {"confirm": "<want>"}; on a mismatch it writes the 400

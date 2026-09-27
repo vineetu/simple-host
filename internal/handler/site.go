@@ -120,6 +120,9 @@ type SiteHandler struct {
 	savedData     config.SavedData
 	readLimiter   *rateLimiter
 	appendLimiter *rateLimiter
+	// boardLimiter is SAVED_DATA_BOARD_WRITES_PER_MIN per signed-in person,
+	// so one account on many addresses writes a board no faster (board.go).
+	boardLimiter *rateLimiter
 	// thinLimiter spaces out boundHistory's thinning: once a second per site.
 	thinLimiter *rateLimiter
 }

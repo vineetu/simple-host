@@ -2023,8 +2023,10 @@ paths:
         (`content` = Page info, `entries` = Submissions, `mine` = Personal,
         `board` = Shared board, empty = not declared), `label`, `bytes` (the size
         of what it holds now), `one_per_person` and `notify`; for a Personal name
-        `count` is how many people have a record, which is all the owner sees of
-        it; who may save on the site
+        `count` is how many people have a record and `bytes` their total size,
+        shown only from 3 people up: with one or two, `count` and `bytes` are 0
+        and `few` is true (likewise `deleted` and `deleted_few` for its Recently
+        deleted), and `last_at` is never given; who may save on the site
         (`savers`); and `undeclared_names_take_saves`: whether a name nobody
         declared is **Shared** here (anyone reads it, anyone signed in adds to it).
         True unless the install sets SAVED_DATA_DEFAULT_KIND=declare_first and the
@@ -2056,6 +2058,8 @@ paths:
                         deleted: { type: integer }
                         one_per_person: { type: boolean }
                         notify: { type: string, enum: [off, each, daily] }
+                        few: { type: boolean, description: "Personal: one or two people have a record; count and bytes are withheld (0)" }
+                        deleted_few: { type: boolean, description: "Personal: one or two records are in Recently deleted; deleted is withheld (0)" }
                   savers: { $ref: '#/components/schemas/Savers' }
                   undeclared_names_take_saves: { type: boolean }
                   limits: { type: object, additionalProperties: { type: integer } }
@@ -2124,11 +2128,17 @@ paths:
         it is empty (409 has_entries). Public Submissions are refused on an
         install with WRITE_AUTH_MODE=off (409 visitor_sign_in_off).
         `{"kind": "mine"}` is **Personal**: one private record per signed-in
-        visitor (a habit tracker, saved progress); only that visitor reads or
-        writes it, and the owner sees only how many people have one and their
-        size; a name must be empty (nothing live or in Recently deleted) to
+        visitor (a habit tracker, saved progress), stored private. Simple Host's
+        owner tools (key, connector, owner app, exports) never show a person's
+        record: the owner sees how many people have one and their size (from 3
+        people up). The site's own pages run in the visitor's browser and can
+        read that visitor's record, so Personal is as private as the site's
+        pages are trustworthy. A name holds records for at most 1,000 people
+        (SAVED_DATA_PERSONAL_PEOPLE_MAX; a new person past it: 409 people_full).
+        A name must be empty (nothing live or in Recently deleted) to
         become Personal (409 has_entries), and a Personal name that holds records
-        never becomes another kind (409 has_records);
+        never becomes another kind (409 has_records; both checked under the
+        name's lock, so no save lands in between);
         a site declares at most 20 Personal names (SAVED_DATA_PERSONAL_NAMES_MAX).
         `{"kind": "board"}` is a
         **Shared board**: anyone reads it; signed-in visitors add, change and
@@ -2194,7 +2204,8 @@ paths:
         until they save one; a visitor session on the site's own address, from a
         page there, else 401 visitor_auth_required), with an `ETag` (304 on a
         matching `If-None-Match`); the owner's key gets only `?count=1` (how many
-        people have one) and 403 personal_data otherwise. A Shared board
+        people have one; `{count: 0, few: true}` for one or two) and 403
+        personal_data otherwise. A Shared board
         (`board`) answers as a public list, each item with its `version`, plus an
         `ETag` (304 while unchanged: poll with `If-None-Match`). Submissions answer exactly as GET
         .../collections/{coll} does (the owner reads all, with `by`; anyone reads a
@@ -2241,7 +2252,11 @@ paths:
         object per item from a signed-in visitor on the site's own address (or
         the owner's key): each item is at most 16 KB (SAVED_DATA_BOARD_ITEM_MAX_KB)
         and a board holds at most 2,000 live items (SAVED_DATA_BOARD_MAX, 409
-        list_full); the answer carries the item's `version` (1). A Personal name
+        list_full); `_submitted_by` and `_submitted_at` are dropped from what is
+        sent (the server's own stamps); board adds, changes and deletes are
+        limited per address and, whatever the address, to 30 a minute per
+        signed-in person (SAVED_DATA_BOARD_WRITES_PER_MIN; 429 rate_limited);
+        the answer carries the item's `version` (1). A Personal name
         takes no items (409 wrong_kind): its visitor writes their record with PUT
         or PATCH.
       tags: [Collections]
@@ -2277,7 +2292,9 @@ paths:
         record with one JSON object (a visitor session on the site's own address,
         `X-SH-CSRF: 1`, who may save here; the per-address write rate applies;
         `Idempotency-Key` honoured); A personal record is at most 64 KB
-        (SAVED_DATA_PERSONAL_MAX_KB; 413 item_too_large). The answer is
+        (SAVED_DATA_PERSONAL_MAX_KB; 413 item_too_large). A visitor with no
+        record yet is refused once the name holds records for 1,000 people
+        (SAVED_DATA_PERSONAL_PEOPLE_MAX; 409 people_full). The answer is
         `{name, kind, data, version}`. A key never writes anyone's record (403
         personal_data).
       tags: [Collections]
@@ -2295,7 +2312,7 @@ paths:
         '400': { description: not_an_object, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '403': { description: owner_only, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { description: "declare_first or wrong_kind", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "declare_first, wrong_kind or people_full", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '413': { description: item_too_large, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '507': { description: site_full, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     patch:
@@ -2325,7 +2342,7 @@ paths:
         '400': { description: Bad ops, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '401': { description: visitor_auth_required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '403': { description: "personal_data (a key), not_allowed_to_save or csrf_required", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '409': { description: "wrong_kind or declare_first", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "wrong_kind, declare_first or people_full", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '413': { description: item_too_large, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     delete:
       operationId: deletePersonal
@@ -2334,7 +2351,9 @@ paths:
         Personal names only. The signed-in visitor deletes their own record
         (`{"deleted": true, "restorable_days": 30}`); they bring it back from
         their history (POST .../history/{id}/restore)
-        for 30 days (SAVED_DATA_UNDO_DAYS). 404 not_found when they have none. A blocked
+        for 30 days (SAVED_DATA_UNDO_DAYS). A record the owner's clear took can
+        be deleted too: it stays deleted when the owner restores what the clear
+        took. 404 not_found when they have none. A blocked
         visitor can still delete their own. The owner empties a name for
         everyone with DELETE .../collections/{coll}.
       tags: [Collections]
@@ -2836,8 +2855,9 @@ paths:
       description: >-
         A delete or clear brings its item back; an edit or restore puts back the
         item's data from before it (and brings the item back if it was deleted
-        since). Recorded as a change itself. Refused on a taken-down site, and
-        when it would grow the site past its cap (507 site_full).
+        since). Recorded as a change itself. Refused on a taken-down site, when
+        it would grow the site past its cap (507 site_full), and when an item it
+        brings back would take a Shared board past its cap (409 list_full).
       tags: [Collections]
       security: [{ apiKey: [] }]
       parameters:
@@ -2850,7 +2870,7 @@ paths:
           content: { application/json: { schema: { type: object, properties: { site: { type: string }, collection: { type: string }, restored: { type: integer }, item: { type: object, properties: { id: { type: integer }, data: {}, created_at: { type: string, format: date-time } } } } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { description: The change holds no earlier value (nothing_to_restore), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "The change holds no earlier value (nothing_to_restore), or a Shared board would go past its cap (list_full)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '507': { $ref: '#/components/responses/SiteFull' }
 
   /v1/sites/{sitename}/collections/{coll}/deleted:
@@ -2965,13 +2985,20 @@ paths:
     post:
       operationId: restoreCollectionDeleted
       summary: Bring back every deleted item in a list (owner)
-      description: 'The body must be `{"all": true}` (400 confirm_required otherwise). Undoes a clear. Refused on a taken-down site.'
+      description: >-
+        The body must be `{"all": true}` (400 confirm_required otherwise). Undoes a clear.
+        `"within_minutes": n` brings back only items deleted in the last n minutes
+        (at most SAVED_DATA_UNDO_DAYS; 400 invalid_window). On a Shared board it is required (400
+        window_required): after someone deletes the lot, bring back what went since
+        then, not what people deleted on purpose before; and a board never goes
+        past its cap (409 list_full). On a Personal name only what the owner's
+        clear took comes back. Refused on a taken-down site.
       tags: [Collections]
       security: [{ apiKey: [] }]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
         - { $ref: '#/components/parameters/coll' }
-      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { all: { type: boolean, enum: [true] } } } } } }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { all: { type: boolean, enum: [true] }, within_minutes: { type: integer, minimum: 1 } } } } } }
       responses:
         '200':
           description: How many came back
@@ -2979,6 +3006,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: "list_full: a Shared board would go past its cap", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '507': { $ref: '#/components/responses/SiteFull' }
 
   /v1/sites/{sitename}/collections/{coll}/items/{id}/restore:
@@ -2997,6 +3025,7 @@ paths:
           content: { application/json: { schema: { type: object, properties: { site: { type: string }, collection: { type: string }, restored: { type: integer, enum: [1] } } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Not in the list's Recently deleted (not_found), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "list_full: a Shared board would go past its cap", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /v1/u/{handle}/sites/{sitename}/state/history:
     get:
@@ -3138,8 +3167,9 @@ paths:
       description: >-
         A delete or clear brings its item back; an edit or restore puts back the
         item's data from before it (and brings the item back if it was deleted
-        since). Recorded as a change itself. Refused on a taken-down site, and
-        when it would grow the site past its cap (507 site_full).
+        since). Recorded as a change itself. Refused on a taken-down site, when
+        it would grow the site past its cap (507 site_full), and when an item it
+        brings back would take a Shared board past its cap (409 list_full).
       tags: [Collections]
       security: [{ apiKey: [] }]
       parameters:
@@ -3153,7 +3183,7 @@ paths:
           content: { application/json: { schema: { type: object, properties: { site: { type: string }, collection: { type: string }, restored: { type: integer }, item: { type: object, properties: { id: { type: integer }, data: {}, created_at: { type: string, format: date-time } } } } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { description: The change holds no earlier value (nothing_to_restore), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "The change holds no earlier value (nothing_to_restore), or a Shared board would go past its cap (list_full)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '507': { $ref: '#/components/responses/SiteFull' }
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted:
@@ -3238,14 +3268,21 @@ paths:
     post:
       operationId: restoreCollectionDeletedByHandle
       summary: Bring back every deleted item in a list (owner, by handle)
-      description: 'The body must be `{"all": true}` (400 confirm_required otherwise). Undoes a clear. Refused on a taken-down site.'
+      description: >-
+        The body must be `{"all": true}` (400 confirm_required otherwise). Undoes a clear.
+        `"within_minutes": n` brings back only items deleted in the last n minutes
+        (at most SAVED_DATA_UNDO_DAYS; 400 invalid_window). On a Shared board it is required (400
+        window_required): after someone deletes the lot, bring back what went since
+        then, not what people deleted on purpose before; and a board never goes
+        past its cap (409 list_full). On a Personal name only what the owner's
+        clear took comes back. Refused on a taken-down site.
       tags: [Collections]
       security: [{ apiKey: [] }]
       parameters:
         - { name: handle, in: path, required: true, schema: { type: string }, description: "the site owner's handle: names the site exactly (the operator reaches any site this way)" }
         - { $ref: '#/components/parameters/sitename' }
         - { $ref: '#/components/parameters/coll' }
-      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { all: { type: boolean, enum: [true] } } } } } }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { all: { type: boolean, enum: [true] }, within_minutes: { type: integer, minimum: 1 } } } } } }
       responses:
         '200':
           description: How many came back
@@ -3253,6 +3290,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: "list_full: a Shared board would go past its cap", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '507': { $ref: '#/components/responses/SiteFull' }
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}/restore:
@@ -3272,6 +3310,7 @@ paths:
           content: { application/json: { schema: { type: object, properties: { site: { type: string }, collection: { type: string }, restored: { type: integer, enum: [1] } } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Not in the list's Recently deleted (not_found), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "list_full: a Shared board would go past its cap", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /v1/u/{handle}/sites/{sitename}/history:
     delete:

@@ -399,10 +399,25 @@ What follows from that, and is not negotiable without changing the line above:
   are claimed before sending, so they go out once and a failed send is not retried. Reason: a
   strict default broke every site built by an older skill or by AI create on arrival. Owner
   decision 2026-09-27.
+- **2026-09-27. Personal is as private as the site's pages (review of steps 3-4).** The site's
+  own pages run in the visitor's browser on the site's origin, so a page the owner (or anyone who
+  can publish there) writes can read the visitor's record and send it elsewhere; code cannot stop
+  that while the owner controls the pages. So the promise is worded everywhere as: "Simple Host's
+  owner tools never show a person's Personal record; the site's own pages run in the visitor's
+  browser and can read that visitor's record, so only use Personal on sites you trust", and the
+  skills tell the AI never to write a page that sends a record anywhere else. Also decided with
+  the review: Personal names are stored `private = true` (an older binary fails closed; no
+  rollback below v0.7.0 once one exists); kind changes to or from Personal are checked under the
+  name's lock; at most 1,000 people per Personal name (`SAVED_DATA_PERSONAL_PEOPLE_MAX`); the
+  owner sees a Personal name's count and size only from 3 people up; a person's delete after an
+  owner clear sticks through the owner's Restore; board writes are also limited per signed-in
+  person (`SAVED_DATA_BOARD_WRITES_PER_MIN`, 30); a board's Restore all names a window and every
+  owner restore keeps the board's cap. Owner-approved review fixes, 2026-09-27.
 - **2026-09-27. Saved data steps 3 and 4 (Personal, Shared board), as built.** **Personal**
-  (`mine`) is one private record per signed-in visitor per name. Only that visitor reads or
-  writes it; the site owner (key, connector, owner app, CSV, history, Recently deleted, the
-  site's download) and the operator never read one: the owner sees how many people have a record
+  (`mine`) is one private record per signed-in visitor per name. Only that visitor writes it;
+  Simple Host's owner tools (key, connector, owner app, CSV, history, Recently deleted, the
+  site's download) and the operator never show one (the site's own pages can read it for their
+  visitor; see the review decision below): the owner sees how many people have a record
   and their size, and can clear the name for everyone (restore brings back only what the clear
   took). This is stricter than the plan's "the owner can export it": the build brief said
   Personal content is never visible to the owner, and a record is its person's (it is in their

@@ -105,9 +105,14 @@ func GetDataSettings(ctx context.Context, q Querier, siteID, name string) (DataS
 }
 
 // DeclareData records name's kind and options. Declaring content always
-// leaves it public (private = false). declared_at is kept from the first
-// declaration.
+// leaves it public (private = false). A Personal name is always stored
+// private: nothing that knows the kinds reads the flag for it, and code that
+// does not (an older binary after a rollback) then treats it as owner-only
+// instead of public. declared_at is kept from the first declaration.
 func DeclareData(ctx context.Context, q Querier, siteID, name, kind string, private, onePerPerson bool, notify string) error {
+	if kind == KindPersonal {
+		private = true
+	}
 	_, err := q.ExecContext(ctx, `
 		INSERT INTO collection_settings (site_id, collection, private, kind, one_per_person, notify, declared_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, now(), now())
@@ -116,6 +121,46 @@ func DeclareData(ctx context.Context, q Querier, siteID, name, kind string, priv
 		  notify = EXCLUDED.notify, declared_at = COALESCE(collection_settings.declared_at, now()), updated_at = now()`,
 		siteID, name, private, kind, onePerPerson, notify)
 	return err
+}
+
+// ErrNameHasRows: the name holds items (live or in Recently deleted), so it
+// cannot become Personal, or stop being Personal.
+var ErrNameHasRows = errors.New("the name holds items")
+
+// DeclareDataLocked is DeclareData under the name's declaration-row lock, the
+// one SavePersonal, AppendEntry and PutContent take, so no save lands between
+// the check and the change. A change to or from Personal is refused with
+// ErrNameHasRows while the name holds any item, live or in Recently deleted:
+// a Personal record never becomes an item the owner reads, and an item never
+// becomes someone's Personal record. The row is made first when missing.
+func DeclareDataLocked(ctx context.Context, database *sql.DB, siteID, name, kind string, private, onePerPerson bool, notify string) error {
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO collection_settings (site_id, collection) VALUES ($1, $2) ON CONFLICT DO NOTHING`, siteID, name); err != nil {
+		return err
+	}
+	var cur string
+	if err := tx.QueryRowContext(ctx, `
+		SELECT COALESCE(kind, '') FROM collection_settings WHERE site_id = $1 AND collection = $2 FOR UPDATE`, siteID, name).Scan(&cur); err != nil {
+		return err
+	}
+	if cur != kind && (cur == KindPersonal || kind == KindPersonal) {
+		has, err := NameHasRows(ctx, tx, siteID, name)
+		if err != nil {
+			return err
+		}
+		if has {
+			return ErrNameHasRows
+		}
+	}
+	if err := DeclareData(ctx, tx, siteID, name, kind, private, onePerPerson, notify); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // CountKindNames is how many names on the site are declared kind, other
@@ -475,8 +520,9 @@ func PersonalItemID(ctx context.Context, q Querier, siteID, name, userID string)
 // owner) is written over and comes back live, so a restore never makes two.
 // The earlier value goes to history. The declaration row is locked, so two
 // first saves at once cannot make two rows. ErrSiteFull when it grows the
-// site past maxBytes.
-func SavePersonal(ctx context.Context, database *sql.DB, siteID, name string, a Actor, maxBytes int64, fn func(cur json.RawMessage) (json.RawMessage, error)) (CollectionItem, error) {
+// site past maxBytes; ErrPeopleFull when the person has no row yet and
+// peopleMax people already have one (live or in Recently deleted).
+func SavePersonal(ctx context.Context, database *sql.DB, siteID, name string, a Actor, maxBytes int64, peopleMax int, fn func(cur json.RawMessage) (json.RawMessage, error)) (CollectionItem, error) {
 	if a.ID == "" {
 		return CollectionItem{}, errors.New("a personal record needs a signed-in person")
 	}
@@ -522,6 +568,17 @@ func SavePersonal(ctx context.Context, database *sql.DB, siteID, name string, a 
 			return CollectionItem{}, err
 		}
 	} else {
+		if peopleMax > 0 {
+			var n int
+			if err := tx.QueryRowContext(ctx, `
+				SELECT count(*) FROM (SELECT 1 FROM collection_items
+				  WHERE site_id = $1 AND collection = $2 LIMIT $3) x`, siteID, name, peopleMax).Scan(&n); err != nil {
+				return CollectionItem{}, err
+			}
+			if n >= peopleMax {
+				return CollectionItem{}, ErrPeopleFull
+			}
+		}
 		err = tx.QueryRowContext(ctx, `
 			INSERT INTO collection_items (site_id, collection, data, submitted_by, submitted_email)
 			VALUES ($1, $2, $3::jsonb, $4, $5) RETURNING id, data, created_at, version`,
@@ -536,6 +593,39 @@ func SavePersonal(ctx context.Context, database *sql.DB, siteID, name string, a 
 		}
 	}
 	return it, tx.Commit()
+}
+
+// ErrPeopleFull: a Personal name already holds a record for as many people
+// as it may (SAVED_DATA_PERSONAL_PEOPLE_MAX).
+var ErrPeopleFull = errors.New("this Personal name has as many people as it may")
+
+// ForgetClearedPersonal is a person deleting their record after the owner's
+// clear took it: nothing changes but a delete by them in its history, so the
+// owner's "Restore" (which brings back only what a clear took) leaves it
+// deleted. ok=false when they have no record that a clear took last.
+func ForgetClearedPersonal(ctx context.Context, database *sql.DB, siteID, name string, a Actor) (bool, error) {
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	var id int64
+	var op sql.NullString
+	err = tx.QueryRowContext(ctx, `
+		SELECT ci.id, (SELECT h.op FROM data_history h WHERE h.item_id = ci.id ORDER BY h.id DESC LIMIT 1)
+		  FROM collection_items ci
+		 WHERE ci.site_id = $1 AND ci.collection = $2 AND ci.submitted_by = $3 AND ci.deleted_at IS NOT NULL
+		 ORDER BY ci.id DESC LIMIT 1 FOR UPDATE OF ci`, siteID, name, a.ID).Scan(&id, &op)
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && op.String != OpClear) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if err := recordHistory(ctx, tx, siteID, HistoryList, name, &id, OpDelete, nil, a); err != nil {
+		return false, err
+	}
+	return true, tx.Commit()
 }
 
 // ListItemHistory is one item's changes, newest first (a person's own

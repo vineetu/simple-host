@@ -4215,7 +4215,7 @@
       "get": {
         "operationId": "listSiteData",
         "summary": "List a site's data names with their kinds",
-        "description": "Owner only (X-API-Key or a connector token; the operator too). Every data name on the site (every list with items, and every name that is private or declared) with its kind, as `/collections` lists them plus `kind` (`content` = Page info, `entries` = Submissions, `mine` = Personal, `board` = Shared board, empty = not declared), `label`, `bytes` (the size of what it holds now), `one_per_person` and `notify`; for a Personal name `count` is how many people have a record, which is all the owner sees of it; who may save on the site (`savers`); and `undeclared_names_take_saves`: whether a name nobody declared is **Shared** here (anyone reads it, anyone signed in adds to it). True unless the install sets SAVED_DATA_DEFAULT_KIND=declare_first and the site was made after the kinds.",
+        "description": "Owner only (X-API-Key or a connector token; the operator too). Every data name on the site (every list with items, and every name that is private or declared) with its kind, as `/collections` lists them plus `kind` (`content` = Page info, `entries` = Submissions, `mine` = Personal, `board` = Shared board, empty = not declared), `label`, `bytes` (the size of what it holds now), `one_per_person` and `notify`; for a Personal name `count` is how many people have a record and `bytes` their total size, shown only from 3 people up: with one or two, `count` and `bytes` are 0 and `few` is true (likewise `deleted` and `deleted_few` for its Recently deleted), and `last_at` is never given; who may save on the site (`savers`); and `undeclared_names_take_saves`: whether a name nobody declared is **Shared** here (anyone reads it, anyone signed in adds to it). True unless the install sets SAVED_DATA_DEFAULT_KIND=declare_first and the site was made after the kinds.",
         "tags": [
           "Collections"
         ],
@@ -4298,6 +4298,14 @@
                               "each",
                               "daily"
                             ]
+                          },
+                          "few": {
+                            "type": "boolean",
+                            "description": "Personal: one or two people have a record; count and bytes are withheld (0)"
+                          },
+                          "deleted_few": {
+                            "type": "boolean",
+                            "description": "Personal: one or two records are in Recently deleted; deleted is withheld (0)"
                           }
                         }
                       }
@@ -4397,7 +4405,7 @@
       "put": {
         "operationId": "declareData",
         "summary": "Declare what a data name is (owner)",
-        "description": "Owner only (X-API-Key, connector token, or the operator). Every piece of saved data has a name and one kind, and the kind decides who reads and who changes what. `{\"kind\": \"content\"}` is **Page info**: one JSON object only the owner writes (PUT .../data/{coll}) and anyone reads; a site declares at most 20 Page info names (SAVED_DATA_CONTENT_NAMES_MAX, 409 too_many_names); a name holding several entries cannot become one (409 has_entries). `{\"kind\": \"entries\"}` is **Submissions**: things visitors send. Options: `visibility` (`owner`, the default: only the owner reads them all, each visitor reads their own; or `public`: anyone reads them, without who sent them), `one_per_person` (one live entry per signed-in visitor), `notify` (email the owner: `daily`, the default while private; `each`, batched soon after they arrive; `off`, the default when public). A field left out keeps what the name had. A name nobody declared is **Shared** (anyone reads it, anyone signed in adds to it); with SAVED_DATA_DEFAULT_KIND=declare_first, on a site made after the kinds it takes no saves at all (409 declare_first). Product words are accepted for kind (\"Page info\", \"Submissions\"). Submissions need the site on an address of its own, where visitors sign in (409 custom_domain_required on instances without one); a site declares at most 50 Submissions names (SAVED_DATA_ENTRIES_NAMES_MAX, 409 too_many_names). Declaring a private name that holds entries as public Submissions would let anyone read them: 409 confirm_public (with `count`) until the request carries `\"confirm_public\": true`. A private name becomes Page info only while it is empty (409 has_entries). Public Submissions are refused on an install with WRITE_AUTH_MODE=off (409 visitor_sign_in_off). `{\"kind\": \"mine\"}` is **Personal**: one private record per signed-in visitor (a habit tracker, saved progress); only that visitor reads or writes it, and the owner sees only how many people have one and their size; a name must be empty (nothing live or in Recently deleted) to become Personal (409 has_entries), and a Personal name that holds records never becomes another kind (409 has_records); a site declares at most 20 Personal names (SAVED_DATA_PERSONAL_NAMES_MAX). `{\"kind\": \"board\"}` is a **Shared board**: anyone reads it; signed-in visitors add, change and delete items one at a time; only the owner clears it; private entries become a board only with `confirm_public`; a site declares at most 20 Shared board names (SAVED_DATA_BOARD_NAMES_MAX). Neither takes options (400 invalid_kind), and both need the site's own address (409 custom_domain_required). Product words are accepted (\"Personal\", \"Shared board\").",
+        "description": "Owner only (X-API-Key, connector token, or the operator). Every piece of saved data has a name and one kind, and the kind decides who reads and who changes what. `{\"kind\": \"content\"}` is **Page info**: one JSON object only the owner writes (PUT .../data/{coll}) and anyone reads; a site declares at most 20 Page info names (SAVED_DATA_CONTENT_NAMES_MAX, 409 too_many_names); a name holding several entries cannot become one (409 has_entries). `{\"kind\": \"entries\"}` is **Submissions**: things visitors send. Options: `visibility` (`owner`, the default: only the owner reads them all, each visitor reads their own; or `public`: anyone reads them, without who sent them), `one_per_person` (one live entry per signed-in visitor), `notify` (email the owner: `daily`, the default while private; `each`, batched soon after they arrive; `off`, the default when public). A field left out keeps what the name had. A name nobody declared is **Shared** (anyone reads it, anyone signed in adds to it); with SAVED_DATA_DEFAULT_KIND=declare_first, on a site made after the kinds it takes no saves at all (409 declare_first). Product words are accepted for kind (\"Page info\", \"Submissions\"). Submissions need the site on an address of its own, where visitors sign in (409 custom_domain_required on instances without one); a site declares at most 50 Submissions names (SAVED_DATA_ENTRIES_NAMES_MAX, 409 too_many_names). Declaring a private name that holds entries as public Submissions would let anyone read them: 409 confirm_public (with `count`) until the request carries `\"confirm_public\": true`. A private name becomes Page info only while it is empty (409 has_entries). Public Submissions are refused on an install with WRITE_AUTH_MODE=off (409 visitor_sign_in_off). `{\"kind\": \"mine\"}` is **Personal**: one private record per signed-in visitor (a habit tracker, saved progress), stored private. Simple Host's owner tools (key, connector, owner app, exports) never show a person's record: the owner sees how many people have one and their size (from 3 people up). The site's own pages run in the visitor's browser and can read that visitor's record, so Personal is as private as the site's pages are trustworthy. A name holds records for at most 1,000 people (SAVED_DATA_PERSONAL_PEOPLE_MAX; a new person past it: 409 people_full). A name must be empty (nothing live or in Recently deleted) to become Personal (409 has_entries), and a Personal name that holds records never becomes another kind (409 has_records; both checked under the name's lock, so no save lands in between); a site declares at most 20 Personal names (SAVED_DATA_PERSONAL_NAMES_MAX). `{\"kind\": \"board\"}` is a **Shared board**: anyone reads it; signed-in visitors add, change and delete items one at a time; only the owner clears it; private entries become a board only with `confirm_public`; a site declares at most 20 Shared board names (SAVED_DATA_BOARD_NAMES_MAX). Neither takes options (400 invalid_kind), and both need the site's own address (409 custom_domain_required). Product words are accepted (\"Personal\", \"Shared board\").",
         "tags": [
           "Collections"
         ],
@@ -4555,7 +4563,7 @@
       "get": {
         "operationId": "getData",
         "summary": "Read Page info, Submissions, your Personal record, or a Shared board",
-        "description": "Page info (`content`) answers `{name, kind, data, saved_at}` (`data` null until the owner saves one) to anyone. Personal (`mine`) answers the signed-in visitor's own record, `{name, kind, data, version}` (`data` null until they save one; a visitor session on the site's own address, from a page there, else 401 visitor_auth_required), with an `ETag` (304 on a matching `If-None-Match`); the owner's key gets only `?count=1` (how many people have one) and 403 personal_data otherwise. A Shared board (`board`) answers as a public list, each item with its `version`, plus an `ETag` (304 while unchanged: poll with `If-None-Match`). Submissions answer exactly as GET .../collections/{coll} does (the owner reads all, with `by`; anyone reads a public list, without who sent it; a private list is 404 not_found to everyone else), with `?count=1` for `{name, count}` under the same rule, and `?mine=1` for the signed-in visitor's own live entries (a visitor session on the site's own address; `?limit`, `?before` as for lists; 401 visitor_auth_required without one). An undeclared name is Shared and reads as a list; where the install requires declaring first: 409 declare_first.",
+        "description": "Page info (`content`) answers `{name, kind, data, saved_at}` (`data` null until the owner saves one) to anyone. Personal (`mine`) answers the signed-in visitor's own record, `{name, kind, data, version}` (`data` null until they save one; a visitor session on the site's own address, from a page there, else 401 visitor_auth_required), with an `ETag` (304 on a matching `If-None-Match`); the owner's key gets only `?count=1` (how many people have one; `{count: 0, few: true}` for one or two) and 403 personal_data otherwise. A Shared board (`board`) answers as a public list, each item with its `version`, plus an `ETag` (304 while unchanged: poll with `If-None-Match`). Submissions answer exactly as GET .../collections/{coll} does (the owner reads all, with `by`; anyone reads a public list, without who sent it; a private list is 404 not_found to everyone else), with `?count=1` for `{name, count}` under the same rule, and `?mine=1` for the signed-in visitor's own live entries (a visitor session on the site's own address; `?limit`, `?before` as for lists; 401 visitor_auth_required without one). An undeclared name is Shared and reads as a list; where the install requires declaring first: 409 declare_first.",
         "tags": [
           "Collections"
         ],
@@ -4650,7 +4658,7 @@
       "post": {
         "operationId": "postData",
         "summary": "Add a Submissions entry",
-        "description": "The same as POST .../collections/{coll} (same sign-in, Origin, privacy, `Idempotency-Key` and per-address rules), with the name's kind applied: Each new entry is at most 16 KB (SAVED_DATA_ENTRY_MAX_KB, 413 item_too_large); a name holds at most 10,000 live entries (SAVED_DATA_ENTRIES_MAX, 409 list_full); `one_per_person` refuses a second live entry from one visitor (409 one_per_person, with `id` of the entry they have; a visitor is the account, and its address with any +tag, so an entry from another account of the same address answers without `id`). Declared Submissions take entries only from a signed-in visitor (401 visitor_auth_required), never anonymously. Page info takes no entries (409 wrong_kind). An undeclared name is Shared and takes what the list route takes; where the install requires declaring first, nothing (409 declare_first). The site's who-may-save setting applies to every visitor (403 not_allowed_to_save; a block also matches the address with its +tag dropped); the owner always may. A Shared board takes one JSON object per item from a signed-in visitor on the site's own address (or the owner's key): each item is at most 16 KB (SAVED_DATA_BOARD_ITEM_MAX_KB) and a board holds at most 2,000 live items (SAVED_DATA_BOARD_MAX, 409 list_full); the answer carries the item's `version` (1). A Personal name takes no items (409 wrong_kind): its visitor writes their record with PUT or PATCH.",
+        "description": "The same as POST .../collections/{coll} (same sign-in, Origin, privacy, `Idempotency-Key` and per-address rules), with the name's kind applied: Each new entry is at most 16 KB (SAVED_DATA_ENTRY_MAX_KB, 413 item_too_large); a name holds at most 10,000 live entries (SAVED_DATA_ENTRIES_MAX, 409 list_full); `one_per_person` refuses a second live entry from one visitor (409 one_per_person, with `id` of the entry they have; a visitor is the account, and its address with any +tag, so an entry from another account of the same address answers without `id`). Declared Submissions take entries only from a signed-in visitor (401 visitor_auth_required), never anonymously. Page info takes no entries (409 wrong_kind). An undeclared name is Shared and takes what the list route takes; where the install requires declaring first, nothing (409 declare_first). The site's who-may-save setting applies to every visitor (403 not_allowed_to_save; a block also matches the address with its +tag dropped); the owner always may. A Shared board takes one JSON object per item from a signed-in visitor on the site's own address (or the owner's key): each item is at most 16 KB (SAVED_DATA_BOARD_ITEM_MAX_KB) and a board holds at most 2,000 live items (SAVED_DATA_BOARD_MAX, 409 list_full); `_submitted_by` and `_submitted_at` are dropped from what is sent (the server's own stamps); board adds, changes and deletes are limited per address and, whatever the address, to 30 a minute per signed-in person (SAVED_DATA_BOARD_WRITES_PER_MIN; 429 rate_limited); the answer carries the item's `version` (1). A Personal name takes no items (409 wrong_kind): its visitor writes their record with PUT or PATCH.",
         "tags": [
           "Collections"
         ],
@@ -4750,7 +4758,7 @@
       "put": {
         "operationId": "putData",
         "summary": "Save Page info (owner)",
-        "description": "Replaces a Page info document with one JSON object. A Page info document is at most 1 MB (SAVED_DATA_CONTENT_MAX_KB; 413 item_too_large); not an object: 400 not_an_object. Only the owner: their X-API-Key or connector token (no page Origin needed), the operator, or the owner signed in on the site's own address with `X-SH-CSRF: 1`. Anyone else: 403 owner_only (another account's key: 404). The earlier document goes to the name's history (GET .../collections/{coll}/history; restore with .../history/{id}/restore). Submissions and Shared boards: 409 wrong_kind; undeclared: 409 declare_first. On a Personal name this is the signed-in visitor replacing their own record with one JSON object (a visitor session on the site's own address, `X-SH-CSRF: 1`, who may save here; the per-address write rate applies; `Idempotency-Key` honoured); A personal record is at most 64 KB (SAVED_DATA_PERSONAL_MAX_KB; 413 item_too_large). The answer is `{name, kind, data, version}`. A key never writes anyone's record (403 personal_data).",
+        "description": "Replaces a Page info document with one JSON object. A Page info document is at most 1 MB (SAVED_DATA_CONTENT_MAX_KB; 413 item_too_large); not an object: 400 not_an_object. Only the owner: their X-API-Key or connector token (no page Origin needed), the operator, or the owner signed in on the site's own address with `X-SH-CSRF: 1`. Anyone else: 403 owner_only (another account's key: 404). The earlier document goes to the name's history (GET .../collections/{coll}/history; restore with .../history/{id}/restore). Submissions and Shared boards: 409 wrong_kind; undeclared: 409 declare_first. On a Personal name this is the signed-in visitor replacing their own record with one JSON object (a visitor session on the site's own address, `X-SH-CSRF: 1`, who may save here; the per-address write rate applies; `Idempotency-Key` honoured); A personal record is at most 64 KB (SAVED_DATA_PERSONAL_MAX_KB; 413 item_too_large). A visitor with no record yet is refused once the name holds records for 1,000 people (SAVED_DATA_PERSONAL_PEOPLE_MAX; 409 people_full). The answer is `{name, kind, data, version}`. A key never writes anyone's record (403 personal_data).",
         "tags": [
           "Collections"
         ],
@@ -4829,7 +4837,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "declare_first or wrong_kind",
+            "description": "declare_first, wrong_kind or people_full",
             "content": {
               "application/json": {
                 "schema": {
@@ -4955,7 +4963,7 @@
             }
           },
           "409": {
-            "description": "wrong_kind or declare_first",
+            "description": "wrong_kind, declare_first or people_full",
             "content": {
               "application/json": {
                 "schema": {
@@ -4979,7 +4987,7 @@
       "delete": {
         "operationId": "deletePersonal",
         "summary": "Delete your Personal record",
-        "description": "Personal names only. The signed-in visitor deletes their own record (`{\"deleted\": true, \"restorable_days\": 30}`); they bring it back from their history (POST .../history/{id}/restore) for 30 days (SAVED_DATA_UNDO_DAYS). 404 not_found when they have none. A blocked visitor can still delete their own. The owner empties a name for everyone with DELETE .../collections/{coll}.",
+        "description": "Personal names only. The signed-in visitor deletes their own record (`{\"deleted\": true, \"restorable_days\": 30}`); they bring it back from their history (POST .../history/{id}/restore) for 30 days (SAVED_DATA_UNDO_DAYS). A record the owner's clear took can be deleted too: it stays deleted when the owner restores what the clear took. 404 not_found when they have none. A blocked visitor can still delete their own. The owner empties a name for everyone with DELETE .../collections/{coll}.",
         "tags": [
           "Collections"
         ],
@@ -6491,7 +6499,7 @@
       "post": {
         "operationId": "restoreCollectionChange",
         "summary": "Undo one list change (owner)",
-        "description": "A delete or clear brings its item back; an edit or restore puts back the item's data from before it (and brings the item back if it was deleted since). Recorded as a change itself. Refused on a taken-down site, and when it would grow the site past its cap (507 site_full).",
+        "description": "A delete or clear brings its item back; an edit or restore puts back the item's data from before it (and brings the item back if it was deleted since). Recorded as a change itself. Refused on a taken-down site, when it would grow the site past its cap (507 site_full), and when an item it brings back would take a Shared board past its cap (409 list_full).",
         "tags": [
           "Collections"
         ],
@@ -6558,7 +6566,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "The change holds no earlier value (nothing_to_restore)",
+            "description": "The change holds no earlier value (nothing_to_restore), or a Shared board would go past its cap (list_full)",
             "content": {
               "application/json": {
                 "schema": {
@@ -6917,7 +6925,7 @@
       "post": {
         "operationId": "restoreCollectionDeleted",
         "summary": "Bring back every deleted item in a list (owner)",
-        "description": "The body must be `{\"all\": true}` (400 confirm_required otherwise). Undoes a clear. Refused on a taken-down site.",
+        "description": "The body must be `{\"all\": true}` (400 confirm_required otherwise). Undoes a clear. `\"within_minutes\": n` brings back only items deleted in the last n minutes (at most SAVED_DATA_UNDO_DAYS; 400 invalid_window). On a Shared board it is required (400 window_required): after someone deletes the lot, bring back what went since then, not what people deleted on purpose before; and a board never goes past its cap (409 list_full). On a Personal name only what the owner's clear took comes back. Refused on a taken-down site.",
         "tags": [
           "Collections"
         ],
@@ -6946,6 +6954,10 @@
                     "enum": [
                       true
                     ]
+                  },
+                  "within_minutes": {
+                    "type": "integer",
+                    "minimum": 1
                   }
                 }
               }
@@ -6982,6 +6994,16 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "list_full: a Shared board would go past its cap",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "507": {
             "$ref": "#/components/responses/SiteFull"
@@ -7047,6 +7069,16 @@
           },
           "404": {
             "description": "Not in the list's Recently deleted (not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "list_full: a Shared board would go past its cap",
             "content": {
               "application/json": {
                 "schema": {
@@ -7631,7 +7663,7 @@
       "post": {
         "operationId": "restoreCollectionChangeByHandle",
         "summary": "Undo one list change (owner, by handle)",
-        "description": "A delete or clear brings its item back; an edit or restore puts back the item's data from before it (and brings the item back if it was deleted since). Recorded as a change itself. Refused on a taken-down site, and when it would grow the site past its cap (507 site_full).",
+        "description": "A delete or clear brings its item back; an edit or restore puts back the item's data from before it (and brings the item back if it was deleted since). Recorded as a change itself. Refused on a taken-down site, when it would grow the site past its cap (507 site_full), and when an item it brings back would take a Shared board past its cap (409 list_full).",
         "tags": [
           "Collections"
         ],
@@ -7707,7 +7739,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "The change holds no earlier value (nothing_to_restore)",
+            "description": "The change holds no earlier value (nothing_to_restore), or a Shared board would go past its cap (list_full)",
             "content": {
               "application/json": {
                 "schema": {
@@ -7995,7 +8027,7 @@
       "post": {
         "operationId": "restoreCollectionDeletedByHandle",
         "summary": "Bring back every deleted item in a list (owner, by handle)",
-        "description": "The body must be `{\"all\": true}` (400 confirm_required otherwise). Undoes a clear. Refused on a taken-down site.",
+        "description": "The body must be `{\"all\": true}` (400 confirm_required otherwise). Undoes a clear. `\"within_minutes\": n` brings back only items deleted in the last n minutes (at most SAVED_DATA_UNDO_DAYS; 400 invalid_window). On a Shared board it is required (400 window_required): after someone deletes the lot, bring back what went since then, not what people deleted on purpose before; and a board never goes past its cap (409 list_full). On a Personal name only what the owner's clear took comes back. Refused on a taken-down site.",
         "tags": [
           "Collections"
         ],
@@ -8033,6 +8065,10 @@
                     "enum": [
                       true
                     ]
+                  },
+                  "within_minutes": {
+                    "type": "integer",
+                    "minimum": 1
                   }
                 }
               }
@@ -8069,6 +8105,16 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "list_full: a Shared board would go past its cap",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "507": {
             "$ref": "#/components/responses/SiteFull"
@@ -8143,6 +8189,16 @@
           },
           "404": {
             "description": "Not in the list's Recently deleted (not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "list_full: a Shared board would go past its cap",
             "content": {
               "application/json": {
                 "schema": {

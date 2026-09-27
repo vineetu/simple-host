@@ -108,6 +108,30 @@ type CollectionSummary struct {
 	Kind         string `json:"kind"`
 	OnePerPerson bool   `json:"one_per_person"`
 	Notify       string `json:"notify"`
+	// Few (Personal only): one or two people have a record, so count and
+	// bytes are withheld (0); DeletedFew is the same for Recently deleted.
+	// With so few, a size or its change would point at one person.
+	Few        bool `json:"few,omitempty"`
+	DeletedFew bool `json:"deleted_few,omitempty"`
+}
+
+// PersonalFewMax: a Personal name's count and size show only from this many
+// records up (fewer are reported as "fewer than 3").
+const PersonalFewMax = 3
+
+// coarsenPersonal withholds a Personal name's count, size and last save when
+// one or two people have a record (and its Recently deleted count likewise).
+func (s *CollectionSummary) coarsenPersonal() {
+	if s.Kind != KindPersonal {
+		return
+	}
+	s.LastAt = nil
+	if s.Count > 0 && s.Count < PersonalFewMax {
+		s.Count, s.Bytes, s.Few = 0, 0, true
+	}
+	if s.Deleted > 0 && s.Deleted < PersonalFewMax {
+		s.Deleted, s.DeletedFew = 0, true
+	}
 }
 
 // ListCollectionSummariesByID returns every collection that has at least one
@@ -149,6 +173,7 @@ func ListCollectionSummariesByID(ctx context.Context, db *sql.DB, siteID string)
 			t := last.Time
 			s.LastAt = &t
 		}
+		s.coarsenPersonal()
 		out = append(out, s)
 	}
 	return out, rows.Err()

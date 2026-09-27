@@ -165,7 +165,8 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		"PATCH /v1/u/ann/sites/blog/state":            fixed(200, `{"count":3}`),
 		"PUT /v1/u/ann/sites/blog/state":              fixed(200, `["a replaced document may be any JSON"]`),
 		"GET /v1/sites/blog/collections": fixed(200, `{"collections":[{"name":"rsvps","count":3,"private":false},`+
-			`{"name":"orders","count":1,"private":true,"last_at":"2026-09-01T00:00:00Z"}]}`),
+			`{"name":"orders","count":1,"private":true,"last_at":"2026-09-01T00:00:00Z"},`+
+			`{"name":"habits","count":0,"private":true,"deleted":0,"kind":"mine","few":true,"deleted_few":true}]}`),
 		"GET /v1/u/ann/sites/blog/collections/rsvps": fixed(200, `{"items":[{"id":12,"data":{"name":"Ann"},"created_at":"2026-09-03T00:00:00Z"},`+
 			`{"id":11,"data":"a page may save a bare string","created_at":"2026-09-02T00:00:00Z"}],"next":11,"private":false}`),
 		"GET /v1/u/ann/sites/blog/collections/orders": fixed(200, `{"items":[{"id":5,"data":{"item":"mug","_submitted_by":"v@example.com",`+
@@ -192,7 +193,8 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		"PUT /v1/sites/blog/data/votes/kind":                      fixed(200, `{"site":"blog","name":"votes","kind":"entries","label":"Submissions","visibility":"public","one_per_person":true,"notify":"off","message":"Submissions, public."}`),
 		"PUT /v1/sites/blog/data/menu":                            fixed(200, `{"name":"menu","kind":"content","data":{"soup":4},"saved_at":"2026-09-27T00:00:00Z"}`),
 		"GET /v1/sites/blog/data": fixed(200, `{"site":"blog","names":[{"name":"votes","count":2,"private":false,"deleted":0,"kind":"entries","label":"Submissions","one_per_person":true,"notify":"off"},`+
-			`{"name":"menu","count":1,"private":false,"deleted":0,"kind":"content","label":"Page info","one_per_person":false,"notify":"off"}],"savers":{"mode":"listed","allow":["@example.com"],"block":["x@y.org"]},"undeclared_names_take_saves":false}`),
+			`{"name":"menu","count":1,"private":false,"deleted":0,"kind":"content","label":"Page info","one_per_person":false,"notify":"off"},`+
+			`{"name":"habits","count":0,"private":true,"deleted":0,"bytes":0,"kind":"mine","label":"Personal","one_per_person":false,"notify":"off","few":true,"deleted_few":true}],"savers":{"mode":"listed","allow":["@example.com"],"block":["x@y.org"]},"undeclared_names_take_saves":false}`),
 		"PUT /v1/sites/blog/savers":        fixed(200, `{"site":"blog","mode":"listed","allow":["@example.com"],"block":[],"message":"Only listed."}`),
 		"POST /v1/sites/blog/savers/block": fixed(200, `{"site":"blog","blocked":"x@y.org","block_count":1,"message":"x@y.org can no longer save."}`),
 		"DELETE /v1/sites/blog/history":    fixed(200, `{"site":"blog","cleared":40}`),

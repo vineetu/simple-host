@@ -174,6 +174,12 @@ type SavedData struct {
 	BoardMax int
 	// SAVED_DATA_BOARD_NAMES_MAX: Shared board names per site (20).
 	BoardNamesMax int
+	// SAVED_DATA_PERSONAL_PEOPLE_MAX: people with a record in one Personal
+	// name (1000).
+	PersonalPeopleMax int
+	// SAVED_DATA_BOARD_WRITES_PER_MIN: board adds, changes and deletes per
+	// signed-in person per minute, on top of the per-address rate (30).
+	BoardWritesPerMin int
 	// SAVED_DATA_DEFAULT_KIND: what a name nobody declared is on a site made
 	// after the kinds. "shared" (default): Shared, anyone reads it and
 	// signed-in visitors save to it, as before the kinds. "declare_first":
@@ -196,6 +202,7 @@ func DefaultSavedData() SavedData {
 		ContentMaxKB: 1024, ContentNamesMax: 20, EntryMaxKB: 16, EntriesMax: 10000, WithdrawUndoMinutes: 10,
 		NotifyEachMinutes: 10, NotifyDailyHours: 24, SaversMax: 500, EntriesNamesMax: 50,
 		PersonalMaxKB: 64, PersonalNamesMax: 20, BoardItemMaxKB: 16, BoardMax: 2000, BoardNamesMax: 20,
+		PersonalPeopleMax: 1000, BoardWritesPerMin: 30,
 		DefaultKind: DefaultKindShared}
 }
 
@@ -489,6 +496,8 @@ func Knobs() []Knob {
 		intKnob("SAVED_DATA_BOARD_ITEM_MAX_KB", "KB", 1, 64, func(l *Limits) *int { return &l.SavedData.BoardItemMaxKB }),
 		intKnob("SAVED_DATA_BOARD_MAX", "items", 1, 1_000_000, func(l *Limits) *int { return &l.SavedData.BoardMax }),
 		intKnob("SAVED_DATA_BOARD_NAMES_MAX", "names", 1, 1_000, func(l *Limits) *int { return &l.SavedData.BoardNamesMax }),
+		intKnob("SAVED_DATA_PERSONAL_PEOPLE_MAX", "people", 1, 1_000_000, func(l *Limits) *int { return &l.SavedData.PersonalPeopleMax }),
+		intKnob("SAVED_DATA_BOARD_WRITES_PER_MIN", "writes", 1, 10_000, func(l *Limits) *int { return &l.SavedData.BoardWritesPerMin }),
 		{Env: "SAVED_DATA_DEFAULT_KIND", Unit: "shared/declare_first",
 			Value: func(l *Limits) string { return l.SavedData.DefaultKind },
 			set: func(l *Limits, v string) error {

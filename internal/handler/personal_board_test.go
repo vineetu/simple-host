@@ -62,7 +62,8 @@ func TestPersonalOnlyItsPerson(t *testing.T) {
 	}
 	// The owner's key (and the connector) never reads a record: counts only.
 	wantCode(t, "owner key read", s.owner(t, "GET", p, nil), 403, "personal_data")
-	if r := s.owner(t, "GET", p+"?count=1", nil); r.status != 200 || r.json(t)["count"] != float64(2) {
+	// Two people: "fewer than 3", never the number.
+	if r := s.owner(t, "GET", p+"?count=1", nil); r.status != 200 || r.json(t)["count"] != float64(0) || r.json(t)["few"] != true {
 		t.Fatalf("owner count: %d %s", r.status, r.body)
 	}
 	wantCode(t, "owner list, old route", s.owner(t, "GET", "/v1/sites/shop/collections/habits", nil), 403, "personal_data")
@@ -87,14 +88,15 @@ func TestPersonalOnlyItsPerson(t *testing.T) {
 	wantCode(t, "block by record", s.owner(t, "POST", "/v1/sites/shop/savers/block", map[string]any{"collection": "habits", "id": vicID}), 403, "personal_data")
 	wantCode(t, "item route", s.visitor(t, "PATCH", p+"/items/"+id, map[string]any{"x": 1}), 409, "wrong_kind")
 	wantCode(t, "privacy", s.owner(t, "PUT", "/v1/sites/shop/collections/habits/privacy", map[string]any{"private": false}), 409, "wrong_kind")
-	// The owner's list shows how many people and their size, never the data.
+	// The owner's list shows how many people and their size, never the data;
+	// with one or two people, neither (they would point at one person).
 	var summary map[string]any
 	for _, n := range s.owner(t, "GET", "/v1/sites/shop/data", nil).json(t)["names"].([]any) {
 		if m := n.(map[string]any); m["name"] == "habits" {
 			summary = m
 		}
 	}
-	if summary["label"] != "Personal" || summary["count"] != float64(2) || summary["bytes"].(float64) <= 0 {
+	if summary["label"] != "Personal" || summary["count"] != float64(0) || summary["bytes"] != float64(0) || summary["few"] != true || summary["last_at"] != nil {
 		t.Fatalf("summary: %v", summary)
 	}
 	// The site's export carries nobody's record but the owner's own.
@@ -352,7 +354,8 @@ func TestSharedBoardRules(t *testing.T) {
 	if r := s.owner(t, "DELETE", "/v1/sites/shop/collections/todo", map[string]any{"confirm": "todo"}); r.status != 200 {
 		t.Fatalf("owner clear: %d %s", r.status, r.body)
 	}
-	if r := s.owner(t, "POST", "/v1/sites/shop/collections/todo/deleted/restore", map[string]any{"all": true}); r.status != 200 || r.json(t)["restored"] != float64(1) {
+	wantCode(t, "board restore all without a window", s.owner(t, "POST", "/v1/sites/shop/collections/todo/deleted/restore", map[string]any{"all": true}), 400, "window_required")
+	if r := s.owner(t, "POST", "/v1/sites/shop/collections/todo/deleted/restore", map[string]any{"all": true, "within_minutes": 60}); r.status != 200 || r.json(t)["restored"] != float64(1) {
 		t.Fatalf("restore: %d %s", r.status, r.body)
 	}
 }
@@ -410,5 +413,156 @@ func TestPersonalOtherHostsAndConnector(t *testing.T) {
 	}
 	if text, isErr := call("data_history", map[string]any{"site": "shop", "collection": "prefs"}); !isErr {
 		t.Fatalf("data_history on a personal name: %s", text)
+	}
+}
+
+// Review fixes (2026-09-27): Personal names are stored private (H2), a kind
+// change re-checks under the name's lock (M1), the people cap (M4), counts
+// only from 3 people (L1), and a person's delete after an owner clear sticks
+// (L3).
+func TestPersonalReviewFixes(t *testing.T) {
+	s := newKindsSite(t, false)
+	const p = "/v1/sites/shop/data/habits"
+	s.declare(t, "habits", map[string]any{"kind": "mine"})
+	var private bool
+	if err := s.a.database.QueryRow(`SELECT private FROM collection_settings WHERE site_id = $1 AND collection = 'habits'`, s.shopID).Scan(&private); err != nil || !private {
+		t.Fatalf("a Personal name is stored private: %v %v", private, err)
+	}
+	// People cap: a new person past it is refused; people who have a record
+	// keep saving.
+	s.setLimits(t, func(c *config.SavedData) { c.PersonalPeopleMax = 2 })
+	if r := s.visitor(t, "PUT", p, map[string]any{"n": 1}); r.status != 200 {
+		t.Fatalf("vic: %d %s", r.status, r.body)
+	}
+	if r := s.as(t, s.wesCooky, "PUT", p, map[string]any{"n": 2}); r.status != 200 {
+		t.Fatalf("wes: %d %s", r.status, r.body)
+	}
+	pam := s.a.newPerson(t, "pam")
+	pamCooky := s.a.session(t, pam, s.shopID, s.dom)
+	wantCode(t, "third person", s.as(t, pamCooky, "PUT", p, map[string]any{"n": 3}), 409, "people_full")
+	if r := s.visitor(t, "PATCH", p, map[string]any{"ops": []any{map[string]any{"op": "inc", "path": "n"}}}); r.status != 200 {
+		t.Fatalf("vic again: %d %s", r.status, r.body)
+	}
+	summary := func() map[string]any {
+		for _, n := range s.owner(t, "GET", "/v1/sites/shop/data", nil).json(t)["names"].([]any) {
+			if m := n.(map[string]any); m["name"] == "habits" {
+				return m
+			}
+		}
+		t.Fatal("no habits in list_data")
+		return nil
+	}
+	if m := summary(); m["few"] != true || m["count"] != float64(0) || m["bytes"] != float64(0) {
+		t.Fatalf("two people: %v", m)
+	}
+	s.setLimits(t, func(*config.SavedData) {})
+	if r := s.as(t, pamCooky, "PUT", p, map[string]any{"n": 3}); r.status != 200 {
+		t.Fatalf("pam: %d %s", r.status, r.body)
+	}
+	if m := summary(); m["few"] != nil || m["count"] != float64(3) || m["bytes"].(float64) <= 0 {
+		t.Fatalf("three people: %v", m)
+	}
+	if r := s.owner(t, "GET", p+"?count=1", nil); r.json(t)["count"] != float64(3) || r.json(t)["few"] != nil {
+		t.Fatalf("count, three people: %s", r.body)
+	}
+	// The kind change re-checks under the lock: records never change hands.
+	ctx := context.Background()
+	if err := db.DeclareDataLocked(ctx, s.a.database, s.shopID, "habits", db.KindEntries, true, false, db.NotifyOff); err != db.ErrNameHasRows {
+		t.Fatalf("Personal with records to entries: %v", err)
+	}
+	s.declare(t, "notes", map[string]any{"kind": "entries", "visibility": "public"})
+	if r := s.visitor(t, "POST", "/v1/sites/shop/data/notes", map[string]any{"n": 1}); r.status != 201 {
+		t.Fatalf("note: %d %s", r.status, r.body)
+	}
+	if err := db.DeclareDataLocked(ctx, s.a.database, s.shopID, "notes", db.KindPersonal, false, false, db.NotifyOff); err != db.ErrNameHasRows {
+		t.Fatalf("entries with items to Personal: %v", err)
+	}
+	if err := db.DeclareDataLocked(ctx, s.a.database, s.shopID, "fresh", db.KindPersonal, false, false, db.NotifyOff); err != nil {
+		t.Fatalf("an unused name to Personal: %v", err)
+	}
+	// The owner clears; vic then deletes theirs; the owner's Restore brings
+	// back the others but not vic's.
+	if r := s.owner(t, "DELETE", "/v1/sites/shop/collections/habits", map[string]any{"confirm": "habits"}); r.status != 200 {
+		t.Fatalf("clear: %d %s", r.status, r.body)
+	}
+	if m := summary(); m["deleted"] != float64(3) || m["deleted_few"] != nil {
+		t.Fatalf("after clear: %v", m)
+	}
+	if r := s.visitor(t, "DELETE", p, nil); r.status != 200 {
+		t.Fatalf("vic deletes a cleared record: %d %s", r.status, r.body)
+	}
+	wantCode(t, "delete it twice", s.visitor(t, "DELETE", p, nil), 404, "not_found")
+	if r := s.owner(t, "POST", "/v1/sites/shop/collections/habits/deleted/restore", map[string]any{"all": true}); r.status != 200 || r.json(t)["restored"] != float64(2) {
+		t.Fatalf("restore: %d %s", r.status, r.body)
+	}
+	if r := s.visitor(t, "GET", p, nil); r.json(t)["data"] != nil {
+		t.Fatalf("vic's deleted record came back: %s", r.body)
+	}
+	if m := summary(); m["deleted"] != float64(0) || m["deleted_few"] != true || m["few"] != true {
+		t.Fatalf("one deleted, two live: %v", m)
+	}
+}
+
+// Review fixes (2026-09-27): board adds drop the server's stamp keys (L4),
+// a per-person write rate on top of the per-address one (M2), and the owner's
+// restores keep a window and the board's cap (M2, L5).
+func TestBoardReviewFixes(t *testing.T) {
+	s := newKindsSite(t, false)
+	const p = "/v1/sites/shop/data/todo"
+	s.declare(t, "todo", map[string]any{"kind": "board"})
+	r := s.visitor(t, "POST", p, map[string]any{"text": "a", "_submitted_by": "ceo@corp.com", "_submitted_at": "x"})
+	if r.status != 201 {
+		t.Fatalf("add: %d %s", r.status, r.body)
+	}
+	a := idOf(t, r)
+	for _, it := range itemsOf(t, s.owner(t, "GET", "/v1/sites/shop/collections/todo", nil)) {
+		d := it["data"].(map[string]any)
+		if _, ok := d["_submitted_by"]; ok || d["_submitted_at"] != nil || d["text"] != "a" {
+			t.Fatalf("stamp keys kept: %v", it)
+		}
+	}
+	// One person, however many addresses: SAVED_DATA_BOARD_WRITES_PER_MIN.
+	s.setLimits(t, func(c *config.SavedData) { c.AppendPerMin, c.AppendBurst, c.BoardWritesPerMin = 1000, 1000, 3 })
+	for i := 0; i < 3; i++ {
+		if r := s.visitor(t, "POST", p, map[string]any{"text": "v" + strconv.Itoa(i)}); r.status != 201 {
+			t.Fatalf("vic add %d: %d %s", i, r.status, r.body)
+		}
+	}
+	wantCode(t, "vic past the per-person rate", s.visitor(t, "POST", p, map[string]any{"text": "v4"}), 429, "rate_limited")
+	b := idOf(t, s.as(t, s.wesCooky, "POST", p, map[string]any{"text": "w"}))
+	s.setLimits(t, func(*config.SavedData) {})
+	// Restore all names a window: a delete from before it stays deleted.
+	for _, id := range []string{a, b} {
+		if r := s.owner(t, "DELETE", "/v1/sites/shop/collections/todo/items/"+id, nil); r.status != 204 {
+			t.Fatalf("owner delete %s: %d %s", id, r.status, r.body)
+		}
+	}
+	if _, err := s.a.database.Exec(`UPDATE collection_items SET deleted_at = now() - interval '2 hours' WHERE id = $1`, a); err != nil {
+		t.Fatal(err)
+	}
+	wantCode(t, "bad window", s.owner(t, "POST", "/v1/sites/shop/collections/todo/deleted/restore", map[string]any{"all": true, "within_minutes": 999999}), 400, "invalid_window")
+	if r := s.owner(t, "POST", "/v1/sites/shop/collections/todo/deleted/restore", map[string]any{"all": true, "within_minutes": 60}); r.status != 200 || r.json(t)["restored"] != float64(1) {
+		t.Fatalf("restore the last hour: %d %s", r.status, r.body)
+	}
+	if n := len(itemsOf(t, s.owner(t, "GET", "/v1/sites/shop/collections/todo", nil))); n != 4 {
+		t.Fatalf("live after restore: %d", n)
+	}
+	// The cap holds for every owner restore.
+	s.setLimits(t, func(c *config.SavedData) { c.BoardMax = 4 })
+	wantCode(t, "restore one past the cap", s.owner(t, "POST", "/v1/sites/shop/collections/todo/items/"+a+"/restore", nil), 409, "list_full")
+	wantCode(t, "restore all past the cap", s.owner(t, "POST", "/v1/sites/shop/collections/todo/deleted/restore", map[string]any{"all": true, "within_minutes": 43200}), 409, "list_full")
+	var hid string
+	for _, e := range historyOf(t, s.owner(t, "GET", "/v1/sites/shop/collections/todo/history", nil)) {
+		if e["op"] == "delete" && strconv.FormatInt(int64(e["item_id"].(float64)), 10) == a {
+			hid = strconv.FormatInt(int64(e["id"].(float64)), 10)
+		}
+	}
+	if hid == "" {
+		t.Fatal("no delete of a in the history")
+	}
+	wantCode(t, "history restore past the cap", s.owner(t, "POST", "/v1/sites/shop/collections/todo/history/"+hid+"/restore", nil), 409, "list_full")
+	s.setLimits(t, func(c *config.SavedData) { c.BoardMax = 5 })
+	if r := s.owner(t, "POST", "/v1/sites/shop/collections/todo/history/"+hid+"/restore", nil); r.status != 200 {
+		t.Fatalf("history restore with room: %d %s", r.status, r.body)
 	}
 }
