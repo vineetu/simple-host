@@ -8,15 +8,17 @@
 -- (lexical order). Idempotent and additive; ADD COLUMNs with constant
 -- defaults are metadata-only.
 --
--- Sites that exist before this step keep today's behaviour: sites.legacy_data
--- (added true for every site by sd1) stays true for them. The server creates
--- every new site with legacy_data = false, where a name nobody declared takes
--- no saves (declare_first). The column default is left true on purpose, so a
--- site created by an older binary during the deploy is never made strict.
+-- A name nobody declared is Shared (anyone reads it, signed-in visitors
+-- save), as before this step. sites.legacy_data (added true for every site
+-- by sd1) marks the sites that exist before it; the server creates every new
+-- site with false, and only an install with SAVED_DATA_DEFAULT_KIND=
+-- declare_first makes those refuse undeclared names (declare_first). The
+-- column default is left true on purpose, so a site created by an older
+-- binary during the deploy is never made strict.
 BEGIN;
 SET LOCAL lock_timeout = '5s';
 
--- A declared name: its kind (NULL = not declared; a legacy site's list then
+-- A declared name: its kind (NULL = not declared: Shared, a list that
 -- behaves as before), one entry per person, and the owner's email choice
 -- (off, each = batched every SAVED_DATA_NOTIFY_EACH_MINUTES, daily). The
 -- existing private column is the Submissions visibility (true = owner only).

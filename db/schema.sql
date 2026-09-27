@@ -198,7 +198,8 @@ CREATE TABLE IF NOT EXISTS collection_settings (
 -- history and undo, recoverable deletes, authors, idempotency, the watch.
 -- Every site that exists before the kinds arrive keeps today's open behaviour.
 -- The default stays true; the server creates every new site with false
--- (step 2, kinds: a name nobody declared takes no saves there).
+-- (step 2, kinds: with SAVED_DATA_DEFAULT_KIND=declare_first a name nobody
+-- declared takes no saves there; by default it is Shared everywhere).
 ALTER TABLE sites ADD COLUMN IF NOT EXISTS legacy_data BOOLEAN NOT NULL DEFAULT true;
 
 -- Deleted and cleared items stay for the undo window (NULL = live), and the
