@@ -1,7 +1,7 @@
 {{- if .Ask}}<aside class="sh-ask" data-page="{{.Ask}}" aria-labelledby="sh-ask-title">
       <p class="sh-ask-title" id="sh-ask-title">Ask about this page</p>
       <form class="sh-ask-form" novalidate>
-        <label class="sh-ask-label" for="sh-ask-q">Your question. The answer is written by AI from this page, so check anything important.</label>
+        <label class="sh-ask-label" for="sh-ask-q">Type a question. Answers are written by AI from this page, so check anything important.</label>
         <div class="sh-ask-row">
           <input class="sh-ask-input" id="sh-ask-q" name="q" type="text" maxlength="500" autocomplete="off" enterkeyhint="send" placeholder="{{if eq .Ask "enterprise-brief" "enterprise-architecture"}}For example: which sign-in providers work?{{else if eq .Ask "features"}}For example: can a page keep RSVPs private?{{else}}For example: where is saved data kept?{{end}}">
           <button class="sh-ask-send" type="submit">Ask</button>
