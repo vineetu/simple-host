@@ -153,16 +153,20 @@ the event rather than during it; the fixes are a bigger disk or removing
 whatever `largest` names. The organiser's admin page shows the same figures.
 
 The response gives each participant a username, a handle
-and an **api_key**. Keys are bare hexadecimal with no prefix; do not reject one
-for looking wrong. Existing accounts are skipped and their keys are never
-re-disclosed, so re-running is safe but will not recover a lost key.
+and an **api_key**. Keys start with `shk_` (an older install issues bare
+hexadecimal keys, which keep working); do not reject one for looking wrong.
+Existing accounts are skipped and their keys are never re-disclosed, so
+re-running is safe. A lost key is replaced per account: `POST
+/v1/admin/users/<id>/key` (the `id` comes from `GET /v1/admin/users`), or **New
+key** on that account's row of the admin page. It returns one new key, once,
+and every earlier key of that account stops working; sites and data stay.
 
 **Create in batches of at most 1000, and save each batch before asking for the
 next.** Keys are shown once. 5000 accounts is roughly six seconds and 750 KB of
 response on a fast machine and several times that on the smallest plan, and a
 connection that drops after the server has committed takes every key in that
-batch with it — the retry skips the accounts as already existing and returns
-nothing you can hand out. This is about surviving a dropped connection, not
+batch with it — the retry skips the accounts as already existing, so each of
+those accounts then needs **New key**. This is about surviving a dropped connection, not
 about a limit: create as many as the event needs.
 
 Offer the organiser the list as CSV so they can paste it into a spreadsheet or a

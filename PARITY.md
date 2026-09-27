@@ -41,10 +41,12 @@ that should get it). Last derived from both `FEATURES.md` files and code on 2026
 | Upload validation | `internal/tarball` sanitize, size caps, `blockedExtensions` | same package lineage, same checks | `same` |
 | Visitor sign-in on a site | Google or emailed code on the site's own host; host-only cookie + `X-SH-CSRF`; login-CSRF nonce | company OIDC session handed to the site host by a nonce-bound one-time code | `different on purpose` — public visitors vs company identity |
 | Owner sign-in and sessions | emailed code or Google → API key kept in the browser; no owner cookie session | company OIDC only; revocable sessions, idle 30m / absolute 8h, sessions page | `different on purpose` — enterprise constraint: the IdP is the only identity |
-| API keys: hashing | SHA-256, shown once (2026-09-26) | `shk_`, stored hashed | `same` |
+| API keys: hashing | SHA-256, shown once (2026-09-26); `shk_` prefix (2026-09-27) | `shk_`, stored hashed | `same` |
 | API keys: expiry | none; rotate replaces all | 90 days default, capped by `API_KEY_MAX_DAYS` | `gap → hosted` |
 | API keys: scopes | none (every key is full) | `publish` (default) / `full` / `offboard`, deny-by-default | `gap → hosted` |
-| API keys: list and revoke one | none (rotate is all-or-nothing) | mint, list, revoke each | `gap → hosted` |
+| API keys: list and revoke one | named keys (origin label or typed), last 4, last used; mint, list, revoke each from the owner app's Keys panel; any account key may mint (hosted has no browser session) (2026-09-27) | mint, list, revoke each; browser session only | `same` |
+| Sign out ends the credential | Sign out deletes the key the browser held (`POST /v1/me/sign-out`); "Sign out everywhere" = rotate (2026-09-27) | Sign out revokes the session | `same` |
+| Reissue another person's key | organiser/admin replaces a participant's keys with one new key (`POST /v1/admin/users/{id}/key`) | none (keys are self-service; admin disables the person) | `different on purpose` — hosted events hand out keys to people with no mailbox |
 | MCP connector and OAuth | DCR, PKCE S256, rotating refresh, reuse revokes the grant, hourly sweep, tokens hashed | same design (hosted's adapter was ported from enterprise) | `same` |
 | Connector token lifetime and reach | refresh 90 d sliding; Bearer also accepted on `/v1/*` | refresh 30 d from sign-in, TTLs capped; Bearer only on `/mcp` | `different on purpose` — hosted: sign in once and stay signed in, and hand-registered GPT Actions call REST |
 | MCP tools | 22 tools, each a REST call | own set incl. teams, viewers, access, state history; each resolves to a route (tested) | `same` — tools follow each side's REST surface |

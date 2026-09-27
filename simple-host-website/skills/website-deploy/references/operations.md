@@ -14,11 +14,30 @@ All of these take `X-API-Key`.
 moves its files. A connected custom domain stays attached. The old public URL
 is not redirected and returns 404; use `site_url` from the response.
 
-## API key rotation
+## API keys: list, name, revoke, sign out everywhere
 
-`POST /v1/me/api-key/rotate` returns a new `api_key`. Every older key stops
-working immediately and connected apps (ChatGPT, Claude, Grok) are signed out, so
-update the agent or CLI before its next request.
+Each sign-in and each agent holds its own key. Keys issued now start with
+`shk_` (older bare-hex keys keep working).
+
+- `GET /v1/me/keys` lists them: `id`, `name` (`dashboard sign-in`,
+  `agent sign-in`, `event account`, or a typed name; absent on older keys),
+  `last4`, `created_at`, `last_used_at`, and `current` for the key you sent.
+- `POST /v1/me/keys` with `{"name":"GitHub Actions"}` mints a named key for a
+  CI secret or another machine and returns `api_key` once.
+- `DELETE /v1/me/keys/<id>` revokes one key; the others keep working. This is
+  the fix for one leaked key: find it by `last4`, revoke it.
+- `POST /v1/me/sign-out` ends the key you send (what the dashboard's Sign out
+  does).
+- `POST /v1/me/api-key/rotate` is **Sign out everywhere**: it returns a new
+  `api_key`, every older key stops working immediately and connected apps
+  (ChatGPT, Claude, Grok) are signed out, so update the agent or CLI before its
+  next request.
+
+The person sees and manages the same list in the **Keys** panel of their page
+(`https://<handle>.simple-host.app/` while signed in). A 401 carries a `code`:
+`missing_api_key`, `wrong_auth_header` (sent `Authorization` instead of
+`X-API-Key`) or `invalid_api_key` (revoked, signed out, or never valid: sign in
+again for a new key).
 
 ## Rollback
 

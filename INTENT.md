@@ -249,6 +249,13 @@ What follows from that, and is not negotiable without changing the line above:
   site's own address are unchanged. Supersedes the "any account's key writes to any site" part
   of 2026-09-05. Reason: signup is free and the Origin gate stops only browsers, so any stranger
   with a script could overwrite or wipe every site's saved data (state-storage review).
+- **2026-09-27. Keys are managed one at a time, and Sign out ends the key.** Every key has a
+  name (where it came from, or typed), its last 4 characters and last-used; the owner lists,
+  mints and revokes keys from the Keys panel, and Sign out deletes the key the browser held.
+  Rotate stays as "Sign out everywhere". New keys start `shk_`. The organiser can replace a
+  participant's keys with one new key. Refines 2026-09-26 ("keep working until the person
+  rotates"). Reason: one leaked key should not force cutting off every agent and app, and a
+  signed-out browser must not leave a live key behind. Owner approved 2026-09-27 (completeness plan).
 
 ## Open, deliberately parked
 

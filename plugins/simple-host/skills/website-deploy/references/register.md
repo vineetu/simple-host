@@ -37,8 +37,11 @@ paths do not expand a literal `~`, and `%USERPROFILE%` expands only in `cmd`.
    ```
    POST /v1/auth/verify
    Content-Type: application/json
-   {"email": "<user@example.com>", "code": "<6-digit code>"}
+   {"email": "<user@example.com>", "code": "<6-digit code>", "name": "Claude Code on <machine>"}
    ```
+
+   `name` is optional; it labels the key in the person's Keys list (default
+   `agent sign-in`).
 
    Success returns `api_key`, `username`, `handle`, `id`, and `is_admin`. The
    `handle` is the person's part of every site address
@@ -46,8 +49,9 @@ paths do not expand a literal `~`, and `%USERPROFILE%` expands only in `cmd`.
 
 5. **Save** `api_key`, `username`, and `handle` to the config file. The key
    cannot be shown again, so this file is the source of truth from here on. It
-   keeps working until the user rotates keys; signing in again issues another
-   key without retiring this one. Re-read `handle` any time via `GET /v1/me`.
+   keeps working until the person revokes it from their Keys list or signs out
+   everywhere; signing in again issues another key without retiring this one.
+   Keys start with `shk_`. Re-read `handle` any time via `GET /v1/me`.
 
    Never print the key into the transcript, a log, or a committed file.
 

@@ -2,6 +2,13 @@
 
 One line per shipped change, newest first. Add a line here in the same commit as any feature change.
 
+## 2026-09-27
+
+- API keys one at a time: every key now has a name (where it came from, or one you type), its last 4 characters and when it was last used. The **Keys** panel on your page lists them, creates a named key (shown once) and revokes one without touching the rest (`GET/POST /v1/me/keys`, `DELETE /v1/me/keys/{id}`). "Rotate API key" is now called **Sign out everywhere**. Needs migration `cp-keys-key-names.sql`. Skills 0.19.3.
+- Sign out now ends the key on the server (`POST /v1/me/sign-out`) before clearing the browser, so a signed-out browser no longer leaves a working key behind.
+- New keys start with `shk_` so secret scanners can spot a leaked one; older keys keep working. Owner-route 401s carry a `code` (`missing_api_key`, `wrong_auth_header`, `invalid_api_key`).
+- Organisers can give a participant a new key: **New key** on the admin page's account row (`POST /v1/admin/users/{id}/key`) replaces that account's keys with one new key, shown once.
+
 ## 2026-09-26
 
 - v0.2.0 released. The small-box installer pins one release: its image, compose file and schema all come from the same tag (before, `latest` pulled v0.1.2 against a newer schema and the app crash-looped on its schema check). The release workflow refuses a tag the installer does not pin.

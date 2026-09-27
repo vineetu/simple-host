@@ -270,6 +270,11 @@
                   "nonce": {
                     "type": "string",
                     "description": "required with token \u2014 the nonce whose hash was sent when the link was requested"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 60,
+                    "description": "Optional label for the key this sign-in issues, shown in the Keys list (GET /v1/me/keys). Defaults to \"dashboard sign-in\" for a link or Google, \"agent sign-in\" for a typed code."
                   }
                 }
               }
@@ -795,8 +800,8 @@
     "/v1/me/api-key/rotate": {
       "post": {
         "operationId": "postMeApiKeyRotate",
-        "summary": "Rotate your API key",
-        "description": "Replaces all of the authenticated owner's API keys with one new key and returns it. Every older key stops working immediately, and every connected app (see /v1/me/connections) is disconnected. Keys are stored only as SHA-256 hashes, so this response is the only time the new key is shown.",
+        "summary": "Sign out everywhere (rotate your API key)",
+        "description": "The \"Sign out everywhere\" button. Replaces all of the authenticated owner's API keys with one new key and returns it. Every older key stops working immediately, and every connected app (see /v1/me/connections) is disconnected. Keys are stored only as SHA-256 hashes, so this response is the only time the new key is shown.",
         "tags": [
           "Auth"
         ],
@@ -930,6 +935,191 @@
           },
           "404": {
             "description": "No connected app with that id"
+          }
+        }
+      }
+    },
+    "/v1/me/sign-out": {
+      "post": {
+        "operationId": "postMeSignOut",
+        "summary": "Sign out (end the key this request used)",
+        "description": "Deletes the API key sent with this request, so it stops working everywhere; the account's other keys and connected apps are untouched. The dashboard's Sign out calls this before it clears the key from the browser. Needs one of the account's own keys (the admin env key or a connected app gets 400 not_an_account_key).",
+        "tags": [
+          "Auth"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Signed out; the key no longer works"
+          },
+          "400": {
+            "description": "Not one of the account's own keys (code not_an_account_key)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/me/keys": {
+      "get": {
+        "operationId": "getMeKeys",
+        "summary": "List your API keys",
+        "description": "Every key on the account, newest first. `current` marks the key this request was made with. Keys issued before names existed have no `name` or `last4` (shown as \"Earlier key\"). `last_used_at` is updated at most every 5 minutes.",
+        "tags": [
+          "Auth"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The account's keys",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "keys"
+                  ],
+                  "properties": {
+                    "keys": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/APIKey"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "operationId": "postMeKey",
+        "summary": "Create a named API key",
+        "description": "Mints a new key with the given name (for a CI secret or another machine) and returns it once; it is stored only as a hash. Needs one of the account's own keys (the admin env key or a connected app gets 400 not_an_account_key).",
+        "tags": [
+          "Auth"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60,
+                    "example": "GitHub Actions"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Key created. `api_key` is shown only here.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/APIKey"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "api_key"
+                      ],
+                      "properties": {
+                        "api_key": {
+                          "type": "string",
+                          "example": "shk_0123abcd\u2026"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/me/keys/{id}": {
+      "delete": {
+        "operationId": "deleteMeKey",
+        "summary": "Revoke one API key",
+        "description": "The key stops working at once; the account's other keys and connected apps are untouched. Revoking the key this request uses signs this caller out. Needs one of the account's own keys.",
+        "tags": [
+          "Auth"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked"
+          },
+          "400": {
+            "description": "Not one of the account's own keys (code not_an_account_key)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No key with that id on this account"
           }
         }
       }
@@ -6621,6 +6811,76 @@
           }
         }
       }
+    },
+    "/v1/admin/users/{id}/key": {
+      "post": {
+        "operationId": "reissueEventAccountKey",
+        "summary": "Give an account a new key (admin only)",
+        "description": "For a participant who lost their key. Replaces every key the account holds with one new key (named \"event account\") and returns it once. Sites, saved data and connected apps are untouched. Admin accounts are refused. Non-admin callers receive 404.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "New key, shown only here",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "username",
+                    "api_key"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "username": {
+                      "type": "string"
+                    },
+                    "handle": {
+                      "type": "string"
+                    },
+                    "api_key": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Cannot reissue an admin account's key"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -6730,6 +6990,43 @@
           }
         }
       },
+      "APIKey": {
+        "type": "object",
+        "required": [
+          "id",
+          "created_at",
+          "last_used_at",
+          "current"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Where it came from (dashboard sign-in, agent sign-in, event account, replacement key) or the name typed when it was created. Absent on keys issued before names existed."
+          },
+          "last4": {
+            "type": "string",
+            "description": "Last 4 characters of the key",
+            "to recognise it. Absent on older keys.": null
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_used_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "current": {
+            "type": "boolean",
+            "description": "This is the key the request was made with"
+          }
+        }
+      },
       "AuthResponse": {
         "type": "object",
         "properties": {
@@ -6742,7 +7039,7 @@
           },
           "api_key": {
             "type": "string",
-            "description": "A new key for this sign-in. Earlier keys keep working until rotated. Stored only as a hash, so it is shown only here."
+            "description": "A new key for this sign-in, starting shk_ (keys issued before 2026-09-27 are bare hex and keep working). Earlier keys keep working until revoked (DELETE /v1/me/keys/{id}) or rotated. Stored only as a hash, so it is shown only here."
           },
           "is_admin": {
             "type": "boolean"
@@ -6838,6 +7135,10 @@
         "properties": {
           "error": {
             "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "description": "Machine-readable reason where one applies. On 401 from an owner route: missing_api_key, wrong_auth_header (sent Authorization instead of X-API-Key) or invalid_api_key (unknown, revoked or signed-out key)."
           }
         }
       }
@@ -6854,7 +7155,7 @@
         }
       },
       "Unauthorized": {
-        "description": "Missing or invalid API key \u2014 send the X-API-Key header, not Authorization Bearer",
+        "description": "Missing or invalid API key \u2014 send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header or invalid_api_key.",
         "content": {
           "application/json": {
             "schema": {

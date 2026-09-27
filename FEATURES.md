@@ -161,18 +161,26 @@ GitHub is wired but unconfigured. **Status: live** (Google configured).
 
 One account model. Sign in by emailed code (6 digits + dashboard-only magic link, 15 min, 3
 tries) or Google (`owner` purpose → one-time token → `/v1/auth/verify`); each sign-in issues a
-new API key, stored only as SHA-256 in `api_keys` (8c479d2), and keys from earlier sign-ins keep
-working; a stored key can never be shown again. Rotate replaces all keys and disconnects all
-connector grants. The dashboard keeps the key in `localStorage['apiKey']`;
-there is no owner cookie session. **Status: live.**
+new API key (`shk_` prefix; older bare-hex keys keep working), stored only as SHA-256 in
+`api_keys` (8c479d2), and keys from earlier sign-ins keep working; a stored key can never be
+shown again. Each key has an id, a name (`dashboard sign-in`, `agent sign-in`, `event account`,
+`replacement key`, or typed; NULL on keys from before 2026-09-27, shown as "Earlier key"), its
+last 4 characters and `last_used_at` (stamped at most every 5 minutes on lookup). The owner
+lists, mints (named, shown once) and revokes keys one at a time in the owner app's **Keys**
+panel; minting, revoking and sign-out need one of the account's own keys (not the admin env key
+or a connected app). Sign out (header, every page) first calls `POST /v1/me/sign-out`, which
+deletes the key the browser held, then clears browser storage. Rotate ("Sign out everywhere")
+replaces all keys and disconnects all connector grants. Owner-route 401s carry `code`
+(`missing_api_key`, `wrong_auth_header`, `invalid_api_key`). The dashboard keeps the key in
+`localStorage['apiKey']`; there is no owner cookie session. **Status: live.**
 
 | Surface | Details |
 |---|---|
-| Routes | `POST /v1/auth` (send code) · `POST /v1/auth/verify` (code → key; creates the account and handle if new) · `GET /v1/me` · `POST /v1/me/api-key/rotate` (replaces all keys) · `PATCH /v1/me` (display name, handle) |
+| Routes | `POST /v1/auth` (send code) · `POST /v1/auth/verify` (code → key, optional `name`; creates the account and handle if new) · `GET /v1/me` · `POST /v1/me/api-key/rotate` (Sign out everywhere: replaces all keys) · `POST /v1/me/sign-out` (ends the calling key) · `GET /v1/me/keys` · `POST /v1/me/keys` (named key) · `DELETE /v1/me/keys/{id}` · `PATCH /v1/me` (display name, handle) |
 | MCP tools | `who_am_i` |
-| Skill | `website-deploy/references/register.md` (email-code registration) · `references/operations.md` §API key rotation · `references/backend.md` §Saving from an agent (API key) |
-| Pages | `st/index.html` (`/dashboard` sign-in: code, Google, paste key), `st/showcase.html`, `st/connect.html` |
-| Go | `internal/auth/middleware.go` (`X-API-Key`, admin key, `RequireAdmin`), `h/user.go`, `h/emailcode.go`, `h/accounts.go` (`patchMe`, handle validation), `h/handles.go`, `internal/db/queries.go` (hashed key lookup, `ClaimHandle`), `internal/db/internalkey.go` (in-process per-request keys for the connector), `internal/email/resend.go` |
+| Skill | `website-deploy/references/register.md` (email-code registration) · `references/operations.md` §API keys · `references/backend.md` §Saving from an agent (API key) |
+| Pages | `st/index.html` (`/dashboard` sign-in: code, Google, paste key; Sign out everywhere), `st/showcase.html` (owner **Keys** panel `#owner-keys`), `st/connect.html`, `st/partials/header.html` (Sign out → `/v1/me/sign-out`) |
+| Go | `internal/auth/middleware.go` (`X-API-Key`, `shk_` keys, 401 codes, admin key, `RequireAdmin`), `h/user.go`, `h/keys.go` (list/mint/revoke/sign-out), `internal/db/apikeys.go`, `h/emailcode.go`, `h/accounts.go` (`patchMe`, handle validation), `h/handles.go`, `internal/db/queries.go` (hashed key lookup, `ClaimHandle`), `internal/db/internalkey.go` (in-process per-request keys for the connector), `internal/email/resend.go` |
 | DB | `users`, `api_keys`, `auth_tokens` (purpose-bound codes; expired ones purged) |
 | Env | `ADMIN_API_KEY`, `RESEND_API_KEY`, `MAIL_FROM`, `PUBLIC_BASE_URL` |
 | External | Resend |
@@ -239,9 +247,9 @@ traffic. Admin = `ADMIN_API_KEY` or the admin user. **Status: live.**
 
 | Surface | Details |
 |---|---|
-| Routes | `GET /admin` (public shell) · `GET /v1/admin/users` · `POST /v1/admin/users` (bulk-create participant accounts, returns keys) · `DELETE /v1/admin/users/{id}` · `GET /v1/admin/usage` · `GET /v1/admin/api-analytics` · `PUT /v1/sites/{sitename}/allow-anonymous-writes?owner=` (`RequireAdmin`; `owner` picks that person's site, else the oldest of the name) · `GET /v1/sites/{sitename}/analytics?owner=` and `/analytics/geo?owner=`, `GET /v1/analytics/sites?all=1` (admin reads any site) |
-| Pages | `st/admin.html` (tiles Users/Websites/Disk; Biggest websites; Issue participant accounts; Entries: Entry/Account/Link/**Analytics**; user cards; API traffic tables), `st/index.html` Admin tab |
-| Go | `h/site.go` (`adminUsers`, `adminUsage`), `h/accounts.go` (`createAccounts`, `deleteAccount`, `accountAdmin`), `internal/capacity/capacity.go`, `h/apimetrics.go` (`AdminSummary`), `internal/auth/middleware.go` |
+| Routes | `GET /admin` (public shell) · `GET /v1/admin/users` · `POST /v1/admin/users` (bulk-create participant accounts, returns keys) · `POST /v1/admin/users/{id}/key` (replace that account's keys with one new key, shown once) · `DELETE /v1/admin/users/{id}` · `GET /v1/admin/usage` · `GET /v1/admin/api-analytics` · `PUT /v1/sites/{sitename}/allow-anonymous-writes?owner=` (`RequireAdmin`; `owner` picks that person's site, else the oldest of the name) · `GET /v1/sites/{sitename}/analytics?owner=` and `/analytics/geo?owner=`, `GET /v1/analytics/sites?all=1` (admin reads any site) |
+| Pages | `st/admin.html` (tiles Users/Websites/Disk; Biggest websites; Issue participant accounts; Entries: Entry/Account/Link/**Analytics**; user cards with **New key** and Delete; API traffic tables), `st/index.html` Admin tab |
+| Go | `h/site.go` (`adminUsers`, `adminUsage`), `h/accounts.go` (`createAccounts`, `reissueAccountKey`, `deleteAccount`, `accountAdmin`), `internal/capacity/capacity.go`, `h/apimetrics.go` (`AdminSummary`), `internal/auth/middleware.go` |
 | DB | `users`, `sites`, `versions`, `api_request_daily`, `api_ip_daily` |
 | Env | `ADMIN_API_KEY`, `DATA_DIR` |
 

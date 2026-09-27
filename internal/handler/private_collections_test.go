@@ -152,8 +152,9 @@ func (a *privateApp) session(t *testing.T, p person, siteID, host string) string
 	for i := range id {
 		id[i] ^= byte(i * 7)
 	}
-	raw, _ := auth.GenerateAPIKey() // shk_ + 64 hex chars = 32 random bytes
-	id, _ = hex.DecodeString(strings.TrimPrefix(raw, auth.APIKeyPrefix))
+	key, _ := auth.GenerateAPIKey() // shk_ + 64 hex chars = 32 random bytes
+	raw := strings.TrimPrefix(key, auth.APIKeyPrefix)
+	id, _ = hex.DecodeString(raw)
 	now := time.Now()
 	if err := db.InsertVisitorSession(context.Background(), a.database, id, uid, siteID, host, now.Add(time.Hour), now.Add(time.Hour)); err != nil {
 		t.Fatal(err)
