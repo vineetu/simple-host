@@ -177,8 +177,8 @@ func (h *SiteHandler) renderShowcase(w http.ResponseWriter, r *http.Request, han
 		if vis != "public" {
 			continue // public server-render lists public sites only
 		}
-		if s.Suspended() {
-			continue // taken down by the operator
+		if s.Suspended() || s.Offline {
+			continue // taken down by the operator, or offline by its owner
 		}
 		data.Sites = append(data.Sites, showcaseSite{
 			Name:       s.Name,

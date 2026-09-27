@@ -146,7 +146,9 @@ func outputSchemas() map[string]map[string]any {
 		}, "email"),
 
 		"list_sites": outObject(map[string]any{
-			"sites": outArray("Every site in the account.", siteSummarySchema()),
+			"sites": outArray("Every site in the account.", siteSummaryWith(map[string]any{
+				"offline": outBool("Present (true) only when the owner has taken the site offline: every address shows \"This site is offline\" and visitor saves are refused."),
+			})),
 			"count": outInteger("How many sites the account has."),
 		}, "sites", "count"),
 
@@ -215,6 +217,12 @@ func outputSchemas() map[string]map[string]any {
 			"site":       outString(outSiteName),
 			"visibility": outEnum("public: listed on the account's public page; unlisted: left off it (still public to anyone with the address).", "public", "unlisted"),
 		}, "site", "visibility"),
+
+		"set_site_offline": outObject(map[string]any{
+			"site":    outString(outSiteName),
+			"offline": outBool("Whether the site is offline now."),
+			"url":     outString("The site's address (showing \"This site is offline\" while it is offline)."),
+		}, "site", "offline", "url"),
 
 		"get_state": outObject(map[string]any{
 			"site":  outString(outSiteName),

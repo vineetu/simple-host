@@ -64,6 +64,11 @@ type Site struct {
 	OwnerSuspended       bool
 	OwnerSuspendedReason string
 
+	// Offline: its owner has taken it offline (every address shows "This
+	// site is offline", visitor saves are refused, nothing is deleted).
+	// Populated by GetSiteByUser, ListSitesByUser, ListAllSites and GetSiteByID.
+	Offline bool
+
 	// Deleted: the site is in Recently deleted. Only GetSiteByID sees such
 	// rows; every other lookup skips them.
 	Deleted bool

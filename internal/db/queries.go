@@ -500,7 +500,8 @@ func GetSiteByUser(ctx context.Context, db *sql.DB, userID, name string) (Site, 
 		       (SELECT COALESCE(u.handle, '') FROM users u WHERE u.id = sites.user_id),
 		       sites.suspended_at IS NOT NULL, COALESCE(sites.suspended_reason, ''),
 		       COALESCE((SELECT su.suspended_at IS NOT NULL FROM users su WHERE su.id = sites.user_id), false),
-		       COALESCE((SELECT su.suspended_reason FROM users su WHERE su.id = sites.user_id AND su.suspended_at IS NOT NULL), '')
+		       COALESCE((SELECT su.suspended_reason FROM users su WHERE su.id = sites.user_id AND su.suspended_at IS NOT NULL), ''),
+		       sites.offline_at IS NOT NULL
 		FROM sites
 		WHERE user_id = $1 AND name = $2 AND deleted_at IS NULL
 	`
@@ -522,6 +523,7 @@ func GetSiteByUser(ctx context.Context, db *sql.DB, userID, name string) (Site, 
 		&site.SiteSuspendedReason,
 		&site.OwnerSuspended,
 		&site.OwnerSuspendedReason,
+		&site.Offline,
 	)
 	return site, err
 }
@@ -566,7 +568,8 @@ func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 		SELECT s.id, s.user_id, s.name, s.active_version, COALESCE(s.site_url, ''), s.created_at, s.updated_at, s.custom_domain, s.domain_status, s.visibility, u.username, COALESCE(u.handle, ''),
 		       s.domain_last_error, s.domain_bound_at, s.domain_verified_at, COALESCE(s.previous_domain, ''), COALESCE(s.domain_cert_status, ''), COALESCE(s.domain_token, ''), (SELECT max(v.created_at) FROM versions v WHERE v.site_id = s.id AND v.status = 'active'),
 		       s.suspended_at IS NOT NULL, COALESCE(s.suspended_reason, ''),
-		       u.suspended_at IS NOT NULL, COALESCE(u.suspended_reason, '')
+		       u.suspended_at IS NOT NULL, COALESCE(u.suspended_reason, ''),
+		       s.offline_at IS NOT NULL
 		FROM sites s
 		INNER JOIN users u ON u.id = s.user_id
 		WHERE s.deleted_at IS NULL
@@ -606,6 +609,7 @@ func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 			&site.SiteSuspendedReason,
 			&site.OwnerSuspended,
 			&site.OwnerSuspendedReason,
+			&site.Offline,
 		); err != nil {
 			return nil, err
 		}
@@ -653,7 +657,8 @@ func ListSitesByUser(ctx context.Context, db *sql.DB, userID string) ([]Site, er
 		       (SELECT max(v.created_at) FROM versions v WHERE v.site_id = sites.id AND v.status = 'active'),
 		       sites.suspended_at IS NOT NULL, COALESCE(sites.suspended_reason, ''),
 		       COALESCE((SELECT su.suspended_at IS NOT NULL FROM users su WHERE su.id = sites.user_id), false),
-		       COALESCE((SELECT su.suspended_reason FROM users su WHERE su.id = sites.user_id AND su.suspended_at IS NOT NULL), '')
+		       COALESCE((SELECT su.suspended_reason FROM users su WHERE su.id = sites.user_id AND su.suspended_at IS NOT NULL), ''),
+		       sites.offline_at IS NOT NULL
 		FROM sites
 		WHERE user_id = $1 AND deleted_at IS NULL
 		ORDER BY created_at ASC, name ASC
@@ -664,6 +669,30 @@ func ListSitesByUser(ctx context.Context, db *sql.DB, userID string) ([]Site, er
 		return nil, err
 	}
 	return scanSiteRows(rows)
+}
+
+// SetSiteOffline takes a site offline (on) or brings it back (off). Nothing
+// else about the site changes. sql.ErrNoRows for an unknown or deleted site.
+func SetSiteOffline(ctx context.Context, q Querier, siteID string, on bool) error {
+	query := `UPDATE sites SET offline_at = NULL, updated_at = now() WHERE id = $1 AND deleted_at IS NULL`
+	if on {
+		query = `UPDATE sites SET offline_at = COALESCE(offline_at, now()), updated_at = now() WHERE id = $1 AND deleted_at IS NULL`
+	}
+	res, err := q.ExecContext(ctx, query, siteID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+// SiteOffline reports whether a site is offline by its owner's choice.
+func SiteOffline(ctx context.Context, q Querier, siteID string) (bool, error) {
+	var off bool
+	err := q.QueryRowContext(ctx, `SELECT offline_at IS NOT NULL FROM sites WHERE id::text = $1`, siteID).Scan(&off)
+	return off, err
 }
 
 // SetSiteVisibility updates a site's showcase visibility ('public' | 'unlisted').
@@ -713,6 +742,7 @@ func scanSiteRows(rows *sql.Rows) ([]Site, error) {
 			&site.SiteSuspendedReason,
 			&site.OwnerSuspended,
 			&site.OwnerSuspendedReason,
+			&site.Offline,
 		); err != nil {
 			return nil, err
 		}

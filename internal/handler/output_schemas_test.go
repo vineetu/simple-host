@@ -71,6 +71,13 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	call("list_versions", map[string]any{"site": "shop"})
 	call("rollback_site", map[string]any{"site": "shop", "version": 1})
 	call("set_visibility", map[string]any{"site": "shop", "visibility": "public"})
+	if s := call("set_site_offline", map[string]any{"site": "shop", "offline": true}); s["offline"] != true {
+		t.Fatalf("set_site_offline: %v", s)
+	}
+	call("list_sites", map[string]any{})
+	if s := call("set_site_offline", map[string]any{"site": "shop", "offline": false}); s["offline"] != false {
+		t.Fatalf("set_site_offline back: %v", s)
+	}
 
 	state := call("get_state", map[string]any{"site": "shop"})
 	call("update_state", map[string]any{"site": "shop", "ops": []any{map[string]any{"op": "inc", "path": "count", "by": 1}}})

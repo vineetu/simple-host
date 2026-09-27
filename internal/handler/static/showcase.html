@@ -308,6 +308,7 @@
       margin-top: 2px;
     }
     .inv-down { font-size: 13px; color: var(--error); margin-top: 4px; }
+    .inv-offline { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
     .vis-badge {
       font-size: 13px;
       font-weight: 500;
@@ -2020,7 +2021,8 @@ function parseAnalyticsSummary(data) {
             '<div class="inv-path"><a href="' + openUrl + '" target="_blank" rel="noopener">' + esc(url.replace(/^https?:\/\//, '').replace(/\/$/, '')) + '</a></div>' +
             '<div class="inv-meta">' + meta + '</div>' +
             (s.suspended ? '<div class="inv-down">Taken down by the operator' + (s.suspended_reason ? ': ' + esc(s.suspended_reason) : '') +
-              '. Every address shows a &ldquo;taken down&rdquo; page and changes are refused until it is restored. Nothing has been deleted.</div>' : '') +
+              '. Every address shows a &ldquo;taken down&rdquo; page and changes are refused until it is restored. Nothing has been deleted.</div>' :
+              (s.offline ? '<div class="inv-offline">Offline. Every address shows &ldquo;This site is offline&rdquo; and visitors can&rsquo;t save anything. Its files, versions and saved data are kept.</div>' : '')) +
           '</div>' +
         '</div>' +
         (s.suspended ? (own ? '<div class="inv-actions">' +
@@ -2029,7 +2031,8 @@ function parseAnalyticsSummary(data) {
         '<div class="inv-actions">' +
           '<a class="btn-small btn-secondary" href="' + openUrl + '" target="_blank" rel="noopener">Open</a>' + (own ?
           '<button type="button" class="btn-small btn-secondary" data-act="toggleVis" data-name="' + name + '" data-vis="' + vis + '" data-vis-btn="' + name + '">' + (vis === 'public' ? 'Make unlisted' : 'Make public') + '</button>' +
-          '<button type="button" class="btn-small btn-secondary" data-act="toggleVersions" data-name="' + name + '">Revert</button>' +
+          '<button type="button" class="btn-small btn-secondary" data-act="toggleOffline" data-name="' + name + '" data-offline="' + (s.offline ? '1' : '') + '">' + (s.offline ? 'Put back online' : 'Take offline') + '</button>' +
+          '<button type="button" class="btn-small btn-secondary" data-act="toggleVersions" data-name="' + name + '">Versions</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="openRename" data-name="' + name + '">Rename</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="openDomain" data-name="' + name + '">' + (s.custom_domain ? 'Domain' : 'Connect domain') + '</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="downloadSite" data-name="' + name + '">Download</button>' +
@@ -2378,6 +2381,28 @@ function parseAnalyticsSummary(data) {
         toast(name + ' is now ' + next, 'success');
       } catch (e) {
         toast('Could not change visibility', 'error');
+      }
+    }
+
+    // Offline: every address shows "This site is offline" and visitor saves
+    // are refused; nothing is deleted, and the same button brings it back.
+    async function toggleOffline(name, isOffline, btn) {
+      var next = !isOffline;
+      if (next && !confirm('Take "' + name + '" offline? Every address will show \u201cThis site is offline\u201d and visitors won\u2019t be able to save anything. Nothing is deleted, and you can put it back online at any time.')) return;
+      btn.disabled = true;
+      try {
+        var res = await api('PATCH', sitePathPart(name), { offline: next });
+        if (!res.ok) {
+          var err = await res.json().catch(function () { return null; });
+          toast((err && err.error) || 'Could not change that', 'error');
+          btn.disabled = false;
+          return;
+        }
+        toast(next ? name + ' is offline' : name + ' is back online', 'success');
+        await reloadOwnerSites();
+      } catch (e) {
+        toast('Could not change that', 'error');
+        btn.disabled = false;
       }
     }
 
@@ -3437,6 +3462,7 @@ function parseAnalyticsSummary(data) {
       showAiCreate: function () { toggleOnboarding('aiCreate', true); },
       toggleVis: function (d) { toggleVis(d.name, d.vis); },
       toggleVersions: function (d) { toggleVersions(d.name); },
+      toggleOffline: function (d, el) { toggleOffline(d.name, !!d.offline, el); },
       confirmDelete: function (d) { confirmDelete(d.name); },
       doDelete: function (d, el) { doDelete(d.name, el); },
       rollbackTo: function (d) { rollbackTo(d.name, Number(d.version)); },

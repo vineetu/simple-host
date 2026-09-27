@@ -233,6 +233,11 @@ func (h *SiteHandler) serveSiteFile(w http.ResponseWriter, r *http.Request, user
 		serveTakedown(w, r)
 		return
 	}
+	// Taken offline by its owner (offline.go): the same on every address.
+	if h.disk.IsOffline(userID, siteName) {
+		serveOffline(w, r)
+		return
+	}
 	root, err := os.OpenRoot(h.disk.SiteDir(userID, siteName) + "/current")
 	if err != nil {
 		http.NotFound(w, r)

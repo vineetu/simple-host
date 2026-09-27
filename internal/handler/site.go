@@ -157,6 +157,9 @@ type siteResponse struct {
 	// owner's account). It keeps everything and refuses changes until restored.
 	Suspended       bool   `json:"suspended,omitempty"`
 	SuspendedReason string `json:"suspended_reason,omitempty"`
+	// Offline: its owner has taken it offline (every address shows "This
+	// site is offline", visitor saves are refused; nothing is deleted).
+	Offline bool `json:"offline,omitempty"`
 }
 
 type versionResponse struct {
@@ -276,7 +279,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	siteOpLimiter := newRateLimiter(30, 0.5)
 	siteOpLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	mux.Handle("DELETE /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.deleteSite)))))
-	mux.Handle("PATCH /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.renameSite)))))
+	mux.Handle("PATCH /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.patchSite)))))
 	mux.Handle("POST /v1/sites/{sitename}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.restoreSite)))))
 	mux.Handle("GET /v1/me/deleted-sites", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDeletedSites))))
 	mux.Handle("GET /v1/sites", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listSites))))
@@ -361,6 +364,8 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// Where nginx and Caddy send a request for a site whose folder carries the
 	// take-down marker (suspend.go).
 	mux.HandleFunc("GET /internal/suspended", h.suspendedPage)
+	// ... and for a site its owner took offline (offline.go).
+	mux.HandleFunc("GET /internal/offline", h.offlinePageHandler)
 
 	// Append-only collections (second backend type): cheap O(1) appends +
 	// paginated reads for large/high-volume lists. Origin-gated like state.
@@ -420,17 +425,10 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("POST /v1/visitor/logout", rateLimitByIP(visitorLimiter, http.HandlerFunc(h.logoutVisitor)))
 }
 
-func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request) {
+// renameSite renames the caller's site oldName to newName (PATCH with
+// {"name": ...}, see patchSite).
+func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request, oldName, newName string) {
 	user := auth.GetUser(r.Context())
-	oldName := strings.TrimSpace(r.PathValue("sitename"))
-	var req struct {
-		Name string `json:"name"`
-	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid JSON body (expected {\"name\":\"new-name\"})"})
-		return
-	}
-	newName := strings.TrimSpace(req.Name)
 	if err := validateSiteShape(newName); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "invalid_name"})
 		return
@@ -1889,6 +1887,7 @@ func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
 		OwnerUsername:   site.OwnerUsername,
 		Note:            note,
 		Suspended:       site.Suspended(),
+		Offline:         site.Offline,
 		SuspendedReason: site.SuspendedReason(),
 	}
 	if site.LastDeployedAt.Valid {

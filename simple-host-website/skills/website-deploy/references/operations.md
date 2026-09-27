@@ -15,6 +15,15 @@ moves its files. A connected custom domain stays attached. Links to the old
 address keep working: they redirect to the new one (path and query kept) until
 a new site is created with the old name. Use `site_url` from the response.
 
+## Take a site offline
+
+`PATCH /v1/sites/<sitename>` with `{"offline":true}` takes the site offline:
+every address of it shows a plain "This site is offline" page and visitor saves
+are refused (403 `site_offline`). Use it when an event is over or a form must
+stop taking entries. Nothing is deleted, and the owner's key still deploys,
+reads and writes. `{"offline":false}` puts it back online; `GET /v1/sites`
+marks an offline site `"offline": true`. Confirm with the person first.
+
 ## API keys: list, name, revoke, sign out everywhere
 
 Each sign-in and each agent holds its own key. Keys issued now start with

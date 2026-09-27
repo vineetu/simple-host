@@ -200,6 +200,7 @@ var codeHints = map[string]string{
 	"invalid_token":            "The connection to Simple Host is no longer signed in. Ask the person to reconnect Simple Host in their app's connector settings.",
 	"site_suspended":           "The operator has taken this site down, and changes to it are refused until it is restored. Tell the person; do not retry.",
 	"account_suspended":        "This account is suspended by the operator. Tell the person to contact support@simple-host.app; do not retry.",
+	"site_offline":             "The owner has taken this site offline, so visitors cannot save to it. Put it back online with set_site_offline if the person wants that; the owner's own changes still work.",
 }
 
 func codeHint(code string) string { return codeHints[code] }
@@ -377,6 +378,7 @@ type restSite struct {
 	CustomDomain  string `json:"custom_domain"`
 	DomainStatus  string `json:"domain_status"`
 	Visibility    string `json:"visibility"`
+	Offline       bool   `json:"offline"`
 }
 
 // liveURL is the one address to give people: a connected, working custom
@@ -578,7 +580,11 @@ func Tools() []Tool {
 				}
 				items := make([]any, 0, len(sites))
 				for _, s := range sites {
-					items = append(items, s.summary())
+					item := s.summary()
+					if s.Offline {
+						item["offline"] = true
+					}
+					items = append(items, item)
 				}
 				out := map[string]any{"sites": items, "count": len(items)}
 				if len(items) == 0 {
@@ -917,6 +923,42 @@ func Tools() []Tool {
 					return output{}, restError("set_visibility", res)
 				}
 				return output{Text: name + " is now " + strings.ToLower(vis) + ".", Structured: map[string]any{"site": name, "visibility": strings.ToLower(vis)}}, nil
+			},
+		},
+		{
+			Name:  "set_site_offline",
+			Title: "Take a site offline or back online",
+			Description: "Take a site offline (`offline: true`): every address of it shows a plain \"This site is offline\" page and visitors can no longer save anything (RSVPs, votes, sign-ups), for example when an event is over or a form must stop taking entries. " +
+				"Nothing is deleted: files, versions, saved data and lists are kept, and you can still update, read and export it. `offline: false` puts it back online at every address. Confirm with the person before taking a site offline.",
+			InputSchema: object(map[string]any{
+				"site":    str(siteDesc),
+				"offline": map[string]any{"type": "boolean", "description": "true takes the site offline; false puts it back online."},
+			}, "site", "offline"),
+			// Changes what the public sees; nothing is deleted and the other
+			// value undoes it.
+			Annotations: writes(false, true, true),
+			run: func(c *call, args map[string]any) (output, error) {
+				name, err := siteArg(args)
+				if err != nil {
+					return output{}, err
+				}
+				off, ok := args["offline"].(bool)
+				if !ok {
+					return output{}, errors.New("offline is required: true to take the site offline, false to put it back online")
+				}
+				body, _ := json.Marshal(map[string]bool{"offline": off})
+				res := c.do(http.MethodPatch, "/v1/sites/"+url.PathEscape(name), body, nil)
+				if !res.ok() {
+					return output{}, restError("set_site_offline", res)
+				}
+				var site restSite
+				_ = json.Unmarshal(res.body, &site)
+				out := map[string]any{"site": name, "offline": site.Offline, "url": site.liveURL()}
+				text := name + " is back online at " + site.liveURL()
+				if site.Offline {
+					text = name + " is offline: " + site.liveURL() + " shows \"This site is offline\" and visitor saves are refused. Nothing was deleted."
+				}
+				return output{Text: text, Structured: out}, nil
 			},
 		},
 		{

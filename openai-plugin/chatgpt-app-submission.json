@@ -164,6 +164,18 @@
         "destructive_justification": "Nothing is deleted and the change is fully reversible."
       }
     },
+    "set_site_offline": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It takes a site offline or back online, so it modifies data.",
+        "open_world_justification": "It changes what the public sees at the site's address on the internet.",
+        "destructive_justification": "Nothing is deleted: files, versions and saved data are kept, and calling it with the other value puts the site back exactly as it was."
+      }
+    },
     "get_state": {
       "annotations": {
         "readOnlyHint": true,

@@ -152,6 +152,14 @@ func (h *SiteHandler) SyncSuspendMarkers(ctx context.Context) {
 			}
 			n++
 		}
+		// The owner's offline switch (offline.go) has a marker too.
+		if s.Offline != h.disk.IsOffline(s.UserID, s.Name) {
+			if err := h.syncOfflineMarker(s); err != nil {
+				log.Printf("offline: marker for %s/%s: %v", s.UserID, s.Name, err)
+				continue
+			}
+			n++
+		}
 	}
 	if n > 0 {
 		log.Printf("suspend: corrected %d site marker(s)", n)

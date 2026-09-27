@@ -593,3 +593,39 @@ func (d *DiskStorage) IsSuspended(userID, siteName string) bool {
 	_, err := os.Lstat(filepath.Join(d.SiteDir(userID, siteName), suspendedMarker))
 	return err == nil
 }
+
+// offlineMarker is the file that marks a site its owner has taken offline.
+// Like the take-down marker it sits next to `current`, so every server that
+// reads files straight from disk can test for it; the take-down marker is
+// checked first and wins.
+const offlineMarker = "offline"
+
+// SetOffline writes (on) or removes (off) the offline marker. Idempotent;
+// like SetSuspended it never creates a missing site folder.
+func (d *DiskStorage) SetOffline(userID, siteName string, on bool) error {
+	if !validPathKey(userID) || !validPathKey(siteName) {
+		return fmt.Errorf("invalid site %q/%q", userID, siteName)
+	}
+	p := filepath.Join(d.SiteDir(userID, siteName), offlineMarker)
+	if !on {
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	}
+	if _, err := os.Stat(d.SiteDir(userID, siteName)); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	return os.WriteFile(p, []byte("taken offline by its owner\n"), 0o644)
+}
+
+// IsOffline reports whether the offline marker is present.
+func (d *DiskStorage) IsOffline(userID, siteName string) bool {
+	if !validPathKey(userID) || !validPathKey(siteName) {
+		return false
+	}
+	_, err := os.Lstat(filepath.Join(d.SiteDir(userID, siteName), offlineMarker))
+	return err == nil
+}

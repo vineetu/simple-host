@@ -25,6 +25,7 @@ that should get it). Last derived from both `FEATURES.md` files and code on 2026
 | Sites: deploy, versions, rollback, delete | tar.gz/zip or inline JSON files; `KEEP_VERSIONS`; rollback; delete | tar.gz or MCP file list, `If-Match` ETags; 5 versions kept; rollback; delete | `same` |
 | Recently deleted (undo a delete) | 7 days: delete takes a site offline and keeps it whole (name, saved data, collections, versions, claimed names held); `GET /v1/me/deleted-sites`, `POST /v1/sites/{s}/restore`, `list_deleted_sites`/`restore_site`, owner app; counts toward the site cap; hourly purge (2026-09-27) | 30 days: whole site (files, saved data, access, viewers, assets) restorable by owner, team member or admin (also after an admin's "Delete sites" for a leaver); name held against create, rename and hand-over; counts toward quota; purged by the sweeper | `same` — windows differ on purpose: a small box's disk vs the bucket's 30-day noncurrent-version retention |
 | Site rename | `PATCH /v1/sites/{s}`, `rename_site`, owner app; old address redirects until the name is reused (2026-09-27) | `POST .../rename`, `rename_site`, dashboard; old address redirects until the name is reused | `same` |
+| Take a site offline (keep everything) | owner switch (owner app, `PATCH /v1/sites/{s}` `{"offline"}`, `set_site_offline`): "This site is offline" (503) on every address, visitor saves refused, owner keeps deploying and reading (2026-09-27) | the only-me access level works as "unpublish": visitors get the host gate, the owner still opens it | `different on purpose` — enterprise sites have access levels; hosted pages are always public, so offline is for everyone |
 | Hand a site to another owner | none | `POST .../transfer`, `transfer_site`, dashboard: owners and members move a site only into a team they are in (never to a person); admin moves a leaver's or abandoned team's sites to a team or person; network access dropped on a move; audited in both namespaces; old address redirects only for people who can open the site | `different on purpose` — hosted has no teams or company leavers |
 | Change a person's address (handle) | self-serve `PATCH /v1/me` and owner app: free before publishing, then once per 30 days; old handle kept as an alias so every old address redirects; new handle's certificate requested (2026-09-27) | none; the username label comes from the IdP | `gap → enterprise` — an admin rename (with redirects) for when a directory name changes |
 | Site export with saved data | `export.tar.gz` (files + state + collections); `export_site` tool and a 10-minute signed download link for keyless (connector) users | version archive download only (files, no saved data); an admin's export of a disabled person carries saved data and its history | `gap → enterprise` |
@@ -96,7 +97,7 @@ Every numbered `FEATURES.md` section, per repo, and the rows above that cover it
 
 | Repo | FEATURES.md section | Rows |
 |---|---|---|
-| hosted | Sites and deploy | Sites; Site rename; Recently deleted; Site export; Upload validation |
+| hosted | Sites and deploy | Sites; Site rename; Take a site offline; Recently deleted; Site export; Upload validation |
 | hosted | Per-site and per-person addresses, and legacy redirects | Per-site hosts; Per-owner certificates; Small-box path model |
 | hosted | Claimed `<name>.simple-host.app` and custom domains | Free names; Custom domains |
 | hosted | Saved state (shared JSON per site) | Saved state; Saved-state history |
@@ -122,7 +123,7 @@ Every numbered `FEATURES.md` section, per repo, and the rows above that cover it
 | enterprise | API keys (CI and automation) | API keys rows |
 | enterprise | MCP server, OAuth connector, plugin.zip | MCP connector; Connector token lifetime; Connected apps; MCP error hints; Skills and plugin |
 | enterprise | Skills bundle and skill-version gate | Skills and plugin |
-| enterprise | Sites: deploy, versions, rollback, delete | Sites; Recently deleted; Site rename; Hand a site to another owner; Site export; Per-site hosts; Quotas; Malware scan |
+| enterprise | Sites: deploy, versions, rollback, delete | Sites; Recently deleted; Site rename; Take a site offline; Hand a site to another owner; Site export; Per-site hosts; Quotas; Malware scan |
 | enterprise | Bucket storage, cache, retire sweep, migrate-storage, restore and reencrypt | Storage backend |
 | enterprise | Access levels and network approval | Who can open a site |
 | enterprise | Named viewers (restricted sites) | Who can open a site |

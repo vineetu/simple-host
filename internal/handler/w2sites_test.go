@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -110,5 +111,136 @@ func TestRenameKeepsOldLinks(t *testing.T) {
 	var n int
 	if err := a.database.QueryRow(`SELECT count(*) FROM site_name_aliases WHERE site_id = $1`, siteID).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("old names after purge: %d %v", n, err)
+	}
+}
+
+// The owner's offline switch: every address shows the offline page (503),
+// visitor saves are refused, the owner's key still deploys, reads and writes,
+// the operator's take-down wins, and the switch survives rename, delete and
+// restore. Needs DB_DSN.
+func TestSiteOffline(t *testing.T) {
+	a, dir := newSiteApp(t, "canonical")
+	olive, oscar, vic := a.newPerson(t, "olive"), a.newPerson(t, "oscar"), a.newPerson(t, "vic")
+	a.deploy(t, olive, "shop")
+	a.deploy(t, olive, "blog")
+	oliveID, oh := a.userID(t, olive)
+	markReady(t, dir, oh)
+	apex := pcSiteDomain
+	person := oh + "." + pcSiteDomain
+	shop := "shop." + person
+	okey := map[string]string{"X-API-Key": olive.key}
+	shopID := a.siteID(t, olive, "shop")
+	cookie := a.session(t, vic, shopID, shop)
+	save := func() resp {
+		return a.at(t, "POST", shop, "/v1/sites/shop/collections/rsvps", map[string]string{"name": "Ann"}, browser(shop, cookie))
+	}
+	if r := save(); r.status != http.StatusCreated {
+		t.Fatalf("visitor save while online: %d %s", r.status, r.body)
+	}
+	isOffline := func(host, path string) {
+		t.Helper()
+		r := a.at(t, "GET", host, path, nil, nil)
+		if r.status != http.StatusServiceUnavailable || !strings.Contains(string(r.body), "This site is offline") || r.header.Get("Cache-Control") != "no-store" {
+			t.Fatalf("%s%s: %d %s", host, path, r.status, r.body)
+		}
+	}
+
+	// Only the owner, and one change per request.
+	if r := a.at(t, "PATCH", apex, "/v1/sites/shop", map[string]bool{"offline": true}, map[string]string{"X-API-Key": oscar.key}); r.status != 404 {
+		t.Fatalf("someone else's site: %d %s", r.status, r.body)
+	}
+	for _, body := range []any{map[string]any{}, map[string]any{"name": "x", "offline": true}, map[string]any{"offline": "yes"}} {
+		if r := a.at(t, "PATCH", apex, "/v1/sites/shop", body, okey); r.status != 400 {
+			t.Fatalf("PATCH %v: %d %s", body, r.status, r.body)
+		}
+	}
+	r := a.at(t, "PATCH", apex, "/v1/sites/shop", map[string]bool{"offline": true}, okey)
+	if r.status != 200 || r.json(t)["offline"] != true {
+		t.Fatalf("offline: %d %s", r.status, r.body)
+	}
+	if !a.sites.disk.IsOffline(oliveID, "shop") {
+		t.Fatal("no offline marker")
+	}
+	isOffline(shop, "/")
+	isOffline(shop, "/sub/")
+	isOffline(shop, "/missing.png")
+	isOffline(apex, "/internal/offline")
+	if r := a.at(t, "GET", "blog."+person, "/", nil, nil); r.status != 200 {
+		t.Fatalf("other site: %d", r.status)
+	}
+	if r := a.at(t, "GET", apex, "/v1/sites", nil, okey); !strings.Contains(string(r.body), `"offline":true`) {
+		t.Fatalf("site list: %s", r.body)
+	}
+
+	// Visitors cannot save; the owner's key still writes, deploys and reads.
+	if r := save(); r.status != http.StatusForbidden || r.json(t)["code"] != "site_offline" {
+		t.Fatalf("visitor save while offline: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "PUT", shop, "/v1/sites/shop/state", map[string]any{"n": 1}, map[string]string{"X-API-Key": olive.key, "Origin": "https://" + shop}); r.status != 200 {
+		t.Fatalf("owner state write: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "PUT", apex, "/v1/sites/shop/files", map[string]any{"files": map[string]string{"index.html": "v2"}}, okey); r.status != 200 {
+		t.Fatalf("owner deploy: %d %s", r.status, r.body)
+	}
+	isOffline(shop, "/")
+	if r := a.at(t, "GET", apex, "/v1/sites/shop/versions/2/files/index.html", nil, okey); r.status != 200 || string(r.body) != "v2" {
+		t.Fatalf("owner read: %d %s", r.status, r.body)
+	}
+
+	// A claimed name serves the offline page too.
+	claimed := "olive-off-" + oh + "." + pcSiteDomain
+	if r := a.at(t, "POST", apex, "/v1/sites/shop/domain", map[string]string{"domain": claimed}, okey); r.status != 200 {
+		t.Fatalf("claim: %d %s", r.status, r.body)
+	}
+	isOffline(claimed, "/")
+	if r := a.at(t, "DELETE", apex, "/v1/sites/shop/domain?domain="+claimed, nil, okey); r.status != http.StatusNoContent {
+		t.Fatalf("unclaim: %d %s", r.status, r.body)
+	}
+
+	// The operator's take-down wins while both hold.
+	admin := map[string]string{"X-API-Key": a.admin}
+	if r := a.at(t, "POST", apex, "/v1/admin/sites/"+shopID+"/suspend", map[string]string{"reason": "test"}, admin); r.status != 200 {
+		t.Fatalf("suspend: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "GET", shop, "/", nil, nil); r.status != http.StatusGone {
+		t.Fatalf("take-down does not win: %d", r.status)
+	}
+	if r := a.at(t, "PATCH", apex, "/v1/sites/shop", map[string]bool{"offline": false}, okey); r.status != http.StatusForbidden {
+		t.Fatalf("switch while taken down: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "POST", apex, "/v1/admin/sites/"+shopID+"/restore", nil, admin); r.status != 200 {
+		t.Fatalf("restore take-down: %d %s", r.status, r.body)
+	}
+	isOffline(shop, "/")
+
+	// The switch follows a rename, a delete and a restore.
+	if r := a.at(t, "PATCH", apex, "/v1/sites/shop", map[string]string{"name": "store"}, okey); r.status != 200 {
+		t.Fatalf("rename: %d %s", r.status, r.body)
+	}
+	isOffline("store."+person, "/")
+	if r := a.at(t, "DELETE", apex, "/v1/sites/store", nil, okey); r.status != http.StatusNoContent {
+		t.Fatalf("delete: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "POST", apex, "/v1/sites/store/restore", nil, okey); r.status != 200 {
+		t.Fatalf("restore: %d %s", r.status, r.body)
+	}
+	isOffline("store."+person, "/")
+
+	// A marker lost on disk comes back at boot.
+	if err := a.sites.disk.SetOffline(oliveID, "store", false); err != nil {
+		t.Fatal(err)
+	}
+	a.sites.SyncSuspendMarkers(context.Background())
+	isOffline("store."+person, "/")
+
+	// Back online.
+	if r := a.at(t, "PATCH", apex, "/v1/sites/store", map[string]bool{"offline": false}, okey); r.status != 200 || r.json(t)["offline"] == true {
+		t.Fatalf("online: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "GET", "store."+person, "/", nil, nil); r.status != 200 || string(r.body) != "v2" {
+		t.Fatalf("back online: %d %s", r.status, r.body)
+	}
+	if a.sites.disk.IsOffline(oliveID, "store") {
+		t.Fatal("marker left behind")
 	}
 }

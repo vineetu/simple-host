@@ -140,7 +140,7 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		"GET /v1/me": fixed(200, `{"id":"u-1","username":"a@example.com","handle":"ann","display_name":"Ann"}`),
 		"GET /v1/sites": fixed(200, "["+site("blog", 2, "public", "rsvp.example.com", "active")+","+
 			site("draft", 0, "unlisted", "", "")+","+site("pend", 1, "public", "pend.example.com", "pending")+","+
-			site("broken", 1, "unlisted", "broken.example.com", "error")+"]"),
+			strings.Replace(site("broken", 1, "unlisted", "broken.example.com", "error"), "{", `{"offline":true,`, 1)+"]"),
 		"GET /v1/sites/blog/versions/2/files":            fixed(200, `{"files":[{"path":"index.html","size":11},{"path":"logo.png","size":4}]}`),
 		"GET /v1/sites/blog/versions/2/files/index.html": fixed(200, "<h1>hi</h1>"),
 		"GET /v1/sites/blog/versions/1/files/logo.png":   fixed(200, "\x89PNG\x00\x01"),
@@ -155,6 +155,7 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		"POST /v1/sites/old/restore":        fixed(200, site("old", 2, "unlisted", "old.example.com", "active")),
 		"PATCH /v1/sites/blog":              fixed(200, site("journal", 2, "unlisted", "rsvp.example.com", "active")),
 		"PUT /v1/sites/blog/visibility":     fixed(200, `{"visibility":"unlisted"}`),
+		"PATCH /v1/sites/draft":             fixed(200, strings.Replace(site("draft", 0, "unlisted", "", ""), "{", `{"offline":true,`, 1)),
 		"GET /v1/u/ann/sites/blog/state":    fixed(200, `{"count":2,"rsvps":["Ann"]}`),
 		"PATCH /v1/u/ann/sites/blog/state":  fixed(200, `{"count":3}`),
 		"PUT /v1/u/ann/sites/blog/state":    fixed(200, `["a replaced document may be any JSON"]`),
@@ -204,6 +205,7 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		{"list_deleted_sites", map[string]any{}},
 		{"restore_site", map[string]any{"site": "old"}},
 		{"set_visibility", map[string]any{"site": "blog", "visibility": "unlisted"}},
+		{"set_site_offline", map[string]any{"site": "draft", "offline": true}},
 		{"get_state", map[string]any{"site": "blog"}},
 		{"update_state", map[string]any{"site": "blog", "ops": []any{map[string]any{"op": "inc", "path": "count", "by": 1}}}},
 		{"update_state", map[string]any{"site": "blog", "replace": map[string]any{"a": 1}}},

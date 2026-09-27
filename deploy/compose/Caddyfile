@@ -83,6 +83,14 @@ https:// {
 			}
 			rewrite @suspended /internal/suspended
 			reverse_proxy @suspended app:8090
+			# Taken offline by its owner: the offline page (after the
+			# take-down check, which wins).
+			@offline file {
+				root /data/sites/handles
+				try_files /{re.site.1}/{re.site.2}/offline
+			}
+			rewrite @offline /internal/offline
+			reverse_proxy @offline app:8090
 			rewrite * /{re.site.1}/{re.site.2}/current{re.site.3}
 			root * /data/sites/handles
 			file_server
