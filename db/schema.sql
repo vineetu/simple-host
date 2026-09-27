@@ -741,7 +741,8 @@ CREATE TABLE IF NOT EXISTS oauth_grants (
   scope        TEXT NOT NULL,
   resource     TEXT NOT NULL,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-  last_used_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  last_used_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  device       TEXT   -- the consent page's browser, summarised ("Chrome on macOS"); never the user agent or an IP
 );
 CREATE INDEX IF NOT EXISTS oauth_grants_user_idx ON oauth_grants (user_id, client_id);
 CREATE INDEX IF NOT EXISTS oauth_grants_client_idx ON oauth_grants (client_id);
@@ -760,7 +761,8 @@ CREATE TABLE IF NOT EXISTS oauth_codes (
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
   expires_at     TIMESTAMPTZ NOT NULL,
   used_at        TIMESTAMPTZ,
-  grant_id       UUID REFERENCES oauth_grants(id) ON DELETE SET NULL
+  grant_id       UUID REFERENCES oauth_grants(id) ON DELETE SET NULL,
+  device         TEXT   -- copied onto the grant it becomes
 );
 CREATE INDEX IF NOT EXISTS oauth_codes_expires_idx ON oauth_codes (expires_at);
 

@@ -38,6 +38,10 @@ type OAuthCode struct {
 	ExpiresAt     time.Time
 	UsedAt        sql.NullTime
 	GrantID       sql.NullString
+	// Device is the browser the person approved on, summarised ("Chrome on
+	// macOS"), for telling connections apart; never the full user agent or
+	// an address. Copied onto the grant.
+	Device string
 }
 
 // OAuthTokenGrant is a token row joined to the grant it belongs to.
@@ -59,6 +63,8 @@ type OAuthConnection struct {
 	ClientName  string
 	ConnectedAt time.Time
 	LastUsedAt  time.Time
+	// Device is the newest connection's summarised browser ("" when unknown).
+	Device string
 }
 
 // ErrOAuthCodeUsed is returned when a code has already been redeemed. The
@@ -137,9 +143,9 @@ func TouchOAuthClient(ctx context.Context, q Querier, clientID string) error {
 
 func InsertOAuthCode(ctx context.Context, q Querier, codeHash string, c OAuthCode) error {
 	_, err := q.ExecContext(ctx, `
-		INSERT INTO oauth_codes (code_hash, client_id, user_id, redirect_uri, code_challenge, scope, resource, expires_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		codeHash, c.ClientID, c.UserID, c.RedirectURI, c.CodeChallenge, c.Scope, c.Resource, c.ExpiresAt)
+		INSERT INTO oauth_codes (code_hash, client_id, user_id, redirect_uri, code_challenge, scope, resource, expires_at, device)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULLIF($9, ''))`,
+		codeHash, c.ClientID, c.UserID, c.RedirectURI, c.CodeChallenge, c.Scope, c.Resource, c.ExpiresAt, c.Device)
 	return err
 }
 
@@ -152,8 +158,8 @@ func ConsumeOAuthCode(ctx context.Context, q Querier, codeHash string) (OAuthCod
 	err := q.QueryRowContext(ctx, `
 		UPDATE oauth_codes SET used_at = now()
 		 WHERE code_hash = $1 AND used_at IS NULL
-		RETURNING client_id, user_id, redirect_uri, code_challenge, scope, resource, expires_at, used_at, grant_id`, codeHash).
-		Scan(&c.ClientID, &c.UserID, &c.RedirectURI, &c.CodeChallenge, &c.Scope, &c.Resource, &c.ExpiresAt, &c.UsedAt, &c.GrantID)
+		RETURNING client_id, user_id, redirect_uri, code_challenge, scope, resource, expires_at, used_at, grant_id, COALESCE(device, '')`, codeHash).
+		Scan(&c.ClientID, &c.UserID, &c.RedirectURI, &c.CodeChallenge, &c.Scope, &c.Resource, &c.ExpiresAt, &c.UsedAt, &c.GrantID, &c.Device)
 	if err == nil {
 		return c, nil
 	}
@@ -176,11 +182,11 @@ func SetOAuthCodeGrant(ctx context.Context, q Querier, codeHash, grantID string)
 	return err
 }
 
-func InsertOAuthGrant(ctx context.Context, q Querier, userID, clientID, scope, resource string) (string, error) {
+func InsertOAuthGrant(ctx context.Context, q Querier, userID, clientID, scope, resource, device string) (string, error) {
 	var id string
 	err := q.QueryRowContext(ctx, `
-		INSERT INTO oauth_grants (user_id, client_id, scope, resource)
-		VALUES ($1, $2, $3, $4) RETURNING id`, userID, clientID, scope, resource).Scan(&id)
+		INSERT INTO oauth_grants (user_id, client_id, scope, resource, device)
+		VALUES ($1, $2, $3, $4, NULLIF($5, '')) RETURNING id`, userID, clientID, scope, resource, device).Scan(&id)
 	return id, err
 }
 
@@ -258,7 +264,8 @@ func DeleteOAuthGrantsForUser(ctx context.Context, q Querier, userID string) err
 // ListOAuthConnections returns the apps a person has connected, newest first.
 func ListOAuthConnections(ctx context.Context, database *sql.DB, userID string) ([]OAuthConnection, error) {
 	rows, err := database.QueryContext(ctx, `
-		SELECT g.client_id, c.client_name, MIN(g.created_at), MAX(g.last_used_at)
+		SELECT g.client_id, c.client_name, MIN(g.created_at), MAX(g.last_used_at),
+		       COALESCE((array_agg(g.device ORDER BY g.created_at DESC) FILTER (WHERE g.device IS NOT NULL))[1], '')
 		  FROM oauth_grants g JOIN oauth_clients c ON c.client_id = g.client_id
 		 WHERE g.user_id = $1
 		 GROUP BY g.client_id, c.client_name
@@ -270,7 +277,7 @@ func ListOAuthConnections(ctx context.Context, database *sql.DB, userID string) 
 	out := []OAuthConnection{}
 	for rows.Next() {
 		var c OAuthConnection
-		if err := rows.Scan(&c.ClientID, &c.ClientName, &c.ConnectedAt, &c.LastUsedAt); err != nil {
+		if err := rows.Scan(&c.ClientID, &c.ClientName, &c.ConnectedAt, &c.LastUsedAt, &c.Device); err != nil {
 			return nil, err
 		}
 		out = append(out, c)

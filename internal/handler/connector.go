@@ -767,6 +767,7 @@ func (h *ConnectorHandler) decide(w http.ResponseWriter, r *http.Request) {
 		Scope:         oauthScope,
 		Resource:      req.Resource,
 		ExpiresAt:     h.now().Add(oauthCodeTTL),
+		Device:        connectionDevice(r.UserAgent()),
 	}); err != nil {
 		log.Printf("connector: insert code: %v", err)
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -927,7 +928,7 @@ func (h *ConnectorHandler) redeemCode(w http.ResponseWriter, r *http.Request, cl
 		fail("account unavailable")
 		return
 	}
-	grantID, err := db.InsertOAuthGrant(r.Context(), tx, stored.UserID, client.ClientID, stored.Scope, stored.Resource)
+	grantID, err := db.InsertOAuthGrant(r.Context(), tx, stored.UserID, client.ClientID, stored.Scope, stored.Resource, stored.Device)
 	if err != nil {
 		log.Printf("connector: insert grant: %v", err)
 		oauthError(w, http.StatusInternalServerError, "server_error", "")
@@ -1214,6 +1215,21 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 
 // ---- connected apps --------------------------------------------------------------------
 
+// connectionDevice is the hint kept with a connection so two of the same app
+// can be told apart: the consent page's browser, summarised ("Chrome on
+// macOS"), or "" when it cannot be told. Never the user agent itself or an
+// address.
+func connectionDevice(userAgent string) string {
+	d := summarizeUserAgent(userAgent)
+	if d == "an unknown browser or app" {
+		return ""
+	}
+	if len(d) > 60 {
+		d = d[:60]
+	}
+	return d
+}
+
 func (h *ConnectorHandler) listConnections(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -1232,6 +1248,7 @@ func (h *ConnectorHandler) listConnections(w http.ResponseWriter, r *http.Reques
 			"name":         c.ClientName,
 			"connected_at": c.ConnectedAt,
 			"last_used_at": c.LastUsedAt,
+			"device":       c.Device,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"connections": out})

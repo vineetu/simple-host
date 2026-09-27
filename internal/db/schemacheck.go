@@ -51,10 +51,11 @@ var requiredColumns = map[string][]string{
 	"site_view_hourly":    {"site_id", "hour", "class", "views"},
 	"instance_config":     {"key", "value"},
 	"oauth_clients":       {"client_id", "client_secret_hash", "client_name", "redirect_uris", "token_endpoint_auth_method", "pkce_required", "dynamic"},
-	"oauth_grants":        {"id", "user_id", "client_id", "scope", "resource", "last_used_at"},
-	"oauth_codes":         {"code_hash", "client_id", "user_id", "redirect_uri", "code_challenge", "resource", "expires_at", "used_at", "grant_id"},
-	"auth_tokens":         {"id", "link_token", "nonce_hash"},
-	"oauth_tokens":        {"token_hash", "grant_id", "kind", "expires_at", "used_at"},
+	// w3-connection-device.sql adds device to oauth_grants and oauth_codes.
+	"oauth_grants": {"id", "user_id", "client_id", "scope", "resource", "last_used_at", "device"},
+	"oauth_codes":  {"code_hash", "client_id", "user_id", "redirect_uri", "code_challenge", "resource", "expires_at", "used_at", "grant_id", "device"},
+	"auth_tokens":  {"id", "link_token", "nonce_hash"},
+	"oauth_tokens": {"token_hash", "grant_id", "kind", "expires_at", "used_at"},
 	// handle-aliases.sql
 	"handle_aliases": {"handle", "user_id"},
 	// visitor-signin-nonce.sql
