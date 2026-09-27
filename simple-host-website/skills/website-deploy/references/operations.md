@@ -11,8 +11,9 @@ All of these take `X-API-Key`.
 ## Rename
 
 `PATCH /v1/sites/<sitename>` with `{"name":"new-name"}` renames the site and
-moves its files. A connected custom domain stays attached. The old public URL
-is not redirected and returns 404; use `site_url` from the response.
+moves its files. A connected custom domain stays attached. Links to the old
+address keep working: they redirect to the new one (path and query kept) until
+a new site is created with the old name. Use `site_url` from the response.
 
 ## API keys: list, name, revoke, sign out everywhere
 

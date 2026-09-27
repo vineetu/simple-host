@@ -2083,7 +2083,7 @@ function parseAnalyticsSummary(data) {
       var id = 'rename-' + escAttr(name);
       panel.innerHTML = '<label for="' + id + '">New name for <b>' + esc(name) + '</b></label>' +
         '<input type="text" id="' + id + '" value="' + escAttr(name) + '" autocomplete="off" spellcheck="false" maxlength="63">' +
-        '<div class="panel-note">The site moves to its new address. Links to the current address stop working; saved data and lists move with it.</div>' +
+        '<div class="panel-note">The site moves to its new address. Links to the current address keep working and redirect to the new one, until you create a new site with this name; saved data and lists move with it.</div>' +
         '<div class="panel-err" hidden></div>' +
         '<div class="panel-btns">' +
           '<button type="button" class="btn-small btn-primary" data-act="doRename" data-name="' + escAttr(name) + '">Rename</button>' +

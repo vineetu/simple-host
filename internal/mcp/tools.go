@@ -864,7 +864,7 @@ func Tools() []Tool {
 		{
 			Name:        "rename_site",
 			Title:       "Rename a site",
-			Description: "Give a site a new name, which changes its address. The old address stops working and is not redirected, so tell the person. A connected custom domain stays attached.",
+			Description: "Give a site a new name, which changes its address. Links to the old address keep working: they redirect to the new one until a new site is created with the old name. A connected custom domain stays attached.",
 			InputSchema: object(map[string]any{
 				"site":     str(siteDesc),
 				"new_name": str("The new site name: lowercase letters, numbers and hyphens."),

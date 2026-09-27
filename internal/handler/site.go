@@ -497,7 +497,23 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "could not move site files"})
 		return
 	}
-	if err := db.RenameSite(r.Context(), h.database, site.ID, newName, newURL); err != nil {
+	// The row and the old name go together: links to the old name redirect
+	// to the new address from the moment the rename is visible.
+	err = func() error {
+		tx, err := h.database.BeginTx(r.Context(), nil)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+		if err := db.RenameSite(r.Context(), tx, site.ID, newName, newURL); err != nil {
+			return err
+		}
+		if err := db.KeepOldSiteName(r.Context(), tx, user.ID, site.ID, oldName, newName); err != nil {
+			return err
+		}
+		return tx.Commit()
+	}()
+	if err != nil {
 		_ = h.disk.RenameSite(user.ID, newName, oldName, domains...)
 		if isUniqueViolation(err) {
 			writeJSON(w, http.StatusConflict, errorResponse{Error: "you already have a site with that name", Code: "site_exists"})
@@ -508,8 +524,8 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id": site.ID, "old_name": oldName, "name": newName,
-		"old_url": oldURL, "site_url": newURL, "old_url_status": "not_found",
-		"message":                 "Site renamed. The old URL no longer works and returns 404; use the new URL.",
+		"old_url": oldURL, "site_url": newURL, "old_url_status": "redirects",
+		"message":                 "Site renamed. Links to the old address redirect to the new one until a new site takes the old name.",
 		"custom_domain_unchanged": domain != "",
 	})
 }
@@ -1138,6 +1154,13 @@ func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user
 			return
 		}
 
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+
+	// A renamed site's old name is free for a new site, which wins: links to
+	// the name stop following the renamed one.
+	if err := db.DropOldSiteName(r.Context(), tx, user.ID, siteName); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}

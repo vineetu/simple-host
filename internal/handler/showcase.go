@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -226,7 +227,49 @@ func (h *SiteHandler) notFound(w http.ResponseWriter, r *http.Request) {
 	if orig == "" {
 		orig = r.URL.Path
 	}
+	// sites.<domain>/<handle>/<old-name>/...: nginx finds no folder for a
+	// renamed site's old name; send the link to the site's current address.
+	if target, ok := h.renamedContentPath(r.Context(), orig); ok {
+		w.Header().Set("Cache-Control", "no-store")
+		http.Redirect(w, r, target, http.StatusFound)
+		return
+	}
 	h.renderNotFound(w, r, orig)
+}
+
+// renamedContentPath: uri (a content-host request URI, escaped, with any
+// query) is /<handle>/<name>/... where name is an old name of one of that
+// person's renamed sites and no site has it now. Returns the site's current
+// address with the rest of the path and the query.
+func (h *SiteHandler) renamedContentPath(ctx context.Context, uri string) (string, bool) {
+	p, query, hasQuery := strings.Cut(uri, "?")
+	parts := strings.SplitN(strings.TrimPrefix(p, "/"), "/", 3)
+	if len(parts) < 2 {
+		return "", false
+	}
+	handle, name := strings.ToLower(parts[0]), parts[1]
+	if !showcaseHandleRe.MatchString(handle) || !validSiteName.MatchString(name) {
+		return "", false
+	}
+	user, err := db.GetUserByHandleOrAlias(ctx, h.database, handle)
+	if err != nil {
+		return "", false
+	}
+	if _, err := db.GetSiteByUser(ctx, h.database, user.ID, name); !errors.Is(err, sql.ErrNoRows) {
+		return "", false // a real site (a missing file), or a lookup error
+	}
+	rest := ""
+	if len(parts) == 3 {
+		rest = parts[2]
+	}
+	target, ok := h.renamedSiteAddress(ctx, user.ID, name, "/"+rest)
+	if !ok {
+		return "", false
+	}
+	if hasQuery {
+		target += "?" + query
+	}
+	return target, true
 }
 
 // renderNotFound serves the branded 404. If the first path segment is a real

@@ -305,6 +305,12 @@ func (h *SiteHandler) servePersonHost(w http.ResponseWriter, r *http.Request, us
 			http.Redirect(w, r, "/"+strings.TrimLeft(escTail, "/")+query, http.StatusMovedPermanently)
 			return
 		}
+		// An old name of a renamed site: its current address.
+		if target, ok := h.renamedSiteAddress(r.Context(), user.ID, seg, "/"+escTail); ok {
+			w.Header().Set("Cache-Control", "no-store")
+			http.Redirect(w, r, target+query, http.StatusFound)
+			return
+		}
 		h.renderPersonNotFound(w, r, handle)
 		return
 	}
@@ -373,12 +379,21 @@ func (h *SiteHandler) contentHostRedirect(w http.ResponseWriter, r *http.Request
 		h.renderShowcase(w, r, current)
 		return
 	}
+	rest := "/" + strings.TrimPrefix(r.PathValue("rest"), "/")
 	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, name)
 	if err != nil || !validSiteName.MatchString(name) {
+		if errors.Is(err, sql.ErrNoRows) {
+			// An old name of a renamed site: its current address.
+			escRest := (&url.URL{Path: rest}).EscapedPath()
+			if target, ok := h.renamedSiteAddress(r.Context(), user.ID, name, escRest); ok {
+				w.Header().Set("Cache-Control", "no-store")
+				http.Redirect(w, r, target+query, http.StatusFound)
+				return
+			}
+		}
 		h.renderNotFound(w, r, "/"+handle+"/"+name)
 		return
 	}
-	rest := "/" + strings.TrimPrefix(r.PathValue("rest"), "/")
 	if info, has, err := h.siteOwnDomain(r.Context(), site.ID); err == nil && has {
 		w.Header().Set("Cache-Control", "no-store")
 		http.Redirect(w, r, "https://"+info.Domain+rest+query, http.StatusFound)

@@ -43,6 +43,9 @@ export, public/unlisted listing. Delete is recoverable: the site goes offline at
 Recently deleted for 7 days (row kept with `deleted_at`, files moved to `DATA_DIR/deleted/<user>/<site_id>`,
 name, saved data, collections and claimed names kept), `restore` brings it back whole, and an
 hourly in-process sweep purges it after the window (except a taken-down site, or one of a suspended account: kept until the operator acts). Deleting a whole account (the person, or the admin) is immediate (§7).
+Rename keeps old links: the old name's site host, person path and `sites.*` path 302 to the site's
+current address (path and query kept, chains followed) until a site of that name is created again
+(the new site wins); a site in Recently deleted is skipped and purge removes its old names.
 **Status: live.**
 
 | Surface | Details |
@@ -52,7 +55,7 @@ hourly in-process sweep purges it after the window (except a taken-down site, or
 | Skill | `website-deploy/SKILL.md` §Two ways to deploy, §The one rule that breaks sites (relative links), §Rules that always apply, §Completion standard · `references/packaging-and-validation.md` (Package, Upload, Verify) · `references/operations.md` §Listing, §Rename, §Rollback, §Delete and restore, §Download a copy · `references/frameworks.md` · `website-deploy-builder/SKILL.md` §Capability tree 1 |
 | Pages | owner app `st/showcase.html` (site inventory with live address, version and last deploy; versions, rename, visibility, Download (export), taken-down sites with the reason, delete with a count of what goes and "Download first", Recently deleted with Restore; an admin opening someone else's page sees their sites read-only, Open only) · `st/index.html` at `/dashboard` (site cards; for an account with a handle only a list with Manage links to the owner app; full controls for accounts without one and in the admin tab) · `st/notfound.html` |
 | Go | `h/site.go` (create/update/list/rename/visibility, route table), `h/deleted.go` (delete, restore, Recently deleted list, purge sweep), `h/versions.go`, `h/versionfiles.go`, `h/export.go`, `h/exportlink.go`, `h/sitename.go`, `h/usage.go` (per-site cap), `internal/tarball/{extract,sanitize,validate}.go`, `internal/storage/disk.go` (by-id layout, `handles/` symlinks), `internal/storage/trash.go` (`deleted/` area), `internal/db/queries.go`, `internal/db/deleted.go` |
-| DB | `sites` (`deleted_at`: every serving and listing lookup skips deleted rows), `versions` |
+| DB | `sites` (`deleted_at`: every serving and listing lookup skips deleted rows), `versions`, `site_name_aliases` (old names of renamed sites; `internal/db/sitenames.go`) |
 | Limits | 100 sites per account (admins exempt; sites in Recently deleted count, so restore needs no check); uploads, rollback, rename, delete, restore and take-down serialised per account+site; upload limiter 30 burst, 0.1/s; delete/rename/restore limiter 30 burst, 0.5/s; Recently deleted keeps a site 7 days |
 | Env | `DATA_DIR`, `MAX_ARCHIVE_MB`, `KEEP_VERSIONS`, `DEPLOY_SCRIPT`, `PREVIEW_ACCOUNTS`, `PREVIEW_TTL_HOURS` (preview-site expiry sweep) |
 | External | nginx serves files from `/srv/simple-host/sites/handles/<h>/<s>/` on the content host; Caddy does the same on event instances (`deploy/compose/Caddyfile`) |
@@ -67,13 +70,14 @@ certificate for `*.<handle>.simple-host.app`, issued automatically (usually with
 their first site; brand-new accounts may queue behind the weekly and daily issuance caps); until it exists their
 sites keep the person-path form `<handle>.simple-host.app/<site>/`, and every URL handed out is
 whichever address is live. Old `<handle>.simple-host.app/<site>/…` and
-`sites.simple-host.app/<handle>/<site>/…` links 302 to the site host (path and query kept).
+`sites.simple-host.app/<handle>/<site>/…` links 302 to the site host (path and query kept). A
+renamed site's old name keeps redirecting on all three forms until the name is reused (§1).
 **Status: live** (`PERSON_HOSTS=canonical`, `SITE_HOSTS=canonical`, 2026-09-26; design:
 `docs/designs/per-site-subdomains.md`).
 
 | Surface | Details |
 |---|---|
-| Routes | Host-routed, not mux: `<site>.<handle>.<SITE_DOMAIN>` → `SiteHosts` (files at `/`, `/v1` same-origin for that one site only) · `<handle>.<SITE_DOMAIN>` → `PersonHosts` (person page at `/`; `/<site>/…` 302s to the site host once the person's certificate is ready, else serves it by path) · `GET /internal/site-redirect/{handle}` · `GET /internal/site-redirect/{handle}/{sitename}` · `GET /internal/site-redirect/{handle}/{sitename}/{rest...}` (302 from `sites.simple-host.app/<h>/<s>/…` to the site's live address; nginx rewrites into these; `vineetu/eb2-wait` excepted in nginx and in `contentHostOnlySites`) · `LegacyHostRedirect`: a retired name (`legacy_hostnames`) 302s to its site's current address, or "This site was removed" once the site is gone or while it is in Recently deleted (its names stay held); any other unclaimed single-label `<name>.<SITE_DOMAIN>` that is not a handle 301s to `sites.<domain>/<handle>/<name>` (which then 302s as above) · an aliased old handle 301s to the new one (person host), 302s on site hosts, content-host paths and the owner app `/<old>` → `/<new>` |
+| Routes | Host-routed, not mux: `<site>.<handle>.<SITE_DOMAIN>` → `SiteHosts` (files at `/`, `/v1` same-origin for that one site only) · `<handle>.<SITE_DOMAIN>` → `PersonHosts` (person page at `/`; `/<site>/…` 302s to the site host once the person's certificate is ready, else serves it by path) · `GET /internal/site-redirect/{handle}` · `GET /internal/site-redirect/{handle}/{sitename}` · `GET /internal/site-redirect/{handle}/{sitename}/{rest...}` (302 from `sites.simple-host.app/<h>/<s>/…` to the site's live address; nginx rewrites into these; `vineetu/eb2-wait` excepted in nginx and in `contentHostOnlySites`) · `LegacyHostRedirect`: a retired name (`legacy_hostnames`) 302s to its site's current address, or "This site was removed" once the site is gone or while it is in Recently deleted (its names stay held); any other unclaimed single-label `<name>.<SITE_DOMAIN>` that is not a handle 301s to `sites.<domain>/<handle>/<name>` (which then 302s as above) · an aliased old handle 301s to the new one (person host), 302s on site hosts, content-host paths and the owner app `/<old>` → `/<new>` · a renamed site's old name (`site_name_aliases`) 302s to its current address on the site host, person path, `/internal/site-redirect/*` and the content host's `@notfound` (`GET /internal/notfound` reads `X-Original-URI`) |
 | MCP tools | none directly; site summaries return the live site address, `who_am_i` the person page |
 | Skill | `website-deploy/SKILL.md` §Service (address form); host strings are rewritten per instance (`h/instancehost.go`) |
 | Pages | `st/showcase.html` (person index / public view) |

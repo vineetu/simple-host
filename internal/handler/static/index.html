@@ -2136,14 +2136,14 @@ function parseAnalyticsSummary(data) {
     async function renameSite(name) {
       const next = prompt(`Rename "${name}" to:`, name);
       if (!next || next.trim() === name) return;
-      if (!confirm(`Rename "${name}" to "${next.trim()}"? The old public URL will return 404.`)) return;
+      if (!confirm(`Rename "${name}" to "${next.trim()}"? Links to the old address will redirect to the new one.`)) return;
       const res = await api('PATCH', `/v1/sites/${encodeURIComponent(name)}`, { name: next.trim() });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
         toast(body.error || 'Could not rename site', 'error');
         return;
       }
-      toast(`Renamed to ${body.name}. The old URL now returns 404.`, 'success');
+      toast(`Renamed to ${body.name}. Links to the old address redirect here.`, 'success');
       await loadSites();
     }
 

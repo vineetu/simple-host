@@ -79,8 +79,8 @@ fonts you do not have the bytes for, tell the person before publishing that thos
 be dropped, and ask them to provide them again or agree to losing them.
 
 Every version is kept. If a change went wrong, `list_versions`, confirm the version with the
-person, then `rollback_site`. Renaming (`rename_site`) changes the address and the old one stops
-working; tell the person. `delete_site` takes the site offline with every version and all its
+person, then `rollback_site`. Renaming (`rename_site`) changes the address; links to the old one
+redirect to the new one until a new site takes the old name. `delete_site` takes the site offline with every version and all its
 saved data: call it only after the person has explicitly confirmed deleting that specific site
 in this conversation, and name what goes offline when you ask. It stays in Recently deleted for
 7 days (`list_deleted_sites`, `restore_site` brings it back exactly as it was), then it is gone

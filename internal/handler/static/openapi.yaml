@@ -792,8 +792,13 @@ paths:
       description: >-
         Renames the database row and on-disk site directory. The new name uses
         the same validation and per-owner uniqueness rule as creation. A bound
-        custom domain remains attached. The old public URL is not redirected
-        and returns 404; the response states this explicitly.
+        custom domain remains attached. Links to the old name keep working:
+        its site host, person-path and sites.* addresses 302 to the new
+        address (path and query kept), through any chain of renames, until a
+        site with the old name is created again (the new site wins); the
+        response says so with old_url_status "redirects". Deleting the site
+        stops the redirects (restoring brings them back); purging it removes
+        them.
       tags: [Sites]
       security: [{ apiKey: [] }]
       parameters: [ { $ref: '#/components/parameters/sitename' } ]

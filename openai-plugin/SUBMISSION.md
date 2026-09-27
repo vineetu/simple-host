@@ -122,7 +122,7 @@ Values are set by the server (`internal/mcp/tools.go`) and pinned by
 | delete_site | false | true | false | Takes a site offline with all its versions and all its saved data. It stays in Recently deleted for 7 days (`restore_site` brings it back), then it is removed for good. Requires the site name twice (`confirm_name`) and the description tells the model to get explicit confirmation. Acts only inside the person's own account and publishes nothing. |
 | list_deleted_sites | true | false | false | Lists the person's own sites in Recently deleted and when each is removed for good. Changes nothing. |
 | restore_site | false | false | true | Brings a site back from Recently deleted, live again at its public address (open world). Nothing is deleted or overwritten. |
-| rename_site | false | false | true | Serves the site at a new public address (the old one stops working). Nothing is deleted; renaming back restores the old address. |
+| rename_site | false | false | true | Serves the site at a new public address (the old one redirects to it). Nothing is deleted; renaming back restores the old address. |
 | set_visibility | false | false | true | Adds a site to, or removes it from, the person's public listing page on the internet. Nothing is deleted; fully reversible. |
 | update_state | false | true | true | Writes a site's saved data, which is public and shown on live pages. `remove`/`removeWhere`/`set` and whole-document `replace` overwrite or delete data with no undo. |
 | add_to_collection | false | true | true | Appends one item to a site's public collection, shown on live pages. Nothing existing changes, but the item is public at once and only the owner can remove it again. Private collections refuse it. |

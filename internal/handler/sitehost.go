@@ -210,6 +210,12 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 						w.Header().Set("Cache-Control", "no-store")
 						http.Redirect(w, r, h.siteAddressWithPath(current, site.Name, r.URL.EscapedPath())+query, http.StatusFound)
 						return
+					} else if errors.Is(serr, sql.ErrNoRows) && !strings.HasPrefix(r.URL.Path, "/v1/") {
+						if target, ok := h.renamedSiteAddress(r.Context(), cu.ID, label, r.URL.EscapedPath()); ok {
+							w.Header().Set("Cache-Control", "no-store")
+							http.Redirect(w, r, target+query, http.StatusFound)
+							return
+						}
 					}
 				}
 			}
@@ -222,6 +228,14 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 				log.Printf("site host %s: %v", host, err)
 				h.renderServiceError(w)
 				return
+			}
+			// An old name of a renamed site: its current address.
+			if !strings.HasPrefix(r.URL.Path, "/v1/") {
+				if target, ok := h.renamedSiteAddress(r.Context(), user.ID, label, r.URL.EscapedPath()); ok {
+					w.Header().Set("Cache-Control", "no-store")
+					http.Redirect(w, r, target+query, http.StatusFound)
+					return
+				}
 			}
 			h.renderSiteHostNotFound(w, r, user.Handle.String)
 			return
@@ -304,6 +318,23 @@ func (h *SiteHandler) siteHasPath(userID, siteName, rel string) bool {
 	}
 	_, err = root.Stat(name)
 	return err == nil
+}
+
+// renamedSiteAddress: name is an old name of a renamed site of this account
+// (and no site has it now; callers look the site up first). Returns that
+// site's current address with escapedPath (starting with "/") appended.
+func (h *SiteHandler) renamedSiteAddress(ctx context.Context, userID, name, escapedPath string) (string, bool) {
+	if !validSiteName.MatchString(name) {
+		return "", false
+	}
+	siteID, _, err := db.ResolveOldSiteName(ctx, h.database, userID, name)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			log.Printf("old site name %s/%s: %v", userID, name, err)
+		}
+		return "", false
+	}
+	return h.siteAddressFor(ctx, siteID, escapedPath)
 }
 
 // personPathAddress is https://<handle>.<SITE_DOMAIN>/<site>/.
