@@ -332,6 +332,8 @@ func TestSetupCheckNoLooserSuggestions(t *testing.T) {
 		{"insecure switch on", "enterprise", `"SESSION_TTL":"4h"`, `"OIDC_INSECURE_ALLOWED":"true"`, false},
 		{"plaintext switch on", "enterprise", `"SESSION_TTL":"4h"`, `"BACKUP_ENVELOPE_PLAINTEXT_ALLOWED":"true"`, false},
 		{"insecure switch off", "enterprise", `"DB_INSECURE_ALLOWED":"true"`, `"DB_INSECURE_ALLOWED":"false"`, true},
+		{"in-cluster database on", "enterprise", `"SESSION_TTL":"4h"`, `"DB_INCLUSTER_EVALUATION":"true"`, false},
+		{"in-cluster database off", "enterprise", `"DB_INCLUSTER_EVALUATION":"true"`, `"DB_INCLUSTER_EVALUATION":"false"`, true},
 		{"secure mode off", "enterprise", `"SESSION_TTL":"4h"`, `"SECURE_MODE":"false"`, true}, // false is the default
 		{"secure mode off after on", "enterprise", `"SECURE_MODE":"true"`, `"SECURE_MODE":"false"`, true},
 		{"one approval", "enterprise", `"NETWORK_ACCESS_APPROVALS":"2"`, `"NETWORK_ACCESS_APPROVALS":"1"`, true}, // the default
@@ -402,6 +404,9 @@ func TestSetupRegistriesStrictOrder(t *testing.T) {
 		if s := e.by[n]; s == nil || !s.Security || len(s.StrictOrder) != 2 || s.StrictOrder[0] != "false" {
 			t.Errorf("%s: not treated as an insecure switch: %+v", n, s)
 		}
+	}
+	if s := e.by["DB_INCLUSTER_EVALUATION"]; s == nil || !s.Security || strings.Join(s.StrictOrder, ",") != "false,true" {
+		t.Errorf("DB_INCLUSTER_EVALUATION: not treated as data-safety sensitive: %+v", s)
 	}
 }
 

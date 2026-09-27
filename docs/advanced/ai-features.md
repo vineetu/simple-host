@@ -22,9 +22,14 @@ plain request, cleans up choices and diagnoses pasted error output. It sends the
 choices as the check plus the answers picked from lists, the message and the last few turns;
 pasted output is redacted in the browser, shown to the person, and redacted again on the server.
 Every change it proposes is checked like the check's suggestions, and the person applies each one.
+Neither ever loosens a security-sensitive setting, and Enterprise's `DB_INCLUSTER_EVALUATION`
+(a database nothing backs up) counts as one, so neither ever turns it on.
 It has its own limit on messages at once (`SETUP_ASSIST_MAX_IN_FLIGHT`), a cap per network per day
 (`SETUP_ASSIST_PER_NETWORK_DAILY`) and a cap per day across everyone, `SETUP_ASSIST_DAILY_MAX`
-(0 turns it off and the page shows no assistant).
+(0 turns it off and the page shows no assistant). The limit at once and the daily cap are shared
+by everyone: a few networks can keep the one slot busy or use up the day's messages, and others
+then see "busy" or a pause until tomorrow. That keeps the cost bounded; raise
+`SETUP_ASSIST_MAX_IN_FLIGHT` or `SETUP_ASSIST_DAILY_MAX` if it happens in practice.
 
 The same backend serves AI create (building a site from a description), whose settings are listed
 below with one line each. A small box has no model backend, so none of these apply there.

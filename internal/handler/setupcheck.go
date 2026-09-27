@@ -131,7 +131,14 @@ var setupStrictFallback = map[string][]string{
 	"NETWORK_ACCESS_APPROVALS": {"2", "1"},
 	"ACCESS_LOG_VISIBILITY":    {"admin", "counts", "owner"},
 	"BACKUP_SSE":               {"aws:kms", "AES256"},
+	"DB_INCLUSTER_EVALUATION":  {"false", "true"},
 }
+
+// setupDataSafety are switches the settings lists do not mark
+// security-sensitive but whose "on" puts data at risk: they are treated as
+// security-sensitive here, so no suggestion ever turns them on.
+// DB_INCLUSTER_EVALUATION=true means a Postgres nothing backs up.
+var setupDataSafety = []string{"DB_INCLUSTER_EVALUATION"}
 
 // setupInsecureSwitch matches the switches whose "on" loosens transport or
 // storage security, whatever the registry says about them.
@@ -139,9 +146,12 @@ var setupInsecureSwitch = regexp.MustCompile(`_(INSECURE|PLAINTEXT)_ALLOWED$`)
 
 // setupStrictness fills in a setting's strict order where its list has none:
 // the insecure switches (off first, and security-sensitive), then the
-// fallback. A security-sensitive choice left without one only ever keeps a
+// fallback. The data-safety switches become security-sensitive first. A security-sensitive choice left without one only ever keeps a
 // suggestion equal to its default or the visitor's value.
 func setupStrictness(s *setupSetting) {
+	if slices.Contains(setupDataSafety, s.Name) {
+		s.Security = true
+	}
 	if s.Type == "bool" && setupInsecureSwitch.MatchString(s.Name) {
 		s.Security = true
 		s.StrictOrder = nil

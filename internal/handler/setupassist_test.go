@@ -222,6 +222,8 @@ func TestSetupAssistNoLooserChanges(t *testing.T) {
 		{"admin access log", "enterprise", ``, `"ACCESS_LOG_VISIBILITY","value":"admin"`, true},
 		{"plaintext switch", "enterprise", ``, `"BACKUP_ENVELOPE_PLAINTEXT_ALLOWED","value":"true"`, false},
 		{"insecure switch off", "enterprise", `"DB_INSECURE_ALLOWED":"true"`, `"DB_INSECURE_ALLOWED","value":"false"`, true},
+		{"unbacked-up in-cluster database", "enterprise", ``, `"DB_INCLUSTER_EVALUATION","value":"true"`, false},
+		{"in-cluster database off", "enterprise", `"DB_INCLUSTER_EVALUATION":"true"`, `"DB_INCLUSTER_EVALUATION","value":"false"`, true},
 		{"keys never expire", "small-box", ``, `"KEY_IDLE_EXPIRY_DAYS","value":"0"`, false},
 		{"shared data", "small-box", `"SAVED_DATA_DEFAULT_KIND":"declare_first"`, `"SAVED_DATA_DEFAULT_KIND","value":"shared"`, true},
 		{"looser sign-in rate", "small-box", ``, `"RATE_LIMIT_SIGNIN_IP","value":"40,5s"`, false},
