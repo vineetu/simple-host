@@ -91,8 +91,11 @@ func TestAskValidation(t *testing.T) {
 		code       string
 	}{
 		{"bad json", `{`, "invalid_body"},
-		{"unknown page", `{"question":"hi","page":"index"}`, "unknown_page"},
-		{"missing page", `{"question":"hi"}`, "unknown_page"},
+		{"unknown page (older form)", `{"question":"hi","page":"index"}`, "unknown_assistant"},
+		{"no assistant or page", `{"question":"hi"}`, "unknown_assistant"},
+		{"unknown assistant", `{"question":"hi","assistant":"docs","page":"features"}`, "unknown_assistant"},
+		{"page of the other assistant", `{"question":"hi","assistant":"enterprise","page":"features"}`, "unknown_page"},
+		{"unknown page", `{"question":"hi","assistant":"simple-host","page":"index"}`, "unknown_page"},
 		{"empty", `{"question":"   ","page":"architecture"}`, "empty_question"},
 		{"too long", `{"question":"` + strings.Repeat("é", 501) + `","page":"architecture"}`, "question_too_long"},
 	}
@@ -153,47 +156,90 @@ func TestAskDailyCap(t *testing.T) {
 	}
 }
 
-func TestAskPageRouting(t *testing.T) {
+// Each assistant answers from its one combined pack, whichever of its pages the
+// reader is on; the request names that page so answers can prefer it. The
+// older {page} form picks the page's assistant and gets the same prompt.
+func TestAskAssistantRouting(t *testing.T) {
 	f := &fakeSidecar{answer: "An answer."}
 	_, mux := newTestAsk(t, f, 100, 100)
-	want := map[string][]string{
-		"architecture":            {"About Simple Host (public summary)", "How Simple Host is built (public summary", "support@simple-host.app"},
-		"features":                {"About Simple Host (public summary)", "Everything it does."},
-		"enterprise-brief":        {"About Simple Host Enterprise", "Stateful static websites, on your own infrastructure.", "Give everyone in the company a place to build.", "I don't know from these pages."},
-		"enterprise-architecture": {"About Simple Host Enterprise", "How Simple Host Enterprise is built", "I don't know from these pages."},
+	hosted := []string{"About Simple Host (public summary)", "Everything it does.", "How Simple Host is built (public summary", "support@simple-host.app",
+		"=== Text of the page https://simple-host.app/features ===", "=== Text of the page https://simple-host.app/architecture.html ==="}
+	ent := []string{"About Simple Host Enterprise", "Give everyone in the company a place to build", "Stateful static websites, on your own infrastructure.",
+		"How Simple Host Enterprise is built", "I don't know from these pages.", "You are the Simple Host Enterprise assistant.",
+		"=== Text of the page https://simple-host.app/enterprise ===", "=== Text of the page https://simple-host.app/enterprise/brief ===",
+		"=== Text of the page https://simple-host.app/enterprise/architecture ==="}
+	cases := []struct {
+		body      string
+		assistant string
+		on        string // the page the prompt says the reader is on, "" for none
+		needles   []string
+	}{
+		{`"assistant":"simple-host","page":"features"`, "simple-host", "/features", hosted},
+		{`"assistant":"simple-host","page":"architecture"`, "simple-host", "/architecture.html", hosted},
+		{`"assistant":"simple-host"`, "simple-host", "", hosted},
+		{`"assistant":"enterprise","page":"enterprise"`, "enterprise", "/enterprise", ent},
+		{`"assistant":"enterprise","page":"enterprise-brief"`, "enterprise", "/enterprise/brief", ent},
+		{`"assistant":"enterprise","page":"enterprise-architecture"`, "enterprise", "/enterprise/architecture", ent},
+		// The older form, kept for one release.
+		{`"page":"features"`, "simple-host", "/features", hosted},
+		{`"page":"architecture"`, "simple-host", "/architecture.html", hosted},
+		{`"page":"enterprise-brief"`, "enterprise", "/enterprise/brief", ent},
+		{`"page":"enterprise-architecture"`, "enterprise", "/enterprise/architecture", ent},
+		{`"page":"enterprise"`, "enterprise", "/enterprise", ent},
 	}
-	for page, needles := range want {
+	for _, c := range cases {
 		f.bodies = nil
-		w := postAsk(mux, `{"question":"how does sign-in work?","page":"`+page+`"}`, func(r *http.Request) { r.RemoteAddr = "192.0.2.50:1" })
+		w := postAsk(mux, `{"question":"how does sign-in work?",`+c.body+`}`, func(r *http.Request) { r.RemoteAddr = "192.0.2.50:1" })
 		if w.Code != http.StatusOK {
-			t.Fatalf("%s: %d %s", page, w.Code, w.Body.String())
+			t.Fatalf("%s: %d %s", c.body, w.Code, w.Body.String())
 		}
 		var resp map[string]string
 		json.Unmarshal(w.Body.Bytes(), &resp)
 		if resp["answer"] != "An answer." {
-			t.Errorf("%s: answer %q", page, resp["answer"])
+			t.Errorf("%s: answer %q", c.body, resp["answer"])
 		}
 		var sent openAIRequest
 		if err := json.Unmarshal([]byte(f.bodies[0]), &sent); err != nil {
 			t.Fatal(err)
 		}
 		if sent.Model != "grok-test" || len(sent.Messages) != 2 || sent.Messages[1].Content != "how does sign-in work?" {
-			t.Fatalf("%s: unexpected request %+v", page, sent.Messages[1:])
+			t.Fatalf("%s: unexpected request %+v", c.body, sent.Messages[1:])
 		}
 		sys := sent.Messages[0].Content
-		for _, n := range needles {
+		a := askAssistantByKey(c.assistant)
+		if want := askSystemPrompt(a, pageKeyIn(c.body)); sys != want {
+			t.Errorf("%s: prompt differs from the %s assistant's", c.body, c.assistant)
+		}
+		for _, n := range c.needles {
 			if !strings.Contains(sys, n) {
-				t.Errorf("%s: system prompt lacks %q", page, n)
+				t.Errorf("%s: system prompt lacks %q", c.body, n)
 			}
 		}
-		ent := strings.HasPrefix(page, "enterprise")
-		if ent && strings.Contains(sys, "support@simple-host.app") {
-			t.Errorf("%s: enterprise answers must not carry contact details", page)
+		onLine := "The reader is on https://simple-host.app" + c.on + "."
+		if c.on == "" {
+			if strings.Contains(sys, "The reader is on") {
+				t.Errorf("%s: prompt names a page the reader is not known to be on", c.body)
+			}
+		} else if !strings.Contains(sys, onLine) {
+			t.Errorf("%s: prompt lacks %q", c.body, onLine)
 		}
-		if !ent && strings.Contains(sys, "About Simple Host Enterprise") {
-			t.Errorf("%s: hosted page got the enterprise pack", page)
+		if c.assistant == "enterprise" && strings.Contains(sys, "support@simple-host.app") {
+			t.Errorf("%s: enterprise answers must not carry contact details", c.body)
+		}
+		if c.assistant == "simple-host" && strings.Contains(sys, "About Simple Host Enterprise") {
+			t.Errorf("%s: the Simple Host assistant got the enterprise pack", c.body)
 		}
 	}
+}
+
+// pageKeyIn is the "page" value of a test body fragment, "" when absent.
+func pageKeyIn(body string) string {
+	_, after, ok := strings.Cut(body, `"page":"`)
+	if !ok {
+		return ""
+	}
+	key, _, _ := strings.Cut(after, `"`)
+	return key
 }
 
 // Nothing identifying the visitor may reach the model: not their address,
@@ -290,44 +336,87 @@ func TestAskFilterCatchesSamples(t *testing.T) {
 // naming machine details or the operator's personal details never reach the
 // model: every line of every system prompt passes the filter.
 func TestAskPacksHoldNoInternalDetails(t *testing.T) {
-	for page := range askPages {
-		pack := askPack(page)
+	for _, a := range askAssistants {
+		pack := askPack(a.key)
 		if len(pack) < 2000 {
-			t.Errorf("%s: pack suspiciously small (%d bytes)", page, len(pack))
+			t.Errorf("%s: pack suspiciously small (%d bytes)", a.key, len(pack))
 		}
-		for _, line := range strings.Split(askSystemPrompt(page), "\n") {
-			if askLineForbidden(line) {
-				t.Errorf("%s: a forbidden line reaches the model: %q", page, line)
+		for _, page := range append([]string{""}, askPageKeys(a)...) {
+			for _, line := range strings.Split(askSystemPrompt(a, page), "\n") {
+				if askLineForbidden(line) {
+					t.Errorf("%s/%s: a forbidden line reaches the model: %q", a.key, page, line)
+				}
 			}
 		}
 		if strings.Contains(pack, "<script") || strings.Contains(pack, "{ max-width") {
-			t.Errorf("%s: pack contains markup or CSS", page)
+			t.Errorf("%s: pack contains markup or CSS", a.key)
+		}
+		// One combined pack: every page of the assistant, each once.
+		for _, p := range a.pages {
+			head := "=== Text of the page https://simple-host.app" + p.paths[0] + " ==="
+			if n := strings.Count(pack, head); n != 1 {
+				t.Errorf("%s: %s appears %d times in the pack", a.key, p.paths[0], n)
+			}
 		}
 	}
 	// The architecture page answers from the curated summary, not the page.
-	arch := askPack("architecture")
+	arch := askPackSection(askPack("simple-host"), "/architecture.html")
 	if !strings.Contains(arch, "How Simple Host is built (public summary") {
-		t.Errorf("architecture pack lacks the curated summary")
+		t.Errorf("architecture section lacks the curated summary")
 	}
 	for _, s := range []string{"blast-radius", "archive_sha256", "WRITE_AUTH_MODE", "Feature map", "api_ip_daily"} {
-		if strings.Contains(arch, s) {
-			t.Errorf("architecture pack carries page detail %q", s)
+		if strings.Contains(askPack("simple-host"), s) {
+			t.Errorf("simple-host pack carries architecture page detail %q", s)
 		}
 	}
 	if n := len(strings.Fields(arch)); n > 2000 {
-		t.Errorf("architecture pack is %d words; it should be the short summary", n)
+		t.Errorf("architecture section is %d words; it should be the short summary", n)
 	}
 }
 
+// Each assistant's whole system prompt stays a reasonable size (about four
+// characters a token): the enterprise one within about 12k tokens, the Simple
+// Host one (the long features page plus the curated architecture summary)
+// within about 14k.
+func TestAskPromptSizes(t *testing.T) {
+	for key, maxTokens := range map[string]int{"enterprise": 12000, "simple-host": 14000} {
+		a := askAssistantByKey(key)
+		n := len(askSystemPrompt(a, a.pages[0].key)) / 4
+		t.Logf("%s: about %d tokens", key, n)
+		if n > maxTokens {
+			t.Errorf("%s prompt is about %d tokens, over %d", key, n, maxTokens)
+		}
+	}
+}
+
+func askPageKeys(a *askAssistant) []string {
+	var out []string
+	for _, p := range a.pages {
+		out = append(out, p.key)
+	}
+	return out
+}
+
+// askPackSection is the text under one page's heading in a pack.
+func askPackSection(pack, path string) string {
+	_, after, ok := strings.Cut(pack, "=== Text of the page https://simple-host.app"+path+" ===")
+	if !ok {
+		return ""
+	}
+	sec, _, _ := strings.Cut(after, "\n=== Text of the page ")
+	return sec
+}
+
 func TestAskCleanAnswer(t *testing.T) {
+	hosted, ent := askAssistantByKey("simple-host").links, askAssistantByKey("enterprise").links
 	in := "## Heading\nSee **the** [features](https://simple-host.app/features) and [evil](https://evil.example/x) or [js](javascript:void)."
-	got := cleanAnswer(in)
+	got := cleanAnswer(in, hosted)
 	want := "Heading\nSee the [features](https://simple-host.app/features) and evil or js."
 	if got != want {
 		t.Fatalf("cleanAnswer:\n got %q\nwant %q", got, want)
 	}
 	long := strings.Repeat("word ", 250)
-	if n := len(strings.Fields(cleanAnswer(long))); n != askMaxAnswerWords {
+	if n := len(strings.Fields(cleanAnswer(long, hosted))); n != askMaxAnswerWords {
 		t.Fatalf("long answer kept %d words", n)
 	}
 	cases := map[string]string{
@@ -339,55 +428,130 @@ func TestAskCleanAnswer(t *testing.T) {
 		"See https://evil.example/x or https://simple-host.app/terms.": "See or https://simple-host.app/terms.",
 		// Only known public pages are linked.
 		"[docs](https://simple-host.app/docs.html) [me](https://simple-host.app/vineetu) [api](https://simple-host.app/v1/sites)": "[docs](https://simple-host.app/docs.html) me api",
-		"[home](https://simple-host.app) [brief](https://simple-host.app/enterprise/brief#costs)":                                 "[home](https://simple-host.app) [brief](https://simple-host.app/enterprise/brief#costs)",
+		"[home](https://simple-host.app) [ent](https://simple-host.app/enterprise#who-sees)":                                      "[home](https://simple-host.app) [ent](https://simple-host.app/enterprise#who-sees)",
 		// Identifiers with underscores survive; __bold__ does not.
 		"The cookie is __Host-sh_vsess and __this__ is bold.": "The cookie is __Host-sh_vsess and this is bold.",
 	}
 	for in, want := range cases {
-		if got := cleanAnswer(in); got != want {
+		if got := cleanAnswer(in, hosted); got != want {
 			t.Errorf("cleanAnswer(%q):\n got %q\nwant %q", in, got, want)
 		}
 	}
-	for p := range askLinkPaths {
-		if !askLinkAllowed("https://simple-host.app" + p) {
-			t.Errorf("known page %s not linkable", p)
+	// Each assistant links only to its own list.
+	entCases := map[string]string{
+		"[brief](https://simple-host.app/enterprise/brief#costs) and [how](https://simple-host.app/enterprise/architecture)": "[brief](https://simple-host.app/enterprise/brief#costs) and [how](https://simple-host.app/enterprise/architecture)",
+		"[details](https://simple-host.app/enterprise) not [docs](https://simple-host.app/docs.html)":                        "[details](https://simple-host.app/enterprise) not docs",
+		"[support](https://simple-host.app/support)":                                                                         "support",
+	}
+	for in, want := range entCases {
+		if got := cleanAnswer(in, ent); got != want {
+			t.Errorf("enterprise cleanAnswer(%q):\n got %q\nwant %q", in, got, want)
+		}
+	}
+	if got := cleanAnswer("[brief](https://simple-host.app/enterprise/brief)", hosted); got != "brief" {
+		t.Errorf("the Simple Host assistant linked an enterprise page: %q", got)
+	}
+	for _, a := range askAssistants {
+		for p := range a.links {
+			if !askLinkAllowed("https://simple-host.app"+p, a.links) {
+				t.Errorf("%s: known page %s not linkable", a.key, p)
+			}
+		}
+		// Every page of an assistant is on its own link list.
+		for _, p := range a.pages {
+			if !a.links[p.paths[0]] {
+				t.Errorf("%s: its page %s is not linkable", a.key, p.paths[0])
+			}
 		}
 	}
 }
 
-// The box renders only when the server has it on, and only on its pages.
+// One widget, named by the page: every assistant page (and only those) gets
+// the same panel for its assistant when the assistants are on, with the
+// assistant's title, the page key, one ask.js; nothing when off.
 func TestAskWidgetOnlyWhenEnabled(t *testing.T) {
 	prev := askEnabled
 	t.Cleanup(func() { askEnabled = prev })
-	pages := map[string]string{
-		"/architecture.html":       "architecture.html",
-		"/features":                "features.html",
-		"/enterprise/brief":        "enterprise-brief.html",
-		"/enterprise/architecture": "enterprise-architecture.html",
+	pages := map[string]struct{ file, assistant, page, title string }{
+		"/architecture.html":       {"architecture.html", "simple-host", "architecture", "Ask about Simple Host<"},
+		"/features":                {"features.html", "simple-host", "features", "Ask about Simple Host<"},
+		"/features.html":           {"features.html", "simple-host", "features", "Ask about Simple Host<"},
+		"/enterprise":              {"enterprise.html", "enterprise", "enterprise", "Ask about Simple Host Enterprise<"},
+		"/enterprise/brief":        {"enterprise-brief.html", "enterprise", "enterprise-brief", "Ask about Simple Host Enterprise<"},
+		"/enterprise/architecture": {"enterprise-architecture.html", "enterprise", "enterprise-architecture", "Ask about Simple Host Enterprise<"},
 	}
 	for _, on := range []bool{false, true} {
 		askEnabled = on
-		for path, file := range pages {
-			body, err := chromePage(file, chromeDataFor(httptest.NewRequest("GET", path, nil), ""))
+		for path, p := range pages {
+			body, err := chromePage(p.file, chromeDataFor(httptest.NewRequest("GET", path, nil), ""))
 			if err != nil {
 				t.Fatal(err)
 			}
 			s := string(body)
-			if strings.Contains(s, "<!--sh:ask-->") {
+			if strings.Contains(s, "<!--sh:ask") {
 				t.Errorf("%s: marker left in the page", path)
 			}
-			has := strings.Contains(s, `class="sh-ask"`) && strings.Contains(s, "/ask.js?v=")
+			has := strings.Contains(s, `class="sh-ask"`)
 			if has != on {
-				t.Errorf("%s: widget present=%v with the box on=%v", path, has, on)
+				t.Errorf("%s: widget present=%v with the assistants on=%v", path, has, on)
 			}
-			if on && !strings.Contains(s, `data-page="`+askPageByPath[path]+`"`) {
-				t.Errorf("%s: wrong page key", path)
+			if !on {
+				continue
+			}
+			for _, want := range []string{`data-assistant="` + p.assistant + `"`, `data-page="` + p.page + `"`, p.title} {
+				if !strings.Contains(s, want) {
+					t.Errorf("%s: lacks %q", path, want)
+				}
+			}
+			if n := strings.Count(s, "/ask.js?v="); n != 1 {
+				t.Errorf("%s: ask.js included %d times", path, n)
+			}
+			if tone := strings.Contains(s, `data-tone="navy"`); tone != (p.assistant == "enterprise") {
+				t.Errorf("%s: navy tone=%v", path, tone)
 			}
 		}
-		// A page without a pack never gets the box.
-		body, _ := chromePage("enterprise.html", chromeDataFor(httptest.NewRequest("GET", "/enterprise", nil), ""))
-		if strings.Contains(string(body), `class="sh-ask"`) {
-			t.Errorf("/enterprise got the box")
+	}
+	// No other page carries the widget or a marker.
+	askEnabled = true
+	for path, file := range map[string]string{"/": "index.html", "/dashboard": "index.html", "/docs.html": "docs.html", "/install.html": "install.html",
+		"/privacy.html": "privacy.html", "/hackathons": "hackathons.html", "/support": "support.html", "/terms": "terms.html"} {
+		body, err := chromePage(file, chromeDataFor(httptest.NewRequest("GET", path, nil), ""))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(body), `class="sh-ask"`) || strings.Contains(string(body), "<!--sh:ask") {
+			t.Errorf("%s got the widget", path)
+		}
+	}
+}
+
+// Every page of an assistant opts in with one marker naming that assistant;
+// no other embedded page carries one.
+func TestAskMarkersNameTheirAssistant(t *testing.T) {
+	want := map[string]string{}
+	for _, a := range askAssistants {
+		for _, p := range a.pages {
+			want[p.file] = a.key
+		}
+	}
+	entries, err := staticFiles.ReadDir("static")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if !strings.HasSuffix(e.Name(), ".html") {
+			continue
+		}
+		b, _ := staticFiles.ReadFile("static/" + e.Name())
+		ms := markerAsk.FindAllSubmatch(b, -1)
+		if want[e.Name()] == "" {
+			if len(ms) != 0 {
+				t.Errorf("%s carries an ask marker but is no assistant's page", e.Name())
+			}
+			continue
+		}
+		if len(ms) != 1 || string(ms[0][1]) != want[e.Name()] {
+			t.Errorf("%s: want exactly one <!--sh:ask %s-->, got %d", e.Name(), want[e.Name()], len(ms))
 		}
 	}
 }
@@ -614,13 +778,11 @@ func TestAskDailyCountInPostgres(t *testing.T) {
 // The packs state the saved-data undo, the saved-data cap and the Recently
 // deleted window in the served pages' words, so they follow the settings.
 func TestAskPacksFollowLimits(t *testing.T) {
-	for _, page := range []string{"architecture", "features"} {
-		if p := askPack(page); !strings.Contains(p, "30-day undo") {
-			t.Fatalf("%s pack at the defaults does not state the 30-day undo", page)
-		}
+	if p := askPack("simple-host"); strings.Count(p, "30-day undo") < 2 {
+		t.Fatalf("the pack at the defaults does not state the 30-day undo in the summary and the architecture section")
 	}
 	withLimits(t, map[string]string{"SAVED_DATA_UNDO_DAYS": "14", "SAVED_DATA_SITE_MAX_MB": "80", "DELETED_RETENTION_DAYS": "10"})
-	p := askPack("architecture")
+	p := askPackSection(askPack("simple-host"), "/architecture.html")
 	for _, want := range []string{"Every change is kept for 14 days", "after 14 days it is gone for good", "14-day undo", "capped at 80 MB.", "Recently deleted for 10 days"} {
 		if !strings.Contains(p, want) {
 			t.Errorf("architecture pack with changed limits lacks %q", want)

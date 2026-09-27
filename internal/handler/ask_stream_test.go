@@ -278,7 +278,7 @@ func TestAskHistoryCapped(t *testing.T) {
 
 // The system prompt asks for short answers unless more is asked for.
 func TestAskPromptAsksForShortAnswers(t *testing.T) {
-	p := askSystemPrompt("features")
+	p := askSystemPrompt(askAssistantByKey("simple-host"), "features")
 	for _, want := range []string{"1 to 3 short sentences", "explicitly asks for more detail", "about 150 words"} {
 		if !strings.Contains(p, want) {
 			t.Errorf("prompt lacks %q", want)
