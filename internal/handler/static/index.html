@@ -929,6 +929,9 @@
     .my-data ul { margin: 8px 0 12px; padding-left: 20px; }
     .my-data input { font: inherit; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; width: 18em; max-width: 80vw; margin: 4px 0 12px; display: block; }
     .my-data .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+    .my-data input[type=checkbox] { display: inline; width: auto; margin: 0 6px 0 0; }
+    .my-data .inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .my-data .inline input { margin: 0; }
     .btn-danger { background: var(--error); color: #fff; border: 1px solid var(--error); }
     .btn-danger:disabled { opacity: 0.45; cursor: not-allowed; }
   </style>
@@ -1103,6 +1106,32 @@
               <button type="button" class="btn btn-danger btn-small" id="my-data-go" data-act="deleteAccount" disabled>Delete my account</button>
               <button type="button" class="btn btn-ghost btn-small" data-act="closeDeleteAccount">Cancel</button>
             </div>
+          </div>
+        </div>
+
+        <!-- Sign-in: shown only to an account without a handle (one with a
+             handle has the same controls on its own page). -->
+        <div class="my-data" id="my-signin" hidden>
+          <h2>Sign-in</h2>
+          <div class="row" id="my-signin-row">
+            <span>You sign in with <b id="my-signin-email"></b>. Google sign-in keeps working after a change.</span>
+            <button type="button" class="btn btn-secondary btn-small" data-act="openEmailChange">Change email</button>
+          </div>
+          <div class="row inline" id="my-signin-new" hidden>
+            <label for="my-signin-input">New email</label>
+            <input type="email" id="my-signin-input" autocomplete="email" spellcheck="false" maxlength="254">
+            <button type="button" class="btn btn-primary btn-small" id="my-signin-send" data-act="sendEmailChange">Send code</button>
+            <button type="button" class="btn btn-ghost btn-small" data-act="closeEmailChange">Cancel</button>
+          </div>
+          <div class="row inline" id="my-signin-code" hidden>
+            <label for="my-signin-code-input">Code sent to <b id="my-signin-to"></b></label>
+            <input type="text" id="my-signin-code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="7">
+            <button type="button" class="btn btn-primary btn-small" id="my-signin-go" data-act="verifyEmailChange">Confirm</button>
+            <button type="button" class="btn btn-ghost btn-small" data-act="closeEmailChange">Cancel</button>
+          </div>
+          <div class="row">
+            <span>Sign-in alerts: an email after each new sign-in or connected app, so you notice one that wasn't you.</span>
+            <label><input type="checkbox" id="my-signin-alerts">Email me</label>
           </div>
         </div>
       </div>
@@ -1537,6 +1566,19 @@ function parseAnalyticsSummary(data) {
       if (myData) {
         myData.hidden = !(currentUser && !currentUser.handle && !currentUser.is_admin);
         document.getElementById('my-data-word').textContent = (currentUser && currentUser.username) || '';
+      }
+      const mySignin = document.getElementById('my-signin');
+      if (mySignin) {
+        mySignin.hidden = !(currentUser && !currentUser.handle && !currentUser.is_admin);
+        document.getElementById('my-signin-email').textContent = (currentUser && currentUser.username) || '';
+        const box = document.getElementById('my-signin-alerts');
+        box.checked = !(currentUser && currentUser.signin_alerts === false);
+        if (!mySignin.hidden && currentUser.signin_alerts === undefined) {
+          // Signed in just now: the sign-in answer does not carry the setting.
+          api('GET', '/v1/me').then(r => r.ok ? r.json() : null).then(me => {
+            if (me && typeof me.signin_alerts === 'boolean') { currentUser.signin_alerts = me.signin_alerts; box.checked = me.signin_alerts; }
+          }).catch(() => {});
+        }
       }
       const banner = document.getElementById('showcase-banner');
       if (!banner) return;
@@ -2214,6 +2256,66 @@ function parseAnalyticsSummary(data) {
       }
     }
 
+    // Sign-in (accounts without a handle): change the sign-in email
+    // (POST /v1/me/email, then /v1/me/email/verify) and sign-in alerts
+    // (PATCH /v1/me signin_alerts).
+    function showEmailChange(which) {
+      document.getElementById('my-signin-row').hidden = which !== 'row';
+      document.getElementById('my-signin-new').hidden = which !== 'email';
+      document.getElementById('my-signin-code').hidden = which !== 'code';
+      if (which === 'email') { const i = document.getElementById('my-signin-input'); i.value = ''; i.focus(); }
+      if (which === 'code') { const i = document.getElementById('my-signin-code-input'); i.value = ''; i.focus(); }
+    }
+    async function sendEmailChange() {
+      const btn = document.getElementById('my-signin-send');
+      btn.disabled = true;
+      try {
+        const res = await api('POST', '/v1/me/email', { email: document.getElementById('my-signin-input').value.trim() });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) { toast(body.error || 'Could not send a code', 'error'); return; }
+        document.getElementById('my-signin-to').textContent = body.email;
+        showEmailChange('code');
+      } catch {
+        toast('Could not send a code', 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+    async function verifyEmailChange() {
+      const btn = document.getElementById('my-signin-go');
+      btn.disabled = true;
+      try {
+        const res = await api('POST', '/v1/me/email/verify', { code: document.getElementById('my-signin-code-input').value.trim() });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) { toast(body.error || 'Could not change your email', 'error'); return; }
+        currentUser.username = body.email;
+        document.getElementById('username-display').textContent = body.email;
+        updateShowcaseBanner();
+        showEmailChange('row');
+        toast(`Your sign-in email is now ${body.email}`, 'success');
+      } catch {
+        toast('Could not change your email', 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+    async function setSignInAlerts(box) {
+      const want = box.checked;
+      box.disabled = true;
+      try {
+        const res = await api('PATCH', '/v1/me', { signin_alerts: want });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) { box.checked = !want; toast(body.error || 'Could not save', 'error'); return; }
+        currentUser.signin_alerts = want;
+        toast(want ? 'Sign-in alerts on' : 'Sign-in alerts off', 'success');
+      } catch {
+        box.checked = !want;
+        toast('Could not save', 'error');
+      } finally {
+        box.disabled = false;
+      }
+    }
+
     async function connectDomain(name) {
       const d = prompt('Enter the custom domain to connect (e.g. recipes.brand.com):');
       if (!d) return;
@@ -2282,6 +2384,10 @@ function parseAnalyticsSummary(data) {
       openDeleteAccount: () => toggleDeleteAccount(true),
       closeDeleteAccount: () => toggleDeleteAccount(false),
       deleteAccount: () => deleteAccount(),
+      openEmailChange: () => showEmailChange('email'),
+      closeEmailChange: () => showEmailChange('row'),
+      sendEmailChange: () => sendEmailChange(),
+      verifyEmailChange: () => verifyEmailChange(),
       logout: () => logout(),
       resetAuth: () => resetAuth(),
       switchTab: d => switchTab(d.arg),
@@ -2307,6 +2413,7 @@ function parseAnalyticsSummary(data) {
     document.getElementById('key-form').addEventListener('submit', handleKey);
     document.getElementById('code-form').addEventListener('submit', handleCodeSubmit);
     document.getElementById('site-sort').addEventListener('change', e => setSiteSort(e.target.value));
+    document.getElementById('my-signin-alerts').addEventListener('change', e => setSignInAlerts(e.target));
     document.getElementById('my-data-confirm').addEventListener('input', e => {
       const want = ((currentUser && currentUser.username) || '').toLowerCase();
       document.getElementById('my-data-go').disabled = !want || e.target.value.trim().toLowerCase() !== want;
