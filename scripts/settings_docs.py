@@ -63,6 +63,8 @@ def allowed(s):
         parts.append(rng + (f" {s['unit']}" if s.get("unit") else ""))
     elif s.get("unit"):
         parts.append(s["unit"])
+    if s.get("zero_is_never"):
+        parts.append("`0` = never")
     if s["type"] == "rate":
         parts.append(f"stricter freely; loosest `{s['loosest']}`" if s.get("loosest") else "any (warns past 10× looser)")
     if s["type"] == "secret":

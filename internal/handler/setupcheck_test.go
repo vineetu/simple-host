@@ -356,6 +356,11 @@ func TestSetupCheckNoLooserSuggestions(t *testing.T) {
 		{"year-long refresh", "small-box", `"OAUTH_REFRESH_TTL_DAYS":"120"`, `"OAUTH_REFRESH_TTL_DAYS":"365"`, false},
 		{"shorter refresh", "small-box", `"OAUTH_REFRESH_TTL_DAYS":"120"`, `"OAUTH_REFRESH_TTL_DAYS":"100"`, true},
 		{"looser sign-in rate", "small-box", `"KEEP_VERSIONS":"3"`, `"RATE_LIMIT_SIGNIN_IP":"40,5s"`, false},
+		// A key lifetime where 0 means never: 0 is the loosest value.
+		{"keys never expire", "small-box", `"KEEP_VERSIONS":"3"`, `"KEY_IDLE_EXPIRY_DAYS":"0"`, false},
+		{"longer key idle expiry", "small-box", `"KEY_IDLE_EXPIRY_DAYS":"200"`, `"KEY_IDLE_EXPIRY_DAYS":"365"`, false},
+		{"shorter key idle expiry", "small-box", `"KEEP_VERSIONS":"3"`, `"KEY_IDLE_EXPIRY_DAYS":"90"`, true},
+		{"key expiry after never", "small-box", `"KEY_IDLE_EXPIRY_DAYS":"0"`, `"KEY_IDLE_EXPIRY_DAYS":"365"`, true},
 		// Not security-sensitive: any valid value.
 		{"more versions", "small-box", `"KEEP_VERSIONS":"3"`, `"KEEP_VERSIONS":"50"`, true},
 	}

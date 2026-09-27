@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"mime"
 	"net/http"
 	"regexp"
@@ -64,6 +65,7 @@ type setupSetting struct {
 	Unit        string          `json:"unit"`
 	Loosest     string          `json:"loosest"`
 	StrictOrder []string        `json:"strict_order"`
+	ZeroIsNever bool            `json:"zero_is_never"`
 	Security    bool            `json:"security_sensitive"`
 	SmallBox    *bool           `json:"small_box"`
 }
@@ -174,7 +176,8 @@ const setupFactsSmallBox = `- MAX_ARCHIVE_MB is the largest upload and the size 
 - IDLE_GRACE_DAYS is the warning period before an idle site is moved to Recently deleted; very short values give owners little time to react.
 - WRITE_AUTH_MODE off or log lets pages save without a signed-in visitor.
 - SAVED_DATA_DEFAULT_KIND=shared makes undeclared saved data public and writable by visitors; declare_first is stricter.
-- Short link lifetimes (PREVIEW_LINK_TTL_MINUTES, EXPORT_LINK_TTL_MINUTES, SIGNIN_CODE_TTL_MINUTES) are safer; long ones leave working links around longer.`
+- Short link lifetimes (PREVIEW_LINK_TTL_MINUTES, EXPORT_LINK_TTL_MINUTES, SIGNIN_CODE_TTL_MINUTES) are safer; long ones leave working links around longer.
+- KEY_IDLE_EXPIRY_DAYS: an API key unused this long stops working. Shorter is stricter; 0 means keys never expire, the loosest value.`
 
 const setupFactsEnterprise = `- MAX_ARCHIVE_BYTES is the largest upload; each upload is held in the pod while it is checked and stored, and UPLOAD_CONCURRENCY uploads may run at once per pod, so memory needed is roughly MAX_ARCHIVE_BYTES × UPLOAD_CONCURRENCY plus headroom. That product must fit well inside the pod's memory limit (the package's default limit is 2 GiB, sized for the defaults: raise it with either setting).
 - The ingress controller in front must accept request bodies of at least MAX_ARCHIVE_BYTES (the package's ingress sets 128m for ingress-nginx's proxy-body-size), or large uploads fail at the ingress with an error that looks like an application bug.
@@ -318,7 +321,7 @@ func (r *setupRegistry) canonical(s *setupSetting, v string) string {
 }
 
 // looser reports whether v loosens security-sensitive s compared with than:
-// a longer lifetime or larger number, a bigger burst or shorter interval, or
+// a longer lifetime or larger number (0 is the longest where it means never), a bigger burst or shorter interval, or
 // a value later in its strict order. A value that cannot be compared (than
 // empty or derived, a choice with no strict order) counts as looser.
 func (r *setupRegistry) looser(s *setupSetting, v, than string) bool {
@@ -332,17 +335,26 @@ func (r *setupRegistry) looser(s *setupSetting, v, than string) bool {
 	case "number":
 		a, err1 := strconv.ParseInt(v, 10, 64)
 		b, err2 := strconv.ParseInt(than, 10, 64)
-		return err1 != nil || err2 != nil || a > b
+		return err1 != nil || err2 != nil || s.never(a) > s.never(b)
 	case "duration":
 		a, ok1 := setupParseDuration(v)
 		b, ok2 := setupParseDuration(than)
-		return !ok1 || !ok2 || a > b
+		return !ok1 || !ok2 || s.never(int64(a)) > s.never(int64(b))
 	case "rate":
 		ab, ae, ok1 := r.rate(v)
 		bb, be, ok2 := r.rate(than)
 		return !ok1 || !ok2 || ab > bb || ae < be
 	}
 	return true
+}
+
+// never orders a lifetime where 0 means never (zero_is_never): 0 is longer
+// than any other value.
+func (s *setupSetting) never(n int64) int64 {
+	if n == 0 && s.ZeroIsNever {
+		return math.MaxInt64
+	}
+	return n
 }
 
 func (r *setupRegistry) rate(v string) (int64, time.Duration, bool) {
@@ -414,6 +426,9 @@ func setupCheckSystemPrompt(r *setupRegistry) string {
 			}
 			if s.Unit != "" {
 				allowed = strings.TrimSpace(allowed + " " + s.Unit)
+			}
+			if s.ZeroIsNever {
+				allowed += ", 0 = never (loosest)"
 			}
 		}
 		sec := ""
