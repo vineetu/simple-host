@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -339,5 +340,63 @@ func TestEraseAccountWaitsForVisitorSave(t *testing.T) {
 	_ = s.a.database.QueryRow(`SELECT count(*) FROM sites WHERE id = $1`, s.shopID).Scan(&n)
 	if n != 0 {
 		t.Fatal("site still there after the erase")
+	}
+}
+
+// L5: a rollback whose commit fails leaves the served files as they were.
+func TestRollbackServesOnlyWhatCommitted(t *testing.T) {
+	a := newPrivateApp(t)
+	ann := a.newPerson(t, "ann")
+	key := map[string]string{"X-API-Key": ann.key}
+	a.deploy(t, ann, "blog") // v1: <h1>blog</h1>
+	if r := a.at(t, "PUT", "simple-host.test", "/v1/sites/blog/files", map[string]any{"files": map[string]string{"index.html": "v2"}}, key); r.status != 200 && r.status != 201 {
+		t.Fatalf("v2: %d %s", r.status, r.body)
+	}
+	uid, _ := a.userID(t, ann)
+	siteID := a.siteID(t, ann, "blog")
+	served := func() string {
+		t.Helper()
+		b, err := os.ReadFile(a.sites.disk.SiteDir(uid, "blog") + "/current/index.html")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	if served() != "v2" {
+		t.Fatalf("before: %q", served())
+	}
+	// The commit fails: a deferred check on this site's row.
+	for _, q := range []string{
+		`CREATE OR REPLACE FUNCTION v072_fail_commit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'commit refused'; END $$`,
+		`DROP TRIGGER IF EXISTS v072_fail_commit ON sites`,
+		`CREATE CONSTRAINT TRIGGER v072_fail_commit AFTER UPDATE ON sites DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.id = '` + siteID + `') EXECUTE FUNCTION v072_fail_commit()`,
+	} {
+		if _, err := a.database.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dropped := false
+	drop := func() {
+		if !dropped {
+			dropped = true
+			_, _ = a.database.Exec(`DROP TRIGGER IF EXISTS v072_fail_commit ON sites`)
+			_, _ = a.database.Exec(`DROP FUNCTION IF EXISTS v072_fail_commit()`)
+		}
+	}
+	t.Cleanup(drop)
+	if r := a.at(t, "PUT", "simple-host.test", "/v1/sites/blog/active-version", map[string]int{"version_number": 1}, key); r.status != 500 {
+		t.Fatalf("rollback with a failing commit: %d %s", r.status, r.body)
+	}
+	var active int
+	_ = a.database.QueryRow(`SELECT active_version FROM sites WHERE id = $1`, siteID).Scan(&active)
+	if active != 2 || served() != "v2" {
+		t.Fatalf("after a failed commit: active_version %d, serving %q", active, served())
+	}
+	drop()
+	if r := a.at(t, "PUT", "simple-host.test", "/v1/sites/blog/active-version", map[string]int{"version_number": 1}, key); r.status != 200 {
+		t.Fatalf("rollback: %d %s", r.status, r.body)
+	}
+	if !strings.Contains(served(), "blog") {
+		t.Fatalf("after rollback: %q", served())
 	}
 }

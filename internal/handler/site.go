@@ -1887,11 +1887,11 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.disk.UpdateCurrent(site.UserID, site.Name, req.VersionNumber); err != nil {
+	prev, err := db.SiteActiveVersion(r.Context(), tx, site.ID)
+	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-
 	if err := db.UpdateSiteActiveVersion(r.Context(), tx, site.ID, req.VersionNumber); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -1901,7 +1901,19 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	// The served files change only once every database step has worked,
+	// still under the site's lock (so two rollbacks cannot cross), and go
+	// back if the commit then fails: what is served matches active_version.
+	if err := h.disk.UpdateCurrent(site.UserID, site.Name, req.VersionNumber); err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
 	if err := tx.Commit(); err != nil {
+		if prev != req.VersionNumber {
+			if rerr := h.disk.UpdateCurrent(site.UserID, site.Name, prev); rerr != nil {
+				log.Printf("rollback site_id=%s: commit failed (%v) and serving v%d again failed: %v", site.ID, err, prev, rerr)
+			}
+		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}

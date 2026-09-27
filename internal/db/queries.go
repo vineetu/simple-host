@@ -1082,6 +1082,14 @@ func SetSiteStateByID(ctx context.Context, q Querier, siteID string, state json.
 	return version, nil
 }
 
+// SiteActiveVersion is the site's live version number (read under the
+// caller's lock when q is its transaction).
+func SiteActiveVersion(ctx context.Context, db Querier, siteID string) (int, error) {
+	var v int
+	err := db.QueryRowContext(ctx, `SELECT active_version FROM sites WHERE id = $1`, siteID).Scan(&v)
+	return v, err
+}
+
 func UpdateSiteActiveVersion(ctx context.Context, db Querier, siteID string, version int) error {
 	const query = `
 		UPDATE sites
