@@ -2,6 +2,11 @@
 
 One line per shipped change, newest first. Add a line here in the same commit as any feature change.
 
+## 2026-09-27
+
+- Change your address, also after publishing: "Your address" on your sites page (and `PATCH /v1/me`) changes your handle. Before anything is published it changes freely; after that once every 30 days. The old handle stays yours and every old link (your page, each site, old content-host and owner-app links) redirects to the new address; the new address gets its own certificate and sites use the working person-path address until it is ready. What pages kept in visitors' browsers starts fresh and visitors sign in again. The "address is fixed once something is published" rule is gone. Skills 0.19.3.
+- Recently deleted: deleting a site takes it offline at once and keeps it, with every version, its saved data, private lists and claimed names, for 7 days with its name held. Restore it from "Recently deleted" on your sites page, `POST /v1/sites/{site}/restore` or the new `restore_site` tool (`list_deleted_sites` lists them); after 7 days it is removed for good. Creating a site with a held name says it is in Recently deleted. Deleting a whole account from the admin page is still immediate.
+
 ## 2026-09-26
 
 - v0.2.0 released. The small-box installer pins one release: its image, compose file and schema all come from the same tag (before, `latest` pulled v0.1.2 against a newer schema and the app crash-looped on its schema check). The release workflow refuses a tag the installer does not pin.

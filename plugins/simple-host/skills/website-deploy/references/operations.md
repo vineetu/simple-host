@@ -39,23 +39,42 @@ Preview a retained version before restoring it (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.19.2"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.19.3"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.19.2"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.19.3"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte
 sizes. The second streams the file with sandbox CSP. Pruned versions return 404.
 
-## Delete
+## Delete and restore
 
 ```
 DELETE /v1/sites/<sitename>
 ```
 
-Removes the site, every version, and its state and collections. Not reversible —
-confirm with the user in plain language before calling it, and say what will be
-lost.
+Takes the site offline at once, with every version, its state and collections.
+It stays in Recently deleted for 7 days, then it is removed for good. Confirm
+with the user in plain language before calling it, and say what goes offline.
+Until it is removed its name stays taken: creating a site with that name answers
+409 with `"recently_deleted": true` (ask the person whether to restore it).
+
+- `GET /v1/me/deleted-sites` lists them: `{"sites":[{"name","deleted_at","purge_at"}],"retention_days":7}`.
+- `POST /v1/sites/<sitename>/restore` brings one back under the same name and
+  address, with every version, its saved data and any connected address.
+
+Connector: `delete_site`, `list_deleted_sites`, `restore_site`.
+
+## Change the handle (the person's address)
+
+`PATCH /v1/me` with `{"handle":"new-name"}` changes the `<handle>` in every
+address. Before anything is published it changes freely; after that, once every
+30 days (429 with `next_change_after` otherwise). The old handle stays reserved
+for the person and every old address redirects to the new one. What pages kept
+in visitors' browsers (localStorage) starts empty at the new address, and
+visitors sign in again, so tell the person before changing it. They can also do
+it themselves under "Your address" on their Simple Host page. Afterwards re-read
+`site_url` from `GET /v1/sites`; never compose addresses.
 
 ## Analytics
 

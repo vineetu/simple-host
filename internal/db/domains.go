@@ -99,7 +99,7 @@ func GetSiteByCustomDomain(ctx context.Context, database *sql.DB, domain string)
 	const query = `
 		SELECT id, user_id, name, custom_domain, domain_status, domain_verified_at, domain_bound_at
 		FROM sites
-		WHERE custom_domain = $1
+		WHERE custom_domain = $1 AND deleted_at IS NULL
 	`
 	domain = strings.ToLower(strings.TrimSpace(domain))
 	var info SiteDomainInfo
@@ -139,6 +139,7 @@ func ListDomainsToCheck(ctx context.Context, database *sql.DB, activeAge time.Du
 		FROM sites
 		WHERE custom_domain IS NOT NULL
 		  AND custom_domain <> ''
+		  AND deleted_at IS NULL
 		  AND (domain_status IS DISTINCT FROM 'active'
 		       OR domain_verified_at IS NULL
 		       OR domain_verified_at < now() - ($1 * interval '1 second'))

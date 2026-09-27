@@ -36,7 +36,7 @@ type CollectionItem struct {
 func AppendCollectionItem(ctx context.Context, db *sql.DB, siteName, collection string, data json.RawMessage) (CollectionItem, error) {
 	const q = `
 		INSERT INTO collection_items (site_id, collection, data)
-		SELECT id, $2, $3::jsonb FROM sites WHERE name = $1
+		SELECT id, $2, $3::jsonb FROM sites WHERE name = $1 AND deleted_at IS NULL
 		RETURNING id, data, created_at`
 	var it CollectionItem
 	err := db.QueryRowContext(ctx, q, siteName, collection, string(data)).Scan(&it.ID, &it.Data, &it.CreatedAt)
@@ -67,7 +67,7 @@ func ListCollectionItems(ctx context.Context, db *sql.DB, siteName, collection s
 	const q = `
 		SELECT id, data, created_at
 		FROM collection_items
-		WHERE site_id = (SELECT id FROM sites WHERE name = $1)
+		WHERE site_id = (SELECT id FROM sites WHERE name = $1 AND deleted_at IS NULL)
 		  AND collection = $2
 		  AND ($3 = 0 OR id < $3)
 		ORDER BY id DESC

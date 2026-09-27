@@ -161,6 +161,10 @@ func restError(tool string, u upstreamResult) error {
 		hint = "No site of that name in this account. Call list_sites for the exact names; a site owned by someone else cannot be changed from here."
 	case u.status == http.StatusNotFound:
 		hint = "Check the name against list_sites (and version numbers against list_versions)."
+	case u.status == http.StatusConflict && strings.Contains(string(u.body), `"recently_deleted":true`):
+		hint = "That name belongs to a site in Recently deleted. Ask the person whether to bring it back with restore_site, or pick another name."
+	case u.status == http.StatusConflict && tool == "restore_site":
+		hint = "That site is live, not deleted; nothing to restore."
 	case u.status == http.StatusConflict:
 		hint = "A site of that name already exists in this account. Use update_site to publish a new version of it, or pick another name."
 	case u.status == http.StatusBadRequest:
@@ -716,15 +720,15 @@ func Tools() []Tool {
 		},
 		{
 			Name:  "delete_site",
-			Title: "Delete a site permanently",
-			Description: "DESTRUCTIVE AND IRREVERSIBLE: deletes the site, every version of it, and all of its saved data (state and collections). The address stops working. " +
+			Title: "Delete a site",
+			Description: "DESTRUCTIVE: takes the site offline at once, with every version and all of its saved data (state and collections). It stays in Recently deleted for 7 days, where restore_site brings it back exactly as it was; after that it is gone for good. Its name stays taken until then. " +
 				"Only call this after the person has explicitly confirmed, in this conversation, that they want this specific site deleted. Pass the site name twice: as `site` and as `confirm_name`.",
 			InputSchema: object(map[string]any{
 				"site":         str(siteDesc),
 				"confirm_name": str("The same site name again, typed out, as confirmation."),
 			}, "site", "confirm_name"),
-			// Irreversible. Acts only inside the person's own account and
-			// publishes nothing, so it is not open-world.
+			// Destructive (reversible only for 7 days). Acts only inside the
+			// person's own account and publishes nothing, so it is not open-world.
 			Annotations: writes(true, true, false),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
@@ -742,7 +746,60 @@ func Tools() []Tool {
 				if !res.ok() {
 					return output{}, restError("delete_site", res)
 				}
-				return output{Text: "Deleted " + name + " with all its versions and data.", Structured: map[string]any{"deleted": name}}, nil
+				return output{Text: "Deleted " + name + ". It is offline now and stays in Recently deleted for 7 days; restore_site brings it back with all its versions and data.", Structured: map[string]any{"deleted": name, "restorable_days": 7}}, nil
+			},
+		},
+		{
+			Name:        "list_deleted_sites",
+			Title:       "List recently deleted sites",
+			Description: "List the account's sites in Recently deleted: each was deleted within the last 7 days and can be brought back with restore_site until its purge_at time, when it is removed for good.",
+			InputSchema: noArgs(),
+			Annotations: readOnly(),
+			run: func(c *call, _ map[string]any) (output, error) {
+				res := c.do(http.MethodGet, "/v1/me/deleted-sites", nil, nil)
+				if !res.ok() {
+					return output{}, restError("list_deleted_sites", res)
+				}
+				var body struct {
+					Sites []struct {
+						Name      string `json:"name"`
+						DeletedAt string `json:"deleted_at"`
+						PurgeAt   string `json:"purge_at"`
+					} `json:"sites"`
+				}
+				_ = json.Unmarshal(res.body, &body)
+				sites := make([]any, 0, len(body.Sites))
+				lines := make([]string, 0, len(body.Sites))
+				for _, d := range body.Sites {
+					sites = append(sites, map[string]any{"name": d.Name, "deleted_at": d.DeletedAt, "purge_at": d.PurgeAt})
+					lines = append(lines, d.Name+" (restorable until "+d.PurgeAt+")")
+				}
+				text := "Nothing in Recently deleted."
+				if len(lines) > 0 {
+					text = "Recently deleted: " + strings.Join(lines, "; ")
+				}
+				return output{Text: text, Structured: map[string]any{"sites": sites, "count": len(sites)}}, nil
+			},
+		},
+		{
+			Name:        "restore_site",
+			Title:       "Restore a deleted site",
+			Description: "Bring back a site from Recently deleted (see list_deleted_sites): same name, same address, every version, saved data, collections and connected address, live again at once.",
+			InputSchema: object(map[string]any{"site": str(siteDesc)}, "site"),
+			// Serves the site again at its public address; nothing is lost.
+			Annotations: writes(false, true, true),
+			run: func(c *call, args map[string]any) (output, error) {
+				name, err := siteArg(args)
+				if err != nil {
+					return output{}, err
+				}
+				res := c.do(http.MethodPost, "/v1/sites/"+url.PathEscape(name)+"/restore", nil, nil)
+				if !res.ok() {
+					return output{}, restError("restore_site", res)
+				}
+				var site restSite
+				_ = json.Unmarshal(res.body, &site)
+				return output{Text: "Restored " + site.Name + ". Live again at " + site.liveURL(), Structured: site.summary()}, nil
 			},
 		},
 		{
@@ -1319,6 +1376,8 @@ func deploySite(c *call, args map[string]any, mode string) (output, error) {
 		switch {
 		case res.status == http.StatusNotFound && mode == "replace":
 			return output{}, fmt.Errorf("update_site failed: there is no site named %q in this account. Use create_site for a new site, or list_sites for existing names", name)
+		case res.status == http.StatusConflict && mode == "create" && strings.Contains(string(res.body), `"recently_deleted":true`):
+			return output{}, fmt.Errorf("create_site failed: a site named %q was deleted recently and is in Recently deleted, which keeps its name. Ask the person whether to bring it back with restore_site, or pick another name", name)
 		case res.status == http.StatusConflict && mode == "create":
 			return output{}, fmt.Errorf("create_site failed: this account already has a site named %q, and create_site never overwrites. To change it, use update_site (read its files first); for a separate site, pick another name", name)
 		}

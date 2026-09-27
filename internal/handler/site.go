@@ -235,6 +235,8 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("PUT /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.updateSite)))))
 	mux.Handle("DELETE /v1/sites/{sitename}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.deleteSite))))
 	mux.Handle("PATCH /v1/sites/{sitename}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.renameSite))))
+	mux.Handle("POST /v1/sites/{sitename}/restore", noticeMiddleware(authMiddleware(http.HandlerFunc(h.restoreSite))))
+	mux.Handle("GET /v1/me/deleted-sites", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDeletedSites))))
 	mux.Handle("GET /v1/sites", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listSites))))
 	mux.Handle("POST /v1/admin/users", authMiddleware(http.HandlerFunc(h.createAccounts)))
 	mux.Handle("DELETE /v1/admin/users/{id}", authMiddleware(http.HandlerFunc(h.deleteAccount)))
@@ -392,6 +394,10 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request) {
 		return
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	if msg, held := h.deletedNameConflict(r.Context(), user.ID, newName); held {
+		writeJSON(w, http.StatusConflict, map[string]any{"error": msg, "recently_deleted": true})
 		return
 	}
 	oldURL := h.siteURLFor(site)
@@ -1021,6 +1027,11 @@ func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user
 	site, err := db.CreateSite(r.Context(), tx, user.ID, siteName, siteURL, h.previewExpiry(user))
 	if err != nil {
 		if isUniqueViolation(err) {
+			tx.Rollback()
+			if msg, held := h.deletedNameConflict(r.Context(), user.ID, siteName); held {
+				writeJSON(w, http.StatusConflict, map[string]any{"error": msg, "recently_deleted": true})
+				return
+			}
 			writeJSON(w, http.StatusConflict, errorResponse{Error: "site already exists"})
 			return
 		}
@@ -1476,60 +1487,6 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 
 	site.ActiveVersion = req.VersionNumber
 	writeJSON(w, http.StatusOK, h.toSiteResponse(site, ""))
-}
-
-func (h *SiteHandler) deleteSite(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUser(r.Context())
-	if user == nil {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
-		return
-	}
-
-	siteName := strings.TrimSpace(r.PathValue("sitename"))
-	if siteName == "" {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
-		return
-	}
-
-	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return
-		}
-
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	defer tx.Rollback()
-
-	if err := db.DeleteSite(r.Context(), tx, site.ID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return
-		}
-
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	if err := h.disk.DeleteSite(site.UserID, site.Name); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	if err := tx.Commit(); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
 }
 
 // setVisibility toggles a site's showcase visibility ('public' | 'unlisted').

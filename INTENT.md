@@ -259,4 +259,11 @@ What follows from that, and is not negotiable without changing the line above:
   old links redirect, rate-limited through `handle_changed_at`. The new handle gets its own
   certificate; what pages kept in the browser starts empty. Replaces "the address is fixed once
   something is published". Reason: a handle taken from an email's local part is public and
-  otherwise permanent. Owner approved 2026-09-27; planned (completeness plan, wave 1), not built.
+  otherwise permanent. Owner approved 2026-09-27; built 2026-09-27 (branch cp/recover): once per
+  30 days after publishing, changes before publishing stay free; the owner app's "Your address".
+- **2026-09-27. Deleting a site is recoverable for 7 days.** A deleted site goes offline at once
+  but keeps its files, versions, saved data, private lists, claimed names and its name for 7 days
+  ("Recently deleted", with Restore on the owner app, the API and the connector), then it is
+  removed for good. Deleting a whole account (admin) stays immediate. Reason: an owner (or their
+  agent) deleting the wrong site lost every RSVP and order with one click. Owner approved
+  2026-09-27 (completeness plan).

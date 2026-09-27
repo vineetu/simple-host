@@ -47,7 +47,7 @@ paths do not expand a literal `~`, and `%USERPROFILE%` expands only in `cmd`.
 5. **Save** `api_key`, `username`, and `handle` to the config file. The key
    cannot be shown again, so this file is the source of truth from here on. It
    keeps working until the user rotates keys; signing in again issues another
-   key without retiring this one. Re-read `handle` any time via `GET /v1/me`.
+   key without retiring this one. Re-read `handle` any time via `GET /v1/me`; the person can change it.
 
    Never print the key into the transcript, a log, or a committed file.
 

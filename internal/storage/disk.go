@@ -336,7 +336,12 @@ func (d *DiskStorage) DeleteSite(userID, siteName string) error {
 	if err := os.RemoveAll(d.SiteDir(userID, siteName)); err != nil {
 		return fmt.Errorf("delete site dir: %w", err)
 	}
+	return d.removeCompatLink(userID, siteName)
+}
 
+// removeCompatLink removes the legacy <dataDir>/<siteName> symlink when it
+// points at this site.
+func (d *DiskStorage) removeCompatLink(userID, siteName string) error {
 	// Remove the back-compat symlink only when it is a symlink that currently
 	// points at THIS site's by-id dir. If another user's same-named site owns
 	// the legacy name, leave their symlink alone. Never RemoveAll a real
@@ -469,6 +474,10 @@ func (d *DiskStorage) DeleteUser(userID, handle string) error {
 		return fmt.Errorf("invalid user id %q", userID)
 	}
 	if err := d.RemoveHandleLink(handle); err != nil {
+		return err
+	}
+	// Sites in Recently deleted go with the account.
+	if err := os.RemoveAll(filepath.Join(d.dataDir, "deleted", userID)); err != nil {
 		return err
 	}
 	return os.RemoveAll(filepath.Join(d.dataDir, "by-id", userID))

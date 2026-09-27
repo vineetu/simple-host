@@ -2040,7 +2040,7 @@ function parseAnalyticsSummary(data) {
     }
 
     async function confirmDelete(name) {
-      if (!confirm(`Delete site "${name}"? This removes all versions from disk and cannot be undone.`)) return;
+      if (!confirm(`Delete site "${name}"? It goes offline now. For 7 days you can restore it, with every version and all its saved data, from Recently deleted on your sites page; after that it is gone for good.`)) return;
       try {
         const res = await api('DELETE', `/v1/sites/${encodeURIComponent(name)}`);
         if (!res.ok && res.status !== 204) {

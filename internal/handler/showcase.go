@@ -73,7 +73,29 @@ func (h *SiteHandler) mainSiteURL() string {
 // the owner view client-side when a matching same-origin API key is present.
 func (h *SiteHandler) showcase(w http.ResponseWriter, r *http.Request) {
 	handle := strings.ToLower(strings.TrimSpace(r.PathValue("handle")))
+	if h.redirectHandleAlias(w, r, handle) {
+		return
+	}
 	h.renderShowcase(w, r, handle)
+}
+
+// redirectHandleAlias: handle is an old handle kept as an alias (the account
+// changed its address), so /<old> 302s to /<current> on the same host — the
+// owner app on the base origin, the showcase on the content host.
+func (h *SiteHandler) redirectHandleAlias(w http.ResponseWriter, r *http.Request, handle string) bool {
+	if !showcaseHandleRe.MatchString(handle) || reservedShowcaseHandles[handle] {
+		return false
+	}
+	if _, err := db.GetUserByHandle(r.Context(), h.database, handle); err == nil {
+		return false
+	}
+	current, err := db.ResolveHandleAlias(r.Context(), h.database, handle)
+	if err != nil || current == "" || current == handle {
+		return false
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	http.Redirect(w, r, "/"+current, http.StatusFound)
+	return true
 }
 
 // ownerAppOrStatic serves the per-user OWNER APP on the base origin
@@ -90,6 +112,9 @@ func (h *SiteHandler) ownerAppOrStatic(fileServer http.Handler) http.Handler {
 			showcaseHandleRe.MatchString(strings.ToLower(seg)) && !reservedShowcaseHandles[strings.ToLower(seg)] {
 			if _, err := db.GetUserByHandle(r.Context(), h.database, strings.ToLower(seg)); err == nil {
 				h.renderShowcase(w, r, strings.ToLower(seg))
+				return
+			}
+			if h.redirectHandleAlias(w, r, strings.ToLower(seg)) {
 				return
 			}
 		}

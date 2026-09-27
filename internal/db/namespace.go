@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"time"
 )
 
 // One namespace under the platform domain (owner decision 2026-09-25).
@@ -115,13 +116,24 @@ func GetUserByHandleOrAlias(ctx context.Context, database *sql.DB, handle string
 }
 
 // RenameHandle moves an account to a new handle and keeps the old one as an
-// alias, so links that name the old handle keep resolving. Operator tool.
+// alias, so links that name the old handle keep resolving.
 func RenameHandle(ctx context.Context, database *sql.DB, userID, newHandle string) (string, error) {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return "", err
 	}
 	defer tx.Rollback()
+	old, err := RenameHandleTx(ctx, tx, userID, newHandle)
+	if err != nil {
+		return "", err
+	}
+	return old, tx.Commit()
+}
+
+// RenameHandleTx is RenameHandle inside the caller's transaction (PATCH
+// /v1/me, which already holds the account row). ErrDomainTaken when the new
+// handle is not free as an address.
+func RenameHandleTx(ctx context.Context, tx *sql.Tx, userID, newHandle string) (string, error) {
 	var old sql.NullString
 	if err := tx.QueryRowContext(ctx, `SELECT handle FROM users WHERE id = $1 FOR UPDATE`, userID).Scan(&old); err != nil {
 		return "", err
@@ -139,7 +151,7 @@ func RenameHandle(ctx context.Context, database *sql.DB, userID, newHandle strin
 	if old.Valid && old.String != "" && old.String != newHandle {
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO handle_aliases (handle, user_id) VALUES ($1, $2)
-			ON CONFLICT (handle) DO UPDATE SET user_id = EXCLUDED.user_id`, old.String, userID); err != nil {
+			ON CONFLICT (handle) DO UPDATE SET user_id = EXCLUDED.user_id, created_at = now()`, old.String, userID); err != nil {
 			return "", err
 		}
 	}
@@ -147,7 +159,25 @@ func RenameHandle(ctx context.Context, database *sql.DB, userID, newHandle strin
 	if _, err := tx.ExecContext(ctx, `DELETE FROM handle_aliases WHERE handle = $1`, newHandle); err != nil {
 		return "", err
 	}
-	return old.String, tx.Commit()
+	return old.String, nil
+}
+
+// HandleRenamedSince reports whether the account moved to a new handle after
+// publishing (a rename that left an alias behind) since t. Handle changes
+// before anything is published leave no alias and do not count.
+func HandleRenamedSince(ctx context.Context, q Querier, userID string, t time.Time) (bool, time.Time, error) {
+	var last sql.NullTime
+	err := q.QueryRowContext(ctx, `
+		SELECT u.handle_changed_at FROM users u
+		WHERE u.id = $1 AND u.handle_changed_at > $2
+		  AND EXISTS (SELECT 1 FROM handle_aliases a WHERE a.user_id = u.id AND a.created_at > $2)`, userID, t).Scan(&last)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, time.Time{}, nil
+	}
+	if err != nil {
+		return false, time.Time{}, err
+	}
+	return true, last.Time, nil
 }
 
 // GetSiteOwner returns the owner's handle ("" if none), user id and the
@@ -156,7 +186,7 @@ func GetSiteOwner(ctx context.Context, q Querier, siteID string) (handle, userID
 	err = q.QueryRowContext(ctx, `
 		SELECT COALESCE(u.handle, ''), u.id::text, s.name
 		FROM sites s JOIN users u ON u.id = s.user_id
-		WHERE s.id::text = $1`, siteID).Scan(&handle, &userID, &name)
+		WHERE s.id::text = $1 AND s.deleted_at IS NULL`, siteID).Scan(&handle, &userID, &name)
 	return
 }
 
@@ -164,7 +194,7 @@ func GetSiteOwner(ctx context.Context, q Querier, siteID string) (handle, userID
 // site: the people who need a certificate for their site hosts.
 func ListHandlesWithSites(ctx context.Context, q *sql.DB) ([]string, error) {
 	rows, err := q.QueryContext(ctx, `
-		SELECT DISTINCT u.handle FROM users u JOIN sites s ON s.user_id = u.id
+		SELECT DISTINCT u.handle FROM users u JOIN sites s ON s.user_id = u.id AND s.deleted_at IS NULL
 		WHERE u.handle IS NOT NULL AND u.handle <> ''
 		ORDER BY u.handle`)
 	if err != nil {
