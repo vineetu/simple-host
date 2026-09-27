@@ -16,8 +16,8 @@
 #
 # Both are written to /opt/simple-host/.env and preserved when this script is
 # re-run without them, so a value chosen once is not silently reset by a retry.
-# Any operational time or limit (docs/configuration.md) added to that file is
-# kept on a re-run too.
+# Any operational time or limit (docs/configuration.md), and the email and
+# Google sign-in settings, added to that file are kept on a re-run too.
 #
 # Prints a JSON summary on success. The admin key is generated here and shown
 # exactly once, because nothing else ever displays it.
@@ -125,6 +125,10 @@ LIMIT_VARS+=" SAVED_DATA_IDEMPOTENCY_HOURS SAVED_DATA_IDEMPOTENCY_MAX_PER_SITE"
 LIMIT_VARS+=" SAVED_DATA_READ_PER_SEC SAVED_DATA_READ_BURST SAVED_DATA_APPEND_PER_MIN"
 LIMIT_VARS+=" SAVED_DATA_APPEND_BURST"
 LIMIT_VARS+=" ASK_ENABLED ASK_BURST ASK_EVERY_SECONDS ASK_DAILY_MAX ASK_MAX_IN_FLIGHT ASK_MODEL ASK_REASONING_EFFORT ASK_MAX_TOKENS"
+# Email and Google sign-in (added by hand or from the setup helper at
+# https://simple-host.app/setup): a re-run is also the upgrade, and must not
+# quietly turn sign-in codes off.
+LIMIT_VARS+=" RESEND_API_KEY MAIL_FROM GOOGLE_OAUTH_CLIENT_ID GOOGLE_OAUTH_CLIENT_SECRET"
 LIMIT_VARS=${LIMIT_VARS# }
 if [ -f "$DIR/.env" ]; then
   ADMIN_KEY=$(grep '^ADMIN_API_KEY=' "$DIR/.env" | cut -d= -f2-)

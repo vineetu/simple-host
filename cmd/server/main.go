@@ -48,6 +48,10 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "migrate" {
 		os.Exit(runMigrateCommand(os.Args[2:]))
 	}
+	// `simple-host settings --json` prints every setting (docs/advanced/).
+	if len(os.Args) > 1 && os.Args[1] == "settings" {
+		os.Exit(runSettingsCommand(os.Args[2:]))
+	}
 	if len(os.Args) > 1 && (os.Args[1] == "version" || os.Args[1] == "--version") {
 		os.Exit(runVersionCommand())
 	}

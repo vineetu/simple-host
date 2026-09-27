@@ -1,4 +1,11 @@
-# Configuration: operational times and limits
+# Configuration reference
+
+Every setting, grouped by area and explained in product terms with recipes, is in
+[docs/advanced/](advanced/README.md); the setup helper at https://simple-host.app/setup builds
+a small box's `.env` from the same list ([docs/advanced/settings.json](advanced/settings.json),
+generated from the code). This page is the full reference.
+
+## Operational times and limits
 
 Every operational time and limit Simple Host enforces can be changed per install with an
 environment variable. Unset (or blank) means the value in the Default column, which is what
@@ -181,16 +188,65 @@ than 10 times looser than its default. A `RATE_LIMIT_*` variable that is not one
 | `RATE_LIMIT_AI_USER` | 30,10s | any (warns past 10×) | AI create requests per account. |
 | `RATE_LIMIT_TRANSCRIBE` | 60,3s | any (warns past 10×) | Voice input, per address and per account (each). |
 
-## Settings that were configurable already
+## Server, sign-in, email and the other settings
+
+These are read by `internal/config/config.go` (and `MAX_ARCHIVE_MB`, `KEEP_VERSIONS` by the
+handler) rather than `Knobs()`. `DB_DSN` and `ADMIN_API_KEY` are required; without
+`SITE_DOMAIN` the server starts in setup mode. A value in `<angle brackets>` is derived from
+another setting.
 
 | Variable | Default | What it controls |
 |---|---|---|
+| `SITE_DOMAIN` | none (setup mode) | The domain this server lives at. |
+| `CONTENT_HOST` | `sites.<SITE_DOMAIN>` | The separate hostname sites are served from. |
+| `PUBLIC_BASE_URL` | `https://simple-host.app` | The server's own address, used in emails and sign-in redirects. |
+| `ADMIN_API_KEY` | none (required) | The admin's key; the admin is a real account upserted from it at boot. |
+| `DB_DSN` | none (required) | Postgres connection string. |
+| `DATA_DIR` | `./data/sites` | Where site files and versions live. |
+| `PORT` | `8090` | Listen port. |
+| `BIND_ADDR` | none (all interfaces) | Listen interface, e.g. `127.0.0.1` behind nginx. |
+| `DEPLOY_SCRIPT` | none | A script run after a site goes live. |
+| `CNAME_TARGET` | `cname.<SITE_DOMAIN>` | The CNAME target for custom domains. |
+| `CUSTOM_DOMAIN_IP` | none | The A record handed out for a bare custom domain. |
+| `PERSON_HOSTS` | `off` | `off`, `serve` or `canonical`: `<handle>.<SITE_DOMAIN>` per account. |
+| `SITE_HOSTS` | `off` | `off`, `serve` or `canonical`: `<site>.<handle>.<SITE_DOMAIN>` per site (needs `PERSON_HOSTS`). |
+| `SITE_CERT_DIR` | none | Per-person certificate hand-off with the root issuer (`deploy/site-certs/`). |
+| `DOMAIN_CERT_DIR` | none | Custom-domain certificate hand-off with the root issuer (`deploy/domain-certs/`). |
+| `SETUP_PASSWORD` | none | The password a box in setup mode asks for (install.sh generates it). |
+| `SETUP_PUBLIC_API` | `https://simple-host.app` | Where a box in setup mode claims a free hostname from. |
+| `OPENAI_APPS_CHALLENGE` | none | The OpenAI plugin portal's domain-verification token. |
+| `GOOGLE_OAUTH_CLIENT_ID` | none | Google sign-in for owners and visitors (with the secret; exactly one of the pair is treated as off). Redirect URI: `<PUBLIC_BASE_URL>/v1/auth/oauth/google/callback`. |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | none | Google sign-in client secret. |
+| `GITHUB_OAUTH_CLIENT_ID` | none | An optional second visitor sign-in provider (with the secret). |
+| `GITHUB_OAUTH_CLIENT_SECRET` | none | Its client secret. |
+| `REVIEW_ACCOUNT_EMAIL` | none | Plugin reviewer's password sign-in on the connector (with the hash; `internal/handler/reviewer.go`). |
+| `REVIEW_ACCOUNT_PASSWORD_HASH` | none | Its password hash. |
 | `MAX_ARCHIVE_MB` | 100 | Largest upload, and the uncompressed per-site cap derived from it. |
-| `KEEP_VERSIONS` | 0 (all) | Deploys kept per site. |
-| `PREVIEW_ACCOUNTS`, `PREVIEW_TTL_HOURS` | none, 48 | Accounts whose sites expire, and after how long. |
+| `KEEP_VERSIONS` | 0 | Deploys kept per site; 0 keeps all (install.sh writes 1). |
+| `PREVIEW_ACCOUNTS` | none | Accounts whose sites expire. |
+| `PREVIEW_TTL_HOURS` | 48 | ... after this many hours. |
+| `WRITE_AUTH_MODE` | `log` | `on`: page saves need a signed-in visitor or a key; `log`; `off`. |
+| `EVENT_DNS_TOKEN` | none | Event hostnames (public instance only): the DNS token. |
+| `EVENT_DNS_TEAM_ID` | none | Its DNS account. |
+| `EVENT_DOMAINS` | none | Zones event hostnames are handed out under, comma-separated. |
 | `IDLE_CLEANUP` | off | `on` turns the idle-site cleanup on. |
 | `IDLE_CLEANUP_MAX_EMAILS` | 50 | Idle-cleanup emails per run. |
 | `IDLE_CLEANUP_EXEMPT_HANDLES` | none | Accounts the idle cleanup never touches. |
+| `RESEND_API_KEY` | none | Email via [Resend](https://resend.com); email sign-in is off without it. |
+| `MAIL_FROM` | `Simple Host <noreply@simple-host.app>` | The sender of every email. |
+| `LLM_PROVIDER` | `grok` | The model backend for AI create and Ask: `grok`, `xai`, `openai`, `deepseek`, `openrouter` or `custom`. |
+| `LLM_API_KEY` | none | The backend's key; Ask and AI create run only with a backend set. |
+| `LLM_BASE_URL` | none (the provider's) | The backend's address. |
+| `LLM_MODEL` | none (the provider's) | The model AI create uses. |
+| `VISION_PROVIDER` | `<LLM_PROVIDER>` | The backend that reads attached images in AI create. |
+| `VISION_API_KEY` | none | Its key. |
+| `VISION_BASE_URL` | none (the provider's) | Its address. |
+| `VISION_MODEL` | none (the provider's) | Its model. |
+| `TRANSCRIBE_URL` | none | A local speech-to-text service for voice input. |
+| `TRANSCRIBE_TICKET_SECRET` | none | Shared with the speech service for live transcription. |
+| `ANALYTICS_LOG` | none | The access log visit analytics are read from. |
+| `ANALYTICS_SALT` | none (derived from `ADMIN_API_KEY`) | Salt for hashed visitor IPs in analytics. |
+| `GEOIP_DIR` | `<DATA_DIR>/../geoip` | Where the local DB-IP Lite databases are. |
 
 ## Certificate issuers (root scripts)
 
