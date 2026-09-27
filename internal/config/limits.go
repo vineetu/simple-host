@@ -15,8 +15,9 @@ import (
 // at startup with a message naming the variable. Unset means today's value, so
 // an install that sets none of them behaves exactly as before.
 //
-// The rest of the program reads the values through Active(), which main sets
-// once before serving. Code that states one of these values to a person (an
+// The rest of the program reads the values through Active(), which
+// handler.ApplyLimits sets once before serving (and hands the leaf packages
+// their share). Code that states one of these values to a person (an
 // email, a page, an MCP tool description) formats it from here, so changing a
 // knob changes the words too.
 type Limits struct {
@@ -370,8 +371,8 @@ func init() {
 // tests and tools that never load config see today's behaviour.
 func Active() *Limits { return active.Load() }
 
-// SetActive installs l as the limits in force. main calls it once, before
-// serving; tests call it to try a changed knob (and restore it afterwards).
+// SetActive installs l as the limits in force. handler.ApplyLimits calls it,
+// once before serving and in tests that try a changed knob.
 func SetActive(l Limits) { active.Store(&l) }
 
 // limitsFromEnv is Load's hook, split out so the test can call LoadLimits with
