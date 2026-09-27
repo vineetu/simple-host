@@ -139,10 +139,10 @@ removes older history and Recently deleted items at the next sweep.
 | `SAVED_DATA_ENTRIES_NAMES_MAX` | 50 | 1–1000 | Submissions names one site may declare (409 `too_many_names`). |
 | `SAVED_DATA_DEFAULT_KIND` | shared | shared, declare_first | What a data name is when the site owner never declared it. `shared` (Shared): anyone who can open the site reads it and signed-in visitors save to it, as before the kinds, so older skills, AI create and uploaded pages keep working. `declare_first`: such a name takes no saves (409 `declare_first`) until the owner declares it Page info or Submissions. Sites that existed before the kinds (migration `sd2-saved-data-kinds.sql`) stay Shared either way; every later site follows this setting as it is now, so switching it changes them all. |
 
-## Ask about this page
+## Ask assistants
 
-The "Ask about this page" box on the architecture, features and enterprise pages
-(`POST /v1/ask`). It runs only when a model backend is set (`LLM_API_KEY`, `LLM_BASE_URL`);
+The two "Ask" assistants on the public pages (`POST /v1/ask`): Simple Host on the features
+and architecture pages, Simple Host Enterprise on the three enterprise pages. It runs only when a model backend is set (`LLM_API_KEY`, `LLM_BASE_URL`);
 without one the box is not shown, whatever these say. `ASK_ENABLED` is `on` or `off` (also
 `true`/`false`, `1`/`0`, `yes`/`no`); anything else stops the server at startup. Answers are
 streamed as they are written; the first words must arrive within 20 seconds and the whole

@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -30,11 +31,14 @@ const (
 	markerHead   = "<!--sh:head-->"
 	markerHeader = "<!--sh:header-->"
 	markerFooter = "<!--sh:footer-->"
-	// markerAsk is where a page wants the "Ask about this page" box. It renders
-	// only when the box is on (see ask.go) and the page has a knowledge pack;
-	// otherwise the marker becomes nothing.
-	markerAsk = "<!--sh:ask-->"
 )
+
+// markerAsk is where a page wants an "Ask" assistant, named in the marker:
+// <!--sh:ask simple-host--> or <!--sh:ask enterprise-->. Every page naming the
+// same assistant gets the same widget (partials/ask.html + ask.js); it renders
+// only when the assistants are on (see ask.go) and the name is known, and
+// otherwise the marker becomes nothing.
+var markerAsk = regexp.MustCompile(`<!--sh:ask ([a-z-]+)-->`)
 
 var (
 	chromeTemplates = template.Must(template.ParseFS(staticFiles, "static/partials/*.html"))
@@ -75,9 +79,19 @@ type chromeData struct {
 	// a second one, so Home points at the main product and the duplicate goes.
 	HackHome   bool
 	CSSVersion string
-	// Ask is the page key of the "Ask about this page" box, "" for none.
-	Ask          string
+	// AskOn: the "Ask" assistants are on. AskPage is the page key of the
+	// path served, "" when it is not an assistant page.
+	AskOn        bool
+	AskPage      string
 	AskJSVersion string
+}
+
+// askWidgetData is what partials/ask.html renders: one assistant, and the page
+// of it the reader is on.
+type askWidgetData struct {
+	Base, AskJSVersion       string
+	Key, Name, Tone, Example string
+	Page                     string
 }
 
 // navKeys maps a request path to the chrome link that names it.
@@ -114,7 +128,8 @@ func chromeDataFor(r *http.Request, base string) chromeData {
 		Current:      current,
 		HackHome:     current == "hackathons" && strings.HasPrefix(host, "simple-hack."),
 		CSSVersion:   siteCSSVersion,
-		Ask:          askPageFor(r.URL.Path),
+		AskOn:        askEnabled,
+		AskPage:      askPageFor(r.URL.Path),
 		AskJSVersion: askJSVersion,
 	}
 }
@@ -130,7 +145,6 @@ func withChrome(page []byte, d chromeData) ([]byte, error) {
 		{markerHead, "head.html"},
 		{markerHeader, "header.html"},
 		{markerFooter, "footer.html"},
-		{markerAsk, "ask.html"},
 	} {
 		if !bytes.Contains(page, []byte(m.marker)) {
 			continue
@@ -140,6 +154,21 @@ func withChrome(page []byte, d chromeData) ([]byte, error) {
 			return nil, err
 		}
 		page = bytes.Replace(page, []byte(m.marker), bytes.TrimRight(buf.Bytes(), "\n"), 1)
+	}
+	if loc := markerAsk.FindSubmatchIndex(page); loc != nil {
+		var out []byte
+		if a := askAssistantByKey(string(page[loc[2]:loc[3]])); a != nil && d.AskOn {
+			w := askWidgetData{Base: d.Base, AskJSVersion: d.AskJSVersion, Key: a.key, Name: a.name, Tone: a.tone, Example: a.example}
+			if a.page(d.AskPage) != nil {
+				w.Page = d.AskPage
+			}
+			var buf bytes.Buffer
+			if err := chromeTemplates.ExecuteTemplate(&buf, "ask.html", w); err != nil {
+				return nil, err
+			}
+			out = bytes.TrimRight(buf.Bytes(), "\n")
+		}
+		page = append(page[:loc[0]:loc[0]], append(out, page[loc[1]:]...)...)
 	}
 	return page, nil
 }

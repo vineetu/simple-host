@@ -5,11 +5,12 @@ Simple Host (https://simple-host.app) hosts static websites and gives every site
 What a site gets:
 - Its own address, https://<site>.<handle>.simple-host.app/, which is its own browser origin. A person's page lists their public sites at https://<handle>.simple-host.app/. A site can also use a free <name>.simple-host.app name or the person's own domain, with HTTPS.
 - Saved data: one shared JSON document per site (state) with atomic operations, and lists (collections) for things like RSVPs, votes and guestbooks. Saved data has a 30-day undo. Pages save with the hosted helper script auth.js.
-- Visitor sign-in on the site's own address, with Google or an emailed code, so saves are per person. A list can be made private so only the site's owner can read it (orders, RSVPs, sign-ups).
+- Each piece of saved data has a kind. Data a page saves without declaring one is Shared: public, anyone can read it, and visitors can add to it (a guestbook, a counter). The owner's agent can declare it instead as Page info (one document only the owner changes and everyone reads: a menu, hours, prices) or as Submissions (things visitors send, like RSVPs, orders and sign-ups: private to the owner unless made public, and each visitor sees, changes and withdraws only their own). The owner chooses who may save (anyone who signs in, or only listed emails and domains) and can block a person.
+- Visitor sign-in on the site's own address, with Google or an emailed code, so saves are per person. Submissions need the site's own address, where visitors sign in.
 - Versions and rollback, previews before going live, renames that keep old links working, taking a site offline, analytics of people versus bots, and a download of a site or of all of a person's data.
 
 Accounts: sign in with an emailed six-digit code or Google; no password. Agents use an API key or the connector's sign-in.
 
-Pages are always public to anyone with the address; there is no password lock. Only a private list is private. There is no server-side code for site authors: pages run in the visitor's browser.
+Pages are always public to anyone with the address; there is no password lock. Only private Submissions (and private lists) are private; Shared data is public. There is no server-side code for site authors: pages run in the visitor's browser.
 
 It is one Go program, one Postgres database and one folder of files. Useful pages: https://simple-host.app/ (start), https://simple-host.app/install.html (get started in your AI app), https://simple-host.app/features (what it does), https://simple-host.app/architecture.html (how it is built), https://simple-host.app/docs.html (API), https://simple-host.app/llms.txt (for agents), https://simple-host.app/privacy.html, https://simple-host.app/terms, https://simple-host.app/support. Contact: support@simple-host.app.

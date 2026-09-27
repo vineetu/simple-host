@@ -218,7 +218,7 @@ func main() {
 		log.Printf("no model backend set (LLM_API_KEY); /v1/generate (AI create) disabled")
 	}
 
-	// "Ask about this page" on the architecture, features and enterprise pages:
+	// The "Ask" assistants on the features, architecture and enterprise pages:
 	// the same single backend, answering only from text built into the binary.
 	// The box is rendered only when this is on.
 	if ask := cfg.Limits.Ask; cfg.LLMAPIKey != "" && ask.Enabled {
@@ -230,9 +230,9 @@ func main() {
 			ReasoningEffort: ask.ReasoningEffort, MaxTokens: ask.MaxTokens,
 		}).Register(mux)
 		handler.EnableAskWidget()
-		log.Printf("ask about this page enabled (/v1/ask; model %s, reasoning %s, %d tokens; %d per IP then 1 per %ds, %d at once, %d a day)", ask.Model, ask.ReasoningEffort, ask.MaxTokens, ask.Burst, ask.EverySeconds, ask.MaxInFlight, ask.DailyMax)
+		log.Printf("ask assistants enabled (/v1/ask; model %s, reasoning %s, %d tokens; %d per IP then 1 per %ds, %d at once, %d a day)", ask.Model, ask.ReasoningEffort, ask.MaxTokens, ask.Burst, ask.EverySeconds, ask.MaxInFlight, ask.DailyMax)
 	} else {
-		log.Printf("/v1/ask (ask about this page) disabled")
+		log.Printf("/v1/ask (ask assistants) disabled")
 	}
 
 	// Voice input for the builder chat. Local speech-to-text, so this is CPU on

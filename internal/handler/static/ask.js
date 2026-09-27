@@ -1,8 +1,10 @@
-// "Ask about this page": a floating button that opens a small panel. The
-// question goes to POST /v1/ask, and the answer streams in as plain text, then
-// is replaced by the server's cleaned final answer. The conversation lives only
-// in this open page (memory, no storage); the last few turns go with a
-// follow-up so "tell me more" works. Rendered only when the server has it on.
+// The "Ask" assistant: a floating button that opens a small panel. The page
+// names the assistant (data-assistant) and itself (data-page); the question
+// goes to POST /v1/ask, and the answer streams in as plain text, then is
+// replaced by the server's cleaned final answer. The last few turns go with a
+// follow-up so "tell me more" works, and are kept in this tab's sessionStorage
+// so the conversation follows the reader across the assistant's pages; it ends
+// when the tab closes. Rendered only when the server has it on.
 (function () {
   var box = document.querySelector('.sh-ask');
   if (!box) return;
@@ -13,10 +15,26 @@
   var form = box.querySelector('.sh-ask-form');
   var input = box.querySelector('.sh-ask-input');
   var send = box.querySelector('.sh-ask-send');
-  var page = box.getAttribute('data-page');
-  var turns = []; // answered {q, a}, this page view only
+  var assistant = box.getAttribute('data-assistant');
+  var page = box.getAttribute('data-page') || '';
   var MAX_TURNS = 4, MAX_ANSWER = 1500;
   var busy = false, ctrl = null;
+
+  // Answered {q, a}, the last MAX_TURNS, shared by this assistant's pages in
+  // this tab. Storage can be missing or refuse (private windows, blocked
+  // site data); the panel then keeps the conversation of this page only.
+  var KEY = 'sh-ask:' + assistant;
+  function load() {
+    try {
+      var v = JSON.parse(sessionStorage.getItem(KEY) || '[]');
+      if (!Array.isArray(v)) return [];
+      return v.filter(function (t) { return t && typeof t.q === 'string' && typeof t.a === 'string'; }).slice(-MAX_TURNS);
+    } catch (e) { return []; }
+  }
+  function save() {
+    try { sessionStorage.setItem(KEY, JSON.stringify(turns)); } catch (e) {}
+  }
+  var turns = load();
 
   // Markdown links become links only when they point at this site's own pages
   // (the server already drops any other); everything else stays text.
@@ -45,6 +63,21 @@
     el.className = 'sh-ask-a is-' + kind;
     el.textContent = text;
   }
+
+  function addTurn(q) {
+    var turn = document.createElement('div');
+    turn.className = 'sh-ask-turn';
+    var qEl = document.createElement('p');
+    qEl.className = 'sh-ask-q';
+    qEl.textContent = q;
+    var aEl = document.createElement('p');
+    turn.appendChild(qEl);
+    turn.appendChild(aEl);
+    logEl.appendChild(turn);
+    return aEl;
+  }
+  // The conversation so far, from another of the assistant's pages.
+  turns.forEach(function (t) { render(addTurn(t.q), t.a); });
 
   function nearBottom() { return logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 48; }
   function toBottom() { logEl.scrollTop = logEl.scrollHeight; }
@@ -122,16 +155,8 @@
     send.disabled = true;
     panel.setAttribute('aria-busy', 'true');
 
-    var turn = document.createElement('div');
-    turn.className = 'sh-ask-turn';
-    var qEl = document.createElement('p');
-    qEl.className = 'sh-ask-q';
-    qEl.textContent = q;
-    var aEl = document.createElement('p');
-    turn.appendChild(qEl);
-    turn.appendChild(aEl);
-    logEl.appendChild(turn);
-    state(aEl, 'Looking through this page…', 'loading');
+    var aEl = addTurn(q);
+    state(aEl, 'Looking through the pages…', 'loading');
     input.value = '';
     toBottom();
 
@@ -141,7 +166,7 @@
       method: 'POST',
       credentials: 'omit',
       headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
-      body: JSON.stringify({ question: q, page: page, history: history }),
+      body: JSON.stringify({ assistant: assistant, page: page, question: q, history: history }),
       signal: ctrl ? ctrl.signal : undefined
     }).then(function (res) {
       var ct = res.headers.get('Content-Type') || '';
@@ -159,6 +184,7 @@
       render(aEl, answer);
       turns.push({ q: q, a: answer });
       if (turns.length > MAX_TURNS) turns.shift();
+      save();
       if (stick) toBottom();
     }).catch(function (err) {
       state(aEl, (err && err.msg) || "Couldn't answer right now.", 'error');

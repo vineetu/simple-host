@@ -15,7 +15,8 @@ Saved data
 Every site gets a small backend in the same upload, with no server code to write:
 - State: one shared JSON document per site, changed with atomic operations (set, increment, append, remove), with version tags so pages can tell when something changed.
 - Collections: lists for sign-ups, RSVPs, votes and guestbooks, read page by page and exportable as CSV by the owner, who also sees which signed-in visitor sent each item.
-- Private collections: on a site with its own address, a list can be made private so only the site's owner can read it.
+- Kinds: data a page saves without declaring a kind is Shared, and public by default: anyone reads it and visitors add to it. The owner's agent can declare a name as Page info (one document only the owner writes and everyone reads) or as Submissions (things visitors send, from visitors signed in on the site's own address; private to the owner unless made public, each visitor sees, changes and withdraws only their own, with optional one per person and an email to the owner about new ones). Private entries become public only when the owner confirms, and who sent each entry stays visible only to the owner.
+- Who may save: anyone who signs in, or only listed emails and whole domains, plus a block list the owner fills from any entry.
 - History and undo: Every change is kept for 30 days: the owner can look back at earlier versions of the saved data and of each list and restore any of them. A deleted list item goes to Recently deleted; after 30 days it is gone for good, unless the owner restores it (or deletes it for good) sooner. A write retried with the same idempotency key is saved once.
 Each site's live saved data (page data and list items) is capped at 50 MB. The data lives in the Postgres database next to the site's record. A deleted site stays, with its saved data, in Recently deleted for 7 days, and can be restored until then.
 
@@ -31,8 +32,8 @@ Most people never use the dashboard. They ask their AI app or coding agent to pu
 - The Simple Host skill, for coding agents such as Claude Code, Codex and Cursor, which uses the public API with an API key.
 Both are described for agents in https://simple-host.app/llms.txt and the API reference at https://simple-host.app/docs.html.
 
-Create with AI and Ask about this page
-The builder on simple-host.app can write a page from a chat. It uses one AI provider, Grok from xAI, with no fallback provider. The "Ask about this page" panel uses the same provider: the question, the last few questions and answers of the same panel, and a public summary of the page are sent, and nothing about the visitor. Answers appear as they are written. Questions are not stored.
+Create with AI and the Ask assistants
+The builder on simple-host.app can write a page from a chat. It uses one AI provider, Grok from xAI, with no fallback provider. The "Ask" panels (the Simple Host assistant and the Simple Host Enterprise assistant) use the same provider: the question, the last few questions and answers of the conversation (kept in the reader's browser tab only), and a public summary of the pages are sent, and nothing about the visitor. Answers appear as they are written. Questions are not stored.
 
 Visit counts
 Site owners see how many people, bots and monitoring checks visit each site. The counts come from the web server's own log, with no script or cookie added to anyone's page. Visitor addresses are not kept in the analytics database; countries are looked up on the server itself.
