@@ -486,8 +486,32 @@ func (d *DiskStorage) RemoveHandleLink(handle string) error {
 	return os.Remove(path)
 }
 
-// DeleteUser removes an account's content: the handle symlink and the whole
-// by-id directory.
+// RemoveHandleLinkOf deletes handles/<handle> only while it points at this
+// account (../by-id/<userID>), the way UnbindDomainOf treats domain links: a
+// name another account holds now keeps its link. Missing is fine.
+func (d *DiskStorage) RemoveHandleLinkOf(handle, userID string) error {
+	if handle == "" {
+		return nil
+	}
+	if !validPathKey(handle) || !validPathKey(userID) {
+		return fmt.Errorf("invalid handle link %q", handle)
+	}
+	path := filepath.Join(d.dataDir, "handles", handle)
+	cur, err := os.Readlink(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if cur != filepath.Join("..", "by-id", userID) {
+		return nil
+	}
+	return os.Remove(path)
+}
+
+// DeleteUser removes an account's content: the handle symlink (only while it
+// is still this account's) and the whole by-id directory.
 //
 // The database cascades on user_id, so deleting the row alone takes the site
 // rows with it and leaves the files behind, unreachable and unlistable, filling
@@ -496,7 +520,7 @@ func (d *DiskStorage) DeleteUser(userID, handle string) error {
 	if !validPathKey(userID) {
 		return fmt.Errorf("invalid user id %q", userID)
 	}
-	if err := d.RemoveHandleLink(handle); err != nil {
+	if err := d.RemoveHandleLinkOf(handle, userID); err != nil {
 		return err
 	}
 	// Sites in Recently deleted go with the account.

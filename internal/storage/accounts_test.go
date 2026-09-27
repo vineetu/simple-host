@@ -57,3 +57,35 @@ func TestRemoveHandleLink(t *testing.T) {
 		t.Fatal("accepted invalid user path")
 	}
 }
+
+func TestRemoveHandleLinkOfLeavesOthers(t *testing.T) {
+	d, err := NewDiskStorage(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// "shared" points at another account: erasing "owner" must leave it.
+	if err := d.EnsureHandleLink("shared", "other"); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.EnsureHandleLink("mine", "owner"); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.RemoveHandleLinkOf("shared", "owner"); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.DeleteUser("owner", "shared"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(filepath.Join(d.dataDir, "handles", "shared")); err != nil {
+		t.Fatalf("another account's link went: %v", err)
+	}
+	if err := d.RemoveHandleLinkOf("mine", "owner"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(filepath.Join(d.dataDir, "handles", "mine")); !os.IsNotExist(err) {
+		t.Fatalf("own link kept: %v", err)
+	}
+	if err := d.RemoveHandleLinkOf("missing", "owner"); err != nil {
+		t.Fatal(err)
+	}
+}

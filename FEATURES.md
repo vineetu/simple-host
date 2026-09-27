@@ -198,12 +198,14 @@ replaces all keys and disconnects all connector grants. Owner-route 401s carry `
 streamed) gives one archive: `README.txt`, `account.json` (email, handle, display name, created,
 old handles, claimed names incl. retired, custom domains, linked Google/GitHub), `keys.json`
 (name, last4, created, last used; never keys or hashes), `connected_apps.json`, `visitor.json`
-(sites signed in to as a visitor, entries sent to other people's sites) and `sites/<name>/` per
+(sites signed in to as a visitor, entries sent to other people's private lists while signed in) and `sites/<name>/` per
 live site (the per-site export). Analytics are left out (salted hashes, no personal data; the
 README says so). "Delete my account" (`DELETE /v1/me` with `{"confirm": "<handle, or email with
 no handle>"}`) is immediate and final, bypassing Recently deleted: every site (deleted ones too)
 with files, versions, saved data, lists and analytics; keys; connected apps; sign-in identities;
-visitor sessions; pending sign-in codes; and the person's entries in other people's lists. The
+visitor sessions; pending sign-in codes; and the entries the person sent to other people's private
+lists while signed in (public-list entries and shared page data carry no link to anyone and stay;
+the texts say so and point to support@simple-host.app). The
 handle, old handles and claimed names are retired (`handle_aliases`/`legacy_hostnames` with
 `user_id` NULL), never reusable by anyone; custom domains are unbound and their certificate
 requests withdrawn. One confirmation email follows. Refused: 400 `confirm_required` /
@@ -249,7 +251,7 @@ as the person, so they meet the same checks as REST. Connector tokens are stored
 ## 9. Skills and plugin distribution
 
 Skills source is `simple-host-website/skills/` (embedded via `simple-host-website/embed.go`) at
-version **0.20.2**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
+version **0.20.3**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live**
 (ChatGPT and Claude directory listings submitted 2026-09-24, pending).
 

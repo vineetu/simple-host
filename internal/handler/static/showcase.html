@@ -858,7 +858,7 @@
       <div class="section" id="owner-data" hidden>
         <div class="section-num"><h2>Your data</h2><span class="line"></span></div>
         <div class="conn-row">
-          <span><b>Download my data</b><small>One archive with every site (files, saved data and lists), your account, your keys' names (never the keys), connected apps, and the entries you sent to other people's sites.</small></span>
+          <span><b>Download my data</b><small>One archive with every site (files, saved data and lists), your account, your keys' names (never the keys), connected apps, and the entries you sent to other people's private lists while signed in. Entries on public lists and data saved by pages aren't linked to you; for help with those, write to support@simple-host.app.</small></span>
           <button type="button" class="btn btn-secondary btn-small" id="data-download">Download my data</button>
         </div>
         <div class="conn-row" id="data-delete-row">
@@ -870,10 +870,10 @@
           <ul>
             <li>every site, including any in Recently deleted, with its files, every version, saved data and lists</li>
             <li>your keys and connected apps (ChatGPT, Claude, Grok)</li>
-            <li>the entries you sent to other people's sites, which disappear from their lists</li>
+            <li>the entries you sent to other people's private lists while signed in, which disappear from their lists</li>
             <li>your address <b id="data-delete-handle"></b>, your sites' names and custom domains; the names are retired, never given to anyone else</li>
           </ul>
-          <div>Nothing goes to Recently deleted and nothing can be restored. Download your data first if you want a copy.</div>
+          <div>Entries on public lists and data saved by pages aren't linked to you and stay; for help with those, write to support@simple-host.app. Nothing goes to Recently deleted and nothing can be restored. Download your data first if you want a copy.</div>
           <label for="data-delete-input">Type <b id="data-delete-word"></b> to confirm</label>
           <input type="text" id="data-delete-input" autocomplete="off" spellcheck="false">
           <div class="panel-btns">

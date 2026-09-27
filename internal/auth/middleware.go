@@ -80,8 +80,13 @@ func Middleware(adminAPIKey, adminUserID string, database *sql.DB) func(http.Han
 				if errors.Is(err, db.ErrAccountSuspended) {
 					// The key is kept, not deleted, so re-enabling the account
 					// brings it back; the person sees why here.
+					msg := SuspendedMessage(user.SuspendedReason)
+					if r.URL.Path == "/v1/me/export.tar.gz" {
+						// The right of access stands while suspended.
+						msg += "; write to support@simple-host.app for a copy of your data"
+					}
 					writeJSON(w, http.StatusForbidden, map[string]string{
-						"error":  SuspendedMessage(user.SuspendedReason),
+						"error":  msg,
 						"code":   "account_suspended",
 						"reason": user.SuspendedReason,
 					})

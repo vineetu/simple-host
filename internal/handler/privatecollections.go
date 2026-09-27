@@ -143,16 +143,6 @@ func (h *SiteHandler) onOwnDomain(r *http.Request, siteID string) (siteHome, boo
 	return home, strings.EqualFold(home.Host, requestHostName(r)), nil
 }
 
-// ownerBrowserRead decides a non-key read of a private collection: only the
-// site owner, signed in as a visitor on the site's own domain, from a page on
-// that domain. Anyone else gets the 404 (written here) and ok=false.
-//
-// A submitter reading back their own items is deliberately not offered. It
-// was first held back because the Google sign-in hand-off was not bound to
-// the starting browser (login CSRF: a victim signed in as the attacker would
-// submit into the attacker's view). That hand-off is now bound (nonce cookie,
-// 2026-09-26), but the rule stands: a page shows the submitter what they sent
-// from the POST answer.
 // ownerBrowserView reports, writing nothing, whether r comes from the site
 // owner signed in as a visitor on the site's own address (the check
 // ownerBrowserRead makes). Used to keep owner-only fields in public reads.
@@ -168,6 +158,16 @@ func (h *SiteHandler) ownerBrowserView(r *http.Request, siteID string) bool {
 	return err == nil && here && sess.UserID == info.OwnerID
 }
 
+// ownerBrowserRead decides a non-key read of a private collection: only the
+// site owner, signed in as a visitor on the site's own domain, from a page on
+// that domain. Anyone else gets the 404 (written here) and ok=false.
+//
+// A submitter reading back their own items is deliberately not offered. It
+// was first held back because the Google sign-in hand-off was not bound to
+// the starting browser (login CSRF: a victim signed in as the attacker would
+// submit into the attacker's view). That hand-off is now bound (nonce cookie,
+// 2026-09-26), but the rule stands: a page shows the submitter what they sent
+// from the POST answer.
 func (h *SiteHandler) ownerBrowserRead(w http.ResponseWriter, r *http.Request, siteID string) bool {
 	if strings.EqualFold(requestHostName(r), h.contentHost) {
 		writePrivateNotFound(w)

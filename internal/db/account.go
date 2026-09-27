@@ -169,7 +169,8 @@ func EraseAccount(ctx context.Context, tx *sql.Tx, a AccountForDelete) (ErasedAc
 			q    string
 			args []any
 		}{{`INSERT INTO handle_aliases (handle, user_id) VALUES ($1, NULL)
-			ON CONFLICT (handle) DO UPDATE SET user_id = NULL`, []any{a.Handle}}}, steps...)
+			ON CONFLICT (handle) DO UPDATE SET user_id = NULL
+			WHERE handle_aliases.user_id IS NULL OR handle_aliases.user_id = $2`, []any{a.Handle, a.ID}}}, steps...)
 	}
 	for _, s := range steps {
 		if _, err := tx.ExecContext(ctx, s.q, s.args...); err != nil {
@@ -350,15 +351,19 @@ type ExportItem struct {
 	Collection  string
 	Data        []byte
 	CreatedAt   time.Time
-	SubmittedBy string // the submitter's account email, "" for public lists
+	SubmittedBy string // the identity the visitor sent it as, "" for public lists
 }
 
 // ListExportItems returns every item of every list of a site, with its id,
-// time and (on private lists) who submitted it.
+// time and (on private lists) who submitted it. That is the item's own
+// stamped _submitted_by, the address the visitor signed in with on the site,
+// never a join to their account: the account's email may be one they did
+// not give the site owner, and it changes later.
 func ListExportItems(ctx context.Context, database *sql.DB, siteID string) ([]ExportItem, error) {
 	rows, err := database.QueryContext(ctx, `
-		SELECT ci.id, ci.collection, ci.data, ci.created_at, COALESCE(u.username, '')
-		  FROM collection_items ci LEFT JOIN users u ON u.id = ci.submitted_by
+		SELECT ci.id, ci.collection, ci.data, ci.created_at,
+		       CASE WHEN ci.submitted_by IS NOT NULL THEN COALESCE(ci.data->>'_submitted_by', '') ELSE '' END
+		  FROM collection_items ci
 		 WHERE ci.site_id = $1 ORDER BY ci.collection, ci.id`, siteID)
 	if err != nil {
 		return nil, err

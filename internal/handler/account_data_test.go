@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"database/sql"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -79,7 +80,7 @@ func TestAccountExport(t *testing.T) {
 	if err := a.database.QueryRow(`INSERT INTO collection_items (site_id, collection, data) VALUES ($1, 'guestbook', '{"msg":"hi"}') RETURNING id`, shopID).Scan(&pubID); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.database.QueryRow(`INSERT INTO collection_items (site_id, collection, data, submitted_by) VALUES ($1, 'orders', '{"dish":"idly","_submitted_by":"vic"}', $2) RETURNING id`, shopID, vid).Scan(&vicItem); err != nil {
+	if err := a.database.QueryRow(`INSERT INTO collection_items (site_id, collection, data, submitted_by) VALUES ($1, 'orders', '{"dish":"idly","_submitted_by":"vic-google@example.com"}', $2) RETURNING id`, shopID, vid).Scan(&vicItem); err != nil {
 		t.Fatal(err)
 	}
 	a.session(t, vic, shopID, claimed)
@@ -118,9 +119,23 @@ func TestAccountExport(t *testing.T) {
 		colls["guestbook"][0]["data"].(map[string]any)["msg"] != "hi" {
 		t.Errorf("guestbook export: %v", colls["guestbook"])
 	}
-	if len(colls["orders"]) != 1 || colls["orders"][0]["submitted_by"] != vic.email {
-		t.Errorf("orders export lacks its submitter: %v", colls["orders"])
+	// The address Vic signed in with on the site (stamped on the item), never
+	// his account's own email, which he did not give Olive.
+	if len(colls["orders"]) != 1 || colls["orders"][0]["submitted_by"] != "vic-google@example.com" {
+		t.Errorf("orders export submitter: %v", colls["orders"])
 	}
+	if strings.Contains(fileUnder(t, files, "/sites/shop/collections.json"), vic.email) {
+		t.Error("the owner's export holds the visitor's account email")
+	}
+	// A connected app acting for Olive cannot pull the whole account.
+	ik, revoke, ierr := db.IssueInternalKey(oid)
+	if ierr != nil {
+		t.Fatal(ierr)
+	}
+	if r := a.at(t, "GET", apex, "/v1/me/export.tar.gz", nil, map[string]string{"X-API-Key": ik}); r.status != 400 || r.json(t)["code"] != "not_an_account_key" {
+		t.Errorf("connected app export: %d %s", r.status, r.body)
+	}
+	revoke()
 	var keys []map[string]any
 	if err := json.Unmarshal([]byte(fileUnder(t, files, "/keys.json")), &keys); err != nil || len(keys) == 0 {
 		t.Fatalf("keys.json: %v %s", err, fileUnder(t, files, "/keys.json"))
@@ -166,6 +181,33 @@ func TestAccountExport(t *testing.T) {
 
 	if r := a.at(t, "GET", apex, "/v1/me/export.tar.gz", nil, nil); r.status != http.StatusUnauthorized {
 		t.Errorf("export without a key: %d", r.status)
+	}
+	// Suspended: refused, and told where to ask for a copy.
+	if _, err := a.database.Exec(`UPDATE users SET suspended_at = now() WHERE id = $1`, vid); err != nil {
+		t.Fatal(err)
+	}
+	if r := a.at(t, "GET", apex, "/v1/me/export.tar.gz", nil, vkey); r.status != 403 || !strings.Contains(r.json(t)["error"].(string), "support@simple-host.app") {
+		t.Errorf("suspended export: %d %s", r.status, r.body)
+	}
+}
+
+// Erasing an account retires its handle, but a retired-name row another
+// account holds under the same name (possible with namespace checks off)
+// stays that account's.
+func TestEraseLeavesOthersAlias(t *testing.T) {
+	a, _ := newSiteApp(t, "canonical")
+	p, other := a.newPerson(t, "leaver"), a.newPerson(t, "keeper")
+	_, handle := a.userID(t, p)
+	kid, _ := a.userID(t, other)
+	if _, err := a.database.Exec(`INSERT INTO handle_aliases (handle, user_id) VALUES ($1, $2)`, handle, kid); err != nil {
+		t.Fatal(err)
+	}
+	if r := a.at(t, "DELETE", pcSiteDomain, "/v1/me", map[string]string{"confirm": handle}, map[string]string{"X-API-Key": p.key}); r.status != http.StatusNoContent {
+		t.Fatalf("delete: %d %s", r.status, r.body)
+	}
+	var holder sql.NullString
+	if err := a.database.QueryRow(`SELECT user_id FROM handle_aliases WHERE handle = $1`, handle).Scan(&holder); err != nil || holder.String != kid {
+		t.Errorf("another account's alias changed: %v %v", holder, err)
 	}
 }
 

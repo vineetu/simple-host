@@ -819,7 +819,7 @@
       "delete": {
         "operationId": "deleteMe",
         "summary": "Delete your account and all its data",
-        "description": "Deletes the account at once and for good; nothing goes to Recently deleted and nothing can be restored. Removed: every site (including ones in Recently deleted) with its files, versions, saved data, lists and analytics; keys; connected apps; visitor sign-ins; and every entry this person submitted to other people's lists. The handle, old handles and claimed <name>.simple-host.app addresses are retired, never given to anyone else; custom domains are released. A confirmation email goes to the account's address. Offer GET /v1/me/export.tar.gz first. Refused for a suspended account or one holding a site the operator took down (the operator handles those), an admin account, or one still holding event hostnames.",
+        "description": "Deletes the account at once and for good; nothing goes to Recently deleted and nothing can be restored. Removed: every site (including ones in Recently deleted) with its files, versions, saved data, lists and analytics; keys; connected apps; visitor sign-ins; and every entry this person sent to other people's private lists while signed in (entries on public lists and shared page data are not linked to anyone and stay; support@simple-host.app helps with those). The handle, old handles and claimed <name>.simple-host.app addresses are retired, never given to anyone else; custom domains are released. A confirmation email goes to the account's address. Offer GET /v1/me/export.tar.gz first. Refused for a suspended account or one holding a site the operator took down (the operator handles those), an admin account, or one still holding event hostnames.",
         "tags": [
           "Auth"
         ],
@@ -873,7 +873,7 @@
       "get": {
         "operationId": "exportMe",
         "summary": "Download all your data",
-        "description": "Streams one .tar.gz of everything held about the account: README.txt; account.json (email, handle, display name, created, earlier handles, claimed names including retired ones, custom domains, linked Google/GitHub sign-ins); keys.json (name, last 4 characters, created, last used; never keys or hashes); connected_apps.json (name, connected, last used); visitor.json (sites signed in to as a visitor with first sign-in and last seen, and every list entry submitted to other people's sites); and sites/<name>/ for every live site in the same layout as GET /v1/sites/{sitename}/export.tar.gz. Visitor analytics hold no personal data (salted hashes) and are not included.",
+        "description": "Streams one .tar.gz of everything held about the account: README.txt; account.json (email, handle, display name, created, earlier handles, claimed names including retired ones, custom domains, linked Google/GitHub sign-ins); keys.json (name, last 4 characters, created, last used; never keys or hashes); connected_apps.json (name, connected, last used); visitor.json (sites signed in to as a visitor with first sign-in and last seen, and every entry sent to other people's private lists while signed in); and sites/<name>/ for every live site in the same layout as GET /v1/sites/{sitename}/export.tar.gz. Visitor analytics hold no personal data (salted hashes) and are not included. Needs one of the account's own API keys: a connected app or the admin key gets 400 not_an_account_key. A suspended account gets 403 account_suspended and writes to support@simple-host.app for a copy of its data.",
         "tags": [
           "Auth"
         ],
@@ -894,8 +894,28 @@
               }
             }
           },
+          "400": {
+            "description": "Not one of the account's own API keys (code not_an_account_key)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "The account is suspended (code account_suspended); write to support@simple-host.app for a copy of the data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
