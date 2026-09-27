@@ -86,6 +86,22 @@ type Limits struct {
 
 	// Saved data (SAVED_DATA_*): history, undo, the watch and the limits.
 	SavedData SavedData
+
+	// "Ask about this page" (ASK_*).
+	Ask Ask
+}
+
+// Ask is the "Ask about this page" box (POST /v1/ask). It runs only when the
+// LLM_* backend is configured and Enabled is on. Burst questions per address,
+// then one every EverySeconds; DailyMax questions per UTC day across everyone
+// (counted in Postgres), because the subscription behind the backend is
+// shared; at most MaxInFlight answered at once.
+type Ask struct {
+	Enabled      bool // ASK_ENABLED: on/off (on)
+	Burst        int  // ASK_BURST (5)
+	EverySeconds int  // ASK_EVERY_SECONDS (20)
+	DailyMax     int  // ASK_DAILY_MAX (500)
+	MaxInFlight  int  // ASK_MAX_IN_FLIGHT (4)
 }
 
 // SavedData is every number behind saved-data history, undo, the watch and
@@ -210,6 +226,8 @@ func DefaultLimits() Limits {
 		RateTranscribe:      Rate{60, 3 * time.Second},
 
 		SavedData: DefaultSavedData(),
+
+		Ask: Ask{Enabled: true, Burst: 5, EverySeconds: 20, DailyMax: 500, MaxInFlight: 4},
 	}
 }
 
@@ -244,6 +262,29 @@ func durKnob(env, unit string, per time.Duration, min, max int64, p func(*Limits
 			n, err := parseRange(env, v, min, max)
 			*p(l) = time.Duration(n) * per
 			return err
+		}}
+}
+
+// boolKnob is an on/off setting: on, true, 1 or yes; off, false, 0 or no
+// (any case). Anything else is an error.
+func boolKnob(env string, p func(*Limits) *bool) Knob {
+	return Knob{Env: env, Unit: "on/off",
+		Value: func(l *Limits) string {
+			if *p(l) {
+				return "on"
+			}
+			return "off"
+		},
+		set: func(l *Limits, v string) error {
+			switch strings.ToLower(v) {
+			case "on", "true", "1", "yes":
+				*p(l) = true
+			case "off", "false", "0", "no":
+				*p(l) = false
+			default:
+				return fmt.Errorf("%s=%q: want on or off (also true/false, 1/0, yes/no)", env, v)
+			}
+			return nil
 		}}
 }
 
@@ -371,6 +412,12 @@ func Knobs() []Knob {
 		intKnob("SAVED_DATA_READ_BURST", "reads", 1, 100_000, func(l *Limits) *int { return &l.SavedData.ReadBurst }),
 		intKnob("SAVED_DATA_APPEND_PER_MIN", "items", 1, 10_000, func(l *Limits) *int { return &l.SavedData.AppendPerMin }),
 		intKnob("SAVED_DATA_APPEND_BURST", "items", 1, 100_000, func(l *Limits) *int { return &l.SavedData.AppendBurst }),
+
+		boolKnob("ASK_ENABLED", func(l *Limits) *bool { return &l.Ask.Enabled }),
+		intKnob("ASK_BURST", "questions", 1, 50, func(l *Limits) *int { return &l.Ask.Burst }),
+		intKnob("ASK_EVERY_SECONDS", "seconds", 1, 3600, func(l *Limits) *int { return &l.Ask.EverySeconds }),
+		intKnob("ASK_DAILY_MAX", "questions", 0, 100_000, func(l *Limits) *int { return &l.Ask.DailyMax }),
+		intKnob("ASK_MAX_IN_FLIGHT", "questions", 1, 32, func(l *Limits) *int { return &l.Ask.MaxInFlight }),
 	}
 }
 

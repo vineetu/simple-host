@@ -58,6 +58,8 @@ var requiredColumns = map[string][]string{
 	// visitor-signin-nonce.sql
 	"oauth_states":             {"state", "return_to", "host", "site_id", "purpose", "nonce_hash"},
 	"visitor_establish_tokens": {"once", "session_id", "host", "return_to", "nonce_hash"},
+	// ask-daily-count.sql
+	"ask_daily": {"day", "count"},
 }
 
 // VerifySchema refuses to start against a database that is behind the code.

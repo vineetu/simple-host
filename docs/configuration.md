@@ -129,6 +129,21 @@ removes older history and Recently deleted items at the next sweep.
 | `SAVED_DATA_APPEND_PER_MIN` | 30 | 1–10000 | List items one address may add per minute without the owner's key. |
 | `SAVED_DATA_APPEND_BURST` | 30 | 1–100000 | Items allowed at once above that rate. |
 
+## Ask about this page
+
+The "Ask about this page" box on the architecture, features and enterprise pages
+(`POST /v1/ask`). It runs only when a model backend is set (`LLM_API_KEY`, `LLM_BASE_URL`);
+without one the box is not shown, whatever these say. `ASK_ENABLED` is `on` or `off` (also
+`true`/`false`, `1`/`0`, `yes`/`no`); anything else stops the server at startup.
+
+| Variable | Default | Range | What it controls |
+|---|---|---|---|
+| `ASK_ENABLED` | on | on / off | Whether the box is shown and `/v1/ask` answers. |
+| `ASK_BURST` | 5 | 1–50 | Questions one address may ask at once. |
+| `ASK_EVERY_SECONDS` | 20 | 1–3600 | Then one more question every this many seconds, per address. |
+| `ASK_DAILY_MAX` | 500 | 0–100000 | Questions answered per UTC day across everyone (counted in the database, so a restart keeps the count). 0 answers none. |
+| `ASK_MAX_IN_FLIGHT` | 4 | 1–32 | Questions answered at once on the whole install. |
+
 ## Rate limits
 
 Each is `<burst>,<every>` (see Units above). Keys are per client address unless noted.

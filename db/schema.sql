@@ -793,6 +793,12 @@ CREATE TABLE IF NOT EXISTS domain_cert_requests (
 );
 CREATE INDEX IF NOT EXISTS domain_cert_requests_user ON domain_cert_requests (user_id, requested_at);
 
+-- "Ask about this page": questions answered per UTC day, across everyone.
+CREATE TABLE IF NOT EXISTS ask_daily (
+  day   DATE PRIMARY KEY,
+  count INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS schema_migrations (
   name       TEXT PRIMARY KEY,
   applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
