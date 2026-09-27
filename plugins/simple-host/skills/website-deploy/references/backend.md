@@ -1,14 +1,115 @@
-# The per-site backend: state and collections
+# The per-site backend: kinds, state and collections
 
-Every site has a small JSON backend — one shared state document and any number
-of append-only collections — that its own page JavaScript can call. There is no
-server for you to run.
+Every site has a small JSON backend that its own page JavaScript can call. There
+is no server for you to run. Every piece of saved data has a name and one kind
+(below); older sites also have one shared state document and lists nobody
+declared.
+
+## Kinds: what is this data? (declare it first)
+
+Declare each data name once, before the page saves to it. On a site made since
+the kinds, a name nobody declared takes no saves at all, the owner's included:
+409 `declare_first`, whose message names the call to make.
+
+```
+PUT /v1/sites/<sitename>/data/<name>/kind          (owner: X-API-Key; connector: declare_data)
+{"kind": "entries"}                                 Submissions, private to the owner, daily email
+{"kind": "entries", "visibility": "public"}         Submissions anyone can read (no email by default)
+{"kind": "entries", "one_per_person": true}         one entry per signed-in visitor (votes, one RSVP each)
+{"kind": "entries", "notify": "each"}               email: "daily", "each" (batched, soon after they arrive) or "off"
+{"kind": "content"}                                 Page info
+```
+
+A field left out keeps what the name had. `GET /v1/sites/<sitename>/data` (connector:
+`list_data`) lists every name with its kind and settings, and who may save.
+
+**Page info** (`content`): one JSON object that only the owner writes and everyone
+reads — a menu, opening hours, prices, dashboard numbers. The owner saves it with
+`PUT /v1/sites/<sitename>/data/<name>` (connector: `update_data`) or, signed in on the
+site, `SH.data(name).set(obj)`; visitors get 403 `owner_only`. Pages read it with
+`SH.data(name).get()` (null until saved), or `GET /v1/sites/<sitename>/data/<name>`
+(`{name, kind, data, saved_at}`). A Page info document is at most 1 MB, and a site
+declares at most 20 Page info names. Every save keeps the one before it (History in the
+owner app; `data_history` / `restore_data` with the name as `collection`).
+
+**Submissions** (`entries`): things visitors send — RSVPs, orders, sign-ups, votes,
+comments, feedback.
+
+- A signed-in visitor (allowed to save, below) adds one: `SH.data(name).add(obj)`,
+  or `POST /v1/sites/<sitename>/data/<name>`. Each new entry is at most 16 KB, and one name holds at most 10,000 live entries (409 `list_full`).
+- **Private to the owner by default**: the owner reads them all, with who sent
+  each (`by`); everyone else gets 404 on the list. With `"visibility": "public"`
+  anyone reads them, without who sent them.
+- **Each visitor sees, changes and withdraws only their own**:
+  `SH.data(name).mine()` (`GET .../data/<name>?mine=1`), `.update(id, fields)`
+  (`PATCH .../data/<name>/items/<id>`: fields are merged in, null removes one,
+  `_submitted_by`/`_submitted_at` never change), `.remove(id)` (`DELETE`; answers
+  `{"withdrawn": id, "undo_minutes": 10}`), and `.undo(id)` (`POST .../items/<id>/undo`)
+  brings back what they withdrew for 10 minutes. Anything that is not their own
+  live entry is 404. The owner restores anything for 30 days.
+- **One per person** (`"one_per_person": true`): a second entry from the same
+  visitor is 409 `one_per_person` with the `id` of the one they have — change it
+  with `.update(id, ...)` instead.
+- `.list()` and `.count()` (`?count=1`) follow the list's read rule: the owner
+  always, everyone when public.
+- **Email to the owner** (`notify`): `daily` (a digest, the default for private
+  Submissions), `each` (batched: at most one email per name every 10 minutes,
+  counting what arrived), or `off` (the default for public ones). Each email has a
+  one-click "stop these" link. The owner changes it in the owner app (Settings).
+
+**Who may save here** (a site setting; every save from the site's pages — page
+data, lists and Submissions): anyone who signs in (the default), or only the
+listed emails and whole domains, plus a block list in either mode (403
+`not_allowed_to_save`). The owner always may; a blocked visitor can still withdraw
+their own entries.
+
+```
+PUT /v1/sites/<sitename>/savers      {"mode": "listed", "allow": ["@company.com", "ann@example.com"], "block": []}
+PUT /v1/sites/<sitename>/savers      {"mode": "anyone", "block": ["spam@example.org"]}
+POST /v1/sites/<sitename>/savers/block   {"email": "..."}  or  {"collection": "rsvps", "id": 12}
+```
+
+Connector: `set_who_can_save` (replaces both lists; read them with `list_data`
+first) and `block_person`. The owner app has "Who may save here" and a "Block"
+button next to any entry with a sender.
+
+**The helper**, with the kind checked on first use (a mismatch rejects with
+`code: "wrong_kind"`, an undeclared name with `code: "declare_first"`):
+
+```js
+const rsvps = SH.data('rsvps', 'entries');
+await SH.requireSignIn();
+const mine = await rsvps.add({ name: 'Ann', guests: 2 });   // the stored entry, with its id
+const { items } = await rsvps.mine();                      // this visitor's own
+await rsvps.update(mine.id, { guests: 3 });
+await rsvps.remove(mine.id);   // withdraw; await rsvps.undo(mine.id) brings it back
+const menu = await SH.data('menu', 'content').get();       // Page info, for everyone
+```
+
+`SH.data` writes carry an `Idempotency-Key` and are retried once, with the same
+key, after a network error, so they are saved once. Never re-send by hand.
+
+**What does not fit** (say so rather than approximating it): roles, per-field
+rules, joins, search, or several people editing one shared object. Per-visitor
+things nobody else needs (drafts, preferences) belong in `localStorage`.
+
+| Status | Code | Meaning |
+|---|---|---|
+| 409 | `declare_first` | The name has no kind yet. Declare it (`declare_data`), then save. |
+| 409 | `wrong_kind` | Page info takes no entries (the owner PUTs the document); Submissions are not PUT. |
+| 403 | `owner_only` | Only the owner changes Page info. |
+| 409 | `one_per_person` | This visitor already has an entry (`id` in the body): update it instead. |
+| 409 | `list_full` | The name holds as many entries as it may. The owner deletes or clears. |
+| 403 | `not_allowed_to_save` | The owner has not allowed this account to save here (or blocked it). Tell the visitor; do not retry. |
+| 409 | `undo_expired` | Only a visitor's own withdrawal, within the window, comes back; the owner restores older ones. |
+| 413 | `item_too_large` | Over the entry or Page info size above. |
 
 ## Trust model
 
-Reads are public: anyone with the link can read a site's state and its public
-collections. The one exception is a **private collection** (see "Private
-collections" below): visitors add to it, only the site owner reads it.
+Reads are public: anyone with the link can read a site's Page info, its state
+and its public lists. The one exception is private Submissions (a **private
+collection**, see "Private collections" below): visitors add to it, only the site
+owner reads it all, and each visitor reads their own.
 **Writes need an identity.** Each site lives at its own address,
 `https://<site>.<handle>.simple-host.app/` (use the `site_url` the API returned; a
 brand-new account's sites briefly use `https://<handle>.simple-host.app/<site>/`
@@ -234,23 +335,28 @@ Pages stay public; only the list is private.
 Public lists (a guestbook, votes, public comments) stay public. Say so plainly
 when you build one.
 
-### 1. Make the collection private
+### 1. Declare it as private Submissions
 
-Do this before the form goes live. It works before any item exists.
-With the connector: `set_collection_privacy`. Without it:
+Do this before the form goes live. It works before any item exists. Private is
+the default for Submissions, so with the connector: `declare_data` with
+`kind: "entries"`. Without it:
 
 ```
-PUT /v1/sites/<sitename>/collections/orders/privacy
+PUT /v1/sites/<sitename>/data/orders/kind
 X-API-Key: <api_key>
-{"private": true}
+{"kind": "entries"}
 ```
 
-It answers 200 with `"private": true` and a one-line `message`. A collection
-can be made private on any site; only signed-in visitors can submit, and only
-you can read it.
+It answers 200 with `"visibility": "owner"`, `"notify": "daily"` and a one-line
+`message`. On older sites a list can also be made private with
+`set_collection_privacy` (`PUT /v1/sites/<sitename>/collections/orders/privacy`
+with `{"private": true}`); on a new site that declares it as private Submissions.
+Only signed-in visitors can submit, and only you read them all; each visitor sees,
+changes and withdraws their own.
 
-`{"private": false}` makes the list public again, and everything already saved
-in it becomes readable by anyone. Confirm with the owner before sending it.
+`{"visibility": "public"}` (or `{"private": false}`) makes the list public again,
+and everything already saved in it becomes readable by anyone. Confirm with the
+owner before sending it.
 
 ### 2. The form page
 
@@ -451,5 +557,7 @@ management. An agent that already holds the owner's key needs none of this.
 | 409 | `{"code":"idempotency_in_progress"}` | The first request with this `Idempotency-Key` is still being saved. Retry in a moment with the same key. |
 | 409 | `{"code":"idempotency_key_reused"}` | This `Idempotency-Key` was used for a different body. Use a new key for a new write. |
 
-On any of these: keep the form, never claim success, and never re-POST a
-collection item after a partial write.
+On any of these: keep the form, never claim success, and never re-POST an
+entry by hand after a partial write. The kinds' own codes (`declare_first`,
+`wrong_kind`, `owner_only`, `one_per_person`, `list_full`, `not_allowed_to_save`,
+`undo_expired`) are in the table under "Kinds" above.

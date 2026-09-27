@@ -2,22 +2,36 @@
 
 # Saving and reading data: the page helper and the tools
 
-Every site has one shared JSON **state** document and any number of append-only
-**collections**. Pages use them through the hosted helper `https://simple-host.app/auth.js`;
-you use them through the tools. Both are readable by anyone with the site's address, except a
-collection the owner has made private (see "Private collections" below).
+Every piece of saved data has a name and one **kind**, declared once with `declare_data` before
+a page saves to it. On a site made since the kinds, a name nobody declared takes no saves at all
+(`declare_first`). Pages use the hosted helper `https://simple-host.app/auth.js`; you use the
+tools. Older sites also have one shared JSON **state** document and lists nobody declared.
 
-## Choosing the store
+## What is this data?
 
-| Data | Store | Why |
+| Data | Kind | Why |
 |---|---|---|
-| A count, a tally, votes per option, a setting, a short list the owner edits | state | one small document, atomic ops |
-| One thing per visitor submission: RSVP, survey response, order, sign-up, guestbook entry, message | collection | unbounded, O(1) append, newest first, paged |
-| A live total next to a collection | both: append the item, then `inc` a count in state | the page shows the count without paging everything |
+| A menu, opening hours, prices, a schedule, dashboard numbers: the owner writes it, everyone reads it | **Page info** (`kind: "content"`), written with `update_data`, read with `SH.data(name).get()` | only the owner can change it; one document up to 1 MB |
+| One thing per visitor: RSVP, survey response, order, sign-up, message | **Submissions** (`kind: "entries"`), private (the default) | the owner reads all; each visitor sees, changes and withdraws their own |
+| A guestbook, public comments | Submissions with `visibility: "public"` | anyone reads them; who sent each stays with the owner |
+| Votes, one RSVP each | Submissions with `one_per_person: true` (public to show a tally; `SH.data(name).count()`) | a second entry is refused; the visitor changes theirs |
 | A draft, a cart, a preference, "already voted" on this device | `localStorage` in the page | per visitor; never shared |
+| Roles, per-field rules, joins, search, several people editing one object | does not fit | say so instead of approximating it |
 
-State is capped at about 1 MB; a collection item at 64 KB. Anything that grows with every
-visitor belongs in a collection, not in a state array.
+A Submissions entry is at most 16 KB. The owner gets a daily email about new private
+Submissions (`notify: "daily"`; `"each"` for batched soon after they arrive; `"off"`), and
+chooses who may save on the site (`set_who_can_save`: anyone who signs in, or only listed emails
+and `@domains`; `block_person`).
+
+```js
+const rsvps = SH.data('rsvps', 'entries');       // the kind is checked on first use
+await SH.requireSignIn();
+const saved = await rsvps.add({ name: 'Ann', guests: 2 });
+const { items } = await rsvps.mine();             // this visitor's own
+await rsvps.update(saved.id, { guests: 3 });
+await rsvps.remove(saved.id);                     // withdraw; rsvps.undo(saved.id) brings it back
+const menu = await SH.data('menu', 'content').get();
+```
 
 ## Page setup (every page that reads or saves)
 
@@ -51,8 +65,10 @@ Writes:
   view (or starts Google sign-in) and resolves after they sign in, so the save continues. It can
   reject: `code: "use_custom_domain"` (with `.domain`) when the site saves on its own domain, and
   `code: "no_sign_in"`. Keep it inside the same `try` as the save.
-- `await SH.collection(name).append(item)`: append one JSON object. Resolves with the stored
-  item `{ id, data, created_at }`.
+- `await SH.data(name, 'entries').add(item)`: add one JSON object to declared Submissions.
+  Resolves with the stored item `{ id, data, created_at }`. The visitor's own:
+  `.mine()`, `.update(id, fields)`, `.remove(id)`, `.undo(id)`. Page info: `SH.data(name).get()`.
+  On older sites `SH.collection(name).append(item)` does the same for a list nobody declared.
 - `await SH.state.patch(ops)`: atomic ops, applied in order:
   - `{op:'set', path:'a.b', value:1}`
   - `{op:'inc', path:'count', by:1}`
@@ -67,7 +83,7 @@ Reads (no sign-in, except a private collection: owner only):
 
 - `const { data, etag } = await SH.state.get()`: `data` is the document (may be `null` or `{}`
   on a new site; default every field).
-- `await SH.collection(name).list({ limit: 50 })` returns
+- `await SH.data(name).list({ limit: 50 })` (or `SH.collection(name).list(...)`) returns
   `{ items: [ { id, data: {...}, created_at } ], next }`, newest first. For older items call
   `list({ limit: 50, before: next })`; `next` is absent on the last page. Limit is 1-200.
 
@@ -87,7 +103,7 @@ form.onsubmit = async function (e) {
   let appended = false;
   try {
     await SH.requireSignIn();
-    await SH.collection('rsvps').append({
+    await SH.data('rsvps', 'entries').add({
       name: form.name.value.trim(),
       attending: form.attending.value,
       guests: Number(form.guests.value) || 0
@@ -146,10 +162,11 @@ free name or domain is needed first. If the person later adds a free `<name>.sim
 there, its `<site>.<handle>.simple-host.app` address redirects to it, and sign-in and private
 lists carry over.
 
-### 1. Make the collection private
+### 1. Declare it (private is the default)
 
-Before the form goes live: `set_collection_privacy` `{site, collection: "orders", private: true}`.
-It can be set before anything is saved.
+Before the form goes live: `declare_data` `{site, name: "orders", kind: "entries"}`. It can be set
+before anything is saved. On older sites `set_collection_privacy` `{site, collection: "orders",
+private: true}` does the same for a list.
 
 ### 2. The form page
 
@@ -170,7 +187,7 @@ window.addEventListener('DOMContentLoaded', function () {
     btn.disabled = true; status.textContent = 'Sending…';
     try {
       await SH.requireSignIn();
-      const saved = await SH.collection('orders').append({
+      const saved = await SH.data('orders', 'entries').add({
         name: form.name.value.trim(),
         phone: form.phone.value.trim(),
         items: JSON.parse(localStorage.getItem('clay-studio.cart') || '[]')
@@ -211,7 +228,7 @@ window.addEventListener('DOMContentLoaded', async function () {
   const status = document.querySelector('#status'), table = document.querySelector('#orders');
   try {
     await SH.requireSignIn();
-    const r = await SH.collection('orders').list({ limit: 200 });
+    const r = await SH.data('orders').list({ limit: 200 });
     if (!r.items.length) { status.textContent = 'No orders yet.'; return; }
     for (const it of r.items) {
       const tr = table.tBodies[0].insertRow();
@@ -221,13 +238,13 @@ window.addEventListener('DOMContentLoaded', async function () {
       const actions = tr.insertCell();
       const done = document.createElement('button'); done.textContent = 'Mark done';
       done.onclick = async function () {
-        try { const u = await SH.collection('orders').update(it.id, { status: 'done' }); tr.cells[4].textContent = u.data.status; }
+        try { const u = await SH.data('orders').update(it.id, { status: 'done' }); tr.cells[4].textContent = u.data.status; }
         catch (err) { status.textContent = 'Not changed: ' + (err.code || err.status); }
       };
       const del = document.createElement('button'); del.textContent = 'Delete';
       del.onclick = async function () {
         if (!confirm('Delete this order for good?')) return;
-        try { await SH.collection('orders').remove(it.id); tr.remove(); }
+        try { await SH.data('orders').remove(it.id); tr.remove(); }
         catch (err) { status.textContent = 'Not deleted: ' + (err.code || err.status); }
       };
       actions.append(done, ' ', del);

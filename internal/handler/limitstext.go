@@ -296,6 +296,41 @@ var limitPhrases = []limitPhrase{
 	phrase("for 24 hours (SAVED_DATA_IDEMPOTENCY_HOURS", knob("SAVED_DATA_IDEMPOTENCY_HOURS"), func(l *config.Limits) string {
 		return "for " + limitSpan(time.Duration(l.SavedData.IdempotencyHours)*time.Hour) + " (SAVED_DATA_IDEMPOTENCY_HOURS"
 	}),
+
+	// Step 2, kinds: SAVED_DATA_CONTENT_MAX_KB, _CONTENT_NAMES_MAX, _ENTRY_MAX_KB,
+	// _ENTRIES_MAX, _WITHDRAW_UNDO_MINUTES, _NOTIFY_EACH_MINUTES, _SAVERS_MAX
+	phrase("A Page info document is at most 1 MB", knob("SAVED_DATA_CONTENT_MAX_KB"), func(l *config.Limits) string {
+		return "A Page info document is at most " + limitKB(l.SavedData.ContentMaxKB)
+	}),
+	phrase("declares at most 20 Page info names", knob("SAVED_DATA_CONTENT_NAMES_MAX"), func(l *config.Limits) string {
+		return "declares at most " + limitCommas(l.SavedData.ContentNamesMax) + " Page info names"
+	}),
+	phrase("Each new entry is at most 16 KB", knob("SAVED_DATA_ENTRY_MAX_KB"), func(l *config.Limits) string {
+		return "Each new entry is at most " + limitKB(l.SavedData.EntryMaxKB)
+	}),
+	phrase("holds at most 10,000 live entries", knob("SAVED_DATA_ENTRIES_MAX"), func(l *config.Limits) string {
+		return "holds at most " + limitCommas(l.SavedData.EntriesMax) + " live entries"
+	}),
+	phrase("brings back what they withdrew for 10 minutes", knob("SAVED_DATA_WITHDRAW_UNDO_MINUTES"), func(l *config.Limits) string {
+		return "brings back what they withdrew for " + limitSpan(time.Duration(l.SavedData.WithdrawUndoMinutes)*time.Minute)
+	}),
+	phrase(`"undo_minutes": 10}`, knob("SAVED_DATA_WITHDRAW_UNDO_MINUTES"), func(l *config.Limits) string {
+		return `"undo_minutes": ` + limitNum(l.SavedData.WithdrawUndoMinutes) + "}"
+	}),
+	phrase("at most one email per name every 10 minutes", knob("SAVED_DATA_NOTIFY_EACH_MINUTES"), func(l *config.Limits) string {
+		return "at most one email per name every " + limitSpan(time.Duration(l.SavedData.NotifyEachMinutes)*time.Minute)
+	}),
+	phrase("at most 500 emails and domains in total", knob("SAVED_DATA_SAVERS_MAX"), func(l *config.Limits) string {
+		return "at most " + limitCommas(l.SavedData.SaversMax) + " emails and domains in total"
+	}),
+}
+
+// limitKB words a size in KB: "16 KB", "1 MB" (whole megabytes).
+func limitKB(kb int) string {
+	if kb >= 1024 && kb%1024 == 0 {
+		return limitNum(kb/1024) + " MB"
+	}
+	return limitNum(kb) + " KB"
 }
 
 // undoDays words SAVED_DATA_UNDO_DAYS: "30 days", "one day".

@@ -1,6 +1,6 @@
 ---
 name: website-deploy-builder
-description: Plan what to build on Website Deploy (simple-host.app). Helps a user decide whether their idea fits the static + light-backend model, maps it to concrete patterns (shared JSON state with atomic ops, append-only collections, localStorage, public APIs), and produces a focused prompt for an implementation agent. Knows the planning rules that matter - every site lives at its own address, https://<site>.<handle>.simple-host.app/, where visitors sign in (Google or an emailed code) before saving from a page; anything personal (orders, RSVPs, sign-ups) goes in a private collection that only the owner can read; a free <name>.simple-host.app or a custom domain is an optional nicer address. Use when a user is starting a new site or describes a feature idea and needs help mapping it to what the platform can do.
+description: Plan what to build on Website Deploy (simple-host.app). Helps a user decide whether their idea fits the static + light-backend model, maps it to concrete patterns (Page info the owner writes, Submissions visitors send, localStorage, public APIs), and produces a focused prompt for an implementation agent. Knows the planning rules that matter - every site lives at its own address, https://<site>.<handle>.simple-host.app/, where visitors sign in (Google or an emailed code) before saving from a page; every piece of saved data is declared once as Page info or Submissions; anything personal (orders, RSVPs, sign-ups) goes in Submissions, private to the owner by default; a free <name>.simple-host.app or a custom domain is an optional nicer address. Use when a user is starting a new site or describes a feature idea and needs help mapping it to what the platform can do.
 ---
 
 # Website Deploy Builder
@@ -26,7 +26,9 @@ Website Deploy is a static-file host at `https://simple-host.app`. Each site liv
 | Capability | How |
 |---|---|
 | HTML / CSS / JS / images / fonts served as a site | Deploy files inline as JSON (`/files`) or upload a `.tar.gz`/`.zip`. With the connector: `create_site` / `update_site` (`deploy_site` on older connections) |
-| Per-site JSON state (≤ 1 MB, shared across all visitors) | `GET / PUT /v1/sites/<sitename>/state` (same-origin from the page; agents can also use `/v1/u/<handle>/sites/<sitename>/state` on the apex). Reads public; a page write needs the visitor signed in first (`auth.js`) |
+| **What is this data?** Declare each name once before the page saves to it (on a new site an undeclared name takes no saves: `declare_first`) | `declare_data` or `PUT /v1/sites/<sitename>/data/<name>/kind`. **Page info** `{"kind":"content"}`: you write it (`update_data`), everyone reads it (`SH.data(name).get()`) — a menu, hours, prices. **Submissions** `{"kind":"entries"}`: visitors send them (`SH.data(name).add(...)`) — RSVPs, orders, sign-ups, votes, comments; private to the owner unless `"visibility":"public"`; each visitor sees, changes and withdraws their own (`mine` / `update` / `remove`); `"one_per_person": true` for votes; the owner gets a daily email about new private ones (`notify`) |
+| Who may save here | Anyone who signs in (default), or only listed emails and whole `@domains`, plus a block list: `set_who_can_save`, `block_person` |
+| Per-site JSON state (≤ 1 MB, shared across all visitors; older sites) | `GET / PUT /v1/sites/<sitename>/state` (same-origin from the page; agents can also use `/v1/u/<handle>/sites/<sitename>/state` on the apex). Reads public; a page write needs the visitor signed in first (`auth.js`) |
 | Atomic state updates (concurrent-safe counters, lists, votes) | `PATCH .../state` with `{ops:[inc/append/set/remove/removeWhere]}`; `If-None-Match` ETag for cheap polling. A write — same rule as above |
 | Append-only collections (signups / RSVPs / submissions) | `POST/GET /v1/sites/<sitename>/collections/<name>`. GET public; POST is a write. Only the owner removes entries (one, or the whole list) |
 | Private collections (orders, RSVPs, anything personal) | `set_collection_privacy` (or `PUT .../collections/<name>/privacy` `{"private":true}`). Signed-in visitors add; only the site owner — and the Simple Host operator, for moderation — can read it. The owner can edit or delete items (`update` / `remove`). In a public list the owner can delete (spam) but not edit; visitors only append |
@@ -40,13 +42,15 @@ If your idea needs a server you control, a shared SQL database, persistent per-u
 
 **Anyone can read; saving from a page needs sign-in.** Visitors sign in with Google or an emailed code on the site's own address (a sign-in covers that site only); every save from a page needs a signed-in visitor. Agents save with the API key (or the connector). Say this up front, before the page is written, so the form gets its sign-in box.
 
-**Anything personal goes in a private collection.** Orders, RSVPs, survey answers, sign-ups, or anything with names, emails, phone numbers or addresses. A collection can be made private: only signed-in visitors can submit, and only the owner can read it. Plan it in this order:
+**What is this data? One line decides it.** You write it and everyone reads it: **Page info**. Visitors send it: **Submissions**. Plan the kind of every piece of data before the page is written, and declare it first (`declare_data`). It does not fit — and you say so instead of approximating: roles, per-field rules, joins, search, or several people editing one shared object.
 
-1. Make the collection private (`set_collection_privacy`) before the form goes live.
-2. The form page calls `await SH.requireSignIn()` before `SH.collection('orders').append({...})`, and shows the saved item from the answer as the visitor's receipt.
-3. An owner page on the site (e.g. `orders.html`) that signs in, lists the collection, and has "Mark done" (`SH.collection('orders').update(id, {status:'done'})`) and "Delete" (`.remove(id)`) buttons. It works only for the owner's account. The owner also has the dashboard and a spreadsheet download; the agent reads it with `read_collection`.
+**Anything personal goes in private Submissions** (the default). Orders, RSVPs, survey answers, sign-ups, or anything with names, emails, phone numbers or addresses: only signed-in visitors can submit, only the owner reads them all, and each visitor sees, changes and withdraws their own. Plan it in this order:
 
-Public lists (a guestbook, votes, public comments) stay public; say so plainly. Pages are always public; only a private collection is closed, readable by the site owner and the Simple Host operator (for moderation).
+1. Declare it (`declare_data` with `kind: "entries"`) before the form goes live.
+2. The form page calls `await SH.requireSignIn()` before `SH.data('orders', 'entries').add({...})`, and shows the saved item from the answer as the visitor's receipt (and `.mine()` for what they sent before).
+3. An owner page on the site (e.g. `orders.html`) that signs in, lists them (`SH.data('orders').list()`), and has "Mark done" (`.update(id, {status:'done'})`) and "Delete" (`.remove(id)`) buttons. It works only for the owner's account. The owner also has their sites page (every entry with who sent it, a daily email, a spreadsheet download); the agent reads it with `read_collection`.
+
+Public Submissions (a guestbook, public comments) are `"visibility": "public"`; say so plainly. Pages are always public; only private Submissions are closed, readable in full by the site owner and the Simple Host operator (for moderation).
 
 **Always pair a form with a viewer.** Any site that COLLECTS data (a signup, RSVP, guestbook, contact form, order) MUST also ship a second page — e.g. `admin.html` — that reads the same collection back (`GET .../collections/<name>?limit=200` → `{items:[{id,data,created_at},…]}`) and lists every entry for the owner, newest first, plus the live total from state. Link it quietly from the main page (a small "Organizer view →" in the footer). A form with nowhere to read the results is only half the feature — and the person you're building for will not think to ask for the viewer, so add it by default. Mark the viewer `<meta name="robots" content="noindex">`. A public collection is readable by anyone with the link, so don't fake a password; if the entries are personal, make the collection private and the viewer becomes the owner page above.
 
@@ -54,7 +58,7 @@ Public lists (a guestbook, votes, public comments) stay public; say so plainly. 
 
 1. Ask the user what they're trying to build, in plain language. Don't push capabilities at them — let them describe the idea.
 2. Decide whether it can run as a static site. If parts of it can't, name those parts and either propose a static-friendly substitute or recommend a different host for that piece.
-3. If visitors will save anything, say now that they sign in first. If the saves hold personal details, plan a private collection and an owner page.
+3. If visitors will save anything, say now that they sign in first, and name the kind of each piece of data (Page info or Submissions). If the saves hold personal details, plan private Submissions and an owner page.
 4. For the part that can run statically, give them: (a) a one-paragraph explanation of how to structure it, (b) any relevant snippet (storage, routing, external API call), (c) the gotchas.
 5. If they're starting from scratch, finish with a "ready to deploy" handoff: tell them to use the `website-deploy` skill, which handles registration (only without the connector), framework-aware build, packaging, and upload.
 6. If they want to wire a capability into a site they've already deployed, generate a focused prompt they can paste into a fresh agent chat (in their site's repo). Include the pattern, the storage shape, and any gotcha — nothing else.
@@ -108,7 +112,7 @@ window.addEventListener('DOMContentLoaded', async function () {
 </script>
 ```
 
-Full `SH` API (`SH.state`, `SH.collection(name).append/list`, `SH.me`, `SH.signOut`) and the error bodies are in the `website-deploy` skill's `references/backend.md`.
+Full `SH` API (`SH.data(name, kind)`, and on older sites `SH.state` and `SH.collection(name)`; `SH.me`, `SH.signOut`) and the error bodies are in the `website-deploy` skill's `references/backend.md`.
 
 Gotchas: state is public to anyone with the link; never keep personal details in it (use a private collection). Body cap is 1 MB; sending more returns 413.
 
@@ -201,10 +205,11 @@ Optional — every site already has its own `https://<sitename>.<handle>.simple-
 | User says | Capabilities |
 |---|---|
 | "a landing page / portfolio / CV" | static only |
-| "a guestbook" | static + per-site JSON state (atomic `append`) + `auth.js` sign-in |
-| "a waitlist / event RSVP / signup form" | static + append-only collection (+ a live count in state); names or emails in it → private collection + owner page |
-| "take orders / bookings / a survey" | private collection + form with `auth.js` sign-in + owner page (`orders.html`) |
-| "a poll / a vote / a counter" | static + `PATCH` `inc` on state + `auth.js` sign-in |
+| "a guestbook" | static + public Submissions (`visibility: public`) + `auth.js` sign-in |
+| "a waitlist / event RSVP / signup form" | static + private Submissions (the default; `count()` for a live total) + owner page |
+| "take orders / bookings / a survey" | private Submissions + form with `auth.js` sign-in + owner page (`orders.html`) |
+| "a poll / a vote" | static + Submissions with `one_per_person: true` (public to show the tally) + `auth.js` sign-in |
+| "a menu / opening hours / prices I update" | static + Page info (you write it with `update_data`; the page reads `SH.data(name).get()`) |
 | "a tool that runs entirely in the browser" (calculator, drawing app, game) | static + `localStorage` for settings/saves |
 | "a journal / notes app" | static + `IndexedDB` (single-visitor scope) |
 | "a dashboard pulling from a public API" | static + external `fetch()` |
@@ -226,7 +231,7 @@ Example prompt for "save drafts in localStorage":
 
 Example prompt for "let visitors sign the guestbook" (entries belong to signed-in visitors; this site also has a custom domain, so `SH_CONFIG` is required):
 
-> Add a guestbook to this site (deployed on simple-host, custom domain `guests.example.com`, sitename `guestbook`). Load `https://simple-host.app/auth.js` with `window.SH_CONFIG = { site: "guestbook" }` set before the tag, mount `SH.mount('#sh-auth')` next to the form, and call `await SH.requireSignIn()` before `SH.collection('entries').append({name, message})`. On a non-2xx keep the form and show "Not saved". Add `admin.html` (noindex) that lists the collection newest-first. Relative asset links only.
+> Add a guestbook to this site (deployed on simple-host, custom domain `guests.example.com`, sitename `guestbook`). First declare the data: `declare_data` with name `entries`, kind `entries`, visibility `public`. Load `https://simple-host.app/auth.js` with `window.SH_CONFIG = { site: "guestbook" }` set before the tag, mount `SH.mount('#sh-auth')` next to the form, and call `await SH.requireSignIn()` before `SH.data('entries', 'entries').add({name, message})`. On a non-2xx keep the form and show "Not saved". Add `admin.html` (noindex) that lists the collection newest-first. Relative asset links only.
 
 Mirror this shape for `IndexedDB`, external API calls, routing, etc.
 

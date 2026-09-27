@@ -277,6 +277,47 @@ identity. Recently deleted pages by (`deleted_at`, `id`); `next` is an opaque cu
 | Env | `WRITE_AUTH_MODE` · the `SAVED_DATA_*` knobs of §4 |
 | Limits | 64 KB per item (413 `item_too_large`); deleted items kept 30 days; page size 50 default / 200 max; `stateLimiter`; a site with no address of its own (only on instances with `PERSON_HOSTS=off` and no domain) gets 409 `custom_domain_required` for privacy; CSV export is formula-safe |
 
+### Kinds: Page info and Submissions (saved data, step 2)
+
+Step 2 of the saved-data redesign (INTENT 2026-09-27). The owner's agent declares each data name
+once as one **kind**, and the kind decides who reads and who changes what; nobody writes access
+rules. **Page info** (`content`): one JSON object the owner writes (key, connector, or the owner
+signed in on the site; everyone else 403 `owner_only`) and everyone reads; up to
+`SAVED_DATA_CONTENT_MAX_KB` (1 MB) each and `SAVED_DATA_CONTENT_NAMES_MAX` (20) names per site;
+kept as the name's one row in `collection_items`, so it has the same history, undo and size
+accounting. **Submissions** (`entries`): visitors add entries (16 KB each,
+`SAVED_DATA_ENTRY_MAX_KB`; 10,000 live per name, `SAVED_DATA_ENTRIES_MAX`, 409 `list_full`);
+private to the owner by default (`visibility: public` to show them to everyone, without who sent
+them); each signed-in visitor lists (`?mine=1`), changes (`PATCH`, stamps never change) and
+withdraws (`DELETE`) only their own (anything else is 404), and can undo their own withdrawal for
+`SAVED_DATA_WITHDRAW_UNDO_MINUTES` (10; the owner restores anything for 30 days);
+`one_per_person` (409 `one_per_person` with the id of the entry they have); `?count=1` follows
+the list's read rule. **Email on new submissions** (`notify`): `daily` by default for private
+Submissions, `off` for public ones, or `each` (at most one email per name every
+`SAVED_DATA_NOTIFY_EACH_MINUTES`, counting what arrived); sent through the Resend notice sender
+to the site owner's address, with a "stop these" link (HMAC-signed, confirmation page, then POST).
+**Who may save here** (a site setting, every visitor write on the site: page data, lists and
+Submissions): anyone who signs in (default), or only listed emails and whole `@domains`, plus a
+block list in either mode (403 `not_allowed_to_save`), filled from **Block** next to any entry;
+the owner always may; a blocked visitor can still withdraw their own entries. **New sites** are
+created with `legacy_data = false`: a name nobody declared takes no saves at all, the owner's
+included (409 `declare_first`, naming the call to make); `set_collection_privacy` there declares
+the name as Submissions. **Sites that existed before** (`legacy_data`) keep today's behaviour for
+undeclared names; their lists gain the visitor's own edit/withdraw. Page data (`/state`) is
+unchanged on every site; the three tightenings wait for the 7-day watch. **Status: built
+(branch sd/step2).**
+
+| Surface | Details |
+|---|---|
+| Routes | page-facing (`(+/v1/u)`): `GET /v1/sites/{sitename}/data/{coll}` (Page info document, or the list; `?mine=1`, `?count=1`) · `GET /v1/sites/{sitename}/data/{coll}/kind` (public: kind, visibility, one per person) · `POST /v1/sites/{sitename}/data/{coll}` (add an entry) · `PUT /v1/sites/{sitename}/data/{coll}` (Page info, owner) · `PATCH`/`DELETE /v1/sites/{sitename}/data/{coll}/items/{id}` (own entry; the owner's go to the list's owner edit/delete) · `POST /v1/sites/{sitename}/data/{coll}/items/{id}/undo` · `OPTIONS` on each · the same by handle: `GET`/`POST`/`PUT /v1/u/{handle}/sites/{sitename}/data/{coll}` · `GET /v1/u/{handle}/sites/{sitename}/data/{coll}/kind` · `PATCH`/`DELETE /v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}` · `POST /v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}/undo` · owner (key, connector, admin): `GET /v1/sites/{sitename}/data` (every name with kind and settings, who may save) · `PUT /v1/sites/{sitename}/data/{coll}/kind` · `GET`/`PUT /v1/sites/{sitename}/savers` · `POST /v1/sites/{sitename}/savers/block` (`{"email"}` or `{"collection", "id"}`) · emailed link: `GET`/`POST /v1/data-notify/stop` |
+| MCP tools | `declare_data`, `list_data`, `update_data` (Page info), `set_who_can_save`, `block_person`; `set_collection_privacy` declares on new sites |
+| Skill | `website-deploy/SKILL.md` §What is this data? · `references/backend.md` §Kinds · `website-deploy-builder/SKILL.md` §Capability tree |
+| Pages | `st/auth.js` `SH.data(name, kind)`: `get`/`set` (Page info), `add`/`mine`/`list`/`count`/`update`/`remove`/`undo` (Submissions); writes carry an `Idempotency-Key` and retry once after a network error · `st/showcase.html` owner app: each name with its kind badge (page info / submissions), public/private, one per person; **Settings** (kind, one per person, email me: no / soon after they arrive / once a day); **Who may save here** (anyone / only these people, emails and @domains; blocked); **Block** next to any entry with a sender |
+| Go | `h/kinds.go` (`declareData`, `getData`, `putContent`, `updateEntry`, `withdrawEntry`, `undoWithdraw`, `visitorWriteOK` + `saverOK`, savers, `sendSubmissionEmails`, `notifyStop`), `h/collections.go` / `h/privatecollections.go` (kind check, entry rules), `internal/db/kinds.go`, `internal/mcp/kinds.go` |
+| DB | `collection_settings` (`kind`, `one_per_person`, `notify`, `notify_sent_at`, `declared_at`), `sites.savers_mode`, `site_savers`, `sites.legacy_data` (set false on create) · migration `sd2-saved-data-kinds.sql` |
+| Env | `SAVED_DATA_CONTENT_MAX_KB`, `SAVED_DATA_CONTENT_NAMES_MAX`, `SAVED_DATA_ENTRY_MAX_KB`, `SAVED_DATA_ENTRIES_MAX`, `SAVED_DATA_WITHDRAW_UNDO_MINUTES`, `SAVED_DATA_NOTIFY_EACH_MINUTES`, `SAVED_DATA_NOTIFY_DAILY_HOURS`, `SAVED_DATA_SAVERS_MAX` |
+| Limits | codes `declare_first`, `wrong_kind`, `owner_only`, `one_per_person`, `list_full`, `not_allowed_to_save`, `undo_expired`, `too_many_names`, `has_entries`, `invalid_kind`, `invalid_savers`, `too_many_savers`, `no_author`, `item_too_large` |
+
 ## 6. Visitor sign-in (Google, emailed code)
 
 A visitor on a site's own origin signs in with Google or an emailed code, gets a host-only
@@ -409,7 +450,7 @@ as the person, so they meet the same checks as REST. Connector tokens are stored
 ## 9. Skills and plugin distribution
 
 Skills source is `simple-host-website/skills/` (embedded via `simple-host-website/embed.go`) at
-version **0.23.0**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
+version **0.24.0**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live**
 (ChatGPT and Claude directory listings submitted 2026-09-24, pending).
 
@@ -419,7 +460,7 @@ standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: 
 | Skills | `website-deploy` (SKILL.md + references `backend.md`, `operations.md`, `packaging-and-validation.md`, `register.md`, `frameworks.md`), `website-deploy-builder`, `connect-domain` (+ `references/registrars.md`), `run-hackathon` (source only; not in the plugin or `/skills.zip`) |
 | Pages | `st/install.html`, `st/llms.txt`, `st/openapi.yaml` / `st/openapi.json`, `st/docs.html` (Swagger UI) |
 | Go | `h/ui.go` (zips, install scripts, `PluginVersion`), `h/skillshub.go` (catalog; not host-rewritten), `h/instancehost.go` (`rewrittenAssets`, `controlPlaneSkills`), `h/notice_middleware.go` (`X-Skill-Version` → `_notice`), `h/openaichallenge.go`, `simple-host-website/embed.go` |
-| Packaging | `plugins/simple-host/` (Claude plugin: `.claude-plugin/plugin.json`, `.mcp.json` → `https://simple-host.app/mcp`), `.claude-plugin/marketplace.json`, `openai-plugin/` (plugin.json 0.5.1, mcp.json, skills rewrite, assets, demo-sites, SUBMISSION.md), `dist/*.zip`, `simple-host-website/` (legacy plugin, `mcp-server/` Node stdio MCP, `setup.sh`, `template/`) |
+| Packaging | `plugins/simple-host/` (Claude plugin: `.claude-plugin/plugin.json`, `.mcp.json` → `https://simple-host.app/mcp`), `.claude-plugin/marketplace.json`, `openai-plugin/` (plugin.json 0.6.0, mcp.json, skills rewrite, assets, demo-sites, SUBMISSION.md), `dist/*.zip`, `simple-host-website/` (legacy plugin, `mcp-server/` Node stdio MCP, `setup.sh`, `template/`) |
 | Scripts | `scripts/sync-claude-plugin.sh` (copy source → plugin, stamp version), `scripts/check-claude-plugin.sh` (drift + `X-Skill-Version` literals), `scripts/publish-claude-plugin-repo.sh` (→ github.com/vineetu/simple-host-plugin, tag `v$V`), `scripts/build-openai-plugin.sh`, `scripts/check-docs-sync.sh` (routes ↔ openapi ↔ llms.txt ↔ skills) |
 | Env | `PUBLIC_BASE_URL`, `SITE_DOMAIN`, `CONTENT_HOST`, `CNAME_TARGET` (host rewriting), `OPENAI_APPS_CHALLENGE` |
 | External | Claude plugin directory, OpenAI apps portal, GitHub `vineetu/simple-host-plugin`, skills CLI (`npx skills`) |
@@ -582,7 +623,7 @@ responses (§9) is the only in-band notice.
 | Operational times and limits | 62 env vars (`SIGNIN_CODE_TTL_MINUTES`, `MAX_SITES_PER_ACCOUNT`, `DELETED_RETENTION_DAYS`, `RATE_LIMIT_*`, `SAVED_DATA_*`, …), read once at startup with range checks in `internal/config/limits.go` (a bad value stops the server; the sign-in, visitor sign-in and connector OAuth limiters at most 4× looser than default; other rate limits warn past 10×, unknown `RATE_LIMIT_*` names warn), default today's values; promised dates are stored when made (`sites.purge_at`, `idle_remove_at`, `domain_release_at`), so a changed retention or grace applies to new deletions and warnings only; `handler.ApplyLimits` hands db/mcp/tarball their share; copy that states a value follows it (Go text formats it, served pages/docs/skills are rewritten by `h/limitstext.go`, nil at the defaults). Full table, and the issuers' `/etc/simple-host-{domain,site}-certs.conf`: `docs/configuration.md` |
 | Deploy | `/usr/local/bin/simple-host` as `simple-host.service`, env `/etc/simple-host.env`; `deploy/prod/*` (incl. log retention `logrotate-analytics.conf` and `journald-retention.conf`, 30 days), `Dockerfile`, `compose.yaml`, `Makefile`; checks `scripts/check-{docs-sync,features,html,layering,claude-plugin,reserved-subdomains,fresh-install}.sh` |
 
-## 21. MCP tool index (`internal/mcp/tools.go`, 35 tools)
+## 21. MCP tool index (`internal/mcp/tools.go` and `kinds.go`, 40 tools)
 
 | Tool | REST call | § |
 |---|---|---|
@@ -618,11 +659,16 @@ responses (§9) is the only in-band notice.
 | `remove_domain` | `DELETE /v1/sites/{s}/domain` | 3 |
 | `site_analytics` | `GET /v1/sites/{s}/analytics?days=` | 12 |
 | `export_site` | `POST /v1/sites/{s}/export-link` (returns a link to `GET /v1/export?token=`) | 1 |
+| `declare_data` | `PUT /v1/sites/{s}/data/{name}/kind` | 5 |
+| `list_data` | `GET /v1/sites/{s}/data` | 5 |
+| `update_data` | `PUT /v1/sites/{s}/data/{name}` | 5 |
+| `set_who_can_save` | `PUT /v1/sites/{s}/savers` | 5 |
+| `block_person` | `POST /v1/sites/{s}/savers/block` | 5 |
 
 ## 22. Unplaced routes and tools
 
 None. Every `mux.Handle`/`HandleFunc` registration in `cmd/server` and `internal/handler`
 (146 distinct method+path patterns, plus the looped `/mcp`, `/skills/{dir}.*` and
-`rewrittenAssets` routes) and all 34 MCP tools are placed above. Routes that exist outside
+`rewrittenAssets` routes) and all 40 MCP tools are placed above. Routes that exist outside
 the mux: host-routed site hosts / person hosts / claimed names / custom domains (§2, §3) and the
 nginx-only `/v1/transcribe/stream` (§14).

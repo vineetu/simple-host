@@ -363,6 +363,23 @@ What follows from that, and is not negotiable without changing the line above:
   review of step 1 found a flood could fill a site for 30 days with no way out, and replayed
   answers could fill the shared disk. Decided under the approved plan; the owner may overrule.
 
+- **2026-09-27. Saved data step 2 (kinds), as built.** A name is declared with
+  `PUT /v1/sites/{s}/data/{name}/kind` (connector `declare_data`); sites created from now on take
+  no saves under an undeclared name (`declare_first`), sites that existed before keep today's
+  behaviour for undeclared names (`legacy_data`) and page data (`/state`) is unchanged everywhere
+  until the watch ends. Page info is one JSON object per name; Submissions keep using the
+  private/public list underneath, so every list route, the owner app and the undo work on them.
+  A visitor's own entries are theirs to list, change and withdraw (a 10-minute undo of their own
+  withdrawal; the owner restores anything for 30 days); anything not theirs answers 404, never
+  "not yours", so nothing about other people's entries is revealed. "Who may save" is one setting
+  per site (not per name), covering every visitor write on the site; the owner always may, and a
+  blocked person can still withdraw what they sent. The digest email goes to the site owner's
+  sign-in address through the existing notice sender; its stop link is signed with a key derived
+  from the admin key (it must outlive restarts) and acts only on POST from a confirmation page.
+  Filter fields, per-person quotas and the deploy-time `data` map are left for a later step.
+  Reason: the approved plan's step 2, smallest complete version. Decided under the approved
+  plan; the owner may overrule.
+
 ## Open, deliberately parked
 
 - Whether a site that disconnects its domain should be migrated back to a "normal" shared-host site in some

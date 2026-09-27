@@ -45,9 +45,16 @@ done <<<"$documented"
 # .../collections/{coll}/items/{id} (private-list edit/delete) is excluded on
 # purpose: privateManager authorizes it itself (owner or admin key, or the
 # owner's own visitor session on the site's own address; 404 for anyone else).
+# The page-facing saved-data routes (.../data/{coll}, its /kind, and its
+# /items/{id} and /items/{id}/undo) are the kinds' version of state and
+# collections: pages call them with the visitor cookie, and each handler
+# decides who may do what (kinds.go: owner key or the owner's own visitor
+# session for Page info writes and owner edits, the visitor's own entry for
+# theirs). The owner's /data list and /data/{coll}/kind PUT are wrapped.
 echo "== owner routes wrapped with authMiddleware =="
 unwrapped=$(grep -rh --exclude='*_test.go' -oE 'mux\.Handle(Func)?\("[A-Z]+ /v1/sites/[^"]+"[^)]*' internal/handler \
   | grep -vE '/state"|/me"|/visitor/auth|/collections/\{coll\}"|/collections/\{coll\}/items/\{id\}"' \
+  | grep -vE '"(GET|POST|PUT) /v1/sites/\{sitename\}/data/\{coll\}"|"GET /v1/sites/\{sitename\}/data/\{coll\}/kind"|"(PATCH|DELETE) /v1/sites/\{sitename\}/data/\{coll\}/items/\{id\}"|"POST /v1/sites/\{sitename\}/data/\{coll\}/items/\{id\}/undo"|"OPTIONS /v1/sites/\{sitename\}/data/' \
   | grep -v authMiddleware || true)
 if [ -n "$unwrapped" ]; then
   echo "$unwrapped" | sed 's/^/  FAIL: owner route missing authMiddleware: /'

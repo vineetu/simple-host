@@ -1,6 +1,6 @@
 ---
 name: website-deploy
-description: Deploy static websites to simple-host.app. Use when an agent needs to build/validate a static site, deploy it (inline JSON files OR a tar.gz/zip archive), or wire up the per-site backend — shared JSON state with atomic ops and append-only collections. Every site lives at its own address, https://<site>.<handle>.simple-host.app/. Pages and public lists are readable by anyone; visitors sign in with Google or an emailed code via the hosted auth.js before saving from a page, and a collection can be made private so only the owner reads it (orders, RSVPs, sign-ups, anything with personal details); agents write with the Simple Host connector or, without it, an API key from email-code registration.
+description: Deploy static websites to simple-host.app. Use when an agent needs to build/validate a static site, deploy it (inline JSON files OR a tar.gz/zip archive), or wire up the per-site backend — every piece of saved data is declared once as Page info (the owner writes it, everyone reads it) or Submissions (visitors send them; the owner sees all; each visitor sees, changes and withdraws their own; private unless made public). Every site lives at its own address, https://<site>.<handle>.simple-host.app/. Pages and public lists are readable by anyone; visitors sign in with Google or an emailed code via the hosted auth.js before saving from a page, and Submissions stay private to the owner by default (orders, RSVPs, sign-ups, anything with personal details); agents write with the Simple Host connector or, without it, an API key from email-code registration.
 ---
 
 # Website Deploy
@@ -27,7 +27,7 @@ append-only collections) that its own page JavaScript can call.
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.23.0`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.24.0`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -71,7 +71,7 @@ some install methods fetch only `SKILL.md` — fetch the URL instead.
 | Register a user / get an API key (skip with the connector) | `references/register.md` · https://simple-host.app/v1/skills/website-deploy/references/register.md |
 | Detect a framework and build it for path hosting | `references/frameworks.md` · https://simple-host.app/v1/skills/website-deploy/references/frameworks.md |
 | Validate, package, upload, verify | `references/packaging-and-validation.md` · https://simple-host.app/v1/skills/website-deploy/references/packaging-and-validation.md |
-| Shared state, collections, saving from a page or an agent (connector: `get_state`, `update_state`, `read_collection`, `add_to_collection`) | `references/backend.md` · https://simple-host.app/v1/skills/website-deploy/references/backend.md |
+| What is this data (Page info, Submissions), who may save, saving from a page or an agent (connector: `declare_data`, `list_data`, `update_data`, `set_who_can_save`, `block_person`, `read_collection`, `add_to_collection`; older sites: `get_state`, `update_state`) | `references/backend.md` · https://simple-host.app/v1/skills/website-deploy/references/backend.md |
 | Versions, rollback, delete and restore, download a copy, changing the handle, analytics (connector: `list_versions`, `rollback_site`, `preview_version`, `set_site_offline`, `delete_site`, `list_deleted_sites`, `restore_site`, `export_site`, `site_analytics`) | `references/operations.md` · https://simple-host.app/v1/skills/website-deploy/references/operations.md |
 | Private collections (orders, RSVPs, sign-ups, anything personal; connector: `set_collection_privacy`) | `references/backend.md` · https://simple-host.app/v1/skills/website-deploy/references/backend.md |
 | A nicer address (optional): a free `<name>.simple-host.app` or a custom domain | the `connect-domain` skill · https://simple-host.app/v1/skills/connect-domain |
@@ -82,9 +82,10 @@ Typical combinations:
   JSON (below) → verify.
 - **Framework project:** register (if needed) → frameworks → packaging and
   validation.
-- **Site where visitors save something:** backend, before you write the page.
-- **Site that collects personal details** (orders, RSVPs, sign-ups): a private
-  collection first, then the form and an owner page (below).
+- **Site where visitors save something:** declare each piece of data first
+  (below), then the backend reference, before you write the page.
+- **Site that collects personal details** (orders, RSVPs, sign-ups): private
+  Submissions (the default), the form, and an owner page (below).
 
 ## Two ways to deploy
 
@@ -122,7 +123,7 @@ emailed code on the site's own address (a sign-in there covers that site only);
 every save from a page needs a signed-in visitor. The hosted helper does it —
 `<script src="https://simple-host.app/auth.js" defer></script>`,
 `SH.mount('#sh-auth')` next to the form, `await SH.requireSignIn()` before
-`SH.state.patch(...)` or `SH.collection(name).append(...)`. On
+`SH.data(name).add(...)`. On
 `<sitename>.<handle>.simple-host.app` the helper finds the site from the host name
 (on the `<handle>.simple-host.app/<sitename>/` fallback, from the page path); on a
 custom domain set `window.SH_CONFIG = { site: "<sitename>" }` before the tag
@@ -140,26 +141,52 @@ the `SH` API and the error bodies: `references/backend.md`.
 Sign-in identifies the visitor; it does not make the page private. Pages are
 always public. There is no password-locked page feature.
 
-## Personal details go in a private collection
+## What is this data? Declare it first
 
-For orders, RSVPs, survey answers, sign-ups, or anything with names, emails,
-phone numbers or addresses, use a **private collection**. Visitors add to it;
-only the site owner — and the Simple Host operator, for moderation — can read it. The steps, in order:
+Every piece of saved data has a name and one kind. You declare it once, before the
+page saves to it: `declare_data`, or `PUT /v1/sites/<sitename>/data/<name>/kind`.
+On a new site a name nobody declared takes no saves at all (409 `declare_first`).
 
-1. **Make the collection private** before the form goes live:
-   `set_collection_privacy`, or `PUT /v1/sites/<sitename>/collections/<name>/privacy`
-   with `{"private": true}`. Only signed-in visitors can submit, and only the
-   owner can read it.
+- **You (the owner) write it, everyone reads it: Page info** — `{"kind": "content"}`.
+  A menu, schedule, prices, dashboard numbers. You save it with `update_data` (or
+  `PUT /v1/sites/<sitename>/data/<name>` with one JSON object); the page reads it
+  with `SH.data('menu').get()`. Visitors can never change it.
+- **Visitors send it: Submissions** — `{"kind": "entries"}`. RSVPs, orders,
+  sign-ups, votes, comments, feedback. Private to the owner by default; add
+  `"visibility": "public"` for a guestbook or public comments. Each visitor sees,
+  changes and withdraws only their own. `"one_per_person": true` for votes or one
+  RSVP each. The owner gets a daily email about new private entries (`"notify"`:
+  `daily`, `each` for batched soon after they arrive, or `off`; public ones default
+  to `off`).
+- **It does not fit** (say so instead of approximating it): roles, per-field rules,
+  joins, search, or several people editing one shared object.
+
+In the page: `const rsvps = SH.data('rsvps', 'entries')` (the kind is checked), then
+`await SH.requireSignIn(); await rsvps.add({...})`; the visitor's own:
+`rsvps.mine()`, `rsvps.update(id, fields)`, `rsvps.remove(id)` (withdraw; `rsvps.undo(id)`
+brings it back for a few minutes). Everyone (a public list), or the owner:
+`rsvps.list()`, `rsvps.count()`.
+
+**Personal details** (orders, RSVPs, survey answers, sign-ups, anything with names,
+emails, phone numbers or addresses) go in private Submissions — the default:
+
+1. **Declare it** before the form goes live: `declare_data` with `kind: "entries"`.
+   Only signed-in visitors can submit; only the owner (and the Simple Host operator,
+   for moderation) reads them all.
 2. **The form page** calls `await SH.requireSignIn()` before
-   `SH.collection('orders').append({...})`.
-3. **An owner page** on the site (e.g. `orders.html`) signs in and lists the
-   collection, with buttons to mark an item done (`SH.collection('orders').update(id, {status:'done'})`)
-   or delete it (`.remove(id)`). It works only for the owner's account. The owner also sees the
-   list in the dashboard and can download it as a spreadsheet; the agent reads it
-   with `read_collection`.
+   `SH.data('orders', 'entries').add({...})`, and can show the visitor their own
+   with `.mine()`.
+3. **An owner page** on the site (e.g. `orders.html`) signs in and lists them with
+   `SH.data('orders').list()`, with buttons to mark an item done
+   (`.update(id, {status:'done'})`) or delete it (`.remove(id)`). It works only for
+   the owner's account. The owner also sees every name with its kind and entries
+   (with who sent each) in their sites page and can download a spreadsheet; the
+   agent reads it with `read_collection`.
 
-Public lists (a guestbook, votes, public comments) stay public; say so plainly.
-Full code and error codes: `references/backend.md`.
+**Who may save here** (a site setting): anyone who signs in (the default), or only
+listed emails and whole domains (`@company.com`), plus a block list —
+`set_who_can_save`, and `block_person` (or "Block" next to an entry in the owner
+app). Full code, limits and error codes: `references/backend.md`.
 
 ## Rules that always apply
 
@@ -175,12 +202,12 @@ Full code and error codes: `references/backend.md`.
   it; older versions stay on disk. Rollback re-points at an existing version.
   To show the person a change before visitors see it, deploy with
   `?publish=false` and give them the `preview_url` (see `references/operations.md`).
-- **Sites and their data are public to anyone with the link**, except a private
-  collection, which only the owner reads. The visitor
+- **Sites and their data are public to anyone with the link**, except private
+  Submissions, which only the owner reads in full (each visitor reads their own). The visitor
   session is site-scoped and is **not** an API key — it cannot deploy or delete.
   On a failed write keep the form, never claim success on a non-2xx, and never
-  re-POST a collection item after a partial write (to retry safely, send the same
-  `Idempotency-Key` header again). Pair every form with a page that shows what
+  re-POST an entry by hand after a partial write (`SH.data` writes carry an
+  `Idempotency-Key` and retry safely; elsewhere send the same key again). Pair every form with a page that shows what
   was collected.
 - **Saved data has a 30-day undo.** Every change to state and every edit,
   delete or clear of list items is kept, with who made it; the owner restores

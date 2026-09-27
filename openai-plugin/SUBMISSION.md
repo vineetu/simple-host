@@ -91,7 +91,7 @@ Portal → **Create plugin** → **With MCP**. Package name `simple-host` (it mu
 | Content security policy | none: the server returns no UI |
 | Domain verification | the portal shows a token → put it in `/etc/simple-host.env` as `OPENAI_APPS_CHALLENGE=<token>`, restart, confirm `curl -s https://simple-host.app/.well-known/openai-apps-challenge` prints exactly the token, then **Verify Domain**. Leave Challenge Base URL empty (it defaults to the MCP host). nginx already proxies `/.well-known/*` on the apex to the app. |
 
-Then **Scan Tools**. Expect 35 tools, no UI templates, the server `instructions`, no imported
+Then **Scan Tools**. Expect 40 tools, no UI templates, the server `instructions`, no imported
 skills (the server does not offer the skills extension; skills are uploaded instead).
 Every tool declares an `outputSchema` describing its `structuredContent`
 (`internal/mcp/outputs.go`), so the scan should raise no "Add an outputSchema" recommendation.
@@ -138,6 +138,11 @@ Values are set by the server (`internal/mcp/tools.go`) and pinned by
 | list_deleted | true | false | false | Lists items deleted from one of the owner's lists in the last 30 days. Changes nothing. |
 | restore_item | false | false | true | Brings deleted list items back onto the site (open world: a public list shows them again). Nothing is deleted or overwritten. |
 | delete_forever | false | true | false | Removes for good what the 30-day undo still holds: one item of a list's recently deleted, all of it, or the site's history (earlier versions). Never touches live data. Irreversible, so it requires the id, list name or site name twice (`confirm_*`) and the description tells the model to get explicit confirmation of exactly what. Removes data only; nothing is published. |
+| declare_data | false | false | true | Declares what one data name on the person's site is (Page info the owner writes, or Submissions visitors send) and its options. Changes a setting and deletes nothing; declaring it again gives the same result. Public visibility puts a list's contents on the public internet, hence open world. |
+| list_data | true | false | false | Lists a site's data names with their kinds and settings, and who may save. Changes nothing. |
+| update_data | false | true | true | Replaces a Page info document (a menu, hours) shown on the public site: an overwrite, so destructive, even though the earlier version is kept 30 days (`restore_data`). |
+| set_who_can_save | false | false | false | Chooses who may save on the person's own site (anyone who signs in, or listed emails and domains, plus a block list). A setting only; nothing is deleted or published. |
+| block_person | false | false | false | Adds one person or domain to the site's block list. What they sent stays; nothing is deleted or published, and the block can be lifted. |
 | connect_domain | false | false | true | Gives a site its own address: a free `<name>.simple-host.app` (active at once) or an arbitrary outside domain the person names, served once its DNS points here and a TXT ownership record proves it is theirs. Either way the site is served at a new public address. Nothing is deleted; an outside domain stays provisional until its TXT record proves ownership. |
 | remove_domain | false | true | true | Disconnects a site's custom domain or free `<name>.simple-host.app` address, so the site is served at a different public address (open world). Destructive: links to a disconnected custom domain stop working and the domain can then be connected by someone else. Requires the address typed out (`confirm_domain`) and the description tells the model to get explicit confirmation first. |
 
@@ -183,7 +188,7 @@ at `https://<site>.<reviewer handle>.simple-host.app/` (briefly
 
 **P2 — Build the RSVP page with an admin page (starter prompt 2)**
 - Prompt: "Make a beautiful RSVP page for my garden party on October 12, with an admin page showing who is coming"
-- Expected behaviour: `create_site` with `index.html` (form that calls `SH.requireSignIn()` then `SH.collection('rsvps').append(...)`) and `admin.html` (signs in and lists the collection). Because RSVPs carry names, the model offers `set_collection_privacy` on `rsvps` so only the owner can read the list; if the reviewer declines, the list stays public and the reply says so.
+- Expected behaviour: `create_site` with `index.html` (form that calls `SH.requireSignIn()` then `SH.data('rsvps', 'entries').add(...)`) and `admin.html` (signs in and lists them). RSVPs carry names, so the model declares `rsvps` with `declare_data` as private Submissions (the default: only the owner reads the list, each guest sees their own); if the reviewer asks for a public list, it declares `visibility: public` and the reply says so.
 - Expected result: the site URL plus the admin page URL; both load.
 - Fixtures: none.
 
@@ -209,7 +214,7 @@ at `https://<site>.<reviewer handle>.simple-host.app/` (briefly
 
 **N1 — Asking for a password that does not exist**
 - Scenario: "Put my RSVP page behind a password so only I can see it."
-- Expected: no tool call that claims to password-protect a page; the model explains that pages are always public and cannot be password-protected. It offers what does exist: the RSVP list itself can be made owner-only (`set_collection_privacy`), with an admin page that shows it only to the owner signed in.
+- Expected: no tool call that claims to password-protect a page; the model explains that pages are always public and cannot be password-protected. It offers what does exist: the RSVP list itself can be owner-only (private Submissions, `declare_data`), with an admin page that shows it only to the owner signed in.
 - Why: the product cannot make pages private; claiming otherwise would mislead the person.
 
 **N2 — Deleting without confirmation**

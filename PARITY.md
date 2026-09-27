@@ -45,6 +45,7 @@ that should get it). Last derived from both `FEATURES.md` files and code on 2026
 | Who wrote saved data | every visitor write records its author (account + signed-in address): list items (public too; owner reads `by`, CSV `sent_by`), state history; shown only to the owner; account deletion takes the person's entries and their address from history (2026-09-27) | audit log records writes | `same` — each keeps an author where its owner looks |
 | The saved-data watch | counts per site and day of the uses a later step tightens (visitor whole-document replace, non-object documents, visitor ops by type, visitor `inc` beyond 10, new list names, items over 16 KB), `GET /v1/admin/data-watch`, admin panel; `SAVED_DATA_WATCH_DAYS` (7) before enforcing (2026-09-27) | none | `gap → enterprise` — enterprise logs whole-replace by viewers before splitting `WriterAllowed` (redesign §7.1) |
 | Collections and private collections | lists visitors append to; the owner deletes entries or empties a list (public ones too, 2026-09-27); private ones on a site's own origin, owner-only read, CSV export | none | `different on purpose` — enterprise decision 2026-09-23: per-site state is the only data store |
+| Saved-data kinds and who may save | each data name declared once as Page info (`content`: owner writes, everyone reads) or Submissions (`entries`: visitors send; owner reads all; each visitor sees, changes and withdraws their own, with a 10-minute undo; private unless public; one per person; owner emailed daily/batched/off); who may save per site (anyone signed in, or listed emails and @domains, plus a block list and "Block this person"); new sites take no saves under undeclared names (`declare_first`), sites from before keep today's behaviour (`legacy_data`); `PUT .../data/{name}/kind`, `/data`, `/savers`, `declare_data`/`list_data`/`update_data`/`set_who_can_save`/`block_person`, `SH.data`, owner app Settings (2026-09-27, saved-data redesign step 2) | none | `gap → enterprise` — owner decision 2026-09-27: Submissions and Personal go to Enterprise after hosted has run them for a few weeks (reopens 2026-09-23 "state is the only data store") |
 | Assets (runtime file uploads) | none | per-site uploads, served at `/_assets/{id}`, counted in quota | `gap → hosted` |
 | Malware scan on upload | none | optional clamd, fail closed | `different on purpose` — clamd needs ~1 GB RAM, above the small-box floor |
 | Upload validation | `internal/tarball` sanitize, size caps, `blockedExtensions` | same package lineage, same checks | `same` |
@@ -116,7 +117,7 @@ Every numbered `FEATURES.md` section, per repo, and the rows above that cover it
 | hosted | Per-site and per-person addresses, and legacy redirects | Per-site hosts; "Your own address is on its way"; Per-owner certificates; Small-box path model |
 | hosted | Claimed `<name>.simple-host.app` and custom domains | Free names; Custom domains |
 | hosted | Saved state (shared JSON per site) | Saved state; Saved-state history; Who wrote saved data; The saved-data watch |
-| hosted | Collections, including private collections | Collections and private collections; Saved-state history; Who wrote saved data |
+| hosted | Collections, including private collections | Collections and private collections; Saved-data kinds and who may save; Saved-state history; Who wrote saved data |
 | hosted | Visitor sign-in (Google, emailed code) | Visitor sign-in on a site |
 | hosted | Owner auth (API keys, email codes, profile) | Owner sign-in; Sign out and sign out everywhere; Change sign-in email; Sign-in alert email; API keys rows; Change a person's address; Data export and account erasure |
 | hosted | MCP connector and OAuth (chat apps) | MCP connector; Connector token lifetime; Connected apps; MCP error hints |
@@ -132,7 +133,7 @@ Every numbered `FEATURES.md` section, per repo, and the rows above that cover it
 | hosted | Abuse limits and hardening | Rate limits and abuse caps; Quotas; Security headers |
 | hosted | Signals and notifications | Notifications |
 | hosted | Operations (health, schema, CLI) | Health and metrics; Deployment model; Schema migrations and version stamp; Operational times and limits |
-| hosted | MCP tool index (`internal/mcp/tools.go`, 35 tools) | MCP tools |
+| hosted | MCP tool index (`internal/mcp/tools.go` and `kinds.go`, 40 tools) | MCP tools |
 | hosted | Unplaced routes and tools | (index of FEATURES itself, no feature) |
 | enterprise | Identity: OIDC sign-in, sessions, hand-off | Owner sign-in and sessions; Sign out and sign out everywhere; Change sign-in email; Sign-in alert email; Visitor sign-in on a site |
 | enterprise | API keys (CI and automation) | API keys rows; Revoke a leaked key (admin); Why a key stopped working |

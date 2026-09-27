@@ -427,6 +427,66 @@
         "open_world_justification": "The link is handed to the person in the chat; nothing is published or sent anywhere.",
         "destructive_justification": "Nothing is created, changed or deleted."
       }
+    },
+    "declare_data": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It records what one data name on the person's site is (Page info or Submissions) and its settings, so it changes data.",
+        "open_world_justification": "Choosing public visibility makes a list's contents readable by anyone on the internet.",
+        "destructive_justification": "It changes a setting only; nothing is deleted, and declaring it again gives the same result."
+      }
+    },
+    "list_data": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It only lists the site's data names with their kinds and settings, and who may save; it changes nothing.",
+        "open_world_justification": "It reads the person's own site; nothing is published or sent anywhere.",
+        "destructive_justification": "Nothing is created, changed or deleted."
+      }
+    },
+    "update_data": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "It replaces a Page info document (e.g. a menu) on the person's site.",
+        "open_world_justification": "Page info is shown on the public site, so the change reaches the public internet.",
+        "destructive_justification": "It overwrites the previous document; the earlier version is kept for 30 days and restore_data brings it back, but the overwrite itself is destructive."
+      }
+    },
+    "set_who_can_save": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It changes who may save on the person's site.",
+        "open_world_justification": "It is a setting on the person's own site; nothing is published or sent anywhere.",
+        "destructive_justification": "It changes a setting only; nothing is deleted, and it can be set back."
+      }
+    },
+    "block_person": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It adds a person or domain to the site's block list.",
+        "open_world_justification": "It is a setting on the person's own site; nothing is published or sent anywhere.",
+        "destructive_justification": "Nothing is deleted: what the blocked person sent stays, and the block can be lifted with set_who_can_save."
+      }
     }
   },
   "test_cases": [
@@ -451,8 +511,8 @@
     {
       "description": "Give a site its own free address and make its orders private, using the sample pickle shop in the demo account.",
       "user_prompt": "Put my pickle shop on its own address pickle-shop-demo.simple-host.app and make its orders private.",
-      "tools_triggered": "connect_domain, set_collection_privacy",
-      "expected_output": "The shop is live at https://pickle-shop-demo.simple-host.app/ immediately (no DNS step) and its orders list is marked private, readable only by the owner."
+      "tools_triggered": "connect_domain, declare_data",
+      "expected_output": "The shop is live at https://pickle-shop-demo.simple-host.app/ immediately (no DNS step) and its orders are declared as private Submissions, readable only by the owner (each visitor sees their own)."
     },
     {
       "description": "See how many people visited a site.",

@@ -41,8 +41,11 @@ visitors' sign-ins and browser-kept data start fresh when it does.
 | Take offline or back online (keeps everything) | `set_site_offline` |
 | Keep a site up even if nobody visits it | `keep_site` |
 | Undo a delete (within 7 days) | `list_deleted_sites`, `restore_site` |
-| Saved data | `get_state`, `update_state`, `list_collections`, `read_collection`, `add_to_collection` |
-| Keep a list owner-only | `set_collection_privacy` |
+| Say what each piece of saved data is (before the page saves to it) | `declare_data` (Page info or Submissions), `list_data` |
+| Write Page info (menu, hours, prices) | `update_data` |
+| Who may save on a site; block someone | `set_who_can_save`, `block_person` |
+| Saved data | `read_collection`, `add_to_collection`, `list_collections`; older sites: `get_state`, `update_state` |
+| Keep a list owner-only | private is the default for Submissions; `set_collection_privacy` changes it |
 | Mark done (private lists), delete an item or empty a list (any list) | `update_collection_item`, `delete_collection_item`, `clear_collection` |
 | Saved data went missing or was overwritten (last 30 days) | `data_history`, `restore_data`; deleted list items: `list_deleted`, `restore_item` |
 | Remove saved data for good (erase request, spam flood) | `delete_forever`, after the person confirms exactly what |
@@ -107,13 +110,23 @@ Every page is public: anyone with the link can open it. There are no password-pr
 `set_visibility` `unlisted` only keeps a site off the person's public page; it is not privacy.
 Never put secrets, keys or passwords in pages or data.
 
-Saved data is public by default too. State and every collection can be read by anyone with the
-site's address. The one exception is a **private collection**: on any site, the owner can make
-a list owner-only. Visitors signed in on the site's own address can add to it; only the site
-owner — and the Simple Host operator, for moderation — can read it. The page that shows it
-is still a public page; the list behind it is what is private.
+Every piece of saved data has a name and one kind, declared once with `declare_data` before a
+page saves to it (on a new site an undeclared name takes no saves: `declare_first`):
 
-Public lists stay public: a guestbook, votes, public comments. Say so plainly when building them.
+- **Page info** (`kind: "content"`): only the owner writes it (you, with `update_data`), everyone
+  reads it: a menu, opening hours, prices.
+- **Submissions** (`kind: "entries"`): visitors send them: RSVPs, orders, sign-ups, votes,
+  comments. **Private to the owner by default**: only the owner — and the Simple Host operator,
+  for moderation — reads them all; each visitor sees, changes and withdraws their own. The owner
+  gets a daily email about new ones. `visibility: "public"` makes them readable by anyone (a
+  guestbook, public comments); say so plainly when building one. `one_per_person: true` for
+  votes.
+- It does not fit: roles, per-field rules, joins, search, or several people editing one shared
+  object. Say so instead of approximating it.
+
+The page that shows a private list is still a public page; the list behind it is what is
+private. Who may save on a site: anyone who signs in (default) or only listed emails and whole
+`@domains`, plus a block list (`set_who_can_save`, `block_person`).
 
 Never ask visitors for payment details, ID numbers or health information, private list or not.
 
@@ -123,14 +136,15 @@ For orders, RSVPs, survey answers, sign-ups, or anything with names, emails, pho
 addresses, do these three things, in order. They work on the site's own address
 (`<site>.<handle>.simple-host.app`); no other address is needed first.
 
-1. **Make the list private** before the form goes live:
-   `set_collection_privacy` `{site, collection: "orders", private: true}`. It can be set before
+1. **Declare it** before the form goes live: `declare_data`
+   `{site, name: "orders", kind: "entries"}` (private is the default). It can be set before
    anything is saved.
-2. **The form page** calls `SH.requireSignIn()` before `SH.collection('orders').append(item)`.
+2. **The form page** calls `SH.requireSignIn()` before `SH.data('orders', 'entries').add(item)`.
    Each item is stamped with the visitor's verified email (`_submitted_by`) and the time
-   (`_submitted_at`).
+   (`_submitted_at`). The visitor sees, changes and withdraws their own with `.mine()`,
+   `.update(id, fields)` and `.remove(id)`.
 3. **An owner admin page** on the site (e.g. `orders.html`, linked quietly or not at all) that
-   signs in and lists the collection, with "Mark done" and "Delete" per item if useful. It
+   signs in and lists them (`SH.data('orders').list()`), with "Mark done" and "Delete" per item if useful. It
    works only for the owner's account; anyone else sees nothing. The owner also sees the list
    in the dashboard, can download it as a spreadsheet, and you can read it with
    `read_collection`.
@@ -147,8 +161,9 @@ delete an item (spam) but not edit it (`append_only`). `clear_collection`
 `{site, collection, confirm_collection}` empties a whole list, only after the person has
 confirmed that list by name. Visitors can never edit or delete items.
 
-Making it public again (`private: false`) puts everything already saved on the public internet;
-confirm with the person first.
+Making it public (`declare_data` with `visibility: "public"`, or `set_collection_privacy`
+`private: false`) puts everything already saved on the public internet; confirm with the person
+first.
 
 If the person later adds a free `<name>.simple-host.app` or their own domain, the site moves
 there and its `<site>.<handle>.simple-host.app` address redirects to it. Sign-in and private
@@ -156,13 +171,12 @@ lists carry over.
 
 ## Saving data from a page
 
-Every site has two stores, both readable by anyone unless a collection is made private:
-
-- **State**: one shared JSON document (about 1 MB) for counters, settings, tallies, small
-  lists. Change it with atomic ops so visitors saving at once never clobber each other:
-  `set`, `inc`, `append`, `remove`, `removeWhere`.
-- **Collections**: append-only lists, one item per submission (up to 64 KB each), read newest
-  first and paged. Use one for RSVPs, responses, orders, guestbook entries, sign-ups.
+Declare each name first (`declare_data`, above). Pages then use `SH.data(name, kind)`:
+Page info with `.get()`; Submissions with `.add(item)`, the visitor's own with `.mine()`,
+`.update(id, fields)`, `.remove(id)` (and `.undo(id)` for a few minutes), and `.list()` /
+`.count()` for the owner or a public list. Older sites also have one shared **state** document
+(`SH.state`, atomic ops) and lists nobody declared (`SH.collection`); `list_data` says whether
+undeclared names still take saves there.
 
 Pages save through the hosted helper. Put `SH.requireSignIn()` before every save:
 
@@ -177,8 +191,7 @@ window.addEventListener('DOMContentLoaded', function () {
     e.preventDefault();
     try {
       await SH.requireSignIn();
-      await SH.collection('rsvps').append({ name: form.name.value, guests: +form.guests.value });
-      await SH.state.patch([{ op: 'inc', path: 'count', by: 1 }]);
+      await SH.data('rsvps', 'entries').add({ name: form.name.value, guests: +form.guests.value });
       showDone();
     } catch (err) { showError('Not saved: ' + (err.code || err.status)); }
   };
@@ -194,8 +207,7 @@ everywhere (it is harmless where it is not needed).
 Rules that make forms trustworthy:
 
 - On a failed save, keep the form filled, show the error, and never claim success. Never re-send
-  a collection item after an error. If the append succeeded and a follow-up count patch failed,
-  retry only the patch.
+  an entry by hand after an error (`SH.data` writes already retry safely once).
 - **Pair every form with a page that shows what was collected** (`results.html` or
   `admin.html`), linked quietly from the main page's footer, with
   `<meta name="robots" content="noindex">`. The person will not think to ask for it. For a

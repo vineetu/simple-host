@@ -3685,7 +3685,7 @@
       "get": {
         "operationId": "getSitesBySitenameCollections",
         "summary": "List collections a site has saved",
-        "description": "Owner-only inventory of named collections on this site, with row count, most-recent write, whether the list is private and how many items are in its Recently deleted. A private list, and a list whose items were all deleted in the last 30 days, is listed even while empty (then `count` is 0 and `last_at` is null). Empty site returns `{collections:[]}`.",
+        "description": "Owner-only inventory of named collections on this site, with row count, most-recent write, whether the list is private, how many items are in its Recently deleted, and its kind if declared. A private or declared list, and a list whose items were all deleted in the last 30 days, is listed even while empty (then `count` is 0 and `last_at` is null). Empty site returns `{collections:[]}`.",
         "tags": [
           "Collections"
         ],
@@ -3735,6 +3735,26 @@
                             "type": "integer",
                             "example": 0,
                             "description": "items in the list's Recently deleted (GET .../collections/{coll}/deleted)"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "",
+                              "content",
+                              "entries"
+                            ],
+                            "description": "What the name was declared as (PUT .../data/{coll}/kind): content (Page info), entries (Submissions), or empty (not declared)"
+                          },
+                          "one_per_person": {
+                            "type": "boolean"
+                          },
+                          "notify": {
+                            "type": "string",
+                            "enum": [
+                              false,
+                              "each",
+                              "daily"
+                            ]
                           }
                         }
                       }
@@ -4187,6 +4207,1102 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/data": {
+      "get": {
+        "operationId": "listSiteData",
+        "summary": "List a site's data names with their kinds",
+        "description": "Owner only (X-API-Key or a connector token; the operator too). Every data name on the site (every list with items, and every name that is private or declared) with its kind, as `/collections` lists them plus `kind` (`content` = Page info, `entries` = Submissions, empty = not declared), `label`, `one_per_person` and `notify`; who may save on the site (`savers`); and `undeclared_names_take_saves` (true only for sites made before the kinds, where a name nobody declared still behaves as a public list).",
+        "tags": [
+          "Collections"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The site's data names",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "site": {
+                      "type": "string"
+                    },
+                    "names": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "example": "rsvps"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "",
+                              "content",
+                              "entries"
+                            ]
+                          },
+                          "label": {
+                            "type": "string",
+                            "enum": [
+                              "Page info",
+                              "Submissions",
+                              "Not set"
+                            ]
+                          },
+                          "count": {
+                            "type": "integer"
+                          },
+                          "last_at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "nullable": true
+                          },
+                          "private": {
+                            "type": "boolean"
+                          },
+                          "deleted": {
+                            "type": "integer"
+                          },
+                          "one_per_person": {
+                            "type": "boolean"
+                          },
+                          "notify": {
+                            "type": "string",
+                            "enum": [
+                              false,
+                              "each",
+                              "daily"
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "savers": {
+                      "$ref": "#/components/schemas/Savers"
+                    },
+                    "undeclared_names_take_saves": {
+                      "type": "boolean"
+                    },
+                    "limits": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/data/{coll}/kind": {
+      "get": {
+        "operationId": "getDataKind",
+        "summary": "What a data name is (public)",
+        "description": "Public (Origin-gated like the collections when a page asks; a plain GET is served). `declared`, `kind` (null when not declared), `label`, and for Submissions `visibility` and `one_per_person`; for an undeclared name, `accepts_saves` (false on sites made since the kinds). auth.js's SH.data(name, kind) checks it. The email setting is the owner's and is not shown.",
+        "tags": [
+          "Collections"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/coll"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The name's kind",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "declared": {
+                      "type": "boolean"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "nullable": true,
+                      "enum": [
+                        "content",
+                        "entries"
+                      ]
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "visibility": {
+                      "type": "string",
+                      "enum": [
+                        "owner",
+                        "public"
+                      ]
+                    },
+                    "one_per_person": {
+                      "type": "boolean"
+                    },
+                    "accepts_saves": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "put": {
+        "operationId": "declareData",
+        "summary": "Declare what a data name is (owner)",
+        "description": "Owner only (X-API-Key, connector token, or the operator). Every piece of saved data has a name and one kind, and the kind decides who reads and who changes what. `{\"kind\": \"content\"}` is **Page info**: one JSON object only the owner writes (PUT .../data/{coll}) and anyone reads; a site declares at most 20 Page info names (SAVED_DATA_CONTENT_NAMES_MAX, 409 too_many_names); a name holding several entries cannot become one (409 has_entries). `{\"kind\": \"entries\"}` is **Submissions**: things visitors send. Options: `visibility` (`owner`, the default: only the owner reads them all, each visitor reads their own; or `public`: anyone reads them, without who sent them), `one_per_person` (one live entry per signed-in visitor), `notify` (email the owner: `daily`, the default while private; `each`, batched soon after they arrive; `off`, the default when public). A field left out keeps what the name had. On a site made since the kinds, a name nobody declared takes no saves at all (409 declare_first). Product words are accepted for kind (\"Page info\", \"Submissions\"). Private Submissions need the site on an address of its own (409 custom_domain_required on instances without one; declare them public there).",
+        "tags": [
+          "Collections"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/coll"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "kind"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "content",
+                      "entries"
+                    ]
+                  },
+                  "visibility": {
+                    "type": "string",
+                    "enum": [
+                      "owner",
+                      "public"
+                    ]
+                  },
+                  "one_per_person": {
+                    "type": "boolean"
+                  },
+                  "notify": {
+                    "type": "string",
+                    "enum": [
+                      false,
+                      "each",
+                      "daily"
+                    ]
+                  }
+                }
+              },
+              "example": {
+                "kind": "entries",
+                "one_per_person": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Declared",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "site": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "content",
+                        "entries"
+                      ]
+                    },
+                    "label": {
+                      "type": "string",
+                      "enum": [
+                        "Page info",
+                        "Submissions"
+                      ]
+                    },
+                    "visibility": {
+                      "type": "string",
+                      "enum": [
+                        "owner",
+                        "public"
+                      ]
+                    },
+                    "one_per_person": {
+                      "type": "boolean"
+                    },
+                    "notify": {
+                      "type": "string",
+                      "enum": [
+                        false,
+                        "each",
+                        "daily"
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a kind this server knows, or options that do not fit it (invalid_kind)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "too_many_names, has_entries or custom_domain_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/data/{coll}": {
+      "get": {
+        "operationId": "getData",
+        "summary": "Read Page info, or Submissions",
+        "description": "Page info (`content`) answers `{name, kind, data, saved_at}` (`data` null until the owner saves one) to anyone. Submissions answer exactly as GET .../collections/{coll} does (the owner reads all, with `by`; anyone reads a public list, without who sent it; a private list is 404 not_found to everyone else), with `?count=1` for `{name, count}` under the same rule, and `?mine=1` for the signed-in visitor's own live entries (a visitor session on the site's own address; `?limit`, `?before` as for lists; 401 visitor_auth_required without one). An undeclared name on a site made since the kinds: 409 declare_first.",
+        "tags": [
+          "Collections"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/coll"
+          },
+          {
+            "name": "mine",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The document, the list, the visitor's own entries, or the count",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "?mine=1 without a visitor signed in on the site (visitor_auth_required)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "declare_first or wrong_kind",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "postData",
+        "summary": "Add a Submissions entry",
+        "description": "The same as POST .../collections/{coll} (same sign-in, Origin, privacy, `Idempotency-Key` and per-address rules), with the name's kind applied: Each new entry is at most 16 KB (SAVED_DATA_ENTRY_MAX_KB, 413 item_too_large); a name holds at most 10,000 live entries (SAVED_DATA_ENTRIES_MAX, 409 list_full); `one_per_person` refuses a second live entry from one visitor (409 one_per_person, with `id` of the entry they have). Page info takes no entries (409 wrong_kind); an undeclared name on a site made since the kinds takes nothing (409 declare_first). The site's who-may-save setting applies to every visitor (403 not_allowed_to_save); the owner always may.",
+        "tags": [
+          "Collections"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/coll"
+          },
+          {
+            "$ref": "#/components/parameters/csrf"
+          },
+          {
+            "$ref": "#/components/parameters/idempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "name": "Ann",
+                "guests": 2
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The stored entry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "type": "object"
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "visitor_auth_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "not_allowed_to_save, private_visitor_only, csrf_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "declare_first, wrong_kind, one_per_person or list_full",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "item_too_large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "putData",
+        "summary": "Save Page info (owner)",
+        "description": "Replaces a Page info document with one JSON object. A Page info document is at most 1 MB (SAVED_DATA_CONTENT_MAX_KB; 413 item_too_large); not an object: 400 not_an_object. Only the owner: their X-API-Key or connector token (no page Origin needed), the operator, or the owner signed in on the site's own address with `X-SH-CSRF: 1`. Anyone else: 403 owner_only (another account's key: 404). The earlier document goes to the name's history (GET .../collections/{coll}/history; restore with .../history/{id}/restore). Submissions: 409 wrong_kind; undeclared: 409 declare_first.",
+        "tags": [
+          "Collections"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/coll"
+          },
+          {
+            "$ref": "#/components/parameters/csrf"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "soup": 4,
+                "tea": 2
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    },
+                    "saved_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "not_an_object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "owner_only",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "declare_first or wrong_kind",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "item_too_large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "507": {
+            "description": "site_full",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/data/{coll}/items/{id}": {
+      "patch": {
+        "operationId": "patchOwnEntry",
+        "summary": "Change your own Submissions entry",
+        "description": "A visitor signed in on the site's own address (`X-SH-CSRF: 1`) changes an entry they sent: the fields are merged in (null removes one); `_submitted_by` and `_submitted_at` never change. Anything that is not their own live entry: 404 not_found. The who-may-save setting applies (403 not_allowed_to_save). With an X-API-Key, or from the owner signed in on the site, this is the owner's edit (PATCH .../collections/{coll}/items/{id}).",
+        "tags": [
+          "Collections"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/coll"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/csrf"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "guests": 3
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The entry after the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "visitor_auth_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "not_allowed_to_save or csrf_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "withdrawOwnEntry",
+        "summary": "Withdraw your own Submissions entry",
+        "description": "A visitor signed in on the site withdraws an entry they sent; the answer is `{\"withdrawn\": id, \"undo_minutes\": 10}`: POST .../undo brings it back for that long (SAVED_DATA_WITHDRAW_UNDO_MINUTES), and the owner can restore it for 30 days. A blocked visitor can still withdraw their own. With an X-API-Key, or from the owner signed in on the site, this is the owner's delete (204).",
+        "tags": [
+          "Collections"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/coll"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/csrf"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Withdrawn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "withdrawn": {
+                      "type": "integer"
+                    },
+                    "undo_minutes": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Deleted by the owner"
+          },
+          "401": {
+            "description": "visitor_auth_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/data/{coll}/items/{id}/undo": {
+      "post": {
+        "operationId": "undoOwnWithdrawal",
+        "summary": "Bring back an entry you withdrew",
+        "description": "Only the visitor who withdrew it: this brings back what they withdrew for 10 minutes (SAVED_DATA_WITHDRAW_UNDO_MINUTES); after that, or for an entry the owner deleted, 409 undo_expired (the owner restores from Recently deleted). With `one_per_person`, 409 one_per_person when they have another entry by now.",
+        "tags": [
+          "Collections"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/coll"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/csrf"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The entry",
+            "back": null,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "visitor_auth_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "undo_expired or one_per_person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/savers": {
+      "get": {
+        "operationId": "getSavers",
+        "summary": "Who may save on a site (owner)",
+        "tags": [
+          "Collections"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The setting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Savers"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "put": {
+        "operationId": "putSavers",
+        "summary": "Choose who may save on a site (owner)",
+        "description": "Applies to every save from the site's pages (page data, lists and Submissions): `mode` `anyone` (anyone who signs in, the default) or `listed` (only the emails and whole domains in `allow`, written `@company.com`; `company.com` is read as the domain). `block` lists people or domains who may never save, in either mode (403 not_allowed_to_save). The owner always may. Replaces both lists; at most 500 emails and domains in total (SAVED_DATA_SAVERS_MAX, 400 too_many_savers); an entry that is not an email or domain: 400 invalid_savers.",
+        "tags": [
+          "Collections"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Savers"
+              },
+              "example": {
+                "mode": "listed",
+                "allow": [
+                  "@company.com",
+                  "ann@example.com"
+                ],
+                "block": []
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Savers"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_savers or too_many_savers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/savers/block": {
+      "post": {
+        "operationId": "blockSaver",
+        "summary": "Block a person from saving on a site (owner)",
+        "description": "Adds one email or `@domain` (`{\"email\": ...}`), or whoever sent one entry (`{\"collection\": \"rsvps\", \"id\": 12}`), to the site's block list. What they already sent stays. An entry saved without a sign-in: 409 no_author.",
+        "tags": [
+          "Collections"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  },
+                  "collection": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "example": {
+                "collection": "rsvps",
+                "id": 12
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Blocked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "site": {
+                      "type": "string"
+                    },
+                    "blocked": {
+                      "type": "string"
+                    },
+                    "block_count": {
+                      "type": "integer"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_savers or too_many_savers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "no_author",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/data-notify/stop": {
+      "get": {
+        "operationId": "dataNotifyStopPage",
+        "summary": "The \"stop these emails\" link (confirmation page)",
+        "description": "The link in an email about new Submissions. GET shows a page with one button (mail scanners follow links, and must change nothing); the button POSTs the token, which turns that name's email off. HTML.",
+        "tags": [
+          "Collections"
+        ],
+        "parameters": [
+          {
+            "name": "t",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The confirmation page",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The link is not valid",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "dataNotifyStop",
+        "summary": "Stop emails about one data name",
+        "tags": [
+          "Collections"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "t": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stopped",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The link is not valid",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }
@@ -7274,6 +8390,385 @@
           },
           "507": {
             "$ref": "#/components/responses/SiteFull"
+          }
+        }
+      }
+    },
+    "/v1/u/{handle}/sites/{sitename}/data/{coll}": {
+      "get": {
+        "operationId": "getDataByHandle",
+        "summary": "Read Page info, or Submissions (by handle)",
+        "description": "As GET /v1/sites/{sitename}/data/{coll}, with the site named by its owner's handle.",
+        "tags": [
+          "Collections"
+        ],
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "the site owner's URL-safe handle"
+          },
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/coll"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "As without the handle",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "post": {
+        "operationId": "postDataByHandle",
+        "summary": "Add a Submissions entry (by handle)",
+        "description": "As POST /v1/sites/{sitename}/data/{coll}.",
+        "tags": [
+          "Collections"
+        ],
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "the site owner's URL-safe handle"
+          },
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/coll"
+          },
+          {
+            "$ref": "#/components/parameters/csrf"
+          },
+          {
+            "$ref": "#/components/parameters/idempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The stored entry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "declare_first, wrong_kind, one_per_person or list_full",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "putDataByHandle",
+        "summary": "Save Page info (owner, by handle)",
+        "description": "As PUT /v1/sites/{sitename}/data/{coll}.",
+        "tags": [
+          "Collections"
+        ],
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "the site owner's URL-safe handle"
+          },
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/coll"
+          },
+          {
+            "$ref": "#/components/parameters/csrf"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "owner_only",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/u/{handle}/sites/{sitename}/data/{coll}/kind": {
+      "get": {
+        "operationId": "getDataKindByHandle",
+        "summary": "What a data name is (by handle)",
+        "description": "As GET /v1/sites/{sitename}/data/{coll}/kind.",
+        "tags": [
+          "Collections"
+        ],
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "the site owner's URL-safe handle"
+          },
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/coll"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The name's kind",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}": {
+      "patch": {
+        "operationId": "patchOwnEntryByHandle",
+        "summary": "Change your own Submissions entry (by handle)",
+        "description": "As PATCH /v1/sites/{sitename}/data/{coll}/items/{id}.",
+        "tags": [
+          "Collections"
+        ],
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "the site owner's URL-safe handle"
+          },
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/coll"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/csrf"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The entry after the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "withdrawOwnEntryByHandle",
+        "summary": "Withdraw your own Submissions entry (by handle)",
+        "description": "As DELETE /v1/sites/{sitename}/data/{coll}/items/{id}.",
+        "tags": [
+          "Collections"
+        ],
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "the site owner's URL-safe handle"
+          },
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/coll"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/csrf"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Withdrawn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}/undo": {
+      "post": {
+        "operationId": "undoOwnWithdrawalByHandle",
+        "summary": "Bring back an entry you withdrew (by handle)",
+        "description": "As POST /v1/sites/{sitename}/data/{coll}/items/{id}/undo.",
+        "tags": [
+          "Collections"
+        ],
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "the site owner's URL-safe handle"
+          },
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "$ref": "#/components/parameters/coll"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/csrf"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The entry",
+            "back": null,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "undo_expired or one_per_person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -11378,6 +12873,34 @@
       }
     },
     "schemas": {
+      "Savers": {
+        "type": "object",
+        "description": "Who may save on a site.",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "anyone",
+              "listed"
+            ],
+            "description": "anyone: anyone who signs in; listed: only allow (the owner always may)"
+          },
+          "allow": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Emails and @domains who may save when mode is listed"
+          },
+          "block": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Emails and @domains who may never save"
+          }
+        }
+      },
       "TrafficCounts": {
         "type": "object",
         "properties": {
