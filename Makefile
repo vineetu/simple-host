@@ -15,4 +15,5 @@ check:
 	bash deploy/prod/nginx-suspended-marker_test.sh
 	bash deploy/prod/nginx-internal-lock_test.sh
 	bash deploy/prod/nginx-analytics-logformat-apply_test.sh
+	bash deploy/compose/Caddyfile_test.sh
 	bash scripts/check-fresh-install.sh

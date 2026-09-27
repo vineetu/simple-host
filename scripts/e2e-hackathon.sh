@@ -215,3 +215,21 @@ sleep 14
 V=$(curl -sS $PIN --max-time 20 -H "X-API-Key: $ADMIN" "https://$HOST/v1/analytics/sites?days=1&all=1" \
   | python3 -c 'import json,sys;d=json.load(sys.stdin);print(sum(s["person"]["views"] for s in d.get("sites",[])))' 2>/dev/null || echo 0)
 [ "${V:-0}" -gt 0 ] && ok "$V views counted" || bad "analytics reported zero"
+
+step "the content host falls back to the app like production"
+# Caddy serves files; what is not a file goes to the app: an old name of a
+# renamed site redirects, /<handle>/ is the person page, a miss is the branded
+# not-found page, and /internal/* is never reachable from outside.
+OWNER=$(sed -E 's#https://[^/]+/([^/]+)/.*#\1#' <<<"$SITEURL")
+CODE=$(curl -sS $PIN -o /dev/null -w '%{http_code}' --max-time 20 "https://$CONTENT/$OWNER/")
+[ "$CODE" = "200" ] && ok "the person page answers" || bad "the person page answered $CODE"
+CODE=$(curl -sS $PIN -o /dev/null -w '%{http_code}' --max-time 20 "https://$CONTENT/$OWNER/entry/nope.css")
+[ "$CODE" = "404" ] && ok "a missing file is 404" || bad "a missing file answered $CODE"
+for H in "$HOST" "$CONTENT"; do
+  CODE=$(curl -sS $PIN -o /dev/null -w '%{http_code}' --max-time 20 "https://$H/internal/tls-ask?domain=$H")
+  [ "$CODE" = "404" ] && ok "/internal/ is not reachable on $H" || bad "/internal/tls-ask on $H answered $CODE"
+done
+curl -sS $PIN -o /dev/null -X PATCH -H "X-API-Key: $PKEY" -H 'Content-Type: application/json' \
+  -d '{"name":"entry2"}' --max-time 20 "https://$HOST/v1/sites/entry"
+LOC=$(curl -sS $PIN -o /dev/null -w '%{redirect_url}' --max-time 20 "https://$CONTENT/$OWNER/entry/")
+grep -q "/$OWNER/entry2/" <<<"$LOC" && ok "a renamed entry's old link redirects to $LOC" || bad "the old link of a renamed entry went to '$LOC'"
