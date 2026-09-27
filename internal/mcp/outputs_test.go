@@ -188,14 +188,14 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		"POST /v1/sites/blog/collections/rsvps/deleted/restore":   fixed(200, `{"site":"blog","collection":"rsvps","restored":3}`),
 		"DELETE /v1/sites/blog/collections/rsvps/deleted/12":      fixed(200, `{"site":"blog","collection":"rsvps","deleted_for_good":1}`),
 		"DELETE /v1/sites/blog/collections/rsvps/deleted":         fixed(200, `{"site":"blog","collection":"rsvps","deleted_for_good":3}`),
-		"PUT /v1/sites/blog/data/menu/kind":  fixed(200, `{"site":"blog","name":"menu","kind":"content","label":"Page info","message":"Page info."}`),
-		"PUT /v1/sites/blog/data/votes/kind": fixed(200, `{"site":"blog","name":"votes","kind":"entries","label":"Submissions","visibility":"public","one_per_person":true,"notify":"off","message":"Submissions, public."}`),
-		"PUT /v1/sites/blog/data/menu":       fixed(200, `{"name":"menu","kind":"content","data":{"soup":4},"saved_at":"2026-09-27T00:00:00Z"}`),
+		"PUT /v1/sites/blog/data/menu/kind":                       fixed(200, `{"site":"blog","name":"menu","kind":"content","label":"Page info","message":"Page info."}`),
+		"PUT /v1/sites/blog/data/votes/kind":                      fixed(200, `{"site":"blog","name":"votes","kind":"entries","label":"Submissions","visibility":"public","one_per_person":true,"notify":"off","message":"Submissions, public."}`),
+		"PUT /v1/sites/blog/data/menu":                            fixed(200, `{"name":"menu","kind":"content","data":{"soup":4},"saved_at":"2026-09-27T00:00:00Z"}`),
 		"GET /v1/sites/blog/data": fixed(200, `{"site":"blog","names":[{"name":"votes","count":2,"private":false,"deleted":0,"kind":"entries","label":"Submissions","one_per_person":true,"notify":"off"},`+
 			`{"name":"menu","count":1,"private":false,"deleted":0,"kind":"content","label":"Page info","one_per_person":false,"notify":"off"}],"savers":{"mode":"listed","allow":["@example.com"],"block":["x@y.org"]},"undeclared_names_take_saves":false}`),
 		"PUT /v1/sites/blog/savers":        fixed(200, `{"site":"blog","mode":"listed","allow":["@example.com"],"block":[],"message":"Only listed."}`),
 		"POST /v1/sites/blog/savers/block": fixed(200, `{"site":"blog","blocked":"x@y.org","block_count":1,"message":"x@y.org can no longer save."}`),
-		"DELETE /v1/sites/blog/history":                           fixed(200, `{"site":"blog","cleared":40}`),
+		"DELETE /v1/sites/blog/history":    fixed(200, `{"site":"blog","cleared":40}`),
 		"POST /v1/sites/pend/domain": fixed(200, `{"domain":"pend.example.com","status":"pending","took_over_from":"x/y","certificate_status":"pending","previous_domain":"pend.simple-host.app",`+
 			`"partner_domain":"www.pend.example.com","partner_status":"pending","dns_partner":{"type":"CNAME","host":"www.pend.example.com","value":"sites.simple-host.app"},`+
 			`"dns":{"type":"CNAME","host":"pend.example.com","value":"sites.simple-host.app"},"dns_txt":{"type":"TXT","host":"_simple-host.pend.example.com","value":"sh-0123456789abcdef0123456789abcdef"}}`),
