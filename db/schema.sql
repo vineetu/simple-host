@@ -197,7 +197,8 @@ CREATE TABLE IF NOT EXISTS collection_settings (
 -- Saved data, step 1 (mirrors db/migrations/sd1-saved-data-safety.sql):
 -- history and undo, recoverable deletes, authors, idempotency, the watch.
 -- Every site that exists before the kinds arrive keeps today's open behaviour.
--- The default is true until the step that introduces kinds flips it.
+-- The default stays true; the server creates every new site with false
+-- (step 2, kinds: a name nobody declared takes no saves there).
 ALTER TABLE sites ADD COLUMN IF NOT EXISTS legacy_data BOOLEAN NOT NULL DEFAULT true;
 
 -- Deleted and cleared items stay for the undo window (NULL = live), and the
@@ -780,6 +781,28 @@ CREATE INDEX IF NOT EXISTS oauth_tokens_expires_idx ON oauth_tokens (expires_at)
 -- together with the nonce itself. A link token without a hash is never
 -- redeemable; the typed 6-digit code is unaffected.
 ALTER TABLE auth_tokens ADD COLUMN IF NOT EXISTS nonce_hash TEXT;
+
+-- Saved data, step 2: kinds (mirrors db/migrations/sd2-saved-data-kinds.sql).
+-- A declared name's kind (content = Page info, entries = Submissions; NULL =
+-- not declared), one entry per person, and the owner's email choice. The
+-- private column above is the Submissions visibility.
+ALTER TABLE collection_settings ADD COLUMN IF NOT EXISTS kind TEXT;
+ALTER TABLE collection_settings ADD COLUMN IF NOT EXISTS one_per_person BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE collection_settings ADD COLUMN IF NOT EXISTS notify TEXT NOT NULL DEFAULT 'off';
+ALTER TABLE collection_settings ADD COLUMN IF NOT EXISTS notify_sent_at TIMESTAMPTZ;
+ALTER TABLE collection_settings ADD COLUMN IF NOT EXISTS declared_at TIMESTAMPTZ;
+-- Who may save: 'anyone' (anyone who signs in) or 'listed' (the allow list
+-- below); the block list applies in both modes.
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS savers_mode TEXT NOT NULL DEFAULT 'anyone';
+CREATE TABLE IF NOT EXISTS site_savers (
+  site_id  UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  list     TEXT NOT NULL CHECK (list IN ('allow', 'block')),
+  pattern  TEXT NOT NULL,
+  added_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (site_id, list, pattern)
+);
+CREATE INDEX IF NOT EXISTS idx_collection_items_mine
+  ON collection_items (site_id, collection, submitted_by, id DESC) WHERE submitted_by IS NOT NULL;
 
 -- Which db/migrations/ files `simple-host migrate` has applied (or an operator
 -- recorded with `migrate -mark`). A database built from this file already has

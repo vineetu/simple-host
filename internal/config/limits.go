@@ -115,13 +115,38 @@ type SavedData struct {
 	SnapshotEvery int
 	// SAVED_DATA_WATCH_KEEP_DAYS: watch counts older than this are removed (90).
 	WatchKeepDays int
+
+	// Step 2, kinds (Page info and Submissions).
+	// SAVED_DATA_CONTENT_MAX_KB: one Page info document (1024).
+	ContentMaxKB int
+	// SAVED_DATA_CONTENT_NAMES_MAX: Page info names per site (20).
+	ContentNamesMax int
+	// SAVED_DATA_ENTRY_MAX_KB: one new Submissions entry; older items up to
+	// the 64 KB list limit are kept (16).
+	EntryMaxKB int
+	// SAVED_DATA_ENTRIES_MAX: live entries in one Submissions name (10000).
+	EntriesMax int
+	// SAVED_DATA_WITHDRAW_UNDO_MINUTES: a visitor can bring back an entry
+	// they withdrew for this long (10).
+	WithdrawUndoMinutes int
+	// SAVED_DATA_NOTIFY_EACH_MINUTES: "email me: each" sends at most one
+	// email per name this often, listing what arrived (10).
+	NotifyEachMinutes int
+	// SAVED_DATA_NOTIFY_DAILY_HOURS: "email me: daily" sends at most one
+	// digest per name this often (24).
+	NotifyDailyHours int
+	// SAVED_DATA_SAVERS_MAX: emails and domains in one site's who-may-save
+	// and block lists together (500).
+	SaversMax int
 }
 
 // DefaultSavedData is the approved plan's values.
 func DefaultSavedData() SavedData {
 	return SavedData{UndoDays: 30, HistoryMaxMB: 20, SiteMaxMB: 50, SweepMinutes: 15, WatchDays: 7,
 		WatchIncMax: 10, WatchItemKB: 16, IdempotencyHours: 24, ReadPerSec: 30, ReadBurst: 60,
-		AppendPerMin: 30, AppendBurst: 30, IdempotencyMaxPerSite: 10000, SnapshotEvery: 50, WatchKeepDays: 90}
+		AppendPerMin: 30, AppendBurst: 30, IdempotencyMaxPerSite: 10000, SnapshotEvery: 50, WatchKeepDays: 90,
+		ContentMaxKB: 1024, ContentNamesMax: 20, EntryMaxKB: 16, EntriesMax: 10000, WithdrawUndoMinutes: 10,
+		NotifyEachMinutes: 10, NotifyDailyHours: 24, SaversMax: 500}
 }
 
 // Rate is a token bucket: Burst requests at once, then one more every Every.
@@ -371,6 +396,14 @@ func Knobs() []Knob {
 		intKnob("SAVED_DATA_READ_BURST", "reads", 1, 100_000, func(l *Limits) *int { return &l.SavedData.ReadBurst }),
 		intKnob("SAVED_DATA_APPEND_PER_MIN", "items", 1, 10_000, func(l *Limits) *int { return &l.SavedData.AppendPerMin }),
 		intKnob("SAVED_DATA_APPEND_BURST", "items", 1, 100_000, func(l *Limits) *int { return &l.SavedData.AppendBurst }),
+		intKnob("SAVED_DATA_CONTENT_MAX_KB", "KB", 1, 10_240, func(l *Limits) *int { return &l.SavedData.ContentMaxKB }),
+		intKnob("SAVED_DATA_CONTENT_NAMES_MAX", "names", 1, 1_000, func(l *Limits) *int { return &l.SavedData.ContentNamesMax }),
+		intKnob("SAVED_DATA_ENTRY_MAX_KB", "KB", 1, 64, func(l *Limits) *int { return &l.SavedData.EntryMaxKB }),
+		intKnob("SAVED_DATA_ENTRIES_MAX", "entries", 1, 1_000_000, func(l *Limits) *int { return &l.SavedData.EntriesMax }),
+		intKnob("SAVED_DATA_WITHDRAW_UNDO_MINUTES", "minutes", 1, 1440, func(l *Limits) *int { return &l.SavedData.WithdrawUndoMinutes }),
+		intKnob("SAVED_DATA_NOTIFY_EACH_MINUTES", "minutes", 1, 1440, func(l *Limits) *int { return &l.SavedData.NotifyEachMinutes }),
+		intKnob("SAVED_DATA_NOTIFY_DAILY_HOURS", "hours", 1, 720, func(l *Limits) *int { return &l.SavedData.NotifyDailyHours }),
+		intKnob("SAVED_DATA_SAVERS_MAX", "entries", 1, 100_000, func(l *Limits) *int { return &l.SavedData.SaversMax }),
 	}
 }
 

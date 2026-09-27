@@ -51,15 +51,16 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	// A private list has its own, stricter write rule (privatecollections.go);
-	// it never falls back to the public-write gate below.
-	private, err := db.IsCollectionPrivate(r.Context(), h.database, siteID, coll)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+	// The name's kind (kinds.go): Page info takes no items, and on a site
+	// created after the kinds an undeclared name takes nothing.
+	set, ok := h.dataSettings(w, r, siteID, coll)
+	if !ok || !h.appendAllowed(w, set, siteName) {
 		return
 	}
-	if private {
-		h.appendPrivate(w, r, siteID, siteName, coll)
+	// A private list has its own, stricter write rule (privatecollections.go);
+	// it never falls back to the public-write gate below.
+	if set.Private {
+		h.appendPrivate(w, r, siteID, siteName, set)
 		return
 	}
 	actor, ok := h.visitorWriteOK(w, r, siteID, siteName, writeRouteCollectionPost, coll)
@@ -72,7 +73,7 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 	}
 	actor = h.withAuthorEmail(r.Context(), actor)
 
-	r.Body = http.MaxBytesReader(w, r.Body, maxCollectionItemSize)
+	r.Body = http.MaxBytesReader(w, r.Body, h.entryMaxBytes(set))
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		var maxErr *http.MaxBytesError
@@ -105,13 +106,8 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 
 	// Who sent it is kept with the item (the owner sees it; public reads
 	// never do). Nothing in the item itself changes.
-	item, err := db.AppendCollectionItemByID(r.Context(), h.database, siteID, coll, json.RawMessage(body), actor)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+	item, ok := h.saveEntry(w, r, siteID, set, body, actor)
+	if !ok {
 		return
 	}
 	if newName {

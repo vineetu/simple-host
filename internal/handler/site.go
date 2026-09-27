@@ -460,6 +460,30 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/history", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.clearDataHistory)))))
 	// The saved-data watch: what the later tightening would affect.
 	mux.Handle("GET /v1/admin/data-watch", authMiddleware(auth.RequireAdmin(http.HandlerFunc(h.adminDataWatch))))
+	// Kinds (kinds.go): the owner declares what each data name is and who may
+	// save; pages read Page info and add, list, change and withdraw their own
+	// Submissions. The page-facing routes run the same Origin policy as the
+	// collections; the owner's use the key or connector token.
+	mux.Handle("GET /v1/sites/{sitename}/data", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listData))))
+	mux.Handle("PUT /v1/sites/{sitename}/data/{coll}/kind", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.declareData)))))
+	mux.Handle("GET /v1/sites/{sitename}/savers", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSavers))))
+	mux.Handle("PUT /v1/sites/{sitename}/savers", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSavers)))))
+	mux.Handle("POST /v1/sites/{sitename}/savers/block", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.blockSaver)))))
+	stopLimiter := newRateLimiter(10, 0.1)
+	stopLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	mux.Handle("GET /v1/data-notify/stop", rateLimitByIP(stopLimiter, http.HandlerFunc(h.notifyStop)))
+	mux.Handle("POST /v1/data-notify/stop", rateLimitByIP(stopLimiter, http.HandlerFunc(h.notifyStop)))
+	for _, base := range []string{"/v1/sites/{sitename}/data/{coll}", "/v1/u/{handle}/sites/{sitename}/data/{coll}"} {
+		mux.Handle("GET "+base, http.HandlerFunc(h.getData))
+		mux.Handle("GET "+base+"/kind", http.HandlerFunc(h.getDataKind))
+		mux.Handle("POST "+base, rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection)))
+		mux.Handle("PUT "+base, rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putContent)))
+		mux.Handle("PATCH "+base+"/items/{id}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.updateEntry)))
+		mux.Handle("DELETE "+base+"/items/{id}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.withdrawEntry)))
+		mux.Handle("POST "+base+"/items/{id}/undo", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.undoWithdraw)))
+		mux.HandleFunc("OPTIONS "+base, h.optionsData)
+		mux.HandleFunc("OPTIONS "+base+"/{rest...}", h.optionsData)
+	}
 	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}", http.HandlerFunc(h.listCollection))
 	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection)))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/collections/{coll}", h.optionsCollection)

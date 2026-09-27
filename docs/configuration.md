@@ -128,6 +128,14 @@ removes older history and Recently deleted items at the next sweep.
 | `SAVED_DATA_READ_BURST` | 60 | 1–100000 | Reads allowed at once above that rate. |
 | `SAVED_DATA_APPEND_PER_MIN` | 30 | 1–10000 | List items one address may add per minute without the owner's key. |
 | `SAVED_DATA_APPEND_BURST` | 30 | 1–100000 | Items allowed at once above that rate. |
+| `SAVED_DATA_CONTENT_MAX_KB` | 1024 | 1–10240 | One Page info document (a name declared `content`). Larger saves are refused (413 `item_too_large`). |
+| `SAVED_DATA_CONTENT_NAMES_MAX` | 20 | 1–1000 | Page info names one site may declare (409 `too_many_names`). |
+| `SAVED_DATA_ENTRY_MAX_KB` | 16 | 1–64 | One new Submissions entry (a name declared `entries`). Older items up to 64 KB are kept. |
+| `SAVED_DATA_ENTRIES_MAX` | 10000 | 1–1000000 | Live entries in one Submissions name (409 `list_full`). |
+| `SAVED_DATA_WITHDRAW_UNDO_MINUTES` | 10 | 1–1440 | How long a visitor can bring back a Submissions entry they withdrew. |
+| `SAVED_DATA_NOTIFY_EACH_MINUTES` | 10 | 1–1440 | "Email me: each" sends at most one email per name this often, counting what arrived since the last. Also how often due emails are checked. |
+| `SAVED_DATA_NOTIFY_DAILY_HOURS` | 24 | 1–720 | "Email me: daily" sends at most one digest per name this often. |
+| `SAVED_DATA_SAVERS_MAX` | 500 | 1–100000 | Emails and domains in one site's who-may-save and block lists together. |
 
 ## Rate limits
 

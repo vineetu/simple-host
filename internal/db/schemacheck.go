@@ -29,7 +29,7 @@ var requiredColumns = map[string][]string{
 	"signin_alerts_sent": {"user_id", "summary", "day"},
 	// hash-api-keys.sql, cp-keys-key-names.sql
 	"api_keys": {"id", "key_hash", "user_id", "name", "last4", "created_at", "last_used_at"},
-	"sites":    {"id", "user_id", "name", "active_version", "visibility", "state", "custom_domain", "deleted_at", "previous_domain", "domain_cert_status", "domain_failing_since", "domain_lapse_notified_at", "previous_domain_failing_since", "suspended_at", "suspended_reason", "domain_token", "domain_proof_exempt", "offline_at", "idle_keep", "idle_kept_at", "idle_warned_at", "idle_removed_at", "idle_token_hash", "purge_at", "idle_remove_at", "domain_release_at", "state_bytes", "data_bytes", "history_bytes"},
+	"sites":    {"id", "user_id", "name", "active_version", "visibility", "state", "custom_domain", "deleted_at", "previous_domain", "domain_cert_status", "domain_failing_since", "domain_lapse_notified_at", "previous_domain_failing_since", "suspended_at", "suspended_reason", "domain_token", "domain_proof_exempt", "offline_at", "idle_keep", "idle_kept_at", "idle_warned_at", "idle_removed_at", "idle_token_hash", "purge_at", "idle_remove_at", "domain_release_at", "state_bytes", "data_bytes", "history_bytes", "legacy_data", "savers_mode"},
 	// knobs-promised-dates.sql adds purge_at, idle_remove_at and domain_release_at.
 	// w2-sites-offline.sql adds offline_at; w2-addr-idle-cleanup.sql the idle_* columns.
 	// w2-sites-old-names.sql
@@ -44,8 +44,10 @@ var requiredColumns = map[string][]string{
 	"data_history":     {"id", "site_id", "kind", "name", "item_id", "op", "prev", "actor_id", "actor_kind", "actor_email", "created_at", "diff"},
 	"idempotency_keys": {"scope", "status", "etag", "created_at", "site_id", "ref", "body_hash"},
 	"data_watch":       {"day", "site_id", "metric", "count", "last_at"},
-	// private-collections.sql
-	"collection_settings": {"site_id", "collection", "private"},
+	// private-collections.sql; sd2-saved-data-kinds.sql adds kind .. declared_at,
+	// sites.savers_mode (above) and site_savers.
+	"collection_settings": {"site_id", "collection", "private", "kind", "one_per_person", "notify", "notify_sent_at", "declared_at"},
+	"site_savers":         {"site_id", "list", "pattern", "added_at"},
 	"site_view_hourly":    {"site_id", "hour", "class", "views"},
 	"instance_config":     {"key", "value"},
 	"oauth_clients":       {"client_id", "client_secret_hash", "client_name", "redirect_uris", "token_endpoint_auth_method", "pkce_required", "dynamic"},

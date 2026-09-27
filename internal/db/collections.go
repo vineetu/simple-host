@@ -97,12 +97,18 @@ type CollectionSummary struct {
 	Private bool       `json:"private"`
 	// Deleted counts the items in the list's Recently deleted.
 	Deleted int64 `json:"deleted"`
+	// Kind is what the name was declared as (content = Page info, entries =
+	// Submissions), "" when nobody declared it; the Submissions options with it.
+	Kind         string `json:"kind"`
+	OnePerPerson bool   `json:"one_per_person"`
+	Notify       string `json:"notify"`
 }
 
 // ListCollectionSummariesByID returns every collection that has at least one
 // item for siteID (live or recently deleted, so a cleared list can still be
-// restored), plus every collection marked private (even while empty, so the
-// owner sees the setting took), busiest first. Empty site → empty slice.
+// restored), plus every collection marked private or declared a kind (even
+// while empty, so the owner sees the setting took), busiest first. Empty
+// site → empty slice.
 func ListCollectionSummariesByID(ctx context.Context, db *sql.DB, siteID string) ([]CollectionSummary, error) {
 	const q = `
 		WITH counts AS (
@@ -112,11 +118,13 @@ func ListCollectionSummariesByID(ctx context.Context, db *sql.DB, siteID string)
 			FROM collection_items
 			WHERE site_id = $1
 			GROUP BY collection
-		), private AS (
-			SELECT collection FROM collection_settings WHERE site_id = $1 AND private
+		), settings AS (
+			SELECT collection, private, COALESCE(kind, '') AS kind, one_per_person, notify
+			  FROM collection_settings WHERE site_id = $1 AND (private OR kind IS NOT NULL)
 		)
-		SELECT COALESCE(c.collection, p.collection), COALESCE(c.n, 0), c.last_at, p.collection IS NOT NULL, COALESCE(c.gone, 0)
-		FROM counts c FULL OUTER JOIN private p ON p.collection = c.collection
+		SELECT COALESCE(c.collection, p.collection), COALESCE(c.n, 0), c.last_at, COALESCE(p.private, false), COALESCE(c.gone, 0),
+		       COALESCE(p.kind, ''), COALESCE(p.one_per_person, false), COALESCE(p.notify, 'off')
+		FROM counts c FULL OUTER JOIN settings p ON p.collection = c.collection
 		ORDER BY 2 DESC, 1`
 	rows, err := db.QueryContext(ctx, q, siteID)
 	if err != nil {
@@ -127,7 +135,7 @@ func ListCollectionSummariesByID(ctx context.Context, db *sql.DB, siteID string)
 	for rows.Next() {
 		var s CollectionSummary
 		var last sql.NullTime
-		if err := rows.Scan(&s.Name, &s.Count, &last, &s.Private, &s.Deleted); err != nil {
+		if err := rows.Scan(&s.Name, &s.Count, &last, &s.Private, &s.Deleted, &s.Kind, &s.OnePerPerson, &s.Notify); err != nil {
 			return nil, err
 		}
 		if last.Valid {
@@ -161,22 +169,6 @@ func SetCollectionPrivate(ctx context.Context, db *sql.DB, siteID, collection st
 		ON CONFLICT (site_id, collection) DO UPDATE SET private = EXCLUDED.private, updated_at = now()`,
 		siteID, collection, private)
 	return err
-}
-
-// AppendSubmittedItemByID appends to a private collection, recording which
-// account submitted it. submitterID comes from the visitor session, never the
-// request body.
-func AppendSubmittedItemByID(ctx context.Context, db *sql.DB, siteID, collection string, data json.RawMessage, submitterID, submitterEmail string) (CollectionItem, error) {
-	const q = `
-		INSERT INTO collection_items (site_id, collection, data, submitted_by, submitted_email)
-		SELECT id, $2, $3::jsonb, $4, $5 FROM sites WHERE id = $1
-		RETURNING id, data, created_at`
-	var it CollectionItem
-	err := db.QueryRowContext(ctx, q, siteID, collection, string(data), submitterID, nullIfEmpty(submitterEmail)).Scan(&it.ID, &it.Data, &it.CreatedAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return it, sql.ErrNoRows
-	}
-	return it, err
 }
 
 // CollectionExistsByID reports whether siteID has any rows in collection.

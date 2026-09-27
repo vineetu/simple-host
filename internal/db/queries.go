@@ -314,10 +314,13 @@ type Querier interface {
 
 // CreateSite inserts a new site. expiresAt is nil for permanent sites, or a
 // timestamp for ephemeral "preview" sites that the background sweep deletes.
+// A new site is never legacy_data: a data name on it takes saves only once
+// it is declared (saved data, step 2). The column's default stays true for
+// the sites that existed before.
 func CreateSite(ctx context.Context, q Querier, userID, name, siteURL string, expiresAt *time.Time) (Site, error) {
 	const query = `
-		INSERT INTO sites (user_id, name, site_url, expires_at)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO sites (user_id, name, site_url, expires_at, legacy_data)
+		VALUES ($1, $2, $3, $4, false)
 		RETURNING id, user_id, name, active_version, site_url, created_at, updated_at
 	`
 

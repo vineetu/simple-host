@@ -277,6 +277,7 @@ func main() {
 	siteHandler.StartDeletedSitePurge(ctx, time.Hour)
 	siteHandler.StartIdleCleanup(ctx)
 	siteHandler.StartSavedDataSweep(ctx)
+	siteHandler.StartSubmissionEmails(ctx)
 
 	serverErr := make(chan error, 1)
 

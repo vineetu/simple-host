@@ -193,7 +193,8 @@ func (h *SiteHandler) ownerBrowserRead(w http.ResponseWriter, r *http.Request, s
 }
 
 // appendPrivate is POST to a private collection. Returns after answering.
-func (h *SiteHandler) appendPrivate(w http.ResponseWriter, r *http.Request, siteID, siteName, coll string) {
+func (h *SiteHandler) appendPrivate(w http.ResponseWriter, r *http.Request, siteID, siteName string, set db.DataSettings) {
+	coll := set.Name
 	w.Header().Set("Cache-Control", "private, no-store")
 	// Offline, or a page opened as a preview: no entries, as on public lists
 	// (visitorWriteOK). Keys cannot add to a private list at all (below).
@@ -243,8 +244,17 @@ func (h *SiteHandler) appendPrivate(w http.ResponseWriter, r *http.Request, site
 	if sess.UserID != info.OwnerID && !h.allowAppend(w, r) {
 		return
 	}
+	email, err := visitorEmail(r.Context(), h.database, sess.UserID)
+	if err != nil || email == "" {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	// Who may save (kinds.go): the owner always may.
+	if sess.UserID != info.OwnerID && !h.saverOK(w, r, siteID, email) {
+		return
+	}
 
-	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxCollectionItemSize))
+	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, h.entryMaxBytes(set)))
 	var fields map[string]json.RawMessage
 	if err == nil {
 		dec := json.NewDecoder(bytes.NewReader(raw))
@@ -266,11 +276,6 @@ func (h *SiteHandler) appendPrivate(w http.ResponseWriter, r *http.Request, site
 		return
 	}
 	defer h.idemEnd(r, claim)
-	email, err := visitorEmail(r.Context(), h.database, sess.UserID)
-	if err != nil || email == "" {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
 	// Server-stamped: whatever the page sent under these keys is replaced.
 	by, _ := json.Marshal(email)
 	at, _ := json.Marshal(time.Now().UTC().Format(time.RFC3339))
@@ -284,13 +289,8 @@ func (h *SiteHandler) appendPrivate(w http.ResponseWriter, r *http.Request, site
 	if !h.siteHasRoom(w, r, siteID, int64(len(body))) {
 		return
 	}
-	item, err := db.AppendSubmittedItemByID(r.Context(), h.database, siteID, coll, body, sess.UserID, email)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+	item, ok := h.saveEntry(w, r, siteID, set, body, db.Actor{ID: sess.UserID, Email: email, Kind: actorVisitor})
+	if !ok {
 		return
 	}
 	_ = db.TouchVisitorSession(r.Context(), h.database, sess.ID)
@@ -337,6 +337,14 @@ func (h *SiteHandler) setCollectionPrivacy(w http.ResponseWriter, r *http.Reques
 	if h.refuseSuspendedSiteID(w, r, siteID) {
 		return
 	}
+	set, ok := h.dataSettings(w, r, siteID, coll)
+	if !ok {
+		return
+	}
+	if set.Kind == db.KindContent {
+		writeWrongKind(w, coll, set.Kind, "page info is always public; only Submissions (kind entries) can be private")
+		return
+	}
 	home, hasHome, err := h.siteHomeFor(r.Context(), siteID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -349,7 +357,19 @@ func (h *SiteHandler) setCollectionPrivacy(w http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
-	if err := db.SetCollectionPrivate(r.Context(), h.database, siteID, coll, *req.Private); err != nil {
+	// On a site that needs kinds, choosing privacy declares the name as
+	// Submissions (with the default email for that visibility).
+	setPrivacy := func() error { return db.SetCollectionPrivate(r.Context(), h.database, siteID, coll, *req.Private) }
+	if set.Kind == "" && !set.Legacy {
+		notify := db.NotifyDaily
+		if !*req.Private {
+			notify = db.NotifyOff
+		}
+		setPrivacy = func() error {
+			return db.DeclareData(r.Context(), h.database, siteID, coll, db.KindEntries, *req.Private, false, notify)
+		}
+	}
+	if err := setPrivacy(); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}

@@ -230,12 +230,13 @@ func writeVisitorAuthRequired(w http.ResponseWriter) {
 	})
 }
 
-// visitorWriteOK is the write gate for PUT/PATCH state and POST collections.
+// visitorWriteGate is the write gate for PUT/PATCH state and POST collections
+// (visitorWriteOK adds who-may-save on top).
 // See docs/history/SPEC.md §4.4. Returns false after writing the error response.
 // On success it also says who is writing (db.Actor, without the email; see
 // actorWithEmail): the site's owner or the platform admin (their key, or the
 // owner signed in on the site), another signed-in visitor, or nobody known.
-func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, siteID, siteName, route, collection string) (db.Actor, bool) {
+func (h *SiteHandler) visitorWriteGate(w http.ResponseWriter, r *http.Request, siteID, siteName, route, collection string) (db.Actor, bool) {
 	anon := db.Actor{Kind: actorAnonymous}
 	ownerID, allowAnon, err := db.GetSiteWriteGate(r.Context(), h.database, siteID)
 	if err != nil {
