@@ -155,26 +155,12 @@ func restError(tool string, u upstreamResult) error {
 	if msg == "" {
 		msg = http.StatusText(u.status)
 	}
-	hint := ""
-	switch {
-	case u.status == http.StatusNotFound && strings.Contains(msg, "site not found"):
-		hint = "No site of that name in this account. Call list_sites for the exact names; a site owned by someone else cannot be changed from here."
-	case u.status == http.StatusNotFound:
-		hint = "Check the name against list_sites (and version numbers against list_versions)."
-	case u.status == http.StatusConflict:
-		hint = "A site of that name already exists in this account. Use update_site to publish a new version of it, or pick another name."
-	case u.status == http.StatusBadRequest:
-		hint = "The request was rejected as invalid; correct the arguments rather than retrying the same call."
-	case u.status == http.StatusRequestEntityTooLarge:
-		hint = "Too large. Send fewer or smaller files."
-	case u.status == http.StatusPreconditionFailed:
-		hint = "The data changed since you read it. Call get_state again and redo the change on the fresh copy."
-	case u.status == http.StatusTooManyRequests:
-		hint = "Rate limited. Wait a minute before trying again; do not retry in a loop."
-	case u.status == http.StatusUnauthorized:
-		hint = "The connection to Simple Host is no longer signed in. Ask the person to reconnect Simple Host in their app's connector settings."
-	case u.status == http.StatusForbidden:
-		hint = "This account is not allowed to do that."
+	hint := codeHint(payload.Code)
+	if hint != "" && payload.Code == "use_custom_domain" && payload.Domain != "" {
+		hint += " Its own address: " + payload.Domain + "."
+	}
+	if hint == "" {
+		hint = statusHint(u.status, msg)
 	}
 	out := fmt.Sprintf("%s failed (HTTP %d): %s", tool, u.status, msg)
 	if payload.Code != "" {
@@ -184,6 +170,60 @@ func restError(tool string, u upstreamResult) error {
 		out += "\n" + hint
 	}
 	return errors.New(out)
+}
+
+// codeHints says what to do about a refusal the server named with a code.
+// One HTTP status carries several meanings (a 409 is a taken address, an
+// append-only list or an existing site), so the code decides the hint; the
+// status only fills in when a refusal carries no code this table knows.
+var codeHints = map[string]string{
+	"site_exists":        "A site of that name already exists in this account. Use update_site to publish a new version of it, or pick another name.",
+	"domain_taken":       "That address belongs to another site or another person. Ask the person for a different name; do not redeploy or retry the same address.",
+	"invalid_name":       "That name is not allowed: use 1 to 63 lowercase letters, digits and hyphens, with no hyphen at either end. Correct the name and call again.",
+	"name_reserved":      "That name is reserved by Simple Host and cannot be used. Ask the person for a different name.",
+	"invalid_domain":     "That is not a domain that can be connected. Send a bare hostname the person owns (e.g. shop.example.com or example.com), or a free <name>.simple-host.app address.",
+	"site_quota_reached": "This account has as many sites as it may hold. Tell the person; a site must be deleted (delete_site) before another can be created. Do not retry.",
+	"append_only": "Items in a public list cannot be edited or deleted; only a private list allows that. If the person wants to manage items, make the list private with set_collection_privacy " +
+		"(the site needs its own address first); otherwise tell them.",
+	"custom_domain_required":   "This needs the site to have its own address first. Give it one with connect_domain (a free <name>.simple-host.app is active at once), then call again.",
+	"private_visitor_only":     "A private list takes new items only from visitors signed in on the site's own address; an agent cannot add to it. Read it with read_collection, or tell the person.",
+	"private_needs_own_domain": "A private list takes submissions only on the site's own address, from a signed-in visitor. Tell the person rather than retrying.",
+	"use_custom_domain":        "This site saves on its own address, not the shared one. Tell the person; do not retry the same call.",
+	"visitor_auth_required":    "Saving here needs a signed-in visitor on the site's own address; an agent cannot do it. Tell the person rather than retrying.",
+	"not_an_object":            "The saved value is not a JSON object, so it has no fields to change. For state, send a whole new document with update_state replace; for a list item, delete it instead.",
+	"not_found":                "Nothing of that name here. Check the site with list_sites, the list with list_collections and the item id with read_collection.",
+	"missing_api_key":          "The connection to Simple Host is no longer signed in. Ask the person to reconnect Simple Host in their app's connector settings.",
+	"invalid_api_key":          "The connection to Simple Host is no longer signed in. Ask the person to reconnect Simple Host in their app's connector settings.",
+	"invalid_token":            "The connection to Simple Host is no longer signed in. Ask the person to reconnect Simple Host in their app's connector settings.",
+	"site_suspended":           "The operator has taken this site down, and changes to it are refused until it is restored. Tell the person; do not retry.",
+	"account_suspended":        "This account is suspended by the operator. Tell the person to contact support@simple-host.app; do not retry.",
+}
+
+func codeHint(code string) string { return codeHints[code] }
+
+// statusHint is the fallback for a refusal with no known code.
+func statusHint(status int, msg string) string {
+	switch {
+	case status == http.StatusNotFound && strings.Contains(msg, "site not found"):
+		return "No site of that name in this account. Call list_sites for the exact names; a site owned by someone else cannot be changed from here."
+	case status == http.StatusNotFound:
+		return "Check the name against list_sites (and version numbers against list_versions)."
+	case status == http.StatusConflict:
+		return "The request conflicts with the site's current state; read the message above, check the site with get_site, and change the request rather than repeating it."
+	case status == http.StatusBadRequest:
+		return "The request was rejected as invalid; correct the arguments rather than retrying the same call."
+	case status == http.StatusRequestEntityTooLarge:
+		return "Too large. Send fewer or smaller files."
+	case status == http.StatusPreconditionFailed:
+		return "The data changed since you read it. Call get_state again and redo the change on the fresh copy."
+	case status == http.StatusTooManyRequests:
+		return "Rate limited. Wait a minute before trying again; do not retry in a loop."
+	case status == http.StatusUnauthorized:
+		return "The connection to Simple Host is no longer signed in. Ask the person to reconnect Simple Host in their app's connector settings."
+	case status == http.StatusForbidden:
+		return "This account is not allowed to do that."
+	}
+	return ""
 }
 
 // ---- argument helpers -------------------------------------------------------

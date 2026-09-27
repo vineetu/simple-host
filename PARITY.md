@@ -48,6 +48,7 @@ that should get it). Last derived from both `FEATURES.md` files and code on 2026
 | MCP connector and OAuth | DCR, PKCE S256, rotating refresh, reuse revokes the grant, hourly sweep, tokens hashed | same design (hosted's adapter was ported from enterprise) | `same` |
 | Connector token lifetime and reach | refresh 90 d sliding; Bearer also accepted on `/v1/*` | refresh 30 d from sign-in, TTLs capped; Bearer only on `/mcp` | `different on purpose` — hosted: sign in once and stay signed in, and hand-registered GPT Actions call REST |
 | MCP tools | 22 tools, each a REST call | own set incl. teams, viewers, access, state history; each resolves to a route (tested) | `same` — tools follow each side's REST surface |
+| MCP error hints | hint chosen by the error `code` (taken address, append-only list, reserved/invalid name, own address needed, suspended), HTTP status as fallback | hint per code and per tool family | `same` |
 | Skills and plugin | `website-deploy`, `-builder`, `connect-domain`, `run-hackathon`; Claude + ChatGPT plugins; stale skill → `_notice` | `simple-host`, `simple-host-builder`, `fix-paths-for-subpath-hosting`; `plugin.zip`; obsolete skill → refused | `different on purpose` — each skill teaches its own product; a company can require current skills |
 | Audit log | none; server log only | every mutation + visit, hash-chained, `audit-verify`, SIEM stdout stream, export, retention | `different on purpose` — hosted decision 2026-09-05: nothing records an author; enterprise constraint: everything on record |
 | Analytics | nginx/Caddy log → views, visitors, local geo; API metrics; `site_analytics` tool | in-app access log → daily views (bots split), downloads, counts only for owners | `different on purpose` — different serving paths; geo is a public-web need |
@@ -88,7 +89,7 @@ Every numbered `FEATURES.md` section, per repo, and the rows above that cover it
 | hosted | Collections, including private collections | Collections and private collections |
 | hosted | Visitor sign-in (Google, emailed code) | Visitor sign-in on a site |
 | hosted | Owner auth (API keys, email codes, profile) | Owner sign-in; API keys rows |
-| hosted | MCP connector and OAuth (chat apps) | MCP connector; Connector token lifetime |
+| hosted | MCP connector and OAuth (chat apps) | MCP connector; Connector token lifetime; MCP error hints |
 | hosted | Skills and plugin distribution | Skills and plugin |
 | hosted | Owner dashboard and owner app | Dashboard |
 | hosted | Admin (operator) | Admin |
@@ -105,7 +106,7 @@ Every numbered `FEATURES.md` section, per repo, and the rows above that cover it
 | hosted | Unplaced routes and tools | (index of FEATURES itself, no feature) |
 | enterprise | Identity: OIDC sign-in, sessions, hand-off | Owner sign-in and sessions; Visitor sign-in on a site |
 | enterprise | API keys (CI and automation) | API keys rows |
-| enterprise | MCP server, OAuth connector, plugin.zip | MCP connector; Connector token lifetime; Skills and plugin |
+| enterprise | MCP server, OAuth connector, plugin.zip | MCP connector; Connector token lifetime; MCP error hints; Skills and plugin |
 | enterprise | Skills bundle and skill-version gate | Skills and plugin |
 | enterprise | Sites: deploy, versions, rollback, delete | Sites; Site rename; Site export; Per-site hosts; Quotas; Malware scan |
 | enterprise | Bucket storage, cache, retire sweep, migrate-storage, restore and reencrypt | Storage backend |

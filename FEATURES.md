@@ -195,6 +195,7 @@ as the person, so they meet the same checks as REST. Connector tokens are stored
 | DB | `oauth_clients`, `oauth_grants`, `oauth_codes`, `oauth_tokens` |
 | Env | `PUBLIC_BASE_URL`, `REVIEW_ACCOUNT_EMAIL`, `REVIEW_ACCOUNT_PASSWORD_HASH`, `ADMIN_API_KEY` |
 | Tokens | PKCE S256 only; code 60 s, access 1 h, refresh 90 days rotating (reuse revokes the grant); scope `sites`; tool calls run with a per-request `shint_` internal key |
+| Errors | a refused tool call returns the server's message, its `code`, and one recovery hint chosen by the code (`codeHints` in `internal/mcp/tools.go`: `site_exists`, `domain_taken`, `invalid_name`, `name_reserved`, `invalid_domain`, `site_quota_reached`, `append_only`, `custom_domain_required`, `not_an_object`, private-list and sign-in codes, `site_suspended`, `account_suspended`); the HTTP status picks the hint only when there is no known code. REST errors carry the same `code` (openapi `Error` schema) |
 | Limits | register 10 burst, 10/h; authorize and token 30 burst, 0.5/s; reviewer sign-in 10/IP then 1/min, 30 global then 30/h |
 | Tests / e2e | `h/connector_test.go`, `h/reviewer_test.go`, `internal/mcp/*_test.go`, `scripts/e2e-connector.py`, `scripts/e2e-connector-browser.mjs`, `scripts/e2e-reviewer.py`, `scripts/seed-reviewer-demo.py` |
 

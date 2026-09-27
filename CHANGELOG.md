@@ -2,6 +2,10 @@
 
 One line per shipped change, newest first. Add a line here in the same commit as any feature change.
 
+## 2026-09-27
+
+- Chat-app tools give the right advice when a call is refused: the hint now follows the error's code, so "that address is taken", "public lists cannot be edited" and "the site needs its own address first" no longer get the "site already exists, use update_site" answer. API errors gained a `code` where one status had several meanings: `site_exists`, `invalid_name`, `name_reserved`, `invalid_domain`, `site_quota_reached`, `not_an_object`, `missing_api_key`, `invalid_api_key` (messages and statuses unchanged).
+
 ## 2026-09-26
 
 - v0.2.0 released. The small-box installer pins one release: its image, compose file and schema all come from the same tag (before, `latest` pulled v0.1.2 against a newer schema and the app crash-looped on its schema check). The release workflow refuses a tag the installer does not pin.

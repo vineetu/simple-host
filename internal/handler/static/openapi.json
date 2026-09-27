@@ -6835,9 +6835,19 @@
       },
       "Error": {
         "type": "object",
+        "required": [
+          "error"
+        ],
         "properties": {
           "error": {
-            "type": "string"
+            "type": "string",
+            "description": "What went wrong",
+            "in plain words. The wording may change; branch on `code`.": null
+          },
+          "code": {
+            "type": "string",
+            "description": "A stable snake_case name for the refusal, present where one status has more than one meaning. site_exists (409: this account already has a site of that name), domain_taken (409: the address belongs to another site or person), invalid_name (400: not 1-63 lowercase letters, digits and hyphens), name_reserved (400: reserved by the platform), invalid_domain (400: not a domain that can be connected), site_quota_reached (403), append_only (409: public list items cannot be edited or deleted), custom_domain_required (409: the site needs its own address first), not_an_object (409: the saved value is not a JSON object), private_visitor_only and private_needs_own_domain (403), use_custom_domain and visitor_auth_required (401), missing_api_key and invalid_api_key (401), csrf_required (403), not_found (404, private collections). New codes may be added.",
+            "example": "domain_taken"
           }
         }
       }
@@ -6884,7 +6894,7 @@
         }
       },
       "Conflict": {
-        "description": "Site name already exists",
+        "description": "Conflict: the code says which (site_exists, domain_taken, append_only, custom_domain_required, not_an_object)",
         "content": {
           "application/json": {
             "schema": {

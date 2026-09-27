@@ -362,11 +362,11 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request) {
 	}
 	newName := strings.TrimSpace(req.Name)
 	if err := validateSiteShape(newName); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "invalid_name"})
 		return
 	}
 	if err := validateSiteReserved(newName); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "name_reserved"})
 		return
 	}
 	if oldName == newName {
@@ -388,7 +388,7 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, err := db.GetSiteByUser(r.Context(), h.database, user.ID, newName); err == nil {
-		writeJSON(w, http.StatusConflict, errorResponse{Error: "you already have a site with that name"})
+		writeJSON(w, http.StatusConflict, errorResponse{Error: "you already have a site with that name", Code: "site_exists"})
 		return
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -410,7 +410,7 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request) {
 	if err := db.RenameSite(r.Context(), h.database, site.ID, newName, newURL); err != nil {
 		_ = h.disk.RenameSite(user.ID, newName, oldName, domain)
 		if isUniqueViolation(err) {
-			writeJSON(w, http.StatusConflict, errorResponse{Error: "you already have a site with that name"})
+			writeJSON(w, http.StatusConflict, errorResponse{Error: "you already have a site with that name", Code: "site_exists"})
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -946,13 +946,13 @@ func (h *SiteHandler) createSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := validateSiteShape(siteName); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "invalid_name"})
 		return
 	}
 	// Reserved-name check is create-only: existing sites must always remain
 	// re-deployable even if a name later lands on the reserved list.
 	if err := validateSiteReserved(siteName); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "name_reserved"})
 		return
 	}
 
@@ -966,7 +966,7 @@ func (h *SiteHandler) createSite(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(existing) >= maxSitesPerUser {
-			writeJSON(w, http.StatusForbidden, errorResponse{Error: "site quota reached"})
+			writeJSON(w, http.StatusForbidden, errorResponse{Error: "site quota reached", Code: "site_quota_reached"})
 			return
 		}
 	}
@@ -1021,7 +1021,7 @@ func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user
 	site, err := db.CreateSite(r.Context(), tx, user.ID, siteName, siteURL, h.previewExpiry(user))
 	if err != nil {
 		if isUniqueViolation(err) {
-			writeJSON(w, http.StatusConflict, errorResponse{Error: "site already exists"})
+			writeJSON(w, http.StatusConflict, errorResponse{Error: "site already exists", Code: "site_exists"})
 			return
 		}
 
@@ -1105,7 +1105,7 @@ func (h *SiteHandler) updateSite(w http.ResponseWriter, r *http.Request) {
 	// Charset/shape only on update — never the reserved-name denylist, so an
 	// existing site is always re-deployable.
 	if err := validateSiteShape(siteName); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "invalid_name"})
 		return
 	}
 
@@ -1304,11 +1304,11 @@ func (h *SiteHandler) createSiteFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := validateSiteShape(siteName); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "invalid_name"})
 		return
 	}
 	if err := validateSiteReserved(siteName); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "name_reserved"})
 		return
 	}
 
@@ -1319,7 +1319,7 @@ func (h *SiteHandler) createSiteFiles(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(existing) >= maxSitesPerUser {
-			writeJSON(w, http.StatusForbidden, errorResponse{Error: "site quota reached"})
+			writeJSON(w, http.StatusForbidden, errorResponse{Error: "site quota reached", Code: "site_quota_reached"})
 			return
 		}
 	}
@@ -1347,7 +1347,7 @@ func (h *SiteHandler) updateSiteFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := validateSiteShape(siteName); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "invalid_name"})
 		return
 	}
 
