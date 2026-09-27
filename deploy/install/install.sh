@@ -28,7 +28,7 @@ set -euo pipefail
 # moving `latest` image against a schema fetched from a moving branch is exactly
 # how a fresh install ended up crash-looping on a schema check. The release
 # workflow refuses to publish a tag that does not match this line.
-VERSION="v0.5.1"
+VERSION="v0.5.2"
 HOST=""; CONTENT=""; IMAGE="ghcr.io/vineetu/simple-host:${VERSION#v}"; ACME_EMAIL=""; REF="$VERSION"
 MAX_SITE_MB=""; KEEP_VERSIONS=""
 while [ $# -gt 0 ]; do
@@ -127,7 +127,7 @@ LIMIT_VARS+=" SAVED_DATA_APPEND_BURST SAVED_DATA_CONTENT_MAX_KB SAVED_DATA_CONTE
 LIMIT_VARS+=" SAVED_DATA_ENTRY_MAX_KB SAVED_DATA_ENTRIES_MAX SAVED_DATA_WITHDRAW_UNDO_MINUTES"
 LIMIT_VARS+=" SAVED_DATA_NOTIFY_EACH_MINUTES SAVED_DATA_NOTIFY_DAILY_HOURS SAVED_DATA_SAVERS_MAX"
 LIMIT_VARS+=" SAVED_DATA_APPEND_BURST"
-LIMIT_VARS+=" ASK_ENABLED ASK_BURST ASK_EVERY_SECONDS ASK_DAILY_MAX ASK_MAX_IN_FLIGHT"
+LIMIT_VARS+=" ASK_ENABLED ASK_BURST ASK_EVERY_SECONDS ASK_DAILY_MAX ASK_MAX_IN_FLIGHT ASK_MODEL ASK_REASONING_EFFORT ASK_MAX_TOKENS"
 LIMIT_VARS=${LIMIT_VARS# }
 if [ -f "$DIR/.env" ]; then
   ADMIN_KEY=$(grep '^ADMIN_API_KEY=' "$DIR/.env" | cut -d= -f2-)

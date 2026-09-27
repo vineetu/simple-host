@@ -234,7 +234,9 @@ func TestAskSendsNoVisitorDetails(t *testing.T) {
 	var sent map[string]any
 	json.Unmarshal([]byte(f.bodies[0]), &sent)
 	for k := range sent {
-		if k != "model" && k != "messages" && k != "max_tokens" && k != "temperature" {
+		switch k {
+		case "model", "messages", "max_tokens", "temperature", "stream", "reasoning_effort":
+		default:
 			t.Errorf("unexpected field in the model request: %s", k)
 		}
 	}

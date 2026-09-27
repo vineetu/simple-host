@@ -222,12 +222,15 @@ func main() {
 	// the same single backend, answering only from text built into the binary.
 	// The box is rendered only when this is on.
 	if ask := cfg.Limits.Ask; cfg.LLMAPIKey != "" && ask.Enabled {
-		handler.NewAskHandler(cfg.LLMAPIKey, cfg.LLMBaseURL, cfg.LLMModel, cfg.PublicBaseURL, db, handler.AskOptions{
+		// Its own model (ASK_MODEL), not LLM_MODEL: AI create keeps its
+		// model, the box wants a fast one with reasoning off.
+		handler.NewAskHandler(cfg.LLMAPIKey, cfg.LLMBaseURL, ask.Model, cfg.PublicBaseURL, db, handler.AskOptions{
 			Burst: ask.Burst, Every: time.Duration(ask.EverySeconds) * time.Second,
 			DailyMax: ask.DailyMax, MaxInFlight: ask.MaxInFlight,
+			ReasoningEffort: ask.ReasoningEffort, MaxTokens: ask.MaxTokens,
 		}).Register(mux)
 		handler.EnableAskWidget()
-		log.Printf("ask about this page enabled (/v1/ask; %d per IP then 1 per %ds, %d at once, %d a day)", ask.Burst, ask.EverySeconds, ask.MaxInFlight, ask.DailyMax)
+		log.Printf("ask about this page enabled (/v1/ask; model %s, reasoning %s, %d tokens; %d per IP then 1 per %ds, %d at once, %d a day)", ask.Model, ask.ReasoningEffort, ask.MaxTokens, ask.Burst, ask.EverySeconds, ask.MaxInFlight, ask.DailyMax)
 	} else {
 		log.Printf("/v1/ask (ask about this page) disabled")
 	}

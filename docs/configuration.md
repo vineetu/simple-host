@@ -142,7 +142,9 @@ removes older history and Recently deleted items at the next sweep.
 The "Ask about this page" box on the architecture, features and enterprise pages
 (`POST /v1/ask`). It runs only when a model backend is set (`LLM_API_KEY`, `LLM_BASE_URL`);
 without one the box is not shown, whatever these say. `ASK_ENABLED` is `on` or `off` (also
-`true`/`false`, `1`/`0`, `yes`/`no`); anything else stops the server at startup.
+`true`/`false`, `1`/`0`, `yes`/`no`); anything else stops the server at startup. Answers are
+streamed as they are written; the first words must arrive within 20 seconds and the whole
+answer within 45, or the reader is told it couldn't answer.
 
 | Variable | Default | Range | What it controls |
 |---|---|---|---|
@@ -151,6 +153,9 @@ without one the box is not shown, whatever these say. `ASK_ENABLED` is `on` or `
 | `ASK_EVERY_SECONDS` | 20 | 1–3600 | Then one more question every this many seconds, per address. |
 | `ASK_DAILY_MAX` | 500 | 0–100000 | Questions answered per UTC day across everyone (counted in the database, so a restart keeps the count). 0 answers none. |
 | `ASK_MAX_IN_FLIGHT` | 4 | 1–32 | Questions answered at once on the whole install. |
+| `ASK_MODEL` | grok-4.7 | a model name | The model the box asks, through the same backend (`LLM_BASE_URL`). Separate from `LLM_MODEL`, which AI create keeps. |
+| `ASK_REASONING_EFFORT` | none | none / low / medium / high | Sent to the model as `reasoning_effort`. `none` answers in seconds; higher values think first and answer later. |
+| `ASK_MAX_TOKENS` | 300 | 50–4000 | Longest answer, in tokens. A reply cut here ends with "…". |
 
 ## Rate limits
 
