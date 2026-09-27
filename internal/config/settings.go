@@ -284,7 +284,7 @@ func otherSettings() []Setting {
 		{Name: "IDLE_CLEANUP_MAX_EMAILS", Group: "cleanup", Type: "int", Default: "50", Min: i64(1), Unit: "emails",
 			Description: "Idle-cleanup emails one run sends."},
 		{Name: "IDLE_CLEANUP_EXEMPT_HANDLES", Group: "cleanup", Type: "string",
-			Description: "Accounts (comma-separated) whose sites the idle cleanup never touches."},
+			Description: "Accounts (comma-separated handles) whose sites the idle cleanup never touches. An account that later changes its handle stays exempt under the old one."},
 
 		{Name: "RESEND_API_KEY", Group: "email", Type: "secret", Security: true, Basic: true, SmallBox: true,
 			Description: "A Resend API key for sending email (sign-in codes, alerts). Without it, email sign-in is off."},

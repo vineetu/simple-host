@@ -254,7 +254,7 @@ another setting.
 | `EVENT_DOMAINS` | none | Zones event hostnames are handed out under, comma-separated. |
 | `IDLE_CLEANUP` | off | `on` turns the idle-site cleanup on. |
 | `IDLE_CLEANUP_MAX_EMAILS` | 50 | Idle-cleanup emails per run. |
-| `IDLE_CLEANUP_EXEMPT_HANDLES` | none | Accounts the idle cleanup never touches. |
+| `IDLE_CLEANUP_EXEMPT_HANDLES` | none | Accounts (handles) the idle cleanup never touches; an account that changes its handle stays exempt under the old one. |
 | `RESEND_API_KEY` | none | Email via [Resend](https://resend.com); email sign-in is off without it. |
 | `MAIL_FROM` | `Simple Host <noreply@simple-host.app>` | The sender of every email. |
 | `LLM_PROVIDER` | `grok` | The model backend for AI create and Ask: `grok`, `xai`, `openai`, `deepseek`, `openrouter` or `custom`. |

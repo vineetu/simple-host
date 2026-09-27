@@ -1441,7 +1441,7 @@
     {
       "name": "IDLE_CLEANUP_EXEMPT_HANDLES",
       "group": "cleanup",
-      "description": "Accounts (comma-separated) whose sites the idle cleanup never touches.",
+      "description": "Accounts (comma-separated handles) whose sites the idle cleanup never touches. An account that later changes its handle stays exempt under the old one.",
       "type": "string",
       "default": "",
       "security_sensitive": false,

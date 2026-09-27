@@ -290,6 +290,15 @@ func TestIdleCleanupHardening(t *testing.T) {
 	if len(mine()) != 0 {
 		t.Fatalf("exempt handle listed: %v", mine())
 	}
+	// An exempt account that changed its handle: the old one (an alias)
+	// still exempts it.
+	oldHandle := "was-" + handle
+	exec(`INSERT INTO handle_aliases (handle, user_id) VALUES ($1, $2)`, oldHandle, uid)
+	a.sites.SetIdleExempt([]string{oldHandle}, "")
+	if len(mine()) != 0 {
+		t.Fatalf("exempt old handle listed: %v", mine())
+	}
+	exec(`DELETE FROM handle_aliases WHERE handle = $1`, oldHandle)
 	a.sites.SetIdleExempt(nil, strings.ToUpper(pat.email))
 	if len(mine()) != 0 {
 		t.Fatalf("reviewer account listed: %v", mine())

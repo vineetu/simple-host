@@ -25,7 +25,9 @@ import (
 // claimed <name>.<SITE_DOMAIN> (current, earlier or retired), taken offline
 // by their owner (a deliberate choice to keep it, just not serve it), preview
 // sites (they expire on their own), and the operator's exempt accounts
-// (IdleExempt: IDLE_CLEANUP_EXEMPT_HANDLES, the plugin reviewer account) and
+// (IdleExempt: IDLE_CLEANUP_EXEMPT_HANDLES, matched against each account's
+// current handle and its old ones, so an exempt account that changes its
+// handle stays exempt; the plugin reviewer account) and
 // event accounts (users.event_account).
 
 // IdleExempt is the operator's list of accounts the cleanup never touches.
@@ -89,6 +91,7 @@ func idleEligible(p int) string {
 	AND s.previous_domain IS NULL
 	AND NOT EXISTS (SELECT 1 FROM legacy_hostnames l WHERE l.site_id = s.id)
 	AND NOT (lower(COALESCE(u.handle, '')) = ANY($%d::text[]))
+	AND NOT EXISTS (SELECT 1 FROM handle_aliases ha WHERE ha.user_id = u.id AND ha.handle = ANY($%[1]d::text[]))
 	AND NOT ($%d <> '' AND lower(u.username) = $%d)
 	AND NOT u.event_account`, p, p+1, p+1)
 }

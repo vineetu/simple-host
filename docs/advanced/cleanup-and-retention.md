@@ -25,7 +25,7 @@ promised.
 | `API_METRICS_RETENTION_DAYS` | `30` | 1–3650 days | How long the admin page's API-call counts and shortened caller addresses are kept. |
 | `IDLE_CLEANUP` | `off` | `on` / `off` | on warns owners of long-unused sites, then moves them to Recently deleted. |
 | `IDLE_CLEANUP_MAX_EMAILS` | `50` | at least 1 emails | Idle-cleanup emails one run sends. |
-| `IDLE_CLEANUP_EXEMPT_HANDLES` | none | text | Accounts (comma-separated) whose sites the idle cleanup never touches. |
+| `IDLE_CLEANUP_EXEMPT_HANDLES` | none | text | Accounts (comma-separated handles) whose sites the idle cleanup never touches. An account that later changes its handle stays exempt under the old one. |
 <!-- /settings -->
 
 ## Recipes
