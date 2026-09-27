@@ -432,9 +432,10 @@ paths:
               properties:
                 display_name: {type: string, maxLength: 100, description: Trimmed; empty clears the name. Never used in URLs.}
                 handle: {type: string, pattern: '^[a-z0-9-]{1,39}$', description: "The <handle> in your address https://<handle>.simple-host.app/. Must not be reserved or already taken (handles and free <name>.simple-host.app addresses share one namespace)."}
+                signin_alerts: {type: boolean, description: "Sign-in alert emails (default true): one email after each sign-in or app connection, at most one per browser or app a day. Needs one of the account's own API keys (a connected app or the admin key gets 400 not_an_account_key)."}
       responses:
         '200': {description: Updated account profile}
-        '400': {description: Invalid profile}
+        '400': {description: "Invalid profile, or signin_alerts sent without an account key (code not_an_account_key)"}
         '401': {description: API key required}
         '409': {description: Handle taken}
         '429':
@@ -465,6 +466,7 @@ paths:
                   public_page: { type: string, format: uri, description: "The account's public page listing its public sites, e.g. https://<handle>.simple-host.app/. Present with handle." }
                   display_name: { type: string }
                   is_admin: { type: boolean }
+                  signin_alerts: { type: boolean, description: "Whether an email follows each sign-in or app connection (PATCH /v1/me to change)." }
         '401': { $ref: '#/components/responses/Unauthorized' }
     delete:
       operationId: deleteMe
@@ -498,6 +500,79 @@ paths:
         '403': { description: "Suspended account (code account_suspended), a site of the account taken down (code site_suspended) or admin account (code admin_account)" }
         '409': { description: "The account still holds event hostnames (code event_hostnames)" }
         '429': { description: Too many requests from this address }
+
+  /v1/me/email:
+    post:
+      operationId: requestEmailChange
+      summary: "Change your sign-in email, step 1: send a code to the new address"
+      description: >-
+        Emails a 6-digit code to the new address (15 minutes, 3 tries). Send it to
+        POST /v1/me/email/verify to finish. Asking looks the same for every address. Needs one of
+        the account's own API keys: a connected app or the admin key gets 400 not_an_account_key.
+        Rate-limited per address and per account, like sign-in.
+      tags: [Auth]
+      security: [{ apiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '202':
+          description: Code sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  email: { type: string }
+                  expires_in_seconds: { type: integer }
+        '400': { description: "Not an account key (code not_an_account_key), not an email (code invalid_email) or already the sign-in email (code same_email)" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: "The plugin reviewer account, whose email the operator sets (code reviewer_account)" }
+        '429': { description: Too many requests }
+
+  /v1/me/email/verify:
+    post:
+      operationId: verifyEmailChange
+      summary: "Change your sign-in email, step 2: confirm with the code"
+      description: >-
+        Moves the account to the new address: from now on sign-in codes go there. Keys, the handle,
+        sites and connected apps stay; a linked Google sign-in keeps working. Open sign-in codes for
+        the old address stop working, and the old address gets a notice naming the new one masked
+        (n***@example.com). An address another account signs in with is refused here, after its
+        code is verified (409 email_taken). Needs one of the account's own API keys.
+      tags: [Auth]
+      security: [{ apiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string, description: The 6-digit code emailed to the new address }
+      responses:
+        '200':
+          description: Changed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  username: { type: string }
+                  email: { type: string }
+                  message: { type: string }
+        '400': { description: "Not an account key (code not_an_account_key), no code, or no change waiting (code no_pending_change)" }
+        '401': { description: "Wrong or expired code, or too many tries (code invalid_code)" }
+        '409': { description: "Another account signs in with that address (code email_taken)" }
+        '429': { description: Too many requests }
 
   /v1/me/export.tar.gz:
     get:

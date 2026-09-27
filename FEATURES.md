@@ -224,16 +224,41 @@ requests withdrawn. One confirmation email follows. Refused: 400 `confirm_requir
 `admin_account`, 403 `account_suspended` (the operator handles those), 409 `event_hostnames`.
 The admin's `DELETE /v1/admin/users/{id}` runs the same erasure (`db.EraseAccount`). Buttons:
 the owner app's **Your data** section, and `/dashboard` for accounts without a handle.
+
+**Change sign-in email (2026-09-27).** `POST /v1/me/email` `{"email"}` sends a 6-digit code to
+the new address (15 min, 3 tries, the sign-in throttles per new address and per account; one
+pending change per account in `email_changes`, code stored as SHA-256). `POST /v1/me/email/verify`
+`{"code"}` moves the account (`users.username`) to it, spends every open emailed code for the
+old address, and emails the old address "Your Simple Host sign-in email was changed to
+n***@… — if this wasn't you, write to support@simple-host.app". The account's own key only
+(400 `not_an_account_key` for a connected app or the admin env key); 400 `same_email` /
+`invalid_email` / `no_pending_change`, 401 `invalid_code`, 403 `reviewer_account` (the plugin
+reviewer's email is the operator's). An address another account signs in with is refused only
+after its code is verified (409 `email_taken`), so asking reveals no more than sign-in does. The
+handle, keys, sites and connected apps stay as they are; a linked Google identity stays linked
+(sign-in keys on the Google account, not the email), and the new address is the one codes go to.
+Buttons: the owner app's **Sign-in** section, and `/dashboard` for accounts without a handle.
+
+**Sign-in alerts (2026-09-27).** After each successful owner sign-in (emailed code or link,
+Google) and each app connected on the consent screen, one short email: the time (UTC), the
+browser or app in a few words (`summarizeUserAgent`: "Chrome on macOS", "curl"; never the IP or
+a location; a connected app's self-declared name is quoted in the body, not the subject), and
+a link to the owner app (`/dashboard` without a handle) where "Sign out everywhere" and the
+switch are. At most one per account, browser/app summary (plus app name for a connection) and
+UTC day (`signin_alerts_sent`, pruned after two days). None for API key calls, event accounts
+(any `event account` key), the plugin reviewer account (`REVIEW_ACCOUNT_EMAIL`), or an owner who
+turned them off (`PATCH /v1/me {"signin_alerts": false}`, own key only; `GET /v1/me` returns
+`signin_alerts`; default on). Sent in the background; a sign-in never waits on it.
 **Status: live.**
 
 | Surface | Details |
 |---|---|
-| Routes | `POST /v1/auth` (send code) · `POST /v1/auth/verify` (code → key, optional `name`; creates the account and handle if new) · `GET /v1/me` · `POST /v1/me/api-key/rotate` (Sign out everywhere: replaces all keys) · `POST /v1/me/sign-out` (ends the calling key) · `GET /v1/me/keys` · `POST /v1/me/keys` (named key) · `DELETE /v1/me/keys/{id}` · `PATCH /v1/me` (display name, handle: free before publishing; after, once per 30 days, old handle kept as an alias so every old address redirects, new handle's certificate requested) · `GET /v1/me/export.tar.gz` (Download my data) · `DELETE /v1/me` (Delete my account, `{"confirm"}`; refused while suspended or holding a taken-down site, 403 `account_suspended`/`site_suspended`; takes every site's lock; domains and the earlier `previous_domain` unlinked and their certificate requests withdrawn only while still this account's) |
+| Routes | `POST /v1/auth` (send code) · `POST /v1/auth/verify` (code → key, optional `name`; creates the account and handle if new) · `GET /v1/me` · `POST /v1/me/api-key/rotate` (Sign out everywhere: replaces all keys) · `POST /v1/me/sign-out` (ends the calling key) · `GET /v1/me/keys` · `POST /v1/me/keys` (named key) · `DELETE /v1/me/keys/{id}` · `PATCH /v1/me` (display name, handle: free before publishing; after, once per 30 days, old handle kept as an alias so every old address redirects, new handle's certificate requested; `signin_alerts`, own key only) · `POST /v1/me/email` (code to the new address) · `POST /v1/me/email/verify` (moves the account; old address told) · `GET /v1/me/export.tar.gz` (Download my data) · `DELETE /v1/me` (Delete my account, `{"confirm"}`; refused while suspended or holding a taken-down site, 403 `account_suspended`/`site_suspended`; takes every site's lock; domains and the earlier `previous_domain` unlinked and their certificate requests withdrawn only while still this account's) |
 | MCP tools | `who_am_i` |
 | Skill | `website-deploy/references/register.md` (email-code registration) · `references/operations.md` §API keys · `references/backend.md` §Saving from an agent (API key) |
-| Pages | `st/index.html` (`/dashboard` sign-in: code, Google, paste key; Sign out everywhere), `st/showcase.html` (owner **Keys** panel `#owner-keys`; Your address, with Change; **Your data** `#owner-data`: Download my data, Delete my account with type-to-confirm), `st/index.html` **Your data** (`#my-data`, accounts without a handle), `st/privacy.html`, `st/terms.html`, `st/support.html` (point at the two buttons), `st/connect.html`, `st/partials/header.html` (Sign out → `/v1/me/sign-out`) |
-| Go | `internal/auth/middleware.go` (`X-API-Key`, `shk_` keys, 401 codes, admin key, `RequireAdmin`), `h/user.go`, `h/keys.go` (list/mint/revoke/sign-out), `internal/db/apikeys.go`, `h/emailcode.go`, `h/accounts.go` (`patchMe`, handle validation), `h/account_data.go` (`exportMe`, `deleteMe`, `eraseAccountFiles`), `internal/db/account.go` (`LockAccountForDelete`, `EraseAccount`, export queries), `h/handles.go`, `internal/db/queries.go` (hashed key lookup, `ClaimHandle`), `internal/db/internalkey.go` (in-process per-request keys for the connector), `internal/email/resend.go` |
-| DB | `users` (`handle_changed_at`), `handle_aliases` (`user_id` NULL = retired handle of a deleted account; `cp-gdpr-retired-handles.sql`), `api_keys`, `auth_tokens` (purpose-bound codes; expired ones purged) |
+| Pages | `st/index.html` (`/dashboard` sign-in: code, Google, paste key; Sign out everywhere), `st/showcase.html` (owner **Keys** panel `#owner-keys`; Your address, with Change; **Your data** `#owner-data`: Download my data, Delete my account with type-to-confirm; **Sign-in** `#owner-signin`: Change email, Sign-in alerts switch), `st/index.html` **Your data** (`#my-data`) and **Sign-in** (`#my-signin`), accounts without a handle, `st/privacy.html`, `st/terms.html`, `st/support.html` (point at the two buttons), `st/connect.html`, `st/partials/header.html` (Sign out → `/v1/me/sign-out`) |
+| Go | `internal/auth/middleware.go` (`X-API-Key`, `shk_` keys, 401 codes, admin key, `RequireAdmin`), `h/user.go`, `h/keys.go` (list/mint/revoke/sign-out), `internal/db/apikeys.go`, `h/emailcode.go`, `h/accounts.go` (`patchMe`, handle validation), `h/account_data.go` (`exportMe`, `deleteMe`, `eraseAccountFiles`), `h/account_email.go` (change email), `h/signin_alert.go` (sign-in alerts, `summarizeUserAgent`), `internal/db/signin.go`, `internal/db/account.go` (`LockAccountForDelete`, `EraseAccount`, export queries), `h/handles.go`, `internal/db/queries.go` (hashed key lookup, `ClaimHandle`), `internal/db/internalkey.go` (in-process per-request keys for the connector), `internal/email/resend.go` |
+| DB | `users` (`handle_changed_at`, `signin_alerts`), `email_changes`, `signin_alerts_sent` (`w2-account-signin-email.sql`), `handle_aliases` (`user_id` NULL = retired handle of a deleted account; `cp-gdpr-retired-handles.sql`), `api_keys`, `auth_tokens` (purpose-bound codes; expired ones purged) |
 | Env | `ADMIN_API_KEY`, `RESEND_API_KEY`, `MAIL_FROM`, `PUBLIC_BASE_URL` |
 | External | Resend |
 | Limits | `ipLimiter` 20/0.2 s⁻¹ per IP; `emailLimiter` 5/0.02 s⁻¹ per address; at most 50 keys per account (`POST /v1/me/keys` → 409 `key_limit`); key names refuse control and invisible formatting characters; minting locks the account and the caller's key (a key revoked meanwhile gets 401 `invalid_api_key`); admin reissues are logged (`admin_key_reissue`) |
@@ -262,7 +287,7 @@ as the person, so they meet the same checks as REST. Connector tokens are stored
 ## 9. Skills and plugin distribution
 
 Skills source is `simple-host-website/skills/` (embedded via `simple-host-website/embed.go`) at
-version **0.20.4**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
+version **0.20.5**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live**
 (ChatGPT and Claude directory listings submitted 2026-09-24, pending).
 
@@ -412,9 +437,11 @@ listings; public contact is support@simple-host.app. Go: `h/ui.go`.
 
 ## 19. Signals and notifications
 
-No owner-facing notifications, webhooks or signals exist. Outbound email is only sign-in codes
-(`internal/email/resend.go`). Stale-skill `_notice` in JSON responses (§9) is the only in-band
-notice.
+No webhooks or signals exist. Outbound email (`internal/email/resend.go`, Resend): sign-in
+codes; the confirmation code for a new sign-in email and the notice to the old address (§7);
+sign-in alerts after each owner sign-in or app connection, switchable (§7); the account-deleted
+confirmation (§7); a custom domain failing for a day (§3). Stale-skill `_notice` in JSON
+responses (§9) is the only in-band notice.
 
 ## 20. Operations (health, schema, CLI)
 

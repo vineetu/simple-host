@@ -58,9 +58,9 @@ Preview a retained version before restoring it (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.4"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.5"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.4"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.5"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte
@@ -96,6 +96,26 @@ in visitors' browsers (localStorage) starts empty at the new address, and
 visitors sign in again, so tell the person before changing it. They can also do
 it themselves under "Your address" on their Simple Host page. Afterwards re-read
 `site_url` from `GET /v1/sites`; never compose addresses.
+
+## Change the sign-in email; sign-in alerts
+
+```
+POST /v1/me/email         {"email": "new@example.com"}   (X-API-Key) → 202, code sent there
+POST /v1/me/email/verify  {"code": "123456"}             (X-API-Key) → 200 {"email"}
+```
+
+The person reads the 6-digit code from the NEW inbox (15 minutes, 3 tries).
+Verifying moves the account there: codes go to the new address from then on;
+keys, the handle, sites and connected apps stay, and a linked Google sign-in
+keeps working. The old address gets a notice. Refusals: 400
+`not_an_account_key` (a connected app cannot do this; point the person to
+"Sign-in" on their page), `same_email`, `invalid_email`, `no_pending_change`;
+401 `invalid_code`; 409 `email_taken` (another account signs in with it).
+
+After each sign-in or app connection the person gets a short email (time,
+browser or app, a link to "Sign out everywhere"; at most one per browser a day).
+`GET /v1/me` shows `signin_alerts`; `PATCH /v1/me {"signin_alerts": false}`
+turns them off (own key only). Only change it when the person asks.
 ## Download a copy
 
 ```
