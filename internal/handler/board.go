@@ -140,12 +140,12 @@ func (h *SiteHandler) appendBoard(w http.ResponseWriter, r *http.Request, siteID
 	if !h.siteHasRoom(w, r, siteID, int64(len(body))) {
 		return
 	}
-	it, _, err := db.AppendEntry(r.Context(), h.database, siteID, set.Name, body, actor, false, h.savedData.BoardMax)
+	it, _, err := db.AppendEntry(r.Context(), h.database, siteID, set.Name, db.KindBoard, body, actor, false, h.savedData.BoardMax)
 	switch {
 	case errors.Is(err, db.ErrNameFull):
 		h.writeBoardFull(w)
 		return
-	case errors.Is(err, sql.ErrNoRows):
+	case errors.Is(err, sql.ErrNoRows), errors.Is(err, db.ErrKindChanged):
 		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("%q is not a board any more", set.Name), Code: "wrong_kind"})
 		return
 	case err != nil:

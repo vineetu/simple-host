@@ -127,25 +127,77 @@ func DeclareData(ctx context.Context, q Querier, siteID, name, kind string, priv
 // cannot become Personal, or stop being Personal.
 var ErrNameHasRows = errors.New("the name holds items")
 
+// ErrSeveralItems: a list with more than one live item cannot become Page
+// info, which is one document.
+var ErrSeveralItems = errors.New("the name holds several items")
+
+// ErrKindChanged: the name's declaration changed after the caller read it
+// (the owner changed its kind at the same moment); nothing was saved.
+var ErrKindChanged = errors.New("the name's kind changed")
+
+// PrivateItemsError: a change would make a private name readable by anyone
+// while it holds items, live or in Recently deleted (a restore would bring
+// those back under the public name). Content: the change is to Page info,
+// which a private name becomes only when it holds nothing at all; any other
+// change needs the owner's confirm_public.
+type PrivateItemsError struct {
+	Live, Deleted int64
+	Content       bool
+}
+
+func (e *PrivateItemsError) Error() string { return "the private name holds items" }
+
+// lockDeclaration takes the name's declaration-row lock (the row is made
+// first when missing) and returns its kind and private flag.
+func lockDeclaration(ctx context.Context, tx *sql.Tx, siteID, name string) (kind string, private bool, err error) {
+	if _, err = tx.ExecContext(ctx, `
+		INSERT INTO collection_settings (site_id, collection) VALUES ($1, $2) ON CONFLICT DO NOTHING`, siteID, name); err != nil {
+		return
+	}
+	err = tx.QueryRowContext(ctx, `
+		SELECT COALESCE(kind, ''), private FROM collection_settings WHERE site_id = $1 AND collection = $2 FOR UPDATE`, siteID, name).Scan(&kind, &private)
+	return
+}
+
+// publicGate runs under the declaration lock before a private name (cur,
+// curPrivate) becomes readable by anyone as kind with private. Items in
+// Recently deleted count: they come back under the name on a restore.
+func publicGate(ctx context.Context, tx *sql.Tx, siteID, name, cur string, curPrivate bool, kind string, private, confirmPublic bool) error {
+	public := kind == KindContent || kind == KindBoard || (kind != KindPersonal && !private)
+	if cur == KindPersonal || !curPrivate || !public {
+		return nil
+	}
+	var live, deleted int64
+	if err := tx.QueryRowContext(ctx, `
+		SELECT count(*) FILTER (WHERE deleted_at IS NULL), count(*) FILTER (WHERE deleted_at IS NOT NULL)
+		  FROM collection_items WHERE site_id = $1 AND collection = $2`, siteID, name).Scan(&live, &deleted); err != nil {
+		return err
+	}
+	if live+deleted == 0 || (kind != KindContent && confirmPublic) {
+		return nil
+	}
+	return &PrivateItemsError{Live: live, Deleted: deleted, Content: kind == KindContent}
+}
+
 // DeclareDataLocked is DeclareData under the name's declaration-row lock, the
 // one SavePersonal, AppendEntry and PutContent take, so no save lands between
-// the check and the change. A change to or from Personal is refused with
-// ErrNameHasRows while the name holds any item, live or in Recently deleted:
-// a Personal record never becomes an item the owner reads, and an item never
-// becomes someone's Personal record. The row is made first when missing.
-func DeclareDataLocked(ctx context.Context, database *sql.DB, siteID, name, kind string, private, onePerPerson bool, notify string) error {
+// the checks and the change. Refused, all checked under that lock:
+//   - a change to or from Personal while the name holds any item, live or in
+//     Recently deleted (ErrNameHasRows): a Personal record never becomes an
+//     item the owner reads, and an item never becomes someone's record;
+//   - a private name made readable by anyone (Page info, a Shared board,
+//     public Submissions) while it holds items, live or in Recently deleted
+//     (*PrivateItemsError): never for Page info, and otherwise only with
+//     confirmPublic;
+//   - a list with several live items made Page info (ErrSeveralItems).
+func DeclareDataLocked(ctx context.Context, database *sql.DB, siteID, name, kind string, private, onePerPerson bool, notify string, confirmPublic bool) error {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO collection_settings (site_id, collection) VALUES ($1, $2) ON CONFLICT DO NOTHING`, siteID, name); err != nil {
-		return err
-	}
-	var cur string
-	if err := tx.QueryRowContext(ctx, `
-		SELECT COALESCE(kind, '') FROM collection_settings WHERE site_id = $1 AND collection = $2 FOR UPDATE`, siteID, name).Scan(&cur); err != nil {
+	cur, curPrivate, err := lockDeclaration(ctx, tx, siteID, name)
+	if err != nil {
 		return err
 	}
 	if cur != kind && (cur == KindPersonal || kind == KindPersonal) {
@@ -157,7 +209,42 @@ func DeclareDataLocked(ctx context.Context, database *sql.DB, siteID, name, kind
 			return ErrNameHasRows
 		}
 	}
+	if err := publicGate(ctx, tx, siteID, name, cur, curPrivate, kind, private, confirmPublic); err != nil {
+		return err
+	}
+	if kind == KindContent && cur != KindContent {
+		many, err := NameHoldsItems(ctx, tx, siteID, name, 1)
+		if err != nil {
+			return err
+		}
+		if many {
+			return ErrSeveralItems
+		}
+	}
 	if err := DeclareData(ctx, tx, siteID, name, kind, private, onePerPerson, notify); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// SetCollectionPrivateLocked is SetCollectionPrivate under the declaration
+// lock, with publicGate: a private list made public while it holds items,
+// live or in Recently deleted, needs confirmPublic (*PrivateItemsError).
+func SetCollectionPrivateLocked(ctx context.Context, database *sql.DB, siteID, name string, private, confirmPublic bool) error {
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	cur, curPrivate, err := lockDeclaration(ctx, tx, siteID, name)
+	if err != nil {
+		return err
+	}
+	if err := publicGate(ctx, tx, siteID, name, cur, curPrivate, cur, private, confirmPublic); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE collection_settings SET private = $3, updated_at = now() WHERE site_id = $1 AND collection = $2`, siteID, name, private); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -292,17 +379,23 @@ func PutContent(ctx context.Context, database *sql.DB, siteID, name string, data
 // id of the one they have; 0 when it was sent by another account of the same
 // address). A person is the account or its address with any +tag dropped
 // (BaseEmail). The declaration row is locked, so two saves at once cannot
-// both pass either check.
-func AppendEntry(ctx context.Context, database *sql.DB, siteID, name string, data json.RawMessage, a Actor, onePerPerson bool, maxItems int) (CollectionItem, int64, error) {
+// both pass either check; under it the name must still be kind (Submissions,
+// or a Shared board), else ErrKindChanged.
+func AppendEntry(ctx context.Context, database *sql.DB, siteID, name, kind string, data json.RawMessage, a Actor, onePerPerson bool, maxItems int) (CollectionItem, int64, error) {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return CollectionItem{}, 0, err
 	}
 	defer tx.Rollback()
-	var one int
+	// Under the lock, the name is still what the caller read: a change of
+	// kind (to Page info, say) may have committed since.
+	var cur string
 	if err := tx.QueryRowContext(ctx, `
-		SELECT 1 FROM collection_settings WHERE site_id = $1 AND collection = $2 FOR UPDATE`, siteID, name).Scan(&one); err != nil {
+		SELECT COALESCE(kind, '') FROM collection_settings WHERE site_id = $1 AND collection = $2 FOR UPDATE`, siteID, name).Scan(&cur); err != nil {
 		return CollectionItem{}, 0, err
+	}
+	if cur != kind {
+		return CollectionItem{}, 0, ErrKindChanged
 	}
 	if onePerPerson && a.ID != "" {
 		have, mine, err := livePersonEntry(ctx, tx, siteID, name, a, 0)

@@ -44,18 +44,35 @@ const authorExpr = `CASE WHEN submitted_by IS NOT NULL THEN COALESCE(submitted_e
 // AppendCollectionItemByID appends one item to a site's named collection — a
 // single INSERT (O(1), no document rewrite), so high-volume appends stay cheap
 // and never clobber. by records who sent it (Actor.ID empty: nobody signed
-// in). Returns sql.ErrNoRows if the site_id does not exist.
+// in). It is for names with no kind: the declaration row, when there is one,
+// is held (shared) while the item goes in, and ErrKindChanged means the name
+// was declared meanwhile (the item would land under rules it was not checked
+// against). Returns sql.ErrNoRows if the site_id does not exist.
 func AppendCollectionItemByID(ctx context.Context, db *sql.DB, siteID, collection string, data json.RawMessage, by Actor) (CollectionItem, error) {
+	var it CollectionItem
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return it, err
+	}
+	defer tx.Rollback()
+	var kind string
+	err = tx.QueryRowContext(ctx, `
+		SELECT COALESCE(kind, '') FROM collection_settings WHERE site_id = $1 AND collection = $2 FOR SHARE`, siteID, collection).Scan(&kind)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+	case err != nil:
+		return it, err
+	case kind != "":
+		return it, ErrKindChanged
+	}
 	const q = `
 		INSERT INTO collection_items (site_id, collection, data, submitted_by, submitted_email)
 		SELECT id, $2, $3::jsonb, $4, $5 FROM sites WHERE id = $1
 		RETURNING id, data, created_at`
-	var it CollectionItem
-	err := db.QueryRowContext(ctx, q, siteID, collection, string(data), nullIfEmpty(by.ID), nullIfEmpty(by.Email)).Scan(&it.ID, &it.Data, &it.CreatedAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return it, sql.ErrNoRows
+	if err := tx.QueryRowContext(ctx, q, siteID, collection, string(data), nullIfEmpty(by.ID), nullIfEmpty(by.Email)).Scan(&it.ID, &it.Data, &it.CreatedAt); err != nil {
+		return it, err
 	}
-	return it, err
+	return it, tx.Commit()
 }
 
 // ListCollectionItemsByID returns a list's live items newest-first, paginated

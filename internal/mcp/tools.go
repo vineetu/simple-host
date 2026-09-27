@@ -218,6 +218,8 @@ var codeHints = map[string]string{
 	"not_allowed_to_save":      "The site's owner has not allowed this account to save here (list_data shows who may save; set_who_can_save changes it). Tell the person rather than retrying.",
 	"too_many_names":           "The site has as many names of that kind as it may hold. Keep related settings in one page info document, and reuse a Submissions name for the same kind of thing.",
 	"has_entries":              "That name holds entries (several, or private ones) that the new kind cannot keep as they are: page info is one public document, and a Personal name starts empty. Use another name.",
+	"one_document":             "Page info is one document, and bringing that back would make a second one. To put an earlier document back, send it whole with update_data (the current one stays in its history).",
+	"kind_changed":             "The owner changed what this name is while the save was on its way; nothing was saved. Check list_data, then call again if it still fits.",
 	"visitor_sign_in_off":      "This install does not read visitor sign-in on public saves, so public Submissions could never take an entry. Keep them private, or leave the name Shared; tell the person.",
 	"invalid_kind":             "kind is entries (Submissions), content (Page info), mine (Personal) or board (Shared board); visibility, one_per_person and notify apply to entries only. Correct the arguments and call again.",
 	"invalid_savers":           "Send emails (ann@example.com) or whole domains (@company.com). Correct the list and call again.",

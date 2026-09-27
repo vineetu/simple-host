@@ -305,7 +305,7 @@ func TestSubmissionsRules(t *testing.T) {
 	// readable by anyone; then anyone reads, without who sent it.
 	cp := s.owner(t, "PUT", "/v1/sites/shop/data/rsvps/kind", map[string]any{"kind": "entries", "visibility": "public"})
 	wantCode(t, "private to public, unconfirmed", cp, 409, "confirm_public")
-	if !strings.Contains(string(cp.body), "1 private entry") {
+	if !strings.Contains(string(cp.body), "2 private entries (1 in Recently deleted") {
 		t.Fatalf("confirm_public says what becomes public: %s", cp.body)
 	}
 	wantCode(t, "private to page info", s.owner(t, "PUT", "/v1/sites/shop/data/rsvps/kind", map[string]any{"kind": "content", "confirm_public": true}), 409, "has_entries")

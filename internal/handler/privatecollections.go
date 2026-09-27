@@ -374,12 +374,13 @@ func (h *SiteHandler) setCollectionPrivacy(w http.ResponseWriter, r *http.Reques
 	if !*req.Private && (set.Kind == db.KindEntries || (set.Kind == "" && !set.Shared)) && !h.publicEntriesOK(w) {
 		return
 	}
-	if !*req.Private && set.Private && !h.confirmPublicOK(w, r, siteID, coll, "a public list", req.ConfirmPublic) {
-		return
-	}
 	// On a site that needs kinds, choosing privacy declares the name as
-	// Submissions (with the default email for that visibility).
-	setPrivacy := func() error { return db.SetCollectionPrivate(r.Context(), h.database, siteID, coll, *req.Private) }
+	// Submissions (with the default email for that visibility). Making a
+	// private list public is checked under the name's lock: while it holds
+	// entries (Recently deleted too) only with confirm_public.
+	setPrivacy := func() error {
+		return db.SetCollectionPrivateLocked(r.Context(), h.database, siteID, coll, *req.Private, req.ConfirmPublic)
+	}
 	if set.Kind == "" && !set.Shared {
 		if !h.entriesNameRoom(w, r, siteID, coll) {
 			return
@@ -389,10 +390,15 @@ func (h *SiteHandler) setCollectionPrivacy(w http.ResponseWriter, r *http.Reques
 			notify = db.NotifyOff
 		}
 		setPrivacy = func() error {
-			return db.DeclareData(r.Context(), h.database, siteID, coll, db.KindEntries, *req.Private, false, notify)
+			return db.DeclareDataLocked(r.Context(), h.database, siteID, coll, db.KindEntries, *req.Private, false, notify, req.ConfirmPublic)
 		}
 	}
 	if err := setPrivacy(); err != nil {
+		var pe *db.PrivateItemsError
+		if errors.As(err, &pe) {
+			writePrivateItems(w, coll, pe, "a public list")
+			return
+		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}

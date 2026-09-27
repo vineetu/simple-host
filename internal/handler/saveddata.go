@@ -575,6 +575,8 @@ func (h *SiteHandler) restoreListHistory(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusConflict, errorResponse{Error: err.Error(), Code: "nothing_to_restore"})
 	case errors.Is(err, db.ErrNameFull):
 		h.writeBoardFull(w)
+	case errors.Is(err, db.ErrOneDocument):
+		writeOneDocument(w, coll)
 	case errors.Is(err, db.ErrSiteFull):
 		h.writeSiteFull(w)
 	case err != nil:
@@ -668,6 +670,10 @@ func (h *SiteHandler) restoreDeletedItem(w http.ResponseWriter, r *http.Request)
 		h.writeSiteFull(w)
 		return
 	}
+	if errors.Is(err, db.ErrOneDocument) {
+		writeOneDocument(w, coll)
+		return
+	}
 	if errors.Is(err, db.ErrNameFull) {
 		writeJSON(w, http.StatusConflict, errorResponse{
 			Error: fmt.Sprintf("bringing these back would take the board past %d items; delete some first, or restore fewer (a shorter within_minutes, or one at a time)", h.savedData.BoardMax),
@@ -684,6 +690,15 @@ func (h *SiteHandler) restoreDeletedItem(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"site": siteName, "collection": coll, "restored": n})
+}
+
+// writeOneDocument: Page info is one document, so an earlier one comes back
+// only while the name holds none.
+func writeOneDocument(w http.ResponseWriter, name string) {
+	writeJSON(w, http.StatusConflict, errorResponse{
+		Error: fmt.Sprintf("%q is page info, which is one document, and bringing this back would make a second one beside it. To put an earlier document back, save it again with PUT (the current one stays in its history), or clear the current document first and bring back one at a time", name),
+		Code:  "one_document",
+	})
 }
 
 // boardCap is SAVED_DATA_BOARD_MAX when coll is a Shared board (restores

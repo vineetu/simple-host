@@ -163,7 +163,7 @@ func (h *SiteHandler) saveEntry(w http.ResponseWriter, r *http.Request, siteID s
 	var err error
 	var have int64
 	if set.Kind == db.KindEntries {
-		item, have, err = db.AppendEntry(r.Context(), h.database, siteID, set.Name, body, a, set.OnePerPerson && a.ID != "", h.savedData.EntriesMax)
+		item, have, err = db.AppendEntry(r.Context(), h.database, siteID, set.Name, db.KindEntries, body, a, set.OnePerPerson && a.ID != "", h.savedData.EntriesMax)
 	} else {
 		item, err = db.AppendCollectionItemByID(r.Context(), h.database, siteID, set.Name, body, a)
 	}
@@ -183,6 +183,8 @@ func (h *SiteHandler) saveEntry(w http.ResponseWriter, r *http.Request, siteID s
 			Error: fmt.Sprintf("this list is full (%d entries); the owner can delete entries or clear it to make room", h.savedData.EntriesMax),
 			Code:  "list_full",
 		})
+	case errors.Is(err, db.ErrKindChanged):
+		writeKindChanged(w, set.Name)
 	case errors.Is(err, sql.ErrNoRows):
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
 	case err != nil:
@@ -191,6 +193,15 @@ func (h *SiteHandler) saveEntry(w http.ResponseWriter, r *http.Request, siteID s
 		return item, true
 	}
 	return item, false
+}
+
+// writeKindChanged: the owner changed what the name is while this save was
+// on its way; nothing was saved.
+func writeKindChanged(w http.ResponseWriter, name string) {
+	writeJSON(w, http.StatusConflict, errorResponse{
+		Error: fmt.Sprintf("the site owner just changed what %q is, so nothing was saved; load the page again and retry", name),
+		Code:  "kind_changed",
+	})
 }
 
 // saverOK applies the site's who-may-save setting to a visitor write. email
@@ -881,9 +892,6 @@ func (h *SiteHandler) declareData(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `send {"kind": "entries"} or {"kind": "content"}`, Code: "invalid_kind"})
 		return
 	}
-	publicOK := func(what string) bool {
-		return h.confirmPublicOK(w, r, siteID, name, what, req.ConfirmPublic)
-	}
 	req.Kind = normalizeKind(req.Kind)
 	prev, ok := h.dataSettings(w, r, siteID, name)
 	if !ok {
@@ -905,27 +913,6 @@ func (h *SiteHandler) declareData(w http.ResponseWriter, r *http.Request) {
 	}
 	switch req.Kind {
 	case db.KindContent:
-		// A private list never becomes the page's public document: what
-		// visitors sent there stays theirs and the owner's. It has to be
-		// empty first (no confirm_public here: nothing private is exposed).
-		if prev.Private {
-			n, err := db.CountLiveItems(r.Context(), h.database, siteID, name)
-			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-				return
-			}
-			if n > 0 {
-				noun := "entries"
-				if n == 1 {
-					noun = "entry"
-				}
-				writeJSON(w, http.StatusConflict, map[string]any{
-					"error": fmt.Sprintf("%q is private and holds %d %s that only you can read; page info is public, so a private name becomes page info only when it is empty. Use another name, or delete its entries first", name, n, noun),
-					"code":  "has_entries", "count": n,
-				})
-				return
-			}
-		}
 		if req.Visibility == "owner" || (req.OnePerPerson != nil && *req.OnePerPerson) || (req.Notify != "" && req.Notify != db.NotifyOff) {
 			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "page info is always public and written only by the owner; visibility, one_per_person and notify apply to Submissions (kind entries)", Code: "invalid_kind"})
 			return
@@ -940,17 +927,12 @@ func (h *SiteHandler) declareData(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("a site has at most %d page info names; keep related settings together in one document", h.savedData.ContentNamesMax), Code: "too_many_names"})
 				return
 			}
-			many, err := db.NameHoldsItems(r.Context(), h.database, siteID, name, 1)
-			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-				return
-			}
-			if many {
-				writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("%q holds several entries, and page info is one document; use another name, or clear the list first", name), Code: "has_entries"})
-				return
-			}
 		}
-		if !h.declareLocked(w, r, siteID, name, db.KindContent, false, false, db.NotifyOff) {
+		// A private list never becomes the page's public document (what
+		// visitors sent there stays theirs and the owner's), and a list of
+		// several entries never becomes one document: both checked under
+		// the declaration lock.
+		if !h.declareLocked(w, r, siteID, name, db.KindContent, false, false, db.NotifyOff, false, "page info") {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -1014,13 +996,10 @@ func (h *SiteHandler) declareData(w http.ResponseWriter, r *http.Request) {
 		if !private && !h.publicEntriesOK(w) {
 			return
 		}
-		if prev.Private && !private && !publicOK(`public Submissions`) {
-			return
-		}
 		if prev.Kind != db.KindEntries && !h.entriesNameRoom(w, r, siteID, name) {
 			return
 		}
-		if !h.declareLocked(w, r, siteID, name, db.KindEntries, private, one, notify) {
+		if !h.declareLocked(w, r, siteID, name, db.KindEntries, private, one, notify, req.ConfirmPublic, "public Submissions") {
 			return
 		}
 		msg := "Submissions, private: signed-in visitors on https://" + home.Host + " add entries and see, change or withdraw their own; only you read them all."
@@ -1042,22 +1021,57 @@ func (h *SiteHandler) declareData(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// declareLocked writes the declaration under the name's lock, re-checking
-// there that a change to or from Personal finds the name empty (a save may
-// have landed since the checks above). Writes the refusal; false then.
-func (h *SiteHandler) declareLocked(w http.ResponseWriter, r *http.Request, siteID, name, kind string, private, one bool, notify string) bool {
-	err := db.DeclareDataLocked(r.Context(), h.database, siteID, name, kind, private, one, notify)
+// declareLocked writes the declaration under the name's lock, where the
+// checks that depend on what the name holds run (a save may land at any
+// moment): a change to or from Personal finds the name empty, and a private
+// name made readable by anyone (as what) holds nothing, or the owner
+// confirmed. Writes the refusal; false then.
+func (h *SiteHandler) declareLocked(w http.ResponseWriter, r *http.Request, siteID, name, kind string, private, one bool, notify string, confirmPublic bool, what string) bool {
+	err := db.DeclareDataLocked(r.Context(), h.database, siteID, name, kind, private, one, notify, confirmPublic)
+	var pe *db.PrivateItemsError
 	switch {
 	case errors.Is(err, db.ErrNameHasRows) && kind == db.KindPersonal:
 		writeHoldsData(w, name)
 	case errors.Is(err, db.ErrNameHasRows):
 		writeHasRecords(w, name)
+	case errors.Is(err, db.ErrSeveralItems):
+		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("%q holds several entries, and page info is one document; use another name, or clear the list first", name), Code: "has_entries"})
+	case errors.As(err, &pe):
+		writePrivateItems(w, name, pe, what)
 	case err != nil:
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 	default:
 		return true
 	}
 	return false
+}
+
+// writePrivateItems: a private name that holds entries (live or in Recently
+// deleted, which a restore brings back) never becomes page info, and becomes
+// readable by anyone (as what) only when the owner confirms, knowing what
+// that shows. The 409 has_entries or confirm_public, with the count.
+func writePrivateItems(w http.ResponseWriter, name string, e *db.PrivateItemsError, what string) {
+	n := e.Live + e.Deleted
+	noun := "entries"
+	if n == 1 {
+		noun = "entry"
+	}
+	held := fmt.Sprintf("%d private %s", n, noun)
+	if e.Deleted > 0 {
+		held += fmt.Sprintf(" (%d in Recently deleted, which a restore brings back)", e.Deleted)
+	}
+	if e.Content {
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error": fmt.Sprintf("%q is private and holds %s that only you can read; page info is public, so a private name becomes page info only when it is empty. Use another name, or delete its entries and empty its Recently deleted first", name, held),
+			"code":  "has_entries", "count": n,
+		})
+		return
+	}
+	writeJSON(w, http.StatusConflict, map[string]any{
+		"error": fmt.Sprintf("%q holds %s that only you can read now. As %s, anyone who can open the site reads them: every field of each entry (who sent each stays visible only to you). "+
+			"To go ahead, send the same request with \"confirm_public\": true; or use another name", name, held, what),
+		"code": "confirm_public", "count": n,
+	})
 }
 
 // writeHasRecords: a Personal name that holds records stays Personal.
@@ -1133,10 +1147,7 @@ func (h *SiteHandler) declarePersonalOrBoard(w http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-	if kind == db.KindBoard && prev.Private && !h.confirmPublicOK(w, r, siteID, name, "a Shared board", confirmPublic) {
-		return
-	}
-	if !h.declareLocked(w, r, siteID, name, kind, false, false, db.NotifyOff) {
+	if !h.declareLocked(w, r, siteID, name, kind, false, false, db.NotifyOff, confirmPublic, "a Shared board") {
 		return
 	}
 	msg := fmt.Sprintf("Personal: each visitor signed in on https://%s keeps one record here (at most %d KB), on any device; only they change it. You see how many people have one (from 3 people up), never what they saved: Simple Host's owner tools never show a person's Personal record; the site's own pages run in the visitor's browser and can read that visitor's record, so only use Personal on sites you trust. Never publish a page that sends what it reads from a Personal record anywhere else.", home.Host, h.savedData.PersonalMaxKB)
@@ -1157,33 +1168,6 @@ func (h *SiteHandler) publicEntriesOK(w http.ResponseWriter) bool {
 	writeJSON(w, http.StatusConflict, errorResponse{
 		Error: "public Submissions need visitors to sign in before they save, and visitor sign-in for public saves is off on this install (WRITE_AUTH_MODE=off). Keep them private (only you read them), or leave the name Shared",
 		Code:  "visitor_sign_in_off",
-	})
-	return false
-}
-
-// confirmPublicOK: a private name that holds entries is made readable by
-// anyone only when the owner says so (confirmed), knowing what that shows.
-// Writes the 409 confirm_public (with the count) otherwise.
-func (h *SiteHandler) confirmPublicOK(w http.ResponseWriter, r *http.Request, siteID, name, what string, confirmed bool) bool {
-	if confirmed {
-		return true
-	}
-	n, err := db.CountLiveItems(r.Context(), h.database, siteID, name)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return false
-	}
-	if n == 0 {
-		return true
-	}
-	noun := "entries"
-	if n == 1 {
-		noun = "entry"
-	}
-	writeJSON(w, http.StatusConflict, map[string]any{
-		"error": fmt.Sprintf("%q holds %d private %s that only you can read now. As %s, anyone who can open the site reads them: every field of each entry (who sent each stays visible only to you). "+
-			"To go ahead, send the same request with \"confirm_public\": true; or use another name", name, n, noun, what),
-		"code": "confirm_public", "count": n,
 	})
 	return false
 }

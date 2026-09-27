@@ -4597,7 +4597,7 @@
       "put": {
         "operationId": "declareData",
         "summary": "Declare what a data name is (owner)",
-        "description": "Owner only (X-API-Key, connector token, or the operator). Every piece of saved data has a name and one kind, and the kind decides who reads and who changes what. `{\"kind\": \"content\"}` is **Page info**: one JSON object only the owner writes (PUT .../data/{coll}) and anyone reads; a site declares at most 20 Page info names (SAVED_DATA_CONTENT_NAMES_MAX, 409 too_many_names); a name holding several entries cannot become one (409 has_entries). `{\"kind\": \"entries\"}` is **Submissions**: things visitors send. Options: `visibility` (`owner`, the default: only the owner reads them all, each visitor reads their own; or `public`: anyone reads them, without who sent them), `one_per_person` (one live entry per signed-in visitor), `notify` (email the owner: `daily`, the default while private; `each`, batched soon after they arrive; `off`, the default when public). A field left out keeps what the name had. A name nobody declared is **Shared** (anyone reads it, anyone signed in adds to it); with SAVED_DATA_DEFAULT_KIND=declare_first, on a site made after the kinds it takes no saves at all (409 declare_first). Product words are accepted for kind (\"Page info\", \"Submissions\"). Submissions need the site on an address of its own, where visitors sign in (409 custom_domain_required on instances without one); a site declares at most 50 Submissions names (SAVED_DATA_ENTRIES_NAMES_MAX, 409 too_many_names). Declaring a private name that holds entries as public Submissions would let anyone read them: 409 confirm_public (with `count`) until the request carries `\"confirm_public\": true`. A private name becomes Page info only while it is empty (409 has_entries). Public Submissions are refused on an install with WRITE_AUTH_MODE=off (409 visitor_sign_in_off). `{\"kind\": \"mine\"}` is **Personal**: one private record per signed-in visitor (a habit tracker, saved progress), stored private. Simple Host's owner tools (key, connector, owner app, exports) never show a person's record: the owner sees how many people have one and their size (from 3 people up). The site's own pages run in the visitor's browser and can read that visitor's record, so Personal is as private as the site's pages are trustworthy. A name holds records for at most 1,000 people (SAVED_DATA_PERSONAL_PEOPLE_MAX; a new person past it: 409 people_full). A name must be empty (nothing live or in Recently deleted) to become Personal (409 has_entries), and a Personal name that holds records never becomes another kind (409 has_records; both checked under the name's lock, so no save lands in between); a site declares at most 20 Personal names (SAVED_DATA_PERSONAL_NAMES_MAX). `{\"kind\": \"board\"}` is a **Shared board**: anyone reads it; signed-in visitors add, change and delete items one at a time; only the owner clears it; private entries become a board only with `confirm_public`; a site declares at most 20 Shared board names (SAVED_DATA_BOARD_NAMES_MAX). Neither takes options (400 invalid_kind), and both need the site's own address (409 custom_domain_required). Product words are accepted (\"Personal\", \"Shared board\").",
+        "description": "Owner only (X-API-Key, connector token, or the operator). Every piece of saved data has a name and one kind, and the kind decides who reads and who changes what. `{\"kind\": \"content\"}` is **Page info**: one JSON object only the owner writes (PUT .../data/{coll}) and anyone reads; a site declares at most 20 Page info names (SAVED_DATA_CONTENT_NAMES_MAX, 409 too_many_names); a name holding several entries cannot become one (409 has_entries). `{\"kind\": \"entries\"}` is **Submissions**: things visitors send. Options: `visibility` (`owner`, the default: only the owner reads them all, each visitor reads their own; or `public`: anyone reads them, without who sent them), `one_per_person` (one live entry per signed-in visitor), `notify` (email the owner: `daily`, the default while private; `each`, batched soon after they arrive; `off`, the default when public). A field left out keeps what the name had. A name nobody declared is **Shared** (anyone reads it, anyone signed in adds to it); with SAVED_DATA_DEFAULT_KIND=declare_first, on a site made after the kinds it takes no saves at all (409 declare_first). Product words are accepted for kind (\"Page info\", \"Submissions\"). Submissions need the site on an address of its own, where visitors sign in (409 custom_domain_required on instances without one); a site declares at most 50 Submissions names (SAVED_DATA_ENTRIES_NAMES_MAX, 409 too_many_names). Declaring a private name that holds entries as public Submissions would let anyone read them: 409 confirm_public (with `count`) until the request carries `\"confirm_public\": true`. A private name becomes Page info only while it is empty (409 has_entries). Both count what is in the name's Recently deleted too (a restore brings it back) and are checked under the name's lock. Public Submissions are refused on an install with WRITE_AUTH_MODE=off (409 visitor_sign_in_off). `{\"kind\": \"mine\"}` is **Personal**: one private record per signed-in visitor (a habit tracker, saved progress), stored private. Simple Host's owner tools (key, connector, owner app, exports) never show a person's record: the owner sees how many people have one and their size (from 3 people up). The site's own pages run in the visitor's browser and can read that visitor's record, so Personal is as private as the site's pages are trustworthy. A name holds records for at most 1,000 people (SAVED_DATA_PERSONAL_PEOPLE_MAX; a new person past it: 409 people_full). A name must be empty (nothing live or in Recently deleted) to become Personal (409 has_entries), and a Personal name that holds records never becomes another kind (409 has_records; both checked under the name's lock, so no save lands in between); a site declares at most 20 Personal names (SAVED_DATA_PERSONAL_NAMES_MAX). `{\"kind\": \"board\"}` is a **Shared board**: anyone reads it; signed-in visitors add, change and delete items one at a time; only the owner clears it; private entries become a board only with `confirm_public`; a site declares at most 20 Shared board names (SAVED_DATA_BOARD_NAMES_MAX). Neither takes options (400 invalid_kind), and both need the site's own address (409 custom_domain_required). Product words are accepted (\"Personal\", \"Shared board\").",
         "tags": [
           "Collections"
         ],
@@ -4926,7 +4926,7 @@
             }
           },
           "409": {
-            "description": "declare_first, wrong_kind, one_per_person or list_full",
+            "description": "declare_first, wrong_kind, one_per_person, list_full or kind_changed (the owner changed what the name is while the save was on its way; nothing was saved)",
             "content": {
               "application/json": {
                 "schema": {
@@ -6765,7 +6765,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "The change holds no earlier value (nothing_to_restore), or a Shared board would go past its cap (list_full)",
+            "description": "The change holds no earlier value (nothing_to_restore), a Shared board would go past its cap (list_full), or a Page info name would hold two documents (one_document)",
             "content": {
               "application/json": {
                 "schema": {
@@ -7195,7 +7195,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "list_full: a Shared board would go past its cap",
+            "description": "list_full: a Shared board would go past its cap; one_document: a Page info name would hold two documents (it brings one back only while it holds none)",
             "content": {
               "application/json": {
                 "schema": {
@@ -7277,7 +7277,7 @@
             }
           },
           "409": {
-            "description": "list_full: a Shared board would go past its cap",
+            "description": "list_full: a Shared board would go past its cap; one_document: a Page info name would hold two documents (it brings one back only while it holds none)",
             "content": {
               "application/json": {
                 "schema": {
@@ -7938,7 +7938,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "The change holds no earlier value (nothing_to_restore), or a Shared board would go past its cap (list_full)",
+            "description": "The change holds no earlier value (nothing_to_restore), a Shared board would go past its cap (list_full), or a Page info name would hold two documents (one_document)",
             "content": {
               "application/json": {
                 "schema": {
@@ -8306,7 +8306,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "list_full: a Shared board would go past its cap",
+            "description": "list_full: a Shared board would go past its cap; one_document: a Page info name would hold two documents (it brings one back only while it holds none)",
             "content": {
               "application/json": {
                 "schema": {
@@ -8397,7 +8397,7 @@
             }
           },
           "409": {
-            "description": "list_full: a Shared board would go past its cap",
+            "description": "list_full: a Shared board would go past its cap; one_document: a Page info name would hold two documents (it brings one back only while it holds none)",
             "content": {
               "application/json": {
                 "schema": {
@@ -9123,7 +9123,7 @@
             }
           },
           "409": {
-            "description": "declare_first, wrong_kind, one_per_person or list_full",
+            "description": "declare_first, wrong_kind, one_per_person, list_full or kind_changed (the owner changed what the name is while the save was on its way; nothing was saved)",
             "content": {
               "application/json": {
                 "schema": {

@@ -2212,7 +2212,9 @@ paths:
         name that holds entries as public Submissions would let anyone read
         them: 409 confirm_public (with `count`) until the request carries
         `"confirm_public": true`. A private name becomes Page info only while
-        it is empty (409 has_entries). Public Submissions are refused on an
+        it is empty (409 has_entries). Both count what is in the name's
+        Recently deleted too (a restore brings it back) and are checked under
+        the name's lock. Public Submissions are refused on an
         install with WRITE_AUTH_MODE=off (409 visitor_sign_in_off).
         `{"kind": "mine"}` is **Personal**: one private record per signed-in
         visitor (a habit tracker, saved progress), stored private. Simple Host's
@@ -2361,7 +2363,7 @@ paths:
           content: { application/json: { schema: { type: object, properties: { id: { type: integer }, data: { type: object }, created_at: { type: string, format: date-time } } } } }
         '401': { description: visitor_auth_required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '403': { description: "not_allowed_to_save, private_visitor_only, csrf_required", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '409': { description: "declare_first, wrong_kind, one_per_person or list_full", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "declare_first, wrong_kind, one_per_person, list_full or kind_changed (the owner changed what the name is while the save was on its way; nothing was saved)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '413': { description: item_too_large, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     put:
       operationId: putData
@@ -2958,7 +2960,7 @@ paths:
           content: { application/json: { schema: { type: object, properties: { site: { type: string }, collection: { type: string }, restored: { type: integer }, item: { type: object, properties: { id: { type: integer }, data: {}, created_at: { type: string, format: date-time } } } } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { description: "The change holds no earlier value (nothing_to_restore), or a Shared board would go past its cap (list_full)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "The change holds no earlier value (nothing_to_restore), a Shared board would go past its cap (list_full), or a Page info name would hold two documents (one_document)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '507': { $ref: '#/components/responses/SiteFull' }
 
   /v1/sites/{sitename}/collections/{coll}/deleted:
@@ -3094,7 +3096,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { description: "list_full: a Shared board would go past its cap", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "list_full: a Shared board would go past its cap; one_document: a Page info name would hold two documents (it brings one back only while it holds none)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '507': { $ref: '#/components/responses/SiteFull' }
 
   /v1/sites/{sitename}/collections/{coll}/items/{id}/restore:
@@ -3113,7 +3115,7 @@ paths:
           content: { application/json: { schema: { type: object, properties: { site: { type: string }, collection: { type: string }, restored: { type: integer, enum: [1] } } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Not in the list's Recently deleted (not_found), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '409': { description: "list_full: a Shared board would go past its cap", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "list_full: a Shared board would go past its cap; one_document: a Page info name would hold two documents (it brings one back only while it holds none)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /v1/u/{handle}/sites/{sitename}/state/history:
     get:
@@ -3271,7 +3273,7 @@ paths:
           content: { application/json: { schema: { type: object, properties: { site: { type: string }, collection: { type: string }, restored: { type: integer }, item: { type: object, properties: { id: { type: integer }, data: {}, created_at: { type: string, format: date-time } } } } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { description: "The change holds no earlier value (nothing_to_restore), or a Shared board would go past its cap (list_full)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "The change holds no earlier value (nothing_to_restore), a Shared board would go past its cap (list_full), or a Page info name would hold two documents (one_document)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '507': { $ref: '#/components/responses/SiteFull' }
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted:
@@ -3378,7 +3380,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { description: "list_full: a Shared board would go past its cap", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "list_full: a Shared board would go past its cap; one_document: a Page info name would hold two documents (it brings one back only while it holds none)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '507': { $ref: '#/components/responses/SiteFull' }
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}/restore:
@@ -3398,7 +3400,7 @@ paths:
           content: { application/json: { schema: { type: object, properties: { site: { type: string }, collection: { type: string }, restored: { type: integer, enum: [1] } } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Not in the list's Recently deleted (not_found), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '409': { description: "list_full: a Shared board would go past its cap", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "list_full: a Shared board would go past its cap; one_document: a Page info name would hold two documents (it brings one back only while it holds none)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /v1/u/{handle}/sites/{sitename}/history:
     delete:
@@ -3619,7 +3621,7 @@ paths:
       requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
       responses:
         '201': { description: The stored entry, content: { application/json: { schema: { type: object } } } }
-        '409': { description: "declare_first, wrong_kind, one_per_person or list_full", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "declare_first, wrong_kind, one_per_person, list_full or kind_changed (the owner changed what the name is while the save was on its way; nothing was saved)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     put:
       operationId: putDataByHandle
       summary: Save Page info (owner, by handle)

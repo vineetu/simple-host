@@ -467,17 +467,17 @@ func TestPersonalReviewFixes(t *testing.T) {
 	}
 	// The kind change re-checks under the lock: records never change hands.
 	ctx := context.Background()
-	if err := db.DeclareDataLocked(ctx, s.a.database, s.shopID, "habits", db.KindEntries, true, false, db.NotifyOff); err != db.ErrNameHasRows {
+	if err := db.DeclareDataLocked(ctx, s.a.database, s.shopID, "habits", db.KindEntries, true, false, db.NotifyOff, false); err != db.ErrNameHasRows {
 		t.Fatalf("Personal with records to entries: %v", err)
 	}
 	s.declare(t, "notes", map[string]any{"kind": "entries", "visibility": "public"})
 	if r := s.visitor(t, "POST", "/v1/sites/shop/data/notes", map[string]any{"n": 1}); r.status != 201 {
 		t.Fatalf("note: %d %s", r.status, r.body)
 	}
-	if err := db.DeclareDataLocked(ctx, s.a.database, s.shopID, "notes", db.KindPersonal, false, false, db.NotifyOff); err != db.ErrNameHasRows {
+	if err := db.DeclareDataLocked(ctx, s.a.database, s.shopID, "notes", db.KindPersonal, false, false, db.NotifyOff, false); err != db.ErrNameHasRows {
 		t.Fatalf("entries with items to Personal: %v", err)
 	}
-	if err := db.DeclareDataLocked(ctx, s.a.database, s.shopID, "fresh", db.KindPersonal, false, false, db.NotifyOff); err != nil {
+	if err := db.DeclareDataLocked(ctx, s.a.database, s.shopID, "fresh", db.KindPersonal, false, false, db.NotifyOff, false); err != nil {
 		t.Fatalf("an unused name to Personal: %v", err)
 	}
 	// The owner clears; vic then deletes theirs; the owner's Restore brings
