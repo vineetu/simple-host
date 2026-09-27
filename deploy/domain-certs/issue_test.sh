@@ -139,6 +139,7 @@ for d in $issue; do
   check "$d: issued and served by ours" "[ -f '$T/state/ready/$d' ] && [ -L '$T/enabled/simple-host-domain-$d' ] && issued $d && [ -f '$T/state/owned/$d' ]"
 done
 check "template carries the take-down check" "grep -q 'domains/fresh.test/suspended' '$T/avail/simple-host-domain-fresh.test'"
+check "template carries the offline check, after the take-down check" "grep -q 'domains/fresh.test/offline) { rewrite ^ /internal/offline last; }' '$T/avail/simple-host-domain-fresh.test' && [ \"\$(grep -n 'domains/fresh.test/suspended' '$T/avail/simple-host-domain-fresh.test' | cut -d: -f1)\" -lt \"\$(grep -n 'domains/fresh.test/offline' '$T/avail/simple-host-domain-fresh.test' | cut -d: -f1)\" ]"
 check "again.test: our own certificate reused, no new issue" "[ -f '$T/state/ready/again.test' ] && [ -L '$T/enabled/simple-host-domain-again.test' ] && ! issued again.test"
 check "foreign.test: a certificate we did not issue is never reused" "[ ! -e '$T/state/ready/foreign.test' ] && grep -q 'already served here' '$T/state/failed/foreign.test' && [ ! -e '$T/enabled/simple-host-domain-foreign.test' ] && ! issued foreign.test"
 check "notxt.test: no ownership record, no certificate" "[ ! -e '$T/state/ready/notxt.test' ] && grep -q 'ownership record' '$T/state/failed/notxt.test' && ! issued notxt.test"

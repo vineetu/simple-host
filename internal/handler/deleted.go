@@ -201,6 +201,12 @@ func (h *SiteHandler) restoreSite(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	// The name is this site's again; an old name another site left there
+	// stops redirecting.
+	if err := db.DropOldSiteName(r.Context(), tx, d.UserID, d.Name); err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
 	if err := h.disk.RestoreSite(d.UserID, d.Name, d.ID); err != nil {
 		log.Printf("restore site %s: %v", d.ID, err)
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "could not restore the site's files"})

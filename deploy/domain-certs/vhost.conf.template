@@ -32,10 +32,13 @@ server {
 
     root /srv/simple-host/sites/domains/__DOMAIN__/current;
     index index.html;
-    # Taken down by the operator: the app's take-down page. Inside location /
-    # so /v1/ (the owner's API; the app refuses visitors itself) is not caught.
+    # Taken down by the operator: the app's take-down page; taken offline by
+    # its owner: the offline page (the take-down wins, so it comes first).
+    # Inside location / so /v1/ (the owner's API; the app refuses visitors
+    # itself) is not caught.
     location / {
         if (-f /srv/simple-host/sites/domains/__DOMAIN__/suspended) { rewrite ^ /internal/suspended last; }
+        if (-f /srv/simple-host/sites/domains/__DOMAIN__/offline) { rewrite ^ /internal/offline last; }
         try_files $uri $uri/ =404;
     }
 }

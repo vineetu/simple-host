@@ -157,6 +157,14 @@ type siteResponse struct {
 	// owner's account). It keeps everything and refuses changes until restored.
 	Suspended       bool   `json:"suspended,omitempty"`
 	SuspendedReason string `json:"suspended_reason,omitempty"`
+	// Offline: its owner has taken it offline (every address shows "This
+	// site is offline", visitor saves are refused; nothing is deleted).
+	Offline bool `json:"offline,omitempty"`
+	// Only on a deploy with publish=false: the version it stored (not live)
+	// and an hour-long, owner-only preview link for it (preview.go).
+	UnpublishedVersion int        `json:"unpublished_version,omitempty"`
+	PreviewURL         string     `json:"preview_url,omitempty"`
+	PreviewExpiresAt   *time.Time `json:"preview_expires_at,omitempty"`
 }
 
 type versionResponse struct {
@@ -276,7 +284,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	siteOpLimiter := newRateLimiter(30, 0.5)
 	siteOpLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	mux.Handle("DELETE /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.deleteSite)))))
-	mux.Handle("PATCH /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.renameSite)))))
+	mux.Handle("PATCH /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.patchSite)))))
 	mux.Handle("POST /v1/sites/{sitename}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.restoreSite)))))
 	mux.Handle("GET /v1/me/deleted-sites", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDeletedSites))))
 	mux.Handle("GET /v1/sites", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listSites))))
@@ -311,6 +319,8 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("GET /v1/sites/{sitename}/versions/{version}/files", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listVersionFiles))))
 	mux.Handle("GET /v1/sites/{sitename}/versions/{version}/files/{path...}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getVersionFile))))
 	mux.Handle("PUT /v1/sites/{sitename}/active-version", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setActiveVersion))))
+	// An hour-long, owner-only preview address for one kept version (preview.go).
+	mux.Handle("POST /v1/sites/{sitename}/versions/{version}/preview-link", noticeMiddleware(authMiddleware(http.HandlerFunc(h.createPreviewLink))))
 	mux.Handle("GET /v1/sites/{sitename}/analytics", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteAnalytics))))
 	mux.Handle("GET /v1/sites/{sitename}/analytics/geo", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteGeoAnalytics))))
 	// Deliberately not /v1/sites/analytics: that would collide with a site
@@ -361,6 +371,8 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// Where nginx and Caddy send a request for a site whose folder carries the
 	// take-down marker (suspend.go).
 	mux.HandleFunc("GET /internal/suspended", h.suspendedPage)
+	// ... and for a site its owner took offline (offline.go).
+	mux.HandleFunc("GET /internal/offline", h.offlinePageHandler)
 
 	// Append-only collections (second backend type): cheap O(1) appends +
 	// paginated reads for large/high-volume lists. Origin-gated like state.
@@ -420,17 +432,10 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("POST /v1/visitor/logout", rateLimitByIP(visitorLimiter, http.HandlerFunc(h.logoutVisitor)))
 }
 
-func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request) {
+// renameSite renames the caller's site oldName to newName (PATCH with
+// {"name": ...}, see patchSite).
+func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request, oldName, newName string) {
 	user := auth.GetUser(r.Context())
-	oldName := strings.TrimSpace(r.PathValue("sitename"))
-	var req struct {
-		Name string `json:"name"`
-	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid JSON body (expected {\"name\":\"new-name\"})"})
-		return
-	}
-	newName := strings.TrimSpace(req.Name)
 	if err := validateSiteShape(newName); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "invalid_name"})
 		return
@@ -497,7 +502,23 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "could not move site files"})
 		return
 	}
-	if err := db.RenameSite(r.Context(), h.database, site.ID, newName, newURL); err != nil {
+	// The row and the old name go together: links to the old name redirect
+	// to the new address from the moment the rename is visible.
+	err = func() error {
+		tx, err := h.database.BeginTx(r.Context(), nil)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+		if err := db.RenameSite(r.Context(), tx, site.ID, newName, newURL); err != nil {
+			return err
+		}
+		if err := db.KeepOldSiteName(r.Context(), tx, user.ID, site.ID, oldName, newName); err != nil {
+			return err
+		}
+		return tx.Commit()
+	}()
+	if err != nil {
 		_ = h.disk.RenameSite(user.ID, newName, oldName, domains...)
 		if isUniqueViolation(err) {
 			writeJSON(w, http.StatusConflict, errorResponse{Error: "you already have a site with that name", Code: "site_exists"})
@@ -508,8 +529,8 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id": site.ID, "old_name": oldName, "name": newName,
-		"old_url": oldURL, "site_url": newURL, "old_url_status": "not_found",
-		"message":                 "Site renamed. The old URL no longer works and returns 404; use the new URL.",
+		"old_url": oldURL, "site_url": newURL, "old_url_status": "redirects",
+		"message":                 "Site renamed. Links to the old address redirect to the new one until a new site takes the old name.",
 		"custom_domain_unchanged": domain != "",
 	})
 }
@@ -1062,6 +1083,10 @@ func (h *SiteHandler) createSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.publishOnCreate(w, r) {
+		return
+	}
+
 	// Per-user site quota (admins exempt). Checked before we read the upload so
 	// an over-quota request is cheap to reject. Updates to existing sites are
 	// not affected — this only gates new-site creation.
@@ -1138,6 +1163,13 @@ func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user
 			return
 		}
 
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+
+	// A renamed site's old name is free for a new site, which wins: links to
+	// the name stop following the renamed one.
+	if err := db.DropOldSiteName(r.Context(), tx, user.ID, siteName); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
@@ -1222,18 +1254,26 @@ func (h *SiteHandler) updateSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	publish, ok := publishParam(w, r)
+	if !ok {
+		return
+	}
 	files, archiveSHA, err := h.readAndValidateFiles(w, r, siteName)
 	if err != nil {
 		return
 	}
 
-	h.commitSiteUpdate(w, r, user, siteName, files, archiveSHA)
+	h.commitSiteUpdate(w, r, user, siteName, files, archiveSHA, publish)
 }
 
 // commitSiteUpdate appends a new version to an existing owned site and promotes
 // it after commit. Shared by the archive upload (updateSite) and the JSON upload
 // (updateSiteFiles).
-func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string) {
+//
+// publish=false stores the version without making it live (see preview.go):
+// `current`, active_version and what visitors see stay as they are, and the
+// answer names the new version and a preview link for it.
+func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, publish bool) {
 	// Serialize write+promote for this site (in-process), and read the site
 	// only once the lock is held: a delete or rename that finished while this
 	// upload waited must not be undone by a stale copy. The DB row lock below
@@ -1290,6 +1330,20 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 	// Write the new version dir (not yet live) before committing.
 	if err := h.disk.WriteFiles(r.Context(), site.UserID, siteName, versionNumber, files); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+
+	if !publish {
+		if err := db.MarkVersionReady(r.Context(), tx, version.ID); err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return
+		}
+		if err := tx.Commit(); err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return
+		}
+		h.pruneVersions(r.Context(), site.ID, site.UserID, siteName, site.ActiveVersion)
+		h.writeUnpublished(w, site, versionNumber)
 		return
 	}
 
@@ -1434,6 +1488,9 @@ func (h *SiteHandler) createSiteFiles(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "name_reserved"})
 		return
 	}
+	if !h.publishOnCreate(w, r) {
+		return
+	}
 
 	if !user.IsAdmin {
 		// Sites in Recently deleted count: delete-then-create must not
@@ -1476,12 +1533,16 @@ func (h *SiteHandler) updateSiteFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	publish, ok := publishParam(w, r)
+	if !ok {
+		return
+	}
 	files, digest, err := h.readJSONFiles(w, r, siteName)
 	if err != nil {
 		return
 	}
 
-	h.commitSiteUpdate(w, r, user, siteName, files, digest)
+	h.commitSiteUpdate(w, r, user, siteName, files, digest, publish)
 }
 
 // listVersions returns the full version history of a site for the
@@ -1587,7 +1648,8 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 	}
 	var found bool
 	for _, v := range versions {
-		if v.VersionNumber == req.VersionNumber {
+		// A version whose upload never finished is not one to go live.
+		if v.VersionNumber == req.VersionNumber && v.Status != "uploading" {
 			found = true
 			break
 		}
@@ -1618,6 +1680,11 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := db.UpdateSiteActiveVersion(r.Context(), tx, site.ID, req.VersionNumber); err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	// A version stored with publish=false goes live for the first time.
+	if err := db.ActivateVersionNumber(r.Context(), tx, site.ID, req.VersionNumber); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
@@ -1866,6 +1933,7 @@ func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
 		OwnerUsername:   site.OwnerUsername,
 		Note:            note,
 		Suspended:       site.Suspended(),
+		Offline:         site.Offline,
 		SuspendedReason: site.SuspendedReason(),
 	}
 	if site.LastDeployedAt.Valid {

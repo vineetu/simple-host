@@ -27,7 +27,9 @@ var requiredColumns = map[string][]string{
 	"signin_alerts_sent": {"user_id", "summary", "day"},
 	// hash-api-keys.sql, cp-keys-key-names.sql
 	"api_keys": {"id", "key_hash", "user_id", "name", "last4", "created_at", "last_used_at"},
-	"sites":    {"id", "user_id", "name", "active_version", "visibility", "state", "custom_domain", "deleted_at", "previous_domain", "domain_cert_status", "domain_failing_since", "domain_lapse_notified_at", "previous_domain_failing_since", "suspended_at", "suspended_reason", "domain_token", "domain_proof_exempt"},
+	"sites":    {"id", "user_id", "name", "active_version", "visibility", "state", "custom_domain", "deleted_at", "previous_domain", "domain_cert_status", "domain_failing_since", "domain_lapse_notified_at", "previous_domain_failing_since", "suspended_at", "suspended_reason", "domain_token", "domain_proof_exempt", "offline_at"},
+	// w2-sites-old-names.sql
+	"site_name_aliases": {"user_id", "name", "site_id"},
 	// cp-proof-domain-ownership.sql (also the two domain_* columns above)
 	"domain_cert_requests": {"user_id", "domain", "requested_at"},
 	"collection_items":     {"id", "site_id", "collection", "data", "submitted_by"},

@@ -14,7 +14,7 @@ PUBLISHING
 - Site names: lowercase letters, numbers and hyphens (e.g. "birthday-rsvp"), unique within the account.
 - Every site lives at its own address (https://<site>.<handle>.simple-host.app/); for a brand-new account it may briefly live under a path (https://<handle>.simple-host.app/<site>/) until its certificate is issued. The same site can be served at a root or under a path, so use RELATIVE links only: "css/style.css", "./img/a.png" — never "/css/style.css".
 - Static files only: HTML, CSS, JS, images, fonts. Nothing runs on the server (no PHP, Node, Python). Keep everything in the files you send; one self-contained index.html is fine for small sites.
-- Every version is kept: list_versions and rollback_site undo a bad deploy.
+- Every version is kept: list_versions and rollback_site undo a bad deploy. For a big change, update_site with publish false stores it without going live and returns a preview_url to give the person; rollback_site then makes it live.
 - After publishing, give the person the url the tool returned, exactly as returned. Never compose an address yourself.
 
 WHAT IS PUBLIC

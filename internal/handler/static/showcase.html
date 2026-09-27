@@ -313,6 +313,7 @@
       margin-top: 2px;
     }
     .inv-down { font-size: 13px; color: var(--error); margin-top: 4px; }
+    .inv-offline { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
     .vis-badge {
       font-size: 13px;
       font-weight: 500;
@@ -2052,7 +2053,8 @@ function parseAnalyticsSummary(data) {
             '<div class="inv-path"><a href="' + openUrl + '" target="_blank" rel="noopener">' + esc(url.replace(/^https?:\/\//, '').replace(/\/$/, '')) + '</a></div>' +
             '<div class="inv-meta">' + meta + '</div>' +
             (s.suspended ? '<div class="inv-down">Taken down by the operator' + (s.suspended_reason ? ': ' + esc(s.suspended_reason) : '') +
-              '. Every address shows a &ldquo;taken down&rdquo; page and changes are refused until it is restored. Nothing has been deleted.</div>' : '') +
+              '. Every address shows a &ldquo;taken down&rdquo; page and changes are refused until it is restored. Nothing has been deleted.</div>' :
+              (s.offline ? '<div class="inv-offline">Offline. Every address shows &ldquo;This site is offline&rdquo; and visitors can&rsquo;t save anything. Its files, versions and saved data are kept.</div>' : '')) +
           '</div>' +
         '</div>' +
         (s.suspended ? (own ? '<div class="inv-actions">' +
@@ -2061,7 +2063,8 @@ function parseAnalyticsSummary(data) {
         '<div class="inv-actions">' +
           '<a class="btn-small btn-secondary" href="' + openUrl + '" target="_blank" rel="noopener">Open</a>' + (own ?
           '<button type="button" class="btn-small btn-secondary" data-act="toggleVis" data-name="' + name + '" data-vis="' + vis + '" data-vis-btn="' + name + '">' + (vis === 'public' ? 'Make unlisted' : 'Make public') + '</button>' +
-          '<button type="button" class="btn-small btn-secondary" data-act="toggleVersions" data-name="' + name + '">Revert</button>' +
+          '<button type="button" class="btn-small btn-secondary" data-act="toggleOffline" data-name="' + name + '" data-offline="' + (s.offline ? '1' : '') + '">' + (s.offline ? 'Put back online' : 'Take offline') + '</button>' +
+          '<button type="button" class="btn-small btn-secondary" data-act="toggleVersions" data-name="' + name + '">Versions</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="openRename" data-name="' + name + '">Rename</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="openDomain" data-name="' + name + '">' + (s.custom_domain ? 'Domain' : 'Connect domain') + '</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="downloadSite" data-name="' + name + '">Download</button>' +
@@ -2115,7 +2118,7 @@ function parseAnalyticsSummary(data) {
       var id = 'rename-' + escAttr(name);
       panel.innerHTML = '<label for="' + id + '">New name for <b>' + esc(name) + '</b></label>' +
         '<input type="text" id="' + id + '" value="' + escAttr(name) + '" autocomplete="off" spellcheck="false" maxlength="63">' +
-        '<div class="panel-note">The site moves to its new address. Links to the current address stop working; saved data and lists move with it.</div>' +
+        '<div class="panel-note">The site moves to its new address. Links to the current address keep working and redirect to the new one, until you create a new site with this name; saved data and lists move with it.</div>' +
         '<div class="panel-err" hidden></div>' +
         '<div class="panel-btns">' +
           '<button type="button" class="btn-small btn-primary" data-act="doRename" data-name="' + escAttr(name) + '">Rename</button>' +
@@ -2413,6 +2416,28 @@ function parseAnalyticsSummary(data) {
       }
     }
 
+    // Offline: every address shows "This site is offline" and visitor saves
+    // are refused; nothing is deleted, and the same button brings it back.
+    async function toggleOffline(name, isOffline, btn) {
+      var next = !isOffline;
+      if (next && !confirm('Take "' + name + '" offline? Every address will show \u201cThis site is offline\u201d and visitors won\u2019t be able to save anything. Nothing is deleted, and you can put it back online at any time.')) return;
+      btn.disabled = true;
+      try {
+        var res = await api('PATCH', sitePathPart(name), { offline: next });
+        if (!res.ok) {
+          var err = await res.json().catch(function () { return null; });
+          toast((err && err.error) || 'Could not change that', 'error');
+          btn.disabled = false;
+          return;
+        }
+        toast(next ? name + ' is offline' : name + ' is back online', 'success');
+        await reloadOwnerSites();
+      } catch (e) {
+        toast('Could not change that', 'error');
+        btn.disabled = false;
+      }
+    }
+
     async function toggleVersions(name) {
       var panel = document.querySelector('[data-versions="' + cssEsc(name) + '"]');
       if (!panel) return;
@@ -2428,12 +2453,15 @@ function parseAnalyticsSummary(data) {
           panel.innerHTML = '<div class="versions-status">No versions found</div>'; return;
         }
         panel.innerHTML = '<div class="versions-list">' + versions.map(function (v) {
+          var n = Number(v.version_number);
           return '<div class="version-row">' +
             '<span class="version-num">v' + esc(v.version_number) + '</span>' +
-            '<span class="version-date">' + esc(new Date(v.created_at).toLocaleString()) + '</span>' +
+            '<span class="version-date">' + esc(new Date(v.created_at).toLocaleString()) +
+              (!v.is_active && v.status === 'ready' ? ' · not live yet' : '') + '</span>' +
+            '<button type="button" class="btn-small btn-secondary" data-act="previewVersion" data-name="' + esc(name) + '" data-version="' + n + '">Preview</button>' +
             (v.is_active
-              ? '<span class="version-active-tag">active</span>'
-              : '<button type="button" class="btn-small btn-secondary" data-act="rollbackTo" data-name="' + esc(name) + '" data-version="' + Number(v.version_number) + '">Make active</button>') +
+              ? '<span class="version-active-tag">live</span>'
+              : '<button type="button" class="btn-small btn-secondary" data-act="rollbackTo" data-name="' + esc(name) + '" data-version="' + n + '">Make live</button>') +
             '</div>';
         }).join('') + '</div>';
       } catch (e) {
@@ -2441,8 +2469,28 @@ function parseAnalyticsSummary(data) {
       }
     }
 
+    // Preview: an hour-long link, for you only, showing that version as
+    // visitors would see it. The tab is opened on the click (a tab opened
+    // after the request would be blocked as a pop-up) and pointed at the link.
+    async function previewVersion(name, versionNumber) {
+      var tab = window.open('', '_blank');
+      try {
+        var res = await api('POST', '/v1/sites/' + encodeURIComponent(name) + '/versions/' + versionNumber + '/preview-link');
+        var body = await res.json().catch(function () { return null; });
+        if (!res.ok || !body || !body.url) {
+          if (tab) tab.close();
+          toast((body && body.error) || 'Could not open a preview', 'error');
+          return;
+        }
+        if (tab) { tab.opener = null; tab.location.href = body.url; } else { window.location.href = body.url; }
+      } catch (e) {
+        if (tab) tab.close();
+        toast('Could not open a preview', 'error');
+      }
+    }
+
     async function rollbackTo(name, versionNumber) {
-      if (!confirm('Make v' + versionNumber + ' the active version of "' + name + '"?')) return;
+      if (!confirm('Make v' + versionNumber + ' of "' + name + '" live? Visitors see it at once.')) return;
       try {
         var res = await api('PUT', '/v1/sites/' + encodeURIComponent(name) + '/active-version', { version_number: versionNumber });
         if (!res.ok) {
@@ -2450,7 +2498,7 @@ function parseAnalyticsSummary(data) {
           toast((err && err.error) || 'Could not change active version', 'error');
           return;
         }
-        toast('Active version is now v' + versionNumber, 'success');
+        toast('v' + versionNumber + ' is live', 'success');
         toggleVersions(name); // collapse
       } catch (e) {
         toast('Could not change active version', 'error');
@@ -3469,9 +3517,11 @@ function parseAnalyticsSummary(data) {
       showAiCreate: function () { toggleOnboarding('aiCreate', true); },
       toggleVis: function (d) { toggleVis(d.name, d.vis); },
       toggleVersions: function (d) { toggleVersions(d.name); },
+      toggleOffline: function (d, el) { toggleOffline(d.name, !!d.offline, el); },
       confirmDelete: function (d) { confirmDelete(d.name); },
       doDelete: function (d, el) { doDelete(d.name, el); },
       rollbackTo: function (d) { rollbackTo(d.name, Number(d.version)); },
+      previewVersion: function (d) { previewVersion(d.name, Number(d.version)); },
       openRename: function (d) { openRename(d.name); },
       doRename: function (d, el) { doRename(d.name, el); },
       openDomain: function (d) { openDomain(d.name); },

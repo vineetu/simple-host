@@ -248,6 +248,21 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 	if h.refuseSuspendedSiteID(w, r, siteID) {
 		return false
 	}
+	// A site its owner took offline takes no saves from visitors; the
+	// owner's (or admin's) key and connector keep writing (offline.go).
+	if off, err := db.SiteOffline(r.Context(), h.database, siteID); err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return false
+	} else if off && !h.ownerKeyWrite(r, ownerID) {
+		writeSiteOffline(w)
+		return false
+	}
+	// A page opened as a preview of a version (preview.go) never saves into
+	// the live site's data.
+	if previewReferer(r) && r.Header.Get("X-API-Key") == "" {
+		writePreviewReadOnly(w)
+		return false
+	}
 
 	mode := h.writeAuthMode
 	if mode == "" {

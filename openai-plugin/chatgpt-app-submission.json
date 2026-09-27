@@ -104,6 +104,18 @@
         "destructive_justification": "Nothing is deleted: the replaced version is kept and can be made live again the same way."
       }
     },
+    "preview_version": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Each call mints a new short-lived preview link on the server, so it is not a pure read.",
+        "open_world_justification": "The link is for the signed-in person only and publishes nothing; the version is shown only to whoever holds the one-hour link.",
+        "destructive_justification": "Nothing is changed or deleted; the live site stays as it is."
+      }
+    },
     "delete_site": {
       "annotations": {
         "readOnlyHint": false,
@@ -162,6 +174,18 @@
         "read_only_justification": "It changes whether a site is listed, so it modifies data.",
         "open_world_justification": "It adds a site to, or removes it from, the person's public listing page on the internet.",
         "destructive_justification": "Nothing is deleted and the change is fully reversible."
+      }
+    },
+    "set_site_offline": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It takes a site offline or back online, so it modifies data.",
+        "open_world_justification": "It changes what the public sees at the site's address on the internet.",
+        "destructive_justification": "Nothing is deleted: files, versions and saved data are kept, and calling it with the other value puts the site back exactly as it was."
       }
     },
     "get_state": {

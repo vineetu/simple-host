@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/base64"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -15,7 +16,8 @@ import (
 // (The branch-by-branch check, including shapes this flow cannot reach, is
 // TestEveryToolResultMatchesItsOutputSchema in internal/mcp.)
 func TestOutputSchemasMatchRealResults(t *testing.T) {
-	a := newPrivateApp(t)
+	// Person hosts answer (serve), so a version preview has an address.
+	a := newPersonApp(t, "serve")
 	olive, vic := a.newPerson(t, "olive"), a.newPerson(t, "vic")
 	token := a.connect(t, olive, a.registerClient(t, testRedirect), testRedirect)["access_token"].(string)
 	_, handle := a.userID(t, olive)
@@ -69,8 +71,22 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	}
 	call("update_site", map[string]any{"site": "shop", "files": map[string]any{"index.html": "<h1>shop v2</h1>"}})
 	call("list_versions", map[string]any{"site": "shop"})
+	if s := call("update_site", map[string]any{"site": "shop", "files": map[string]any{"index.html": "<h1>shop v3</h1>"}, "publish": false}); s["unpublished_version"] != float64(3) || s["preview_url"] == nil || s["active_version"] != float64(2) {
+		t.Fatalf("update_site publish false: %v", s)
+	}
+	if s := call("list_versions", map[string]any{"site": "shop"}); !strings.Contains(fmt.Sprint(s["versions"]), "not_yet_live:true") {
+		t.Fatalf("list_versions: %v", s)
+	}
+	call("preview_version", map[string]any{"site": "shop", "version": 3})
 	call("rollback_site", map[string]any{"site": "shop", "version": 1})
 	call("set_visibility", map[string]any{"site": "shop", "visibility": "public"})
+	if s := call("set_site_offline", map[string]any{"site": "shop", "offline": true}); s["offline"] != true {
+		t.Fatalf("set_site_offline: %v", s)
+	}
+	call("list_sites", map[string]any{})
+	if s := call("set_site_offline", map[string]any{"site": "shop", "offline": false}); s["offline"] != false {
+		t.Fatalf("set_site_offline back: %v", s)
+	}
 
 	state := call("get_state", map[string]any{"site": "shop"})
 	call("update_state", map[string]any{"site": "shop", "ops": []any{map[string]any{"op": "inc", "path": "count", "by": 1}}})

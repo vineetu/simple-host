@@ -34,6 +34,7 @@ own domain, use the `connect-domain` skill.
 | Change an existing site | `update_site` (read its files first) |
 | Versions, undo a bad publish | `list_versions`, `rollback_site` |
 | Rename, list on public page, delete | `rename_site`, `set_visibility`, `delete_site` |
+| Take offline or back online (keeps everything) | `set_site_offline` |
 | Undo a delete (within 7 days) | `list_deleted_sites`, `restore_site` |
 | Saved data | `get_state`, `update_state`, `list_collections`, `read_collection`, `add_to_collection` |
 | Keep a list owner-only | `set_collection_privacy` |
@@ -79,8 +80,13 @@ fonts you do not have the bytes for, tell the person before publishing that thos
 be dropped, and ask them to provide them again or agree to losing them.
 
 Every version is kept. If a change went wrong, `list_versions`, confirm the version with the
-person, then `rollback_site`. Renaming (`rename_site`) changes the address and the old one stops
-working; tell the person. `delete_site` takes the site offline with every version and all its
+person, then `rollback_site`. For a big change (a redesign), offer to let them look first:
+`update_site` with `publish: false` stores the version without making it live and returns a
+`preview_url` (owner-only, one hour); give them the link, and when they are happy make it live
+with `rollback_site`. `preview_version` makes a link for any kept version. Renaming (`rename_site`) changes the address; links to the old one
+redirect to the new one until a new site takes the old name. When an event is over or a form
+must stop taking entries, `set_site_offline` (after the person confirms) shows "This site is
+offline" at every address and stops visitor saves, keeping everything; `offline: false` undoes it. `delete_site` takes the site offline with every version and all its
 saved data: call it only after the person has explicitly confirmed deleting that specific site
 in this conversation, and name what goes offline when you ask. It stays in Recently deleted for
 7 days (`list_deleted_sites`, `restore_site` brings it back exactly as it was), then it is gone

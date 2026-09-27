@@ -11,8 +11,18 @@ All of these take `X-API-Key`.
 ## Rename
 
 `PATCH /v1/sites/<sitename>` with `{"name":"new-name"}` renames the site and
-moves its files. A connected custom domain stays attached. The old public URL
-is not redirected and returns 404; use `site_url` from the response.
+moves its files. A connected custom domain stays attached. Links to the old
+address keep working: they redirect to the new one (path and query kept) until
+a new site is created with the old name. Use `site_url` from the response.
+
+## Take a site offline
+
+`PATCH /v1/sites/<sitename>` with `{"offline":true}` takes the site offline:
+every address of it shows a plain "This site is offline" page and visitor saves
+are refused (403 `site_offline`). Use it when an event is over or a form must
+stop taking entries. Nothing is deleted, and the owner's key still deploys,
+reads and writes. `{"offline":false}` puts it back online; `GET /v1/sites`
+marks an offline site `"offline": true`. Confirm with the person first.
 
 ## API keys: list, name, revoke, sign out everywhere
 
@@ -52,9 +62,22 @@ X-API-Key: <api_key>
 
 There is **no** `.../activate` and no `.../version/<n>` endpoint. This is the one.
 
+### Look before it goes live
+
+To let the person see a new version before visitors do, deploy it with
+`?publish=false` (on `PUT /v1/sites/<sitename>/files` or the archive
+`PUT /v1/sites/<sitename>`). The version is stored but not made live; the answer
+carries `unpublished_version` and `preview_url`, an owner-only link that works
+for one hour and shows that version exactly as visitors would see it. Give the
+person the link. When they are happy, make it live with the `active-version`
+call above. `POST /v1/sites/<sitename>/versions/<n>/preview-link` mints a new
+link for any kept version (`GET .../versions` shows a stored, never-live one
+as `"status": "ready"`). Pages opened from a preview cannot save (403
+`preview_read_only`). A new site's first version always goes live.
+
 ### Reading an old version
 
-Preview a retained version before restoring it (owner API key required):
+Read a retained version's files (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \

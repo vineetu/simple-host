@@ -118,6 +118,24 @@ ALTER TABLE sites ALTER COLUMN visibility SET DEFAULT 'unlisted';
 ALTER TABLE sites ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS idx_sites_deleted_at ON sites (deleted_at) WHERE deleted_at IS NOT NULL;
 
+-- Taken offline by its owner (mirrors db/migrations/w2-sites-offline.sql):
+-- every address shows "This site is offline" and visitor saves are refused;
+-- nothing is deleted. NULL = online. An `offline` marker file in the site
+-- folder mirrors it for the servers that read files straight from disk.
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS offline_at TIMESTAMPTZ;
+
+-- Old names of renamed sites (mirrors db/migrations/w2-sites-old-names.sql):
+-- links to an old name 302 to the site's current address until a site of
+-- that name exists again. A site in Recently deleted is skipped.
+CREATE TABLE IF NOT EXISTS site_name_aliases (
+  user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  site_id    UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_site_name_aliases_site ON site_name_aliases (site_id);
+
 -- Append-only per-site collections (guestbooks, RSVPs, signups). The other half
 -- of the built-in backend alongside sites.state.
 CREATE TABLE IF NOT EXISTS collection_items (
