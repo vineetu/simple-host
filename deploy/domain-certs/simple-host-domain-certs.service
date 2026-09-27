@@ -1,0 +1,9 @@
+[Unit]
+Description=Issue certificates for Simple Host custom domains (HTTP-01) and write their nginx servers
+After=network-online.target nginx.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/simple-host-domain-certs
+TimeoutStartSec=45min
