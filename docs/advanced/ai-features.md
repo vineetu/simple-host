@@ -26,6 +26,7 @@ below with one line each. A small box has no model backend, so none of these app
 | `ASK_MODEL` | `grok-4.7` | model name | Ask: the model the box asks, through the same backend as AI create. |
 | `ASK_REASONING_EFFORT` | `none` | `none` / `low` / `medium` / `high` | Ask: how long the model thinks before answering. none answers in seconds. |
 | `ASK_MAX_TOKENS` | `300` | 50–4000 tokens | Ask: longest answer, in tokens. |
+| `SETUP_CHECK_DAILY_MAX` | `200` | 0–100000 checks | The setup helper's optional "Check my choices": checks answered per day across everyone, through the Ask model. 0 turns it off. |
 | `LLM_PROVIDER` | `grok` | `custom` / `deepseek` / `grok` / `openai` / `openrouter` / `xai` | The model backend for AI create and Ask. |
 | `LLM_API_KEY` | none | secret | The model backend's key. Ask and AI create run only with a backend set. **Security-sensitive.** |
 | `LLM_BASE_URL` | none | text | The backend's address; wins over the provider's. |

@@ -165,6 +165,7 @@ answer within 45, or the reader is told it couldn't answer.
 | `ASK_MODEL` | grok-4.7 | a model name | The model the box asks, through the same backend (`LLM_BASE_URL`). Separate from `LLM_MODEL`, which AI create keeps. |
 | `ASK_REASONING_EFFORT` | none | none / low / medium / high | Sent to the model as `reasoning_effort`. `none` answers in seconds; higher values think first and answer later. |
 | `ASK_MAX_TOKENS` | 300 | 50–4000 | Longest answer, in tokens. A reply cut here ends with "…". |
+| `SETUP_CHECK_DAILY_MAX` | 200 | 0–100000 | The setup helper's optional "Check my choices" (`POST /v1/setup/check`): checks answered per UTC day across everyone (counted in the database, table `setup_check_daily`). It runs only where the box does (a model backend and `ASK_ENABLED` on) and uses the same model, reasoning effort, per-address limits and in-flight cap as the box. 0 turns it off; the helper then shows its files without it. |
 
 ## Rate limits
 

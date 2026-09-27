@@ -1551,6 +1551,20 @@
       "small_box": false
     },
     {
+      "name": "SETUP_CHECK_DAILY_MAX",
+      "group": "ai",
+      "description": "The setup helper's optional \"Check my choices\": checks answered per day across everyone, through the Ask model. 0 turns it off.",
+      "type": "int",
+      "default": "200",
+      "min": 0,
+      "max": 100000,
+      "unit": "checks",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
       "name": "LLM_PROVIDER",
       "group": "ai",
       "description": "The model backend for AI create and Ask.",

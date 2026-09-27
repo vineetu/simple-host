@@ -62,6 +62,8 @@ var requiredColumns = map[string][]string{
 	"visitor_establish_tokens": {"once", "session_id", "host", "return_to", "nonce_hash"},
 	// ask-daily-count.sql
 	"ask_daily": {"day", "count"},
+	// v061-setup-check-daily.sql
+	"setup_check_daily": {"day", "count"},
 }
 
 // VerifySchema refuses to start against a database that is behind the code.

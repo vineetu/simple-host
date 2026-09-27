@@ -823,6 +823,13 @@ CREATE TABLE IF NOT EXISTS ask_daily (
   count INTEGER NOT NULL DEFAULT 0
 );
 
+-- The setup helper's "Check my choices" count per UTC day
+-- (SETUP_CHECK_DAILY_MAX). Nothing about who asked or what.
+CREATE TABLE IF NOT EXISTS setup_check_daily (
+  day   DATE PRIMARY KEY,
+  count INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS schema_migrations (
   name       TEXT PRIMARY KEY,
   applied_at TIMESTAMPTZ NOT NULL DEFAULT now()

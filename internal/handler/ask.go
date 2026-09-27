@@ -59,7 +59,10 @@ type AskHandler struct {
 	inFlight         chan struct{}
 	daily            askCounter
 	dailyMax         int
-	now              func() time.Time
+	// The setup helper's check (setupcheck.go): its own count per day.
+	checkDaily    askCounter
+	checkDailyMax int
+	now           func() time.Time
 }
 
 // askCounter counts questions per UTC day across everyone. take reserves one
@@ -68,17 +71,21 @@ type askCounter interface {
 	take(ctx context.Context, day string, max int) (int, bool, error)
 }
 
-// askDBCounter keeps the count in the ask_daily table, so a restart does not
-// hand out another day's worth of questions.
-type askDBCounter struct{ db *sql.DB }
+// askDBCounter keeps the count in a (day, count) table — ask_daily for
+// questions, setup_check_daily for setup checks — so a restart does not hand
+// out another day's worth. table is one of those two constants, never input.
+type askDBCounter struct {
+	db    *sql.DB
+	table string
+}
 
 func (c askDBCounter) take(ctx context.Context, day string, max int) (int, bool, error) {
 	if max <= 0 {
 		return 0, false, nil
 	}
 	var n int
-	err := c.db.QueryRowContext(ctx, `INSERT INTO ask_daily (day, count) VALUES ($1, 1)
-		ON CONFLICT (day) DO UPDATE SET count = ask_daily.count + 1 WHERE ask_daily.count < $2
+	err := c.db.QueryRowContext(ctx, `INSERT INTO `+c.table+` AS t (day, count) VALUES ($1, 1)
+		ON CONFLICT (day) DO UPDATE SET count = t.count + 1 WHERE t.count < $2
 		RETURNING count`, day, max).Scan(&n)
 	if errors.Is(err, sql.ErrNoRows) {
 		return max, false, nil
@@ -446,13 +453,18 @@ type AskOptions struct {
 	// "" leaves the field out. MaxTokens caps the answer (300 when 0).
 	ReasoningEffort string
 	MaxTokens       int
+	// SetupCheckDailyMax is the setup helper's checks per UTC day across
+	// everyone (POST /v1/setup/check); 0 answers none.
+	SetupCheckDailyMax int
 }
 
 // NewAskHandler builds the handler. origin is the instance's apex
 // (PUBLIC_BASE_URL); only pages there may call the route. db holds the daily
 // count (table ask_daily).
 func NewAskHandler(key, base, model, origin string, db *sql.DB, o AskOptions) *AskHandler {
-	return newAskHandler(key, base, model, origin, askDBCounter{db}, o)
+	h := newAskHandler(key, base, model, origin, askDBCounter{db, "ask_daily"}, o)
+	h.checkDaily = askDBCounter{db, "setup_check_daily"}
+	return h
 }
 
 func newAskHandler(key, base, model, origin string, daily askCounter, o AskOptions) *AskHandler {
@@ -473,7 +485,10 @@ func newAskHandler(key, base, model, origin string, daily askCounter, o AskOptio
 		inFlight:   make(chan struct{}, o.MaxInFlight),
 		daily:      daily,
 		dailyMax:   o.DailyMax,
-		now:        time.Now,
+		// The tests' counter; NewAskHandler swaps in the table.
+		checkDaily:    &askMemCounter{},
+		checkDailyMax: o.SetupCheckDailyMax,
+		now:           time.Now,
 	}
 }
 
@@ -491,6 +506,7 @@ func (h *AskHandler) Register(mux *http.ServeMux) {
 	h.ipLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	h.netLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	mux.HandleFunc("POST /v1/ask", h.ask)
+	mux.HandleFunc("POST /v1/setup/check", h.setupCheck)
 }
 
 func (h *AskHandler) ask(w http.ResponseWriter, r *http.Request) {
@@ -713,16 +729,33 @@ var errAskFirstToken = errors.New("llm: no answer text within the first-token ti
 // whole answer. Errors carry a status code or a fixed phrase only, never text
 // from the upstream body. The result is the cleaned answer.
 func (h *AskHandler) complete(ctx context.Context, msgs []openAIMessage, links map[string]bool, onDelta func(string)) (string, error) {
+	raw, finish, err := h.call(ctx, msgs, h.maxTokens, onDelta)
+	if err != nil {
+		return "", err
+	}
+	answer := cleanAnswer(raw, links)
+	if answer == "" {
+		return "", errors.New("llm: empty answer")
+	}
+	if finish == "length" && !strings.HasSuffix(answer, "…") {
+		answer += "…"
+	}
+	return answer, nil
+}
+
+// call is the one streamed request behind complete and the setup check: it
+// returns the model's raw text and finish reason.
+func (h *AskHandler) call(ctx context.Context, msgs []openAIMessage, maxTokens int, onDelta func(string)) (string, string, error) {
 	body, err := json.Marshal(askUpstreamRequest{
 		Model:           h.model,
 		Messages:        msgs,
-		MaxTokens:       h.maxTokens,
+		MaxTokens:       maxTokens,
 		Temperature:     0.2,
 		Stream:          true,
 		ReasoningEffort: h.effort,
 	})
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -747,17 +780,17 @@ func (h *AskHandler) complete(ctx context.Context, msgs []openAIMessage, links m
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, h.base+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	req.Header.Set("Authorization", "Bearer "+h.key)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := h.client.Do(req)
 	if err != nil {
-		return "", fail(errors.New("llm: request failed"))
+		return "", "", fail(errors.New("llm: request failed"))
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("llm status %d", resp.StatusCode)
+		return "", "", fmt.Errorf("llm status %d", resp.StatusCode)
 	}
 
 	var text strings.Builder
@@ -777,10 +810,10 @@ func (h *AskHandler) complete(ctx context.Context, msgs []openAIMessage, links m
 		}
 		var c askChunk
 		if err := json.Unmarshal([]byte(line), &c); err != nil {
-			return "", errors.New("llm: response is not JSON")
+			return "", "", errors.New("llm: response is not JSON")
 		}
 		if c.Error != nil {
-			return "", errors.New("llm: error in the response")
+			return "", "", errors.New("llm: error in the response")
 		}
 		for _, ch := range c.Choices {
 			piece := ch.Delta.Content + ch.Message.Content
@@ -801,19 +834,12 @@ func (h *AskHandler) complete(ctx context.Context, msgs []openAIMessage, links m
 		}
 	}
 	if err := sc.Err(); err != nil {
-		return "", fail(errors.New("llm: reading the response failed"))
+		return "", "", fail(errors.New("llm: reading the response failed"))
 	}
 	if ctx.Err() != nil {
-		return "", fail(nil)
+		return "", "", fail(nil)
 	}
-	answer := cleanAnswer(text.String(), links)
-	if answer == "" {
-		return "", errors.New("llm: empty answer")
-	}
-	if finish == "length" && !strings.HasSuffix(answer, "…") {
-		answer += "…"
-	}
-	return answer, nil
+	return text.String(), finish, nil
 }
 
 var (

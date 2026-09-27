@@ -162,14 +162,15 @@ var knobDocs = map[string]knobDoc{
 	"SAVED_DATA_ENTRIES_NAMES_MAX":        {"data", "Submissions names one site may declare.", false, true},
 	"SAVED_DATA_DEFAULT_KIND":             {"data", "What a name no one declared is on a site made after the kinds. shared: anyone reads it and signed-in visitors save to it. declare_first: it takes no saves until the owner declares it. Older sites are shared either way.", true, true},
 
-	"ASK_ENABLED":          {"ai", "Whether the \"Ask about this page\" box is shown (it also needs a model backend).", false, false},
-	"ASK_BURST":            {"ai", "Ask: questions one address may ask at once.", false, false},
-	"ASK_EVERY_SECONDS":    {"ai", "Ask: then one more question every this many seconds, per address.", false, false},
-	"ASK_DAILY_MAX":        {"ai", "Ask: questions answered per day across everyone. 0 answers none.", false, false},
-	"ASK_MAX_IN_FLIGHT":    {"ai", "Ask: questions answered at once on the whole server.", false, false},
-	"ASK_MODEL":            {"ai", "Ask: the model the box asks, through the same backend as AI create.", false, false},
-	"ASK_REASONING_EFFORT": {"ai", "Ask: how long the model thinks before answering. none answers in seconds.", false, false},
-	"ASK_MAX_TOKENS":       {"ai", "Ask: longest answer, in tokens.", false, false},
+	"ASK_ENABLED":           {"ai", "Whether the \"Ask about this page\" box is shown (it also needs a model backend).", false, false},
+	"ASK_BURST":             {"ai", "Ask: questions one address may ask at once.", false, false},
+	"ASK_EVERY_SECONDS":     {"ai", "Ask: then one more question every this many seconds, per address.", false, false},
+	"ASK_DAILY_MAX":         {"ai", "Ask: questions answered per day across everyone. 0 answers none.", false, false},
+	"ASK_MAX_IN_FLIGHT":     {"ai", "Ask: questions answered at once on the whole server.", false, false},
+	"ASK_MODEL":             {"ai", "Ask: the model the box asks, through the same backend as AI create.", false, false},
+	"ASK_REASONING_EFFORT":  {"ai", "Ask: how long the model thinks before answering. none answers in seconds.", false, false},
+	"ASK_MAX_TOKENS":        {"ai", "Ask: longest answer, in tokens.", false, false},
+	"SETUP_CHECK_DAILY_MAX": {"ai", "The setup helper's optional \"Check my choices\": checks answered per day across everyone, through the Ask model. 0 turns it off.", false, false},
 }
 
 // otherSettings are the settings outside Knobs(): where the server lives,

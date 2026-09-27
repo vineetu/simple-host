@@ -151,6 +151,7 @@ services:
       ASK_MODEL: ${ASK_MODEL:-}
       ASK_REASONING_EFFORT: ${ASK_REASONING_EFFORT:-}
       ASK_MAX_TOKENS: ${ASK_MAX_TOKENS:-}
+      SETUP_CHECK_DAILY_MAX: ${SETUP_CHECK_DAILY_MAX:-}
     volumes:
       - sites:/data/sites
       # Read-only: the ingester only ever reads the access log Caddy writes.

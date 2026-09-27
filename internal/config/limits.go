@@ -108,6 +108,10 @@ type Ask struct {
 	Model           string // ASK_MODEL (grok-4.7)
 	ReasoningEffort string // ASK_REASONING_EFFORT: none, low, medium or high (none)
 	MaxTokens       int    // ASK_MAX_TOKENS (300)
+	// The setup helper's optional "Check my choices" (POST /v1/setup/check)
+	// uses the same backend, model, per-address limits and in-flight cap,
+	// with its own count per UTC day (table setup_check_daily).
+	SetupCheckDailyMax int // SETUP_CHECK_DAILY_MAX (200); 0 turns the check off
 }
 
 // SavedData is every number behind saved-data history, undo, the watch and
@@ -274,7 +278,7 @@ func DefaultLimits() Limits {
 		SavedData: DefaultSavedData(),
 
 		Ask: Ask{Enabled: true, Burst: 5, EverySeconds: 20, DailyMax: 500, MaxInFlight: 4,
-			Model: "grok-4.7", ReasoningEffort: "none", MaxTokens: 300},
+			Model: "grok-4.7", ReasoningEffort: "none", MaxTokens: 300, SetupCheckDailyMax: 200},
 	}
 }
 
@@ -507,6 +511,7 @@ func Knobs() []Knob {
 				return fmt.Errorf("ASK_REASONING_EFFORT=%q: want none, low, medium or high", v)
 			}},
 		intKnob("ASK_MAX_TOKENS", "tokens", 50, 4000, func(l *Limits) *int { return &l.Ask.MaxTokens }),
+		intKnob("SETUP_CHECK_DAILY_MAX", "checks", 0, 100_000, func(l *Limits) *int { return &l.Ask.SetupCheckDailyMax }),
 	}
 }
 

@@ -455,9 +455,9 @@ func TestAskCleanAnswer(t *testing.T) {
 	}
 	// Each assistant links only to its own list.
 	entCases := map[string]string{
-		"[brief](https://simple-host.app/enterprise/brief#costs) and [how](https://simple-host.app/enterprise/architecture)": "[brief](https://simple-host.app/enterprise/brief#costs) and [how](https://simple-host.app/enterprise/architecture)",
-		"[details](https://simple-host.app/enterprise) not [docs](https://simple-host.app/docs.html)":                        "[details](https://simple-host.app/enterprise) not docs",
-		"[support](https://simple-host.app/support)":                                                                         "support",
+		"[brief](https://simple-host.app/enterprise/brief#costs) and [how](https://simple-host.app/enterprise/architecture)":   "[brief](https://simple-host.app/enterprise/brief#costs) and [how](https://simple-host.app/enterprise/architecture)",
+		"[details](https://simple-host.app/enterprise) not [docs](https://simple-host.app/docs.html)":                          "[details](https://simple-host.app/enterprise) not docs",
+		"[support](https://simple-host.app/support)":                                                                           "support",
 		"[Set up](https://simple-host.app/setup?product=enterprise) or [box](https://simple-host.app/setup?product=small-box)": "[Set up](https://simple-host.app/setup?product=enterprise) or box",
 	}
 	for in, want := range entCases {
@@ -771,29 +771,33 @@ func TestAskDailyCountInPostgres(t *testing.T) {
 	}
 	t.Cleanup(func() { db.Close() })
 	db.SetMaxOpenConns(1) // the temporary table lives on one connection
-	if _, err := db.Exec(`CREATE TEMP TABLE ask_daily (day DATE PRIMARY KEY, count INTEGER NOT NULL DEFAULT 0)`); err != nil {
-		t.Fatal(err)
-	}
 	ctx := context.Background()
-	first := askDBCounter{db}
-	for want := 1; want <= 2; want++ {
-		n, ok, err := first.take(ctx, "2026-09-27", 3)
-		if err != nil || !ok || n != want {
-			t.Fatalf("take %d: %d %v %v", want, n, ok, err)
+	// The same counter keeps the Ask questions and the setup checks, each in
+	// its own table.
+	for _, table := range []string{"ask_daily", "setup_check_daily"} {
+		if _, err := db.Exec(`CREATE TEMP TABLE ` + table + ` (day DATE PRIMARY KEY, count INTEGER NOT NULL DEFAULT 0)`); err != nil {
+			t.Fatal(err)
 		}
-	}
-	restarted := askDBCounter{db}
-	if n, ok, err := restarted.take(ctx, "2026-09-27", 3); err != nil || !ok || n != 3 {
-		t.Fatalf("after restart: %d %v %v", n, ok, err)
-	}
-	if _, ok, err := restarted.take(ctx, "2026-09-27", 3); err != nil || ok {
-		t.Fatalf("over the cap: ok=%v err=%v", ok, err)
-	}
-	if n, ok, err := restarted.take(ctx, "2026-09-28", 3); err != nil || !ok || n != 1 {
-		t.Fatalf("next day: %d %v %v", n, ok, err)
-	}
-	if _, ok, _ := restarted.take(ctx, "2026-09-28", 0); ok {
-		t.Fatalf("ASK_DAILY_MAX=0 must refuse every question")
+		first := askDBCounter{db, table}
+		for want := 1; want <= 2; want++ {
+			n, ok, err := first.take(ctx, "2026-09-27", 3)
+			if err != nil || !ok || n != want {
+				t.Fatalf("%s take %d: %d %v %v", table, want, n, ok, err)
+			}
+		}
+		restarted := askDBCounter{db, table}
+		if n, ok, err := restarted.take(ctx, "2026-09-27", 3); err != nil || !ok || n != 3 {
+			t.Fatalf("%s after restart: %d %v %v", table, n, ok, err)
+		}
+		if _, ok, err := restarted.take(ctx, "2026-09-27", 3); err != nil || ok {
+			t.Fatalf("%s over the cap: ok=%v err=%v", table, ok, err)
+		}
+		if n, ok, err := restarted.take(ctx, "2026-09-28", 3); err != nil || !ok || n != 1 {
+			t.Fatalf("%s next day: %d %v %v", table, n, ok, err)
+		}
+		if _, ok, _ := restarted.take(ctx, "2026-09-28", 0); ok {
+			t.Fatalf("%s: a daily max of 0 must refuse every request", table)
+		}
 	}
 }
 

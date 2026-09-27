@@ -232,9 +232,10 @@ func main() {
 			Burst: ask.Burst, Every: time.Duration(ask.EverySeconds) * time.Second,
 			DailyMax: ask.DailyMax, MaxInFlight: ask.MaxInFlight,
 			ReasoningEffort: ask.ReasoningEffort, MaxTokens: ask.MaxTokens,
+			SetupCheckDailyMax: ask.SetupCheckDailyMax,
 		}).Register(mux)
 		handler.EnableAskWidget()
-		log.Printf("ask assistants enabled (/v1/ask; model %s, reasoning %s, %d tokens; %d per IP then 1 per %ds, %d at once, %d a day)", ask.Model, ask.ReasoningEffort, ask.MaxTokens, ask.Burst, ask.EverySeconds, ask.MaxInFlight, ask.DailyMax)
+		log.Printf("ask assistants enabled (/v1/ask; model %s, reasoning %s, %d tokens; %d per IP then 1 per %ds, %d at once, %d a day); setup check /v1/setup/check %d a day", ask.Model, ask.ReasoningEffort, ask.MaxTokens, ask.Burst, ask.EverySeconds, ask.MaxInFlight, ask.DailyMax, ask.SetupCheckDailyMax)
 	} else {
 		log.Printf("/v1/ask (ask assistants) disabled")
 	}

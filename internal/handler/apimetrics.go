@@ -69,8 +69,9 @@ func NewAPIMetrics(db *sql.DB, geo *geoip.DB) *APIMetrics {
 func (m *APIMetrics) Wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// The "Ask" assistants are left out entirely: its visitors are readers
-		// of a public page, and nothing about them is kept for it.
-		if !strings.HasPrefix(r.URL.Path, "/v1/") || r.URL.Path == "/v1/ask" {
+		// of a public page, and nothing about them is kept for it. The setup
+		// helper's check likewise.
+		if !strings.HasPrefix(r.URL.Path, "/v1/") || r.URL.Path == "/v1/ask" || r.URL.Path == "/v1/setup/check" {
 			next.ServeHTTP(w, r)
 			return
 		}
