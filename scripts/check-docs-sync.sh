@@ -252,6 +252,10 @@ fi
 # ── FEATURES.md places every route and MCP tool ──
 bash scripts/check-features.sh || fail=1
 
+# ── Settings docs, the setup helper's copies and the small-box plumbing follow docs/advanced/settings.json ──
+echo "== settings docs =="
+python3 scripts/settings_docs.py --check || fail=1
+
 # ── PARITY.md covers every FEATURES.md section ──
 bash scripts/check-parity.sh || fail=1
 

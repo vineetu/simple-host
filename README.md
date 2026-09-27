@@ -70,6 +70,7 @@ Then ask: *"Build me a wedding RSVP page and put it online."*
 - One Go binary, one Postgres, one folder on disk. Runs on 1 CPU and 1 GB of RAM.
 - A Docker Compose install for a fresh server ([`deploy/install/install.sh`](deploy/install/install.sh)). Re-running it upgrades.
 - A hackathon edition: an organiser stands up a private instance for an event and hands each participant a key. See https://simple-hack.app/.
+- A setup helper, https://simple-host.app/setup, writes the install command and settings; [docs/advanced/](docs/advanced/README.md) explains every setting.
 
 ## How it works
 
@@ -93,27 +94,13 @@ Open http://localhost:8090 and sign in with that `ADMIN_API_KEY` (the admin key)
 GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o ./simple-host ./cmd/server
 ```
 
-### Configuration
+### Configuration and advanced settings
 
-Environment variables. `DB_DSN` and `ADMIN_API_KEY` are required.
-
-| Env var | Description |
-|---|---|
-| `DB_DSN` | Postgres DSN (required) |
-| `ADMIN_API_KEY` | Admin key (required). Pick something long; there is no default. |
-| `SITE_DOMAIN` | Domain suffix for site addresses (e.g. `simple-host.app`) |
-| `PUBLIC_BASE_URL` | Base URL used in emails |
-| `DATA_DIR` | Where versioned site files live |
-| `PORT` / `BIND_ADDR` | Listen port (default `8090`) and interface (empty = all) |
-| `RESEND_API_KEY` / `MAIL_FROM` | Email sign-in codes via [Resend](https://resend.com); email sign-in is off without it |
-| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | Google sign-in for owners and visitors |
-| `WRITE_AUTH_MODE` | `on`: page saves need a signed-in visitor or a key; `log` (default); `off` |
-| `PERSON_HOSTS` | `canonical`: each account gets `https://<handle>.<SITE_DOMAIN>/`; `off` (default) |
-| `SITE_HOSTS` | `canonical`: each site gets `https://<site>.<handle>.<SITE_DOMAIN>/` (needs `PERSON_HOSTS`); `off` (default) |
-| `SITE_CERT_DIR` / `DOMAIN_CERT_DIR` | Where per-person and custom-domain certificates are requested and found |
-| `ANALYTICS_SALT` | Salt for hashed visitor IPs in analytics |
-
-The full list, with every surface each feature touches, is in [FEATURES.md](FEATURES.md).
+`DB_DSN` and `ADMIN_API_KEY` are required; everything else has a default. The setup helper at
+https://simple-host.app/setup writes the install command and `.env` for a small box (it runs in
+your browser and sends nothing anywhere). Every setting, by area with recipes (stricter sign-in,
+shorter retention, a small hackathon box): [docs/advanced/](docs/advanced/README.md). The full
+reference: [docs/configuration.md](docs/configuration.md).
 
 ## API
 

@@ -38,6 +38,7 @@ var reservedHandles = map[string]bool{
 	"skills":      true,
 	"plugin":      true,
 	"install":     true,
+	"setup":       true,
 	"openapi":     true,
 	"llms.txt":    true,
 }
