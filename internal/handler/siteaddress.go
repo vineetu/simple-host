@@ -247,8 +247,20 @@ func siteCertQueueAhead(dir, handle string, now time.Time, l siteCertLimits) int
 // estimateCertReady is when the issuer can issue the certificate that has
 // ahead others before it in the queue: each takes the first moment both the
 // weekly budget and the daily cap have room, then one timer interval to run.
+//
+// Bounded work: only the last week's issues matter, and past a queue of four
+// weeks' budget the estimate stops growing (it is a rough "in N days" either
+// way), so a long queue cannot stall the site list.
 func estimateCertReady(issued []time.Time, ahead int, now time.Time, l siteCertLimits) time.Time {
-	sim := append([]time.Time(nil), issued...)
+	var sim []time.Time
+	for _, e := range issued {
+		if e.After(now.Add(-7 * 24 * time.Hour)) {
+			sim = append(sim, e)
+		}
+	}
+	if l.Budget > 0 && ahead > 4*l.Budget {
+		ahead = 4 * l.Budget
+	}
 	t := now
 	for k := 0; k <= ahead; k++ {
 		t = nextIssueSlot(sim, t, l)

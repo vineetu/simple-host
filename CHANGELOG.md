@@ -4,6 +4,7 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 ## 2026-09-27
 
+- The "ready in about N hours" estimate for a new address stays fast with a long certificate queue (it only reads the last week of issues and stops growing past four weeks' budget).
 - www / bare partner: a name another site has connected (even one not proved yet) is no longer offered or put on this domain's certificate; the issuer checks the `domains/` link too.
 - `nginx-suspended-marker.sh` adds the take-down and offline checks to every server block that serves a site folder (it had stopped after the first block of a file), covers hand-made vhosts that serve `by-id/…`, `handles/<h>/$client` or `$sub` folders, and gives blocks without an `/internal/` proxy the two pages they rewrite to; it has a test in `make check`.
 - Sign-in alert emails quote what an app or browser says about itself as "reported by the app", cut to 40 characters, with email addresses, links and domain-like words removed.

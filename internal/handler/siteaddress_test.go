@@ -41,6 +41,17 @@ func TestEstimateCertReady(t *testing.T) {
 	if d := got.Sub(now); d < 23*time.Hour || d > 25*time.Hour {
 		t.Fatalf("weekly budget spent: ready in %s", d)
 	}
+	// A huge queue and a long log answer quickly, and the same as four
+	// weeks' budget.
+	var long []time.Time
+	for i := 0; i < 5000; i++ {
+		long = append(long, now.Add(-30*24*time.Hour-time.Duration(i)*time.Minute))
+	}
+	start := time.Now()
+	capped := estimateCertReady(long, 4*l.Budget, now, l)
+	if huge := estimateCertReady(long, 100000, now, l); !huge.Equal(capped) || time.Since(start) > 2*time.Second {
+		t.Fatalf("long queue: %s vs %s in %s", huge, capped, time.Since(start))
+	}
 }
 
 func TestAddressStateFromIssuerFiles(t *testing.T) {
