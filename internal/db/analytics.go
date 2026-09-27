@@ -537,3 +537,65 @@ func visitorsByClass(ctx context.Context, database *sql.DB, siteID string, from,
 	}
 	return out, rows.Err()
 }
+
+// PageStat is one page's views by people over a range.
+type PageStat struct {
+	Path  string `json:"path"`
+	Views int64  `json:"views"`
+}
+
+// ReferrerStat is one referring domain's views by people over a range.
+type ReferrerStat struct {
+	Domain string `json:"domain"`
+	Views  int64  `json:"views"`
+}
+
+// TopListLimit is how many pages and referring domains GetSiteTop returns.
+const TopListLimit = 20
+
+// GetSiteTop returns one site's most viewed pages and top referring domains
+// over the last `days` UTC days, people only, most views first.
+func GetSiteTop(ctx context.Context, database *sql.DB, siteID string, days int) ([]PageStat, []ReferrerStat, error) {
+	days = max(1, min(days, 365))
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	start, end := startStr(today.AddDate(0, 0, -(days-1))), startStr(today.AddDate(0, 0, 1))
+
+	pages := []PageStat{}
+	rows, err := database.QueryContext(ctx, `
+		SELECT path, SUM(views) FROM site_page_daily
+		 WHERE site_id = $1 AND day >= $2::date AND day < $3::date
+		 GROUP BY path ORDER BY 2 DESC, 1 LIMIT $4`, siteID, start, end, TopListLimit)
+	if err != nil {
+		return nil, nil, err
+	}
+	for rows.Next() {
+		var p PageStat
+		if err := rows.Scan(&p.Path, &p.Views); err != nil {
+			rows.Close()
+			return nil, nil, err
+		}
+		pages = append(pages, p)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+
+	refs := []ReferrerStat{}
+	rows, err = database.QueryContext(ctx, `
+		SELECT domain, SUM(views) FROM site_referrer_daily
+		 WHERE site_id = $1 AND day >= $2::date AND day < $3::date
+		 GROUP BY domain ORDER BY 2 DESC, 1 LIMIT $4`, siteID, start, end, TopListLimit)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var r ReferrerStat
+		if err := rows.Scan(&r.Domain, &r.Views); err != nil {
+			return nil, nil, err
+		}
+		refs = append(refs, r)
+	}
+	return pages, refs, rows.Err()
+}

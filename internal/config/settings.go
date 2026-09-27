@@ -39,6 +39,9 @@ type Setting struct {
 	// values, strictest first. The setup helper's check never suggests a
 	// value later in it than both the default and the visitor's own.
 	StrictOrder []string `json:"strict_order,omitempty"`
+	// ZeroIsNever: 0 turns a security-sensitive lifetime off (it then never
+	// ends), so 0 is its loosest value, not its strictest.
+	ZeroIsNever bool `json:"zero_is_never,omitempty"`
 	// Security: loosening it, or leaking it, weakens sign-in or data safety.
 	Security bool `json:"security_sensitive"`
 	// Required: the server does not start without it.
@@ -87,6 +90,7 @@ type knobDoc struct {
 var knobDocs = map[string]knobDoc{
 	"SIGNIN_CODE_TTL_MINUTES":  {"accounts", "How long an emailed sign-in code (and link) or email-change code works.", true, true},
 	"MAX_KEYS_PER_ACCOUNT":     {"accounts", "API keys one account may create from the Keys panel.", false, true},
+	"KEY_IDLE_EXPIRY_DAYS":     {"accounts", "An API key unused this long stops working (counted from its last use, or its creation). 0: keys work until revoked.", true, true},
 	"HANDLE_RENAME_EVERY_DAYS": {"accounts", "Once something is published, how often an account may change its handle.", false, true},
 	"EMAIL_CHANGE_UNDO_DAYS":   {"accounts", "How long the undo link sent to the old address after a sign-in email change works.", true, true},
 
@@ -111,12 +115,14 @@ var knobDocs = map[string]knobDoc{
 	"EVENT_TTL_DAYS":                 {"domains", "How long a claimed event hostname lives (only where EVENT_DNS_TOKEN is set).", false, false},
 	"EVENT_MAX_CLAIMS":               {"domains", "Event hostnames one account may hold at once.", false, false},
 
-	"DELETED_RETENTION_DAYS":     {"cleanup", "How long a deleted site stays restorable in Recently deleted.", false, true},
-	"IDLE_AFTER_DAYS":            {"cleanup", "Idle cleanup: a site unused this long gets its owner a warning email.", false, true},
-	"IDLE_GRACE_DAYS":            {"cleanup", "Idle cleanup: how long after the warning an unused site moves to Recently deleted.", false, true},
-	"IDLE_REPLY_TO":              {"email", "Reply-To address of the idle-cleanup emails.", false, true},
-	"ANALYTICS_RETENTION_DAYS":   {"cleanup", "How long visit analytics are kept.", false, true},
-	"API_METRICS_RETENTION_DAYS": {"cleanup", "How long the admin page's API-call counts and shortened caller addresses are kept.", false, true},
+	"DELETED_RETENTION_DAYS":           {"cleanup", "How long a deleted site stays restorable in Recently deleted.", false, true},
+	"IDLE_AFTER_DAYS":                  {"cleanup", "Idle cleanup: a site unused this long gets its owner a warning email.", false, true},
+	"IDLE_GRACE_DAYS":                  {"cleanup", "Idle cleanup: how long after the warning an unused site moves to Recently deleted.", false, true},
+	"IDLE_REPLY_TO":                    {"email", "Reply-To address of the idle-cleanup emails.", false, true},
+	"ANALYTICS_RETENTION_DAYS":         {"cleanup", "How long visit analytics are kept.", false, true},
+	"ANALYTICS_PAGES_PER_SITE_DAY":     {"observability", "Distinct pages a site's Top pages keeps per day; views of further new pages that day are counted together as (other).", false, true},
+	"ANALYTICS_REFERRERS_PER_SITE_DAY": {"observability", "Distinct referring domains a site keeps per day; further new domains that day are counted together as (other).", false, true},
+	"API_METRICS_RETENTION_DAYS":       {"cleanup", "How long the admin page's API-call counts and shortened caller addresses are kept.", false, true},
 
 	"AI_MAX_JOBS_PER_USER":   {"ai", "AI create: builds one person may run at once.", false, false},
 	"AI_MAX_JOBS":            {"ai", "AI create: builds running at once on the whole server.", false, false},
@@ -184,6 +190,12 @@ var knobDocs = map[string]knobDoc{
 var strictOrder = map[string][]string{
 	"WRITE_AUTH_MODE":         {"on", "log", "off"},
 	"SAVED_DATA_DEFAULT_KIND": {"declare_first", "shared"},
+}
+
+// zeroIsNever names the security-sensitive lifetimes where 0 means never:
+// shorter is stricter, and 0 is looser than any other value.
+var zeroIsNever = map[string]bool{
+	"KEY_IDLE_EXPIRY_DAYS": true,
 }
 
 // otherSettings are the settings outside Knobs(): where the server lives,
@@ -344,6 +356,7 @@ func Settings() []Setting {
 	all = append(all, otherSettings()...)
 	for i := range all {
 		all[i].StrictOrder = strictOrder[all[i].Name]
+		all[i].ZeroIsNever = zeroIsNever[all[i].Name]
 	}
 	var out []Setting
 	for _, g := range SettingGroups {

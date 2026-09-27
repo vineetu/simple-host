@@ -27,7 +27,7 @@ append-only collections) that its own page JavaScript can call.
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.24.0`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.24.2`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -115,6 +115,10 @@ Package the built directory as `.tar.gz` or `.zip` and `POST /v1/sites/<sitename
 
 Do not upload a source tree for a project that has a build step. Upload the
 production build output.
+
+**Redeploy on every push (CI):** `PUT` with `?create=1` creates or updates in
+one call; use a deploy-only key as the CI secret. GitHub Actions recipe:
+`references/operations.md` §Deploy from CI.
 
 ## Saving from a page: visitors sign in
 

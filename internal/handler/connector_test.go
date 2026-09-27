@@ -168,6 +168,7 @@ type connectorApp struct {
 	database *sql.DB
 	admin    string
 	conn     *ConnectorHandler
+	mux      *http.ServeMux
 }
 
 // newConnectorApp wires the server the way cmd/server/main.go does. It needs
@@ -198,8 +199,8 @@ func newConnectorApp(t *testing.T) *connectorApp {
 	if err != nil {
 		t.Fatal(err)
 	}
-	app := &connectorApp{database: database, admin: adminKey}
 	mux := http.NewServeMux()
+	app := &connectorApp{database: database, admin: adminKey, mux: mux}
 	authMW := auth.Middleware(adminKey, adminID, database)
 	noticeMW := NoticeMiddleware("1.0.0")
 	mailer := email.NewResendSender("", "test@example.com")
@@ -214,10 +215,11 @@ func newConnectorApp(t *testing.T) *connectorApp {
 	users.Register(mux, authMW, noticeMW)
 	sites := NewSiteHandler(database, disk, "simple-host.test", "sites.simple-host.test", "cname.simple-host.test", "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
 	sites.Register(mux, authMW, noticeMW)
-	conn := NewConnectorHandler(database, app.srv.URL, adminKey, "simple-host.test", "sites.simple-host.test", "1.0.0", mux)
+	gated := auth.ScopeGate(database, mux)
+	conn := NewConnectorHandler(database, app.srv.URL, adminKey, "simple-host.test", "sites.simple-host.test", "1.0.0", gated)
 	conn.Register(mux, authMW)
 	app.conn = conn
-	root = CORS(conn.BearerAuth(mux))
+	root = CORS(conn.BearerAuth(gated))
 	return app
 }
 
@@ -499,6 +501,23 @@ func TestConnectorHappyPathPublishesThroughMCP(t *testing.T) {
 	conns := a.do(t, http.MethodGet, "/v1/me/connections", nil, map[string]string{"X-API-Key": ann.key}).json(t)["connections"].([]any)
 	if len(conns) != 1 || conns[0].(map[string]any)["name"] != "Test Chat" {
 		t.Fatalf("connections: %v", conns)
+	}
+	// The consent request's user agent, summarised, tells two connections of
+	// the same app apart (this test client sends Go's own).
+	if d := conns[0].(map[string]any)["device"]; d != "Go-http-client" {
+		t.Fatalf("connection device: %v", d)
+	}
+}
+
+func TestConnectionDevice(t *testing.T) {
+	for ua, want := range map[string]string{
+		"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36":                       "Chrome on macOS",
+		"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1": "Safari on iPhone",
+		"": "",
+	} {
+		if got := connectionDevice(ua); got != want {
+			t.Errorf("connectionDevice(%q) = %q, want %q", ua, got, want)
+		}
 	}
 }
 

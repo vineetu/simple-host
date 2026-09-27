@@ -125,3 +125,118 @@ func TestNameToOldestSkipsDeleted(t *testing.T) {
 		t.Errorf("nameToOldest[blog] = %s, want the live site %s (deleted one is %s)", got, newID, oldID)
 	}
 }
+
+// People's page views are counted per site-relative path and per referring
+// domain; bots, the site's own address as referrer, and old seven-field lines
+// add nothing to the referrers. Needs DB_DSN.
+func TestIngestPagesAndReferrers(t *testing.T) {
+	db := isolatedDB(t)
+	ctx := context.Background()
+	var userID, siteID string
+	if err := db.QueryRow(`INSERT INTO users (username, handle) VALUES ('pr', 'pr') RETURNING id`).Scan(&userID); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`INSERT INTO sites (user_id, name, custom_domain) VALUES ($1, 'shop', 'shop.example') RETURNING id`, userID).Scan(&siteID); err != nil {
+		t.Fatal(err)
+	}
+	const ff = "Mozilla/5.0 (X11; Linux x86_64) Firefox/130.0"
+	lines := []string{
+		"2026-09-20T10:00:01+00:00\tshop.example\t200\tGET\t/\t203.0.113.1\t" + ff, // old format
+		"2026-09-20T10:00:02+00:00\tshop.example\t200\tGET\t/index.html\t203.0.113.2\t" + ff + "\tnews.ycombinator.com",
+		"2026-09-20T10:00:03+00:00\tshop.example\t200\tGET\t/menu/\t203.0.113.3\t" + ff + "\tnews.ycombinator.com",
+		"2026-09-20T10:00:04+00:00\tshop.example\t200\tGET\t/menu/\t203.0.113.4\t" + ff + "\tshop.example", // own address
+		"2026-09-20T10:00:05+00:00\tshop.example\t200\tGET\t/menu/\t203.0.113.5\tcurl/8.0\tt.co",           // not a person
+		"2026-09-20T10:00:06+00:00\tshop.example\t200\tGET\t/app.css\t203.0.113.6\t" + ff + "\tt.co",       // not a page
+	}
+	ing := NewIngester(db, "unused", "salt", "sites.example", "example")
+	if err := ing.commitLines(ctx, lines, false, 0, 0); err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]int64{}
+	rows, err := db.Query(`SELECT 'p:' || path, views FROM site_page_daily WHERE site_id = $1
+		UNION ALL SELECT 'r:' || domain, views FROM site_referrer_daily WHERE site_id = $1`, siteID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var k string
+		var n int64
+		if err := rows.Scan(&k, &n); err != nil {
+			t.Fatal(err)
+		}
+		got[k] = n
+	}
+	want := map[string]int64{"p:/": 2, "p:/menu/": 2, "r:news.ycombinator.com": 2}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("pages and referrers = %v, want %v", got, want)
+	}
+}
+
+// Random paths and referrer spam cannot add a row per request: past the
+// per-site daily cap, new pages and domains go to (other), across runs too.
+// Needs DB_DSN.
+func TestIngestCapsPagesAndReferrersPerDay(t *testing.T) {
+	db := isolatedDB(t)
+	ctx := context.Background()
+	var userID, siteID string
+	if err := db.QueryRow(`INSERT INTO users (username, handle) VALUES ('cap', 'cap') RETURNING id`).Scan(&userID); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`INSERT INTO sites (user_id, name, custom_domain) VALUES ($1, 'shop', 'shop.example') RETURNING id`, userID).Scan(&siteID); err != nil {
+		t.Fatal(err)
+	}
+	const ff = "Mozilla/5.0 (X11; Linux x86_64) Firefox/130.0"
+	line := func(i int, p, ref string) string {
+		return fmt.Sprintf("2026-09-20T10:00:%02d+00:00\tshop.example\t200\tGET\t%s\t203.0.113.%d\t%s\t%s", i%60, p, i%250+1, ff, ref)
+	}
+	ing := NewIngester(db, "unused", "salt", "sites.example", "example").WithItemCaps(3, 2)
+	var run1, run2 []string
+	for i := 0; i < 6; i++ {
+		run1 = append(run1, line(i, fmt.Sprintf("/p%d", i), fmt.Sprintf("spam%d.example", i)))
+	}
+	run1 = append(run1, line(10, "/p0", "spam0.example"), line(11, "//p0?x=1", "spam0.example"))
+	for i := 0; i < 3; i++ {
+		run2 = append(run2, line(20+i, fmt.Sprintf("/q%d", i), fmt.Sprintf("more%d.example", i)))
+	}
+	run2 = append(run2, line(30, "/%70%30", "spam0.example"))
+	for _, lines := range [][]string{run1, run2} {
+		if err := ing.commitLines(ctx, lines, false, 0, 0); err != nil {
+			t.Fatal(err)
+		}
+	}
+	count := func(q string) (rows int, views int64, other int64) {
+		r, err := db.Query(q, siteID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer r.Close()
+		for r.Next() {
+			var item string
+			var n int64
+			if err := r.Scan(&item, &n); err != nil {
+				t.Fatal(err)
+			}
+			if item == otherItem {
+				other = n
+			} else {
+				rows++
+			}
+			views += n
+		}
+		return
+	}
+	pr, pv, po := count(`SELECT path, views FROM site_page_daily WHERE site_id = $1`)
+	if pr != 3 || pv != 12 || po != 6 {
+		t.Errorf("pages: %d rows, %d views, %d other; want 3 rows, 12 views, 6 other", pr, pv, po)
+	}
+	var p0 int64
+	db.QueryRow(`SELECT views FROM site_page_daily WHERE site_id = $1 AND path = '/p0'`, siteID).Scan(&p0)
+	if p0 != 4 {
+		t.Errorf("/p0 spelled four ways counted %d, want 4", p0)
+	}
+	rr, rv, _ := count(`SELECT domain, views FROM site_referrer_daily WHERE site_id = $1`)
+	if rr != 2 || rv != 12 {
+		t.Errorf("referrers: %d rows, %d views; want 2 rows, 12 views", rr, rv)
+	}
+}

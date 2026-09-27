@@ -25,6 +25,7 @@ type Limits struct {
 	// Accounts and keys.
 	SigninCodeTTL      time.Duration // SIGNIN_CODE_TTL_MINUTES
 	MaxKeysPerAccount  int           // MAX_KEYS_PER_ACCOUNT
+	KeyIdleExpiry      time.Duration // KEY_IDLE_EXPIRY_DAYS (0 = never)
 	HandleRenameEvery  time.Duration // HANDLE_RENAME_EVERY_DAYS
 	EmailChangeUndoTTL time.Duration // EMAIL_CHANGE_UNDO_DAYS
 
@@ -58,6 +59,8 @@ type Limits struct {
 	IdleAfter           time.Duration // IDLE_AFTER_DAYS
 	IdleGrace           time.Duration // IDLE_GRACE_DAYS
 	AnalyticsRetention  int           // ANALYTICS_RETENTION_DAYS (days)
+	AnalyticsPagesDay   int           // ANALYTICS_PAGES_PER_SITE_DAY
+	AnalyticsRefsDay    int           // ANALYTICS_REFERRERS_PER_SITE_DAY
 	APIMetricsRetention int           // API_METRICS_RETENTION_DAYS (days)
 	IdleReplyTo         string        // IDLE_REPLY_TO
 
@@ -226,6 +229,7 @@ func DefaultLimits() Limits {
 	return Limits{
 		SigninCodeTTL:      15 * time.Minute,
 		MaxKeysPerAccount:  50,
+		KeyIdleExpiry:      180 * day,
 		HandleRenameEvery:  30 * day,
 		EmailChangeUndoTTL: 7 * day,
 
@@ -254,6 +258,8 @@ func DefaultLimits() Limits {
 		IdleAfter:           90 * day,
 		IdleGrace:           30 * day,
 		AnalyticsRetention:  400,
+		AnalyticsPagesDay:   200,
+		AnalyticsRefsDay:    100,
 		APIMetricsRetention: 30,
 		IdleReplyTo:         "support@simple-host.app",
 
@@ -393,6 +399,8 @@ func Knobs() []Knob {
 	return []Knob{
 		durKnob("SIGNIN_CODE_TTL_MINUTES", "minutes", m, 5, 60, func(l *Limits) *time.Duration { return &l.SigninCodeTTL }),
 		intKnob("MAX_KEYS_PER_ACCOUNT", "keys", 1, 1000, func(l *Limits) *int { return &l.MaxKeysPerAccount }),
+		// 0 turns idle expiry off: keys then work until revoked.
+		durKnob("KEY_IDLE_EXPIRY_DAYS", "days", d, 0, 3650, func(l *Limits) *time.Duration { return &l.KeyIdleExpiry }),
 		durKnob("HANDLE_RENAME_EVERY_DAYS", "days", d, 7, 365, func(l *Limits) *time.Duration { return &l.HandleRenameEvery }),
 		durKnob("EMAIL_CHANGE_UNDO_DAYS", "days", d, 1, 90, func(l *Limits) *time.Duration { return &l.EmailChangeUndoTTL }),
 
@@ -421,6 +429,10 @@ func Knobs() []Knob {
 		durKnob("IDLE_AFTER_DAYS", "days", d, 7, 3650, func(l *Limits) *time.Duration { return &l.IdleAfter }),
 		durKnob("IDLE_GRACE_DAYS", "days", d, 1, 365, func(l *Limits) *time.Duration { return &l.IdleGrace }),
 		intKnob("ANALYTICS_RETENTION_DAYS", "days", 1, 3650, func(l *Limits) *int { return &l.AnalyticsRetention }),
+		// Distinct pages and referring domains kept per site per day; the
+		// rest are counted together as "(other)".
+		intKnob("ANALYTICS_PAGES_PER_SITE_DAY", "pages", 10, 10_000, func(l *Limits) *int { return &l.AnalyticsPagesDay }),
+		intKnob("ANALYTICS_REFERRERS_PER_SITE_DAY", "domains", 10, 10_000, func(l *Limits) *int { return &l.AnalyticsRefsDay }),
 		intKnob("API_METRICS_RETENTION_DAYS", "days", 1, 3650, func(l *Limits) *int { return &l.APIMetricsRetention }),
 		{Env: "IDLE_REPLY_TO", Unit: "email address",
 			Value: func(l *Limits) string { return l.IdleReplyTo },

@@ -203,8 +203,8 @@
               <p class="fw">A personal key that lets your coding agent publish and manage sites for you without you being at the keyboard.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone using a coding agent rather than clicking through screens.</dd>
-                <dt>Where</dt><dd>Main dashboard — <strong>Rotate API key</strong> in the header issues a fresh key and shows it once, for you to copy.</dd>
-                <dt>Limits</dt><dd class="lim">Each sign-in adds a new key, and older keys keep working. Rotating replaces them all with one new key and <b>stops the old ones immediately</b>, so update your agent straight after. Keys are stored only as hashes, so a key cannot be shown again later. Treat it like a password.</dd>
+                <dt>Where</dt><dd>The <strong>Keys</strong> panel on your sites page: create a named key (tick <strong>Deploy only</strong> for a CI secret: it can publish, roll back and list sites and nothing else), see when each was last used and when it expires, revoke one, or <strong>Sign out everywhere</strong>.</dd>
+                <dt>Limits</dt><dd class="lim">Each sign-in adds a new key, and older keys keep working until revoked. A key unused for 180 days stops working. A key can also be given a fixed expiry when you create it. Keys are stored only as hashes, so a key cannot be shown again later. Treat it like a password.</dd>
               </dl>
             </div>
           </div>
@@ -1012,6 +1012,19 @@
             </div>
           </div>
 
+          <div class="feat" id="analytics-top-pages">
+            <div class="fid">analytics-top-pages</div>
+            <div>
+              <h3>Top pages and where visitors came from</h3>
+              <p class="fw">For each site, the pages people read most and the sites whose links brought them, for the period you chose.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone whose site suddenly got busy and wants to know which page, and where it was shared.</dd>
+                <dt>Where</dt><dd><strong>Top pages and referrers</strong> under each site on the <strong>Analytics</strong> tab, and on that site's full analytics page.</dd>
+                <dt>Limits</dt><dd class="lim">People only, <b>top 20</b> of each. A referrer is its <b>domain</b> (such as news.ycombinator.com), never the full address it came from; links from the site itself are not counted.</dd>
+              </dl>
+            </div>
+          </div>
+
           <div class="feat" id="analytics-range">
             <div class="fid">analytics-range</div>
             <div>
@@ -1046,7 +1059,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Everyone — you get the numbers without your visitors paying for them.</dd>
                 <dt>Where</dt><dd>Automatic for every site.</dd>
-                <dt>Limits</dt><dd class="lim">No referrers, no pages-per-visit, no per-page breakdown. Figures update <b>every few minutes</b>, not instantly.</dd>
+                <dt>Limits</dt><dd class="lim">No pages-per-visit or sessions. Where visitors came from is shown by <b>domain only</b>. Figures update <b>every few minutes</b>, not instantly.</dd>
               </dl>
             </div>
           </div>

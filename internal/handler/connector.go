@@ -91,8 +91,9 @@ type ConnectorHandler struct {
 	now func() time.Time
 }
 
-// NewConnectorHandler builds the connector. upstream is the bare application
-// mux: MCP tool calls are served into it in process.
+// NewConnectorHandler builds the connector. upstream is the application mux
+// behind the key scope gate (auth.ScopeGate): MCP tool calls are served into
+// it in process, so a deploy-only key's tools meet the same route table.
 func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomain, contentHost, skillVersion string, upstream http.Handler) *ConnectorHandler {
 	issuer := strings.TrimRight(publicBaseURL, "/")
 	key := make([]byte, 32)
@@ -134,7 +135,8 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 	return h
 }
 
-// StartSweep removes expired codes and tokens and abandoned registrations.
+// StartSweep removes expired codes and tokens, abandoned registrations, and
+// API keys that stopped working more than 30 days ago.
 func (h *ConnectorHandler) StartSweep(every time.Duration) {
 	h.registerLimiter.startCleanup(10*time.Minute, 2*time.Hour)
 	h.authorizeLimiter.startCleanup(10*time.Minute, 30*time.Minute)
@@ -145,6 +147,11 @@ func (h *ConnectorHandler) StartSweep(every time.Duration) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			if err := db.SweepOAuth(ctx, h.database); err != nil {
 				log.Printf("connector sweep: %v", err)
+			}
+			if n, err := db.PurgeExpiredAPIKeys(ctx, h.database); err != nil {
+				log.Printf("api key sweep: %v", err)
+			} else if n > 0 {
+				log.Printf("api key sweep: removed %d keys expired over 30 days", n)
 			}
 			cancel()
 			time.Sleep(every)
@@ -766,6 +773,7 @@ func (h *ConnectorHandler) decide(w http.ResponseWriter, r *http.Request) {
 		Scope:         oauthScope,
 		Resource:      req.Resource,
 		ExpiresAt:     h.now().Add(oauthCodeTTL),
+		Device:        connectionDevice(r.UserAgent()),
 	}); err != nil {
 		log.Printf("connector: insert code: %v", err)
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -926,7 +934,7 @@ func (h *ConnectorHandler) redeemCode(w http.ResponseWriter, r *http.Request, cl
 		fail("account unavailable")
 		return
 	}
-	grantID, err := db.InsertOAuthGrant(r.Context(), tx, stored.UserID, client.ClientID, stored.Scope, stored.Resource)
+	grantID, err := db.InsertOAuthGrant(r.Context(), tx, stored.UserID, client.ClientID, stored.Scope, stored.Resource, stored.Device)
 	if err != nil {
 		log.Printf("connector: insert grant: %v", err)
 		oauthError(w, http.StatusInternalServerError, "server_error", "")
@@ -1194,9 +1202,17 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 	} else if key := r.Header.Get("X-API-Key"); key != "" {
 		// Coding agents that already hold a key can use the endpoint too.
 		if subtle.ConstantTimeCompare([]byte(key), []byte(h.adminAPIKey)) != 1 {
-			if _, err := db.GetUserByAPIKey(r.Context(), h.database, key); err != nil {
+			if u, err := db.GetUserByAPIKey(r.Context(), h.database, key); err != nil {
 				if errors.Is(err, db.ErrAccountSuspended) {
 					writeAccountSuspended(w)
+					return
+				}
+				if errors.Is(err, db.ErrKeyExpired) || errors.Is(err, db.ErrKeyExpiredIdle) {
+					// Say why, with no OAuth challenge: the caller holds a key
+					// and needs a new one, not a sign-in flow.
+					msg, code := auth.ExpiredKeyMessage(err, u.KeyExpiresAt)
+					w.Header().Set("Cache-Control", "no-store")
+					writeJSON(w, http.StatusUnauthorized, errorResponse{Error: msg, Code: code})
 					return
 				}
 				h.mcpUnauthorized(w, true)
@@ -1212,6 +1228,21 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 }
 
 // ---- connected apps --------------------------------------------------------------------
+
+// connectionDevice is the hint kept with a connection so two of the same app
+// can be told apart: the consent page's browser, summarised ("Chrome on
+// macOS"), or "" when it cannot be told. Never the user agent itself or an
+// address.
+func connectionDevice(userAgent string) string {
+	d := summarizeUserAgent(userAgent)
+	if d == "an unknown browser or app" {
+		return ""
+	}
+	if len(d) > 60 {
+		d = d[:60]
+	}
+	return d
+}
 
 func (h *ConnectorHandler) listConnections(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
@@ -1231,6 +1262,7 @@ func (h *ConnectorHandler) listConnections(w http.ResponseWriter, r *http.Reques
 			"name":         c.ClientName,
 			"connected_at": c.ConnectedAt,
 			"last_used_at": c.LastUsedAt,
+			"device":       c.Device,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"connections": out})

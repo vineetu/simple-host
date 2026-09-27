@@ -19,6 +19,7 @@ func ApplyLimits(l config.Limits) {
 	config.SetActive(l)
 	db.SetLimits(db.Limits{
 		MaxAccountKeys:       l.MaxKeysPerAccount,
+		KeyIdleExpiry:        l.KeyIdleExpiry,
 		EmailChangeUndoTTL:   l.EmailChangeUndoTTL,
 		DeletedRetention:     l.DeletedRetention,
 		UnprovenDomainTTL:    l.DomainUnprovenTTL,

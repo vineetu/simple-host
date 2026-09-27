@@ -418,8 +418,10 @@ func (h *SiteHandler) accountDocuments(ctx context.Context, me db.User) ([]expor
 	type key struct {
 		Name       string     `json:"name"`
 		Last4      string     `json:"last4,omitempty"`
+		Scope      string     `json:"scope"`
 		CreatedAt  time.Time  `json:"created_at"`
 		LastUsedAt *time.Time `json:"last_used_at"`
+		ExpiresAt  *time.Time `json:"expires_at,omitempty"`
 	}
 	keyList := []key{}
 	for _, k := range keys {
@@ -427,17 +429,18 @@ func (h *SiteHandler) accountDocuments(ctx context.Context, me db.User) ([]expor
 		if name == "" {
 			name = "Earlier key"
 		}
-		keyList = append(keyList, key{Name: name, Last4: k.Last4, CreatedAt: k.CreatedAt.UTC(), LastUsedAt: k.LastUsedAt})
+		keyList = append(keyList, key{Name: name, Last4: k.Last4, Scope: k.Scope, CreatedAt: k.CreatedAt.UTC(), LastUsedAt: k.LastUsedAt, ExpiresAt: k.ExpiresAt})
 	}
 
 	type app struct {
 		Name        string    `json:"name"`
+		Device      string    `json:"device,omitempty"`
 		ConnectedAt time.Time `json:"connected_at"`
 		LastUsedAt  time.Time `json:"last_used_at"`
 	}
 	apps := []app{}
 	for _, c := range conns {
-		apps = append(apps, app{Name: c.ClientName, ConnectedAt: c.ConnectedAt.UTC(), LastUsedAt: c.LastUsedAt.UTC()})
+		apps = append(apps, app{Name: c.ClientName, Device: c.Device, ConnectedAt: c.ConnectedAt.UTC(), LastUsedAt: c.LastUsedAt.UTC()})
 	}
 
 	type signIn struct {

@@ -62,6 +62,12 @@ func (i *Ingester) Rebuild(ctx context.Context) error {
 	if _, err := tx.ExecContext(ctx, `DELETE FROM site_geo_daily`); err != nil {
 		return fmt.Errorf("clear geo: %w", err)
 	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM site_page_daily`); err != nil {
+		return fmt.Errorf("clear pages: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM site_referrer_daily`); err != nil {
+		return fmt.Errorf("clear referrers: %w", err)
+	}
 	if _, err := tx.ExecContext(ctx,
 		`DELETE FROM analytics_ingest_state WHERE logfile = $1`, i.logPath); err != nil {
 		return fmt.Errorf("reset ingest state: %w", err)

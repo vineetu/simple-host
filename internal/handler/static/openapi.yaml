@@ -775,6 +775,7 @@ paths:
                         name: { type: string, description: The name the app registered with }
                         connected_at: { type: string, format: date-time }
                         last_used_at: { type: string, format: date-time }
+                        device: { type: string, example: Chrome on macOS, description: "The browser the connection was approved on, summarised, to tell two connections of the same app apart. Never the user agent itself or an IP. Empty when unknown (and for connections made before 2026-09-27)." }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /v1/me/deleted-sites:
@@ -846,7 +847,9 @@ paths:
       description: >-
         Every key on the account, newest first. `current` marks the key this request was made with.
         Keys issued before names existed have no `name` or `last4` (shown as "Earlier key").
-        `last_used_at` is updated at most every 5 minutes.
+        `last_used_at` is updated at most every 5 minutes. A key unused for 180 days stops working.
+        `idle_expires_at` says when (KEY_IDLE_EXPIRY_DAYS); one minted with `expires_in_days` stops
+        at `expires_at`. A key that has stopped stays listed with `expired` until revoked.
       tags: [Auth]
       security: [{ apiKey: [] }]
       responses:
@@ -867,8 +870,16 @@ paths:
       summary: Create a named API key
       description: >-
         Mints a new key with the given name (for a CI secret or another machine) and returns it once;
-        it is stored only as a hash. Needs one of the account's own keys (the admin env key or a
-        connected app gets 400 not_an_account_key). An account holds at most 50 keys (409 key_limit);
+        it is stored only as a hash. `scope: deploy` makes a deploy-only key: it may create, update,
+        roll back and list sites, read their versions and files, and make preview links; every other
+        route (delete, rename, domains, keys, saved data and lists, analytics, the account, AI
+        create, connecting apps, and the same through /mcp) answers 403 deploy_only_key. Use it for
+        a CI secret. `expires_in_days` (1-3650) gives the key a fixed expiry; without it the key
+        stops only when it goes unused (KEY_IDLE_EXPIRY_DAYS). Needs one of the account's own keys (the admin env key
+        or a connected app gets 400 not_an_account_key). An account holds at most 50 keys (409 key_limit;
+        keys that have stopped working do not count, and are deleted 30 days after they stop). A
+        deploy key never carries admin powers. Treat a deploy key like the site itself: it can ship
+        code that runs when you view the site;
         a key revoked or rotated away mid-request gets 401 invalid_api_key.
       tags: [Auth]
       security: [{ apiKey: [] }]
@@ -881,6 +892,8 @@ paths:
               required: [name]
               properties:
                 name: { type: string, minLength: 1, maxLength: 60, example: GitHub Actions }
+                scope: { type: string, enum: [full, deploy], default: full, description: "deploy: create, update, roll back and list sites and make preview links, nothing else" }
+                expires_in_days: { type: integer, minimum: 1, maximum: 3650, description: "Optional fixed expiry, in days from now" }
       responses:
         '201':
           description: Key created. `api_key` is shown only here.
@@ -941,7 +954,8 @@ paths:
         archiving. Text goes in `files`; base64-encoded binary goes in
         `files_base64`. `index.html` is required. Relative paths only (`..`/absolute are
         rejected); secret files (`.env`, `.git/*`, `id_rsa`) are dropped and script
-        extensions (`.sh .py .php …`) are rejected. Use PUT to update an existing site.
+        extensions (`.sh .py .php …`) are rejected. Use PUT to update an existing site (409
+        site_exists says so); PUT with ?create=1 creates or updates in one call.
       tags: [Deploy]
       security: [{ apiKey: [] }]
       parameters: [ { $ref: '#/components/parameters/sitename' } ]
@@ -963,10 +977,12 @@ paths:
       description: >-
         Same as POST, but for an existing site you own. Creates a new version and activates it;
         with ?publish=false the version is only stored (visitors keep seeing the live one) and the
-        answer adds unpublished_version, preview_url and preview_expires_at.
+        answer adds unpublished_version, preview_url and preview_expires_at. With ?create=1 a
+        missing site is created instead (201, with the same checks as POST), so CI deploys in one
+        call; without it a missing site is 404.
       tags: [Deploy]
       security: [{ apiKey: [] }]
-      parameters: [ { $ref: '#/components/parameters/sitename' }, { $ref: '#/components/parameters/publish' } ]
+      parameters: [ { $ref: '#/components/parameters/sitename' }, { $ref: '#/components/parameters/publish' }, { $ref: '#/components/parameters/create' } ]
       requestBody:
         required: true
         content:
@@ -975,6 +991,9 @@ paths:
       responses:
         '200':
           description: Site updated
+          content: { application/json: { schema: { $ref: '#/components/schemas/SiteWithNote' } } }
+        '201':
+          description: Site created (?create=1 and no site of that name)
           content: { application/json: { schema: { $ref: '#/components/schemas/SiteWithNote' } } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -1048,10 +1067,12 @@ paths:
       description: >-
         Upload a new version of an existing site you own. Creates a new version and activates it;
         with ?publish=false the version is only stored (visitors keep seeing the live one) and the
-        answer adds unpublished_version, preview_url and preview_expires_at.
+        answer adds unpublished_version, preview_url and preview_expires_at. With ?create=1 a
+        missing site is created instead (201, with the same checks as POST): one call from CI,
+        e.g. `curl -X PUT ".../v1/sites/<name>?create=1" -H "X-API-Key: $KEY" --data-binary @site.tar.gz`.
       tags: [Deploy]
       security: [{ apiKey: [] }]
-      parameters: [ { $ref: '#/components/parameters/sitename' }, { $ref: '#/components/parameters/publish' } ]
+      parameters: [ { $ref: '#/components/parameters/sitename' }, { $ref: '#/components/parameters/publish' }, { $ref: '#/components/parameters/create' } ]
       requestBody:
         required: true
         content:
@@ -1059,6 +1080,7 @@ paths:
           application/zip: { schema: { type: string, format: binary } }
       responses:
         '200': { description: Site updated, content: { application/json: { schema: { $ref: '#/components/schemas/SiteWithNote' } } } }
+        '201': { description: "Site created (?create=1 and no site of that name)", content: { application/json: { schema: { $ref: '#/components/schemas/SiteWithNote' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '413': { $ref: '#/components/responses/TooLarge' }
@@ -1663,6 +1685,63 @@ paths:
                             country: { type: string, example: "US", description: 'ISO-3166 alpha-2, or "XX" when unresolved' }
                             country_name: { type: string, example: "United States" }
                         - $ref: '#/components/schemas/TrafficSplit'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/sites/{sitename}/analytics/top:
+    get:
+      operationId: getSitesBySitenameAnalyticsTop
+      summary: A site's top pages and where its visitors came from
+      description: >-
+        The 20 most viewed pages (path on the site, without the query string or fragment,
+        percent-escapes decoded once and `//` collapsed) and the 20 top referring domains over the
+        last `days` UTC days, people only, most views first. A site keeps at most
+        ANALYTICS_PAGES_PER_SITE_DAY pages and ANALYTICS_REFERRERS_PER_SITE_DAY domains a day; the
+        views of further new ones that day are listed as `(other)`. A referrer
+        is recorded as its domain alone — never a full address, path or query — and a link from
+        the site's own address is not counted. Owner only (API key); the platform admin may pass
+        `owner`.
+      tags: [Analytics]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/sitename' }
+        - name: days
+          in: query
+          required: false
+          description: Number of UTC days to include (default 30, clamp 1..365)
+          schema: { type: integer, minimum: 1, maximum: 365, default: 30 }
+        - name: owner
+          in: query
+          required: false
+          description: Handle of the account that owns the site (platform admin only; anyone else gets 404).
+          schema: { type: string }
+      responses:
+        '200':
+          description: Top pages and referring domains
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [range_days, pages, referrers]
+                properties:
+                  range_days: { type: integer, example: 30 }
+                  pages:
+                    type: array
+                    items:
+                      type: object
+                      required: [path, views]
+                      properties:
+                        path: { type: string, example: /menu/ }
+                        views: { type: integer, description: Views by people }
+                  referrers:
+                    type: array
+                    items:
+                      type: object
+                      required: [domain, views]
+                      properties:
+                        domain: { type: string, example: news.ycombinator.com }
+                        views: { type: integer, description: Views by people arriving from it }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -5419,6 +5498,7 @@ components:
     version: { name: version, in: path, required: true, schema: { type: integer, minimum: 1 }, example: 2 }
     path: { name: path, in: path, required: true, description: Relative file path (may contain forward slashes), schema: { type: string }, example: assets/style.css }
     sitename: { name: sitename, in: path, required: true, schema: { type: string }, example: my-cool-site }
+    create: { name: create, in: query, required: false, schema: { type: string, enum: ['1', '0', 'true', 'false'], default: '0' }, description: "1 creates the site when you have none of that name (reserved names, the site quota and publish=false are refused as on POST), so one PUT deploys from CI whether or not the site exists" }
     publish: { name: publish, in: query, required: false, schema: { type: boolean, default: true }, description: "false stores the new version without making it live (updates only; a new site's first version always goes live: 400)" }
     coll: { name: coll, in: path, required: true, schema: { type: string }, example: signups }
     csrf: { name: X-SH-CSRF, in: header, required: false, schema: { type: string, enum: ['1'] }, description: Required on cookie-authenticated writes }
@@ -5460,8 +5540,12 @@ components:
         id: { type: string, format: uuid }
         name: { type: string, description: "Where it came from (dashboard sign-in, agent sign-in, event account, replacement key) or the name typed when it was created. Absent on keys issued before names existed." }
         last4: { type: string, description: Last 4 characters of the key, to recognise it. Absent on older keys. }
+        scope: { type: string, enum: [full, deploy], description: "full, or deploy (create, update, roll back and list sites and make preview links only)" }
         created_at: { type: string, format: date-time }
         last_used_at: { type: string, format: date-time, nullable: true }
+        expires_at: { type: string, format: date-time, nullable: true, description: The fixed expiry chosen when it was minted; null for none }
+        idle_expires_at: { type: string, format: date-time, nullable: true, description: When it stops working unless used before then; null when idle expiry is off }
+        expired: { type: string, enum: [expired, idle], description: "Present once the key has stopped working: past expires_at (expired) or unused too long (idle)" }
         current: { type: boolean, description: This is the key the request was made with }
 
     AuthResponse:
@@ -5615,8 +5699,10 @@ components:
             JSON object), private_visitor_only and private_needs_own_domain
             (403), use_custom_domain and visitor_auth_required (401),
             missing_api_key, wrong_auth_header (sent Authorization instead
-            of X-API-Key) and invalid_api_key (unknown, revoked or signed-out
-            key) (401), csrf_required (403), recently_deleted (409: the name
+            of X-API-Key), invalid_api_key (unknown, revoked or signed-out
+            key), key_expired (past the expiry chosen when it was minted) and
+            key_expired_idle (unused too long, KEY_IDLE_EXPIRY_DAYS) (401), deploy_only_key
+            (403: a deploy-only key on a route it may not call), csrf_required (403), recently_deleted (409: the name
             belongs to a site in Recently deleted), site_not_deleted (409:
             restore of a live site), confirm_required (400),
             not_found (404, private collections), export_link_invalid (404:
@@ -5635,7 +5721,7 @@ components:
 
   responses:
     BadRequest: { description: Invalid request, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-    Unauthorized: { description: "Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header or invalid_api_key.", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Unauthorized: { description: "Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel).", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     Forbidden: { description: Admin access required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     NotFound: { description: Not found, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     Conflict: { description: "Conflict: the code says which (site_exists, domain_taken, append_only, custom_domain_required, not_an_object)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }

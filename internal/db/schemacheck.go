@@ -27,8 +27,8 @@ var requiredColumns = map[string][]string{
 	// w2-signin-email-undo.sql adds old_code_hash above and this table.
 	"email_change_undos": {"token_hash", "user_id", "old_email", "new_email", "created_at", "expires_at", "used_at"},
 	"signin_alerts_sent": {"user_id", "summary", "day"},
-	// hash-api-keys.sql, cp-keys-key-names.sql
-	"api_keys": {"id", "key_hash", "user_id", "name", "last4", "created_at", "last_used_at"},
+	// hash-api-keys.sql, cp-keys-key-names.sql, w3-keys-scope-expiry.sql
+	"api_keys": {"id", "key_hash", "user_id", "name", "last4", "created_at", "last_used_at", "scope", "expires_at", "idle_from"},
 	"sites":    {"id", "user_id", "name", "active_version", "visibility", "state", "custom_domain", "deleted_at", "previous_domain", "domain_cert_status", "domain_failing_since", "domain_lapse_notified_at", "previous_domain_failing_since", "suspended_at", "suspended_reason", "domain_token", "domain_proof_exempt", "offline_at", "idle_keep", "idle_kept_at", "idle_warned_at", "idle_removed_at", "idle_token_hash", "purge_at", "idle_remove_at", "domain_release_at", "state_bytes", "data_bytes", "history_bytes", "legacy_data", "savers_mode"},
 	// knobs-promised-dates.sql adds purge_at, idle_remove_at and domain_release_at.
 	// w2-sites-offline.sql adds offline_at; w2-addr-idle-cleanup.sql the idle_* columns.
@@ -49,12 +49,16 @@ var requiredColumns = map[string][]string{
 	"collection_settings": {"site_id", "collection", "private", "kind", "one_per_person", "notify", "notify_sent_at", "declared_at"},
 	"site_savers":         {"site_id", "list", "pattern", "added_at"},
 	"site_view_hourly":    {"site_id", "hour", "class", "views"},
+	// w3-analytics-pages-referrers.sql
+	"site_page_daily":     {"site_id", "day", "path", "views"},
+	"site_referrer_daily": {"site_id", "day", "domain", "views"},
 	"instance_config":     {"key", "value"},
 	"oauth_clients":       {"client_id", "client_secret_hash", "client_name", "redirect_uris", "token_endpoint_auth_method", "pkce_required", "dynamic"},
-	"oauth_grants":        {"id", "user_id", "client_id", "scope", "resource", "last_used_at"},
-	"oauth_codes":         {"code_hash", "client_id", "user_id", "redirect_uri", "code_challenge", "resource", "expires_at", "used_at", "grant_id"},
-	"auth_tokens":         {"id", "link_token", "nonce_hash"},
-	"oauth_tokens":        {"token_hash", "grant_id", "kind", "expires_at", "used_at"},
+	// w3-connection-device.sql adds device to oauth_grants and oauth_codes.
+	"oauth_grants": {"id", "user_id", "client_id", "scope", "resource", "last_used_at", "device"},
+	"oauth_codes":  {"code_hash", "client_id", "user_id", "redirect_uri", "code_challenge", "resource", "expires_at", "used_at", "grant_id", "device"},
+	"auth_tokens":  {"id", "link_token", "nonce_hash"},
+	"oauth_tokens": {"token_hash", "grant_id", "kind", "expires_at", "used_at"},
 	// handle-aliases.sql
 	"handle_aliases": {"handle", "user_id"},
 	// visitor-signin-nonce.sql

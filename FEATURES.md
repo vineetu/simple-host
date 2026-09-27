@@ -91,9 +91,9 @@ page shows a dry run ("Sites that would be warned / removed") on or off.
 
 | Surface | Details |
 |---|---|
-| Routes | `POST`/`PUT /v1/sites/{sitename}` (archive) · `POST`/`PUT /v1/sites/{sitename}/files` (inline JSON, base64 allowed) · `GET /v1/sites` · `PATCH /v1/sites/{sitename}` (`{"name"}` renames, `{"offline"}` takes offline / back online) · `DELETE /v1/sites/{sitename}` (to Recently deleted; refused while taken down) · `POST /v1/sites/{sitename}/restore` · `GET /v1/me/deleted-sites` · `GET /v1/sites/{sitename}/versions` · `GET /v1/sites/{sitename}/versions/{version}/files` · `GET /v1/sites/{sitename}/versions/{version}/files/{path...}` · `PUT /v1/sites/{sitename}/active-version` (also makes a stored version live) · `POST /v1/sites/{sitename}/versions/{version}/preview-link` (owner mints an hour-long preview address; 409 `preview_unavailable` with no address of its own) · `?publish=false` on `PUT /v1/sites/{sitename}` and `PUT /v1/sites/{sitename}/files` · `PUT /v1/sites/{sitename}/visibility` (`public`/`unlisted`) · `PUT /v1/sites/{sitename}/keep` (`{"keep"}`; idle cleanup never flags a kept site) · `GET`/`POST /v1/idle/keep`, `GET`/`POST /v1/idle/restore` (`t`; the idle-cleanup email links, no key; GET shows a confirmation page, POST from its button acts; HTML pages; rate-limited per IP) · `GET /v1/sites/{sitename}/export.tar.gz` (files + saved data; `collections.json` entries carry `id`, `created_at`, `submitted_by` on private lists, `data`) · `POST /v1/sites/{sitename}/export-link` (owner mints a 10-minute signed link) · `GET /v1/export` (`?token=`; the same archive, no key: HMAC over owner+site+expiry, per-process key, 404 `export_link_invalid` when expired, tampered, or the site is gone, deleted or changed hands) · `GET /v1/sites` also returns `deployed_at`, `keep`, `idle_removal_at` (warned idle site) and, for a domain not live yet, `domain_last_error`, `domain_dns`, `domain_dns_txt`, `domain_expires_at` · `GET /internal/notfound` (branded 404, nginx `@notfound`; a renamed site's old name 302s) · `GET /internal/offline` (the offline page nginx and Caddy hand off to) |
+| Routes | `POST`/`PUT /v1/sites/{sitename}` (archive) · `POST`/`PUT /v1/sites/{sitename}/files` (inline JSON, base64 allowed) · `GET /v1/sites` · `PATCH /v1/sites/{sitename}` (`{"name"}` renames, `{"offline"}` takes offline / back online) · `DELETE /v1/sites/{sitename}` (to Recently deleted; refused while taken down) · `POST /v1/sites/{sitename}/restore` · `GET /v1/me/deleted-sites` · `GET /v1/sites/{sitename}/versions` · `GET /v1/sites/{sitename}/versions/{version}/files` · `GET /v1/sites/{sitename}/versions/{version}/files/{path...}` · `PUT /v1/sites/{sitename}/active-version` (also makes a stored version live) · `POST /v1/sites/{sitename}/versions/{version}/preview-link` (owner mints an hour-long preview address; 409 `preview_unavailable` with no address of its own) · `?publish=false` on `PUT /v1/sites/{sitename}` and `PUT /v1/sites/{sitename}/files` · `?create=1` on the same two PUTs creates the site when the caller has none of that name (the create checks apply: reserved name, site quota, first version always live; 201), so CI deploys in one call; `POST` onto an existing site is 409 `site_exists` saying to use PUT, and a PUT to a missing site without it is 404 `not_found` saying to add `?create=1` · `PUT /v1/sites/{sitename}/visibility` (`public`/`unlisted`) · `PUT /v1/sites/{sitename}/keep` (`{"keep"}`; idle cleanup never flags a kept site) · `GET`/`POST /v1/idle/keep`, `GET`/`POST /v1/idle/restore` (`t`; the idle-cleanup email links, no key; GET shows a confirmation page, POST from its button acts; HTML pages; rate-limited per IP) · `GET /v1/sites/{sitename}/export.tar.gz` (files + saved data; `collections.json` entries carry `id`, `created_at`, `submitted_by` on private lists, `data`) · `POST /v1/sites/{sitename}/export-link` (owner mints a 10-minute signed link) · `GET /v1/export` (`?token=`; the same archive, no key: HMAC over owner+site+expiry, per-process key, 404 `export_link_invalid` when expired, tampered, or the site is gone, deleted or changed hands) · `GET /v1/sites` also returns `deployed_at`, `keep`, `idle_removal_at` (warned idle site) and, for a domain not live yet, `domain_last_error`, `domain_dns`, `domain_dns_txt`, `domain_expires_at` · `GET /internal/notfound` (branded 404, nginx `@notfound`; a renamed site's old name 302s) · `GET /internal/offline` (the offline page nginx and Caddy hand off to) |
 | MCP tools | `list_sites`, `get_site`, `read_site_file`, `create_site`, `update_site` (`publish: false` returns `preview_url`), `list_versions` (`not_yet_live`), `rollback_site`, `preview_version`, `delete_site`, `list_deleted_sites`, `restore_site`, `rename_site`, `set_visibility`, `set_site_offline`, `keep_site`, `export_site` (download link) |
-| Skill | `website-deploy/SKILL.md` §Two ways to deploy, §The one rule that breaks sites (relative links), §Rules that always apply, §Completion standard · `references/packaging-and-validation.md` (Package, Upload, Verify) · `references/operations.md` §Listing, §Rename, §Rollback, §Delete and restore, §Download a copy · `references/frameworks.md` · `website-deploy-builder/SKILL.md` §Capability tree 1 |
+| Skill | `website-deploy/SKILL.md` §Two ways to deploy, §The one rule that breaks sites (relative links), §Rules that always apply, §Completion standard · `references/packaging-and-validation.md` (Package, Upload, Verify) · `references/operations.md` §Listing, §Rename, §Deploy from CI (PUT ?create=1, GitHub Actions), §Rollback, §Delete and restore, §Download a copy · `references/frameworks.md` · `website-deploy-builder/SKILL.md` §Capability tree 1 |
 | Pages | owner app `st/showcase.html` (site inventory with live address, version and last deploy; versions, rename, visibility, Take offline / Put back online, Versions with Preview and Make live, Download (export), Keep for good and the idle warning with its date, taken-down sites with the reason, delete with a count of what goes and "Download first", Recently deleted with Restore; an admin opening someone else's page sees their sites read-only, Open only) · `st/index.html` at `/dashboard` (site cards; for an account with a handle only a list with Manage links to the owner app; full controls for accounts without one and in the admin tab) · `st/notfound.html` |
 | Go | `h/site.go` (create/update/list/rename/visibility, route table), `h/offline.go` (PATCH dispatch, offline switch and page), `h/preview.go` (publish=false, preview links and serving), `h/deleted.go` (delete, restore, Recently deleted list, purge sweep; `trashSite`/`restoreTrashedSite` shared with the idle cleanup), `h/idle.go` (idle cleanup, Keep flag, email links, admin dry run), `internal/db/idle.go`, `h/versions.go`, `h/versionfiles.go`, `h/export.go`, `h/exportlink.go`, `h/sitename.go`, `h/usage.go` (per-site cap), `internal/tarball/{extract,sanitize,validate}.go`, `internal/storage/disk.go` (by-id layout, `handles/` symlinks), `internal/storage/trash.go` (`deleted/` area), `internal/db/queries.go`, `internal/db/deleted.go` |
 | DB | `sites` (`deleted_at`: every serving and listing lookup skips deleted rows; `offline_at`; `idle_keep`, `idle_kept_at`, `idle_warned_at`, `idle_removed_at`, `idle_token_hash`: `w2-addr-idle-cleanup.sql`), `versions`, `site_name_aliases` (old names of renamed sites; `internal/db/sitenames.go`), `site_view_hourly`, `collection_items` and `analytics_ingest_state` (read for idleness) |
@@ -365,13 +365,34 @@ panel; minting, revoking and sign-out need one of the account's own keys (not th
 or a connected app). Sign out (header, every page) first calls `POST /v1/me/sign-out`, which
 deletes the key the browser held, then clears browser storage. Rotate ("Sign out everywhere")
 replaces all keys and disconnects all connector grants. Owner-route 401s carry `code`
-(`missing_api_key`, `wrong_auth_header`, `invalid_api_key`). The dashboard keeps the key in
-`localStorage['apiKey']`; there is no owner cookie session.
+(`missing_api_key`, `wrong_auth_header`, `invalid_api_key`, `key_expired`, `key_expired_idle`).
+The dashboard keeps the key in `localStorage['apiKey']`; there is no owner cookie session.
+
+**Deploy-only keys and expiry (2026-09-27).** A key minted from the Keys panel may be **deploy
+only** (`POST /v1/me/keys {"scope": "deploy"}`; `api_keys.scope`, default `full`): it may create,
+update, roll back and list sites, read their versions and files, and make preview links, nothing
+else (no delete, rename, domains, keys, saved data or lists, analytics, account, AI create,
+connecting apps). One route table decides it (`deployRoutes` in `internal/auth/scope.go`); the
+gate `auth.ScopeGate` wraps the whole mux, so REST routes, the page-data routes that read the key
+themselves and the MCP server's calls back into the mux all meet it (403 `deploy_only_key`, with
+a recovery hint on MCP). A key unused for `KEY_IDLE_EXPIRY_DAYS` (default 180; 0 = never) stops
+working, counted from the later of its last use and `idle_from` (creation, or the day the
+migration ran for older keys): 401 `key_expired_idle` saying to create a new key. A panel-minted
+key may also carry a fixed expiry (`expires_in_days` 1–3650, `api_keys.expires_at`; 401
+`key_expired` with the date). Expired keys stay listed (`expired`: `expired`/`idle`), do not count
+toward `MAX_KEYS_PER_ACCOUNT`, and are deleted 30 days after they stopped (the hourly connector
+sweep). A deploy key never carries admin powers, even one an admin minted (it lists only the
+account's own sites and the site quota applies). An expired key on `/mcp` gets the same 401
+`key_expired`/`key_expired_idle` (no OAuth challenge), and an expired deploy key off its routes
+gets that 401 rather than 403 `deploy_only_key`. `PUT ?create=1` racing another create of the
+same name publishes as an update instead of answering `site_exists`. Treat a deploy key like the
+site itself: it can ship code that runs when you view the site. The Keys list shows a "Deploy only" badge, last used, and the expiry or the date it
+stops if unused (`scope`, `expires_at`, `idle_expires_at` on `GET /v1/me/keys`).
 
 **Your data (GDPR self-service, 2026-09-27).** "Download my data" (`GET /v1/me/export.zip`,
 streamed; the older `/v1/me/export.tar.gz` serves the same zip) gives one .zip: `README.txt`, `account.json` (email, handle, display name, created,
 old handles, claimed names incl. retired, custom domains, linked Google/GitHub), `keys.json`
-(name, last4, created, last used; never keys or hashes), `connected_apps.json`, `visitor.json`
+(name, last4, scope, created, last used, fixed expiry; never keys or hashes), `connected_apps.json` (with the approving browser's summary), `visitor.json`
 (sites signed in to as a visitor, entries sent to other people's lists and `changed`, changes to
 their saved data, while signed in), `sites/<name>/` per live site (the per-site export) and
 `recently-deleted/<name>/` per site in Recently deleted (same layout plus `deleted.json`: deleted
@@ -433,11 +454,11 @@ turned them off (`PATCH /v1/me {"signin_alerts": false}`, own key only; `GET /v1
 |---|---|
 | Routes | `POST /v1/auth` (send code) · `POST /v1/auth/verify` (code → key, optional `name`; creates the account and handle if new) · `GET /v1/me` · `POST /v1/me/api-key/rotate` (Sign out everywhere: replaces all keys) · `POST /v1/me/sign-out` (ends the calling key) · `GET /v1/me/keys` · `POST /v1/me/keys` (named key) · `DELETE /v1/me/keys/{id}` · `PATCH /v1/me` (display name, handle: free before publishing; after, once per 30 days, old handle kept as an alias so every old address redirects, new handle's certificate requested; `signin_alerts`, own key only) · `POST /v1/me/email` (codes to the new and the current address) · `POST /v1/me/email/verify` (both codes; moves the account, other keys revoked; old address told with an undo link) · `GET`/`POST /v1/me/email/undo` (`t`; the undo link, no key; GET confirmation page, POST acts; rate-limited per IP) · `GET /v1/me/identities` · `DELETE /v1/me/identities/{id}` (linked Google/GitHub sign-ins, Unlink) · `GET /v1/me/export.tar.gz` (Download my data) · `DELETE /v1/me` (Delete my account, `{"confirm"}`; refused while suspended or holding a taken-down site, 403 `account_suspended`/`site_suspended`; takes every site's lock; domains and the earlier `previous_domain` unlinked and their certificate requests withdrawn only while still this account's) |
 | MCP tools | `who_am_i` |
-| Skill | `website-deploy/references/register.md` (email-code registration) · `references/operations.md` §API keys · `references/backend.md` §Saving from an agent (API key) |
+| Skill | `website-deploy/references/register.md` (email-code registration) · `references/operations.md` §API keys (deploy-only, expiry), §Deploy from CI (GitHub Actions) · `references/backend.md` §Saving from an agent (API key) |
 | Pages | `st/index.html` (`/dashboard` sign-in: code, Google, paste key; Sign out everywhere), `st/showcase.html` (owner **Keys** panel `#owner-keys`; Your address, with Change; **Your data** `#owner-data`: Download my data, Delete my account with type-to-confirm; **Sign-in** `#owner-signin`: Change email with both codes, linked Google/GitHub sign-ins with Unlink, Sign-in alerts switch), `st/index.html` **Your data** (`#my-data`) and **Sign-in** (`#my-signin`), accounts without a handle, `st/privacy.html`, `st/terms.html`, `st/support.html` (point at the two buttons), `st/connect.html`, `st/partials/header.html` (Sign out → `/v1/me/sign-out`) |
-| Go | `internal/auth/middleware.go` (`X-API-Key`, `shk_` keys, 401 codes, admin key, `RequireAdmin`), `h/user.go`, `h/keys.go` (list/mint/revoke/sign-out), `internal/db/apikeys.go`, `h/emailcode.go`, `h/accounts.go` (`patchMe`, handle validation), `h/account_data.go` (`exportMe`, `deleteMe`, `eraseAccountFiles`), `h/account_email.go` (change email), `h/signin_alert.go` (sign-in alerts, `summarizeUserAgent`), `internal/db/signin.go`, `internal/db/account.go` (`LockAccountForDelete`, `EraseAccount`, export queries), `h/handles.go`, `internal/db/queries.go` (hashed key lookup, `ClaimHandle`), `internal/db/internalkey.go` (in-process per-request keys for the connector), `internal/email/resend.go` |
-| DB | `users` (`handle_changed_at`, `signin_alerts`), `email_changes`, `signin_alerts_sent` (`w2-account-signin-email.sql`), `email_changes.old_code_hash` and `email_change_undos` (`w2-signin-email-undo.sql`), `oauth_identities` (Unlink), `handle_aliases` (`user_id` NULL = retired handle of a deleted account; `cp-gdpr-retired-handles.sql`), `api_keys`, `auth_tokens` (purpose-bound codes; expired ones purged) |
-| Env | `ADMIN_API_KEY`, `RESEND_API_KEY`, `MAIL_FROM`, `PUBLIC_BASE_URL` |
+| Go | `internal/auth/middleware.go` (`X-API-Key`, `shk_` keys, 401 codes incl. expired keys, admin key, `RequireAdmin`), `internal/auth/scope.go` (deploy-only route table, `ScopeGate`), `h/user.go`, `h/keys.go` (list/mint/revoke/sign-out), `internal/db/apikeys.go`, `h/emailcode.go`, `h/accounts.go` (`patchMe`, handle validation), `h/account_data.go` (`exportMe`, `deleteMe`, `eraseAccountFiles`), `h/account_email.go` (change email), `h/signin_alert.go` (sign-in alerts, `summarizeUserAgent`), `internal/db/signin.go`, `internal/db/account.go` (`LockAccountForDelete`, `EraseAccount`, export queries), `h/handles.go`, `internal/db/queries.go` (hashed key lookup, `ClaimHandle`), `internal/db/internalkey.go` (in-process per-request keys for the connector), `internal/email/resend.go` |
+| DB | `users` (`handle_changed_at`, `signin_alerts`), `email_changes`, `signin_alerts_sent` (`w2-account-signin-email.sql`), `email_changes.old_code_hash` and `email_change_undos` (`w2-signin-email-undo.sql`), `oauth_identities` (Unlink), `handle_aliases` (`user_id` NULL = retired handle of a deleted account; `cp-gdpr-retired-handles.sql`), `api_keys` (`scope`, `expires_at`, `idle_from`: `w3-keys-scope-expiry.sql`), `auth_tokens` (purpose-bound codes; expired ones purged) |
+| Env | `ADMIN_API_KEY`, `RESEND_API_KEY`, `MAIL_FROM`, `PUBLIC_BASE_URL`, `KEY_IDLE_EXPIRY_DAYS` |
 | External | Resend |
 | Limits | `ipLimiter` 20/0.2 s⁻¹ per IP; `emailLimiter` 5/0.02 s⁻¹ per address; at most 50 keys per account (`POST /v1/me/keys` → 409 `key_limit`); key names refuse control and invisible formatting characters; minting locks the account and the caller's key (a key revoked meanwhile gets 401 `invalid_api_key`); admin reissues are logged (`admin_key_reissue`) |
 
@@ -450,15 +471,15 @@ as the person, so they meet the same checks as REST. Connector tokens are stored
 
 | Surface | Details |
 |---|---|
-| Routes | `GET /.well-known/oauth-protected-resource` · `GET /.well-known/oauth-protected-resource/mcp` · `GET /.well-known/oauth-authorization-server` · `GET /.well-known/oauth-authorization-server/mcp` · `POST /oauth/register` · `GET /oauth/authorize` (consent page) · `POST /oauth/authorize/decision` · `POST /oauth/token` · `POST /oauth/revoke` · `POST /oauth/reviewer-signin` · `POST`/`GET`/`DELETE /mcp` · `GET /v1/me/connections` · `DELETE /v1/me/connections/{client_id}` |
+| Routes | `GET /.well-known/oauth-protected-resource` · `GET /.well-known/oauth-protected-resource/mcp` · `GET /.well-known/oauth-authorization-server` · `GET /.well-known/oauth-authorization-server/mcp` · `POST /oauth/register` · `GET /oauth/authorize` (consent page) · `POST /oauth/authorize/decision` · `POST /oauth/token` · `POST /oauth/revoke` · `POST /oauth/reviewer-signin` · `POST`/`GET`/`DELETE /mcp` · `GET /v1/me/connections` (name, connected, last used, and `device`: the consent page's browser summarised, "Chrome on macOS", kept on the code and copied to the grant; never the user agent or an IP; empty for connections made before 2026-09-27) · `DELETE /v1/me/connections/{client_id}` |
 | MCP tools | all 27 (see §21); server metadata and instructions in `internal/mcp/instructions.go` |
 | Skill | `website-deploy/SKILL.md` §Service, §Two ways to deploy (connector vs key); `openai-plugin/skills/website-deploy/SKILL.md` is the connector-only variant |
 | Pages | `st/connect.html` (consent; own nonce CSP in `consentHeaders`), `st/showcase.html` (Connected apps) |
 | Go | `h/connector.go` (AS, `BearerAuth`, `serveMCP`, connections, hourly sweep), `h/reviewer.go` (password sign-in for one designated store-review account), `internal/mcp/{server,jsonrpc,tools,outputs,instructions}.go`, `internal/db/connector.go`, `internal/db/internalkey.go`, `cmd/server/oauthclient.go` (`simple-host oauth-client …`, hand-registered clients e.g. a GPT Action), `cmd/server/reviewaccount.go` (`simple-host review-account …`) |
-| DB | `oauth_clients`, `oauth_grants`, `oauth_codes`, `oauth_tokens` |
+| DB | `oauth_clients`, `oauth_grants`, `oauth_codes`, `oauth_tokens` (`device` on grants and codes: `w3-connection-device.sql`) |
 | Env | `PUBLIC_BASE_URL`, `REVIEW_ACCOUNT_EMAIL`, `REVIEW_ACCOUNT_PASSWORD_HASH`, `ADMIN_API_KEY` |
 | Tokens | PKCE S256 only; code 60 s, access 1 h, refresh 90 days rotating (reuse revokes the grant); scope `sites`; tool calls run with a per-request `shint_` internal key |
-| Errors | a refused tool call returns the server's message, its `code`, and one recovery hint chosen by the code (`codeHints` in `internal/mcp/tools.go`: `site_exists`, `domain_taken`, `invalid_name`, `name_reserved`, `invalid_domain`, `site_quota_reached`, `append_only`, `custom_domain_required`, `not_an_object`, private-list and sign-in codes, `site_suspended`, `account_suspended`); the HTTP status picks the hint only when there is no known code. REST errors carry the same `code` (openapi `Error` schema) |
+| Errors | a refused tool call returns the server's message, its `code`, and one recovery hint chosen by the code (`codeHints` in `internal/mcp/tools.go`: `site_exists`, `domain_taken`, `invalid_name`, `name_reserved`, `invalid_domain`, `site_quota_reached`, `append_only`, `custom_domain_required`, `not_an_object`, private-list and sign-in codes, `site_suspended`, `account_suspended`, `deploy_only_key`, `key_expired`, `key_expired_idle`); the HTTP status picks the hint only when there is no known code. REST errors carry the same `code` (openapi `Error` schema) |
 | Limits | register 10 burst, 10/h; authorize and token 30 burst, 0.5/s; reviewer sign-in 10/IP then 1/min, 30 global then 30/h |
 | Tests / e2e | `h/connector_test.go`, `h/reviewer_test.go`, `internal/mcp/*_test.go`, `scripts/e2e-connector.py`, `scripts/e2e-connector-browser.mjs`, `scripts/e2e-reviewer.py`, `scripts/seed-reviewer-demo.py` |
 
@@ -520,18 +541,27 @@ traffic. Admin = `ADMIN_API_KEY` or the admin user. **Status: live.**
 
 Server-side visitor analytics tailed from the nginx (or Caddy) log into hourly/daily aggregates,
 with country from local IP-range data; per-endpoint API metrics for admin. No client script.
+Top pages and where visitors came from (2026-09-27): people's views per site-relative page
+(query and fragment dropped, percent-escapes decoded once, `//` collapsed, `/index.html` folded
+into `/`, at most 200 bytes) and per referring domain (the log carries the referrer's host name
+only; a link from the site's own address is not counted), per day. A site keeps at most
+`ANALYTICS_PAGES_PER_SITE_DAY` (200) pages and `ANALYTICS_REFERRERS_PER_SITE_DAY` (100) domains a
+day; views of further new ones that day are counted as `(other)`, so random paths or referrer spam
+cannot grow the tables; `GET /v1/sites/{sitename}/analytics/top?days=` answers the top 20 of each, shown per
+site in the owner app's Analytics tab ("Top pages and referrers"), on the per-site analytics
+page, and in MCP `site_analytics` (`top_pages`, `top_referrers`).
 **Status: live** (`ANALYTICS_LOG` set).
 
 | Surface | Details |
 |---|---|
-| Routes | `GET /v1/sites/{sitename}/analytics` · `GET /v1/sites/{sitename}/analytics/geo` · `GET /v1/analytics/sites` · `GET /v1/admin/api-analytics` |
+| Routes | `GET /v1/sites/{sitename}/analytics` · `GET /v1/sites/{sitename}/analytics/geo` · `GET /v1/sites/{sitename}/analytics/top` · `GET /v1/analytics/sites` · `GET /v1/admin/api-analytics` |
 | MCP tools | `site_analytics` |
 | Skill | `website-deploy/references/operations.md` §Analytics |
 | Pages | `st/analytics.html`, `st/showcase.html` Analytics tab, `st/index.html` site cards, `st/admin.html` API traffic |
 | Go | `internal/analytics/{ingest,classify,geo,countries,rebuild}.go` (attributes views on site hosts, person hosts, claimed names, custom domains; bot/human classes; salted ip_hash), `h/analytics.go`, `h/apimetrics.go` (every `/v1/*` request; IPs stored as /24 or /48), `internal/geoip/geoip.go` (DB-IP mmdb, watched), `cmd/analytics-rebuild` (replays the rotated archives oldest first, then the live log), `cmd/ip-country-load`, `web/analytics-parse.js` |
-| DB | `site_view_hourly`, `site_visitor_hourly`, `site_geo_daily`, `site_view_daily`, `site_visitor_daily` (legacy, pruned after 400 days), `analytics_ingest_state`, `ip_country_ranges`, `api_request_daily`, `api_ip_daily` |
+| DB | `site_view_hourly`, `site_visitor_hourly`, `site_geo_daily`, `site_page_daily`, `site_referrer_daily` (`w3-analytics-pages-referrers.sql`), `site_view_daily`, `site_visitor_daily` (legacy, pruned after 400 days), `analytics_ingest_state`, `ip_country_ranges`, `api_request_daily`, `api_ip_daily` |
 | Env | `ANALYTICS_LOG`, `ANALYTICS_SALT`, `GEOIP_DIR` |
-| External | nginx `log_format shanalytics` (`deploy/prod/nginx-analytics-logformat.conf`, query string stripped), `deploy/prod/logrotate-analytics.conf` (29 archives: raw IPs ≤30 days), DB-IP Lite via `scripts/geoip-refresh.sh` + `deploy/prod/simple-host-geoip-refresh.{service,timer}` |
+| External | nginx `log_format shanalytics` (`deploy/prod/nginx-analytics-logformat.conf`, query string stripped, eighth field the referring host only; installed by `deploy/prod/nginx-analytics-logformat-apply.sh`, dry run by default; the ingester reads 7- and 8-field lines), `deploy/prod/logrotate-analytics.conf` (29 archives: raw IPs ≤30 days), DB-IP Lite via `scripts/geoip-refresh.sh` + `deploy/prod/simple-host-geoip-refresh.{service,timer}` |
 
 ## 13. Showcase / person index
 
@@ -728,7 +758,7 @@ responses (§9) is the only in-band notice.
 | `connect_domain` | `POST /v1/sites/{s}/domain` | 3 |
 | `domain_status` | `GET /v1/sites/{s}/domain` | 3 |
 | `remove_domain` | `DELETE /v1/sites/{s}/domain` | 3 |
-| `site_analytics` | `GET /v1/sites/{s}/analytics?days=` | 12 |
+| `site_analytics` | `GET /v1/sites/{s}/analytics?days=` + `GET /v1/sites/{s}/analytics/top?days=` | 12 |
 | `export_site` | `POST /v1/sites/{s}/export-link` (returns a link to `GET /v1/export?token=`) | 1 |
 | `declare_data` | `PUT /v1/sites/{s}/data/{name}/kind` | 5 |
 | `list_data` | `GET /v1/sites/{s}/data` | 5 |

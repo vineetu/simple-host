@@ -40,10 +40,28 @@ type keyView struct {
 	ID         string     `json:"id"`
 	Name       string     `json:"name,omitempty"`
 	Last4      string     `json:"last4,omitempty"`
+	Scope      string     `json:"scope"`
 	CreatedAt  time.Time  `json:"created_at"`
 	LastUsedAt *time.Time `json:"last_used_at"`
-	Current    bool       `json:"current"`
+	// ExpiresAt is the fixed expiry chosen at mint (null: none).
+	ExpiresAt *time.Time `json:"expires_at"`
+	// IdleExpiresAt is when the key stops working unless used before then
+	// (null when KEY_IDLE_EXPIRY_DAYS=0).
+	IdleExpiresAt *time.Time `json:"idle_expires_at"`
+	// Expired is "expired" or "idle" once the key has stopped working.
+	Expired string `json:"expired,omitempty"`
+	Current bool   `json:"current"`
 }
+
+func newKeyView(k db.APIKey, now time.Time, current bool) keyView {
+	return keyView{
+		ID: k.ID, Name: k.Name, Last4: k.Last4, Scope: k.Scope, CreatedAt: k.CreatedAt, LastUsedAt: k.LastUsedAt,
+		ExpiresAt: k.ExpiresAt, IdleExpiresAt: k.IdleExpiresAt(), Expired: k.Expired(now), Current: current,
+	}
+}
+
+// maxKeyExpiryDays bounds expires_in_days at mint (about ten years).
+const maxKeyExpiryDays = 3650
 
 // accountKeyUser returns the signed-in person, and refuses (400
 // not_an_account_key) a request that did not come with one of the account's
@@ -92,24 +110,26 @@ func (h *UserHandler) listKeys(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := make([]keyView, 0, len(keys))
+	now := time.Now()
 	for _, k := range keys {
-		out = append(out, keyView{
-			ID: k.ID, Name: k.Name, Last4: k.Last4, CreatedAt: k.CreatedAt, LastUsedAt: k.LastUsedAt,
-			Current: user.KeyHash != "" && k.Hash == user.KeyHash,
-		})
+		out = append(out, newKeyView(k, now, user.KeyHash != "" && k.Hash == user.KeyHash))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"keys": out})
 }
 
-// createKey handles POST /v1/me/keys {name}: a named key for a CI secret or
-// another machine, shown once.
+// createKey handles POST /v1/me/keys {name, scope, expires_in_days}: a named
+// key for a CI secret or another machine, shown once. scope "deploy" makes a
+// deploy-only key (internal/auth/scope.go); expires_in_days an optional fixed
+// expiry.
 func (h *UserHandler) createKey(w http.ResponseWriter, r *http.Request) {
 	user := accountKeyUser(w, r, "creating a key")
 	if user == nil {
 		return
 	}
 	var req struct {
-		Name string `json:"name"`
+		Name          string `json:"name"`
+		Scope         string `json:"scope"`
+		ExpiresInDays *int   `json:"expires_in_days"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
@@ -123,12 +143,31 @@ func (h *UserHandler) createKey(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
 		return
 	}
+	scope := strings.TrimSpace(req.Scope)
+	switch scope {
+	case "":
+		scope = db.KeyScopeFull
+	case db.KeyScopeFull, db.KeyScopeDeploy:
+	default:
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `scope must be "full" (the default) or "deploy" (create, update, roll back and list sites, and preview links only)`})
+		return
+	}
+	var expiresAt *time.Time
+	if req.ExpiresInDays != nil {
+		n := *req.ExpiresInDays
+		if n < 1 || n > maxKeyExpiryDays {
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: fmt.Sprintf("expires_in_days must be 1..%d, or left out for a key that expires only when unused", maxKeyExpiryDays)})
+			return
+		}
+		t := time.Now().Add(time.Duration(n) * 24 * time.Hour).UTC()
+		expiresAt = &t
+	}
 	plain, err := auth.GenerateAPIKey()
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	k, err := db.CreateAPIKey(r.Context(), h.database, user.ID, user.KeyHash, plain, name)
+	k, err := db.CreateAPIKey(r.Context(), h.database, user.ID, user.KeyHash, plain, name, scope, expiresAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		// The key this request came with was revoked or rotated away meanwhile.
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "invalid API key: the X-API-Key you sent is not recognized (it may have been revoked, or the account signed out). Sign in again via POST /v1/auth for a new key.", Code: "invalid_api_key"})
@@ -143,8 +182,10 @@ func (h *UserHandler) createKey(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	v := newKeyView(k, time.Now(), false)
 	writeJSON(w, http.StatusCreated, map[string]any{
-		"id": k.ID, "name": k.Name, "last4": k.Last4, "created_at": k.CreatedAt, "last_used_at": nil,
+		"id": v.ID, "name": v.Name, "last4": v.Last4, "scope": v.Scope, "created_at": v.CreatedAt, "last_used_at": nil,
+		"expires_at": v.ExpiresAt, "idle_expires_at": v.IdleExpiresAt,
 		"api_key": plain,
 		"message": "Copy this key now; it is not shown again. Revoke it any time from the Keys list.",
 	})

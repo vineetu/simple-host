@@ -92,6 +92,36 @@ func (h *SiteHandler) getSiteGeoAnalytics(w http.ResponseWriter, r *http.Request
 	})
 }
 
+// getSiteTopAnalytics serves GET /v1/sites/{sitename}/analytics/top?days=30:
+// the site's most viewed pages and top referring domains for the range,
+// people only. Owner-scoped like getSiteAnalytics. A referrer is only ever a
+// domain: the log keeps nothing more of it.
+func (h *SiteHandler) getSiteTopAnalytics(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+		return
+	}
+	site, ok := h.analyticsSite(w, r, user)
+	if !ok {
+		return
+	}
+	days, ok := analyticsDays(w, r)
+	if !ok {
+		return
+	}
+	pages, refs, err := db.GetSiteTop(r.Context(), h.database, site.ID, days)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"range_days": days,
+		"pages":      pages,
+		"referrers":  refs,
+	})
+}
+
 // analyticsSite resolves the site the analytics endpoints report on, or writes
 // the answer and returns ok=false. Without ?owner= (or with the caller's own
 // handle) it is the caller's own site by name, exactly as before. Any other

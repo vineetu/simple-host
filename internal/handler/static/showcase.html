@@ -124,6 +124,11 @@
       border: 1px solid var(--border-hi); border-radius: 8px; background: var(--bg); color: var(--text); outline: none;
     }
     .key-new input:focus { border-color: var(--accent); }
+    .key-opts { display: flex; align-items: center; gap: 6px 16px; flex-wrap: wrap; margin: -4px 0 12px; font-size: 14px; color: var(--text-secondary); }
+    .key-opts label { display: inline-flex; align-items: center; gap: 6px; }
+    .key-opts select { padding: 4px 8px; font-size: 14px; font-family: var(--font); border: 1px solid var(--border-hi); border-radius: 6px; background: var(--bg); color: var(--text); }
+    .key-badge { display: inline-block; margin-left: 6px; padding: 0 6px; border: 1px solid var(--border-hi); border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+    .key-expired { color: #b42318; font-weight: 600; }
     .key-shown { margin: 0 0 12px; padding: 12px; border: 1px solid var(--border-hi); border-radius: 8px; font-size: 14px; color: var(--text-secondary); }
     .key-shown code { display: block; margin: 8px 0; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); user-select: all; overflow-wrap: anywhere; font-size: 13px; }
     .key-tag { color: var(--accent); font-weight: 600; }
@@ -281,6 +286,14 @@
     }
     .an-site-id .an-site-vals b { color: var(--text); font-weight: 600; }
     .an-site-spark { flex-shrink: 0; }
+    /* Top pages and where visitors came from, per site, opened on demand. */
+    .an-top-toggle { margin-top: 6px; padding: 0; border: 0; background: none; font: inherit; font-size: 13px; color: var(--accent); cursor: pointer; }
+    .an-top { flex-basis: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px 24px; font-size: 13px; }
+    .an-top h4 { font-size: 13px; font-weight: 600; color: var(--text); margin: 0 0 4px; }
+    .an-top ol { list-style: none; margin: 0; padding: 0; }
+    .an-top li { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+    .an-top li span { overflow-wrap: anywhere; min-width: 0; }
+    .an-top .an-none { color: var(--text-secondary); }
 
     /* Inventory */
     .inv-list {
@@ -835,11 +848,20 @@
            "Keys" script section. Shown only to the account's own owner. -->
       <div class="section" id="owner-keys" hidden>
         <div class="section-num"><h2>Keys</h2><span class="line"></span></div>
-        <p class="conn-note">Every sign-in and every agent holds its own key. Revoke one you no longer use; the rest keep working.</p>
+        <p class="conn-note">Every sign-in and every agent holds its own key. Revoke one you no longer use; the rest keep working. A key unused for 180 days stops working.</p>
         <form class="key-new" id="key-new-form">
           <input type="text" id="key-new-name" maxlength="60" placeholder="Name a new key, e.g. GitHub Actions" autocomplete="off" aria-label="New key name">
           <button class="btn btn-primary btn-small" type="submit">Create key</button>
         </form>
+        <div class="key-opts">
+          <label><input type="checkbox" id="key-new-deploy"> Deploy only <small>(create, update, roll back and list sites; nothing else, for CI)</small></label>
+          <label>Expires <select id="key-new-expiry" aria-label="Key expiry">
+            <option value="">only if unused</option>
+            <option value="30">in 30 days</option>
+            <option value="90">in 90 days</option>
+            <option value="365">in 1 year</option>
+          </select></label>
+        </div>
         <div class="key-shown" id="key-shown" hidden>
           <span id="key-shown-note">Copy this key now. It is not shown again.</span>
           <code id="key-shown-value"></code>
@@ -1202,7 +1224,7 @@ function parseAnalyticsSummary(data) {
       } catch (e) {}
       box.hidden = conns.length === 0;
       list.innerHTML = conns.map(function (c, i) {
-        return '<div class="conn-row"><span><b>' + esc(c.name) + '</b><small>Connected ' + fmtDate(c.connected_at) +
+        return '<div class="conn-row"><span><b>' + esc(c.name) + '</b><small>' + (c.device ? esc(c.device) + ' · connected ' : 'Connected ') + fmtDate(c.connected_at) +
           ' · last used ' + fmtDate(c.last_used_at) + '</small></span>' +
           '<button type="button" class="btn btn-ghost btn-small" data-disconnect="' + i + '">Disconnect</button></div>';
       }).join('');
@@ -1225,6 +1247,14 @@ function parseAnalyticsSummary(data) {
       if (k.last4) bits.push('…' + esc(k.last4));
       bits.push('created ' + fmtDate(k.created_at));
       bits.push(k.last_used_at ? 'last used ' + fmtDate(k.last_used_at) : 'not used yet');
+      if (k.expired === 'expired') bits.push('<span class="key-expired">expired ' + fmtDate(k.expires_at) + '</span>');
+      else if (k.expired === 'idle') bits.push('<span class="key-expired">stopped working: unused too long</span>');
+      else {
+        // Whichever comes first: the fixed expiry, or the date it stops if unused.
+        var fixed = k.expires_at ? new Date(k.expires_at) : null, idle = k.idle_expires_at ? new Date(k.idle_expires_at) : null;
+        if (fixed && (!idle || fixed <= idle)) bits.push('expires ' + fmtDate(k.expires_at));
+        else if (idle) bits.push('stops if unused by ' + fmtDate(k.idle_expires_at));
+      }
       return bits.join(' · ');
     }
     function showNewKey(key, note) {
@@ -1245,6 +1275,7 @@ function parseAnalyticsSummary(data) {
       box.hidden = false;
       list.innerHTML = keys.map(function (k, i) {
         return '<div class="conn-row"><span><b>' + esc(k.name || 'Earlier key') + '</b>' +
+          (k.scope === 'deploy' ? '<span class="key-badge">Deploy only</span>' : '') +
           (k.current ? ' <span class="key-tag">This browser</span>' : '') +
           '<small>' + keyRowWhen(k) + '</small></span>' +
           '<button type="button" class="btn btn-ghost btn-small" data-key="' + i + '">' + (k.current ? 'Sign out' : 'Revoke') + '</button></div>';
@@ -1272,9 +1303,15 @@ function parseAnalyticsSummary(data) {
         var name = input.value.trim();
         if (!name) { input.focus(); toast('Name the key after where it will live, e.g. GitHub Actions.', 'error'); return; }
         var res, body = {};
-        try { res = await api('POST', '/v1/me/keys', { name: name }); body = await res.json().catch(function () { return {}; }); } catch (err) {}
+        var req = { name: name };
+        if (document.getElementById('key-new-deploy').checked) req.scope = 'deploy';
+        var days = document.getElementById('key-new-expiry').value;
+        if (days) req.expires_in_days = Number(days);
+        try { res = await api('POST', '/v1/me/keys', req); body = await res.json().catch(function () { return {}; }); } catch (err) {}
         if (!res || !res.ok) { toast(body.error || 'Could not create a key. Try again.', 'error'); return; }
         input.value = '';
+        document.getElementById('key-new-deploy').checked = false;
+        document.getElementById('key-new-expiry').value = '';
         showNewKey(body.api_key, 'Copy "' + name + '" now. It is not shown again.');
         loadKeys();
       });
@@ -2781,10 +2818,42 @@ function parseAnalyticsSummary(data) {
             '<div class="an-site-vals"><b>' + r.m.views.toLocaleString() + '</b> views · <b>' + r.m.visitors.toLocaleString() + '</b> visitors <span style="color:var(--dim)">(' + label + ')</span>' +
               (r.m.earlier ? '<span style="color:var(--dim)"> · ' + r.m.earlier.toLocaleString() + ' earlier, unclassified</span>' : '') +
             '</div>' +
+            '<button type="button" class="an-top-toggle" data-an-top="' + esc(r.name) + '" aria-expanded="false">Top pages and referrers</button>' +
           '</div>' +
           '<div class="an-site-spark">' + renderSparkline(r.m.daily) + '</div>' +
+          '<div class="an-top" hidden></div>' +
         '</div>';
       }).join('') + '</div>';
+      Array.prototype.forEach.call(document.querySelectorAll('#an-body [data-an-top]'), function (btn) {
+        btn.addEventListener('click', function () { toggleTopLists(btn, days); });
+      });
+    }
+
+    // Top pages and referring domains for one site over the selected range
+    // (GET /v1/sites/{name}/analytics/top), people only. A referrer is a
+    // domain, never a full address: that is all the log keeps.
+    async function toggleTopLists(btn, days) {
+      var box = btn.closest('.an-site-row').querySelector('.an-top');
+      if (!box.hidden) { box.hidden = true; btn.setAttribute('aria-expanded', 'false'); return; }
+      box.hidden = false;
+      btn.setAttribute('aria-expanded', 'true');
+      box.innerHTML = '<div class="an-loading">Loading…</div>';
+      var name = btn.getAttribute('data-an-top'), data = null;
+      try {
+        var res = await api('GET', '/v1/sites/' + encodeURIComponent(name) + '/analytics/top?days=' + days);
+        if (res.ok) data = await res.json();
+      } catch (e) {}
+      if (!data || !Array.isArray(data.pages) || !Array.isArray(data.referrers)) {
+        box.innerHTML = '<div class="an-failed">Couldn\'t load this site\'s pages and referrers.</div>';
+        return;
+      }
+      function list(title, rows, key, none) {
+        return '<div><h4>' + title + '</h4>' + (rows.length ? '<ol>' + rows.map(function (x) {
+          return '<li><span>' + esc(String(x[key])) + '</span><b>' + Number(x.views).toLocaleString() + '</b></li>';
+        }).join('') + '</ol>' : '<div class="an-none">' + none + '</div>') + '</div>';
+      }
+      box.innerHTML = list('Top pages (' + days + '-day views)', data.pages, 'path', 'No page views by people in this range.') +
+        list('Where visitors came from', data.referrers, 'domain', 'No visits from links on other sites in this range.');
     }
 
     // Plots the full daily[] range, people only. index.html shows a 24-hour bar
