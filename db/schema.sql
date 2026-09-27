@@ -15,7 +15,30 @@ CREATE TABLE users (
   -- sign-in refused, every site taken down; nothing deleted. NULL = active.
   suspended_at       TIMESTAMPTZ,
   suspended_reason   TEXT,
+  -- Email after each owner sign-in (w2-account-signin-email.sql); the owner
+  -- turns it off in the owner app (PATCH /v1/me signin_alerts).
+  signin_alerts      BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- One pending sign-in email change per account (POST /v1/me/email): the code
+-- sent to the new address, as a SHA-256 hash (w2-account-signin-email.sql).
+CREATE TABLE email_changes (
+  user_id    UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  new_email  TEXT NOT NULL,
+  code_hash  TEXT NOT NULL,
+  attempts   INT NOT NULL DEFAULT 0,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Sign-in alerts already sent: one per account, browser/app summary and UTC
+-- day (w2-account-signin-email.sql). Pruned after a couple of days.
+CREATE TABLE signin_alerts_sent (
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  summary TEXT NOT NULL,
+  day     DATE NOT NULL,
+  PRIMARY KEY (user_id, summary, day)
 );
 
 -- Account API keys, stored only as hex SHA-256. An account can hold several
