@@ -191,6 +191,7 @@ func main() {
 	connector.Register(mux, authMW)
 	connector.EnableReviewerSignIn(cfg.ReviewAccountEmail, cfg.ReviewAccountPasswordHash)
 	userHandler.SetReviewerEmail(cfg.ReviewAccountEmail)
+	userHandler.SetPreviewAccounts(cfg.PreviewAccounts)
 	connector.SetSignInAlerts(userHandler.SignInAlerts())
 	handler.RegisterOpenAIAppsChallenge(mux, cfg.OpenAIAppsChallenge)
 	connector.StartSweep(time.Hour)

@@ -134,10 +134,33 @@ func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter
 		}
 	}
 
+	// Spend the token and look the account up in one transaction. A sign-in
+	// email change retires the old address's tokens in its own transaction,
+	// so the two serialize on the token row: either this verify finds the
+	// account under the old address (before the change commits), or the
+	// token is already spent. Never an empty new account under the old one.
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return db.User{}, false, http.StatusInternalServerError, errorResponse{Error: "internal server error"}
+	}
+	defer tx.Rollback()
+	if ok, err := db.ClaimAuthToken(ctx, tx, tok.ID); err != nil {
+		log.Printf("auth: ClaimAuthToken: %v", err)
+		return db.User{}, false, http.StatusInternalServerError, errorResponse{Error: "internal server error"}
+	} else if !ok {
+		return db.User{}, false, http.StatusUnauthorized, errorResponse{Error: "invalid or expired code"}
+	}
+	user, err := db.GetUserByUsername(ctx, tx, tok.Email)
+	if cerr := tx.Commit(); err == nil || errors.Is(err, sql.ErrNoRows) {
+		if cerr != nil {
+			log.Printf("auth: commit token claim: %v", cerr)
+			return db.User{}, false, http.StatusInternalServerError, errorResponse{Error: "internal server error"}
+		}
+	}
+
 	// Lazily create the user on first successful verification. requestSignIn no
 	// longer pre-creates the row, so this is where a new account is born.
 	created := false
-	user, err := db.GetUserByUsername(ctx, database, tok.Email)
 	if errors.Is(err, sql.ErrNoRows) {
 		// No key yet: a key is issued only where one is handed out.
 		user, err = db.CreateUser(ctx, database, tok.Email, "", false)
@@ -168,10 +191,6 @@ func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter
 		} else {
 			log.Printf("auth: refetch after assignHandle: %v", rerr)
 		}
-	}
-
-	if err := db.MarkAuthTokenUsed(ctx, database, tok.ID); err != nil {
-		log.Printf("auth: MarkAuthTokenUsed: %v", err)
 	}
 
 	return user, created, 0, errorResponse{}

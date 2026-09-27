@@ -21,16 +21,31 @@ CREATE TABLE users (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- One pending sign-in email change per account (POST /v1/me/email): the code
--- sent to the new address, as a SHA-256 hash (w2-account-signin-email.sql).
+-- One pending sign-in email change per account (POST /v1/me/email): the codes
+-- sent to the new address and to the current one, as SHA-256 hashes; both are
+-- needed (w2-account-signin-email.sql, w2-signin-email-undo.sql).
 CREATE TABLE email_changes (
-  user_id    UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  new_email  TEXT NOT NULL,
-  code_hash  TEXT NOT NULL,
-  attempts   INT NOT NULL DEFAULT 0,
-  expires_at TIMESTAMPTZ NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  user_id       UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  new_email     TEXT NOT NULL,
+  code_hash     TEXT NOT NULL,
+  old_code_hash TEXT,
+  attempts      INT NOT NULL DEFAULT 0,
+  expires_at    TIMESTAMPTZ NOT NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- The undo link in the notice to the old address after a change, as a SHA-256
+-- hash; used once, or expired after 7 days (w2-signin-email-undo.sql).
+CREATE TABLE email_change_undos (
+  token_hash TEXT PRIMARY KEY,
+  user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  old_email  TEXT NOT NULL,
+  new_email  TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at    TIMESTAMPTZ
+);
+CREATE INDEX email_change_undos_user_idx ON email_change_undos (user_id);
 
 -- Sign-in alerts already sent: one per account, browser/app summary and UTC
 -- day (w2-account-signin-email.sql). Pruned after a couple of days.

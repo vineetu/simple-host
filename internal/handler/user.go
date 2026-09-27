@@ -49,6 +49,9 @@ type UserHandler struct {
 	// reviewerEmail is the plugin reviewer account (REVIEW_ACCOUNT_EMAIL):
 	// its email cannot be changed and it gets no sign-in alerts.
 	reviewerEmail string
+	// previewAccounts is PREVIEW_ACCOUNTS (lowercased): their email cannot
+	// be changed (account_email.go).
+	previewAccounts map[string]bool
 }
 
 // SignInAlerts is the sign-in alert sender, shared with the connector's
@@ -137,6 +140,10 @@ func (h *UserHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("DELETE /v1/me/keys/{id}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.deleteKey))))
 	mux.Handle("POST /v1/me/email", noticeMiddleware(authMiddleware(http.HandlerFunc(h.requestEmailChange))))
 	mux.Handle("POST /v1/me/email/verify", noticeMiddleware(authMiddleware(http.HandlerFunc(h.verifyEmailChange))))
+	mux.Handle("GET /v1/me/email/undo", rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.undoEmailChange)))
+	mux.Handle("POST /v1/me/email/undo", rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.undoEmailChange)))
+	mux.Handle("GET /v1/me/identities", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listIdentities))))
+	mux.Handle("DELETE /v1/me/identities/{id}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.unlinkIdentity))))
 }
 
 func (h *UserHandler) rotateAPIKey(w http.ResponseWriter, r *http.Request) {

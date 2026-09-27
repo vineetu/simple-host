@@ -1114,7 +1114,7 @@
         <div class="my-data" id="my-signin" hidden>
           <h2>Sign-in</h2>
           <div class="row" id="my-signin-row">
-            <span>You sign in with <b id="my-signin-email"></b>. Google sign-in keeps working after a change.</span>
+            <span>You sign in with <b id="my-signin-email"></b>. A change needs a code from this address and one from the new one; your other keys are signed out.</span>
             <button type="button" class="btn btn-secondary btn-small" data-act="openEmailChange">Change email</button>
           </div>
           <div class="row inline" id="my-signin-new" hidden>
@@ -1126,9 +1126,12 @@
           <div class="row inline" id="my-signin-code" hidden>
             <label for="my-signin-code-input">Code sent to <b id="my-signin-to"></b></label>
             <input type="text" id="my-signin-code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="7">
+            <label for="my-signin-current-input">Code sent to <b id="my-signin-current-to"></b></label>
+            <input type="text" id="my-signin-current-input" inputmode="numeric" autocomplete="off" maxlength="7">
             <button type="button" class="btn btn-primary btn-small" id="my-signin-go" data-act="verifyEmailChange">Confirm</button>
             <button type="button" class="btn btn-ghost btn-small" data-act="closeEmailChange">Cancel</button>
           </div>
+          <div id="my-signin-ids"></div>
           <div class="row">
             <span>Sign-in alerts: an email after each new sign-in or connected app, so you notice one that wasn't you.</span>
             <label><input type="checkbox" id="my-signin-alerts">Email me</label>
@@ -1573,6 +1576,7 @@ function parseAnalyticsSummary(data) {
         document.getElementById('my-signin-email').textContent = (currentUser && currentUser.username) || '';
         const box = document.getElementById('my-signin-alerts');
         box.checked = !(currentUser && currentUser.signin_alerts === false);
+        if (!mySignin.hidden) loadMyIdentities();
         if (!mySignin.hidden && currentUser.signin_alerts === undefined) {
           // Signed in just now: the sign-in answer does not carry the setting.
           api('GET', '/v1/me').then(r => r.ok ? r.json() : null).then(me => {
@@ -2265,7 +2269,7 @@ function parseAnalyticsSummary(data) {
       document.getElementById('my-signin-new').hidden = which !== 'email';
       document.getElementById('my-signin-code').hidden = which !== 'code';
       if (which === 'email') { const i = document.getElementById('my-signin-input'); i.value = ''; i.focus(); }
-      if (which === 'code') { const i = document.getElementById('my-signin-code-input'); i.value = ''; i.focus(); }
+      if (which === 'code') { document.getElementById('my-signin-current-input').value = ''; const i = document.getElementById('my-signin-code-input'); i.value = ''; i.focus(); }
     }
     async function sendEmailChange() {
       const btn = document.getElementById('my-signin-send');
@@ -2275,6 +2279,7 @@ function parseAnalyticsSummary(data) {
         const body = await res.json().catch(() => ({}));
         if (!res.ok) { toast(body.error || 'Could not send a code', 'error'); return; }
         document.getElementById('my-signin-to').textContent = body.email;
+        document.getElementById('my-signin-current-to').textContent = body.current_email;
         showEmailChange('code');
       } catch {
         toast('Could not send a code', 'error');
@@ -2286,18 +2291,48 @@ function parseAnalyticsSummary(data) {
       const btn = document.getElementById('my-signin-go');
       btn.disabled = true;
       try {
-        const res = await api('POST', '/v1/me/email/verify', { code: document.getElementById('my-signin-code-input').value.trim() });
+        const res = await api('POST', '/v1/me/email/verify', {
+          code: document.getElementById('my-signin-code-input').value.trim(),
+          current_code: document.getElementById('my-signin-current-input').value.trim(),
+        });
         const body = await res.json().catch(() => ({}));
         if (!res.ok) { toast(body.error || 'Could not change your email', 'error'); return; }
         currentUser.username = body.email;
         document.getElementById('username-display').textContent = body.email;
         updateShowcaseBanner();
         showEmailChange('row');
-        toast(`Your sign-in email is now ${body.email}`, 'success');
+        toast(`Your sign-in email is now ${body.email}. Your other keys were signed out.`, 'success');
+        loadMyIdentities();
       } catch {
         toast('Could not change your email', 'error');
       } finally {
         btn.disabled = false;
+      }
+    }
+    // Google/GitHub accounts that sign in here (GET /v1/me/identities), each
+    // with Unlink (DELETE /v1/me/identities/{id}).
+    async function loadMyIdentities() {
+      try {
+        const res = await api('GET', '/v1/me/identities');
+        if (!res.ok) return;
+        const list = (await res.json()).identities || [];
+        document.getElementById('my-signin-ids').innerHTML = list.map(i => {
+          const who = i.provider === 'github' ? 'GitHub' : 'Google';
+          return `<div class="row"><span>${who} sign-in: ${esc(i.email || 'no email shared')}, linked ${esc(new Date(i.linked_at).toLocaleDateString())}. This ${who} account can sign in to yours.</span>` +
+            `<button type="button" class="btn btn-secondary btn-small" data-act="unlinkIdentity" data-id="${esc(i.id)}" data-who="${esc(who + ' (' + (i.email || 'no email') + ')')}">Unlink</button></div>`;
+        }).join('');
+      } catch {}
+    }
+    async function unlinkIdentity(d) {
+      if (!confirm(`Unlink ${d.who}? It will no longer sign in to your account. You can still sign in with your email.`)) return;
+      try {
+        const res = await api('DELETE', '/v1/me/identities/' + encodeURIComponent(d.id));
+        const body = res.ok ? {} : await res.json().catch(() => ({}));
+        if (!res.ok) { toast(body.error || 'Could not unlink', 'error'); return; }
+        toast('Unlinked', 'success');
+        loadMyIdentities();
+      } catch {
+        toast('Could not unlink', 'error');
       }
     }
     async function setSignInAlerts(box) {
@@ -2389,6 +2424,7 @@ function parseAnalyticsSummary(data) {
       closeEmailChange: () => showEmailChange('row'),
       sendEmailChange: () => sendEmailChange(),
       verifyEmailChange: () => verifyEmailChange(),
+      unlinkIdentity: d => unlinkIdentity(d),
       logout: () => logout(),
       resetAuth: () => resetAuth(),
       switchTab: d => switchTab(d.arg),

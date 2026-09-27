@@ -150,18 +150,8 @@ func TestSignInAlertFollowsEmailChange(t *testing.T) {
 	host := "simple-host.test"
 	key := map[string]string{"X-API-Key": p.key}
 
-	if r := a.at(t, "POST", host, "/v1/me/email", map[string]string{"email": newAddr}, key); r.status != 202 {
-		t.Fatalf("request change: %d %s", r.status, r.body)
-	}
-	got := mb.to(newAddr)
-	if len(got) != 1 {
-		t.Fatalf("code notice: %v", got)
-	}
-	code := confirmCodeRe.FindStringSubmatch(got[0])
-	if code == nil {
-		t.Fatalf("no code in %q", got[0])
-	}
-	if r := a.at(t, "POST", host, "/v1/me/email/verify", map[string]string{"code": code[1]}, key); r.status != 200 {
+	code, cur := requestEmailChange(t, a, mb, key, p.email, newAddr)
+	if r := a.at(t, "POST", host, "/v1/me/email/verify", map[string]string{"code": code, "current_code": cur}, key); r.status != 200 {
 		t.Fatalf("verify: %d %s", r.status, r.body)
 	}
 	before := len(mb.to(p.email))

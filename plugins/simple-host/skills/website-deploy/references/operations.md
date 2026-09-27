@@ -142,17 +142,22 @@ it themselves under "Your address" on their Simple Host page. Afterwards re-read
 ## Change the sign-in email; sign-in alerts
 
 ```
-POST /v1/me/email         {"email": "new@example.com"}   (X-API-Key) → 202, code sent there
-POST /v1/me/email/verify  {"code": "123456"}             (X-API-Key) → 200 {"email"}
+POST /v1/me/email         {"email": "new@example.com"}                      (X-API-Key) → 202, codes sent
+POST /v1/me/email/verify  {"code": "123456", "current_code": "654321"}      (X-API-Key) → 200 {"email"}
 ```
 
-The person reads the 6-digit code from the NEW inbox (15 minutes, 3 tries).
+The person reads one 6-digit code from the NEW inbox (`code`) and one from
+their CURRENT inbox (`current_code`); both are needed (15 minutes, 3 tries).
 Verifying moves the account there: codes go to the new address from then on;
-keys, the handle, sites and connected apps stay, and a linked Google sign-in
-keeps working. The old address gets a notice. Refusals: 400
-`not_an_account_key` (a connected app cannot do this; point the person to
-"Sign-in" on their page), `same_email`, `invalid_email`, `no_pending_change`;
-401 `invalid_code`; 409 `email_taken` (another account signs in with it).
+the handle, sites and connected apps stay; every other key is signed out (the
+one used stays). The old address gets a notice with a 7-day undo link.
+Linked Google/GitHub sign-ins stay: `GET /v1/me/identities` lists them and
+`DELETE /v1/me/identities/<id>` unlinks one (only when the person asks).
+Refusals: 400 `not_an_account_key` (a connected app cannot do this; point the
+person to "Sign-in" on their page), `same_email`, `invalid_email`,
+`codes_required`, `no_pending_change`, `reserved_email`; 401 `invalid_code`;
+403 for the reviewer, admin, event and preview accounts; 409 `email_taken`
+(another account signs in with it).
 
 After each sign-in or app connection the person gets a short email (time,
 browser or app, a link to "Sign out everywhere"; at most one per browser a day).

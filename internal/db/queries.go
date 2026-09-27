@@ -816,10 +816,16 @@ func GetLatestAuthTokenForEmail(ctx context.Context, db *sql.DB, email, purpose 
 	return t, err
 }
 
-// MarkAuthTokenUsed marks the token as consumed.
-func MarkAuthTokenUsed(ctx context.Context, db *sql.DB, id string) error {
-	_, err := db.ExecContext(ctx, `UPDATE auth_tokens SET used_at = now() WHERE id = $1`, id)
-	return err
+// ClaimAuthToken consumes the token, reporting false when it was already
+// used (redeemed by a concurrent verify, or retired by a sign-in email change
+// that took its address away).
+func ClaimAuthToken(ctx context.Context, q Querier, id string) (bool, error) {
+	res, err := q.ExecContext(ctx, `UPDATE auth_tokens SET used_at = now() WHERE id = $1 AND used_at IS NULL`, id)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n == 1, err
 }
 
 // IncrementAuthTokenAttempts bumps the failed-attempt counter.

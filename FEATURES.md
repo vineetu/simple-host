@@ -285,19 +285,30 @@ requests withdrawn. One confirmation email follows. Refused: 400 `confirm_requir
 The admin's `DELETE /v1/admin/users/{id}` runs the same erasure (`db.EraseAccount`). Buttons:
 the owner app's **Your data** section, and `/dashboard` for accounts without a handle.
 
-**Change sign-in email (2026-09-27).** `POST /v1/me/email` `{"email"}` sends a 6-digit code to
-the new address (15 min, 3 tries, the sign-in throttles per new address and per account; one
-pending change per account in `email_changes`, code stored as SHA-256). `POST /v1/me/email/verify`
-`{"code"}` moves the account (`users.username`) to it, spends every open emailed code for the
-old address, and emails the old address "Your Simple Host sign-in email was changed to
-n***@… — if this wasn't you, write to support@simple-host.app". The account's own key only
-(400 `not_an_account_key` for a connected app or the admin env key); 400 `same_email` /
-`invalid_email` / `no_pending_change`, 401 `invalid_code`, 403 `reviewer_account` (the plugin
-reviewer's email is the operator's). An address another account signs in with is refused only
-after its code is verified (409 `email_taken`), so asking reveals no more than sign-in does. The
-handle, keys, sites and connected apps stay as they are; a linked Google identity stays linked
-(sign-in keys on the Google account, not the email), and the new address is the one codes go to.
-Buttons: the owner app's **Sign-in** section, and `/dashboard` for accounts without a handle.
+**Change sign-in email (2026-09-27; hardened after review the same day).** `POST /v1/me/email`
+`{"email"}` sends a 6-digit code to the new address AND one to the current address (15 min,
+3 tries, the sign-in throttles per address and per account; one pending change per account in
+`email_changes`, both codes stored as SHA-256), answering `current_email`.
+`POST /v1/me/email/verify` `{"code", "current_code"}` needs both: it moves the account
+(`users.username`) to the new address and, in the same transaction, spends every open emailed
+code and link for the old address (a verify racing it serializes on the token row, so it never
+creates an empty account under the old address), revokes every other API key of the account
+(the calling key stays), ends the account's emailed idle-cleanup links, and records a 7-day
+undo link. The old address is emailed "Your Simple Host sign-in email was changed to n***@…"
+with that link: `GET /v1/me/email/undo?t=` shows a confirmation page, its button (`POST`) puts
+the account back on the old address, signs out every key, and removes Google/GitHub sign-ins and
+connected apps added since the change (`email_change_undos`; 409 page when another account holds
+the old address now). The account's own key only (400 `not_an_account_key` for a connected app
+or the admin env key); 400 `same_email` / `invalid_email` / `codes_required` /
+`no_pending_change` / `reserved_email` (the reviewer's address), 401 `invalid_code`, 403
+`reviewer_account` / `admin_account` / `event_account` / `preview_account` / `no_current_email`.
+An address another account signs in with is refused only after the codes are verified (409
+`email_taken`), so asking reveals no more than sign-in does. The handle, sites and connected
+apps stay; linked Google/GitHub sign-ins stay linked (sign-in keys on the Google account, not the
+email) and are listed with **Unlink** (`GET /v1/me/identities`, `DELETE /v1/me/identities/{id}`,
+own key only). Private-list entries keep the address they were stamped with (nothing is
+rewritten). Buttons: the owner app's **Sign-in** section, and `/dashboard` for accounts without
+a handle.
 
 **Sign-in alerts (2026-09-27).** After each successful owner sign-in (emailed code or link,
 Google) and each app connected on the consent screen, one short email: the time (UTC), the
@@ -313,12 +324,12 @@ turned them off (`PATCH /v1/me {"signin_alerts": false}`, own key only; `GET /v1
 
 | Surface | Details |
 |---|---|
-| Routes | `POST /v1/auth` (send code) · `POST /v1/auth/verify` (code → key, optional `name`; creates the account and handle if new) · `GET /v1/me` · `POST /v1/me/api-key/rotate` (Sign out everywhere: replaces all keys) · `POST /v1/me/sign-out` (ends the calling key) · `GET /v1/me/keys` · `POST /v1/me/keys` (named key) · `DELETE /v1/me/keys/{id}` · `PATCH /v1/me` (display name, handle: free before publishing; after, once per 30 days, old handle kept as an alias so every old address redirects, new handle's certificate requested; `signin_alerts`, own key only) · `POST /v1/me/email` (code to the new address) · `POST /v1/me/email/verify` (moves the account; old address told) · `GET /v1/me/export.tar.gz` (Download my data) · `DELETE /v1/me` (Delete my account, `{"confirm"}`; refused while suspended or holding a taken-down site, 403 `account_suspended`/`site_suspended`; takes every site's lock; domains and the earlier `previous_domain` unlinked and their certificate requests withdrawn only while still this account's) |
+| Routes | `POST /v1/auth` (send code) · `POST /v1/auth/verify` (code → key, optional `name`; creates the account and handle if new) · `GET /v1/me` · `POST /v1/me/api-key/rotate` (Sign out everywhere: replaces all keys) · `POST /v1/me/sign-out` (ends the calling key) · `GET /v1/me/keys` · `POST /v1/me/keys` (named key) · `DELETE /v1/me/keys/{id}` · `PATCH /v1/me` (display name, handle: free before publishing; after, once per 30 days, old handle kept as an alias so every old address redirects, new handle's certificate requested; `signin_alerts`, own key only) · `POST /v1/me/email` (codes to the new and the current address) · `POST /v1/me/email/verify` (both codes; moves the account, other keys revoked; old address told with an undo link) · `GET`/`POST /v1/me/email/undo` (`t`; the undo link, no key; GET confirmation page, POST acts; rate-limited per IP) · `GET /v1/me/identities` · `DELETE /v1/me/identities/{id}` (linked Google/GitHub sign-ins, Unlink) · `GET /v1/me/export.tar.gz` (Download my data) · `DELETE /v1/me` (Delete my account, `{"confirm"}`; refused while suspended or holding a taken-down site, 403 `account_suspended`/`site_suspended`; takes every site's lock; domains and the earlier `previous_domain` unlinked and their certificate requests withdrawn only while still this account's) |
 | MCP tools | `who_am_i` |
 | Skill | `website-deploy/references/register.md` (email-code registration) · `references/operations.md` §API keys · `references/backend.md` §Saving from an agent (API key) |
-| Pages | `st/index.html` (`/dashboard` sign-in: code, Google, paste key; Sign out everywhere), `st/showcase.html` (owner **Keys** panel `#owner-keys`; Your address, with Change; **Your data** `#owner-data`: Download my data, Delete my account with type-to-confirm; **Sign-in** `#owner-signin`: Change email, Sign-in alerts switch), `st/index.html` **Your data** (`#my-data`) and **Sign-in** (`#my-signin`), accounts without a handle, `st/privacy.html`, `st/terms.html`, `st/support.html` (point at the two buttons), `st/connect.html`, `st/partials/header.html` (Sign out → `/v1/me/sign-out`) |
+| Pages | `st/index.html` (`/dashboard` sign-in: code, Google, paste key; Sign out everywhere), `st/showcase.html` (owner **Keys** panel `#owner-keys`; Your address, with Change; **Your data** `#owner-data`: Download my data, Delete my account with type-to-confirm; **Sign-in** `#owner-signin`: Change email with both codes, linked Google/GitHub sign-ins with Unlink, Sign-in alerts switch), `st/index.html` **Your data** (`#my-data`) and **Sign-in** (`#my-signin`), accounts without a handle, `st/privacy.html`, `st/terms.html`, `st/support.html` (point at the two buttons), `st/connect.html`, `st/partials/header.html` (Sign out → `/v1/me/sign-out`) |
 | Go | `internal/auth/middleware.go` (`X-API-Key`, `shk_` keys, 401 codes, admin key, `RequireAdmin`), `h/user.go`, `h/keys.go` (list/mint/revoke/sign-out), `internal/db/apikeys.go`, `h/emailcode.go`, `h/accounts.go` (`patchMe`, handle validation), `h/account_data.go` (`exportMe`, `deleteMe`, `eraseAccountFiles`), `h/account_email.go` (change email), `h/signin_alert.go` (sign-in alerts, `summarizeUserAgent`), `internal/db/signin.go`, `internal/db/account.go` (`LockAccountForDelete`, `EraseAccount`, export queries), `h/handles.go`, `internal/db/queries.go` (hashed key lookup, `ClaimHandle`), `internal/db/internalkey.go` (in-process per-request keys for the connector), `internal/email/resend.go` |
-| DB | `users` (`handle_changed_at`, `signin_alerts`), `email_changes`, `signin_alerts_sent` (`w2-account-signin-email.sql`), `handle_aliases` (`user_id` NULL = retired handle of a deleted account; `cp-gdpr-retired-handles.sql`), `api_keys`, `auth_tokens` (purpose-bound codes; expired ones purged) |
+| DB | `users` (`handle_changed_at`, `signin_alerts`), `email_changes`, `signin_alerts_sent` (`w2-account-signin-email.sql`), `email_changes.old_code_hash` and `email_change_undos` (`w2-signin-email-undo.sql`), `oauth_identities` (Unlink), `handle_aliases` (`user_id` NULL = retired handle of a deleted account; `cp-gdpr-retired-handles.sql`), `api_keys`, `auth_tokens` (purpose-bound codes; expired ones purged) |
 | Env | `ADMIN_API_KEY`, `RESEND_API_KEY`, `MAIL_FROM`, `PUBLIC_BASE_URL` |
 | External | Resend |
 | Limits | `ipLimiter` 20/0.2 s⁻¹ per IP; `emailLimiter` 5/0.02 s⁻¹ per address; at most 50 keys per account (`POST /v1/me/keys` → 409 `key_limit`); key names refuse control and invisible formatting characters; minting locks the account and the caller's key (a key revoked meanwhile gets 401 `invalid_api_key`); admin reissues are logged (`admin_key_reissue`) |

@@ -261,6 +261,7 @@ func ListHandleAliases(ctx context.Context, database *sql.DB, userID string) ([]
 
 // SignInIdentity is a linked Google or GitHub sign-in.
 type SignInIdentity struct {
+	ID       string
 	Provider string
 	Email    string
 	LinkedAt time.Time
@@ -268,7 +269,7 @@ type SignInIdentity struct {
 
 // ListSignInIdentities returns the account's linked Google/GitHub sign-ins.
 func ListSignInIdentities(ctx context.Context, database *sql.DB, userID string) ([]SignInIdentity, error) {
-	rows, err := database.QueryContext(ctx, `SELECT provider, COALESCE(email, ''), created_at FROM oauth_identities WHERE user_id = $1 ORDER BY created_at`, userID)
+	rows, err := database.QueryContext(ctx, `SELECT id::text, provider, COALESCE(email, ''), created_at FROM oauth_identities WHERE user_id = $1 ORDER BY created_at`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -276,12 +277,20 @@ func ListSignInIdentities(ctx context.Context, database *sql.DB, userID string) 
 	var out []SignInIdentity
 	for rows.Next() {
 		var s SignInIdentity
-		if err := rows.Scan(&s.Provider, &s.Email, &s.LinkedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.Provider, &s.Email, &s.LinkedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, s)
 	}
 	return out, rows.Err()
+}
+
+// UnlinkSignInIdentity removes one of the account's linked Google/GitHub
+// sign-ins: that Google or GitHub account no longer signs in here.
+// sql.ErrNoRows when the account has no such link.
+func UnlinkSignInIdentity(ctx context.Context, database *sql.DB, userID, id string) error {
+	res, err := database.ExecContext(ctx, `DELETE FROM oauth_identities WHERE user_id = $1 AND id::text = $2`, userID, id)
+	return oneRow(res, err)
 }
 
 // VisitorSignIn is a site this person is signed in to as a visitor.

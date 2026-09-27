@@ -505,12 +505,14 @@ paths:
   /v1/me/email:
     post:
       operationId: requestEmailChange
-      summary: "Change your sign-in email, step 1: send a code to the new address"
+      summary: "Change your sign-in email, step 1: send codes to the new and the current address"
       description: >-
-        Emails a 6-digit code to the new address (15 minutes, 3 tries). Send it to
-        POST /v1/me/email/verify to finish. Asking looks the same for every address. Needs one of
-        the account's own API keys: a connected app or the admin key gets 400 not_an_account_key.
-        Rate-limited per address and per account, like sign-in.
+        Emails a 6-digit code to the new address and another to the current one (15 minutes,
+        3 tries). Send both to POST /v1/me/email/verify to finish. Asking looks the same for every
+        address. Needs one of the account's own API keys: a connected app or the admin key gets
+        400 not_an_account_key. Refused for the plugin reviewer account (and for moving any
+        account to its address), admin, event and preview accounts, and accounts whose sign-in
+        name is not an email address. Rate-limited per address and per account, like sign-in.
       tags: [Auth]
       security: [{ apiKey: [] }]
       requestBody:
@@ -524,30 +526,34 @@ paths:
                 email: { type: string, format: email }
       responses:
         '202':
-          description: Code sent
+          description: Codes sent
           content:
             application/json:
               schema:
                 type: object
                 properties:
                   message: { type: string }
-                  email: { type: string }
+                  email: { type: string, description: The new address (code) }
+                  current_email: { type: string, description: The current address (current_code) }
                   expires_in_seconds: { type: integer }
-        '400': { description: "Not an account key (code not_an_account_key), not an email (code invalid_email) or already the sign-in email (code same_email)" }
+        '400': { description: "Not an account key (code not_an_account_key), not an email (code invalid_email), already the sign-in email (code same_email), or the reviewer's address (code reserved_email)" }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { description: "The plugin reviewer account, whose email the operator sets (code reviewer_account)" }
+        '403': { description: "The reviewer, an admin, event or preview account, or one with no email to confirm from (codes reviewer_account, admin_account, event_account, preview_account, no_current_email)" }
         '429': { description: Too many requests }
 
   /v1/me/email/verify:
     post:
       operationId: verifyEmailChange
-      summary: "Change your sign-in email, step 2: confirm with the code"
+      summary: "Change your sign-in email, step 2: confirm with both codes"
       description: >-
-        Moves the account to the new address: from now on sign-in codes go there. Keys, the handle,
-        sites and connected apps stay; a linked Google sign-in keeps working. Open sign-in codes for
-        the old address stop working, and the old address gets a notice naming the new one masked
-        (n***@example.com). An address another account signs in with is refused here, after its
-        code is verified (409 email_taken). Needs one of the account's own API keys.
+        Moves the account to the new address: from now on sign-in codes go there. The handle,
+        sites and connected apps stay; every other API key of the account is signed out (the one
+        making the call stays); linked Google/GitHub sign-ins stay (GET /v1/me/identities lists
+        them). Open sign-in codes for the old address stop working, the account's emailed
+        idle-site links end, and the old address gets a notice naming the new one masked
+        (n***@example.com) with an undo link valid for 7 days. An address another account signs
+        in with is refused here, after the codes are verified (409 email_taken). Needs one of the
+        account's own API keys.
       tags: [Auth]
       security: [{ apiKey: [] }]
       requestBody:
@@ -556,9 +562,10 @@ paths:
           application/json:
             schema:
               type: object
-              required: [code]
+              required: [code, current_code]
               properties:
                 code: { type: string, description: The 6-digit code emailed to the new address }
+                current_code: { type: string, description: The 6-digit code emailed to the current address }
       responses:
         '200':
           description: Changed
@@ -570,10 +577,85 @@ paths:
                   username: { type: string }
                   email: { type: string }
                   message: { type: string }
-        '400': { description: "Not an account key (code not_an_account_key), no code, or no change waiting (code no_pending_change)" }
+        '400': { description: "Not an account key (code not_an_account_key), a code missing (code codes_required), no change waiting (code no_pending_change), or the reviewer's address (code reserved_email)" }
         '401': { description: "Wrong or expired code, or too many tries (code invalid_code)" }
+        '403': { description: "The reviewer, an admin, event or preview account (see step 1)" }
         '409': { description: "Another account signs in with that address (code email_taken)" }
         '429': { description: Too many requests }
+
+  /v1/me/email/undo:
+    get:
+      operationId: getEmailChangeUndo
+      summary: '"This wasn''t me" link from the old address''s notice (confirmation page)'
+      description: >-
+        Shows a page with an Undo button and changes nothing. No sign-in; the token is the
+        authorization. 404 page when the link was used or is older than 7 days.
+      tags: [Auth]
+      security: []
+      parameters: [ { name: t, in: query, required: true, schema: { type: string } } ]
+      responses:
+        '200': { description: HTML confirmation page with the button }
+        '404': { description: HTML page; the link was used or has expired }
+        '429': { description: Too many requests }
+    post:
+      operationId: postEmailChangeUndo
+      summary: Undo a sign-in email change
+      description: >-
+        The confirmation page's button. Puts the account back on the old address, signs out
+        every API key, removes Google/GitHub sign-ins and connected apps added since the change,
+        and spends every undo link of the account. HTML page.
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema: { type: object, required: [t], properties: { t: { type: string } } }
+      responses:
+        '200': { description: HTML page; the account signs in with the old address again }
+        '404': { description: HTML page; the link was used or has expired }
+        '409': { description: HTML page; another account signs in with the old address now }
+        '429': { description: Too many requests }
+
+  /v1/me/identities:
+    get:
+      operationId: listIdentities
+      summary: Google and GitHub accounts that sign in to yours
+      description: Own API key only (400 not_an_account_key otherwise).
+      tags: [Auth]
+      security: [{ apiKey: [] }]
+      responses:
+        '200':
+          description: The linked sign-ins
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  identities:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        provider: { type: string, enum: [google, github] }
+                        email: { type: string }
+                        linked_at: { type: string, format: date-time }
+        '400': { description: Not an account key (code not_an_account_key) }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /v1/me/identities/{id}:
+    delete:
+      operationId: unlinkIdentity
+      summary: Unlink a Google or GitHub sign-in
+      description: That Google or GitHub account no longer signs in to yours. Own API key only.
+      tags: [Auth]
+      security: [{ apiKey: [] }]
+      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+      responses:
+        '204': { description: Unlinked }
+        '400': { description: Not an account key (code not_an_account_key) }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: No such sign-in on this account }
 
   /v1/me/export.tar.gz:
     get:

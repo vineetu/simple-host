@@ -905,7 +905,7 @@
       <div class="section" id="owner-signin" hidden>
         <div class="section-num"><h2>Sign-in</h2><span class="line"></span></div>
         <div class="conn-row" id="signin-email-row">
-          <span><b id="signin-email"></b><small>The email you sign in with. Google sign-in keeps working after a change.</small></span>
+          <span><b id="signin-email"></b><small>The email you sign in with. A change needs a code from this address and one from the new one; your other keys are signed out.</small></span>
           <button type="button" class="btn btn-secondary btn-small" id="signin-email-change">Change email</button>
         </div>
         <form class="signin-form" id="signin-email-form" hidden>
@@ -917,9 +917,12 @@
         <form class="signin-form" id="signin-code-form" hidden>
           <label for="signin-code-input">Code sent to <b id="signin-code-to"></b></label>
           <input type="text" id="signin-code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="7">
+          <label for="signin-current-input">Code sent to <b id="signin-current-to"></b></label>
+          <input type="text" id="signin-current-input" inputmode="numeric" autocomplete="off" maxlength="7">
           <button type="submit" class="btn btn-primary btn-small" id="signin-code-go">Confirm</button>
           <button type="button" class="btn-ghost btn-small" id="signin-code-cancel">Cancel</button>
         </form>
+        <div id="signin-identities"></div>
         <div class="conn-row">
           <span><b>Sign-in alerts</b><small>An email after each new sign-in or connected app, so you notice one that wasn't you.</small></span>
           <label class="signin-toggle"><input type="checkbox" id="signin-alerts"> Email me</label>
@@ -3777,25 +3780,29 @@ function parseAnalyticsSummary(data) {
 
   <script>
     // ==== Sign-in (w2/account) ====
-    // Change the sign-in email (POST /v1/me/email, then /v1/me/email/verify
-    // with the code sent to the new address) and turn sign-in alerts on or
-    // off (PATCH /v1/me signin_alerts). Owner-only: uses the page script's
-    // api, toast, HANDLE and apiKey.
+    // Change the sign-in email (POST /v1/me/email sends a code to the new
+    // address and one to the current one; /v1/me/email/verify takes both),
+    // list and unlink Google/GitHub sign-ins (GET/DELETE /v1/me/identities),
+    // and turn sign-in alerts on or off (PATCH /v1/me signin_alerts).
+    // Owner-only: uses the page script's api, toast, esc, fmtDate, HANDLE and
+    // apiKey. Shown at load, and again after an in-page sign-in
+    // (window.shAuthRender).
     (function () {
-      if (!apiKey) return;
       var box = document.getElementById('owner-signin');
       var row = document.getElementById('signin-email-row');
       var emailForm = document.getElementById('signin-email-form');
       var codeForm = document.getElementById('signin-code-form');
       var emailInput = document.getElementById('signin-email-input');
       var codeInput = document.getElementById('signin-code-input');
+      var currentInput = document.getElementById('signin-current-input');
       var alerts = document.getElementById('signin-alerts');
+      var identities = document.getElementById('signin-identities');
       function show(which) {
         row.hidden = which !== 'row';
         emailForm.hidden = which !== 'email';
         codeForm.hidden = which !== 'code';
         if (which === 'email') { emailInput.value = ''; emailInput.focus(); }
-        if (which === 'code') { codeInput.value = ''; codeInput.focus(); }
+        if (which === 'code') { codeInput.value = ''; currentInput.value = ''; codeInput.focus(); }
       }
       async function send(method, path, body) {
         var res = await api(method, path, body);
@@ -3813,6 +3820,7 @@ function parseAnalyticsSummary(data) {
           var r = await send('POST', '/v1/me/email', { email: emailInput.value.trim() });
           if (!r.ok) { toast(r.data.error || 'Could not send a code', 'error'); return; }
           document.getElementById('signin-code-to').textContent = r.data.email;
+          document.getElementById('signin-current-to').textContent = r.data.current_email;
           show('code');
         } catch (err) {
           toast('Could not send a code', 'error');
@@ -3825,11 +3833,12 @@ function parseAnalyticsSummary(data) {
         var btn = document.getElementById('signin-code-go');
         btn.disabled = true;
         try {
-          var r = await send('POST', '/v1/me/email/verify', { code: codeInput.value.trim() });
+          var r = await send('POST', '/v1/me/email/verify', { code: codeInput.value.trim(), current_code: currentInput.value.trim() });
           if (!r.ok) { toast(r.data.error || 'Could not change your email', 'error'); return; }
           document.getElementById('signin-email').textContent = r.data.email;
           show('row');
-          toast('Your sign-in email is now ' + r.data.email, 'success');
+          toast('Your sign-in email is now ' + r.data.email + '. Your other keys were signed out.', 'success');
+          loadIdentities();
         } catch (err) {
           toast('Could not change your email', 'error');
         } finally {
@@ -3850,8 +3859,38 @@ function parseAnalyticsSummary(data) {
           alerts.disabled = false;
         }
       });
+      // Google and GitHub accounts that sign in here, each with Unlink.
+      async function loadIdentities() {
+        try {
+          var r = await send('GET', '/v1/me/identities');
+          if (!r.ok) return;
+          var list = r.data.identities || [];
+          identities.innerHTML = list.map(function (i) {
+            var who = i.provider === 'github' ? 'GitHub' : 'Google';
+            return '<div class="conn-row"><span><b>' + who + ' sign-in</b><small>' + esc(i.email || 'no email shared') +
+              ' · linked ' + esc(fmtDate(i.linked_at)) + '. This ' + who + ' account can sign in to yours.</small></span>' +
+              '<button type="button" class="btn btn-secondary btn-small" data-unlink="' + esc(i.id) + '" data-who="' + esc(who + ' (' + (i.email || 'no email') + ')') + '">Unlink</button></div>';
+          }).join('');
+        } catch (e) {}
+      }
+      identities.addEventListener('click', async function (e) {
+        var btn = e.target.closest('[data-unlink]');
+        if (!btn) return;
+        if (!confirm('Unlink ' + btn.getAttribute('data-who') + '? It will no longer sign in to your account. You can still sign in with your email.')) return;
+        btn.disabled = true;
+        try {
+          var r = await send('DELETE', '/v1/me/identities/' + encodeURIComponent(btn.getAttribute('data-unlink')));
+          if (!r.ok) { toast(r.data.error || 'Could not unlink', 'error'); btn.disabled = false; return; }
+          toast('Unlinked', 'success');
+          loadIdentities();
+        } catch (err) {
+          toast('Could not unlink', 'error');
+          btn.disabled = false;
+        }
+      });
 
-      (async function () {
+      async function load() {
+        if (!apiKey) return;
         try {
           var res = await api('GET', '/v1/me');
           if (!res.ok) return;
@@ -3860,8 +3899,12 @@ function parseAnalyticsSummary(data) {
           document.getElementById('signin-email').textContent = me.username;
           alerts.checked = me.signin_alerts !== false;
           box.hidden = false;
+          loadIdentities();
         } catch (e) {}
-      })();
+      }
+      var before = window.shAuthRender;
+      window.shAuthRender = function () { if (before) before(); load(); };
+      load();
     })();
     // ==== end Sign-in ====
   </script>
