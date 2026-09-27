@@ -148,6 +148,12 @@ type siteResponse struct {
 	// answering at until the new domain is live.
 	DomainCertStatus string `json:"domain_certificate_status,omitempty"`
 	PreviousDomain   string `json:"previous_domain,omitempty"`
+	// DomainPartner is the custom domain's www / bare partner, a
+	// redirect-only host (see GET /domain: partner_domain and friends).
+	DomainPartner       string     `json:"domain_partner,omitempty"`
+	DomainPartnerDNS    *dnsRecord `json:"domain_partner_dns,omitempty"`
+	DomainPartnerStatus string     `json:"domain_partner_status,omitempty"`
+	DomainPartnerNote   string     `json:"domain_partner_note,omitempty"`
 	// DeployedAt is when the newest version went live (site list only).
 	DeployedAt    *time.Time `json:"deployed_at,omitempty"`
 	Visibility    string     `json:"visibility,omitempty"`
@@ -1871,6 +1877,11 @@ func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
 	if site.LastDeployedAt.Valid {
 		t := site.LastDeployedAt.Time
 		resp.DeployedAt = &t
+	}
+	if site.CustomDomain.Valid && site.CustomDomain.String != "" {
+		if p := h.partnerInfoFor(site.CustomDomain.String); p != nil {
+			resp.DomainPartner, resp.DomainPartnerDNS, resp.DomainPartnerStatus, resp.DomainPartnerNote = p.Domain, p.DNS, p.Status, p.Note
+		}
 	}
 	if site.CustomDomain.Valid && site.CustomDomain.String != "" && site.DomainStatus.String != "active" {
 		resp.DomainLastError = site.DomainLastError.String

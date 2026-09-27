@@ -4,7 +4,8 @@
 # another nginx server answers (exact, wildcard or regex server_name), never
 # reuses a certificate it did not issue, issues only with a matching TXT
 # ownership record for the site the domain is still bound to, skips taken-down
-# sites, and cleans up after disconnected domains.
+# sites, and cleans up after disconnected domains. The www / bare partner
+# goes on the certificate as a redirect only when it passes the same checks.
 #
 #   bash deploy/domain-certs/issue_test.sh
 set -euo pipefail
@@ -13,7 +14,7 @@ T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 
 mkdir -p "$T/bin" "$T/state/requests" "$T/state/ready" "$T/state/owned" "$T/state/failed" \
-  "$T/sites/domains" "$T/sites/by-id/u/s" "$T/sites/by-id/u/down" "$T/avail" "$T/enabled" "$T/confd" "$T/live" "$T/webroot" "$T/txt"
+  "$T/sites/domains" "$T/sites/by-id/u/s" "$T/sites/by-id/u/down" "$T/avail" "$T/enabled" "$T/confd" "$T/live" "$T/webroot" "$T/txt" "$T/noa" "$T/lefail"
 S=$T/sites/domains
 cp "$here/vhost.conf.template" "$T/template"
 cat > "$T/conf" <<EOF
@@ -26,22 +27,28 @@ ENABLED=$T/enabled
 LE_LIVE=$T/live
 LOCK=$T/lock
 IP=203.0.113.7
+PER_RUN=50
 EOF
 cat > "$T/bin/certbot" <<EOF
 #!/usr/bin/env bash
 echo "certbot \$*" >> "$T/calls"
 if [ "\$1" = certonly ]; then
-  while [ \$# -gt 0 ]; do [ "\$1" = -d ] && d=\$2; shift; done
-  mkdir -p "$T/live/\$d" && touch "$T/live/\$d/fullchain.pem" "$T/live/\$d/privkey.pem"
+  while [ \$# -gt 0 ]; do
+    [ "\$1" = --cert-name ] && c=\$2
+    [ "\$1" = -d ] && [ -e "$T/lefail/\$2" ] && { echo "Detail: no challenge for \$2" >&2; exit 1; }
+    shift
+  done
+  mkdir -p "$T/live/\$c" && touch "$T/live/\$c/fullchain.pem" "$T/live/\$c/privkey.pem"
 fi
 EOF
-# dig: every A record points here; TXT answers come from $T/txt/<domain>.
+# dig: every A record points here (except names in $T/noa); TXT answers come
+# from $T/txt/<domain>.
 cat > "$T/bin/dig" <<EOF
 #!/usr/bin/env bash
 t=; n=
 for a in "\$@"; do case \$a in +short) ;; A|AAAA|TXT) t=\$a ;; *) n=\$a ;; esac; done
 case \$t in
-  A) echo 203.0.113.7 ;;
+  A) [ -e "$T/noa/\$n" ] || echo 203.0.113.7 ;;
   TXT) f="$T/txt/\${n#_simple-host.}"; [ -f "\$f" ] && sed 's/.*/"&"/' "\$f" ;;
 esac
 exit 0
@@ -124,12 +131,44 @@ echo "old failure" > "$T/state/failed/gone.test"
 echo "dns" > "$T/state/failed/kept.test"
 touch -d '@0' "$T/state/failed/kept.test"
 
+# www / bare partners.
+printf 'server { server_name solo.test; }\n' > "$T/enabled/solo.test"
+for d in pair.test www.solo.test nodns.test bogus.test grow.test own.test www.own.test lefail.test; do
+  ln -s ../by-id/u/s "$S/$d"
+  echo "$TOK" > "$T/txt/$d"
+done
+printf '%s\n../by-id/u/s\nwww.pair.test\n' "$TOK" > "$T/state/requests/pair.test"
+printf '%s\n../by-id/u/s\nsolo.test\n' "$TOK" > "$T/state/requests/www.solo.test"
+printf '%s\n../by-id/u/s\nwww.nodns.test\n' "$TOK" > "$T/state/requests/nodns.test"
+touch "$T/noa/www.nodns.test"
+printf '%s\n../by-id/u/s\nevil.example\n' "$TOK" > "$T/state/requests/bogus.test"
+# Issued alone before; its partner now points here: the certificate grows.
+mkdir -p "$T/live/grow.test" && touch "$T/live/grow.test/fullchain.pem" "$T/live/grow.test/privkey.pem"
+echo grow.test > "$T/state/owned/grow.test"
+printf '%s\n../by-id/u/s\nwww.grow.test\n' "$TOK" > "$T/state/requests/grow.test"
+# own.test serves www.own.test as its partner; www.own.test now proves itself.
+mkdir -p "$T/live/own.test" && touch "$T/live/own.test/fullchain.pem" "$T/live/own.test/privkey.pem"
+printf 'own.test\nwww.own.test\n' > "$T/state/owned/own.test"
+echo "partner www.own.test" > "$T/state/ready/own.test"
+printf 'server { server_name own.test; }\nserver { server_name www.own.test; }\n' > "$T/avail/simple-host-domain-own.test"
+ln -s "$T/avail/simple-host-domain-own.test" "$T/enabled/simple-host-domain-own.test"
+printf '%s\n../by-id/u/s\n' "$TOK" > "$T/state/requests/www.own.test"
+# A ready domain whose partner a hand-made server names now: partner comes off.
+ln -s ../by-id/u/s "$S/late2.test"
+echo "partner www.late2.test" > "$T/state/ready/late2.test"
+printf 'server { server_name late2.test; }\nserver { server_name www.late2.test; }\n' > "$T/avail/simple-host-domain-late2.test"
+ln -s "$T/avail/simple-host-domain-late2.test" "$T/enabled/simple-host-domain-late2.test"
+printf 'server { server_name www.late2.test; }\n' > "$T/enabled/www.late2.test"
+# Let's Encrypt refuses the partner: the chosen name is issued alone.
+touch "$T/lefail/www.lefail.test"
+printf '%s\n../by-id/u/s\nwww.lefail.test\n' "$TOK" > "$T/state/requests/lefail.test"
+
 run() { PATH="$T/bin:$PATH" SIMPLE_HOST_DOMAIN_CERTS_CONF="$T/conf" bash "$here/issue.sh" > "$T/out" 2>&1 || { cat "$T/out"; echo "FAIL: issue.sh exited non-zero"; exit 1; }; }
 run
 
 fail=0
 check() { if eval "$2"; then echo "  ok   $1"; else echo "  FAIL $1"; fail=1; fi; }
-issued() { grep -q -- "-d $1\$" "$T/calls"; }
+issued() { sed 's/$/ /' "$T/calls" | grep -q -- "certonly.* -d $1 "; }
 for d in $hand; do
   check "$d: served by another server: failed, never ready, nothing of ours, no certificate" \
     "[ ! -e '$T/state/ready/$d' ] && grep -q 'already served here' '$T/state/failed/$d' && [ ! -e '$T/avail/simple-host-domain-$d' ] && [ ! -e '$T/enabled/simple-host-domain-$d' ] && ! issued $d"
@@ -150,6 +189,16 @@ check "late.test: ours withdrawn once a hand-made server names it" "[ ! -e '$T/s
 check "gone2.test: our certificate deleted once its binding is gone" "grep -q 'delete --non-interactive --quiet --cert-name gone2.test' '$T/calls' && [ ! -e '$T/state/owned/gone2.test' ]"
 check "failure note of a disconnected domain removed" "[ ! -e '$T/state/failed/gone.test' ]"
 check "failure note of a connected domain kept" "[ -e '$T/state/failed/kept.test' ]"
+check "pair.test: one certificate for both names" "grep -q -- '--cert-name pair.test -d pair.test -d www.pair.test' '$T/calls' && grep -qx 'partner www.pair.test' '$T/state/ready/pair.test' && grep -qx www.pair.test '$T/state/owned/pair.test'"
+check "pair.test: partner redirects to the chosen name" "grep -q 'server_name www.pair.test;' '$T/avail/simple-host-domain-pair.test' && grep -q 'return 301 https://pair.test\$request_uri' '$T/avail/simple-host-domain-pair.test' && ! grep -q '__' '$T/avail/simple-host-domain-pair.test'"
+check "fresh.test: no partner block without a partner" "! grep -q '301 https://fresh.test' '$T/avail/simple-host-domain-fresh.test' && ! grep -q '__' '$T/avail/simple-host-domain-fresh.test'"
+check "www.solo.test: partner served by another server stays off" "issued www.solo.test && ! issued solo.test && grep -q '^partner-not-set-up solo.test: .*already served here' '$T/state/ready/www.solo.test' && ! grep -q 'server_name solo.test' '$T/avail/simple-host-domain-www.solo.test'"
+check "nodns.test: partner not pointed here is reported, chosen name live" "issued nodns.test && ! issued www.nodns.test && grep -q '^partner-not-set-up www.nodns.test: .*does not point' '$T/state/ready/nodns.test'"
+check "bogus.test: a partner that is not www / bare is ignored" "issued bogus.test && ! grep -q evil.example '$T/calls' && [ ! -s '$T/state/ready/bogus.test' ]"
+check "grow.test: certificate expanded with the partner" "grep -q -- '--cert-name grow.test --expand -d grow.test -d www.grow.test' '$T/calls' && grep -qx 'partner www.grow.test' '$T/state/ready/grow.test'"
+check "www.own.test: proven on its own, comes off own.test's server" "grep -q '^partner-not-set-up www.own.test: .*site of its own' '$T/state/ready/own.test' && ! grep -q 'server_name www.own.test' '$T/avail/simple-host-domain-own.test' && issued www.own.test && [ -f '$T/state/ready/www.own.test' ]"
+check "lefail.test: partner refused, chosen name issued alone" "grep -q '^partner-not-set-up www.lefail.test: .*refused' '$T/state/ready/lefail.test' && grep -qx lefail.test '$T/state/owned/lefail.test' && ! grep -qx www.lefail.test '$T/state/owned/lefail.test'"
+check "late2.test: partner named by a hand-made server comes off ours" "grep -q '^partner-not-set-up www.late2.test: .*already served here' '$T/state/ready/late2.test' && ! grep -q 'server_name www.late2.test' '$T/avail/simple-host-domain-late2.test' && grep -q 'server_name late2.test' '$T/avail/simple-host-domain-late2.test'"
 check "no nginx configuration in the output" "! grep -q 'server_name' '$T/out'"
 
 # Without a readable nginx configuration nothing is issued.

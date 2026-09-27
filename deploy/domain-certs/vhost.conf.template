@@ -4,6 +4,10 @@
 # other enabled server already names in server_name is hand-made; the issuer
 # leaves such domains alone.
 #
+# Its www / bare partner (www.brand.com for brand.com, and the reverse), when
+# it is on the certificate, is a redirect-only host: the block between the
+# PARTNER markers is kept with the partner's name filled in, or removed whole.
+#
 # Custom domain -> the one site it is bound to. Content is served from the
 # domains farm (domains/<domain> -> by-id/<user_id>/<site>); /v1 and
 # /internal go to the app (same-origin state, collections and sign-in).
@@ -47,3 +51,20 @@ server {
     location /.well-known/acme-challenge/ { root /var/www/acme; }
     location / { return 301 https://$host$request_uri; }
 }
+
+# __PARTNER_BEGIN__
+# The partner name answers with a redirect to the chosen one, nothing else.
+server {
+    listen 443 ssl;
+    server_name __PARTNER__;
+    ssl_certificate     /etc/letsencrypt/live/__DOMAIN__/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/__DOMAIN__/privkey.pem;
+    location / { return 301 https://__DOMAIN__$request_uri; }
+}
+server {
+    listen 80;
+    server_name __PARTNER__;
+    location /.well-known/acme-challenge/ { root /var/www/acme; }
+    location / { return 301 https://__DOMAIN__$request_uri; }
+}
+# __PARTNER_END__

@@ -193,7 +193,13 @@ func (h *SiteHandler) checkDomain(ctx context.Context, d db.BoundDomain, ours ma
 		h.cancelDomainCert(d.Domain)
 	case status == "active":
 		cert = "live"
-		h.cancelDomainCert(d.Domain)
+		// A live domain whose www / bare partner is not set up yet asks
+		// again once the partner points here.
+		if h.wantPartnerCert(ctx, d, ours) {
+			h.requestDomainCert(ctx, d)
+		} else {
+			h.cancelDomainCert(d.Domain)
+		}
 	case !pointsHere:
 		h.cancelDomainCert(d.Domain)
 	default:

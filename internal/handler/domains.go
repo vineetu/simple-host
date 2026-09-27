@@ -175,6 +175,15 @@ type domainResponse struct {
 	// FailingSince: a verified domain that stopped passing its checks. After
 	// 24 h the owner is emailed; after 72 h it stops being the site's home.
 	FailingSince *time.Time `json:"failing_since,omitempty"`
+	// PartnerDomain is the domain's www / bare partner (www.brand.com for
+	// brand.com, and the reverse): a redirect-only host to the chosen name.
+	// DNSPartner is the record it needs (the TXT on the chosen name covers
+	// both); PartnerStatus is pending (the chosen name has no certificate
+	// yet), live, or not_set_up with PartnerNote saying why.
+	PartnerDomain string     `json:"partner_domain,omitempty"`
+	DNSPartner    *dnsRecord `json:"dns_partner,omitempty"`
+	PartnerStatus string     `json:"partner_status,omitempty"`
+	PartnerNote   string     `json:"partner_note,omitempty"`
 }
 
 // domainResponseFor is the API view of a site's binding.
@@ -195,6 +204,9 @@ func (h *SiteHandler) domainResponseFor(info db.SiteDomainInfo) domainResponse {
 			if info.Status == "active" {
 				resp.CertStatus = "live"
 			}
+		}
+		if p := h.partnerInfoFor(info.Domain); p != nil {
+			resp.PartnerDomain, resp.DNSPartner, resp.PartnerStatus, resp.PartnerNote = p.Domain, p.DNS, p.Status, p.Note
 		}
 	}
 	if info.FailingSince.Valid {
