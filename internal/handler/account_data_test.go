@@ -194,7 +194,7 @@ func TestAccountExport(t *testing.T) {
 		t.Fatalf("keys.json: %v %s", err, fileUnder(t, files, "/keys.json"))
 	}
 	for k := range keys[0] {
-		if k != "name" && k != "last4" && k != "created_at" && k != "last_used_at" {
+		if k != "name" && k != "last4" && k != "scope" && k != "created_at" && k != "last_used_at" && k != "expires_at" {
 			t.Errorf("keys.json carries %q", k)
 		}
 	}

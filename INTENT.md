@@ -259,6 +259,13 @@ What follows from that, and is not negotiable without changing the line above:
   participant's keys with one new key. Refines 2026-09-26 ("keep working until the person
   rotates"). Reason: one leaked key should not force cutting off every agent and app, and a
   signed-out browser must not leave a live key behind. Owner approved 2026-09-27 (completeness plan).
+- **2026-09-27. Deploy-only keys, and keys expire when unused.** A key can be minted "deploy
+  only" (create, update, roll back and list sites, preview links; nothing else, one route table in
+  `internal/auth/scope.go`) for CI secrets; a key unused for 180 days (`KEY_IDLE_EXPIRY_DAYS`)
+  stops working, and a panel-minted key may carry a fixed expiry. `PUT ?create=1` deploys from CI in
+  one call. Idle expiry rather than a fixed lifetime, because it never breaks a pipeline that
+  actually runs. Reason: a key in a CI secret should not be able to delete sites or read private
+  lists, and forgotten keys should not work for ever. Owner approved via the completeness plan.
 - **2026-09-27. The site owner may delete or clear entries in any list, public included;
   visitors still only append.** The owner deletes one entry (owner app, API, MCP
   `delete_collection_item`) or empties a whole list after typing its name (owner app, API

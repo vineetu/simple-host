@@ -34,7 +34,12 @@ Each sign-in and each agent holds its own key. Keys issued now start with
   `agent sign-in`, `event account`, or a typed name; absent on older keys),
   `last4`, `created_at`, `last_used_at`, and `current` for the key you sent.
 - `POST /v1/me/keys` with `{"name":"GitHub Actions"}` mints a named key for a
-  CI secret or another machine and returns `api_key` once.
+  CI secret or another machine and returns `api_key` once. Add
+  `"scope":"deploy"` for a **deploy-only** key (create, update, roll back and
+  list sites, preview links; everything else answers 403 `deploy_only_key`),
+  the right key for a CI secret, and `"expires_in_days": 90` (1–3650) for one
+  that stops on a date. The list shows `scope`, `expires_at`,
+  `idle_expires_at` and, once a key has stopped, `expired`.
 - `DELETE /v1/me/keys/<id>` revokes one key; the others keep working. This is
   the fix for one leaked key: find it by `last4`, revoke it.
 - `POST /v1/me/sign-out` ends the key you send (what the dashboard's Sign out
@@ -47,8 +52,35 @@ Each sign-in and each agent holds its own key. Keys issued now start with
 The person sees and manages the same list in the **Keys** panel of their page
 (`https://<handle>.simple-host.app/` while signed in). A 401 carries a `code`:
 `missing_api_key`, `wrong_auth_header` (sent `Authorization` instead of
-`X-API-Key`) or `invalid_api_key` (revoked, signed out, or never valid: sign in
-again for a new key).
+`X-API-Key`), `invalid_api_key` (revoked, signed out, or never valid: sign in
+again for a new key), `key_expired` (past its chosen expiry) or
+`key_expired_idle`. A key unused for 180 days stops working. For either expiry,
+ask the person for a new key from the Keys panel; do not retry.
+
+## Deploy from CI (GitHub Actions)
+
+One call deploys whether or not the site exists yet: `PUT` with `?create=1`
+creates it the first time and publishes a new version after that. Have the
+person create a **deploy-only** key in the Keys panel (tick "Deploy only") and
+save it as the repository secret `SIMPLE_HOST_KEY`, then add
+`.github/workflows/deploy.yml` (build first if the site has a build step, and
+archive the build output, not the source):
+
+```yaml
+name: Deploy
+on: { push: { branches: [main] } }
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: tar -czf site.tar.gz -C public .
+      - run: curl -fsS -X PUT "https://simple-host.app/v1/sites/<sitename>?create=1" -H "X-API-Key: ${{ secrets.SIMPLE_HOST_KEY }}" --data-binary @site.tar.gz
+```
+
+`public` is the folder holding `index.html`. Without `?create=1`, `POST`
+creates (409 `site_exists` if it exists: use `PUT`) and `PUT` updates (404 if
+it does not).
 
 ## Rollback
 
@@ -82,9 +114,9 @@ Read a retained version's files (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.24.0"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.24.1"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.24.0"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.24.1"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte
@@ -245,6 +277,14 @@ question nobody asked.
       daily:    [{day,  person:{…}, bot:{…}, infra:{…}, unknown:{…}}…],  // dense
       hourly:   [{hour, person:{…}, bot:{…}, infra:{…}, unknown:{…}}…]   // 24 buckets
     }
+  ```
+
+- Top pages and where visitors came from (people only; a referrer is its
+  domain alone, never a full address):
+
+  ```
+  GET /v1/sites/<sitename>/analytics/top?days=30
+  → { range_days, pages: [{path, views}…], referrers: [{domain, views}…] }  // top 20 each
   ```
 
 ## A nicer address: a free name or a custom domain
