@@ -31,6 +31,9 @@ func TestDomainPartner(t *testing.T) {
 // again once the partner points here and the issuer's wait is over.
 func TestDomainPartnerHandOff(t *testing.T) {
 	h := &SiteHandler{cnameTarget: "cname.simple-host.test", customDomainIP: "203.0.113.7"}
+	if p := h.partnerInfoFor("brand.com"); p != nil {
+		t.Fatalf("partner offered without the issuer: %+v", p)
+	}
 	dir := t.TempDir()
 	for _, sub := range []string{"requests", "ready", "failed"} {
 		if err := os.MkdirAll(filepath.Join(dir, sub), 0o755); err != nil {

@@ -2334,7 +2334,8 @@ paths:
         Hijacking the platform zone is rejected. Owner only (API key).
 
 
-        www and the bare domain: binding `example.com` also sets up `www.example.com`
+        www and the bare domain (where the certificate issuer runs, as on simple-host.app;
+        absent elsewhere): binding `example.com` also sets up `www.example.com`
         (and binding `www.example.com` sets up `example.com`) as a redirect-only host
         that forwards (301) to the name chosen. The answer names it (`partner_domain`)
         with the record it needs (`dns_partner`); the TXT record on the chosen name

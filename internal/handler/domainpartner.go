@@ -88,15 +88,14 @@ type partnerInfo struct {
 
 func (h *SiteHandler) partnerInfoFor(domain string) *partnerInfo {
 	p := h.partnerOf(domain)
-	if p == "" {
+	// Only where the issuer sets partners up (DOMAIN_CERT_DIR): elsewhere
+	// (certificates by hand, Caddy on event boxes) nothing would serve it,
+	// so it is not offered.
+	if p == "" || h.domainCertDir == "" {
 		return nil
 	}
 	rec := h.dnsRecordFor(p)
 	info := &partnerInfo{Domain: p, DNS: &rec, Status: "pending"}
-	if h.domainCertDir == "" {
-		// Certificates by hand (no issuer): nothing reports the partner.
-		return info
-	}
 	info.Status, info.Note, _ = h.partnerState(domain)
 	if info.Status == "not_set_up" && info.Note == "" {
 		info.Note = "add the DNS record for " + p + "; it is set up automatically once it points here"
