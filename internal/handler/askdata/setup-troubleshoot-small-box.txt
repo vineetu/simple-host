@@ -9,6 +9,7 @@ The installer:
 - "FAILED: a database volume exists but .env is missing": the database password lived only in that file. Restore the .env from a backup, or discard the old instance and its data (the installer prints the command).
 - "--max-site-mb must be a whole number" or "must be at least": a flag value is wrong; fix the flag.
 - "unknown argument": a flag the installer does not have; the flags are --host, --content, --email, --max-site-mb, --keep-versions.
+- "sha256sum: WARNING: 1 computed checksum did NOT match" or "FAILED" before anything installs: the downloaded install.sh is not the pinned file, so it was not run. Run the command again; if it repeats, do not run the file by hand, and write to support@simple-host.app.
 - Docker could not be installed: the installer expects a fresh Ubuntu server with sudo.
 
 Creating the server at UpCloud:

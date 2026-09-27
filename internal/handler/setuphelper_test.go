@@ -1,8 +1,11 @@
 package handler
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"regexp"
 	"strings"
 	"testing"
@@ -47,8 +50,10 @@ func TestSetupHelper(t *testing.T) {
 }
 
 // The helper's install command fetches the installer from the release the
-// installer pins, so the two must name the same tag: bumping VERSION in
-// install.sh without setup.js would hand out an older installer.
+// installer pins, by that release's commit, and checks its sha256 before
+// running it. The tag, the commit and the hash agree, and once install.sh's
+// release is tagged the page pins it (bumping VERSION in install.sh without
+// setup.js would hand out an older installer).
 func TestSetupHelperInstallerRelease(t *testing.T) {
 	js, err := staticFiles.ReadFile("static/setup/setup.js")
 	if err != nil {
@@ -59,18 +64,61 @@ func TestSetupHelperInstallerRelease(t *testing.T) {
 		t.Fatal(err)
 	}
 	page := regexp.MustCompile(`var INSTALLER_RELEASE = '(v[0-9.]+)';`).FindSubmatch(js)
+	commit := regexp.MustCompile(`var INSTALLER_COMMIT = '([0-9a-f]{40})';`).FindSubmatch(js)
+	sum := regexp.MustCompile(`var INSTALLER_SHA256 = '([0-9a-f]{64})';`).FindSubmatch(js)
 	pinned := regexp.MustCompile(`(?m)^VERSION="(v[0-9.]+)"$`).FindSubmatch(sh)
-	if page == nil || pinned == nil {
-		t.Fatalf("release not found: setup.js %q, install.sh %q", page, pinned)
+	if page == nil || commit == nil || sum == nil || pinned == nil {
+		t.Fatalf("pin not found: setup.js release %q commit %q sha256 %q, install.sh %q", page, commit, sum, pinned)
 	}
+	if !strings.Contains(string(js), "'https://raw.githubusercontent.com/vineetu/simple-host/' + INSTALLER_COMMIT + '/deploy/install/install.sh'") {
+		t.Error("the install command must fetch install.sh by the pinned commit, not a tag or a branch")
+	}
+	if !strings.Contains(string(js), `' -o "$f" && printf \'%s  %s\\n\' ' + INSTALLER_SHA256 + ' "$f" | sha256sum -c --quiet - && sudo bash "$f" '`) {
+		t.Error("the install command must check install.sh's sha256 before running it")
+	}
+	// Against the repository, when its history is here: the release's tag
+	// points at the pinned commit, and install.sh there has the pinned hash
+	// and names the release.
+	git := func(args ...string) ([]byte, error) {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = "../.."
+		return cmd.Output()
+	}
+	if _, err := git("cat-file", "-e", string(commit[1])+"^{commit}"); err != nil {
+		if string(page[1]) != string(pinned[1]) {
+			t.Errorf("setup.js INSTALLER_RELEASE = %s, install.sh pins %s", page[1], pinned[1])
+		}
+		t.Skipf("commit %s is not in this checkout's history; hash not checked", commit[1])
+	}
+	// While a new release is prepared (VERSION bumped, not yet tagged) the
+	// page keeps the last tagged one; once the tag exists, the page pins it.
 	if string(page[1]) != string(pinned[1]) {
-		t.Errorf("setup.js INSTALLER_RELEASE = %s, install.sh pins %s", page[1], pinned[1])
+		if _, err := git("rev-parse", "-q", "--verify", string(pinned[1])+"^{commit}"); err == nil {
+			t.Errorf("install.sh is release %s, which is tagged; setup.js still pins %s", pinned[1], page[1])
+		}
 	}
-	if !strings.Contains(string(js), "'https://raw.githubusercontent.com/vineetu/simple-host/' + INSTALLER_RELEASE + '/deploy/install/install.sh'") {
-		t.Error("the install command must fetch install.sh from the pinned release, not a branch")
+	if tag, err := git("rev-parse", "-q", "--verify", string(page[1])+"^{commit}"); err == nil && strings.TrimSpace(string(tag)) != string(commit[1]) {
+		t.Errorf("tag %s is commit %s, setup.js pins %s", page[1], strings.TrimSpace(string(tag)), commit[1])
 	}
-	// The UpCloud button is the referral link, exactly, opened apart from
-	// this page.
+	at, err := git("show", string(commit[1])+":deploy/install/install.sh")
+	if err != nil {
+		t.Fatalf("install.sh at %s: %v", commit[1], err)
+	}
+	if got := fmt.Sprintf("%x", sha256.Sum256(at)); got != string(sum[1]) {
+		t.Errorf("install.sh at %s has sha256 %s, setup.js pins %s", commit[1], got, sum[1])
+	}
+	if v := regexp.MustCompile(`(?m)^VERSION="(v[0-9.]+)"$`).FindSubmatch(at); v == nil || string(v[1]) != string(page[1]) {
+		t.Errorf("install.sh at %s does not name release %s", commit[1], page[1])
+	}
+}
+
+// The UpCloud button is the referral link, exactly, opened apart from this
+// page.
+func TestSetupHelperUpCloudReferral(t *testing.T) {
+	js, err := staticFiles.ReadFile("static/setup/setup.js")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !strings.Contains(string(js), "var UPCLOUD_SIGNUP = 'https://signup.upcloud.com/?promo=JF2WCV';") {
 		t.Error("UPCLOUD_SIGNUP changed")
 	}

@@ -28,6 +28,8 @@ apply.)
 
 1. Create your UpCloud account.
 2. In the UpCloud control panel, create an API user: a sub-account with API access allowed.
+   Give it only the server permissions it needs and, if you can, allow only your own IP
+   address in its API settings.
 3. Answer the questions at https://simple-host.app/setup?product=small-box, with **UpCloud** as
    where it runs.
 4. On the files step, run the one line it gives in your own terminal (it asks for the API user's
@@ -37,6 +39,8 @@ apply.)
    (your domain and `*.<domain>`), runs the installer from its pinned release with your choices,
    checks `/healthz` and HTTPS, and tells you the admin page. If anything fails, paste the error
    at https://simple-host.app/setup?product=small-box#help.
+5. When the server is up, run `unset UPCLOUD_USERNAME UPCLOUD_PASSWORD` in that terminal (or
+   close it): until then every program started there can read the API user.
 
 The setup page never asks for or accepts UpCloud credentials.
 

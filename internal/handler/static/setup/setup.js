@@ -12,11 +12,18 @@
   'use strict';
 
   var FILES = { small: '/setup/small-box-settings.json', ent: '/setup/enterprise-settings.json' };
-  // The release the installer pins (VERSION in deploy/install/install.sh; a
-  // Go test keeps the two equal). The command fetches the installer from
-  // that tag, so what it installs is fixed, not whatever main holds that day.
+  // The release the installer pins (VERSION in deploy/install/install.sh),
+  // the commit its tag points at, and install.sh's sha256 in that commit.
+  // The command fetches the installer by commit (a tag can be moved) and
+  // checks the hash before running it, so what it installs is fixed, not
+  // whatever main holds that day. After tagging a new release, set all
+  // three: git rev-parse vX.Y.Z^{commit}, and
+  // git show vX.Y.Z:deploy/install/install.sh | sha256sum. A Go test
+  // (TestSetupHelperInstallerRelease) checks them against the tag.
   var INSTALLER_RELEASE = 'v0.7.1';
-  var INSTALL_URL = 'https://raw.githubusercontent.com/vineetu/simple-host/' + INSTALLER_RELEASE + '/deploy/install/install.sh';
+  var INSTALLER_COMMIT = '4ec7452eb67c7bf39f45c5685a1a180a4d7d7e24';
+  var INSTALLER_SHA256 = 'c79bc74a3e2b85ccf5a561143e1c1c968a2cebd13826a9ced8823f21df052700';
+  var INSTALL_URL = 'https://raw.githubusercontent.com/vineetu/simple-host/' + INSTALLER_COMMIT + '/deploy/install/install.sh';
   // Where a small box is recommended to run. A referral link: the page says so.
   var UPCLOUD_SIGNUP = 'https://signup.upcloud.com/?promo=JF2WCV';
   // What install.sh writes when its flag is not given (deploy/install/install.sh).
@@ -285,7 +292,13 @@
     ]);
   }
   var HOST = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/;
-  var EMAIL = /^[^\s@<>,"']+@[^\s@<>,"']+\.[^\s@<>,"']+$/;
+  var EMAIL = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+  // sh quotes a value for a shell command: bare when it has only characters
+  // no shell treats specially, else in single quotes.
+  function sh(v) {
+    v = String(v);
+    return /^[A-Za-z0-9@%+=:,.\/_-]+$/.test(v) ? v : "'" + v.replace(/'/g, "'\\''") + "'";
+  }
 
   // upcloudOffer is the recommendation: why, the sign-up button (a referral
   // link, and the page says so) and what to do there.
@@ -296,7 +309,7 @@
       el('p', { class: 'fine', text: 'Referral link. New accounts through this link get $25 of UpCloud credit; their terms apply.' }),
       el('ol', { class: 'steps' }, [
         el('li', { text: 'Create your UpCloud account.' }),
-        el('li', { text: 'In the UpCloud control panel, create an API user: a sub-account with API access allowed. Its username and password stay with you; this page never asks for them.' }),
+        el('li', { text: 'In the UpCloud control panel, create an API user: a sub-account with API access allowed. ' + UPCLOUD_LIMIT + ' Its username and password stay with you; this page never asks for them.' }),
         el('li', { text: 'Answer the questions on this page.' }),
         el('li', { text: 'On the last step, set the API user in your terminal (the page gives the command) and copy the prompt into your AI agent. It creates the server, sets it up and checks it.' })
       ])
@@ -425,7 +438,7 @@
       if (!HOST.test(b.domain)) e.domain = 'A domain name like hack.example.com.';
       if (b.content && (!HOST.test(b.content) || b.content === b.domain)) e.content = 'A different hostname, like sites.' + (b.domain || 'hack.example.com') + '.';
       if (b.email && !EMAIL.test(b.email)) e.email = 'An email address, or leave it empty.';
-      if (b.mailFrom && /[\r\n]/.test(b.mailFrom)) e.mailFrom = 'One line.';
+      if (b.mailFrom && /[\r\n`]/.test(b.mailFrom)) e.mailFrom = 'One line, with no backticks.';
       if (b.googleId && !/^[A-Za-z0-9._-]+$/.test(b.googleId)) e.googleId = 'The client ID as Google shows it.';
     } else {
       b.host = b.host.toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '');
@@ -578,13 +591,13 @@
 
     if (p === 'small') {
       var content = b.content || 'sites.' + b.domain;
-      var flags = ['--host', b.domain, '--content', content];
+      var flags = ['--host', sh(b.domain), '--content', sh(content)];
       chosen.push(['Where it runs', targetOf('small').name], ['Domain', b.domain], ['Sites hostname', content]);
-      if (b.email) { flags.push('--email', b.email); chosen.push(['Certificate notices', b.email]); }
+      if (b.email) { flags.push('--email', sh(b.email)); chosen.push(['Certificate notices', b.email]); }
       var env = [];
       extra.forEach(function (n) {
         var s = byName(n);
-        if (s.install_flag) { flags.push(s.install_flag, changed[n]); }
+        if (s.install_flag) { flags.push(s.install_flag, sh(changed[n])); }
         else env.push(envLine(n, changed[n]));
         chosen.push([n, changed[n] + '  (default ' + (defaultOf(s) || 'none') + ')']);
       });
@@ -602,7 +615,7 @@
       if (!b.codes && !b.google) chosen.push(['Sign-in', 'admin key only']);
       fill = fill.concat(optionalSecrets);
       var envText = env.concat(secretBlock(fill)).join('\n');
-      var cmd = 'curl -fsSL ' + INSTALL_URL + ' -o /tmp/install.sh && sudo bash /tmp/install.sh ' + flags.join(' ');
+      var cmd = 'f=$(mktemp) && curl -fsSL ' + INSTALL_URL + ' -o "$f" && printf \'%s  %s\\n\' ' + INSTALLER_SHA256 + ' "$f" | sha256sum -c --quiet - && sudo bash "$f" ' + flags.join(' ');
       return { chosen: chosen, cmd: cmd, env: envText ? '# Simple Host settings (https://simple-host.app/setup)\n' + envText + '\n' : '' };
     }
 
@@ -679,9 +692,13 @@
   }
   // UPCLOUD_CREDS is the line the person runs in their own terminal before
   // starting their agent: it asks for the API user's name and password
-  // (the password without echo) and exports both, so they never pass through
-  // this page, the agent's chat or the shell history. bash and zsh alike.
-  var UPCLOUD_CREDS = "printf 'UpCloud API username: '; read -r UPCLOUD_USERNAME; printf 'UpCloud API password: '; stty -echo; read -r UPCLOUD_PASSWORD; stty echo; echo; export UPCLOUD_USERNAME UPCLOUD_PASSWORD";
+  // (the password without echo: read -s, with a trap that turns echo back on
+  // if Ctrl-C stops it) and exports both, so they never pass through this
+  // page, the agent's chat or the shell history. bash and zsh alike.
+  var UPCLOUD_CREDS = "printf 'UpCloud API username: '; read -r UPCLOUD_USERNAME; printf 'UpCloud API password: '; trap 'stty echo 2>/dev/null' INT; read -rs UPCLOUD_PASSWORD; trap - INT; echo; export UPCLOUD_USERNAME UPCLOUD_PASSWORD";
+  // What to do with the API user afterwards, on the page and in the prompt.
+  var UPCLOUD_UNSET = 'unset UPCLOUD_USERNAME UPCLOUD_PASSWORD';
+  var UPCLOUD_LIMIT = 'Give the API user only the server permissions it needs and, if you can, allow only your own IP address in its API settings.';
   // dnsNames are the A records the installer needs: the domain, and the
   // sites hostname, which a wildcard covers when it sits under the domain.
   function dnsRecords(domain, content) {
@@ -720,16 +737,16 @@
         L.push('   - UpCloud’s firewall is off for a new server. If it is on, allow ports 22, 80 and 443 in.', '');
         host = 'the server (`' + ssh + '`)';
       }
-      L.push(n++ + '. DNS: at my domain’s DNS provider these A records must point at the server’s public IPv4 address: ' + recs.join(', ') + (recs.length === 2 ? ' (the wildcard covers ' + content + ')' : '') + '. If you can manage that DNS provider from here, ask me before changing anything; otherwise tell me the exact records to add and wait for me. Check that `dig +short ' + b.domain + '` and `dig +short ' + content + '` both print the address. Certificates are issued on the first visit, so both names must point at the server first.', '');
+      L.push(n++ + '. DNS: at my domain’s DNS provider these A records must point at the server’s public IPv4 address: ' + recs.join(', ') + (recs.length === 2 ? ' (the wildcard covers ' + content + ')' : '') + '. If you can manage that DNS provider from here, ask me before changing anything; otherwise tell me the exact records to add and wait for me. Check that `dig +short ' + sh(b.domain) + '` and `dig +short ' + sh(content) + '` both print the address. Certificates are issued on the first visit, so both names must point at the server first.', '');
       L.push(n++ + '. Install: on ' + host + ', run this. It installs Docker, starts Simple Host from the release it pins (' + INSTALLER_RELEASE + ') and prints the admin key once: give the admin key to me and do not write it anywhere else.', '', FENCE + 'sh', r.cmd, FENCE, '');
       if (r.env) {
         L.push(n++ + '. Settings: add these lines to the end of /opt/simple-host/.env on the server (it needs sudo). Ask me for each blank value; do not invent one. Then run `cd /opt/simple-host && sudo docker compose up -d`.', '', FENCE, r.env.replace(/\n$/, ''), FENCE, '');
       }
       L.push(n++ + '. Check it works:');
-      L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' https://' + b.domain + '/healthz` prints 200.');
+      L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' ' + sh('https://' + b.domain + '/healthz') + '` prints 200.');
       L.push('   - `cd /opt/simple-host && sudo docker compose ps`, on the server, shows every service running.');
-      L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' https://' + content + '/` prints a status code with no certificate error.', '');
-      L.push(n++ + '. Tell me: the admin page, https://' + b.domain + '/admin (it signs in with the admin key)' + (t.id === 'upcloud' ? ', the server’s UUID, address, plan and zone' : '') + '.', '');
+      L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' ' + sh('https://' + content + '/') + '` prints a status code with no certificate error.', '');
+      L.push(n++ + '. Tell me: the admin page, https://' + b.domain + '/admin (it signs in with the admin key)' + (t.id === 'upcloud' ? ', the server’s UUID, address, plan and zone. Then remind me to run `' + UPCLOUD_UNSET + '` in this terminal (or close it) once you are done with UpCloud, and to keep the API user limited to server permissions and, if I can, to my own IP address' : '') + '.', '');
     } else {
       L.push('1. Get the package: `git clone https://github.com/vineetu/simple-host-enterprise && cd simple-host-enterprise`. Its INSTALL.md is a runbook written for AI agents: follow it top to bottom, and use the two files below as the config.env and secrets.env it asks for. Name the kubectl context on every call.', '');
       L.push('2. Save this as deploy/overlays/byo/config.env:', '', FENCE, r.config.replace(/\n$/, ''), FENCE, '');
@@ -737,8 +754,8 @@
       L.push('4. In deploy/overlays/byo, set the image digest in kustomization.yaml and the address in ingress-patch.yaml, and save the database’s CA certificate as db-ca.crt (INSTALL.md, section 5).', '');
       L.push('5. Apply: `make install OVERLAY=deploy/overlays/byo INSTALL_CONTEXT=<the kubectl context>`, then `kubectl --context <the kubectl context> -n simple-host rollout status deploy/simple-host --timeout=300s`.', '');
       L.push('6. Check it works:');
-      L.push('   - `curl -fsS https://' + b.host + '/readyz` prints {"status":"ok"}.');
-      L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' https://install-check.' + b.host + '/healthz` prints a status code (401 or 404 is fine; a TLS or DNS error is not).');
+      L.push('   - `curl -fsS ' + sh('https://' + b.host + '/readyz') + '` prints {"status":"ok"}.');
+      L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' ' + sh('https://install-check.' + b.host + '/healthz') + '` prints a status code (401 or 404 is fine; a TLS or DNS error is not).');
       L.push('   - An admin signs in at https://' + b.host + '/auth/login.', '');
     }
     L.push(window.shSetupAssist
@@ -888,7 +905,8 @@
         ]),
         block('In your terminal', UPCLOUD_CREDS),
         el('ol', { class: 'steps', start: '3' }, [el('li', { text: 'Start your AI agent in that terminal and give it this.' })]),
-        block('For your AI agent', agent, 'simple-host-setup.md')
+        block('For your AI agent', agent, 'simple-host-setup.md'),
+        el('p', { class: 'note', style: 'margin:8px 0 0' }, ['When the server is up, run ', el('code', { text: UPCLOUD_UNSET }), ' in that terminal, or close it: until then every program started there can read the API user. ' + UPCLOUD_LIMIT])
       ]));
     }
     if (S.product === 'small') {
