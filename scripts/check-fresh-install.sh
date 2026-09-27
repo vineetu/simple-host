@@ -61,6 +61,7 @@ run "private collections"   "SELECT s.private, i.submitted_by FROM collection_se
 run "saved-data history"    "SELECT h.id, h.item_id, h.op, h.prev, h.diff, h.actor_id, h.actor_kind, h.actor_email, i.deleted_at, i.submitted_email, s.legacy_data FROM data_history h LEFT JOIN collection_items i ON i.id = h.item_id LEFT JOIN sites s ON s.id = h.site_id WHERE h.site_id='$NIL' AND h.kind = 'state'"
 run "idempotency keys"      "SELECT status, etag, ref, body_hash, site_id FROM idempotency_keys WHERE created_at < now()"
 run "saved-data size"       "SELECT data_bytes, state_bytes FROM sites WHERE id='$NIL' UNION ALL SELECT count(*), 0 FROM pg_trigger WHERE tgname IN ('sites_state_bytes','collection_items_bytes_ins','collection_items_bytes_upd','collection_items_bytes_del')"
+run "saved-data kinds"      "SELECT cs.kind, cs.one_per_person, cs.notify, cs.notify_sent_at, cs.declared_at, s.savers_mode, s.legacy_data, (SELECT count(*) FROM site_savers v WHERE v.site_id = s.id AND v.list = 'block') FROM sites s LEFT JOIN collection_settings cs ON cs.site_id = s.id WHERE s.id='$NIL'"
 run "history size"          "SELECT history_bytes FROM sites WHERE history_bytes > 0 AND id='$NIL' UNION ALL SELECT count(*) FROM pg_trigger WHERE tgname IN ('data_history_bytes_ins','data_history_bytes_upd','data_history_bytes_del')"
 run "saved-data watch"      "SELECT day, metric, count, last_at FROM data_watch WHERE site_id='$NIL'"
 run "custom domains"        "SELECT custom_domain, domain_status FROM sites WHERE custom_domain='x'"
