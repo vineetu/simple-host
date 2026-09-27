@@ -32,24 +32,35 @@
   // <redact> The same rules, in the same order, as setupRedact in
   // internal/handler/setupredact.go; both are tested against
   // internal/handler/testdata/setup-redact-cases.json.
+  // What a secret's name ends with (DB_PASSWORD, SMTP_PASS, GPG_PASSPHRASE,
+  // SECRET_KEY_BASE, AWS_ACCESS_KEY_ID, sig).
+  var NAME = '[A-Za-z0-9_.-]*(?:key|secret|token|pass|passwd|password|passphrase|pwd|dsn|salt|credentials?|cookie|sig|signature)(?:[_.-]?(?:base|b64|base64|id))?';
+  var LINE_NAME = '[A-Za-z0-9_.-]*(?:key|secret|token|pass|passwd|password|passphrase|pwd|dsn|salt|hash|credentials?|cookie|sig|signature)(?:[_.-]?(?:base|b64|base64|id))?';
   var REDACT = [
     [/-----BEGIN ([A-Z0-9 ]+)-----[\s\S]*?(?:-----END [A-Z0-9 ]+-----|$)/g, '[redacted $1]'],
-    [/([A-Za-z][A-Za-z0-9+.-]*:\/\/)([^\t\n\f\r :\/@]+):([^\t\n\f\r \/@]+)@/g, '$1$2:[redacted]@'],
+    [/([A-Za-z][A-Za-z0-9+.-]*:\/\/)([^\t\n\f\r :\/@]+):([^\t\n\f\r '"<>?#]+)@/g, '$1$2:[redacted]@'],
+    [/\b((?:proxy-)?authorization["']?[ \t]*[:=][ \t]*["']?)(?:([A-Za-z]+)([ \t]+))?[^\t\n\f\r '",]+/gi, '$1$2$3[redacted]'],
+    [/\b(set-cookie|cookie|x-[A-Za-z0-9-]*(?:key|token|secret|signature|auth|session)[A-Za-z0-9-]*)(["']?[ \t]*:[ \t]*["']?)[^\t\n\f\r '"][^\n'"]*/gi, '$1$2[redacted]'],
     [/\b(bearer|basic)([ \t]+)[A-Za-z0-9._~+\/=-]{8,}/gi, '$1$2[redacted]'],
-    [/(^|[ \t])(-u|--user)([ \t]+|=)(?:(['"])([^\n:'"]+):[^\n'"]*|([^\t\n\f\r :'"]+):[^\t\n\f\r '"]+)/gm, '$1$2$3$4$5$6:[redacted]'],
-    [/^([ \t]*(?:export[ \t]+)?["']?[A-Za-z0-9_.-]*(?:key|secret|token|password|passwd|pwd|dsn|salt|hash|credentials?|key_id)["']?[ \t]*[:=][ \t]*)[^\t\n\f\r ].*$/gim, '$1[redacted]'],
-    [/\b([A-Za-z0-9_.-]*(?:key|secret|token|password|passwd|pwd|dsn|salt|credentials?))=[^\t\n\f\r &;'",]+/gi, '$1=[redacted]'],
-    [/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g, '[redacted token]'],
-    [/\b(?:sh(?:k|at|rt|ac|c|cs|int)_|sk-|sk_|pk_|rk_|re_|ghp_|gho_|ghu_|ghs_|ghr_|github_pat_|glpat-|xai-|xox[abpors]-)[A-Za-z0-9_-]{12,}/g, '[redacted key]'],
+    [/(^|[ \t])(-[A-Za-z]*u|--user)([ \t]*|=)(?:(['"])([^\n:'"]+):[^\n'"]*|([^\t\n\f\r :'"]+):[^\t\n\f\r '"]+)/gm, '$1$2$3$4$5$6:[redacted]'],
+    [/(^|[ \t])(--pass(?:word|wd)?)([ \t]+|=)(["']?)[^\t\n\f\r '"]+/g, '$1$2$3$4[redacted]'],
+    [/\b(mysql(?:dump|admin)?|mariadb(?:-dump|-admin)?)\b([^\n]*?[ \t])-p[^\t\n\f\r '"]+/g, '$1$2-p[redacted]'],
+    [new RegExp('^([ \\t]*(?:[A-Za-z0-9_.-]+[ \\t]+\\|[ \\t]*)?(?:export[ \\t]+)?["\']?' + LINE_NAME + '["\']?[ \\t]*[:=][ \\t]*)[^\\t\\n\\f\\r ].*$', 'gim'), '$1[redacted]'],
+    [new RegExp('(["\']' + NAME + '["\'][ \\t]*:[ \\t]*)(?:"(?:[^"\\\\\\n]|\\\\.)*"|\'[^\'\\n]*\'|[^\\t\\n\\f\\r ,;}]+)', 'gi'), '$1[redacted]'],
+    [new RegExp('\\b(' + NAME + ')=(?:"[^"\\n]*"|\'[^\'\\n]*\'|[^\\t\\n\\f\\r &;\'",]+)', 'gi'), '$1=[redacted]'],
+    [/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{2,}/g, '[redacted token]'],
+    [/\b(?:sh(?:k|at|rt|ac|c|cs|int)_|sk-|sk_|pk_|rk_|re_|ghp_|gho_|ghu_|ghs_|ghr_|github_pat_|glpat-|xai-|xox[abpors]-|ucat_)[A-Za-z0-9_-]{12,}/g, '[redacted key]'],
     [/\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g, '[redacted key]'],
-    [/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g, '[email]'],
+    [/[A-Za-z0-9._%+\u00a1-\u1fff\u2070-\u2fff\u3001-\ud7ff\uf900-\uffef-]+[@\uff20][A-Za-z0-9\u00a1-\u1fff\u2070-\u2fff\u3001-\ud7ff\uf900-\uffef-]+(?:\.[A-Za-z0-9\u00a1-\u1fff\u2070-\u2fff\u3001-\ud7ff\uf900-\uffef-]+)+/g, '[email]'],
     [/\b[0-9a-fA-F]{32,}\b/g, '[redacted]'],
     // Long base64-like strings with digits, lower and upper case: secrets,
     // not paths or names.
     [/[A-Za-z0-9+\/_=-]{32,}/g, function (m) { return /[0-9]/.test(m) && /[a-z]/.test(m) && /[A-Z]/.test(m) ? '[redacted]' : m; }]
   ];
   function redact(s) {
-    s = String(s).replace(/\r\n?/g, '\n').replace(/[\u2028\u2029]/g, '\n').replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, '');
+    s = String(s).replace(/\r\n?/g, '\n').replace(/[\u2028\u2029]/g, '\n')
+      .replace(/\u001b\[[0-9;?]*[ -\/]*[@-~]/g, '').replace(/\u001b\][^\u0007\u001b\n]*(?:\u0007|\u001b\\)?/g, '')
+      .replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u200b-\u200d\u2060\ufeff]/g, '');
     REDACT.forEach(function (r) { s = s.replace(r[0], r[1]); });
     return s;
   }
@@ -179,7 +190,7 @@
     pasteBox.textContent = '';
     if (!review) {
       pasteBox.appendChild(el('label', { for: 'sh-assist-paste-in', text: 'Paste the error output' }));
-      pasteBox.appendChild(el('p', { class: 'sh-assist-hint', id: 'sh-assist-paste-hint', text: 'From the installer, your AI agent, kubectl, or the docker, Caddy or server log. Keys, tokens, passwords and email addresses are removed first, and you see exactly what will be sent.' }));
+      pasteBox.appendChild(el('p', { class: 'sh-assist-hint', id: 'sh-assist-paste-hint', text: 'From the installer, your AI agent, kubectl, or the docker, Caddy or server log. We remove the keys, tokens, passwords and email addresses we recognise; check what will be sent before you send it.' }));
       pasteBox.appendChild(pasteIn);
       pasteBox.appendChild(el('div', { class: 'sh-assist-acts' }, [
         el('button', { class: 'sh-assist-apply', type: 'button', text: 'Review what will be sent', onclick: function () {

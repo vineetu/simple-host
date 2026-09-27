@@ -751,9 +751,10 @@ through the form's own validation and state (`window.shSetup` in setup.js), the 
 highlighted, and on the files step the files follow at once ("Updated with the assistant.", no second check); a value
 already in force shows "Already set". Empty panel: two example requests per product. **Troubleshooting**: "Paste an
 error" (or `/setup?product=…#help`, or pasting multi-line output into the field) opens a box for output from the
-installer, the person's AI agent, kubectl, docker or Caddy logs; "Review what will be sent" shows it redacted (keys,
-tokens, passwords, secret assignments, private keys, JWTs, email addresses, long secret-looking strings; hostnames and
-addresses stay) with how many things were hidden, only the last 8 KB of a long paste, and nothing goes until **Send for
+installer, the person's AI agent, kubectl, docker or Caddy logs; "Review what will be sent" shows it redacted (the
+shapes the rules recognise: keys, tokens, passwords, secret assignments and headers, credentials on curl/mysql command
+lines, private keys, JWTs, email addresses, long secret-looking strings, after terminal colour codes are stripped;
+hostnames and addresses stay; the hint says to check before sending) with how many things were hidden, only the last 8 KB of a long paste, and nothing goes until **Send for
 help**; the answer gives the likely cause, a command to confirm, and the fix, with a setting as an Apply item. A typed
 message is redacted too. The conversation (last 4 turns per product) lives in the open page only.
 
