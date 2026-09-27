@@ -165,3 +165,28 @@ func TestReservedKeyNames(t *testing.T) {
 		t.Fatal("flag not read")
 	}
 }
+
+// L3: a handle that ever published keeps its old name as an alias on a
+// change, even after every site row is gone, so nobody else can claim it.
+func TestHandleChangeAfterPurgeKeepsAlias(t *testing.T) {
+	a := newPersonApp(t, "serve")
+	const apex = "simple-host.test"
+	p := a.newPerson(t, "purged")
+	a.deploy(t, p, "shop")
+	uid, old := a.userID(t, p)
+	if _, err := a.database.Exec(`DELETE FROM sites WHERE user_id = $1`, uid); err != nil {
+		t.Fatal(err)
+	}
+	nh := old + "-new"
+	if r := a.at(t, "PATCH", apex, "/v1/me", map[string]string{"handle": nh}, map[string]string{"X-API-Key": p.key}); r.status != 200 {
+		t.Fatalf("change: %d %s", r.status, r.body)
+	}
+	var owner string
+	if err := a.database.QueryRow(`SELECT user_id::text FROM handle_aliases WHERE handle = $1`, old).Scan(&owner); err != nil || owner != uid {
+		t.Fatalf("old handle not kept: %q %v", owner, err)
+	}
+	q := a.newPerson(t, "claimer")
+	if r := a.at(t, "PATCH", apex, "/v1/me", map[string]string{"handle": old}, map[string]string{"X-API-Key": q.key}); r.status != 409 {
+		t.Fatalf("stranger took the old handle: %d %s", r.status, r.body)
+	}
+}

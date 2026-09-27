@@ -417,7 +417,7 @@ paths:
       description: >-
         Changing the handle changes every address (https://<handle>.simple-host.app/ and
         https://<site>.<handle>.simple-host.app/). Before anything is published it changes freely.
-        After that it can change once every 30 days: the old handle stays reserved for this account
+        After that (even once every site is gone) it can change once every 30 days: the old handle stays reserved for this account
         and every old address redirects to the new one. A new handle gets its own certificate; until
         it is issued, sites briefly use the fallback https://<handle>.simple-host.app/<site>/. What pages kept
         in visitors' browsers starts empty at the new address, and visitors sign in again.

@@ -334,7 +334,12 @@ func (h *SiteHandler) patchMe(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 500, errorResponse{Error: "internal server error"})
 			return
 		}
-		if hasSites && oldHandle.String != "" {
+		// A handle that ever served files (its handles/<h> link exists, kept
+		// after a rename or a purge) is kept as an alias too, even with no
+		// sites left: old shared links and hand-made vhosts keyed on the
+		// folder must never follow a stranger who claims it. Only a handle
+		// that never published anything is freed.
+		if oldHandle.String != "" && (hasSites || h.disk.HasHandleLink(oldHandle.String)) {
 			// Owner decision 2026-09-27: the handle can change after
 			// publishing; old links redirect through the alias. Once per
 			// handleRenameEvery, so an address cannot be churned.

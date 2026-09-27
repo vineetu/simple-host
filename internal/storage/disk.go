@@ -465,6 +465,17 @@ func (d *DiskStorage) ClearDomainRedirect(userID, siteName string) error {
 // RemoveHandleLink deletes handles/<handle>. Idempotent, and it refuses to
 // remove anything that is not a symlink: the same reasoning as UnbindDomain,
 // since a real directory there would be someone's site content.
+// HasHandleLink reports whether handles/<handle> exists: the handle has
+// served files at some point (the link is made at the first deploy and kept
+// after a rename), so links naming it may be out there.
+func (d *DiskStorage) HasHandleLink(handle string) bool {
+	if handle == "" || !validPathKey(handle) {
+		return false
+	}
+	_, err := os.Lstat(filepath.Join(d.dataDir, "handles", handle))
+	return err == nil
+}
+
 func (d *DiskStorage) RemoveHandleLink(handle string) error {
 	if handle == "" {
 		return nil
