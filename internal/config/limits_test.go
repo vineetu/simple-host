@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -184,5 +186,35 @@ func TestSpanWords(t *testing.T) {
 	}
 	if got := SpanAdj(time.Hour); got != "one-hour" {
 		t.Errorf("SpanAdj(1h) = %q", got)
+	}
+}
+
+// Every knob is documented, with its real default, in docs/configuration.md,
+// listed in .env.example, passed through by compose.yaml, and kept on a
+// re-run by the installer.
+func TestEveryKnobIsDocumented(t *testing.T) {
+	read := func(p string) string {
+		b, err := os.ReadFile(filepath.Join("..", "..", p))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	docs, envEx, compose, install := read("docs/configuration.md"), read(".env.example"), read("compose.yaml"), read("deploy/install/install.sh")
+	def := DefaultLimits()
+	for _, k := range Knobs() {
+		v := k.Value(&def)
+		if !strings.Contains(docs, "| `"+k.Env+"` | "+v+" |") {
+			t.Errorf("docs/configuration.md: no row for %s with default %s", k.Env, v)
+		}
+		if !strings.Contains(envEx, "#"+k.Env+"="+v+"\n") {
+			t.Errorf(".env.example: no #%s=%s line", k.Env, v)
+		}
+		if !strings.Contains(compose, k.Env+": ${"+k.Env+":-}") {
+			t.Errorf("compose.yaml does not pass %s through", k.Env)
+		}
+		if !strings.HasPrefix(k.Env, "RATE_LIMIT_") && !strings.Contains(install, " "+k.Env) {
+			t.Errorf("deploy/install/install.sh does not keep %s on a re-run", k.Env)
+		}
 	}
 }

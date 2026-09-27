@@ -16,6 +16,8 @@
 #
 # Both are written to /opt/simple-host/.env and preserved when this script is
 # re-run without them, so a value chosen once is not silently reset by a retry.
+# Any operational time or limit (docs/configuration.md) added to that file is
+# kept on a re-run too.
 #
 # Prints a JSON summary on success. The admin key is generated here and shown
 # exactly once, because nothing else ever displays it.
@@ -102,7 +104,21 @@ if [ ! -f "$DIR/.env" ] && docker volume ls -q 2>/dev/null | grep -q '^simple-ho
   exit 1
 fi
 
-ADMIN_KEY=""; DB_PASSWORD=""; SETUP_PASSWORD=""
+ADMIN_KEY=""; DB_PASSWORD=""; SETUP_PASSWORD=""; KEPT_LIMITS=""
+# Operational times and limits (docs/configuration.md; RATE_LIMIT_* too).
+LIMIT_VARS=""
+LIMIT_VARS+=" SIGNIN_CODE_TTL_MINUTES MAX_KEYS_PER_ACCOUNT HANDLE_RENAME_EVERY_DAYS"
+LIMIT_VARS+=" EMAIL_CHANGE_UNDO_DAYS MAX_SITES_PER_ACCOUNT MAX_FILES_PER_SITE"
+LIMIT_VARS+=" PREVIEW_LINK_TTL_MINUTES EXPORT_LINK_TTL_MINUTES VISITOR_SESSION_DAYS"
+LIMIT_VARS+=" VISITOR_SESSION_IDLE_DAYS OAUTH_ACCESS_TTL_MINUTES"
+LIMIT_VARS+=" OAUTH_REFRESH_TTL_DAYS OAUTH_UNUSED_CLIENT_DAYS DOMAIN_UNPROVEN_HOURS"
+LIMIT_VARS+=" DOMAIN_UNPROVEN_MAX_DAYS DOMAIN_LAPSE_WARN_HOURS DOMAIN_LAPSE_HOURS"
+LIMIT_VARS+=" DOMAIN_CHECK_INTERVAL_MINUTES DOMAIN_CERTS_PER_ACCOUNT_DAILY"
+LIMIT_VARS+=" EVENT_TTL_DAYS EVENT_MAX_CLAIMS DELETED_RETENTION_DAYS IDLE_AFTER_DAYS"
+LIMIT_VARS+=" IDLE_GRACE_DAYS IDLE_REPLY_TO ANALYTICS_RETENTION_DAYS"
+LIMIT_VARS+=" API_METRICS_RETENTION_DAYS AI_MAX_JOBS_PER_USER AI_MAX_JOBS"
+LIMIT_VARS+=" AI_JOB_TIMEOUT_MINUTES"
+LIMIT_VARS=${LIMIT_VARS# }
 if [ -f "$DIR/.env" ]; then
   ADMIN_KEY=$(grep '^ADMIN_API_KEY=' "$DIR/.env" | cut -d= -f2-)
   DB_PASSWORD=$(grep '^DB_PASSWORD=' "$DIR/.env" | cut -d= -f2-)
@@ -112,6 +128,9 @@ if [ -f "$DIR/.env" ]; then
   # somebody made deliberately, which is the worst kind of idempotence bug.
   [ -z "$MAX_SITE_MB" ] && MAX_SITE_MB=$(grep '^MAX_ARCHIVE_MB=' "$DIR/.env" | cut -d= -f2- || true)
   [ -z "$KEEP_VERSIONS" ] && KEEP_VERSIONS=$(grep '^KEEP_VERSIONS=' "$DIR/.env" | cut -d= -f2- || true)
+  # The same for the operational times and limits (docs/configuration.md)
+  # an operator added to .env: they are carried over as written.
+  KEPT_LIMITS=$(grep -E "^(${LIMIT_VARS// /|}|RATE_LIMIT_[A-Z_]+)=" "$DIR/.env" || true)
 fi
 # Defaults for a fresh event box. One kept version because every version is a
 # full copy of the site; 100 MB per site because that is the server's own
@@ -159,6 +178,9 @@ HTTPS_PORT=443
 MAX_ARCHIVE_MB=$MAX_SITE_MB
 KEEP_VERSIONS=$KEEP_VERSIONS
 EOF
+if [ -n "$KEPT_LIMITS" ]; then
+  printf '%s\n' "$KEPT_LIMITS" >> "$DIR/.env"
+fi
 chmod 600 "$DIR/.env"
 
 say "fetching compose files"
