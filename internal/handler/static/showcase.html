@@ -283,6 +283,7 @@
       overflow-wrap: anywhere;
       margin-top: 2px;
     }
+    .inv-down { font-size: 13px; color: var(--error); margin-top: 4px; }
     .vis-badge {
       font-size: 13px;
       font-weight: 500;
@@ -1595,6 +1596,8 @@ function parseAnalyticsSummary(data) {
           '<div class="inv-id">' +
             '<h3>' + name + ' <span class="vis-badge ' + vis + '" data-vis-badge="' + name + '">' + vis + '</span></h3>' +
             '<div class="inv-path">' + esc(sitePath(s)) + '</div>' +
+            (s.suspended ? '<div class="inv-down">Taken down by the operator' + (s.suspended_reason ? ': ' + esc(s.suspended_reason) : '') +
+              '. Every address shows a &ldquo;taken down&rdquo; page and changes are refused until it is restored. Nothing has been deleted.</div>' : '') +
           '</div>' +
         '</div>' +
         '<div class="inv-actions">' +

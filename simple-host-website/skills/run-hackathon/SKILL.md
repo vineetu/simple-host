@@ -229,8 +229,32 @@ answers 404 and leaves the real records in place.
 
 If the organiser used their own domain, they delete the two records themselves.
 
-Warn them first: deleting the server destroys every entry. If anyone wants to
-keep what they built, they take a copy before you start.
+Warn them first: deleting the server destroys every entry. Before you start,
+offer to keep a copy of all of them in one archive (every site's files, saved
+data and lists; the admin page's "Download all entries" does the same):
+
+```
+GET https://<event-host>/v1/admin/export.tar.gz
+X-API-Key: <the admin key>
+```
+
+Save the response to a file on the organiser's machine and tell them where it is.
+
+### If a site has to come down during the event
+
+A reported or abusive site is taken down without deleting anything, with a
+one-line reason the owner sees (the admin page has the same switches):
+
+```
+POST https://<event-host>/v1/admin/sites/<site id>/suspend   {"reason": "..."}
+POST https://<event-host>/v1/admin/sites/<site id>/restore
+POST https://<event-host>/v1/admin/users/<user id>/suspend   {"reason": "..."}
+POST https://<event-host>/v1/admin/users/<user id>/enable
+```
+
+Ids come from `GET /v1/admin/users`. A taken-down site shows "This site has
+been taken down" on every address and refuses changes; a suspended person's key
+stops working and all their sites go down. Restore / enable puts it all back.
 
 ## What this does not do
 

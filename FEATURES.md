@@ -235,15 +235,17 @@ template as the public person page, hydrated for the owner); per-site analytics 
 ## 11. Admin (operator)
 
 Operator console: disk usage, release/commit and versions kept, participant account issuing, Entries (one row per deployed site
-with an **Analytics** column linking `/analytics/{site}?owner={handle}`), per-user cards, API
+with an **Analytics** column linking `/analytics/{site}?owner={handle}`, a Take down / Restore
+switch, and Download all entries), per-user cards (Suspend / Re-enable / Delete), API
 traffic. Admin = `ADMIN_API_KEY` or the admin user. **Status: live.**
 
 | Surface | Details |
 |---|---|
-| Routes | `GET /admin` (public shell) · `GET /v1/admin/users` · `POST /v1/admin/users` (bulk-create participant accounts, returns keys) · `DELETE /v1/admin/users/{id}` · `GET /v1/admin/usage` · `GET /v1/admin/api-analytics` · `PUT /v1/sites/{sitename}/allow-anonymous-writes?owner=` (`RequireAdmin`; `owner` picks that person's site, else the oldest of the name) · `GET /v1/sites/{sitename}/analytics?owner=` and `/analytics/geo?owner=`, `GET /v1/analytics/sites?all=1` (admin reads any site) |
-| Pages | `st/admin.html` (tiles Users/Websites/Disk; line with versions kept and running release/commit from usage; Biggest websites; Issue participant accounts; Entries: Entry/Account/Link/**Analytics**; user cards; API traffic tables), `st/index.html` Admin tab |
-| Go | `h/site.go` (`adminUsers`, `adminUsage`), `h/accounts.go` (`createAccounts`, `deleteAccount`, `accountAdmin`), `internal/capacity/capacity.go`, `h/apimetrics.go` (`AdminSummary`), `internal/auth/middleware.go` |
-| DB | `users`, `sites`, `versions`, `api_request_daily`, `api_ip_daily` |
+| Routes | `GET /admin` (public shell) · `GET /v1/admin/users` (users with their sites, ids and suspension state) · `POST /v1/admin/users` (bulk-create participant accounts, returns keys) · `DELETE /v1/admin/users/{id}` · `POST /v1/admin/sites/{id}/suspend` (`{"reason"}`) and `POST /v1/admin/sites/{id}/restore` (take a site down / put it back) · `POST /v1/admin/users/{id}/suspend` (`{"reason"}`) and `POST /v1/admin/users/{id}/enable` (suspend / re-enable a person) · `GET /v1/admin/export.tar.gz` (every site with saved data and lists, one archive) · `GET /internal/suspended` (the take-down page nginx and Caddy hand off to) · `GET /v1/admin/usage` · `GET /v1/admin/api-analytics` · `PUT /v1/sites/{sitename}/allow-anonymous-writes?owner=` (`RequireAdmin`; `owner` picks that person's site, else the oldest of the name) · `GET /v1/sites/{sitename}/analytics?owner=` and `/analytics/geo?owner=`, `GET /v1/analytics/sites?all=1` (admin reads any site) |
+| Pages | `st/admin.html` (tiles Users/Websites/Disk; line with versions kept and running release/commit from usage; Biggest websites; Issue participant accounts; Entries: Entry/Account/Link/**Analytics**/Status with Take down / Restore, Download CSV, Copy links, Download all entries; user cards with Suspend / Re-enable / Delete; API traffic tables); `st/index.html` site cards and `st/showcase.html` owner inventory show a taken-down site and its reason, `st/index.html` Admin tab |
+| Go | `h/site.go` (`adminUsers`, `adminUsage`), `h/suspend.go` (take-down: admin calls, `serveTakedown`, refusals, boot marker sync), `h/export.go` (`exportAll`), `h/accounts.go` (`createAccounts`, `deleteAccount`, `accountAdmin`), `internal/db/suspend.go`, `internal/storage/disk.go` (`SetSuspended`/`IsSuspended`, the `suspended` marker file), `internal/capacity/capacity.go`, `h/apimetrics.go` (`AdminSummary`), `internal/auth/middleware.go` |
+| DB | `users` (`suspended_at`, `suspended_reason`), `sites` (`suspended_at`, `suspended_reason`), `versions`, `api_request_daily`, `api_ip_daily` |
+| Take-down | A suspended site keeps everything; Go answers 410 "This site has been taken down" on every path of its site host, person path and claimed name; nginx (custom domains, content host) and Caddy (event boxes) check the `suspended` marker in the site folder and hand off to `/internal/suspended` (`deploy/prod/nginx-suspended-marker.sh` adds the check to live vhosts; `deploy/compose/Caddyfile`). Deploy, rollback, rename, delete, visibility, address and origin changes, state/list writes and public reads of its data answer 403 `site_suspended`; the owner's key still reads and exports. A suspended person's key, connector token, MCP calls and visitor sessions answer 403 `account_suspended` (with the reason), sign-in is refused, refresh tokens are refused unspent, their sites are down; nothing is deleted and re-enable reverses it (a site taken down on its own stays down). Markers are re-synced from the database at boot. |
 | Env | `ADMIN_API_KEY`, `DATA_DIR`, `KEEP_VERSIONS` and `MAX_ARCHIVE_MB` (reported by usage as `keep_versions`, `site_limit_mb`) |
 
 ## 12. Analytics and geo
@@ -340,7 +342,8 @@ listings; public contact is support@simple-host.app. Go: `h/ui.go`.
 | Headers / CSP | `SecurityHeaders`; apex nonce CSP `adminUICSP`; consent page `consentHeaders` |
 | Reserved names | `h/handles.go` (handles), `h/platformsubdomain.go` `reservedSubdomainLabels`, `internal/db/namespace.go` |
 | Preview accounts | `PREVIEW_ACCOUNTS`, `PREVIEW_TTL_HOURS` (expiry sweep in `h/site.go`) |
-| Planned | Public Suffix List entry, subdomain blocklist/cap, AUP, report + takedown, DMCA agent (INTENT / owner TODO) |
+| Take-down | Operator suspend / restore of a site or a person, nothing deleted (§11) |
+| Planned | Public Suffix List entry, subdomain blocklist/cap, AUP, report form, DMCA agent (INTENT / owner TODO) |
 
 ## 19. Signals and notifications
 

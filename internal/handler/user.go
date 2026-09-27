@@ -213,7 +213,7 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 	}
 	if fresh.Suspended {
 		writeJSON(w, http.StatusForbidden, map[string]string{
-			"error":  "this account has been suspended by the operator",
+			"error":  auth.SuspendedMessage(fresh.SuspendedReason),
 			"code":   "account_suspended",
 			"reason": fresh.SuspendedReason,
 		})

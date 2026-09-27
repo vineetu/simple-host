@@ -163,7 +163,11 @@ or admin reads, everyone else gets 404.
 
 On disk under `/srv/simple-host/sites`: `by-id/<user_id>/<site>/v<n>/` holds each upload,
 `current` points at the live one; `handles/<handle>` links to `by-id/<user_id>`;
-`domains/<domain>` links to a site; a `domain-redirect` file marks a site with its own domain.
+`domains/<domain>` links to a site; a `domain-redirect` file marks a site with its own domain;
+a `suspended` file marks a site the operator has taken down (mirrors `sites.suspended_at` or
+the owner's `users.suspended_at`; re-synced at boot). Go checks it in `serveSiteFile`; nginx
+(custom domains, content host) and Caddy (event boxes) check it where they read files from disk
+and rewrite to `/internal/suspended` (`deploy/prod/nginx-suspended-marker.sh` adds the nginx check).
 
 Tables (`db/schema.sql`):
 

@@ -2293,7 +2293,22 @@ paths:
                         is_admin: { type: boolean }
                         created_at: { type: string, format: date-time }
                         site_count: { type: integer }
-                        sites: { type: array, items: { type: object } }
+                        suspended: { type: boolean, description: The operator has suspended this account }
+                        suspended_reason: { type: string }
+                        sites:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              id: { type: string, format: uuid }
+                              name: { type: string }
+                              site_url: { type: string }
+                              active_version: { type: integer }
+                              custom_domain: { type: string }
+                              created_at: { type: string, format: date-time }
+                              suspended: { type: boolean }
+                              suspended_reason: { type: string }
+                              suspended_by: { type: string, enum: [site, account, ''] }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: not an admin (deliberately indistinguishable from a route that does not exist) }
 
@@ -3020,6 +3035,114 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /v1/admin/sites/{id}/suspend:
+    post:
+      operationId: suspendSite
+      summary: Take a site down (admin only)
+      description: >-
+        Takes one site down without deleting anything: every address it has (site host, person
+        path, claimed name, custom domain, old content-host links) answers a plain "This site has
+        been taken down" page (410), and deploys, rollback, rename, delete, visibility, address
+        and origin changes, saved-data and list writes, and public reads of its data are refused
+        with 403 `site_suspended`. The owner's key still reads and exports it, and the owner sees
+        it as taken down with the reason. POST .../restore puts it back as it was. Non-admin
+        callers receive 404.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, maxLength: 300, description: One line; shown to the owner. }
+      responses:
+        '200': { description: Taken down, content: { application/json: { schema: { $ref: '#/components/schemas/AdminSiteState' } } } }
+        '400': { description: "reason_required or reason_too_long", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/admin/sites/{id}/restore:
+    post:
+      operationId: restoreSite
+      summary: Put a taken-down site back (admin only)
+      description: >-
+        Clears the site's own take-down. A site whose owner's account is suspended stays down
+        until the account is re-enabled (`suspended_by` says which). Non-admin callers receive 404.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Restored, content: { application/json: { schema: { $ref: '#/components/schemas/AdminSiteState' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/admin/users/{id}/suspend:
+    post:
+      operationId: suspendAccount
+      summary: Suspend a person (admin only)
+      description: >-
+        Suspends an account without deleting anything: its API keys, connector tokens, MCP calls
+        and visitor sessions are refused with 403 `account_suspended` (the person sees the reason),
+        sign-in is refused, connector refresh tokens are refused without being spent, and every
+        site of theirs is taken down as with POST /v1/admin/sites/{id}/suspend. POST .../enable
+        reverses all of it. Admin accounts cannot be suspended. Non-admin callers receive 404.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, maxLength: 300, description: One line; shown to the person. }
+      responses:
+        '200': { description: Suspended, content: { application/json: { schema: { $ref: '#/components/schemas/AdminUserState' } } } }
+        '400': { description: "reason_required, reason_too_long or admin_account", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/admin/users/{id}/enable:
+    post:
+      operationId: enableAccount
+      summary: Re-enable a suspended person (admin only)
+      description: >-
+        Lifts the account suspension: keys, connected apps and sign-in work again and their sites
+        come back, except a site taken down on its own. Non-admin callers receive 404.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Re-enabled, content: { application/json: { schema: { $ref: '#/components/schemas/AdminUserState' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/admin/export.tar.gz:
+    get:
+      operationId: exportAllSites
+      summary: Download every site as one archive (admin only)
+      description: >-
+        Streams every site on the instance as one .tar.gz, each under `<handle>/<site>/` in the
+        same layout as GET /v1/sites/{sitename}/export.tar.gz: `state.json` (saved data),
+        `collections.json` (every list, private ones included) and `files/` (the live version).
+        For an organiser keeping every entry before the box is deleted. Non-admin callers receive 404.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      responses:
+        '200':
+          description: The archive
+          content:
+            application/gzip:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
 components:
   securitySchemes:
     apiKey: { type: apiKey, in: header, name: X-API-Key }
@@ -3104,6 +3227,29 @@ components:
         site_url: { type: string, nullable: true, description: "The link to share: https://<site>.<handle>.simple-host.app/ (briefly https://<handle>.simple-host.app/<site>/ for a brand-new account), or the site's domain when it has one", example: https://my-cool-site.jane.simple-host.app/ }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
+        suspended: { type: boolean, description: "Present and true when the operator has taken the site down (on its own or with its owner's account): every address shows a \"taken down\" page and changes are refused until it is restored. Nothing is deleted." }
+        suspended_reason: { type: string, description: The operator's one-line reason, when suspended. }
+
+    AdminSiteState:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        owner: { type: string }
+        handle: { type: string }
+        site_url: { type: string }
+        suspended: { type: boolean }
+        suspended_reason: { type: string }
+        suspended_by: { type: string, enum: [site, account, ''], description: "Which switch holds it down: its own, or its owner's account" }
+
+    AdminUserState:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        username: { type: string }
+        suspended: { type: boolean }
+        suspended_reason: { type: string }
+        site_count: { type: integer }
 
     SiteWithNote:
       allOf:
@@ -3132,7 +3278,12 @@ components:
             (403), use_custom_domain and visitor_auth_required (401),
             missing_api_key and invalid_api_key (401), csrf_required (403),
             not_found (404, private collections), export_link_invalid (404:
-            the download link expired or is not valid). New codes may be added.
+            the download link expired or is not valid), site_suspended (403:
+            the operator has taken the site down; changes and public reads of
+            its data are refused until it is restored, `reason` says why),
+            account_suspended (403: the operator has suspended this account;
+            its keys, connected apps and sign-in are refused, `reason` says
+            why). New codes may be added.
           example: domain_taken
 
   responses:
