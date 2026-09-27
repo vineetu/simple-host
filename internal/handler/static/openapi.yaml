@@ -45,7 +45,7 @@ tags:
   - name: Analytics
     description: Per-site visitor analytics (server-side, owner-scoped)
   - name: AI
-    description: Generate a site from a prompt
+    description: Generate a site from a prompt; answer questions about the public pages
   - name: Health
 
 paths:
@@ -3170,6 +3170,54 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: live transcription is not configured }
         '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /v1/ask:
+    post:
+      operationId: postAsk
+      summary: Ask a question about a public page ("Ask about this page")
+      description: >-
+        Powers the "Ask about this page" box on the architecture, features and
+        enterprise brief / architecture pages. Answers in a few sentences, only
+        from text built into the server (that page's visible text plus a short
+        public summary; the enterprise pages answer about Simple Host
+        Enterprise). Runs on the same single model backend as AI create, with no
+        fallback. Only the question and that text are sent to the model —
+        nothing about the visitor. The question is not stored. No sign-in.
+        Rate limited per IP (default 5, then 1 every 20 s) and capped per day
+        across everyone (default 500). Absent when the server has no model
+        backend configured or ASK_ENABLED=off.
+      tags: [AI]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question, page]
+              properties:
+                question: { type: string, maxLength: 500 }
+                page: { type: string, enum: [architecture, features, enterprise-brief, enterprise-architecture] }
+      responses:
+        '200':
+          description: >-
+            The answer, plain text of at most 200 words. The only links it may
+            hold are markdown links to https://simple-host.app pages.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  answer: { type: string }
+        '400':
+          description: invalid_body, unknown_page, empty_question or question_too_long
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '429':
+          description: Rate limited per IP, or code daily_limit when today's questions are used up
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '502':
+          description: the model did not answer in time (code unavailable)
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
 
   /v1/generate:
     post:

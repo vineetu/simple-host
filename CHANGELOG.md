@@ -4,6 +4,7 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 ## 2026-09-27
 
+- Ask about this page: the architecture, features and enterprise brief and architecture pages have a small "Ask about this page" box. A reader types a question and gets a short answer written from that page (enterprise pages answer about Simple Host Enterprise). It runs on the same Grok sidecar as AI create, with nothing about the visitor sent along, and appears only when that is configured. `POST /v1/ask`; knobs `ASK_ENABLED`, `ASK_BURST`, `ASK_EVERY_SECONDS`, `ASK_DAILY_MAX` (500 a day by default).
 - The "ready in about N hours" estimate for a new address stays fast with a long certificate queue (it only reads the last week of issues and stops growing past four weeks' budget).
 - www / bare partner: a name another site has connected (even one not proved yet) is no longer offered or put on this domain's certificate; the issuer checks the `domains/` link too.
 - `nginx-suspended-marker.sh` adds the take-down and offline checks to every server block that serves a site folder (it had stopped after the first block of a file), covers hand-made vhosts that serve `by-id/…`, `handles/<h>/$client` or `$sub` folders, and gives blocks without an `/internal/` proxy the two pages they rewrite to; it has a test in `make check`.

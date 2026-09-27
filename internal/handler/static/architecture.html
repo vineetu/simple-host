@@ -322,6 +322,17 @@
           </div>
         </details>
 
+        <details class="feat"><summary><span class="fname">Ask about this page</span><span class="fid">ask</span><span class="fsum">A reader asks a question on a public page and the model answers from that page's text.</span></summary>
+          <div class="fbody">
+            <div class="frow"><span class="fk">Go</span><span class="fv"><b>internal/handler/ask.go</b> <em>(knowledge packs from the embedded pages, prompt, per-IP limit, daily cap)</em> · internal/handler/askdata/ <em>(the two short public summaries)</em> · internal/handler/chrome.go <em>(the ask marker)</em> · internal/config <em>(ASK_ENABLED, ASK_BURST, ASK_EVERY_SECONDS, ASK_DAILY_MAX)</em></span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv">POST /v1/ask <em>· public, no cookies</em>. Registered only with a provider key and ASK_ENABLED not off.</span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>partials/ask.html + ask.js</b>, placed by the <code>&lt;!--sh:ask--&gt;</code> marker on architecture.html, features.html, enterprise-brief.html and enterprise-architecture.html. Rendered only when the route is on, so a box that cannot answer never shows.</span></div>
+            <div class="frow"><span class="fk">Tables</span><span class="fv"><em>None.</em> The question is never stored or logged; the day's count lives in memory.</span></div>
+            <div class="frow"><span class="fk">Docs</span><span class="fv">openapi.yaml · FEATURES.md §16 · CHANGELOG.md</span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv">The packs are rebuilt from the page text, so editing one of these pages changes what the box knows; a line naming a machine path, a private address or a port is dropped, and a test fails if one gets through. Only the question and that text go to the model — never the visitor's address, browser or cookies.</span></div>
+          </div>
+        </details>
+
         <details class="feat"><summary><span class="fname">Speech transcription</span><span class="fid">transcribe</span><span class="fsum">Dictate instead of typing. The model runs on this box.</span></summary>
           <div class="fbody">
             <div class="frow"><span class="fk">Go</span><span class="fv"><b>internal/handler/transcribe.go</b> <em>(HMAC ticket for the WebSocket, batch fallback)</em> · internal/config <em>(TRANSCRIBE_URL, TRANSCRIBE_TICKET_SECRET)</em></span></div>

@@ -490,6 +490,22 @@ Static audience pages shared as direct links. **Status: live.**
 
 Go: `h/ui.go`, `h/chrome.go`. Assets: `st/og.png`, `st/favicon.svg`, `st/site.css`.
 
+**Ask about this page.** A small box on the architecture, features and both enterprise brief /
+architecture pages where a reader types a question and gets a short answer written by the model
+from that page. **Status: live when the model backend is configured** (`LLM_API_KEY`; off with
+`ASK_ENABLED=off`); without it the box is not rendered and the route is not registered.
+
+| Surface | Details |
+|---|---|
+| Route | `POST /v1/ask` `{question, page}` → `{answer}`; `page` ∈ `architecture`, `features`, `enterprise-brief`, `enterprise-architecture`; no sign-in, no cookies (`credentials: 'omit'`) |
+| Pages | the `<!--sh:ask-->` marker in `st/architecture.html`, `st/features.html`, `st/enterprise-brief.html`, `st/enterprise-architecture.html` (navy overrides in that page's style) → `st/partials/ask.html`; `st/ask.js`; styles in `st/site.css` (`.sh-ask`, page tokens only) |
+| Go | `h/ask.go` (knowledge packs, prompt, limits), `h/chrome.go` (`Ask` in `chromeData`), `cmd/server/main.go` |
+| Knowledge | built at boot from the embedded pages' visible text (lines naming machine paths, loopback/private addresses, ports or the operator's details dropped) plus `h/askdata/hosted.txt` or, for the enterprise pages, `h/askdata/enterprise.txt` + the text of `/enterprise`. Hosted answers fall back to "ask support@simple-host.app"; enterprise answers carry no contact details |
+| Privacy | only the question and the knowledge text go to the model — no IP, user agent, cookie or identifier; the question is never stored or logged (log line: page and the day's count) |
+| Env | `ASK_ENABLED` (default on when `LLM_API_KEY` is set), `ASK_BURST` (5), `ASK_EVERY_SECONDS` (20), `ASK_DAILY_MAX` (500, per UTC day across everyone, in memory — a restart resets it) |
+| External | the Grok sidecar (`LLM_*`), same as §14; no fallback |
+| Limits | 5 burst then 1 per 20 s per IP; 500 a day in total (429 `daily_limit`); question ≤ 500 characters; answer ≤ 200 words, links only to simple-host.app; 30 s timeout (502 `unavailable`) |
+
 ## 17. Legal and support pages
 
 **Status: live.** `GET /terms` → `st/terms.html`; `GET /support` → `st/support.html`;
