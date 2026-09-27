@@ -213,6 +213,37 @@ func TestPrivateCollectionsEndToEnd(t *testing.T) {
 	if r := a.at(t, "PUT", apex, "/v1/sites/plain/collections/orders/privacy", map[string]bool{"private": true}, okey); r.status != http.StatusConflict {
 		t.Fatalf("private with pending domain: %d %s", r.status, r.body)
 	}
+	// The site list carries what the owner app shows for a pending domain
+	// (its DNS record and expiry) and when the site was last deployed.
+	var listed struct {
+		Data []map[string]any `json:"data"`
+	}
+	if r := a.at(t, "GET", apex, "/v1/sites", nil, okey); r.status != 200 || json.Unmarshal([]byte(r.body), &listed) != nil || len(listed.Data) != 2 {
+		t.Fatalf("list sites: %d %s", r.status, r.body)
+	}
+	for _, st := range listed.Data {
+		switch st["name"] {
+		case "plain":
+			dns, _ := st["domain_dns"].(map[string]any)
+			if st["domain_status"] != "pending" || dns == nil || dns["type"] != "CNAME" || st["domain_expires_at"] == nil || st["deployed_at"] == nil {
+				t.Errorf("pending domain in list: %v", st)
+			}
+		case "shop":
+			if st["domain_dns"] != nil || st["deployed_at"] == nil {
+				t.Errorf("site without domain in list: %v", st)
+			}
+		}
+	}
+	// "Check again" re-proves it now: still pending, with the reason.
+	if r := a.at(t, "POST", apex, "/v1/sites/plain/domain/check", nil, okey); r.status != 200 || r.json(t)["status"] != "pending" || r.json(t)["last_error"] == nil {
+		t.Fatalf("check again: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "POST", apex, "/v1/sites/shop/domain/check", nil, okey); r.status != 404 || r.json(t)["code"] != "no_domain" {
+		t.Fatalf("check with no domain: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "POST", apex, "/v1/sites/plain/domain/check", nil, map[string]string{"X-API-Key": oscar.key}); r.status != 404 {
+		t.Fatalf("check someone else's site: %d %s", r.status, r.body)
+	}
 
 	// ---- claiming a free address ----------------------------------------------
 	for _, tc := range []struct{ domain, code string }{
@@ -485,8 +516,45 @@ func TestPrivateCollectionsEndToEnd(t *testing.T) {
 	if r := a.at(t, "PATCH", apex, gb+"/items/"+itoa(gbID), map[string]string{"msg": "edited"}, okey); r.status != 409 || r.json(t)["code"] != "append_only" {
 		t.Fatalf("public edit: %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "DELETE", apex, gb+"/items/"+itoa(gbID), nil, map[string]string{"X-API-Key": a.admin}); r.status != 409 {
-		t.Fatalf("public delete by admin: %d %s", r.status, r.body)
+	// The owner deletes entries in a public list too (spam); visitors and
+	// other accounts cannot (decision 2026-09-27).
+	if r := a.at(t, "DELETE", dom, gb+"/items/"+itoa(gbID), nil, browser(dom, vicCookie)); r.status != 404 {
+		t.Fatalf("public delete by a visitor: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "DELETE", apex, "/v1/u/"+oliveHandle+"/sites/shop/collections/guestbook/items/"+itoa(gbID), nil, map[string]string{"X-API-Key": oscar.key}); r.status != 404 {
+		t.Fatalf("public delete by another account: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "DELETE", apex, gb+"/items/"+itoa(gbID), nil, okey); r.status != 204 {
+		t.Fatalf("public delete by owner: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "DELETE", apex, gb+"/items/"+itoa(gbID), nil, okey); r.status != 404 {
+		t.Fatalf("public delete twice: %d %s", r.status, r.body)
+	}
+	// Clear list: owner only, and only with the list's name repeated.
+	for i := 0; i < 3; i++ {
+		if r := a.at(t, "POST", dom, gb, map[string]string{"msg": "spam"}, browser(dom, vicCookie)); r.status != 201 {
+			t.Fatalf("refill: %d %s", r.status, r.body)
+		}
+	}
+	if r := a.at(t, "DELETE", dom, gb, map[string]string{"confirm": "guestbook"}, browser(dom, vicCookie)); r.status != 404 {
+		t.Fatalf("clear by a visitor: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "DELETE", apex, gb, map[string]string{"confirm": "guestbooks"}, okey); r.status != 400 || r.json(t)["code"] != "confirm_required" {
+		t.Fatalf("clear with wrong confirm: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "DELETE", apex, gb, map[string]string{"confirm": "guestbook"}, okey); r.status != 200 || r.json(t)["deleted"] != float64(4) {
+		t.Fatalf("clear: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "GET", apex, gb, nil, okey); r.status != 200 || len(itemsOf(t, r)) != 0 {
+		t.Fatalf("after clear: %d %s", r.status, r.body)
+	}
+	// Saved data: the owner's key reads it from any page (the owner app sends
+	// a Referer that is not the site's).
+	if r := a.at(t, "GET", apex, "/v1/sites/shop/state", nil, map[string]string{"X-API-Key": olive.key, "Referer": "https://" + apex + "/" + oliveHandle}); r.status != 200 {
+		t.Fatalf("owner state read from the owner app: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "GET", apex, "/v1/sites/shop/state", nil, map[string]string{"Referer": "https://" + apex + "/" + oliveHandle}); r.status != 403 {
+		t.Fatalf("keyless state read from a foreign page: %d %s", r.status, r.body)
 	}
 	// A site with no domain on the shared host: open writes, open reads (unchanged).
 	sharedPlain := "/v1/u/" + oliveHandle + "/sites/plain/collections/notes"
@@ -514,9 +582,25 @@ func TestPrivateCollectionsEndToEnd(t *testing.T) {
 	if isErr || s["private"] != true || !strings.Contains(text, vic.email) || !strings.Contains(text, `"id"`) {
 		t.Fatalf("read_collection: %s", text)
 	}
-	text, _, isErr = call("read_collection", map[string]any{"site": "shop", "collection": "guestbook"})
-	if isErr || strings.Contains(text, `"id"`) {
-		t.Fatalf("public read_collection shows ids: %s", text)
+	if _, _, isErr = call("add_to_collection", map[string]any{"site": "shop", "collection": "guestbook", "item": map[string]any{"msg": "via mcp"}}); isErr {
+		t.Fatal("add_to_collection guestbook")
+	}
+	text, s, isErr = call("read_collection", map[string]any{"site": "shop", "collection": "guestbook"})
+	if isErr || !strings.Contains(text, `"id"`) {
+		t.Fatalf("public read_collection has no ids: %s", text)
+	}
+	gbMCPID := s["items"].([]any)[0].(map[string]any)["id"].(string)
+	if text, _, isErr = call("delete_collection_item", map[string]any{"site": "shop", "collection": "guestbook", "id": gbMCPID, "confirm_id": gbMCPID}); isErr {
+		t.Fatalf("delete_collection_item public: %s", text)
+	}
+	if _, _, isErr = call("add_to_collection", map[string]any{"site": "shop", "collection": "guestbook", "item": map[string]any{"msg": "again"}}); isErr {
+		t.Fatal("add_to_collection guestbook again")
+	}
+	if text, _, isErr = call("clear_collection", map[string]any{"site": "shop", "collection": "guestbook", "confirm_collection": "guest"}); !isErr {
+		t.Fatalf("clear_collection without matching confirm: %s", text)
+	}
+	if text, s, isErr = call("clear_collection", map[string]any{"site": "shop", "collection": "guestbook", "confirm_collection": "guestbook"}); isErr || s["deleted"] != float64(1) {
+		t.Fatalf("clear_collection: %s", text)
 	}
 	if text, _, isErr = call("add_to_collection", map[string]any{"site": "shop", "collection": "orders", "item": map[string]any{"a": 1}}); !isErr || !strings.Contains(text, "private") {
 		t.Fatalf("add_to_collection private: %s", text)

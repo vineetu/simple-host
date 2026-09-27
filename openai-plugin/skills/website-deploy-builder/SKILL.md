@@ -22,7 +22,7 @@ if the idea is clear, go straight to building.
   survey responses, orders, guestbook entries. On any site, a collection
   can be made **private**: signed-in visitors add to it, and only the site owner — and the
   Simple Host operator, for moderation — can read it. The owner can mark items done or delete
-  them; public lists are append-only.
+  them; in a public list the owner can delete (spam) but not edit, and visitors only add.
 - **Per-visitor storage** in the browser (`localStorage`, IndexedDB): drafts, carts, settings,
   game saves, a private journal on one device.
 - **Public APIs** called from the page with `fetch()` (weather, maps, open data), when the API

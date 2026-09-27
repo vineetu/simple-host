@@ -194,7 +194,8 @@ What follows from that, and is not negotiable without changing the line above:
   "Sign-in gates writing, nothing gates reading" for private collections on the site's own
   domain. The Simple Host operator can also read them, for moderation. The owner (and the
   operator) can edit or delete items in a private list; public lists stay append-only. Owner
-  request. Reason: orders, RSVPs and surveys need owner-only reads.
+  request. Reason: orders, RSVPs and surveys need owner-only reads. The append-only part is
+  reversed for the owner on 2026-09-27 (see that decision below).
 - **2026-09-24. Free <name>.simple-host.app addresses.** Rewritten 2026-09-25: still offered and
   unchanged, but no longer needed for sign-in or privacy (the site's own address gives both); it is
   a shorter address of the site's own, and it shares one namespace with handles. A site may self-serve a free
@@ -249,6 +250,17 @@ What follows from that, and is not negotiable without changing the line above:
   site's own address are unchanged. Supersedes the "any account's key writes to any site" part
   of 2026-09-05. Reason: signup is free and the Origin gate stops only browsers, so any stranger
   with a script could overwrite or wipe every site's saved data (state-storage review).
+- **2026-09-27. The site owner may delete or clear entries in any list, public included;
+  visitors still only append.** The owner deletes one entry (owner app, API, MCP
+  `delete_collection_item`) or empties a whole list after typing its name (owner app, API
+  `DELETE .../collections/{c}` with `{"confirm": "<c>"}`, MCP `clear_collection`). Editing an
+  entry stays private-lists only. Reverses "public lists stay append-only" (2026-09-24) for the
+  owner only. Reason: spam could not be removed. Owner approved via the completeness plan.
+- **2026-09-27. The owner app is the one place to manage sites.** Rename, domains (with the DNS
+  record, last problem and "Check again"), every list with its public/private switch, saved
+  data, Download and Delete live on `/<handle>`; the apex dashboard lists sites and links there
+  for anyone with a handle. Reason: `/dashboard` already sent those people to the owner app,
+  where half the controls were missing. Owner approved via the completeness plan.
 
 ## Open, deliberately parked
 

@@ -528,7 +528,8 @@ func DeleteSite(ctx context.Context, db Querier, siteID string) error {
 
 func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 	const query = `
-		SELECT s.id, s.user_id, s.name, s.active_version, COALESCE(s.site_url, ''), s.created_at, s.updated_at, s.custom_domain, s.domain_status, s.visibility, u.username, COALESCE(u.handle, '')
+		SELECT s.id, s.user_id, s.name, s.active_version, COALESCE(s.site_url, ''), s.created_at, s.updated_at, s.custom_domain, s.domain_status, s.visibility, u.username, COALESCE(u.handle, ''),
+		       s.domain_last_error, s.domain_bound_at, s.domain_verified_at, (SELECT max(v.created_at) FROM versions v WHERE v.site_id = s.id AND v.status = 'active')
 		FROM sites s
 		INNER JOIN users u ON u.id = s.user_id
 		ORDER BY s.created_at ASC, s.name ASC
@@ -556,6 +557,10 @@ func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 			&site.Visibility,
 			&site.OwnerUsername,
 			&site.OwnerHandle,
+			&site.DomainLastError,
+			&site.DomainBoundAt,
+			&site.DomainVerifiedAt,
+			&site.LastDeployedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -597,7 +602,9 @@ func ListAllUsers(ctx context.Context, db *sql.DB) ([]User, error) {
 func ListSitesByUser(ctx context.Context, db *sql.DB, userID string) ([]Site, error) {
 	const query = `
 		SELECT id, user_id, name, active_version, COALESCE(site_url, ''), created_at, updated_at, custom_domain, domain_status, visibility,
-		       (SELECT COALESCE(u.handle, '') FROM users u WHERE u.id = sites.user_id)
+		       (SELECT COALESCE(u.handle, '') FROM users u WHERE u.id = sites.user_id),
+		       domain_last_error, domain_bound_at, domain_verified_at,
+		       (SELECT max(v.created_at) FROM versions v WHERE v.site_id = sites.id AND v.status = 'active')
 		FROM sites
 		WHERE user_id = $1
 		ORDER BY created_at ASC, name ASC
@@ -646,6 +653,10 @@ func scanSiteRows(rows *sql.Rows) ([]Site, error) {
 			&site.DomainStatus,
 			&site.Visibility,
 			&site.OwnerHandle,
+			&site.DomainLastError,
+			&site.DomainBoundAt,
+			&site.DomainVerifiedAt,
+			&site.LastDeployedAt,
 		); err != nil {
 			return nil, err
 		}

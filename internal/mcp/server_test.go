@@ -314,6 +314,7 @@ func TestAnnotationsMatchBehaviour(t *testing.T) {
 		"set_collection_privacy": {false, false, true},
 		"update_collection_item": {false, true, false},
 		"delete_collection_item": {false, true, false},
+		"clear_collection":       {false, true, false},
 	}
 	tools := Tools()
 	if len(tools) != len(want) {
@@ -384,6 +385,11 @@ func TestToolResultsCarryNoInternalIdentifiers(t *testing.T) {
 			continue
 		}
 		for _, leak := range []string{"u-123", "s-9", "v-1", `"id"`, "user_id", "site_id", "4412", "updated_at", "last_at", "bound_at", "expires_at", "other-site", "is_admin", "owner_username"} {
+			// Items carry their id: the owner deletes an entry in any
+			// list by it (decision 2026-09-27).
+			if c.tool == "read_collection" && leak == `"id"` {
+				continue
+			}
 			if strings.Contains(body, leak) {
 				t.Errorf("%s result carries %q: %s", c.tool, leak, body)
 			}

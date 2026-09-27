@@ -90,6 +90,15 @@ page fills, `next` is the cursor for the older page: `?limit=50&before=<next>`;
 If an append succeeds and a follow-up `state` patch (a live count) fails, retry
 only the patch — never re-append.
 
+Visitors only append. The site owner can remove entries from any list, public
+included (spam in a guestbook, test entries before launch): one item with
+`DELETE /v1/sites/<sitename>/collections/<name>/items/<id>`, or the whole list
+with `DELETE /v1/sites/<sitename>/collections/<name>` and the body
+`{"confirm": "<name>"}` (answers `{"deleted": <n>}`; 400 `confirm_required`
+without the matching name). Connector: `delete_collection_item`,
+`clear_collection`. The owner app on the person's page does both too. Confirm
+with the person before either; nothing brings entries back.
+
 **Pair every form with a viewer page.** A form with nowhere to read the results
 is half a feature. Add a second page (e.g. `admin.html`) that GETs the collection
 and lists every entry newest-first, link to it quietly from the main page, and
@@ -298,7 +307,7 @@ window.addEventListener('DOMContentLoaded', async function () {
 
 Use `textContent`, never `innerHTML`, for submitted values.
 
-### Editing and deleting items (private lists, owner only)
+### Editing and deleting items (owner only)
 
 ```
 PATCH  /v1/sites/<sitename>/collections/<name>/items/<id>    # merge fields into the item
@@ -319,8 +328,8 @@ The `/v1/u/<handle>/sites/<sitename>/...` twins work too. `<id>` is
   sign-in on the site's own address from a page there (send `X-SH-CSRF: 1`; the
   helper does) — and the Simple Host operator, for moderation. Everyone else,
   including the visitor who submitted the item, gets 404 `not_found`.
-- **Public lists stay append-only:** these calls on a public list answer 409
-  `append_only`.
+- **Public lists:** DELETE works there too (spam); PATCH answers 409
+  `append_only`, because a public entry stays what its visitor wrote.
 
 ### Reading as the owner, outside the page
 

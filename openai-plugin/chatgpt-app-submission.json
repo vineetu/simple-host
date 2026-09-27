@@ -197,7 +197,7 @@
       "justifications": {
         "read_only_justification": "It adds an item to a site's list, so it creates data.",
         "open_world_justification": "The item is added to a public list shown on a public website.",
-        "destructive_justification": "An item added to a public list cannot be removed afterwards, which is an irreversible side effect."
+        "destructive_justification": "The item is public at once and only the site owner can remove it again, an irreversible side effect for anyone who saw it."
       }
     },
     "set_collection_privacy": {
@@ -231,9 +231,21 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "It deletes an item from a private list, so it modifies data.",
-        "open_world_justification": "The list is private to the site owner; nothing is published or sent to any third party.",
+        "read_only_justification": "It deletes an item from one of the owner's lists, so it modifies data.",
+        "open_world_justification": "It only removes data from the owner's own site; nothing is published or sent to any third party.",
         "destructive_justification": "It permanently removes the item, with no undo. It requires the item id to be repeated as confirmation."
+      }
+    },
+    "clear_collection": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "It deletes every item in one of the owner's lists, so it modifies data.",
+        "open_world_justification": "It only removes data from the owner's own site; nothing is published or sent to any third party.",
+        "destructive_justification": "It permanently removes every item in the list, with no undo. It requires the list name to be repeated as confirmation."
       }
     },
     "connect_domain": {

@@ -91,7 +91,7 @@ Portal → **Create plugin** → **With MCP**. Package name `simple-host` (it mu
 | Content security policy | none: the server returns no UI |
 | Domain verification | the portal shows a token → put it in `/etc/simple-host.env` as `OPENAI_APPS_CHALLENGE=<token>`, restart, confirm `curl -s https://simple-host.app/.well-known/openai-apps-challenge` prints exactly the token, then **Verify Domain**. Leave Challenge Base URL empty (it defaults to the MCP host). nginx already proxies `/.well-known/*` on the apex to the app. |
 
-Then **Scan Tools**. Expect 22 tools, no UI templates, the server `instructions`, no imported
+Then **Scan Tools**. Expect 23 tools, no UI templates, the server `instructions`, no imported
 skills (the server does not offer the skills extension; skills are uploaded instead).
 Every tool declares an `outputSchema` describing its `structuredContent`
 (`internal/mcp/outputs.go`), so the scan should raise no "Add an outputSchema" recommendation.
@@ -122,10 +122,11 @@ Values are set by the server (`internal/mcp/tools.go`) and pinned by
 | rename_site | false | false | true | Serves the site at a new public address (the old one stops working). Nothing is deleted; renaming back restores the old address. |
 | set_visibility | false | false | true | Adds a site to, or removes it from, the person's public listing page on the internet. Nothing is deleted; fully reversible. |
 | update_state | false | true | true | Writes a site's saved data, which is public and shown on live pages. `remove`/`removeWhere`/`set` and whole-document `replace` overwrite or delete data with no undo. |
-| add_to_collection | false | true | true | Appends one item to a site's public collection, shown on live pages. Nothing existing changes, but an appended item cannot be removed afterwards, an irreversible side effect. Private collections refuse it. |
+| add_to_collection | false | true | true | Appends one item to a site's public collection, shown on live pages. Nothing existing changes, but the item is public at once and only the owner can remove it again. Private collections refuse it. |
 | set_collection_privacy | false | false | true | Makes one collection private (only the site owner, and the Simple Host operator for moderation, can read it) or public again. Changes a setting and deletes nothing; setting it again gives the same result. Making a list public puts its contents on the public internet, hence open world. |
 | update_collection_item | false | true | false | Merges fields into one item of a private collection (e.g. marks an order done). Overwrites or removes field values with no undo, like `update_state`, so destructive. The list is private to the owner; nothing is published. |
-| delete_collection_item | false | true | false | Permanently removes one item from a private collection; irreversible. Requires the item id twice (`confirm_id`) and the description tells the model to get explicit confirmation of that item. The list is private to the owner; nothing is published. |
+| delete_collection_item | false | true | false | Permanently removes one item from one of the owner's collections, public or private (e.g. spam in a guestbook); irreversible. Requires the item id twice (`confirm_id`) and the description tells the model to get explicit confirmation of that item. Removes data only; nothing is published. |
+| clear_collection | false | true | false | Permanently deletes every item in one of the owner's collections; irreversible. Requires the collection name twice (`confirm_collection`) and the description tells the model to get explicit confirmation of that list. Removes data only; nothing is published. |
 | connect_domain | false | false | true | Gives a site its own address: a free `<name>.simple-host.app` (active at once) or an arbitrary outside domain the person names, served once its DNS points here. Either way the site is served at a new public address. Nothing is deleted; an outside domain stays provisional until DNS proves ownership. |
 
 "Open world" is applied to every tool that puts content in front of the public or reaches an

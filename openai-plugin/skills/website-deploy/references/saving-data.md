@@ -281,12 +281,12 @@ columns appear like any other key). You read it with `read_collection` (its answ
 - `get_state` to read the document and its etag; `update_state` with `ops` (same ops as above)
   to fix a count or change a setting, or `replace` with `if_match` for a whole new document.
 - `add_to_collection` appends one item to a public collection exactly as a page would (a
-  private one refuses it). Appends are never undone:
-  do not retry one that may have succeeded. Items in a public collection cannot be edited or
-  deleted (it is append-only); if the person needs to hide entries, keep a `hidden` list of ids
-  in state and filter on the results page. Items in a private collection can be changed with
-  `update_collection_item` and deleted with `delete_collection_item` (after explicit
-  confirmation of that item).
+  private one refuses it). Do not retry one that may have succeeded: a second call adds a
+  second item. Items in any collection, public or private, can be deleted with
+  `delete_collection_item` (after explicit confirmation of that item), and a whole list
+  emptied with `clear_collection` (after the person confirms that list by name). Items in a
+  public collection cannot be edited; items in a private one can, with
+  `update_collection_item`.
 
 ## Errors a page can meet
 

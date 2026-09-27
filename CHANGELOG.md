@@ -2,6 +2,11 @@
 
 One line per shipped change, newest first. Add a line here in the same commit as any feature change.
 
+## 2026-09-27
+
+- The owner app (`/<handle>`) is now the one place to manage sites. Each site shows its real address (or its domain and whether it is live), its live version and when it was last deployed, and has Rename, Connect domain / Domain (with the DNS record, the last problem, the expiry and "Check again" for a domain that is not live yet), Download (the whole site with its saved data and lists) and Delete (which says how many list entries and whether saved data go with it, and offers "Download first"). Every list shows with a public/private badge and switch; the owner can delete any entry, edit private ones, and clear a list after typing its name. Saved data shows read-only with its size against the 1 MB limit and Download JSON. `/dashboard` with a handle lists sites with a Manage link there. New routes: `POST /v1/sites/{s}/domain/check`, `DELETE /v1/sites/{s}/collections/{c}`; `GET /v1/sites` adds `deployed_at`, `domain_last_error`, `domain_dns`, `domain_expires_at`.
+- The site owner can delete entries in public lists too (spam), and empty any list; visitors still only append. MCP: `delete_collection_item` works on public lists, `read_collection` returns item ids for every list, new `clear_collection`. The owner's key reads saved state from any page. Skills 0.19.3.
+
 ## 2026-09-26
 
 - v0.2.0 released. The small-box installer pins one release: its image, compose file and schema all come from the same tag (before, `latest` pulled v0.1.2 against a newer schema and the app crash-looped on its schema check). The release workflow refuses a tag the installer does not pin.
