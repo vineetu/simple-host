@@ -639,7 +639,7 @@
     chosen.unshift(['Address', 'https://' + b.host], ['Sign-in', b.issuer], ['Bucket', b.bucketName + ' at ' + b.endpoint],
       ['Database', b.dbName + ' on ' + b.dbHost], ['Email', b.smtp ? 'SMTP relay' : 'none'],
       ['Site certificates', b.certs === 'auto' ? 'cert-manager (' + b.issuerName + ')' : 'issued by you']);
-    secrets = ['OIDC_CLIENT_SECRET', 'SESSION_SIGNING_KEY', 'DB_PASSWORD', 'DB_APP_PASSWORD'];
+    secrets = ['OIDC_CLIENT_SECRET', 'SESSION_SIGNING_KEY', 'DB_PASSWORD', 'DB_APP_PASSWORD', 'BACKUP_ENVELOPE_KEY'];
     if (b.creds === 'keys') secrets.push('BACKUP_STORAGE_ACCESS_KEY_ID', 'BACKUP_STORAGE_SECRET_ACCESS_KEY');
     if (b.smtp) secrets.push('SMTP_URL');
     secrets = secrets.concat(optionalSecrets.filter(function (n) { return secrets.indexOf(n) < 0; }));
