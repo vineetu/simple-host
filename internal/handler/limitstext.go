@@ -380,6 +380,26 @@ var limitPhrases = []limitPhrase{
 	}),
 }
 
+// MAX_ARCHIVE_MB is read by the handler (SetSiteLimit), not a config.Limits
+// knob, so its phrases compare the upload cap in force with the default.
+const defaultArchiveMB = 100
+
+// archivePhrases is every sentence in served text that states the upload cap.
+var archivePhrases = []struct {
+	text string
+	say  func(mb int) string
+}{
+	{"Up to <b>100 MB</b> per upload.", func(mb int) string { return "Up to <b>" + limitNum(mb) + " MB</b> per upload." }},
+	{"a 100 MB request body (<code>MAX_ARCHIVE_MB</code>)", func(mb int) string { return "a " + limitNum(mb) + " MB request body (<code>MAX_ARCHIVE_MB</code>)" }},
+	{"**Archive limit** is 100 MB.", func(mb int) string { return "**Archive limit** is " + limitNum(mb) + " MB." }},
+	{"The API rejects archives over 100 MB.", func(mb int) string { return "The API rejects archives over " + limitNum(mb) + " MB." }},
+	{"Warn if the directory exceeds 100 MB.", func(mb int) string { return "Warn if the directory exceeds " + limitNum(mb) + " MB." }},
+	{"large sites). Max 100 MB.", func(mb int) string { return "large sites). Max " + limitNum(mb) + " MB." }},
+}
+
+// archiveMBInForce is the upload cap this server enforces, in MB.
+func archiveMBInForce() int { return int(maxSiteArchiveSize >> 20) }
+
 // limitKB words a size in KB: "16 KB", "1 MB" (whole megabytes).
 func limitKB(kb int) string {
 	if kb >= 1024 && kb%1024 == 0 {
@@ -401,6 +421,11 @@ func newLimitsRewriter(l config.Limits) *limitsRewriter {
 	for _, ph := range limitPhrases {
 		if now := ph.say(&l); now != ph.say(&def) {
 			pairs = append(pairs, ph.text, now)
+		}
+	}
+	if mb := archiveMBInForce(); mb != defaultArchiveMB {
+		for _, ph := range archivePhrases {
+			pairs = append(pairs, ph.text, ph.say(mb))
 		}
 	}
 	if len(pairs) == 0 {

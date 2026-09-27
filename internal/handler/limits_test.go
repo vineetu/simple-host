@@ -379,3 +379,31 @@ func TestRateLimitsFollowSettings(t *testing.T) {
 		t.Error("a burst of 2 should allow two and refuse the third")
 	}
 }
+
+// MAX_ARCHIVE_MB: every sentence stating the upload cap is in a served file
+// and follows the cap in force.
+func TestArchivePhrasesFollowTheUploadCap(t *testing.T) {
+	texts := servedTexts(t)
+	for _, ph := range archivePhrases {
+		found := false
+		for _, body := range texts {
+			if strings.Contains(body, ph.text) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("archive phrase %q is in no served file", ph.text)
+		}
+	}
+	if newLimitsRewriter(config.DefaultLimits()) != nil {
+		t.Fatal("default cap rewrote text")
+	}
+	old := SiteLimit()
+	SetSiteLimit(300 << 20)
+	defer SetSiteLimit(old)
+	rw := newLimitsRewriter(config.DefaultLimits())
+	if got := string(rw.apply([]byte("Up to <b>100 MB</b> per upload."))); got != "Up to <b>300 MB</b> per upload." {
+		t.Fatalf("rewritten: %q", got)
+	}
+}
