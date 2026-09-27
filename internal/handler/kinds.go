@@ -401,7 +401,14 @@ func (h *SiteHandler) putContent(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "private, no-store")
 	siteName := strings.TrimSpace(r.PathValue("sitename"))
 	name := strings.TrimSpace(r.PathValue("coll"))
-	if !h.collectionGate(w, r, siteName, name) {
+	// A key needs no page Origin here: it is the authorization, and a
+	// browser never sends one on its own. A request from a page is gated.
+	if r.Header.Get("X-API-Key") != "" && noBrowserOrigin(r) {
+		if siteName == "" || !validCollectionName.MatchString(name) {
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid site or data name"})
+			return
+		}
+	} else if !h.collectionGate(w, r, siteName, name) {
 		return
 	}
 	siteID, err := h.resolveWriteSiteID(r, siteName)
