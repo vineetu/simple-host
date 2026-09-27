@@ -137,6 +137,21 @@ removes older history and Recently deleted items at the next sweep.
 | `SAVED_DATA_NOTIFY_DAILY_HOURS` | 24 | 1–720 | "Email me: daily" sends at most one digest per name this often. |
 | `SAVED_DATA_SAVERS_MAX` | 500 | 1–100000 | Emails and domains in one site's who-may-save and block lists together. |
 
+## Ask about this page
+
+The "Ask about this page" box on the architecture, features and enterprise pages
+(`POST /v1/ask`). It runs only when a model backend is set (`LLM_API_KEY`, `LLM_BASE_URL`);
+without one the box is not shown, whatever these say. `ASK_ENABLED` is `on` or `off` (also
+`true`/`false`, `1`/`0`, `yes`/`no`); anything else stops the server at startup.
+
+| Variable | Default | Range | What it controls |
+|---|---|---|---|
+| `ASK_ENABLED` | on | on / off | Whether the box is shown and `/v1/ask` answers. |
+| `ASK_BURST` | 5 | 1–50 | Questions one address may ask at once. |
+| `ASK_EVERY_SECONDS` | 20 | 1–3600 | Then one more question every this many seconds, per address. |
+| `ASK_DAILY_MAX` | 500 | 0–100000 | Questions answered per UTC day across everyone (counted in the database, so a restart keeps the count). 0 answers none. |
+| `ASK_MAX_IN_FLIGHT` | 4 | 1–32 | Questions answered at once on the whole install. |
+
 ## Rate limits
 
 Each is `<burst>,<every>` (see Units above). Keys are per client address unless noted.

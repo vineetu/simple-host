@@ -1,0 +1,51 @@
+=== How Simple Host is built (public summary of the architecture page) ===
+
+The architecture page is the maintainers' map of where each feature lives, so that changing one feature never silently breaks another screen. This is a plain summary of how the product is put together.
+
+The whole service
+Simple Host is one Go program, one Postgres database and one folder of files on disk, running on a single server behind the nginx web server. There is no CDN, no per-site infrastructure and no third-party hosting. The same program serves the website, the dashboard, the API, the connector for AI apps and every hosted site's saved data.
+
+Sites and addresses
+Every site lives at its own address, https://<site>.<handle>.simple-host.app/, and each of those addresses is its own browser origin. That separation matters: one site's pages cannot read another site's cookies or saved data in the browser. A person's page, https://<handle>.simple-host.app/, lists their public sites. A site can also use a free <name>.simple-host.app name or the owner's own domain, with HTTPS certificates issued automatically. Old links on the earlier shared address redirect to the new ones.
+
+What a site is made of
+A site is static files: HTML, CSS, JavaScript, images and data files. Uploads are data only and never run on the server; scripts for the server (such as PHP or shell files) are refused. Agents upload either a list of files or an archive, and every upload becomes a new version with an owner and a timestamp, so any earlier version can be made live again. A site can be previewed before going live, renamed without breaking old links, taken offline, and downloaded. A person can download all of their data as one zip file.
+
+Saved data
+Every site gets a small backend in the same upload, with no server code to write:
+- State: one shared JSON document per site, changed with atomic operations (set, increment, append, remove), with version tags so pages can tell when something changed.
+- Collections: lists for sign-ups, RSVPs, votes and guestbooks, read page by page and exportable as CSV by the owner, who also sees which signed-in visitor sent each item.
+- Private collections: on a site with its own address, a list can be made private so only the site's owner can read it.
+- History and undo: Every change is kept for 30 days: the owner can look back at earlier versions of the saved data and of each list and restore any of them. A deleted list item goes to Recently deleted; after 30 days it is gone for good, unless the owner restores it (or deletes it for good) sooner. A write retried with the same idempotency key is saved once.
+Each site's live saved data (page data and list items) is capped at 50 MB. The data lives in the Postgres database next to the site's record. A deleted site stays, with its saved data, in Recently deleted for 7 days, and can be restored until then.
+
+Who can write
+On a site's own address, visitors sign in before a page saves: with Google or with a six-digit code sent by email. The sign-in is tied to that one site's address, so signing in on one site does not sign you in anywhere else, and the site never sees a password or an API key. Agents write with the owner's API key or through the connector. Pages are always public to anyone who has the address; only private collections are private.
+
+Accounts
+People sign in to Simple Host itself with an emailed six-digit code or with Google; there are no passwords. An account has a handle, which is the name in its addresses. API keys are stored only as one-way hashes, can be named, and can be revoked.
+
+The connector for AI apps
+Most people never use the dashboard. They ask their AI app or coding agent to put something online. Two routes lead in:
+- The Simple Host connector (a remote MCP server at https://simple-host.app/mcp) for apps such as ChatGPT, Claude and Grok. The person signs in on simple-host.app and chooses Allow; the app gets short-lived access that can manage that person's sites and nothing else. Every tool call goes through the same checks as the matching API call.
+- The Simple Host skill, for coding agents such as Claude Code, Codex and Cursor, which uses the public API with an API key.
+Both are described for agents in https://simple-host.app/llms.txt and the API reference at https://simple-host.app/docs.html.
+
+Create with AI and Ask about this page
+The builder on simple-host.app can write a page from a chat. It uses one AI provider, Grok from xAI, with no fallback provider. The "Ask about this page" box uses the same provider: the question and a public summary of the page are sent, and nothing about the visitor. Questions are not stored.
+
+Visit counts
+Site owners see how many people, bots and monitoring checks visit each site. The counts come from the web server's own log, with no script or cookie added to anyone's page. Visitor addresses are not kept in the analytics database; countries are looked up on the server itself.
+
+Safety by design
+- Nothing a person uploads runs on the server.
+- Each site is its own browser origin.
+- Writes need a signed-in visitor on the site's own address, or the owner's key.
+- Every version is kept and can be restored. Saved data has a 30-day undo.
+- Visitor addresses are never sent to a third party.
+Abuse is limited with rate limits on sign-in, AI features and saves, and the operator can take a site down after a report.
+
+Deliberate limits
+Simple Host does not run server-side code for sites, does not offer databases beyond the per-site JSON state and collections, and does not put passwords on pages. It is built and run by one person, with an honest scope: small sites and tools that people make with their AI app.
+
+Where to read more: https://simple-host.app/features (everything it does), https://simple-host.app/architecture.html (the full maintainers' map), https://simple-host.app/privacy.html and https://simple-host.app/support.

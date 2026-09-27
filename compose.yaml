@@ -141,6 +141,11 @@ services:
       SAVED_DATA_NOTIFY_EACH_MINUTES: ${SAVED_DATA_NOTIFY_EACH_MINUTES:-}
       SAVED_DATA_NOTIFY_DAILY_HOURS: ${SAVED_DATA_NOTIFY_DAILY_HOURS:-}
       SAVED_DATA_SAVERS_MAX: ${SAVED_DATA_SAVERS_MAX:-}
+      ASK_ENABLED: ${ASK_ENABLED:-}
+      ASK_BURST: ${ASK_BURST:-}
+      ASK_EVERY_SECONDS: ${ASK_EVERY_SECONDS:-}
+      ASK_DAILY_MAX: ${ASK_DAILY_MAX:-}
+      ASK_MAX_IN_FLIGHT: ${ASK_MAX_IN_FLIGHT:-}
     volumes:
       - sites:/data/sites
       # Read-only: the ingester only ever reads the access log Caddy writes.

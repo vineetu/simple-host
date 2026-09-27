@@ -218,6 +218,20 @@ func main() {
 		log.Printf("no model backend set (LLM_API_KEY); /v1/generate (AI create) disabled")
 	}
 
+	// "Ask about this page" on the architecture, features and enterprise pages:
+	// the same single backend, answering only from text built into the binary.
+	// The box is rendered only when this is on.
+	if ask := cfg.Limits.Ask; cfg.LLMAPIKey != "" && ask.Enabled {
+		handler.NewAskHandler(cfg.LLMAPIKey, cfg.LLMBaseURL, cfg.LLMModel, cfg.PublicBaseURL, db, handler.AskOptions{
+			Burst: ask.Burst, Every: time.Duration(ask.EverySeconds) * time.Second,
+			DailyMax: ask.DailyMax, MaxInFlight: ask.MaxInFlight,
+		}).Register(mux)
+		handler.EnableAskWidget()
+		log.Printf("ask about this page enabled (/v1/ask; %d per IP then 1 per %ds, %d at once, %d a day)", ask.Burst, ask.EverySeconds, ask.MaxInFlight, ask.DailyMax)
+	} else {
+		log.Printf("/v1/ask (ask about this page) disabled")
+	}
+
 	// Voice input for the builder chat. Local speech-to-text, so this is CPU on
 	// this box rather than a metered API; still sign-in-gated and rate limited,
 	// because it is CPU anyone signed in can spend.

@@ -30,6 +30,10 @@ const (
 	markerHead   = "<!--sh:head-->"
 	markerHeader = "<!--sh:header-->"
 	markerFooter = "<!--sh:footer-->"
+	// markerAsk is where a page wants the "Ask about this page" box. It renders
+	// only when the box is on (see ask.go) and the page has a knowledge pack;
+	// otherwise the marker becomes nothing.
+	markerAsk = "<!--sh:ask-->"
 )
 
 var (
@@ -40,6 +44,16 @@ var (
 		b, err := staticFiles.ReadFile("static/site.css")
 		if err != nil {
 			panic("site.css missing from the embedded static files: " + err.Error())
+		}
+		sum := sha256.Sum256(b)
+		return hex.EncodeToString(sum[:])[:10]
+	}()
+
+	// askJSVersion busts caches on ask.js the same way.
+	askJSVersion = func() string {
+		b, err := staticFiles.ReadFile("static/ask.js")
+		if err != nil {
+			panic("ask.js missing from the embedded static files: " + err.Error())
 		}
 		sum := sha256.Sum256(b)
 		return hex.EncodeToString(sum[:])[:10]
@@ -61,6 +75,9 @@ type chromeData struct {
 	// a second one, so Home points at the main product and the duplicate goes.
 	HackHome   bool
 	CSSVersion string
+	// Ask is the page key of the "Ask about this page" box, "" for none.
+	Ask          string
+	AskJSVersion string
 }
 
 // navKeys maps a request path to the chrome link that names it.
@@ -93,10 +110,12 @@ func chromeDataFor(r *http.Request, base string) chromeData {
 	}
 	host = strings.ToLower(host)
 	return chromeData{
-		Base:       base,
-		Current:    current,
-		HackHome:   current == "hackathons" && strings.HasPrefix(host, "simple-hack."),
-		CSSVersion: siteCSSVersion,
+		Base:         base,
+		Current:      current,
+		HackHome:     current == "hackathons" && strings.HasPrefix(host, "simple-hack."),
+		CSSVersion:   siteCSSVersion,
+		Ask:          askPageFor(r.URL.Path),
+		AskJSVersion: askJSVersion,
 	}
 }
 
@@ -111,6 +130,7 @@ func withChrome(page []byte, d chromeData) ([]byte, error) {
 		{markerHead, "head.html"},
 		{markerHeader, "header.html"},
 		{markerFooter, "footer.html"},
+		{markerAsk, "ask.html"},
 	} {
 		if !bytes.Contains(page, []byte(m.marker)) {
 			continue

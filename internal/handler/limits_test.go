@@ -46,6 +46,8 @@ func otherValue(t *testing.T, env string) string {
 			return "7,7s"
 		case env == "IDLE_REPLY_TO":
 			return "help@example.org"
+		case env == "ASK_ENABLED":
+			return "off"
 		}
 		// Somewhere inside the range, away from the default.
 		for _, v := range []int64{k.Min + 1, k.Max - 1, k.Min, k.Max} {

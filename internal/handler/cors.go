@@ -41,7 +41,9 @@ func CORS(next http.Handler) http.Handler {
 		// The consent screen's decision endpoint is same-origin only: it is
 		// the one place a signed-in person's click mints a code, so no other
 		// origin gets a CORS grant to call it.
-		if strings.HasPrefix(r.URL.Path, "/oauth/authorize") {
+		// "Ask about this page" is for the apex's own pages only (ask.go checks
+		// the Origin), so no other origin gets a CORS grant or a preflight answer.
+		if strings.HasPrefix(r.URL.Path, "/oauth/authorize") || r.URL.Path == "/v1/ask" {
 			next.ServeHTTP(w, r)
 			return
 		}

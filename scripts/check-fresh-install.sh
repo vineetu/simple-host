@@ -72,6 +72,7 @@ run "recently deleted"      "SELECT id, name, deleted_at FROM sites WHERE user_i
 run "promised dates"        "SELECT purge_at, idle_remove_at, domain_release_at FROM sites WHERE user_id='$NIL'"
 run "take-down"             "SELECT s.suspended_at, s.suspended_reason, u.suspended_at, u.suspended_reason FROM sites s JOIN users u ON u.id = s.user_id WHERE s.id='$NIL'"
 run "migrations record"     "SELECT name, applied_at FROM schema_migrations"
+run "ask daily count"       "INSERT INTO ask_daily (day, count) VALUES (CURRENT_DATE, 1) ON CONFLICT (day) DO UPDATE SET count = ask_daily.count + 1 WHERE ask_daily.count < 500 RETURNING count"
 run "auth tokens"           "SELECT id, email, code, link_token, nonce_hash FROM auth_tokens WHERE link_token='x'"
 run "visitor sessions"      "SELECT id, user_id, site_id, host FROM visitor_sessions WHERE id='x'"
 run "oauth identities"      "SELECT provider, provider_user_id FROM oauth_identities WHERE provider_user_id='x'"
