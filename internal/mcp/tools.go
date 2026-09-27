@@ -377,6 +377,10 @@ type restSite struct {
 	CustomDomain  string `json:"custom_domain"`
 	DomainStatus  string `json:"domain_status"`
 	Visibility    string `json:"visibility"`
+	// AddressState is present while the site is at its interim address.
+	AddressState *struct {
+		Note string `json:"note"`
+	} `json:"address_state"`
 }
 
 // liveURL is the one address to give people: a connected, working custom
@@ -398,6 +402,9 @@ func (s restSite) summary() map[string]any {
 	if s.CustomDomain != "" {
 		m["custom_domain"] = s.CustomDomain
 		m["domain_status"] = s.DomainStatus
+	}
+	if s.AddressState != nil && s.AddressState.Note != "" {
+		m["address_note"] = s.AddressState.Note
 	}
 	return m
 }
@@ -569,6 +576,12 @@ func Tools() []Tool {
 					Handle      string `json:"handle"`
 					DisplayName string `json:"display_name"`
 					PublicPage  string `json:"public_page"`
+					Address     *struct {
+						State        string `json:"state"`
+						Address      string `json:"address"`
+						ReadyInHours *int   `json:"ready_in_hours"`
+						Note         string `json:"note"`
+					} `json:"address"`
 				}
 				_ = json.Unmarshal(res.body, &me)
 				out := map[string]any{"email": me.Username}
@@ -583,6 +596,17 @@ func Tools() []Tool {
 				}
 				if me.DisplayName != "" {
 					out["display_name"] = me.DisplayName
+				}
+				if a := me.Address; a != nil && a.State != "" {
+					addr := map[string]any{"state": a.State, "address": a.Address}
+					if a.ReadyInHours != nil {
+						addr["ready_in_hours"] = *a.ReadyInHours
+					}
+					if a.Note != "" {
+						addr["note"] = a.Note
+						text += " " + a.Note
+					}
+					out["address"] = addr
 				}
 				return output{Text: text, Structured: out}, nil
 			},

@@ -173,6 +173,7 @@ func main() {
 	siteHandler.SetDomainCerts(cfg.DomainCertDir)
 	siteHandler.SetPublicBaseURL(cfg.PublicBaseURL)
 	userHandler.SetPublicPage(siteHandler.PersonPageURL)
+	userHandler.SetAddressState(siteHandler.AddressState)
 	dbpkg.SetPlatformDomain(cfg.SiteDomain)
 	log.Printf("person hosts: %s; site hosts: %s", cfg.PersonHosts, cfg.SiteHosts)
 	siteHandler.Register(mux, authMW, noticeMW)

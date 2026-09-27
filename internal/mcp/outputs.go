@@ -65,6 +65,7 @@ func siteSummaryProperties() map[string]any {
 		"active_version": outInteger("The version number visitors see now (0 if nothing is published yet)."),
 		"listed":         outBool("Whether the site is listed on the account's public page. An unlisted site is still public to anyone with its address."),
 		"custom_domain":  outString("The site's own domain, present only when one is connected."),
+		"address_note":   outString("Present while the site is at https://<handle>.simple-host.app/<site>/ because the owner's own address is not ready yet: when it moves, roughly how long, and that visitors' sign-ins and browser-kept data start fresh. Pass it on when handing out the address."),
 		"domain_status":  outEnum("State of the custom domain, present only with custom_domain: pending (DNS not proven yet), active (serving), error (resolves here but HTTPS fails).", "pending", "active", "error"),
 	}
 }
@@ -155,6 +156,12 @@ func outputSchemas() map[string]map[string]any {
 			"handle":       outString("The account's handle: the <handle> in its page https://<handle>.simple-host.app/ and in every site address https://<site>.<handle>.simple-host.app/. Absent until the account publishes its first site."),
 			"public_page":  outString("Address of the account's public page listing its sites. Present with handle."),
 			"display_name": outString("The account's display name, if one is set."),
+			"address": withDescription(outObject(map[string]any{
+				"state":          outEnum("ready (sites are at https://<site>.<handle>.simple-host.app/), waiting (its certificate is queued) or failing (retried automatically).", "ready", "waiting", "failing"),
+				"address":        outString("The pattern of the account's own site addresses."),
+				"ready_in_hours": outInteger("Rough hours until the own address is ready. Present while waiting or failing."),
+				"note":           outString("Tell the person this while waiting or failing: where their sites are until then, and that visitors' sign-ins and browser-kept data start fresh when the address switches."),
+			}, "state", "address"), "The account's own site address. Present with handle on simple-host.app."),
 		}, "email"),
 
 		"list_sites": outObject(map[string]any{

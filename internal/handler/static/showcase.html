@@ -679,6 +679,13 @@
       <span>Your public showcase: <a id="owner-share-link" href="#" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">#</a></span>
     </div>
 
+    <!-- Own address on its way: GET /v1/me "address" while the person's
+         *.<handle> certificate is waiting or failing. Owner-only. -->
+    <div class="owner-note" id="owner-address-note" hidden>
+      <span><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+      <span id="owner-address-text"></span>
+    </div>
+
     <!-- Install the skill. Owner-only: `hidden` in the served HTML and revealed
          by updateOnboarding() once hydrateOwner() has confirmed the owner and
          their site count — in full while the account has no sites, otherwise
@@ -1439,6 +1446,17 @@ function parseAnalyticsSummary(data) {
       var isOwner = (me.handle && me.handle === HANDLE) || me.is_admin === true;
       if (!isOwner) return false;
       ownerMe = me;
+      var addrNote = document.getElementById('owner-address-note');
+      if (addrNote) {
+        var addr = me.address;
+        var own = me.handle && me.handle === HANDLE;
+        if (own && addr && addr.state !== 'ready' && addr.note) {
+          document.getElementById('owner-address-text').textContent = addr.note;
+          addrNote.hidden = false;
+        } else {
+          addrNote.hidden = true;
+        }
+      }
 
       // Load ALL sites (incl unlisted).
       var allSites = [];

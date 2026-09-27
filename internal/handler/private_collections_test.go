@@ -75,6 +75,7 @@ func newPrivateApp(t *testing.T) *privateApp {
 	a.sites = NewSiteHandler(database, disk, pcSiteDomain, pcContentHost, "cname."+pcSiteDomain, "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
 	a.sites.Register(mux, authMW, NoticeMiddleware("1.0.0"))
 	users.SetPublicPage(a.sites.PersonPageURL)
+	users.SetAddressState(a.sites.AddressState)
 	a.conn = NewConnectorHandler(database, a.srv.URL, adminKey, pcSiteDomain, pcContentHost, "1.0.0", mux)
 	a.conn.Register(mux, authMW)
 	app := SecurityHeaders(CORS(a.conn.BearerAuth(mux)))

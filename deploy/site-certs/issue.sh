@@ -7,6 +7,11 @@
 # Hand-off with the Go service (which never runs certbot):
 #   $STATE/requests/<handle>  written by simple-host (a name, nothing else)
 #   $STATE/ready/<handle>     written here once nginx serves the certificate
+#   $STATE/failed/<handle>    touched here when an issue fails (retried after
+#                             $RETRY_AFTER); readable by the app
+#   $STATE/limits             this run's caps (KEY=value), with issued.log what
+#                             the app reads to tell a person roughly when their
+#                             address is ready
 #
 # Per request: make sure <handle> and *.<handle> have explicit A records (the
 # DNS-01 TXT record at _acme-challenge.<handle> would otherwise turn <handle>
@@ -40,9 +45,13 @@ exec 9>/run/simple-host-site-certs.lock
 flock -n 9 || { log "another run is in progress"; exit 0; }
 
 install -d -m 0755 -o root -g root "$STATE" "$STATE/ready"
-install -d -m 0700 -o root -g root "$STATE/failed"
+install -d -m 0755 -o root -g root "$STATE/failed"
+chmod 0755 "$STATE/failed"
 [ -d "$STATE/requests" ] || install -d -m 0755 -o simplehost -g simplehost "$STATE/requests"
 touch "$STATE/issued.log"
+chmod 0644 "$STATE/issued.log"
+printf 'BUDGET=%s\nDAILY=%s\nPER_RUN=%s\nRETRY_AFTER=%s\n' "$BUDGET" "$DAILY" "$PER_RUN" "$RETRY_AFTER" > "$STATE/limits.new"
+chmod 0644 "$STATE/limits.new" && mv -f "$STATE/limits.new" "$STATE/limits"
 
 if [ -z "$IP" ]; then
   IP=$(dig +short +norecurse A "$SITE_DOMAIN" @ns1.vercel-dns.com | grep -E '^[0-9.]+$' | head -1 || true)

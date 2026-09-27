@@ -163,6 +163,10 @@ type siteResponse struct {
 	// owner's account). It keeps everything and refuses changes until restored.
 	Suspended       bool   `json:"suspended,omitempty"`
 	SuspendedReason string `json:"suspended_reason,omitempty"`
+	// AddressState: present while the site is handed out at its interim
+	// address (<handle>.<SITE_DOMAIN>/<site>/) because its owner's
+	// certificate is not ready yet — waiting or failing, with a rough time.
+	AddressState *addressState `json:"address_state,omitempty"`
 }
 
 type versionResponse struct {
@@ -1877,6 +1881,9 @@ func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
 	if site.LastDeployedAt.Valid {
 		t := site.LastDeployedAt.Time
 		resp.DeployedAt = &t
+	}
+	if !(site.CustomDomain.Valid && site.DomainVerifiedAt.Valid) {
+		resp.AddressState = h.siteAddressStateFor(site.OwnerHandle, site.Name)
 	}
 	if site.CustomDomain.Valid && site.CustomDomain.String != "" {
 		if p := h.partnerInfoFor(site.CustomDomain.String); p != nil {

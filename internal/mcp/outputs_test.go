@@ -137,23 +137,24 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 	split := `{"person":{"views":5,"visitors":2},"bot":{"views":9,"visitors":3},"infra":{"views":1,"visitors":1},"unknown":{"views":0,"visitors":0}}`
 	big := strings.Repeat("a", maxFileText+10)
 	up := &recordingUpstream{answers: map[string]func() (int, string){
-		"GET /v1/me": fixed(200, `{"id":"u-1","username":"a@example.com","handle":"ann","display_name":"Ann"}`),
+		"GET /v1/me": fixed(200, `{"id":"u-1","username":"a@example.com","handle":"ann","display_name":"Ann",`+
+			`"address":{"state":"waiting","address":"https://<site>.ann.simple-host.app/","ready_in_hours":3,"note":"Your sites are at ann.simple-host.app/<site>/ until ..."}}`),
 		"GET /v1/sites": fixed(200, "["+site("blog", 2, "public", "rsvp.example.com", "active")+","+
-			site("draft", 0, "unlisted", "", "")+","+site("pend", 1, "public", "pend.example.com", "pending")+","+
+			strings.TrimSuffix(site("draft", 0, "unlisted", "", ""), "}")+`,"address_state":{"state":"waiting","note":"Your sites are at ann.simple-host.app/<site>/ until ..."}}`+","+site("pend", 1, "public", "pend.example.com", "pending")+","+
 			site("broken", 1, "unlisted", "broken.example.com", "error")+"]"),
 		"GET /v1/sites/blog/versions/2/files":            fixed(200, `{"files":[{"path":"index.html","size":11},{"path":"logo.png","size":4}]}`),
 		"GET /v1/sites/blog/versions/2/files/index.html": fixed(200, "<h1>hi</h1>"),
 		"GET /v1/sites/blog/versions/1/files/logo.png":   fixed(200, "\x89PNG\x00\x01"),
 		"GET /v1/sites/blog/versions/2/files/big.txt":    fixed(200, big),
-		"POST /v1/sites/fresh/files":                     fixed(201, site("fresh", 1, "unlisted", "", "")),
-		"PUT /v1/sites/blog/files":                       fixed(200, site("blog", 3, "public", "rsvp.example.com", "active")),
+		"POST /v1/sites/fresh/files":                     fixed(201, strings.TrimSuffix(site("fresh", 1, "unlisted", "", ""), "}")+`,"address_state":{"state":"waiting","note":"Your sites are at ..."}}`),
+		"PUT /v1/sites/blog/files":                       fixed(200, strings.TrimSuffix(site("blog", 3, "public", "rsvp.example.com", "active"), "}")+`,"address_state":{"state":"waiting","note":"Your sites are at ..."}}`),
 		"GET /v1/sites/blog/versions": fixed(200, `[{"version_number":1,"created_at":"2026-09-01T00:00:00Z","is_active":false},`+
 			`{"version_number":2,"created_at":"2026-09-02T00:00:00Z","is_active":true}]`),
-		"PUT /v1/sites/blog/active-version": fixed(200, site("blog", 1, "public", "rsvp.example.com", "active")),
+		"PUT /v1/sites/blog/active-version": fixed(200, strings.TrimSuffix(site("blog", 1, "public", "rsvp.example.com", "active"), "}")+`,"address_state":{"state":"waiting","note":"Your sites are at ..."}}`),
 		"DELETE /v1/sites/blog":             fixed(204, ""),
 		"GET /v1/me/deleted-sites":          fixed(200, `{"sites":[{"name":"old","deleted_at":"2026-09-20T00:00:00Z","purge_at":"2026-09-27T00:00:00Z"}],"retention_days":7}`),
-		"POST /v1/sites/old/restore":        fixed(200, site("old", 2, "unlisted", "old.example.com", "active")),
-		"PATCH /v1/sites/blog":              fixed(200, site("journal", 2, "unlisted", "rsvp.example.com", "active")),
+		"POST /v1/sites/old/restore":        fixed(200, strings.TrimSuffix(site("old", 2, "unlisted", "old.example.com", "active"), "}")+`,"address_state":{"state":"waiting","note":"Your sites are at ..."}}`),
+		"PATCH /v1/sites/blog":              fixed(200, strings.TrimSuffix(site("journal", 2, "unlisted", "rsvp.example.com", "active"), "}")+`,"address_state":{"state":"failing","note":"Your sites are at ..."}}`),
 		"PUT /v1/sites/blog/visibility":     fixed(200, `{"visibility":"unlisted"}`),
 		"GET /v1/u/ann/sites/blog/state":    fixed(200, `{"count":2,"rsvps":["Ann"]}`),
 		"PATCH /v1/u/ann/sites/blog/state":  fixed(200, `{"count":3}`),
