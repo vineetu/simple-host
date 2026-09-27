@@ -238,7 +238,13 @@ func (h *SiteHandler) serveSiteFile(w http.ResponseWriter, r *http.Request, user
 		serveOffline(w, r)
 		return
 	}
-	root, err := os.OpenRoot(h.disk.SiteDir(userID, siteName) + "/current")
+	h.serveDirFile(w, r, h.disk.SiteDir(userID, siteName)+"/current", rel, publicPath)
+}
+
+// serveDirFile serves rel from dir the way serveSiteFile does (dir is a
+// version tree: the live `current`, or a kept version for a preview).
+func (h *SiteHandler) serveDirFile(w http.ResponseWriter, r *http.Request, dir, rel, publicPath string) {
+	root, err := os.OpenRoot(dir)
 	if err != nil {
 		http.NotFound(w, r)
 		return

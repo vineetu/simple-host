@@ -257,6 +257,12 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 		writeSiteOffline(w)
 		return false
 	}
+	// A page opened as a preview of a version (preview.go) never saves into
+	// the live site's data.
+	if previewReferer(r) && r.Header.Get("X-API-Key") == "" {
+		writePreviewReadOnly(w)
+		return false
+	}
 
 	mode := h.writeAuthMode
 	if mode == "" {

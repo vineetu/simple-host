@@ -181,7 +181,9 @@ func outputSchemas() map[string]map[string]any {
 		}(),
 
 		"update_site": siteSummaryWith(map[string]any{
-			"file_count": outInteger("How many files the new version has."),
+			"file_count":          outInteger("How many files the new version has."),
+			"unpublished_version": outInteger("Only with publish: false: the version stored without going live (active_version is still the live one)."),
+			"preview_url":         outString("Only with publish: false: an owner-only link (one hour) showing the stored version. Give it to the person; do not post it publicly."),
 		}, "file_count"),
 
 		"list_versions": outObject(map[string]any{
@@ -190,10 +192,19 @@ func outputSchemas() map[string]map[string]any {
 				"version":      outInteger("Version number, for rollback_site."),
 				"live":         outBool("Whether visitors see this version now."),
 				"published_at": outString("When the version was published (RFC 3339)."),
+				"not_yet_live": outBool("Present (true) for a version stored with update_site publish: false that has never been live; preview_version shows it, rollback_site makes it live."),
 			}, "version", "live", "published_at")),
 		}, "site", "versions"),
 
 		"rollback_site": siteSummarySchema(),
+
+		"preview_version": outObject(map[string]any{
+			"site":       outString(outSiteName),
+			"version":    outInteger("The version the link shows."),
+			"live":       outBool("Whether this version is the one visitors see now."),
+			"url":        outString("The preview link: owner-only, one hour, that version only. Give it to the person to open; do not post it publicly."),
+			"expires_at": outString("When the link stops working (RFC 3339)."),
+		}, "site", "version", "live", "url", "expires_at"),
 
 		"delete_site": outObject(map[string]any{
 			"deleted":         outString("Name of the site that was deleted."),

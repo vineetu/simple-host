@@ -200,6 +200,7 @@ var codeHints = map[string]string{
 	"invalid_token":            "The connection to Simple Host is no longer signed in. Ask the person to reconnect Simple Host in their app's connector settings.",
 	"site_suspended":           "The operator has taken this site down, and changes to it are refused until it is restored. Tell the person; do not retry.",
 	"account_suspended":        "This account is suspended by the operator. Tell the person to contact support@simple-host.app; do not retry.",
+	"preview_unavailable":      "This site has no address of its own to show a preview on. Tell the person; the version can still be made live with rollback_site.",
 	"site_offline":             "The owner has taken this site offline, so visitors cannot save to it. Put it back online with set_site_offline if the person wants that; the owner's own changes still work.",
 }
 
@@ -708,11 +709,13 @@ func Tools() []Tool {
 			Name:  "update_site",
 			Title: "Publish a new version of a site",
 			Description: "Replace the live files of an EXISTING site with a new version, at its public address. The files you send are the COMPLETE new version: anything not included stops being served, so to change one page read the others with read_site_file and send them all again. " +
-				"`index.html` is required; use relative links only. The previous version is kept and can be made live again with rollback_site. Fails if there is no site of that name (use create_site).",
+				"`index.html` is required; use relative links only. The previous version is kept and can be made live again with rollback_site. Fails if there is no site of that name (use create_site). " +
+				"With `publish: false` the new version is only stored, not made live: visitors keep seeing the current one, and the answer carries a preview link (owner-only, one hour) to look at it first; make it live with rollback_site when the person is happy.",
 			InputSchema: object(map[string]any{
 				"site":         str(siteDesc),
 				"files":        filesSchema(),
 				"files_base64": filesBase64Schema(),
+				"publish":      map[string]any{"type": "boolean", "description": "Default true: the new version goes live at once. false stores it without making it live, and returns a preview link."},
 			}, "site", "files"),
 			// Overwrites what is live (destructive, even though rollback_site
 			// can restore it) and publishes to the public web.
@@ -738,6 +741,7 @@ func Tools() []Tool {
 					VersionNumber int    `json:"version_number"`
 					CreatedAt     string `json:"created_at"`
 					IsActive      bool   `json:"is_active"`
+					Status        string `json:"status"`
 				}
 				_ = json.Unmarshal(res.body, &raw)
 				sort.SliceStable(raw, func(i, j int) bool { return raw[i].VersionNumber > raw[j].VersionNumber })
@@ -746,7 +750,11 @@ func Tools() []Tool {
 				// else about the stored version is shown.
 				versions := make([]any, 0, len(raw))
 				for _, v := range raw {
-					versions = append(versions, map[string]any{"version": v.VersionNumber, "live": v.IsActive, "published_at": v.CreatedAt})
+					item := map[string]any{"version": v.VersionNumber, "live": v.IsActive, "published_at": v.CreatedAt}
+					if v.Status == "ready" && !v.IsActive {
+						item["not_yet_live"] = true
+					}
+					versions = append(versions, item)
 				}
 				out := map[string]any{"site": name, "versions": versions}
 				return output{Text: jsonText(out), Structured: out}, nil
@@ -755,7 +763,7 @@ func Tools() []Tool {
 		{
 			Name:        "rollback_site",
 			Title:       "Make an earlier version live",
-			Description: "Make one of a site's earlier versions live again (visitors see it immediately). Nothing is deleted; the current version stays available and can be restored the same way. Confirm the version with the person first.",
+			Description: "Make one of a site's kept versions live (visitors see it immediately): an earlier one, or one stored with update_site `publish: false` after the person has looked at its preview. Nothing is deleted; the current version stays available and can be restored the same way. Confirm the version with the person first.",
 			InputSchema: object(map[string]any{
 				"site":    str(siteDesc),
 				"version": map[string]any{"type": "integer", "description": "The version number to make live, from list_versions."},
@@ -781,6 +789,47 @@ func Tools() []Tool {
 				_ = json.Unmarshal(res.body, &site)
 				out := site.summary()
 				return output{Text: fmt.Sprintf("Version %d of %s is now live at %s", site.ActiveVersion, name, site.liveURL()), Structured: out}, nil
+			},
+		},
+		{
+			Name:  "preview_version",
+			Title: "Preview a version before it is live",
+			Description: "Make a preview link for one of a site's kept versions (from list_versions): the person opens it in their browser to see that version exactly as visitors would, before making it live with rollback_site. " +
+				"The link works for one hour and only for that version; pages opened from it cannot save anything, and search engines do not index it. Give it to the person to click; do not post it anywhere public.",
+			InputSchema: object(map[string]any{
+				"site":    str(siteDesc),
+				"version": map[string]any{"type": "integer", "description": "The version number to preview, from list_versions."},
+			}, "site", "version"),
+			// Not read-only: each call mints a new bearer link on the server.
+			Annotations: writes(false, false, false),
+			run: func(c *call, args map[string]any) (output, error) {
+				name, err := siteArg(args)
+				if err != nil {
+					return output{}, err
+				}
+				version, _, err := wholeNumber(args, "version", true, 1, math.MaxInt32)
+				if err != nil {
+					return output{}, err
+				}
+				res := c.do(http.MethodPost, "/v1/sites/"+url.PathEscape(name)+"/versions/"+strconv.Itoa(version)+"/preview-link", nil, nil)
+				if !res.ok() {
+					return output{}, restError("preview_version", res)
+				}
+				var link struct {
+					URL       string `json:"url"`
+					ExpiresAt string `json:"expires_at"`
+					Live      bool   `json:"live"`
+				}
+				_ = json.Unmarshal(res.body, &link)
+				if link.URL == "" {
+					return output{}, errors.New("preview_version failed: the server returned no link; try again in a moment")
+				}
+				out := map[string]any{"site": name, "version": version, "live": link.Live, "url": link.URL, "expires_at": link.ExpiresAt}
+				text := fmt.Sprintf("Preview of %s version %d (valid until %s): %s", name, version, link.ExpiresAt, link.URL)
+				if !link.Live {
+					text += fmt.Sprintf("\nIt is not live; rollback_site with version %d makes it live.", version)
+				}
+				return output{Text: text, Structured: out}, nil
 			},
 		},
 		{
@@ -1596,6 +1645,20 @@ func deploySite(c *call, args map[string]any, mode string) (output, error) {
 		return output{}, err
 	}
 	path := "/v1/sites/" + url.PathEscape(name) + "/files"
+	publish := true
+	if raw, present := args["publish"]; present && raw != nil {
+		b, ok := raw.(bool)
+		if !ok {
+			return output{}, errors.New("publish must be true or false")
+		}
+		publish = b
+	}
+	if !publish {
+		if mode == "create" {
+			return output{}, errors.New("create_site always makes a new site live; publish: false is for update_site")
+		}
+		path += "?publish=false"
+	}
 
 	var res upstreamResult
 	if mode == "create" {
@@ -1618,6 +1681,21 @@ func deploySite(c *call, args map[string]any, mode string) (output, error) {
 	_ = json.Unmarshal(res.body, &site)
 	out := site.summary()
 	out["file_count"] = len(files) + len(binary)
+	if !publish {
+		var stored struct {
+			Version    int    `json:"unpublished_version"`
+			PreviewURL string `json:"preview_url"`
+		}
+		_ = json.Unmarshal(res.body, &stored)
+		out["unpublished_version"] = stored.Version
+		text := fmt.Sprintf("Stored %s version %d without making it live; visitors still see version %d at %s.", name, stored.Version, site.ActiveVersion, site.liveURL())
+		if stored.PreviewURL != "" {
+			out["preview_url"] = stored.PreviewURL
+			text += " Preview it (owner only, one hour): " + stored.PreviewURL
+		}
+		text += fmt.Sprintf("\nWhen the person is happy, rollback_site with version %d makes it live.", stored.Version)
+		return output{Text: text, Structured: out}, nil
+	}
 	verb := "Published a new version of"
 	if mode == "create" {
 		verb = "Created"

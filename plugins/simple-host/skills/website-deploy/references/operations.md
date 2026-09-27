@@ -62,15 +62,28 @@ X-API-Key: <api_key>
 
 There is **no** `.../activate` and no `.../version/<n>` endpoint. This is the one.
 
+### Look before it goes live
+
+To let the person see a new version before visitors do, deploy it with
+`?publish=false` (on `PUT /v1/sites/<sitename>/files` or the archive
+`PUT /v1/sites/<sitename>`). The version is stored but not made live; the answer
+carries `unpublished_version` and `preview_url`, an owner-only link that works
+for one hour and shows that version exactly as visitors would see it. Give the
+person the link. When they are happy, make it live with the `active-version`
+call above. `POST /v1/sites/<sitename>/versions/<n>/preview-link` mints a new
+link for any kept version (`GET .../versions` shows a stored, never-live one
+as `"status": "ready"`). Pages opened from a preview cannot save (403
+`preview_read_only`). A new site's first version always goes live.
+
 ### Reading an old version
 
-Preview a retained version before restoring it (owner API key required):
+Read a retained version's files (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.4"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.5"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.4"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.5"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte

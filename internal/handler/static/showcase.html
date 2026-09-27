@@ -2421,12 +2421,15 @@ function parseAnalyticsSummary(data) {
           panel.innerHTML = '<div class="versions-status">No versions found</div>'; return;
         }
         panel.innerHTML = '<div class="versions-list">' + versions.map(function (v) {
+          var n = Number(v.version_number);
           return '<div class="version-row">' +
             '<span class="version-num">v' + esc(v.version_number) + '</span>' +
-            '<span class="version-date">' + esc(new Date(v.created_at).toLocaleString()) + '</span>' +
+            '<span class="version-date">' + esc(new Date(v.created_at).toLocaleString()) +
+              (!v.is_active && v.status === 'ready' ? ' · not live yet' : '') + '</span>' +
+            '<button type="button" class="btn-small btn-secondary" data-act="previewVersion" data-name="' + esc(name) + '" data-version="' + n + '">Preview</button>' +
             (v.is_active
-              ? '<span class="version-active-tag">active</span>'
-              : '<button type="button" class="btn-small btn-secondary" data-act="rollbackTo" data-name="' + esc(name) + '" data-version="' + Number(v.version_number) + '">Make active</button>') +
+              ? '<span class="version-active-tag">live</span>'
+              : '<button type="button" class="btn-small btn-secondary" data-act="rollbackTo" data-name="' + esc(name) + '" data-version="' + n + '">Make live</button>') +
             '</div>';
         }).join('') + '</div>';
       } catch (e) {
@@ -2434,8 +2437,28 @@ function parseAnalyticsSummary(data) {
       }
     }
 
+    // Preview: an hour-long link, for you only, showing that version as
+    // visitors would see it. The tab is opened on the click (a tab opened
+    // after the request would be blocked as a pop-up) and pointed at the link.
+    async function previewVersion(name, versionNumber) {
+      var tab = window.open('', '_blank');
+      try {
+        var res = await api('POST', '/v1/sites/' + encodeURIComponent(name) + '/versions/' + versionNumber + '/preview-link');
+        var body = await res.json().catch(function () { return null; });
+        if (!res.ok || !body || !body.url) {
+          if (tab) tab.close();
+          toast((body && body.error) || 'Could not open a preview', 'error');
+          return;
+        }
+        if (tab) { tab.opener = null; tab.location.href = body.url; } else { window.location.href = body.url; }
+      } catch (e) {
+        if (tab) tab.close();
+        toast('Could not open a preview', 'error');
+      }
+    }
+
     async function rollbackTo(name, versionNumber) {
-      if (!confirm('Make v' + versionNumber + ' the active version of "' + name + '"?')) return;
+      if (!confirm('Make v' + versionNumber + ' of "' + name + '" live? Visitors see it at once.')) return;
       try {
         var res = await api('PUT', '/v1/sites/' + encodeURIComponent(name) + '/active-version', { version_number: versionNumber });
         if (!res.ok) {
@@ -2443,7 +2466,7 @@ function parseAnalyticsSummary(data) {
           toast((err && err.error) || 'Could not change active version', 'error');
           return;
         }
-        toast('Active version is now v' + versionNumber, 'success');
+        toast('v' + versionNumber + ' is live', 'success');
         toggleVersions(name); // collapse
       } catch (e) {
         toast('Could not change active version', 'error');
@@ -3466,6 +3489,7 @@ function parseAnalyticsSummary(data) {
       confirmDelete: function (d) { confirmDelete(d.name); },
       doDelete: function (d, el) { doDelete(d.name, el); },
       rollbackTo: function (d) { rollbackTo(d.name, Number(d.version)); },
+      previewVersion: function (d) { previewVersion(d.name, Number(d.version)); },
       openRename: function (d) { openRename(d.name); },
       doRename: function (d, el) { doRename(d.name, el); },
       openDomain: function (d) { openDomain(d.name); },

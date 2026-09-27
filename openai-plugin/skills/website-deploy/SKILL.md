@@ -80,7 +80,10 @@ fonts you do not have the bytes for, tell the person before publishing that thos
 be dropped, and ask them to provide them again or agree to losing them.
 
 Every version is kept. If a change went wrong, `list_versions`, confirm the version with the
-person, then `rollback_site`. Renaming (`rename_site`) changes the address; links to the old one
+person, then `rollback_site`. For a big change (a redesign), offer to let them look first:
+`update_site` with `publish: false` stores the version without making it live and returns a
+`preview_url` (owner-only, one hour); give them the link, and when they are happy make it live
+with `rollback_site`. `preview_version` makes a link for any kept version. Renaming (`rename_site`) changes the address; links to the old one
 redirect to the new one until a new site takes the old name. When an event is over or a form
 must stop taking entries, `set_site_offline` (after the person confirms) shows "This site is
 offline" at every address and stops visitor saves, keeping everything; `offline: false` undoes it. `delete_site` takes the site offline with every version and all its

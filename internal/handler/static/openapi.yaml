@@ -768,10 +768,13 @@ paths:
     put:
       operationId: putSitesBySitenameFiles
       summary: Update a site from inline JSON files
-      description: Same as POST, but for an existing site you own. Creates a new version and activates it.
+      description: >-
+        Same as POST, but for an existing site you own. Creates a new version and activates it;
+        with ?publish=false the version is only stored (visitors keep seeing the live one) and the
+        answer adds unpublished_version, preview_url and preview_expires_at.
       tags: [Deploy]
       security: [{ apiKey: [] }]
-      parameters: [ { $ref: '#/components/parameters/sitename' } ]
+      parameters: [ { $ref: '#/components/parameters/sitename' }, { $ref: '#/components/parameters/publish' } ]
       requestBody:
         required: true
         content:
@@ -849,10 +852,13 @@ paths:
     put:
       operationId: putSitesBySitename
       summary: Update a site from an archive
-      description: Upload a new version of an existing site you own. Creates a new version and activates it.
+      description: >-
+        Upload a new version of an existing site you own. Creates a new version and activates it;
+        with ?publish=false the version is only stored (visitors keep seeing the live one) and the
+        answer adds unpublished_version, preview_url and preview_expires_at.
       tags: [Deploy]
       security: [{ apiKey: [] }]
-      parameters: [ { $ref: '#/components/parameters/sitename' } ]
+      parameters: [ { $ref: '#/components/parameters/sitename' }, { $ref: '#/components/parameters/publish' } ]
       requestBody:
         required: true
         content:
@@ -1003,6 +1009,7 @@ paths:
                     version_number: { type: integer }
                     created_at: { type: string, format: date-time }
                     is_active: { type: boolean }
+                    status: { type: string, enum: [active, ready], description: "active: complete and live now or before; ready: stored with publish=false and never live yet" }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
@@ -1069,11 +1076,49 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Site not found, version not found, or file not found }
 
+  /v1/sites/{sitename}/versions/{version}/preview-link:
+    post:
+      operationId: postSitesBySitenameVersionPreviewLink
+      summary: Preview a kept version
+      description: >-
+        Owner only. Mints an hour-long link that shows one kept version (live, earlier, or stored
+        with publish=false) exactly as visitors would see it, on the site's own host:
+        https://<site>.<handle>.simple-host.app/__preview/<n>/<token>/ (or
+        briefly, as a fallback while the person's certificate is not ready, <handle>.simple-host.app/<site>/__preview/...).
+        The token is an HMAC over site, version and expiry; it stops working after an hour or a
+        server restart. Preview pages are noindex and never cached, and saves made from them are
+        refused (403 preview_read_only). Make the version live with PUT .../active-version.
+      tags: [Sites]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/sitename' }
+        - { $ref: '#/components/parameters/version' }
+      responses:
+        '200':
+          description: The preview link
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  site: { type: string }
+                  version: { type: integer }
+                  live: { type: boolean, description: Whether visitors see this version now }
+                  url: { type: string, format: uri }
+                  expires_at: { type: string, format: date-time }
+                  expires_in: { type: integer, example: 3600 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: "The operator has taken the site down (code site_suspended)" }
+        '404': { description: Site or version not found (including pruned versions) }
+        '409': { description: "The site has no address of its own to preview on (code preview_unavailable)" }
+
   /v1/sites/{sitename}/active-version:
     put:
       operationId: putSitesBySitenameActiveVersion
-      summary: Roll back to a version
-      description: Re-point the live site at an existing version number.
+      summary: Roll back to a version, or make a stored version live
+      description: >-
+        Re-point the live site at an existing version number: an earlier one, or one stored with
+        publish=false (which then counts as live).
       tags: [Sites]
       security: [{ apiKey: [] }]
       parameters: [ { $ref: '#/components/parameters/sitename' } ]
@@ -3613,6 +3658,7 @@ components:
     version: { name: version, in: path, required: true, schema: { type: integer, minimum: 1 }, example: 2 }
     path: { name: path, in: path, required: true, description: Relative file path (may contain forward slashes), schema: { type: string }, example: assets/style.css }
     sitename: { name: sitename, in: path, required: true, schema: { type: string }, example: my-cool-site }
+    publish: { name: publish, in: query, required: false, schema: { type: boolean, default: true }, description: "false stores the new version without making it live (updates only; a new site's first version always goes live: 400)" }
     coll: { name: coll, in: path, required: true, schema: { type: string }, example: signups }
     csrf: { name: X-SH-CSRF, in: header, required: false, schema: { type: string, enum: ['1'] }, description: Required on cookie-authenticated writes }
 
@@ -3711,6 +3757,10 @@ components:
             value: { type: string, example: sh-0123456789abcdef0123456789abcdef }
         suspended: { type: boolean, description: "Present and true when the operator has taken the site down (on its own or with its owner's account): every address shows a \"taken down\" page and changes are refused until it is restored. Nothing is deleted." }
         suspended_reason: { type: string, description: The operator's one-line reason, when suspended. }
+        offline: { type: boolean, description: "Present and true when the owner has taken the site offline (PATCH /v1/sites/{sitename} {\"offline\": true}): every address shows \"This site is offline\" and visitor saves are refused. Nothing is deleted." }
+        unpublished_version: { type: integer, description: "Only on a deploy with publish=false: the version stored without going live." }
+        preview_url: { type: string, format: uri, description: "Only on a deploy with publish=false: an owner-only link (one hour) showing the stored version." }
+        preview_expires_at: { type: string, format: date-time, description: "When preview_url stops working." }
 
     AdminSiteState:
       type: object
@@ -3771,7 +3821,10 @@ components:
             its keys, connected apps and sign-in are refused, `reason` says
             why), site_offline (403: the owner has taken the site offline;
             visitor saves are refused until it is back online, the owner's
-            key still writes). New codes may be added.
+            key still writes), preview_read_only (403: a save made from a
+            page opened as a version preview), preview_unavailable (409: the
+            site has no address of its own to preview on), invalid_request
+            (400). New codes may be added.
           example: domain_taken
 
   responses:

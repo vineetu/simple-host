@@ -1106,6 +1106,30 @@ func ActivateVersion(ctx context.Context, db Querier, versionID string) error {
 	return err
 }
 
+// MarkVersionReady finishes a version deployed with publish=false: complete
+// and kept, but never made live ('ready' rather than 'active', so the site's
+// last-deployed time does not move). Making it live (ActivateVersionNumber)
+// turns it 'active'.
+func MarkVersionReady(ctx context.Context, db Querier, versionID string) error {
+	_, err := db.ExecContext(ctx, `UPDATE versions SET status = 'ready' WHERE id = $1`, versionID)
+	return err
+}
+
+// ActivateVersionNumber marks a site's version 'active' when it is made live
+// (a no-op for one that already is).
+func ActivateVersionNumber(ctx context.Context, db Querier, siteID string, version int) error {
+	_, err := db.ExecContext(ctx, `UPDATE versions SET status = 'active' WHERE site_id = $1 AND version_number = $2 AND status = 'ready'`, siteID, version)
+	return err
+}
+
+// VersionKept reports whether a site still keeps a complete version n (live
+// now, live before, or stored with publish=false).
+func VersionKept(ctx context.Context, db Querier, siteID string, version int) (bool, error) {
+	var ok bool
+	err := db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM versions WHERE site_id = $1 AND version_number = $2 AND status IN ('active', 'ready'))`, siteID, version).Scan(&ok)
+	return ok, err
+}
+
 // LockSiteForUpdate takes a row-level lock on the sites row so concurrent
 // uploads to the same site serialize their version allocation. Must be called
 // inside a transaction; the lock releases on commit/rollback. sql.ErrNoRows

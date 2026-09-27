@@ -160,6 +160,11 @@ type siteResponse struct {
 	// Offline: its owner has taken it offline (every address shows "This
 	// site is offline", visitor saves are refused; nothing is deleted).
 	Offline bool `json:"offline,omitempty"`
+	// Only on a deploy with publish=false: the version it stored (not live)
+	// and an hour-long, owner-only preview link for it (preview.go).
+	UnpublishedVersion int        `json:"unpublished_version,omitempty"`
+	PreviewURL         string     `json:"preview_url,omitempty"`
+	PreviewExpiresAt   *time.Time `json:"preview_expires_at,omitempty"`
 }
 
 type versionResponse struct {
@@ -314,6 +319,8 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("GET /v1/sites/{sitename}/versions/{version}/files", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listVersionFiles))))
 	mux.Handle("GET /v1/sites/{sitename}/versions/{version}/files/{path...}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getVersionFile))))
 	mux.Handle("PUT /v1/sites/{sitename}/active-version", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setActiveVersion))))
+	// An hour-long, owner-only preview address for one kept version (preview.go).
+	mux.Handle("POST /v1/sites/{sitename}/versions/{version}/preview-link", noticeMiddleware(authMiddleware(http.HandlerFunc(h.createPreviewLink))))
 	mux.Handle("GET /v1/sites/{sitename}/analytics", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteAnalytics))))
 	mux.Handle("GET /v1/sites/{sitename}/analytics/geo", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteGeoAnalytics))))
 	// Deliberately not /v1/sites/analytics: that would collide with a site
@@ -1076,6 +1083,10 @@ func (h *SiteHandler) createSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.publishOnCreate(w, r) {
+		return
+	}
+
 	// Per-user site quota (admins exempt). Checked before we read the upload so
 	// an over-quota request is cheap to reject. Updates to existing sites are
 	// not affected — this only gates new-site creation.
@@ -1243,18 +1254,26 @@ func (h *SiteHandler) updateSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	publish, ok := publishParam(w, r)
+	if !ok {
+		return
+	}
 	files, archiveSHA, err := h.readAndValidateFiles(w, r, siteName)
 	if err != nil {
 		return
 	}
 
-	h.commitSiteUpdate(w, r, user, siteName, files, archiveSHA)
+	h.commitSiteUpdate(w, r, user, siteName, files, archiveSHA, publish)
 }
 
 // commitSiteUpdate appends a new version to an existing owned site and promotes
 // it after commit. Shared by the archive upload (updateSite) and the JSON upload
 // (updateSiteFiles).
-func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string) {
+//
+// publish=false stores the version without making it live (see preview.go):
+// `current`, active_version and what visitors see stay as they are, and the
+// answer names the new version and a preview link for it.
+func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, publish bool) {
 	// Serialize write+promote for this site (in-process), and read the site
 	// only once the lock is held: a delete or rename that finished while this
 	// upload waited must not be undone by a stale copy. The DB row lock below
@@ -1311,6 +1330,20 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 	// Write the new version dir (not yet live) before committing.
 	if err := h.disk.WriteFiles(r.Context(), site.UserID, siteName, versionNumber, files); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+
+	if !publish {
+		if err := db.MarkVersionReady(r.Context(), tx, version.ID); err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return
+		}
+		if err := tx.Commit(); err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return
+		}
+		h.pruneVersions(r.Context(), site.ID, site.UserID, siteName, site.ActiveVersion)
+		h.writeUnpublished(w, site, versionNumber)
 		return
 	}
 
@@ -1455,6 +1488,9 @@ func (h *SiteHandler) createSiteFiles(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "name_reserved"})
 		return
 	}
+	if !h.publishOnCreate(w, r) {
+		return
+	}
 
 	if !user.IsAdmin {
 		// Sites in Recently deleted count: delete-then-create must not
@@ -1497,12 +1533,16 @@ func (h *SiteHandler) updateSiteFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	publish, ok := publishParam(w, r)
+	if !ok {
+		return
+	}
 	files, digest, err := h.readJSONFiles(w, r, siteName)
 	if err != nil {
 		return
 	}
 
-	h.commitSiteUpdate(w, r, user, siteName, files, digest)
+	h.commitSiteUpdate(w, r, user, siteName, files, digest, publish)
 }
 
 // listVersions returns the full version history of a site for the
@@ -1608,7 +1648,8 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 	}
 	var found bool
 	for _, v := range versions {
-		if v.VersionNumber == req.VersionNumber {
+		// A version whose upload never finished is not one to go live.
+		if v.VersionNumber == req.VersionNumber && v.Status != "uploading" {
 			found = true
 			break
 		}
@@ -1639,6 +1680,11 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := db.UpdateSiteActiveVersion(r.Context(), tx, site.ID, req.VersionNumber); err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	// A version stored with publish=false goes live for the first time.
+	if err := db.ActivateVersionNumber(r.Context(), tx, site.ID, req.VersionNumber); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}

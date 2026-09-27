@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 )
 
 // A renamed site keeps its old links: every old address 302s to the new one
@@ -242,5 +243,139 @@ func TestSiteOffline(t *testing.T) {
 	}
 	if a.sites.disk.IsOffline(oliveID, "store") {
 		t.Fatal("marker left behind")
+	}
+}
+
+// Look before it goes live: publish=false stores a version without making it
+// live, an owner-only preview link opens any kept version on the site's own
+// host (noindex, no saves), and "make live" is the rollback. Needs DB_DSN.
+func TestPreviewBeforeLive(t *testing.T) {
+	a, dir := newSiteApp(t, "canonical")
+	olive, oscar, vic := a.newPerson(t, "olive"), a.newPerson(t, "oscar"), a.newPerson(t, "vic")
+	a.deploy(t, olive, "shop")
+	a.deploy(t, oscar, "blog")
+	_, oh := a.userID(t, olive)
+	_, sh := a.userID(t, oscar)
+	markReady(t, dir, oh)
+	apex := pcSiteDomain
+	shop := "shop." + oh + "." + pcSiteDomain
+	okey := map[string]string{"X-API-Key": olive.key}
+	shopID := a.siteID(t, olive, "shop")
+	v2 := map[string]any{"files": map[string]string{"index.html": "v2", "sub/index.html": "sub2"}}
+
+	// Only updates can be stored without going live.
+	if r := a.at(t, "POST", apex, "/v1/sites/fresh/files?publish=false", v2, okey); r.status != 400 {
+		t.Fatalf("create unpublished: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "PUT", apex, "/v1/sites/shop/files?publish=maybe", v2, okey); r.status != 400 {
+		t.Fatalf("bad publish: %d %s", r.status, r.body)
+	}
+	r := a.at(t, "PUT", apex, "/v1/sites/shop/files?publish=false", v2, okey)
+	body := r.json(t)
+	link, _ := body["preview_url"].(string)
+	if r.status != 200 || body["unpublished_version"] != float64(2) || body["active_version"] != float64(1) || !strings.HasPrefix(link, "https://"+shop+"/__preview/2/") {
+		t.Fatalf("unpublished deploy: %d %s", r.status, r.body)
+	}
+	path := strings.TrimPrefix(link, "https://"+shop)
+	if r := a.at(t, "GET", shop, "/", nil, nil); r.status != 200 || string(r.body) != "<h1>shop</h1>" {
+		t.Fatalf("live changed: %d %s", r.status, r.body)
+	}
+	vs := a.at(t, "GET", apex, "/v1/sites/shop/versions", nil, okey)
+	if !strings.Contains(string(vs.body), `"status":"ready","version_number":2`) {
+		t.Fatalf("versions: %s", vs.body)
+	}
+
+	// The preview: that version, not cached, not indexed.
+	r = a.at(t, "GET", shop, path, nil, nil)
+	if r.status != 200 || string(r.body) != "v2" || r.header.Get("Cache-Control") != "no-store" || !strings.Contains(r.header.Get("X-Robots-Tag"), "noindex") {
+		t.Fatalf("preview: %d %s %v", r.status, r.body, r.header)
+	}
+	if r := a.at(t, "GET", shop, path+"sub", nil, nil); r.status != http.StatusMovedPermanently || r.header.Get("Location") != path+"sub/" {
+		t.Fatalf("preview dir: %d %q", r.status, r.header.Get("Location"))
+	}
+	if r := a.at(t, "GET", shop, path+"sub/", nil, nil); r.status != 200 || string(r.body) != "sub2" {
+		t.Fatalf("preview sub: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "GET", shop, strings.TrimSuffix(path, "/"), nil, nil); r.status != http.StatusFound || r.header.Get("Location") != path {
+		t.Fatalf("preview no slash: %d %q", r.status, r.header.Get("Location"))
+	}
+	// Wrong version, tampered, expired, or another site's link: nothing.
+	expired := "/__preview/2/" + a.sites.signPreviewToken(shopID, 2, time.Now().Add(-time.Minute)) + "/"
+	blogID := a.siteID(t, oscar, "blog")
+	for _, p := range []string{
+		strings.Replace(path, "/__preview/2/", "/__preview/1/", 1),
+		path[:len(path)-3] + "x/",
+		expired,
+		"/__preview/1/" + a.sites.signPreviewToken(blogID, 1, time.Now().Add(time.Minute)) + "/",
+		"/__preview/2/nonsense/",
+	} {
+		if r := a.at(t, "GET", shop, p, nil, nil); r.status != 404 {
+			t.Errorf("GET %s: %d %s", p, r.status, r.body)
+		}
+	}
+
+	// Saves from a preview page are refused; from the live page they work.
+	cookie := a.session(t, vic, shopID, shop)
+	item := map[string]string{"name": "Ann"}
+	if r := a.at(t, "POST", shop, "/v1/sites/shop/collections/rsvps", item, browser(shop, cookie, "Referer", "https://"+shop+path)); r.status != http.StatusForbidden || r.json(t)["code"] != "preview_read_only" {
+		t.Fatalf("save from preview: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "POST", shop, "/v1/sites/shop/collections/rsvps", item, browser(shop, cookie, "Referer", "https://"+shop+"/")); r.status != http.StatusCreated {
+		t.Fatalf("save from live page: %d %s", r.status, r.body)
+	}
+
+	// Preview links for any kept version, owner only.
+	r = a.at(t, "POST", apex, "/v1/sites/shop/versions/1/preview-link", nil, okey)
+	if r.status != 200 || r.json(t)["live"] != true || !strings.HasPrefix(r.json(t)["url"].(string), "https://"+shop+"/__preview/1/") {
+		t.Fatalf("preview link v1: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "GET", shop, strings.TrimPrefix(r.json(t)["url"].(string), "https://"+shop), nil, nil); r.status != 200 || string(r.body) != "<h1>shop</h1>" {
+		t.Fatalf("preview v1: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "POST", apex, "/v1/sites/shop/versions/9/preview-link", nil, okey); r.status != 404 {
+		t.Fatalf("missing version: %d", r.status)
+	}
+	if r := a.at(t, "POST", apex, "/v1/sites/shop/versions/1/preview-link", nil, map[string]string{"X-API-Key": oscar.key}); r.status != 404 {
+		t.Fatalf("someone else's site: %d", r.status)
+	}
+
+	// A person without a certificate yet previews on the person path.
+	r = a.at(t, "POST", apex, "/v1/sites/blog/versions/1/preview-link", nil, map[string]string{"X-API-Key": oscar.key})
+	oscarPerson := sh + "." + pcSiteDomain
+	plink, _ := r.json(t)["url"].(string)
+	if r.status != 200 || !strings.HasPrefix(plink, "https://"+oscarPerson+"/blog/__preview/1/") {
+		t.Fatalf("person-path link: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "GET", oscarPerson, strings.TrimPrefix(plink, "https://"+oscarPerson), nil, nil); r.status != 200 || string(r.body) != "<h1>blog</h1>" {
+		t.Fatalf("person-path preview: %d %s", r.status, r.body)
+	}
+
+	// A site on a claimed name still previews on its site host.
+	claimed := "olive-pv-" + oh + "." + pcSiteDomain
+	if r := a.at(t, "POST", apex, "/v1/sites/shop/domain", map[string]string{"domain": claimed}, okey); r.status != 200 {
+		t.Fatalf("claim: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "GET", shop, path, nil, nil); r.status != 200 || string(r.body) != "v2" {
+		t.Fatalf("preview with a domain: %d %s", r.status, r.body)
+	}
+
+	// Make live: the existing rollback.
+	if r := a.at(t, "PUT", apex, "/v1/sites/shop/active-version", map[string]int{"version_number": 2}, okey); r.status != 200 {
+		t.Fatalf("make live: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "GET", claimed, "/", nil, nil); r.status != 200 || string(r.body) != "v2" {
+		t.Fatalf("live after make live: %d %s", r.status, r.body)
+	}
+	vs = a.at(t, "GET", apex, "/v1/sites/shop/versions", nil, okey)
+	if !strings.Contains(string(vs.body), `"status":"active","version_number":2`) {
+		t.Fatalf("versions after make live: %s", vs.body)
+	}
+
+	// A taken-down site previews nothing.
+	if r := a.at(t, "POST", apex, "/v1/admin/sites/"+shopID+"/suspend", map[string]string{"reason": "test"}, map[string]string{"X-API-Key": a.admin}); r.status != 200 {
+		t.Fatalf("suspend: %d", r.status)
+	}
+	if r := a.at(t, "GET", shop, path, nil, nil); r.status != http.StatusGone {
+		t.Fatalf("preview of a taken-down site: %d", r.status)
 	}
 }

@@ -250,6 +250,13 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 			http.Redirect(w, r, h.contentBaseURL()+"/"+user.Handle.String+"/"+site.Name+escaped+query, http.StatusFound)
 			return
 		}
+		// A preview of one of its versions (preview.go) is served here even
+		// when the site lives on a domain of its own.
+		if strings.HasPrefix(r.URL.Path, "/"+previewPathSegment+"/") && h.siteHostLive(user.Handle.String, site.Name) {
+			site.OwnerHandle = user.Handle.String
+			h.servePreview(w, r, site, strings.TrimPrefix(r.URL.Path, "/"+previewPathSegment+"/"), "/"+previewPathSegment+"/")
+			return
+		}
 		// A site with its own domain lives there (302, so disconnecting the
 		// domain takes effect at once). Its API here refuses saves and
 		// sign-in (livesOnDomainElsewhere), like on the person host.

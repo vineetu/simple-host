@@ -27,7 +27,7 @@ append-only collections) that its own page JavaScript can call.
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.20.4`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.20.5`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -69,7 +69,7 @@ some install methods fetch only `SKILL.md` — fetch the URL instead.
 | Detect a framework and build it for path hosting | `references/frameworks.md` · https://simple-host.app/v1/skills/website-deploy/references/frameworks.md |
 | Validate, package, upload, verify | `references/packaging-and-validation.md` · https://simple-host.app/v1/skills/website-deploy/references/packaging-and-validation.md |
 | Shared state, collections, saving from a page or an agent (connector: `get_state`, `update_state`, `read_collection`, `add_to_collection`) | `references/backend.md` · https://simple-host.app/v1/skills/website-deploy/references/backend.md |
-| Versions, rollback, delete and restore, download a copy, changing the handle, analytics (connector: `list_versions`, `rollback_site`, `delete_site`, `list_deleted_sites`, `restore_site`, `export_site`, `site_analytics`) | `references/operations.md` · https://simple-host.app/v1/skills/website-deploy/references/operations.md |
+| Versions, rollback, delete and restore, download a copy, changing the handle, analytics (connector: `list_versions`, `rollback_site`, `preview_version`, `set_site_offline`, `delete_site`, `list_deleted_sites`, `restore_site`, `export_site`, `site_analytics`) | `references/operations.md` · https://simple-host.app/v1/skills/website-deploy/references/operations.md |
 | Private collections (orders, RSVPs, sign-ups, anything personal; connector: `set_collection_privacy`) | `references/backend.md` · https://simple-host.app/v1/skills/website-deploy/references/backend.md |
 | A nicer address (optional): a free `<name>.simple-host.app` or a custom domain | the `connect-domain` skill · https://simple-host.app/v1/skills/connect-domain |
 
@@ -170,6 +170,8 @@ Full code and error codes: `references/backend.md`.
   fonts, audio, video, `.pdf`, `.wasm`, and binary downloads are all fine.
 - **Uploads are append-only.** Re-uploading creates a new version and activates
   it; older versions stay on disk. Rollback re-points at an existing version.
+  To show the person a change before visitors see it, deploy with
+  `?publish=false` and give them the `preview_url` (see `references/operations.md`).
 - **Sites and their data are public to anyone with the link**, except a private
   collection, which only the owner reads. The visitor
   session is site-scoped and is **not** an API key — it cannot deploy or delete.
