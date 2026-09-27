@@ -112,6 +112,10 @@ type Ask struct {
 	// uses the same backend, model, per-address limits and in-flight cap,
 	// with its own count per UTC day (table setup_check_daily).
 	SetupCheckDailyMax int // SETUP_CHECK_DAILY_MAX (200); 0 turns the check off
+	// Its own in-flight cap, so Ask always keeps its slots, and a count per
+	// network (/24 or /48) per UTC day, so one network cannot use up the day.
+	SetupCheckMaxInFlight     int // SETUP_CHECK_MAX_IN_FLIGHT (1)
+	SetupCheckPerNetworkDaily int // SETUP_CHECK_PER_NETWORK_DAILY (20)
 }
 
 // SavedData is every number behind saved-data history, undo, the watch and
@@ -278,7 +282,8 @@ func DefaultLimits() Limits {
 		SavedData: DefaultSavedData(),
 
 		Ask: Ask{Enabled: true, Burst: 5, EverySeconds: 20, DailyMax: 500, MaxInFlight: 4,
-			Model: "grok-4.7", ReasoningEffort: "none", MaxTokens: 300, SetupCheckDailyMax: 200},
+			Model: "grok-4.7", ReasoningEffort: "none", MaxTokens: 300, SetupCheckDailyMax: 200,
+			SetupCheckMaxInFlight: 1, SetupCheckPerNetworkDaily: 20},
 	}
 }
 
@@ -512,6 +517,8 @@ func Knobs() []Knob {
 			}},
 		intKnob("ASK_MAX_TOKENS", "tokens", 50, 4000, func(l *Limits) *int { return &l.Ask.MaxTokens }),
 		intKnob("SETUP_CHECK_DAILY_MAX", "checks", 0, 100_000, func(l *Limits) *int { return &l.Ask.SetupCheckDailyMax }),
+		intKnob("SETUP_CHECK_MAX_IN_FLIGHT", "checks", 1, 64, func(l *Limits) *int { return &l.Ask.SetupCheckMaxInFlight }),
+		intKnob("SETUP_CHECK_PER_NETWORK_DAILY", "checks", 1, 100_000, func(l *Limits) *int { return &l.Ask.SetupCheckPerNetworkDaily }),
 	}
 }
 

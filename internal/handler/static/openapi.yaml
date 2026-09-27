@@ -4525,11 +4525,19 @@ paths:
         between settings; nothing about the visitor is sent. Every finding is
         checked against the settings list before it is returned: one naming an
         unknown, secret or free-text setting, or suggesting a value outside a
-        setting's allowed range, is dropped. The settings are never stored or
+        setting's allowed range, is dropped. A finding whose suggestion would
+        make a security-sensitive setting looser than both its default and
+        the value sent (a longer lifetime, a looser rate, an insecure switch
+        on, a less strict choice) keeps its message without the suggestion.
+        Values are printable ASCII; suggested rates come back as
+        <burst><separator><interval> with no spaces, numbers without leading
+        zeros; messages carry no links. The settings are never stored or
         logged. No sign-in. Same-origin only, as /v1/ask: no CORS grant, an
         application/json body, and the Origin must be this server's own
-        address. Shares the Ask per-IP and per-network limits and its limit on
-        answers at once; its own cap per UTC day across everyone
+        address. Shares the Ask per-IP and per-network rate limits; its own
+        limit on checks at once (SETUP_CHECK_MAX_IN_FLIGHT, default 1), a cap
+        per network (/24 or /48) per UTC day (SETUP_CHECK_PER_NETWORK_DAILY,
+        default 20) and a cap per UTC day across everyone
         (SETUP_CHECK_DAILY_MAX, default 200; 0 turns it off). Absent when the
         server has no model backend configured or ASK_ENABLED is off; the
         helper then shows its files without a check.
@@ -4584,13 +4592,13 @@ paths:
           description: the body is not application/json (code unsupported_media_type)
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
         '429':
-          description: Rate limited per IP or per network, or code daily_limit when today's checks are used up
+          description: Rate limited per IP or per network, or code daily_limit when today's checks are used up (across everyone, or from this network)
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
         '502':
           description: the model failed, was too slow, or did not answer in the JSON asked for (code unavailable)
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
         '503':
-          description: busy (code busy), or the day's count is unavailable (code unavailable)
+          description: busy, SETUP_CHECK_MAX_IN_FLIGHT checks already running (code busy), or the day's count is unavailable (code unavailable)
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
 
   /v1/generate:

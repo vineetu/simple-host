@@ -9,7 +9,7 @@ few questions (or every question, in Advanced mode), keeps the default for anyth
 writes the one-line install command and the `.env` for a small box. It runs in your browser and
 never asks for a password or key. Just before your files it can **check your choices** for likely
 mistakes (a setting that weakens sign-in, a retention or undo promise cut short, an upload size the
-box cannot hold): it sends only the names and values of the numbers, durations, switches and rates
+box cannot hold): it sends only the names and values of the numbers, durations, switches, choices and limits
 you changed, never hostnames, emails or secrets, and you Apply or Ignore each suggestion. You can
 skip it; where the server has no model backend it is skipped by itself.
 

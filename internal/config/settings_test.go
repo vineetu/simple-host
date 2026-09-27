@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"testing"
 )
@@ -80,5 +81,25 @@ func TestSettingsJSONMatchesDocs(t *testing.T) {
 	}
 	if !bytes.Equal(got, want) {
 		t.Fatal("docs/advanced/settings.json differs from the settings in code: run scripts/sync-settings.sh")
+	}
+}
+
+// Every security-sensitive switch or choice says which of its values is
+// strictest (the setup check's suggestions follow it), naming exactly the
+// values it allows.
+func TestSettingsStrictOrder(t *testing.T) {
+	for _, s := range Settings() {
+		if s.StrictOrder == nil {
+			if s.Security && (s.Type == "bool" || s.Type == "enum") {
+				t.Errorf("%s is security-sensitive but has no strict_order", s.Name)
+			}
+			continue
+		}
+		a, b := append([]string(nil), s.Allowed...), append([]string(nil), s.StrictOrder...)
+		sort.Strings(a)
+		sort.Strings(b)
+		if !s.Security || !slices.Equal(a, b) {
+			t.Errorf("%s: strict_order %v does not match allowed %v (security %v)", s.Name, s.StrictOrder, s.Allowed, s.Security)
+		}
 	}
 }

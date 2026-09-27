@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -124,7 +125,7 @@ func TestSetupCheckFindingsValidated(t *testing.T) {
 		{"severity":"warn","settings":["ADMIN_EMAILS"],"message":"Free text."},
 		{"severity":"critical","settings":["SESSION_TTL"],"message":"Wrong severity."},
 		{"severity":"info","settings":["SESSION_TTL"],"message":"   "},
-		{"severity":"warn","settings":["SESSION_IDLE"],"message":"Shorter idle.","suggest":{"SESSION_IDLE":"45m"}},
+		{"severity":"warn","settings":["SESSION_IDLE"],"message":"Shorter idle.","suggest":{"SESSION_IDLE":"20m"}},
 		{"severity":"warn","settings":["RATE_LIMIT_AUTH_CLIENT"],"message":"Loosest.","suggest":{"RATE_LIMIT_AUTH_CLIENT":"500/1s"}}
 	]}` + "\n```"
 	f := &fakeSidecar{answer: reply}
@@ -142,7 +143,7 @@ func TestSetupCheckFindingsValidated(t *testing.T) {
 	want := []setupFinding{
 		{Severity: "warn", Settings: []string{"MAX_ARCHIVE_BYTES", "UPLOAD_CONCURRENCY"}, Message: "8 uploads of 500 MB need about 4 GB.", Suggest: map[string]string{"UPLOAD_CONCURRENCY": "2"}},
 		{Severity: "info", Settings: []string{"SESSION_TTL"}, Message: "Longer than most identity providers."},
-		{Severity: "warn", Settings: []string{"SESSION_IDLE"}, Message: "Shorter idle.", Suggest: map[string]string{"SESSION_IDLE": "45m"}},
+		{Severity: "warn", Settings: []string{"SESSION_IDLE"}, Message: "Shorter idle.", Suggest: map[string]string{"SESSION_IDLE": "20m"}},
 	}
 	gb, _ := json.Marshal(got.Findings)
 	wb, _ := json.Marshal(want)
@@ -297,5 +298,254 @@ func TestSetupRegistriesValidateDefaults(t *testing.T) {
 				t.Errorf("%s: %s default %q does not validate", product, s.Name, s.Default)
 			}
 		}
+	}
+}
+
+// checkFindings posts one check with the model answering reply, and returns
+// the findings.
+func checkFindings(t *testing.T, body, reply string) []setupFinding {
+	t.Helper()
+	_, mux := newTestSetupCheck(t, &fakeSidecar{answer: reply}, AskOptions{SetupCheckDailyMax: 10})
+	w := postCheck(mux, body, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("check: %d %s", w.Code, w.Body.String())
+	}
+	var got struct {
+		Findings []setupFinding `json:"findings"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	return got.Findings
+}
+
+// A suggestion never loosens a security-sensitive setting past both its
+// default and the visitor's own value: the finding keeps its message and
+// loses its suggestion. Stricter suggestions, and ones no looser than what
+// the visitor already chose, are kept.
+func TestSetupCheckNoLooserSuggestions(t *testing.T) {
+	cases := []struct {
+		name, product, sent, suggest string
+		kept                         bool
+	}{
+		// Enterprise: insecure switches, strict choices, lifetimes, rates.
+		{"insecure switch on", "enterprise", `"SESSION_TTL":"4h"`, `"OIDC_INSECURE_ALLOWED":"true"`, false},
+		{"plaintext switch on", "enterprise", `"SESSION_TTL":"4h"`, `"BACKUP_ENVELOPE_PLAINTEXT_ALLOWED":"true"`, false},
+		{"insecure switch off", "enterprise", `"DB_INSECURE_ALLOWED":"true"`, `"DB_INSECURE_ALLOWED":"false"`, true},
+		{"secure mode off", "enterprise", `"SESSION_TTL":"4h"`, `"SECURE_MODE":"false"`, true}, // false is the default
+		{"secure mode off after on", "enterprise", `"SECURE_MODE":"true"`, `"SECURE_MODE":"false"`, true},
+		{"one approval", "enterprise", `"NETWORK_ACCESS_APPROVALS":"2"`, `"NETWORK_ACCESS_APPROVALS":"1"`, true}, // the default
+		{"two approvals", "enterprise", `"SESSION_TTL":"4h"`, `"NETWORK_ACCESS_APPROVALS":"2"`, true},
+		{"owner access log", "enterprise", `"SESSION_TTL":"4h"`, `"ACCESS_LOG_VISIBILITY":"owner"`, false},
+		{"admin access log", "enterprise", `"ACCESS_LOG_VISIBILITY":"owner"`, `"ACCESS_LOG_VISIBILITY":"admin"`, true},
+		{"longer session", "enterprise", `"SESSION_TTL":"12h"`, `"SESSION_TTL":"24h"`, false},
+		{"session back to the default", "enterprise", `"SESSION_TTL":"12h"`, `"SESSION_TTL":"8h"`, true},
+		{"session between", "enterprise", `"SESSION_TTL":"12h"`, `"SESSION_TTL":"10h"`, true},
+		{"longer key days", "enterprise", `"API_KEY_MAX_DAYS":"180"`, `"API_KEY_MAX_DAYS":"365"`, true}, // 365 is the default
+		{"longer default key days", "enterprise", `"SESSION_TTL":"4h"`, `"API_KEY_DEFAULT_DAYS":"180"`, false},
+		{"looser rate", "enterprise", `"SESSION_TTL":"4h"`, `"RATE_LIMIT_AUTH_CLIENT":"40/5s"`, false},
+		{"faster rate", "enterprise", `"SESSION_TTL":"4h"`, `"RATE_LIMIT_AUTH_CLIENT":"20/2s"`, false},
+		{"stricter rate", "enterprise", `"SESSION_TTL":"4h"`, `"RATE_LIMIT_AUTH_CLIENT":"10/10s"`, true},
+		{"rate as the visitor chose", "enterprise", `"RATE_LIMIT_AUTH_CLIENT":"40/5s"`, `"RATE_LIMIT_AUTH_CLIENT":"30/5s"`, true},
+		// Small box.
+		{"writes without sign-in", "small-box", `"KEEP_VERSIONS":"3"`, `"WRITE_AUTH_MODE":"off"`, false},
+		{"writes need sign-in", "small-box", `"KEEP_VERSIONS":"3"`, `"WRITE_AUTH_MODE":"on"`, true},
+		{"back to log", "small-box", `"WRITE_AUTH_MODE":"off"`, `"WRITE_AUTH_MODE":"log"`, true},
+		{"shared data", "small-box", `"SAVED_DATA_DEFAULT_KIND":"declare_first"`, `"SAVED_DATA_DEFAULT_KIND":"shared"`, true}, // the default
+		{"year-long visitor session", "small-box", `"KEEP_VERSIONS":"3"`, `"VISITOR_SESSION_DAYS":"365"`, false},
+		{"year-long refresh", "small-box", `"OAUTH_REFRESH_TTL_DAYS":"120"`, `"OAUTH_REFRESH_TTL_DAYS":"365"`, false},
+		{"shorter refresh", "small-box", `"OAUTH_REFRESH_TTL_DAYS":"120"`, `"OAUTH_REFRESH_TTL_DAYS":"100"`, true},
+		{"looser sign-in rate", "small-box", `"KEEP_VERSIONS":"3"`, `"RATE_LIMIT_SIGNIN_IP":"40,5s"`, false},
+		// Not security-sensitive: any valid value.
+		{"more versions", "small-box", `"KEEP_VERSIONS":"3"`, `"KEEP_VERSIONS":"50"`, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			name := strings.Trim(strings.SplitN(c.suggest, ":", 2)[0], `"`)
+			reply := `{"findings":[{"severity":"warn","settings":["` + name + `"],"message":"Look again.","suggest":{` + c.suggest + `}}]}`
+			got := checkFindings(t, `{"product":"`+c.product+`","settings":{`+c.sent+`}}`, reply)
+			if len(got) != 1 || got[0].Message != "Look again." {
+				t.Fatalf("findings %+v: the message must stay", got)
+			}
+			if (got[0].Suggest != nil) != c.kept {
+				t.Fatalf("suggest %s after %s: got %v, kept should be %v", c.suggest, c.sent, got[0].Suggest, c.kept)
+			}
+		})
+	}
+	// One looser value takes the whole suggestion away, not just its part.
+	got := checkFindings(t, `{"product":"enterprise","settings":{"SESSION_TTL":"12h"}}`,
+		`{"findings":[{"severity":"warn","settings":["SESSION_TTL"],"message":"Both.","suggest":{"SESSION_IDLE":"15m","SESSION_TTL":"20h"}}]}`)
+	if len(got) != 1 || got[0].Suggest != nil {
+		t.Fatalf("mixed suggestion: %+v", got)
+	}
+}
+
+// Every security-sensitive switch and choice in both lists has a strict
+// order, so none falls back to "the default or nothing" by accident.
+func TestSetupRegistriesStrictOrder(t *testing.T) {
+	for _, product := range []string{"small-box", "enterprise"} {
+		r := setupRegistryFor(product)
+		for i := range r.list {
+			s := &r.list[i]
+			if s.kind() == "choice" && s.Security && len(s.StrictOrder) != len(s.Allowed) {
+				t.Errorf("%s: %s has strict order %v for %v", product, s.Name, s.StrictOrder, s.Allowed)
+			}
+		}
+	}
+	e := setupRegistryFor("enterprise")
+	for _, n := range []string{"OIDC_INSECURE_ALLOWED", "DB_INSECURE_ALLOWED", "BACKUP_STORAGE_INSECURE_ALLOWED", "BACKUP_ENVELOPE_PLAINTEXT_ALLOWED"} {
+		if s := e.by[n]; s == nil || !s.Security || len(s.StrictOrder) != 2 || s.StrictOrder[0] != "false" {
+			t.Errorf("%s: not treated as an insecure switch: %+v", n, s)
+		}
+	}
+}
+
+// Values are printable ASCII: Unicode spaces and line separators around a
+// rate's separator are refused, from the visitor and from the model, and a
+// suggested rate or number comes back in one canonical form.
+func TestSetupCheckASCIIAndCanonical(t *testing.T) {
+	f := &fakeSidecar{answer: `{"findings":[]}`}
+	_, mux := newTestSetupCheck(t, f, AskOptions{SetupCheckDailyMax: 100})
+	for _, v := range []string{"5,\u000b1m", "5, 1m", "5 ,1m", "5, 1m", "5,\u00851m", "5,1µs", "５,1m"} {
+		body, _ := json.Marshal(map[string]any{"product": "small-box", "settings": map[string]string{"RATE_LIMIT_UPLOAD": v}})
+		if w := postCheck(mux, string(body), nil); w.Code != http.StatusBadRequest || askCode(t, w) != "invalid_value" {
+			t.Errorf("rate %q: %d %s", v, w.Code, w.Body.String())
+		}
+	}
+	if w := postCheck(mux, `{"product":"small-box","settings":{"MAX_ARCHIVE_MB":"２00"}}`, nil); w.Code != http.StatusBadRequest {
+		t.Errorf("full-width digit: %d", w.Code)
+	}
+	if len(f.bodies) != 0 {
+		t.Fatalf("a refused value reached the model")
+	}
+	got := checkFindings(t, `{"product":"small-box","settings":{"RATE_LIMIT_UPLOAD":"5, 1m"}}`,
+		`{"findings":[
+			{"severity":"info","settings":["RATE_LIMIT_UPLOAD"],"message":"Tidy.","suggest":{"RATE_LIMIT_UPLOAD":" 010 , 30s ","MAX_ARCHIVE_MB":"0200"}},
+			{"severity":"info","settings":["RATE_LIMIT_UPLOAD"],"message":"Odd space.","suggest":{"RATE_LIMIT_UPLOAD":"10,\u000b30s"}}
+		]}`)
+	if len(got) != 1 || got[0].Suggest["RATE_LIMIT_UPLOAD"] != "10,30s" || got[0].Suggest["MAX_ARCHIVE_MB"] != "200" {
+		t.Fatalf("canonical suggestions: %+v", got)
+	}
+	got = checkFindings(t, `{"product":"enterprise","settings":{"RATE_LIMIT_AUTH_CLIENT":"20 / 10s"}}`,
+		`{"findings":[{"severity":"info","settings":["RATE_LIMIT_AUTH_CLIENT"],"message":"Tidy.","suggest":{"RATE_LIMIT_AUTH_CLIENT":"10 / 20s"}}]}`)
+	if len(got) != 1 || got[0].Suggest["RATE_LIMIT_AUTH_CLIENT"] != "10/20s" {
+		t.Fatalf("enterprise canonical rate: %+v", got)
+	}
+}
+
+// Messages carry no links: markdown links become their label, bare
+// addresses go, and a label that is itself an address goes too.
+func TestSetupCheckMessagesHaveNoLinks(t *testing.T) {
+	got := checkFindings(t, `{"product":"small-box","settings":{"KEEP_VERSIONS":"3"}}`,
+		`{"findings":[{"severity":"info","settings":["KEEP_VERSIONS"],"message":"See [the docs](https://evil.example/x) or https://evil.example/y and [https://simple-host.app/setup](https://simple-host.app/setup), also www.evil.example today."}]}`)
+	if len(got) != 1 {
+		t.Fatalf("findings: %+v", got)
+	}
+	m := got[0].Message
+	for _, bad := range []string{"http", "evil", "www.", "](", "simple-host.app"} {
+		if strings.Contains(m, bad) {
+			t.Errorf("message keeps %q: %q", bad, m)
+		}
+	}
+	if !strings.Contains(m, "See the docs or") {
+		t.Errorf("message lost its words: %q", m)
+	}
+}
+
+// The check has its own in-flight slots (Ask busy does not stop it, and a
+// check never takes one of Ask's), and a count per network per day that is
+// handed back when the day's cap across everyone refuses the check.
+func TestSetupCheckOwnSlotsAndNetworkCap(t *testing.T) {
+	body := `{"product":"small-box","settings":{"KEEP_VERSIONS":"3"}}`
+	h, mux := newTestSetupCheck(t, &fakeSidecar{answer: `{"findings":[]}`}, AskOptions{SetupCheckDailyMax: 100, SetupCheckPerNetworkDaily: 2, MaxInFlight: 1})
+	if cap(h.checkInFlight) != 1 {
+		t.Fatalf("default SETUP_CHECK_MAX_IN_FLIGHT: %d", cap(h.checkInFlight))
+	}
+	h.inFlight <- struct{}{} // Ask is full
+	if w := postCheck(mux, body, nil); w.Code != http.StatusOK {
+		t.Fatalf("check while Ask is full: %d %s", w.Code, w.Body.String())
+	}
+	<-h.inFlight
+	h.checkInFlight <- struct{}{} // the check is full
+	if w := postCheck(mux, body, nil); w.Code != http.StatusServiceUnavailable || askCode(t, w) != "busy" {
+		t.Fatalf("second check at once: %d %s", w.Code, w.Body.String())
+	}
+	if w := postAsk(mux, `{"question":"q","page":"features"}`, nil); w.Code != http.StatusOK {
+		t.Fatalf("ask while a check runs: %d", w.Code)
+	}
+	<-h.checkInFlight
+
+	// Per network: 198.51.100.7 has used 1 of 2; .9 is the same /24.
+	from := func(addr string) func(*http.Request) { return func(r *http.Request) { r.RemoteAddr = addr } }
+	if w := postCheck(mux, body, from("198.51.100.9:1")); w.Code != http.StatusOK {
+		t.Fatalf("second from the network: %d", w.Code)
+	}
+	if w := postCheck(mux, body, from("198.51.100.200:1")); w.Code != http.StatusTooManyRequests || askCode(t, w) != "daily_limit" {
+		t.Fatalf("third from the network: %d %s", w.Code, w.Body.String())
+	}
+	if w := postCheck(mux, body, from("203.0.113.5:1")); w.Code != http.StatusOK {
+		t.Fatalf("another network: %d", w.Code)
+	}
+	// A new UTC day starts the counts again.
+	h.now = func() time.Time { return time.Now().Add(24 * time.Hour) }
+	if w := postCheck(mux, body, from("198.51.100.200:1")); w.Code != http.StatusOK {
+		t.Fatalf("next day: %d", w.Code)
+	}
+
+	// Refused by the cap across everyone: the network's count is handed back.
+	h2, mux2 := newTestSetupCheck(t, &fakeSidecar{answer: `{"findings":[]}`}, AskOptions{SetupCheckDailyMax: 1, SetupCheckPerNetworkDaily: 5})
+	postCheck(mux2, body, nil)
+	if w := postCheck(mux2, body, nil); w.Code != http.StatusTooManyRequests {
+		t.Fatalf("over the day's cap: %d", w.Code)
+	}
+	if n := h2.checkNet.n["198.51.100.0"]; n != 1 {
+		t.Fatalf("network count after a refused check: %d, want 1", n)
+	}
+}
+
+// The page (setup.js, setupKind) and the server (kind) classify every
+// setting of both lists the same way, so what the page lets through is what
+// the server checks.
+func TestSetupKindMatchesPage(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node is not installed")
+	}
+	js, err := staticFiles.ReadFile("static/setup/setup.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := string(js)
+	i, j := strings.Index(src, "// <setupKind>"), strings.Index(src, "// </setupKind>")
+	if i < 0 || j < i {
+		t.Fatal("setup.js lacks the <setupKind> block")
+	}
+	for _, product := range []string{"small-box", "enterprise"} {
+		list, _ := staticFiles.ReadFile("static/setup/" + product + "-settings.json")
+		prog := src[i:j] + "\nvar d = " + string(list) + ";\nvar out = {}; d.settings.forEach(function (s) { out[s.name] = setupKind(s); }); process.stdout.write(JSON.stringify(out));"
+		cmd := exec.Command(node, "-e", "function numeric(x) { return typeof x === 'number'; }\n"+prog)
+		b, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("%s: node: %v", product, err)
+		}
+		var page map[string]string
+		if err := json.Unmarshal(b, &page); err != nil {
+			t.Fatal(err)
+		}
+		r := setupRegistryFor(product)
+		if len(page) != len(r.list) {
+			t.Fatalf("%s: page classified %d settings, server has %d", product, len(page), len(r.list))
+		}
+		for k := range r.list {
+			s := &r.list[k]
+			if page[s.Name] != s.kind() {
+				t.Errorf("%s: %s is %q on the page, %q on the server", product, s.Name, page[s.Name], s.kind())
+			}
+		}
+	}
+	// The shape the review found: min 0 and no max is a number on both.
+	s := &setupSetting{Type: "duration", Min: json.RawMessage("0"), Default: "5"}
+	if s.kind() != "number" {
+		t.Fatalf("min 0, no max: %s", s.kind())
 	}
 }

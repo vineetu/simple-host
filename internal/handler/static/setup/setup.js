@@ -3,8 +3,8 @@
 // each product's code, see docs/advanced/README.md), and secrets are never
 // asked for, only named as blanks. The one request it makes is the optional
 // check just before the files (POST /v1/setup/check): the product and the
-// names and values of the changed numbers, durations, switches and rates,
-// never free text such as hostnames or emails. Where the server has no model
+// names and values of the changed numbers, durations, switches, choices and
+// limits, never free text such as hostnames or emails. Where the server has no model
 // backend, or the check fails or is skipped, the files are shown without it.
 (function () {
   'use strict';
@@ -107,9 +107,9 @@
 
   // Go durations: 1h30m, 500ms, 1.25s. Returns milliseconds, or NaN.
   function parseDur(t) {
-    var m = /^((\d+(\.\d+)?)(ns|us|µs|ms|s|m|h))+$/.exec(t);
+    var m = /^((\d+(\.\d+)?)(ns|us|ms|s|m|h))+$/.exec(t);
     if (!m) return NaN;
-    var unit = { ns: 1e-6, us: 1e-3, 'µs': 1e-3, ms: 1, s: 1e3, m: 6e4, h: 3.6e6 }, total = 0, re = /(\d+(?:\.\d+)?)(ns|us|µs|ms|s|m|h)/g, p;
+    var unit = { ns: 1e-6, us: 1e-3, ms: 1, s: 1e3, m: 6e4, h: 3.6e6 }, total = 0, re = /(\d+(?:\.\d+)?)(ns|us|ms|s|m|h)/g, p;
     while ((p = re.exec(t))) total += parseFloat(p[1]) * unit[p[2]];
     return total;
   }
@@ -123,20 +123,35 @@
   }
   function numeric(x) { return typeof x === 'number'; }
 
+  // <setupKind> How a value is written and checked: number (also the small
+  // box's _MINUTES/_DAYS durations), duration, rate, choice, or text (free
+  // text and secrets). The same as kind() in internal/handler/setupcheck.go;
+  // a Go test runs this block against both settings lists.
+  function setupKind(s) {
+    if (s.type === 'int') return 'number';
+    if (s.type === 'duration') return (numeric(s.min) || numeric(s.max) || /^\d+$/.test(s.default)) ? 'number' : 'duration';
+    if (s.type === 'rate') return 'rate';
+    if (s.type === 'bool' || s.type === 'enum') return 'choice';
+    return 'text';
+  }
+  // </setupKind>
+
   // validate returns an error sentence, or '' when the value is acceptable.
   function validate(s, v) {
+    var k = setupKind(s);
     if (/[\r\n]/.test(v)) return 'One line only.';
-    if (s.type === 'int' || (s.type === 'duration' && numeric(s.min || s.max))) {
+    if (k !== 'text' && /[^\x20-\x7e]/.test(v)) return 'Plain letters, digits and punctuation only.';
+    if (k === 'number') {
       if (!/^\d+$/.test(v)) return 'A whole number.';
       var n = parseInt(v, 10);
       if (numeric(s.min) && n < s.min) return 'At least ' + s.min + '.';
       if (numeric(s.max) && n > s.max) return 'At most ' + s.max + '.';
-    } else if (s.type === 'duration') {
+    } else if (k === 'duration') {
       var d = parseDur(v);
       if (isNaN(d)) return 'A duration like 30m, 8h or 720h (no days: write days as hours).';
       if (s.min && d < parseDur(s.min)) return 'At least ' + s.min + '.';
       if (s.max && d > parseDur(s.max)) return 'At most ' + s.max + '.';
-    } else if (s.type === 'rate') {
+    } else if (k === 'rate') {
       var r = rateParts(v);
       if (!r) return 'Like ' + s.default + ': how many at once, then one more every interval.';
       if (r.burst < 1 || r.burst > 100000) return 'The first number is 1 to 100000.';
@@ -177,6 +192,9 @@
   }
 
   function render() {
+    // Leaving the files step stops a check still running: its answer would
+    // be for choices that may change.
+    if (S.step !== 3 && S.check.state === 'running') stopCheck();
     renderProgress();
     app.textContent = '';
     [renderChoose, renderBasics, renderAdvanced, renderOutput][S.step]();
@@ -422,7 +440,7 @@
       head.id = id + '-l';
       return el('div', { class: 'field' }, [head, help, opts]);
     }
-    var numberLike = s.type === 'int' || (s.type === 'duration' && numeric(s.min || s.max));
+    var numberLike = setupKind(s) === 'number';
     var input = el('input', { id: id, type: 'text', inputmode: numberLike ? 'numeric' : null, value: valueOf(s), placeholder: s.default || '(empty)',
       autocomplete: 'off', spellcheck: 'false', 'aria-describedby': id + '-h ' + id + '-e' });
     help.id = id + '-h';
@@ -593,7 +611,7 @@
   }
 
   // ── The optional check ──
-  var CHECKABLE = { int: true, duration: true, bool: true, enum: true, rate: true };
+  var CHECKABLE = { number: true, duration: true, choice: true, rate: true };
   // checkPayload is what the check is sent: the changed settings that are
   // numbers, durations, switches, choices or rates. null when there are none.
   function checkPayload() {
@@ -601,7 +619,7 @@
     var adv = advancedSettings().map(function (s) { return s.name; });
     var add = function (name, v) {
       var s = byName(name);
-      if (!s || !CHECKABLE[s.type] || v == null || v === '' || v === defaultOf(s)) return;
+      if (!s || !CHECKABLE[setupKind(s)] || v == null || v === '' || v === defaultOf(s)) return;
       out[name] = String(v); n++;
     };
     Object.keys(S.values[p]).forEach(function (k) { if (adv.indexOf(k) >= 0) add(k, S.values[p][k]); });
@@ -613,34 +631,50 @@
   }
   function checkKey() { var pl = checkPayload(); return pl ? JSON.stringify(pl) : ''; }
 
+  // stopCheck aborts a running check and forgets it, so its answer, if one
+  // still arrives, is ignored and the next visit to the files checks again.
+  function stopCheck() {
+    if (S.check.ctl) S.check.ctl.abort();
+    clearTimeout(S.check.timer);
+    S.check = { key: '', state: '', findings: [], note: '', seq: S.check.seq + 1 };
+  }
+
+  // runCheck starts a check, aborting any still running: one request at a
+  // time.
   function runCheck(payload, key) {
+    if (S.check.state === 'running') stopCheck();
     var seq = ++S.check.seq, ctl = window.AbortController ? new AbortController() : null;
-    S.check = { key: key, state: 'running', findings: [], note: '', seq: seq };
+    S.check = { key: key, state: 'running', findings: [], note: '', seq: seq, ctl: ctl, timer: 0 };
     var finish = function (note, findings) {
       if (S.check.seq !== seq || S.check.state !== 'running') return;
+      clearTimeout(S.check.timer);
+      S.check.ctl = null;
       S.check.findings = findings || [];
       S.check.state = S.check.findings.length ? 'review' : 'done';
       S.check.note = note;
       if (S.step === 3) render();
     };
-    var timer = setTimeout(function () { if (ctl) ctl.abort(); finish('Check skipped.'); }, 30000);
-    app.appendChild(el('div', { class: 'card checking' }, [
-      el('h2', { text: 'Checking your choices' }),
-      el('p', { class: 'note', text: 'A quick look for likely mistakes in the settings you changed. Only their names and values are sent.' }),
-      el('div', { class: 'spinner', 'aria-hidden': 'true' }),
-      el('button', { class: 'skip', type: 'button', text: 'Skip the check', onclick: function () {
-        clearTimeout(timer); if (ctl) ctl.abort(); finish('Check skipped.');
-      } })
-    ]));
+    S.check.timer = setTimeout(function () { if (ctl) ctl.abort(); finish('Check skipped.'); }, 30000);
+    S.check.skip = function () { if (ctl) ctl.abort(); finish('Check skipped.'); };
+    drawChecking();
     fetch('/v1/setup/check', { method: 'POST', credentials: 'omit', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload), signal: ctl ? ctl.signal : undefined })
       .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
       .then(function (d) {
-        clearTimeout(timer);
         var list = (d && Array.isArray(d.findings)) ? d.findings : [];
         finish(list.length ? '' : 'Checked: nothing to change.', list);
       })
-      .catch(function () { clearTimeout(timer); finish('Check skipped.'); });
+      .catch(function () { finish('Check skipped.'); });
+  }
+
+  // drawChecking shows the running check (again, on a re-render: no new request).
+  function drawChecking() {
+    app.appendChild(el('div', { class: 'card checking' }, [
+      el('h2', { text: 'Checking your choices' }),
+      el('p', { class: 'note', text: 'A quick look for likely mistakes in the settings you changed. Only their names and values are sent.' }),
+      el('div', { class: 'spinner', 'aria-hidden': 'true' }),
+      el('button', { class: 'skip', type: 'button', text: 'Skip the check', onclick: function () { S.check.skip(); } })
+    ]));
   }
 
   // applicable reports whether Apply can set every suggested value here: each
@@ -697,9 +731,9 @@
 
   function renderOutput() {
     var pl = checkPayload(), key = pl ? JSON.stringify(pl) : '';
-    if (!key) S.check = { key: '', state: '', findings: [], note: '', seq: S.check.seq };
+    if (!key) { if (S.check.state === 'running') stopCheck(); S.check = { key: '', state: '', findings: [], note: '', seq: S.check.seq }; }
     else if (S.check.key !== key) { runCheck(pl, key); return; }
-    else if (S.check.state === 'running') { S.check.key = ''; runCheck(pl, key); return; }
+    else if (S.check.state === 'running') { drawChecking(); return; }
     else if (S.check.state === 'review') { renderReview(); return; }
     var r = build(), card = el('div', { class: 'card' });
     if (S.check.note) app.appendChild(el('p', { class: 'check-note', role: 'status', text: S.check.note }));

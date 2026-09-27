@@ -986,6 +986,10 @@
         "shared",
         "declare_first"
       ],
+      "strict_order": [
+        "declare_first",
+        "shared"
+      ],
       "security_sensitive": true,
       "required": false,
       "basic": false,
@@ -1001,6 +1005,11 @@
         "off",
         "log",
         "on"
+      ],
+      "strict_order": [
+        "on",
+        "log",
+        "off"
       ],
       "security_sensitive": true,
       "required": false,
@@ -1557,6 +1566,34 @@
       "type": "int",
       "default": "200",
       "min": 0,
+      "max": 100000,
+      "unit": "checks",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "SETUP_CHECK_MAX_IN_FLIGHT",
+      "group": "ai",
+      "description": "The setup helper's check: checks answered at once on the whole server, apart from Ask's own.",
+      "type": "int",
+      "default": "1",
+      "min": 1,
+      "max": 64,
+      "unit": "checks",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "SETUP_CHECK_PER_NETWORK_DAILY",
+      "group": "ai",
+      "description": "The setup helper's check: checks one network (a /24, or a /48 for IPv6) may run per day.",
+      "type": "int",
+      "default": "20",
+      "min": 1,
       "max": 100000,
       "unit": "checks",
       "security_sensitive": false,

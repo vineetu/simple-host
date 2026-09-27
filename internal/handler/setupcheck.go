@@ -13,26 +13,29 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 )
 
 // The setup helper's optional "Check my choices" (POST /v1/setup/check).
 //
 // Just before the helper at /setup shows its files, it may send the product
 // and the settings the visitor changed from their defaults — names and values
-// only, and only numbers, durations, switches and rates: settings the registry
-// marks secret are refused, and so are free-text ones (hostnames, addresses,
-// emails), so nothing about the visitor or their organisation goes out. The
-// model (the same backend, ASK_MODEL and ASK_REASONING_EFFORT as the Ask
-// assistants) answers with a list of findings; every finding is checked here
-// against the settings registry before it is returned, and any that names an
-// unknown or secret setting, or suggests a value outside the registry's range,
-// is dropped. The helper shows each with Apply / Ignore; the files are still
-// written by the form.
+// only, and only numbers, durations, switches, choices and limits: settings the
+// registry marks secret are refused, and so are free-text ones (hostnames,
+// addresses, emails), so nothing about the visitor or their organisation goes
+// out. The model (the same backend, ASK_MODEL and ASK_REASONING_EFFORT as the
+// Ask assistants) answers with a list of findings; every finding is checked
+// here against the settings registry before it is returned, and any that names
+// an unknown or secret setting, or suggests a value outside the registry's
+// range, is dropped. A suggestion that would loosen a security-sensitive
+// setting past both its default and the visitor's own value is dropped too
+// (the message stays). The helper shows each with Apply / Ignore; the files
+// are still written by the form.
 //
 // Abuse and cost are bounded as for /v1/ask: same-origin only, JSON only, the
-// Ask per-address and per-network limits and in-flight cap, and a count per
-// UTC day of its own (SETUP_CHECK_DAILY_MAX, table setup_check_daily). The
+// Ask per-address and per-network rate limits, an in-flight cap of its own
+// (SETUP_CHECK_MAX_IN_FLIGHT, so Ask keeps its slots), a count per network per
+// UTC day (SETUP_CHECK_PER_NETWORK_DAILY, in memory) and a count per UTC day
+// across everyone (SETUP_CHECK_DAILY_MAX, table setup_check_daily). The
 // settings sent are never logged: the log line names the product, how many
 // settings and the day's count.
 
@@ -60,6 +63,7 @@ type setupSetting struct {
 	Allowed     []string        `json:"allowed"`
 	Unit        string          `json:"unit"`
 	Loosest     string          `json:"loosest"`
+	StrictOrder []string        `json:"strict_order"`
 	Security    bool            `json:"security_sensitive"`
 	SmallBox    *bool           `json:"small_box"`
 }
@@ -100,12 +104,60 @@ func setupRegistryFor(product string) *setupRegistry {
 			r.list = doc.Settings
 			r.by = map[string]*setupSetting{}
 			for i := range r.list {
+				setupStrictness(&r.list[i])
 				r.by[r.list[i].Name] = &r.list[i]
 			}
 			setupRegistries[r.product] = r
 		}
 	})
 	return setupRegistries[product]
+}
+
+// setupStrictFallback is strict_order (allowed values, strictest first) for
+// the Enterprise registry's security-sensitive choices, which that repo's
+// settings.json does not carry yet. The small box's comes in its own list.
+var setupStrictFallback = map[string][]string{
+	"SECURE_MODE":              {"true", "false"},
+	"NETWORK_ACCESS_APPROVALS": {"2", "1"},
+	"ACCESS_LOG_VISIBILITY":    {"admin", "counts", "owner"},
+	"BACKUP_SSE":               {"aws:kms", "AES256"},
+}
+
+// setupInsecureSwitch matches the switches whose "on" loosens transport or
+// storage security, whatever the registry says about them.
+var setupInsecureSwitch = regexp.MustCompile(`_(INSECURE|PLAINTEXT)_ALLOWED$`)
+
+// setupStrictness fills in a setting's strict order where its list has none:
+// the insecure switches (off first, and security-sensitive), then the
+// fallback. A security-sensitive choice left without one only ever keeps a
+// suggestion equal to its default or the visitor's value.
+func setupStrictness(s *setupSetting) {
+	if s.Type == "bool" && setupInsecureSwitch.MatchString(s.Name) {
+		s.Security = true
+		s.StrictOrder = nil
+		for _, off := range []string{"false", "off"} {
+			if slices.Contains(s.Allowed, off) {
+				s.StrictOrder = append(s.StrictOrder, off)
+			}
+		}
+		for _, v := range s.Allowed {
+			if !slices.Contains(s.StrictOrder, v) {
+				s.StrictOrder = append(s.StrictOrder, v)
+			}
+		}
+		return
+	}
+	if len(s.StrictOrder) > 0 {
+		return
+	}
+	if o, ok := setupStrictFallback[s.Name]; ok && len(o) == len(s.Allowed) {
+		for _, v := range o {
+			if !slices.Contains(s.Allowed, v) {
+				return
+			}
+		}
+		s.StrictOrder = o
+	}
 }
 
 // Known interactions, in plain words, for the prompt. They restate what the
@@ -136,8 +188,8 @@ const setupFactsEnterprise = `- MAX_ARCHIVE_BYTES is the largest upload; each up
 - IDLE_CLEANUP_DAYS above 0 turns idle cleanup on; without SMTP_URL owners are told only by a notice on their dashboard, and IDLE_CLEANUP_GRACE_DAYS is the time they get to react.
 - QUOTA_MAX_VERSIONS=1 leaves nothing to roll back to.`
 
-// setupDurationRe is a Go duration without a sign.
-var setupDurationRe = regexp.MustCompile(`^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$`)
+// setupDurationRe is a Go duration without a sign, in ASCII (us, not µs).
+var setupDurationRe = regexp.MustCompile(`^([0-9]+(\.[0-9]+)?(ns|us|ms|s|m|h))+$`)
 
 func setupParseDuration(v string) (time.Duration, bool) {
 	if !setupDurationRe.MatchString(v) {
@@ -166,43 +218,49 @@ func (s *setupSetting) bound(raw json.RawMessage) (n int64, d time.Duration, isD
 
 // checkable reports whether the check accepts this setting: numbers,
 // durations, switches, choices and rates. Secrets and free text never go out.
-func (s *setupSetting) checkable() bool {
-	switch s.Type {
-	case "int", "duration", "bool", "enum", "rate":
-		return true
-	}
-	return false
-}
+func (s *setupSetting) checkable() bool { return s.kind() != "text" }
 
-// numeric reports whether a duration setting is written as a whole number of
-// its unit (the small box's _MINUTES/_DAYS knobs) rather than a Go duration.
-func (s *setupSetting) numeric() bool {
-	if s.Type == "int" {
-		return true
-	}
-	if s.Type != "duration" {
-		return false
-	}
-	for _, b := range []json.RawMessage{s.Min, s.Max} {
-		if _, _, isDur, ok := s.bound(b); ok && !isDur {
-			return true
+var setupDigits = regexp.MustCompile(`^[0-9]+$`)
+
+// kind is how a value of s is written and checked: "number" (a whole number;
+// also the small box's _MINUTES/_DAYS durations, whose bounds are numbers),
+// "duration" (a Go duration), "rate", "choice" (a switch or a list) or "text"
+// (free text and secrets, never checked). setup.js has the same function
+// (setupKind); TestSetupKindMatchesPage keeps the two equal.
+func (s *setupSetting) kind() string {
+	switch s.Type {
+	case "int":
+		return "number"
+	case "duration":
+		for _, b := range []json.RawMessage{s.Min, s.Max} {
+			if _, _, isDur, ok := s.bound(b); ok && !isDur {
+				return "number"
+			}
 		}
+		if setupDigits.MatchString(s.Default) {
+			return "number"
+		}
+		return "duration"
+	case "rate":
+		return "rate"
+	case "bool", "enum":
+		return "choice"
 	}
-	_, err := strconv.ParseInt(s.Default, 10, 64)
-	return err == nil
+	return "text"
 }
 
 // valid reports whether v is a value the registry allows for s, as the
 // helper's own form checks it.
+// Printable ASCII only: a value ends up on one line of a .env or config.env.
 func (r *setupRegistry) valid(s *setupSetting, v string) bool {
-	if v == "" || utf8.RuneCountInString(v) > setupCheckMaxValue || strings.ContainsAny(v, "\r\n\t") {
+	if v == "" || len(v) > setupCheckMaxValue || strings.IndexFunc(v, func(c rune) bool { return c < 0x20 || c > 0x7e }) >= 0 {
 		return false
 	}
-	switch {
-	case s.Type == "bool" || s.Type == "enum":
+	switch s.kind() {
+	case "choice":
 		return slices.Contains(s.Allowed, v)
-	case s.numeric():
-		if strings.TrimLeft(v, "0123456789") != "" {
+	case "number":
+		if !setupDigits.MatchString(v) {
 			return false
 		}
 		n, err := strconv.ParseInt(v, 10, 64)
@@ -216,7 +274,7 @@ func (r *setupRegistry) valid(s *setupSetting, v string) bool {
 			return false
 		}
 		return true
-	case s.Type == "duration":
+	case "duration":
 		d, ok := setupParseDuration(v)
 		if !ok {
 			return false
@@ -228,7 +286,7 @@ func (r *setupRegistry) valid(s *setupSetting, v string) bool {
 			return false
 		}
 		return true
-	case s.Type == "rate":
+	case "rate":
 		burst, every, ok := r.rate(v)
 		if !ok || burst < 1 || burst > 100000 {
 			return false
@@ -242,6 +300,49 @@ func (r *setupRegistry) valid(s *setupSetting, v string) bool {
 		return true
 	}
 	return false
+}
+
+// canonical is a valid value as a suggestion is returned: a rate as
+// <burst><sep><interval> with no spaces, a number without leading zeros.
+func (r *setupRegistry) canonical(s *setupSetting, v string) string {
+	switch s.kind() {
+	case "rate":
+		b, e, _ := strings.Cut(v, r.rateSep)
+		n, _ := strconv.ParseInt(strings.TrimSpace(b), 10, 64)
+		return strconv.FormatInt(n, 10) + r.rateSep + strings.TrimSpace(e)
+	case "number":
+		n, _ := strconv.ParseInt(v, 10, 64)
+		return strconv.FormatInt(n, 10)
+	}
+	return v
+}
+
+// looser reports whether v loosens security-sensitive s compared with than:
+// a longer lifetime or larger number, a bigger burst or shorter interval, or
+// a value later in its strict order. A value that cannot be compared (than
+// empty or derived, a choice with no strict order) counts as looser.
+func (r *setupRegistry) looser(s *setupSetting, v, than string) bool {
+	if v == than {
+		return false
+	}
+	switch s.kind() {
+	case "choice":
+		i, j := slices.Index(s.StrictOrder, v), slices.Index(s.StrictOrder, than)
+		return i < 0 || j < 0 || i > j
+	case "number":
+		a, err1 := strconv.ParseInt(v, 10, 64)
+		b, err2 := strconv.ParseInt(than, 10, 64)
+		return err1 != nil || err2 != nil || a > b
+	case "duration":
+		a, ok1 := setupParseDuration(v)
+		b, ok2 := setupParseDuration(than)
+		return !ok1 || !ok2 || a > b
+	case "rate":
+		ab, ae, ok1 := r.rate(v)
+		bb, be, ok2 := r.rate(than)
+		return !ok1 || !ok2 || ab > bb || ae < be
+	}
+	return true
 }
 
 func (r *setupRegistry) rate(v string) (int64, time.Duration, bool) {
@@ -289,7 +390,7 @@ func setupCheckSystemPrompt(r *setupRegistry) string {
 		"- Say nothing about settings that look fine. No findings is a good answer.\n" +
 		"- severity is \"warn\" for something that will probably cause trouble, \"info\" for something worth knowing.\n" +
 		"- message: one or two plain sentences, no markdown, no links.\n" +
-		"- suggest: optional; the setting names and values you recommend instead, each within that setting's allowed range and written in its format. Never suggest a secret.\n" +
+		"- suggest: optional; the setting names and values you recommend instead, each within that setting's allowed range and written in its format. Never suggest a secret. For a setting marked security, never suggest a value weaker than both its default and the value chosen.\n" +
 		fmt.Sprintf("- At most %d findings.\n", setupCheckMaxFindings) +
 		"- Answer with JSON only, exactly this shape: {\"findings\":[{\"severity\":\"warn\",\"settings\":[\"NAME\"],\"message\":\"...\",\"suggest\":{\"NAME\":\"value\"}}]}\n\n" +
 		"=== FACTS ===\n" + r.facts + "\n\n=== SETTINGS (name | type | default | allowed | security | what it does) ===\n")
@@ -338,8 +439,11 @@ func setupCheckJSON(s string) string {
 // a finding is kept only if its severity is warn or info, it names 1 to
 // setupCheckMaxNames checkable settings of this product, it has a message,
 // and every suggested value is a known, checkable setting with a value the
-// registry allows. Anything else is dropped whole.
-func setupCheckFindings(r *setupRegistry, raw string) ([]setupFinding, error) {
+// registry allows. Anything else is dropped whole. Messages lose markdown and
+// every link. sent is the visitor's changed settings: a finding whose
+// suggestion would make a security-sensitive setting looser than both its
+// default and the visitor's value keeps its message but loses its suggestion.
+func setupCheckFindings(r *setupRegistry, raw string, sent map[string]string) ([]setupFinding, error) {
 	var reply struct {
 		Findings []setupModelFinding `json:"findings"`
 	}
@@ -380,7 +484,7 @@ next:
 				clean = append(clean, n)
 			}
 		}
-		msg := askCut(strings.Join(strings.Fields(askMDNoise.ReplaceAllString(f.Message, "")), " "), setupCheckMaxMessage)
+		msg := askCut(strings.Join(strings.Fields(cleanAnswer(f.Message, nil)), " "), setupCheckMaxMessage)
 		if msg == "" {
 			continue
 		}
@@ -388,16 +492,30 @@ next:
 		if len(f.Suggest) > setupCheckMaxNames {
 			continue
 		}
+		loosens := false
 		for n, v := range f.Suggest {
 			s := known(n)
 			v = strings.TrimSpace(v)
 			if s == nil || !r.valid(s, v) {
 				continue next
 			}
+			v = r.canonical(s, v)
+			if s.Security {
+				cur, ok := sent[n]
+				if !ok {
+					cur = s.Default
+				}
+				if r.looser(s, v, s.Default) && r.looser(s, v, cur) {
+					loosens = true
+				}
+			}
 			if suggest == nil {
 				suggest = map[string]string{}
 			}
 			suggest[n] = v
+		}
+		if loosens {
+			suggest = nil
 		}
 		out = append(out, setupFinding{Severity: f.Severity, Settings: clean, Message: msg, Suggest: suggest})
 	}
@@ -450,7 +568,7 @@ func (h *AskHandler) setupCheck(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, errorResponse{Error: name + " is a secret: secrets are never sent", Code: "secret_not_accepted"})
 			return
 		case !s.checkable():
-			writeJSON(w, http.StatusBadRequest, errorResponse{Error: name + " is free text: only numbers, durations, switches, choices and rates are checked", Code: "setting_not_checkable"})
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: name + " is free text: only numbers, durations, switches, choices and limits are checked", Code: "setting_not_checkable"})
 			return
 		case !reg.valid(s, v):
 			writeJSON(w, http.StatusBadRequest, errorResponse{Error: name + ": not a value this setting allows", Code: "invalid_value"})
@@ -459,15 +577,25 @@ func (h *AskHandler) setupCheck(w http.ResponseWriter, r *http.Request) {
 		names = append(names, name)
 	}
 	slices.Sort(names)
+	// Its own slots: a check never takes one of Ask's.
 	select {
-	case h.inFlight <- struct{}{}:
-		defer func() { <-h.inFlight }()
+	case h.checkInFlight <- struct{}{}:
+		defer func() { <-h.checkInFlight }()
 	default:
 		w.Header().Set("Retry-After", "5")
 		writeJSON(w, http.StatusServiceUnavailable, errorResponse{Error: "busy, try again", Code: "busy"})
 		return
 	}
-	n, ok, err := h.checkDaily.take(r.Context(), h.now().UTC().Format("2006-01-02"), h.checkDailyMax)
+	day, network := h.now().UTC().Format("2006-01-02"), truncateIP(ip)
+	if !h.checkNet.take(day, network, h.checkNetMax) {
+		w.Header().Set("Retry-After", "3600")
+		writeJSON(w, http.StatusTooManyRequests, errorResponse{Error: "no more checks today from this network", Code: "daily_limit"})
+		return
+	}
+	n, ok, err := h.checkDaily.take(r.Context(), day, h.checkDailyMax)
+	if err != nil || !ok {
+		h.checkNet.give(day, network)
+	}
 	if err != nil {
 		log.Printf("setup check: daily count unavailable: %v", err)
 		writeJSON(w, http.StatusServiceUnavailable, errorResponse{Error: "couldn't check right now", Code: "unavailable"})
@@ -504,7 +632,7 @@ func (h *AskHandler) setupCheck(w http.ResponseWriter, r *http.Request) {
 	}
 	var findings []setupFinding
 	if err == nil {
-		findings, err = setupCheckFindings(reg, raw)
+		findings, err = setupCheckFindings(reg, raw, req.Settings)
 	}
 	if err != nil {
 		log.Printf("setup check: product=%s failed: %v", reg.product, err)
@@ -512,4 +640,42 @@ func (h *AskHandler) setupCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"findings": findings})
+}
+
+// setupNetDaily counts checks per network (truncateIP) for the current UTC
+// day, in memory: it starts over each day and on a restart. It holds at most
+// one entry per network that got a check today, so it is bounded by the
+// daily cap across everyone.
+type setupNetDaily struct {
+	mu  sync.Mutex
+	day string
+	n   map[string]int
+}
+
+// take reserves one of the network's checks for day, or reports false when
+// it has had max.
+func (c *setupNetDaily) take(day, network string, max int) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.day != day || c.n == nil {
+		c.day, c.n = day, map[string]int{}
+	}
+	if c.n[network] >= max {
+		return false
+	}
+	c.n[network]++
+	return true
+}
+
+// give hands back a check take reserved (the day's cap was reached, or the
+// count could not be read).
+func (c *setupNetDaily) give(day, network string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.day != day || c.n[network] == 0 {
+		return
+	}
+	if c.n[network]--; c.n[network] == 0 {
+		delete(c.n, network)
+	}
 }

@@ -8,9 +8,12 @@ at once.
 
 **The setup helper's check.** On a server with the backend, the setup helper at `/setup` can check
 a visitor's changed settings just before it writes their files (`POST /v1/setup/check`). It uses
-the same model, reasoning effort, per-address limits and limit on answers at once as the box, with
-its own cap per day, `SETUP_CHECK_DAILY_MAX` (0 turns it off; the helper then shows the files
-without it). Only setting names and values are sent, never free text or secrets.
+the same model, reasoning effort and per-address limits as the box, with its own limit on checks
+at once (`SETUP_CHECK_MAX_IN_FLIGHT`, so the box keeps its own), a cap per network per day
+(`SETUP_CHECK_PER_NETWORK_DAILY`) and a cap per day across everyone, `SETUP_CHECK_DAILY_MAX` (0
+turns it off; the helper then shows the files without it). Only setting names and values are
+sent, never free text or secrets. A suggestion that would loosen a security-sensitive setting
+past both its default and the visitor's own value is never offered.
 
 The same backend serves AI create (building a site from a description), whose settings are listed
 below with one line each. A small box has no model backend, so none of these apply there.
@@ -33,6 +36,8 @@ below with one line each. A small box has no model backend, so none of these app
 | `ASK_REASONING_EFFORT` | `none` | `none` / `low` / `medium` / `high` | Ask: how long the model thinks before answering. none answers in seconds. |
 | `ASK_MAX_TOKENS` | `300` | 50–4000 tokens | Ask: longest answer, in tokens. |
 | `SETUP_CHECK_DAILY_MAX` | `200` | 0–100000 checks | The setup helper's optional "Check my choices": checks answered per day across everyone, through the Ask model. 0 turns it off. |
+| `SETUP_CHECK_MAX_IN_FLIGHT` | `1` | 1–64 checks | The setup helper's check: checks answered at once on the whole server, apart from Ask's own. |
+| `SETUP_CHECK_PER_NETWORK_DAILY` | `20` | 1–100000 checks | The setup helper's check: checks one network (a /24, or a /48 for IPv6) may run per day. |
 | `LLM_PROVIDER` | `grok` | `custom` / `deepseek` / `grok` / `openai` / `openrouter` / `xai` | The model backend for AI create and Ask. |
 | `LLM_API_KEY` | none | secret | The model backend's key. Ask and AI create run only with a backend set. **Security-sensitive.** |
 | `LLM_BASE_URL` | none | text | The backend's address; wins over the provider's. |

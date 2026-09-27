@@ -59,7 +59,11 @@ type AskHandler struct {
 	inFlight         chan struct{}
 	daily            askCounter
 	dailyMax         int
-	// The setup helper's check (setupcheck.go): its own count per day.
+	// The setup helper's check (setupcheck.go): its own slots, a count per
+	// network per day and a count per day across everyone.
+	checkInFlight chan struct{}
+	checkNet      *setupNetDaily
+	checkNetMax   int
 	checkDaily    askCounter
 	checkDailyMax int
 	now           func() time.Time
@@ -456,6 +460,11 @@ type AskOptions struct {
 	// SetupCheckDailyMax is the setup helper's checks per UTC day across
 	// everyone (POST /v1/setup/check); 0 answers none.
 	SetupCheckDailyMax int
+	// SetupCheckMaxInFlight is how many checks run at once, apart from the
+	// questions' MaxInFlight (1 when 0). SetupCheckPerNetworkDaily is the
+	// checks one network (/24 or /48) may run per UTC day (20 when 0).
+	SetupCheckMaxInFlight     int
+	SetupCheckPerNetworkDaily int
 }
 
 // NewAskHandler builds the handler. origin is the instance's apex
@@ -471,6 +480,12 @@ func newAskHandler(key, base, model, origin string, daily askCounter, o AskOptio
 	perSec := 1 / o.Every.Seconds()
 	if o.MaxTokens <= 0 {
 		o.MaxTokens = 300
+	}
+	if o.SetupCheckMaxInFlight <= 0 {
+		o.SetupCheckMaxInFlight = 1
+	}
+	if o.SetupCheckPerNetworkDaily <= 0 {
+		o.SetupCheckPerNetworkDaily = 20
 	}
 	return &AskHandler{
 		key: key, base: strings.TrimRight(base, "/"), model: model,
@@ -488,6 +503,9 @@ func newAskHandler(key, base, model, origin string, daily askCounter, o AskOptio
 		// The tests' counter; NewAskHandler swaps in the table.
 		checkDaily:    &askMemCounter{},
 		checkDailyMax: o.SetupCheckDailyMax,
+		checkInFlight: make(chan struct{}, o.SetupCheckMaxInFlight),
+		checkNet:      &setupNetDaily{},
+		checkNetMax:   o.SetupCheckPerNetworkDaily,
 		now:           time.Now,
 	}
 }
