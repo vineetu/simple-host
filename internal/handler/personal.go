@@ -157,7 +157,7 @@ func (h *SiteHandler) personalSite(w http.ResponseWriter, r *http.Request) (site
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
 		return "", "", "", false
 	}
-	if h.refuseSuspendedSiteID(w, r, siteID) {
+	if h.refuseSuspendedSiteID(w, r, siteID) || h.refuseOffline(w, r, siteID) {
 		return "", "", "", false
 	}
 	set, ok := h.dataSettings(w, r, siteID, name)
@@ -405,7 +405,21 @@ func (h *SiteHandler) personalHistory(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"name": name, "history": entries, "next": historyNext(entries, limit), "undo_days": h.savedData.UndoDays})
+	next := historyNext(entries, limit)
+	for i := range entries {
+		entries[i] = ownHistoryView(entries[i])
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"name": name, "history": entries, "next": next, "undo_days": h.savedData.UndoDays})
+}
+
+// ownHistoryView is a change as its visitor sees it: who made it only when it
+// was them (a clear by the site owner or the operator names nobody; by_kind
+// says which).
+func ownHistoryView(e db.HistoryEntry) db.HistoryEntry {
+	if e.ByKind != actorVisitor {
+		e.By = ""
+	}
+	return e
 }
 
 // ownHistoryEntry reads change id of name when it belongs to itemID.
@@ -441,7 +455,7 @@ func (h *SiteHandler) personalHistoryEntry(w http.ResponseWriter, r *http.Reques
 	if e.Value == nil {
 		e.Value = json.RawMessage("null")
 	}
-	writeJSON(w, http.StatusOK, e)
+	writeJSON(w, http.StatusOK, ownHistoryView(e))
 }
 
 // restorePersonal is POST .../data/{name}/history/{id}/restore: the visitor

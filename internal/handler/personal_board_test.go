@@ -212,6 +212,19 @@ func TestPersonalLimitsHistoryAndErase(t *testing.T) {
 	if r := s.as(t, s.wesCooky, "GET", p, nil); r.json(t)["data"] != nil {
 		t.Fatalf("wes's own delete came back: %s", r.body)
 	}
+	// The owner's clear shows in the visitor's history without the owner's address.
+	sawClear := false
+	for _, e := range historyOf(t, s.visitor(t, "GET", p+"/history", nil)) {
+		if e["op"] == "clear" {
+			sawClear = true
+			if e["by"] != nil || e["by_kind"] != "owner" {
+				t.Fatalf("clear as the visitor sees it: %v", e)
+			}
+		}
+	}
+	if !sawClear {
+		t.Fatal("no clear in the visitor's history")
+	}
 
 	// The visitor's "Download my data" has it; deleting their account erases it.
 	vicID, _ := s.a.userID(t, s.vic)
