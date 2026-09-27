@@ -113,7 +113,7 @@
     logEl, intro, pasteBox,
     el('div', { class: 'sh-assist-tools' }, [cleanBtn, pasteBtn]),
     form,
-    el('p', { class: 'sh-ask-note', text: 'Sends your message, the last few turns and the choices on this page that are numbers, switches, limits or picked from a list, never the hostnames, emails or secrets you typed. A pasted error goes only after you review it. Nothing is kept. Written by AI, so check it: nothing changes until you apply it.' })
+    el('p', { class: 'sh-ask-note', text: 'Sends your message, recent turns and your choices here that are numbers, switches, limits or picked from a list, never hostnames, emails or secrets you typed; a pasted error only after you review it. Nothing is kept. Written by AI: nothing changes until you apply it.' })
   ]);
   var box = el('div', { class: 'sh-ask sh-assist' }, [fab, panel]);
   document.body.appendChild(box);
@@ -385,7 +385,7 @@
   // ask sends a message, with pasted output already redacted and reviewed.
   // A typed message is redacted too, and shows as sent.
   function ask(q, pasted) {
-    q = redact((q || '').trim()).replace(/\s+/g, ' ');
+    q = redact((q || '').trim()).replace(/\s+/g, ' ').slice(0, 500);
     if (!q || busy) return;
     setBusy(true);
     redraw();

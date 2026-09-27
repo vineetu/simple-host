@@ -156,9 +156,22 @@ func setupBasicChoiceOf(product, key string) *setupBasicChoice {
 	return nil
 }
 
+var setupAssistPrompts sync.Map // product → its system prompt, built once
+
+// setupAssistPromptFor is the product's system prompt, built on first use:
+// it depends only on embedded files.
+func setupAssistPromptFor(r *setupRegistry) string {
+	if p, ok := setupAssistPrompts.Load(r.product); ok {
+		return p.(string)
+	}
+	p := setupAssistSystemPrompt(r)
+	setupAssistPrompts.Store(r.product, p)
+	return p
+}
+
 // setupAssistSystemPrompt is the instructions and the knowledge: the basic
-// questions, the facts the check uses, a product-level guide and the settings
-// the helper writes, area by area.
+// questions, the facts the check uses, a product-level guide, what goes wrong
+// in an install, and the settings the helper writes, area by area.
 func setupAssistSystemPrompt(r *setupRegistry) string {
 	var b strings.Builder
 	b.WriteString("You are the setup assistant on the Simple Host setup helper page, helping someone set up " + r.name + ". " +
@@ -557,7 +570,7 @@ func (h *AskHandler) setupAssist(w http.ResponseWriter, r *http.Request) {
 	if len(history) > askMaxTurns {
 		history = history[len(history)-askMaxTurns:]
 	}
-	msgs := []openAIMessage{{Role: "system", Content: setupAssistSystemPrompt(reg)}}
+	msgs := []openAIMessage{{Role: "system", Content: setupAssistPromptFor(reg)}}
 	for _, t := range history {
 		q, a := askCut(setupRedact(t.Q), setupAssistMaxMessage), askCut(t.A, askMaxHistoryAnswerChars)
 		if q == "" || a == "" {

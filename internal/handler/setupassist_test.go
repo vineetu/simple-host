@@ -350,9 +350,10 @@ func TestSetupAssistPrompt(t *testing.T) {
 			t.Errorf("enterprise prompt lists %q", not)
 		}
 	}
-	// Both prompts stay a sensible size (about 4 characters a token).
+	// Both prompts stay a sensible size (about 4 characters a token; each is
+	// about 7k today).
 	for _, p := range []string{"small-box", "enterprise"} {
-		if n := len(setupAssistSystemPrompt(setupRegistryFor(p))) / 4; n > 16000 {
+		if n := len(setupAssistSystemPrompt(setupRegistryFor(p))) / 4; n > 10000 {
 			t.Errorf("%s prompt is about %d tokens", p, n)
 		}
 	}
