@@ -31,16 +31,21 @@ type DeletedSite struct {
 func (d DeletedSite) PurgeAt() time.Time { return d.DeletedAt.Add(DeletedSiteRetention) }
 
 // MarkSiteDeleted moves a live site to Recently deleted. sql.ErrNoRows when
-// there is no live site with that id.
+// there is no live site with that id. An emailed idle-cleanup link ("Keep
+// it") ends with it; the cleanup's own removal sets a restore link after.
 func MarkSiteDeleted(ctx context.Context, q Querier, siteID string) error {
-	res, err := q.ExecContext(ctx, `UPDATE sites SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL`, siteID)
+	res, err := q.ExecContext(ctx, `UPDATE sites SET deleted_at = now(), idle_token_hash = NULL WHERE id = $1 AND deleted_at IS NULL`, siteID)
 	return oneRow(res, err)
 }
 
 // RestoreDeletedSite brings a site back from Recently deleted. sql.ErrNoRows
-// when the site is not (or no longer) in Recently deleted.
+// when the site is not (or no longer) in Recently deleted. Every restore
+// (owner app, API, MCP, the emailed link) counts as the owner keeping it: the
+// idle warning, removal and link end and the idle clock restarts.
 func RestoreDeletedSite(ctx context.Context, q Querier, siteID string) error {
-	res, err := q.ExecContext(ctx, `UPDATE sites SET deleted_at = NULL, updated_at = now() WHERE id = $1 AND deleted_at IS NOT NULL`, siteID)
+	res, err := q.ExecContext(ctx, `UPDATE sites SET deleted_at = NULL, updated_at = now(),
+		       idle_kept_at = now(), idle_warned_at = NULL, idle_removed_at = NULL, idle_token_hash = NULL
+		 WHERE id = $1 AND deleted_at IS NOT NULL`, siteID)
 	return oneRow(res, err)
 }
 

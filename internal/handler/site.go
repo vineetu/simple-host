@@ -112,6 +112,7 @@ type SiteHandler struct {
 	// (idle.go).
 	idleCleanup   bool
 	idleMaxEmails int
+	idleExempt    db.IdleExempt
 
 	// exportKey signs short-lived export download links (exportlink.go); per
 	// process, used for nothing else. publicBaseURL is the apex they point at.
@@ -354,8 +355,9 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	idleLinkLimiter := newRateLimiter(10, 0.1)
 	idleLinkLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	mux.Handle("GET /v1/idle/keep", rateLimitByIP(idleLinkLimiter, http.HandlerFunc(h.idleKeep)))
-	mux.Handle("GET /v1/idle/download", rateLimitByIP(idleLinkLimiter, http.HandlerFunc(h.idleDownload)))
+	mux.Handle("POST /v1/idle/keep", rateLimitByIP(idleLinkLimiter, http.HandlerFunc(h.idleKeep)))
 	mux.Handle("GET /v1/idle/restore", rateLimitByIP(idleLinkLimiter, http.HandlerFunc(h.idleRestore)))
+	mux.Handle("POST /v1/idle/restore", rateLimitByIP(idleLinkLimiter, http.HandlerFunc(h.idleRestore)))
 
 	// JSON deploy (LLM-friendly): file contents inline, no archive. Same auth +
 	// rate-limit chain as the archive upload; CORS preflight is handled by the

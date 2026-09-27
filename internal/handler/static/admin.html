@@ -189,7 +189,7 @@ table.apx td.err{color:var(--error)}
     <h2>Idle sites</h2>
     <p class="ph" id="idle-note"></p>
     <details id="idle-warn-d"><summary id="idle-warn-s">Sites that would be warned</summary>
-      <table class="apx"><thead><tr><th>Website</th><th>Owner</th><th>Last visit or deploy</th></tr></thead><tbody id="idle-warn"></tbody></table>
+      <table class="apx"><thead><tr><th>Website</th><th>Owner</th><th>Last activity</th></tr></thead><tbody id="idle-warn"></tbody></table>
     </details>
     <details id="idle-remove-d"><summary id="idle-remove-s">Sites that would be removed</summary>
       <table class="apx"><thead><tr><th>Website</th><th>Owner</th><th>Warned</th></tr></thead><tbody id="idle-remove"></tbody></table>
@@ -499,10 +499,10 @@ async function loadIdle(){
     if(!res.ok) return; // older server: section stays hidden
     var d=await res.json();
     var warn=d.would_warn||[], rm=d.would_remove||[];
-    var state=d.enabled?'On: every 6 hours, owners of sites with no visitors and no new version for '+d.idle_days+' days are emailed (at most '+d.max_emails_per_run+' emails per run), and sites still idle '+d.grace_days+' days after the email move to Recently deleted.':
+    var state=d.enabled?'On: every 6 hours, owners of sites with no visitors, no new version and no saved data for '+d.idle_days+' days are emailed (at most '+d.max_emails_per_run+' emails per run), and sites still idle '+d.grace_days+' days after the email move to Recently deleted.':
       'Off (IDLE_CLEANUP is not "on"). Nothing is emailed or removed. This is what a run would do now.';
     if(!d.visit_data_ok) state+=' Right now nothing would happen: '+(d.visit_data_note||'visit records cannot be trusted')+'.';
-    document.getElementById('idle-note').textContent=state+' Sites with their own domain or name, sites marked Keep, admin sites and taken-down sites are never included.';
+    document.getElementById('idle-note').textContent=state+' Sites with their own domain or name, sites marked Keep, admin, event and reviewer accounts, handles in IDLE_CLEANUP_EXEMPT_HANDLES, and taken-down or offline sites are never included. Saves, list entries and restores count as activity.';
     document.getElementById('idle-warn-s').textContent='Sites that would be warned ('+warn.length+(warn.length>=500?'+':'')+')';
     document.getElementById('idle-remove-s').textContent='Sites that would be removed ('+rm.length+(rm.length>=500?'+':'')+')';
     document.getElementById('idle-warn').innerHTML=warn.map(function(x){

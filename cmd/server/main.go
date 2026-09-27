@@ -172,6 +172,7 @@ func main() {
 	siteHandler.SetSiteHosts(cfg.SiteHosts, cfg.SiteCertDir)
 	siteHandler.SetDomainCerts(cfg.DomainCertDir)
 	siteHandler.SetIdleCleanup(cfg.IdleCleanup, cfg.IdleCleanupMaxEmails)
+	siteHandler.SetIdleExempt(cfg.IdleCleanupExemptHandles, cfg.ReviewAccountEmail)
 	siteHandler.SetPublicBaseURL(cfg.PublicBaseURL)
 	userHandler.SetPublicPage(siteHandler.PersonPageURL)
 	userHandler.SetAddressState(siteHandler.AddressState)

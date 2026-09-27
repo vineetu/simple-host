@@ -1250,9 +1250,10 @@ paths:
       description: >-
         Mark the site Keep (or clear the mark). Where the idle-site cleanup is on
         (simple-host.app), a site with no visits by people and no new version for 90
-        days gets its owner an email with one-click "Keep it" and "Download it" links;
-        30 days later with nothing done it moves to Recently deleted (restorable for
-        7 days, with a one-click link in a second email). A site marked Keep is never
+        days gets its owner an email with a "Keep it" link (and a link to their page,
+        where they can sign in and download it); 30 days later with nothing done it
+        moves to Recently deleted (restorable for 7 days, with a link in a second
+        email). A site marked Keep is never
         flagged, and marking it ends a pending warning. Sites with their own domain or
         claimed name are never flagged either. Owner only (API key).
       tags: [Sites]
@@ -1280,45 +1281,70 @@ paths:
   /v1/idle/keep:
     get:
       operationId: getIdleKeep
-      summary: '"Keep it" link from an idle-site email'
+      summary: '"Keep it" link from an idle-site email (confirmation page)'
       description: >-
         Opened from the idle-site email; no sign-in, the token is the authorization.
-        The site stays up and its idle clock restarts; the link is then spent. Answers
-        an HTML page (404 page when the link was used, replaced or has expired).
+        Shows a page with a "Keep it online" button and changes nothing (mail
+        scanners follow links). 404 page when the link was used, replaced or has
+        expired; 403 page while the site is taken down.
       tags: [Sites]
       security: []
       parameters: [ { name: t, in: query, required: true, schema: { type: string }, description: The token from the email } ]
       responses:
-        '200': { description: HTML page confirming the site stays up }
+        '200': { description: HTML confirmation page with the button }
+        '403': { description: HTML page; the site is taken down }
         '404': { description: HTML page; the link was used or has expired }
         '429': { $ref: '#/components/responses/TooManyRequests' }
-  /v1/idle/download:
-    get:
-      operationId: getIdleDownload
-      summary: '"Download it" link from an idle-site email'
+    post:
+      operationId: postIdleKeep
+      summary: '"Keep it" button'
       description: >-
-        The site's export (the same .tar.gz as GET /v1/sites/{site}/export.tar.gz),
-        with no sign-in, while the site is warned and not yet removed.
+        The confirmation page's button. The site stays up and its idle clock
+        restarts; the link is then spent. HTML page.
       tags: [Sites]
       security: []
-      parameters: [ { name: t, in: query, required: true, schema: { type: string } } ]
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema: { type: object, required: [t], properties: { t: { type: string } } }
       responses:
-        '200': { description: The export, application/gzip }
+        '200': { description: HTML page confirming the site stays up }
+        '403': { description: HTML page; the site is taken down }
         '404': { description: HTML page; the link was used or has expired }
         '429': { $ref: '#/components/responses/TooManyRequests' }
   /v1/idle/restore:
     get:
       operationId: getIdleRestore
-      summary: '"Restore it" link from an idle-site removal email'
+      summary: '"Restore it" link from an idle-site removal email (confirmation page)'
       description: >-
-        Brings a site the idle-site cleanup moved to Recently deleted back exactly as
-        it was (versions, saved data, names), with a fresh idle clock, while it is
-        still in Recently deleted. No sign-in; the link is then spent. HTML page.
+        Shows a page with a "Restore it" button for a site the idle-site cleanup
+        moved to Recently deleted, and changes nothing. No sign-in.
       tags: [Sites]
       security: []
       parameters: [ { name: t, in: query, required: true, schema: { type: string } } ]
       responses:
+        '200': { description: HTML confirmation page with the button }
+        '403': { description: HTML page; the site is taken down }
+        '404': { description: HTML page; the link was used or has expired }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    post:
+      operationId: postIdleRestore
+      summary: '"Restore it" button'
+      description: >-
+        Brings the site back exactly as it was (versions, saved data, names), with
+        a fresh idle clock, while it is still in Recently deleted; the link is
+        then spent. HTML page.
+      tags: [Sites]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema: { type: object, required: [t], properties: { t: { type: string } } }
+      responses:
         '200': { description: HTML page confirming the site is back }
+        '403': { description: HTML page; the site is taken down }
         '404': { description: HTML page; the link was used or has expired }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 

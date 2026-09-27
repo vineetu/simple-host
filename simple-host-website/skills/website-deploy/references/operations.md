@@ -111,11 +111,13 @@ Connector: `delete_site`, `list_deleted_sites`, `restore_site`.
 
 ## Idle sites and Keep
 
-On simple-host.app, a site with no visitors and no new version for 90 days gets
-its owner an email with one-click "Keep it" and "Download it" links; 30 days
-later with nothing done it moves to Recently deleted, and a second email has a
-one-click "Restore it" link. `GET /v1/sites` shows `idle_removal_at` on such a
-site; a new deploy or a visit also clears it. Sites with their own domain or
+On simple-host.app, a site with no visitors, no new version and no saved data
+for 90 days gets its owner an email with a "Keep it" link (and a link to their
+page, where they can sign in and download it); 30 days later with nothing done
+it moves to Recently deleted, and a second email has a "Restore it" link. Each
+link opens a page with a button that does the action. `GET /v1/sites` shows
+`idle_removal_at` on such a site; a new deploy, a visit, a save or a restore
+also clears it. Sites with their own domain or
 claimed name, and sites taken offline, are never flagged. To keep a site up for good:
 
 ```

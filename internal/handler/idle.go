@@ -23,30 +23,38 @@ import (
 // Idle-site cleanup (owner decision 2026-09-27).
 //
 // A site with no visits by people and no new version for idleAfter gets its
-// owner an email with two links that need no sign-in: "Keep it" (resets the
-// clock) and "Download it" (the site's export). idleGrace later, with nothing
-// done, it moves to Recently deleted (the usual 7-day restore window) and a
-// second email carries a one-click "Restore it" link. Exempt: sites with a
-// custom domain or a claimed name, sites marked Keep (owner app, PUT
-// /v1/sites/{site}/keep, MCP keep_site), admin accounts' sites, taken-down
-// sites and suspended accounts, sites their owner took offline, preview sites
-// (db/idle.go has the rule).
+// owner an email with a "Keep it" link that needs no sign-in (it resets the
+// clock) and a link to their Simple Host page, where they can download it
+// after signing in. idleGrace later, with nothing done, it moves to Recently
+// deleted (the usual 7-day restore window) and a second email carries a
+// "Restore it" link. Exempt: sites with a custom domain or a claimed name,
+// sites marked Keep (owner app, PUT /v1/sites/{site}/keep, MCP keep_site),
+// admin, reviewer and event accounts' sites, handles in
+// IDLE_CLEANUP_EXEMPT_HANDLES, taken-down sites and suspended accounts, sites
+// their owner took offline, preview sites (db/idle.go has the rule).
+// Activity is a person's visit, a new version, a saved-data or list write, a
+// restore or "Keep it".
 //
 // Off unless IDLE_CLEANUP=on. The admin page's dry run (GET
 // /v1/admin/idle-sites) lists what a run would do either way. Each run sends
-// at most IDLE_CLEANUP_MAX_EMAILS emails, and a site is only ever removed
-// after its warning was sent. Nothing runs while visit data cannot be
-// trusted: fewer than idleAfter days of analytics on record, or an ingester
-// that has not run for idleIngestStale.
+// at most IDLE_CLEANUP_MAX_EMAILS emails. A warning is only on record once
+// its email was accepted (the mark and the send share one transaction), and a
+// removal re-checks every condition in the transaction that moves the site,
+// so a Keep, deploy or domain that lands mid-run wins. Nothing runs while
+// visit data cannot be trusted: fewer than idleAfter days of analytics on
+// record, or an ingester that has not run for idleIngestStale.
 //
-// The links carry a random token; only its SHA-256 is stored, and it is
-// replaced (or cleared) at every step, so a link works for one site, for one
-// warning, and dies when the owner or the cleanup moves on.
+// The emailed links open a confirmation page (GET) and act only when the
+// person presses its button (POST), so mail scanners that follow every link
+// change nothing. They carry a random token; only its SHA-256 is stored, and
+// it is replaced (or cleared) at every step, so a link works for one site,
+// for one warning, and dies when the owner or the cleanup moves on, when the
+// account's sign-in email changes, or while the site is taken down.
 
 const (
 	idleAfter        = 90 * 24 * time.Hour
 	idleGrace        = 30 * 24 * time.Hour
-	idleIngestStale  = 48 * time.Hour
+	idleIngestStale  = 6 * time.Hour
 	idleRunEvery     = 6 * time.Hour
 	idleDefaultEmail = 50
 	idleReplyTo      = "support@simple-host.app"
@@ -60,6 +68,19 @@ func (h *SiteHandler) SetIdleCleanup(on bool, maxEmails int) {
 		maxEmails = idleDefaultEmail
 	}
 	h.idleMaxEmails = maxEmails
+}
+
+// SetIdleExempt sets the accounts the cleanup never touches besides the
+// built-in rules: handles (IDLE_CLEANUP_EXEMPT_HANDLES) and the plugin
+// reviewer account (REVIEW_ACCOUNT_EMAIL).
+func (h *SiteHandler) SetIdleExempt(handles []string, reviewerEmail string) {
+	ex := db.IdleExempt{ReviewerEmail: strings.TrimSpace(reviewerEmail)}
+	for _, hd := range handles {
+		if hd = strings.ToLower(strings.TrimSpace(hd)); hd != "" {
+			ex.Handles = append(ex.Handles, hd)
+		}
+	}
+	h.idleExempt = ex
 }
 
 func (h *SiteHandler) idleEmailCap() int {
@@ -86,7 +107,7 @@ func (h *SiteHandler) idleEvidenceOK(ctx context.Context, now time.Time) (bool, 
 	case since.IsZero() || since.After(now.Add(-idleAfter)):
 		return false, "fewer than 90 days of visit records on this server, so nothing can be called idle yet", since, last, nil
 	case last.IsZero() || now.Sub(last) > idleIngestStale:
-		return false, "visit records are not being read (the analytics ingester has not run for two days), so nothing is called idle", since, last, nil
+		return false, "visit records are not being read (the analytics ingester has not run for six hours), so nothing is called idle", since, last, nil
 	}
 	return true, "", since, last, nil
 }
@@ -138,7 +159,7 @@ func (h *SiteHandler) runIdleCleanup(ctx context.Context, now time.Time) {
 		log.Printf("idle-site cleanup: skipped: %s", why)
 		return
 	}
-	if n, err := db.ClearStaleIdleWarnings(ctx, h.database); err != nil {
+	if n, err := db.ClearStaleIdleWarnings(ctx, h.database, h.idleExempt); err != nil {
 		log.Printf("idle-site cleanup: clear warnings: %v", err)
 		return
 	} else if n > 0 {
@@ -146,7 +167,7 @@ func (h *SiteHandler) runIdleCleanup(ctx context.Context, now time.Time) {
 	}
 	budget := h.idleEmailCap()
 
-	remove, err := db.ListIdleSitesToRemove(ctx, h.database, now.Add(-idleGrace), budget)
+	remove, err := db.ListIdleSitesToRemove(ctx, h.database, h.idleExempt, now.Add(-idleGrace), budget)
 	if err != nil {
 		log.Printf("idle-site cleanup: list removals: %v", err)
 		return
@@ -156,14 +177,14 @@ func (h *SiteHandler) runIdleCleanup(ctx context.Context, now time.Time) {
 			break
 		}
 		budget--
-		h.removeIdleSite(ctx, mailer, s)
+		h.removeIdleSite(ctx, mailer, s, now)
 	}
 
 	if budget <= 0 {
 		log.Printf("idle-site cleanup: email cap reached; the rest wait for the next run")
 		return
 	}
-	warn, err := db.ListIdleSitesToWarn(ctx, h.database, now.Add(-idleAfter), budget)
+	warn, err := db.ListIdleSitesToWarn(ctx, h.database, h.idleExempt, now.Add(-idleAfter), budget)
 	if err != nil {
 		log.Printf("idle-site cleanup: list warnings: %v", err)
 		return
@@ -204,14 +225,32 @@ func (h *SiteHandler) idleSiteAddress(s db.IdleSite) string {
 	return s.Name
 }
 
-// warnIdleSite records the warning, then emails it; a failed send takes the
-// warning back, so the removal clock starts only for owners who were told.
+// idleOwnerApp is where the owner signs in to see, keep or download the site.
+func (h *SiteHandler) idleOwnerApp(s db.IdleSite) string {
+	if s.OwnerHandle != "" {
+		return h.mainSiteURL() + "/" + s.OwnerHandle
+	}
+	return h.exportLinkBase() + "/"
+}
+
+// warnIdleSite marks the warning and emails it in one transaction: the mark
+// re-checks that the site still qualifies (under its row lock), the email is
+// sent, and only then is the mark committed. A failed send rolls it back; a
+// crash after the send and before the commit leaves no warning on record, so
+// the next run sends it again (a repeat email, never a removal nobody was
+// told about).
 func (h *SiteHandler) warnIdleSite(ctx context.Context, mailer replyNoticeSender, s db.IdleSite, now time.Time) {
 	if !strings.Contains(s.OwnerEmail, "@") {
 		return
 	}
 	tok, hash := newIdleToken()
-	if err := db.MarkIdleWarned(ctx, h.database, s.SiteID, hash); err != nil {
+	tx, err := h.database.BeginTx(ctx, nil)
+	if err != nil {
+		log.Printf("idle-site cleanup: warn %s: %v", s.SiteID, err)
+		return
+	}
+	defer tx.Rollback()
+	if err := db.MarkIdleWarned(ctx, tx, h.idleExempt, s.SiteID, hash, now.Add(-idleAfter)); err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			log.Printf("idle-site cleanup: mark %s warned: %v", s.SiteID, err)
 		}
@@ -220,12 +259,12 @@ func (h *SiteHandler) warnIdleSite(ctx context.Context, mailer replyNoticeSender
 	days := int(now.Sub(s.LastActivity).Hours() / 24)
 	removeOn := now.Add(idleGrace).UTC().Format("2 January 2006")
 	subject := "Your site " + s.Name + " has had no visitors for " + fmt.Sprint(days) + " days"
-	text := fmt.Sprintf(`Your Simple Host site %s (%s) has had no visitors and no new versions for %d days.
+	text := fmt.Sprintf(`Your Simple Host site %s (%s) has had no visitors, no new versions and no saved data for %d days.
 
-Keep it online (one click, no sign-in):
+Keep it online (opens a page with a Keep button, no sign-in):
 %s
 
-Download a copy of its files and saved data:
+To download a copy of its files and saved data, sign in on your Simple Host page:
 %s
 
 If you do nothing, on %s it moves to Recently deleted, where it can still be restored for 7 days before it is removed for good. A site stays up for good if you mark it Keep on your Simple Host page, or give it its own domain or name.
@@ -233,19 +272,27 @@ If you do nothing, on %s it moves to Recently deleted, where it can still be res
 Questions? Just reply to this email.
 
 Simple Host
-`, s.Name, h.idleSiteAddress(s), days, h.idleLink("keep", tok), h.idleLink("download", tok), removeOn)
+`, s.Name, h.idleSiteAddress(s), days, h.idleLink("keep", tok), h.idleOwnerApp(s), removeOn)
 	if err := mailer.SendNoticeReplyTo(s.OwnerEmail, idleReplyTo, subject, text); err != nil {
 		log.Printf("idle-site cleanup: warn %s: %v", s.SiteID, err)
-		if _, err := h.database.ExecContext(ctx, `UPDATE sites SET idle_warned_at = NULL, idle_token_hash = NULL WHERE id = $1`, s.SiteID); err != nil {
-			log.Printf("idle-site cleanup: undo warning %s: %v", s.SiteID, err)
-		}
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		log.Printf("idle-site cleanup: warn %s: email sent but not recorded (it goes again next run): %v", s.SiteID, err)
 		return
 	}
 	log.Printf("idle-site cleanup: warned owner of %s (%s)", s.Name, s.SiteID)
 }
 
-// removeIdleSite moves a site to Recently deleted and emails the restore link.
-func (h *SiteHandler) removeIdleSite(ctx context.Context, mailer replyNoticeSender, s db.IdleSite) {
+// removeIdleSite moves a site to Recently deleted and emails the restore
+// link, in the transaction that moves it: the removal re-checks that the site
+// still qualifies (a Keep, deploy, save or new domain since the list was read
+// rolls it back), the email goes out before the files move and the commit,
+// and a failed send leaves the site where it is for the next run.
+func (h *SiteHandler) removeIdleSite(ctx context.Context, mailer replyNoticeSender, s db.IdleSite, now time.Time) {
+	if !strings.Contains(s.OwnerEmail, "@") {
+		return
+	}
 	unlock := h.lockSite(s.UserID, s.Name)
 	defer unlock()
 	site, err := db.GetSiteByUser(ctx, h.database, s.UserID, s.Name)
@@ -253,8 +300,27 @@ func (h *SiteHandler) removeIdleSite(ctx context.Context, mailer replyNoticeSend
 		return
 	}
 	tok, hash := newIdleToken()
+	purge := time.Now().Add(db.DeletedSiteRetention).UTC().Format("2 January 2006")
+	subject := "Your site " + s.Name + " was moved to Recently deleted"
+	text := fmt.Sprintf(`Your Simple Host site %s had no visitors for over 120 days, and nobody chose to keep it after our email a month ago, so it was moved to Recently deleted.
+
+Restore it exactly as it was (opens a page with a Restore button, no sign-in), until %s:
+%s
+
+You can also restore or download it after signing in on your Simple Host page:
+%s
+
+After that it is removed for good. If you meant to let it go, there is nothing to do.
+
+Questions? Just reply to this email.
+
+Simple Host
+`, s.Name, purge, h.idleLink("restore", tok), h.idleOwnerApp(s))
 	err = h.trashSite(ctx, site, func(tx *sql.Tx) error {
-		return db.MarkIdleRemoved(ctx, tx, site.ID, hash)
+		if err := db.MarkIdleRemoved(ctx, tx, h.idleExempt, site.ID, hash, now.Add(-idleGrace)); err != nil {
+			return err
+		}
+		return mailer.SendNoticeReplyTo(s.OwnerEmail, idleReplyTo, subject, text)
 	})
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
@@ -263,32 +329,13 @@ func (h *SiteHandler) removeIdleSite(ctx context.Context, mailer replyNoticeSend
 		return
 	}
 	log.Printf("idle-site cleanup: moved %s (%s) to Recently deleted", s.Name, s.SiteID)
-	if !strings.Contains(s.OwnerEmail, "@") {
-		return
-	}
-	purge := time.Now().Add(db.DeletedSiteRetention).UTC().Format("2 January 2006")
-	subject := "Your site " + s.Name + " was moved to Recently deleted"
-	text := fmt.Sprintf(`Your Simple Host site %s had no visitors for over 120 days, and nobody chose to keep it after our email a month ago, so it was moved to Recently deleted.
-
-Restore it exactly as it was (one click, no sign-in), until %s:
-%s
-
-After that it is removed for good. If you meant to let it go, there is nothing to do.
-
-Questions? Just reply to this email.
-
-Simple Host
-`, s.Name, purge, h.idleLink("restore", tok))
-	if err := mailer.SendNoticeReplyTo(s.OwnerEmail, idleReplyTo, subject, text); err != nil {
-		log.Printf("idle-site cleanup: removal notice %s: %v", s.SiteID, err)
-	}
 }
 
 // idleLinkSite resolves a link token to its site, or renders why not.
 func (h *SiteHandler) idleLinkSite(w http.ResponseWriter, r *http.Request) (db.IdleLink, bool) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")
-	tok := strings.TrimSpace(r.URL.Query().Get("t"))
+	tok := idleLinkToken(w, r)
 	if len(tok) != 48 {
 		h.idleLinkGone(w, r)
 		return db.IdleLink{}, false
@@ -311,7 +358,30 @@ func (h *SiteHandler) idleLinkGone(w http.ResponseWriter, r *http.Request) {
 		h.exportLinkBase()+"/", "Go to Simple Host")
 }
 
-// idleKeep GET /v1/idle/keep?t= — "Keep it": the site stays, its clock resets.
+// idleLinkToken is the link's token: from the query on GET, from the
+// confirmation form on POST.
+func idleLinkToken(w http.ResponseWriter, r *http.Request) string {
+	if r.Method == http.MethodPost {
+		r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
+		return strings.TrimSpace(r.PostFormValue("t"))
+	}
+	return strings.TrimSpace(r.URL.Query().Get("t"))
+}
+
+// idleLinkUsable refuses a link whose site is taken down (or whose owner's
+// account is suspended): it then does nothing until the operator lifts it.
+func (h *SiteHandler) idleLinkUsable(w http.ResponseWriter, r *http.Request, l db.IdleLink) bool {
+	if l.TakenDown {
+		h.renderMessagePage(w, r, http.StatusForbidden, "This site is taken down",
+			"The link does nothing while the site is taken down. Write to support@simple-host.app if you think this is a mistake.",
+			h.exportLinkBase()+"/", "Go to Simple Host")
+		return false
+	}
+	return true
+}
+
+// idleKeep GET /v1/idle/keep?t= shows "Keep it" with a button; POST (the
+// button, t in the form) keeps the site: it stays, its clock resets.
 func (h *SiteHandler) idleKeep(w http.ResponseWriter, r *http.Request) {
 	l, ok := h.idleLinkSite(w, r)
 	if !ok {
@@ -321,35 +391,27 @@ func (h *SiteHandler) idleKeep(w http.ResponseWriter, r *http.Request) {
 		h.idleLinkGone(w, r)
 		return
 	}
+	if !h.idleLinkUsable(w, r, l) {
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeMessagePage(w, r, h.chromeBase(r), http.StatusOK, "Keep "+html.EscapeString(l.Name)+" online?",
+			"It stays up, and we only ask again if it goes another 90 days without visitors, a new version or saved data.",
+			"", "", confirmForm("/v1/idle/keep", map[string]string{"t": idleLinkToken(w, r)}, "Keep it online"))
+		return
+	}
 	if err := db.KeepIdleSite(r.Context(), h.database, l.SiteID); err != nil {
 		h.renderServiceError(w)
 		return
 	}
 	h.renderMessagePage(w, r, http.StatusOK, "Kept: "+html.EscapeString(l.Name)+" stays online",
-		"Nothing else to do. We will only ask again if it goes another 90 days without visitors or a new version.",
+		"Nothing else to do. We will only ask again if it goes another 90 days without visitors, a new version or saved data.",
 		h.exportLinkBase()+"/", "Go to Simple Host")
 }
 
-// idleDownload GET /v1/idle/download?t= — the site's export, while warned.
-func (h *SiteHandler) idleDownload(w http.ResponseWriter, r *http.Request) {
-	l, ok := h.idleLinkSite(w, r)
-	if !ok {
-		return
-	}
-	site, err := db.GetSiteByID(r.Context(), h.database, l.SiteID)
-	if err != nil || site.Deleted || site.UserID != l.UserID {
-		h.idleLinkGone(w, r)
-		return
-	}
-	if site.OwnerSuspended {
-		writeAccountSuspended(w)
-		return
-	}
-	h.writeExport(w, r, site)
-}
-
-// idleRestore GET /v1/idle/restore?t= — brings a site the cleanup removed
-// back from Recently deleted, exactly as it was, with a fresh clock.
+// idleRestore GET /v1/idle/restore?t= shows "Restore it" with a button; POST
+// brings a site the cleanup removed back from Recently deleted, exactly as it
+// was, with a fresh clock.
 func (h *SiteHandler) idleRestore(w http.ResponseWriter, r *http.Request) {
 	l, ok := h.idleLinkSite(w, r)
 	if !ok {
@@ -357,6 +419,15 @@ func (h *SiteHandler) idleRestore(w http.ResponseWriter, r *http.Request) {
 	}
 	if !l.Deleted || !l.Removed {
 		h.idleLinkGone(w, r)
+		return
+	}
+	if !h.idleLinkUsable(w, r, l) {
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeMessagePage(w, r, h.chromeBase(r), http.StatusOK, "Restore "+html.EscapeString(l.Name)+"?",
+			"It comes back exactly as it was, with all its versions and saved data.",
+			"", "", confirmForm("/v1/idle/restore", map[string]string{"t": idleLinkToken(w, r)}, "Restore it"))
 		return
 	}
 	unlock := h.lockSite(l.UserID, l.Name)
@@ -371,9 +442,8 @@ func (h *SiteHandler) idleRestore(w http.ResponseWriter, r *http.Request) {
 		h.renderServiceError(w)
 		return
 	}
-	site, err := h.restoreTrashedSite(r.Context(), d, owner.Handle.String, func(tx *sql.Tx) error {
-		return db.KeepIdleSite(r.Context(), tx, d.ID)
-	})
+	// RestoreDeletedSite ends the link and restarts the idle clock.
+	site, err := h.restoreTrashedSite(r.Context(), d, owner.Handle.String, nil)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			h.idleLinkGone(w, r)
@@ -456,12 +526,12 @@ func (h *SiteHandler) adminIdleSites(w http.ResponseWriter, r *http.Request) {
 		return out
 	}
 	const show = 500
-	warn, err := db.ListIdleSitesToWarn(r.Context(), h.database, now.Add(-idleAfter), show)
+	warn, err := db.ListIdleSitesToWarn(r.Context(), h.database, h.idleExempt, now.Add(-idleAfter), show)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	remove, err := db.ListIdleSitesToRemove(r.Context(), h.database, now.Add(-idleGrace), show)
+	remove, err := db.ListIdleSitesToRemove(r.Context(), h.database, h.idleExempt, now.Add(-idleGrace), show)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return

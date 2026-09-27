@@ -312,7 +312,12 @@ What follows from that, and is not negotiable without changing the line above:
   any person's visit counts. Off until `IDLE_CLEANUP=on`, with an admin dry run to check first,
   a per-run email cap, and nothing done while visit records are too short or stale to trust.
   Reason: abandoned free sites pile up; a removal the owner did not see coming would break trust.
-  Owner approved 2026-09-27 (completeness plan).
+  Owner approved 2026-09-27 (completeness plan). Tightened after review 2026-09-27: activity also
+  counts saved-data and list writes and any restore; the emailed links open a confirmation page
+  and act on its button (mail scanners follow links); no "Download it" link (an export holds
+  private lists, so it needs a sign-in); the operator's accounts (`IDLE_CLEANUP_EXEMPT_HANDLES`),
+  the plugin reviewer and event accounts are exempt; nothing runs if visit records are more than
+  6 h stale. Reason: a site in real use must never be removed.
 - **2026-09-27. www and the bare domain both work.** Connecting `brand.com` or `www.brand.com`
   also sets up the other as a redirect to the one chosen, on the same certificate, with one TXT
   proof on the chosen name, but only if the other points here and nothing else on the server

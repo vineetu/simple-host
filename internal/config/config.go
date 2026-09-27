@@ -207,6 +207,9 @@ type Config struct {
 	// kept. IdleCleanupMaxEmails caps the emails one run sends (default 50).
 	IdleCleanup          bool
 	IdleCleanupMaxEmails int
+	// IdleCleanupExemptHandles is IDLE_CLEANUP_EXEMPT_HANDLES (comma list):
+	// accounts whose sites the cleanup never warns or removes.
+	IdleCleanupExemptHandles []string
 
 	// Visitor OAuth. A provider is enabled only when BOTH of its vars are set.
 	GoogleOAuthClientID     string
@@ -350,6 +353,11 @@ func Load() (Config, error) {
 			cfg.IdleCleanupMaxEmails = n
 		} else {
 			log.Printf("warning: invalid IDLE_CLEANUP_MAX_EMAILS %q; using the default", v)
+		}
+	}
+	for _, hd := range strings.Split(os.Getenv("IDLE_CLEANUP_EXEMPT_HANDLES"), ",") {
+		if hd = strings.ToLower(strings.TrimSpace(hd)); hd != "" {
+			cfg.IdleCleanupExemptHandles = append(cfg.IdleCleanupExemptHandles, hd)
 		}
 	}
 

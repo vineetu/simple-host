@@ -320,16 +320,43 @@ func (h *SiteHandler) renderNotFoundPage(w http.ResponseWriter, r *http.Request,
 // layout) with any status. message and subtext are inserted as given: escape
 // anything that did not come from this code.
 func (h *SiteHandler) renderMessagePage(w http.ResponseWriter, r *http.Request, status int, message, subtext, backURL, backLabel string) {
-	tmpl, err := chromePage("notfound.html", chromeDataFor(r, h.chromeBase(r)))
+	writeMessagePage(w, r, h.chromeBase(r), status, message, subtext, backURL, backLabel, "")
+}
+
+// confirmForm is a one-button POST form for a confirmation page: action is
+// the path it posts to, fields its hidden inputs (escaped here).
+func confirmForm(action string, fields map[string]string, button string) string {
+	var b strings.Builder
+	b.WriteString(`<form method="post" action="` + html.EscapeString(action) + `">`)
+	for k, v := range fields {
+		b.WriteString(`<input type="hidden" name="` + html.EscapeString(k) + `" value="` + html.EscapeString(v) + `">`)
+	}
+	b.WriteString(`<button type="submit" class="btn-primary" style="border:0;cursor:pointer;font:inherit">` + html.EscapeString(button) + `</button></form>`)
+	return b.String()
+}
+
+// writeMessagePage writes the one-message page. A non-empty form (from
+// confirmForm) takes the place of the way-back link: emailed links open such
+// a page on GET and act only when the person presses its button, so a mail
+// scanner that follows every link changes nothing.
+func writeMessagePage(w http.ResponseWriter, r *http.Request, base string, status int, message, subtext, backURL, backLabel, form string) {
+	tmpl, err := chromePage("notfound.html", chromeDataFor(r, base))
 	if err != nil {
-		// Last-resort inline 404 so a miss never falls through to nginx's default.
+		// Last-resort inline page so a miss never falls through to nginx's default.
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(status)
-		_, _ = w.Write([]byte(`<!doctype html><meta charset=utf-8><meta name=robots content=noindex><title>404</title><h1>404</h1><p>` + html.EscapeString(message) + `</p><a href="` + html.EscapeString(backURL) + `">` + html.EscapeString(backLabel) + `</a>`))
+		tail := `<a href="` + html.EscapeString(backURL) + `">` + html.EscapeString(backLabel) + `</a>`
+		if form != "" {
+			tail = form
+		}
+		_, _ = w.Write([]byte(`<!doctype html><meta charset=utf-8><meta name=robots content=noindex><title>simple·host</title><h1>` + message + `</h1><p>` + subtext + `</p>` + tail))
 		return
 	}
 
 	page := string(stampNonce(r, tmpl))
+	if form != "" {
+		page = strings.Replace(page, `<a class="btn-primary" href="__SH_BACKLINK_URL__">__SH_BACKLINK_LABEL__</a>`, form, 1)
+	}
 	page = strings.ReplaceAll(page, "__SH_MESSAGE__", message)
 	page = strings.ReplaceAll(page, "__SH_SUBTEXT__", subtext)
 	page = strings.ReplaceAll(page, "__SH_BACKLINK_URL__", backURL)
