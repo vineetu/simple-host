@@ -274,6 +274,7 @@ func (h *SiteHandler) reissueAccountKey(w http.ResponseWriter, r *http.Request) 
 		"message": "Every earlier key for this account stopped working. Hand this one over now; it is not shown again.",
 	})
 }
+
 // handleRenameEvery: after publishing, an account may move to a new handle
 // once in this long. Changes before anything is published are free.
 const handleRenameEvery = 30 * 24 * time.Hour

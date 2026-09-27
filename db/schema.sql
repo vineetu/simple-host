@@ -40,6 +40,10 @@ CREATE TABLE sites (
   domain_verified_at TIMESTAMPTZ,
   domain_bound_at    TIMESTAMPTZ,
   domain_last_error  TEXT,
+  previous_domain    TEXT,          -- the proven address still served while a new domain is pending
+  domain_cert_status TEXT,          -- pending | issuing | live | failed (NULL = none)
+  domain_failing_since     TIMESTAMPTZ, -- a verified domain first failed its checks
+  domain_lapse_notified_at TIMESTAMPTZ, -- the owner was emailed about the failing domain
   -- Per-site JSON datastore. `state_version` backs the atomic set/inc/append
   -- ops and the ETag, so it must exist for the state API to work at all.
   state          JSONB,
@@ -107,13 +111,16 @@ CREATE TABLE IF NOT EXISTS handle_aliases (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- A released <name>.<SITE_DOMAIN> stays with its site (302 to its current
+-- address) and outlives it (site_id NULL: "this site was removed").
 CREATE TABLE legacy_hostnames (
   hostname   TEXT PRIMARY KEY,
-  site_id    UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  site_id    UUID REFERENCES sites(id) ON DELETE SET NULL,
   user_id    UUID REFERENCES users(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_legacy_hostnames_site ON legacy_hostnames(site_id);
+CREATE UNIQUE INDEX IF NOT EXISTS sites_previous_domain_key ON sites (previous_domain) WHERE previous_domain IS NOT NULL;
 
 CREATE TABLE versions (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),

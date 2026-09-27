@@ -73,7 +73,7 @@ whichever address is live. Old `<handle>.simple-host.app/<site>/…` and
 
 | Surface | Details |
 |---|---|
-| Routes | Host-routed, not mux: `<site>.<handle>.<SITE_DOMAIN>` → `SiteHosts` (files at `/`, `/v1` same-origin for that one site only) · `<handle>.<SITE_DOMAIN>` → `PersonHosts` (person page at `/`; `/<site>/…` 302s to the site host once the person's certificate is ready, else serves it by path) · `GET /internal/site-redirect/{handle}` · `GET /internal/site-redirect/{handle}/{sitename}` · `GET /internal/site-redirect/{handle}/{sitename}/{rest...}` (302 from `sites.simple-host.app/<h>/<s>/…` to the site's live address; nginx rewrites into these; `vineetu/eb2-wait` excepted in nginx and in `contentHostOnlySites`) · `LegacyHostRedirect`: 301 for an unclaimed single-label `<name>.<SITE_DOMAIN>` that is not a handle, to `sites.<domain>/<handle>/<name>` (which then 302s as above) · an aliased old handle 301s to the new one (person host), 302s on site hosts, content-host paths and the owner app `/<old>` → `/<new>` |
+| Routes | Host-routed, not mux: `<site>.<handle>.<SITE_DOMAIN>` → `SiteHosts` (files at `/`, `/v1` same-origin for that one site only) · `<handle>.<SITE_DOMAIN>` → `PersonHosts` (person page at `/`; `/<site>/…` 302s to the site host once the person's certificate is ready, else serves it by path) · `GET /internal/site-redirect/{handle}` · `GET /internal/site-redirect/{handle}/{sitename}` · `GET /internal/site-redirect/{handle}/{sitename}/{rest...}` (302 from `sites.simple-host.app/<h>/<s>/…` to the site's live address; nginx rewrites into these; `vineetu/eb2-wait` excepted in nginx and in `contentHostOnlySites`) · `LegacyHostRedirect`: a retired name (`legacy_hostnames`) 302s to its site's current address, or "This site was removed" once the site is gone or while it is in Recently deleted (its names stay held); any other unclaimed single-label `<name>.<SITE_DOMAIN>` that is not a handle 301s to `sites.<domain>/<handle>/<name>` (which then 302s as above) · an aliased old handle 301s to the new one (person host), 302s on site hosts, content-host paths and the owner app `/<old>` → `/<new>` |
 | MCP tools | none directly; site summaries return the live site address, `who_am_i` the person page |
 | Skill | `website-deploy/SKILL.md` §Service (address form); host strings are rewritten per instance (`h/instancehost.go`) |
 | Pages | `st/showcase.html` (person index / public view) |
@@ -85,20 +85,28 @@ whichever address is live. Old `<handle>.simple-host.app/<site>/…` and
 ## 3. Claimed `<name>.simple-host.app` and custom domains
 
 A site takes a free `<name>.simple-host.app` (verified at once, first come) or the owner's own
-domain (CNAME/A, provisional until DNS proves it, 24 h expiry if unproven). Once active the site
-lives only there; its other addresses redirect. **Status: live.**
+domain (CNAME/A, provisional until DNS proves it, 24 h expiry if unproven and DNS never pointed
+here). Once DNS points here the domain's certificate is requested automatically (issuer in
+`deploy/domain-certs/`, HTTP-01) and the domain goes live without the operator. Once active the
+site lives only there; its other addresses redirect. Connecting a new domain keeps the site's
+current own address serving (`previous_domain`) until the new one is verified with its
+certificate; then the old address redirects to it. A verified domain that fails its checks for
+24 h emails the owner (`last_error`); after 72 h its verification is cleared, so the site's own
+address serves again and the domain can be claimed afresh. A free name the site lets go
+(switch, disconnect, site delete) stays with it in `legacy_hostnames` and 302s to its current
+address, or says "This site was removed". **Status: live.**
 
 | Surface | Details |
 |---|---|
 | Routes | `POST /v1/sites/{sitename}/domain` (bind; a `<name>.<SITE_DOMAIN>` value takes the free-name path) · `GET /v1/sites/{sitename}/domain` · `POST /v1/sites/{sitename}/domain/check` ("Check again": re-prove now, rate-limited) · `DELETE /v1/sites/{sitename}/domain` · `GET /internal/tls-ask` (Caddy on-demand TLS gate) · `GET /internal/domain-redirect/{handle}/{sitename}` · `GET /internal/domain-redirect/{handle}/{sitename}/{rest...}` · host-routed `BoundSubdomains` serves a claimed name or custom domain at its root |
-| MCP tools | `connect_domain`, `domain_status` |
+| MCP tools | `connect_domain`, `domain_status`, `remove_domain` (confirm-first: `confirm_domain`) |
 | Skill | `connect-domain/SKILL.md` §The free address, §The flow (1–5, Disconnect), §Backend on a connected domain, §Gotchas · `connect-domain/references/registrars.md` (Vercel, GoDaddy, Porkbun, other) · `website-deploy/references/operations.md` §A nicer address · `website-deploy-builder/SKILL.md` §8 |
-| Pages | `st/showcase.html` owner app (connect, disconnect, status; for a domain not live yet the DNS record, last problem, expiry and Check again) · `st/index.html` (connect/disconnect on the site card, accounts without a handle and admin tab) |
-| Go | `h/domains.go` (bind, status, delete, `tlsAsk`, `domainRedirect`), `h/domaincheck.go` (background re-verify), `h/platformsubdomain.go` (free names, `reservedSubdomainLabels`, `BoundSubdomains`, `siteOwnDomain`), `internal/db/domains.go`, `internal/db/namespace.go` |
-| DB | `sites.custom_domain`, `domain_status`, `domain_verified_at`, `domain_last_error`, `domain_bound_at`; `legacy_hostnames` |
-| Env | `CNAME_TARGET` (subdomain CNAME), `CUSTOM_DOMAIN_IP` (apex A record), `SITE_DOMAIN` |
-| Timing | unverified binding expires 24 h after bind; re-check every 2 min, active verdict re-proved hourly |
-| External | per-domain nginx vhost (template `deploy/prod/nginx-customdomain.example.conf`) + Let's Encrypt on prod; Caddy on-demand TLS on event instances; `scripts/check-reserved-subdomains.sh` compares reserved labels against live nginx |
+| Pages | `st/showcase.html` owner app (connect, disconnect, status; for a domain not live yet the certificate status, DNS record, last problem, expiry and Check again) · `st/index.html` (connect/disconnect on the site card, accounts without a handle and admin tab) |
+| Go | `h/domains.go` (bind, status, delete, `tlsAsk`, `domainRedirect`), `h/domaincheck.go` (background re-verify, switch of address, lapse + owner email), `h/domaincert.go` (certificate hand-off), `h/platformsubdomain.go` (free names, `reservedSubdomainLabels`, `BoundSubdomains`, `siteOwnDomain`, `syncDomainRedirect`), `h/legacyhost.go` (retired names), `internal/db/domains.go`, `internal/db/namespace.go`, `internal/email/resend.go` (`SendNotice`) |
+| DB | `sites.custom_domain`, `domain_status`, `domain_verified_at`, `domain_last_error`, `domain_bound_at`, `previous_domain`, `domain_cert_status`, `domain_failing_since`, `domain_lapse_notified_at`; `legacy_hostnames` (`site_id` NULL once the site is deleted) |
+| Env | `CNAME_TARGET` (subdomain CNAME), `CUSTOM_DOMAIN_IP` (apex A record), `SITE_DOMAIN`, `DOMAIN_CERT_DIR` (e.g. `/var/lib/simple-host-domain-certs`: `requests/<domain>` written by the app, `ready/<domain>` and `failed/<domain>` by the issuer; unset = certificates by hand) |
+| Timing | unverified binding expires 24 h after bind unless DNS points here; re-check every 2 min, active verdict re-proved hourly; issuer every 10 min + on request (50 new/day, failed retried after 6 h, DNS problems after 15 min); failing verified domain: email at 24 h, let go at 72 h |
+| External | issuer `deploy/domain-certs/` (root timer + path unit; certbot webroot `/var/www/acme`; writes `sites-enabled/simple-host-domain-<domain>` from its template and removes it on disconnect; leaves hand-made `customdomain-<domain>` alone) + Let's Encrypt on prod; Caddy on-demand TLS on event instances; `scripts/check-reserved-subdomains.sh` compares reserved labels against live nginx |
 
 ## 4. Saved state (shared JSON per site)
 
@@ -403,6 +411,7 @@ notice.
 | `clear_collection` | `DELETE …/collections/{c}` | 5 |
 | `connect_domain` | `POST /v1/sites/{s}/domain` | 3 |
 | `domain_status` | `GET /v1/sites/{s}/domain` | 3 |
+| `remove_domain` | `DELETE /v1/sites/{s}/domain` | 3 |
 | `site_analytics` | `GET /v1/sites/{s}/analytics?days=` | 12 |
 
 ## 22. Unplaced routes and tools

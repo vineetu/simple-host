@@ -49,9 +49,12 @@ to confirm, and you are done; skip steps 3 and 4 below.
   `<site>.<handle>.simple-host.app` address (and any older link) 302s
   there, and sign-in and private collections work there.
 - Handles and free names share one namespace, so a free name cannot be someone's handle.
-- `DELETE /v1/sites/{site}/domain` releases it.
-- A site has one connected address. Claiming a free name replaces a custom domain, and connecting a
-  custom domain replaces the free name.
+- `DELETE /v1/sites/{site}/domain` (with the connector: `remove_domain`) disconnects it. The
+  name stays with the site: it keeps redirecting to the site's current address, and nobody
+  else can claim it.
+- A site has one connected address. Claiming a free name replaces a custom domain at once;
+  connecting a custom domain replaces the free name only once the domain is live — until then
+  the site keeps serving at the free name, which then redirects to the domain.
 
 **This is agent-driven.** You do every API call and compute the exact DNS record. Then either
 **add that record yourself** if you have DNS access for the domain (a provider MCP/API — see step
@@ -101,12 +104,16 @@ Response (subdomain example — CNAME):
 ```
 For an apex (`brand.com`), `dns.type` is `A` and `dns.value` is the IP to point at —
 relay whatever the response returns; don't invent the target.
+If the site already had a working address of its own (a free name or an earlier domain), the
+answer also has `previous_domain`: the site keeps serving there until the new domain is live,
+then that address redirects to the new one. Nothing goes dark in between.
 `409` (`domain_taken`) means the domain is connected to another site **and that binding was
 actually verified**. `400` means the domain is malformed or is one of our own hostnames.
 
 **A binding is provisional until DNS proves it.** Until the domain resolves here and serves, the
 bind is just a claim: another site can bind the same domain and take it over, and the claim
-**expires after 24 hours** if it is never proven. `GET .../domain` shows `bound_at` and, while
+**expires after 24 hours** if DNS never points here (once the record is seen, it waits for its
+certificate instead of expiring). `GET .../domain` shows `bound_at` and, while
 unproven, `expires_at`. So do not bind days ahead of the DNS change — bind, get the record
 added, and verify in one sitting; if the human can't add the record today, bind again when they
 can (rebinding is cheap and idempotent for the same site).
@@ -178,36 +185,49 @@ background (every couple of minutes) by resolving them and fetching them, exactl
 GET /v1/sites/{site}/domain
 X-API-Key: <api_key>
 ```
-Returns `{"domain": "...", "status": "...", "verified_at": ..., "last_error": ...}`.
+Returns `{"domain": "...", "status": "...", "certificate_status": "...", "verified_at": ..., "last_error": ...}`
+(plus `previous_domain` while the site is still served at its earlier address).
 
 - **`active`** — the domain resolves to us *and* served a page over HTTPS. `verified_at` is when
   that was last proved. It is re-proved hourly, so a domain that breaks leaves `active` on its own.
 - **`pending`** — not serving yet; `last_error` says which half is missing:
   `domain does not resolve yet` (propagation, or the record isn't saved),
   `resolves to <ip>, not to this server` (the record points somewhere else — compare it against
-  the bind response), or `resolves to this server but HTTPS is not answering yet (certificate not
-  issued)` (the DNS half is done; see 4b).
+  the bind response), or `resolves to this server; its certificate is being issued` (the DNS
+  half is done; the certificate follows on its own, usually within minutes — see 4b).
 - **`error`** — it resolves here and HTTPS works, but the site isn't served; `last_error` carries
   the code, e.g. `HTTPS returned 404`.
 
 A domain you just bound reads `pending` until the first background check runs, so don't take an
 immediate `pending` as a verdict — fetch, and re-read the status a couple of minutes later.
 
-### 4b. If HTTPS never comes up — the certificate is an operator step
-Certificate issuance is **not** part of the API. It depends on how the deployment's edge is
-configured: an edge with on-demand TLS (e.g. the Caddy setup in `deploy/`) issues automatically,
-while an nginx deployment needs the operator to add a vhost and issue a cert once per domain.
-The API cannot tell you which you're on — that's why step 4 tests the domain directly.
+### 4b. The certificate
+Nobody uploads or requests a certificate: once the DNS record is seen, the server asks for one
+and the domain goes live on its own, usually within minutes. `certificate_status` shows where
+it is:
 
-If `http://` redirects but `https://` fails, tell the user plainly that the DNS half is done and
-the certificate is pending an operator step, rather than blaming propagation. If you're the
-operator, the per-domain work is a vhost pointing at that domain's site directory plus a cert for
-it (see `deploy/prod/nginx-customdomain.example.conf`). Until that is done the status stays
-`pending` with `last_error` naming the certificate — that is the signal to act on.
+- `pending` — the DNS record is not seen yet (step 3).
+- `issuing` — the record is seen; the certificate is on its way. Wait a few minutes and check again.
+- `live` — issued. If `status` is still not `active`, `last_error` says what the site answered.
+- `failed` — it could not be issued; `last_error` says why and it is retried every few hours.
+  The usual causes are fixable at the registrar: an IPv6 (`AAAA`) record for the domain that
+  points somewhere else (remove it), or a CAA record that does not allow Let's Encrypt.
+
+If `http://` redirects but `https://` fails, the DNS half is done and the certificate is being
+issued — say so, rather than blaming propagation. (A self-hosted instance with its own edge
+issues certificates however that edge is set up; the Caddy setup in `deploy/` does it on
+demand.)
 
 The redirect from the site's `<site>.<handle>.simple-host.app` address (and from the old
-`<handle>.simple-host.app/<site>/` and old `sites.simple-host.app` paths) to the domain needs no extra step: the server starts it on bind
-and stops it on disconnect.
+`<handle>.simple-host.app/<site>/` and old `sites.simple-host.app` paths) to the domain needs no
+extra step: it starts once the domain is live and stops on disconnect.
+
+### If a working domain stops working
+The server keeps re-checking a live domain. If it fails every check for a day (the domain
+lapsed at the registrar, or its DNS was moved), the owner gets an email with the reason. After
+three days the site stops treating it as its address: the site serves at
+`https://<site>.<handle>.simple-host.app/` again, and whoever holds the domain now can connect
+it. Fixing the DNS before then brings it straight back; after, bind it again.
 
 ### 5. Confirm it's live
 Once `https://recipes.brand.com/` returns 200, it serves the connected site over HTTPS,
@@ -222,11 +242,15 @@ From now on the site lives only on the domain: its `<site>.<handle>.simple-host.
 for it (401 `use_custom_domain`, even with a key — reads stay public).
 
 ### Disconnect
+With the connector: `remove_domain`, after the person confirms, with the domain typed out as
+`confirm_domain`. Without it:
 ```
 DELETE /v1/sites/{site}/domain
 X-API-Key: <api_key>
 ```
-Unbinds the domain (the site stays live at `https://<site>.<handle>.simple-host.app/`).
+Unbinds the domain (the site stays live at `https://<site>.<handle>.simple-host.app/`, or, if
+the domain was still pending, at the earlier address it was still using). A disconnected free
+`<name>.simple-host.app` keeps redirecting to the site.
 Disconnecting reverses both changes immediately — that address stops redirecting and
 accepts saves again (the redirect is a 302, so nothing stays cached) — and any link people saved
 to the domain simply stops working. Tell the user they can also remove the DNS record at their
@@ -265,15 +289,14 @@ the `website-deploy` skill's `references/backend.md`.
   minutes, so `active` means "resolved here and served over HTTPS", not "someone hoped so".
   Fetching the domain is still the immediate answer; read `last_error` to see which half is
   missing (step 4).
-- **Users never upload certificates.** But issuance isn't automatic on every deployment — it
-  depends on the edge (step 4b). DNS pointing at us is required first either way.
+- **Users never upload certificates.** The server issues one once DNS points here (step 4b).
+  `certificate_status: failed` comes with the reason in `last_error`; relay it.
 - **`http://` 301 but `https://` failing is NOT propagation.** DNS is already correct; the
-  certificate is the missing piece. Saying "it's still propagating" here sends the user away to
-  wait for something that will never happen on its own.
+  certificate is on its way (`certificate_status: issuing`). Check again in a few minutes.
 - **Propagation is not instant.** A domain that doesn't resolve at all right after the record is
   added is normal; give it a few minutes. Check the registrar's own nameserver first
   (`references/registrars.md`); a public resolver can hold the old answer for the old TTL.
 - **A bind is provisional until DNS proves it.** An unproven binding can be taken over by
-  another site and expires after 24 hours (`GET .../domain` shows `bound_at` and `expires_at`
-  while unproven). Bind and add the record in the same sitting; `409 domain_taken` only fires
+  another site and expires after 24 hours unless its DNS already points here (`GET .../domain`
+  shows `bound_at` and `expires_at` while unproven). Bind and add the record in the same sitting; `409 domain_taken` only fires
   against a binding that was actually verified.

@@ -394,10 +394,13 @@ func (c *call) findSite(name string) (restSite, error) {
 // from are the server's bookkeeping and stay out.
 func domainSummary(site string, body []byte) map[string]any {
 	var d struct {
-		Domain    *string `json:"domain"`
-		Status    *string `json:"status"`
-		LastError string  `json:"last_error"`
-		DNS       *struct {
+		Domain         *string `json:"domain"`
+		Status         *string `json:"status"`
+		LastError      string  `json:"last_error"`
+		Certificate    string  `json:"certificate_status"`
+		PreviousDomain string  `json:"previous_domain"`
+		FailingSince   string  `json:"failing_since"`
+		DNS            *struct {
 			Type  string `json:"type"`
 			Host  string `json:"host"`
 			Value string `json:"value"`
@@ -420,11 +423,20 @@ func domainSummary(site string, body []byte) map[string]any {
 	if d.LastError != "" {
 		out["last_check"] = d.LastError
 	}
+	if d.Certificate != "" {
+		out["certificate"] = d.Certificate
+	}
+	if d.PreviousDomain != "" {
+		out["serving_at"] = "https://" + d.PreviousDomain + "/"
+	}
+	if d.FailingSince != "" {
+		out["failing_since"] = d.FailingSince
+	}
 	if d.Status != nil && *d.Status == "active" {
 		out["url"] = "https://" + *d.Domain + "/"
 	}
 	if d.Status != nil && *d.Status == "pending" {
-		out["note"] = "Add the DNS record at the domain's registrar within 24 hours; until DNS proves it, the binding is provisional."
+		out["note"] = "Add the DNS record at the domain's registrar within 24 hours; until DNS proves it, the binding is provisional. Once the record is seen, the certificate is issued automatically and the domain goes live within minutes."
 	}
 	return out
 }
@@ -1295,7 +1307,7 @@ func Tools() []Tool {
 		{
 			Name:        "domain_status",
 			Title:       "Check a custom domain",
-			Description: "Check whether a site's custom domain is connected: pending (the DNS record is not seen yet) or active.",
+			Description: "Check whether a site's custom domain is connected: pending (the DNS record is not seen yet, or its certificate is being issued) or active. Shows the certificate's progress and, while pending, the earlier address the site is still served at.",
 			InputSchema: object(map[string]any{"site": str(siteDesc)}, "site"),
 			Annotations: readOnly(),
 			run: func(c *call, args map[string]any) (output, error) {
@@ -1309,6 +1321,60 @@ func Tools() []Tool {
 				}
 				out := domainSummary(name, res.body)
 				return output{Text: jsonText(out), Structured: out}, nil
+			},
+		},
+		{
+			Name:  "remove_domain",
+			Title: "Disconnect a domain",
+			Description: "Disconnect a site's custom domain or free `<name>.simple-host.app` address. Only call this after the person has explicitly confirmed, in this conversation, that they want this specific address disconnected. " +
+				"Pass the address being removed as `confirm_domain` (domain_status shows it). Afterwards the site is served at its own address again (or, if the removed domain was still pending, at the earlier address it was still using). " +
+				"Links to a removed custom domain stop working; a removed free name keeps redirecting to the site and cannot be claimed by anyone else.",
+			InputSchema: object(map[string]any{
+				"site":           str(siteDesc),
+				"confirm_domain": str("The address being disconnected, typed out, as confirmation, e.g. `rsvp.example.com`."),
+			}, "site", "confirm_domain"),
+			// Re-addresses a public site, and a disconnected custom domain can
+			// be claimed by someone else, so it is destructive; calling it
+			// again would disconnect the next address, so not idempotent.
+			Annotations: writes(true, false, true),
+			run: func(c *call, args map[string]any) (output, error) {
+				name, err := siteArg(args)
+				if err != nil {
+					return output{}, err
+				}
+				confirm, err := stringArg(args, "confirm_domain")
+				if err != nil {
+					return output{}, err
+				}
+				path := "/v1/sites/" + url.PathEscape(name) + "/domain"
+				res := c.do(http.MethodGet, path, nil, nil)
+				if !res.ok() {
+					return output{}, restError("remove_domain", res)
+				}
+				var cur struct {
+					Domain *string `json:"domain"`
+				}
+				_ = json.Unmarshal(res.body, &cur)
+				if cur.Domain == nil || *cur.Domain == "" {
+					return output{}, fmt.Errorf("site %q has no domain connected; nothing was changed", name)
+				}
+				want := strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(strings.ToLower(strings.TrimSpace(confirm)), "https://"), "http://"), "/")
+				if want != strings.ToLower(*cur.Domain) {
+					return output{}, fmt.Errorf("confirm_domain %q does not match the connected domain %q; nothing was changed", confirm, *cur.Domain)
+				}
+				res = c.do(http.MethodDelete, path, nil, nil)
+				if !res.ok() {
+					return output{}, restError("remove_domain", res)
+				}
+				out := map[string]any{"site": name, "removed": *cur.Domain}
+				if site, err := c.findSite(name); err == nil {
+					out["url"] = site.liveURL()
+				}
+				text := "Disconnected " + *cur.Domain + " from " + name + "."
+				if u, ok := out["url"].(string); ok && u != "" {
+					text += " The site is now at " + u
+				}
+				return output{Text: text, Structured: out}, nil
 			},
 		},
 		{

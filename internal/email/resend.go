@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	htmlpkg "html"
 	"io"
 	"net/http"
 	"time"
@@ -63,6 +64,23 @@ func (s *ResendSender) SendSignInCode(toEmail, code, link string) error {
 <p style="color: #6b6560; font-size: 13px; margin-top: 32px;">This code expires in 15 minutes. If you didn't request this, you can ignore the email.</p>
 </body></html>`, code, htmlLink)
 
+	return s.send(toEmail, subject, text, html)
+}
+
+// SendNotice delivers a plain-text account notice (e.g. a domain that has
+// stopped working). text is shown as-is; the HTML part is the same text,
+// escaped.
+func (s *ResendSender) SendNotice(toEmail, subject, text string) error {
+	if s.apiKey == "" {
+		return errors.New("RESEND_API_KEY not configured")
+	}
+	html := `<!DOCTYPE html>
+<html><body style="font-family: -apple-system, system-ui, sans-serif; color: #1a1a1a; max-width: 520px; margin: 0 auto; padding: 24px; white-space: pre-wrap;">` +
+		htmlpkg.EscapeString(text) + `</body></html>`
+	return s.send(toEmail, subject, text, html)
+}
+
+func (s *ResendSender) send(toEmail, subject, text, html string) error {
 	body, err := json.Marshal(map[string]any{
 		"from":    s.from,
 		"to":      []string{toEmail},

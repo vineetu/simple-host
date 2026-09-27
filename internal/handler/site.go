@@ -104,6 +104,8 @@ type SiteHandler struct {
 	// siteHosts is SITE_HOSTS and siteCertDir SITE_CERT_DIR (sitehost.go).
 	siteHosts   siteHostMode
 	siteCertDir string
+	// domainCertDir is DOMAIN_CERT_DIR (domaincert.go).
+	domainCertDir string
 }
 
 // lockSite acquires the per-site upload mutex and returns its unlock func.
@@ -129,6 +131,11 @@ type siteResponse struct {
 	DomainLastError string     `json:"domain_last_error,omitempty"`
 	DomainDNS       *dnsRecord `json:"domain_dns,omitempty"`
 	DomainExpiresAt *time.Time `json:"domain_expires_at,omitempty"`
+	// DomainCertStatus is the pending domain's certificate (pending, issuing,
+	// live, failed) and PreviousDomain the earlier address the site keeps
+	// answering at until the new domain is live.
+	DomainCertStatus string `json:"domain_certificate_status,omitempty"`
+	PreviousDomain   string `json:"previous_domain,omitempty"`
 	// DeployedAt is when the newest version went live (site list only).
 	DeployedAt    *time.Time `json:"deployed_at,omitempty"`
 	Visibility    string     `json:"visibility,omitempty"`
@@ -673,7 +680,8 @@ func (h *SiteHandler) originIsBoundDomainID(ctx context.Context, siteID, host st
 	if err != nil || !ok {
 		return false
 	}
-	return strings.EqualFold(info.Domain, host)
+	// Also the earlier address it still serves at while a new one is pending.
+	return strings.EqualFold(info.Domain, host) || (info.PreviousDomain != "" && strings.EqualFold(info.PreviousDomain, host))
 }
 
 // originIsPersonHostID reports whether host is the person address of the
@@ -1750,7 +1758,11 @@ func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
 			rec := h.dnsRecordFor(site.CustomDomain.String)
 			resp.DomainDNS = &rec
 		}
-		if site.DomainBoundAt.Valid && !site.DomainVerifiedAt.Valid {
+		resp.DomainCertStatus = site.DomainCertStatus
+		resp.PreviousDomain = site.PreviousDomain
+		// A binding whose DNS already points here (certificate past
+		// "pending") does not lapse while it waits.
+		if site.DomainBoundAt.Valid && !site.DomainVerifiedAt.Valid && (site.DomainCertStatus == "" || site.DomainCertStatus == "pending") {
 			t := site.DomainBoundAt.Time.Add(24 * time.Hour)
 			resp.DomainExpiresAt = &t
 		}

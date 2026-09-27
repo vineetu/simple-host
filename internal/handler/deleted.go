@@ -211,7 +211,7 @@ func (h *SiteHandler) purgeDeletedSites(ctx context.Context) {
 	}
 	for _, d := range list {
 		unlock := h.lockSite(d.Name)
-		err := db.PurgeDeletedSite(ctx, h.database, d.ID)
+		domains, err := db.PurgeDeletedSite(ctx, h.database, d.ID)
 		unlock()
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
@@ -224,6 +224,12 @@ func (h *SiteHandler) purgeDeletedSites(ctx context.Context) {
 		}
 		if err := h.disk.PurgeTrashedSiteLinks(d.UserID, d.Name, strings.ToLower(d.CustomDomain.String)); err != nil {
 			log.Printf("deleted-site purge: links of %s: %v", d.ID, err)
+		}
+		for _, dom := range domains {
+			if err := h.disk.UnbindDomain(dom); err != nil {
+				log.Printf("deleted-site purge: unbind %s: %v", dom, err)
+			}
+			h.cancelDomainCert(dom)
 		}
 		log.Printf("deleted-site purge: removed %s (%s)", d.Name, d.ID)
 	}

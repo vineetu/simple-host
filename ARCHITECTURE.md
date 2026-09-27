@@ -51,6 +51,20 @@ exists; until then that person's sites keep the person-path form. Mode comes fro
 `off` (default; event and self-hosted boxes), `serve` (answer, hand out person-path URLs),
 `canonical` (live: the site host is the address handed out). Needs `PERSON_HOSTS` on.
 
+**Custom domains** (`domains.go`, `domaincheck.go`, `domaincert.go`). A bound domain is
+re-checked every 2 minutes (hourly once active). Once it resolves here but HTTPS does not answer,
+the app drops `DOMAIN_CERT_DIR/requests/<domain>`; a root-owned issuer (`deploy/domain-certs/`,
+path unit + 10-minute timer, at most 50 new certificates a day) checks the A/AAAA records, runs
+certbot HTTP-01 against the webroot every port-80 server already answers (`/var/www/acme`),
+writes `sites-enabled/simple-host-domain-<domain>` from its template, reloads nginx and writes
+`ready/<domain>`, or `failed/<domain>` with one line the app shows as `last_error`. The issuer
+only issues while the domain's link in `/srv/simple-host/sites/domains/` exists and removes its
+own server (and certificate) once the link is gone; hand-made `customdomain-<domain>` servers are
+left alone. A site keeps serving at its earlier own address (`previous_domain`) until a new
+domain is verified; a verified domain failing for 24 h emails the owner, and after 72 h its
+verification is cleared. A claimed `<name>.simple-host.app` the site lets go is kept in
+`legacy_hostnames` and redirects to the site (`legacyhost.go`).
+
 **Person hosts `<handle>.simple-host.app`** (`personhost.go`). The wildcard vhost
 proxies to the app; `PersonHosts` recognises the handle (aliases such as `admin` →
 `simple-host-team` resolve too). `/` is the person's page of public sites. `/<site>/...` 302s
@@ -190,7 +204,8 @@ Tables (`db/schema.sql`):
   `/usr/local/bin/simple-host.bak-<timestamp>`, install, restart, verify from a client. Exact
   steps in `CLAUDE.md`. Rollback = install the `.bak` and restart.
 - Flags in the env file: `PERSON_HOSTS=canonical`, `SITE_HOSTS=canonical`,
-  `SITE_CERT_DIR=/var/lib/simple-host-site-certs`, `WRITE_AUTH_MODE=on`, `BIND_ADDR=127.0.0.1`
+  `SITE_CERT_DIR=/var/lib/simple-host-site-certs`,
+  `DOMAIN_CERT_DIR=/var/lib/simple-host-domain-certs`, `WRITE_AUTH_MODE=on`, `BIND_ADDR=127.0.0.1`
   (empty = all interfaces, which Docker needs), `LLM_BASE_URL` (the sidecar), `TRANSCRIBE_URL`,
   `ANALYTICS_LOG`, `ANALYTICS_SALT` (visitor hash salt; empty = derived from `ADMIN_API_KEY`),
   `GEOIP_DIR`.

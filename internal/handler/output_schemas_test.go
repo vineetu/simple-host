@@ -111,6 +111,9 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 
 	call("site_analytics", map[string]any{"site": "shop", "days": 7})
 	call("list_sites", map[string]any{})
+	if s := call("remove_domain", map[string]any{"site": "plain", "confirm_domain": "plain-" + handle + ".example.test"}); s["url"] == nil {
+		t.Errorf("remove_domain gave no address: %v", s)
+	}
 	call("rename_site", map[string]any{"site": "plain", "new_name": "plain-two"})
 	call("delete_site", map[string]any{"site": "plain-two", "confirm_name": "plain-two"})
 	call("list_deleted_sites", map[string]any{})

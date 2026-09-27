@@ -107,21 +107,37 @@ func queryDeletedSites(ctx context.Context, database *sql.DB, query string, args
 // PurgeDeletedSite removes a deleted site's row for good (its versions, data
 // and claimed names cascade with it), but only while it is still deleted and
 // past the window: a restore that won the race keeps the site. sql.ErrNoRows
-// when nothing was removed.
-func PurgeDeletedSite(ctx context.Context, database *sql.DB, siteID string) error {
+// when nothing was removed. Returns every own address the site had, for the
+// caller to unbind on disk and release the certificate of.
+func PurgeDeletedSite(ctx context.Context, database *sql.DB, siteID string) ([]string, error) {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer tx.Rollback()
 	var id string
 	err = tx.QueryRowContext(ctx, `SELECT id FROM sites WHERE id = $1 AND deleted_at IS NOT NULL
 		AND deleted_at < now() - ($2 * interval '1 second') FOR UPDATE`, siteID, int64(DeletedSiteRetention.Seconds())).Scan(&id)
 	if err != nil {
-		return err
+		return nil, err
+	}
+	// A claimed <name>.<SITE_DOMAIN> outlives the site as a retired name
+	// ("this site was removed"), so it never passes to a stranger's site.
+	domains, err := RetireSiteNames(ctx, tx, siteID)
+	if err != nil {
+		return nil, err
 	}
 	if err := DeleteSite(ctx, tx, siteID); err != nil {
-		return err
+		return nil, err
 	}
-	return tx.Commit()
+	return domains, tx.Commit()
+}
+
+// DomainHeldByDeletedSite reports whether host is the own address (current or
+// earlier) of a site in Recently deleted, which keeps it held until purge.
+func DomainHeldByDeletedSite(ctx context.Context, q Querier, host string) (bool, error) {
+	var held bool
+	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM sites WHERE deleted_at IS NOT NULL
+		AND (custom_domain = lower($1) OR previous_domain = lower($1)))`, host).Scan(&held)
+	return held, err
 }

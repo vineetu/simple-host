@@ -59,7 +59,7 @@ func handleNameTaken(ctx context.Context, tx *sql.Tx, userID, handle string) (bo
 	host := strings.ToLower(handle) + "." + domain
 	var taken bool
 	err := tx.QueryRowContext(ctx, `
-		SELECT EXISTS (SELECT 1 FROM sites WHERE lower(custom_domain) = $1)
+		SELECT EXISTS (SELECT 1 FROM sites WHERE lower(custom_domain) = $1 OR lower(previous_domain) = $1)
 		    OR EXISTS (SELECT 1 FROM legacy_hostnames WHERE lower(hostname) = $1)
 		    OR EXISTS (SELECT 1 FROM handle_aliases WHERE handle = $2 AND user_id::text <> $3)`,
 		host, strings.ToLower(handle), userID).Scan(&taken)

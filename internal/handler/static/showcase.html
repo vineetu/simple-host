@@ -1932,12 +1932,19 @@ function parseAnalyticsSummary(data) {
     // live, otherwise its own address from the API (site_url).
     function siteOpenUrl(s) {
       if (domainActive(s)) return 'https://' + s.custom_domain + '/';
+      // A new domain that is not live yet: the site keeps answering at its
+      // earlier address until it is.
+      if (s.previous_domain) return 'https://' + s.previous_domain + '/';
       if (s.site_url) return s.site_url;
       var base = SHOWCASE.sitesBaseUrl || '';
       return base + '/' + encodeURIComponent(HANDLE) + '/' + encodeURIComponent(s.name || '') + '/';
     }
-    function domainStatusWord(st) {
-      return st === 'active' ? 'live' : (st === 'error' ? 'not working' : 'waiting for DNS');
+    // The words for a domain's state; cert is domain_certificate_status.
+    function domainStatusWord(st, cert) {
+      if (st === 'active') return 'live';
+      if (cert === 'issuing') return 'waiting for certificate';
+      if (cert === 'failed') return 'certificate failed, retrying';
+      return st === 'error' ? 'not working' : 'waiting for DNS';
     }
     function fmtDateTime(s) {
       if (!s) return '';
@@ -1954,7 +1961,7 @@ function parseAnalyticsSummary(data) {
       var dom = '';
       if (s.custom_domain && !domainActive(s)) {
         dom = ' <span class="vis-badge dom-' + (s.domain_status === 'error' ? 'error' : 'pending') + '">' +
-          esc(s.custom_domain) + ' · ' + esc(domainStatusWord(s.domain_status)) + '</span>';
+          esc(s.custom_domain) + ' · ' + esc(domainStatusWord(s.domain_status, s.domain_certificate_status)) + '</span>';
       }
       var ver = Number(s.active_version) || 0;
       var meta = ver ? 'v' + ver + ' live' : 'nothing published yet';
@@ -2064,8 +2071,9 @@ function parseAnalyticsSummary(data) {
         if (inp) inp.focus();
         return;
       }
-      var html = '<div><b>' + esc(s.custom_domain) + '</b> · ' + esc(domainStatusWord(s.domain_status)) + '</div>';
+      var html = '<div><b>' + esc(s.custom_domain) + '</b> · ' + esc(domainStatusWord(s.domain_status, s.domain_certificate_status)) + '</div>';
       if (!domainActive(s)) {
+        html += '<div class="panel-note">Until it is live, the site keeps answering at <b>' + esc(siteOpenUrl(s).replace(/^https?:\/\//, '').replace(/\/$/, '')) + '</b>.</div>';
         if (s.domain_dns) {
           html += '<div class="panel-note">Add this record at your domain registrar:</div>' +
             '<div class="dns-rec"><span>' + esc(s.domain_dns.type) + '</span><span>' + esc(s.domain_dns.host) + '</span><span>' + esc(s.domain_dns.value) + '</span></div>';

@@ -42,6 +42,11 @@ type Site struct {
 	DomainBoundAt    sql.NullTime
 	DomainVerifiedAt sql.NullTime
 	LastDeployedAt   sql.NullTime
+	// PreviousDomain is the earlier address a site keeps serving at while a
+	// new domain is pending; DomainCertStatus is pending | issuing | live |
+	// failed ("" = not known yet).
+	PreviousDomain   string
+	DomainCertStatus string
 }
 
 type Version struct {
