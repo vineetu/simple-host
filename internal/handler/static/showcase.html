@@ -321,9 +321,41 @@
     .version-row .version-active-tag { color: var(--success); font-weight: 500; }
     .versions-status { color: var(--text-secondary); font-size: 13px; padding: 6px 0; }
 
-    /* Private lists (owner only; filled lazily by loadPrivateLists) */
+    .inv-path a { color: inherit; text-decoration: none; }
+    .inv-path a:hover { color: var(--text); text-decoration: underline; }
+    .inv-meta { font-size: 13px; color: var(--text-secondary); margin-top: 2px; font-variant-numeric: tabular-nums; }
+    .vis-badge.dom-pending { color: var(--text-secondary); border-style: dashed; }
+    .vis-badge.dom-error { color: var(--error); border-color: color-mix(in srgb, var(--error) 50%, transparent); }
+    .vis-badge.private { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
+    .btn-danger { background: var(--error); color: #fff; border: 1px solid var(--error); }
+    .btn-danger:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* Row action panels (rename, domain, delete, clear list) */
+    .row-panel {
+      margin-top: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 8px;
+      display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--text);
+      overflow-wrap: anywhere;
+    }
+    .row-panel[hidden] { display: none; }
+    .row-panel input[type="text"] {
+      width: 100%; max-width: 420px; padding: 7px 10px; font-family: var(--mono); font-size: 13px;
+      border: 1px solid var(--border-hi); border-radius: 8px; background: var(--bg); color: var(--text); outline: none;
+    }
+    .row-panel input[type="text"]:focus { border-color: var(--accent); }
+    .row-panel .panel-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+    .row-panel .panel-note { color: var(--text-secondary); }
+    .row-panel .panel-err { color: var(--error); }
+    .dns-rec { display: flex; gap: 14px; flex-wrap: wrap; font-family: var(--mono); padding: 6px 10px; background: var(--surface); border-radius: 6px; }
+    .state-pre {
+      max-height: 320px; overflow: auto; margin: 0; padding: 8px 10px;
+      font-family: var(--mono); font-size: 12px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere;
+      border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text);
+    }
+
+    /* Lists and saved data (owner only; filled lazily by loadPrivateLists) */
     .plists { margin-top: 14px; }
     .plists-head { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+    .plists-gap { margin-top: 12px; }
     .plist-row { flex-wrap: wrap; row-gap: 8px; }
     .plist-row .plist-name { font-family: var(--mono); font-weight: 600; overflow-wrap: anywhere; }
     .plist-row .plist-meta { color: var(--text-secondary); flex: 1; min-width: 140px; }
@@ -1197,6 +1229,7 @@ function parseAnalyticsSummary(data) {
     //   days -> { name -> {a: <parseSiteAnalytics result>} | {error: message} }
     var analyticsCache = {};
     var ownerSites = [];            // the owner's sites (management inventory)
+    var ownerMe = null;             // /v1/me of the confirmed owner
     var currentRange = 30;         // selected analytics range (days)
     var analyticsLoaded = {};      // days -> true once fetched for that range
 
@@ -1211,6 +1244,7 @@ function parseAnalyticsSummary(data) {
       if (!me) return false;
       var isOwner = (me.handle && me.handle === HANDLE) || me.is_admin === true;
       if (!isOwner) return false;
+      ownerMe = me;
 
       // Load ALL sites (incl unlisted).
       var allSites = [];
@@ -1322,22 +1356,36 @@ function parseAnalyticsSummary(data) {
       observePrivateLists(inv);
     }
 
-    // ------------------------------------------------------- PRIVATE LISTS
+    // ------------------------------------------------------- LISTS AND SAVED DATA
     // OWNER ONLY: reached solely via renderInventory(), i.e. after
     // hydrateOwner() confirmed this visitor owns the handle. Lazy: a site's
-    // lists are fetched once, when its row first scrolls into view, so the
-    // page does not fire one request per site on load. A site with no private
-    // list shows nothing. Everything inside a list is visitor-supplied, so
-    // every value goes through esc()/escAttr() and names travel in data-
-    // attributes, never inside inline JS.
+    // lists and saved data are fetched once, when its row first scrolls into
+    // view, so the page does not fire requests per site on load. A site with
+    // no list and no saved data shows nothing. Everything inside a list or the
+    // saved data is visitor-supplied, so every value goes through
+    // esc()/escAttr() and names travel in data- attributes, never inside
+    // inline JS. The owner deletes entries in any list (public included, so
+    // spam can go) and edits entries in private lists; visitors only append.
     function escAttr(v) {
       return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
+    var STATE_LIMIT = 1048576; // the server's saved-data cap (1 MB)
+    function fmtBytes(n) {
+      if (n < 1024) return n + ' bytes';
+      if (n < 1048576) return (n / 1024).toFixed(n < 10240 ? 1 : 0) + ' KB';
+      return (n / 1048576).toFixed(1).replace(/\.0$/, '') + ' MB';
+    }
+    function sitePathPart(name) { return '/v1/sites/' + encodeURIComponent(name); }
     var plistObserver = null;
     function observePrivateLists(inv) {
       var rows = inv.querySelectorAll('.inv-row[data-site]');
       if (plistObserver) plistObserver.disconnect();
+      if (!inv.getAttribute('data-plist-wired')) {
+        inv.setAttribute('data-plist-wired', '1');
+        inv.addEventListener('click', onPrivateListClick);
+        inv.addEventListener('input', onPanelInput);
+      }
       if (!('IntersectionObserver' in window)) {
         Array.prototype.forEach.call(rows, function (r) { loadPrivateLists(r.getAttribute('data-site')); });
         return;
@@ -1350,55 +1398,183 @@ function parseAnalyticsSummary(data) {
         });
       }, { rootMargin: '200px 0px' });
       Array.prototype.forEach.call(rows, function (r) { plistObserver.observe(r); });
-      if (!inv.getAttribute('data-plist-wired')) {
-        inv.setAttribute('data-plist-wired', '1');
-        inv.addEventListener('click', onPrivateListClick);
-      }
     }
-    async function loadPrivateLists(name) {
-      var box = document.querySelector('[data-plists="' + cssEsc(name) + '"]');
-      if (!box || box.getAttribute('data-loaded')) return;
-      box.setAttribute('data-loaded', '1');
-      var lists;
+    // What a site holds: its lists (every one, public and private) and its
+    // saved page data. null when the lists could not be read.
+    async function fetchSiteData(name) {
+      var lists = [], stateText = '';
       try {
-        var res = await api('GET', '/v1/sites/' + encodeURIComponent(name) + '/collections');
-        if (!res.ok) return;
+        var res = await api('GET', sitePathPart(name) + '/collections');
+        if (!res.ok) return null;
         var body = await res.json();
         lists = (body && Array.isArray(body.collections) ? body.collections : [])
-          .filter(function (c) { return c && c.private === true; });
-      } catch (e) { return; }
-      if (!lists.length) return;
-      box.innerHTML = '<div class="plists-head">Private lists</div>' +
-        '<div class="versions-list">' + lists.map(function (c) {
-          var coll = String(c.name || '');
-          var count = Number.isFinite(Number(c.count)) ? Math.trunc(Number(c.count)) : 0;
-          var meta = plistMeta(count, c.last_at);
-          var a = ' data-site="' + escAttr(name) + '" data-coll="' + escAttr(coll) + '"';
-          return '<div class="plist">' +
+          .filter(function (c) { return c && c.name; });
+      } catch (e) { return null; }
+      try {
+        var sres = await api('GET', sitePathPart(name) + '/state');
+        if (sres.ok) stateText = await sres.text();
+      } catch (e) { /* lists still show */ }
+      var trimmed = stateText.trim();
+      var empty = !trimmed || trimmed === '{}' || trimmed === 'null';
+      var entries = 0;
+      lists.forEach(function (c) { entries += Number.isFinite(Number(c.count)) ? Math.trunc(Number(c.count)) : 0; });
+      return { lists: lists, entries: entries, stateText: empty ? '' : stateText, stateSize: empty ? 0 : new Blob([stateText]).size };
+    }
+    async function loadPrivateLists(name, force) {
+      var box = document.querySelector('[data-plists="' + cssEsc(name) + '"]');
+      if (!box || (box.getAttribute('data-loaded') && !force)) return;
+      box.setAttribute('data-loaded', '1');
+      var info = await fetchSiteData(name);
+      if (!info) return;
+      if (!info.lists.length && !info.stateSize) { box.innerHTML = ''; box.hidden = true; return; }
+      var sa = ' data-site="' + escAttr(name) + '"';
+      var html = '';
+      if (info.lists.length) {
+        html += '<div class="plists-head">Lists</div>' +
+          '<div class="versions-list">' + info.lists.map(function (c) { return renderListRow(name, c); }).join('') + '</div>';
+      }
+      if (info.stateSize) {
+        html += '<div class="plists-head plists-gap">Saved data</div>' +
+          '<div class="versions-list"><div class="plist">' +
             '<div class="version-row plist-row">' +
-              '<span class="plist-name">' + esc(coll) + '</span>' +
-              '<span class="plist-meta" data-count="' + count + '" data-last="' + escAttr(c.last_at || '') + '">' + meta + '</span>' +
+              '<span class="plist-name">page data</span>' +
+              '<span class="plist-meta">' + esc(fmtBytes(info.stateSize)) + ' of ' + esc(fmtBytes(STATE_LIMIT)) + '</span>' +
               '<span class="plist-btns">' +
-                (count ? '<button type="button" class="btn-small btn-secondary" data-plist-view' + a + ' aria-expanded="false">View items</button>' : '') +
-                (count ? '<button type="button" class="btn-small btn-secondary" data-plist-csv' + a + '>Download spreadsheet</button>' : '') +
+                '<button type="button" class="btn-small btn-secondary" data-state-view' + sa + ' aria-expanded="false">View</button>' +
+                '<button type="button" class="btn-small btn-secondary" data-state-dl' + sa + '>Download JSON</button>' +
               '</span>' +
             '</div>' +
             '<div class="plist-view" hidden></div>' +
-          '</div>';
-        }).join('') + '</div>';
+          '</div></div>';
+      }
+      box.innerHTML = html;
       box.hidden = false;
+    }
+    function renderListRow(name, c) {
+      var coll = String(c.name || '');
+      var count = Number.isFinite(Number(c.count)) ? Math.trunc(Number(c.count)) : 0;
+      var priv = c.private === true;
+      var a = ' data-site="' + escAttr(name) + '" data-coll="' + escAttr(coll) + '" data-private="' + (priv ? '1' : '0') + '"';
+      return '<div class="plist">' +
+        '<div class="version-row plist-row">' +
+          '<span class="plist-name">' + esc(coll) + '</span>' +
+          '<span class="vis-badge ' + (priv ? 'private' : 'unlisted') + '">' + (priv ? 'private' : 'public') + '</span>' +
+          '<span class="plist-meta" data-count="' + count + '" data-last="' + escAttr(c.last_at || '') + '">' + plistMeta(count, c.last_at) + '</span>' +
+          '<span class="plist-btns">' +
+            (count ? '<button type="button" class="btn-small btn-secondary" data-plist-view' + a + ' aria-expanded="false">View items</button>' : '') +
+            (count ? '<button type="button" class="btn-small btn-secondary" data-plist-csv' + a + '>Download spreadsheet</button>' : '') +
+            '<button type="button" class="btn-small btn-secondary" data-plist-privacy' + a + '>' + (priv ? 'Make public' : 'Make private') + '</button>' +
+            (count ? '<button type="button" class="btn-small btn-ghost" data-plist-clear' + a + '>Clear list</button>' : '') +
+          '</span>' +
+        '</div>' +
+        '<div class="row-panel plist-clear" hidden></div>' +
+        '<div class="plist-view" hidden></div>' +
+      '</div>';
     }
     function plistMeta(count, lastAt) {
       return count + (count === 1 ? ' item' : ' items') +
         (lastAt ? ' · last saved ' + esc(new Date(lastAt).toLocaleString()) : '');
     }
     function onPrivateListClick(e) {
-      var t = e.target && e.target.closest ? e.target.closest('[data-plist-view],[data-plist-csv],[data-plist-act]') : null;
+      var t = e.target && e.target.closest ? e.target.closest('[data-plist-view],[data-plist-csv],[data-plist-act],[data-plist-privacy],[data-plist-clear],[data-plist-clear-go],[data-plist-clear-cancel],[data-state-view],[data-state-dl]') : null;
       if (!t) return;
       if (t.hasAttribute('data-plist-act')) { onPrivateItemAction(t); return; }
       var name = t.getAttribute('data-site'), coll = t.getAttribute('data-coll');
       if (t.hasAttribute('data-plist-csv')) downloadPrivateList(name, coll, t);
+      else if (t.hasAttribute('data-plist-privacy')) toggleListPrivacy(t, name, coll);
+      else if (t.hasAttribute('data-plist-clear')) openClearList(t, name, coll);
+      else if (t.hasAttribute('data-plist-clear-cancel')) closePanel(t);
+      else if (t.hasAttribute('data-plist-clear-go')) clearList(t, name, coll);
+      else if (t.hasAttribute('data-state-view')) toggleStateView(t, name);
+      else if (t.hasAttribute('data-state-dl')) downloadState(t, name);
       else togglePrivateList(t, name, coll);
+    }
+    // Typed confirmations: a button marked data-confirm-for is enabled only
+    // while its panel's input holds exactly that text.
+    function onPanelInput(e) {
+      var inp = e.target;
+      if (!inp || !inp.hasAttribute || !inp.hasAttribute('data-confirm-input')) return;
+      var panel = inp.closest('.row-panel');
+      var go = panel && panel.querySelector('[data-confirm-for]');
+      if (go) go.disabled = inp.value.trim() !== go.getAttribute('data-confirm-for');
+    }
+    function closePanel(t) {
+      var panel = t.closest('.row-panel');
+      if (panel) { panel.hidden = true; panel.innerHTML = ''; }
+    }
+    async function toggleListPrivacy(btn, name, coll) {
+      var priv = btn.getAttribute('data-private') === '1';
+      if (priv && !confirm('Make the list "' + coll + '" public? Anyone can read this list again, including everything already in it.')) return;
+      btn.disabled = true;
+      try {
+        var res = await api('PUT', sitePathPart(name) + '/collections/' + encodeURIComponent(coll) + '/privacy', { private: !priv });
+        var body = await res.json().catch(function () { return null; });
+        if (!res.ok) { toast((body && body.error) || 'Could not change the list', 'error'); btn.disabled = false; return; }
+        toast((body && body.message) || (coll + (priv ? ' is public' : ' is private')), 'success');
+        loadPrivateLists(name, true);
+      } catch (e) {
+        toast('Could not change the list', 'error');
+        btn.disabled = false;
+      }
+    }
+    function openClearList(btn, name, coll) {
+      var wrap = btn.closest('.plist');
+      var panel = wrap && wrap.querySelector('.plist-clear');
+      if (!panel) return;
+      if (!panel.hidden) { panel.hidden = true; panel.innerHTML = ''; return; }
+      var meta = wrap.querySelector('.plist-meta');
+      var n = meta ? (parseInt(meta.getAttribute('data-count'), 10) || 0) : 0;
+      var a = ' data-site="' + escAttr(name) + '" data-coll="' + escAttr(coll) + '"';
+      var id = 'clear-' + escAttr(name) + '-' + escAttr(coll);
+      panel.innerHTML = '<label for="' + id + '">This deletes all ' + n + (n === 1 ? ' entry' : ' entries') + ' in <b>' + esc(coll) +
+          '</b> for good. Type the list name to confirm.</label>' +
+        '<input type="text" id="' + id + '" autocomplete="off" spellcheck="false" data-confirm-input>' +
+        '<div class="panel-btns">' +
+          '<button type="button" class="btn-small btn-danger" data-plist-clear-go data-confirm-for="' + escAttr(coll) + '"' + a + ' disabled>Clear list</button>' +
+          '<button type="button" class="btn-small btn-secondary" data-plist-csv' + a + '>Download spreadsheet first</button>' +
+          '<button type="button" class="btn-small btn-ghost" data-plist-clear-cancel>Cancel</button>' +
+        '</div>';
+      panel.hidden = false;
+      var inp = panel.querySelector('input');
+      if (inp) inp.focus();
+    }
+    async function clearList(btn, name, coll) {
+      btn.disabled = true;
+      try {
+        var res = await api('DELETE', sitePathPart(name) + '/collections/' + encodeURIComponent(coll), { confirm: coll });
+        var body = await res.json().catch(function () { return null; });
+        if (!res.ok) { toast((body && body.error) || 'Could not clear the list', 'error'); btn.disabled = false; return; }
+        var n = body && Number(body.deleted) || 0;
+        toast('Cleared ' + coll + ': ' + n + (n === 1 ? ' entry' : ' entries') + ' deleted', 'success');
+        loadPrivateLists(name, true);
+      } catch (e) {
+        toast('Could not clear the list', 'error');
+        btn.disabled = false;
+      }
+    }
+    async function toggleStateView(btn, name) {
+      var wrap = btn.closest('.plist');
+      var view = wrap && wrap.querySelector('.plist-view');
+      if (!view) return;
+      if (!view.hidden) { view.hidden = true; btn.textContent = 'View'; btn.setAttribute('aria-expanded', 'false'); return; }
+      view.innerHTML = '<div class="versions-status">Loading…</div>';
+      view.hidden = false;
+      btn.textContent = 'Hide';
+      btn.setAttribute('aria-expanded', 'true');
+      try {
+        var res = await api('GET', sitePathPart(name) + '/state');
+        if (!res.ok) { view.innerHTML = '<div class="versions-status">Could not load the saved data</div>'; return; }
+        var text = await res.text();
+        var pretty = text;
+        try { pretty = JSON.stringify(JSON.parse(text), null, 2); } catch (e) { /* show as stored */ }
+        view.innerHTML = '<div class="versions-status">What this site\'s pages have saved, read-only. Pages and your AI change it.</div>' +
+          '<pre class="state-pre">' + esc(pretty) + '</pre>';
+      } catch (e) {
+        view.innerHTML = '<div class="versions-status">Could not load the saved data</div>';
+      }
+    }
+    async function downloadState(btn, name) {
+      await downloadFrom(sitePathPart(name) + '/state', name + '-saved-data.json', 'Could not download the saved data', btn);
     }
     function plistCell(v) {
       if (v == null) return '';
@@ -1406,8 +1582,8 @@ function parseAnalyticsSummary(data) {
       return esc(String(v));
     }
     var PLIST_STAMPS = ['_submitted_by', '_submitted_at'];
-    // Per open list: {name, coll, items, next}. Kept on the view element so an
-    // edit or delete re-renders from memory without refetching.
+    // Per open list: {name, coll, priv, items, next}. Kept on the view element
+    // so an edit or delete re-renders from memory without refetching.
     async function togglePrivateList(btn, name, coll) {
       var wrap = btn.closest('.plist');
       var view = wrap && wrap.querySelector('.plist-view');
@@ -1418,10 +1594,10 @@ function parseAnalyticsSummary(data) {
       btn.textContent = 'Hide items';
       btn.setAttribute('aria-expanded', 'true');
       try {
-        var res = await api('GET', '/v1/sites/' + encodeURIComponent(name) + '/collections/' + encodeURIComponent(coll) + '?limit=50');
+        var res = await api('GET', sitePathPart(name) + '/collections/' + encodeURIComponent(coll) + '?limit=50');
         if (!res.ok) { view.innerHTML = '<div class="versions-status">Could not load items</div>'; return; }
         var body = await res.json();
-        view._plist = { name: name, coll: coll, items: (body && Array.isArray(body.items)) ? body.items : [], next: body && body.next };
+        view._plist = { name: name, coll: coll, priv: !!(body && body.private), items: (body && Array.isArray(body.items)) ? body.items : [], next: body && body.next };
         renderPrivateItems(view);
       } catch (e) {
         view.innerHTML = '<div class="versions-status">Could not load items</div>';
@@ -1439,15 +1615,19 @@ function parseAnalyticsSummary(data) {
       var keys = Object.keys(keySet).filter(function (k) { return PLIST_STAMPS.indexOf(k) < 0; }).sort()
         .concat(PLIST_STAMPS.filter(function (k) { return keySet[k]; }));
       var saved = !keySet._submitted_at; // older items without the stamp: show when they were saved
-      var head = '<th></th>' + keys.map(function (k) { return '<th>' + esc(k) + '</th>'; }).join('') + (saved ? '<th>saved</th>' : '');
+      // An item that is not an object (a page may append a bare string) shows as its value.
+      var plain = items.some(function (it) { return it && (it.data === null || typeof it.data !== 'object' || Array.isArray(it.data)); });
+      var head = '<th></th>' + (plain ? '<th>value</th>' : '') + keys.map(function (k) { return '<th>' + esc(k) + '</th>'; }).join('') + (saved ? '<th>saved</th>' : '');
       var rows = items.map(function (it) {
         var d = plistData(it);
         var id = escAttr(it.id);
+        var isObj = it && it.data && typeof it.data === 'object' && !Array.isArray(it.data);
         return '<tr>' +
           '<td class="plist-acts"><span class="plist-btns">' +
-            '<button type="button" class="btn-small btn-secondary" data-plist-act="edit" data-id="' + id + '">Edit</button>' +
+            (st.priv ? '<button type="button" class="btn-small btn-secondary" data-plist-act="edit" data-id="' + id + '">Edit</button>' : '') +
             '<button type="button" class="btn-small btn-ghost" data-plist-act="delete" data-id="' + id + '">Delete</button>' +
           '</span></td>' +
+          (plain ? '<td>' + (isObj ? '' : plistCell(it.data)) + '</td>' : '') +
           keys.map(function (k) {
             var raw = d[k] == null ? '' : (typeof d[k] === 'object' ? JSON.stringify(d[k]) : d[k]);
             return '<td title="' + escAttr(raw) + '">' + plistCell(d[k]) + '</td>';
@@ -1461,7 +1641,7 @@ function parseAnalyticsSummary(data) {
         '<div class="plist-edit" hidden></div>';
     }
     function plistItemPath(st, id) {
-      return '/v1/sites/' + encodeURIComponent(st.name) + '/collections/' + encodeURIComponent(st.coll) + '/items/' + encodeURIComponent(id);
+      return sitePathPart(st.name) + '/collections/' + encodeURIComponent(st.coll) + '/items/' + encodeURIComponent(id);
     }
     async function plistError(res, fallback) {
       var err = await res.json().catch(function () { return null; });
@@ -1533,7 +1713,7 @@ function parseAnalyticsSummary(data) {
       }
       if (act === 'delete') {
         var who = plistData(item)._submitted_by;
-        if (!confirm('Delete item ' + id + (who ? ' from ' + who : '') + '? This cannot be undone.')) return;
+        if (!confirm('Delete item ' + id + (who ? ' from ' + who : '') + '?' + (st.priv ? '' : ' It disappears from the public list.') + ' This cannot be undone.')) return;
         t.disabled = true;
         try {
           var dres = await api('DELETE', plistItemPath(st, id));
@@ -1548,64 +1728,266 @@ function parseAnalyticsSummary(data) {
         }
       }
     }
-    async function downloadPrivateList(name, coll, btn) {
+    function saveBlob(blob, filename) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    }
+    // Fetches an owner-only download with the key and hands it to the browser,
+    // named as the server says (Content-Disposition) or `filename`.
+    async function downloadFrom(path, filename, errMsg, btn) {
       if (btn) btn.disabled = true;
       try {
-        var res = await api('GET', '/v1/sites/' + encodeURIComponent(name) + '/collections/' + encodeURIComponent(coll) + '/export.csv');
+        var res = await api('GET', path);
         if (!res.ok) {
           var err = await res.json().catch(function () { return null; });
-          toast((err && err.error) || 'Could not download the spreadsheet', 'error');
-          return;
+          toast((err && err.error) || errMsg, 'error');
+          return false;
         }
         var blob = await res.blob();
-        var filename = name + '-' + coll + '.csv';
         var cd = res.headers.get('Content-Disposition');
         var m = cd && cd.match(/filename="([^"]+)"/);
-        if (m) filename = m[1];
-        var url = URL.createObjectURL(blob);
-        var a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+        saveBlob(blob, m ? m[1] : filename);
+        return true;
       } catch (e) {
-        toast('Could not download the spreadsheet', 'error');
+        toast(errMsg, 'error');
+        return false;
       } finally {
         if (btn) btn.disabled = false;
       }
     }
+    async function downloadPrivateList(name, coll, btn) {
+      await downloadFrom(sitePathPart(name) + '/collections/' + encodeURIComponent(coll) + '/export.csv',
+        name + '-' + coll + '.csv', 'Could not download the spreadsheet', btn);
+    }
+    // Download: the whole site as one archive (every file of the live
+    // version, its saved data and its lists), from the export route.
+    async function downloadSite(name, btn) {
+      var ok = await downloadFrom(sitePathPart(name) + '/export.tar.gz', name + '.tar.gz', 'Could not download the site', btn);
+      if (ok) toast('Downloading ' + name, 'success');
+      return ok;
+    }
 
+    // ------------------------------------------------------------ SITE ROWS
+    function ownerSite(name) {
+      for (var i = 0; i < ownerSites.length; i++) if (ownerSites[i].name === name) return ownerSites[i];
+      return null;
+    }
+    function domainActive(s) { return !!(s.custom_domain && s.domain_status === 'active'); }
+    // The address the site answers at: its connected domain once that is
+    // live, otherwise its own address from the API (site_url).
     function siteOpenUrl(s) {
+      if (domainActive(s)) return 'https://' + s.custom_domain + '/';
       if (s.site_url) return s.site_url;
       var base = SHOWCASE.sitesBaseUrl || '';
       return base + '/' + encodeURIComponent(HANDLE) + '/' + encodeURIComponent(s.name || '') + '/';
     }
-    function sitePath(s) {
-      return '/' + HANDLE + '/' + (s.name || '') + '/';
+    function domainStatusWord(st) {
+      return st === 'active' ? 'live' : (st === 'error' ? 'not working' : 'waiting for DNS');
+    }
+    function fmtDateTime(s) {
+      if (!s) return '';
+      var d = new Date(s);
+      if (isNaN(d.getTime())) return esc(s);
+      return esc(d.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }));
     }
 
     function renderInvRow(s) {
       var name = esc(s.name || '');
       var vis = (s.visibility === 'public') ? 'public' : 'unlisted';
-      var openUrl = esc(siteOpenUrl(s));
+      var url = siteOpenUrl(s);
+      var openUrl = esc(url);
+      var dom = '';
+      if (s.custom_domain && !domainActive(s)) {
+        dom = ' <span class="vis-badge dom-' + (s.domain_status === 'error' ? 'error' : 'pending') + '">' +
+          esc(s.custom_domain) + ' · ' + esc(domainStatusWord(s.domain_status)) + '</span>';
+      }
+      var ver = Number(s.active_version) || 0;
+      var meta = ver ? 'v' + ver + ' live' : 'nothing published yet';
+      if (s.deployed_at) meta += ' · last deployed ' + fmtDateTime(s.deployed_at);
       return '<div class="inv-row" data-site="' + name + '">' +
         '<div class="inv-main">' +
           '<div class="inv-id">' +
-            '<h3>' + name + ' <span class="vis-badge ' + vis + '" data-vis-badge="' + name + '">' + vis + '</span></h3>' +
-            '<div class="inv-path">' + esc(sitePath(s)) + '</div>' +
+            '<h3>' + name + ' <span class="vis-badge ' + vis + '" data-vis-badge="' + name + '">' + vis + '</span>' + dom + '</h3>' +
+            '<div class="inv-path"><a href="' + openUrl + '" target="_blank" rel="noopener">' + esc(url.replace(/^https?:\/\//, '').replace(/\/$/, '')) + '</a></div>' +
+            '<div class="inv-meta">' + meta + '</div>' +
           '</div>' +
         '</div>' +
         '<div class="inv-actions">' +
           '<a class="btn-small btn-secondary" href="' + openUrl + '" target="_blank" rel="noopener">Open</a>' +
           '<button type="button" class="btn-small btn-secondary" data-act="toggleVis" data-name="' + name + '" data-vis="' + vis + '" data-vis-btn="' + name + '">' + (vis === 'public' ? 'Make unlisted' : 'Make public') + '</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="toggleVersions" data-name="' + name + '">Revert</button>' +
+          '<button type="button" class="btn-small btn-secondary" data-act="openRename" data-name="' + name + '">Rename</button>' +
+          '<button type="button" class="btn-small btn-secondary" data-act="openDomain" data-name="' + name + '">' + (s.custom_domain ? 'Domain' : 'Connect domain') + '</button>' +
+          '<button type="button" class="btn-small btn-secondary" data-act="downloadSite" data-name="' + name + '">Download</button>' +
           '<button type="button" class="btn-small btn-ghost" data-act="confirmDelete" data-name="' + name + '">Delete</button>' +
         '</div>' +
         '<div class="versions-panel" data-versions="' + name + '" hidden></div>' +
+        '<div class="row-panel" data-panel="' + name + '" hidden></div>' +
         '<div class="plists" data-plists="' + name + '" hidden></div>' +
       '</div>';
+    }
+
+    // One action panel per row (rename, domain, delete); opening one replaces
+    // whatever it held, and the same button again closes it.
+    function rowPanel(name, kind) {
+      var panel = document.querySelector('[data-panel="' + cssEsc(name) + '"]');
+      if (!panel) return null;
+      if (!panel.hidden && panel.getAttribute('data-kind') === kind) {
+        panel.hidden = true; panel.innerHTML = ''; panel.removeAttribute('data-kind');
+        return null;
+      }
+      panel.setAttribute('data-kind', kind);
+      panel.hidden = false;
+      return panel;
+    }
+    function hideRowPanel(name) {
+      var panel = document.querySelector('[data-panel="' + cssEsc(name) + '"]');
+      if (panel) { panel.hidden = true; panel.innerHTML = ''; panel.removeAttribute('data-kind'); }
+    }
+
+    // Re-read the site list after a change that alters a row (rename, domain).
+    async function reloadOwnerSites() {
+      try {
+        var sres = await api('GET', '/v1/sites');
+        if (!sres.ok) return;
+        var data = await sres.json();
+        var arr = Array.isArray(data) ? data : (data && Array.isArray(data.data) ? data.data : []);
+        if (ownerMe && ownerMe.id && ownerMe.handle === HANDLE) {
+          arr = arr.filter(function (s) { return s.user_id === ownerMe.id; });
+        }
+        ownerSites = arr;
+        renderInventory(ownerSites);
+      } catch (e) { /* the old rows stay */ }
+    }
+
+    function openRename(name) {
+      var panel = rowPanel(name, 'rename');
+      if (!panel) return;
+      var id = 'rename-' + escAttr(name);
+      panel.innerHTML = '<label for="' + id + '">New name for <b>' + esc(name) + '</b></label>' +
+        '<input type="text" id="' + id + '" value="' + escAttr(name) + '" autocomplete="off" spellcheck="false" maxlength="63">' +
+        '<div class="panel-note">The site moves to its new address. Links to the current address stop working; saved data and lists move with it.</div>' +
+        '<div class="panel-err" hidden></div>' +
+        '<div class="panel-btns">' +
+          '<button type="button" class="btn-small btn-primary" data-act="doRename" data-name="' + escAttr(name) + '">Rename</button>' +
+          '<button type="button" class="btn-small btn-ghost" data-act="closePanel" data-name="' + escAttr(name) + '">Cancel</button>' +
+        '</div>';
+      var inp = panel.querySelector('input');
+      if (inp) { inp.focus(); inp.select(); }
+    }
+    async function doRename(name, btn) {
+      var panel = document.querySelector('[data-panel="' + cssEsc(name) + '"]');
+      if (!panel) return;
+      var next = (panel.querySelector('input').value || '').trim();
+      var errEl = panel.querySelector('.panel-err');
+      if (!next || next === name) { hideRowPanel(name); return; }
+      btn.disabled = true;
+      try {
+        var res = await api('PATCH', sitePathPart(name), { name: next });
+        var body = await res.json().catch(function () { return {}; });
+        if (!res.ok) { errEl.textContent = body.error || 'Could not rename the site'; errEl.hidden = false; btn.disabled = false; return; }
+        toast('Renamed to ' + (body.name || next), 'success');
+        await reloadOwnerSites();
+      } catch (e) {
+        errEl.textContent = 'Could not rename the site'; errEl.hidden = false; btn.disabled = false;
+      }
+    }
+
+    function renderDomainPanel(panel, s) {
+      var n = escAttr(s.name);
+      if (!s.custom_domain) {
+        var id = 'domain-' + n;
+        panel.innerHTML = '<label for="' + id + '">Give <b>' + esc(s.name) + '</b> another address</label>' +
+          '<input type="text" id="' + id + '" placeholder="shop.example.com or a free name.simple-host.app" autocomplete="off" spellcheck="false">' +
+          '<div class="panel-note">A free <i>name</i>.simple-host.app works at once. Your own domain needs one DNS record at your registrar, shown next. Once it is live, the site lives only at that address.</div>' +
+          '<div class="panel-err" hidden></div>' +
+          '<div class="panel-btns">' +
+            '<button type="button" class="btn-small btn-primary" data-act="connectDomain" data-name="' + n + '">Connect</button>' +
+            '<button type="button" class="btn-small btn-ghost" data-act="closePanel" data-name="' + n + '">Cancel</button>' +
+          '</div>';
+        var inp = panel.querySelector('input');
+        if (inp) inp.focus();
+        return;
+      }
+      var html = '<div><b>' + esc(s.custom_domain) + '</b> · ' + esc(domainStatusWord(s.domain_status)) + '</div>';
+      if (!domainActive(s)) {
+        if (s.domain_dns) {
+          html += '<div class="panel-note">Add this record at your domain registrar:</div>' +
+            '<div class="dns-rec"><span>' + esc(s.domain_dns.type) + '</span><span>' + esc(s.domain_dns.host) + '</span><span>' + esc(s.domain_dns.value) + '</span></div>';
+        }
+        if (s.domain_last_error) html += '<div class="panel-err">Last check: ' + esc(s.domain_last_error) + '</div>';
+        if (s.domain_expires_at) html += '<div class="panel-note">If it is not working by ' + fmtDateTime(s.domain_expires_at) + ', the domain is released and you can connect it again.</div>';
+      }
+      html += '<div class="panel-btns">' +
+        (!domainActive(s) ? '<button type="button" class="btn-small btn-primary" data-act="checkDomain" data-name="' + n + '">Check again</button>' : '') +
+        '<button type="button" class="btn-small btn-secondary" data-act="disconnectDomain" data-name="' + n + '">Disconnect</button>' +
+        '<button type="button" class="btn-small btn-ghost" data-act="closePanel" data-name="' + n + '">Close</button>' +
+      '</div>';
+      panel.innerHTML = html;
+    }
+    function openDomain(name) {
+      var s = ownerSite(name);
+      var panel = s && rowPanel(name, 'domain');
+      if (panel) renderDomainPanel(panel, s);
+    }
+    async function reopenDomain(name) {
+      await reloadOwnerSites();
+      openDomain(name);
+    }
+    async function connectDomain(name, btn) {
+      var panel = document.querySelector('[data-panel="' + cssEsc(name) + '"]');
+      var d = panel && (panel.querySelector('input').value || '').trim();
+      if (!d) return;
+      var errEl = panel.querySelector('.panel-err');
+      btn.disabled = true;
+      try {
+        var res = await api('POST', sitePathPart(name) + '/domain', { domain: d });
+        var body = await res.json().catch(function () { return {}; });
+        if (!res.ok) { errEl.textContent = body.error || 'Could not connect the domain'; errEl.hidden = false; btn.disabled = false; return; }
+        toast(body.status === 'active' ? d + ' is live' : 'Connected. Add the DNS record shown.', 'success');
+        await reopenDomain(name);
+      } catch (e) {
+        errEl.textContent = 'Could not connect the domain'; errEl.hidden = false; btn.disabled = false;
+      }
+    }
+    async function checkDomain(name, btn) {
+      btn.disabled = true;
+      btn.textContent = 'Checking…';
+      try {
+        var res = await api('POST', sitePathPart(name) + '/domain/check');
+        var body = await res.json().catch(function () { return {}; });
+        if (!res.ok) { toast(body.error || 'Could not check the domain', 'error'); btn.disabled = false; btn.textContent = 'Check again'; return; }
+        toast(body.status === 'active' ? body.domain + ' is live' : 'Not working yet', body.status === 'active' ? 'success' : 'error');
+        await reopenDomain(name);
+      } catch (e) {
+        toast('Could not check the domain', 'error');
+        btn.disabled = false; btn.textContent = 'Check again';
+      }
+    }
+    async function disconnectDomain(name, btn) {
+      var s = ownerSite(name);
+      if (!s || !confirm('Disconnect ' + s.custom_domain + ' from "' + name + '"? The site goes back to ' + (s.site_url || 'its own address').replace(/^https?:\/\//, '').replace(/\/$/, '') + ', and links to ' + s.custom_domain + ' stop working.')) return;
+      btn.disabled = true;
+      try {
+        var res = await api('DELETE', sitePathPart(name) + '/domain');
+        if (res.status !== 204 && !res.ok) {
+          var b = await res.json().catch(function () { return {}; });
+          toast(b.error || 'Could not disconnect', 'error');
+          btn.disabled = false;
+          return;
+        }
+        toast('Domain disconnected', 'success');
+        await reloadOwnerSites();
+      } catch (e) {
+        toast('Could not disconnect', 'error');
+        btn.disabled = false;
+      }
     }
 
     function cssEsc(s) { return String(s).replace(/["\\]/g, '\\$&'); }
@@ -1827,13 +2209,39 @@ function parseAnalyticsSummary(data) {
       }
     }
 
+    // Delete: first say what goes with the site (list entries, saved data) and
+    // offer a download, then delete on a second, explicit click.
     async function confirmDelete(name) {
-      if (!confirm('Delete site "' + name + '"? This removes all versions and cannot be undone.')) return;
+      var panel = rowPanel(name, 'delete');
+      if (!panel) return;
+      var n = escAttr(name);
+      panel.innerHTML = '<div class="versions-status">Checking what ' + esc(name) + ' holds…</div>';
+      var info = await fetchSiteData(name);
+      if (panel.getAttribute('data-kind') !== 'delete') return;
+      var what;
+      if (!info) {
+        what = 'every version, and any saved data and list entries it holds';
+      } else {
+        var parts = ['every version'];
+        if (info.entries) parts.push(info.entries + (info.entries === 1 ? ' list entry' : ' list entries') + ' in ' + info.lists.length + (info.lists.length === 1 ? ' list' : ' lists'));
+        if (info.stateSize) parts.push('its saved data (' + fmtBytes(info.stateSize) + ')');
+        what = parts.length > 1 ? parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1] : parts[0];
+      }
+      panel.innerHTML = '<div>Delete <b>' + esc(name) + '</b>? This removes ' + esc(what) + ' for good. It cannot be undone.</div>' +
+        '<div class="panel-btns">' +
+          '<button type="button" class="btn-small btn-secondary" data-act="downloadSite" data-name="' + n + '">Download first</button>' +
+          '<button type="button" class="btn-small btn-danger" data-act="doDelete" data-name="' + n + '">Delete site</button>' +
+          '<button type="button" class="btn-small btn-ghost" data-act="closePanel" data-name="' + n + '">Cancel</button>' +
+        '</div>';
+    }
+    async function doDelete(name, btn) {
+      btn.disabled = true;
       try {
-        var res = await api('DELETE', '/v1/sites/' + encodeURIComponent(name));
+        var res = await api('DELETE', sitePathPart(name));
         if (!res.ok && res.status !== 204) {
           var err = await res.json().catch(function () { return null; });
           toast((err && err.error) || 'Could not delete site', 'error');
+          btn.disabled = false;
           return;
         }
         toast('Deleted ' + name, 'success');
@@ -1843,6 +2251,7 @@ function parseAnalyticsSummary(data) {
         if (!ownerSites.length) renderInventory(ownerSites); // back to zero: onboarding opens in full
       } catch (e) {
         toast('Could not delete site', 'error');
+        btn.disabled = false;
       }
     }
 
@@ -2812,12 +3221,21 @@ function parseAnalyticsSummary(data) {
       toggleVis: function (d) { toggleVis(d.name, d.vis); },
       toggleVersions: function (d) { toggleVersions(d.name); },
       confirmDelete: function (d) { confirmDelete(d.name); },
-      rollbackTo: function (d) { rollbackTo(d.name, Number(d.version)); }
+      doDelete: function (d, el) { doDelete(d.name, el); },
+      rollbackTo: function (d) { rollbackTo(d.name, Number(d.version)); },
+      openRename: function (d) { openRename(d.name); },
+      doRename: function (d, el) { doRename(d.name, el); },
+      openDomain: function (d) { openDomain(d.name); },
+      connectDomain: function (d, el) { connectDomain(d.name, el); },
+      checkDomain: function (d, el) { checkDomain(d.name, el); },
+      disconnectDomain: function (d, el) { disconnectDomain(d.name, el); },
+      downloadSite: function (d, el) { downloadSite(d.name, el); },
+      closePanel: function (d) { hideRowPanel(d.name); }
     };
     document.addEventListener('click', function (e) {
       var el = e.target.closest('[data-act]');
       var fn = el && Object.prototype.hasOwnProperty.call(clickActions, el.dataset.act) && clickActions[el.dataset.act];
-      if (fn) fn(el.dataset);
+      if (fn) fn(el.dataset, el);
     });
 
     // ------------------------------------------------------------------- boot
