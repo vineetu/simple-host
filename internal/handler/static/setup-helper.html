@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Setup helper — Simple Host</title>
-  <meta name="description" content="Answer a few questions and get the install command and settings for a Simple Host small box, or the Kubernetes configuration for Simple Host Enterprise. Runs in your browser; nothing is sent anywhere.">
+  <meta name="description" content="Answer a few questions and get the install command and settings for a Simple Host small box, or the Kubernetes configuration for Simple Host Enterprise. Runs in your browser and never asks for a password or key.">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <!--sh:head-->
   <style>
@@ -96,6 +96,27 @@
     .area-head .count { font-size: 13px; color: var(--text-secondary); }
     .privacy { font-size: 13px; color: var(--text-secondary); margin-top: 30px; }
 
+    /* The optional check */
+    .checking { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+    .checking .note { margin: 0; }
+    .spinner { width: 22px; height: 22px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .9s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+    .checking .skip { padding-left: 0; }
+    .finding { border: 1px solid var(--border); border-left: 4px solid var(--border-hi); border-radius: 8px; padding: 12px 14px; margin: 0 0 12px; }
+    .finding.warn { border-left-color: #d97706; background: #fffaf2; }
+    .finding.info { border-left-color: var(--accent); background: #f6f8fc; }
+    .finding p { margin: 6px 0 0; font-size: 15px; line-height: 1.5; }
+    .finding-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+    .finding .sev { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+    .finding.warn .sev { color: #8a4b00; }
+    .finding.info .sev { color: var(--accent); }
+    .finding .name { font-family: var(--mono); font-size: 12.5px; color: var(--text-secondary); overflow-wrap: anywhere; }
+    .finding .suggest { font-size: 14px; color: var(--text-secondary); }
+    .finding-acts { margin-top: 10px; }
+    .finding .decided { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+    .check-note { font-size: 14px; color: var(--text-secondary); margin: 0 0 12px; }
+
     @media (max-width: 600px) {
       .wrap { padding: 0 16px; }
       main { padding-top: 28px; }
@@ -120,7 +141,7 @@
     <div id="app" aria-live="polite">
       <noscript><p class="card">The setup helper needs JavaScript. Everything it writes is also described in the <a href="https://github.com/vineetu/simple-host/tree/main/docs/advanced">advanced settings docs</a>.</p></noscript>
     </div>
-    <p class="privacy">This page runs entirely in your browser. Nothing you type is sent anywhere, and it never asks for a password or key: secrets appear as blanks for you to fill in. Every setting is explained in the advanced docs: <a href="https://github.com/vineetu/simple-host/tree/main/docs/advanced">small box</a> · <a href="https://github.com/vineetu/simple-host-enterprise/tree/main/docs/advanced">Enterprise</a>.</p>
+    <p class="privacy">This page runs in your browser and never asks for a password or key: secrets appear as blanks for you to fill in. Nothing you type is sent anywhere, except for the optional check just before your files, where this server offers it: it sends only the product and the names and values of the numbers, durations, switches and limits you changed (never hostnames, emails or anything about you) to our model provider, and nothing is kept (<a href="/privacy.html">privacy</a>). Every setting is explained in the advanced docs: <a href="https://github.com/vineetu/simple-host/tree/main/docs/advanced">small box</a> · <a href="https://github.com/vineetu/simple-host-enterprise/tree/main/docs/advanced">Enterprise</a>.</p>
   </main>
   <!--sh:footer-->
   <script src="/setup/setup.js"></script>

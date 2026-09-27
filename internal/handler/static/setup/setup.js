@@ -1,7 +1,11 @@
 // The setup helper at /setup. Everything happens in this page: the settings
 // lists are the two settings.json files next to this script (generated from
-// each product's code, see docs/advanced/README.md), nothing typed here is
-// sent anywhere, and secrets are never asked for, only named as blanks.
+// each product's code, see docs/advanced/README.md), and secrets are never
+// asked for, only named as blanks. The one request it makes is the optional
+// check just before the files (POST /v1/setup/check): the product and the
+// names and values of the changed numbers, durations, switches and rates,
+// never free text such as hostnames or emails. Where the server has no model
+// backend, or the check fails or is skipped, the files are shown without it.
 (function () {
   'use strict';
 
@@ -44,7 +48,10 @@
         smtp: false, smtpFrom: '', bucket: 'aws', endpoint: BUCKETS[0].endpoint, region: BUCKETS[0].region, bucketName: '',
         creds: 'keys', dbHost: '', dbPort: '5432', dbName: 'simplehost', dbUser: 'simplehost' }
     },
-    errors: {}
+    errors: {},
+    // The check: key is the request it answered (so the same choices are not
+    // checked twice), state running / review / done, note shown above the files.
+    check: { key: '', state: '', findings: [], note: '', seq: 0 }
   };
 
   // ?product=enterprise or ?product=small-box (the links on the enterprise and
@@ -585,8 +592,117 @@
     ]);
   }
 
+  // ── The optional check ──
+  var CHECKABLE = { int: true, duration: true, bool: true, enum: true, rate: true };
+  // checkPayload is what the check is sent: the changed settings that are
+  // numbers, durations, switches, choices or rates. null when there are none.
+  function checkPayload() {
+    var p = S.product, out = {}, n = 0;
+    var adv = advancedSettings().map(function (s) { return s.name; });
+    var add = function (name, v) {
+      var s = byName(name);
+      if (!s || !CHECKABLE[s.type] || v == null || v === '' || v === defaultOf(s)) return;
+      out[name] = String(v); n++;
+    };
+    Object.keys(S.values[p]).forEach(function (k) { if (adv.indexOf(k) >= 0) add(k, S.values[p][k]); });
+    if (p === 'ent') {
+      if (S.basic.ent.certs !== 'auto') add('OWNER_CERTS', 'manual');
+      add('DB_PORT', S.basic.ent.dbPort);
+    }
+    return n ? { product: p === 'small' ? 'small-box' : 'enterprise', settings: out } : null;
+  }
+  function checkKey() { var pl = checkPayload(); return pl ? JSON.stringify(pl) : ''; }
+
+  function runCheck(payload, key) {
+    var seq = ++S.check.seq, ctl = window.AbortController ? new AbortController() : null;
+    S.check = { key: key, state: 'running', findings: [], note: '', seq: seq };
+    var finish = function (note, findings) {
+      if (S.check.seq !== seq || S.check.state !== 'running') return;
+      S.check.findings = findings || [];
+      S.check.state = S.check.findings.length ? 'review' : 'done';
+      S.check.note = note;
+      if (S.step === 3) render();
+    };
+    var timer = setTimeout(function () { if (ctl) ctl.abort(); finish('Check skipped.'); }, 30000);
+    app.appendChild(el('div', { class: 'card checking' }, [
+      el('h2', { text: 'Checking your choices' }),
+      el('p', { class: 'note', text: 'A quick look for likely mistakes in the settings you changed. Only their names and values are sent.' }),
+      el('div', { class: 'spinner', 'aria-hidden': 'true' }),
+      el('button', { class: 'skip', type: 'button', text: 'Skip the check', onclick: function () {
+        clearTimeout(timer); if (ctl) ctl.abort(); finish('Check skipped.');
+      } })
+    ]));
+    fetch('/v1/setup/check', { method: 'POST', credentials: 'omit', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload), signal: ctl ? ctl.signal : undefined })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (d) {
+        clearTimeout(timer);
+        var list = (d && Array.isArray(d.findings)) ? d.findings : [];
+        finish(list.length ? '' : 'Checked: nothing to change.', list);
+      })
+      .catch(function () { clearTimeout(timer); finish('Check skipped.'); });
+  }
+
+  // applicable reports whether Apply can set every suggested value here: each
+  // is a setting this helper writes, with a value its own form accepts.
+  function applicable(f) {
+    var names = f.suggest ? Object.keys(f.suggest) : [];
+    if (!names.length) return false;
+    var adv = advancedSettings().map(function (s) { return s.name; });
+    return names.every(function (n) { var s = byName(n); return s && adv.indexOf(n) >= 0 && validate(s, f.suggest[n]) === ''; });
+  }
+
+  function renderReview() {
+    var list = S.check.findings, card = el('div', { class: 'card' }, [
+      el('h2', { text: 'Check my choices' }),
+      el('p', { class: 'note', style: 'margin:0 0 14px', text: 'A few things worth a second look. Apply takes the suggested value; Ignore keeps yours. Your files are still written from the form.' })
+    ]);
+    list.forEach(function (f, i) {
+      var actions = el('div', { class: 'row finding-acts' });
+      var drawActions = function () {
+        actions.textContent = '';
+        if (f.decision) { actions.appendChild(el('span', { class: 'decided', text: f.decision === 'applied' ? 'Applied' : 'Ignored' })); return; }
+        if (applicable(f)) actions.appendChild(el('button', { class: 'btn small solid', type: 'button', text: 'Apply', onclick: function () {
+          Object.keys(f.suggest).forEach(function (n) { setValue(byName(n), f.suggest[n]); });
+          f.decision = 'applied'; drawActions();
+        } }));
+        actions.appendChild(el('button', { class: 'btn small', type: 'button', text: 'Ignore', onclick: function () { f.decision = 'ignored'; drawActions(); } }));
+      };
+      drawActions();
+      var sugg = f.suggest ? Object.keys(f.suggest).map(function (n) { return n + '=' + f.suggest[n]; }) : [];
+      card.appendChild(el('div', { class: 'finding ' + (f.severity === 'warn' ? 'warn' : 'info'), id: 'finding-' + i }, [
+        el('div', { class: 'finding-head' }, [
+          el('span', { class: 'sev', text: f.severity === 'warn' ? 'Warning' : 'Note' }),
+          el('span', { class: 'name', text: (f.settings || []).join(' · ') })
+        ]),
+        el('p', { text: f.message }),
+        sugg.length ? el('p', { class: 'suggest' }, ['Suggested: ', el('code', { text: sugg.join(', ') })]) : null,
+        actions
+      ]));
+    });
+    app.appendChild(card);
+    app.appendChild(el('div', { class: 'nav' }, [
+      el('button', { class: 'btn', type: 'button', text: 'Back', onclick: function () {
+        if (S.mode === 'advanced') { S.area = areas().length - 1; go(2); } else go(1);
+      } }),
+      el('button', { class: 'btn solid', type: 'button', text: 'Show my files', onclick: function () {
+        var applied = list.filter(function (f) { return f.decision === 'applied'; }).length;
+        S.check.state = 'done';
+        S.check.key = checkKey();
+        S.check.note = 'Checked: ' + (applied ? applied + ' suggestion' + (applied > 1 ? 's' : '') + ' applied.' : 'your values kept.');
+        go(3);
+      } })
+    ]));
+  }
+
   function renderOutput() {
+    var pl = checkPayload(), key = pl ? JSON.stringify(pl) : '';
+    if (!key) S.check = { key: '', state: '', findings: [], note: '', seq: S.check.seq };
+    else if (S.check.key !== key) { runCheck(pl, key); return; }
+    else if (S.check.state === 'running') { S.check.key = ''; runCheck(pl, key); return; }
+    else if (S.check.state === 'review') { renderReview(); return; }
     var r = build(), card = el('div', { class: 'card' });
+    if (S.check.note) app.appendChild(el('p', { class: 'check-note', role: 'status', text: S.check.note }));
     if (S.product === 'small') {
       card.appendChild(el('h2', { text: 'Your small box' }));
       card.appendChild(el('ol', { class: 'steps' }, [
