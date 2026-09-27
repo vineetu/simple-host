@@ -202,6 +202,17 @@ type Config struct {
 	// domain resolves to this server), ready/<domain> and failed/<domain>
 	// (written by the issuer). Empty: certificates are issued by hand.
 	DomainCertDir string
+	// "Ask about this page" (POST /v1/ask) on the architecture, features and
+	// enterprise pages. Uses the LLM_* backend (the Grok sidecar) and is on
+	// whenever that is configured, unless ASK_ENABLED=off. AskBurst questions
+	// per IP, then one every AskEverySeconds (ASK_BURST, default 5;
+	// ASK_EVERY_SECONDS, default 20); AskDailyMax questions per UTC day across
+	// everyone (ASK_DAILY_MAX, default 500), because the subscription behind
+	// the sidecar is shared.
+	AskEnabled      bool
+	AskBurst        int
+	AskEverySeconds int
+	AskDailyMax     int
 	// IdleCleanup is IDLE_CLEANUP=on (default off): warn owners of sites
 	// idle for 90 days, move them to Recently deleted 30 days later unless
 	// kept. IdleCleanupMaxEmails caps the emails one run sends (default 50).
@@ -361,6 +372,11 @@ func Load() (Config, error) {
 		}
 	}
 
+	cfg.AskEnabled = !strings.EqualFold(strings.TrimSpace(os.Getenv("ASK_ENABLED")), "off")
+	cfg.AskBurst = positiveEnvInt("ASK_BURST", 5)
+	cfg.AskEverySeconds = positiveEnvInt("ASK_EVERY_SECONDS", 20)
+	cfg.AskDailyMax = positiveEnvInt("ASK_DAILY_MAX", 500)
+
 	cfg.PreviewAccounts = map[string]bool{}
 	for _, a := range strings.Split(os.Getenv("PREVIEW_ACCOUNTS"), ",") {
 		if a = strings.TrimSpace(strings.ToLower(a)); a != "" {
@@ -415,6 +431,21 @@ func (c Config) OAuthRedirectURI(provider string) string {
 
 func xorNonEmpty(a, b string) bool {
 	return (a == "") != (b == "")
+}
+
+// positiveEnvInt reads a positive integer knob, warning and using def when it
+// is set to anything else.
+func positiveEnvInt(key string, def int) int {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return def
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 {
+		log.Printf("warning: invalid %s %q; using %d", key, v, def)
+		return def
+	}
+	return n
 }
 
 func getEnvOrDefault(key, fallback string) string {

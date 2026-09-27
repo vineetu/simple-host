@@ -303,3 +303,24 @@ code, kbd, samp, pre { font-family: var(--mono); }
   .sh-header .sh-nav { gap: 10px; }
   .sh-header .sh-nav a, .sh-header .sh-signin { font-size: 13px; }
 }
+
+/* "Ask about this page" box (partials/ask.html, ask.js). Page tokens only, so
+   it takes on the look of whatever page it sits in. */
+.sh-ask { margin: 28px 0; padding: 18px 20px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); font-family: var(--font); }
+.sh-ask-title { margin: 0 0 4px; font-size: 16px; font-weight: 600; line-height: 1.4; color: var(--text); }
+.sh-ask-label { display: block; margin: 0 0 12px; font-size: 13.5px; line-height: 1.5; color: var(--text-secondary); }
+.sh-ask-row { display: flex; gap: 8px; }
+.sh-ask-input { flex: 1; min-width: 0; font: inherit; font-size: 15px; padding: 10px 12px; border: 1px solid var(--border-hi); border-radius: 8px; background: var(--bg); color: var(--text); }
+.sh-ask-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+.sh-ask-send { flex: none; font: inherit; font-size: 15px; font-weight: 600; padding: 10px 18px; border: 1px solid var(--accent); border-radius: 8px; background: var(--accent); color: var(--on-accent); cursor: pointer; }
+.sh-ask-send:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.sh-ask-send:disabled { opacity: .65; cursor: default; }
+.sh-ask-answer { margin: 14px 0 0; padding: 12px 0 0; border-top: 1px solid var(--border); font-size: 15px; line-height: 1.6; color: var(--text); white-space: pre-line; overflow-wrap: anywhere; }
+.sh-ask-answer a { color: var(--accent); text-underline-offset: 3px; }
+.sh-ask-answer.is-loading { color: var(--text-secondary); }
+.sh-ask-answer.is-error { color: var(--error); }
+@media (max-width: 480px) {
+  .sh-ask { padding: 16px; }
+  .sh-ask-row { flex-direction: column; }
+  .sh-ask-send { width: 100%; }
+}

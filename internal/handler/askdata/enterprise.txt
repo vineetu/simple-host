@@ -1,0 +1,11 @@
+=== About Simple Host Enterprise (public summary) ===
+
+Simple Host Enterprise, also called Simple Host for companies, is the version of Simple Host that a company runs itself: one Go service on the company's own Kubernetes cluster, with its own Postgres database, its own object storage bucket and its own identity provider (any provider that speaks OIDC). The company decides how it is exposed; AI apps can connect only if they can reach it. The source code and install guide are public, and the company's engineers can extend it.
+
+People sign in with their company account and ask the AI app they already use (ChatGPT, Claude, Claude Code, Codex, Cursor and others) to publish a page. Each page is live at its own address under the person's name, <site>.<person>.<your domain>, and is its own browser origin. Teams have addresses too (team-<name>). Pages keep shared saved data without server-side code; nothing people publish runs on the server.
+
+Every page needs a company sign-in, and a new page opens only for the person who made it; they choose who else can open it. Admins see every site and who can open it; publishing, sharing and sign-ins go to a tamper-evident audit log.
+
+It is a side project built by one person; no independent penetration test has been done yet, so companies should review the code and run their own security review before relying on it.
+
+The enterprise pages are https://simple-host.app/enterprise (full details), https://simple-host.app/enterprise/brief (a brief) and https://simple-host.app/enterprise/architecture (how it is built).
