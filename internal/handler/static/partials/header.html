@@ -128,6 +128,9 @@
       if (window.matchMedia) {
         var mq = window.matchMedia('(prefers-color-scheme: dark)');
         var follow = function (e) {
+          // A page with a fixed default (data-theme-default) changes only
+          // when the reader picks.
+          if (root.dataset.themeDefault) return;
           try { if (localStorage.getItem('sh-theme')) return; } catch (_) {}
           set(e.matches ? 'dark' : 'light');
         };
