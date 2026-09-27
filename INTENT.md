@@ -301,6 +301,22 @@ What follows from that, and is not negotiable without changing the line above:
   people's lists, and retires their handle and names so nobody inherits their links. Refused for
   suspended and admin accounts and while event hostnames are held. Reason: GDPR and trust.
   Owner approved 2026-09-27.
+- **2026-09-27. Idle sites are cleaned up, with warning and an easy way back.** A site with no
+  visits by people and no new version for 90 days: its owner is emailed (reply-to support) with
+  one-click "Keep it" (resets the clock, no sign-in) and "Download it" links; 30 days later with
+  nothing done it moves to Recently deleted (7 days) and a second email carries a one-click
+  "Restore it" link. Never touched: sites with a custom domain or claimed name, sites the owner
+  marks Keep (owner app and `keep_site`), admin and operator sites, taken-down sites. The owner's
+  own visits cannot be told apart from anyone else's (visitor addresses are only kept hashed), so
+  any person's visit counts. Off until `IDLE_CLEANUP=on`, with an admin dry run to check first,
+  a per-run email cap, and nothing done while visit records are too short or stale to trust.
+  Reason: abandoned free sites pile up; a removal the owner did not see coming would break trust.
+  Owner approved 2026-09-27 (completeness plan).
+- **2026-09-27. www and the bare domain both work.** Connecting `brand.com` or `www.brand.com`
+  also sets up the other as a redirect to the one chosen, on the same certificate, with one TXT
+  proof on the chosen name, but only if the other points here and nothing else on the server
+  answers it; otherwise it is reported as not set up, with why. Owner approved 2026-09-27
+  (completeness plan).
 
 ## Open, deliberately parked
 

@@ -805,6 +805,9 @@
                     },
                     "is_admin": {
                       "type": "boolean"
+                    },
+                    "address": {
+                      "$ref": "#/components/schemas/AddressState"
                     }
                   }
                 }
@@ -2177,6 +2180,175 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/keep": {
+      "put": {
+        "operationId": "putSitesBySitenameKeep",
+        "summary": "Keep a site up for good",
+        "description": "Mark the site Keep (or clear the mark). Where the idle-site cleanup is on (simple-host.app), a site with no visits by people and no new version for 90 days gets its owner an email with one-click \"Keep it\" and \"Download it\" links; 30 days later with nothing done it moves to Recently deleted (restorable for 7 days, with a one-click link in a second email). A site marked Keep is never flagged, and marking it ends a pending warning. Sites with their own domain or claimed name are never flagged either. Owner only (API key).",
+        "tags": [
+          "Sites"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "keep"
+                ],
+                "properties": {
+                  "keep": {
+                    "type": "boolean",
+                    "example": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The flag as set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "keep": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body is not {\"keep\": true|false}"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "423": {
+            "description": "The site is taken down by the operator"
+          }
+        }
+      }
+    },
+    "/v1/idle/keep": {
+      "get": {
+        "operationId": "getIdleKeep",
+        "summary": "\"Keep it\" link from an idle-site email",
+        "description": "Opened from the idle-site email; no sign-in, the token is the authorization. The site stays up and its idle clock restarts; the link is then spent. Answers an HTML page (404 page when the link was used, replaced or has expired).",
+        "tags": [
+          "Sites"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "t",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The token from the email"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "HTML page confirming the site stays up"
+          },
+          "404": {
+            "description": "HTML page; the link was used or has expired"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/v1/idle/download": {
+      "get": {
+        "operationId": "getIdleDownload",
+        "summary": "\"Download it\" link from an idle-site email",
+        "description": "The site's export (the same .tar.gz as GET /v1/sites/{site}/export.tar.gz), with no sign-in, while the site is warned and not yet removed.",
+        "tags": [
+          "Sites"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "t",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The export",
+            "application/gzip": null
+          },
+          "404": {
+            "description": "HTML page; the link was used or has expired"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/v1/idle/restore": {
+      "get": {
+        "operationId": "getIdleRestore",
+        "summary": "\"Restore it\" link from an idle-site removal email",
+        "description": "Brings a site the idle-site cleanup moved to Recently deleted back exactly as it was (versions, saved data, names), with a fresh idle clock, while it is still in Recently deleted. No sign-in; the link is then spent. HTML page.",
+        "tags": [
+          "Sites"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "t",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "HTML page confirming the site is back"
+          },
+          "404": {
+            "description": "HTML page; the link was used or has expired"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         }
       }
@@ -4999,7 +5171,7 @@
       "post": {
         "operationId": "postSitesBySitenameDomain",
         "summary": "Give this site a nicer address (free <name>.simple-host.app or a custom domain)",
-        "description": "Optional. Every site already lives at its own address `https://<site>.<handle>.simple-host.app/`, with sign-in and private lists. This gives it a nicer address; the site moves there and its old address redirects. A free address: send `{\"domain\": \"<name>.simple-host.app\"}` (one DNS label: lowercase letters, digits and hyphens, not at the start or end, up to 63 characters). It is active at once with no DNS step \u2014 the answer has `status: active` and `verified_at`, and no `dns`. First come, first served: 409 domain_taken if another site holds it or it is already someone's handle (handles and free names share one namespace); reserved names (www, sites, api, admin, mail, cname and the platform's own hosts) get 400 name_reserved; anything else malformed gets 400 invalid_name. Once claimed it behaves exactly like a custom domain: the site is served at its root with a same-origin /v1 API and visitor sign-in, its person-address URL 302s there, and private collections take submissions there. A site has one own address: claiming one replaces a custom domain and vice versa. A free name the site lets go (switching, DELETE, or deleting the site) stays with it: it redirects to the site's current address and nobody else can claim it. A custom domain: bind ONE domain to the site (status starts as `pending`). Returns the two DNS records the owner must create: `dns` (CNAME for a subdomain, A for an apex) and `dns_txt`, the ownership record (TXT `_simple-host.<domain>` holding this site's token), which proves the domain is theirs and must stay in place. Nothing is verified or certified without it. A name another site on this server already serves is refused by the certificate issuer (failed, \"already served here\"). Once both records are seen, its certificate is requested automatically (at most 5 new domain certificates per account per day) (`certificate_status`: pending \u2192 issuing \u2192 live, or failed with the reason in `last_error`, retried) and the domain is served at its root, usually within minutes. If the site already has a working own address (a free name or an earlier domain), it keeps serving there (`previous_domain`) until the new domain is verified; then the old address redirects to it. Binding the site's current working domain again changes nothing; binding its `previous_domain` drops the pending one. Until first verified, a binding is provisional: another site can take it over until it has passed its ownership proof, and it expires 24 hours after binding unless DNS already points here. A verified domain stays exclusive while it works; if it fails every check for 24 hours the owner is emailed, and after 72 hours it is disconnected (the site's own address serves again) and can be connected afresh, with the TXT record, by whoever holds it; while it is being released, binding it answers 409 domain_releasing. Hijacking the platform zone is rejected. Owner only (API key).",
+        "description": "Optional. Every site already lives at its own address `https://<site>.<handle>.simple-host.app/`, with sign-in and private lists. This gives it a nicer address; the site moves there and its old address redirects. A free address: send `{\"domain\": \"<name>.simple-host.app\"}` (one DNS label: lowercase letters, digits and hyphens, not at the start or end, up to 63 characters). It is active at once with no DNS step \u2014 the answer has `status: active` and `verified_at`, and no `dns`. First come, first served: 409 domain_taken if another site holds it or it is already someone's handle (handles and free names share one namespace); reserved names (www, sites, api, admin, mail, cname and the platform's own hosts) get 400 name_reserved; anything else malformed gets 400 invalid_name. Once claimed it behaves exactly like a custom domain: the site is served at its root with a same-origin /v1 API and visitor sign-in, its person-address URL 302s there, and private collections take submissions there. A site has one own address: claiming one replaces a custom domain and vice versa. A free name the site lets go (switching, DELETE, or deleting the site) stays with it: it redirects to the site's current address and nobody else can claim it. A custom domain: bind ONE domain to the site (status starts as `pending`). Returns the two DNS records the owner must create: `dns` (CNAME for a subdomain, A for an apex) and `dns_txt`, the ownership record (TXT `_simple-host.<domain>` holding this site's token), which proves the domain is theirs and must stay in place. Nothing is verified or certified without it. A name another site on this server already serves is refused by the certificate issuer (failed, \"already served here\"). Once both records are seen, its certificate is requested automatically (at most 5 new domain certificates per account per day) (`certificate_status`: pending \u2192 issuing \u2192 live, or failed with the reason in `last_error`, retried) and the domain is served at its root, usually within minutes. If the site already has a working own address (a free name or an earlier domain), it keeps serving there (`previous_domain`) until the new domain is verified; then the old address redirects to it. Binding the site's current working domain again changes nothing; binding its `previous_domain` drops the pending one. Until first verified, a binding is provisional: another site can take it over until it has passed its ownership proof, and it expires 24 hours after binding unless DNS already points here. A verified domain stays exclusive while it works; if it fails every check for 24 hours the owner is emailed, and after 72 hours it is disconnected (the site's own address serves again) and can be connected afresh, with the TXT record, by whoever holds it; while it is being released, binding it answers 409 domain_releasing. Hijacking the platform zone is rejected. Owner only (API key).\n\nwww and the bare domain: binding `example.com` also sets up `www.example.com` (and binding `www.example.com` sets up `example.com`) as a redirect-only host that forwards (301) to the name chosen. The answer names it (`partner_domain`) with the record it needs (`dns_partner`); the TXT record on the chosen name covers both. It goes on the same certificate only if it points here and no other site on this server answers it; otherwise the chosen name goes live alone and `partner_status` is `not_set_up` with `partner_note` saying why.",
         "tags": [
           "Custom domains"
         ],
@@ -5123,6 +5295,42 @@
                           "example": "sh-0123456789abcdef0123456789abcdef"
                         }
                       }
+                    },
+                    "partner_domain": {
+                      "type": "string",
+                      "description": "The domain's www / bare partner (www.<domain> for a bare domain, the bare domain for www.<domain>). It forwards (301) to the chosen name; the ownership record on the chosen name covers both. Absent for any other domain.",
+                      "example": "example.com"
+                    },
+                    "dns_partner": {
+                      "description": "The record that points the partner here too (A for a bare domain, CNAME for www). Present with partner_domain.",
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "A"
+                        },
+                        "host": {
+                          "type": "string",
+                          "example": "example.com"
+                        },
+                        "value": {
+                          "type": "string",
+                          "example": "203.0.113.7"
+                        }
+                      }
+                    },
+                    "partner_status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "live",
+                        "not_set_up"
+                      ],
+                      "description": "pending: the chosen name has no certificate yet (the partner is added with it). live: it forwards to the chosen name. not_set_up: it is not on the certificate (partner_note says why: not pointed here, served by another site on this server, or connected to a site of its own); it is added automatically once fixed (checked every few hours)."
+                    },
+                    "partner_note": {
+                      "type": "string",
+                      "description": "Why the partner is not set up. Present only then."
                     }
                   }
                 }
@@ -5319,6 +5527,42 @@
                           "example": "sh-0123456789abcdef0123456789abcdef"
                         }
                       }
+                    },
+                    "partner_domain": {
+                      "type": "string",
+                      "description": "The domain's www / bare partner (www.<domain> for a bare domain, the bare domain for www.<domain>). It forwards (301) to the chosen name; the ownership record on the chosen name covers both. Absent for any other domain.",
+                      "example": "example.com"
+                    },
+                    "dns_partner": {
+                      "description": "The record that points the partner here too (A for a bare domain, CNAME for www). Present with partner_domain.",
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "A"
+                        },
+                        "host": {
+                          "type": "string",
+                          "example": "example.com"
+                        },
+                        "value": {
+                          "type": "string",
+                          "example": "203.0.113.7"
+                        }
+                      }
+                    },
+                    "partner_status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "live",
+                        "not_set_up"
+                      ],
+                      "description": "pending: the chosen name has no certificate yet (the partner is added with it). live: it forwards to the chosen name. not_set_up: it is not on the certificate (partner_note says why: not pointed here, served by another site on this server, or connected to a site of its own); it is added automatically once fixed (checked every few hours)."
+                    },
+                    "partner_note": {
+                      "type": "string",
+                      "description": "Why the partner is not set up. Present only then."
                     }
                   }
                 }
@@ -5486,6 +5730,81 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/v1/admin/idle-sites": {
+      "get": {
+        "operationId": "getAdminIdleSites",
+        "summary": "Idle-site cleanup dry run (admin)",
+        "description": "Admin-only (404 for anyone else). What a cleanup run would do now, whether or not IDLE_CLEANUP is on: sites that would be warned (no visits by people and no new version for 90 days) and sites that would move to Recently deleted (warned 30 days ago with nothing done since). At most 500 of each. Nothing runs while `visit_data_ok` is false (under 90 days of visit records, or an analytics ingester that has not run for two days).",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The dry run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "max_emails_per_run": {
+                      "type": "integer"
+                    },
+                    "idle_days": {
+                      "type": "integer",
+                      "example": 90
+                    },
+                    "grace_days": {
+                      "type": "integer",
+                      "example": 30
+                    },
+                    "visit_data_ok": {
+                      "type": "boolean"
+                    },
+                    "visit_data_note": {
+                      "type": "string"
+                    },
+                    "visits_recorded_since": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "visits_last_read": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "would_warn": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/IdleSite"
+                      }
+                    },
+                    "would_remove": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/IdleSite"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         }
       }
@@ -8287,6 +8606,107 @@
             "type": "string",
             "description": "The operator's one-line reason",
             "when suspended.": null
+          },
+          "domain_partner": {
+            "type": "string",
+            "description": "The custom domain's www / bare partner, which forwards to it (see GET .../domain partner_domain)"
+          },
+          "domain_partner_dns": {
+            "description": "The record that points the partner here too",
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "example": "CNAME"
+              },
+              "host": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              }
+            }
+          },
+          "domain_partner_status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "live",
+              "not_set_up"
+            ]
+          },
+          "domain_partner_note": {
+            "type": "string",
+            "description": "Why the partner is not set up, when it is not"
+          },
+          "address_state": {
+            "$ref": "#/components/schemas/AddressState"
+          },
+          "keep": {
+            "type": "boolean",
+            "description": "Site list only: the owner marked the site Keep; it is never flagged as idle (PUT .../keep)"
+          },
+          "idle_removal_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Site list only: the site had no visits by people and no new version for 90 days and its owner was emailed; it moves to Recently deleted at this time unless it is kept, visited or updated"
+          }
+        }
+      },
+      "AddressState": {
+        "type": "object",
+        "description": "The account's own site address (https://<site>.<handle>.simple-host.app/) and its certificate. On GET /v1/me always (on simple-host.app, once the account has a handle); on a site (address_state) only while that site is still at its interim address https://<handle>.simple-host.app/<site>/. When the address switches, old links redirect, but visitors' sign-ins and what their browser kept for the site start fresh.",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "waiting",
+              "failing"
+            ],
+            "description": "ready; waiting (the certificate is queued behind the weekly and daily limits); failing (it could not be issued yet and is retried automatically)"
+          },
+          "address": {
+            "type": "string",
+            "description": "The own address: on /v1/me the pattern https://<site>.<handle>.simple-host.app/, on a site that site's address"
+          },
+          "interim_address": {
+            "type": "string",
+            "description": "Where sites are until then (waiting or failing)"
+          },
+          "ready_by": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Rough estimate (waiting or failing)"
+          },
+          "ready_in_hours": {
+            "type": "integer",
+            "description": "The same, in whole hours, at least 1"
+          },
+          "note": {
+            "type": "string",
+            "description": "A plain sentence to show the person (waiting or failing)"
+          }
+        }
+      },
+      "IdleSite": {
+        "type": "object",
+        "properties": {
+          "site": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string",
+            "description": "The owner's email"
+          },
+          "last_activity": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Latest of: created, last deploy, last visit by a person, last Keep"
+          },
+          "warned_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },

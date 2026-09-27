@@ -1,4 +1,4 @@
-> **Status: Built (2026-09-27); ownership proof and takeover guards added 2026-09-27 (issuer disabled on the box until they are deployed)** — `internal/handler/domaincert.go`, `domaincheck.go`, issuer in `deploy/domain-certs/`. Live once the steps below are done and `DOMAIN_CERT_DIR` is set.
+> **Status: Built (2026-09-27); ownership proof and takeover guards added 2026-09-27 (issuer disabled on the box until they are deployed); www / bare partner added 2026-09-27 (branch w2/addr)** — `internal/handler/domaincert.go`, `domaincheck.go`, issuer in `deploy/domain-certs/`. Live once the steps below are done and `DOMAIN_CERT_DIR` is set.
 
 # Custom-domain certificates without the operator
 
@@ -47,6 +47,24 @@ never runs certbot; a root-owned issuer does.
    removes the link; the issuer's next run removes its server block, the ready marker and the
    certificate it issued. Until it has, binding that domain again answers 409
    `domain_releasing`, so nobody inherits a live server. Hand-made servers are never touched.
+
+## www and the bare domain
+
+For `brand.com` the partner is `www.brand.com`, and the reverse (only for a registrable apex, by
+the public suffix list, and its `www.`). The request file's line 3 names it. The TXT record on
+the chosen name covers both. The issuer adds it to the chosen name's certificate (`-d brand.com
+-d www.brand.com`, `--expand` for a lineage that has only the chosen name) only if it passes the
+same checks as any domain: no server it did not write answers it (`nginx -T`), no lineage it did
+not issue names it, it has no ready marker or server of its own (a partner connected to a site
+of its own wins), its A record points here and no AAAA record points elsewhere. The template's
+`__PARTNER_BEGIN__`…`__PARTNER_END__` block becomes two redirect-only servers (443 and 80, ACME
+path kept) returning 301 to the chosen name; without a partner the block is removed whole. The
+ready marker's line 1 is `partner <name>` or `partner-not-set-up <name>: <why>`; `owned/<domain>`
+lists the names on the certificate. If Let's Encrypt refuses with the partner, the chosen name
+is issued alone. When a name proves itself as its own domain, any other ready domain serving it
+as a partner is rewritten without it first; a partner that a hand-made server names later comes
+off ours on the next run. The app asks again for a live domain whose partner is not set up once
+the partner resolves here, at most every 6 hours (the marker's age).
 
 Caps: 50 new certificates per rolling day, 10 per run. Renewals are certbot's own timer (the
 lineage keeps the webroot and `systemctl reload nginx` as its deploy hook).

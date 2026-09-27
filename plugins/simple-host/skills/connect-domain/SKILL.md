@@ -110,6 +110,14 @@ and it must **stay in place** afterwards (the domain is re-proved with it; remov
 domain fail its checks and, after three days, be disconnected). Relay the value exactly.
 For an apex (`brand.com`), `dns.type` is `A` and `dns.value` is the IP to point at —
 relay whatever the response returns; don't invent the target.
+**www and the bare domain.** For `brand.com` or `www.brand.com` the answer also has
+`partner_domain` (the other one) and `dns_partner`, its record (A for the bare domain, CNAME for
+`www`). With that record added too, the partner forwards to the name chosen, on the same
+certificate; the one TXT record on the chosen name covers both. `partner_status` says `pending`
+(waits for the domain), `live`, or `not_set_up` with `partner_note` (not pointed here yet, or
+another site on this server answers it). It is picked up automatically within a few hours once
+fixed. Ask which one people should see (usually the bare `brand.com` or `www.brand.com`, as the
+person prefers) and connect that one.
 If the site already had a working address of its own (a free name or an earlier domain), the
 answer also has `previous_domain`: the site keeps serving there until the new domain is live,
 then that address redirects to the new one. Nothing goes dark in between.
@@ -143,7 +151,8 @@ Give them both records, from the `dns` and `dns_txt` objects, in plain terms. Su
 For apex, use the returned A record (`Type: A`, host `@` or the bare domain, value =
 the IP from the response) and the TXT record at `_simple-host` (the full name is
 `_simple-host.brand.com`). Do not ask them to change nameservers or delete anything.
-Only these two records are added.
+Only these two records are added, plus `dns_partner` when the answer has one (so `www.brand.com`
+and `brand.com` both work; for `www` the Name/Host is `www`).
 
 Ask which registrar (or DNS host) holds the domain's DNS, then give them that section's exact
 menu path and fields from `references/registrars.md` ·
@@ -229,6 +238,10 @@ where it is:
   another site on Simple Host's server and cannot be connected; pick another name. Each account
   gets at most 5 new domain certificates a day; the next one says so in `last_error` and is
   asked for automatically once the day is over.
+
+The www / bare partner (`partner_status`) follows the domain: `live` once it forwards,
+`not_set_up` with `partner_note` when it does not point here yet or another site on this server
+answers it. The domain itself works either way.
 
 If `http://` redirects but `https://` fails, the DNS half is done and the certificate is being
 issued — say so, rather than blaming propagation. (A self-hosted instance with its own edge

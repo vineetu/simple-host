@@ -58,9 +58,9 @@ Preview a retained version before restoring it (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.4"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.5"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.4"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.20.5"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte
@@ -85,6 +85,22 @@ be deleted (403 `site_suspended`).
   address, with every version, its saved data and any connected address.
 
 Connector: `delete_site`, `list_deleted_sites`, `restore_site`.
+
+## Idle sites and Keep
+
+On simple-host.app, a site with no visitors and no new version for 90 days gets
+its owner an email with one-click "Keep it" and "Download it" links; 30 days
+later with nothing done it moves to Recently deleted, and a second email has a
+one-click "Restore it" link. `GET /v1/sites` shows `idle_removal_at` on such a
+site; a new deploy or a visit also clears it. Sites with their own domain or
+claimed name are never flagged. To keep a site up for good:
+
+```
+PUT /v1/sites/<sitename>/keep   {"keep": true}
+```
+
+(`{"keep": false}` clears it.) Connector: `keep_site`. The owner app has "Keep
+for good" on each site.
 
 ## Change the handle (the person's address)
 

@@ -27,7 +27,7 @@ append-only collections) that its own page JavaScript can call.
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.20.4`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.20.5`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -48,7 +48,10 @@ https://<sitename>.<handle>.simple-host.app/
 `site_url` (or connector `url`) the response returned — never compose one.** For a
 brand-new account the site briefly lives at `https://<handle>.simple-host.app/<sitename>/`
 until its certificate is issued (usually within ~10 minutes); the returned URL is
-always the one that works.
+always the one that works. While it is at that fallback, the response carries
+`address_state` (connector: `address_note`; `GET /v1/me` / `who_am_i`: `address`) with
+`state` `waiting` or `failing`, a rough `ready_in_hours`, and a `note`: pass the note on,
+since visitors' sign-ins and browser-kept data start fresh when the address switches.
 
 The same site can be served under a path (that fallback address) or at a domain root,
 so a root-absolute URL like `/css/app.css` can resolve off the site and 404. Use
