@@ -3890,8 +3890,9 @@ paths:
       summary: Ask a question about a public page ("Ask about this page")
       description: >-
         Powers the "Ask about this page" box on the architecture, features and
-        enterprise brief / architecture pages. Answers in a few sentences, only
-        from text built into the server (a short public summary plus that
+        enterprise brief / architecture pages. Answers in one to three short
+        sentences (more, up to about 150 words, when the reader asks for detail
+        or steps), only from text built into the server (a short public summary plus that
         page's visible text, or for the architecture page a curated summary;
         the enterprise pages answer about Simple Host Enterprise). Runs on the
         same single model backend as AI create (xAI's Grok), with no fallback.
@@ -3902,8 +3903,11 @@ paths:
         be exactly this server's own address (not a hosted site). Rate limited
         per IP (default 5, then 1 every 20 s) and per network, at most a few
         answered at once, and capped per day across everyone (default 500).
-        Absent when the server has no model backend configured or ASK_ENABLED
-        is off.
+        Send Accept: text/event-stream to get the answer as it is written (the
+        page's widget does); without it the answer comes back in one JSON
+        object. The first words must arrive within 20 seconds and the whole
+        answer within 45. Absent when the server has no model backend
+        configured or ASK_ENABLED is off.
       tags: [AI]
       security: []
       requestBody:
@@ -3916,19 +3920,42 @@ paths:
               properties:
                 question: { type: string, maxLength: 500 }
                 page: { type: string, enum: [architecture, features, enterprise-brief, enterprise-architecture] }
+                history:
+                  type: array
+                  description: >-
+                    Earlier questions and answers from the same open panel, oldest
+                    first, so a follow-up ("tell me more") has its context. Only
+                    the last 4 are used; each answer is cut to 1500 characters.
+                    The server keeps nothing between questions.
+                  items:
+                    type: object
+                    properties:
+                      q: { type: string, maxLength: 500 }
+                      a: { type: string }
       responses:
         '200':
           description: >-
             The answer, plain text of at most 200 words. The only links it may
             hold are markdown links to the main public pages of
             https://simple-host.app (home, features, architecture, enterprise,
-            docs, install, privacy, terms, support).
+            docs, install, privacy, terms, support). With Accept:
+            text/event-stream, a stream of `data:` events instead: `{"t":"..."}`
+            for each piece of text as the model writes it (raw, to show as plain
+            text), then `{"done":true,"answer":"..."}` with the cleaned full
+            answer that replaces the streamed text, or `{"error":"...","code":"unavailable"}`
+            if the answer stops part-way. A failure before the first piece is a
+            plain 502 JSON error. The stream is sent unbuffered
+            (X-Accel-Buffering: no).
           content:
             application/json:
               schema:
                 type: object
                 properties:
                   answer: { type: string }
+            text/event-stream:
+              schema:
+                type: string
+                description: 'data: {"t":"..."} events, then data: {"done":true,"answer":"..."}' 
         '400':
           description: invalid_body, unknown_page, empty_question or question_too_long
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
@@ -3942,7 +3969,7 @@ paths:
           description: Rate limited per IP or per network, or code daily_limit when today's questions are used up
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
         '502':
-          description: the model did not answer in time (code unavailable)
+          description: the model failed or did not start answering in time (code unavailable)
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
         '503':
           description: busy, too many questions being answered at once (code busy; does not count against the day), or the day's count is unavailable (code unavailable)

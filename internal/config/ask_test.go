@@ -34,7 +34,8 @@ func TestAskKnobRanges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if a := cfg.Limits.Ask; a.Burst != 5 || a.EverySeconds != 20 || a.DailyMax != 500 || a.MaxInFlight != 4 {
+	if a := cfg.Limits.Ask; a.Burst != 5 || a.EverySeconds != 20 || a.DailyMax != 500 || a.MaxInFlight != 4 ||
+		a.Model != "grok-4.7" || a.ReasoningEffort != "none" || a.MaxTokens != 300 {
 		t.Fatalf("defaults: %+v", a)
 	}
 	cases := []struct {
@@ -50,6 +51,12 @@ func TestAskKnobRanges(t *testing.T) {
 		{"ASK_MAX_IN_FLIGHT", "1", "0"},
 		{"ASK_BURST", "7", "seven"},
 		{"ASK_ENABLED", "off", "maybe"},
+		{"ASK_MODEL", "grok-4.6", "grok 4.7"},
+		{"ASK_MODEL", "grok-4-fast:beta", "grok;rm"},
+		{"ASK_REASONING_EFFORT", "high", "max"},
+		{"ASK_REASONING_EFFORT", "Low", "off"},
+		{"ASK_MAX_TOKENS", "4000", "4001"},
+		{"ASK_MAX_TOKENS", "50", "49"},
 	}
 	for _, c := range cases {
 		t.Run(c.key+"="+c.bad, func(t *testing.T) {
@@ -63,5 +70,19 @@ func TestAskKnobRanges(t *testing.T) {
 				t.Fatalf("%s=%s: got %v, want a startup error naming it", c.key, c.bad, err)
 			}
 		})
+	}
+}
+
+// ASK_MODEL is the box's own model: LLM_MODEL (AI create) does not move it.
+func TestAskModelIndependentOfLLMModel(t *testing.T) {
+	askTestEnv(t)
+	t.Setenv("LLM_MODEL", "grok-4.6")
+	t.Setenv("ASK_REASONING_EFFORT", "MEDIUM")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Limits.Ask.Model != "grok-4.7" || cfg.Limits.Ask.ReasoningEffort != "medium" {
+		t.Fatalf("ask: %+v", cfg.Limits.Ask)
 	}
 }

@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -102,6 +103,11 @@ type Ask struct {
 	EverySeconds int  // ASK_EVERY_SECONDS (20)
 	DailyMax     int  // ASK_DAILY_MAX (500)
 	MaxInFlight  int  // ASK_MAX_IN_FLIGHT (4)
+	// The model the box asks, separate from LLM_MODEL (AI create keeps its
+	// own): a fast model with reasoning off answers in seconds.
+	Model           string // ASK_MODEL (grok-4.7)
+	ReasoningEffort string // ASK_REASONING_EFFORT: none, low, medium or high (none)
+	MaxTokens       int    // ASK_MAX_TOKENS (300)
 }
 
 // SavedData is every number behind saved-data history, undo, the watch and
@@ -227,7 +233,8 @@ func DefaultLimits() Limits {
 
 		SavedData: DefaultSavedData(),
 
-		Ask: Ask{Enabled: true, Burst: 5, EverySeconds: 20, DailyMax: 500, MaxInFlight: 4},
+		Ask: Ask{Enabled: true, Burst: 5, EverySeconds: 20, DailyMax: 500, MaxInFlight: 4,
+			Model: "grok-4.7", ReasoningEffort: "none", MaxTokens: 300},
 	}
 }
 
@@ -328,6 +335,9 @@ func secRateKnob(env string, p func(*Limits) *Rate) Knob {
 	return k
 }
 
+// askModelName is what ASK_MODEL may hold.
+var askModelName = regexp.MustCompile(`^[A-Za-z0-9._:/-]{1,100}$`)
+
 // Knobs lists every setting, in the order docs/configuration.md gives them.
 func Knobs() []Knob {
 	m, h, d := time.Minute, time.Hour, day
@@ -418,6 +428,26 @@ func Knobs() []Knob {
 		intKnob("ASK_EVERY_SECONDS", "seconds", 1, 3600, func(l *Limits) *int { return &l.Ask.EverySeconds }),
 		intKnob("ASK_DAILY_MAX", "questions", 0, 100_000, func(l *Limits) *int { return &l.Ask.DailyMax }),
 		intKnob("ASK_MAX_IN_FLIGHT", "questions", 1, 32, func(l *Limits) *int { return &l.Ask.MaxInFlight }),
+		{Env: "ASK_MODEL", Unit: "model name",
+			Value: func(l *Limits) string { return l.Ask.Model },
+			set: func(l *Limits, v string) error {
+				if !askModelName.MatchString(v) {
+					return fmt.Errorf("ASK_MODEL=%q: want a model name the model backend knows, like grok-4.7 (letters, digits, and . _ : / -, at most 100)", v)
+				}
+				l.Ask.Model = v
+				return nil
+			}},
+		{Env: "ASK_REASONING_EFFORT", Unit: "none/low/medium/high",
+			Value: func(l *Limits) string { return l.Ask.ReasoningEffort },
+			set: func(l *Limits, v string) error {
+				switch v = strings.ToLower(v); v {
+				case "none", "low", "medium", "high":
+					l.Ask.ReasoningEffort = v
+					return nil
+				}
+				return fmt.Errorf("ASK_REASONING_EFFORT=%q: want none, low, medium or high", v)
+			}},
+		intKnob("ASK_MAX_TOKENS", "tokens", 50, 4000, func(l *Limits) *int { return &l.Ask.MaxTokens }),
 	}
 }
 
