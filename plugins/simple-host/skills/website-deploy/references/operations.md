@@ -270,7 +270,7 @@ the site's own address, and every save from a page needs a signed-in visitor
 Private Submissions: declare the name with `PUT /v1/sites/<sitename>/data/<name>/kind`
 and `{"kind": "entries"}` (connector: `declare_data`; private is the default), and
 `GET /v1/sites/<sitename>/data` (`list_data`) lists every name with its kind, its
-settings and who may save. On older sites,
+settings and who may save. A name nobody declared is Shared (public).
 `PUT /v1/sites/<sitename>/collections/<name>/privacy` with `{"private": true}`
 (connector: `set_collection_privacy`) makes one collection owner-only: visitors
 signed in on the site's own address add to it; only the site owner — and the

@@ -299,24 +299,36 @@ to the site owner's address, with a "stop these" link (HMAC-signed, confirmation
 **Who may save here** (a site setting, every visitor write on the site: page data, lists and
 Submissions): anyone who signs in (default), or only listed emails and whole `@domains`, plus a
 block list in either mode (403 `not_allowed_to_save`), filled from **Block** next to any entry;
-the owner always may; a blocked visitor can still withdraw their own entries. **New sites** are
-created with `legacy_data = false`: a name nobody declared takes no saves at all, the owner's
-included (409 `declare_first`, naming the call to make); `set_collection_privacy` there declares
-the name as Submissions. **Sites that existed before** (`legacy_data`) keep today's behaviour for
-undeclared names; their lists gain the visitor's own edit/withdraw. Page data (`/state`) is
-unchanged on every site; the three tightenings wait for the 7-day watch. **Status: built
-(branch sd/step2).**
+the owner always may (save and undo); a blocked visitor can still withdraw their own entries. A
+person is a signed-in account: a block and one per person also match its address with the `+tag`
+dropped, and Block by entry uses only the address the server stamped. Declared Submissions take
+entries only from a signed-in visitor (401 `visitor_auth_required`) on the site's own address
+(declaring them needs one: 409 `custom_domain_required`); at most
+`SAVED_DATA_ENTRIES_NAMES_MAX` (50) Submissions names per site. Declaring a private name that
+holds entries as public Submissions or Page info is 409 `confirm_public` (with the count) until
+`confirm_public: true`; the owner app asks first. Submission emails are claimed before they are
+sent (once across servers; a failed send is not retried). **A name nobody declared is Shared**
+(owner decision 2026-09-27): anyone reads it and signed-in visitors save to it, as before the
+kinds, on every site, so old skills, AI create and uploads keep working; `/kind` says `label`
+"Shared", `accepts_saves: true`; the owner app shows a "shared" badge. With
+`SAVED_DATA_DEFAULT_KIND=declare_first` a site made after the kinds (`legacy_data` false) takes
+no saves under an undeclared name, the owner's included (409 `declare_first`, naming the call to
+make), and `set_collection_privacy` there declares the name as Submissions; sites from before
+(`legacy_data`) stay Shared either way. `SH.data(name, kind)` refuses an undeclared name
+(`declare_first`), so a page asking for Submissions never saves to a public list. Lists gain the
+visitor's own edit/withdraw. Page data (`/state`) is unchanged on every site; the three
+tightenings wait for the 7-day watch. **Status: built (branch sd/step2).**
 
 | Surface | Details |
 |---|---|
 | Routes | page-facing (`(+/v1/u)`): `GET /v1/sites/{sitename}/data/{coll}` (Page info document, or the list; `?mine=1`, `?count=1`) · `GET /v1/sites/{sitename}/data/{coll}/kind` (public: kind, visibility, one per person) · `POST /v1/sites/{sitename}/data/{coll}` (add an entry) · `PUT /v1/sites/{sitename}/data/{coll}` (Page info, owner) · `PATCH`/`DELETE /v1/sites/{sitename}/data/{coll}/items/{id}` (own entry; the owner's go to the list's owner edit/delete) · `POST /v1/sites/{sitename}/data/{coll}/items/{id}/undo` · `OPTIONS` on each · the same by handle: `GET`/`POST`/`PUT /v1/u/{handle}/sites/{sitename}/data/{coll}` · `GET /v1/u/{handle}/sites/{sitename}/data/{coll}/kind` · `PATCH`/`DELETE /v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}` · `POST /v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}/undo` · owner (key, connector, admin): `GET /v1/sites/{sitename}/data` (every name with kind and settings, who may save) · `PUT /v1/sites/{sitename}/data/{coll}/kind` · `GET`/`PUT /v1/sites/{sitename}/savers` · `POST /v1/sites/{sitename}/savers/block` (`{"email"}` or `{"collection", "id"}`) · emailed link: `GET`/`POST /v1/data-notify/stop` |
-| MCP tools | `declare_data`, `list_data`, `update_data` (Page info), `set_who_can_save`, `block_person`; `set_collection_privacy` declares on new sites |
+| MCP tools | `declare_data`, `list_data`, `update_data` (Page info), `set_who_can_save`, `block_person`; `set_collection_privacy` declares on `declare_first` installs |
 | Skill | `website-deploy/SKILL.md` §What is this data? · `references/backend.md` §Kinds · `website-deploy-builder/SKILL.md` §Capability tree |
-| Pages | `st/auth.js` `SH.data(name, kind)`: `get`/`set` (Page info), `add`/`mine`/`list`/`count`/`update`/`remove`/`undo` (Submissions); writes carry an `Idempotency-Key` and retry once after a network error · `st/showcase.html` owner app: each name with its kind badge (page info / submissions), public/private, one per person; **Settings** (kind, one per person, email me: no / soon after they arrive / once a day); **Who may save here** (anyone / only these people, emails and @domains; blocked); **Block** next to any entry with a sender |
+| Pages | `st/auth.js` `SH.data(name, kind)`: `get`/`set` (Page info), `add`/`mine`/`list`/`count`/`update`/`remove`/`undo` (Submissions); writes carry an `Idempotency-Key` and retry once after a network error · `st/showcase.html` owner app: each name with its kind badge (page info / submissions / shared), public/private, one per person; **Settings** (kind, one per person, email me: no / soon after they arrive / once a day); **Who may save here** (anyone / only these people, emails and @domains; blocked); **Block** next to any entry with a sender |
 | Go | `h/kinds.go` (`declareData`, `getData`, `putContent`, `updateEntry`, `withdrawEntry`, `undoWithdraw`, `visitorWriteOK` + `saverOK`, savers, `sendSubmissionEmails`, `notifyStop`), `h/collections.go` / `h/privatecollections.go` (kind check, entry rules), `internal/db/kinds.go`, `internal/mcp/kinds.go` |
-| DB | `collection_settings` (`kind`, `one_per_person`, `notify`, `notify_sent_at`, `declared_at`), `sites.savers_mode`, `site_savers`, `sites.legacy_data` (set false on create) · migration `sd2-saved-data-kinds.sql` |
-| Env | `SAVED_DATA_CONTENT_MAX_KB`, `SAVED_DATA_CONTENT_NAMES_MAX`, `SAVED_DATA_ENTRY_MAX_KB`, `SAVED_DATA_ENTRIES_MAX`, `SAVED_DATA_WITHDRAW_UNDO_MINUTES`, `SAVED_DATA_NOTIFY_EACH_MINUTES`, `SAVED_DATA_NOTIFY_DAILY_HOURS`, `SAVED_DATA_SAVERS_MAX` |
-| Limits | codes `declare_first`, `wrong_kind`, `owner_only`, `one_per_person`, `list_full`, `not_allowed_to_save`, `undo_expired`, `too_many_names`, `has_entries`, `invalid_kind`, `invalid_savers`, `too_many_savers`, `no_author`, `item_too_large` |
+| DB | `collection_settings` (`kind`, `one_per_person`, `notify`, `notify_sent_at`, `declared_at`), `sites.savers_mode`, `site_savers`, `sites.legacy_data` (true for sites from before the kinds; false on create) · migration `sd2-saved-data-kinds.sql` |
+| Env | `SAVED_DATA_CONTENT_MAX_KB`, `SAVED_DATA_CONTENT_NAMES_MAX`, `SAVED_DATA_ENTRY_MAX_KB`, `SAVED_DATA_ENTRIES_MAX`, `SAVED_DATA_WITHDRAW_UNDO_MINUTES`, `SAVED_DATA_NOTIFY_EACH_MINUTES`, `SAVED_DATA_NOTIFY_DAILY_HOURS`, `SAVED_DATA_SAVERS_MAX`, `SAVED_DATA_ENTRIES_NAMES_MAX`, `SAVED_DATA_DEFAULT_KIND` (`shared` \| `declare_first`) |
+| Limits | codes `declare_first`, `wrong_kind`, `owner_only`, `one_per_person`, `list_full`, `not_allowed_to_save`, `undo_expired`, `too_many_names`, `has_entries`, `invalid_kind`, `invalid_savers`, `too_many_savers`, `no_author`, `item_too_large`, `confirm_public`, `visitor_auth_required` (Submissions) |
 
 ## 6. Visitor sign-in (Google, emailed code)
 

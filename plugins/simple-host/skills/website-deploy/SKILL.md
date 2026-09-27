@@ -1,6 +1,6 @@
 ---
 name: website-deploy
-description: Deploy static websites to simple-host.app. Use when an agent needs to build/validate a static site, deploy it (inline JSON files OR a tar.gz/zip archive), or wire up the per-site backend — every piece of saved data is declared once as Page info (the owner writes it, everyone reads it) or Submissions (visitors send them; the owner sees all; each visitor sees, changes and withdraws their own; private unless made public). Every site lives at its own address, https://<site>.<handle>.simple-host.app/. Pages and public lists are readable by anyone; visitors sign in with Google or an emailed code via the hosted auth.js before saving from a page, and Submissions stay private to the owner by default (orders, RSVPs, sign-ups, anything with personal details); agents write with the Simple Host connector or, without it, an API key from email-code registration.
+description: Deploy static websites to simple-host.app. Use when an agent needs to build/validate a static site, deploy it (inline JSON files OR a tar.gz/zip archive), or wire up the per-site backend — saved data nobody declared is Shared (public), anything else is declared once as Page info (the owner writes it, everyone reads it) or Submissions (visitors send them; the owner sees all; each visitor sees, changes and withdraws their own; private unless made public). Every site lives at its own address, https://<site>.<handle>.simple-host.app/. Pages and public lists are readable by anyone; visitors sign in with Google or an emailed code via the hosted auth.js before saving from a page, and Submissions stay private to the owner by default (orders, RSVPs, sign-ups, anything with personal details); agents write with the Simple Host connector or, without it, an API key from email-code registration.
 ---
 
 # Website Deploy
@@ -82,8 +82,8 @@ Typical combinations:
   JSON (below) → verify.
 - **Framework project:** register (if needed) → frameworks → packaging and
   validation.
-- **Site where visitors save something:** declare each piece of data first
-  (below), then the backend reference, before you write the page.
+- **Site where visitors save something:** choose each piece of data's kind and
+  declare it (below), then the backend reference, before you write the page.
 - **Site that collects personal details** (orders, RSVPs, sign-ups): private
   Submissions (the default), the form, and an owner page (below).
 
@@ -141,12 +141,17 @@ the `SH` API and the error bodies: `references/backend.md`.
 Sign-in identifies the visitor; it does not make the page private. Pages are
 always public. There is no password-locked page feature.
 
-## What is this data? Declare it first
+## What is this data? Choose its kind
 
-Every piece of saved data has a name and one kind. You declare it once, before the
-page saves to it: `declare_data`, or `PUT /v1/sites/<sitename>/data/<name>/kind`.
-On a new site a name nobody declared takes no saves at all (409 `declare_first`).
+Every piece of saved data has a name and one kind. A name the page saves to
+without declaring it is **Shared**: public — anyone can read it, and anyone who
+signs in can add to it. Anything else you declare once, before the page saves to
+it: `declare_data`, or `PUT /v1/sites/<sitename>/data/<name>/kind`. (An install
+can require declaring every name first; then an undeclared one answers 409
+`declare_first`.)
 
+- **Open, public data: Shared** — no declaration. A guestbook, a counter, a
+  public wall. Never anything with personal details.
 - **You (the owner) write it, everyone reads it: Page info** — `{"kind": "content"}`.
   A menu, schedule, prices, dashboard numbers. You save it with `update_data` (or
   `PUT /v1/sites/<sitename>/data/<name>` with one JSON object); the page reads it
@@ -160,6 +165,11 @@ On a new site a name nobody declared takes no saves at all (409 `declare_first`)
   to `off`).
 - **It does not fit** (say so instead of approximating it): roles, per-field rules,
   joins, search, or several people editing one shared object.
+
+Choosing: anything with personal details (RSVPs, orders, sign-ups, contact forms)
+is **Submissions**, private; anything only the owner should change is **Page
+info**. When unsure, choose the stricter kind — never leave personal details
+Shared.
 
 In the page: `const rsvps = SH.data('rsvps', 'entries')` (the kind is checked), then
 `await SH.requireSignIn(); await rsvps.add({...})`; the visitor's own:

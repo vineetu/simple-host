@@ -110,8 +110,10 @@ Every page is public: anyone with the link can open it. There are no password-pr
 `set_visibility` `unlisted` only keeps a site off the person's public page; it is not privacy.
 Never put secrets, keys or passwords in pages or data.
 
-Every piece of saved data has a name and one kind, declared once with `declare_data` before a
-page saves to it (on a new site an undeclared name takes no saves: `declare_first`):
+Every piece of saved data has a name and one kind. A name the page saves to without declaring it
+is **Shared**: public, anyone reads it and anyone signed in adds to it (a guestbook, a counter),
+never for personal details. Anything else is declared once with `declare_data` before a page
+saves to it:
 
 - **Page info** (`kind: "content"`): only the owner writes it (you, with `update_data`), everyone
   reads it: a menu, opening hours, prices.
@@ -123,6 +125,9 @@ page saves to it (on a new site an undeclared name takes no saves: `declare_firs
   votes.
 - It does not fit: roles, per-field rules, joins, search, or several people editing one shared
   object. Say so instead of approximating it.
+
+Anything with personal details (RSVPs, orders, sign-ups) is private Submissions; anything only the
+owner changes is Page info. When unsure, choose the stricter kind.
 
 The page that shows a private list is still a public page; the list behind it is what is
 private. Who may save on a site: anyone who signs in (default) or only listed emails and whole
@@ -163,7 +168,8 @@ confirmed that list by name. Visitors can never edit or delete items.
 
 Making it public (`declare_data` with `visibility: "public"`, or `set_collection_privacy`
 `private: false`) puts everything already saved on the public internet; confirm with the person
-first.
+first. `declare_data` refuses it while the list holds entries (`confirm_public`, with how many)
+until you pass `confirm_public: true` after the person agreed.
 
 If the person later adds a free `<name>.simple-host.app` or their own domain, the site moves
 there and its `<site>.<handle>.simple-host.app` address redirects to it. Sign-in and private
@@ -171,12 +177,11 @@ lists carry over.
 
 ## Saving data from a page
 
-Declare each name first (`declare_data`, above). Pages then use `SH.data(name, kind)`:
+Declare Page info and Submissions first (`declare_data`, above). Pages then use `SH.data(name, kind)`:
 Page info with `.get()`; Submissions with `.add(item)`, the visitor's own with `.mine()`,
 `.update(id, fields)`, `.remove(id)` (and `.undo(id)` for a few minutes), and `.list()` /
-`.count()` for the owner or a public list. Older sites also have one shared **state** document
-(`SH.state`, atomic ops) and lists nobody declared (`SH.collection`); `list_data` says whether
-undeclared names still take saves there.
+`.count()` for the owner or a public list; a Shared name with `SH.data(name)` (no kind) or
+`SH.collection(name)`. Every site also has one shared **state** document (`SH.state`, atomic ops).
 
 Pages save through the hosted helper. Put `SH.requireSignIn()` before every save:
 

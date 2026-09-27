@@ -13,7 +13,8 @@ import (
 // is: Page info (kind content: only the owner writes it, anyone reads it) or
 // Submissions (kind entries: visitors send them; the owner reads all; each
 // visitor sees, changes and withdraws their own; private unless made public).
-// On a site made since the kinds, a name nobody declared takes no saves.
+// A name nobody declared is Shared (public, signed-in visitors add to it),
+// unless the install set SAVED_DATA_DEFAULT_KIND=declare_first.
 
 const kindWords = "`entries` (Submissions: things visitors send, e.g. RSVPs, orders, sign-ups, votes, comments, feedback) or `content` (Page info: text and settings only the owner writes and everyone reads, e.g. a menu, schedule, prices)"
 
@@ -23,10 +24,10 @@ func kindTools() []Tool {
 			Name:  "declare_data",
 			Title: "Say what a piece of saved data is",
 			Description: "Declare (or change) what one data name on a site is, before the page saves to it: kind " + kindWords + ". " +
-				"On sites made since the kinds, a name nobody declared takes no saves at all (error declare_first). " +
+				"A name nobody declared is Shared: anyone reads it and anyone signed in adds to it, so declare anything with personal details (RSVPs, orders, sign-ups) as private Submissions and anything only the owner changes as Page info; when unsure, the stricter kind. " +
 				"Submissions are private to the owner unless visibility is public; each visitor can see, change and withdraw only their own. one_per_person allows one entry per visitor (votes, one RSVP each). " +
 				"notify emails the owner about new entries: daily (the default for private ones), each (batched, soon after they arrive) or off (the default for public ones). " +
-				"Making a list public shows everything already in it to anyone; confirm with the person first.",
+				"Making a private list public (visibility public, or kind content) shows everything already in it to anyone: it is refused (error confirm_public) until you send confirm_public true after the person agreed.",
 			InputSchema: object(map[string]any{
 				"site":           str(siteDesc),
 				"name":           str("The data name, e.g. `rsvps` or `menu` (letters, digits, - and _)."),
@@ -34,6 +35,7 @@ func kindTools() []Tool {
 				"visibility":     map[string]any{"type": "string", "enum": []string{"owner", "public"}, "description": "Submissions only: owner (only the owner reads them all; the default) or public (anyone reads them; who sent each stays private)."},
 				"one_per_person": map[string]any{"type": "boolean", "description": "Submissions only: one entry per signed-in visitor, who changes it instead of adding another."},
 				"notify":         map[string]any{"type": "string", "enum": []string{"off", "each", "daily"}, "description": "Submissions only: email the owner about new entries."},
+				"confirm_public": map[string]any{"type": "boolean", "description": "The person agreed that the private entries this name holds become readable by anyone. Only after a confirm_public refusal was shown to them."},
 			}, "site", "name", "kind"),
 			// A setting; public visibility can put a list in front of anyone.
 			Annotations: writes(false, true, true),
@@ -60,12 +62,14 @@ func kindTools() []Tool {
 						body[k] = v
 					}
 				}
-				if raw, ok := args["one_per_person"]; ok && raw != nil {
-					b, isBool := raw.(bool)
-					if !isBool {
-						return output{}, errors.New("one_per_person must be true or false")
+				for _, k := range []string{"one_per_person", "confirm_public"} {
+					if raw, ok := args[k]; ok && raw != nil {
+						b, isBool := raw.(bool)
+						if !isBool {
+							return output{}, errors.New(k + " must be true or false")
+						}
+						body[k] = b
 					}
-					body["one_per_person"] = b
 				}
 				b, _ := json.Marshal(body)
 				res := c.do(http.MethodPut, "/v1/sites/"+url.PathEscape(name)+"/data/"+url.PathEscape(dn)+"/kind", b, nil)
@@ -99,7 +103,7 @@ func kindTools() []Tool {
 		{
 			Name:        "list_data",
 			Title:       "List a site's saved data",
-			Description: "List every data name a site has, with its kind (Page info, Submissions, or not set), how many items it holds, whether it is private, one per person, the email setting, and who may save on the site. Names with no kind take saves only on sites made before the kinds (undeclared_names_take_saves).",
+			Description: "List every data name a site has, with its kind (Page info, Submissions, or Shared when nobody declared it), how many items it holds, whether it is private, one per person, the email setting, and who may save on the site. undeclared_names_take_saves says whether names nobody declared take saves (Shared) on this site.",
 			InputSchema: object(map[string]any{"site": str(siteDesc)}, "site"),
 			Annotations: readOnly(),
 			run: func(c *call, args map[string]any) (output, error) {
@@ -328,14 +332,14 @@ func kindOutputSchemas() map[string]map[string]any {
 			"names": outArray("Every data name on the site.", outObject(map[string]any{
 				"name":           outString("The data name."),
 				"kind":           outString("entries (Submissions), content (Page info) or empty (not declared)."),
-				"label":          outString("The kind in product words: Submissions, Page info or Not set."),
+				"label":          outString("The kind in product words: Submissions, Page info, Shared (not declared; public), Private list (not declared, made private) or Not set (not declared, takes no saves)."),
 				"items":          outInteger("How many items it holds (Page info: 1 once saved)."),
 				"deleted":        outInteger("Items in its Recently deleted (list_deleted, restore_item)."),
 				"private":        outBool("Whether only the owner reads it. Absent for Page info."),
 				"one_per_person": outBool("Submissions: one entry per visitor."),
 				"notify":         outString("Submissions: off, each or daily."),
 			}, "name", "kind", "label", "items", "deleted")),
-			"undeclared_names_take_saves": outBool("True on sites made before the kinds: a name nobody declared still takes saves as a public list."),
+			"undeclared_names_take_saves": outBool("True when a name nobody declared is Shared (anyone reads it, anyone signed in adds to it): every site unless the install requires declaring first."),
 			"who_can_save": outObject(map[string]any{
 				"mode":  outEnum("anyone (anyone who signs in) or listed (only allow).", "anyone", "listed"),
 				"allow": outArray("Emails and @domains who may save when mode is listed.", outString("An email or @domain.")),

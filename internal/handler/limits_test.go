@@ -52,6 +52,8 @@ func otherValue(t *testing.T, env string) string {
 			return "grok-test"
 		case env == "ASK_REASONING_EFFORT":
 			return "low"
+		case env == "SAVED_DATA_DEFAULT_KIND":
+			return "declare_first"
 		}
 		// Somewhere inside the range, away from the default.
 		for _, v := range []int64{k.Min + 1, k.Max - 1, k.Min, k.Max} {

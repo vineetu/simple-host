@@ -378,7 +378,27 @@ What follows from that, and is not negotiable without changing the line above:
   from the admin key (it must outlive restarts) and acts only on POST from a confirmation page.
   Filter fields, per-person quotas and the deploy-time `data` map are left for a later step.
   Reason: the approved plan's step 2, smallest complete version. Decided under the approved
-  plan; the owner may overrule.
+  plan; the owner may overrule. (Its "declare first" default is superseded by the next entry.)
+- **2026-09-27. Undeclared saved data is Shared and public by default on simple-host.app;
+  configurable with SAVED_DATA_DEFAULT_KIND.** Data a page saves without declaring a kind is the
+  fourth kind, **Shared**: anyone can read it, and signed-in visitors can save to it (today's
+  behaviour), so old skills, AI create, dashboard uploads and existing pages keep working on new
+  sites too. `SAVED_DATA_DEFAULT_KIND=declare_first` makes an install strict (an undeclared name
+  on a site made after the kinds refuses saves); sites from before the kinds are Shared either
+  way. The per-site switch on create is gone: `legacy_data` only marks the sites from before.
+  Page info, Submissions and (later) Personal stay opt-in upgrades the AI declares; the skills
+  teach it that undeclared means Shared and public, that anything with personal details (RSVPs,
+  orders, sign-ups) is private Submissions, owner-only content is Page info, and to prefer the
+  stricter kind when unsure. The three tightenings for Shared after the 7-day watch remain
+  deferred. With it (review of step 2): declared Submissions take entries only from a signed-in
+  visitor; a block and one per person count an address with its `+tag` dropped (identities stay
+  cheap: "per signed-in account"); an `@domain` allow trusts the address a sign-in verified,
+  including a Google account made with a company address after its owner left; a private name
+  that holds entries becomes public only with `confirm_public`; the owner may always save and
+  undo; Submissions names per site are capped (`SAVED_DATA_ENTRIES_NAMES_MAX`); submission emails
+  are claimed before sending, so they go out once and a failed send is not retried. Reason: a
+  strict default broke every site built by an older skill or by AI create on arrival. Owner
+  decision 2026-09-27.
 
 ## Open, deliberately parked
 

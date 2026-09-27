@@ -2022,9 +2022,10 @@ paths:
         declared) with its kind, as `/collections` lists them plus `kind`
         (`content` = Page info, `entries` = Submissions, empty = not declared),
         `label`, `one_per_person` and `notify`; who may save on the site
-        (`savers`); and `undeclared_names_take_saves` (true only for sites made
-        before the kinds, where a name nobody declared still behaves as a public
-        list).
+        (`savers`); and `undeclared_names_take_saves`: whether a name nobody
+        declared is **Shared** here (anyone reads it, anyone signed in adds to it).
+        True unless the install sets SAVED_DATA_DEFAULT_KIND=declare_first and the
+        site was made after the kinds.
       tags: [Collections]
       security: [{ apiKey: [] }]
       parameters: [ { $ref: '#/components/parameters/sitename' } ]
@@ -2044,7 +2045,7 @@ paths:
                       properties:
                         name: { type: string, example: rsvps }
                         kind: { type: string, enum: ['', content, entries] }
-                        label: { type: string, enum: [Page info, Submissions, Not set] }
+                        label: { type: string, enum: [Page info, Submissions, Shared, Private list, Not set] }
                         count: { type: integer }
                         last_at: { type: string, format: date-time, nullable: true }
                         private: { type: boolean }
@@ -2065,9 +2066,10 @@ paths:
         Public (Origin-gated like the collections when a page asks; a plain GET is
         served). `declared`, `kind` (null when not declared), `label`, and for
         Submissions `visibility` and `one_per_person`; for an undeclared name,
-        `accepts_saves` (false on sites made since the kinds). auth.js's
-        SH.data(name, kind) checks it. The email setting is the owner's and is not
-        shown.
+        `accepts_saves` (true when it is Shared: `label` "Shared"; false only where
+        the install requires declaring first). auth.js's SH.data(name, kind)
+        checks it: a page asking for a kind never saves to an undeclared name. The
+        email setting is the owner's and is not shown.
       tags: [Collections]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -2104,11 +2106,17 @@ paths:
         them), `one_per_person` (one live entry per signed-in visitor),
         `notify` (email the owner: `daily`, the default while private; `each`,
         batched soon after they arrive; `off`, the default when public). A field
-        left out keeps what the name had. On a site made since the kinds, a name
-        nobody declared takes no saves at all (409 declare_first). Product words
-        are accepted for kind ("Page info", "Submissions"). Private Submissions
-        need the site on an address of its own (409 custom_domain_required on
-        instances without one; declare them public there).
+        left out keeps what the name had. A name nobody declared is **Shared**
+        (anyone reads it, anyone signed in adds to it); with
+        SAVED_DATA_DEFAULT_KIND=declare_first, on a site made after the kinds it
+        takes no saves at all (409 declare_first). Product words are accepted for
+        kind ("Page info", "Submissions"). Submissions need the site on an
+        address of its own, where visitors sign in (409 custom_domain_required on
+        instances without one); a site declares at most 50 Submissions names
+        (SAVED_DATA_ENTRIES_NAMES_MAX, 409 too_many_names). Declaring a private
+        name that holds entries as public Submissions or as Page info would let
+        anyone read them: 409 confirm_public (with `count`) until the request
+        carries `"confirm_public": true`.
       tags: [Collections]
       security: [{ apiKey: [] }]
       parameters:
@@ -2126,6 +2134,7 @@ paths:
                 visibility: { type: string, enum: [owner, public] }
                 one_per_person: { type: boolean }
                 notify: { type: string, enum: [off, each, daily] }
+                confirm_public: { type: boolean, description: "The owner agreed that the private entries this name holds become readable by anyone." }
             example: { kind: entries, one_per_person: true }
       responses:
         '200':
@@ -2149,7 +2158,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: too_many_names, has_entries or custom_domain_required
+          description: too_many_names, has_entries, confirm_public or custom_domain_required
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
 
   /v1/sites/{sitename}/data/{coll}:
@@ -2164,8 +2173,8 @@ paths:
         everyone else), with `?count=1` for `{name, count}` under the same rule,
         and `?mine=1` for the signed-in visitor's own live entries (a visitor
         session on the site's own address; `?limit`, `?before` as for lists; 401
-        visitor_auth_required without one). An undeclared name on a site made
-        since the kinds: 409 declare_first.
+        visitor_auth_required without one). An undeclared name is Shared and reads
+        as a list; where the install requires declaring first: 409 declare_first.
       tags: [Collections]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -2188,10 +2197,15 @@ paths:
         Each new entry is at most 16 KB (SAVED_DATA_ENTRY_MAX_KB, 413 item_too_large);
         a name holds at most 10,000 live entries (SAVED_DATA_ENTRIES_MAX, 409 list_full); `one_per_person` refuses a
         second live entry from one visitor (409 one_per_person, with `id` of the
-        entry they have). Page info takes no entries (409 wrong_kind); an
-        undeclared name on a site made since the kinds takes nothing (409
-        declare_first). The site's who-may-save setting applies to every visitor
-        (403 not_allowed_to_save); the owner always may.
+        entry they have; a visitor is the account, and its address with any +tag,
+        so an entry from another account of the same address answers without
+        `id`). Declared Submissions take entries only from a signed-in visitor
+        (401 visitor_auth_required), never anonymously. Page info takes no
+        entries (409 wrong_kind). An undeclared name is Shared and takes what the
+        list route takes; where the install requires declaring first, nothing
+        (409 declare_first). The site's who-may-save setting applies to every
+        visitor (403 not_allowed_to_save; a block also matches the address with
+        its +tag dropped); the owner always may.
       tags: [Collections]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -2295,7 +2309,9 @@ paths:
         Only the visitor who withdrew it: this brings back what they withdrew for 10 minutes (SAVED_DATA_WITHDRAW_UNDO_MINUTES);
         after that, or for an entry the owner deleted, 409 undo_expired (the
         owner restores from Recently deleted). With `one_per_person`, 409
-        one_per_person when they have another entry by now.
+        one_per_person when they have another entry by now; 409 list_full when
+        the name is full by now. The site's owner may always bring back their
+        own.
       tags: [Collections]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -2306,7 +2322,7 @@ paths:
         '200': { description: The entry, back, content: { application/json: { schema: { type: object } } } }
         '401': { description: visitor_auth_required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { description: "undo_expired or one_per_person", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "undo_expired, one_per_person or list_full", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /v1/sites/{sitename}/savers:
     get:
@@ -2350,7 +2366,10 @@ paths:
       description: >-
         Adds one email or `@domain` (`{"email": ...}`), or whoever sent one entry
         (`{"collection": "rsvps", "id": 12}`), to the site's block list. What they
-        already sent stays. An entry saved without a sign-in: 409 no_author.
+        already sent stays. By entry, the address the server stamped when it was
+        saved is blocked, without its +tag (a block matches any +tag of an
+        address); what the entry itself says about its sender is never used. An
+        entry with no stamped address (saved without a sign-in): 409 no_author.
       tags: [Collections]
       security: [{ apiKey: [] }]
       parameters: [ { $ref: '#/components/parameters/sitename' } ]
@@ -3385,7 +3404,7 @@ paths:
         - { $ref: '#/components/parameters/csrf' }
       responses:
         '200': { description: The entry, back, content: { application/json: { schema: { type: object } } } }
-        '409': { description: "undo_expired or one_per_person", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "undo_expired, one_per_person or list_full", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}:
     delete:

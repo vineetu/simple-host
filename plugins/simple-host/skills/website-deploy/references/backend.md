@@ -2,14 +2,18 @@
 
 Every site has a small JSON backend that its own page JavaScript can call. There
 is no server for you to run. Every piece of saved data has a name and one kind
-(below); older sites also have one shared state document and lists nobody
-declared.
+(below); every site also has one shared state document.
 
-## Kinds: what is this data? (declare it first)
+## Kinds: what is this data?
 
-Declare each data name once, before the page saves to it. On a site made since
-the kinds, a name nobody declared takes no saves at all, the owner's included:
-409 `declare_first`, whose message names the call to make.
+A name nobody declared is **Shared**: anyone can read it and anyone who signs in
+can add to it (the lists and page data every site has always had). Page info and
+Submissions are declared once, before the page saves to them. Anything with
+personal details (RSVPs, orders, sign-ups) is private Submissions; anything only
+the owner changes is Page info; when unsure, choose the stricter kind. An install
+can require declaring every name (`SAVED_DATA_DEFAULT_KIND=declare_first`); there
+an undeclared name takes no saves, the owner's included: 409 `declare_first`,
+whose message names the call to make.
 
 ```
 PUT /v1/sites/<sitename>/data/<name>/kind          (owner: X-API-Key; connector: declare_data)
@@ -63,6 +67,14 @@ listed emails and whole domains, plus a block list in either mode (403
 `not_allowed_to_save`). The owner always may; a blocked visitor can still withdraw
 their own entries.
 
+A person here is a signed-in account, identified by the address its sign-in
+verified (Google's, or the one an emailed code reached). Accounts are cheap to
+make, so a block and one per person count a mailbox, not a human: a block also
+covers that address with any `+tag` (`ann+2@` is `ann@`), and blocking by entry
+blocks the address without its tag. An `@company.com` entry matches addresses at
+exactly that domain (not its subdomains), for anyone who has verified such an
+address, including a Google account created with it after they left.
+
 ```
 PUT /v1/sites/<sitename>/savers      {"mode": "listed", "allow": ["@company.com", "ann@example.com"], "block": []}
 PUT /v1/sites/<sitename>/savers      {"mode": "anyone", "block": ["spam@example.org"]}
@@ -74,7 +86,9 @@ first) and `block_person`. The owner app has "Who may save here" and a "Block"
 button next to any entry with a sender.
 
 **The helper**, with the kind checked on first use (a mismatch rejects with
-`code: "wrong_kind"`, an undeclared name with `code: "declare_first"`):
+`code: "wrong_kind"`; an undeclared (Shared) name with `code: "declare_first"`, so
+a page that asked for Submissions never saves to a public list by mistake;
+`SH.data(name)` with no kind uses a Shared name as it is):
 
 ```js
 const rsvps = SH.data('rsvps', 'entries');
@@ -95,10 +109,12 @@ things nobody else needs (drafts, preferences) belong in `localStorage`.
 
 | Status | Code | Meaning |
 |---|---|---|
-| 409 | `declare_first` | The name has no kind yet. Declare it (`declare_data`), then save. |
+| 409 | `declare_first` | The name has no kind yet and must be declared here (or the page asked for a kind). Declare it (`declare_data`), then save. |
+| 409 | `confirm_public` | Declaring would make this private name's entries public (`count` says how many). Ask the owner; resend with `"confirm_public": true` only if they agree. |
+| 401 | `visitor_auth_required` | Submissions come only from a signed-in visitor. Call `SH.requireSignIn()` first. |
 | 409 | `wrong_kind` | Page info takes no entries (the owner PUTs the document); Submissions are not PUT. |
 | 403 | `owner_only` | Only the owner changes Page info. |
-| 409 | `one_per_person` | This visitor already has an entry (`id` in the body): update it instead. |
+| 409 | `one_per_person` | This visitor already has an entry (`id` in the body): update it instead. A person is the signed-in account, and the same address with any `+tag`; an entry from another account of the same address has no `id`. |
 | 409 | `list_full` | The name holds as many entries as it may. The owner deletes or clears. |
 | 403 | `not_allowed_to_save` | The owner has not allowed this account to save here (or blocked it). Tell the visitor; do not retry. |
 | 409 | `undo_expired` | Only a visitor's own withdrawal, within the window, comes back; the owner restores older ones. |
@@ -348,15 +364,17 @@ X-API-Key: <api_key>
 ```
 
 It answers 200 with `"visibility": "owner"`, `"notify": "daily"` and a one-line
-`message`. On older sites a list can also be made private with
+`message`. A list can also be made private with
 `set_collection_privacy` (`PUT /v1/sites/<sitename>/collections/orders/privacy`
-with `{"private": true}`); on a new site that declares it as private Submissions.
+with `{"private": true}`).
 Only signed-in visitors can submit, and only you read them all; each visitor sees,
 changes and withdraws their own.
 
 `{"visibility": "public"}` (or `{"private": false}`) makes the list public again,
 and everything already saved in it becomes readable by anyone. Confirm with the
-owner before sending it.
+owner before sending it: `declare_data` refuses it while the list holds entries
+(409 `confirm_public`, with the `count`) until you add `"confirm_public": true`;
+declaring such a list Page info is refused the same way.
 
 ### 2. The form page
 
@@ -558,6 +576,6 @@ management. An agent that already holds the owner's key needs none of this.
 | 409 | `{"code":"idempotency_key_reused"}` | This `Idempotency-Key` was used for a different body. Use a new key for a new write. |
 
 On any of these: keep the form, never claim success, and never re-POST an
-entry by hand after a partial write. The kinds' own codes (`declare_first`,
+entry by hand after a partial write. The kinds' own codes (`declare_first`, `confirm_public`,
 `wrong_kind`, `owner_only`, `one_per_person`, `list_full`, `not_allowed_to_save`,
 `undo_expired`) are in the table under "Kinds" above.

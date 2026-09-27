@@ -298,3 +298,30 @@ func TestEveryKnobIsDocumented(t *testing.T) {
 		}
 	}
 }
+
+// SAVED_DATA_DEFAULT_KIND takes shared or declare_first (any case); anything
+// else stops startup.
+func TestSavedDataDefaultKind(t *testing.T) {
+	if got := DefaultLimits().SavedData.DefaultKind; got != DefaultKindShared {
+		t.Fatalf("default %q", got)
+	}
+	for in, want := range map[string]string{"shared": DefaultKindShared, "DECLARE_FIRST": DefaultKindDeclareFirst} {
+		l, err := LoadLimits(func(k string) string {
+			if k == "SAVED_DATA_DEFAULT_KIND" {
+				return in
+			}
+			return ""
+		})
+		if err != nil || l.SavedData.DefaultKind != want {
+			t.Fatalf("%q: %q %v", in, l.SavedData.DefaultKind, err)
+		}
+	}
+	if _, err := LoadLimits(func(k string) string {
+		if k == "SAVED_DATA_DEFAULT_KIND" {
+			return "strict"
+		}
+		return ""
+	}); err == nil {
+		t.Fatal("an unknown value was accepted")
+	}
+}

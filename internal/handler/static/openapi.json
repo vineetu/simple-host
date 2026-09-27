@@ -4215,7 +4215,7 @@
       "get": {
         "operationId": "listSiteData",
         "summary": "List a site's data names with their kinds",
-        "description": "Owner only (X-API-Key or a connector token; the operator too). Every data name on the site (every list with items, and every name that is private or declared) with its kind, as `/collections` lists them plus `kind` (`content` = Page info, `entries` = Submissions, empty = not declared), `label`, `one_per_person` and `notify`; who may save on the site (`savers`); and `undeclared_names_take_saves` (true only for sites made before the kinds, where a name nobody declared still behaves as a public list).",
+        "description": "Owner only (X-API-Key or a connector token; the operator too). Every data name on the site (every list with items, and every name that is private or declared) with its kind, as `/collections` lists them plus `kind` (`content` = Page info, `entries` = Submissions, empty = not declared), `label`, `one_per_person` and `notify`; who may save on the site (`savers`); and `undeclared_names_take_saves`: whether a name nobody declared is **Shared** here (anyone reads it, anyone signed in adds to it). True unless the install sets SAVED_DATA_DEFAULT_KIND=declare_first and the site was made after the kinds.",
         "tags": [
           "Collections"
         ],
@@ -4262,6 +4262,8 @@
                             "enum": [
                               "Page info",
                               "Submissions",
+                              "Shared",
+                              "Private list",
                               "Not set"
                             ]
                           },
@@ -4323,7 +4325,7 @@
       "get": {
         "operationId": "getDataKind",
         "summary": "What a data name is (public)",
-        "description": "Public (Origin-gated like the collections when a page asks; a plain GET is served). `declared`, `kind` (null when not declared), `label`, and for Submissions `visibility` and `one_per_person`; for an undeclared name, `accepts_saves` (false on sites made since the kinds). auth.js's SH.data(name, kind) checks it. The email setting is the owner's and is not shown.",
+        "description": "Public (Origin-gated like the collections when a page asks; a plain GET is served). `declared`, `kind` (null when not declared), `label`, and for Submissions `visibility` and `one_per_person`; for an undeclared name, `accepts_saves` (true when it is Shared: `label` \"Shared\"; false only where the install requires declaring first). auth.js's SH.data(name, kind) checks it: a page asking for a kind never saves to an undeclared name. The email setting is the owner's and is not shown.",
         "tags": [
           "Collections"
         ],
@@ -4386,7 +4388,7 @@
       "put": {
         "operationId": "declareData",
         "summary": "Declare what a data name is (owner)",
-        "description": "Owner only (X-API-Key, connector token, or the operator). Every piece of saved data has a name and one kind, and the kind decides who reads and who changes what. `{\"kind\": \"content\"}` is **Page info**: one JSON object only the owner writes (PUT .../data/{coll}) and anyone reads; a site declares at most 20 Page info names (SAVED_DATA_CONTENT_NAMES_MAX, 409 too_many_names); a name holding several entries cannot become one (409 has_entries). `{\"kind\": \"entries\"}` is **Submissions**: things visitors send. Options: `visibility` (`owner`, the default: only the owner reads them all, each visitor reads their own; or `public`: anyone reads them, without who sent them), `one_per_person` (one live entry per signed-in visitor), `notify` (email the owner: `daily`, the default while private; `each`, batched soon after they arrive; `off`, the default when public). A field left out keeps what the name had. On a site made since the kinds, a name nobody declared takes no saves at all (409 declare_first). Product words are accepted for kind (\"Page info\", \"Submissions\"). Private Submissions need the site on an address of its own (409 custom_domain_required on instances without one; declare them public there).",
+        "description": "Owner only (X-API-Key, connector token, or the operator). Every piece of saved data has a name and one kind, and the kind decides who reads and who changes what. `{\"kind\": \"content\"}` is **Page info**: one JSON object only the owner writes (PUT .../data/{coll}) and anyone reads; a site declares at most 20 Page info names (SAVED_DATA_CONTENT_NAMES_MAX, 409 too_many_names); a name holding several entries cannot become one (409 has_entries). `{\"kind\": \"entries\"}` is **Submissions**: things visitors send. Options: `visibility` (`owner`, the default: only the owner reads them all, each visitor reads their own; or `public`: anyone reads them, without who sent them), `one_per_person` (one live entry per signed-in visitor), `notify` (email the owner: `daily`, the default while private; `each`, batched soon after they arrive; `off`, the default when public). A field left out keeps what the name had. A name nobody declared is **Shared** (anyone reads it, anyone signed in adds to it); with SAVED_DATA_DEFAULT_KIND=declare_first, on a site made after the kinds it takes no saves at all (409 declare_first). Product words are accepted for kind (\"Page info\", \"Submissions\"). Submissions need the site on an address of its own, where visitors sign in (409 custom_domain_required on instances without one); a site declares at most 50 Submissions names (SAVED_DATA_ENTRIES_NAMES_MAX, 409 too_many_names). Declaring a private name that holds entries as public Submissions or as Page info would let anyone read them: 409 confirm_public (with `count`) until the request carries `\"confirm_public\": true`.",
         "tags": [
           "Collections"
         ],
@@ -4437,6 +4439,10 @@
                       "each",
                       "daily"
                     ]
+                  },
+                  "confirm_public": {
+                    "type": "boolean",
+                    "description": "The owner agreed that the private entries this name holds become readable by anyone."
                   }
                 }
               },
@@ -4518,7 +4524,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "too_many_names, has_entries or custom_domain_required",
+            "description": "too_many_names, has_entries, confirm_public or custom_domain_required",
             "content": {
               "application/json": {
                 "schema": {
@@ -4534,7 +4540,7 @@
       "get": {
         "operationId": "getData",
         "summary": "Read Page info, or Submissions",
-        "description": "Page info (`content`) answers `{name, kind, data, saved_at}` (`data` null until the owner saves one) to anyone. Submissions answer exactly as GET .../collections/{coll} does (the owner reads all, with `by`; anyone reads a public list, without who sent it; a private list is 404 not_found to everyone else), with `?count=1` for `{name, count}` under the same rule, and `?mine=1` for the signed-in visitor's own live entries (a visitor session on the site's own address; `?limit`, `?before` as for lists; 401 visitor_auth_required without one). An undeclared name on a site made since the kinds: 409 declare_first.",
+        "description": "Page info (`content`) answers `{name, kind, data, saved_at}` (`data` null until the owner saves one) to anyone. Submissions answer exactly as GET .../collections/{coll} does (the owner reads all, with `by`; anyone reads a public list, without who sent it; a private list is 404 not_found to everyone else), with `?count=1` for `{name, count}` under the same rule, and `?mine=1` for the signed-in visitor's own live entries (a visitor session on the site's own address; `?limit`, `?before` as for lists; 401 visitor_auth_required without one). An undeclared name is Shared and reads as a list; where the install requires declaring first: 409 declare_first.",
         "tags": [
           "Collections"
         ],
@@ -4607,7 +4613,7 @@
       "post": {
         "operationId": "postData",
         "summary": "Add a Submissions entry",
-        "description": "The same as POST .../collections/{coll} (same sign-in, Origin, privacy, `Idempotency-Key` and per-address rules), with the name's kind applied: Each new entry is at most 16 KB (SAVED_DATA_ENTRY_MAX_KB, 413 item_too_large); a name holds at most 10,000 live entries (SAVED_DATA_ENTRIES_MAX, 409 list_full); `one_per_person` refuses a second live entry from one visitor (409 one_per_person, with `id` of the entry they have). Page info takes no entries (409 wrong_kind); an undeclared name on a site made since the kinds takes nothing (409 declare_first). The site's who-may-save setting applies to every visitor (403 not_allowed_to_save); the owner always may.",
+        "description": "The same as POST .../collections/{coll} (same sign-in, Origin, privacy, `Idempotency-Key` and per-address rules), with the name's kind applied: Each new entry is at most 16 KB (SAVED_DATA_ENTRY_MAX_KB, 413 item_too_large); a name holds at most 10,000 live entries (SAVED_DATA_ENTRIES_MAX, 409 list_full); `one_per_person` refuses a second live entry from one visitor (409 one_per_person, with `id` of the entry they have; a visitor is the account, and its address with any +tag, so an entry from another account of the same address answers without `id`). Declared Submissions take entries only from a signed-in visitor (401 visitor_auth_required), never anonymously. Page info takes no entries (409 wrong_kind). An undeclared name is Shared and takes what the list route takes; where the install requires declaring first, nothing (409 declare_first). The site's who-may-save setting applies to every visitor (403 not_allowed_to_save; a block also matches the address with its +tag dropped); the owner always may.",
         "tags": [
           "Collections"
         ],
@@ -4962,7 +4968,7 @@
       "post": {
         "operationId": "undoOwnWithdrawal",
         "summary": "Bring back an entry you withdrew",
-        "description": "Only the visitor who withdrew it: this brings back what they withdrew for 10 minutes (SAVED_DATA_WITHDRAW_UNDO_MINUTES); after that, or for an entry the owner deleted, 409 undo_expired (the owner restores from Recently deleted). With `one_per_person`, 409 one_per_person when they have another entry by now.",
+        "description": "Only the visitor who withdrew it: this brings back what they withdrew for 10 minutes (SAVED_DATA_WITHDRAW_UNDO_MINUTES); after that, or for an entry the owner deleted, 409 undo_expired (the owner restores from Recently deleted). With `one_per_person`, 409 one_per_person when they have another entry by now; 409 list_full when the name is full by now. The site's owner may always bring back their own.",
         "tags": [
           "Collections"
         ],
@@ -5011,7 +5017,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "undo_expired or one_per_person",
+            "description": "undo_expired, one_per_person or list_full",
             "content": {
               "application/json": {
                 "schema": {
@@ -5128,7 +5134,7 @@
       "post": {
         "operationId": "blockSaver",
         "summary": "Block a person from saving on a site (owner)",
-        "description": "Adds one email or `@domain` (`{\"email\": ...}`), or whoever sent one entry (`{\"collection\": \"rsvps\", \"id\": 12}`), to the site's block list. What they already sent stays. An entry saved without a sign-in: 409 no_author.",
+        "description": "Adds one email or `@domain` (`{\"email\": ...}`), or whoever sent one entry (`{\"collection\": \"rsvps\", \"id\": 12}`), to the site's block list. What they already sent stays. By entry, the address the server stamped when it was saved is blocked, without its +tag (a block matches any +tag of an address); what the entry itself says about its sender is never used. An entry with no stamped address (saved without a sign-in): 409 no_author.",
         "tags": [
           "Collections"
         ],
@@ -8761,7 +8767,7 @@
             }
           },
           "409": {
-            "description": "undo_expired or one_per_person",
+            "description": "undo_expired, one_per_person or list_full",
             "content": {
               "application/json": {
                 "schema": {

@@ -2,21 +2,25 @@
 
 # Saving and reading data: the page helper and the tools
 
-Every piece of saved data has a name and one **kind**, declared once with `declare_data` before
-a page saves to it. On a site made since the kinds, a name nobody declared takes no saves at all
-(`declare_first`). Pages use the hosted helper `https://simple-host.app/auth.js`; you use the
-tools. Older sites also have one shared JSON **state** document and lists nobody declared.
+Every piece of saved data has a name and one **kind**. A name nobody declared is **Shared**:
+anyone reads it and anyone signed in adds to it. Page info and Submissions are declared once with
+`declare_data` before a page saves to them. Pages use the hosted helper
+`https://simple-host.app/auth.js`; you use the tools. Every site also has one shared JSON
+**state** document.
 
 ## What is this data?
 
 | Data | Kind | Why |
 |---|---|---|
+| Open data anyone may add to and read: a guestbook, a counter, a public wall | **Shared** (no declaration) | public; never for personal details |
 | A menu, opening hours, prices, a schedule, dashboard numbers: the owner writes it, everyone reads it | **Page info** (`kind: "content"`), written with `update_data`, read with `SH.data(name).get()` | only the owner can change it; one document up to 1 MB |
 | One thing per visitor: RSVP, survey response, order, sign-up, message | **Submissions** (`kind: "entries"`), private (the default) | the owner reads all; each visitor sees, changes and withdraws their own |
 | A guestbook, public comments | Submissions with `visibility: "public"` | anyone reads them; who sent each stays with the owner |
 | Votes, one RSVP each | Submissions with `one_per_person: true` (public to show a tally; `SH.data(name).count()`) | a second entry is refused; the visitor changes theirs |
 | A draft, a cart, a preference, "already voted" on this device | `localStorage` in the page | per visitor; never shared |
 | Roles, per-field rules, joins, search, several people editing one object | does not fit | say so instead of approximating it |
+
+Anything with personal details is private Submissions; when unsure, choose the stricter kind.
 
 A Submissions entry is at most 16 KB. The owner gets a daily email about new private
 Submissions (`notify: "daily"`; `"each"` for batched soon after they arrive; `"off"`), and
@@ -68,7 +72,7 @@ Writes:
 - `await SH.data(name, 'entries').add(item)`: add one JSON object to declared Submissions.
   Resolves with the stored item `{ id, data, created_at }`. The visitor's own:
   `.mine()`, `.update(id, fields)`, `.remove(id)`, `.undo(id)`. Page info: `SH.data(name).get()`.
-  On older sites `SH.collection(name).append(item)` does the same for a list nobody declared.
+  `SH.collection(name).append(item)` (or `SH.data(name).add(item)`) adds to a Shared name.
 - `await SH.state.patch(ops)`: atomic ops, applied in order:
   - `{op:'set', path:'a.b', value:1}`
   - `{op:'inc', path:'count', by:1}`
@@ -165,7 +169,7 @@ lists carry over.
 ### 1. Declare it (private is the default)
 
 Before the form goes live: `declare_data` `{site, name: "orders", kind: "entries"}`. It can be set
-before anything is saved. On older sites `set_collection_privacy` `{site, collection: "orders",
+before anything is saved. `set_collection_privacy` `{site, collection: "orders",
 private: true}` does the same for a list.
 
 ### 2. The form page

@@ -323,6 +323,9 @@ var limitPhrases = []limitPhrase{
 	phrase("at most 500 emails and domains in total", knob("SAVED_DATA_SAVERS_MAX"), func(l *config.Limits) string {
 		return "at most " + limitCommas(l.SavedData.SaversMax) + " emails and domains in total"
 	}),
+	phrase("declares at most 50 Submissions names", knob("SAVED_DATA_ENTRIES_NAMES_MAX"), func(l *config.Limits) string {
+		return "declares at most " + limitCommas(l.SavedData.EntriesNamesMax) + " Submissions names"
+	}),
 }
 
 // limitKB words a size in KB: "16 KB", "1 MB" (whole megabytes).
