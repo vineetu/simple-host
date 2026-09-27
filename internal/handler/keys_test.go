@@ -213,13 +213,13 @@ func TestAdminReissuesKey(t *testing.T) {
 	}
 }
 
-// An account mints at most db.MaxAccountKeys keys from the Keys panel; the
+// An account mints at most db.MaxAccountKeys() keys from the Keys panel; the
 // next one is 409 key_limit, and revoking one makes room again.
 func TestCreateKeyLimit(t *testing.T) {
 	a := newConnectorApp(t)
 	p := a.newPerson(t, "many-keys")
 	h := map[string]string{"X-API-Key": p.key, "Content-Type": "application/json"}
-	for i := len(keysOf(t, a, p.key)); i < db.MaxAccountKeys; i++ {
+	for i := len(keysOf(t, a, p.key)); i < db.MaxAccountKeys(); i++ {
 		if r := a.do(t, http.MethodPost, "/v1/me/keys", jsonBody(map[string]string{"name": "k"}), h); r.status != http.StatusCreated {
 			t.Fatalf("key %d: %d %s", i, r.status, r.body)
 		}
@@ -229,7 +229,7 @@ func TestCreateKeyLimit(t *testing.T) {
 		t.Fatalf("over the limit: %d %s", r.status, r.body)
 	}
 	ks := keysOf(t, a, p.key)
-	if len(ks) != db.MaxAccountKeys {
+	if len(ks) != db.MaxAccountKeys() {
 		t.Fatalf("keys held: %d", len(ks))
 	}
 	id, _ := ks[0]["id"].(string)

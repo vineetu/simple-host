@@ -24,6 +24,20 @@ type ResendSender struct {
 	apiKey string
 	from   string
 	client *http.Client
+	// codeWords is how long a sign-in code works, in words
+	// (SIGNIN_CODE_TTL_MINUTES); empty means the default, "15 minutes".
+	codeWords string
+}
+
+// SetCodeLifetime sets the words the sign-in email uses for how long its code
+// works ("15 minutes"). Call once at startup.
+func (s *ResendSender) SetCodeLifetime(words string) { s.codeWords = words }
+
+func (s *ResendSender) codeLifetime() string {
+	if s.codeWords == "" {
+		return "15 minutes"
+	}
+	return s.codeWords
 }
 
 func NewResendSender(apiKey, from string) *ResendSender {
@@ -52,8 +66,8 @@ func (s *ResendSender) SendSignInCode(toEmail, code, link string) error {
 
     %s
 
-%sThis code expires in 15 minutes. If you didn't request this, you can ignore the email.
-`, code, textLink)
+%sThis code expires in %s. If you didn't request this, you can ignore the email.
+`, code, textLink, s.codeLifetime())
 
 	html := fmt.Sprintf(`<!DOCTYPE html>
 <html><body style="font-family: -apple-system, system-ui, sans-serif; color: #1a1a1a; max-width: 480px; margin: 0 auto; padding: 24px;">
@@ -61,8 +75,8 @@ func (s *ResendSender) SendSignInCode(toEmail, code, link string) error {
 <p>Your code is:</p>
 <div style="font-family: ui-monospace, monospace; font-size: 32px; font-weight: 600; letter-spacing: 4px; padding: 16px 24px; background: #faf9f7; border: 1px solid #e8e5e0; border-radius: 8px; display: inline-block; color: #c96442;">%s</div>
 %s
-<p style="color: #6b6560; font-size: 13px; margin-top: 32px;">This code expires in 15 minutes. If you didn't request this, you can ignore the email.</p>
-</body></html>`, code, htmlLink)
+<p style="color: #6b6560; font-size: 13px; margin-top: 32px;">This code expires in %s. If you didn't request this, you can ignore the email.</p>
+</body></html>`, code, htmlLink, s.codeLifetime())
 
 	return s.send(toEmail, subject, text, html)
 }

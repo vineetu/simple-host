@@ -131,8 +131,8 @@ for good" on each site.
 ## Change the handle (the person's address)
 
 `PATCH /v1/me` with `{"handle":"new-name"}` changes the `<handle>` in every
-address. Before anything is published it changes freely; after that, once every
-30 days (429 with `next_change_after` otherwise). The old handle stays reserved
+address. Before anything is published it changes freely; after that,
+once every 30 days (429 with `next_change_after` otherwise). The old handle stays reserved
 for the person and every old address redirects to the new one. What pages kept
 in visitors' browsers (localStorage) starts empty at the new address, and
 visitors sign in again, so tell the person before changing it. They can also do

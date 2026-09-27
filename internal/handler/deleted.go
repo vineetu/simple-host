@@ -17,7 +17,7 @@ import (
 //
 // DELETE /v1/sites/{site} takes a site offline at once and keeps it — files,
 // every version, saved state, collections, private-list settings, claimed
-// names, custom domain — for db.DeletedSiteRetention with its name held.
+// names, custom domain — for db.DeletedSiteRetention() with its name held.
 // GET /v1/me/deleted-sites lists them, POST /v1/sites/{site}/restore brings one
 // back exactly as it was, and an in-process sweep removes them for good after
 // the window. Deleting a whole account (admin) stays immediate.
@@ -149,7 +149,7 @@ func (h *SiteHandler) listDeletedSites(w http.ResponseWriter, r *http.Request) {
 	for _, d := range list {
 		out = append(out, toDeletedSiteResponse(d))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"sites": out, "retention_days": int(db.DeletedSiteRetention / (24 * time.Hour))})
+	writeJSON(w, http.StatusOK, map[string]any{"sites": out, "retention_days": int(db.DeletedSiteRetention() / (24 * time.Hour))})
 }
 
 // restoreSite: POST /v1/sites/{sitename}/restore. The site comes back under

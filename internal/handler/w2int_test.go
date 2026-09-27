@@ -66,7 +66,7 @@ func TestIdleCleanupMeetsOfflineRenameAndPreview(t *testing.T) {
 
 	eligible := func() map[string]bool {
 		t.Helper()
-		list, err := db.ListIdleSitesToWarn(ctx, a.database, db.IdleExempt{}, time.Now().Add(-idleAfter), 0)
+		list, err := db.ListIdleSitesToWarn(ctx, a.database, db.IdleExempt{}, time.Now().Add(-idleAfter()), 0)
 		if err != nil {
 			t.Fatal(err)
 		}

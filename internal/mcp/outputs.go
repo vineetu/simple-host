@@ -135,7 +135,7 @@ func domainSchema(justConnected bool) map[string]any {
 		"url":           outString("The site's address on this domain. Present only when status is active."),
 		"certificate":   outEnum("The domain's HTTPS certificate: pending (DNS not pointed here yet), issuing (automatic, usually minutes), live, or failed (last_check says why; it is retried). Absent for a free simple-host.app address.", "pending", "issuing", "live", "failed"),
 		"serving_at":    outString("The site's earlier address, where it is still served until this domain is live (then it redirects here). Present only while a new domain is pending."),
-		"failing_since": outString("When this verified domain started failing its checks. The owner is emailed after a day; after three days the domain stops being the site's address."),
+		"failing_since": outString("When this verified domain started failing its checks. The owner is emailed after " + span(lim().DomainLapseWarnAfter) + "; after " + span(lim().DomainLapseAfter) + " the domain stops being the site's address."),
 		"note":          outString("What to do next. Present only when status is pending."),
 	}
 	if justConnected {
@@ -202,7 +202,7 @@ func outputSchemas() map[string]map[string]any {
 		"update_site": siteSummaryWith(map[string]any{
 			"file_count":          outInteger("How many files the new version has."),
 			"unpublished_version": outInteger("Only with publish: false: the version stored without going live (active_version is still the live one)."),
-			"preview_url":         outString("Only with publish: false: a link showing the stored version that works for anyone who has it, for one hour. Give it to the person; do not post it publicly."),
+			"preview_url":         outString("Only with publish: false: a link showing the stored version that works for anyone who has it, for " + span(lim().PreviewLinkTTL) + ". Give it to the person; do not post it publicly."),
 		}, "file_count"),
 
 		"list_versions": outObject(map[string]any{
@@ -221,7 +221,7 @@ func outputSchemas() map[string]map[string]any {
 			"site":       outString(outSiteName),
 			"version":    outInteger("The version the link shows."),
 			"live":       outBool("Whether this version is the one visitors see now."),
-			"url":        outString("The preview link: works for anyone who has it, for one hour, that version only. Give it to the person to open; do not post it publicly."),
+			"url":        outString("The preview link: works for anyone who has it, for " + span(lim().PreviewLinkTTL) + ", that version only. Give it to the person to open; do not post it publicly."),
 			"expires_at": outString("When the link stops working (RFC 3339)."),
 		}, "site", "version", "live", "url", "expires_at"),
 
@@ -255,7 +255,7 @@ func outputSchemas() map[string]map[string]any {
 		}, "site", "offline", "url"),
 		"keep_site": outObject(map[string]any{
 			"site": outString(outSiteName),
-			"keep": outBool("true: kept up for good, never flagged as idle; false: flagged (with an email first) after 90 days without visits or updates."),
+			"keep": outBool("true: kept up for good, never flagged as idle; false: flagged (with an email first) after " + span(lim().IdleAfter) + " without visits or updates."),
 		}, "site", "keep"),
 
 		"get_state": outObject(map[string]any{
@@ -345,7 +345,7 @@ func outputSchemas() map[string]map[string]any {
 		"export_site": outObject(map[string]any{
 			"site":       outString(outSiteName),
 			"url":        outString("The download link: a .tar.gz with the site's files, state.json and collections.json. Give it to the person; it opens without signing in, so do not post it publicly."),
-			"expires_at": outString("When the link stops working (RFC 3339), 10 minutes after it was made."),
+			"expires_at": outString("When the link stops working (RFC 3339), " + span(lim().ExportLinkTTL) + " after it was made."),
 		}, "site", "url", "expires_at"),
 	}
 }

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
+	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/storage"
@@ -54,11 +55,6 @@ func init() {
 		}
 	}
 }
-
-// maxSitesPerUser caps how many sites a single non-admin account may create, so
-// a self-registered user can't fill the shared disk with sites. Admins are
-// exempt.
-const maxSitesPerUser = 100
 
 type SiteHandler struct {
 	mailer         email.Sender
@@ -198,12 +194,13 @@ type versionResponse struct {
 func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, contentHost, cnameTarget, customDomainIP, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration, writeAuthMode, adminUserID string, mailer email.Sender, emailLimiter *rateLimiter) *SiteHandler {
 	// Uploads: ~6/min/IP, burst 30. State writes: ~1/s/IP sustained, burst 60
 	// (a browser app may persist state on each interaction).
-	uploadLimiter := newRateLimiter(30, 0.1)
-	stateLimiter := newRateLimiter(60, 1)
-	visitorAuthLimiter := newRateLimiter(20, 0.2)
-	domainCheckLimiter := newRateLimiter(10, 0.1)
+	lim := config.Active()
+	uploadLimiter := newRateLimiterFor(lim.RateUpload)
+	stateLimiter := newRateLimiterFor(lim.RateState)
+	visitorAuthLimiter := newRateLimiterFor(lim.RateVisitorAuth)
+	domainCheckLimiter := newRateLimiterFor(lim.RateDomainCheck)
 	domainCheckLimiter.startCleanup(10*time.Minute, 30*time.Minute)
-	domainCheckUserLimiter := newRateLimiter(3, 1.0/30)
+	domainCheckUserLimiter := newRateLimiterFor(lim.RateDomainCheckUser)
 	domainCheckUserLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	visitorAuthLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	uploadLimiter.startCleanup(10*time.Minute, 30*time.Minute)
@@ -244,8 +241,8 @@ func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, con
 		log.Printf("preview-site expiry enabled: accounts=%d ttl=%s", len(previewAccounts), previewTTL)
 	}
 	if customDomainIP != "" {
-		h.startDomainChecks(domainCheckInterval)
-		log.Printf("custom-domain verification enabled: every %s, active re-proved after %s", domainCheckInterval, domainActiveAge)
+		h.startDomainChecks(domainCheckInterval())
+		log.Printf("custom-domain verification enabled: every %s, active re-proved after %s", domainCheckInterval(), domainActiveAge)
 	}
 	return h
 }
@@ -302,7 +299,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("PUT /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.updateSite)))))
 	// Delete, rename and restore each take per-site locks: rate-limited so a
 	// loop cannot pile up locks or disk moves.
-	siteOpLimiter := newRateLimiter(30, 0.5)
+	siteOpLimiter := newRateLimiterFor(config.Active().RateSiteOps)
 	siteOpLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	mux.Handle("DELETE /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.deleteSite)))))
 	mux.Handle("PATCH /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.patchSite)))))
@@ -333,7 +330,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// The same export behind a 10-minute signed link, for people with no API
 	// key (chat-app connector users): minted by the owner, opened by a click.
 	mux.Handle("POST /v1/sites/{sitename}/export-link", noticeMiddleware(authMiddleware(http.HandlerFunc(h.createExportLink))))
-	exportLimiter := newRateLimiter(10, 0.1)
+	exportLimiter := newRateLimiterFor(config.Active().RateExport)
 	exportLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	mux.Handle("GET /v1/export", rateLimitByIP(exportLimiter, http.HandlerFunc(h.downloadExport)))
 	mux.Handle("GET /v1/sites/{sitename}/versions", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listVersions))))
@@ -457,7 +454,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 
 	// Visitor session cookie is issued here (content host / custom domain),
 	// never on the apex OAuth callback.
-	visitorLimiter := newRateLimiter(20, 0.2)
+	visitorLimiter := newRateLimiterFor(config.Active().RateVisitor)
 	visitorLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	mux.Handle("GET /v1/visitor/establish", rateLimitByIP(visitorLimiter, http.HandlerFunc(h.establishVisitor)))
 	mux.Handle("POST /v1/visitor/logout", rateLimitByIP(visitorLimiter, http.HandlerFunc(h.logoutVisitor)))
@@ -1129,8 +1126,8 @@ func (h *SiteHandler) createSite(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
 		}
-		if existing >= maxSitesPerUser {
-			writeJSON(w, http.StatusForbidden, errorResponse{Error: "site quota reached (sites in Recently deleted count until they are removed)", Code: "site_quota_reached"})
+		if existing >= maxSitesPerUser() {
+			writeJSON(w, http.StatusForbidden, errorResponse{Error: fmt.Sprintf("site quota reached: an account holds at most %d sites (sites in Recently deleted count until they are removed)", maxSitesPerUser()), Code: "site_quota_reached"})
 			return
 		}
 	}
@@ -1531,8 +1528,8 @@ func (h *SiteHandler) createSiteFiles(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
 		}
-		if existing >= maxSitesPerUser {
-			writeJSON(w, http.StatusForbidden, errorResponse{Error: "site quota reached (sites in Recently deleted count until they are removed)", Code: "site_quota_reached"})
+		if existing >= maxSitesPerUser() {
+			writeJSON(w, http.StatusForbidden, errorResponse{Error: fmt.Sprintf("site quota reached: an account holds at most %d sites (sites in Recently deleted count until they are removed)", maxSitesPerUser()), Code: "site_quota_reached"})
 			return
 		}
 	}
@@ -1818,7 +1815,7 @@ func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 		if f, ok := flags[site.ID]; ok {
 			resp.Keep = f.Keep
 			if f.WarnedAt.Valid && !f.Keep {
-				t := f.WarnedAt.Time.Add(idleGrace).UTC()
+				t := f.WarnedAt.Time.Add(idleGrace()).UTC()
 				resp.IdleRemovalAt = &t
 			}
 		}
@@ -2008,7 +2005,7 @@ func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
 		// A binding whose DNS already points here (certificate past
 		// "pending") does not lapse while it waits.
 		if site.DomainBoundAt.Valid && !site.DomainVerifiedAt.Valid && (site.DomainCertStatus == "" || site.DomainCertStatus == "pending") {
-			t := site.DomainBoundAt.Time.Add(24 * time.Hour)
+			t := site.DomainBoundAt.Time.Add(db.UnprovenDomainTTL())
 			resp.DomainExpiresAt = &t
 		}
 	}

@@ -15,8 +15,9 @@ import (
 // only ones that see deleted rows. PurgeDeletedSite removes one for good once
 // DeletedSiteRetention has passed.
 
-// DeletedSiteRetention is how long a deleted site can be restored.
-const DeletedSiteRetention = 7 * 24 * time.Hour
+// DeletedSiteRetention is how long a deleted site can be restored
+// (DELETED_RETENTION_DAYS).
+func DeletedSiteRetention() time.Duration { return lim().DeletedRetention }
 
 // DeletedSite is one site in an account's Recently deleted list.
 type DeletedSite struct {
@@ -28,7 +29,7 @@ type DeletedSite struct {
 }
 
 // PurgeAt is when the site is removed for good.
-func (d DeletedSite) PurgeAt() time.Time { return d.DeletedAt.Add(DeletedSiteRetention) }
+func (d DeletedSite) PurgeAt() time.Time { return d.DeletedAt.Add(DeletedSiteRetention()) }
 
 // MarkSiteDeleted moves a live site to Recently deleted. sql.ErrNoRows when
 // there is no live site with that id. An emailed idle-cleanup link ("Keep
@@ -104,7 +105,7 @@ const notTakenDown = `suspended_at IS NULL
 func ListPurgeableSites(ctx context.Context, database *sql.DB) ([]DeletedSite, error) {
 	return queryDeletedSites(ctx, database,
 		`SELECT `+deletedSiteCols+` FROM sites WHERE deleted_at IS NOT NULL AND deleted_at < now() - ($1 * interval '1 second') AND `+notTakenDown+` ORDER BY deleted_at LIMIT 500`,
-		int64(DeletedSiteRetention.Seconds()))
+		int64(DeletedSiteRetention().Seconds()))
 }
 
 func queryDeletedSites(ctx context.Context, database *sql.DB, query string, args ...any) ([]DeletedSite, error) {
@@ -137,7 +138,7 @@ func PurgeDeletedSite(ctx context.Context, database *sql.DB, siteID string) ([]s
 	defer tx.Rollback()
 	var id string
 	err = tx.QueryRowContext(ctx, `SELECT id FROM sites WHERE id = $1 AND deleted_at IS NOT NULL
-		AND deleted_at < now() - ($2 * interval '1 second') AND `+notTakenDown+` FOR UPDATE`, siteID, int64(DeletedSiteRetention.Seconds())).Scan(&id)
+		AND deleted_at < now() - ($2 * interval '1 second') AND `+notTakenDown+` FOR UPDATE`, siteID, int64(DeletedSiteRetention().Seconds())).Scan(&id)
 	if err != nil {
 		return nil, err
 	}

@@ -254,8 +254,8 @@ extra step: it starts once the domain is live and stops on disconnect.
 
 ### If a working domain stops working
 The server keeps re-checking a live domain. If it fails every check for a day (the domain
-lapsed at the registrar, or its DNS was moved), the owner gets an email with the reason. After
-three days the domain is disconnected: the site serves at
+lapsed at the registrar, or its DNS was moved), the owner gets an email with the reason.
+After three days the domain is disconnected: the site serves at
 `https://<site>.<handle>.simple-host.app/` again, and whoever holds the domain now can connect
 it (with its own TXT ownership record). Fixing the DNS before then brings it straight back;
 after, bind it again and add the TXT record again if it was removed.

@@ -133,8 +133,17 @@ type chromeCacheKey struct {
 // a handful of chromeData values.
 var chromeCache sync.Map
 
-// chromePage returns the embedded static/<name> with its chrome filled in.
+// chromePage returns the embedded static/<name> with its chrome filled in and
+// this install's limits in its copy (limitstext.go).
 func chromePage(name string, d chromeData) ([]byte, error) {
+	page, err := chromePageRaw(name, d)
+	if err != nil {
+		return nil, err
+	}
+	return instanceLimits.apply(page), nil
+}
+
+func chromePageRaw(name string, d chromeData) ([]byte, error) {
 	key := chromeCacheKey{name, d}
 	if v, ok := chromeCache.Load(key); ok {
 		return v.([]byte), nil

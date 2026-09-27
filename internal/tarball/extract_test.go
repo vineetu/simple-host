@@ -179,8 +179,7 @@ func itoa(i int) string {
 
 func restoreLimits(t *testing.T) {
 	t.Helper()
-	total, file, entries := maxTotalUncompressedSize, maxFileSize, maxEntryCount
-	t.Cleanup(func() { maxTotalUncompressedSize, maxFileSize, maxEntryCount = total, file, entries })
+	t.Cleanup(SnapshotLimits())
 }
 
 func TestSetSiteLimitMovesEveryCapTogether(t *testing.T) {
@@ -236,5 +235,27 @@ func TestSiteLimitIsActuallyEnforcedOnExtraction(t *testing.T) {
 	archive := makeTarGz(t, []tarEntry{{name: "index.html", content: bytes.Repeat([]byte("A"), (1<<20)+1)}})
 	if _, err := Extract(bytes.NewReader(archive), "site.tar.gz"); err == nil {
 		t.Fatal("a 1 MB instance accepted a site over 1 MB")
+	}
+}
+
+// MAX_FILES_PER_SITE sets the ceiling; a per-site byte budget still lowers it,
+// in either order of setting.
+func TestSetMaxEntries(t *testing.T) {
+	restoreLimits(t)
+	SetMaxEntries(120_000)
+	if MaxEntries() != 120_000 {
+		t.Errorf("MaxEntries() = %d, want 120000", MaxEntries())
+	}
+	SetSiteLimit(100 << 20) // 25,600 blocks
+	if MaxEntries() != 25_600 {
+		t.Errorf("after a 100 MB budget MaxEntries() = %d, want 25600", MaxEntries())
+	}
+	SetMaxEntries(1_000)
+	if MaxEntries() != 1_000 {
+		t.Errorf("a lower ceiling after the budget: MaxEntries() = %d, want 1000", MaxEntries())
+	}
+	SetMaxEntries(0) // ignored
+	if MaxEntries() != 1_000 {
+		t.Errorf("SetMaxEntries(0) changed the cap to %d", MaxEntries())
 	}
 }

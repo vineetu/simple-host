@@ -370,7 +370,7 @@ func TestDeletedSitesCountTowardQuota(t *testing.T) {
 	olive := a.newPerson(t, "olive")
 	uid, _ := a.userID(t, olive)
 	if _, err := a.database.Exec(`INSERT INTO sites (user_id, name, deleted_at)
-		SELECT $1, 'gone-' || g, now() FROM generate_series(1, $2) g`, uid, maxSitesPerUser); err != nil {
+		SELECT $1, 'gone-' || g, now() FROM generate_series(1, $2) g`, uid, maxSitesPerUser()); err != nil {
 		t.Fatal(err)
 	}
 	r := a.at(t, "POST", "simple-host.test", "/v1/sites/fresh/files",

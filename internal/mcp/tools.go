@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -512,7 +513,7 @@ func domainSummary(site string, body []byte) map[string]any {
 		out["url"] = "https://" + *d.Domain + "/"
 	}
 	if d.Status != nil && *d.Status == "pending" {
-		out["note"] = "Add both DNS records at the domain's registrar within 24 hours: dns_record points the domain here, and ownership_record (a TXT record) proves it is the person's; keep the TXT record in place afterwards. Until both are seen, the binding is provisional. Then the certificate is issued automatically and the domain goes live within minutes."
+		out["note"] = "Add both DNS records at the domain's registrar within " + span(lim().DomainUnprovenTTL) + ": dns_record points the domain here, and ownership_record (a TXT record) proves it is the person's; keep the TXT record in place afterwards. Until both are seen, the binding is provisional. Then the certificate is issued automatically and the domain goes live within minutes."
 		if _, ok := out["partner"]; ok {
 			out["note"] = out["note"].(string) + " Also add partner.dns_record so " + d.PartnerDomain + " forwards to " + *d.Domain + " (the one ownership record covers both)."
 		}
@@ -756,7 +757,7 @@ func Tools() []Tool {
 			Title: "Publish a new version of a site",
 			Description: "Replace the live files of an EXISTING site with a new version, at its public address. The files you send are the COMPLETE new version: anything not included stops being served, so to change one page read the others with read_site_file and send them all again. " +
 				"`index.html` is required; use relative links only. The previous version is kept and can be made live again with rollback_site. Fails if there is no site of that name (use create_site). " +
-				"With `publish: false` the new version is only stored, not made live: visitors keep seeing the current one, and the answer carries a preview link (anyone with it can open it, for one hour) to look at it first; make it live with rollback_site when the person is happy.",
+				"With `publish: false` the new version is only stored, not made live: visitors keep seeing the current one, and the answer carries a preview link (anyone with it can open it, for " + span(lim().PreviewLinkTTL) + ") to look at it first; make it live with rollback_site when the person is happy.",
 			InputSchema: object(map[string]any{
 				"site":         str(siteDesc),
 				"files":        filesSchema(),
@@ -841,7 +842,7 @@ func Tools() []Tool {
 			Name:  "preview_version",
 			Title: "Preview a version before it is live",
 			Description: "Make a preview link for one of a site's kept versions (from list_versions): the person opens it in their browser to see that version exactly as visitors would, before making it live with rollback_site. " +
-				"The link works for anyone who has it, for one hour and only for that version; pages opened from it cannot save anything, and search engines do not index it. Give it to the person to click; do not post it anywhere public.",
+				"The link works for anyone who has it, for " + span(lim().PreviewLinkTTL) + " and only for that version; pages opened from it cannot save anything, and search engines do not index it. Give it to the person to click; do not post it anywhere public.",
 			InputSchema: object(map[string]any{
 				"site":    str(siteDesc),
 				"version": map[string]any{"type": "integer", "description": "The version number to preview, from list_versions."},
@@ -881,7 +882,7 @@ func Tools() []Tool {
 		{
 			Name:  "delete_site",
 			Title: "Delete a site",
-			Description: "DESTRUCTIVE: takes the site offline at once, with every version and all of its saved data (state and collections). It stays in Recently deleted for 7 days, where restore_site brings it back exactly as it was; after that it is gone for good. Its name stays taken until then. " +
+			Description: "DESTRUCTIVE: takes the site offline at once, with every version and all of its saved data (state and collections). It stays in Recently deleted for " + span(lim().DeletedRetention) + ", where restore_site brings it back exactly as it was; after that it is gone for good. Its name stays taken until then. " +
 				"Only call this after the person has explicitly confirmed, in this conversation, that they want this specific site deleted. Pass the site name twice: as `site` and as `confirm_name`.",
 			InputSchema: object(map[string]any{
 				"site":         str(siteDesc),
@@ -906,13 +907,13 @@ func Tools() []Tool {
 				if !res.ok() {
 					return output{}, restError("delete_site", res)
 				}
-				return output{Text: "Deleted " + name + ". It is offline now and stays in Recently deleted for 7 days; restore_site brings it back with all its versions and data.", Structured: map[string]any{"deleted": name, "restorable_days": 7}}, nil
+				return output{Text: "Deleted " + name + ". It is offline now and stays in Recently deleted for " + span(lim().DeletedRetention) + "; restore_site brings it back with all its versions and data.", Structured: map[string]any{"deleted": name, "restorable_days": int(lim().DeletedRetention / (24 * time.Hour))}}, nil
 			},
 		},
 		{
 			Name:        "list_deleted_sites",
 			Title:       "List recently deleted sites",
-			Description: "List the account's sites in Recently deleted: each was deleted within the last 7 days and can be brought back with restore_site until its purge_at time, when it is removed for good.",
+			Description: "List the account's sites in Recently deleted: each was deleted within the last " + span(lim().DeletedRetention) + " and can be brought back with restore_site until its purge_at time, when it is removed for good.",
 			InputSchema: noArgs(),
 			Annotations: readOnly(),
 			run: func(c *call, _ map[string]any) (output, error) {
@@ -1059,7 +1060,7 @@ func Tools() []Tool {
 		{
 			Name:  "keep_site",
 			Title: "Keep a site up for good",
-			Description: "Mark a site Keep (or clear the mark). Simple Host emails the owner about a site nobody has visited or updated for 90 days and moves it to Recently deleted 30 days later unless it is kept; a site marked Keep is never flagged. " +
+			Description: "Mark a site Keep (or clear the mark). Simple Host emails the owner about a site nobody has visited or updated for " + span(lim().IdleAfter) + " and moves it to Recently deleted " + span(lim().IdleGrace) + " later unless it is kept; a site marked Keep is never flagged. " +
 				"Sites with their own domain or claimed name are never flagged either.",
 			InputSchema: object(map[string]any{
 				"site": str(siteDesc),
@@ -1087,7 +1088,7 @@ func Tools() []Tool {
 				}
 				text := name + " is marked Keep: it stays up even if nobody visits it."
 				if !keep {
-					text = name + " is no longer marked Keep: if nobody visits or updates it for 90 days, its owner is emailed before anything happens."
+					text = name + " is no longer marked Keep: if nobody visits or updates it for " + span(lim().IdleAfter) + ", its owner is emailed before anything happens."
 				}
 				return output{Text: text, Structured: map[string]any{"site": name, "keep": keep}}, nil
 			},
@@ -1636,7 +1637,7 @@ func Tools() []Tool {
 			Name:  "export_site",
 			Title: "Download a copy of a site",
 			Description: "Make a download link for a copy of one of the person's sites: a .tar.gz holding its live files, its saved state (state.json) " +
-				"and every collection's items (collections.json, private lists included). The link works for 10 minutes and only for that site; " +
+				"and every collection's items (collections.json, private lists included). The link works for " + span(lim().ExportLinkTTL) + " and only for that site; " +
 				"give it to the person to click, and make a new one if it has expired. Do not post it anywhere public: until it expires, anyone with it can download the copy.",
 			InputSchema: object(map[string]any{"site": str(siteDesc)}, "site"),
 			// Not read-only: each call mints a new bearer download link on the server.
@@ -1773,7 +1774,7 @@ func deploySite(c *call, args map[string]any, mode string) (output, error) {
 		text := fmt.Sprintf("Stored %s version %d without making it live; visitors still see version %d at %s.", name, stored.Version, site.ActiveVersion, site.liveURL())
 		if stored.PreviewURL != "" {
 			out["preview_url"] = stored.PreviewURL
-			text += " Preview it (the link works for anyone who has it, for one hour): " + stored.PreviewURL
+			text += " Preview it (the link works for anyone who has it, for " + span(lim().PreviewLinkTTL) + "): " + stored.PreviewURL
 		}
 		text += fmt.Sprintf("\nWhen the person is happy, rollback_site with version %d makes it live.", stored.Version)
 		return output{Text: text, Structured: out}, nil

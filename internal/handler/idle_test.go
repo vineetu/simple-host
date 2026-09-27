@@ -263,7 +263,7 @@ func TestIdleCleanupHardening(t *testing.T) {
 	}
 	mine := func() map[string]db.IdleSite {
 		t.Helper()
-		list, err := db.ListIdleSitesToWarn(ctx, a.database, a.sites.idleExempt, time.Now().Add(-idleAfter), 0)
+		list, err := db.ListIdleSitesToWarn(ctx, a.database, a.sites.idleExempt, time.Now().Add(-idleAfter()), 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -325,7 +325,7 @@ func TestIdleCleanupHardening(t *testing.T) {
 		t.Fatalf("no keep link: %v", m.sent)
 	}
 	exec(`UPDATE sites SET idle_warned_at = now() - interval '31 days' WHERE id = $1`, plain)
-	remove, err := db.ListIdleSitesToRemove(ctx, a.database, a.sites.idleExempt, time.Now().Add(-idleGrace), 0)
+	remove, err := db.ListIdleSitesToRemove(ctx, a.database, a.sites.idleExempt, time.Now().Add(-idleGrace()), 0)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -78,7 +78,7 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// rewriting. On simple-host.app the file server keeps serving them exactly
 	// as before, down to Last-Modified and Content-Type, so production is
 	// untouched rather than merely equivalent.
-	if instanceHosts != nil {
+	if assetsRewritten() {
 		for _, name := range rewrittenAssets {
 			mux.Handle("GET /"+name, serveRewrittenAsset(name, instanceHosts, skillsModTime))
 		}
@@ -152,7 +152,7 @@ func (f handlerOnlyFS) Open(name string) (fs.File, error) {
 	// Hidden only when a handler has actually taken over, so the canonical
 	// instance still serves them straight off the embedded FS. The chrome
 	// partials are fragments for chrome.go, never pages in their own right.
-	if handlerOnlyPages[name] || name == "partials" || strings.HasPrefix(name, "partials/") || (instanceHosts != nil && slices.Contains(rewrittenAssets, name)) {
+	if handlerOnlyPages[name] || name == "partials" || strings.HasPrefix(name, "partials/") || (assetsRewritten() && slices.Contains(rewrittenAssets, name)) {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 	}
 	return f.FS.Open(name)
@@ -274,7 +274,7 @@ func serveSkillMarkdown(skillName string) http.HandlerFunc {
 		}
 		// A skill tells an agent which host to publish to. On a non-canonical
 		// instance that must be this one, or the agent deploys elsewhere.
-		data = instanceHosts.apply(data)
+		data = rewriteServedText(data)
 
 		filename := skillName + "-SKILL.md"
 		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
@@ -550,7 +550,8 @@ func buildPluginZip() ([]byte, error) {
 	return pluginZipBytes, pluginZipErr
 }
 
-// copyRewritten writes src into dst with this instance's hostnames substituted.
+// copyRewritten writes src into dst with this instance's hostnames and limits
+// substituted.
 //
 // The skills are text, and small: reading one fully is cheaper than the
 // alternative of streaming and rewriting across chunk boundaries, where a
@@ -560,21 +561,24 @@ func copyRewritten(dst io.Writer, src io.Reader, skipRewrite bool) error {
 	if err != nil {
 		return err
 	}
-	// Never rewrite the hackathon skill. Its /v1/events calls are deliberately
-	// aimed at the PUBLIC instance, which is the only place that endpoint
-	// exists. Rewriting them to the event's own host would make an agent claim
-	// and release names against a box that answers 404, so teardown would
-	// silently leave live records in our zone.
-	if skipRewrite {
-		_, err = dst.Write(data)
-		return err
-	}
 	// Only rewrite text. Every file in the skills tree is markdown or JSON
 	// today, but a substitution over a future binary asset would corrupt it
 	// silently, and a corrupted file in a downloaded zip is very hard to trace
 	// back to here.
 	if utf8.Valid(data) && !bytes.ContainsRune(data, 0) {
-		data = instanceHosts.apply(data)
+		// Never rewrite the hostnames in the hackathon skill. Its /v1/events
+		// calls are deliberately aimed at the PUBLIC instance, which is the
+		// only place that endpoint exists. Rewriting them to the event's own
+		// host would make an agent claim and release names against a box that
+		// answers 404, so teardown would silently leave live records in our
+		// zone.
+		if !skipRewrite {
+			data = instanceHosts.apply(data)
+		}
+		// The limits are rewritten in every skill: a control-plane skill
+		// states the limits of the instance that serves its endpoints, which
+		// is this one wherever that skill's endpoints are switched on.
+		data = instanceLimits.apply(data)
 	}
 	_, err = dst.Write(data)
 	return err

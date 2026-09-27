@@ -49,8 +49,8 @@ func CountEmailChangeAttempt(ctx context.Context, q Querier, userID string) erro
 }
 
 // EmailChangeUndoTTL is how long the undo link in the old address's notice
-// works.
-const EmailChangeUndoTTL = 7 * 24 * time.Hour
+// works (EMAIL_CHANGE_UNDO_DAYS).
+func EmailChangeUndoTTL() time.Duration { return lim().EmailChangeUndoTTL }
 
 // ApplyEmailChange moves the account to newEmail inside tx and:
 //   - drops the pending change;
@@ -77,7 +77,7 @@ func ApplyEmailChange(ctx context.Context, tx *sql.Tx, userID, oldEmail, newEmai
 		{`DELETE FROM email_changes WHERE user_id = $1`, []any{userID}},
 		{`DELETE FROM api_keys WHERE user_id = $1 AND key_hash <> $2`, []any{userID, keepKeyHash}},
 		{`INSERT INTO email_change_undos (token_hash, user_id, old_email, new_email, expires_at)
-		  VALUES ($1, $2, $3, $4, now() + ($5 * interval '1 second'))`, []any{undoHash, userID, oldEmail, newEmail, int64(EmailChangeUndoTTL.Seconds())}},
+		  VALUES ($1, $2, $3, $4, now() + ($5 * interval '1 second'))`, []any{undoHash, userID, oldEmail, newEmail, int64(EmailChangeUndoTTL().Seconds())}},
 	}
 	for _, st := range steps {
 		if _, err := tx.ExecContext(ctx, st.q, st.args...); err != nil {

@@ -56,7 +56,7 @@ func issueEmailCode(ctx context.Context, database *sql.DB, mailer email.Sender, 
 		return "", 0, http.StatusInternalServerError, errorResponse{Error: "internal server error"}
 	}
 
-	expiresAt := time.Now().Add(authTokenTTL)
+	expiresAt := time.Now().Add(authTokenTTL())
 	if purpose != "dashboard" {
 		nonceHash = sql.NullString{}
 	}
@@ -76,7 +76,7 @@ func issueEmailCode(ctx context.Context, database *sql.DB, mailer email.Sender, 
 		return "", 0, http.StatusInternalServerError, errorResponse{Error: "could not send verification email"}
 	}
 
-	return address, int(authTokenTTL.Seconds()), 0, errorResponse{}
+	return address, int(authTokenTTL().Seconds()), 0, errorResponse{}
 }
 
 // verifyEmailCode shares token verification and lazy account creation. Only the

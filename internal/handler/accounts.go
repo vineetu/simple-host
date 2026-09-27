@@ -283,10 +283,6 @@ func (h *SiteHandler) reissueAccountKey(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-// handleRenameEvery: after publishing, an account may move to a new handle
-// once in this long. Changes before anything is published are free.
-const handleRenameEvery = 30 * 24 * time.Hour
-
 func (h *SiteHandler) patchMe(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -336,13 +332,13 @@ func (h *SiteHandler) patchMe(w http.ResponseWriter, r *http.Request) {
 			// Owner decision 2026-09-27: the handle can change after
 			// publishing; old links redirect through the alias. Once per
 			// handleRenameEvery, so an address cannot be churned.
-			limited, last, rerr := db.HandleRenamedSince(r.Context(), tx, user.ID, time.Now().Add(-handleRenameEvery))
+			limited, last, rerr := db.HandleRenamedSince(r.Context(), tx, user.ID, time.Now().Add(-handleRenameEvery()))
 			if rerr != nil {
 				writeJSON(w, 500, errorResponse{Error: "internal server error"})
 				return
 			}
 			if limited {
-				next := last.Add(handleRenameEvery).UTC()
+				next := last.Add(handleRenameEvery()).UTC()
 				w.Header().Set("Retry-After", strconv.Itoa(int(time.Until(next).Seconds())+1))
 				writeJSON(w, http.StatusTooManyRequests, map[string]any{
 					"error":             "you changed your address recently; you can change it again after " + next.Format("2 Jan 2006"),

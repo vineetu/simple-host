@@ -135,7 +135,7 @@ func (h *UserHandler) createKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if errors.Is(err, db.ErrKeyLimit) {
-		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("this account already holds %d keys; revoke ones you no longer use first", db.MaxAccountKeys), Code: "key_limit"})
+		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("this account already holds %d keys; revoke ones you no longer use first", db.MaxAccountKeys()), Code: "key_limit"})
 		return
 	}
 	if err != nil {

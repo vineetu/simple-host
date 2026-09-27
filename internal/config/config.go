@@ -225,6 +225,10 @@ type Config struct {
 	// consent page. Both or neither; see internal/handler/reviewer.go.
 	ReviewAccountEmail        string
 	ReviewAccountPasswordHash string
+
+	// Limits is every operational time and limit (limits.go,
+	// docs/configuration.md). main installs it with SetActive.
+	Limits Limits
 }
 
 func Load() (Config, error) {
@@ -373,6 +377,12 @@ func Load() (Config, error) {
 			cfg.PreviewTTL = time.Duration(n) * time.Hour
 		}
 	}
+
+	limits, err := limitsFromEnv()
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.Limits = limits
 
 	if cfg.DBDSN == "" {
 		return Config{}, errors.New("DB_DSN is required")

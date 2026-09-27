@@ -176,15 +176,16 @@ func GetVisitorSession(ctx context.Context, q Querier, id []byte) (VisitorSessio
 	return s, err
 }
 
-// TouchVisitorSession slides idle_expires_at to min(now+14d, expires_at).
+// TouchVisitorSession slides idle_expires_at to min(now + the idle expiry
+// (VISITOR_SESSION_IDLE_DAYS), expires_at).
 func TouchVisitorSession(ctx context.Context, q Querier, id []byte) error {
 	_, err := q.ExecContext(ctx, `
 		UPDATE visitor_sessions
 		SET last_seen_at = now(),
-		    idle_expires_at = LEAST(now() + interval '14 days', expires_at)
+		    idle_expires_at = LEAST(now() + ($2 * interval '1 second'), expires_at)
 		WHERE id = $1
 		  AND expires_at > now()
-		  AND idle_expires_at > now()`, id)
+		  AND idle_expires_at > now()`, id, int64(lim().VisitorSessionIdle.Seconds()))
 	return err
 }
 
