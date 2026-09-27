@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -26,8 +28,10 @@ func normalizeKeyName(name string) (string, error) {
 	if utf8.RuneCountInString(name) > maxKeyNameLen {
 		return "", errors.New("name must be at most 60 characters")
 	}
-	if strings.IndexFunc(name, unicode.IsControl) >= 0 {
-		return "", errors.New("name must not contain control characters")
+	// Cf covers zero-width and bidi overrides (U+200B, U+202E), which make a
+	// name read differently from what it is.
+	if strings.IndexFunc(name, func(r rune) bool { return unicode.IsControl(r) || unicode.Is(unicode.Cf, r) }) >= 0 {
+		return "", errors.New("name must not contain control or invisible formatting characters")
 	}
 	return name, nil
 }
@@ -124,7 +128,16 @@ func (h *UserHandler) createKey(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	k, err := db.CreateAPIKey(r.Context(), h.database, user.ID, plain, name)
+	k, err := db.CreateAPIKey(r.Context(), h.database, user.ID, user.KeyHash, plain, name)
+	if errors.Is(err, sql.ErrNoRows) {
+		// The key this request came with was revoked or rotated away meanwhile.
+		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "invalid API key: the X-API-Key you sent is not recognized (it may have been revoked, or the account signed out). Sign in again via POST /v1/auth for a new key.", Code: "invalid_api_key"})
+		return
+	}
+	if errors.Is(err, db.ErrKeyLimit) {
+		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("this account already holds %d keys; revoke ones you no longer use first", db.MaxAccountKeys), Code: "key_limit"})
+		return
+	}
 	if err != nil {
 		log.Printf("create key user_id=%s: %v", user.ID, err)
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})

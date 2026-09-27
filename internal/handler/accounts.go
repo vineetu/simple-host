@@ -274,6 +274,7 @@ func (h *SiteHandler) reissueAccountKey(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, 500, errorResponse{Error: "internal server error"})
 		return
 	}
+	log.Printf("admin_key_reissue user_id=%s by=%s", id, auth.GetUser(r.Context()).ID)
 	writeJSON(w, http.StatusOK, map[string]string{
 		"id": id, "username": username, "handle": handle.String, "api_key": key,
 		"message": "Every earlier key for this account stopped working. Hand this one over now; it is not shown again.",

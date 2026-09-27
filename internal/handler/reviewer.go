@@ -208,7 +208,11 @@ func (h *ConnectorHandler) reviewerSignInHandler(w http.ResponseWriter, r *http.
 	// the reviewer's earlier keys keep working.
 	key, err := auth.GenerateAPIKey()
 	if err == nil {
-		err = db.AddAPIKey(r.Context(), h.database, user.ID, key, db.KeyNameReviewer)
+		err = db.AddSignInKey(r.Context(), h.database, user.ID, key, db.KeyNameReviewer)
+	}
+	if errors.Is(err, db.ErrAccountSuspended) {
+		writeAccountSuspended(w)
+		return
 	}
 	if err != nil {
 		log.Printf("connector: reviewer key: %v", err)

@@ -1,9 +1,15 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"errors"
+	"io"
+	"log"
 	"net/http"
+	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -50,6 +56,12 @@ func TestKeysListCreateRevokeSignOut(t *testing.T) {
 	}
 	if r := a.do(t, http.MethodPost, "/v1/me/keys", jsonBody(map[string]string{"name": strings.Repeat("x", 61)}), h(p.key)); r.status != http.StatusBadRequest {
 		t.Fatalf("over-long name: %d", r.status)
+	}
+	// Zero-width and bidi-override characters (Unicode Cf) are refused too.
+	for _, bad := range []string{"CI\u200bkey", "laptop\u202etxt.exe"} {
+		if r := a.do(t, http.MethodPost, "/v1/me/keys", jsonBody(map[string]string{"name": bad}), h(p.key)); r.status != http.StatusBadRequest {
+			t.Fatalf("name %q: %d %s", bad, r.status, r.body)
+		}
 	}
 	r := a.do(t, http.MethodPost, "/v1/me/keys", jsonBody(map[string]string{"name": "GitHub Actions"}), h(p.key))
 	if r.status != http.StatusCreated {
@@ -179,9 +191,16 @@ func TestAdminReissuesKey(t *testing.T) {
 	if r := reissue(adminID, a.admin); r.status != http.StatusBadRequest {
 		t.Fatalf("admin account reissue: %d", r.status)
 	}
+	var logged bytes.Buffer
+	log.SetOutput(io.MultiWriter(&logged, os.Stderr))
 	r := reissue(id, a.admin)
+	log.SetOutput(os.Stderr)
 	if r.status != http.StatusOK {
 		t.Fatalf("reissue: %d %s", r.status, r.body)
+	}
+	// The reissue is logged with the account and the admin who did it.
+	if !regexp.MustCompile(`admin_key_reissue user_id=` + id + ` by=\S+`).Match(logged.Bytes()) {
+		t.Fatalf("reissue not logged: %q", logged.String())
 	}
 	fresh, _ := r.json(t)["api_key"].(string)
 	if a.do(t, http.MethodGet, "/v1/me", nil, map[string]string{"X-API-Key": p.key}).status != http.StatusUnauthorized {
@@ -190,5 +209,79 @@ func TestAdminReissuesKey(t *testing.T) {
 	ks := keysOf(t, a, fresh)
 	if len(ks) != 1 || ks[0]["name"] != db.KeyNameEvent || ks[0]["current"] != true {
 		t.Fatalf("after reissue: %v", ks)
+	}
+}
+
+// An account mints at most db.MaxAccountKeys keys from the Keys panel; the
+// next one is 409 key_limit, and revoking one makes room again.
+func TestCreateKeyLimit(t *testing.T) {
+	a := newConnectorApp(t)
+	p := a.newPerson(t, "many-keys")
+	h := map[string]string{"X-API-Key": p.key, "Content-Type": "application/json"}
+	for i := len(keysOf(t, a, p.key)); i < db.MaxAccountKeys; i++ {
+		if r := a.do(t, http.MethodPost, "/v1/me/keys", jsonBody(map[string]string{"name": "k"}), h); r.status != http.StatusCreated {
+			t.Fatalf("key %d: %d %s", i, r.status, r.body)
+		}
+	}
+	r := a.do(t, http.MethodPost, "/v1/me/keys", jsonBody(map[string]string{"name": "one too many"}), h)
+	if r.status != http.StatusConflict || r.json(t)["code"] != "key_limit" {
+		t.Fatalf("over the limit: %d %s", r.status, r.body)
+	}
+	ks := keysOf(t, a, p.key)
+	if len(ks) != db.MaxAccountKeys {
+		t.Fatalf("keys held: %d", len(ks))
+	}
+	id, _ := ks[0]["id"].(string)
+	if r := a.do(t, http.MethodDelete, "/v1/me/keys/"+id, nil, h); r.status != http.StatusNoContent {
+		t.Fatalf("revoke: %d", r.status)
+	}
+	if r := a.do(t, http.MethodPost, "/v1/me/keys", jsonBody(map[string]string{"name": "room again"}), h); r.status != http.StatusCreated {
+		t.Fatalf("after revoke: %d %s", r.status, r.body)
+	}
+}
+
+// A key revoked while a mint made with it is in flight cannot mint a
+// successor: the mint waits on the revoke and then finds its key gone.
+func TestCreateKeyRacesRevoke(t *testing.T) {
+	a := newConnectorApp(t)
+	p := a.newPerson(t, "mint-race")
+	ctx := context.Background()
+	u, err := db.GetUserByAPIKey(ctx, a.database, p.key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx, err := a.database.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	if _, err := db.DeleteAPIKeyByHash(ctx, tx, u.ID, u.KeyHash); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		plain, _ := auth.GenerateAPIKey()
+		_, err := db.CreateAPIKey(ctx, a.database, u.ID, u.KeyHash, plain, "racer")
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("mint did not wait for the revoke: %v", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("mint after revoke: %v", err)
+	}
+	var n int
+	if err := a.database.QueryRow(`SELECT count(*) FROM api_keys WHERE user_id = $1`, u.ID).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("keys left: %d %v", n, err)
+	}
+	// Through the route, a revoked key is a 401 invalid_api_key.
+	r := a.do(t, http.MethodPost, "/v1/me/keys", jsonBody(map[string]string{"name": "late"}), map[string]string{"X-API-Key": p.key, "Content-Type": "application/json"})
+	if r.status != http.StatusUnauthorized || r.json(t)["code"] != "invalid_api_key" {
+		t.Fatalf("mint with revoked key: %d %s", r.status, r.body)
 	}
 }

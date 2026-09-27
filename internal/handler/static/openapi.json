@@ -1103,7 +1103,7 @@
       "post": {
         "operationId": "postMeKey",
         "summary": "Create a named API key",
-        "description": "Mints a new key with the given name (for a CI secret or another machine) and returns it once; it is stored only as a hash. Needs one of the account's own keys (the admin env key or a connected app gets 400 not_an_account_key).",
+        "description": "Mints a new key with the given name (for a CI secret or another machine) and returns it once; it is stored only as a hash. Needs one of the account's own keys (the admin env key or a connected app gets 400 not_an_account_key). An account holds at most 50 keys (409 key_limit); a key revoked or rotated away mid-request gets 401 invalid_api_key.",
         "tags": [
           "Auth"
         ],
@@ -1168,6 +1168,16 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "description": "The account already holds 50 keys (code key_limit); revoke one first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -5185,7 +5195,7 @@
       "delete": {
         "operationId": "deleteSitesBySitenameDomain",
         "summary": "Disconnect this site's domain or free address",
-        "description": "Disconnects the domain GET shows. If it was still pending and the site kept serving at an earlier address (`previous_domain`), that address becomes the site's domain again; otherwise the site is served at its own address. A disconnected free <name>.simple-host.app stays with the site and redirects to its current address; links to a disconnected custom domain stop working. Owner only (API key).",
+        "description": "Disconnects the domain GET shows. If it was still pending and the site kept serving at an earlier address (`previous_domain`), that address becomes the site's domain again; otherwise the site is served at its own address. A disconnected free <name>.simple-host.app stays with the site and redirects to its current address; links to a disconnected custom domain stop working. Owner only (API key). Pass `domain` (the address being disconnected, as GET showed it) so a domain changed in the meantime is never dropped by mistake.",
         "tags": [
           "Custom domains"
         ],
@@ -5197,6 +5207,15 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "name": "domain",
+            "in": "query",
+            "required": false,
+            "description": "The address you mean to disconnect. If the site's domain is something else by now, nothing changes and the answer is 409 `domain_changed`.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -5208,6 +5227,16 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "`domain_changed`: the site's domain is not the one named in `domain`; nothing was changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }

@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log"
 	"time"
 )
@@ -73,13 +74,71 @@ func ListAPIKeys(ctx context.Context, q *sql.DB, userID string) ([]APIKey, error
 	return out, rows.Err()
 }
 
-// CreateAPIKey stores a new key under name and returns its row.
-func CreateAPIKey(ctx context.Context, q Querier, userID, apiKey, name string) (APIKey, error) {
+// MaxAccountKeys caps how many keys one account may mint from the Keys panel
+// (POST /v1/me/keys). Sign-in keys are not refused by it.
+const MaxAccountKeys = 50
+
+// ErrKeyLimit: the account already holds MaxAccountKeys keys.
+var ErrKeyLimit = errors.New("account key limit reached")
+
+// CreateAPIKey stores a new key under name and returns its row, but only while
+// the key the request came with (callerKeyHash) is still one of the account's:
+// a key revoked or rotated away mid-request cannot mint a successor
+// (sql.ErrNoRows). The users row is locked first, the same lock rotate and the
+// admin reissue take, so a concurrent "revoke everything" cannot miss the new
+// key. ErrKeyLimit when the account already holds MaxAccountKeys keys.
+func CreateAPIKey(ctx context.Context, db *sql.DB, userID, callerKeyHash, apiKey, name string) (APIKey, error) {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return APIKey{}, err
+	}
+	defer tx.Rollback()
+	var one, n int
+	if err := tx.QueryRowContext(ctx, `SELECT 1 FROM users WHERE id = $1 FOR UPDATE`, userID).Scan(&one); err != nil {
+		return APIKey{}, err
+	}
+	if err := tx.QueryRowContext(ctx,
+		`SELECT 1 FROM api_keys WHERE key_hash = $1 AND user_id = $2 FOR UPDATE`,
+		callerKeyHash, userID).Scan(&one); err != nil {
+		return APIKey{}, err
+	}
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM api_keys WHERE user_id = $1`, userID).Scan(&n); err != nil {
+		return APIKey{}, err
+	}
+	if n >= MaxAccountKeys {
+		return APIKey{}, ErrKeyLimit
+	}
 	k := APIKey{Hash: HashAPIKey(apiKey), Name: name, Last4: keyLast4(apiKey)}
-	err := q.QueryRowContext(ctx, `
+	if err := tx.QueryRowContext(ctx, `
 		INSERT INTO api_keys (key_hash, user_id, name, last4) VALUES ($1, $2, $3, $4)
-		RETURNING id, created_at`, k.Hash, userID, name, k.Last4).Scan(&k.ID, &k.CreatedAt)
-	return k, err
+		RETURNING id, created_at`, k.Hash, userID, name, k.Last4).Scan(&k.ID, &k.CreatedAt); err != nil {
+		return APIKey{}, err
+	}
+	return k, tx.Commit()
+}
+
+// AddSignInKey is AddAPIKey for a sign-in: it locks the users row (the lock
+// rotate and the admin reissue take) and refuses a suspended account
+// (ErrAccountSuspended), so a suspension or a reissue that lands mid-sign-in
+// cannot be slipped past.
+func AddSignInKey(ctx context.Context, db *sql.DB, userID, apiKey, name string) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var suspended bool
+	if err := tx.QueryRowContext(ctx,
+		`SELECT suspended_at IS NOT NULL FROM users WHERE id = $1 FOR UPDATE`, userID).Scan(&suspended); err != nil {
+		return err
+	}
+	if suspended {
+		return ErrAccountSuspended
+	}
+	if err := AddAPIKey(ctx, tx, userID, apiKey, name); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // DeleteAPIKey revokes one of userID's keys by id. It reports false when the

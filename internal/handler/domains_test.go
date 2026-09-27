@@ -15,17 +15,22 @@ func TestDomainResponseDeadline(t *testing.T) {
 		name, status string
 		verified     bool
 		expires      string
+		cert         string
 	}{
-		{"unproven pending", "pending", false, "2026-09-07T12:00:00Z"},
-		{"unproven error", "error", false, ""},
-		{"verified pending", "pending", true, ""},
-		{"verified active", "active", true, ""},
-		{"previously verified error", "error", true, ""},
+		{"unproven pending", "pending", false, "2026-09-07T12:00:00Z", ""},
+		// Released after 24 h too while DNS never pointed here.
+		{"unproven error", "error", false, "2026-09-07T12:00:00Z", ""},
+		// DNS points here but the certificate keeps failing: a week.
+		{"unproven, certificate failing", "pending", false, "2026-09-13T12:00:00Z", "failed"},
+		{"verified pending", "pending", true, "", ""},
+		{"verified active", "active", true, "", ""},
+		{"previously verified error", "error", true, "", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			resp := domainResponse{Domain: "www.example.com", Status: tc.status}
 			setDomainTimes(&resp, db.SiteDomainInfo{
 				Status:     tc.status,
+				CertStatus: tc.cert,
 				BoundAt:    sql.NullTime{Time: bound, Valid: true},
 				VerifiedAt: sql.NullTime{Time: bound, Valid: tc.verified},
 			})

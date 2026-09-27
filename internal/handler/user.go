@@ -242,7 +242,14 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 	// keys from earlier sign-ins keep working until the person rotates.
 	apiKey, err := auth.GenerateAPIKey()
 	if err == nil {
-		err = db.AddAPIKey(r.Context(), h.database, user.ID, apiKey, keyName)
+		err = db.AddSignInKey(r.Context(), h.database, user.ID, apiKey, keyName)
+	}
+	if errors.Is(err, db.ErrAccountSuspended) {
+		// Suspended between the check above and the insert.
+		writeJSON(w, http.StatusForbidden, map[string]string{
+			"error": auth.SuspendedMessage(""), "code": "account_suspended", "reason": "",
+		})
+		return
 	}
 	if err != nil {
 		log.Printf("auth: issue key after verify: %v", err)

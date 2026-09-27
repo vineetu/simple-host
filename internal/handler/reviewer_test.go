@@ -219,3 +219,30 @@ func TestReviewerAccountMustNotBeAdmin(t *testing.T) {
 		t.Fatalf("admin reviewer account: %d %s", r.status, r.body)
 	}
 }
+
+// A suspended reviewer account gets no new key.
+func TestReviewerSignInSuspended(t *testing.T) {
+	a := newConnectorApp(t)
+	reviewer := "reviewer-susp-" + strconv.FormatInt(time.Now().UnixNano(), 36) + "@example.com"
+	t.Cleanup(func() { _, _ = a.database.Exec(`DELETE FROM users WHERE username = $1`, reviewer) })
+	encoded, _ := HashReviewerPassword(reviewerTestPassword)
+	a.conn.EnableReviewerSignIn(reviewer, encoded)
+	if r := a.reviewerSignIn(t, reviewer, reviewerTestPassword, nil); r.status != http.StatusOK {
+		t.Fatalf("first sign-in: %d %s", r.status, r.body)
+	}
+	var id string
+	if err := a.database.QueryRow(`SELECT id FROM users WHERE username = $1`, reviewer).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetUserSuspended(context.Background(), a.database, id, "test"); err != nil {
+		t.Fatal(err)
+	}
+	r := a.reviewerSignIn(t, reviewer, reviewerTestPassword, nil)
+	if r.status != http.StatusForbidden || r.json(t)["code"] != "account_suspended" || strings.Contains(string(r.body), "api_key") {
+		t.Fatalf("suspended reviewer sign-in: %d %s", r.status, r.body)
+	}
+	var n int
+	if err := a.database.QueryRow(`SELECT count(*) FROM api_keys WHERE user_id = $1`, id).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("keys after refused sign-in: %d %v", n, err)
+	}
+}
