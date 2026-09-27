@@ -1241,7 +1241,7 @@ func (h *SiteHandler) listData(w http.ResponseWriter, r *http.Request) {
 			"content_max_kb": h.savedData.ContentMaxKB, "entry_max_kb": h.savedData.EntryMaxKB,
 			"entries_max": h.savedData.EntriesMax, "content_names_max": h.savedData.ContentNamesMax,
 			"withdraw_undo_minutes": h.savedData.WithdrawUndoMinutes,
-			"personal_max_kb": h.savedData.PersonalMaxKB, "board_item_max_kb": h.savedData.BoardItemMaxKB,
+			"personal_max_kb":       h.savedData.PersonalMaxKB, "board_item_max_kb": h.savedData.BoardItemMaxKB,
 			"board_max": h.savedData.BoardMax,
 		},
 	})
