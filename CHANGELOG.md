@@ -5,6 +5,7 @@ One line per shipped change, newest first. Add a line here in the same commit as
 ## 2026-09-27
 
 - `analytics-rebuild` now replays the rotated archives too (`.N.gz` oldest first, then `.1`, then the live log; Caddy's `access-<time>.log.gz` rolls on self-hosted boxes), instead of wiping history back to the last rotation. `--dry-run` lists the files it would read.
+- Privacy: shortened API caller IPs are pruned at every start as well as every 6 hours, so frequent restarts no longer keep them past 30 days.
 - Privacy: raw server logs on simple-host.app are kept 30 days as the privacy page says: the analytics log keeps 29 archives (was 30), and the system journal is capped at 30 days (`deploy/prod/journald-retention.conf`).
 
 ## 2026-09-26

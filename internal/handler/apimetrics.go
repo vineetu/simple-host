@@ -149,6 +149,10 @@ func (m *APIMetrics) record(route string, status int, ip string) {
 }
 
 func (m *APIMetrics) flushLoop() {
+	// Prune once at startup too: the service can restart more often than every
+	// 6 hours, and a ticker alone would then never fire, keeping shortened IPs
+	// past the 30 days the privacy page promises.
+	m.pruneOld()
 	tick := time.NewTicker(20 * time.Second)
 	prune := time.NewTicker(6 * time.Hour)
 	for {
