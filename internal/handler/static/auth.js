@@ -27,7 +27,7 @@
  *   await me.inc('streak'); await me.patch([{op: 'append', path: 'days', value: '2026-09-27'}]);
  *   await me.clear(); me.history() / me.restore(changeId) -> their own earlier versions
  *   var todo = SH.data('todo', 'board');          (Shared board: everyone edits)
- *   await todo.add({text: 'milk'}); var r = await todo.list();  (r.items[i].version)
+ *   await todo.add({text: 'milk'}); var r = await todo.list();  (every item; r.items[i].version)
  *   await todo.update(id, {done: true}, {version: 3}); await todo.remove(id); todo.undo(id)
  *   var stop = todo.watch(function (items) { ... }, {every: 5000});  (polls; 304 when unchanged)
  * Older pages: await SH.state.patch([{op:"inc",path:"count",by:1}]) or
@@ -385,6 +385,24 @@
           throw e;
         });
       }
+      // Every page of a list (a Shared board holds more than one page): reads
+      // page after page by `next` until the end, each with its own ETag, and
+      // answers {items, next: null, pages} (pages: each page's answer, the same
+      // object again while it was unchanged).
+      function allPages(q) {
+        var items = [], pages = [];
+        function page(url, n) {
+          return cachedGet(url).then(function (r) {
+            pages.push(r);
+            items = items.concat((r && r.items) || []);
+            if (r && r.next != null && n < 100) {
+              return page(base + query(Object.assign({}, q, {limit: 200, before: r.next})), n + 1);
+            }
+            return {items: items, next: null, pages: pages};
+          });
+        }
+        return page(base + query(Object.assign({}, q, {limit: 200})), 1);
+      }
       function patch(ops) { return send(base, "PATCH", {ops: ops}).then(function (r) { return r.data; }); }
       return {
         // Page info: the document (null until the owner saves one). Personal:
@@ -414,14 +432,20 @@
           if (!/^[0-9]+$/.test(String(changeId))) return Promise.reject(new Error("restore(id): id is a change's number from history()"));
           return send(base + "/history/" + String(changeId) + "/restore", "POST", {}).then(function (r) { return r.data; });
         },
-        // Shared board: calls fn(items) now and whenever the board changes,
-        // checking every options.every ms (at least 2000). Returns stop().
+        // Shared board: calls fn(items) now and whenever the board changes
+        // (every item, however many pages), checking every options.every ms
+        // (at least 2000). Returns stop().
         watch: function (fn, options) {
           var every = Math.max(2000, (options && options.every) || 5000), last = null, timer = null, stopped = false;
+          function same(a, b) {
+            if (!a || a.length !== b.length) return false;
+            for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+            return true;
+          }
           function tick() {
-            cachedGet(base + "?limit=200").then(function (r) {
+            allPages().then(function (r) {
               if (stopped) return;
-              if (r !== last) { last = r; fn(r.items || [], r); }
+              if (!same(last, r.pages)) { last = r.pages; fn(r.items, r); }
             }, function () {}).then(function () { if (!stopped) timer = setTimeout(tick, every); });
           }
           check().then(tick, function (e) { if (options && options.onError) options.onError(e); });
@@ -433,7 +457,13 @@
           var extra = query(q);
           return check().then(function () { return request(base + "?mine=1" + (extra ? "&" + extra.slice(1) : "")); }).catch(explain);
         },
-        list: function (q) { return check().then(function () { return cachedGet(base + query(q)); }).catch(explain); },
+        // A Shared board with no paging asked for answers every item at once.
+        list: function (q) {
+          return check().then(function () {
+            if (want === "board" && !(q && (q.limit || q.before))) return allPages(q);
+            return cachedGet(base + query(q));
+          }).catch(explain);
+        },
         count: function () {
           return check().then(function () { return request(base + "?count=1"); }).then(function (r) { return r.count; }).catch(explain);
         },
