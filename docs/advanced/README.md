@@ -29,7 +29,8 @@ INSTALL.md says to leave as in the example (`PORT`, `HTTPS_REDIRECT_PORT`, `OIDC
 `SESSION_TTL`, `SESSION_IDLE`, `DB_SSLMODE`, `BACKUP_STORAGE_PREFIX`, `BACKUP_SSE`), and anything
 not listed keeps its default. The block for your AI agent ends with INSTALL.md's definition of
 done: HUMAN STEP D (a Full key) and `make smoke`, run with `CURL_CA_BUNDLE` naming the company
-CA when owner certificates come from an internal CA.
+CA when owner certificates come from an internal CA. What Enterprise costs to run on AWS, Azure
+or Google Cloud, for your number of people: https://simple-host.app/costs.
 
 ## Where to run a small box
 

@@ -686,6 +686,7 @@ Static audience pages shared as direct links. **Status: live.**
 | `GET /architecture.html` | `st/architecture.html` (file server) |
 | `GET /hackathons` | see §15 |
 | `GET /setup` | `st/setup-helper.html` + `st/setup/setup.js` (the setup helper, below); `GET /setup/{$}` redirects to it |
+| `GET /costs` | `st/costs.html` + `st/costs/calc.js`, `st/costs/costs.js`, `st/costs/prices.json` (the cost calculator, below) |
 
 Go: `h/ui.go`, `h/chrome.go`. Assets: `st/og.png`, `st/favicon.svg`, `st/site.css`.
 
@@ -764,6 +765,39 @@ Compose box passes through and the installer keeps are offered for a small box. 
 `enterprise-architecture.html` (`?product=enterprise`), "Run your own → Set up" on `features.html` and
 `architecture.html` (`?product=small-box`), both READMEs, both Ask assistants and `docs/advanced/`. **Status: built.**
 
+**Cost calculator (`/costs`).** What Simple Host Enterprise costs to run, for the companies it is sold to. Inputs: people
+who sign in, sites, a traffic level (Light 5 pages a person a working day of 0.5 MB, Typical 20 of 1 MB, Heavy 50 of 2 MB,
+Very heavy 150 of 3 MB, 21 working days; or Custom page views and MB per view), average site size, saved data per site,
+uploaded files; switches **We already have a Kubernetes cluster** (on: no control plane, only the pods' share of a node),
+**We already have an ingress and load balancer** (on: only the traffic it adds), **Traffic stays inside the company
+network** (on: billed at the provider's private-link rate, Direct Connect / ExpressRoute / Cloud Interconnect; off: internet
+rates with the free tiers, which a site-to-site VPN also pays) and **High availability** (a standby database; on a new
+cluster at least two nodes, three on Hetzner, and a control plane with an SLA); the first three default on. Output, per
+provider side by side: the monthly total, per person, a stacked bar by Cluster and nodes / Database / Storage / Traffic /
+Load balancer / Other, and the other view's total (new cluster or yours); AWS, Azure and Google Cloud first (AWS selected),
+UpCloud and Hetzner (k3s you run, Postgres on its own server) under "Smaller clouds". The selected provider shows its line
+items with unit prices (what to enter in its own calculator, with a link: calculator.aws, the Azure and Google Cloud
+calculators, calc.upcloud.com, Hetzner's cloud page), UpCloud our measured trial cost, and **How traffic changes it** (each
+level's data out, total, per person and traffic's share). At the top, **Example: 2,000 people** (6,000 sites) per person
+and total at Typical and Heavy on AWS, Azure and Google Cloud, with **Use these numbers**. **How we size it** lists every
+rule (replicas 2 plus one per 5 million views; memory and CPU from the pods' requests, 1.2 GiB upload room, cluster
+overhead; cheapest node mix; database plan by people; storage, bucket and access-log sizes) with its value for the inputs;
+**Prices and sources** gives the checked dates ("list prices as of …, excluding tax; your bill may differ") and every
+source URL. State is in the address (`?people=&sites=&traffic=&views=&viewMB=&cluster=new&ingress=new&network=internet&ha=1&provider=`).
+Every price and constant is in `st/costs/prices.json` (each price: `usd`, `per`, `source`, `checked`); `st/costs/calc.js`
+(UMD) does the arithmetic for the page, the setup helper and the tests; `headline()` gives the ranges `/enterprise`,
+`/enterprise/brief` and the enterprise Ask pack quote (about 2,000 people on your cluster, internal: about $70–100 a month,
+3.5–5 cents a person; about 40 people: $25–45), and a test fails when their text and the prices disagree. Runs in the
+browser (its only request is `prices.json`, `credentials: 'omit'`), no Ask widget, light unless the header's toggle picks
+dark. The setup helper's Enterprise basics show "Running cost on <cloud>: about $… a month" for AWS, Google Cloud or
+UpCloud buckets (the calculator's defaults) with a link, else a plain link. Linked from `/enterprise` (hero "What it
+costs" → a **What it costs** section with **Estimate your own cost**), `/enterprise/brief`, the setup helper, README and
+both Ask assistants (`/costs` is on both link lists). `scripts/check-prices-age.sh` fails when any price was checked more
+than 45 days ago (`MAX_AGE_DAYS`); `make check` runs it as a warning. Tests: `h/costs_test.go` (every price has an https
+source and a date; calc.js under node against `h/testdata/costs-fixture.json` worked by hand; directions on the real
+prices; the page, its files and links; the quoted ranges); `scripts/e2e-costs.js` (390 and 1280 px, no horizontal scroll,
+switches, address state). **Status: built.**
+
 **Setup assistant** (where the server has its model backend and `SETUP_ASSIST_DAILY_MAX` > 0; otherwise the page loads
 no assistant at all). An **Assistant** button on `/setup` opens a panel with the Ask panel's look (a bottom sheet under
 560 px, a floating panel, and from 1180 px a panel beside the form that the page makes room for, so applied changes show;
@@ -827,7 +861,7 @@ the same tab. **Status: live when the model backend is configured** (`LLM_API_KE
 | Env | `ASK_ENABLED` (on; `on`/`true`/`1`/`yes` or `off`/`false`/`0`/`no`; only matters when `LLM_API_KEY` is set), `ASK_BURST` (5; 1–50), `ASK_EVERY_SECONDS` (20; 1–3600), `ASK_DAILY_MAX` (500; 0–100000; per UTC day across everyone), `ASK_MAX_IN_FLIGHT` (4; 1–32), `ASK_MODEL` (grok-4.7; separate from `LLM_MODEL`, which AI create keeps), `ASK_REASONING_EFFORT` (none; none/low/medium/high, sent as `reasoning_effort`), `ASK_MAX_TOKENS` (300; 50–4000). Read with the other limit knobs in `internal/config/limits.go` (`Limits.Ask`), listed in `docs/configuration.md`, carried by `.env.example`, `compose.yaml` and the installer; any other value is a startup error |
 | Tables | `ask_daily` (day, count) — the day's count, so a restart does not reset it (`db/migrations/ask-daily-count.sql`); `setup_check_daily` (day, count) the same for the setup check (`db/migrations/v061-setup-check-daily.sql`); `setup_assist_daily` (day, count) the same for the setup assistant (`db/migrations/v073-setup-assist-daily.sql`) |
 | External | the Grok sidecar (`LLM_API_KEY`, `LLM_BASE_URL`), same as §14 but its own model (`ASK_MODEL`), called with `"stream": true`; no fallback. One ask is one request from us, never retried here (the sidecar's own retry setting is global to it) |
-| Limits | 5 burst then 1 per 20 s per IP, and 4× that per /24 (IPv6 /48); at most 4 answered at once (503 `busy`, no daily slot used); 500 a day in total (429 `daily_limit`); question ≤ 500 characters; answer ≤ 200 words, links only to the assistant's own list (Simple Host: `/`, `/features`, `/architecture.html`, `/docs.html`, `/install.html`, `/privacy.html`, `/terms`, `/support`, `/enterprise`, `/setup`, `/setup?product=small-box`, `/setup?product=enterprise`; Enterprise: `/enterprise`, `/enterprise/brief`, `/enterprise/architecture`, `/`, `/privacy.html`, `/setup?product=enterprise`; a query is kept only where the list names it), other addresses removed; 1–3 short sentences unless the reader asks for detail (then ≤ ~150 words), a reply cut at `ASK_MAX_TOKENS` ends with "…"; first words within 20 s, whole answer within 45 s (502 `unavailable`, or an error event mid-stream) |
+| Limits | 5 burst then 1 per 20 s per IP, and 4× that per /24 (IPv6 /48); at most 4 answered at once (503 `busy`, no daily slot used); 500 a day in total (429 `daily_limit`); question ≤ 500 characters; answer ≤ 200 words, links only to the assistant's own list (Simple Host: `/`, `/features`, `/architecture.html`, `/docs.html`, `/install.html`, `/privacy.html`, `/terms`, `/support`, `/enterprise`, `/setup`, `/setup?product=small-box`, `/setup?product=enterprise`, `/costs`; Enterprise: `/enterprise`, `/enterprise/brief`, `/enterprise/architecture`, `/`, `/privacy.html`, `/setup?product=enterprise`, `/costs`; a query is kept only where the list names it), other addresses removed; 1–3 short sentences unless the reader asks for detail (then ≤ ~150 words), a reply cut at `ASK_MAX_TOKENS` ends with "…"; first words within 20 s, whole answer within 45 s (502 `unavailable`, or an error event mid-stream) |
 
 ## 17. Legal and support pages
 

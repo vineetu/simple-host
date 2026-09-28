@@ -31,10 +31,13 @@ const assert = (c, m) => { if (!c) { console.error('FAIL: ' + m); process.exitCo
     await p.locator('#in-existing').check();
     await p.selectOption('#in-traffic', 'heavy');
     const heavy = await aws();
-    await p.locator('#in-private').check();
-    const priv = await aws();
-    assert(heavy !== own && priv !== heavy, w + ': heavy ' + heavy + ', private ' + priv);
-    assert(/traffic=heavy/.test(p.url()) && /network=private/.test(p.url()), w + ': state in the address bar');
+    assert(await p.locator('#in-private').isChecked(), w + ': private link is the default');
+    await p.locator('#in-private').uncheck();
+    const internet = await aws();
+    assert(heavy !== own && internet !== heavy, w + ': heavy ' + heavy + ', over the internet ' + internet);
+    assert(/traffic=heavy/.test(p.url()) && /network=internet/.test(p.url()), w + ': state in the address bar');
+    await p.reload({ waitUntil: 'networkidle' }); await p.waitForSelector('.prow');
+    assert(!(await p.locator('#in-private').isChecked()) && await aws() === internet, w + ': the address restores the state');
     const cal = await p.locator('#detail a.cta').getAttribute('href');
     assert(cal === 'https://calculator.aws/#/', w + ': AWS calculator link');
     await p.goto(base + '/costs', { waitUntil: 'networkidle' }); await p.waitForSelector('.prow');

@@ -67,7 +67,7 @@
     if (inp.traffic === 'custom') { q.set('views', inp.views); q.set('viewMB', inp.viewMB); }
     if (!inp.existing) q.set('cluster', 'new');
     if (inp.existing && !inp.ingress) q.set('ingress', 'new');
-    if (inp.network === 'private') q.set('network', 'private');
+    if (inp.network !== d.network) q.set('network', inp.network);
     if (inp.ha) q.set('ha', '1');
     if (chosen !== 'aws') q.set('provider', chosen);
     var s = q.toString();
