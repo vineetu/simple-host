@@ -1,0 +1,1039 @@
+{
+  "about": "Every price and sizing assumption behind /costs (the Simple Host Enterprise cost calculator), in one place. List prices in US dollars, excluding tax, on-demand (no commitments or discounts). Each price names the page it was read from and the day it was checked; scripts/check-prices-age.sh warns when any check is older than 45 days. costs/calc.js reads this file; nothing else holds a price.",
+  "currency": "USD",
+  "checked": "2026-09-28",
+  "model": {
+    "hours_per_month": 730,
+    "replicas_min": 2,
+    "page_views_per_replica": 5000000,
+    "system_mem_gib": 1.0,
+    "replica_mem_gib": 0.5,
+    "upload_headroom_gib": 1.2,
+    "node_reserved_gib": 0.75,
+    "system_cpu": 0.5,
+    "replica_cpu": 0.25,
+    "versions_kept": 5,
+    "replaced_versions_factor": 1.2,
+    "db_base_gb": 1,
+    "saved_data_factor": 3,
+    "access_log_kb_per_view": 0.5,
+    "access_log_months": 3,
+    "db_mb_per_person": 1,
+    "db_tiers_by_people": [[250, 1], [1000, 2], [5000, 4], [null, 8]],
+    "db_min_tier_from_replicas": 3,
+    "defaults": {
+      "people": 100,
+      "sites": 300,
+      "views": 100000,
+      "siteMB": 5,
+      "savedMB": 1,
+      "uploadsGB": 5,
+      "viewMB": 1,
+      "ha": false
+    },
+    "assumptions": [["Replicas", "The package runs 2 replicas of the service; we add one per 5 million page views a month. That rate is our assumption, not a load test: a replica serves sites from its own cache and does far more in practice."], ["Memory", "Each replica asks for 0.5 GiB (its request in the package). One upload at a time needs about 1.2 GiB more (UPLOAD_CONCURRENCY 2 × (100 MiB archive + 500 MiB unpacked)), and the ingress controller, cert-manager and the node's own agents about 1 GiB. Each node keeps 0.75 GiB for the system."], ["CPU", "Each replica asks for 0.25 CPU and the cluster's own pods about 0.5 CPU."], ["Nodes", "The cheapest mix of the provider's small general-purpose sizes that fits the memory and CPU above: 1 node, or at least 2 with high availability (3 on Hetzner, where k3s runs the control plane on the nodes). Our UpCloud trial ran 2 replicas, ingress and cert-manager on one 2 CPU / 4 GB node."], ["Database", "Sized by people: up to 250 on the ~1 GB plan, up to 1, 000 on ~2 GB, up to 5, 000 on ~4 GB, more on ~8 GB; at least ~2 GB from 3 replicas, since each replica opens up to 20 connections. High availability adds a standby in another zone."], ["Database storage", "1 GB, plus saved data × 3 (its history for undo), plus the access log (0.5 KB per page view, kept 90 days), plus 1 MB per person; never below the provider's smallest disk."], ["Bucket", "Every site keeps 5 versions (QUOTA_MAX_VERSIONS) at its average size, plus 20% for replaced versions the bucket keeps 30 days, plus uploaded files."], ["Traffic", "Page views × data sent per page view leave the cloud as internet egress. Uploads coming in are free everywhere. Traffic between the service, the bucket and the database stays inside one region."], ["Load balancer", "One load balancer in front of the ingress controller; on AWS a Network Load Balancer, charged per hour and per capacity unit (1 GB an hour processed)."], ["Per person", "The monthly total divided by the number of people who sign in."], ["Not included", "Tax, support plans, DNS, a NAT gateway (nodes here have public addresses), logs and metrics services, and commitment discounts, which lower most of these prices."]]
+  },
+  "providers": [
+    {
+      "id": "aws",
+      "name": "AWS",
+      "kubernetes": "Amazon EKS",
+      "group": "main",
+      "region": "US East (N. Virginia), us-east-1",
+      "calculator": {
+        "name": "AWS Pricing Calculator",
+        "url": "https://calculator.aws/#/",
+        "note": "Add Amazon EKS, Amazon EC2, Amazon RDS for PostgreSQL, Amazon S3, Elastic Load Balancing and data transfer in us-east-1, then Save and share to get a link."
+      },
+      "control_plane": {
+        "label": "EKS cluster (standard support)",
+        "base": {
+          "usd": 0.1,
+          "per": "hour",
+          "source": "https://aws.amazon.com/eks/pricing/",
+          "checked": "2026-09-28"
+        },
+        "ha": {
+          "usd": 0.1,
+          "per": "hour",
+          "source": "https://aws.amazon.com/eks/pricing/",
+          "checked": "2026-09-28"
+        }
+      },
+      "nodes": [
+        {
+          "name": "t4g.medium",
+          "cpu": 2,
+          "mem": 4,
+          "price": {
+            "usd": 0.0336,
+            "per": "hour",
+            "source": "https://aws.amazon.com/ec2/pricing/on-demand/",
+            "checked": "2026-09-28"
+          }
+        },
+        {
+          "name": "t4g.large",
+          "cpu": 2,
+          "mem": 8,
+          "price": {
+            "usd": 0.0672,
+            "per": "hour",
+            "source": "https://aws.amazon.com/ec2/pricing/on-demand/",
+            "checked": "2026-09-28"
+          }
+        },
+        {
+          "name": "t4g.xlarge",
+          "cpu": 4,
+          "mem": 16,
+          "price": {
+            "usd": 0.1344,
+            "per": "hour",
+            "source": "https://aws.amazon.com/ec2/pricing/on-demand/",
+            "checked": "2026-09-28"
+          }
+        }
+      ],
+      "node_disk": {
+        "label": "EBS gp3 root volume",
+        "gb": 20,
+        "price": {
+          "usd": 0.08,
+          "per": "GB-month",
+          "source": "https://aws.amazon.com/ebs/pricing/",
+          "checked": "2026-09-28"
+        }
+      },
+      "min_nodes": {
+        "base": 1,
+        "ha": 2
+      },
+      "db": {
+        "label": "RDS for PostgreSQL",
+        "tiers": [
+          {
+            "mem": 1,
+            "name": "db.t4g.micro",
+            "price": {
+              "usd": 0.016,
+              "per": "hour",
+              "source": "https://aws.amazon.com/rds/postgresql/pricing/",
+              "checked": "2026-09-28"
+            },
+            "ha_name": "db.t4g.micro Multi-AZ",
+            "ha_price": {
+              "usd": 0.032,
+              "per": "hour",
+              "source": "https://aws.amazon.com/rds/postgresql/pricing/",
+              "checked": "2026-09-28"
+            }
+          },
+          {
+            "mem": 2,
+            "name": "db.t4g.small",
+            "price": {
+              "usd": 0.032,
+              "per": "hour",
+              "source": "https://aws.amazon.com/rds/postgresql/pricing/",
+              "checked": "2026-09-28"
+            },
+            "ha_name": "db.t4g.small Multi-AZ",
+            "ha_price": {
+              "usd": 0.065,
+              "per": "hour",
+              "source": "https://aws.amazon.com/rds/postgresql/pricing/",
+              "checked": "2026-09-28"
+            }
+          },
+          {
+            "mem": 4,
+            "name": "db.t4g.medium",
+            "price": {
+              "usd": 0.065,
+              "per": "hour",
+              "source": "https://aws.amazon.com/rds/postgresql/pricing/",
+              "checked": "2026-09-28"
+            },
+            "ha_name": "db.t4g.medium Multi-AZ",
+            "ha_price": {
+              "usd": 0.129,
+              "per": "hour",
+              "source": "https://aws.amazon.com/rds/postgresql/pricing/",
+              "checked": "2026-09-28"
+            }
+          },
+          {
+            "mem": 8,
+            "name": "db.m7g.large",
+            "price": {
+              "usd": 0.168,
+              "per": "hour",
+              "source": "https://aws.amazon.com/rds/postgresql/pricing/",
+              "checked": "2026-09-28"
+            },
+            "ha_name": "db.m7g.large Multi-AZ",
+            "ha_price": {
+              "usd": 0.337,
+              "per": "hour",
+              "source": "https://aws.amazon.com/rds/postgresql/pricing/",
+              "checked": "2026-09-28"
+            }
+          }
+        ],
+        "storage": {
+          "label": "gp3 storage",
+          "min_gb": 20,
+          "included_gb": 0,
+          "price": {
+            "usd": 0.115,
+            "per": "GB-month",
+            "source": "https://aws.amazon.com/rds/postgresql/pricing/",
+            "checked": "2026-09-28"
+          },
+          "ha_price": {
+            "usd": 0.23,
+            "per": "GB-month",
+            "source": "https://aws.amazon.com/rds/postgresql/pricing/",
+            "checked": "2026-09-28"
+          }
+        }
+      },
+      "bucket": {
+        "label": "S3 Standard",
+        "price": {
+          "usd": 0.023,
+          "per": "GB-month",
+          "source": "https://aws.amazon.com/s3/pricing/",
+          "checked": "2026-09-28"
+        }
+      },
+      "egress": {
+        "label": "Data transfer out to the internet",
+        "free_gb": 100,
+        "free_note": "AWS's free tier covers the first 100 GB a month across the account.",
+        "tiers": [[10240, 0.09], [51200, 0.085], [153600, 0.07], [null, 0.05]],
+        "source": "https://aws.amazon.com/ec2/pricing/on-demand/#Data_Transfer",
+        "checked": "2026-09-28"
+      },
+      "lb": {
+        "label": "Network Load Balancer",
+        "hour": {
+          "usd": 0.0225,
+          "per": "hour",
+          "source": "https://aws.amazon.com/elasticloadbalancing/pricing/",
+          "checked": "2026-09-28"
+        },
+        "lcu": {
+          "usd": 0.006,
+          "per": "hour",
+          "gb_per_hour": 1,
+          "source": "https://aws.amazon.com/elasticloadbalancing/pricing/",
+          "checked": "2026-09-28"
+        }
+      }
+    },
+    {
+      "id": "azure",
+      "name": "Azure",
+      "kubernetes": "Azure Kubernetes Service (AKS)",
+      "group": "main",
+      "region": "East US",
+      "calculator": {
+        "name": "Azure pricing calculator",
+        "url": "https://azure.microsoft.com/en-us/pricing/calculator/",
+        "note": "Add Azure Kubernetes Service, Virtual Machines (Linux), Managed Disks, Azure Database for PostgreSQL Flexible Server, Storage Accounts (Block Blob, Hot, LRS), Load Balancer, IP Addresses and Bandwidth in East US."
+      },
+      "control_plane": {
+        "label": "AKS cluster management",
+        "base": {
+          "usd": 0,
+          "per": "hour",
+          "name": "Free tier",
+          "source": "https://azure.microsoft.com/en-us/pricing/details/kubernetes-service/",
+          "checked": "2026-09-28"
+        },
+        "ha": {
+          "usd": 0.1,
+          "per": "hour",
+          "name": "Standard tier (uptime SLA)",
+          "source": "https://prices.azure.com/api/retail/prices?$filter=serviceName%20eq%20%27Azure%20Kubernetes%20Service%27%20and%20armRegionName%20eq%20%27eastus%27",
+          "checked": "2026-09-28"
+        }
+      },
+      "nodes": [
+        {
+          "name": "B2s",
+          "cpu": 2,
+          "mem": 4,
+          "price": {
+            "usd": 0.0416,
+            "per": "hour",
+            "source": "https://azure.microsoft.com/en-us/pricing/details/virtual-machines/linux/",
+            "checked": "2026-09-28"
+          }
+        },
+        {
+          "name": "B2ms",
+          "cpu": 2,
+          "mem": 8,
+          "price": {
+            "usd": 0.0832,
+            "per": "hour",
+            "source": "https://azure.microsoft.com/en-us/pricing/details/virtual-machines/linux/",
+            "checked": "2026-09-28"
+          }
+        },
+        {
+          "name": "B4ms",
+          "cpu": 4,
+          "mem": 16,
+          "price": {
+            "usd": 0.166,
+            "per": "hour",
+            "source": "https://azure.microsoft.com/en-us/pricing/details/virtual-machines/linux/",
+            "checked": "2026-09-28"
+          }
+        }
+      ],
+      "node_disk": {
+        "label": "128 GB Premium SSD OS disk (P10, the AKS default for these sizes)",
+        "each": {
+          "usd": 19.71,
+          "per": "month",
+          "source": "https://azure.microsoft.com/en-us/pricing/details/managed-disks/",
+          "checked": "2026-09-28"
+        }
+      },
+      "min_nodes": {
+        "base": 1,
+        "ha": 2
+      },
+      "db": {
+        "label": "Azure Database for PostgreSQL Flexible Server",
+        "tiers": [
+          {
+            "mem": 1,
+            "name": "Burstable B1ms (2 GiB)",
+            "price": {
+              "usd": 0.017,
+              "per": "hour",
+              "source": "https://azure.microsoft.com/en-us/pricing/details/postgresql/flexible-server/",
+              "checked": "2026-09-28"
+            },
+            "ha_name": "General Purpose D2ds_v5, zone-redundant HA",
+            "ha_price": {
+              "usd": 0.356,
+              "per": "hour",
+              "source": "https://azure.microsoft.com/en-us/pricing/details/postgresql/flexible-server/",
+              "checked": "2026-09-28",
+              "note": "Burstable servers cannot have a standby; HA needs General Purpose (0.178/hour) and bills the standby too."
+            }
+          },
+          {
+            "mem": 2,
+            "name": "Burstable B1ms (2 GiB)",
+            "price": {
+              "usd": 0.017,
+              "per": "hour",
+              "source": "https://azure.microsoft.com/en-us/pricing/details/postgresql/flexible-server/",
+              "checked": "2026-09-28"
+            },
+            "ha_name": "General Purpose D2ds_v5, zone-redundant HA",
+            "ha_price": {
+              "usd": 0.356,
+              "per": "hour",
+              "source": "https://azure.microsoft.com/en-us/pricing/details/postgresql/flexible-server/",
+              "checked": "2026-09-28"
+            }
+          },
+          {
+            "mem": 4,
+            "name": "Burstable B2s (4 GiB)",
+            "price": {
+              "usd": 0.068,
+              "per": "hour",
+              "source": "https://azure.microsoft.com/en-us/pricing/details/postgresql/flexible-server/",
+              "checked": "2026-09-28"
+            },
+            "ha_name": "General Purpose D2ds_v5, zone-redundant HA",
+            "ha_price": {
+              "usd": 0.356,
+              "per": "hour",
+              "source": "https://azure.microsoft.com/en-us/pricing/details/postgresql/flexible-server/",
+              "checked": "2026-09-28"
+            }
+          },
+          {
+            "mem": 8,
+            "name": "Burstable B2ms (8 GiB)",
+            "price": {
+              "usd": 0.136,
+              "per": "hour",
+              "source": "https://azure.microsoft.com/en-us/pricing/details/postgresql/flexible-server/",
+              "checked": "2026-09-28"
+            },
+            "ha_name": "General Purpose D2ds_v5, zone-redundant HA",
+            "ha_price": {
+              "usd": 0.356,
+              "per": "hour",
+              "source": "https://azure.microsoft.com/en-us/pricing/details/postgresql/flexible-server/",
+              "checked": "2026-09-28"
+            }
+          }
+        ],
+        "storage": {
+          "label": "storage",
+          "min_gb": 32,
+          "included_gb": 0,
+          "price": {
+            "usd": 0.115,
+            "per": "GB-month",
+            "source": "https://azure.microsoft.com/en-us/pricing/details/postgresql/flexible-server/",
+            "checked": "2026-09-28"
+          },
+          "ha_price": {
+            "usd": 0.23,
+            "per": "GB-month",
+            "source": "https://azure.microsoft.com/en-us/pricing/details/postgresql/flexible-server/",
+            "checked": "2026-09-28"
+          }
+        }
+      },
+      "bucket": {
+        "label": "Blob Storage (Hot, LRS)",
+        "price": {
+          "usd": 0.0208,
+          "per": "GB-month",
+          "source": "https://azure.microsoft.com/en-us/pricing/details/storage/blobs/",
+          "checked": "2026-09-28"
+        }
+      },
+      "egress": {
+        "label": "Bandwidth out to the internet",
+        "free_gb": 100,
+        "free_note": "The first 100 GB a month is free.",
+        "tiers": [[10240, 0.087], [51200, 0.083], [153600, 0.07], [null, 0.05]],
+        "source": "https://azure.microsoft.com/en-us/pricing/details/bandwidth/",
+        "checked": "2026-09-28"
+      },
+      "lb": {
+        "label": "Standard Load Balancer",
+        "hour": {
+          "usd": 0.025,
+          "per": "hour",
+          "source": "https://azure.microsoft.com/en-us/pricing/details/load-balancer/",
+          "checked": "2026-09-28"
+        },
+        "gb": {
+          "usd": 0.005,
+          "per": "GB",
+          "source": "https://azure.microsoft.com/en-us/pricing/details/load-balancer/",
+          "checked": "2026-09-28"
+        }
+      },
+      "ips": {
+        "label": "Standard public IPv4 addresses (ingress and outbound)",
+        "count": 2,
+        "price": {
+          "usd": 0.005,
+          "per": "hour",
+          "source": "https://azure.microsoft.com/en-us/pricing/details/ip-addresses/",
+          "checked": "2026-09-28"
+        }
+      }
+    },
+    {
+      "id": "gcp",
+      "name": "Google Cloud",
+      "kubernetes": "Google Kubernetes Engine (GKE Standard)",
+      "group": "main",
+      "region": "Iowa, us-central1",
+      "calculator": {
+        "name": "Google Cloud Pricing Calculator",
+        "url": "https://cloud.google.com/products/calculator",
+        "note": "Add Google Kubernetes Engine (Standard, zonal), Cloud SQL for PostgreSQL, Cloud Storage (Standard, regional), Cloud Load Balancing and Networking in us-central1, then Share to get a link."
+      },
+      "control_plane": {
+        "label": "GKE cluster management fee",
+        "base": {
+          "usd": 0.1,
+          "per": "hour",
+          "name": "zonal cluster",
+          "source": "https://cloud.google.com/kubernetes-engine/pricing",
+          "checked": "2026-09-28"
+        },
+        "ha": {
+          "usd": 0.1,
+          "per": "hour",
+          "name": "regional cluster",
+          "source": "https://cloud.google.com/kubernetes-engine/pricing",
+          "checked": "2026-09-28"
+        },
+        "credit": {
+          "usd": 74.4,
+          "per": "month",
+          "applies": "base",
+          "label": "GKE free tier credit (one zonal cluster per billing account)",
+          "source": "https://cloud.google.com/kubernetes-engine/pricing",
+          "checked": "2026-09-28"
+        }
+      },
+      "nodes": [
+        {
+          "name": "e2-medium",
+          "cpu": 2,
+          "mem": 4,
+          "price": {
+            "usd": 0.03350571,
+            "per": "hour",
+            "source": "https://cloud.google.com/products/compute/pricing/general-purpose",
+            "checked": "2026-09-28"
+          }
+        },
+        {
+          "name": "e2-standard-2",
+          "cpu": 2,
+          "mem": 8,
+          "price": {
+            "usd": 0.06701142,
+            "per": "hour",
+            "source": "https://cloud.google.com/products/compute/pricing/general-purpose",
+            "checked": "2026-09-28"
+          }
+        },
+        {
+          "name": "e2-standard-4",
+          "cpu": 4,
+          "mem": 16,
+          "price": {
+            "usd": 0.13402284,
+            "per": "hour",
+            "source": "https://cloud.google.com/products/compute/pricing/general-purpose",
+            "checked": "2026-09-28"
+          }
+        }
+      ],
+      "node_disk": {
+        "label": "100 GB balanced boot disk (the GKE default)",
+        "gb": 100,
+        "price": {
+          "usd": 0.1,
+          "per": "GB-month",
+          "source": "https://cloud.google.com/compute/disks-image-pricing",
+          "checked": "2026-09-28"
+        }
+      },
+      "min_nodes": {
+        "base": 1,
+        "ha": 2
+      },
+      "db": {
+        "label": "Cloud SQL for PostgreSQL (Enterprise)",
+        "tiers": [
+          {
+            "mem": 1,
+            "name": "db-g1-small (1.7 GB, shared core)",
+            "price": {
+              "usd": 0.035,
+              "per": "hour",
+              "source": "https://cloud.google.com/sql/pricing",
+              "checked": "2026-09-28"
+            },
+            "ha_name": "db-g1-small, high availability",
+            "ha_price": {
+              "usd": 0.07,
+              "per": "hour",
+              "source": "https://cloud.google.com/sql/pricing",
+              "checked": "2026-09-28"
+            }
+          },
+          {
+            "mem": 2,
+            "name": "db-g1-small (1.7 GB, shared core)",
+            "price": {
+              "usd": 0.035,
+              "per": "hour",
+              "source": "https://cloud.google.com/sql/pricing",
+              "checked": "2026-09-28"
+            },
+            "ha_name": "db-g1-small, high availability",
+            "ha_price": {
+              "usd": 0.07,
+              "per": "hour",
+              "source": "https://cloud.google.com/sql/pricing",
+              "checked": "2026-09-28"
+            }
+          },
+          {
+            "mem": 4,
+            "name": "1 vCPU, 3.75 GB",
+            "price": {
+              "usd": 0.06755,
+              "per": "hour",
+              "source": "https://cloud.google.com/sql/pricing",
+              "checked": "2026-09-28",
+              "note": "$0.0413 per vCPU hour + $0.007 per GiB hour"
+            },
+            "ha_name": "1 vCPU, 3.75 GB, high availability",
+            "ha_price": {
+              "usd": 0.1351,
+              "per": "hour",
+              "source": "https://cloud.google.com/sql/pricing",
+              "checked": "2026-09-28"
+            }
+          },
+          {
+            "mem": 8,
+            "name": "2 vCPU, 7.5 GB",
+            "price": {
+              "usd": 0.1351,
+              "per": "hour",
+              "source": "https://cloud.google.com/sql/pricing",
+              "checked": "2026-09-28"
+            },
+            "ha_name": "2 vCPU, 7.5 GB, high availability",
+            "ha_price": {
+              "usd": 0.2702,
+              "per": "hour",
+              "source": "https://cloud.google.com/sql/pricing",
+              "checked": "2026-09-28"
+            }
+          }
+        ],
+        "storage": {
+          "label": "SSD storage",
+          "min_gb": 10,
+          "included_gb": 0,
+          "price": {
+            "usd": 0.17,
+            "per": "GB-month",
+            "source": "https://cloud.google.com/sql/pricing",
+            "checked": "2026-09-28"
+          },
+          "ha_price": {
+            "usd": 0.34,
+            "per": "GB-month",
+            "source": "https://cloud.google.com/sql/pricing",
+            "checked": "2026-09-28"
+          }
+        }
+      },
+      "bucket": {
+        "label": "Cloud Storage (Standard, regional)",
+        "price": {
+          "usd": 0.02,
+          "per": "GB-month",
+          "source": "https://cloud.google.com/storage/pricing",
+          "checked": "2026-09-28"
+        }
+      },
+      "egress": {
+        "label": "Internet data transfer out (Premium Tier)",
+        "free_gb": 1,
+        "free_note": "The first 1 GiB a month is free.",
+        "tiers": [[1024, 0.12], [10240, 0.11], [null, 0.08]],
+        "source": "https://cloud.google.com/vpc/network-pricing",
+        "checked": "2026-09-28"
+      },
+      "lb": {
+        "label": "Load balancer forwarding rule",
+        "hour": {
+          "usd": 0.025,
+          "per": "hour",
+          "source": "https://cloud.google.com/load-balancing/pricing",
+          "checked": "2026-09-28"
+        },
+        "gb": {
+          "usd": 0.008,
+          "per": "GB",
+          "source": "https://cloud.google.com/load-balancing/pricing",
+          "checked": "2026-09-28"
+        }
+      }
+    },
+    {
+      "id": "upcloud",
+      "name": "UpCloud",
+      "kubernetes": "UpCloud Managed Kubernetes",
+      "group": "other",
+      "region": "any zone (global price)",
+      "calculator": {
+        "name": "UpCloud pricing calculator",
+        "url": "https://calc.upcloud.com/cloud-servers?currency=USD",
+        "note": "Add Managed Kubernetes, Starter servers for the nodes, a Managed Database for PostgreSQL, Managed Object Storage and a Managed Load Balancer."
+      },
+      "proof": "Measured: our 2026-09-27 trial (one 2 CPU / 4 GB node, 1 GB Postgres, development load balancer, 250 GB object storage) ran at 6.3¢ an hour at that day's rates, and a 40-minute end-to-end run cost 3.6¢.",
+      "control_plane": {
+        "label": "Managed Kubernetes control plane",
+        "base": {
+          "usd": 0,
+          "per": "month",
+          "name": "Development plan",
+          "source": "https://upcloud.com/pricing/",
+          "checked": "2026-09-28"
+        },
+        "ha": {
+          "usd": 60,
+          "per": "month",
+          "name": "Production plan",
+          "source": "https://upcloud.com/pricing/",
+          "checked": "2026-09-28"
+        }
+      },
+      "nodes": [
+        {
+          "name": "Starter 2 CPU / 4 GB",
+          "cpu": 2,
+          "mem": 4,
+          "price": {
+            "usd": 14,
+            "per": "month",
+            "source": "https://upcloud.com/pricing/",
+            "checked": "2026-09-28"
+          }
+        },
+        {
+          "name": "Starter 2 CPU / 8 GB",
+          "cpu": 2,
+          "mem": 8,
+          "price": {
+            "usd": 20,
+            "per": "month",
+            "source": "https://upcloud.com/pricing/",
+            "checked": "2026-09-28"
+          }
+        },
+        {
+          "name": "Starter 4 CPU / 16 GB",
+          "cpu": 4,
+          "mem": 16,
+          "price": {
+            "usd": 32,
+            "per": "month",
+            "source": "https://upcloud.com/pricing/",
+            "checked": "2026-09-28"
+          }
+        }
+      ],
+      "min_nodes": {
+        "base": 1,
+        "ha": 2
+      },
+      "db": {
+        "label": "Managed Database for PostgreSQL",
+        "tiers": [
+          {
+            "mem": 1,
+            "name": "Developer 1 GB",
+            "price": {
+              "usd": 9,
+              "per": "month",
+              "source": "https://upcloud.com/pricing/",
+              "checked": "2026-09-28"
+            },
+            "ha_name": "Standard 8 GB, 2 nodes",
+            "ha_price": {
+              "usd": 131.1,
+              "per": "month",
+              "source": "https://upcloud.com/pricing/",
+              "checked": "2026-09-28",
+              "note": "Developer plans have no second node; Standard 8 GB is $69 and its second node 10% less."
+            }
+          },
+          {
+            "mem": 2,
+            "name": "Developer 2 GB",
+            "price": {
+              "usd": 17,
+              "per": "month",
+              "source": "https://upcloud.com/pricing/",
+              "checked": "2026-09-28"
+            },
+            "ha_name": "Standard 8 GB, 2 nodes",
+            "ha_price": {
+              "usd": 131.1,
+              "per": "month",
+              "source": "https://upcloud.com/pricing/",
+              "checked": "2026-09-28"
+            }
+          },
+          {
+            "mem": 4,
+            "name": "Developer 4 GB",
+            "price": {
+              "usd": 27,
+              "per": "month",
+              "source": "https://upcloud.com/pricing/",
+              "checked": "2026-09-28"
+            },
+            "ha_name": "Standard 8 GB, 2 nodes",
+            "ha_price": {
+              "usd": 131.1,
+              "per": "month",
+              "source": "https://upcloud.com/pricing/",
+              "checked": "2026-09-28"
+            }
+          },
+          {
+            "mem": 8,
+            "name": "Standard 8 GB",
+            "price": {
+              "usd": 69,
+              "per": "month",
+              "source": "https://upcloud.com/pricing/",
+              "checked": "2026-09-28"
+            },
+            "ha_name": "Standard 8 GB, 2 nodes",
+            "ha_price": {
+              "usd": 131.1,
+              "per": "month",
+              "source": "https://upcloud.com/pricing/",
+              "checked": "2026-09-28"
+            }
+          }
+        ],
+        "storage": {
+          "label": "storage past the plan's 10 GB",
+          "min_gb": 0,
+          "included_gb": 10,
+          "price": {
+            "usd": 0.25,
+            "per": "GB-month",
+            "source": "https://upcloud.com/pricing/",
+            "checked": "2026-09-28",
+            "note": "An estimate: UpCloud lists no price for extra database storage, so we use its MaxIOPS block storage rate and count only 10 GB as included."
+          },
+          "ha_price": {
+            "usd": 0.5,
+            "per": "GB-month",
+            "source": "https://upcloud.com/pricing/",
+            "checked": "2026-09-28"
+          }
+        }
+      },
+      "bucket": {
+        "label": "Managed Object Storage",
+        "block_gb": 250,
+        "price": {
+          "usd": 5,
+          "per": "month",
+          "source": "https://upcloud.com/pricing/",
+          "checked": "2026-09-28"
+        }
+      },
+      "egress": {
+        "label": "Data transfer out",
+        "free_gb": 0,
+        "free_note": "UpCloud charges nothing for egress (fair transfer policy).",
+        "tiers": [[null, 0]],
+        "source": "https://upcloud.com/pricing/",
+        "checked": "2026-09-28"
+      },
+      "lb": {
+        "label": "Managed Load Balancer",
+        "month": {
+          "usd": 10,
+          "per": "month",
+          "name": "Development",
+          "source": "https://upcloud.com/pricing/",
+          "checked": "2026-09-28"
+        },
+        "ha_month": {
+          "usd": 30,
+          "per": "month",
+          "name": "Production S (2 nodes)",
+          "source": "https://upcloud.com/pricing/",
+          "checked": "2026-09-28"
+        }
+      }
+    },
+    {
+      "id": "hetzner",
+      "name": "Hetzner",
+      "kubernetes": "k3s you run on Hetzner Cloud servers (no managed Kubernetes)",
+      "group": "other",
+      "region": "Germany or Finland (EU)",
+      "calculator": {
+        "name": "Hetzner Cloud prices",
+        "url": "https://www.hetzner.com/cloud/",
+        "note": "Hetzner has no managed Kubernetes or Postgres: add the node servers, one server for Postgres with backups, a load balancer and Object Storage."
+      },
+      "control_plane": {
+        "label": "k3s control plane (runs on the nodes)",
+        "base": {
+          "usd": 0,
+          "per": "month",
+          "source": "https://www.hetzner.com/cloud/",
+          "checked": "2026-09-28"
+        },
+        "ha": {
+          "usd": 0,
+          "per": "month",
+          "source": "https://www.hetzner.com/cloud/",
+          "checked": "2026-09-28"
+        }
+      },
+      "nodes": [
+        {
+          "name": "CPX22 (2 vCPU, 4 GB)",
+          "cpu": 2,
+          "mem": 4,
+          "price": {
+            "usd": 23.59,
+            "per": "month",
+            "source": "https://www.hetzner.com/cloud/regular-performance/",
+            "checked": "2026-09-28",
+            "note": "With its IPv4 address; 20 TB of traffic included."
+          }
+        },
+        {
+          "name": "CPX32 (4 vCPU, 8 GB)",
+          "cpu": 4,
+          "mem": 8,
+          "price": {
+            "usd": 42.59,
+            "per": "month",
+            "source": "https://www.hetzner.com/cloud/regular-performance/",
+            "checked": "2026-09-28"
+          }
+        },
+        {
+          "name": "CPX42 (8 vCPU, 16 GB)",
+          "cpu": 8,
+          "mem": 16,
+          "price": {
+            "usd": 82.59,
+            "per": "month",
+            "source": "https://www.hetzner.com/cloud/regular-performance/",
+            "checked": "2026-09-28"
+          }
+        }
+      ],
+      "min_nodes": {
+        "base": 1,
+        "ha": 3
+      },
+      "db": {
+        "label": "Postgres you run on its own server",
+        "backup_pct": 20,
+        "backup_source": "https://docs.hetzner.com/cloud/billing/faq/",
+        "tiers": [
+          {
+            "mem": 1,
+            "name": "CPX12 (1 vCPU, 2 GB)",
+            "price": {
+              "usd": 14.09,
+              "per": "month",
+              "source": "https://www.hetzner.com/cloud/regular-performance/",
+              "checked": "2026-09-28"
+            },
+            "ha_name": "2 × CPX12 (primary and standby)",
+            "ha_price": {
+              "usd": 28.18,
+              "per": "month",
+              "source": "https://www.hetzner.com/cloud/regular-performance/",
+              "checked": "2026-09-28"
+            },
+            "disk_gb": 40
+          },
+          {
+            "mem": 2,
+            "name": "CPX12 (1 vCPU, 2 GB)",
+            "price": {
+              "usd": 14.09,
+              "per": "month",
+              "source": "https://www.hetzner.com/cloud/regular-performance/",
+              "checked": "2026-09-28"
+            },
+            "ha_name": "2 × CPX12 (primary and standby)",
+            "ha_price": {
+              "usd": 28.18,
+              "per": "month",
+              "source": "https://www.hetzner.com/cloud/regular-performance/",
+              "checked": "2026-09-28"
+            },
+            "disk_gb": 40
+          },
+          {
+            "mem": 4,
+            "name": "CPX22 (2 vCPU, 4 GB)",
+            "price": {
+              "usd": 23.59,
+              "per": "month",
+              "source": "https://www.hetzner.com/cloud/regular-performance/",
+              "checked": "2026-09-28"
+            },
+            "ha_name": "2 × CPX22 (primary and standby)",
+            "ha_price": {
+              "usd": 47.18,
+              "per": "month",
+              "source": "https://www.hetzner.com/cloud/regular-performance/",
+              "checked": "2026-09-28"
+            },
+            "disk_gb": 80
+          },
+          {
+            "mem": 8,
+            "name": "CPX32 (4 vCPU, 8 GB)",
+            "price": {
+              "usd": 42.59,
+              "per": "month",
+              "source": "https://www.hetzner.com/cloud/regular-performance/",
+              "checked": "2026-09-28"
+            },
+            "ha_name": "2 × CPX32 (primary and standby)",
+            "ha_price": {
+              "usd": 85.18,
+              "per": "month",
+              "source": "https://www.hetzner.com/cloud/regular-performance/",
+              "checked": "2026-09-28"
+            },
+            "disk_gb": 160
+          }
+        ],
+        "storage": {
+          "label": "the server's own disk",
+          "min_gb": 0,
+          "included_gb": 0,
+          "by_tier_disk": true
+        }
+      },
+      "bucket": {
+        "label": "Object Storage",
+        "base": {
+          "usd": 7.99,
+          "per": "month",
+          "included_gb": 1024,
+          "source": "https://www.hetzner.com/storage/object-storage/",
+          "checked": "2026-09-28"
+        },
+        "price": {
+          "usd": 0.00877,
+          "per": "GB-month",
+          "source": "https://www.hetzner.com/storage/object-storage/",
+          "checked": "2026-09-28",
+          "note": "$0.0123 per TB-hour past the included 1 TB."
+        }
+      },
+      "egress": {
+        "label": "Traffic past what is included",
+        "free_gb": 20480,
+        "free_note": "The load balancer includes 20 TB a month in the EU.",
+        "tiers": [[null, 0.00117]],
+        "source": "https://www.hetzner.com/cloud/load-balancer/",
+        "checked": "2026-09-28"
+      },
+      "lb": {
+        "label": "Load Balancer",
+        "month": {
+          "usd": 8.49,
+          "per": "month",
+          "name": "LB11",
+          "source": "https://www.hetzner.com/cloud/load-balancer/",
+          "checked": "2026-09-28"
+        }
+      }
+    }
+  ]
+}
