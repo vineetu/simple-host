@@ -106,7 +106,7 @@ async function enterprise(browser, width) {
   // 3. Apply one, then the rest.
   await items.first().getByRole('button', { name: /^Apply:/ }).click();
   assert(await page.locator('#f-idp').inputValue() === 'entra', 'Apply sets the identity provider in the form');
-  assert(/microsoftonline/.test(await page.locator('#f-issuer').inputValue()), 'as picking it does: the issuer template follows');
+  assert(await page.locator('#f-issuer').inputValue() === 'https://acme.okta.com', 'as picking it does: the issuer typed earlier stays (a template never goes over it)');
   assert(await page.locator('.field.assisted #f-idp').count() === 1, 'the applied field is highlighted');
   await turn.getByRole('button', { name: /Apply all/ }).click();
   assert(await turn.locator('.sh-assist-done.is-applied').count() === 5, 'Apply all applies the rest');
@@ -186,7 +186,7 @@ async function googleNeedsDomains(browser, width) {
   await page.getByRole('button', { name: 'Show my files' }).click();
   await page.waitForSelector('#files pre');
   const cfg = await page.locator('#files pre').first().innerText();
-  assert(cfg.includes('ALLOWED_EMAIL_DOMAINS=example.com') && cfg.includes('OIDC_ISSUER=https://accounts.google.com'), 'with the domains in, the files have Google and the domains');
+  assert(cfg.includes('ALLOWED_EMAIL_DOMAINS=example.com') && cfg.includes('OIDC_ISSUER=https://acme.okta.com'), 'with the domains in, the files have the domains, and the issuer typed earlier is kept');
   await page.close();
 }
 
