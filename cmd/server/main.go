@@ -273,6 +273,7 @@ func main() {
 	// because it is CPU anyone signed in can spend.
 	if cfg.TranscribeURL != "" {
 		handler.NewTranscribeHandler(cfg.TranscribeURL, cfg.TranscribeTicketSecret).Register(mux, authMW)
+		handler.EnableVoiceInput()
 		log.Printf("voice input enabled (/v1/transcribe -> %s)", cfg.TranscribeURL)
 	} else {
 		log.Printf("TRANSCRIBE_URL unset; /v1/transcribe (voice input) disabled")

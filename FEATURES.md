@@ -593,6 +593,7 @@ the full apex controls. Sign out everywhere (key rotate) stays in the apex app b
 | Calls | everything in §1, §3, §5, §7, §8 (connections), §12, §14 |
 | Note | Apex pages allow inline `<script>` only via the per-response nonce; `onclick=` attributes are blocked. `setup.html` is outside this wrapper |
 | Theme | One light/dark setting for every page the app serves (2026-09-28). With nothing picked a page follows the visitor's system setting, live; the header's theme button opens **Match my system / Light / Dark**, and the choice is kept once (`localStorage` `sh-theme`: `light`, `dark`, or absent for the system) and applied to every page before first paint, other open tabs included. The only theme code is `st/partials/theme.html` (in the head partial; `<!--sh:theme-->` alone for pages with no header: the first-run wizard `setup.html`, the offline and taken-down pages, the sign-in-failed and temporarily-unavailable pages); pages style both themes from `html[data-theme]` and site.css tokens, the navy pages (`/enterprise/architecture`, `/setup`, the enterprise Ask panel) with their own navy dark palette. Person and site hosts are other origins, so they follow the system until the person picks there. `theme_test.go` fails on any page with its own theme logic or `prefers-color-scheme`; `scripts/e2e-theme.js` checks it in a browser |
+| Dialogs | No page calls the browser's native `confirm`, `alert` or `prompt` (2026-09-28): an AI browser agent cannot see or press those, so the page hung. Every question is asked in the page by `shConfirm` / `shPrompt` / `shAlert` (`st/partials/dialog.html`, in the head partial; styles `.sh-dlg` in site.css): a modal `<dialog>` with a title, real buttons named for the action ("Yes, change my address", "Delete site", "Cancel"), focus moved into it and back, Escape or the backdrop cancels. Used by the dashboard, the owner app, admin and the sign-out warning. `nodialogs_test.go` fails on any native dialog call in a served page, script or Go-built HTML (swagger-ui-bundle.js excepted); `scripts/e2e-dialogs.js` drives the flows in a browser and fails on any native dialog |
 
 ## 11. Admin (operator)
 
@@ -654,7 +655,7 @@ app is primary. **Status: live, flag-gated.**
 | Surface | Details |
 |---|---|
 | Routes | `POST /v1/generate` · `GET /v1/generate/status` (only when `LLM_API_KEY` set) · `POST /v1/transcribe` · `POST /v1/transcribe/ticket` (only when `TRANSCRIBE_URL` set) · `/v1/transcribe/stream` is **nginx-only** (WebSocket straight to the speech service on :8103, signed ticket in the query) |
-| Pages | `st/showcase.html` (builder chat, attachments, mic) |
+| Pages | `st/showcase.html` (builder chat, attachments, mic; the mic shows when the page data's `voice` is true, set when `TRANSCRIBE_URL` is, so loading the page sends nothing to `/v1/transcribe`) |
 | Go | `h/generate.go` (prompt/instructions, attachments ≤18 MB), `h/generate_jobs.go`, `h/transcribe.go` (audio ≤25 MB, ticket signing) |
 | Env | `LLM_PROVIDER` (default `grok`), `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, `VISION_PROVIDER`, `VISION_API_KEY`, `VISION_BASE_URL`, `VISION_MODEL`, `TRANSCRIBE_URL`, `TRANSCRIBE_TICKET_SECRET` |
 | External | Grok via the local CLIProxy sidecar (`/opt/cliproxy`, `127.0.0.1:8102/v1`) only, no fallbacks; Moonshine speech-to-text (`/opt/moonshine`, :8100 HTTP, :8103 stream) |

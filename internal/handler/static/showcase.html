@@ -1286,7 +1286,7 @@ function parseAnalyticsSummary(data) {
         btn.addEventListener('click', async function () {
           var k = keys[Number(btn.getAttribute('data-key'))];
           if (k.current) { window.shSignOut(); return; }
-          if (!confirm('Revoke "' + (k.name || 'Earlier key') + '"? Anything using it stops working now.')) return;
+          if (!(await shConfirm({ title: 'Revoke "' + (k.name || 'Earlier key') + '"?', body: 'Anything using it stops working now.', confirmLabel: 'Revoke', danger: true }))) return;
           btn.disabled = true;
           try {
             var r = await api('DELETE', '/v1/me/keys/' + encodeURIComponent(k.id));
@@ -1329,7 +1329,7 @@ function parseAnalyticsSummary(data) {
       // "Sign out everywhere" is rotate: every key and connected app is cut
       // off, and this browser keeps working with the one new key.
       document.getElementById('keys-signout-all').addEventListener('click', async function () {
-        if (!confirm('Sign out everywhere? Every key on this account stops working, and connected apps (ChatGPT, Claude, Grok) are disconnected, and every sign-in on your sites ends. This browser stays signed in; your agents will need the new key.')) return;
+        if (!(await shConfirm({ title: 'Sign out everywhere?', body: 'Every key on this account stops working, and connected apps (ChatGPT, Claude, Grok) are disconnected, and every sign-in on your sites ends. This browser stays signed in; your agents will need the new key.', confirmLabel: 'Sign out everywhere', danger: true }))) return;
         var res, body = {};
         try { res = await api('POST', '/v1/me/api-key/rotate'); body = await res.json().catch(function () { return {}; }); } catch (err) {}
         if (!res || !res.ok) { toast(body.error || 'Could not sign out everywhere. Try again.', 'error'); return; }
@@ -1915,7 +1915,7 @@ function parseAnalyticsSummary(data) {
         var out = await res.json().catch(function () { return null; });
         // Private entries that would become public: say what, and go on only if the owner agrees.
         if (res.status === 409 && out && out.code === 'confirm_public') {
-          if (!confirm(out.error.replace(/ To go ahead.*$/, '') + '\n\nMake them public?')) { btn.disabled = false; return; }
+          if (!(await shConfirm({ title: 'Make them public?', body: out.error.replace(/ To go ahead.*$/, ''), confirmLabel: 'Make them public', danger: true }))) { btn.disabled = false; return; }
           body.confirm_public = true;
           res = await api('PUT', sitePathPart(name) + '/data/' + encodeURIComponent(coll) + '/kind', body);
           out = await res.json().catch(function () { return null; });
@@ -1963,7 +1963,7 @@ function parseAnalyticsSummary(data) {
         block: linesOf(panel.querySelector('[data-savers-field="block"]').value)
       };
       var err = panel.querySelector('.panel-err');
-      if (body.mode === 'listed' && !body.allow.length && !confirm('Nobody is listed, so only you will be able to save on this site. Save anyway?')) return;
+      if (body.mode === 'listed' && !body.allow.length && !(await shConfirm({ title: 'Save anyway?', body: 'Nobody is listed, so only you will be able to save on this site.', confirmLabel: 'Save anyway' }))) return;
       btn.disabled = true;
       try {
         var res = await api('PUT', sitePathPart(name) + '/savers', body);
@@ -1977,7 +1977,7 @@ function parseAnalyticsSummary(data) {
     }
     async function toggleListPrivacy(btn, name, coll) {
       var priv = btn.getAttribute('data-private') === '1';
-      if (priv && !confirm('Make the list "' + coll + '" public? Anyone can read this list again, including everything already in it. Who sent each entry (their email) stays private: only you see it.')) return;
+      if (priv && !(await shConfirm({ title: 'Make the list "' + coll + '" public?', body: 'Anyone can read this list again, including everything already in it. Who sent each entry (their email) stays private: only you see it.', confirmLabel: 'Make it public', danger: true }))) return;
       btn.disabled = true;
       try {
         var res = await api('PUT', sitePathPart(name) + '/collections/' + encodeURIComponent(coll) + '/privacy', priv ? { private: false, confirm_public: true } : { private: true });
@@ -2195,7 +2195,7 @@ function parseAnalyticsSummary(data) {
       }
       if (act === 'block') {
         var person = item.by || (st.priv ? plistData(item)._submitted_by : '');
-        if (!confirm('Block ' + person + ' from saving anything more on this site? What they already sent stays until you delete it. You can unblock them under "Who may save here".')) return;
+        if (!(await shConfirm({ title: 'Block ' + person + ' from saving anything more on this site?', body: 'What they already sent stays until you delete it. You can unblock them under "Who may save here".', confirmLabel: 'Block', danger: true }))) return;
         t.disabled = true;
         try {
           var bres = await api('POST', sitePathPart(st.name) + '/savers/block', { collection: st.coll, id: Number(id) });
@@ -2215,7 +2215,7 @@ function parseAnalyticsSummary(data) {
         // Who sent it: the server's stamp (item.by); on a public list the
         // item's own _submitted_by is whatever the page sent, so never shown.
         var who = item.by || (st.priv ? plistData(item)._submitted_by : '');
-        if (!confirm('Delete item ' + id + (who ? ' from ' + who : '') + '?' + (st.priv ? '' : ' It disappears from the public list.') + ' You can bring it back from Recently deleted for ' + UNDO_DAYS + ' days.')) return;
+        if (!(await shConfirm({ title: 'Delete item ' + id + (who ? ' from ' + who : '') + '?', body: (st.priv ? '' : 'It disappears from the public list. ') + 'You can bring it back from Recently deleted for ' + UNDO_DAYS + ' days.', confirmLabel: 'Delete', danger: true }))) return;
         t.disabled = true;
         try {
           var dres = await api('DELETE', plistItemPath(st, id));
@@ -2426,7 +2426,7 @@ function parseAnalyticsSummary(data) {
         }
         done = 'Brought back';
       } else return;
-      if (ask && !confirm(ask)) return;
+      if (ask && !(await shConfirm({ title: ask, confirmLabel: act === 'restore' ? (st.coll ? 'Undo it' : 'Put it back') : 'Bring back' }))) return;
       t.disabled = true;
       try {
         var res = await api('POST', path, body);
@@ -2708,7 +2708,7 @@ function parseAnalyticsSummary(data) {
     }
     async function disconnectDomain(name, btn) {
       var s = ownerSite(name);
-      if (!s || !confirm('Disconnect ' + s.custom_domain + ' from "' + name + '"? The site goes back to ' + (s.site_url || 'its own address').replace(/^https?:\/\//, '').replace(/\/$/, '') + ', and links to ' + s.custom_domain + ' stop working.')) return;
+      if (!s || !(await shConfirm({ title: 'Disconnect ' + s.custom_domain + ' from "' + name + '"?', body: 'The site goes back to ' + (s.site_url || 'its own address').replace(/^https?:\/\//, '').replace(/\/$/, '') + ', and links to ' + s.custom_domain + ' stop working.', confirmLabel: 'Disconnect', danger: true }))) return;
       btn.disabled = true;
       try {
         var res = await api('DELETE', sitePathPart(name) + '/domain');
@@ -2937,7 +2937,7 @@ function parseAnalyticsSummary(data) {
     // are refused; nothing is deleted, and the same button brings it back.
     async function toggleOffline(name, isOffline, btn) {
       var next = !isOffline;
-      if (next && !confirm('Take "' + name + '" offline? Every address will show \u201cThis site is offline\u201d and visitors won\u2019t be able to save anything. Nothing is deleted, and you can put it back online at any time.')) return;
+      if (next && !(await shConfirm({ title: 'Take "' + name + '" offline?', body: 'Every address will show \u201cThis site is offline\u201d and visitors won\u2019t be able to save anything. Nothing is deleted, and you can put it back online at any time.', confirmLabel: 'Take it offline', danger: true }))) return;
       btn.disabled = true;
       try {
         var res = await api('PATCH', sitePathPart(name), { offline: next });
@@ -3028,7 +3028,7 @@ function parseAnalyticsSummary(data) {
     }
 
     async function rollbackTo(name, versionNumber) {
-      if (!confirm('Make v' + versionNumber + ' of "' + name + '" live? Visitors see it at once.')) return;
+      if (!(await shConfirm({ title: 'Make v' + versionNumber + ' of "' + name + '" live?', body: 'Visitors see it at once.', confirmLabel: 'Make it live' }))) return;
       try {
         var res = await api('PUT', '/v1/sites/' + encodeURIComponent(name) + '/active-version', { version_number: versionNumber });
         if (!res.ok) {
@@ -3997,15 +3997,13 @@ function parseAnalyticsSummary(data) {
     // Only offer the button if every piece is actually present: a configured
     // endpoint, a recorder, and a secure context (getUserMedia is unavailable on
     // plain http, so the button would fail every time on a non-TLS origin).
-    async function initVoiceInput() {
+    function initVoiceInput() {
       var b = micBtn();
       if (!b) return;
       if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') return;
-      try {
-        var res = await fetch('/v1/transcribe', { method: 'POST' });
-        // 401 = wired up and asking us to sign in. 404 = endpoint not configured.
-        if (res.status === 404) return;
-      } catch (e) { return; }
+      // The server says whether voice input is on (SHOWCASE.voice); the page
+      // used to find out by POSTing /v1/transcribe with no key on every load.
+      if (!SHOWCASE.voice) return;
       b.hidden = false;
       b.addEventListener('click', micToggle);
       micSet('idle');
@@ -4139,11 +4137,14 @@ function parseAnalyticsSummary(data) {
           toast('Use 1 to 39 lowercase letters, numbers or hyphens, not starting or ending with a hyphen.', 'error');
           return;
         }
-        var msg = 'Change your address to ' + next + suffix + '?\n\n' +
-          'Old links to your page and your sites keep working: they redirect to the new address.\n\n' +
-          'Anything your pages kept in visitors\' browsers (drafts, settings, scores) starts fresh at the new address, and visitors sign in again.\n\n' +
-          'You can change it again after 30 days.';
-        if (!confirm(msg)) return;
+        var ok = await shConfirm({
+          title: 'Change your address to ' + next + suffix + '?',
+          body: 'Old links to your page and your sites keep working: they redirect to the new address.\n\n' +
+            'Anything your pages kept in visitors\' browsers (drafts, settings, scores) starts fresh at the new address, and visitors sign in again.\n\n' +
+            'You can change it again after 30 days.',
+          confirmLabel: 'Yes, change my address'
+        });
+        if (!ok) return;
         var btn = document.getElementById('addr-save');
         btn.disabled = true;
         try {
@@ -4247,7 +4248,7 @@ function parseAnalyticsSummary(data) {
             go.disabled = false;
             return;
           }
-          alert('Your account and all its data were deleted. A confirmation is on its way to your email.');
+          await shAlert({ title: 'Your account and all its data were deleted.', body: 'A confirmation is on its way to your email.' });
           window.shSignOut();
         } catch (e) {
           toast('Could not delete your account', 'error');
@@ -4369,7 +4370,7 @@ function parseAnalyticsSummary(data) {
       identities.addEventListener('click', async function (e) {
         var btn = e.target.closest('[data-unlink]');
         if (!btn) return;
-        if (!confirm('Unlink ' + btn.getAttribute('data-who') + '? It will no longer sign in to your account. You can still sign in with your email.')) return;
+        if (!(await shConfirm({ title: 'Unlink ' + btn.getAttribute('data-who') + '?', body: 'It will no longer sign in to your account. You can still sign in with your email.', confirmLabel: 'Unlink', danger: true }))) return;
         btn.disabled = true;
         try {
           var r = await send('DELETE', '/v1/me/identities/' + encodeURIComponent(btn.getAttribute('data-unlink')));

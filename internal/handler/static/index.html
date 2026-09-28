@@ -2150,7 +2150,7 @@ function parseAnalyticsSummary(data) {
     }
 
     async function rollbackTo(name, versionNumber) {
-      if (!confirm(`Make v${versionNumber} the active version of "${name}"?`)) return;
+      if (!(await shConfirm({ title: `Make v${versionNumber} the active version of "${name}"?`, confirmLabel: 'Make it active' }))) return;
       try {
         const res = await api('PUT', `/v1/sites/${encodeURIComponent(name)}/active-version`, { version_number: versionNumber });
         if (!res.ok) {
@@ -2166,7 +2166,7 @@ function parseAnalyticsSummary(data) {
     }
 
     async function confirmDelete(name) {
-      if (!confirm(`Delete site "${name}"? It goes offline now. For 7 days you can restore it, with every version and all its saved data, from Recently deleted on your sites page; after that it is gone for good.`)) return;
+      if (!(await shConfirm({ title: `Delete site "${name}"?`, body: 'It goes offline now. For 7 days you can restore it, with every version and all its saved data, from Recently deleted on your sites page; after that it is gone for good.', confirmLabel: 'Delete site', danger: true }))) return;
       try {
         const res = await api('DELETE', `/v1/sites/${encodeURIComponent(name)}`);
         if (!res.ok && res.status !== 204) {
@@ -2182,9 +2182,9 @@ function parseAnalyticsSummary(data) {
     }
 
     async function renameSite(name) {
-      const next = prompt(`Rename "${name}" to:`, name);
+      const next = await shPrompt({ title: `Rename "${name}" to:`, label: 'New name', value: name, confirmLabel: 'Next' });
       if (!next || next.trim() === name) return;
-      if (!confirm(`Rename "${name}" to "${next.trim()}"? Links to the old address will redirect to the new one.`)) return;
+      if (!(await shConfirm({ title: `Rename "${name}" to "${next.trim()}"?`, body: 'Links to the old address will redirect to the new one.', confirmLabel: 'Rename' }))) return;
       const res = await api('PATCH', `/v1/sites/${encodeURIComponent(name)}`, { name: next.trim() });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -2196,7 +2196,7 @@ function parseAnalyticsSummary(data) {
     }
 
     async function rotateAPIKey() {
-      if (!confirm('Sign out everywhere? Every key on this account stops working, and connected apps (ChatGPT, Claude, Grok) are disconnected, and every sign-in on your sites ends. This browser stays signed in; your agents will need the new key.')) return;
+      if (!(await shConfirm({ title: 'Sign out everywhere?', body: 'Every key on this account stops working, and connected apps (ChatGPT, Claude, Grok) are disconnected, and every sign-in on your sites ends. This browser stays signed in; your agents will need the new key.', confirmLabel: 'Sign out everywhere', danger: true }))) return;
       const res = await api('POST', '/v1/me/api-key/rotate');
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -2205,8 +2205,8 @@ function parseAnalyticsSummary(data) {
       }
       apiKey = body.api_key;
       localStorage.setItem('apiKey', apiKey);
-      window.prompt('Signed out everywhere. This is the only key now; copy it for your agent or CLI:', apiKey);
       toast('Signed out everywhere; your agents need the new key.', 'success');
+      await shAlert({ title: 'Signed out everywhere.', body: 'This is the only key now; copy it for your agent or CLI:', copy: apiKey, okLabel: 'Done' });
     }
 
     // Your data (accounts without a handle): GET /v1/me/export.zip and
@@ -2254,7 +2254,7 @@ function parseAnalyticsSummary(data) {
           go.disabled = false;
           return;
         }
-        alert('Your account and all its data were deleted. A confirmation is on its way to your email.');
+        await shAlert({ title: 'Your account and all its data were deleted.', body: 'A confirmation is on its way to your email.' });
         window.shSignOut();
       } catch {
         toast('Could not delete your account', 'error');
@@ -2325,7 +2325,7 @@ function parseAnalyticsSummary(data) {
       } catch {}
     }
     async function unlinkIdentity(d) {
-      if (!confirm(`Unlink ${d.who}? It will no longer sign in to your account. You can still sign in with your email.`)) return;
+      if (!(await shConfirm({ title: `Unlink ${d.who}?`, body: 'It will no longer sign in to your account. You can still sign in with your email.', confirmLabel: 'Unlink', danger: true }))) return;
       try {
         const res = await api('DELETE', '/v1/me/identities/' + encodeURIComponent(d.id));
         const body = res.ok ? {} : await res.json().catch(() => ({}));
@@ -2354,7 +2354,7 @@ function parseAnalyticsSummary(data) {
     }
 
     async function connectDomain(name) {
-      const d = prompt('Enter the custom domain to connect (e.g. recipes.brand.com):');
+      const d = await shPrompt({ title: 'Enter the custom domain to connect (e.g. recipes.brand.com):', label: 'Domain', placeholder: 'recipes.brand.com', confirmLabel: 'Connect' });
       if (!d) return;
       try {
         const res = await api('POST', `/v1/sites/${encodeURIComponent(name)}/domain`, { domain: d.trim() });
@@ -2372,7 +2372,7 @@ function parseAnalyticsSummary(data) {
     }
 
     async function disconnectDomain(name) {
-      if (!confirm('Disconnect this domain?')) return;
+      if (!(await shConfirm({ title: 'Disconnect this domain?', confirmLabel: 'Disconnect', danger: true }))) return;
       try {
         const res = await api('DELETE', `/v1/sites/${encodeURIComponent(name)}/domain`);
         if (res.status !== 204 && !res.ok) {

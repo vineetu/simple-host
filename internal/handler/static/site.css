@@ -356,3 +356,32 @@ body:has(.sh-ask-fab) { padding-bottom: calc(76px + env(safe-area-inset-bottom, 
   .sh-ask .sh-ask-panel { left: 0; right: 0; bottom: 0; width: auto; max-height: min(80vh, 600px); max-height: min(80dvh, 600px); border-radius: 16px 16px 0 0; border-bottom: 0; padding-bottom: env(safe-area-inset-bottom, 0px); }
 }
 
+
+/* ---- In-page dialogs (partials/dialog.html) ------------------------------ */
+/* shConfirm / shPrompt / shAlert. Replaces the browser's native confirm, alert
+   and prompt, which an AI browser agent cannot see or press. Two classes deep
+   so a page's own button, input, h2 and p rules cannot reach in. */
+.sh-dlg { width: min(440px, calc(100vw - 32px)); max-width: none; max-height: calc(100vh - 32px); margin: auto; padding: 0; border: 1px solid var(--border-hi); border-radius: 14px; background: var(--surface); color: var(--text); font-family: var(--font); box-shadow: 0 18px 48px rgba(15, 23, 42, .28), 0 2px 6px rgba(15, 23, 42, .12); overflow: auto; }
+.sh-dlg::backdrop { background: rgba(2, 6, 23, .55); }
+.sh-dlg .sh-dlg-box { display: block; margin: 0; padding: 20px; border: 0; background: none; }
+.sh-dlg .sh-dlg-title { margin: 0 0 8px; padding: 0; font-family: var(--font); font-size: 17px; font-weight: 650; line-height: 1.35; color: var(--text); overflow-wrap: anywhere; }
+.sh-dlg .sh-dlg-body { margin: 0 0 4px; padding: 0; font-size: 14.5px; line-height: 1.55; color: var(--text-secondary); white-space: pre-line; overflow-wrap: anywhere; }
+.sh-dlg .sh-dlg-field { display: block; margin: 12px 0 0; padding: 0; }
+.sh-dlg .sh-dlg-label { display: block; margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--text); }
+.sh-dlg .sh-dlg-input { display: block; width: 100%; min-width: 0; margin: 0; font-family: var(--mono); font-size: 16px; padding: 9px 12px; border: 1px solid var(--border-hi); border-radius: 8px; background: var(--bg); color: var(--text); }
+.sh-dlg .sh-dlg-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+.sh-dlg .sh-dlg-copy { display: flex; gap: 8px; margin: 12px 0 0; }
+.sh-dlg .sh-dlg-copy .sh-dlg-input { flex: 1; }
+.sh-dlg .sh-dlg-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin: 20px 0 0; }
+.sh-dlg .sh-dlg-btn { flex: none; margin: 0; font-family: var(--font); font-size: 15px; font-weight: 600; line-height: 1.3; padding: 9px 16px; border: 1px solid var(--border-hi); border-radius: 8px; background: transparent; color: var(--text); cursor: pointer; text-transform: none; letter-spacing: normal; }
+.sh-dlg .sh-dlg-btn:hover { background: var(--bg); }
+.sh-dlg .sh-dlg-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sh-dlg .sh-dlg-primary { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
+.sh-dlg .sh-dlg-primary:hover { border-color: var(--accent-hover); background: var(--accent-hover); }
+.sh-dlg .sh-dlg-primary.sh-dlg-danger { border-color: var(--error); background: var(--error); color: var(--on-accent); }
+.sh-dlg .sh-dlg-primary.sh-dlg-danger:hover { filter: brightness(1.08); background: var(--error); }
+@media (max-width: 480px) {
+  .sh-dlg .sh-dlg-box { padding: 16px; }
+  .sh-dlg .sh-dlg-actions { flex-direction: column-reverse; }
+  .sh-dlg .sh-dlg-actions .sh-dlg-btn { width: 100%; }
+}

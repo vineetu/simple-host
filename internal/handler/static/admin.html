@@ -370,7 +370,7 @@ function showIssued(list){
 // A participant lost their key: replace every key on that account with one
 // new key, shown once in the same table as a fresh batch.
 async function reissueKey(id, username){
-  if(!confirm('Give '+username+' a new key? Every key they hold now stops working. Their sites and data stay.')) return;
+  if(!(await shConfirm({title:'Give '+username+' a new key?', body:'Every key they hold now stops working. Their sites and data stay.', confirmLabel:'Give a new key', danger:true}))) return;
   try{
     var res=await fetch('/v1/admin/users/'+encodeURIComponent(id)+'/key',{method:'POST',headers:{'X-API-Key':apiKey}});
     var d=await res.json().catch(function(){return {};});
@@ -392,7 +392,7 @@ function downloadCSV(){
 async function deleteAccount(id, username){
   // Irreversible and it takes their published work with it, so name the person
   // in the prompt rather than asking "are you sure".
-  if(!confirm('Delete '+username+' and everything they published? This cannot be undone.')) return;
+  if(!(await shConfirm({title:'Delete '+username+' and everything they published?', body:'This cannot be undone.', confirmLabel:'Delete', danger:true}))) return;
   var res=await fetch('/v1/admin/users/'+encodeURIComponent(id),{method:'DELETE',headers:{'X-API-Key':apiKey}});
   if(res.status===204){ status('Deleted '+username+'.'); load(); }
   else { var d=await res.json().catch(function(){return {};}); status(d.error||'Could not delete', true); }
@@ -408,18 +408,18 @@ async function adminAction(path, body, done){
     await load(); status(done);
   }catch(e){ status('Cannot reach server', true); }
 }
-function askReason(what){
-  var r=prompt('Why? One line. The owner sees this.\n'+what);
+async function askReason(what, label){
+  var r=await shPrompt({title:'Why? One line. The owner sees this.', body:what, label:'Reason', confirmLabel:label});
   return r==null ? null : r.trim();
 }
-function suspendSite(id, name){
-  var r=askReason('Take down '+name+': every address shows "This site has been taken down" and changes are refused. Restore puts it back.');
+async function suspendSite(id, name){
+  var r=await askReason('Take down '+name+': every address shows "This site has been taken down" and changes are refused. Restore puts it back.', 'Take down');
   if(!r) return;
   adminAction('/v1/admin/sites/'+encodeURIComponent(id)+'/suspend',{reason:r},'Took down '+name+'.');
 }
 function restoreSite(id, name){ adminAction('/v1/admin/sites/'+encodeURIComponent(id)+'/restore',null,'Restored '+name+'.'); }
-function suspendUser(id, name){
-  var r=askReason('Suspend '+name+': their keys, connected apps and sign-in stop working and all their sites are taken down. Re-enable reverses it.');
+async function suspendUser(id, name){
+  var r=await askReason('Suspend '+name+': their keys, connected apps and sign-in stop working and all their sites are taken down. Re-enable reverses it.', 'Suspend');
   if(!r) return;
   adminAction('/v1/admin/users/'+encodeURIComponent(id)+'/suspend',{reason:r},'Suspended '+name+'.');
 }

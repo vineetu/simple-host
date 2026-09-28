@@ -1,0 +1,94 @@
+<script>
+  /* In-page dialogs: shConfirm, shPrompt and shAlert, for every page with the
+     shared head. Never window.confirm/alert/prompt: an AI browser agent
+     driving the page cannot see or press a native dialog, so the page hangs
+     (TestNoNativeDialogs keeps them out). One <dialog> element, built on first
+     use, styled by .sh-dlg in site.css:
+       shConfirm({title, body, confirmLabel, cancelLabel, danger}) → Promise<boolean>
+       shPrompt({title, body, label, value, placeholder, confirmLabel}) → Promise<string|null>
+       shAlert({title, body, okLabel, copy}) → Promise<void>
+     Escape or Cancel settles false / null; focus returns where it was. */
+  (function () {
+    var dlg, settle = null;
+    var build = function () {
+      dlg = document.createElement('dialog');
+      dlg.className = 'sh-dlg';
+      dlg.setAttribute('role', 'dialog');
+      dlg.setAttribute('aria-modal', 'true');
+      dlg.setAttribute('aria-labelledby', 'sh-dlg-title');
+      dlg.setAttribute('aria-describedby', 'sh-dlg-body');
+      dlg.innerHTML =
+        '<form class="sh-dlg-box" method="dialog" novalidate>' +
+          '<h2 class="sh-dlg-title" id="sh-dlg-title"></h2>' +
+          '<p class="sh-dlg-body" id="sh-dlg-body"></p>' +
+          '<label class="sh-dlg-field"><span class="sh-dlg-label"></span><input class="sh-dlg-input" type="text" autocomplete="off" spellcheck="false"></label>' +
+          '<div class="sh-dlg-copy"><input class="sh-dlg-input" type="text" readonly aria-label="Value to copy"><button class="sh-dlg-btn" type="button" data-sh-dlg="copy">Copy</button></div>' +
+          '<div class="sh-dlg-actions">' +
+            '<button class="sh-dlg-btn" type="button" data-sh-dlg="cancel"></button>' +
+            '<button class="sh-dlg-btn sh-dlg-primary" type="submit" data-sh-dlg="ok"></button>' +
+          '</div>' +
+        '</form>';
+      document.body.appendChild(dlg);
+      var q = function (s) { return dlg.querySelector(s); };
+      q('form').addEventListener('submit', function (e) { e.preventDefault(); close(true); });
+      q('[data-sh-dlg="cancel"]').addEventListener('click', function () { close(false); });
+      q('[data-sh-dlg="copy"]').addEventListener('click', function () {
+        var b = this, inp = q('.sh-dlg-copy input');
+        var ok = function () { b.textContent = 'Copied'; setTimeout(function () { b.textContent = 'Copy'; }, 1500); };
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(inp.value).then(ok).catch(function () { inp.select(); });
+        else inp.select();
+      });
+      // Escape: the browser fires cancel on a modal <dialog>.
+      dlg.addEventListener('cancel', function (e) { e.preventDefault(); close(false); });
+      // A press on the backdrop (the <dialog> itself, outside the box) cancels.
+      dlg.addEventListener('click', function (e) { if (e.target === dlg) close(false); });
+    };
+    var close = function (ok) {
+      if (!settle) return;
+      var s = settle; settle = null;
+      s(ok);
+    };
+    var open = function (kind, o) {
+      if (typeof o === 'string') o = { title: o };
+      o = o || {};
+      if (!dlg) build();
+      close(false); // a dialog already open settles as cancelled
+      var q = function (s) { return dlg.querySelector(s); };
+      var field = q('.sh-dlg-field'), input = q('.sh-dlg-field input');
+      var copy = q('.sh-dlg-copy'), okBtn = q('[data-sh-dlg="ok"]'), cancelBtn = q('[data-sh-dlg="cancel"]');
+      q('.sh-dlg-title').textContent = o.title || '';
+      var body = q('.sh-dlg-body');
+      body.textContent = o.body || '';
+      body.hidden = !o.body;
+      field.hidden = kind !== 'prompt';
+      q('.sh-dlg-label').textContent = o.label || '';
+      q('.sh-dlg-label').hidden = !o.label;
+      input.value = o.value || '';
+      input.placeholder = o.placeholder || '';
+      input.setAttribute('aria-label', o.label || o.title || '');
+      copy.hidden = !o.copy;
+      q('.sh-dlg-copy input').value = o.copy || '';
+      okBtn.textContent = o.confirmLabel || o.okLabel || 'OK';
+      okBtn.classList.toggle('sh-dlg-danger', !!o.danger);
+      cancelBtn.textContent = o.cancelLabel || 'Cancel';
+      cancelBtn.hidden = kind === 'alert';
+      var back = document.activeElement;
+      return new Promise(function (resolve) {
+        settle = function (ok) {
+          if (dlg.open) dlg.close();
+          if (back && back.focus && document.contains(back)) { try { back.focus(); } catch (e) {} }
+          if (kind === 'prompt') resolve(ok ? input.value : null);
+          else if (kind === 'alert') resolve();
+          else resolve(!!ok);
+        };
+        if (!dlg.open) { if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', ''); }
+        var f = kind === 'prompt' ? input : o.copy ? q('.sh-dlg-copy input') : o.danger ? cancelBtn : okBtn;
+        f.focus();
+        if (f.select && (kind === 'prompt' || o.copy)) f.select();
+      });
+    };
+    window.shConfirm = function (o) { return open('confirm', o); };
+    window.shPrompt = function (o) { return open('prompt', o); };
+    window.shAlert = function (o) { return open('alert', o); };
+  })();
+</script>

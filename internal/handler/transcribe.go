@@ -57,6 +57,13 @@ func NewTranscribeHandler(url, ticketSecret string) *TranscribeHandler {
 	}
 }
 
+// voiceInputEnabled: /v1/transcribe is registered on this server. The owner
+// page reads it (showcaseData.Voice) instead of probing the endpoint on load.
+var voiceInputEnabled bool
+
+// EnableVoiceInput is called at startup when TRANSCRIBE_URL is set.
+func EnableVoiceInput() { voiceInputEnabled = true }
+
 func (h *TranscribeHandler) Register(mux *http.ServeMux, authMW func(http.Handler) http.Handler) {
 	mux.Handle("POST /v1/transcribe", authMW(http.HandlerFunc(h.transcribe)))
 	mux.Handle("POST /v1/transcribe/ticket", authMW(http.HandlerFunc(h.ticket)))

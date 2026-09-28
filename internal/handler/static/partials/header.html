@@ -73,9 +73,11 @@
         var finish = function (warn) {
           ['apiKey', 'sh-email-nonce'].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
           ['sh-google-nonce', 'sh-connect-nonce'].forEach(function (k) { try { sessionStorage.removeItem(k); } catch (e) {} });
-          if (warn) alert('Signed out of this browser, but the server could not be reached to end its key. If this is a shared computer, sign in again and choose "Sign out everywhere".');
           // replace, not assign: Back must not return to a page full of the account.
-          location.replace('{{.Base}}/');
+          var leave = function () { location.replace('{{.Base}}/'); };
+          if (warn && window.shAlert) {
+            window.shAlert({ title: 'Signed out of this browser, but the server could not be reached to end its key.', body: 'If this is a shared computer, sign in again and choose "Sign out everywhere".' }).then(leave);
+          } else leave();
         };
         if (!key) { finish(false); return; }
         // 204 ended it; 401 means it was already dead; 400 is a key the

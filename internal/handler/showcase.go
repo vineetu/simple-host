@@ -43,6 +43,9 @@ type showcaseData struct {
 	OwnerAppURL       string         `json:"ownerAppUrl"`
 	MainURL           string         `json:"mainUrl"`
 	Sites             []showcaseSite `json:"sites"`
+	// Voice: this server has voice input (/v1/transcribe). The page shows the
+	// mic from this alone, so loading it sends no request to find out.
+	Voice bool `json:"voice"`
 }
 
 // publicSitesBase reconstructs the scheme://host the browser reached the content
@@ -168,6 +171,7 @@ func (h *SiteHandler) renderShowcase(w http.ResponseWriter, r *http.Request, han
 		OwnerAppURL:       h.mainSiteURL() + "/" + handle,
 		MainURL:           h.mainSiteURL(),
 		Sites:             []showcaseSite{},
+		Voice:             voiceInputEnabled,
 	}
 	for _, s := range sites {
 		vis := s.Visibility
