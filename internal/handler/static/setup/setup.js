@@ -30,8 +30,8 @@
   // what it builds is fixed. After a release that changes deploy/terraform,
   // set all three: git rev-parse vX.Y.Z^{commit}, and
   // git show vX.Y.Z:deploy/terraform/<cloud>/apply.sh | sha256sum.
-  var ENT_CLOUD_REF = '66ac38656e9152f0154f6dd6a70c76a0cfc16104';
-  var ENT_APPLY_SHA256 = { aws: 'ece6d1793c52bba410f5895871ccd7670617b27ef7eaf449ec9a10fee029c0d3' };
+  var ENT_CLOUD_REF = '32f1920fc0b811771af9a5273ba0dd33626a1da2';
+  var ENT_APPLY_SHA256 = { aws: '49b6c646280b8695445b2b1f47c4afd740f5f6827e4e2a8651981270f952acf8' };
   var ENT_RAW = 'https://raw.githubusercontent.com/vineetu/simple-host-enterprise/';
   // Where a small box is recommended to run. A referral link: the page says so.
   var UPCLOUD_SIGNUP = 'https://signup.upcloud.com/?promo=JF2WCV';
@@ -973,7 +973,7 @@
     L.push('1. Check this shell is signed in to the right account: `' + who + '`. Tell me the account and ask me to confirm it before going on.', '');
     L.push('2. The sign-in app’s client secret: before starting you I set it in this terminal as TF_VAR_oidc_client_secret. Check with `test -n "$TF_VAR_oidc_client_secret" && echo set`. If it is not set, stop and ask me to quit you, run this in the terminal and start you again (a re-run after a first successful one does not need it: the stored secret is kept):', '', FENCE + 'sh', SECRET_CREDS, FENCE, '');
     L.push('3. See what it will create: run this line with ` --plan` added at the end. It installs Terraform if it is missing, fetches the module at a pinned commit after checking its checksum, and prints the plan. Tell me how many resources it adds and ask me before going on.', '', FENCE + 'sh', r.cmd, FENCE, '');
-    L.push('4. Apply: after I say yes, run the same line with ` --yes` added at the end. ' + (b.cluster === 'yes' ? 'It takes about 15 minutes.' : 'It takes about 25 minutes (the cluster is most of it).') + ' If it stops, running the same line again picks up where it stopped. In ' + c.shell + ' the shell closes after about 20 minutes without a key press, which stops the work: remind me to press Enter in it every 10 minutes or so.', '');
+    L.push('4. Apply: after I say yes, run the same line with ` --yes` added at the end. ' + (b.cluster === 'yes' ? 'A first install takes about 15 minutes' : 'A first install takes about 25 minutes (the cluster is most of it)') + '; on an install that exists it applies only the changes. If it stops, running the same line again picks up where it stopped. In ' + c.shell + ' the shell closes after about 20 minutes without a key press, which stops the work: remind me to press Enter in it every 10 minutes or so.', '');
     L.push('5. DNS: the first numbered step of its final output, "1. DNS:", either lists NS records for ' + b.host + ' to add (in the DNS zone of the domain above it, or as the name servers at the registrar if ' + b.host + ' is a domain of its own): tell me exactly which records to add and where, and wait for me; then check that `dig +short NS ' + sh(b.host) + '` prints them. Or it says ' + b.host + ' is already a Route 53 zone in this account, with nothing to add.', '');
     L.push('6. Check it works (certificates can take a few minutes after the DNS change):');
     L.push('   - `curl -fsS ' + sh('https://' + b.host + '/readyz') + '` prints {"status":"ok"}.');
@@ -992,7 +992,7 @@
       el('ol', { class: 'steps' }, [
         el('li', null, ['Open ', el('a', { href: shellUrl(c, b.cloudRegion), target: '_blank', rel: 'noopener', text: c.shell }),
           ' in the account it should run in, and paste this line. It asks for your sign-in app’s client secret (not shown as you type), shows what it will create, and waits for you to type yes. It takes about ' +
-          (b.cluster === 'yes' ? '15' : '25') + ' minutes: keep the tab open and press Enter every 10 minutes or so, because ' + c.shell + ' closes after about 20 minutes without a key press. If it closes, open it again and paste the same line: it picks up where it stopped.'])
+          (b.cluster === 'yes' ? '15' : '25') + ' minutes: keep the tab open, stay with it until it asks you to type yes, then press Enter every 10 minutes or so, because ' + c.shell + ' closes after about 20 minutes without a key press. If it closes, open it again and paste the same line: it picks up where it stopped. To change an install you already have, paste its new line the same way: it applies only the changes.'])
       ]),
       block('Paste into ' + c.shell, r.cmd),
       el('ol', { class: 'steps', start: '2' }, [
