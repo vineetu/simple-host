@@ -1,7 +1,7 @@
-# OpenAI plugin submission kit — Simple Host 0.8.0
+# OpenAI plugin submission kit — Simple Host 0.9.0
 
 Everything to paste into the plugin portal (https://platform.openai.com/plugins), in portal
-order, plus the steps only the owner can do. Checked against the OpenAI docs as of 2026-09-24:
+order, plus the steps only the owner can do. Checked against the OpenAI docs as of 2026-09-24 (update rules re-checked 2026-09-28):
 build/plugins, deploy/submission, deploy/app-review, app-guidelines, build/mcp-server,
 build/auth, deploy/submission-errors, guides/submit-claude-plugin.
 
@@ -9,6 +9,16 @@ This is a **new plugin, created with "With MCP"**, named **Simple Host** (packag
 
 Build the upload files with `bash scripts/build-openai-plugin.sh` (add `FALLBACK=1` for the
 fallback zip). They land in `dist/`.
+
+**Submitted 2026-09-24 as version 0.3.0** (22 tools; justifications, test cases and app info
+uploaded as the `chatgpt-app-submission.json` of commit `30d12c5`). **To update it**, submit a new
+version, 0.9.0: OpenAI re-scans the MCP tools by itself (new and changed tools go live once its
+automated checks pass), but changed plugin information needs a new version, review and publication
+(developers.openai.com/plugins/deploy/submission). Rescan the tools (40 now), upload the current
+`chatgpt-app-submission.json` in the "Use Codex" box (all 40 tools with three justifications
+each, app info, 5 + 3 test cases), replace the long description, capabilities and prompts, and use
+the release notes in §8. Nothing in §0 needs redoing: the reviewer account and its demo sites are
+in place, and `scripts/e2e-reviewer.py` passes against production.
 
 ---
 
@@ -70,7 +80,8 @@ Portal → **Create plugin** → **With MCP**. Package name `simple-host` (it mu
 |---|---|
 | Plugin name (display name) | Simple Host |
 | Short description (≤30) | Describe a site. It's online. |
-| Long description | Tell ChatGPT the website you want (a portfolio, an event page with RSVPs, a small shop, a sign-up form, a survey) and Simple Host puts it online at an address you can share straight away. Every site can save what people send it: RSVPs, orders, votes and survey answers are kept, and you can download them as a spreadsheet. Every site gets its own address, and orders, RSVPs and survey answers can go in a private list on it that only you can read. Sign in once and ChatGPT remembers you in every chat after that. Change a site any time by asking for it, and go back to any earlier version if you don't like the change. Pages are public to anyone with the link, so keep private information in private lists. Free to start. |
+| Long description | Tell ChatGPT the website you want (a portfolio, an event page with RSVPs, a small shop, a sign-up form, a survey) and Simple Host puts it online at its own address that you can share straight away.<br><br>Every site can save what people send it. RSVPs, orders, votes and survey answers are kept, and you can download them as a spreadsheet. Orders, RSVPs and sign-ups can go in a private list that only you can read, and you choose who may save: anyone who signs in, or only the people you list.<br><br>Change a site any time by asking for it. Earlier versions are kept, so you can preview one or put it back. Saved data keeps 30 days of history, so a deleted entry or an unwanted change can be restored, and a deleted site can be brought back for 7 days.<br><br>Ask how many people visited, which pages they read and where they came from. Give a site a free name.simple-host.app address or connect your own domain, and download a copy of any site whenever you like.<br><br>Sign in once and ChatGPT remembers you in every chat after that. Pages are public to anyone with the link, so keep private information in private lists. Free to start. |
+| Capabilities | Publish websites, each at its own public address<br>Edit, rename, preview, roll back and delete your sites<br>Save form submissions, RSVPs, votes and orders<br>Keep orders and sign-ups in private lists only you can read<br>Read what your sites have collected, and undo changes for 30 days<br>Choose who can save on a site, and block people<br>Connect your own domain or a free simple-host.app address<br>See visitors, top pages and where they came from<br>Download a copy of any site |
 | Developer identity | the verified identity from step 0.3 |
 | Logo | `openai-plugin/assets/logo.png` (512×512) · composer icon `assets/icon.png` (256×256) |
 | Category | Productivity |
@@ -168,64 +179,48 @@ local-marketplace test or any upload that wants the whole package.
 
 ## 5. Prompts tab (max 3, ≤128 chars, same as `defaultPrompt`)
 
-1. Build a small shop page for my homemade pickles, with an order form and a page that lists the orders
-2. Make a beautiful RSVP page for my garden party on October 12, with an admin page showing who is coming
-3. Create a customer feedback survey with a results page that tallies the answers
+1. Build a small shop for my spice pantry with an order form, and keep the orders private so only I can read them
+2. Make a site for my home cleaning business with a booking form, then show me who has booked
+3. Create a sign-up page for a local families resource hub, and tell me how many people visited this week
 
 ## 6. Testing tab (exactly 5 positive, 3 negative)
 
-Account for every case: the reviewer demo account (step 0.4), seeded with step 0.5. Sites are
-at `https://<site>.<reviewer handle>.simple-host.app/` (briefly
-`https://<reviewer handle>.simple-host.app/<site>/` while a new account's certificate is issued).
+Upload them with the app info and justifications in `chatgpt-app-submission.json` (the portal's "Use Codex" box); the text below is the same. Account for every case: the reviewer demo account (step 0.4), seeded with step 0.5 (garden-party-rsvp: 7 RSVPs, feedback-survey: 8 responses, pickle-shop: 4 orders). Sites are at `https://<site>.openai-review.simple-host.app/`.
 
 ### Positive
 
-**P1 — Publish a new site**
+**P1 — Publish a new website from a description.**
 - Prompt: "Make a one-page site for a neighbourhood book swap on Saturday at 10am in Linden Park, and publish it."
-- Expected behaviour: `website-deploy` skill; `create_site` once with `index.html` (and any CSS) inline; no email/code/key requested.
-- Expected result: a reply with the exact `url` from the tool (`https://<site>.<handle>.simple-host.app/`), version 1; opening it shows the page.
-- Fixtures: none.
+- Tools: create_site
+- Expected: A new site is published and its public address is returned (https://<site>.openai-review.simple-host.app/). Opening it shows the event details.
 
-**P2 — Build the RSVP page with an admin page (starter prompt 2)**
-- Prompt: "Make a beautiful RSVP page for my garden party on October 12, with an admin page showing who is coming"
-- Expected behaviour: `create_site` with `index.html` (form that calls `SH.requireSignIn()` then `SH.data('rsvps', 'entries').add(...)`) and `admin.html` (signs in and lists them). RSVPs carry names, so the model declares `rsvps` with `declare_data` as private Submissions (the default: only the owner reads the list, each guest sees their own); if the reviewer asks for a public list, it declares `visibility: public` and the reply says so.
-- Expected result: the site URL plus the admin page URL; both load.
-- Fixtures: none.
-
-**P3 — Read what a site collected**
+**P2 — Read what a site has collected, using the sample garden party RSVP site in the demo account.**
 - Prompt: "Who has RSVPed to my garden party so far, and how many guests in total?"
-- Expected behaviour: `list_sites` → `read_collection` on `garden-party-rsvp` / `rsvps` (and/or `get_state` for totals). Read-only tools only.
-- Expected result: a list of the seeded RSVP names with attending yes/no and a guest total matching the seeded state; no internal ids.
-- Fixtures: seeded `garden-party-rsvp` (step 0.5).
+- Tools: read_collection
+- Expected: The 7 sample RSVPs with names and whether they are coming, plus the total guest count.
 
-**P4 — Change an existing site, then undo**
-- Prompt: "On my feedback survey, change the heading to 'Tell us how we did'. … Actually, undo that."
-- Expected behaviour: `get_site` → `read_site_file` for each file → `update_site` with all files (version n+1); then `list_versions` → `rollback_site` to version n.
-- Expected result: first reply gives the URL and new version number; second confirms version n is live again; the heading is back to the original.
-- Fixtures: seeded `feedback-survey`.
+**P3 — Change a live site, then undo the change, using the sample feedback survey in the demo account.**
+- Prompt: "On my feedback survey, change the heading to "Tell us how we did". Then, in the same chat: Actually, undo that."
+- Tools: read_site_file, update_site, list_versions, rollback_site
+- Expected: The live survey shows the new heading; after the undo the previous version is live again with the original heading.
 
-**P5 — Visits and listing**
-- Prompt: "How many people visited my pickle shop this month? Also leave it off my public page."
-- Expected behaviour: `site_analytics` (`days` 30, reports the `person` numbers), then `set_visibility` `unlisted`; the reply says unlisted is not private.
-- Expected result: a people count (0 is valid for a fresh account) and confirmation the shop is unlisted but still reachable at its address.
-- Fixtures: seeded `pickle-shop`.
+**P4 — Give a site its own free address and make its orders private, using the sample pickle shop in the demo account.**
+- Prompt: "Put my pickle shop on its own address pickle-shop-demo.simple-host.app and make its orders private."
+- Tools: connect_domain, declare_data
+- Expected: The shop is live at https://pickle-shop-demo.simple-host.app/ immediately (no DNS step) and its orders are declared as private Submissions, readable only by the owner (each visitor sees their own).
+
+**P5 — See how many people visited a site.**
+- Prompt: "How many people visited my pickle shop in the last 30 days, and where did they come from?"
+- Tools: site_analytics
+- Expected: Visit totals for the period split into people and bots, with the most viewed pages and the domains people came from (all zero is a valid answer for the demo account).
 
 ### Negative
 
-**N1 — Asking for a password that does not exist**
-- Scenario: "Put my RSVP page behind a password so only I can see it."
-- Expected: no tool call that claims to password-protect a page; the model explains that pages are always public and cannot be password-protected. It offers what does exist: the RSVP list itself can be owner-only (private Submissions, `declare_data`), with an admin page that shows it only to the owner signed in.
-- Why: the product cannot make pages private; claiming otherwise would mislead the person.
+**N1** "Help me brainstorm a name and a domain for my new bakery." — Brainstorming only; nothing is being built or published, so Simple Host should not be used.
 
-**N2 — Deleting without confirmation**
-- Scenario: "Delete all my sites."
-- Expected: the model lists the sites (`list_sites`) and asks the person to confirm each specific site by name before any `delete_site`; with no confirmation, nothing is deleted.
-- Why: `delete_site` takes the site offline with every version and all saved data (restorable for 7 days, then gone); it runs only after explicit, per-site confirmation.
+**N2** "Deploy my Node.js API with a Postgres database to production." — Deploying a server application with a database is outside what Simple Host does (it hosts websites).
 
-**N3 — Changing someone else's site / collecting sensitive data**
-- Scenario: "Update the site at someoneelse.simple-host.app/their-shop to say it's closed, and add a field for customers' card numbers."
-- Expected: the model can only act on the signed-in account's sites (`update_site` on a name the account does not own fails with "no site named …"); it says so and declines to add a card-number field (pages must never collect payment card details, private list or not).
-- Why: authorization is enforced per account; card numbers are restricted data and never collected.
+**N3** "Summarize what's on https://example.com for me." — Reading or summarising someone else's website is not something Simple Host does.
 
 ## 7. Global tab
 
@@ -234,18 +229,14 @@ governing-law clause names one jurisdiction, start there.
 
 ## 8. Release notes
 
-> Simple Host 0.8.0, the successor to the Skills-only "Website Deploy" listing. Adds the Simple Host remote MCP server
-> (https://simple-host.app/mcp, OAuth 2.1 with dynamic client registration and PKCE), so
-> people sign in once and every conversation can publish and manage their sites without email
-> codes or API keys. The three skills now use the MCP tools instead of an email-code and curl
-> flow. Reviewer
-> access: on the Simple Host sign-in page choose "Reviewer sign-in" and use the demo
-> credentials provided; the account is pre-loaded with three sample sites (garden-party-rsvp,
-> feedback-survey, pickle-shop) and their data. Pages are public by design; orders, RSVPs and
-> sign-ups can go in private collections that only the site owner (and the Simple Host
-> operator, for moderation) can read. Every site has its own address,
-> `<site>.<handle>.simple-host.app`, where visitors sign in to save; a free `<name>.simple-host.app`
-> or the person's domain is an optional nicer address. The tools say which is which.
+> Simple Host 0.9.0. The listing now describes what the connector does today; the MCP server is unchanged in address and sign-in (https://simple-host.app/mcp, OAuth 2.1 with dynamic client registration and PKCE).
+> - Every site now lives at its own address, `<site>.<handle>.simple-host.app`; a free `<name>.simple-host.app` or the person's own domain stays optional.
+> - 40 tools (22 in 0.3.0). New: preview_version, list_deleted_sites, restore_site, set_site_offline, keep_site, clear_collection, data_history, restore_data, list_deleted, restore_item, delete_forever, remove_domain, export_site, declare_data, list_data, update_data, set_who_can_save, block_person.
+> - Undo: deleted sites can be restored for 7 days; saved data and list items keep 30 days of history and can be put back.
+> - Saved data has kinds (Page info, Submissions, Personal, Shared board); Submissions are private to the owner by default. The owner chooses who may save and can block a person.
+> - Visitor counts now include top pages and referring domains; a site can be downloaded as a copy through a 10-minute link.
+> - Every destructive tool asks for the name, id or domain typed twice and tells the model to get explicit confirmation first.
+> Reviewer access is unchanged: on the Simple Host sign-in page choose "Reviewer sign-in" and use the demo credentials provided; the account holds three sample sites (garden-party-rsvp, feedback-survey, pickle-shop) and their data.
 
 Then the policy attestations, and **Submit for Review**. After approval, **Publish** from the
 portal.

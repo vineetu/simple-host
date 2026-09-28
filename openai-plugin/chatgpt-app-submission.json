@@ -4,7 +4,7 @@
   "app_info": {
     "display_name": "Simple Host",
     "subtitle": "Describe a site. It's online.",
-    "description": "Tell ChatGPT the website you want (a portfolio, an event page with RSVPs, a small shop, a sign-up form, a survey) and Simple Host puts it online at an address you can share straight away. Every site can save what people send it: RSVPs, orders, votes and survey answers are kept, and you can download them as a spreadsheet. Every site gets its own address, and orders, RSVPs and survey answers can go in a private list on it that only you can read. Sign in once and ChatGPT remembers you in every chat after that. Change a site any time by asking for it, and go back to any earlier version if you don't like the change. Pages are public to anyone with the link, so keep private information in private lists. Free to start.",
+    "description": "Tell ChatGPT the website you want (a portfolio, an event page with RSVPs, a small shop, a sign-up form, a survey) and Simple Host puts it online at its own address that you can share straight away.\n\nEvery site can save what people send it. RSVPs, orders, votes and survey answers are kept, and you can download them as a spreadsheet. Orders, RSVPs and sign-ups can go in a private list that only you can read, and you choose who may save: anyone who signs in, or only the people you list.\n\nChange a site any time by asking for it. Earlier versions are kept, so you can preview one or put it back. Saved data keeps 30 days of history, so a deleted entry or an unwanted change can be restored, and a deleted site can be brought back for 7 days.\n\nAsk how many people visited, which pages they read and where they came from. Give a site a free name.simple-host.app address or connect your own domain, and download a copy of any site whenever you like.\n\nSign in once and ChatGPT remembers you in every chat after that. Pages are public to anyone with the link, so keep private information in private lists. Free to start.",
     "category": "PRODUCTIVITY"
   },
   "tools": {
@@ -221,7 +221,7 @@
       "justifications": {
         "read_only_justification": "It writes a site's saved data, so it modifies data.",
         "open_world_justification": "The saved data is shown on a public website.",
-        "destructive_justification": "Some operations overwrite or remove saved values, and there is no undo."
+        "destructive_justification": "Some operations overwrite or remove saved values. The earlier version is kept for 30 days (data_history, restore_data), but the overwrite itself is marked destructive."
       }
     },
     "list_collections": {
@@ -281,7 +281,7 @@
       "justifications": {
         "read_only_justification": "It edits an item in a private list (for example marking an order done), so it modifies data.",
         "open_world_justification": "The list is private to the site owner; nothing is published or sent to any third party.",
-        "destructive_justification": "It overwrites or removes field values in the item, with no undo."
+        "destructive_justification": "It overwrites or removes field values in the item. The earlier fields are kept for 30 days (restore_data puts them back), but the overwrite itself is marked destructive."
       }
     },
     "delete_collection_item": {
@@ -399,7 +399,7 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It only returns visit totals for one of the person's sites; it changes nothing.",
+        "read_only_justification": "It only returns visit totals, the most viewed pages and the domains visitors came from for one of the person's sites; it changes nothing.",
         "open_world_justification": "It reads the person's own site statistics; nothing is published or sent anywhere.",
         "destructive_justification": "Nothing is created, changed or deleted."
       }
@@ -418,14 +418,14 @@
     },
     "export_site": {
       "annotations": {
-        "readOnlyHint": true,
+        "readOnlyHint": false,
         "openWorldHint": false,
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It only returns a short-lived download link for a copy of one of the person's own sites; it changes nothing.",
-        "open_world_justification": "The link is handed to the person in the chat; nothing is published or sent anywhere.",
-        "destructive_justification": "Nothing is created, changed or deleted."
+        "read_only_justification": "Each call creates a new 10-minute download link on the server, so it is not a pure read.",
+        "open_world_justification": "The link is handed to the person in the chat; nothing is published or sent anywhere, and it works only for that one site.",
+        "destructive_justification": "Nothing is changed, overwritten or deleted; it only packages a copy of the person's own site."
       }
     },
     "declare_data": {
@@ -435,7 +435,7 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It records what one data name on the person's site is (Page info or Submissions) and its settings, so it changes data.",
+        "read_only_justification": "It records what one data name on the person's site is (Page info, Submissions, Personal or Shared board) and its settings, so it changes data.",
         "open_world_justification": "Choosing public visibility makes a list's contents readable by anyone on the internet.",
         "destructive_justification": "It changes a setting only; nothing is deleted, and declaring it again gives the same result."
       }
@@ -494,7 +494,7 @@
       "description": "Publish a new website from a description.",
       "user_prompt": "Make a one-page site for a neighbourhood book swap on Saturday at 10am in Linden Park, and publish it.",
       "tools_triggered": "create_site",
-      "expected_output": "A new site is published and its public address is returned (https://openai-review.simple-host.app/...). Opening it shows the event details."
+      "expected_output": "A new site is published and its public address is returned (https://<site>.openai-review.simple-host.app/). Opening it shows the event details."
     },
     {
       "description": "Read what a site has collected, using the sample garden party RSVP site in the demo account.",
@@ -516,9 +516,9 @@
     },
     {
       "description": "See how many people visited a site.",
-      "user_prompt": "How many people visited my pickle shop in the last 30 days?",
+      "user_prompt": "How many people visited my pickle shop in the last 30 days, and where did they come from?",
       "tools_triggered": "site_analytics",
-      "expected_output": "Visit totals for the period, split into people and bots, with views and unique visitors."
+      "expected_output": "Visit totals for the period split into people and bots, with the most viewed pages and the domains people came from (all zero is a valid answer for the demo account)."
     }
   ],
   "negative_test_cases": [
