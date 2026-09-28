@@ -24,19 +24,65 @@
     "defaults": {
       "people": 100,
       "sites": 300,
-      "views": 100000,
+      "traffic": "typical",
+      "views": 42000,
+      "viewMB": 1,
       "siteMB": 5,
       "savedMB": 1,
       "uploadsGB": 5,
-      "viewMB": 1,
+      "existing": true,
+      "ingress": true,
+      "network": "private",
       "ha": false
     },
-    "assumptions": [["Replicas", "The package runs 2 replicas of the service; we add one per 5 million page views a month. That rate is our assumption, not a load test: a replica serves sites from its own cache and does far more in practice."], ["Memory", "Each replica asks for 0.5 GiB (its request in the package). One upload at a time needs about 1.2 GiB more (UPLOAD_CONCURRENCY 2 × (100 MiB archive + 500 MiB unpacked)), and the ingress controller, cert-manager and the node's own agents about 1 GiB. Each node keeps 0.75 GiB for the system."], ["CPU", "Each replica asks for 0.25 CPU and the cluster's own pods about 0.5 CPU."], ["Nodes", "The cheapest mix of the provider's small general-purpose sizes that fits the memory and CPU above: 1 node, or at least 2 with high availability (3 on Hetzner, where k3s runs the control plane on the nodes). Our UpCloud trial ran 2 replicas, ingress and cert-manager on one 2 CPU / 4 GB node."], ["Database", "Sized by people: up to 250 on the ~1 GB plan, up to 1, 000 on ~2 GB, up to 5, 000 on ~4 GB, more on ~8 GB; at least ~2 GB from 3 replicas, since each replica opens up to 20 connections. High availability adds a standby in another zone."], ["Database storage", "1 GB, plus saved data × 3 (its history for undo), plus the access log (0.5 KB per page view, kept 90 days), plus 1 MB per person; never below the provider's smallest disk."], ["Bucket", "Every site keeps 5 versions (QUOTA_MAX_VERSIONS) at its average size, plus 20% for replaced versions the bucket keeps 30 days, plus uploaded files."], ["Traffic", "Page views × data sent per page view leave the cloud as internet egress. Uploads coming in are free everywhere. Traffic between the service, the bucket and the database stays inside one region."], ["Load balancer", "One load balancer in front of the ingress controller; on AWS a Network Load Balancer, charged per hour and per capacity unit (1 GB an hour processed)."], ["Per person", "The monthly total divided by the number of people who sign in."], ["Not included", "Tax, support plans, DNS, a NAT gateway (nodes here have public addresses), logs and metrics services, and commitment discounts, which lower most of these prices."]]
+    "assumptions": [["Replicas", "The package runs 2 replicas of the service; we add one per 5 million page views a month. That rate is our assumption, not a load test: a replica serves sites from its own cache and does far more in practice."], ["Memory", "Each replica asks for 0.5 GiB (its request in the package). One upload at a time needs about 1.2 GiB more (UPLOAD_CONCURRENCY 2 × (100 MiB archive + 500 MiB unpacked)), and the ingress controller, cert-manager and the node's own agents about 1 GiB. Each node keeps 0.75 GiB for the system."], ["CPU", "Each replica asks for 0.25 CPU and the cluster's own pods about 0.5 CPU."], ["Your cluster", "On a cluster you already run, Simple Host adds only its pods: their requests (2 × 0.25 CPU and 0.5 GiB) and room for one upload at the memory limit (1.2 GiB), priced as that share of the provider's cheapest-fitting node. No control plane, ingress controller or cert-manager to add."], ["New cluster", "The cheapest mix of the provider's small general-purpose sizes that fits the memory and CPU above: 1 node, or at least 2 with high availability (3 on Hetzner, where k3s runs the control plane on the nodes). Our UpCloud trial ran 2 replicas, ingress and cert-manager on one 2 CPU / 4 GB node."], ["Database", "Sized by people: up to 250 on the ~1 GB plan, up to 1, 000 on ~2 GB, up to 5, 000 on ~4 GB, more on ~8 GB; at least ~2 GB from 3 replicas, since each replica opens up to 20 connections. High availability adds a standby in another zone."], ["Database storage", "1 GB, plus saved data × 3 (its history for undo), plus the access log (0.5 KB per page view, kept 90 days), plus 1 MB per person; never below the provider's smallest disk."], ["Bucket", "Every site keeps 5 versions (QUOTA_MAX_VERSIONS) at its average size, plus 20% for replaced versions the bucket keeps 30 days, plus uploaded files."], ["Traffic levels", "Page views are people × pages each person opens a working day × 21 working days. Light is 5 pages of 0.5 MB, Typical 20 of 1 MB, Heavy 50 of 2 MB, Very heavy 150 of 3 MB (after the browser's cache). Custom takes your own page views and size."], ["Traffic", "Page views × data per page view leave the cloud: over the internet (or a site-to-site VPN, which AWS and Google bill at their internet rates and Azure as outbound bandwidth), or over a private link you already have (Direct Connect, ExpressRoute, Cloud Interconnect), billed per GB. Uploads coming in are free everywhere; traffic between the service, the bucket and the database stays inside one region."], ["Load balancer", "With your own ingress, only what this traffic adds to your load balancer (capacity units on AWS, data processed on Azure and Google). Otherwise one new load balancer in front of the ingress controller; on AWS a Network Load Balancer, charged per hour and per capacity unit (1 GB an hour processed)."], ["Per person", "The monthly total divided by the number of people who sign in."], ["Not included", "Tax, support plans, DNS, a NAT gateway (new-cluster nodes here have public addresses), the ports or gateways of a private link or VPN you already run, logs and metrics services, and commitment discounts, which lower most of these prices."]],
+    "working_days_per_month": 21,
+    "traffic_levels": [
+      {
+        "id": "light",
+        "name": "Light",
+        "pages_per_day": 5,
+        "mb_per_page": 0.5
+      },
+      {
+        "id": "typical",
+        "name": "Typical",
+        "pages_per_day": 20,
+        "mb_per_page": 1
+      },
+      {
+        "id": "heavy",
+        "name": "Heavy",
+        "pages_per_day": 50,
+        "mb_per_page": 2
+      },
+      {
+        "id": "very_heavy",
+        "name": "Very heavy",
+        "pages_per_day": 150,
+        "mb_per_page": 3
+      }
+    ],
+    "headline": {
+      "about": "The ranges the enterprise pages quote (costs_test.go checks their text against these): across the providers and traffic levels named, on a cluster and ingress you already run, traffic over a private link, 3 sites a person; totals rounded out to $5.",
+      "people": [2000, 40],
+      "providers": ["aws", "azure", "gcp"],
+      "levels": ["light", "typical"],
+      "sites_per_person": 3,
+      "round_usd": 5
+    },
+    "example": {
+      "people": 2000,
+      "sites": 6000,
+      "levels": ["typical", "heavy"],
+      "providers": ["aws", "azure", "gcp"]
+    }
   },
   "providers": [
     {
       "id": "aws",
       "name": "AWS",
+      "cluster": "Amazon EKS",
       "kubernetes": "Amazon EKS",
       "group": "main",
       "region": "US East (N. Virginia), us-east-1",
@@ -216,6 +262,15 @@
         "source": "https://aws.amazon.com/ec2/pricing/on-demand/#Data_Transfer",
         "checked": "2026-09-28"
       },
+      "private_link": {
+        "label": "AWS Direct Connect data transfer out (US locations)",
+        "price": {
+          "usd": 0.02,
+          "per": "GB",
+          "source": "https://aws.amazon.com/directconnect/pricing/",
+          "checked": "2026-09-28"
+        }
+      },
       "lb": {
         "label": "Network Load Balancer",
         "hour": {
@@ -236,6 +291,7 @@
     {
       "id": "azure",
       "name": "Azure",
+      "cluster": "AKS",
       "kubernetes": "Azure Kubernetes Service (AKS)",
       "group": "main",
       "region": "East US",
@@ -417,6 +473,15 @@
         "source": "https://azure.microsoft.com/en-us/pricing/details/bandwidth/",
         "checked": "2026-09-28"
       },
+      "private_link": {
+        "label": "ExpressRoute metered data out (Zone 1)",
+        "price": {
+          "usd": 0.025,
+          "per": "GB",
+          "source": "https://azure.microsoft.com/en-us/pricing/details/expressroute/",
+          "checked": "2026-09-28"
+        }
+      },
       "lb": {
         "label": "Standard Load Balancer",
         "hour": {
@@ -446,6 +511,7 @@
     {
       "id": "gcp",
       "name": "Google Cloud",
+      "cluster": "GKE",
       "kubernetes": "Google Kubernetes Engine (GKE Standard)",
       "group": "main",
       "region": "Iowa, us-central1",
@@ -636,6 +702,15 @@
         "source": "https://cloud.google.com/vpc/network-pricing",
         "checked": "2026-09-28"
       },
+      "private_link": {
+        "label": "Cloud Interconnect data transfer out (United States, Canada)",
+        "price": {
+          "usd": 0.02,
+          "per": "GB",
+          "source": "https://cloud.google.com/network-connectivity/docs/interconnect/pricing",
+          "checked": "2026-09-28"
+        }
+      },
       "lb": {
         "label": "Load balancer forwarding rule",
         "hour": {
@@ -655,6 +730,7 @@
     {
       "id": "upcloud",
       "name": "UpCloud",
+      "cluster": "UpCloud Kubernetes",
       "kubernetes": "UpCloud Managed Kubernetes",
       "group": "other",
       "region": "any zone (global price)",
@@ -851,6 +927,7 @@
     {
       "id": "hetzner",
       "name": "Hetzner",
+      "cluster": "k3s",
       "kubernetes": "k3s you run on Hetzner Cloud servers (no managed Kubernetes)",
       "group": "other",
       "region": "Germany or Finland (EU)",

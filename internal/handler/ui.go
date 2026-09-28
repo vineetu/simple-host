@@ -115,6 +115,9 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// settings lists under static/setup/ (docs/advanced/README.md).
 	mux.Handle("GET /setup", adminUICSP(serveStaticPage("setup-helper.html")))
 	mux.Handle("GET /setup/{$}", http.RedirectHandler("/setup", http.StatusMovedPermanently))
+	// What Simple Host Enterprise costs to run on each cloud: a calculator
+	// that runs in the browser from static/costs/prices.json (costs/calc.js).
+	mux.Handle("GET /costs", adminUICSP(serveStaticPage("costs.html")))
 	// Terms of service and support, linked from plugin directory listings, so
 	// each needs a clean, stable URL.
 	mux.Handle("GET /terms", adminUICSP(serveStaticPage("terms.html")))
@@ -148,6 +151,7 @@ var handlerOnlyPages = map[string]bool{
 	"connect.html":      true,
 	"analytics.html":    true,
 	"setup-helper.html": true,
+	"costs.html":        true,
 	"notfound.html":     true,
 	"showcase.html":     true,
 }

@@ -8,6 +8,7 @@ Ask your AI app for a website, and it goes live at its own address, `https://<si
 - **Architecture:** https://simple-host.app/architecture.html
 - **For agents and developers:** [`llms.txt`](https://simple-host.app/llms.txt) · [OpenAPI spec](https://simple-host.app/openapi.yaml) · [API docs](https://simple-host.app/docs.html) · [Get started in your AI app](https://simple-host.app/install.html)
 - **Enterprise edition:** https://simple-host.app/enterprise · [github.com/vineetu/simple-host-enterprise](https://github.com/vineetu/simple-host-enterprise)
+- **What Enterprise costs to run → https://simple-host.app/costs** (AWS, Azure and Google Cloud at list prices, for your number of people)
 - **Legal and help:** [Terms](https://simple-host.app/terms) · [Privacy](https://simple-host.app/privacy.html) · [Support](https://simple-host.app/support) (support@simple-host.app)
 
 ## Get started
@@ -83,6 +84,8 @@ Then ask: *"Build me a wedding RSVP page and put it online."*
 No object store, no CDN, no build farm. Details: [ARCHITECTURE.md](ARCHITECTURE.md) and the [architecture page](https://simple-host.app/architecture.html).
 
 ## Run your own
+
+On a company's Kubernetes cluster, run Simple Host Enterprise instead; https://simple-host.app/costs estimates what it costs there (AWS, Azure, Google Cloud).
 
 ```bash
 docker run -d --name simple-host-postgres -p 5432:5432 -e POSTGRES_USER=simplehost -e POSTGRES_PASSWORD=simplehost -e POSTGRES_DB=simplehost postgres:16-alpine

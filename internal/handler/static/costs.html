@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>What it costs to run — Simple Host Enterprise</title>
+  <meta name="description" content="Estimate the monthly cost of running Simple Host Enterprise on AWS, Azure or Google Cloud for your number of people and sites, line by line at list prices, with the assumptions and sources in view.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Simple Host">
+  <meta property="og:url" content="https://simple-host.app/costs">
+  <meta property="og:title" content="What Simple Host Enterprise costs to run">
+  <meta property="og:description" content="Monthly cost on AWS, Azure and Google Cloud for your number of people and sites, at list prices.">
+  <meta property="og:image" content="https://simple-host.app/og.png">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <!--sh:head-->
+  <script>
+    // Light unless the reader picked dark with the header's toggle, as on the
+    // enterprise pages.
+    (function () {
+      var root = document.documentElement;
+      root.dataset.themeDefault = 'light';
+      try { root.dataset.theme = localStorage.getItem('sh-theme') || 'light'; } catch (e) { root.dataset.theme = 'light'; }
+    })();
+  </script>
+  <style>
+    /* Tokens, base type and the header/footer live in /site.css. */
+    :root {
+      --c-cluster: #2563eb; --c-database: #7c3aed; --c-storage: #0d9488;
+      --c-traffic: #d97706; --c-lb: #db2777; --c-other: #64748b;
+    }
+    html[data-theme="dark"] {
+      --c-cluster: #60a5fa; --c-database: #a78bfa; --c-storage: #2dd4bf;
+      --c-traffic: #fbbf24; --c-lb: #f472b6; --c-other: #94a3b8;
+    }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 0 24px; }
+    main { padding: 44px 0 88px; }
+    a { color: var(--accent); text-underline-offset: 3px; }
+    a:hover { color: var(--accent-hover); }
+    h1 { font-size: clamp(30px, 5vw, 42px); font-weight: 700; line-height: 1.1; letter-spacing: -.02em; margin: 0 0 14px; }
+    h2 { font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -.01em; margin: 0 0 8px; }
+    h3 { font-size: 15px; font-weight: 650; margin: 22px 0 8px; color: var(--text-secondary); letter-spacing: .01em; }
+    .kicker { font-size: 13px; color: var(--text-secondary); margin: 0 0 10px; }
+    .lede { font-size: 17px; color: var(--text); margin: 0 0 8px; max-width: 680px; }
+    p { color: var(--text-secondary); margin: 0 0 12px; }
+    .fine { font-size: 13px; color: var(--text-secondary); }
+    section { padding: 30px 0; border-bottom: 1px solid var(--border); }
+    section:last-child { border-bottom: 0; }
+
+    /* Inputs */
+    .inputs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 18px; margin: 18px 0 6px; }
+    .field label { display: block; font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .field .hint { display: block; font-size: 12.5px; color: var(--text-secondary); margin-top: 4px; line-height: 1.4; }
+    .field input, .field select { width: 100%; font: inherit; font-size: 16px; color: var(--text); background: var(--surface); border: 1px solid var(--border-hi); border-radius: 8px; padding: 8px 10px; min-height: 42px; }
+    .field input:focus, .field select:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+    .toggles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; margin: 18px 0 0; }
+    .tg { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; font-weight: 600; color: var(--text); cursor: pointer; }
+    .tg input { width: 18px; height: 18px; margin: 3px 0 0; accent-color: var(--accent); flex: none; }
+    .tg:has(input:disabled) { opacity: .55; cursor: default; }
+    .tg span span { font-weight: 400; display: block; font-size: 13px; color: var(--text-secondary); }
+
+    /* The 2,000-people example */
+    .example { border: 1px solid var(--border-hi); border-radius: 12px; background: var(--surface); padding: 16px 18px; margin: 20px 0 8px; }
+    .ex-head { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: baseline; justify-content: space-between; }
+    .ex-head b { font-size: 17px; color: var(--text); }
+    .ex-sub { font-size: 13.5px; margin: 4px 0 0; }
+    .example table td b { color: var(--text); font-size: 16px; font-variant-numeric: tabular-nums; }
+    .example table td span { display: block; font-size: 12.5px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+    .linkbtn { font: inherit; font-size: 14px; color: var(--accent); background: none; border: 0; padding: 4px 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+    .other { display: block; font-size: 12px; color: var(--text-secondary); }
+    .share { display: inline-block; width: 64px; height: 8px; border-radius: 2px; background: var(--grid); vertical-align: 0; margin-left: 6px; overflow: hidden; }
+    .share i { display: block; height: 100%; background: var(--c-traffic); }
+
+    /* Comparison rows */
+    .group { font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .05em; margin: 22px 0 6px; }
+    .rows { border-top: 1px solid var(--border); }
+    .prow { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 2fr) auto; gap: 8px 18px; align-items: center; width: 100%;
+      text-align: left; font: inherit; color: inherit; background: none; border: 0; border-bottom: 1px solid var(--border); padding: 14px 10px; cursor: pointer; border-radius: 0; }
+    .prow:hover { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+    .prow[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 9%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
+    .prow:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .pname b { display: block; font-size: 16px; color: var(--text); }
+    .pname span { display: block; font-size: 12.5px; color: var(--text-secondary); line-height: 1.35; }
+    .bar { display: flex; height: 14px; border-radius: 4px; overflow: hidden; background: var(--grid); min-width: 0; }
+    .bar i { display: block; height: 100%; }
+    .amt { text-align: right; white-space: nowrap; }
+    .amt b { display: block; font-size: 18px; color: var(--text); font-variant-numeric: tabular-nums; }
+    .amt span { font-size: 12.5px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+    .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 12px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--text-secondary); }
+    .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+
+    /* Detail */
+    .sumline { display: flex; flex-wrap: wrap; gap: 6px 28px; margin: 10px 0 4px; }
+    .sumline div b { display: block; font-size: 26px; color: var(--text); font-variant-numeric: tabular-nums; }
+    .sumline div span { font-size: 13px; color: var(--text-secondary); }
+    table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+    th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { font-size: 12.5px; font-weight: 600; color: var(--text-secondary); }
+    td { color: var(--text-secondary); }
+    td.w { color: var(--text); }
+    td.n, th.n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    tr.cat td { color: var(--text); font-weight: 600; background: color-mix(in srgb, var(--grid) 60%, transparent); }
+    tr.cat i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 8px; vertical-align: -1px; }
+    tr.on td { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+    tr.total td { color: var(--text); font-weight: 700; border-bottom: 0; }
+    .tscroll { overflow-x: auto; margin: 12px 0; }
+    .cta { display: inline-block; font-size: 15px; font-weight: 600; text-decoration: none; padding: 10px 16px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: var(--on-accent); margin: 8px 8px 4px 0; }
+    .cta:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--on-accent); }
+    .proof { border-left: 3px solid var(--accent); padding: 4px 0 4px 12px; margin: 14px 0; color: var(--text); font-size: 14.5px; }
+    dl.assume { margin: 12px 0 0; display: grid; grid-template-columns: 170px minmax(0, 1fr); border-top: 1px solid var(--border); }
+    dl.assume dt, dl.assume dd { padding: 10px 0; border-bottom: 1px solid var(--border); margin: 0; font-size: 14.5px; line-height: 1.5; }
+    dl.assume dt { font-weight: 600; color: var(--text); padding-right: 12px; }
+    dl.assume dd { color: var(--text-secondary); }
+    dl.assume dd b { color: var(--text); font-weight: 600; }
+    ul.src { margin: 8px 0 0; padding-left: 18px; font-size: 14px; color: var(--text-secondary); }
+    ul.src li { margin: 3px 0; overflow-wrap: anywhere; }
+
+    @media (max-width: 760px) {
+      .inputs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .toggles { grid-template-columns: 1fr; }
+      .prow { grid-template-columns: minmax(0, 1fr) auto; }
+      .prow .bar { grid-column: 1 / -1; grid-row: 2; }
+      dl.assume { grid-template-columns: 1fr; }
+      dl.assume dt { border-bottom: 0; padding-bottom: 0; }
+    }
+    @media (max-width: 420px) {
+      .wrap { padding: 0 16px; }
+      .inputs { gap: 14px 12px; }
+      th, td { padding: 8px 5px; }
+    }
+  </style>
+</head>
+<body>
+  <!--sh:header-->
+  <main class="wrap">
+    <section style="padding-top:0">
+      <div class="kicker"><a href="/enterprise">Simple Host Enterprise</a></div>
+      <h1>What it costs to run</h1>
+      <p class="lede">Most companies run Simple Host Enterprise on a Kubernetes cluster they already have, so what it adds is small: a share of a node, a Postgres database, some bucket storage and the traffic. Put in your numbers to see the monthly bill on AWS, Azure and Google Cloud at list prices, line by line, with every assumption in view.</p>
+      <div class="example" id="example" hidden>
+        <div class="ex-head"><b id="ex-title">Example: 2,000 people</b><button type="button" class="linkbtn" id="ex-use">Use these numbers</button></div>
+        <p class="ex-sub" id="ex-sub"></p>
+        <div class="tscroll"><table id="ex-table"></table></div>
+      </div>
+      <form id="inputs" autocomplete="off">
+        <div class="inputs">
+          <div class="field"><label for="in-people">People who sign in</label><input id="in-people" name="people" type="number" min="1" step="1" inputmode="numeric"></div>
+          <div class="field"><label for="in-sites">Sites</label><input id="in-sites" name="sites" type="number" min="0" step="1" inputmode="numeric"></div>
+          <div class="field"><label for="in-traffic">Traffic</label><select id="in-traffic" name="traffic"></select><span class="hint" id="traffic-hint"></span></div>
+          <div class="field"><label for="in-views">Page views a month</label><input id="in-views" name="views" type="number" min="0" step="1000" inputmode="numeric"></div>
+          <div class="field"><label for="in-viewMB">Data per page view (MB)</label><input id="in-viewMB" name="viewMB" type="number" min="0" step="any" inputmode="decimal"><span class="hint">After the browser's cache</span></div>
+          <div class="field"><label for="in-siteMB">Average site size (MB)</label><input id="in-siteMB" name="siteMB" type="number" min="0" step="any" inputmode="decimal"><span class="hint">One version, as uploaded</span></div>
+          <div class="field"><label for="in-savedMB">Saved data per site (MB)</label><input id="in-savedMB" name="savedMB" type="number" min="0" step="any" inputmode="decimal"><span class="hint">What pages save, kept in Postgres</span></div>
+          <div class="field"><label for="in-uploadsGB">Uploaded files, in all (GB)</label><input id="in-uploadsGB" name="uploadsGB" type="number" min="0" step="any" inputmode="decimal"><span class="hint">Files pages store, kept in the bucket</span></div>
+        </div>
+        <div class="toggles">
+          <label class="tg"><input type="checkbox" id="in-existing" name="existing"><span>We already have a Kubernetes cluster<span>Count only what Simple Host adds to it: no control plane, and a share of a node.</span></span></label>
+          <label class="tg"><input type="checkbox" id="in-ingress" name="ingress"><span>We already have an ingress and load balancer<span>Count only the traffic it adds, not a new load balancer.</span></span></label>
+          <label class="tg"><input type="checkbox" id="in-private" name="private"><span>Traffic stays inside the company network<span>Served over a private link you already have (Direct Connect, ExpressRoute, Cloud Interconnect). Leave it off for the internet or a site-to-site VPN, which are billed at internet rates.</span></span></label>
+          <label class="tg"><input type="checkbox" id="in-ha" name="ha"><span>High availability<span>A standby database in another zone; on a new cluster also at least two nodes and a control plane with an uptime SLA where the provider sells one.</span></span></label>
+        </div>
+      </form>
+    </section>
+
+    <section id="compare" aria-live="polite">
+      <h2>Monthly cost</h2>
+      <p id="compare-note">Select a provider to see its line items.</p>
+      <noscript><p>The calculator runs in your browser and needs JavaScript. Every price it uses is in <a href="/costs/prices.json">prices.json</a>.</p></noscript>
+      <div id="rows-main"></div>
+      <div class="group" id="other-head" hidden>Smaller clouds</div>
+      <div id="rows-other"></div>
+      <ul class="legend" id="legend"></ul>
+    </section>
+
+    <section id="detail" hidden></section>
+
+    <section id="assumptions" hidden>
+      <h2>How we size it</h2>
+      <p>The same installation is priced on every provider. These are the rules, with what they come to for your numbers.</p>
+      <dl class="assume" id="assume"></dl>
+    </section>
+
+    <section id="sources" hidden>
+      <h2>Prices and sources</h2>
+      <p id="asof"></p>
+      <div id="srclist"></div>
+    </section>
+  </main>
+  <!--sh:footer-->
+  <script src="/costs/calc.js"></script>
+  <script src="/costs/costs.js"></script>
+</body>
+</html>

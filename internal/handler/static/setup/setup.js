@@ -327,6 +327,32 @@
     return /^[A-Za-z0-9@%+=:,.\/_-]+$/.test(v) ? v : "'" + v.replace(/'/g, "'\\''") + "'";
   }
 
+  // costNote is what it costs to run, for the cloud the bucket is on: the
+  // /costs calculator's estimate at its default sizes (costs/calc.js with
+  // costs/prices.json), with a link to put in your own numbers.
+  var COST_CLOUDS = { aws: 'aws', gcs: 'gcp', upcloud: 'upcloud' };
+  var costPrices = null;
+  function costNote(bucket) {
+    var id = COST_CLOUDS[bucket], p = el('p', { class: 'note' });
+    var link = function (text) { return el('a', { href: '/costs' + (id && id !== 'aws' ? '?provider=' + id : ''), text: text }); };
+    var plain = function () { p.textContent = ''; p.appendChild(document.createTextNode('What it costs to run on AWS, Azure or Google Cloud: ')); p.appendChild(link('the cost calculator')); p.appendChild(document.createTextNode('.')); };
+    plain();
+    if (!id || !window.SHCosts) return p;
+    var show = function () {
+      try {
+        var e = window.SHCosts.estimate(costPrices, id, {}), d = costPrices.model.defaults;
+        p.textContent = '';
+        p.appendChild(document.createTextNode('Running cost on ' + e.provider.name + ': about $' + e.total.toFixed(2) + ' a month for ' + d.people + ' people on a cluster you already have (list prices, checked ' + costPrices.checked + '). '));
+        p.appendChild(link('Put in your own numbers'));
+        p.appendChild(document.createTextNode('.'));
+      } catch (err) { plain(); }
+    };
+    if (costPrices) show();
+    else fetch('/costs/prices.json', { credentials: 'omit' }).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d) { costPrices = d; show(); } }).catch(function () {});
+    return p;
+  }
+
   // upcloudOffer is the recommendation: why, the sign-up button (a referral
   // link, and the page says so) and what to do there.
   function upcloudOffer() {
@@ -429,6 +455,7 @@
         box.appendChild(textField('smtpFrom', b, 'Send email from', { name: 'SMTP_FROM', placeholder: 'Simple Host <hosting@example.com>', help: byName('SMTP_FROM').description }));
       }
       box.appendChild(el('h3', { text: 'Where data lives', style: 'margin-top:26px' }));
+      box.appendChild(costNote(b.bucket));
       var bSel = el('select', { id: uid('bucket'), onchange: function () {
         pickBucket(b, bSel.value);
         render();

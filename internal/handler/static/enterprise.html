@@ -72,6 +72,7 @@
         <p>
           <a class="cta solid" href="/setup?product=enterprise">Try it in your organization → Set up</a>
           <a class="cta" href="#install">How to install it</a>
+          <a class="cta" href="#cost">What it costs</a>
           <a class="cta" href="https://github.com/vineetu/simple-host-enterprise">Source on GitHub</a>
         </p>
       </div>
@@ -126,6 +127,19 @@
           <div class="row"><div class="k">Keys and limits</div><p class="v">API keys are scoped — publishing only by default — and expire within a year. Each person and team has upload quotas, and uploads can be scanned with ClamAV before they are stored. Every time and limit (retention, link lifetimes, quotas, rate limits) is a setting with a checked range.</p></div>
         </div>
         <p class="fine">Nothing that identifies an installation has a default. If a required setting is missing the process will not start, and it tells you which ones.</p>
+      </div>
+    </section>
+
+    <section id="cost">
+      <div>
+        <h2>What it costs</h2>
+        <p class="lede">On a Kubernetes cluster you already run, Simple Host adds a share of one node, a small managed Postgres, some bucket storage and its traffic.</p>
+        <div class="facts">
+          <div class="row"><div class="k">About 2,000 people</div><p class="v"><strong>About $70–100 a month</strong> on AWS, Azure or Google Cloud, internal only (served over your private network link): about 3.5–5 cents a person.</p></div>
+          <div class="row"><div class="k">About 40 people</div><p class="v"><strong>About $25–45 a month.</strong></p></div>
+          <div class="row"><div class="k">What that assumes</div><p class="v">List prices, excluding tax, for light to typical use (5 to 20 pages a person a working day), three sites a person, the cluster's existing ingress, and traffic that stays on a private link such as Direct Connect, ExpressRoute or Cloud Interconnect. Serving the internet, a new cluster, high availability or heavy traffic cost more; the calculator shows each, line by line.</p></div>
+        </div>
+        <p><a class="cta solid" href="/costs">Estimate your own cost</a></p>
       </div>
     </section>
 

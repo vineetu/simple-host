@@ -1,5 +1,6 @@
 # check-docs-sync.sh needs python3 with PyYAML; check-fresh-install.sh needs a
 # local postgres superuser (it creates and drops a throwaway database).
+# check-prices-age.sh only warns: the cost calculator's prices are checked monthly.
 .PHONY: check
 
 check:
@@ -17,3 +18,4 @@ check:
 	bash deploy/prod/nginx-analytics-logformat-apply_test.sh
 	bash deploy/compose/Caddyfile_test.sh
 	bash scripts/check-fresh-install.sh
+	@bash scripts/check-prices-age.sh || echo "WARNING: the cost calculator's prices need their monthly check (not a failure)"

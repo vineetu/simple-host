@@ -1,0 +1,32 @@
+{
+  "checked": "2026-09-28",
+  "model": {
+    "hours_per_month": 100, "replicas_min": 2, "page_views_per_replica": 1000,
+    "system_mem_gib": 1, "replica_mem_gib": 0.5, "upload_headroom_gib": 1, "node_reserved_gib": 0.5,
+    "system_cpu": 0.5, "replica_cpu": 0.25, "versions_kept": 2, "replaced_versions_factor": 1,
+    "db_base_gb": 1, "saved_data_factor": 1, "access_log_kb_per_view": 0, "access_log_months": 1, "db_mb_per_person": 0,
+    "db_tiers_by_people": [[10, 1], [null, 2]], "db_min_tier_from_replicas": 3, "working_days_per_month": 10,
+    "traffic_levels": [{ "id": "x", "name": "X", "pages_per_day": 1, "mb_per_page": 1 }],
+    "defaults": { "people": 10, "sites": 1024, "traffic": "custom", "views": 2048, "viewMB": 1, "siteMB": 1, "savedMB": 0, "uploadsGB": 0, "existing": false, "ingress": true, "network": "internet", "ha": false },
+    "assumptions": []
+  },
+  "providers": [{
+    "id": "t", "name": "Test", "cluster": "T", "kubernetes": "Test Kubernetes", "group": "main", "region": "r",
+    "calculator": { "name": "c", "url": "https://example.com/", "note": "n" },
+    "control_plane": { "label": "cp", "base": { "usd": 0.5, "per": "hour" }, "ha": { "usd": 1, "per": "hour" } },
+    "nodes": [
+      { "name": "n1", "cpu": 2, "mem": 4, "price": { "usd": 1, "per": "hour" } },
+      { "name": "n2", "cpu": 4, "mem": 8, "price": { "usd": 1.5, "per": "hour" } }
+    ],
+    "node_disk": { "label": "disk", "gb": 10, "price": { "usd": 0.1, "per": "GB-month" } },
+    "min_nodes": { "base": 1, "ha": 2 },
+    "db": { "label": "db", "tiers": [
+      { "mem": 1, "name": "d1", "price": { "usd": 10, "per": "month" }, "ha_name": "d1ha", "ha_price": { "usd": 20, "per": "month" } },
+      { "mem": 2, "name": "d2", "price": { "usd": 20, "per": "month" }, "ha_name": "d2ha", "ha_price": { "usd": 40, "per": "month" } }
+    ], "storage": { "label": "st", "min_gb": 5, "included_gb": 0, "price": { "usd": 1, "per": "GB-month" }, "ha_price": { "usd": 2, "per": "GB-month" } } },
+    "bucket": { "label": "b", "price": { "usd": 0.5, "per": "GB-month" } },
+    "egress": { "label": "e", "free_gb": 1, "free_note": "", "tiers": [[null, 10]] },
+    "private_link": { "label": "pl", "price": { "usd": 0.5, "per": "GB" } },
+    "lb": { "label": "lb", "hour": { "usd": 0.1, "per": "hour" }, "gb": { "usd": 1, "per": "GB" } }
+  }]
+}

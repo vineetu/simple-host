@@ -188,7 +188,7 @@ var askAssistants = []*askAssistant{
 		links: map[string]bool{
 			"/": true, "/features": true, "/architecture.html": true, "/docs.html": true,
 			"/install.html": true, "/privacy.html": true, "/terms": true, "/support": true,
-			"/enterprise": true, "/setup": true, "/setup?product=small-box": true, "/setup?product=enterprise": true,
+			"/enterprise": true, "/setup": true, "/setup?product=small-box": true, "/setup?product=enterprise": true, "/costs": true,
 		},
 	},
 	{
@@ -204,7 +204,7 @@ var askAssistants = []*askAssistant{
 		},
 		links: map[string]bool{
 			"/enterprise": true, "/enterprise/brief": true, "/enterprise/architecture": true,
-			"/": true, "/privacy.html": true, "/setup?product=enterprise": true,
+			"/": true, "/privacy.html": true, "/setup?product=enterprise": true, "/costs": true,
 		},
 	},
 }

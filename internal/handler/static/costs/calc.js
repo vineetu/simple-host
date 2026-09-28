@@ -42,17 +42,37 @@
   }
 
   // clean reads the inputs, falling back to the defaults for anything missing
-  // or not a number, and never below zero (people at least one).
+  // or not a number, and never below zero (people at least one). A traffic
+  // level other than custom sets page views and data per page view from the
+  // number of people.
   function clean(model, inp) {
     var d = model.defaults, out = {};
+    inp = inp || {};
     ['people', 'sites', 'views', 'siteMB', 'savedMB', 'uploadsGB', 'viewMB'].forEach(function (k) {
-      var v = inp && inp[k] !== undefined && inp[k] !== '' ? Number(inp[k]) : d[k];
+      var v = inp[k] !== undefined && inp[k] !== '' && inp[k] !== null ? Number(inp[k]) : d[k];
       out[k] = isFinite(v) && v >= 0 ? v : d[k];
     });
     out.people = Math.max(1, Math.round(out.people));
     out.sites = Math.round(out.sites);
-    out.ha = inp && inp.ha !== undefined ? !!inp.ha : !!d.ha;
+    ['ha', 'existing', 'ingress'].forEach(function (k) {
+      out[k] = inp[k] !== undefined ? !!inp[k] : !!d[k];
+    });
+    out.network = (inp.network || d.network) === 'private' ? 'private' : 'internet';
+    out.traffic = inp.traffic || d.traffic;
+    var level = trafficLevel(model, out.traffic);
+    if (level) {
+      out.views = out.people * level.pages_per_day * model.working_days_per_month;
+      out.viewMB = level.mb_per_page;
+    } else {
+      out.traffic = 'custom';
+    }
+    out.views = Math.round(out.views);
     return out;
+  }
+
+  function trafficLevel(model, id) {
+    for (var i = 0; i < model.traffic_levels.length; i++) if (model.traffic_levels[i].id === id) return model.traffic_levels[i];
+    return null;
   }
 
   // sizing is what the installation needs, the same on every provider.
@@ -72,7 +92,11 @@
       x.people * m.db_mb_per_person / 1024;
     var bucketGB = x.sites * x.siteMB * m.versions_kept * m.replaced_versions_factor / 1024 + x.uploadsGB;
     var egressGB = x.views * x.viewMB / 1024;
-    return { inputs: x, replicas: replicas, memGiB: memGiB, cpu: cpu, dbTier: dbTier, dbGB: dbGB, bucketGB: bucketGB, egressGB: egressGB };
+    // On a cluster that already runs, Simple Host adds only its own pods:
+    // their requests, plus room for one upload at the memory limit.
+    var shareMemGiB = replicas * m.replica_mem_gib + m.upload_headroom_gib;
+    var shareCPU = replicas * m.replica_cpu;
+    return { inputs: x, replicas: replicas, memGiB: memGiB, cpu: cpu, shareMemGiB: shareMemGiB, shareCPU: shareCPU, dbTier: dbTier, dbGB: dbGB, bucketGB: bucketGB, egressGB: egressGB };
   }
 
   // pickNodes is the cheapest (type, count) with at least min nodes that fits
@@ -120,20 +144,37 @@
     var items = [];
     function add(cat, what, detail, usd) { items.push({ cat: cat, what: what, detail: detail, usd: round2(usd) }); }
 
-    // Cluster: control plane (with GKE's free tier credit), then the nodes.
-    var cp = ha ? p.control_plane.ha : p.control_plane.base;
-    var cpUSD = monthly(cp, H);
-    add('cluster', p.control_plane.label + (cp.name ? ', ' + cp.name : ''), cp.usd ? (cp.per === 'hour' ? unit(cp.usd) + ' an hour' : unit(cp.usd) + ' a month') : 'free', cpUSD);
-    var credit = p.control_plane.credit;
-    if (credit && credit.applies === (ha ? 'ha' : 'base') && cpUSD > 0) {
-      add('cluster', credit.label, 'up to ' + money(credit.usd) + ' a month', -Math.min(cpUSD, credit.usd));
-    }
-    var nodes = pickNodes(p, s, ha ? p.min_nodes.ha : p.min_nodes.base, m.node_reserved_gib, H);
-    add('cluster', nodes.count + ' × ' + nodes.node.name + ' node' + (nodes.count > 1 ? 's' : ''),
-      nodes.node.cpu + ' CPU, ' + nodes.node.mem + ' GB each, ' + (nodes.node.price.per === 'hour' ? unit(nodes.node.price.usd) + ' an hour' : unit(nodes.node.price.usd) + ' a month'), nodes.cost);
-    if (p.node_disk) {
-      var disk = p.node_disk.each ? monthly(p.node_disk.each, H) : p.node_disk.gb * p.node_disk.price.usd;
-      add('other', nodes.count + ' × ' + p.node_disk.label, money(disk) + ' a month each', nodes.count * disk);
+    var existing = s.inputs.existing, sharedLB = existing && s.inputs.ingress;
+    var nodes;
+    if (existing) {
+      // Your cluster: no control plane, and only the share of a node the pods
+      // take, priced at whichever of the provider's node sizes is cheapest
+      // for it.
+      var best = null;
+      p.nodes.forEach(function (n) {
+        var frac = Math.max(s.shareMemGiB / n.mem, s.shareCPU / n.cpu);
+        var cost = frac * monthly(n.price, H);
+        if (!best || cost < best.cost - 1e-9) best = { node: n, frac: frac, cost: cost };
+      });
+      nodes = { node: best.node, count: best.frac, share: true };
+      add('cluster', 'Node capacity on your cluster: ' + gb(s.shareMemGiB) + ' GiB, ' + s.shareCPU.toFixed(2).replace(/0$/, '') + ' CPU',
+        best.frac.toFixed(2) + ' of a ' + best.node.name + ' (' + (best.node.price.per === 'hour' ? unit(best.node.price.usd) + ' an hour' : unit(best.node.price.usd) + ' a month') + ')', best.cost);
+    } else {
+      // A new cluster: control plane (with GKE's free tier credit), nodes.
+      var cp = ha ? p.control_plane.ha : p.control_plane.base;
+      var cpUSD = monthly(cp, H);
+      add('cluster', p.control_plane.label + (cp.name ? ', ' + cp.name : ''), cp.usd ? (cp.per === 'hour' ? unit(cp.usd) + ' an hour' : unit(cp.usd) + ' a month') : 'free', cpUSD);
+      var credit = p.control_plane.credit;
+      if (credit && credit.applies === (ha ? 'ha' : 'base') && cpUSD > 0) {
+        add('cluster', credit.label, 'up to ' + money(credit.usd) + ' a month', -Math.min(cpUSD, credit.usd));
+      }
+      nodes = pickNodes(p, s, ha ? p.min_nodes.ha : p.min_nodes.base, m.node_reserved_gib, H);
+      add('cluster', nodes.count + ' × ' + nodes.node.name + ' node' + (nodes.count > 1 ? 's' : ''),
+        nodes.node.cpu + ' CPU, ' + nodes.node.mem + ' GB each, ' + (nodes.node.price.per === 'hour' ? unit(nodes.node.price.usd) + ' an hour' : unit(nodes.node.price.usd) + ' a month'), nodes.cost);
+      if (p.node_disk) {
+        var disk = p.node_disk.each ? monthly(p.node_disk.each, H) : p.node_disk.gb * p.node_disk.price.usd;
+        add('other', nodes.count + ' × ' + p.node_disk.label, money(disk) + ' a month each', nodes.count * disk);
+      }
     }
 
     // Database: the tier, then storage past what the tier includes.
@@ -165,13 +206,24 @@
     }
     add('storage', b.label, bDetail, bUSD);
 
-    // Traffic: page views leaving the cloud.
+    // Traffic: page views leaving the cloud, over the internet or a private
+    // link the company already has.
     var e = p.egress;
-    add('traffic', e.label + ', ' + gb(s.egressGB) + ' GB', e.free_note, tiered(s.egressGB, e.free_gb, e.tiers));
+    if (s.inputs.network === 'private' && p.private_link) {
+      add('traffic', p.private_link.label + ', ' + gb(s.egressGB) + ' GB', unit(p.private_link.price.usd) + ' per GB', s.egressGB * p.private_link.price.usd);
+    } else {
+      add('traffic', e.label + ', ' + gb(s.egressGB) + ' GB', e.free_note, tiered(s.egressGB, e.free_gb, e.tiers));
+    }
 
-    // Load balancer.
+    // Load balancer: a new one, or only the traffic it adds to yours.
     var lb = p.lb;
-    if (lb.hour) {
+    if (sharedLB) {
+      if (lb.lcu) {
+        var used = s.egressGB / H / lb.lcu.gb_per_hour;
+        add('lb', 'Your load balancer: capacity units this traffic adds, ' + used.toFixed(2) + ' on average', unit(lb.lcu.usd) + ' per unit-hour', used * lb.lcu.usd * H);
+      }
+      if (lb.gb) add('lb', 'Your load balancer: data it processes, ' + gb(s.egressGB) + ' GB', unit(lb.gb.usd) + ' per GB', s.egressGB * lb.gb.usd);
+    } else if (lb.hour) {
       add('lb', lb.label, unit(lb.hour.usd) + ' an hour', monthly(lb.hour, H));
       if (lb.lcu) {
         var lcus = Math.max(1, s.egressGB / H / lb.lcu.gb_per_hour);
@@ -182,7 +234,10 @@
       var lm = ha && lb.ha_month ? lb.ha_month : lb.month;
       add('lb', lb.label + (lm.name ? ', ' + lm.name : ''), money(lm.usd) + ' a month', lm.usd);
     }
-    if (p.ips) add('other', p.ips.count + ' × ' + p.ips.label.replace(/^Standard public/, 'standard public'), unit(p.ips.price.usd) + ' an hour each', p.ips.count * monthly(p.ips.price, H));
+    // Azure bills public addresses apart: a new cluster needs one for the
+    // ingress and one for outbound traffic; a new ingress on your cluster, one.
+    var ipCount = !p.ips || sharedLB ? 0 : existing ? 1 : p.ips.count;
+    if (ipCount) add('other', ipCount + ' × ' + p.ips.label.replace(/^Standard public/, 'standard public').replace(/ \(ingress and outbound\)$/, ''), unit(p.ips.price.usd) + ' an hour each', ipCount * monthly(p.ips.price, H));
 
     var cats = {}, total = 0;
     CATEGORIES.forEach(function (c) { cats[c[0]] = 0; });
@@ -191,9 +246,25 @@
     total = round2(total);
     return {
       provider: p, sizing: s, items: items, cats: cats, total: total,
-      perPerson: round2(total / s.inputs.people),
-      nodes: { name: nodes.node.name, count: nodes.count }, db: ha ? tier.ha_name : tier.name
+      perPerson: Math.round(total / s.inputs.people * 1000) / 1000,
+      nodes: { name: nodes.node.name, count: nodes.count, share: !!nodes.share }, db: ha ? tier.ha_name : tier.name
     };
+  }
+
+  // headline is the range the enterprise pages quote for a number of people:
+  // the lowest and highest monthly total across model.headline's providers
+  // and traffic levels at the calculator's defaults, rounded out to
+  // round_usd, and the same per person.
+  function headline(prices, people) {
+    var h = prices.model.headline, lo = Infinity, hi = 0;
+    h.providers.forEach(function (id) {
+      h.levels.forEach(function (lv) {
+        var e = estimate(prices, id, { people: people, sites: people * h.sites_per_person, traffic: lv });
+        lo = Math.min(lo, e.total); hi = Math.max(hi, e.total);
+      });
+    });
+    var low = Math.floor(lo / h.round_usd) * h.round_usd, high = Math.ceil(hi / h.round_usd) * h.round_usd;
+    return { people: people, low: low, high: high, perLow: low / people, perHigh: high / people, exactLow: lo, exactHigh: hi };
   }
 
   // checkedDates lists every "checked" date in the price file, for the
@@ -209,5 +280,5 @@
     return out;
   }
 
-  return { CATEGORIES: CATEGORIES, estimate: estimate, sizing: sizing, tiered: tiered, checkedDates: checkedDates };
+  return { CATEGORIES: CATEGORIES, estimate: estimate, headline: headline, trafficLevel: trafficLevel, sizing: sizing, tiered: tiered, checkedDates: checkedDates };
 });
