@@ -22,33 +22,57 @@ For **Simple Host Enterprise** (https://simple-host.app/setup?product=enterprise
 ask for the ingress controller's pod range (`TRUSTED_PROXY_CIDRS`, optional: read the pods'
 addresses with `kubectl -n <ingress namespace> get pod -o wide`; empty keeps every private range).
 With UpCloud as the bucket provider the page asks for the Object Storage region (such as
-`europe-2`) and says to reach UpCloud's managed Postgres at its `public-…` hostname on port 11569.
+`europe-2`), fills in port 11569 for UpCloud's managed Postgres and says to reach it at its
+`public-…` hostname. Picking another identity or bucket provider never writes its template
+address over one you typed. The config.env it writes is complete: it includes the lines
+INSTALL.md says to leave as in the example (`PORT`, `HTTPS_REDIRECT_PORT`, `OIDC_SCOPES`,
+`SESSION_TTL`, `SESSION_IDLE`, `DB_SSLMODE`, `BACKUP_STORAGE_PREFIX`, `BACKUP_SSE`), and anything
+not listed keeps its default. The block for your AI agent ends with INSTALL.md's definition of
+done: HUMAN STEP D (a Full key) and `make smoke`, run with `CURL_CA_BUNDLE` naming the company
+CA when owner certificates come from an internal CA.
 
 ## Where to run a small box
 
 Any fresh Ubuntu server with a public IPv4 address works. We recommend **UpCloud**: the smallest
-UpCloud server (1 CPU, 1 GB, about $5/month) runs Simple Host comfortably; we test on it.
+UpCloud server (1 CPU, 1 GB, about $4/month) runs Simple Host comfortably; we test on it.
 [Create your UpCloud account — $25 in credits](https://signup.upcloud.com/?promo=JF2WCV)
 (referral link. New accounts through this link get $25 of UpCloud credit; their terms
 apply.)
 
 1. Create your UpCloud account.
-2. In the UpCloud control panel, create an API user: a sub-account with API access allowed.
-   Give it only the server permissions it needs and, if you can, allow only your own IP
-   address in its API settings.
+2. In the UpCloud control panel, create an **API token** (Account → API tokens; recommended, it
+   can have an expiry and an IP allow-list) or an **API user** (a sub-account with API access
+   allowed, with only the server permissions it needs). If you can, allow only your own IP
+   address.
 3. Answer the questions at https://simple-host.app/setup?product=small-box, with **UpCloud** as
    where it runs.
-4. On the files step, run the one line it gives in your own terminal (it asks for the API user's
-   name and password and keeps them there as `UPCLOUD_USERNAME` and `UPCLOUD_PASSWORD`), start
-   your AI agent in that terminal and give it the prompt. The agent creates the smallest Ubuntu
-   24.04 server with `upctl` or the UpCloud API and your SSH key, has you add the DNS records
-   (your domain and `*.<domain>`), runs the installer from its pinned release with your choices,
-   checks `/healthz` and HTTPS, and tells you the admin page. If anything fails, paste the error
-   at https://simple-host.app/setup?product=small-box#help.
-5. When the server is up, run `unset UPCLOUD_USERNAME UPCLOUD_PASSWORD` in that terminal (or
-   close it): until then every program started there can read the API user.
+4. On the files step, run one of the two lines it gives in your own terminal: the first asks for
+   the token and keeps it there as `UPCLOUD_TOKEN` (which `upctl` reads), the second asks for the
+   API user's name and password and keeps them as `UPCLOUD_USERNAME` and `UPCLOUD_PASSWORD`.
+   Start your AI agent in that terminal and give it the prompt. The agent tells you the plan and
+   its price (from `GET /1.3/price`) before creating anything, creates the smallest Ubuntu 24.04
+   server with `upctl` or the UpCloud API and your SSH key, has you add the DNS records (A records
+   for your domain and `*.<domain>`, pointing at the server), runs the installer from its pinned
+   release with your choices, checks `/healthz`, HTTPS and the release, and tells you the admin
+   page. If anything fails, paste the error at
+   https://simple-host.app/setup?product=small-box#help.
+5. When the server is up, run `unset UPCLOUD_TOKEN UPCLOUD_USERNAME UPCLOUD_PASSWORD` in that
+   terminal (or close it): until then every program started there can read them.
 
 The setup page never asks for or accepts UpCloud credentials.
+
+**After the install.** The installer prints the admin key; it is also kept on the server as
+`ADMIN_API_KEY` in `/opt/simple-host/.env`, and re-running the installer prints it again. Open
+`https://<domain>/admin` and paste it there to sign in as the admin. The admin page names the
+release the box runs; on the server this says the same (`simple-host` is not a command on the
+server itself):
+
+```
+cd /opt/simple-host && sudo docker compose exec -T app simple-host version
+```
+
+The admin's own sites live under the domain's first label (`sites.<domain>/<label>/<site>/`), or
+`organiser` when that label is reserved.
 
 ## Where settings go
 

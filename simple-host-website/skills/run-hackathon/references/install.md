@@ -3,7 +3,7 @@
 One command over SSH on the fresh box.
 
 **Where to run it: we recommend UpCloud.** The smallest UpCloud server (1 CPU, 1 GB, about
-$5/month) runs Simple Host comfortably; we test on it. If the organiser has no server yet, give
+$4/month) runs Simple Host comfortably; we test on it. If the organiser has no server yet, give
 them the sign-up link, https://signup.upcloud.com/?promo=JF2WCV ("Create your UpCloud account —
 $25 in credits"), and say plainly that it is a referral link: new accounts through it get $25 of UpCloud credit, UpCloud's offer
 for new accounts through it, and their terms apply. Creating the server is in
@@ -22,13 +22,13 @@ connection to a brand-new machine otherwise stops to ask whether you trust its
 fingerprint, and an unattended agent simply hangs there.
 
 ```bash
-ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/hackathon_key <user>@<ip> 'curl -fsSL https://raw.githubusercontent.com/vineetu/simple-host/v0.7.3/deploy/install/install.sh -o /tmp/install.sh && sudo bash /tmp/install.sh --host <event>.<domain> --content sites.<event>.<domain>'
+ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/hackathon_key <user>@<ip> 'curl -fsSL https://raw.githubusercontent.com/vineetu/simple-host/v0.7.4/deploy/install/install.sh -o /tmp/install.sh && sudo bash /tmp/install.sh --host <event>.<domain> --content sites.<event>.<domain>'
 ```
 
 **Do not pass `--image`.** The script pins one release: the image it pulls and
 the compose file and database schema it fetches all come from that same tag, so
 they always match. The command fetches the script from that release's tag
-(`v0.7.3` here), never from `main`: for a few minutes after a change lands on
+(`v0.7.4` here), never from `main`: for a few minutes after a change lands on
 `main`, `main` can pin a release whose image is not published yet. To install a
 newer release, use its tag in the URL (see Upgrading below).
 

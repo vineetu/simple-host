@@ -126,7 +126,7 @@ renamed site's old name keeps redirecting on all three forms until the name is r
 | MCP tools | none directly; site summaries return the live site address (and `address_note` while at the fallback), `who_am_i` the person page and `address` |
 | Skill | `website-deploy/SKILL.md` §Service (address form); host strings are rewritten per instance (`h/instancehost.go`) |
 | Pages | `st/showcase.html` (person index / public view) |
-| Go | `h/sitehost.go` (`SITE_HOSTS` off/serve/canonical, site-host routing, certificate requests and readiness), `h/siteaddress.go` (own-address state: ready / waiting with an estimate / failing), `h/personhost.go` (`PERSON_HOSTS` off/serve/canonical, `PersonPageURL`, `PersonReturnSite`, `contentHostRedirect`), `h/legacyhost.go`, `h/handles.go` (reserved handles, `assignHandle`), `internal/db/namespace.go` (one namespace for handles, claimed names, reserved and retired names; `RenameHandle`/`RenameHandleTx`, aliases, `HandleRenamedSince`), `h/instancehost.go` |
+| Go | `h/sitehost.go` (`SITE_HOSTS` off/serve/canonical, site-host routing, certificate requests and readiness), `h/siteaddress.go` (own-address state: ready / waiting with an estimate / failing), `h/personhost.go` (`PERSON_HOSTS` off/serve/canonical, `PersonPageURL`, `PersonReturnSite`, `contentHostRedirect`), `h/legacyhost.go`, `h/handles.go` (reserved handles, `assignHandle`; `handleSeed`: the instance admin row's first handle is the domain's first label, or `organiser` when that is reserved, instead of `admin-2`), `internal/db/namespace.go` (one namespace for handles, claimed names, reserved and retired names; `RenameHandle`/`RenameHandleTx`, aliases, `HandleRenamedSince`), `h/instancehost.go` |
 | DB | `users.handle`, `handle_aliases` (e.g. `admin` → `simple-host-team`), `legacy_hostnames` |
 | Env | `PERSON_HOSTS`, `SITE_HOSTS` (needs `PERSON_HOSTS` on), `SITE_CERT_DIR` (e.g. `/var/lib/simple-host-site-certs`: `requests/<handle>` written by the app, `ready/<handle>`, `failed/<handle>`, `issued.log` and `limits` by the issuer and read by the app for the address state), `SITE_DOMAIN`, `CONTENT_HOST` |
 | External | live nginx `/etc/nginx/sites-enabled/sites-content-host` (rewrites to `/internal/site-redirect/*`) and `simple-host` (wildcard `*.simple-host.app` → app; a server for `<site>.<person>.simple-host.app` loads the per-person cert by variable); wildcard cert; per-person certs from the root-owned issuer in `deploy/site-certs/` (path unit on each request plus a 10-minute timer; at most 40 new certificates per rolling week and 12 per day; certbot DNS-01 via the Vercel hooks in `/usr/local/lib/certbot-vercel/`); Public Suffix List entry is **planned** |
@@ -550,7 +550,7 @@ as the person, so they meet the same checks as REST. Connector tokens are stored
 ## 9. Skills and plugin distribution
 
 Skills source is `simple-host-website/skills/` (embedded via `simple-host-website/embed.go`) at
-version **0.26.3**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
+version **0.26.4**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live**
 (ChatGPT and Claude directory listings submitted 2026-09-24, pending).
 
@@ -595,7 +595,7 @@ traffic. Admin = `ADMIN_API_KEY` or the admin user. **Status: live.**
 | Surface | Details |
 |---|---|
 | Routes | `GET /admin` (public shell) · `GET /v1/admin/users` (users with their sites, ids and suspension state) · `POST /v1/admin/users` (bulk-create participant accounts, returns keys) · `POST /v1/admin/users/{id}/key` (replace that account's keys with one new key, shown once; refused while suspended) · `DELETE /v1/admin/users/{id}` (the same erasure as `DELETE /v1/me`, suspended accounts included) · `POST /v1/admin/sites/{id}/suspend` (`{"reason"}`) and `POST /v1/admin/sites/{id}/restore` (take a site down / put it back) · `POST /v1/admin/users/{id}/suspend` (`{"reason"}`) and `POST /v1/admin/users/{id}/enable` (suspend / re-enable a person) · `GET /v1/admin/export.tar.gz` (every site with saved data and lists, one archive) · `GET /internal/suspended` (the take-down page nginx and Caddy hand off to) · `GET /v1/admin/usage` · `GET /v1/admin/api-analytics` · `GET /v1/admin/idle-sites` (idle-cleanup dry run: would warn / would remove, whether visit data can be trusted, on or off) · `GET /v1/admin/data-watch` (the saved-data watch: per site, visitor replaces, non-object documents, visitor ops by type, large incs, new list names, large items; `?days=`) · `PUT /v1/sites/{sitename}/allow-anonymous-writes?owner=` (`RequireAdmin`; `owner` picks that person's site, else the oldest of the name) · `GET /v1/sites/{sitename}/analytics?owner=` and `/analytics/geo?owner=`, `GET /v1/analytics/sites?all=1` (admin reads any site) |
-| Pages | `st/admin.html` (tiles Users/Websites/Disk; line with versions kept and running release/commit from usage; Biggest websites; Issue participant accounts; Entries: Entry/Account/Link/**Analytics**/Status with Take down / Restore, Download CSV, Copy links, Download all entries; user cards with **New key**, Suspend / Re-enable / Delete; API traffic tables; **Idle sites** panel: on/off, sites that would be warned / removed; **Saved-data watch** panel); `st/index.html` site cards and `st/showcase.html` owner inventory show a taken-down site and its reason, `st/index.html` Admin tab |
+| Pages | `st/admin.html` (signed out, with a key the server no longer takes, or with a key that is not the admin's: an **admin key sign-in** in place of the page, checked against `GET /v1/admin/users` and kept in the browser only when it is the admin key, saying where a small box keeps it; tiles Users/Websites/Disk; line with versions kept and running release/commit from usage; Biggest websites; Issue participant accounts; Entries: Entry/Account/Link/**Analytics**/Status with Take down / Restore, Download CSV, Copy links, Download all entries; user cards with **New key**, Suspend / Re-enable / Delete; API traffic tables; **Idle sites** panel: on/off, sites that would be warned / removed; **Saved-data watch** panel); `st/index.html` site cards and `st/showcase.html` owner inventory show a taken-down site and its reason, `st/index.html` Admin tab |
 | Go | `h/site.go` (`adminUsers`, `adminUsage`), `h/suspend.go` (take-down: admin calls, `serveTakedown`, refusals, boot marker sync), `h/export.go` (`exportAll`), `h/accounts.go` (`createAccounts`, `reissueAccountKey`, `deleteAccount`, `accountAdmin`), `internal/db/suspend.go`, `internal/storage/disk.go` (`SetSuspended`/`IsSuspended`, the `suspended` marker file), `internal/capacity/capacity.go`, `h/apimetrics.go` (`AdminSummary`), `internal/auth/middleware.go` |
 | DB | `users` (`suspended_at`, `suspended_reason`), `sites` (`suspended_at`, `suspended_reason`), `versions`, `api_keys`, `api_request_daily`, `api_ip_daily` |
 | Take-down | A suspended site keeps everything; Go answers 410 "This site has been taken down" on every path of its site host, person path and claimed name; nginx (custom domains, content host) and Caddy (event boxes) check the `suspended` marker in the site folder and hand off to `/internal/suspended` (`deploy/prod/nginx-suspended-marker.sh` adds the check to live vhosts; `deploy/compose/Caddyfile`). Deploy, rollback, rename, delete, visibility, address and origin changes, state/list writes and public reads of its data answer 403 `site_suspended`; the owner's key still reads and exports. A suspended person's key, connector token, MCP calls and visitor sessions answer 403 `account_suspended` (with the reason), sign-in is refused, refresh tokens are refused unspent, their sites are down; nothing is deleted and re-enable reverses it (a site taken down on its own stays down). Markers are re-synced from the database at boot. |
@@ -696,42 +696,55 @@ you already have; Enterprise: address, admins, OIDC issuer/client/domains, owner
 certificate issuer, SMTP, bucket provider/endpoint/region/name/credentials, Postgres, and the ingress controller's pod
 range (`TRUSTED_PROXY_CIDRS`, optional, empty keeps every private range); with UpCloud as the bucket provider the
 region is asked (the Object Storage region, such as europe-2, never preset) and the Postgres fields say to use the
-managed database's `public-…` hostname and port 11569) or **Advanced** (the basics, then
+managed database's `public-…` hostname, and the port is filled in as 11569 while it is still 5432, back to 5432 when
+another provider is picked; picking another identity or bucket provider fills its template issuer, endpoint or region
+only where the field is empty or still another provider's template, never over a typed value) or **Advanced** (the basics, then
 every other setting area by area, default preselected, a one-line explanation, range checks as you type, Skip
 restores the default, progress by step and area). **UpCloud** (small box, "Where it runs"): one line on why ("The
-smallest UpCloud server (1 CPU, 1 GB, about $5/month) runs Simple Host comfortably; we test on it."), a **Create your
+smallest UpCloud server (1 CPU, 1 GB, about $4/month) runs Simple Host comfortably; we test on it."), a **Create your
 UpCloud account — $25 in credits** button to the referral link `https://signup.upcloud.com/?promo=JF2WCV` (new tab,
 `rel="noopener"`) with "Referral link. New accounts through this link get $25 of UpCloud credit; their
-terms apply." under it, and the steps (create the account → create an API user, a sub-account with API access, in the
-UpCloud control panel → answer the questions → on the files step, set the API user in your terminal and give your agent
-the prompt); the page has no field for UpCloud credentials and never asks for them. Output: small box → the one-line
+terms apply." under it, and the steps (create the account → create an API token (Account → API tokens; recommended) or an
+API user, a sub-account with API access, in the UpCloud control panel → answer the questions → on the files step, set the
+token or API user in your terminal and give your agent the prompt); the page has no field for UpCloud credentials and never asks for them. Output: small box → the one-line
 `install.sh` command, fetched from the release the installer pins by that release's commit (`INSTALLER_RELEASE`,
 `INSTALLER_COMMIT` in setup.js) into a `mktemp` file and run only if its sha256 matches `INSTALLER_SHA256` (tag, commit
 and hash agree by test, which also fails once `install.sh`'s `VERSION` is tagged but not pinned), not `main`; every value
 in a generated command is shell-quoted when it needs it, and emails must be plain addresses (its flags
 for host, sites host, email, `--max-site-mb`, `--keep-versions`) and the `/opt/simple-host/.env` lines (only changed
 and needed values; Copy, Download) with where to paste them and the restart line; Enterprise → `config.env` for
-`deploy/overlays/byo` (the ConfigMap), a `secrets.env` template naming every secret as a blank with how to generate
+`deploy/overlays/byo` (the ConfigMap; complete as it is: it also writes the keys INSTALL.md says to leave as in the example,
+`PORT`, `HTTPS_REDIRECT_PORT`, `OIDC_SCOPES`, `SESSION_TTL`, `SESSION_IDLE`, `DB_SSLMODE`, `BACKUP_STORAGE_PREFIX`,
+`BACKUP_SSE`, at their values, and a comment line that anything not listed keeps its default), a `secrets.env` template naming every secret as a blank with how to generate
 it, and the apply commands (`make install OVERLAY=…` or `kustomize build … | kubectl apply -f -`); both with a
 "What you chose" summary, and **Set it up with your AI agent**: one block to copy (or download as `simple-host-setup.md`) into
 the agent the person uses in a terminal, with what the machine needs, every step with their files in it (small box: DNS,
 the install command, the `.env` lines, `docker compose up -d`; Enterprise: clone the package and follow its agent runbook
 `INSTALL.md` with these `config.env`/`secrets.env`, the overlay edits, `make install … INSTALL_CONTEXT=…`), checks
-(`/healthz` → 200, `docker compose ps`, the sites host's certificate; `/readyz`, an owner host, an admin sign-in) and, where
+(`/healthz` → 200, `docker compose ps`, the sites host's certificate, the release via `docker compose exec -T app simple-host
+version`; `/readyz`, an owner host, an admin sign-in, then INSTALL.md's HUMAN STEP D and `make smoke`, with
+`CURL_CA_BUNDLE` naming the company CA when owner certificates come from an internal CA) and, where
 the assistant is on, "paste the error at `<origin>/setup?product=<p>#help`"; secrets stay blanks for the agent to ask for.
-On UpCloud the files step leads with this block, headed **Set it up on UpCloud with your AI agent**: a one-line
-command for the person's own terminal (`printf`/`read`, the password read with `read -rs` under a trap that turns echo back on after Ctrl-C, then `export
-UPCLOUD_USERNAME UPCLOUD_PASSWORD`; bash and zsh), a note to `unset UPCLOUD_USERNAME UPCLOUD_PASSWORD` (or close the
-terminal) when the server is up and to limit the API user to server permissions and, where possible, the person's own IP, and the prompt, which tells the agent to use those variables only from
-the environment (never ask for them in chat, print them or write them anywhere), to use `upctl` or the UpCloud API,
-create an SSH key `~/.ssh/simple-host` if missing, list plans and take the smallest with 1 CPU and 1 GB
-(`STARTER-1xCPU-1GB` today; tell the person the price first), ask for the zone, take the plain Ubuntu Server 24.04 LTS
-template (not the CUDA one), the plan's disk at tier `standard`, root login with the key, a public IPv4; DNS A records
+On UpCloud the files step leads with this block, headed **Set it up on UpCloud with your AI agent**: two one-line
+commands for the person's own terminal, one or the other: an API token (`read -rs UPCLOUD_TOKEN` under a trap that turns
+echo back on after Ctrl-C, `export UPCLOUD_TOKEN`) or an API user (`printf`/`read`, the password with `read -rs` under the
+same trap, `export UPCLOUD_USERNAME UPCLOUD_PASSWORD`; bash and zsh), a note to `unset UPCLOUD_TOKEN UPCLOUD_USERNAME
+UPCLOUD_PASSWORD` (or close the terminal) when the server is up and to keep them limited (a token with an expiry, an API
+user with only server permissions, and where possible the person's own IP), and the prompt, which accepts either (its
+check: `UPCLOUD_TOKEN`, or both user variables), tells the agent to use them only from
+the environment (never ask for them in chat, print them or write them anywhere), to use `upctl` or the UpCloud API with
+curl reading an `Authorization: Bearer` (token) or `Basic` (user) header from standard input,
+create an SSH key `~/.ssh/simple-host` if missing, ask for the zone, list plans and take the smallest with 1 CPU and 1 GB
+(`STARTER-1xCPU-1GB` today) and tell the person its monthly price first (from `GET /1.3/price`, `server_plan_<plan>` in
+cents per hour ×730; no upctl command shows prices), take the plain Ubuntu Server 24.04 LTS template from the API (not
+the CUDA one; `upctl storage list --template` can be empty), the plan's disk at tier `standard`, root login with the key,
+a public IPv4, and retry SSH for up to two minutes after `started`; DNS A records
 for the domain and `*.<domain>` (plus the sites hostname when it is not under the domain), checked with `dig`; run the
-pinned installer over SSH; the `.env` lines; `/healthz`, `docker compose ps` and the sites host's certificate; then
-report the admin page `https://<domain>/admin` and the server's UUID, address, plan and zone, and remind the person to unset
+pinned installer over SSH (the admin key it prints goes to the person; the server keeps it in `/opt/simple-host/.env`
+and re-running prints it again); the `.env` lines; `/healthz`, `docker compose ps` and the sites host's certificate; then
+report the admin page `https://<domain>/admin` (paste the admin key there) and the server's UUID, address, plan and zone, and remind the person to unset
 the credentials. The by-hand steps follow
-("Or do it by hand"). Where it runs is one entry per target in `TARGETS` (setup.js: small box `upcloud`, `server`;
+("Or do it by hand"), with the DNS records worded exactly as in the prompt. Where it runs is one entry per target in `TARGETS` (setup.js: small box `upcloud`, `server`;
 Enterprise `kubernetes`), so another platform is one more entry and one more choice. `/setup?product=enterprise` or `?product=small-box` preselects the first choice (the
 links on the enterprise and hosted pages). Runs in the browser (its only requests are its own files, the optional
 check and the assistant below; `credentials: 'omit'`), never asks for a secret's value, light only. **Check my choices** (optional, where
@@ -770,7 +783,16 @@ installer, the person's AI agent, kubectl, docker or Caddy logs; "Review what wi
 shapes the rules recognise: keys, tokens, passwords, secret assignments and headers, credentials on curl/mysql command
 lines, private keys, JWTs, email addresses, long secret-looking strings, after terminal colour codes are stripped;
 hostnames and addresses stay; the hint says to check before sending) with how many things were hidden, only the last 8 KB of a long paste, and nothing goes until **Send for
-help**; the answer gives the likely cause, a command to confirm, and the fix, with a setting as an Apply item. A typed
+help**; the answer gives the likely cause, a command to confirm, and the fix, with a setting as an Apply item. An
+address in an answer never survives with its host, but a command keeps its shape: the server turns it into the same
+scheme and path on a placeholder host (`curl -fsS https://<your-host>/healthz`; query and fragment dropped), and the
+model is told to write addresses that way. A proposed value that looks like a template (`YOUR-…`, `REPLACE_WITH…`,
+`example.com`, `<…>`) is dropped, and the rules forbid basic answers or changes the person did not ask for (a provider
+named in passing, "match Okta's session policy", does not change the identity provider). The knowledge covers the
+UpCloud API token, the price call, SSH coming up after `started`, signing in at `/admin`, the release command, the
+internal-CA `make smoke` failure (curl exit 60/35, "not ready": the checking machine must trust the CA, `CURL_CA_BUNDLE`)
+and INSTALL.md's advice to match the IdP's session policy with `SESSION_TTL`/`SESSION_IDLE` (said as the recommended
+setup with its leaver caveat; longer than the defaults they are typed in Advanced, never proposed). A typed
 message is redacted too. The conversation (last 4 turns per product) lives in the open page only.
 
 | Surface | Details |
@@ -778,7 +800,7 @@ message is redacted too. The conversation (last 4 turns per product) lives in th
 | Assist route | `POST /v1/setup/assist` `{product, step: choose\|basics\|advanced\|files, mode?, area?, choices?, basics?, message, pasted?, history?}` → `{answer, changes: [{setting, value, why}], basics: {key: value}}`, or with `Accept: text/event-stream` `data: {"t"}` pieces (stopped before the changes marker, even one arriving in pieces) then `data: {"done":true,"answer","changes","basics"}`. Request: unknown fields 400 `invalid_body`; `choices` exactly as the check takes settings (0–80; `unknown_setting`, `secret_not_accepted`, `setting_not_checkable`, `invalid_value`); `basics` only the answers picked from lists (small box `codes`, `google`; Enterprise `idp`, `certs`, `smtp`, `bucket`, `creds`; else `unknown_basic`/`invalid_value`); `message` 1–500 characters; `pasted` ≤ 8 KB (`paste_too_long`); message, pasted output and earlier questions redacted again on the server (`h/setupredact.go`, the same rules as the page's). Response: every change checked — dropped if the helper does not write that setting (a basic question's, a secret, free text, or on a small box one Compose does not pass through), the value is outside its range, equals the current value, or loosens a security-sensitive setting past both its default and the current value (the check's rules, `strict_order` and `zero_is_never` included; Enterprise's `DB_INCLUSTER_EVALUATION` counts as security-sensitive, `false` first, so it is never proposed on); canonical values; at most 12; `why` ≤ 200 characters with no links; basic answers kept only when `step` is `choose` or `basics` (past them the answer says to go back to Basics); answer plain with no links. Same-origin only, shares Ask's per-IP/per-network buckets, its own in-flight cap `SETUP_ASSIST_MAX_IN_FLIGHT` (1), per-network count per UTC day in memory `SETUP_ASSIST_PER_NETWORK_DAILY` (40), daily count `SETUP_ASSIST_DAILY_MAX` (300; 0 turns it off and hides the panel) in table `setup_assist_daily` (migration `v073-setup-assist-daily.sql`); left out of `h/cors.go` and `h/apimetrics.go` |
 | Assist Go | `h/setupassist.go` (prompt = rules, the product's basic questions (proposable ones with their values, typed ones never proposed), the check's FACTS, the product guide `h/askdata/setup-<product>.txt` through the Ask filter, troubleshooting `h/askdata/setup-troubleshoot-<product>.txt` through a lighter filter that keeps install commands, and the settings the helper writes area by area with type, default, range, security flag and description; ASK_MODEL and ASK_REASONING_EFFORT, up to 1200 tokens; one request, never retried; log line: product, step, number of choices, whether output was pasted, the day's count), `h/setupredact.go`, `h/chrome.go` (`<!--sh:setup-assist-->` → the script tag when on) |
 | Assist page | `st/setup/assist.js` (panel, streaming, items, redaction and review, `#help`), `st/setup/setup.js` (`window.shSetup`: context, describe, apply, describeBasic, applyBasic, refresh; `<setupBasics>` block), styles in `st/setup-helper.html` |
-| UpCloud | `st/setup/setup.js` (`UPCLOUD_SIGNUP`, `upcloudOffer`, `renderWhere`, `TARGETS`, `UPCLOUD_CREDS`, `handoff`), styles `.cta`/`.fine` in `st/setup-helper.html`; `h/setuphelper_test.go` (`TestSetupHelperInstallerRelease`: the command fetches install.sh by the pinned release's commit and checks its sha256 before running it; tag, commit and hash agree, and a tagged `install.sh` release must be the one pinned; `TestSetupHelperUpCloudReferral`: the exact referral URL); the assistant's knowledge (`h/askdata/setup-small-box.txt`, UpCloud errors in `setup-troubleshoot-small-box.txt`); `docs/advanced/README.md` and the run-hackathon skill's `install.md`/`providers.md` carry the recommendation and the referral note; pasted `curl -u`/`--user` passwords are redacted |
+| UpCloud | `st/setup/setup.js` (`UPCLOUD_SIGNUP`, `upcloudOffer`, `renderWhere`, `TARGETS`, `UPCLOUD_TOKEN_CREDS`, `UPCLOUD_CREDS`, `dnsText`, `handoff`; Enterprise `pickIdp`/`pickBucket`), styles `.cta`/`.fine` in `st/setup-helper.html`; `h/setuphelper_test.go` (`TestSetupHelperInstallerRelease`: the command fetches install.sh by the pinned release's commit and checks its sha256 before running it; tag, commit and hash agree, and a tagged `install.sh` release must be the one pinned; `TestSetupHelperUpCloudReferral`: the exact referral URL); the assistant's knowledge (`h/askdata/setup-small-box.txt`, UpCloud errors in `setup-troubleshoot-small-box.txt`); `docs/advanced/README.md` and the run-hackathon skill's `install.md`/`providers.md` carry the recommendation and the referral note; pasted `curl -u`/`--user` passwords are redacted |
 | Assist tests | `h/setupassist_test.go` (validation, dropped changes, no looser changes, reply shapes, prompt contents and no leaks, streaming, caps and own slots, no CORS or metrics, redaction cases in Go and the page's JS against `h/testdata/setup-redact-cases.json`, knowledge filters, basics lists equal the page's, the script only when on); `scripts/e2e-setup-assist.js` with `scripts/e2e-setup-assist-sidecar.py` drives the page in Chromium (ask → items → apply → files reflect it, clean-up, paste → review → send, both products, 390 and 1280; the UpCloud block: the button's text, exact URL, new tab and noopener, the referral note, no credential field on the page; the prompt's pinned installer URL, chosen settings, UpCloud steps and credential rules; a server of your own gets no UpCloud steps) |
 
 | Surface | Details |
