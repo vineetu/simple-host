@@ -1,6 +1,6 @@
 ---
 name: connect-domain
-description: Give a site already deployed on simple-host a nicer address — the user's own custom domain (subdomain e.g. recipes.brand.com via CNAME, or apex e.g. brand.com via A record) or a free <name>.simple-host.app (one call, active at once, no DNS). Use when a user wants their site served from their own domain or a short name over HTTPS. Optional: every site already has its own address, https://<site>.<handle>.simple-host.app/, where visitor sign-in and private collections work. Drives the bind → DNS → verify → live flow; the agent does the API work and relays the two DNS records (the address record and a TXT ownership record) the human must add at their registrar.
+description: Give a site already deployed on simple-host a nicer address — the user's own custom domain (subdomain e.g. recipes.brand.com via CNAME, or apex e.g. brand.com via A record) or a free <name>.simple-host.app (one call, active at once, no DNS). Use when a user wants their site served from their own domain or a short name over HTTPS. Optional, since every site already has its own address, https://<site>.<handle>.simple-host.app/, where visitor sign-in and private collections work. Drives the bind → DNS → verify → live flow; the agent does the API work and relays the two DNS records (the address record and a TXT ownership record) the human must add at their registrar.
 ---
 
 # Connect a Custom Domain

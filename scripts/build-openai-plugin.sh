@@ -16,11 +16,13 @@
 #       itself is entered in the portal's MCP tab by URL, never uploaded, and a
 #       skills upload must not carry MCP configuration
 #       (mcp_configuration_excluded).
-#   dist/website-deploy-toolkit-skills-only-fallback.zip   (FALLBACK=1 only)
-#       Only if the portal will not let the existing Skills-only listing gain
-#       an MCP server: the repo's own skills (connector-first, with the email
-#       code fallback), since without the server the connector-only skills
-#       would have no tools to call.
+#   dist/website-deploy-toolkit-<version>.zip   (FALLBACK=1 only)
+#       The skills-only "Website Deploy Toolkit" listing (package
+#       website-deploy-toolkit): plugin.json, assets/ and the repo's own skills
+#       (connector-first, with the email code fallback), since without the MCP
+#       server the connector-only skills would have no tools to call. Its
+#       plugin.json is openai-plugin/plugin.json renamed, with copy that does
+#       not promise a connector.
 #
 # Every check the portal documents for the package is run here first, so a
 # failure shows up on this box rather than as a portal error code.
@@ -30,16 +32,18 @@ SRC=openai-plugin
 OUT=dist
 mkdir -p "$OUT"
 
-python3 - "$SRC" <<'PY'
+validate() { # validate <plugin dir> <mcp|skills-only>
+  python3 - "$1" "$2" <<'PY'
 import json, os, re, sys, struct, zlib
-src = sys.argv[1]
+src, kind = sys.argv[1], sys.argv[2]  # kind: mcp (connector package) or skills-only
 problems = []
 def fail(msg): problems.append(msg)
 
 man = json.load(open(os.path.join(src, "plugin.json")))
-mcp = json.load(open(os.path.join(src, "mcp.json")))
+mcp = json.load(open(os.path.join(src, "mcp.json"))) if kind == "mcp" else None
+if kind != "mcp" and os.path.exists(os.path.join(src, "mcp.json")): fail("a skills-only package must not carry mcp.json")
 if man.get("$schema") != "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json": fail("plugin.json $schema")
-if mcp.get("$schema") != "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json": fail("mcp.json $schema")
+if mcp is not None and mcp.get("$schema") != "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json": fail("mcp.json $schema")
 name = man.get("name", "")
 if not re.fullmatch(r"(?!.*(?:--|\.\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?", name) or len(name) > 64: fail("plugin name format")
 if not re.fullmatch(r"\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]+)?", man.get("version", "")): fail("version is not semver")
@@ -81,7 +85,7 @@ for k in ("composerIcon", "logo"):
     if not p.startswith("./assets/"): fail(f"{k} must be under ./assets/"); continue
     size = png_size(os.path.join(src, p[2:]))
     if not size or size[0] != size[1] or size[0] < 48 or size[0] > 4096: fail(f"{k} must be a square PNG 48..4096 px")
-servers = mcp.get("mcpServers", {})
+servers = mcp.get("mcpServers", {}) if mcp is not None else {"-": {"type": "streamable-http", "url": "https://-"}}
 if not servers or any(s.get("type") != "streamable-http" or not s.get("url", "").startswith("https://") for s in servers.values()): fail("mcp.json: one streamable-http https server")
 
 try:
@@ -96,20 +100,25 @@ for d in sorted(os.listdir(skills_dir)):
     text = open(path, encoding="utf-8").read()
     m = re.match(r"---\n(.*?)\n---\n(.*)", text, re.S)
     if not m: fail(f"{d}: front matter"); continue
-    fm = yaml.safe_load(m.group(1)) if yaml else dict(l.split(": ", 1) for l in m.group(1).splitlines())
+    try:  # the portal parses the front matter as YAML: an unquoted ": " in a value is an error there too
+        fm = yaml.safe_load(m.group(1)) if yaml else dict(l.split(": ", 1) for l in m.group(1).splitlines())
+    except Exception as e:
+        fail(f"{d}: front matter is not valid YAML ({str(e).splitlines()[0]})"); continue
     if fm.get("name") != d: fail(f"{d}: front matter name must equal the directory")
     if not fm.get("description") or len(fm["description"]) > 1024: fail(f"{d}: description")
     if not m.group(2).strip(): fail(f"{d}: empty body")
     if len(f"{name}:{d}") > 64: fail(f"{d}: plugin:skill identity > 64")
     if len(text.encode()) > 256 * 1024: fail(f"{d}: SKILL.md > 256 KiB")
     for bad in ("X-API-Key", "api_key", "curl ", "Claude"):
-        if bad in text: fail(f"{d}: mentions {bad!r}; connector skills never ask for keys or use curl, and stay provider-neutral")
+        if kind == "mcp" and bad in text: fail(f"{d}: mentions {bad!r}; connector skills never ask for keys or use curl, and stay provider-neutral")
     names.add(d)
 if not names: fail("no skills")
 if problems:
-    print("openai-plugin checks FAILED:"); [print("  -", p) for p in problems]; sys.exit(1)
-print(f"openai-plugin checks ok: {name} {man['version']}, skills: {', '.join(sorted(names))}")
+    print(f"{src} checks FAILED:"); [print("  -", p) for p in problems]; sys.exit(1)
+print(f"{src} checks ok ({kind}): {name} {man['version']}, skills: {', '.join(sorted(names))}")
 PY
+}
+validate "$SRC" mcp
 
 # Deterministic archives: fixed order, fixed timestamps, no extra attributes,
 # no dotfiles, regular files only.
@@ -133,20 +142,48 @@ build_zip "$OUT/simple-host-openai-skills.zip" "$STAGE/skills"
 
 if [ "${FALLBACK:-}" = 1 ]; then
   mkdir -p "$STAGE/fallback/skills"
-  cp "$SRC/plugin.json" "$STAGE/fallback/"
+  python3 - "$SRC/plugin.json" "$STAGE/fallback/plugin.json" <<'PY'
+import json, sys
+man = json.load(open(sys.argv[1]))
+man["name"] = "website-deploy-toolkit"
+i = man["extensions"]["com.openai"]["interface"]
+i["displayName"] = "Website Deploy Toolkit"
+i["shortDescription"] = "Build and publish websites"
+ld = i["longDescription"]
+for old, new in (("Tell ChatGPT the website you want", "Describe the website you want"),
+                 ("Sign in once and ChatGPT remembers you in every chat after that.",
+                  "You sign in to Simple Host once (with Google or an emailed code); after that every conversation can publish and update your sites.")):
+    if old not in ld: sys.exit(f"longDescription no longer contains {old!r}; update the toolkit rewrite in build-openai-plugin.sh")
+    ld = ld.replace(old, new)
+i["longDescription"] = ld
+with open(sys.argv[2], "w") as f:
+    json.dump(man, f, indent=2, ensure_ascii=False)
+    f.write("\n")
+PY
   cp -R "$SRC/assets" "$STAGE/fallback/"
   for s in website-deploy website-deploy-builder connect-domain; do cp -R "simple-host-website/skills/$s" "$STAGE/fallback/skills/"; done
-  build_zip "$OUT/website-deploy-toolkit-skills-only-fallback.zip" "$STAGE/fallback"
+  validate "$STAGE/fallback" skills-only
+  TOOLKIT_VERSION=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$STAGE/fallback/plugin.json")
+  build_zip "$OUT/website-deploy-toolkit-$TOOLKIT_VERSION.zip" "$STAGE/fallback"
 fi
 
-for z in "$OUT"/simple-host-openai-plugin.zip; do
+for z in "$OUT"/simple-host-openai-plugin.zip "$OUT"/simple-host-openai-skills.zip ${TOOLKIT_VERSION:+"$OUT/website-deploy-toolkit-$TOOLKIT_VERSION.zip"}; do
   python3 - "$z" <<'PY'
-import sys, zipfile
+import re, sys, zipfile
 z = zipfile.ZipFile(sys.argv[1])
 names = z.namelist()
 assert z.testzip() is None
-assert "plugin.json" in names, "plugin.json must be at the archive root"
+assert sys.argv[1].endswith("-skills.zip") or "plugin.json" in names, "plugin.json must be at the archive root"
+assert not sys.argv[1].endswith("-skills.zip") or all(n.startswith("skills/") for n in names), "the Skills tab upload carries skill folders only"
+assert any(n.endswith("/SKILL.md") for n in names), "no skills"
 assert all(not n.startswith("/") and ".." not in n.split("/") and "\\" not in n for n in names)
+for n in names:  # re-check what actually shipped, not just the staging tree
+    if n.endswith("/SKILL.md"):
+        m = re.match(r"---\n(.*?)\n---\n", z.read(n).decode(), re.S)
+        assert m, f"{n}: front matter"
+        import yaml
+        fm = yaml.safe_load(m.group(1))
+        assert fm.get("name") and fm.get("description") and len(fm["description"]) <= 1024, f"{n}: name/description missing or description > 1024"
 assert len(names) <= 5000 and sum(i.file_size for i in z.infolist()) < 512 << 20
 print(f"{sys.argv[1]}: {len(names)} files, {sum(i.compress_size for i in z.infolist())} bytes compressed")
 PY
