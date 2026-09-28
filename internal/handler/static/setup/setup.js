@@ -30,8 +30,8 @@
   // what it builds is fixed. After a release that changes deploy/terraform,
   // set all three: git rev-parse vX.Y.Z^{commit}, and
   // git show vX.Y.Z:deploy/terraform/<cloud>/apply.sh | sha256sum.
-  var ENT_CLOUD_REF = '32f1920fc0b811771af9a5273ba0dd33626a1da2';
-  var ENT_APPLY_SHA256 = { aws: '49b6c646280b8695445b2b1f47c4afd740f5f6827e4e2a8651981270f952acf8' };
+  var ENT_CLOUD_REF = 'ed1e364762d88a5b6081d1babd3e39382378a46d';
+  var ENT_APPLY_SHA256 = { aws: '5161cc2d5c77190d05cc6d08da46aecfba5178e4a57b80318b89359fccdefe6c' };
   var ENT_RAW = 'https://raw.githubusercontent.com/vineetu/simple-host-enterprise/';
   // Where a small box is recommended to run. A referral link: the page says so.
   var UPCLOUD_SIGNUP = 'https://signup.upcloud.com/?promo=JF2WCV';
