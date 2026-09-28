@@ -23,7 +23,6 @@
 <text x="260.0" y="193.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">https://hack.example.com</text>
 <text x="260.0" y="209.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">https://sites.hack.example.com</text>
 <line x1="610" y1="184" x2="610" y2="232" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
-<text x="604.0" y="210.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">resolves to the app</text>
 <rect x="40" y="374" width="460" height="362" rx="12" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.4"/>
 <text x="56" y="398" font-size="14" font-weight="700" fill="#0f172a" text-anchor="start">Fly app my-sh</text>
 <text x="56" y="418" font-size="13" font-weight="400" fill="#475569" text-anchor="start">one machine, shared-cpu-1x, 256 MB</text>
@@ -66,4 +65,5 @@
 <text x="40" y="784" font-size="13" font-weight="400" fill="#475569" text-anchor="start">Before every deploy, release_command runs on a throwaway machine: schema.sql into an empty</text>
 <text x="40" y="804" font-size="13" font-weight="400" fill="#475569" text-anchor="start">database, then simple-host migrate. fly deploy --ha=false keeps one machine: the volume</text>
 <text x="40" y="824" font-size="13" font-weight="400" fill="#475569" text-anchor="start">holds the sites, so the app cannot run two. Fly snapshots both volumes daily.</text>
+<text x="604.0" y="210.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">resolves to the app</text>
 </svg>

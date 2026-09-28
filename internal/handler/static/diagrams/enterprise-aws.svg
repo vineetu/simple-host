@@ -28,7 +28,6 @@
 <text x="275.0" y="334.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Network Load Balancer, public subnets</text>
 <text x="275.0" y="354.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">made by Traefik's Service; keeps the visitor's address</text>
 <rect x="80" y="402" width="390" height="348" rx="12" fill="#f3f9fb" stroke="#0e7490" stroke-width="1.6" stroke-dasharray="7 5"/>
-<text x="96" y="426" font-size="14" font-weight="700" fill="#0f172a" text-anchor="start">EKS cluster: 2 × t3.medium (new, or yours)</text>
 <rect x="100" y="444" width="350" height="74" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
 <text x="275.0" y="468.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Traefik ingress, 2 replicas</text>
 <text x="275.0" y="488.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">HTTP → HTTPS; TLS from Secrets;</text>
@@ -98,4 +97,5 @@
 <text x="244" y="1062" font-size="13" font-weight="400" fill="#475569" text-anchor="start">only when it makes the cluster</text>
 <rect x="508" y="1051" width="26" height="14" rx="3" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.4"/>
 <text x="542" y="1062" font-size="13" font-weight="400" fill="#475569" text-anchor="start">outside the account</text>
+<text x="96" y="426" font-size="14" font-weight="700" fill="#0f172a" text-anchor="start" paint-order="stroke" stroke="#f3f9fb" stroke-width="6" stroke-linejoin="round">EKS cluster: 2 × t3.medium (new, or yours)</text>
 </svg>
