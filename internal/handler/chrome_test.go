@@ -335,6 +335,9 @@ func TestServeChromeForScreenshots(t *testing.T) {
 		w.Write(stampNonce(r, page))
 	})))
 	mux.Handle("GET /_404", adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.renderNotFound(w, r, "/nothing-here.html") })))
+	mux.HandleFunc("GET /_offline", serveOffline)
+	mux.HandleFunc("GET /_takendown", serveTakedown)
+	mux.Handle("GET /_wizard", serveStaticPage("setup.html"))
 	srv := &http.Server{Addr: addr, Handler: mux}
 	go srv.ListenAndServe()
 	d, _ := time.ParseDuration(os.Getenv("CHROME_SERVE_FOR"))

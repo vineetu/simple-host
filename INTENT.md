@@ -479,10 +479,15 @@ What follows from that, and is not negotiable without changing the line above:
   `docs/advanced/server-and-addresses.md`) are refused to new handles and new free addresses,
   and the platform-sounding subset to new site names. Existing holders keep theirs. Reason:
   impersonation. Owner decision 2026-09-27.
-- **2026-09-27. The enterprise pages are light by default.** `/enterprise`, `/enterprise/brief`
-  and `/enterprise/architecture` offer the header's light/dark toggle but open light whatever
-  the OS prefers; dark only when the reader picks it. Other pages are unchanged. Owner decision
-  2026-09-27.
+- **2026-09-27. The enterprise pages are light by default.** Replaced by the 2026-09-28 decision
+  below: those pages follow the site-wide theme like every other page.
+- **2026-09-28. One light/dark setting for the whole site; follows the visitor's system by
+  default; a single override applies everywhere.** Every page the app serves looks the same way:
+  with nothing picked it matches the visitor's system (light when there is no preference); the
+  header's theme menu offers Match my system, Light and Dark, and that one choice is kept once
+  and applies to every page before first paint. No page has a theme default or auto-dark of its
+  own; the navy pages keep their identity with a navy dark palette. Reason: pages behaved
+  differently (some followed the OS, some were light only). Owner decision 2026-09-28.
 - **2026-09-27. /internal/ is closed to outside requests.** Every nginx vhost's
   `location ^~ /internal/` carries `internal;` (`deploy/prod/nginx-internal-lock.sh`, the
   content host included), so those pages are reached only through nginx's own rewrites and

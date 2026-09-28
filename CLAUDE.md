@@ -101,6 +101,11 @@ Never report branch work as fixed; only what a client can see is shipped.
   Do not reintroduce a synthetic admin id.
 - HTML, CSS and JS are hand-written and embedded; there is no frontend build. A page edit needs
   a rebuild.
+- **New pages use the shared theme.** The page carries the chrome markers (or `<!--sh:theme-->`
+  alone when it has no header) and styles both themes from site.css tokens and
+  `html[data-theme="dark"]`. It follows the visitor's system until they pick in the header's
+  menu; never add a page's own `prefers-color-scheme`, `matchMedia`, theme key or light-only
+  default (`theme_test.go` fails on them). INTENT 2026-09-28.
 - One `http.ServeMux`, no router library. New endpoint = a `mux.Handle` line in a handler's
   `Register` (grep `mux.Handle` to find any route).
 - `site_view_daily` and `site_visitor_daily` are never written and must never be dropped.

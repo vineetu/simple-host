@@ -580,10 +580,11 @@ the full apex controls. Sign out everywhere (key rotate) stays in the apex app b
 |---|---|
 | Routes | `GET /dashboard` (`index.html`) · `GET /` (landing; a bare `/<handle>` renders the owner app via `ownerAppOrStatic`) · `GET /analytics/{sitename}` · `GET /internal/showcase/{handle}` (public person page on the content host) |
 | MCP tools | — (the dashboard uses REST with the stored key) |
-| Pages | `st/index.html`, `st/showcase.html`, `st/analytics.html`, `st/partials/{head,header,footer}.html`, `st/site.css` |
+| Pages | `st/index.html`, `st/showcase.html`, `st/analytics.html`, `st/partials/{head,header,footer,theme}.html`, `st/site.css` |
 | Go | `h/ui.go` (`RegisterUIRoutes`, `serveStaticPage`, `adminUICSP` nonce CSP, `handlerOnlyPages`), `h/showcase.go` (`renderShowcase`, `renderNotFound`), `h/chrome.go` (header/footer injection, `HackHome`), `h/analytics.go` |
 | Calls | everything in §1, §3, §5, §7, §8 (connections), §12, §14 |
 | Note | Apex pages allow inline `<script>` only via the per-response nonce; `onclick=` attributes are blocked. `setup.html` is outside this wrapper |
+| Theme | One light/dark setting for every page the app serves (2026-09-28). With nothing picked a page follows the visitor's system setting, live; the header's theme button opens **Match my system / Light / Dark**, and the choice is kept once (`localStorage` `sh-theme`: `light`, `dark`, or absent for the system) and applied to every page before first paint, other open tabs included. The only theme code is `st/partials/theme.html` (in the head partial; `<!--sh:theme-->` alone for pages with no header: the first-run wizard `setup.html`, the offline and taken-down pages, the sign-in-failed and temporarily-unavailable pages); pages style both themes from `html[data-theme]` and site.css tokens, the navy pages (`/enterprise/architecture`, `/setup`, the enterprise Ask panel) with their own navy dark palette. Person and site hosts are other origins, so they follow the system until the person picks there. `theme_test.go` fails on any page with its own theme logic or `prefers-color-scheme`; `scripts/e2e-theme.js` checks it in a browser |
 
 ## 11. Admin (operator)
 
@@ -748,7 +749,7 @@ the credentials. The by-hand steps follow
 ("Or do it by hand"), with the DNS records worded exactly as in the prompt. Where it runs is one entry per target in `TARGETS` (setup.js: small box `upcloud`, `server`;
 Enterprise `kubernetes`), so another platform is one more entry and one more choice. `/setup?product=enterprise` or `?product=small-box` preselects the first choice (the
 links on the enterprise and hosted pages). Runs in the browser (its only requests are its own files, the optional
-check and the assistant below; `credentials: 'omit'`), never asks for a secret's value, light only. **Check my choices** (optional, where
+check and the assistant below; `credentials: 'omit'`), never asks for a secret's value, in the navy document style, light or dark with the site-wide theme. **Check my choices** (optional, where
 the server has its model backend): just before the files, when the visitor changed any number, duration, switch,
 choice or limit, the helper sends those names and values (never free text such as hostnames or emails, never a secret)
 and the product to `POST /v1/setup/check`, showing "Checking your choices" with a **Skip the check** link; each
@@ -788,8 +789,8 @@ Every price and constant is in `st/costs/prices.json` (each price: `usd`, `per`,
 (UMD) does the arithmetic for the page, the setup helper and the tests; `headline()` gives the ranges `/enterprise`,
 `/enterprise/brief` and the enterprise Ask pack quote (about 2,000 people on your cluster, internal: about $70–100 a month,
 3.5–5 cents a person; about 40 people: $25–45), and a test fails when their text and the prices disagree. Runs in the
-browser (its only request is `prices.json`, `credentials: 'omit'`), no Ask widget, light unless the header's toggle picks
-dark. The setup helper's Enterprise basics show "Running cost on <cloud>: about $… a month" for AWS, Google Cloud or
+browser (its only request is `prices.json`, `credentials: 'omit'`), no Ask widget, light or dark with the site-wide theme
+(§10). The setup helper's Enterprise basics show "Running cost on <cloud>: about $… a month" for AWS, Google Cloud or
 UpCloud buckets (the calculator's defaults) with a link, else a plain link. Linked from `/enterprise` (hero "What it
 costs" → a **What it costs** section with **Estimate your own cost**), `/enterprise/brief`, the setup helper, README and
 both Ask assistants (`/costs` is on both link lists). `scripts/check-prices-age.sh` fails when any price was checked more
@@ -801,7 +802,7 @@ switches, address state). **Status: built.**
 **Setup assistant** (where the server has its model backend and `SETUP_ASSIST_DAILY_MAX` > 0; otherwise the page loads
 no assistant at all). An **Assistant** button on `/setup` opens a panel with the Ask panel's look (a bottom sheet under
 560 px, a floating panel, and from 1180 px a panel beside the form that the page makes room for, so applied changes show;
-light only). It knows the product, the step and area, and the choices. It **answers** questions about settings and setup
+in the page's theme). It knows the product, the step and area, and the choices. It **answers** questions about settings and setup
 (short by default), **fills in the form** from a plain request ("Set this up for a 200-person company with Microsoft
 sign-in and stricter security"), and **cleans up** choices ("Clean up my choices": odd values explained, conflicts
 flagged, resets to the default offered). The answer streams as text; proposed changes then show as items, "Set
