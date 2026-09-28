@@ -66,7 +66,13 @@ type AskHandler struct {
 	checkNetMax   int
 	checkDaily    askCounter
 	checkDailyMax int
-	now           func() time.Time
+	// The setup helper's assistant (setupassist.go): the same, its own.
+	assistInFlight chan struct{}
+	assistNet      *setupNetDaily
+	assistNetMax   int
+	assistDaily    askCounter
+	assistDailyMax int
+	now            func() time.Time
 }
 
 // askCounter counts questions per UTC day across everyone. take reserves one
@@ -76,8 +82,9 @@ type askCounter interface {
 }
 
 // askDBCounter keeps the count in a (day, count) table — ask_daily for
-// questions, setup_check_daily for setup checks — so a restart does not hand
-// out another day's worth. table is one of those two constants, never input.
+// questions, setup_check_daily for setup checks, setup_assist_daily for the
+// setup assistant — so a restart does not hand out another day's worth.
+// table is one of those constants, never input.
 type askDBCounter struct {
 	db    *sql.DB
 	table string
@@ -244,6 +251,14 @@ var askEnabled bool
 // EnableAskWidget turns the "Ask" assistants on in the page chrome. Call it
 // only after NewAskHandler has been registered.
 func EnableAskWidget() { askEnabled = true }
+
+// setupAssistEnabled is set once at boot by EnableSetupAssist: the setup
+// page loads its assistant (setup/assist.js) only when it is on.
+var setupAssistEnabled bool
+
+// EnableSetupAssist turns the setup helper's assistant on. Call it only after
+// NewAskHandler has been registered, and only when its daily cap is above 0.
+func EnableSetupAssist() { setupAssistEnabled = true }
 
 // askPageFor is the page key for a request path ("" when no assistant page is
 // served there), for the chrome.
@@ -465,6 +480,12 @@ type AskOptions struct {
 	// checks one network (/24 or /48) may run per UTC day (20 when 0).
 	SetupCheckMaxInFlight     int
 	SetupCheckPerNetworkDaily int
+	// The setup helper's assistant (POST /v1/setup/assist): messages per UTC
+	// day across everyone (0 answers none), at once apart from Ask's and the
+	// check's (1 when 0), and per network per UTC day (40 when 0).
+	SetupAssistDailyMax        int
+	SetupAssistMaxInFlight     int
+	SetupAssistPerNetworkDaily int
 }
 
 // NewAskHandler builds the handler. origin is the instance's apex
@@ -473,6 +494,7 @@ type AskOptions struct {
 func NewAskHandler(key, base, model, origin string, db *sql.DB, o AskOptions) *AskHandler {
 	h := newAskHandler(key, base, model, origin, askDBCounter{db, "ask_daily"}, o)
 	h.checkDaily = askDBCounter{db, "setup_check_daily"}
+	h.assistDaily = askDBCounter{db, "setup_assist_daily"}
 	return h
 }
 
@@ -486,6 +508,12 @@ func newAskHandler(key, base, model, origin string, daily askCounter, o AskOptio
 	}
 	if o.SetupCheckPerNetworkDaily <= 0 {
 		o.SetupCheckPerNetworkDaily = 20
+	}
+	if o.SetupAssistMaxInFlight <= 0 {
+		o.SetupAssistMaxInFlight = 1
+	}
+	if o.SetupAssistPerNetworkDaily <= 0 {
+		o.SetupAssistPerNetworkDaily = 40
 	}
 	return &AskHandler{
 		key: key, base: strings.TrimRight(base, "/"), model: model,
@@ -506,7 +534,13 @@ func newAskHandler(key, base, model, origin string, daily askCounter, o AskOptio
 		checkInFlight: make(chan struct{}, o.SetupCheckMaxInFlight),
 		checkNet:      &setupNetDaily{},
 		checkNetMax:   o.SetupCheckPerNetworkDaily,
-		now:           time.Now,
+		// The tests' counter; NewAskHandler swaps in the table.
+		assistDaily:    &askMemCounter{},
+		assistDailyMax: o.SetupAssistDailyMax,
+		assistInFlight: make(chan struct{}, o.SetupAssistMaxInFlight),
+		assistNet:      &setupNetDaily{},
+		assistNetMax:   o.SetupAssistPerNetworkDaily,
+		now:            time.Now,
 	}
 }
 
@@ -525,6 +559,7 @@ func (h *AskHandler) Register(mux *http.ServeMux) {
 	h.netLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	mux.HandleFunc("POST /v1/ask", h.ask)
 	mux.HandleFunc("POST /v1/setup/check", h.setupCheck)
+	mux.HandleFunc("POST /v1/setup/assist", h.setupAssist)
 }
 
 func (h *AskHandler) ask(w http.ResponseWriter, r *http.Request) {

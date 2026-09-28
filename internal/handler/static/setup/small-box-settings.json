@@ -1737,6 +1737,48 @@
       "small_box": false
     },
     {
+      "name": "SETUP_ASSIST_DAILY_MAX",
+      "group": "ai",
+      "description": "The setup helper's assistant: messages answered per day across everyone, through the Ask model. 0 turns it off and hides its panel.",
+      "type": "int",
+      "default": "300",
+      "min": 0,
+      "max": 100000,
+      "unit": "messages",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "SETUP_ASSIST_MAX_IN_FLIGHT",
+      "group": "ai",
+      "description": "The setup helper's assistant: messages answered at once on the whole server, apart from Ask's and the check's.",
+      "type": "int",
+      "default": "1",
+      "min": 1,
+      "max": 64,
+      "unit": "messages",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "SETUP_ASSIST_PER_NETWORK_DAILY",
+      "group": "ai",
+      "description": "The setup helper's assistant: messages one network (a /24, or a /48 for IPv6) may send per day.",
+      "type": "int",
+      "default": "40",
+      "min": 1,
+      "max": 100000,
+      "unit": "messages",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
       "name": "LLM_PROVIDER",
       "group": "ai",
       "description": "The model backend for AI create and Ask.",

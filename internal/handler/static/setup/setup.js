@@ -1,23 +1,37 @@
 // The setup helper at /setup. Everything happens in this page: the settings
 // lists are the two settings.json files next to this script (generated from
 // each product's code, see docs/advanced/README.md), and secrets are never
-// asked for, only named as blanks. The one request it makes is the optional
+// asked for, only named as blanks. Its own request is the optional
 // check just before the files (POST /v1/setup/check): the product and the
 // names and values of the changed numbers, durations, switches, choices and
 // limits, never free text such as hostnames or emails. Where the server has no model
 // backend, or the check fails or is skipped, the files are shown without it.
+// The assistant (setup/assist.js, loaded only where the server offers it)
+// reads and changes the form through window.shSetup, at the end.
 (function () {
   'use strict';
 
   var FILES = { small: '/setup/small-box-settings.json', ent: '/setup/enterprise-settings.json' };
-  // The installer of the release this server runs (deploy/install/install.sh
-  // VERSION; scripts/check-docs-sync.sh keeps the two the same), never main:
-  // main can pin a release whose image is not published yet.
-  var INSTALL_URL = 'https://raw.githubusercontent.com/vineetu/simple-host/v0.7.2/deploy/install/install.sh';
+  // The release the installer pins (VERSION in deploy/install/install.sh),
+  // the commit its tag points at, and install.sh's sha256 in that commit.
+  // The command fetches the installer by commit (a tag can be moved) and
+  // checks the hash before running it, so what it installs is fixed, not
+  // whatever main holds that day. After tagging a new release, set all
+  // three: git rev-parse vX.Y.Z^{commit}, and
+  // git show vX.Y.Z:deploy/install/install.sh | sha256sum. A Go test
+  // (TestSetupHelperInstallerRelease) checks them against the tag.
+  var INSTALLER_RELEASE = 'v0.7.1';
+  var INSTALLER_COMMIT = '4ec7452eb67c7bf39f45c5685a1a180a4d7d7e24';
+  var INSTALLER_SHA256 = 'c79bc74a3e2b85ccf5a561143e1c1c968a2cebd13826a9ced8823f21df052700';
+  var INSTALL_URL = 'https://raw.githubusercontent.com/vineetu/simple-host/' + INSTALLER_COMMIT + '/deploy/install/install.sh';
+  // Where a small box is recommended to run. A referral link: the page says so.
+  var UPCLOUD_SIGNUP = 'https://signup.upcloud.com/?promo=JF2WCV';
   // What install.sh writes when its flag is not given (deploy/install/install.sh).
   var INSTALLER_DEFAULTS = { KEEP_VERSIONS: '1', MAX_ARCHIVE_MB: '100' };
 
-  // Settings the basic questions cover, per product; the rest are Advanced.
+  // <setupBasics> Settings the basic questions cover, per product; the rest
+  // are Advanced. The assistant's server keeps the same lists and provider
+  // ids (setupassist.go; a Go test runs this block).
   var SMALL_BASIC = ['SITE_DOMAIN', 'CONTENT_HOST', 'RESEND_API_KEY', 'MAIL_FROM', 'GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET'];
   var ENT_BASIC = ['PUBLIC_BASE_URL', 'SECURE_MODE', 'ADMIN_EMAILS', 'OIDC_ISSUER', 'OIDC_CLIENT_ID', 'OIDC_CLIENT_SECRET',
     'ALLOWED_EMAIL_DOMAINS', 'OWNER_CERTS', 'OWNER_CERT_ISSUER', 'SMTP_URL', 'SMTP_FROM', 'SESSION_SIGNING_KEY',
@@ -39,6 +53,7 @@
     { id: 'upcloud', name: 'UpCloud', endpoint: 'https://YOUR-ENDPOINT.upcloudobjects.com', region: 'us-1' },
     { id: 'other', name: 'Another S3-compatible store', endpoint: '', region: 'us-east-1' }
   ];
+  // </setupBasics>
 
   var S = {
     product: 'small', mode: 'basic', step: 0, area: 0,
@@ -46,7 +61,7 @@
     values: { small: {}, ent: {} },      // NAME -> value, only where it differs from the default
     secrets: { small: {}, ent: {} },     // NAME -> true: list it as a blank to fill in
     basic: {
-      small: { domain: '', content: '', email: '', codes: true, google: false, mailFrom: '', googleId: '' },
+      small: { where: 'upcloud', domain: '', content: '', email: '', codes: true, google: false, mailFrom: '', googleId: '' },
       ent: { host: '', admins: '', idp: 'okta', issuer: IDPS[0].issuer, clientId: '', domains: '', certs: 'auto', issuerName: '',
         smtp: false, smtpFrom: '', bucket: 'aws', endpoint: BUCKETS[0].endpoint, region: BUCKETS[0].region, bucketName: '',
         creds: 'keys', dbHost: '', dbPort: '5432', dbName: 'simplehost', dbUser: 'simplehost' }
@@ -277,12 +292,56 @@
     ]);
   }
   var HOST = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/;
-  var EMAIL = /^[^\s@<>,"']+@[^\s@<>,"']+\.[^\s@<>,"']+$/;
+  var EMAIL = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+  // sh quotes a value for a shell command: bare when it has only characters
+  // no shell treats specially, else in single quotes.
+  function sh(v) {
+    v = String(v);
+    return /^[A-Za-z0-9@%+=:,.\/_-]+$/.test(v) ? v : "'" + v.replace(/'/g, "'\\''") + "'";
+  }
+
+  // upcloudOffer is the recommendation: why, the sign-up button (a referral
+  // link, and the page says so) and what to do there.
+  function upcloudOffer() {
+    return el('div', { class: 'upcloud' }, [
+      el('p', { class: 'note', style: 'margin:0 0 12px', text: 'The smallest UpCloud server (1 CPU, 1 GB, about $5/month) runs Simple Host comfortably; we test on it.' }),
+      el('a', { class: 'btn solid cta', href: UPCLOUD_SIGNUP, target: '_blank', rel: 'noopener', text: 'Create your UpCloud account — $25 in credits' }),
+      el('p', { class: 'fine', text: 'Referral link. New accounts through this link get $25 of UpCloud credit; their terms apply.' }),
+      el('ol', { class: 'steps' }, [
+        el('li', { text: 'Create your UpCloud account.' }),
+        el('li', { text: 'In the UpCloud control panel, create an API user: a sub-account with API access allowed. ' + UPCLOUD_LIMIT + ' Its username and password stay with you; this page never asks for them.' }),
+        el('li', { text: 'Answer the questions on this page.' }),
+        el('li', { text: 'On the last step, set the API user in your terminal (the page gives the command) and copy the prompt into your AI agent. It creates the server, sets it up and checks it.' })
+      ])
+    ]);
+  }
+  function renderWhere(b) {
+    var more = el('div');
+    var draw = function () {
+      more.textContent = '';
+      more.appendChild(b.where === 'upcloud' ? upcloudOffer()
+        : el('p', { class: 'note', text: 'A fresh Ubuntu server (24.04 LTS) with 1 CPU, 1 GB of RAM and about 25 GB of disk, a public IPv4 address, ports 80 and 443 open, and SSH with sudo.' }));
+    };
+    draw();
+    return el('div', { class: 'card', id: 'where' }, [
+      el('h2', { text: 'Where it runs' }),
+      el('fieldset', null, [
+        el('legend', { class: 'note', text: 'Your own server, at a cloud provider or anywhere with a public address.' }),
+        el('div', { class: 'choices' }, [
+          choice('where', 'upcloud', b.where, 'UpCloud (recommended)', 'A new server there, created by your AI agent with your UpCloud API user.', function (v) { b.where = v; draw(); }),
+          choice('where', 'server', b.where, 'A server I already have', 'Any fresh Ubuntu server you can SSH into.', function (v) { b.where = v; draw(); })
+        ])
+      ]),
+      el('div', { style: 'height:14px' }),
+      more
+    ]);
+  }
 
   function renderBasics() {
     var box = el('div', { class: 'card' });
     var b = S.basic[S.product];
     if (S.product === 'small') {
+      app.appendChild(renderWhere(b));
       box.appendChild(el('h2', { text: 'Your small box' }));
       box.appendChild(el('p', { class: 'lede', text: 'Two names pointing at your server: one for Simple Host itself, one for the sites people publish. Keeping them apart means a published page can never reach the dashboard.' }));
       box.appendChild(textField('domain', b, 'Domain', { name: 'SITE_DOMAIN · --host', placeholder: 'hack.example.com', help: byName('SITE_DOMAIN').description,
@@ -379,7 +438,7 @@
       if (!HOST.test(b.domain)) e.domain = 'A domain name like hack.example.com.';
       if (b.content && (!HOST.test(b.content) || b.content === b.domain)) e.content = 'A different hostname, like sites.' + (b.domain || 'hack.example.com') + '.';
       if (b.email && !EMAIL.test(b.email)) e.email = 'An email address, or leave it empty.';
-      if (b.mailFrom && /[\r\n]/.test(b.mailFrom)) e.mailFrom = 'One line.';
+      if (b.mailFrom && /[\r\n`]/.test(b.mailFrom)) e.mailFrom = 'One line, with no backticks.';
       if (b.googleId && !/^[A-Za-z0-9._-]+$/.test(b.googleId)) e.googleId = 'The client ID as Google shows it.';
     } else {
       b.host = b.host.toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '');
@@ -532,13 +591,13 @@
 
     if (p === 'small') {
       var content = b.content || 'sites.' + b.domain;
-      var flags = ['--host', b.domain, '--content', content];
-      chosen.push(['Domain', b.domain], ['Sites hostname', content]);
-      if (b.email) { flags.push('--email', b.email); chosen.push(['Certificate notices', b.email]); }
+      var flags = ['--host', sh(b.domain), '--content', sh(content)];
+      chosen.push(['Where it runs', targetOf('small').name], ['Domain', b.domain], ['Sites hostname', content]);
+      if (b.email) { flags.push('--email', sh(b.email)); chosen.push(['Certificate notices', b.email]); }
       var env = [];
       extra.forEach(function (n) {
         var s = byName(n);
-        if (s.install_flag) { flags.push(s.install_flag, changed[n]); }
+        if (s.install_flag) { flags.push(s.install_flag, sh(changed[n])); }
         else env.push(envLine(n, changed[n]));
         chosen.push([n, changed[n] + '  (default ' + (defaultOf(s) || 'none') + ')']);
       });
@@ -556,7 +615,7 @@
       if (!b.codes && !b.google) chosen.push(['Sign-in', 'admin key only']);
       fill = fill.concat(optionalSecrets);
       var envText = env.concat(secretBlock(fill)).join('\n');
-      var cmd = 'curl -fsSL ' + INSTALL_URL + ' -o /tmp/install.sh && sudo bash /tmp/install.sh ' + flags.join(' ');
+      var cmd = 'f=$(mktemp) && curl -fsSL ' + INSTALL_URL + ' -o "$f" && printf \'%s  %s\\n\' ' + INSTALLER_SHA256 + ' "$f" | sha256sum -c --quiet - && sudo bash "$f" ' + flags.join(' ');
       return { chosen: chosen, cmd: cmd, env: envText ? '# Simple Host settings (https://simple-host.app/setup)\n' + envText + '\n' : '' };
     }
 
@@ -580,7 +639,7 @@
     chosen.unshift(['Address', 'https://' + b.host], ['Sign-in', b.issuer], ['Bucket', b.bucketName + ' at ' + b.endpoint],
       ['Database', b.dbName + ' on ' + b.dbHost], ['Email', b.smtp ? 'SMTP relay' : 'none'],
       ['Site certificates', b.certs === 'auto' ? 'cert-manager (' + b.issuerName + ')' : 'issued by you']);
-    secrets = ['OIDC_CLIENT_SECRET', 'SESSION_SIGNING_KEY', 'DB_PASSWORD', 'DB_APP_PASSWORD'];
+    secrets = ['OIDC_CLIENT_SECRET', 'SESSION_SIGNING_KEY', 'DB_PASSWORD', 'DB_APP_PASSWORD', 'BACKUP_ENVELOPE_KEY'];
     if (b.creds === 'keys') secrets.push('BACKUP_STORAGE_ACCESS_KEY_ID', 'BACKUP_STORAGE_SECRET_ACCESS_KEY');
     if (b.smtp) secrets.push('SMTP_URL');
     secrets = secrets.concat(optionalSecrets.filter(function (n) { return secrets.indexOf(n) < 0; }));
@@ -611,6 +670,98 @@
       el('h3', null, [el('span', { text: title }), el('span', { class: 'acts' }, [copyButton(function () { return text; }), file ? downloadButton(file, function () { return text; }) : null])]),
       el('pre', { text: text, tabindex: '0' })
     ]);
+  }
+
+  // ── Set it up with your AI agent ──
+  // Where it runs. Each target is what the machine needs and, where the
+  // agent creates the machine, how. A small box offers UpCloud (the agent
+  // creates the server with the person's API user) or a server they already
+  // have; another platform is one more entry here and one more choice in
+  // renderWhere. Enterprise runs on the company's own cluster.
+  var TARGETS = {
+    small: [
+      { id: 'upcloud', name: 'UpCloud', needs: 'a new UpCloud server that you create in my UpCloud account: the smallest plan with 1 CPU and 1 GB of RAM, Ubuntu Server 24.04 LTS, a public IPv4 address' },
+      { id: 'server', name: 'Your own server', needs: 'a fresh Ubuntu server with 1 CPU, 1 GB of RAM and about 25 GB of disk, a public IPv4 address, ports 80 and 443 open to the internet (in the cloud’s firewall too), and SSH with sudo' }
+    ],
+    ent: [{ id: 'kubernetes', name: 'Kubernetes', needs: 'the company’s Kubernetes cluster (1.30 or later) with an ingress controller and cert-manager, a managed Postgres with point-in-time recovery, and an S3-compatible bucket with versioning on' }]
+  };
+  function targetOf(p) {
+    var list = TARGETS[p], want = p === 'small' ? S.basic.small.where : '';
+    for (var i = 0; i < list.length; i++) if (list[i].id === want) return list[i];
+    return list[0];
+  }
+  // UPCLOUD_CREDS is the line the person runs in their own terminal before
+  // starting their agent: it asks for the API user's name and password
+  // (the password without echo: read -s, with a trap that turns echo back on
+  // if Ctrl-C stops it) and exports both, so they never pass through this
+  // page, the agent's chat or the shell history. bash and zsh alike.
+  var UPCLOUD_CREDS = "printf 'UpCloud API username: '; read -r UPCLOUD_USERNAME; printf 'UpCloud API password: '; trap 'stty echo 2>/dev/null' INT; read -rs UPCLOUD_PASSWORD; trap - INT; echo; export UPCLOUD_USERNAME UPCLOUD_PASSWORD";
+  // What to do with the API user afterwards, on the page and in the prompt.
+  var UPCLOUD_UNSET = 'unset UPCLOUD_USERNAME UPCLOUD_PASSWORD';
+  var UPCLOUD_LIMIT = 'Give the API user only the server permissions it needs and, if you can, allow only your own IP address in its API settings.';
+  // dnsNames are the A records the installer needs: the domain, and the
+  // sites hostname, which a wildcard covers when it sits under the domain.
+  function dnsRecords(domain, content) {
+    var recs = [domain, '*.' + domain];
+    if (content.slice(-(domain.length + 1)) !== '.' + domain) recs.push(content);
+    return recs;
+  }
+  var FENCE = '```';
+  // handoff is the whole block for the person's own AI agent: what the
+  // machine needs (and on UpCloud, how to create it), the steps with this
+  // page's files in them, how to check the result, and where to get help.
+  // Secrets are blanks, as in the files; UpCloud's credentials are only
+  // ever environment variables the person set in their own terminal.
+  function handoff(r, target) {
+    var p = S.product, b = S.basic[p], t = target || targetOf(p);
+    var origin = location.origin, product = p === 'small' ? 'small-box' : 'enterprise';
+    var L = [], n = 1;
+    L.push(p === 'small' ? (t.id === 'upcloud' ? '# Set up Simple Host on a small box at UpCloud' : '# Set up Simple Host on a small box') : '# Set up Simple Host Enterprise on Kubernetes', '');
+    L.push('These are instructions for you, my AI agent, from ' + origin + '/setup. Work through them in order. Stop at the first step that fails and show me its exact error. Never print, log or commit a secret: ask me for each secret value and put it straight into the file.', '');
+    L.push('Where it runs: ' + t.needs + '.', '');
+    if (p === 'small') {
+      var content = b.content || 'sites.' + b.domain, recs = dnsRecords(b.domain, content);
+      var ssh = '', host = 'the server';
+      if (t.id === 'upcloud') {
+        ssh = 'ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/simple-host root@<the server’s IPv4>';
+        L.push(n++ + '. UpCloud credentials: I created an API user in the UpCloud control panel (a sub-account with API access) and set its username and password in this terminal as UPCLOUD_USERNAME and UPCLOUD_PASSWORD before starting you. Use them only from the environment: never ask me to paste them into this chat, never print them, and never write them to a file, a log or a command line. Check with `test -n "$UPCLOUD_USERNAME" && test -n "$UPCLOUD_PASSWORD" && echo set`. If they are not set, stop and ask me to quit you, run this in the terminal, and start you again:', '', FENCE + 'sh', UPCLOUD_CREDS, FENCE, '');
+        L.push(n++ + '. Tools: use `upctl`, UpCloud’s command-line tool (https://github.com/UpCloudLtd/upcloud-cli; it reads those two variables), installing it if it is missing, or the API at https://api.upcloud.com/1.3 with curl reading the credentials from its standard input, never its arguments: `printf \'header = "Authorization: Basic %s"\\n\' "$(printf \'%s:%s\' "$UPCLOUD_USERNAME" "$UPCLOUD_PASSWORD" | base64 | tr -d \'\\n\')" | curl -fsS -K - https://api.upcloud.com/1.3/account`. Confirm access with `upctl account show` (or that request). Check each command’s current flags with `--help` rather than guessing.', '');
+        L.push(n++ + '. SSH key: use ~/.ssh/simple-host if it exists; otherwise create it with `ssh-keygen -t ed25519 -N \'\' -f ~/.ssh/simple-host -C simple-host`. Never overwrite an existing key.', '');
+        L.push(n++ + '. Create the server:');
+        L.push('   - Plan: list the plans (`upctl server plans`, or `GET /1.3/plan`) and take the smallest with at least 1 CPU and 1 GB of RAM: STARTER-1xCPU-1GB today; if it is gone, its current equivalent. Tell me the plan and its monthly price before creating anything.');
+        L.push('   - Zone: list them (`upctl zone list`, or `GET /1.3/zone`) and ask me which one is nearest the people who will use it.');
+        L.push('   - Image: the plain Ubuntu Server 24.04 LTS template (`GET /1.3/storage/template`). Two templates carry that name; the one with NVIDIA drivers and CUDA needs a 20 GB disk, so take the other.');
+        L.push('   - Disk: the plan’s included storage size, tier `standard` (the small plans refuse any other tier with TIER_INVALID).');
+        L.push('   - Login user root with the public key ~/.ssh/simple-host.pub, metadata on, one public IPv4 interface, title and hostname simple-host.');
+        L.push('   - Create it once, then poll until its state is `started`. Its address is the one where access is `public` and family `IPv4` (never the 10.x utility address). Tell me the server’s UUID and address.');
+        L.push('   - UpCloud’s firewall is off for a new server. If it is on, allow ports 22, 80 and 443 in.', '');
+        host = 'the server (`' + ssh + '`)';
+      }
+      L.push(n++ + '. DNS: at my domain’s DNS provider these A records must point at the server’s public IPv4 address: ' + recs.join(', ') + (recs.length === 2 ? ' (the wildcard covers ' + content + ')' : '') + '. If you can manage that DNS provider from here, ask me before changing anything; otherwise tell me the exact records to add and wait for me. Check that `dig +short ' + sh(b.domain) + '` and `dig +short ' + sh(content) + '` both print the address. Certificates are issued on the first visit, so both names must point at the server first.', '');
+      L.push(n++ + '. Install: on ' + host + ', run this. It installs Docker, starts Simple Host from the release it pins (' + INSTALLER_RELEASE + ') and prints the admin key once: give the admin key to me and do not write it anywhere else.', '', FENCE + 'sh', r.cmd, FENCE, '');
+      if (r.env) {
+        L.push(n++ + '. Settings: add these lines to the end of /opt/simple-host/.env on the server (it needs sudo). Ask me for each blank value; do not invent one. Then run `cd /opt/simple-host && sudo docker compose up -d`.', '', FENCE, r.env.replace(/\n$/, ''), FENCE, '');
+      }
+      L.push(n++ + '. Check it works:');
+      L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' ' + sh('https://' + b.domain + '/healthz') + '` prints 200.');
+      L.push('   - `cd /opt/simple-host && sudo docker compose ps`, on the server, shows every service running.');
+      L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' ' + sh('https://' + content + '/') + '` prints a status code with no certificate error.', '');
+      L.push(n++ + '. Tell me: the admin page, https://' + b.domain + '/admin (it signs in with the admin key)' + (t.id === 'upcloud' ? ', the server’s UUID, address, plan and zone. Then remind me to run `' + UPCLOUD_UNSET + '` in this terminal (or close it) once you are done with UpCloud, and to keep the API user limited to server permissions and, if I can, to my own IP address' : '') + '.', '');
+    } else {
+      L.push('1. Get the package: `git clone https://github.com/vineetu/simple-host-enterprise && cd simple-host-enterprise`. Its INSTALL.md is a runbook written for AI agents: follow it top to bottom, and use the two files below as the config.env and secrets.env it asks for. Name the kubectl context on every call.', '');
+      L.push('2. Save this as deploy/overlays/byo/config.env:', '', FENCE, r.config.replace(/\n$/, ''), FENCE, '');
+      L.push('3. Save this as deploy/overlays/byo/secrets.env and fill in every blank from its hint: generate what can be generated, ask me for the rest. Check that `git check-ignore deploy/overlays/byo/config.env deploy/overlays/byo/secrets.env` prints both paths before writing them.', '', FENCE, r.secrets.replace(/\n$/, ''), FENCE, '');
+      L.push('4. In deploy/overlays/byo, set the image digest in kustomization.yaml and the address in ingress-patch.yaml, and save the database’s CA certificate as db-ca.crt (INSTALL.md, section 5).', '');
+      L.push('5. Apply: `make install OVERLAY=deploy/overlays/byo INSTALL_CONTEXT=<the kubectl context>`, then `kubectl --context <the kubectl context> -n simple-host rollout status deploy/simple-host --timeout=300s`.', '');
+      L.push('6. Check it works:');
+      L.push('   - `curl -fsS ' + sh('https://' + b.host + '/readyz') + '` prints {"status":"ok"}.');
+      L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' ' + sh('https://install-check.' + b.host + '/healthz') + '` prints a status code (401 or 404 is fine; a TLS or DNS error is not).');
+      L.push('   - An admin signs in at https://' + b.host + '/auth/login.', '');
+    }
+    L.push(window.shSetupAssist
+      ? 'If anything fails and the output does not tell you how to fix it, tell me: I can paste the error at ' + origin + '/setup?product=' + product + '#help for help.'
+      : 'If anything fails and the output does not tell you how to fix it, tell me and show me the error.');
+    return L.join('\n') + '\n';
   }
 
   // ── The optional check ──
@@ -738,11 +889,30 @@
     else if (S.check.key !== key) { runCheck(pl, key); return; }
     else if (S.check.state === 'running') { drawChecking(); return; }
     else if (S.check.state === 'review') { renderReview(); return; }
-    var r = build(), card = el('div', { class: 'card' });
+    var r = build(), card = el('div', { class: 'card', id: 'files' }), t = targetOf(S.product), agent = handoff(r);
     if (S.check.note) app.appendChild(el('p', { class: 'check-note', role: 'status', text: S.check.note }));
+    // On UpCloud the agent does the work: its block comes first, with the
+    // command that sets the API user in the person's own terminal.
+    if (t.id === 'upcloud') {
+      app.appendChild(el('div', { class: 'card', id: 'agent' }, [
+        el('h2', { text: 'Set it up on UpCloud with your AI agent' }),
+        el('p', { class: 'note', style: 'margin:0 0 4px', text: 'Your agent creates the server in your UpCloud account, points your names at it, installs Simple Host with your choices and checks it. It asks you before spending anything and for every secret.' }),
+        el('ol', { class: 'steps' }, [
+          el('li', null, ['An UpCloud account with an API user (a sub-account with API access). No account yet? ',
+            el('a', { href: UPCLOUD_SIGNUP, target: '_blank', rel: 'noopener', text: 'Create your UpCloud account' }),
+            el('span', { class: 'fine-inline', text: ' (referral link: $25 of credit for new accounts; their terms apply)' }), '.']),
+          el('li', { text: 'In the terminal you use your agent in, run this. It asks for the API user’s name and password (the password is not shown) and keeps them in that terminal only: not on this page, not in your agent’s chat, not in your shell history.' })
+        ]),
+        block('In your terminal', UPCLOUD_CREDS),
+        el('ol', { class: 'steps', start: '3' }, [el('li', { text: 'Start your AI agent in that terminal and give it this.' })]),
+        block('For your AI agent', agent, 'simple-host-setup.md'),
+        el('p', { class: 'note', style: 'margin:8px 0 0' }, ['When the server is up, run ', el('code', { text: UPCLOUD_UNSET }), ' in that terminal, or close it: until then every program started there can read the API user. ' + UPCLOUD_LIMIT])
+      ]));
+    }
     if (S.product === 'small') {
-      card.appendChild(el('h2', { text: 'Your small box' }));
+      card.appendChild(el('h2', { text: t.id === 'upcloud' ? 'Or do it by hand' : 'Your small box' }));
       card.appendChild(el('ol', { class: 'steps' }, [
+        t.id === 'upcloud' ? el('li', { text: 'In the UpCloud control panel, create the server: the smallest plan with 1 CPU and 1 GB of RAM, the plain Ubuntu Server 24.04 LTS image, your SSH key.' }) : null,
         el('li', null, ['Point ', el('code', { text: S.basic.small.domain }), ' and ', el('code', { text: S.basic.small.content || 'sites.' + S.basic.small.domain }),
           ' at your server (an A record each), on a fresh Ubuntu server with ports 80 and 443 open.']),
         el('li', { text: 'On the server, run the install command below. It installs Docker, starts Simple Host and prints the admin key once: keep it.' }),
@@ -769,6 +939,13 @@
       card.appendChild(block('secrets.env (the Secret, blanks to fill in)', r.secrets, 'secrets.env'));
     }
     app.appendChild(card);
+    if (t.id !== 'upcloud') {
+      app.appendChild(el('div', { class: 'card', id: 'agent' }, [
+        el('h2', { text: 'Set it up with your AI agent' }),
+        el('p', { class: 'note', style: 'margin:0 0 4px', text: 'Rather have your AI agent do it? Copy this into the agent you use in your terminal. It has what the machine needs, every step with your files in it, and how to check the result. Secrets stay blanks: the agent asks you for them.' }),
+        block('For your AI agent', agent, 'simple-host-setup.md')
+      ]));
+    }
     app.appendChild(el('div', { class: 'card' }, [
       el('h2', { text: 'What you chose' }),
       el('ul', { class: 'summary' }, r.chosen.map(function (c) { return el('li', null, [el('span', { text: c[0] }), el('span', { text: c[1] })]); })),
@@ -781,6 +958,137 @@
       el('button', { class: 'btn', type: 'button', text: 'Start over', onclick: function () { location.reload(); } })
     ]));
   }
+
+  // ── The assistant's view of the form (setup/assist.js) ──
+  // The assistant reads where the visitor is and their non-secret choices,
+  // and applies a proposed change exactly as typing it would: the same
+  // validation, the same state, then the page drawn again.
+  var STEPS = ['choose', 'basics', 'advanced', 'files'];
+  // Basic answers picked from a fixed list: the only ones the assistant sees
+  // or proposes (setupBasicChoices in setupassist.go).
+  var BASIC_CHOICES = {
+    small: {
+      codes: { label: 'Sign-in with an emailed code', values: { 'true': 'Yes', 'false': 'No' } },
+      google: { label: 'Sign-in with Google', values: { 'true': 'Yes', 'false': 'No' } }
+    },
+    ent: {
+      idp: { label: 'Identity provider', values: {} },
+      certs: { label: 'Site certificates', values: { auto: 'cert-manager issues them', manual: 'I issue them myself' } },
+      smtp: { label: 'Email owners about sites nobody uses', values: { 'false': 'No email', 'true': 'Through our SMTP relay' } },
+      bucket: { label: 'Bucket provider', values: {} },
+      creds: { label: 'Bucket credentials', values: { keys: 'Access keys', identity: 'Workload identity (no keys)' } }
+    }
+  };
+  IDPS.forEach(function (p) { BASIC_CHOICES.ent.idp.values[p.id] = p.name; });
+  BUCKETS.forEach(function (p) { BASIC_CHOICES.ent.bucket.values[p.id] = p.name; });
+
+  function basicNow(key) { return String(S.basic[S.product][key]); }
+  function groupName(s) {
+    var gs = S.data[S.product].groups;
+    for (var i = 0; i < gs.length; i++) if (gs[i].id === s.group) return gs[i].name;
+    return '';
+  }
+  // writable is the setting when this helper writes it as a setting of its
+  // own and a value for it can be sent (not a secret, not free text).
+  function writable(name) {
+    var s = byName(name);
+    if (!s || !CHECKABLE[setupKind(s)]) return null;
+    return advancedSettings().indexOf(s) >= 0 ? s : null;
+  }
+  function flash(names) {
+    names.forEach(function (n) {
+      var f = document.getElementById(uid(n)) || app.querySelector('input[name="' + uid(n) + '"]');
+      var field = f && f.closest('.field');
+      if (field) field.classList.add('assisted');
+    });
+  }
+
+  // basicApplied: a basic answer came from the assistant since the last refresh.
+  var basicApplied = false;
+  window.shSetup = {
+    product: function () { return S.product; },
+    // ready loads the chosen product's settings list (the first step may
+    // not have yet).
+    ready: function () { return load(S.product); },
+    context: function () {
+      var p = S.product, choices = {}, basics = {};
+      if (S.data[p]) {
+        Object.keys(S.values[p]).forEach(function (k) { if (writable(k)) choices[k] = S.values[p][k]; });
+        // The installer's own defaults are in force unless changed: say so.
+        if (p === 'small') Object.keys(INSTALLER_DEFAULTS).forEach(function (k) {
+          var s = writable(k);
+          if (s && choices[k] == null && INSTALLER_DEFAULTS[k] !== s.default) choices[k] = INSTALLER_DEFAULTS[k];
+        });
+      }
+      Object.keys(BASIC_CHOICES[p]).forEach(function (k) { basics[k] = basicNow(k); });
+      var ctx = { product: p === 'small' ? 'small-box' : 'enterprise', step: STEPS[S.step], mode: S.mode, choices: choices, basics: basics };
+      if (S.step === 2 && S.data[p]) { var a = areas()[S.area]; if (a) ctx.area = a.group.id; }
+      return ctx;
+    },
+    // describe says what applying NAME=value would do here: null when this
+    // helper does not write it, else its current value, default and area,
+    // and error when the form would refuse the value.
+    describe: function (name, value) {
+      var s = writable(name);
+      if (!s) return null;
+      return { current: valueOf(s), def: defaultOf(s), area: groupName(s), error: validate(s, value), security: !!s.security_sensitive };
+    },
+    apply: function (name, value) {
+      var s = writable(name);
+      if (!s) return 'This helper does not write that setting.';
+      var msg = validate(s, value);
+      if (!msg) setValue(s, value);
+      return msg;
+    },
+    describeBasic: function (key, value) {
+      var q = BASIC_CHOICES[S.product][key];
+      if (!q || q.values[value] == null) return null;
+      return { label: q.label, valueLabel: q.values[value], currentLabel: q.values[basicNow(key)] || basicNow(key), same: basicNow(key) === value };
+    },
+    // applyBasic answers a basic question as its own control does: picking
+    // a provider fills in its template address, as the list itself does.
+    applyBasic: function (key, value) {
+      var q = BASIC_CHOICES[S.product][key], b = S.basic[S.product];
+      if (!q || q.values[value] == null) return 'Not an answer this question takes.';
+      if (key === 'codes' || key === 'google' || key === 'smtp') b[key] = value === 'true';
+      else if (key === 'idp') { b.idp = value; IDPS.forEach(function (p) { if (p.id === value) b.issuer = p.issuer; }); }
+      else if (key === 'bucket') { b.bucket = value; BUCKETS.forEach(function (p) { if (p.id === value) { b.endpoint = p.endpoint; b.region = p.region; } }); }
+      else b[key] = value;
+      basicApplied = true;
+      return '';
+    },
+    // refresh draws the page again after changes, keeping the scroll. On the
+    // files step the changes are the visitor's decision, already checked
+    // against the settings list: the files follow them without another check.
+    // A basic answer changed past the Basics step goes through the Basics
+    // checks again (Google needs company domains, SMTP a From address, a
+    // provider's template address its real value); when they fail, the page
+    // goes back to Basics with the errors shown, and no files are offered
+    // until they pass.
+    refresh: function (names) {
+      if (basicApplied) {
+        basicApplied = false;
+        if (S.step > 1 && !checkBasics()) {
+          if (S.check.state === 'running') stopCheck();
+          go(1);
+          var bad = app.querySelector('.bad');
+          if (bad) bad.focus();
+          return;
+        }
+      }
+      if (S.step === 3) {
+        if (S.check.state === 'running') stopCheck();
+        var key = checkKey(), review = S.check.state === 'review';
+        S.check.key = key;
+        if (!review) S.check.state = key ? 'done' : '';
+        S.check.note = key && !review ? 'Updated with the assistant.' : '';
+      }
+      var y = window.scrollY;
+      render();
+      window.scrollTo(0, y);
+      flash(names || []);
+    }
+  };
 
   render();
 })();

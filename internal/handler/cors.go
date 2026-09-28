@@ -43,8 +43,8 @@ func CORS(next http.Handler) http.Handler {
 		// origin gets a CORS grant to call it.
 		// The "Ask" assistants are for the apex's own pages only (ask.go checks
 		// the Origin), so no other origin gets a CORS grant or a preflight answer;
-		// the setup helper's check (setupcheck.go) likewise.
-		if strings.HasPrefix(r.URL.Path, "/oauth/authorize") || r.URL.Path == "/v1/ask" || r.URL.Path == "/v1/setup/check" {
+		// the setup helper's check (setupcheck.go) and assistant (setupassist.go) likewise.
+		if strings.HasPrefix(r.URL.Path, "/oauth/authorize") || r.URL.Path == "/v1/ask" || r.URL.Path == "/v1/setup/check" || r.URL.Path == "/v1/setup/assist" {
 			next.ServeHTTP(w, r)
 			return
 		}

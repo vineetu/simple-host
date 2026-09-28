@@ -178,6 +178,9 @@ answer within 45, or the reader is told it couldn't answer.
 | `SETUP_CHECK_DAILY_MAX` | 200 | 0–100000 | The setup helper's optional "Check my choices" (`POST /v1/setup/check`): checks answered per UTC day across everyone (counted in the database, table `setup_check_daily`). It runs only where the box does (a model backend and `ASK_ENABLED` on) and uses the same model, reasoning effort and per-address limits as the box, with its own in-flight cap and a count per network. 0 turns it off; the helper then shows its files without it. |
 | `SETUP_CHECK_MAX_IN_FLIGHT` | 1 | 1–64 | Setup checks answered at once on the whole server. Separate from `ASK_MAX_IN_FLIGHT`, so checks never take the Ask box's slots. |
 | `SETUP_CHECK_PER_NETWORK_DAILY` | 20 | 1–100000 | Setup checks one network (a /24, or a /48 for IPv6) may run per UTC day, counted in memory (a restart starts it over), so one network cannot use up the day's checks for everyone. |
+| `SETUP_ASSIST_DAILY_MAX` | 300 | 0–100000 | The setup helper's assistant (`POST /v1/setup/assist`): messages answered per UTC day across everyone (counted in the database, table `setup_assist_daily`). It runs only where the box does (a model backend and `ASK_ENABLED` on) and uses the same model, reasoning effort and per-address limits as the box, with its own in-flight cap and a count per network. 0 turns it off and the setup page shows no assistant. |
+| `SETUP_ASSIST_MAX_IN_FLIGHT` | 1 | 1–64 | Assistant messages answered at once on the whole server. Separate from `ASK_MAX_IN_FLIGHT` and `SETUP_CHECK_MAX_IN_FLIGHT`, so neither loses its slots. |
+| `SETUP_ASSIST_PER_NETWORK_DAILY` | 40 | 1–100000 | Assistant messages one network (a /24, or a /48 for IPv6) may send per UTC day, counted in memory (a restart starts it over), so one network cannot use up the day's messages for everyone. |
 
 ## Rate limits
 

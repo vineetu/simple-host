@@ -1,0 +1,207 @@
+[
+ {
+  "name": "plain error kept",
+  "in": "FAILED: the instance did not answer within two minutes.\nDiagnose with: cd /opt/simple-host && docker compose ps",
+  "out": "FAILED: the instance did not answer within two minutes.\nDiagnose with: cd /opt/simple-host && docker compose ps"
+ },
+ {
+  "name": "startup refusal kept",
+  "in": "2026/09/27 10:00:01 load config: KEY_IDLE_EXPIRY_DAYS=\"5000\": want a whole number from 0 to 3650",
+  "out": "2026/09/27 10:00:01 load config: KEY_IDLE_EXPIRY_DAYS=\"5000\": want a whole number from 0 to 3650"
+ },
+ {
+  "name": "env setting that is not a secret kept",
+  "in": "KEY_IDLE_EXPIRY_DAYS=5000\nAPI_KEY_MAX_DAYS=400\nMAX_KEYS_PER_ACCOUNT=10",
+  "out": "KEY_IDLE_EXPIRY_DAYS=5000\nAPI_KEY_MAX_DAYS=400\nMAX_KEYS_PER_ACCOUNT=10"
+ },
+ {
+  "name": "env secrets",
+  "in": "ADMIN_API_KEY=abc\nRESEND_API_KEY=re_live_123\nexport DB_PASSWORD=hunter2\nSESSION_SIGNING_KEY=k1:Zm9vYmFy\nOIDC_CLIENT_SECRET = s3cr3t\nANALYTICS_SALT=pepper",
+  "out": "ADMIN_API_KEY=[redacted]\nRESEND_API_KEY=[redacted]\nexport DB_PASSWORD=[redacted]\nSESSION_SIGNING_KEY=[redacted]\nOIDC_CLIENT_SECRET = [redacted]\nANALYTICS_SALT=[redacted]"
+ },
+ {
+  "name": "empty secret line kept",
+  "in": "RESEND_API_KEY=\nDB_PASSWORD=",
+  "out": "RESEND_API_KEY=\nDB_PASSWORD="
+ },
+ {
+  "name": "secret assignments inside a line",
+  "in": "error: DB_PASSWORD=hunter2 SESSION_SIGNING_KEY=k1:abc KEEP_VERSIONS=3 KEY_IDLE_EXPIRY_DAYS=9",
+  "out": "error: DB_PASSWORD=[redacted] SESSION_SIGNING_KEY=[redacted] KEEP_VERSIONS=3 KEY_IDLE_EXPIRY_DAYS=9"
+ },
+ {
+  "name": "yaml and json",
+  "in": "  password: hunter2\n  \"client_secret\": \"abc\",\n  token: xyz",
+  "out": "  password: [redacted]\n  \"client_secret\": [redacted]\n  token: [redacted]"
+ },
+ {
+  "name": "windows line endings",
+  "in": "DB_PASSWORD=hunter2\r\nok\r\n",
+  "out": "DB_PASSWORD=[redacted]\nok\n"
+ },
+ {
+  "name": "password in a URL",
+  "in": "dial postgres://simplehost:hunter2@db.example.com:5432/simplehost?sslmode=verify-full",
+  "out": "dial postgres://simplehost:[redacted]@db.example.com:5432/simplehost?sslmode=verify-full"
+ },
+ {
+  "name": "smtp url",
+  "in": "SMTP relay smtp://mailer:p%40ss@smtp.example.com:587 refused",
+  "out": "SMTP relay smtp://mailer:[redacted]@smtp.example.com:587 refused"
+ },
+ {
+  "name": "bearer token",
+  "in": "curl -H 'Authorization: Bearer shk_0123456789abcdefghij' https://x.example.com",
+  "out": "curl -H 'Authorization: Bearer [redacted]' https://x.example.com"
+ },
+ {
+  "name": "basic auth",
+  "in": "Authorization: Basic dXNlcjpwYXNzd29yZA==",
+  "out": "Authorization: Basic [redacted]"
+ },
+ {
+  "name": "keyword pairs",
+  "in": "host=db user=app password=hunter2 sslmode=require",
+  "out": "host=db user=app password=[redacted] sslmode=require"
+ },
+ {
+  "name": "token pair in a query",
+  "in": "GET /cb?code=abc&token=zzz123&state=1",
+  "out": "GET /cb?code=abc&token=[redacted]&state=1"
+ },
+ {
+  "name": "jwt",
+  "in": "id_token eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c rejected",
+  "out": "id_token [redacted token] rejected"
+ },
+ {
+  "name": "simple host keys",
+  "in": "key shk_a1b2c3d4e5f6g7h8i9j0 and shat_ZZZZZZZZZZZZZZZZ and shint_0000111122223333",
+  "out": "key [redacted key] and [redacted key] and [redacted key]"
+ },
+ {
+  "name": "provider keys",
+  "in": "re_AbCdEf123456789 sk-proj-abcdefghijklmnop ghp_abcdefghijklmnopqrstuvwxyz0123456789 AKIAIOSFODNN7EXAMPLE",
+  "out": "[redacted key] [redacted key] [redacted key] [redacted key]"
+ },
+ {
+  "name": "words that look like prefixes kept",
+  "in": "the shared_board_names limit, a desk-top, pre_release_candidate",
+  "out": "the shared_board_names limit, a desk-top, pre_release_candidate"
+ },
+ {
+  "name": "emails",
+  "in": "sign-in alert to alex@example.com failed; reply to ops.team+x@corp.example.co.uk",
+  "out": "sign-in alert to [email] failed; reply to [email]"
+ },
+ {
+  "name": "private key block",
+  "in": "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA\nAAAA\n-----END OPENSSH PRIVATE KEY-----\nafter",
+  "out": "[redacted OPENSSH PRIVATE KEY]\nafter"
+ },
+ {
+  "name": "certificate block cut short",
+  "in": "ca: -----BEGIN CERTIFICATE-----\nMIIDdzCCAl+gAwIBAgIE",
+  "out": "ca: [redacted CERTIFICATE]"
+ },
+ {
+  "name": "long hex",
+  "in": "admin key 3f7a9c0e1b2d4f6a8c0e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a4c6e8b0d2f4a printed",
+  "out": "admin key [redacted] printed"
+ },
+ {
+  "name": "mixed base64",
+  "in": "secret Zm9vYmFyQmF6UXV4MTIzNDU2Nzg5MGFiY2RlZg== here",
+  "out": "secret [redacted] here"
+ },
+ {
+  "name": "paths and pod names kept",
+  "in": "/var/lib/docker/volumes/simple-host_sites/_data/alex/site simple-host-7d9f8c6b5-x2x9z ImagePullBackOff",
+  "out": "/var/lib/docker/volumes/simple-host_sites/_data/alex/site simple-host-7d9f8c6b5-x2x9z ImagePullBackOff"
+ },
+ {
+  "name": "hostnames and ips kept",
+  "in": "tls: no certificate for sites.hack.example.com (203.0.113.7): dial tcp 203.0.113.7:80: connect: connection refused",
+  "out": "tls: no certificate for sites.hack.example.com (203.0.113.7): dial tcp 203.0.113.7:80: connect: connection refused"
+ },
+ {
+  "name": "control characters and terminal colours",
+  "in": "ok\u0007\u001b[31mred\u001b[0m\ttab",
+  "out": "okred\ttab"
+ },
+ {
+  "name": "UpCloud API user in a curl command and the environment",
+  "in": "+ curl -fsS -u apiuser:Tr0ub4dor https://api.upcloud.com/1.3/account\ncurl --user='apiuser:pa ss' https://x\nUPCLOUD_USERNAME=apiuser\nUPCLOUD_PASSWORD=Tr0ub4dor\nerror: AUTHENTICATION_FAILED Authentication failed using the given username and password.\ncurl -u \"$UPCLOUD_USERNAME:$UPCLOUD_PASSWORD\" https://api.upcloud.com/1.3/server",
+  "out": "+ curl -fsS -u apiuser:[redacted] https://api.upcloud.com/1.3/account\ncurl --user='apiuser:[redacted]' https://x\nUPCLOUD_USERNAME=apiuser\nUPCLOUD_PASSWORD=[redacted]\nerror: AUTHENTICATION_FAILED Authentication failed using the given username and password.\ncurl -u \"$UPCLOUD_USERNAME:[redacted]\" https://api.upcloud.com/1.3/server"
+ },
+ {
+  "name": "json key/value secrets anywhere",
+  "in": "{\"level\":\"error\",\"password\":\"hunter2\",\"msg\":\"login failed\"} {\"SecretAccessKey\": \"wJalrXUtnFEMI\"} {\"token\":\"a\\\"b\"}",
+  "out": "{\"level\":\"error\",\"password\":[redacted],\"msg\":\"login failed\"} {\"SecretAccessKey\": [redacted]} {\"token\":[redacted]}"
+ },
+ {
+  "name": "docker compose log prefixes",
+  "in": "simple-host-1  | password: hunter2\npostgres-1     | DB_PASSWORD=hunter2 ok\nsimple-host-1  | listening on :8080",
+  "out": "simple-host-1  | password: [redacted]\npostgres-1     | DB_PASSWORD=[redacted]\nsimple-host-1  | listening on :8080"
+ },
+ {
+  "name": "ansi colours around a name",
+  "in": "\u001b[32mDB_PASSWORD\u001b[0m=hunter2\n\u001b]0;title\u0007\u001b[1;31mERROR\u001b[0m token=\u001b[33mabc\u001b[0m",
+  "out": "DB_PASSWORD=[redacted]\nERROR token=[redacted]"
+ },
+ {
+  "name": "quoted values",
+  "in": "host=db password='hunter2' sslmode=require\nerror: PGPASSWORD=\"hun ter2\" psql failed",
+  "out": "host=db password=[redacted] sslmode=require\nerror: PGPASSWORD=[redacted] psql failed"
+ },
+ {
+  "name": "curl credentials glued and combined",
+  "in": "curl -uadmin:hunter2 https://x\ncurl -fsSu admin:hunter2 https://x",
+  "out": "curl -uadmin:[redacted] https://x\ncurl -fsSu admin:[redacted] https://x"
+ },
+ {
+  "name": "password flags",
+  "in": "app --password hunter2 --verbose\napp --password=hunter2\ndocker login --password-stdin\nmysql -h db -u root -phunter2 app\ndocker run -p8080:80 img",
+  "out": "app --password [redacted] --verbose\napp --password=[redacted]\ndocker login --password-stdin\nmysql -h db -u root -p[redacted] app\ndocker run -p8080:80 img"
+ },
+ {
+  "name": "secret headers",
+  "in": "X-API-Key: abcd1234\ncurl -H \"X-Api-Key: abcd1234\" https://x\nAuthorization: Token abcd1234efgh\nCookie: session=abc; other=1\nSet-Cookie: sh_session=abc; Path=/; HttpOnly\n\"Authorization\": \"Bearer abc.def\"",
+  "out": "X-API-Key: [redacted]\ncurl -H \"X-Api-Key: [redacted]\" https://x\nAuthorization: Token [redacted]\nCookie: [redacted]\nSet-Cookie: [redacted]\n\"Authorization\": \"Bearer [redacted]\""
+ },
+ {
+  "name": "more secret names",
+  "in": "SMTP_PASS=hunter2\nGPG_PASSPHRASE=x y\nSECRET_KEY_BASE=abc\nAWS_ACCESS_KEY_ID=AKIAx\nerror: SMTP_PASS=hunter2 SMTP_PORT=587",
+  "out": "SMTP_PASS=[redacted]\nGPG_PASSPHRASE=[redacted]\nSECRET_KEY_BASE=[redacted]\nAWS_ACCESS_KEY_ID=[redacted]\nerror: SMTP_PASS=[redacted] SMTP_PORT=587"
+ },
+ {
+  "name": "url passwords with / and @",
+  "in": "dial postgres://app:pa/ss@db/x failed\ndial postgres://app:p@ss@db:5432/x?sslmode=require\nsee https://x.example.com:8443/a/b ok",
+  "out": "dial postgres://app:[redacted]@db/x failed\ndial postgres://app:[redacted]@db:5432/x?sslmode=require\nsee https://x.example.com:8443/a/b ok"
+ },
+ {
+  "name": "azure sas signature",
+  "in": "GET https://acct.blob.core.windows.net/c/b?sv=2022-11-02&ss=b&sig=AbC123%2BdEf%3D&se=2026 403",
+  "out": "GET https://acct.blob.core.windows.net/c/b?sv=2022-11-02&ss=b&sig=[redacted]&se=2026 403"
+ },
+ {
+  "name": "upcloud token and short jwt",
+  "in": "token ucat_01JH5D3ZZJVZS6JAKJ4S1XY7G5 and eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abc",
+  "out": "token [redacted key] and [redacted token]"
+ },
+ {
+  "name": "non-ascii emails",
+  "in": "alex@exämple.com and josé@example.com and alex＠example.com",
+  "out": "[email] and [email] and [email]"
+ },
+ {
+  "name": "zero-width character inside a name",
+  "in": "TOKEN​=hunter2",
+  "out": "TOKEN=[redacted]"
+ },
+ {
+  "name": "settings and prose that are not secrets kept",
+  "in": "RATE_LIMIT_VISITOR_AUTH=30 KEY_IDLE_EXPIRY_DAYS=5\nthe key: see docs\ngo test -run TestX ./...",
+  "out": "RATE_LIMIT_VISITOR_AUTH=30 KEY_IDLE_EXPIRY_DAYS=5\nthe key: see docs\ngo test -run TestX ./..."
+ }
+]

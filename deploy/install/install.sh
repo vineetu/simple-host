@@ -28,7 +28,7 @@ set -euo pipefail
 # moving `latest` image against a schema fetched from a moving branch is exactly
 # how a fresh install ended up crash-looping on a schema check. The release
 # workflow refuses to publish a tag that does not match this line.
-VERSION="v0.7.2"
+VERSION="v0.7.3"
 HOST=""; CONTENT=""; IMAGE="ghcr.io/vineetu/simple-host:${VERSION#v}"; ACME_EMAIL=""; REF="$VERSION"
 MAX_SITE_MB=""; KEEP_VERSIONS=""
 while [ $# -gt 0 ]; do
@@ -131,6 +131,7 @@ LIMIT_VARS+=" SAVED_DATA_ENTRIES_NAMES_MAX SAVED_DATA_DEFAULT_KIND"
 LIMIT_VARS+=" SAVED_DATA_PERSONAL_MAX_KB SAVED_DATA_PERSONAL_NAMES_MAX SAVED_DATA_BOARD_ITEM_MAX_KB SAVED_DATA_BOARD_MAX SAVED_DATA_BOARD_NAMES_MAX SAVED_DATA_PERSONAL_PEOPLE_MAX SAVED_DATA_BOARD_WRITES_PER_MIN"
 LIMIT_VARS+=" ASK_ENABLED ASK_BURST ASK_EVERY_SECONDS ASK_DAILY_MAX ASK_MAX_IN_FLIGHT ASK_MODEL ASK_REASONING_EFFORT ASK_MAX_TOKENS"
 LIMIT_VARS+=" SETUP_CHECK_DAILY_MAX SETUP_CHECK_MAX_IN_FLIGHT SETUP_CHECK_PER_NETWORK_DAILY"
+LIMIT_VARS+=" SETUP_ASSIST_DAILY_MAX SETUP_ASSIST_MAX_IN_FLIGHT SETUP_ASSIST_PER_NETWORK_DAILY"
 # Email and Google sign-in (added by hand or from the setup helper at
 # https://simple-host.app/setup): a re-run is also the upgrade, and must not
 # quietly turn sign-in codes off.

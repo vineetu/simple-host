@@ -255,9 +255,15 @@ func main() {
 			ReasoningEffort: ask.ReasoningEffort, MaxTokens: ask.MaxTokens,
 			SetupCheckDailyMax: ask.SetupCheckDailyMax, SetupCheckMaxInFlight: ask.SetupCheckMaxInFlight,
 			SetupCheckPerNetworkDaily: ask.SetupCheckPerNetworkDaily,
+			SetupAssistDailyMax:       ask.SetupAssistDailyMax, SetupAssistMaxInFlight: ask.SetupAssistMaxInFlight,
+			SetupAssistPerNetworkDaily: ask.SetupAssistPerNetworkDaily,
 		}).Register(mux)
 		handler.EnableAskWidget()
-		log.Printf("ask assistants enabled (/v1/ask; model %s, reasoning %s, %d tokens; %d per IP then 1 per %ds, %d at once, %d a day); setup check /v1/setup/check %d at once, %d per network and %d a day", ask.Model, ask.ReasoningEffort, ask.MaxTokens, ask.Burst, ask.EverySeconds, ask.MaxInFlight, ask.DailyMax, ask.SetupCheckMaxInFlight, ask.SetupCheckPerNetworkDaily, ask.SetupCheckDailyMax)
+		// The setup helper loads its assistant only when it can answer.
+		if ask.SetupAssistDailyMax > 0 {
+			handler.EnableSetupAssist()
+		}
+		log.Printf("ask assistants enabled (/v1/ask; model %s, reasoning %s, %d tokens; %d per IP then 1 per %ds, %d at once, %d a day); setup check /v1/setup/check %d at once, %d per network and %d a day; setup assistant /v1/setup/assist %d at once, %d per network and %d a day", ask.Model, ask.ReasoningEffort, ask.MaxTokens, ask.Burst, ask.EverySeconds, ask.MaxInFlight, ask.DailyMax, ask.SetupCheckMaxInFlight, ask.SetupCheckPerNetworkDaily, ask.SetupCheckDailyMax, ask.SetupAssistMaxInFlight, ask.SetupAssistPerNetworkDaily, ask.SetupAssistDailyMax)
 	} else {
 		log.Printf("/v1/ask (ask assistants) disabled")
 	}

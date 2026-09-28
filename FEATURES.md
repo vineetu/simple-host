@@ -550,7 +550,7 @@ as the person, so they meet the same checks as REST. Connector tokens are stored
 ## 9. Skills and plugin distribution
 
 Skills source is `simple-host-website/skills/` (embedded via `simple-host-website/embed.go`) at
-version **0.26.1**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
+version **0.26.3**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live**
 (ChatGPT and Claude directory listings submitted 2026-09-24, pending).
 
@@ -691,17 +691,47 @@ Go: `h/ui.go`, `h/chrome.go`. Assets: `st/og.png`, `st/favicon.svg`, `st/site.cs
 
 **Setup helper (`/setup`).** A page like start.spring.io for running your own: choose **Small box** (one server with
 Docker Compose) or **Enterprise** (Kubernetes), then **Basic** (small box: domain, sites hostname, certificate email,
-sign-in by emailed code and/or Google, sender; Enterprise: address, admins, OIDC issuer/client/domains, owner
+sign-in by emailed code and/or Google, sender, and **Where it runs**: UpCloud (recommended, the default) or a server
+you already have; Enterprise: address, admins, OIDC issuer/client/domains, owner
 certificate issuer, SMTP, bucket provider/endpoint/region/name/credentials, Postgres) or **Advanced** (the basics, then
 every other setting area by area, default preselected, a one-line explanation, range checks as you type, Skip
-restores the default, progress by step and area). Output: small box → the one-line `install.sh` command (its flags
+restores the default, progress by step and area). **UpCloud** (small box, "Where it runs"): one line on why ("The
+smallest UpCloud server (1 CPU, 1 GB, about $5/month) runs Simple Host comfortably; we test on it."), a **Create your
+UpCloud account — $25 in credits** button to the referral link `https://signup.upcloud.com/?promo=JF2WCV` (new tab,
+`rel="noopener"`) with "Referral link. New accounts through this link get $25 of UpCloud credit; their
+terms apply." under it, and the steps (create the account → create an API user, a sub-account with API access, in the
+UpCloud control panel → answer the questions → on the files step, set the API user in your terminal and give your agent
+the prompt); the page has no field for UpCloud credentials and never asks for them. Output: small box → the one-line
+`install.sh` command, fetched from the release the installer pins by that release's commit (`INSTALLER_RELEASE`,
+`INSTALLER_COMMIT` in setup.js) into a `mktemp` file and run only if its sha256 matches `INSTALLER_SHA256` (tag, commit
+and hash agree by test, which also fails once `install.sh`'s `VERSION` is tagged but not pinned), not `main`; every value
+in a generated command is shell-quoted when it needs it, and emails must be plain addresses (its flags
 for host, sites host, email, `--max-site-mb`, `--keep-versions`) and the `/opt/simple-host/.env` lines (only changed
 and needed values; Copy, Download) with where to paste them and the restart line; Enterprise → `config.env` for
 `deploy/overlays/byo` (the ConfigMap), a `secrets.env` template naming every secret as a blank with how to generate
 it, and the apply commands (`make install OVERLAY=…` or `kustomize build … | kubectl apply -f -`); both with a
-"What you chose" summary. `/setup?product=enterprise` or `?product=small-box` preselects the first choice (the
-links on the enterprise and hosted pages). Runs in the browser (its only requests are its own files and the optional
-check below; `credentials: 'omit'`), never asks for a secret's value, light only. **Check my choices** (optional, where
+"What you chose" summary, and **Set it up with your AI agent**: one block to copy (or download as `simple-host-setup.md`) into
+the agent the person uses in a terminal, with what the machine needs, every step with their files in it (small box: DNS,
+the install command, the `.env` lines, `docker compose up -d`; Enterprise: clone the package and follow its agent runbook
+`INSTALL.md` with these `config.env`/`secrets.env`, the overlay edits, `make install … INSTALL_CONTEXT=…`), checks
+(`/healthz` → 200, `docker compose ps`, the sites host's certificate; `/readyz`, an owner host, an admin sign-in) and, where
+the assistant is on, "paste the error at `<origin>/setup?product=<p>#help`"; secrets stay blanks for the agent to ask for.
+On UpCloud the files step leads with this block, headed **Set it up on UpCloud with your AI agent**: a one-line
+command for the person's own terminal (`printf`/`read`, the password read with `read -rs` under a trap that turns echo back on after Ctrl-C, then `export
+UPCLOUD_USERNAME UPCLOUD_PASSWORD`; bash and zsh), a note to `unset UPCLOUD_USERNAME UPCLOUD_PASSWORD` (or close the
+terminal) when the server is up and to limit the API user to server permissions and, where possible, the person's own IP, and the prompt, which tells the agent to use those variables only from
+the environment (never ask for them in chat, print them or write them anywhere), to use `upctl` or the UpCloud API,
+create an SSH key `~/.ssh/simple-host` if missing, list plans and take the smallest with 1 CPU and 1 GB
+(`STARTER-1xCPU-1GB` today; tell the person the price first), ask for the zone, take the plain Ubuntu Server 24.04 LTS
+template (not the CUDA one), the plan's disk at tier `standard`, root login with the key, a public IPv4; DNS A records
+for the domain and `*.<domain>` (plus the sites hostname when it is not under the domain), checked with `dig`; run the
+pinned installer over SSH; the `.env` lines; `/healthz`, `docker compose ps` and the sites host's certificate; then
+report the admin page `https://<domain>/admin` and the server's UUID, address, plan and zone, and remind the person to unset
+the credentials. The by-hand steps follow
+("Or do it by hand"). Where it runs is one entry per target in `TARGETS` (setup.js: small box `upcloud`, `server`;
+Enterprise `kubernetes`), so another platform is one more entry and one more choice. `/setup?product=enterprise` or `?product=small-box` preselects the first choice (the
+links on the enterprise and hosted pages). Runs in the browser (its only requests are its own files, the optional
+check and the assistant below; `credentials: 'omit'`), never asks for a secret's value, light only. **Check my choices** (optional, where
 the server has its model backend): just before the files, when the visitor changed any number, duration, switch,
 choice or limit, the helper sends those names and values (never free text such as hostnames or emails, never a secret)
 and the product to `POST /v1/setup/check`, showing "Checking your choices" with a **Skip the check** link; each
@@ -717,6 +747,36 @@ Compose box passes through and the installer keeps are offered for a small box. 
 "Try it in your organization → Set up" on `enterprise.html`, `enterprise-brief.html` and
 `enterprise-architecture.html` (`?product=enterprise`), "Run your own → Set up" on `features.html` and
 `architecture.html` (`?product=small-box`), both READMEs, both Ask assistants and `docs/advanced/`. **Status: built.**
+
+**Setup assistant** (where the server has its model backend and `SETUP_ASSIST_DAILY_MAX` > 0; otherwise the page loads
+no assistant at all). An **Assistant** button on `/setup` opens a panel with the Ask panel's look (a bottom sheet under
+560 px, a floating panel, and from 1180 px a panel beside the form that the page makes room for, so applied changes show;
+light only). It knows the product, the step and area, and the choices. It **answers** questions about settings and setup
+(short by default), **fills in the form** from a plain request ("Set this up for a 200-person company with Microsoft
+sign-in and stricter security"), and **cleans up** choices ("Clean up my choices": odd values explained, conflicts
+flagged, resets to the default offered). The answer streams as text; proposed changes then show as items, "Set
+SESSION_TTL to 4h — why" with the current value and area, each with **Apply** / **Ignore**, and **Apply all** when there
+are several; basic answers too ("Identity provider: Microsoft Entra ID"). Nothing is applied by itself: Apply goes
+through the form's own validation and state (`window.shSetup` in setup.js), the page is drawn again with the field
+highlighted, and on the files step the files follow at once ("Updated with the assistant.", no second check); a value
+already in force shows "Already set". A basic answer applied past the Basics step runs the Basics checks again, and if they
+fail (Google with no company domains, SMTP with no From address, a provider's template address) the page goes back to
+Basics with the errors shown and offers no files until they pass. Empty panel: two example requests per product. **Troubleshooting**: "Paste an
+error" (or `/setup?product=…#help`, or pasting multi-line output into the field) opens a box for output from the
+installer, the person's AI agent, kubectl, docker or Caddy logs; "Review what will be sent" shows it redacted (the
+shapes the rules recognise: keys, tokens, passwords, secret assignments and headers, credentials on curl/mysql command
+lines, private keys, JWTs, email addresses, long secret-looking strings, after terminal colour codes are stripped;
+hostnames and addresses stay; the hint says to check before sending) with how many things were hidden, only the last 8 KB of a long paste, and nothing goes until **Send for
+help**; the answer gives the likely cause, a command to confirm, and the fix, with a setting as an Apply item. A typed
+message is redacted too. The conversation (last 4 turns per product) lives in the open page only.
+
+| Surface | Details |
+|---|---|
+| Assist route | `POST /v1/setup/assist` `{product, step: choose\|basics\|advanced\|files, mode?, area?, choices?, basics?, message, pasted?, history?}` → `{answer, changes: [{setting, value, why}], basics: {key: value}}`, or with `Accept: text/event-stream` `data: {"t"}` pieces (stopped before the changes marker, even one arriving in pieces) then `data: {"done":true,"answer","changes","basics"}`. Request: unknown fields 400 `invalid_body`; `choices` exactly as the check takes settings (0–80; `unknown_setting`, `secret_not_accepted`, `setting_not_checkable`, `invalid_value`); `basics` only the answers picked from lists (small box `codes`, `google`; Enterprise `idp`, `certs`, `smtp`, `bucket`, `creds`; else `unknown_basic`/`invalid_value`); `message` 1–500 characters; `pasted` ≤ 8 KB (`paste_too_long`); message, pasted output and earlier questions redacted again on the server (`h/setupredact.go`, the same rules as the page's). Response: every change checked — dropped if the helper does not write that setting (a basic question's, a secret, free text, or on a small box one Compose does not pass through), the value is outside its range, equals the current value, or loosens a security-sensitive setting past both its default and the current value (the check's rules, `strict_order` and `zero_is_never` included; Enterprise's `DB_INCLUSTER_EVALUATION` counts as security-sensitive, `false` first, so it is never proposed on); canonical values; at most 12; `why` ≤ 200 characters with no links; basic answers kept only when `step` is `choose` or `basics` (past them the answer says to go back to Basics); answer plain with no links. Same-origin only, shares Ask's per-IP/per-network buckets, its own in-flight cap `SETUP_ASSIST_MAX_IN_FLIGHT` (1), per-network count per UTC day in memory `SETUP_ASSIST_PER_NETWORK_DAILY` (40), daily count `SETUP_ASSIST_DAILY_MAX` (300; 0 turns it off and hides the panel) in table `setup_assist_daily` (migration `v073-setup-assist-daily.sql`); left out of `h/cors.go` and `h/apimetrics.go` |
+| Assist Go | `h/setupassist.go` (prompt = rules, the product's basic questions (proposable ones with their values, typed ones never proposed), the check's FACTS, the product guide `h/askdata/setup-<product>.txt` through the Ask filter, troubleshooting `h/askdata/setup-troubleshoot-<product>.txt` through a lighter filter that keeps install commands, and the settings the helper writes area by area with type, default, range, security flag and description; ASK_MODEL and ASK_REASONING_EFFORT, up to 1200 tokens; one request, never retried; log line: product, step, number of choices, whether output was pasted, the day's count), `h/setupredact.go`, `h/chrome.go` (`<!--sh:setup-assist-->` → the script tag when on) |
+| Assist page | `st/setup/assist.js` (panel, streaming, items, redaction and review, `#help`), `st/setup/setup.js` (`window.shSetup`: context, describe, apply, describeBasic, applyBasic, refresh; `<setupBasics>` block), styles in `st/setup-helper.html` |
+| UpCloud | `st/setup/setup.js` (`UPCLOUD_SIGNUP`, `upcloudOffer`, `renderWhere`, `TARGETS`, `UPCLOUD_CREDS`, `handoff`), styles `.cta`/`.fine` in `st/setup-helper.html`; `h/setuphelper_test.go` (`TestSetupHelperInstallerRelease`: the command fetches install.sh by the pinned release's commit and checks its sha256 before running it; tag, commit and hash agree, and a tagged `install.sh` release must be the one pinned; `TestSetupHelperUpCloudReferral`: the exact referral URL); the assistant's knowledge (`h/askdata/setup-small-box.txt`, UpCloud errors in `setup-troubleshoot-small-box.txt`); `docs/advanced/README.md` and the run-hackathon skill's `install.md`/`providers.md` carry the recommendation and the referral note; pasted `curl -u`/`--user` passwords are redacted |
+| Assist tests | `h/setupassist_test.go` (validation, dropped changes, no looser changes, reply shapes, prompt contents and no leaks, streaming, caps and own slots, no CORS or metrics, redaction cases in Go and the page's JS against `h/testdata/setup-redact-cases.json`, knowledge filters, basics lists equal the page's, the script only when on); `scripts/e2e-setup-assist.js` with `scripts/e2e-setup-assist-sidecar.py` drives the page in Chromium (ask → items → apply → files reflect it, clean-up, paste → review → send, both products, 390 and 1280; the UpCloud block: the button's text, exact URL, new tab and noopener, the referral note, no credential field on the page; the prompt's pinned installer URL, chosen settings, UpCloud steps and credential rules; a server of your own gets no UpCloud steps) |
 
 | Surface | Details |
 |---|---|
@@ -740,7 +800,7 @@ the same tab. **Status: live when the model backend is configured** (`LLM_API_KE
 | Knowledge | one combined pack per assistant, built at boot: its summary (`h/askdata/hosted.txt` or `h/askdata/enterprise.txt`) plus the visible text of each of its pages under that page's address — except the architecture page, which contributes the curated `h/askdata/architecture.txt` (a product-level summary), not the page. The prompt names the page the reader is on. Sizes (about 4 characters a token, whole prompt): Enterprise ≈ 7.5k tokens, Simple Host ≈ 14.5k (the features page is most of it); a test keeps them under 12k and 16k. Every line, askdata included, goes through one filter that drops machine and repo paths, IPv4/IPv6 addresses, ports, internal routes, secret and key names, phone numbers, email addresses other than @simple-host.app and the operator's details; the test checks every line the model gets against it. Hosted answers fall back to "ask support@simple-host.app"; enterprise answers carry no contact details |
 | Privacy | only the question and the knowledge text go to the model (xAI's Grok) — no IP, user agent, cookie or identifier; a follow-up also sends the conversation's last few questions and answers, which live only in the reader's tab (sessionStorage, gone when it closes). The question text is never stored or logged (log line: assistant, page and the day's count; upstream errors log a status code only). `/v1/ask` is left out of the API IP metrics (`h/apimetrics.go`); standard web server logs apply. Disclosed on `privacy.html` |
 | Env | `ASK_ENABLED` (on; `on`/`true`/`1`/`yes` or `off`/`false`/`0`/`no`; only matters when `LLM_API_KEY` is set), `ASK_BURST` (5; 1–50), `ASK_EVERY_SECONDS` (20; 1–3600), `ASK_DAILY_MAX` (500; 0–100000; per UTC day across everyone), `ASK_MAX_IN_FLIGHT` (4; 1–32), `ASK_MODEL` (grok-4.7; separate from `LLM_MODEL`, which AI create keeps), `ASK_REASONING_EFFORT` (none; none/low/medium/high, sent as `reasoning_effort`), `ASK_MAX_TOKENS` (300; 50–4000). Read with the other limit knobs in `internal/config/limits.go` (`Limits.Ask`), listed in `docs/configuration.md`, carried by `.env.example`, `compose.yaml` and the installer; any other value is a startup error |
-| Tables | `ask_daily` (day, count) — the day's count, so a restart does not reset it (`db/migrations/ask-daily-count.sql`); `setup_check_daily` (day, count) the same for the setup check (`db/migrations/v061-setup-check-daily.sql`) |
+| Tables | `ask_daily` (day, count) — the day's count, so a restart does not reset it (`db/migrations/ask-daily-count.sql`); `setup_check_daily` (day, count) the same for the setup check (`db/migrations/v061-setup-check-daily.sql`); `setup_assist_daily` (day, count) the same for the setup assistant (`db/migrations/v073-setup-assist-daily.sql`) |
 | External | the Grok sidecar (`LLM_API_KEY`, `LLM_BASE_URL`), same as §14 but its own model (`ASK_MODEL`), called with `"stream": true`; no fallback. One ask is one request from us, never retried here (the sidecar's own retry setting is global to it) |
 | Limits | 5 burst then 1 per 20 s per IP, and 4× that per /24 (IPv6 /48); at most 4 answered at once (503 `busy`, no daily slot used); 500 a day in total (429 `daily_limit`); question ≤ 500 characters; answer ≤ 200 words, links only to the assistant's own list (Simple Host: `/`, `/features`, `/architecture.html`, `/docs.html`, `/install.html`, `/privacy.html`, `/terms`, `/support`, `/enterprise`, `/setup`, `/setup?product=small-box`, `/setup?product=enterprise`; Enterprise: `/enterprise`, `/enterprise/brief`, `/enterprise/architecture`, `/`, `/privacy.html`, `/setup?product=enterprise`; a query is kept only where the list names it), other addresses removed; 1–3 short sentences unless the reader asks for detail (then ≤ ~150 words), a reply cut at `ASK_MAX_TOKENS` ends with "…"; first words within 20 s, whole answer within 45 s (502 `unavailable`, or an error event mid-stream) |
 
