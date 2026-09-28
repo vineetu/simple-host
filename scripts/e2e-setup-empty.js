@@ -153,6 +153,62 @@ async function diy(browser, fields) {
     r = await diy(browser, { [k]: v });
     assert(!r.cfg && r.bad.includes(k), `${k} ${JSON.stringify(v)} is refused`);
   }
+  // Invisible characters (zero width, direction marks, byte order mark) are
+  // refused in every field, with a plain reason; so are credentials in the
+  // Postgres host and an IPv6 host:port without brackets.
+  const INVIS = /invisible character/;
+  for (const [k, v] of [['dbHost', 'pg\u200b.db'], ['admins', 'a@x.com\u202e'], ['clientId', 'c\ufeffid'], ['issuer', 'https://acme.okta.com\u2060'], ['bucketName', 'b\u200dx'], ['host', 'sites.acme\u200c.com']]) {
+    const page = await browser.newPage();
+    await page.goto(base + '/setup?product=enterprise');
+    await next(page);
+    await page.fill('#f-' + k, v);
+    await click(page, 'Show my files');
+    await page.waitForSelector('.bad');
+    assert(await page.locator('#files').count() === 0 && INVIS.test(await page.locator('#f-' + k).locator('xpath=..').innerText()), `${k} with an invisible character is refused, saying why`);
+    await page.close();
+  }
+  r = await diy(browser, { dbHost: 'fd00::1:5432' });
+  assert(!r.cfg && r.bad.includes('dbHost'), 'an IPv6 host:port without brackets is refused');
+  r = await diy(browser, { dbHost: 'postgres://sh:secret@pg.db:5432/simplehost' });
+  assert(!r.cfg && r.bad.includes('dbHost'), 'a Postgres host with a user and password in it is refused');
+  for (const [v, hint] of [['fd00::1:5432', /\[fd00::1\]:5432/], ['sh:secret@pg.db', /hostname only/]]) {
+    const page = await browser.newPage();
+    await page.goto(base + '/setup?product=enterprise');
+    await next(page);
+    await page.fill('#f-dbHost', v);
+    await click(page, 'Show my files');
+    await page.waitForSelector('#f-dbHost.bad');
+    assert(hint.test(await page.locator('#f-dbHost').locator('xpath=..').innerText()), `Postgres host ${v}: the hint says ${hint}`);
+    await page.close();
+  }
+  r = await diy(browser, { issuer: 'HTTPS://Acme.Okta.COM/' });
+  assert(r.cfg && r.cfg.split('\n').includes('OIDC_ISSUER=https://acme.okta.com'), 'an issuer in capitals is accepted and written in lower case');
+  {
+    const page = await browser.newPage();
+    await page.goto(base + '/setup?product=enterprise&cloud=aws');
+    await next(page);
+    await page.fill('#f-issuer', 'HTTPS://Acme.Okta.COM/');
+    await page.fill('#f-host', 'sites.acme\u200b.com');
+    await click(page, 'Show my commands');
+    await page.waitForSelector('#f-host.bad');
+    assert(await page.locator('#f-issuer.bad').count() === 0, 'quick path: an issuer in capitals is accepted');
+    assert(INVIS.test(await page.locator('#app').innerText()), 'quick path: an invisible character in the address is refused');
+    await page.fill('#f-host', 'sites.acme.com');
+    await click(page, 'Show my commands');
+    await page.waitForSelector('#commands');
+    assert((await page.locator('pre').allTextContents()).pop().includes('oidc_issuer    = "https://acme.okta.com"'), 'quick path: the issuer is written in lower case');
+    await page.close();
+  }
+  {
+    const page = await browser.newPage();
+    await page.goto(base + '/setup?product=enterprise');
+    await page.locator('label.choice:has(input[name=mode][value=advanced])').click();
+    await next(page);
+    const err = await page.evaluate(() => window.shSetup.ready().then(() => window.shSetup.describe('SESSION_TTL', '8h\u200b')));
+    assert(err && INVIS.test(err.error), 'an Advanced value with an invisible character is refused');
+    await page.close();
+  }
+
   // The small box: its public names and the command.
   const small = async fields => {
     const page = await browser.newPage();
@@ -167,7 +223,17 @@ async function diy(browser, fields) {
   };
   r = await small({ domain: 'HTTPS://Hack.Example.com./', email: 'ops@corp' });
   assert(/ --host hack\.example\.com --content sites\.hack\.example\.com --email ops@corp$/.test(r.cmd) && parses(r.cmd), 'small box: a domain typed as a URL is tidied; an internal email is accepted');
-  for (const [k, v] of [['domain', '$(id).com'], ['domain', 'hack.example.com:8443'], ['domain', '203.0.113.5'], ['domain', 'localhost'], ['content', 'x y'], ['email', 'a;id@x'], ['email', "a'b@x`id`"]]) {
+  {
+    const page = await browser.newPage();
+    await page.goto(base + '/setup?product=small-box');
+    await next(page);
+    await page.fill('#f-content', 'sites.hack.example.com');
+    await click(page, 'Show my files');
+    await page.waitForSelector('#f-content.bad');
+    assert(/goes with a domain/.test(await page.locator('#f-content').locator('xpath=..').innerText()), 'small box: a sites hostname without a domain says why instead of being dropped');
+    await page.close();
+  }
+  for (const [k, v] of [['domain', 'hack.example.com\u200b'], ['domain', '$(id).com'], ['domain', 'hack.example.com:8443'], ['domain', '203.0.113.5'], ['domain', 'localhost'], ['content', 'x y'], ['email', 'a;id@x'], ['email', "a'b@x`id`"]]) {
     r = await small({ domain: k === 'domain' ? v : 'hack.example.com', [k]: v });
     assert(!r.cmd && r.bad.includes(k), `small box: ${k} ${JSON.stringify(v)} is refused`);
   }

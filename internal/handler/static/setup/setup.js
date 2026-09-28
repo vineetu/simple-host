@@ -30,8 +30,8 @@
   // what it builds is fixed. After a release that changes deploy/terraform,
   // set all three: git rev-parse vX.Y.Z^{commit}, and
   // git show vX.Y.Z:deploy/terraform/<cloud>/apply.sh | sha256sum.
-  var ENT_CLOUD_REF = 'a0b04eeb6dc2a348a9f5a7f8049150e9c779b766';
-  var ENT_APPLY_SHA256 = { aws: 'fb19a3c48a37fb1863ae99ce59a297ef049d8dabc8b79079b3bb70208b9d7c25' };
+  var ENT_CLOUD_REF = '75e10822f62e25b5d059e8310b31a389eceff3ca';
+  var ENT_APPLY_SHA256 = { aws: 'b229e76d4bbc0a6a632aca684c90390f17b3339d669ba512dd8b4c6c1bcc1cff' };
   var ENT_RAW = 'https://raw.githubusercontent.com/vineetu/simple-host-enterprise/';
   // Where a small box is recommended to run. A referral link: the page says so.
   var UPCLOUD_SIGNUP = 'https://signup.upcloud.com/?promo=JF2WCV';
@@ -249,6 +249,7 @@
   // validate returns an error sentence, or '' when the value is acceptable.
   function validate(s, v) {
     var k = setupKind(s);
+    if (INVISIBLE.test(v)) return INVISIBLE_MSG;
     if (/[\r\n]/.test(v)) return 'One line only.';
     if (k !== 'text' && /[^\x20-\x7e]/.test(v)) return 'Plain letters, digits and punctuation only.';
     if (k === 'number') {
@@ -460,6 +461,11 @@
     if (!HOST.test(h) || (m[2] && (+m[2] < 1 || +m[2] > 65535))) return null;
     return { host: h, port: m[2] || '', ip: IPV4.test(h), v6: false };
   }
+  // INVISIBLE: a control character or an invisible one (zero width, direction
+  // marks, byte order mark: any Unicode format character), usually pasted
+  // along with the text. Refused in every field.
+  var INVISIBLE = /[\p{Cc}\p{Cf}]/u;
+  var INVISIBLE_MSG = 'It has an invisible character in it (such as a zero-width space, often pasted with the text): type it again.';
   // splitList reads a list typed with commas, semicolons or spaces.
   function splitList(v) { return String(v).split(/[\s,;]+/).map(function (x) { return x.trim(); }).filter(Boolean); }
   function emailsOk(v) { return splitList(v).every(function (a) { return EMAIL.test(a); }); }
@@ -553,7 +559,7 @@
     catch (e) { return false; }
   }
   // An https URL with no spaces, quotes or backslashes, at most 2048 characters.
-  var ISSUER = /^https:\/\/[^\s\/"\\?#@]+(\/[^\s"\\?#]*)?$/;
+  var ISSUER = /^https:\/\/[^\s\/"\\?#@]+(\/[^\s"\\?#]*)?$/i;
   function renderCloudBasics(c) {
     var b = S.basic.ent, box = el('div', { class: 'card' });
     // The Basic path's template issuer (YOUR-ORG) is not an answer here.
@@ -681,7 +687,7 @@
       box.appendChild(textField('bucketName', b, 'Bucket name', { name: 'BACKUP_STORAGE_BUCKET', placeholder: 'simple-host-sites', help: byName('BACKUP_STORAGE_BUCKET').description }));
       box.appendChild(radios('creds', b, 'Bucket credentials', [['keys', 'Access keys (in secrets.env)'], ['identity', 'Workload identity (no keys)']]));
       box.appendChild(textField('dbHost', b, 'Postgres host', { name: 'DB_HOST', placeholder: upcloud ? 'public-….db.upclouddatabases.com' : 'postgres.db.svc.cluster.local',
-        help: 'Any hostname, service name or IP address, with :port if it is not 5432. A managed Postgres with point-in-time recovery; nothing in the package backs up the database.' +
+        help: 'Any hostname, service name or IP address, with :port if it is not 5432 ([fd00::1]:5432 for IPv6). A managed Postgres with point-in-time recovery; nothing in the package backs up the database.' +
           (upcloud ? ' On UpCloud’s managed Postgres, use the public-… hostname (the component whose route is public): the plain one resolves to a private address from outside UpCloud.' : '') }));
       box.appendChild(textField('dbPort', b, 'Postgres port', { name: 'DB_PORT', type: 'number', placeholder: '5432',
         help: upcloud ? 'UpCloud’s managed Postgres listens on 11569, not 5432 (filled in when you picked UpCloud).' : null }));
@@ -712,6 +718,7 @@
   // an obvious typo, or anything that could break the files or the command.
   function checkBasics() {
     var b = S.basic[S.product], e = {}, h;
+    var invisible = Object.keys(b).filter(function (k) { return typeof b[k] === 'string' && INVISIBLE.test(b[k]); });
     // An issuer typed without https:// gets it; a template (YOUR-…) is
     // not an answer, so it is left empty.
     var issuer = function () {
@@ -752,6 +759,7 @@
       };
       pub('domain', 'domain name');
       pub('content', 'hostname');
+      if (!e.content && b.content && !b.domain) e.content = 'The sites hostname goes with a domain: fill in the domain too, or leave this empty (the server asks for both after the install).';
       if (!e.content && b.content && b.content === b.domain) e.content = 'A different hostname, like sites.' + b.domain + '.';
       if (b.email && !EMAIL.test(b.email)) e.email = 'An email address, or leave it empty.';
       if (b.mailFrom && /[\r\n`]/.test(b.mailFrom)) e.mailFrom = 'One line, with no backticks.';
@@ -794,7 +802,9 @@
       // The Postgres host as people write it; a port in it is the port.
       h = b.dbHost ? hostPort(b.dbHost) : null;
       if (b.dbHost) {
-        if (!h) e.dbHost = 'A hostname or IP address, like postgres.db.svc.cluster.local or 10.0.0.5.';
+        if (/@/.test(b.dbHost)) e.dbHost = 'The hostname only: leave the user and password out (the password goes in secrets.env).';
+        else if (/^[0-9a-f:.]*:[0-9a-f]*:[0-9a-f:.]*:\d{4,5}$/i.test(b.dbHost.trim()) && !/^\[/.test(b.dbHost.trim())) e.dbHost = 'Put an IPv6 address in brackets, with the port after: [fd00::1]:5432.';
+        else if (!h) e.dbHost = 'The hostname only (with :port if it is not 5432), like postgres.db.svc.cluster.local, 10.0.0.5 or [fd00::1]:5432.';
         else { b.dbHost = h.v6 ? '[' + h.host + ']' : h.host; if (h.port) b.dbPort = h.port; }
       }
       b.dbPort = String(b.dbPort == null ? '' : b.dbPort).trim();
@@ -804,6 +814,9 @@
       b.proxies = splitList(b.proxies).join(',');
       if (b.proxies && !b.proxies.split(',').every(function (x) { return CIDR.test(x); })) e.proxies = 'Ranges like 192.168.0.0/16, separated by commas.';
     }
+    // Any typed answer with an invisible character in it, as typed (before
+    // tidying could drop it), whatever else.
+    invisible.forEach(function (k) { e[k] = INVISIBLE_MSG; });
     S.errors = e;
     return Object.keys(e).length === 0;
   }
