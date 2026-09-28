@@ -159,6 +159,9 @@ async function enterpriseToCheck(page, width) {
   await p4.fill('#f-proxies', '192.168.0.0/16');
   await p4.screenshot({ path: `${shots}/setup-ent-upcloud-390.png`, fullPage: true });
   await p4.getByRole('button', { name: 'Show my files' }).click();
+  // The changed port is a number the check looks at: past its findings.
+  await p4.waitForSelector('pre, .finding, .check-note');
+  if (!(await p4.locator('pre').count())) await p4.getByRole('button', { name: 'Show my files' }).click();
   await p4.waitForSelector('pre');
   const entCfg = await p4.locator('pre').first().innerText();
   assert(/^TRUSTED_PROXY_CIDRS=192\.168\.0\.0\/16$/m.test(entCfg) && /^BACKUP_STORAGE_REGION=europe-2$/m.test(entCfg) && /^DB_PORT=11569$/m.test(entCfg), 'config.env carries the pod range, region and port');
