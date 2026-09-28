@@ -171,3 +171,24 @@ func TestSetupHelperCloudPins(t *testing.T) {
 		}
 	}
 }
+
+// hcl() writes a Terraform string: quotes and backslashes escaped, and the
+// template sequences ${ and %{ doubled so Terraform reads them literally.
+func TestSetupHelperHCLEscape(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node is not installed")
+	}
+	js, _ := staticFiles.ReadFile("static/setup/setup.js")
+	m := regexp.MustCompile(`(?s)\n  function hcl\(v\) \{.*?\n  \}\n`).Find(js)
+	if m == nil {
+		t.Fatal("setup.js lacks function hcl")
+	}
+	out, err := exec.Command(node, "-e", string(m)+`process.stdout.write(hcl('a${b} %{c} "q" \\ $x %d'));`).Output()
+	if err != nil {
+		t.Fatalf("node: %v", err)
+	}
+	if want := `"a$${b} %%{c} \"q\" \\ $x %d"`; string(out) != want {
+		t.Errorf("hcl = %s, want %s", out, want)
+	}
+}

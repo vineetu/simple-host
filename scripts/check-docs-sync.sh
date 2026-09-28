@@ -273,6 +273,29 @@ for f in simple-host-website/skills/run-hackathon/references/install.md; do
   done <<<"$urls"
 done
 
+echo "== the setup page's cloud command pins apply.sh =="
+# ENT_CLOUD_REF / ENT_APPLY_SHA256 in setup.js must be the sha256 of
+# deploy/terraform/<cloud>/apply.sh at that enterprise commit. Checked
+# against a local enterprise checkout ($SH_ENTERPRISE_REPO) when there is
+# one, else against GitHub, so a stale pin fails here and in CI.
+js=internal/handler/static/setup/setup.js
+ent_ref=$(sed -n "s/^ *var ENT_CLOUD_REF = '\([0-9a-f]\{40\}\)';.*/\1/p" "$js")
+if [ -z "$ent_ref" ]; then echo "  FAIL $js has no 40-character ENT_CLOUD_REF"; fail=1; fi
+for pair in $(sed -n "s/^ *var ENT_APPLY_SHA256 = {\(.*\)};.*/\1/p" "$js" | tr -d " '" | tr ',' ' '); do
+  cloud=${pair%%:*}; want=${pair#*:}
+  if [ -n "${SH_ENTERPRISE_REPO:-}" ]; then
+    got=$(git -C "$SH_ENTERPRISE_REPO" show "$ent_ref:deploy/terraform/$cloud/apply.sh" 2>/dev/null | sha256sum | cut -d' ' -f1)
+    where="$SH_ENTERPRISE_REPO"
+  else
+    got=$(curl -fsSL "https://raw.githubusercontent.com/vineetu/simple-host-enterprise/$ent_ref/deploy/terraform/$cloud/apply.sh" 2>/dev/null | sha256sum | cut -d' ' -f1)
+    where=GitHub
+  fi
+  empty=$(printf '' | sha256sum | cut -d' ' -f1)
+  if [ "$got" = "$empty" ]; then echo "  FAIL $cloud: deploy/terraform/$cloud/apply.sh at $ent_ref is not on $where (push the enterprise commit, or set SH_ENTERPRISE_REPO)"; fail=1
+  elif [ "$got" != "$want" ]; then echo "  FAIL $cloud: apply.sh at $ent_ref has sha256 $got; setup.js pins $want"; fail=1
+  else echo "  ok $cloud: apply.sh at ${ent_ref:0:12} matches ($where)"; fi
+done
+
 # ── PARITY.md covers every FEATURES.md section ──
 bash scripts/check-parity.sh || fail=1
 

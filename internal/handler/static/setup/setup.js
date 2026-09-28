@@ -30,8 +30,8 @@
   // what it builds is fixed. After a release that changes deploy/terraform,
   // set all three: git rev-parse vX.Y.Z^{commit}, and
   // git show vX.Y.Z:deploy/terraform/<cloud>/apply.sh | sha256sum.
-  var ENT_CLOUD_REF = 'd85d077367b68567e25feb40d74eb243cad8543c';
-  var ENT_APPLY_SHA256 = { aws: '64f16aa8049e725c4e232cb16dc8063412da93422f9478633e3c64fd02906df4' };
+  var ENT_CLOUD_REF = 'f954be22c57185bae29a35d1f6b71d7b6001d6b7';
+  var ENT_APPLY_SHA256 = { aws: 'e025ef603dadd6df5d2959c67f1763a79734ca46c01f92f0130435f1baf1c8f1' };
   var ENT_RAW = 'https://raw.githubusercontent.com/vineetu/simple-host-enterprise/';
   // Where a small box is recommended to run. A referral link: the page says so.
   var UPCLOUD_SIGNUP = 'https://signup.upcloud.com/?promo=JF2WCV';
@@ -72,7 +72,7 @@
   // a cloud out of the page (not shown, ?cloud= ignored) until its module has
   // been run end to end: a feature works fully or is not offered.
   var ALL_CLOUDS = [
-    { id: 'aws', on: true, name: 'AWS', k8s: 'EKS', shell: 'AWS CloudShell', region: 'us-east-1', what: 'EKS, RDS for PostgreSQL and S3',
+    { id: 'aws', on: true, name: 'AWS', k8s: 'EKS', shell: 'AWS CloudShell', region: 'us-east-1', what: 'EKS, RDS and S3',
       regions: ['us-east-1', 'us-east-2', 'us-west-2', 'ca-central-1', 'sa-east-1', 'eu-west-1', 'eu-west-2', 'eu-central-1', 'eu-north-1', 'ap-south-1', 'ap-southeast-1', 'ap-southeast-2', 'ap-northeast-1'],
       tz: [['^America/(Los_Angeles|Vancouver|Tijuana|Phoenix|Denver|Boise|Edmonton)', 'us-west-2'], ['^America/(Toronto|Montreal|Halifax)', 'ca-central-1'], ['^America/(Sao_Paulo|Argentina|Santiago|Bogota|Lima|Montevideo)', 'sa-east-1'],
         ['^America/', 'us-east-1'], ['^Europe/(London|Dublin|Lisbon)', 'eu-west-2'], ['^Europe/(Stockholm|Helsinki|Oslo|Copenhagen|Tallinn|Riga|Vilnius)', 'eu-north-1'], ['^Europe/', 'eu-central-1'],
@@ -493,7 +493,18 @@
 
   // The quick path's questions: what cannot be found out or defaulted.
   var ISSUER_HELP = 'Okta: https://<your-org>.okta.com · Microsoft Entra ID: https://login.microsoftonline.com/<tenant-id>/v2.0 · Google Workspace: https://accounts.google.com · Keycloak: https://<host>/realms/<realm>';
-  function isGoogle(issuer) { return /^https:\/\/accounts\.google\.com\/?$/.test(issuer); }
+  // normIssuer writes an issuer URL the one way the server compares it:
+  // lower-case host, no :443, no trailing slash.
+  function normIssuer(u) {
+    try {
+      var x = new URL(u);
+      if (x.protocol !== 'https:' || x.search || x.hash || x.username || x.password) return u;
+      return 'https://' + x.hostname.toLowerCase() + (x.port && x.port !== '443' ? ':' + x.port : '') + x.pathname.replace(/\/+$/, '');
+    } catch (e) { return u; }
+  }
+  function isGoogle(issuer) { return normIssuer(issuer) === 'https://accounts.google.com'; }
+  // An https URL with no spaces, quotes or backslashes, at most 2048 characters.
+  var ISSUER = /^https:\/\/[^\s\/"\\?#]+(\/[^\s"\\?#]*)?$/;
   function renderCloudBasics(c) {
     var b = S.basic.ent, box = el('div', { class: 'card' });
     // The Basic path's template issuer (YOUR-ORG) is not an answer here.
@@ -660,10 +671,11 @@
       var c = cloud();
       b.host = b.host.toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '');
       if (!HOST.test(b.host)) e.host = 'A hostname like sites.example.com.';
-      if (!/^https:\/\/[^\s/]+/.test(b.issuer)) e.issuer = 'An https:// URL.';
+      b.issuer = normIssuer(b.issuer);
+      if (!ISSUER.test(b.issuer) || b.issuer.length > 2048) e.issuer = 'An https:// URL, with no spaces.';
       else if (/YOUR-/.test(b.issuer)) e.issuer = 'Replace the YOUR-… part with yours.';
       if (!b.clientId) e.clientId = 'The client ID from your identity provider.';
-      else if (/[\s"\\]/.test(b.clientId)) e.clientId = 'The client ID as your identity provider shows it.';
+      else if (/[\s"\\]/.test(b.clientId) || b.clientId.length > 512) e.clientId = 'The client ID as your identity provider shows it.';
       if (b.admins && b.admins.split(',').some(function (a) { return !EMAIL.test(a.trim()); })) e.admins = 'Email addresses separated by commas.';
       if (!b.admins) e.admins = 'At least one admin, or nobody can approve anything.';
       if (isGoogle(b.issuer)) {
@@ -701,7 +713,7 @@
   // ── Step 3: every setting, area by area ──
   // Settings the quick path's module sets itself (the Service's ports, the
   // Ingress it creates, verified TLS to the database).
-  var QUICK_FIXED = ['PORT', 'HTTPS_REDIRECT_PORT', 'OWNER_INGRESS_TEMPLATE', 'DB_SSLMODE', 'DB_INSECURE_ALLOWED', 'BACKUP_STORAGE_INSECURE_ALLOWED', 'OIDC_INSECURE_ALLOWED', 'DB_INCLUSTER_EVALUATION'];
+  var QUICK_FIXED = ['PORT', 'HTTPS_REDIRECT_PORT', 'OWNER_INGRESS_TEMPLATE', 'DB_SSLMODE', 'DB_INSECURE_ALLOWED', 'BACKUP_STORAGE_INSECURE_ALLOWED', 'OIDC_INSECURE_ALLOWED', 'DB_INCLUSTER_EVALUATION', 'BACKUP_SSE', 'BACKUP_SSE_KEY_ID'];
   function advancedSettings() {
     var basic = S.product === 'small' ? SMALL_BASIC : ENT_BASIC, quick = !!cloud();
     return settings().filter(function (s) {
@@ -903,13 +915,14 @@
   // ── The quick path's output: terraform.tfvars and the one line ──
   // hcl writes a Terraform string.
   function hcl(v) {
-    return '"' + String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$\{/g, '$${').replace(/%\{/g, '%%{') + '"';
+    // A function as the replacement: in a string, "$$" would mean one "$".
+    return '"' + String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$\{/g, function () { return '$${'; }).replace(/%\{/g, function () { return '%%{'; }) + '"';
   }
   function list(v) { return v.split(',').map(function (x) { return x.trim().toLowerCase(); }).filter(Boolean); }
   function buildCloud(c) {
     var b = S.basic.ent, changed = S.values.ent, adv = advancedSettings().map(function (s) { return s.name; });
     var extra = Object.keys(changed).filter(function (n) { return adv.indexOf(n) >= 0; }).sort(function (x, y) { return adv.indexOf(x) - adv.indexOf(y); });
-    var issuer = b.issuer.replace(/\/+$/, ''), rows = [['create_cluster', b.cluster === 'no' ? 'true' : 'false']];
+    var issuer = normIssuer(b.issuer), rows = [['create_cluster', b.cluster === 'no' ? 'true' : 'false']];
     if (b.cluster === 'yes') rows.push(['cluster_name', hcl(b.clusterName)]);
     rows.push(['region', hcl(b.cloudRegion)], ['base_domain', hcl(b.host)], ['admin_emails', '[' + list(b.admins).map(hcl).join(', ') + ']']);
     if (isGoogle(issuer)) rows.push(['allowed_email_domains', '[' + list(b.domains).map(hcl).join(', ') + ']']);
@@ -950,8 +963,8 @@
     L.push('1. Check this shell is signed in to the right account: `' + who + '`. Tell me the account and ask me to confirm it before going on.', '');
     L.push('2. The sign-in app’s client secret: before starting you I set it in this terminal as TF_VAR_oidc_client_secret. Check with `test -n "$TF_VAR_oidc_client_secret" && echo set`. If it is not set, stop and ask me to quit you, run this in the terminal and start you again (a re-run after a first successful one does not need it: the stored secret is kept):', '', FENCE + 'sh', SECRET_CREDS, FENCE, '');
     L.push('3. See what it will create: run this line with ` --plan` added at the end. It installs Terraform if it is missing, fetches the module at a pinned commit after checking its checksum, and prints the plan. Tell me how many resources it adds and ask me before going on.', '', FENCE + 'sh', r.cmd, FENCE, '');
-    L.push('4. Apply: after I say yes, run the same line with ` --yes` added at the end. ' + (b.cluster === 'yes' ? 'It takes about 15 minutes.' : 'It takes about 25 minutes (the cluster is most of it).') + ' If it stops, running it again continues where it stopped.', '');
-    L.push('5. DNS: it ends by printing NS records for ' + b.host + '. Tell me exactly which records to add at my DNS provider and wait for me. Then check that `dig +short NS ' + sh(b.host) + '` prints them.', '');
+    L.push('4. Apply: after I say yes, run the same line with ` --yes` added at the end. ' + (b.cluster === 'yes' ? 'It takes about 15 minutes.' : 'It takes about 25 minutes (the cluster is most of it).') + ' If it stops, running the same line again picks up where it stopped. In ' + c.shell + ' the shell closes after about 20 minutes without a key press, which stops the work: remind me to press Enter in it every 10 minutes or so.', '');
+    L.push('5. DNS: it ends with "1. DNS:". Either it lists NS records for ' + b.host + ' to add (in the DNS zone of the domain above it, or as the name servers at the registrar if ' + b.host + ' is a domain of its own): tell me exactly which records to add and where, and wait for me; then check that `dig +short NS ' + sh(b.host) + '` prints them. Or it says ' + b.host + ' is already a Route 53 zone in this account, with nothing to add.', '');
     L.push('6. Check it works (certificates can take a few minutes after the DNS change):');
     L.push('   - `curl -fsS ' + sh('https://' + b.host + '/readyz') + '` prints {"status":"ok"}.');
     L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' ' + sh('https://install-check.' + b.host + '/healthz') + '` prints a status code (401 or 404 is fine; a TLS or DNS error is not).', '');
@@ -966,35 +979,39 @@
     if (S.check.note) app.appendChild(el('p', { class: 'check-note', role: 'status', text: S.check.note }));
     app.appendChild(el('div', { class: 'card', id: 'commands' }, [
       el('h2', { text: 'Set it up on ' + c.name }),
-      el('p', { class: 'note', style: 'margin:0 0 4px', text: (b.cluster === 'yes' ? 'About 15 minutes' : 'About 25 minutes, most of it creating the cluster') + '. ' + c.shell + ' may close after about 20 minutes without a key press; if it does, open it again and paste the same line: it continues where it stopped.' }),
       el('ol', { class: 'steps' }, [
         el('li', null, ['Open ', el('a', { href: shellUrl(c, b.cloudRegion), target: '_blank', rel: 'noopener', text: c.shell }),
-          ' in the account it should run in, and paste this line. It asks for your sign-in app’s client secret (not shown as you type), shows what it will create, and waits for you to type yes.'])
+          ' in the account it should run in, and paste this line. It asks for your sign-in app’s client secret (not shown as you type), shows what it will create, and waits for you to type yes. It takes about ' +
+          (b.cluster === 'yes' ? '15' : '25') + ' minutes: keep the tab open and press Enter every 10 minutes or so, because ' + c.shell + ' closes after about 20 minutes without a key press. If it closes, open it again and paste the same line: it picks up where it stopped.'])
       ]),
       block('Paste into ' + c.shell, r.cmd),
       el('ol', { class: 'steps', start: '2' }, [
-        el('li', null, ['When it finishes, it prints name server (NS) records for ', el('code', { text: b.host }),
-          '. Add them at your DNS provider (for a domain of its own, set them as its name servers at the registrar). Certificates follow by themselves within minutes.']),
+        el('li', null, ['DNS. It ends with the records to add for ', el('code', { text: b.host }), '. Usually these are 4 NS records. If ', el('code', { text: b.host }),
+          ' is under a domain you already manage (like sites.example.com under example.com), add them in that domain’s DNS zone. If it is a domain of its own (like example-sites.com), set them as its name servers at your registrar instead. If ',
+          el('code', { text: b.host }), ' is already a Route 53 zone in this account, it says so and there is nothing to add. Certificates follow by themselves within minutes.']),
         el('li', null, ['Check it: this prints ', el('code', { text: '{"status":"ok"}' }), '. Then sign in at ',
           el('a', { href: 'https://' + b.host + '/auth/login', text: 'https://' + b.host + '/auth/login' }), ' with an admin email.'])
       ]),
       block('Check', 'curl -fsS ' + sh('https://' + b.host + '/readyz'))
     ]));
-    app.appendChild(el('div', { class: 'card', id: 'agent' }, [
-      el('h2', { text: 'Set it up with your AI agent' }),
-      el('p', { class: 'note', style: 'margin:0 0 4px', text: 'Rather have an AI agent run it, in a terminal signed in to ' + c.name + '? Copy this into it. It shows you the plan before creating anything, and never sees the client secret.' }),
-      block('For your AI agent', cloudHandoff(r, c), 'simple-host-setup.md')
-    ]));
-    app.appendChild(el('div', { class: 'card', id: 'tfvars' }, [
-      el('h2', { text: 'Or run the Terraform yourself' }),
-      el('p', { class: 'note', style: 'margin:0 0 4px' }, ['For your own pipeline: the module is ', el('code', { text: 'deploy/terraform/' + c.id }),
-        ' in github.com/vineetu/simple-host-enterprise at commit ', el('code', { text: ENT_CLOUD_REF.slice(0, 12) }), ', and its README says how. These are your answers:']),
-      block('terraform.tfvars', r.tfvars, 'terraform.tfvars')
-    ]));
     app.appendChild(el('div', { class: 'card' }, [
       el('h2', { text: 'What you chose' }),
       el('ul', { class: 'summary' }, r.chosen.map(function (x) { return el('li', null, [el('span', { text: x[0] }), el('span', { text: x[1] })]); })),
       el('p', { class: 'note', text: 'Everything not listed keeps its default. Every setting is explained in the advanced settings docs.' })
+    ]));
+    app.appendChild(el('details', { class: 'card more', id: 'other-ways' }, [
+      el('summary', null, [el('b', { text: 'Other ways to run this' }), el('span', { text: 'An AI agent, or the Terraform files directly.' })]),
+      el('div', { id: 'agent' }, [
+        el('h3', { text: 'With your AI agent', style: 'margin-top:18px' }),
+        el('p', { class: 'note', style: 'margin:0 0 4px', text: 'In a Linux terminal (or ' + c.shell + ') signed in to ' + c.name + ', copy this into your AI agent. It shows you the plan before creating anything, and never sees the client secret.' }),
+        block('For your AI agent', cloudHandoff(r, c), 'simple-host-setup.md')
+      ]),
+      el('div', { id: 'tfvars' }, [
+        el('h3', { text: 'With your own Terraform', style: 'margin-top:18px' }),
+        el('p', { class: 'note', style: 'margin:0 0 4px' }, ['The module is ', el('code', { text: 'deploy/terraform/' + c.id }),
+          ' in github.com/vineetu/simple-host-enterprise at commit ', el('code', { text: ENT_CLOUD_REF.slice(0, 12) }), '; its README says how to run it from a pipeline. These are your answers:']),
+        block('terraform.tfvars', r.tfvars, 'terraform.tfvars')
+      ])
     ]));
     app.appendChild(el('div', { class: 'nav' }, [
       el('button', { class: 'btn', type: 'button', text: 'Back', onclick: function () {
@@ -1438,7 +1455,7 @@
       var q = BASIC_CHOICES[S.product][key], b = S.basic[S.product];
       if (!q || q.values[value] == null || !basicOffered(key, value)) return 'Not an answer this question takes.';
       if (key === 'codes' || key === 'google' || key === 'smtp') b[key] = value === 'true';
-      else if (key === 'cloud') pickCloud(b, value);
+      else if (key === 'cloud') { pickCloud(b, value); if (cloud()) S.mode = 'basic'; }
       else if (key === 'idp') pickIdp(b, value);
       else if (key === 'bucket') pickBucket(b, value);
       else b[key] = value;

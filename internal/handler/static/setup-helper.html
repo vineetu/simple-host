@@ -175,6 +175,13 @@
     .sh-assist .sh-assist-pasted { margin: 0 0 8px; font-size: 13px; color: var(--text-secondary); }
     .sh-assist .sh-assist-pasted summary { cursor: pointer; margin-bottom: 6px; }
     #agent pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 420px; overflow: auto; }
+    details.more > summary { cursor: pointer; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+    details.more > summary::-webkit-details-marker { display: none; }
+    details.more > summary b { font-size: 17px; }
+    details.more > summary b::before { content: "\25B8"; content: "\25B8" / ""; display: inline-block; width: 1.2em; color: var(--accent); }
+    details.more[open] > summary b::before { content: "\25BE"; content: "\25BE" / ""; }
+    details.more > summary span { font-size: 14px; color: var(--text-secondary); padding-left: 1.2em; }
+    details.more > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
     @media (min-width: 1180px) {
       /* Beside the form: the page makes room, so applied changes show. */
       .sh-assist .sh-ask-panel { top: 16px; bottom: 16px; max-height: none; width: 380px; }

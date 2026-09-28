@@ -53,12 +53,14 @@ async function walk(browser, cloud, have, width, scheme) {
 
   await page.fill('#f-host', 'sites.acme-sites.com');
   await page.fill('#f-admins', 'platform@acme.com, alex@acme.com');
-  await page.fill('#f-issuer', 'https://accounts.google.com');
+  // Google in any spelling the server would treat as Google.
+  await page.fill('#f-issuer', 'https://ACCOUNTS.google.com:443/');
   await page.locator('#f-issuer').dispatchEvent('input');
   assert(await page.locator('#f-domains').count() === 1, `${tag}: Google shows company email domains`);
   assert(await page.locator('#f-domains').inputValue() === 'acme.com', `${tag}: domains prefilled from the admins`);
   await page.fill('#f-domains', '');
-  await page.fill('#f-clientId', '1234-abc.apps.googleusercontent.com');
+  // Terraform template sequences must reach the tfvars escaped.
+  await page.fill('#f-clientId', '1234-abc${x}%{y}.apps.googleusercontent.com');
   if (have === 'yes') await page.fill('#f-clusterName', 'prod-cluster');
   await page.getByRole('button', { name: 'Show my commands' }).click();
   assert(await page.locator('#f-domains.bad').count() === 1, `${tag}: Google without domains is refused`);
@@ -81,6 +83,15 @@ async function walk(browser, cloud, have, width, scheme) {
   }
   assert(tfvars.includes('cluster_name') === (have === 'yes'), `${tag}: cluster_name only for an existing cluster`);
   assert(!/secret\s*=/.test(tfvars), `${tag}: no secret in tfvars`);
+  assert(tfvars.includes('oidc_client_id        = "1234-abc$${x}%%{y}.apps.googleusercontent.com"\n'), `${tag}: \${ and %{ are escaped for Terraform`);
+  try { require('child_process').execFileSync('bash', ['-n'], { input: cmd }); assert(true, `${tag}: the line parses in bash`); }
+  catch (e) { assert(false, `${tag}: the line parses in bash`); }
+  const details = page.locator('details#other-ways');
+  assert(await details.count() === 1 && !(await details.evaluate(d => d.open)), `${tag}: the AI agent and Terraform blocks sit in one closed "Other ways to run this"`);
+  const order = await page.locator('#app > .card h2, #app > details summary b').allTextContents();
+  assert(order.indexOf('What you chose') >= 0 && order.indexOf('What you chose') < order.indexOf('Other ways to run this'), `${tag}: "What you chose" comes before the other ways`);
+  const dns = await page.locator('#commands ol.steps').nth(1).innerText();
+  assert(/domain you already manage/.test(dns) && /name servers at your registrar/.test(dns) && /already a Route 53 zone/.test(dns), `${tag}: the DNS step covers a subdomain, a domain of its own and an existing zone`);
   const agent = pres.find(p => p.startsWith('# Set up Simple Host Enterprise on'));
   assert(agent && agent.includes(cmd) && agent.includes('--plan') && agent.includes('TF_VAR_oidc_client_secret'), `${tag}: agent block has the line, --plan first, the secret from the terminal`);
   if (width === 390) {
