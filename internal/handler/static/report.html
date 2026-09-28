@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Report a page — Simple Host</title>
+  <!--sh:head-->
+  <style>
+    /* Tokens, base type and the header/footer live in /site.css. */
+    .container { max-width: 640px; margin: 0 auto; padding: 0 24px; }
+    main.container { padding-top: 48px; padding-bottom: 32px; }
+    .eyebrow { font-size: 13px; color: var(--text-secondary); margin: 0 0 10px; }
+    h1 { font-size: clamp(30px, 5vw, 44px); font-weight: 700; line-height: 1.1; letter-spacing: -.02em; color: var(--text); margin: 0 0 16px; }
+    p { color: var(--text-secondary); font-size: 16px; line-height: 1.6; margin: 0 0 14px; }
+    strong { color: var(--text); font-weight: 600; }
+    a { color: var(--accent); text-underline-offset: 3px; overflow-wrap: anywhere; }
+    a:hover { color: var(--accent-hover); }
+    .note { border: 1px solid var(--border-hi); border-left: 3px solid var(--accent); border-radius: var(--radius); background: var(--surface); padding: 12px 16px; margin: 0 0 24px; color: var(--text); font-size: 15px; line-height: 1.5; }
+    .note p { color: var(--text); font-size: 15px; line-height: 1.5; margin: 0; }
+    form { display: grid; gap: 20px; margin-top: 8px; }
+    label { display: block; font-size: 15px; font-weight: 600; color: var(--text); margin: 0 0 6px; }
+    .opt { font-weight: 400; color: var(--text-secondary); }
+    .hint { font-size: 14px; color: var(--text-secondary); line-height: 1.5; margin: 6px 0 0; }
+    input, select, textarea { box-sizing: border-box; width: 100%; font: inherit; font-size: 16px; padding: 10px 12px; border: 1px solid var(--border-hi); border-radius: 8px; background: var(--surface); color: var(--text); }
+    textarea { min-height: 140px; resize: vertical; line-height: 1.5; }
+    input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+    .warn { border: 1px solid var(--error); border-radius: 8px; padding: 10px 12px; margin: 8px 0 0; color: var(--text); font-size: 14px; line-height: 1.5; }
+    .warn[hidden] { display: none; }
+    button[type=submit] { justify-self: start; font: inherit; font-size: 15px; font-weight: 600; border: none; border-radius: 8px; padding: 11px 20px; cursor: pointer; background: var(--accent); color: var(--on-accent); }
+    button[type=submit]:hover { background: var(--accent-hover); }
+    button[type=submit]:disabled { opacity: .6; cursor: not-allowed; }
+    .error { color: var(--error); font-size: 15px; margin: 0; }
+    .error:empty { display: none; }
+    .done h2 { font-size: 22px; font-weight: 700; color: var(--text); margin: 8px 0 10px; }
+    @media (max-width: 640px) {
+      .container { padding: 0 20px; }
+      main.container { padding-top: 36px; }
+      button[type=submit] { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <!--sh:header-->
+  <main class="container">
+    <div class="eyebrow">Report</div>
+    <h1>Report a page</h1>
+    <p>Tell us about a page hosted on Simple Host that is illegal, abusive, a scam, or breaks the <a href="/terms#rules">Terms</a>. A person reads every report.</p>
+    <div class="note"><p>If someone is in immediate danger, contact your local emergency services first.</p></div>
+
+    <div id="form-wrap">
+      <form id="report-form" novalidate>
+        <div>
+          <label for="r-url">The page's address</label>
+          <input type="url" id="r-url" name="url" required maxlength="2048" placeholder="https://my-site.name.simple-host.app/" autocomplete="off" spellcheck="false" inputmode="url">
+        </div>
+        <div>
+          <label for="r-reason">What is wrong</label>
+          <select id="r-reason" name="reason" required>
+            <option value="">Choose a reason</option>
+            <option value="phishing">Phishing or scam</option>
+            <option value="malware">Malware</option>
+            <option value="csam">Child sexual abuse material</option>
+            <option value="ncii">Intimate image without consent</option>
+            <option value="copyright">Copyright or trademark</option>
+            <option value="harassment">Harassment or private information</option>
+            <option value="spam">Spam</option>
+            <option value="other">Other</option>
+          </select>
+          <p class="warn" id="warn-csam" hidden>Do not include, attach or link the material itself. The page's address is enough. We remove it and report it to NCMEC.</p>
+          <p class="warn" id="warn-ncii" hidden>We act within 48 hours of a valid request. If you are the person shown, or act for them, add your full name and how to reach you. See <a href="/terms#intimate-images">what to include</a>.</p>
+          <p class="warn" id="warn-copyright" hidden>A copyright notice needs more than this form asks for. See <a href="/terms#copyright">what to include</a>, and email it to <a href="mailto:support@simple-host.app">support@simple-host.app</a>.</p>
+        </div>
+        <div>
+          <label for="r-details">Details <span class="opt">(optional)</span></label>
+          <textarea id="r-details" name="details" maxlength="4000" placeholder="What is wrong with the page, and why"></textarea>
+        </div>
+        <div>
+          <label for="r-email">Your email <span class="opt">(optional)</span></label>
+          <input type="email" id="r-email" name="email" maxlength="254" autocomplete="email" placeholder="you@example.com">
+          <p class="hint">Only if you want an answer. We use it for this report and nothing else.</p>
+        </div>
+        <p class="error" id="r-error" role="alert"></p>
+        <button type="submit" id="r-submit">Send report</button>
+      </form>
+      <p class="hint" style="margin-top:20px">You can also email <a href="mailto:support@simple-host.app">support@simple-host.app</a>. See <a href="/terms#report">how reports are handled</a>.</p>
+    </div>
+
+    <div class="done" id="done" hidden>
+      <h2>Thanks. Your report was sent.</h2>
+      <p>A person will look at it. If you left your email, we may write to you about it.</p>
+      <p><a href="/report">Report another page</a></p>
+    </div>
+  </main>
+  <!--sh:footer-->
+  <script>
+    (function () {
+      var form = document.getElementById('report-form');
+      var reason = document.getElementById('r-reason');
+      var err = document.getElementById('r-error');
+      var btn = document.getElementById('r-submit');
+      var warns = { csam: 'warn-csam', ncii: 'warn-ncii', copyright: 'warn-copyright' };
+      var showWarn = function () {
+        Object.keys(warns).forEach(function (k) { document.getElementById(warns[k]).hidden = reason.value !== k; });
+      };
+      reason.addEventListener('change', showWarn);
+      showWarn();
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        err.textContent = '';
+        var url = form.url.value.trim();
+        var email = form.email.value.trim();
+        if (!url) { err.textContent = "Enter the page's full address."; form.url.focus(); return; }
+        if (!/^https?:\/\//i.test(url)) { url = 'https://' + url; }
+        if (!reason.value) { err.textContent = 'Choose a reason.'; reason.focus(); return; }
+        if (email && !form.email.checkValidity()) { err.textContent = 'That email address does not look right.'; form.email.focus(); return; }
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
+        fetch('/report', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ url: url, reason: reason.value, details: form.details.value, email: email })
+        }).then(function (r) {
+          return r.json().catch(function () { return {}; }).then(function (b) { return { ok: r.ok, body: b }; });
+        }).then(function (res) {
+          if (res.ok) {
+            document.getElementById('form-wrap').hidden = true;
+            document.getElementById('done').hidden = false;
+            window.scrollTo(0, 0);
+            return;
+          }
+          err.textContent = (res.body && res.body.error) || 'The report could not be sent. Try again, or email support@simple-host.app.';
+        }).catch(function () {
+          err.textContent = 'The report could not be sent. Check your connection and try again, or email support@simple-host.app.';
+        }).then(function () {
+          btn.disabled = false;
+          btn.textContent = 'Send report';
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

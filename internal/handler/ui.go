@@ -122,6 +122,9 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// each needs a clean, stable URL.
 	mux.Handle("GET /terms", adminUICSP(serveStaticPage("terms.html")))
 	mux.Handle("GET /support", adminUICSP(serveStaticPage("support.html")))
+	// Report a page: a small form that emails the support address (report.go).
+	mux.Handle("GET /report", adminUICSP(serveStaticPage("report.html")))
+	mux.Handle("POST /report", sh.ReportHandler())
 	// One site's analytics in full, linked from the dashboard card and from the
 	// showcase Analytics tab. Same public-shell reasoning as /admin: a browser
 	// navigation carries no API key, so the page reads it from localStorage and
@@ -152,6 +155,7 @@ var handlerOnlyPages = map[string]bool{
 	"analytics.html":    true,
 	"setup-helper.html": true,
 	"costs.html":        true,
+	"report.html":       true,
 	"notfound.html":     true,
 	"showcase.html":     true,
 }

@@ -889,6 +889,26 @@ the same tab. **Status: live when the model backend is configured** (`LLM_API_KE
 `/privacy.html` → `st/privacy.html` (file server, no clean route). Linked from plugin
 listings; public contact is support@simple-host.app. Go: `h/ui.go`.
 
+The terms (updated 2026-09-28) cover: acceptable use (incl. terrorism, hate, self-harm,
+sexual services, search spam, misinformation: dangerous health claims, misleading voters,
+manipulated media; satire, parody and opinion are fine), named regulated goods, selling from a
+site (allowed; payment through a provider, the site owner is the seller), what the service and
+saved data are not for, children's and special-category data, intimate-image removal within 48
+hours of a valid request, trademark/likeness and legal-request channels, evidence kept,
+appeals within 30 days (a person reads each, one answer), 14 days' notice of adverse changes,
+a security-report line, and the DMCA agent (DMCA-1081064, directory contact support@).
+
+**Report a page.** `GET /report` → `st/report.html` (a form: the page's address, a reason from
+eight, optional details, optional email; an emergency-services line; for child sexual abuse
+material it says not to include the material). `POST /report` (`h/report.go`) takes JSON,
+same-origin only (403 otherwise), 5 per address then one every 10 minutes and 60 an hour in
+all (429), accepts only addresses on the platform domain or a bound custom domain, caps every
+field (URL 2,048, details 4,000, email 254, body 16 KB), and emails the support contact
+through the Resend mailer with the reporter as Reply-To. Nothing is stored; the log line keeps
+only the reason and host. Linked from the site-wide footer (so the 404 page too), the home page,
+the terms and support. The offline and take-down pages load nothing and carry no link.
+`report` is a reserved new name.
+
 ## 18. Abuse limits and hardening
 
 | Guard | Where |
@@ -905,7 +925,8 @@ listings; public contact is support@simple-host.app. Go: `h/ui.go`.
 | Reserved names | `h/handles.go` (handles), `h/platformsubdomain.go` `reservedSubdomainLabels`, `internal/db/namespace.go` |
 | Preview accounts | `PREVIEW_ACCOUNTS`, `PREVIEW_TTL_HOURS` (expiry sweep in `h/site.go`) |
 | Take-down | Operator suspend / restore of a site or a person, nothing deleted (§11) |
-| Planned | Public Suffix List entry, subdomain blocklist/cap, AUP, report form, DMCA agent (INTENT / owner TODO) |
+| Report form | `GET /report` / `POST /report` (`h/report.go`): same-origin only, 5 per address then 1 per 10 min, 60 an hour in all; emails support, stores nothing (§17) |
+| Planned | Public Suffix List entry, brand-name blocklist (INTENT / owner TODO). AUP, report form and DMCA agent (DMCA-1081064) are done (§17) |
 
 ## 19. Signals and notifications
 

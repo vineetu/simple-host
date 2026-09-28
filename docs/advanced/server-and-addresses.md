@@ -44,7 +44,7 @@ admin, administrator, root, sys, system, support, help, helpdesk, info, contact,
 security, abuse, postmaster, hostmaster, webmaster, noreply, no-reply, mail, email, smtp, www,
 api, app, apps, status, billing, payments, pay, login, signin, sign-in, signup, sign-up, auth,
 oauth, sso, account, accounts, dashboard, console, docs, doc, blog, cdn, static, assets, media,
-files, download, downloads, setup, enterprise, legal, privacy, terms, policy, team, staff,
+files, download, downloads, setup, enterprise, legal, privacy, terms, report, policy, team, staff,
 official, verify, verification, update, secure, simplehost, simple-host, simplehack,
 simple-hack, test, dev, staging, prod, internal, localhost.
 

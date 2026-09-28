@@ -31,7 +31,7 @@ in place, and `scripts/e2e-reviewer.py` passes against production.
 2. **Fill the placeholders**
    - `internal/handler/static/support.html`: done (support@simple-host.app, branch
      `legal/terms-review`).
-   - `internal/handler/static/terms.html`: done 2026-09-24 (California law and courts, contact support@simple-host.app, draft box removed). Still to do: register the DMCA designated agent and put its details in the copyright section.
+   - `internal/handler/static/terms.html`: done 2026-09-24 (California law and courts, contact support@simple-host.app, draft box removed). The DMCA designated agent is registered (DMCA-1081064, directory contact support@simple-host.app since 2026-09-28) and named in the copyright section.
    - Optional: add Terms and Support to the shared footer (`static/partials/footer.html`); left
      out because another change was editing the partials.
 3. **Identity and access** (Platform settings): complete **individual verification** as

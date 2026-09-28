@@ -511,6 +511,21 @@ What follows from that, and is not negotiable without changing the line above:
   (skills 0.27.0, OpenAI plugin 0.9.1). Reason: agents flagged auto-publish (an agent installing
   the skill with npx warned its user that the skill "tells assistants to publish on their own
   without checking with you"). Owner decision 2026-09-28.
+- **2026-09-28. Terms refresh: commerce allowed, misinformation named.** Selling from free sites
+  is fully allowed ("they can do whatever they want"): the terms say payment goes through a
+  payment provider and the site owner is the seller, and add no rule restricting commercial use.
+  The named regulated-goods list stays ("common sense"). A misinformation rule in the style of
+  GitHub's and OpenAI's policies: false health or medical claims likely to endanger people,
+  misleading voters about when, where or how to vote, and manipulated media meant to deceive
+  about real events; satire, parody and opinion are fine. Timings: 48 hours for intimate-image
+  removal, 30-day appeal window, 14 days' notice of adverse changes. The idle-sites line waits
+  until idle cleanup is on. Reason: the 2026-09-28 gap review against OpenAI, GitHub, Netlify,
+  Vercel and Cloudflare, and the TAKE IT DOWN Act. Owner decision 2026-09-28.
+- **2026-09-28. Report a page on the platform.** `/report` is a small form that emails support;
+  it stores nothing, takes only pages hosted here, and is linked from the footer, the home page,
+  the terms and support. The take-down and offline pages stay bare (they load nothing).
+  Reason: the intimate-image law wants the process on the platform, not only in the terms.
+  Owner decision 2026-09-28.
 
 ## Open, deliberately parked
 
