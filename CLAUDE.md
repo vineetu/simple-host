@@ -110,7 +110,7 @@ Never report branch work as fixed; only what a client can see is shipped.
 ### Skill staleness notice
 
 `notice_middleware.go` reads the embedded `plugin.json` version at boot. On wrapped routes, a
-missing or older `X-Skill-Version` header adds an `X-Skill-Notice` header to a JSON response and,
+older `X-Skill-Version` header (none at all is a plain API call: no notice) adds an `X-Skill-Notice` header to a JSON response and,
 when the body is an object, a `_notice` field spliced in (other fields keep their exact bytes). A
 response never changes shape because of the header: an array stays a bare array. The MCP
 server surfaces it to the agent. State endpoints, static serving and downloads are not wrapped.

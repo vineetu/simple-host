@@ -840,7 +840,7 @@ confirmation (§7); a custom domain failing for a day (§3); the idle-site warni
 notices (§1, reply-to support@simple-host.app, `SendNoticeReplyTo`); new-Submissions digests
 ("Email me": daily, each at most every 10 minutes, or off) with a signed stop link (§5; the
 emailed one-time links carry their token after `#`, so it never reaches a server log). Stale-skill `_notice` in JSON
-objects and the `X-Skill-Notice` header (§9; arrays stay bare) is the only in-band notice.
+objects and the `X-Skill-Notice` header (§9; arrays stay bare) is the only in-band notice, sent only to a caller whose `X-Skill-Version` names an older skill (a plain API call without the header gets none).
 
 ## 20. Operations (health, schema, CLI)
 

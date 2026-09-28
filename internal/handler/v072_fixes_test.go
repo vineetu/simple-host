@@ -594,12 +594,12 @@ func TestNoticeKeepsResponseShape(t *testing.T) {
 		if rec.Body.String() != arr {
 			t.Fatalf("skill %q: array became %s", v, rec.Body.String())
 		}
-		if stale := v != "1.2.3"; (rec.Header().Get("X-Skill-Notice") != "") != stale {
+		if stale := v == "0.1.0"; (rec.Header().Get("X-Skill-Notice") != "") != stale {
 			t.Fatalf("skill %q: notice header %q", v, rec.Header().Get("X-Skill-Notice"))
 		}
 	}
 	obj := `{"n":12345678901234567890,"f":1.10,"s":"x"}`
-	rec := serve(obj, "")
+	rec := serve(obj, "0.1.0")
 	var got map[string]json.RawMessage
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("object: %v %s", err, rec.Body.String())
@@ -607,11 +607,13 @@ func TestNoticeKeepsResponseShape(t *testing.T) {
 	if string(got["n"]) != "12345678901234567890" || string(got["f"]) != "1.10" || got["_notice"] == nil {
 		t.Fatalf("object changed: %s", rec.Body.String())
 	}
-	if rec := serve(`{}`, ""); !strings.HasPrefix(rec.Body.String(), `{"_notice":"`) || !json.Valid(rec.Body.Bytes()) {
+	if rec := serve(`{}`, "0.1.0"); !strings.HasPrefix(rec.Body.String(), `{"_notice":"`) || !json.Valid(rec.Body.Bytes()) {
 		t.Fatalf("empty object: %s", rec.Body.String())
 	}
-	if rec := serve(obj, "1.2.3"); rec.Body.String() != obj {
-		t.Fatalf("current skill: %s", rec.Body.String())
+	for _, v := range []string{"1.2.3", ""} {
+		if rec := serve(obj, v); rec.Body.String() != obj || rec.Header().Get("X-Skill-Notice") != "" {
+			t.Fatalf("skill %q (current, or none: a plain API call): %s", v, rec.Body.String())
+		}
 	}
 }
 

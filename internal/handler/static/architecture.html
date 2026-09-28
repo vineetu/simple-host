@@ -384,7 +384,7 @@
 
         <details class="feat"><summary><span class="fname">Stale-skill notice injection</span><span class="fid">notice</span><span class="fsum">Cross-cutting: rewrites JSON bodies to warn an agent its skill is out of date.</span></summary>
           <div class="fbody">
-            <div class="frow"><span class="fk">Go</span><span class="fv"><b>internal/handler/notice_middleware.go</b> — buffers the response and injects <code>_notice</code> when <code>X-Skill-Version</code> is missing or stale; wraps roughly two dozen routes</span></div>
+            <div class="frow"><span class="fk">Go</span><span class="fv"><b>internal/handler/notice_middleware.go</b> — buffers the response and injects <code>_notice</code> when <code>X-Skill-Version</code> names an older skill (none at all: a plain API call, no notice); wraps roughly two dozen routes</span></div>
             <div class="frow"><span class="fk">Routes</span><span class="fv">Most of /v1/sites/* and /v1/auth/*. Deliberately <b>not</b> state, collections, static serving or skill downloads.</span></div>
             <div class="frow ui"><span class="fk">UI</span><span class="fv">Invisible but decisive: <b>index.html</b> and <b>showcase.html</b> both unwrap <code>{data:[…]}</code> on /v1/sites <em>because of this middleware</em>. index.html additionally fetches <code>/skills/version</code> so its own calls are never wrapped.</span></div>
             <div class="frow"><span class="fk">Tables</span><span class="fv"><em>None.</em></span></div>

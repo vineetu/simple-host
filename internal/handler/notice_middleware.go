@@ -11,7 +11,7 @@ import (
 )
 
 // NoticeMiddleware returns a middleware that tells a caller whose
-// `X-Skill-Version` header is missing or stale to update its skill: every
+// `X-Skill-Version` header names an older skill to update it: every
 // JSON response carries the notice in an `X-Skill-Notice` header, and a JSON
 // object also gains a top-level `_notice` field. A response never changes
 // shape because of the header: a top-level array stays a bare array (the
@@ -79,17 +79,15 @@ func NoticeMiddleware(serverVersion string) func(http.Handler) http.Handler {
 
 // skillIsStale reports whether the caller's skill should be told to update.
 //
-// A missing header means "no skill version claimed" — always notify. Otherwise
-// notify only when the SERVER is genuinely newer. A client that is ahead of the
+// A missing header means no skill is involved (curl, CI, scripts, the
+// dashboard): never notify, since there is nothing to update. Otherwise notify
+// only when the SERVER is genuinely newer. A client that is ahead of the
 // server is not stale: `npx skills add` installs straight from the source repository
 // repository, so a user can legitimately be running a version that this server
 // has not been redeployed with yet. Telling them to "update" would send them in
 // a circle. An unparseable version falls back to plain inequality.
 func skillIsStale(clientVer, serverVersion string) bool {
-	if clientVer == "" {
-		return true
-	}
-	if clientVer == serverVersion {
+	if clientVer == "" || clientVer == serverVersion {
 		return false
 	}
 	client, okC := parseSemver(clientVer)
