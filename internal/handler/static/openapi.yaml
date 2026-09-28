@@ -212,7 +212,8 @@ paths:
       description: >-
         Whether <handle>.simple-host.app can be taken as an account's address: at sign-up (POST /v1/auth/verify
         with handle) or as a change (PATCH /v1/me). Handles, old handles that still redirect, free
-        <name>.simple-host.app addresses claimed by sites and reserved names share one namespace. With
+        <name>.simple-host.app addresses claimed by sites, other accounts' live site names (an unclaimed
+        <name>.simple-host.app still redirects to that site) and reserved names share one namespace. With
         X-API-Key the account's own handle counts as available. Rate limited per address
         (RATE_LIMIT_HANDLE_CHECK); no CORS, and a cross-site browser request gets 403. A claim still decides.
       tags: [Auth]

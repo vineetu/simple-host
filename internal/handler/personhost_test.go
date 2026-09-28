@@ -209,6 +209,14 @@ func TestPersonHostsServeAndCanonical(t *testing.T) {
 	if r := a.at(t, "PATCH", apex, "/v1/me", map[string]string{"handle": "sites"}, map[string]string{"X-API-Key": fresh.key}); r.status != http.StatusConflict || r.json(t)["code"] != "handle_reserved" {
 		t.Fatalf("reserved handle: %d %s", r.status, r.body)
 	}
+	// Another account's live site name: shop.<domain> still redirects to it
+	// (LegacyHostRedirect), so it is taken as a handle; the check says so too.
+	if r := a.at(t, "PATCH", apex, "/v1/me", map[string]string{"handle": "shop"}, map[string]string{"X-API-Key": fresh.key}); r.status != http.StatusConflict || r.json(t)["code"] != "handle_taken" {
+		t.Fatalf("handle on another account's site name: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "GET", apex, "/v1/handles/check?handle=shop", nil, nil); r.json(t)["available"] != false || r.json(t)["address"] != "shop."+pcSiteDomain {
+		t.Fatalf("check on a site name: %d %s", r.status, r.body)
+	}
 
 	// ---- canonical: every address handed out is the person address -----------------------
 	a.sites.SetPersonHosts("canonical")
