@@ -1,20 +1,17 @@
 # Run the small box on Render
 
 The small box (the installer's Postgres + server + Caddy) runs on Render as one
-web service with a disk, plus a Render Postgres database. Render needs a card
-on the workspace for this: the disk and the Pre-Deploy Command are paid
-features, and on the free plan every published site disappears on the next
-deploy or sleep.
-
-**What was tested, 2026-09-28, v0.7.4.** On a workspace without a card, so on
-the free plan: this image on Render, both custom domains with HTTPS, first
-admin and admin sign-in, a participant account, publish, update, rollback,
-saved data, the Caddy routes, `/internal/*` hidden, the visitor's real address
-in the access log and in visitor analytics (a spoofed `X-Forwarded-For` is
-ignored), and a redeploy. The paid parts (the 1 GB disk and the Pre-Deploy
-Command) were checked only by Render's Blueprint validator, which accepts
-`render.yaml` except for asking for a card. Run it once on a paid workspace
-before relying on it.
+web service with a disk, plus a Render Postgres database. Tested end to end on
+2026-09-28 with v0.7.4, on a Starter service with a 1 GB disk and the smallest
+paid Postgres: first deploy (the Pre-Deploy Command loaded the schema and
+applied every migration), both custom domains with HTTPS, first admin and admin
+sign-in, a participant account, publish, update, rollback, saved data, the
+Caddy routes, `/internal/*` hidden, a redeploy (migrations: nothing to apply)
+and a restart with the site and data intact, and the visitor's real address in
+visitor analytics (a spoofed `X-Forwarded-For` is ignored). Then everything was
+deleted. The service and database were created through Render's API with the
+exact settings in `render.yaml`, and Render's Blueprint validator accepts that
+file as it is.
 
 The files are in [`deploy/platforms/render/`](../../deploy/platforms/render/):
 `render.yaml` (a Blueprint), a `Dockerfile` that copies the released server
@@ -35,7 +32,7 @@ and `start.sh`. Nothing is compiled; no change to the server is needed.
 ## Minimum size and cost
 
 Prices from render.com/pricing on 2026-09-28. The server and Caddy used about
-75 MB on Fly, so 512 MB is plenty.
+75 MB on Fly, so 512 MB is plenty. The test box used 16 MB of its 1 GB disk.
 
 | Item | Size | Per month |
 |---|---|---|
@@ -49,9 +46,9 @@ Prices from render.com/pricing on 2026-09-28. The server and Caddy used about
 
 Why not free: a free web service has no disk, so published sites live in the
 container and are gone after a deploy, a restart, or the sleep that follows
-15 minutes without traffic (seen in the test: after a redeploy the site was a
-404 while its database rows were still there). Free services also have no
-Pre-Deploy Command, and a free Postgres expires after 30 days.
+15 minutes without traffic (seen in a free-plan test: after a redeploy the
+site was a 404 while its database rows were still there). Free services also
+have no Pre-Deploy Command, and a free Postgres expires after 30 days.
 
 ## Commands
 
@@ -71,7 +68,8 @@ the address is `hack.example.com`, with participant sites on
    **Blueprint Path** to `deploy/platforms/render/render.yaml`. Render creates
    the database, then builds the image and deploys the service. The Pre-Deploy
    Command loads the schema and applies every migration
-   (`applied 28 migration(s)`) before the service starts.
+   (`empty database: loading schema.sql`, `applied 28 migration(s)`) before the
+   service starts.
 
 3. Point both names at the service. Its address is on the service's page
    (`simple-host-xxxx.onrender.com`).
@@ -94,10 +92,12 @@ the address is `hack.example.com`, with participant sites on
 
 - **Upgrade:** set the new `SIMPLE_HOST_VERSION` in the `Dockerfile` and push.
   The Pre-Deploy Command runs the new release's migrations first; if they fail,
-  the deploy stops and the old version keeps running. With a disk there is no
-  zero-downtime deploy: the old instance stops before the new one starts, so
-  expect a few seconds of downtime.
-- **Restart:** **Manual Deploy > Restart service** on the service page.
+  the deploy stops and the old version keeps running. A redeploy with nothing
+  new logs `database is up to date; nothing to apply`. With a disk there is no
+  zero-downtime deploy: the old instance stops before the new one starts. In
+  the test, sites answered 502 for about 30 seconds.
+- **Restart:** **Manual Deploy > Restart service** on the service page. Sites,
+  saved data and accounts all survive; about 30 seconds of 502 in the test.
 - **Settings:** anything in [configuration.md](../configuration.md) goes in the
   service's Environment tab. Email sign-in codes need `RESEND_API_KEY` and
   `MAIL_FROM`; without them participants use the keys the admin issues, which
@@ -114,6 +114,8 @@ the address is `hack.example.com`, with participant sites on
 - **A card is required.** Without one, Render refuses the disk, the Pre-Deploy
   Command and paid Postgres ("Payment information is required to complete
   this request"). Do not try to run it on the free plan: sites vanish.
+- **The admin page's disk figure is the Render disk** (973 MB usable on a
+  1 GB disk). Grow the disk on its page if it fills; it cannot shrink.
 - **Health checks use your domain.** Once the service has custom domains,
   Render sends its checks with one of them as the Host, which can be
   `sites.<domain>`. There the content routes answer 404, so the first deploy
