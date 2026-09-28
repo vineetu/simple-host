@@ -20,9 +20,9 @@
   // three: git rev-parse vX.Y.Z^{commit}, and
   // git show vX.Y.Z:deploy/install/install.sh | sha256sum. A Go test
   // (TestSetupHelperInstallerRelease) checks them against the tag.
-  var INSTALLER_RELEASE = 'v0.7.1';
-  var INSTALLER_COMMIT = '4ec7452eb67c7bf39f45c5685a1a180a4d7d7e24';
-  var INSTALLER_SHA256 = 'c79bc74a3e2b85ccf5a561143e1c1c968a2cebd13826a9ced8823f21df052700';
+  var INSTALLER_RELEASE = 'v0.7.3';
+  var INSTALLER_COMMIT = 'a1abc3f4d79fcb357ba422e8bc94e224fecff300';
+  var INSTALLER_SHA256 = '05df52cbd0cd3ffc7ec586debfb44ad6aa1a6c2a1a048f0598d694cbbcca7e55';
   var INSTALL_URL = 'https://raw.githubusercontent.com/vineetu/simple-host/' + INSTALLER_COMMIT + '/deploy/install/install.sh';
   // Where a small box is recommended to run. A referral link: the page says so.
   var UPCLOUD_SIGNUP = 'https://signup.upcloud.com/?promo=JF2WCV';
