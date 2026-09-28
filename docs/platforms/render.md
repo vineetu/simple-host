@@ -1,5 +1,7 @@
 # Run the small box on Render
 
+![Simple Host on Render: your DNS points both names at the service; Render's edge, behind Cloudflare, ends HTTPS and forwards to one web service running Caddy and the Simple Host server with a 1 GB disk; Render Postgres on the private network; your Git repository holds the Blueprint](https://simple-host.app/diagrams/render.svg)
+
 The small box (the installer's Postgres + server + Caddy) runs on Render as one
 web service with a disk, plus a Render Postgres database. Tested end to end on
 2026-09-28 with v0.7.4, on a Starter service with a 1 GB disk and the smallest

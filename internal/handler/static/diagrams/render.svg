@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 920" width="800" height="920" role="img" aria-labelledby="t d" font-family='system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif'>
+<title id="t">Simple Host on Render</title>
+<desc id="d">One Render web service with a disk, running Caddy and the Simple Host server, plus a Render Postgres database, all declared in a Blueprint. Visitors reach Render's edge, which sits behind Cloudflare and ends HTTPS with certificates Render issues for both custom domains.</desc>
+<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#475569"/></marker></defs>
+<rect width="800" height="920" fill="#ffffff"/>
+<text x="40" y="38" font-size="20" font-weight="700" fill="#0f172a" text-anchor="start">Simple Host on Render</text>
+<text x="40" y="60" font-size="13" font-weight="400" fill="#475569" text-anchor="start">One web service with a disk (Caddy and the server), plus Render Postgres, declared in a</text>
+<text x="40" y="78" font-size="13" font-weight="400" fill="#475569" text-anchor="start">Blueprint. Files: deploy/platforms/render (render.yaml, Dockerfile, Caddyfile, start.sh).</text>
+<rect x="40" y="92" width="220" height="74" rx="10" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.6"/>
+<text x="150.0" y="125.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">People and AI agents</text>
+<text x="150.0" y="145.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">browsers, curl, the connector</text>
+<rect x="460" y="92" width="300" height="92" rx="10" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.6"/>
+<text x="610.0" y="116.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Your DNS provider</text>
+<text x="610.0" y="136.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">hack.example.com and</text>
+<text x="610.0" y="154.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">sites.hack.example.com</text>
+<text x="610.0" y="172.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">CNAME → simple-host-xxxx.onrender.com</text>
+<rect x="40" y="232" width="720" height="92" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="400.0" y="256.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Render's edge, behind Cloudflare</text>
+<text x="400.0" y="276.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">HTTPS ends here: a certificate for each custom domain, issued by Render, free</text>
+<text x="400.0" y="294.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">the visitor's address travels in CF-Connecting-IP (X-Forwarded-For is not trusted)</text>
+<text x="400.0" y="312.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">forwarded as plain HTTP to the service's PORT</text>
+<line x1="150" y1="166" x2="150" y2="232" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="260.0" y="193.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">https://hack.example.com</text>
+<text x="260.0" y="209.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">https://sites.hack.example.com</text>
+<line x1="610" y1="184" x2="610" y2="232" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="604.0" y="210.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">resolves to the service</text>
+<rect x="40" y="374" width="460" height="362" rx="12" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.4"/>
+<text x="56" y="398" font-size="14" font-weight="700" fill="#0f172a" text-anchor="start">Web service simple-host</text>
+<text x="56" y="418" font-size="13" font-weight="400" fill="#475569" text-anchor="start">Starter: 0.5 CPU, 512 MB, one instance, Docker</text>
+<rect x="60" y="436" width="420" height="92" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="270.0" y="460.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Caddy on the service's PORT</text>
+<text x="270.0" y="480.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">serves published sites straight from the disk</text>
+<text x="270.0" y="498.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">hides /internal/*, writes the access log</text>
+<text x="270.0" y="516.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">X-Forwarded-For = CF-Connecting-IP, one address</text>
+<rect x="60" y="564" width="420" height="92" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="270.0" y="588.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Simple Host server on 127.0.0.1:8090</text>
+<text x="270.0" y="608.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">the released binary, run as a normal user</text>
+<text x="270.0" y="626.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">API, sign-in, saved data, visitor analytics</text>
+<text x="270.0" y="644.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">reads the access log Caddy writes</text>
+<line x1="270" y1="528" x2="270" y2="564" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="370.0" y="550.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">/v1/* and the rewrites</text>
+<rect x="60" y="672" width="420" height="48" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="270.0" y="692.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Disk simple-host-data, 1 GB at /data</text>
+<text x="270.0" y="712.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">the sites and the access log</text>
+<line x1="270" y1="324" x2="270" y2="374" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="370.0" y="353.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">HTTP to PORT (10000)</text>
+<rect x="530" y="374" width="230" height="362" rx="12" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.4"/>
+<text x="546" y="398" font-size="14" font-weight="700" fill="#0f172a" text-anchor="start">Render Postgres</text>
+<text x="546" y="418" font-size="13" font-weight="400" fill="#475569" text-anchor="start">simple-host-db</text>
+<rect x="550" y="436" width="190" height="92" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="645.0" y="460.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Blueprint link</text>
+<text x="645.0" y="480.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">fromDatabase: its</text>
+<text x="645.0" y="498.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">connection string is</text>
+<text x="645.0" y="516.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">the service's DB_DSN</text>
+<rect x="550" y="564" width="190" height="92" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="645.0" y="588.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Postgres 16</text>
+<text x="645.0" y="608.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">0.1 CPU, 256 MB, 1 GB</text>
+<text x="645.0" y="626.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">private network only</text>
+<text x="645.0" y="644.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">(ipAllowList: [])</text>
+<rect x="550" y="672" width="190" height="48" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="645.0" y="692.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Postgres disk, 1 GB</text>
+<text x="645.0" y="712.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">point-in-time recovery</text>
+<line x1="480" y1="610" x2="550" y2="610" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="515.0" y="600.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">DB_DSN</text>
+<rect x="40" y="760" width="720" height="74" rx="10" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.6"/>
+<text x="400.0" y="784.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Your Git repository (GitHub or GitLab) with deploy/platforms/render</text>
+<text x="400.0" y="804.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">New &gt; Blueprint in the dashboard creates the service and the database;</text>
+<text x="400.0" y="822.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">a push builds the image (Caddy + the released server) and redeploys</text>
+<line x1="270" y1="760" x2="270" y2="736" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="360.0" y="752.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">builds and deploys</text>
+<text x="40" y="860" font-size="13" font-weight="400" fill="#475569" text-anchor="start">ADMIN_API_KEY, the first admin's key, is generated by the Blueprint (Environment tab).</text>
+<text x="40" y="880" font-size="13" font-weight="400" fill="#475569" text-anchor="start">Before every deploy, the Pre-Deploy Command runs on separate compute: schema.sql into an</text>
+<text x="40" y="900" font-size="13" font-weight="400" fill="#475569" text-anchor="start">empty database, then simple-host migrate. Render snapshots the disk daily and keeps 7 days.</text>
+</svg>

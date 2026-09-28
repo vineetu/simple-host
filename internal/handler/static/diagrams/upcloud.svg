@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 740" width="800" height="740" role="img" aria-labelledby="t d" font-family='system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif'>
+<title id="t">Simple Host on UpCloud, or any Ubuntu server</title>
+<desc id="d">One Ubuntu server running the installer's docker compose: Caddy on ports 80 and 443 with on-demand certificates from Let's Encrypt, the Simple Host server, and Postgres, with Docker volumes for the sites, the access log, the certificates and the database. DNS A records for the domain and its wildcard point at the server's IPv4 address.</desc>
+<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#475569"/></marker></defs>
+<rect width="800" height="740" fill="#ffffff"/>
+<text x="40" y="38" font-size="20" font-weight="700" fill="#0f172a" text-anchor="start">Simple Host on UpCloud, or any Ubuntu server</text>
+<text x="40" y="60" font-size="13" font-weight="400" fill="#475569" text-anchor="start">One server running the installer's docker compose: Caddy, the server and Postgres.</text>
+<text x="40" y="78" font-size="13" font-weight="400" fill="#475569" text-anchor="start">The same layout on any Ubuntu VPS: the install line from simple-host.app/setup, nothing else.</text>
+<rect x="40" y="92" width="220" height="74" rx="10" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.6"/>
+<text x="150.0" y="125.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">People and AI agents</text>
+<text x="150.0" y="145.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">browsers, curl, the connector</text>
+<rect x="290" y="92" width="220" height="74" rx="10" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.6"/>
+<text x="400.0" y="116.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Let's Encrypt</text>
+<text x="400.0" y="136.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">issues certificates</text>
+<text x="400.0" y="154.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">over ACME, on demand</text>
+<rect x="540" y="92" width="220" height="74" rx="10" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.6"/>
+<text x="650.0" y="116.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Your DNS provider</text>
+<text x="650.0" y="136.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">example.com  A → server IPv4</text>
+<text x="650.0" y="154.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">*.example.com  A → server IPv4</text>
+<rect x="40" y="224" width="720" height="426" rx="12" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.4"/>
+<text x="56" y="248" font-size="14" font-weight="700" fill="#0f172a" text-anchor="start">Ubuntu 24.04 server</text>
+<text x="56" y="268" font-size="13" font-weight="400" fill="#475569" text-anchor="start">UpCloud STARTER-1xCPU-1GB: 1 CPU, 1 GB, about $4/month; docker compose in /opt/simple-host</text>
+<line x1="150" y1="166" x2="150" y2="224" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="250.0" y="189.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">https://example.com</text>
+<text x="250.0" y="205.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">https://sites.example.com</text>
+<line x1="400" y1="166" x2="400" y2="224" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="434.0" y="199.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">ACME</text>
+<line x1="650" y1="166" x2="650" y2="224" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="644.0" y="199.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">the server's address</text>
+<rect x="60" y="286" width="420" height="110" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="270.0" y="310.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">web: Caddy on ports 80 and 443</text>
+<text x="270.0" y="330.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">HTTPS ends here: on-demand certificates, issued</text>
+<text x="270.0" y="348.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">when a name is first asked for and the app</text>
+<text x="270.0" y="366.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">confirms it is its own (/internal/tls-ask)</text>
+<text x="270.0" y="384.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">serves sites from disk, hides /internal/*, access log</text>
+<rect x="530" y="286" width="210" height="110" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="635.0" y="319.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Docker volumes</text>
+<text x="635.0" y="339.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">sites, caddy_logs,</text>
+<text x="635.0" y="357.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">caddy_data (certificates),</text>
+<text x="635.0" y="375.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">db: on the server's disk</text>
+<rect x="60" y="432" width="420" height="92" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="270.0" y="456.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">app: Simple Host server on :8090</text>
+<text x="270.0" y="476.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">the released image</text>
+<text x="270.0" y="494.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">API, sign-in, saved data, visitor analytics</text>
+<text x="270.0" y="512.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">simple-host migrate runs at install and upgrade</text>
+<line x1="270" y1="396" x2="270" y2="432" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="370.0" y="418.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">/v1/* and the rewrites</text>
+<rect x="530" y="432" width="210" height="92" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="635.0" y="456.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">db: Postgres 16</text>
+<text x="635.0" y="476.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">postgres:16-alpine</text>
+<text x="635.0" y="494.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">compose network only</text>
+<text x="635.0" y="512.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">schema.sql on first start</text>
+<line x1="480" y1="478" x2="530" y2="478" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="505.0" y="468.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">DB_DSN</text>
+<rect x="60" y="544" width="680" height="90" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="400.0" y="567.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Installer: the one line from simple-host.app/setup, run over SSH</text>
+<text x="400.0" y="587.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">installs Docker, fetches compose.yaml, the Caddyfile and schema.sql for the pinned release,</text>
+<text x="400.0" y="605.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">starts db, runs simple-host migrate, starts app and web; prints the admin key</text>
+<text x="400.0" y="623.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">(also in /opt/simple-host/.env), then sign in at https://example.com/admin</text>
+<text x="40" y="680" font-size="13" font-weight="400" fill="#475569" text-anchor="start">Nothing else is created. To remove it: delete the server and the two DNS records.</text>
+<text x="40" y="700" font-size="13" font-weight="400" fill="#475569" text-anchor="start">Any other Ubuntu server (another VPS provider, or your own machine) is the same picture:</text>
+<text x="40" y="720" font-size="13" font-weight="400" fill="#475569" text-anchor="start">one public IPv4 address, two A records, the installer.</text>
+</svg>

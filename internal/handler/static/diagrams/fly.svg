@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 844" width="800" height="844" role="img" aria-labelledby="t d" font-family='system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif'>
+<title id="t">Simple Host on Fly.io</title>
+<desc id="d">Two Fly apps. Visitors reach Fly's edge, which ends HTTPS with certificates from fly certs add and forwards plain HTTP to one machine running Caddy and the Simple Host server, with a 1 GB volume for the published sites. The server talks to a separate Fly Postgres app over Fly's private network.</desc>
+<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#475569"/></marker></defs>
+<rect width="800" height="844" fill="#ffffff"/>
+<text x="40" y="38" font-size="20" font-weight="700" fill="#0f172a" text-anchor="start">Simple Host on Fly.io</text>
+<text x="40" y="60" font-size="13" font-weight="400" fill="#475569" text-anchor="start">Two Fly apps: Simple Host (Caddy and the server in one machine) and its Postgres.</text>
+<text x="40" y="78" font-size="13" font-weight="400" fill="#475569" text-anchor="start">Files: deploy/platforms/fly (fly.toml, Dockerfile, Caddyfile, start.sh).</text>
+<rect x="40" y="92" width="220" height="74" rx="10" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.6"/>
+<text x="150.0" y="125.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">People and AI agents</text>
+<text x="150.0" y="145.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">browsers, curl, the connector</text>
+<rect x="460" y="92" width="300" height="92" rx="10" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.6"/>
+<text x="610.0" y="116.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Your DNS provider</text>
+<text x="610.0" y="136.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">hack.example.com and</text>
+<text x="610.0" y="154.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">sites.hack.example.com</text>
+<text x="610.0" y="172.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">CNAME → my-sh.fly.dev</text>
+<rect x="40" y="232" width="720" height="92" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="400.0" y="256.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Fly's edge: anycast, shared IPv4 + IPv6</text>
+<text x="400.0" y="276.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">HTTPS ends here: certificates for both names from fly certs add (Let's Encrypt)</text>
+<text x="400.0" y="294.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">HTTP is redirected to HTTPS, then forwarded as plain HTTP to port 8080</text>
+<text x="400.0" y="312.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">the visitor's address travels in Fly-Client-IP</text>
+<line x1="150" y1="166" x2="150" y2="232" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="260.0" y="193.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">https://hack.example.com</text>
+<text x="260.0" y="209.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">https://sites.hack.example.com</text>
+<line x1="610" y1="184" x2="610" y2="232" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="604.0" y="210.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">resolves to the app</text>
+<rect x="40" y="374" width="460" height="362" rx="12" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.4"/>
+<text x="56" y="398" font-size="14" font-weight="700" fill="#0f172a" text-anchor="start">Fly app my-sh</text>
+<text x="56" y="418" font-size="13" font-weight="400" fill="#475569" text-anchor="start">one machine, shared-cpu-1x, 256 MB</text>
+<rect x="60" y="436" width="420" height="92" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="270.0" y="460.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Caddy on :8080</text>
+<text x="270.0" y="480.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">serves published sites straight from the volume</text>
+<text x="270.0" y="498.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">hides /internal/*, writes the access log</text>
+<text x="270.0" y="516.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">X-Forwarded-For = Fly-Client-IP, one address</text>
+<rect x="60" y="564" width="420" height="92" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="270.0" y="588.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Simple Host server on 127.0.0.1:8090</text>
+<text x="270.0" y="608.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">the released binary, run as a normal user</text>
+<text x="270.0" y="626.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">API, sign-in, saved data, visitor analytics</text>
+<text x="270.0" y="644.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">reads the access log Caddy writes</text>
+<line x1="270" y1="528" x2="270" y2="564" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="370.0" y="550.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">/v1/* and the rewrites</text>
+<rect x="60" y="672" width="420" height="48" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="270.0" y="692.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Volume simple_host_data, 1 GB at /data</text>
+<text x="270.0" y="712.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">the sites and the access log</text>
+<line x1="270" y1="324" x2="270" y2="374" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="370.0" y="353.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">HTTP to port 8080</text>
+<rect x="530" y="374" width="230" height="362" rx="12" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.4"/>
+<text x="546" y="398" font-size="14" font-weight="700" fill="#0f172a" text-anchor="start">Fly app my-sh-db</text>
+<text x="546" y="418" font-size="13" font-weight="400" fill="#475569" text-anchor="start">Fly Postgres (unmanaged)</text>
+<rect x="550" y="436" width="190" height="92" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="645.0" y="460.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">fly postgres attach</text>
+<text x="645.0" y="480.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">links it to my-sh and</text>
+<text x="645.0" y="498.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">stores the connection</text>
+<text x="645.0" y="516.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">string as DB_DSN</text>
+<rect x="550" y="564" width="190" height="92" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="645.0" y="588.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Postgres 16</text>
+<text x="645.0" y="608.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">shared-cpu-1x, 256 MB</text>
+<text x="645.0" y="626.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">on Fly's private network</text>
+<text x="645.0" y="644.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">not reachable from outside</text>
+<rect x="550" y="672" width="190" height="48" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="645.0" y="692.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Volume, 1 GB</text>
+<text x="645.0" y="712.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">daily snapshots, 5 kept</text>
+<line x1="480" y1="610" x2="550" y2="610" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="515.0" y="600.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">DB_DSN</text>
+<text x="40" y="764" font-size="13" font-weight="400" fill="#475569" text-anchor="start">Secrets (fly secrets set): ADMIN_API_KEY, the first admin's key, and DB_DSN.</text>
+<text x="40" y="784" font-size="13" font-weight="400" fill="#475569" text-anchor="start">Before every deploy, release_command runs on a throwaway machine: schema.sql into an empty</text>
+<text x="40" y="804" font-size="13" font-weight="400" fill="#475569" text-anchor="start">database, then simple-host migrate. fly deploy --ha=false keeps one machine: the volume</text>
+<text x="40" y="824" font-size="13" font-weight="400" fill="#475569" text-anchor="start">holds the sites, so the app cannot run two. Fly snapshots both volumes daily.</text>
+</svg>

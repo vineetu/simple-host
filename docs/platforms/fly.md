@@ -1,5 +1,7 @@
 # Run the small box on Fly.io
 
+![Simple Host on Fly.io: your DNS points both names at the app; Fly's edge ends HTTPS and forwards to one machine running Caddy and the Simple Host server with a 1 GB volume; a separate Fly Postgres app on Fly's private network](https://simple-host.app/diagrams/fly.svg)
+
 The small box (the installer's Postgres + server + Caddy) runs on Fly.io as two
 apps: one for Simple Host, one for its Postgres. Tested end to end on
 2026-09-28 with v0.7.4: deploy, first admin, admin sign-in, publish, update,

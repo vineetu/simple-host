@@ -1,5 +1,7 @@
 # Run the small box on UpCloud
 
+![Simple Host on UpCloud, or any Ubuntu server: two DNS A records point at the server; one Ubuntu server runs the installer's docker compose, with Caddy on ports 80 and 443 fetching certificates on demand from Let's Encrypt, the Simple Host server, Postgres, and Docker volumes for the sites, the log, the certificates and the database](https://simple-host.app/diagrams/upcloud.svg)
+
 UpCloud is where we recommend running a small box, and where we test it. The
 smallest server (1 CPU, 1 GB, Ubuntu 24.04) runs Simple Host comfortably with
 the standard installer: no special image and no changes.

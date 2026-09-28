@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1080" width="800" height="1080" role="img" aria-labelledby="t d" font-family='system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif'>
+<title id="t">Simple Host Enterprise on AWS (EKS)</title>
+<desc id="d">What the Terraform module deploy/terraform/aws creates in one AWS account: an EKS cluster in a VPC with one NAT gateway (only when it makes the cluster), Traefik behind a Network Load Balancer, the Simple Host pods, cert-manager and External Secrets, RDS Postgres, an S3 bucket for sites, Secrets Manager, IAM roles for service accounts, and a Route 53 zone with Let's Encrypt certificates over DNS-01. People sign in with the company's OIDC provider; the company's DNS delegates the address to the zone; AWS CloudShell runs Terraform with its state in a private S3 bucket.</desc>
+<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#475569"/></marker></defs>
+<rect width="800" height="1080" fill="#ffffff"/>
+<text x="40" y="38" font-size="20" font-weight="700" fill="#0f172a" text-anchor="start">Simple Host Enterprise on AWS (EKS)</text>
+<text x="40" y="60" font-size="13" font-weight="400" fill="#475569" text-anchor="start">What deploy/terraform/aws creates in your account, from one line pasted into AWS CloudShell</text>
+<text x="40" y="78" font-size="13" font-weight="400" fill="#475569" text-anchor="start">(https://simple-host.app/setup, Enterprise, AWS). The same module with or without a cluster of yours.</text>
+<rect x="290" y="92" width="210" height="74" rx="10" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.6"/>
+<text x="395.0" y="116.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">People and AI agents</text>
+<text x="395.0" y="136.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">https://&lt;address&gt;</text>
+<text x="395.0" y="154.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">&lt;site&gt;.&lt;owner&gt;.&lt;address&gt;</text>
+<rect x="560" y="92" width="200" height="74" rx="10" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.6"/>
+<text x="660.0" y="116.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Your sign-in provider</text>
+<text x="660.0" y="136.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">OIDC issuer, client ID;</text>
+<text x="660.0" y="154.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">client secret typed once</text>
+<line x1="500" y1="129" x2="560" y2="129" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="530.0" y="99.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">sign-in</text>
+<text x="530.0" y="115.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">(OIDC)</text>
+<rect x="40" y="208" width="720" height="676" rx="12" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.4"/>
+<text x="56" y="232" font-size="14" font-weight="700" fill="#0f172a" text-anchor="start">Your AWS account, one region</text>
+<line x1="395" y1="166" x2="395" y2="310" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="427.0" y="196.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">HTTPS</text>
+<rect x="60" y="248" width="430" height="522" rx="12" fill="#f3f9fb" stroke="#0e7490" stroke-width="1.6" stroke-dasharray="7 5"/>
+<text x="76" y="272" font-size="14" font-weight="700" fill="#0f172a" text-anchor="start">VPC (new, or your cluster's)</text>
+<text x="76" y="292" font-size="13" font-weight="400" fill="#475569" text-anchor="start">one NAT gateway: the nodes' way out</text>
+<rect x="80" y="310" width="390" height="56" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="275.0" y="334.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Network Load Balancer, public subnets</text>
+<text x="275.0" y="354.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">made by Traefik's Service; keeps the visitor's address</text>
+<rect x="80" y="402" width="390" height="348" rx="12" fill="#f3f9fb" stroke="#0e7490" stroke-width="1.6" stroke-dasharray="7 5"/>
+<text x="96" y="426" font-size="14" font-weight="700" fill="#0f172a" text-anchor="start">EKS cluster: 2 × t3.medium (new, or yours)</text>
+<rect x="100" y="444" width="350" height="74" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="275.0" y="468.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Traefik ingress, 2 replicas</text>
+<text x="275.0" y="488.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">HTTP → HTTPS; TLS from Secrets;</text>
+<text x="275.0" y="506.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">only Ingresses of class simple-host</text>
+<line x1="275" y1="366" x2="275" y2="444" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<rect x="100" y="542" width="350" height="92" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="275.0" y="566.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Simple Host, 2 pods</text>
+<text x="275.0" y="586.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">namespace simple-host, the byo overlay</text>
+<text x="275.0" y="604.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">applied with kubectl; image pinned by digest</text>
+<text x="275.0" y="622.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">sign-in via your OIDC provider</text>
+<line x1="275" y1="518" x2="275" y2="542" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<rect x="100" y="658" width="170" height="74" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="185.0" y="682.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">cert-manager</text>
+<text x="185.0" y="702.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">Let's Encrypt, DNS-01</text>
+<text x="185.0" y="720.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">address + owner certs</text>
+<rect x="280" y="658" width="170" height="74" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="365.0" y="682.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">External Secrets</text>
+<text x="365.0" y="702.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">copies both secrets</text>
+<text x="365.0" y="720.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">into the app's Secret</text>
+<rect x="510" y="310" width="230" height="56" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="625.0" y="334.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Terraform state bucket</text>
+<text x="625.0" y="354.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">S3, &lt;name&gt;-tfstate-…, private</text>
+<rect x="510" y="444" width="230" height="74" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="625.0" y="468.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">IAM roles (IRSA)</text>
+<text x="625.0" y="488.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">no access keys; one role each</text>
+<text x="625.0" y="506.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">for server, secrets, DNS</text>
+<rect x="510" y="542" width="230" height="48" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="625.0" y="562.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">RDS Postgres 16</text>
+<text x="625.0" y="582.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">private, TLS, encrypted</text>
+<rect x="510" y="598" width="230" height="48" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="625.0" y="618.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">S3 bucket: sites</text>
+<text x="625.0" y="638.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">versioned, SSE-S3, private</text>
+<line x1="450" y1="566" x2="510" y2="566" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<line x1="450" y1="622" x2="510" y2="622" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<rect x="510" y="658" width="230" height="92" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="625.0" y="682.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Secrets Manager</text>
+<text x="625.0" y="702.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">&lt;name&gt;/app: session key,</text>
+<text x="625.0" y="720.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">envelope key, DB passwords;</text>
+<text x="625.0" y="738.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">&lt;name&gt;/oidc: client secret</text>
+<line x1="510" y1="695" x2="450" y2="695" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<rect x="60" y="790" width="680" height="74" rx="10" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="400.0" y="814.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Route 53 zone for &lt;address&gt;</text>
+<text x="400.0" y="834.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">A aliases &lt;address&gt; and *.&lt;address&gt; → the NLB; CAA: letsencrypt.org only</text>
+<text x="400.0" y="852.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">cert-manager answers DNS-01 challenges here, owner certificates included</text>
+<line x1="185" y1="732" x2="185" y2="790" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<rect x="40" y="924" width="380" height="110" rx="10" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.6"/>
+<text x="230.0" y="948.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">AWS CloudShell: paste one line</text>
+<text x="230.0" y="968.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">apply.sh fetches the module at a pinned</text>
+<text x="230.0" y="986.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">commit (sha256-checked), runs Terraform,</text>
+<text x="230.0" y="1004.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">keeps state in the private tfstate bucket;</text>
+<text x="230.0" y="1022.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">paste again to pick up where it stopped</text>
+<line x1="230" y1="924" x2="230" y2="884" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="334.0" y="908.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="5" stroke-linejoin="round">creates all of the above</text>
+<rect x="440" y="924" width="150" height="110" rx="10" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.6"/>
+<text x="515.0" y="966.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Let's Encrypt</text>
+<text x="515.0" y="986.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">checks the</text>
+<text x="515.0" y="1004.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">DNS-01 records</text>
+<line x1="515" y1="924" x2="515" y2="864" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<rect x="610" y="924" width="150" height="110" rx="10" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.6"/>
+<text x="685.0" y="966.0" font-size="15" font-weight="600" fill="#0f172a" text-anchor="middle">Your DNS</text>
+<text x="685.0" y="986.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">delegates &lt;address&gt;</text>
+<text x="685.0" y="1004.0" font-size="13" font-weight="400" fill="#475569" text-anchor="middle">to the zone (NS)</text>
+<line x1="685" y1="924" x2="685" y2="864" stroke="#475569" stroke-width="1.5" marker-end="url(#ar)"/>
+<rect x="40" y="1051" width="26" height="14" rx="3" fill="#ffffff" stroke="#0e7490" stroke-width="1.6"/>
+<text x="74" y="1062" font-size="13" font-weight="400" fill="#475569" text-anchor="start">always created</text>
+<rect x="210" y="1051" width="26" height="14" rx="3" fill="#ffffff" stroke="#0e7490" stroke-width="1.6" stroke-dasharray="5 3"/>
+<text x="244" y="1062" font-size="13" font-weight="400" fill="#475569" text-anchor="start">only when it makes the cluster</text>
+<rect x="508" y="1051" width="26" height="14" rx="3" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.4"/>
+<text x="542" y="1062" font-size="13" font-weight="400" fill="#475569" text-anchor="start">outside the account</text>
+</svg>
