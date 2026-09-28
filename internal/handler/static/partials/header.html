@@ -139,7 +139,19 @@
       };
       paint();
       document.addEventListener('sh-theme', paint);
-      btn.addEventListener('click', function () { setTMenu(tmenu.hidden); });
+      btn.addEventListener('click', function () {
+        var open = tmenu.hidden;
+        setTMenu(open);
+        if (open) (tmenu.querySelector('[aria-checked="true"]') || items[0]).focus();
+      });
+      tmenu.addEventListener('keydown', function (e) {
+        var list = Array.prototype.slice.call(items);
+        var i = list.indexOf(document.activeElement);
+        var n = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: list.length - 1 }[e.key];
+        if (n === undefined) return;
+        e.preventDefault();
+        list[(n + list.length) % list.length].focus();
+      });
       Array.prototype.forEach.call(items, function (it) {
         it.addEventListener('click', function () {
           if (window.shTheme) window.shTheme.set(it.getAttribute('data-sh-theme'));
