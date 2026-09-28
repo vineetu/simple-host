@@ -501,6 +501,16 @@ What follows from that, and is not negotiable without changing the line above:
   the address delegated to a cloud DNS zone, so owner certificates stay automatic whatever DNS
   provider holds the parent. Reason: owner asked for an easier path by cloud, "keep it simple".
   Owner decision 2026-09-28.
+- **2026-09-28. Skills check with the person before anything goes public.** Before a new site
+  goes online the first time, the agent asks once (site name, address, public to anyone with
+  the link) and waits for a yes. It always asks before deleting a site or data, making private
+  data public, changing who can see or save, connecting a domain, rolling back or taking a site
+  offline. Updates to a site the person asked for in the same conversation go ahead without
+  asking again, since publishing is the point of the product. No skill tells an agent to act
+  without confirming. Applies to every skill copy, `llms.txt` and the connector instructions
+  (skills 0.27.0, OpenAI plugin 0.9.1). Reason: agents flagged auto-publish (an agent installing
+  the skill with npx warned its user that the skill "tells assistants to publish on their own
+  without checking with you"). Owner decision 2026-09-28.
 
 ## Open, deliberately parked
 

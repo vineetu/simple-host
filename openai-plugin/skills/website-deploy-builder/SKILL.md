@@ -78,5 +78,6 @@ that needs a server.
 
 Confirm the plan in two or three sentences (pages, the address, what is saved where and whether
 it is private, the results or admin page),
-then build it with `website-deploy`. For an existing site, read its files first and change only
+then build it with `website-deploy`, which asks once before a new site goes online (name,
+address, public to anyone with the link). For an existing site, read its files first and change only
 what the plan needs.

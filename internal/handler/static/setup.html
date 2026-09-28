@@ -132,7 +132,7 @@ async function finish() {
   const result = await request('finish', {host:hosts.host, content_host:hosts.content_host});
   $('admin-key').textContent = result.admin_api_key;
   // Participant keys are created later in admin; never distribute the admin key.
-  const prompt = 'Read https://' + hosts.host + '/llms.txt and follow it exactly.\nMy Simple Host API key is: <their key>\nAsk me what I want to build, then build it and publish it.';
+  const prompt = 'Read https://' + hosts.host + '/llms.txt and follow it exactly.\nMy Simple Host API key is: <their key>\nAsk me what I want to build, then build it and publish it once I say yes.';
   $('prompt').textContent = prompt;
   $('copy-key').onclick = () => copy($('admin-key').textContent, $('copy-key'));
   $('copy-prompt').onclick = () => copy(prompt, $('copy-prompt'));

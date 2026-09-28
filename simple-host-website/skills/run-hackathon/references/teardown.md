@@ -8,7 +8,8 @@ Deleting the server destroys every entry and all saved data. There is no backup.
 Before you begin, offer the organiser one archive of every entry
 (`GET /v1/admin/export.tar.gz` with the admin key, or "Download all entries" on
 the admin page): each site's files, saved data and lists. Participants can also
-take their own copy.
+take their own copy. Then ask the organiser to confirm the teardown, naming the
+server and the hostnames, and start only after they say yes.
 
 ## 1. Delete the server
 

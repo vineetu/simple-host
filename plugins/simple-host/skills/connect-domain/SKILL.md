@@ -24,10 +24,14 @@ account). Visitor sign-in (Google or an emailed code) and private collections al
 free `<name>.simple-host.app`, served over HTTPS at the root. The site moves there and its
 previous address redirects.
 
+**Ask first.** Connecting an address moves the site there. Before any
+`connect_domain` / bind call, name the site and the exact address and wait for a
+yes. The same goes for disconnecting one and for any DNS change you make yourself.
+
 ## The free address: `<name>.simple-host.app`
 
 No domain to buy and no DNS step. Offer this first when the person wants a short name and has
-no domain. One call (with the connector: `connect_domain` with the
+no domain. One call, once the person has said yes (with the connector: `connect_domain` with the
 same value):
 
 ```
@@ -79,7 +83,7 @@ Sign-in and private collections do not need this skill; they work on the site's 
 ## The flow
 
 ### 1. Confirm the site exists and pick the domain
-The site must already be deployed (with the connector: `list_sites`). Ask the user for the exact domain they want.
+The site must already be deployed (with the connector: `list_sites`). Ask the user for the exact domain they want, and confirm the site and domain with them before binding.
 **Subdomains** (`recipes.brand.com`) are the simplest path (CNAME). **Apex domains**
 (`brand.com`) are fully supported too — the bind returns an A record instead of a
 CNAME. Prefer a subdomain when the user has no strong preference; use apex when

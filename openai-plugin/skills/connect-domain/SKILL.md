@@ -18,6 +18,10 @@ You are already signed in as the person. Never ask for a Simple Host email, code
 If a tool says the connection is no longer signed in, ask them to reconnect Simple Host in the
 app's settings.
 
+**Ask first.** Connecting an address moves the site there. Before any `connect_domain` call,
+name the site and the exact address and wait for a yes. The same goes for `remove_domain` and
+for any DNS change you make yourself.
+
 ## The free address: `<name>.simple-host.app`
 
 One call, no DNS step. Offer it first when the person wants a shorter address and has no
@@ -53,7 +57,7 @@ domain of their own.
    alone; use the **apex** (`example.com`) only if they want the bare domain, which moves
    whatever the root currently points at. One bound address per site (this replaces a free
    `<name>.simple-host.app` if the site has one).
-2. **Bind it:** `connect_domain` with `site` and `domain` (no `https://`). It returns two DNS
+2. **Bind it,** once they have confirmed the site and domain: `connect_domain` with `site` and `domain` (no `https://`). It returns two DNS
    records: `dns_record` (a CNAME to `cname.simple-host.app` for a subdomain, or an A record
    with an IP for an apex) and `ownership_record`, a TXT record at `_simple-host.<domain>`
    holding this site's own value, which proves the domain is theirs. Nothing is verified or

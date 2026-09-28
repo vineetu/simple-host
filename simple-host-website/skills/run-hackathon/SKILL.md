@@ -13,6 +13,10 @@ The organiser gets a private instance on **their own cloud account**, paid for b
 them, that you create and later destroy. Participants get an API key each and
 publish with their own coding agent. Nobody signs in.
 
+**Ask the organiser before each step that costs money, goes public or cannot be
+undone:** creating the server, claiming or adding the hostnames, and tearing
+down. Say what you are about to do and wait for a yes.
+
 **Their credentials go no further than they have to.** You use them to talk to
 their provider and to this service, and send them nowhere else. Be straight with
 them that an agent running in someone else's cloud is not the same as one running
@@ -183,7 +187,7 @@ Each participant needs two things: their key, and one instruction.
 ```
 Read https://<event-host>/llms.txt and follow it exactly.
 My Simple Host API key is: <their key>
-Ask me what I want to build, then build it and publish it.
+Ask me what I want to build, then build it and publish it once I say yes.
 ```
 
 That works in any agent that can fetch a URL. The instance's own `llms.txt`
