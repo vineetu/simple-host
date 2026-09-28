@@ -115,16 +115,18 @@ var setupCloudRegions = []string{
 // setupBasicText are the basic questions the visitor types, for the prompt:
 // the assistant explains them but never proposes a value.
 var setupBasicText = map[string]string{
-	"small-box": `- Domain (SITE_DOMAIN, the installer's --host): the name Simple Host itself lives at, like hack.example.com.
+	"small-box": `- Nothing is required: never call a field required. An empty domain installs the box in setup mode, which asks for it in the browser afterwards; other empty values keep their defaults or are "Fill in" blanks.
+- Domain (SITE_DOMAIN, the installer's --host): the name Simple Host itself lives at, like hack.example.com.
 - Sites hostname (CONTENT_HOST, --content): where published sites are served, sites.<domain> when left empty.
 - Email for certificate notices (the installer's --email), optional.
 - Send email from (MAIL_FROM), when emailed codes are on.
 - Google client ID (GOOGLE_OAUTH_CLIENT_ID), when Google sign-in is on; optional here.`,
-	"enterprise": `- With cloud aws (the quick path), only: address, admin emails, issuer URL, client ID, company email domains (asked only with Google, prefilled from the admin emails), and the existing cluster's name when cluster is yes. Everything below that is not in this line is diy only.
+	"enterprise": `- Nothing is required: never call a field required.
+- With cloud aws (the quick path), only: address, admin emails, issuer URL, client ID, company email domains (asked only with Google, prefilled from the admin emails), and the existing cluster's name when cluster is yes. Everything below that is not in this line is diy only.
 - Address (PUBLIC_BASE_URL): the install's hostname, like sites.example.com, on its own registrable domain.
-- Admin emails (ADMIN_EMAILS): at least one.
+- Admin emails (ADMIN_EMAILS): any domain, internal ones too.
 - Issuer URL (OIDC_ISSUER) and client ID (OIDC_CLIENT_ID) from the identity provider; the client secret goes in secrets.env.
-- Company email domains (ALLOWED_EMAIL_DOMAINS): required with Google Workspace, optional otherwise.
+- Company email domains (ALLOWED_EMAIL_DOMAINS): needed with Google Workspace (the server refuses to start without them), optional otherwise.
 - cert-manager ClusterIssuer name (OWNER_CERT_ISSUER), when certificates are auto.
 - Send email from (SMTP_FROM), when the SMTP relay is on.
 - Bucket endpoint, region and name; Postgres host, port, database name and owning role. On UpCloud: the region is the Object Storage service's (such as europe-2), and its managed Postgres is reached at the public-… hostname (the plain one resolves to a private address from outside UpCloud) on port 11569, not 5432.

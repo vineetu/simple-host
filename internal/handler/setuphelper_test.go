@@ -73,7 +73,7 @@ func TestSetupHelperInstallerRelease(t *testing.T) {
 	if !strings.Contains(string(js), "'https://raw.githubusercontent.com/vineetu/simple-host/' + INSTALLER_COMMIT + '/deploy/install/install.sh'") {
 		t.Error("the install command must fetch install.sh by the pinned commit, not a tag or a branch")
 	}
-	if !strings.Contains(string(js), `' -o "$f" && printf \'%s  %s\\n\' ' + INSTALLER_SHA256 + ' "$f" | sha256sum -c --quiet - && sudo bash "$f" '`) {
+	if !strings.Contains(string(js), `' -o "$f" && printf \'%s  %s\\n\' ' + INSTALLER_SHA256 + ' "$f" | sha256sum -c --quiet - && sudo bash "$f"'`) {
 		t.Error("the install command must check install.sh's sha256 before running it")
 	}
 	// Against the repository, when its history is here: the release's tag

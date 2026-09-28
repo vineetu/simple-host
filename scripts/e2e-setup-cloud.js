@@ -9,7 +9,8 @@
 // hides the Basic/Advanced question and "Something else" brings it back; the
 // Basics step asks only address, admins, issuer, client ID, region (preselected)
 // and, for an existing cluster, its name; company email domains appear only
-// with Google (prefilled from the admins) and are required; the output line is
+// with Google (prefilled from the admins), and left empty the line asks for
+// them; nothing on the Basics step is required; the output line is
 // one line that fetches deploy/terraform/<cloud>/apply.sh at ENT_CLOUD_REF,
 // checks ENT_APPLY_SHA256, and carries --tfvars whose base64 decodes to exactly
 // the terraform.tfvars shown; "More settings" adds extra_config; the
@@ -62,8 +63,14 @@ async function walk(browser, cloud, have, width, scheme) {
   // Terraform template sequences must reach the tfvars escaped.
   await page.fill('#f-clientId', '1234-abc${x}%{y}.apps.googleusercontent.com');
   if (have === 'yes') await page.fill('#f-clusterName', 'prod-cluster');
+  // Nothing is required: Google without domains still gives the line, and
+  // the line asks for them in the shell.
   await page.getByRole('button', { name: 'Show my commands' }).click();
-  assert(await page.locator('#f-domains.bad').count() === 1, `${tag}: Google without domains is refused`);
+  await page.waitForSelector('#commands');
+  assert(/It asks for these when it runs: Company email domains\./.test(await page.locator('#commands .fill').innerText()), `${tag}: Google without domains: the line asks for them`);
+  assert(!(await page.locator('pre').last().innerText()).includes('allowed_email_domains ='), `${tag}: and the tfvars leave them out`);
+  await page.getByRole('button', { name: 'Back' }).click();
+  await page.waitForSelector('#f-domains');
   await page.fill('#f-domains', 'acme.com');
   await top(page);
   await page.screenshot({ path: `${shots}/cloud-2-basics-${tag}.png`, fullPage: true });
@@ -117,7 +124,7 @@ async function walk(browser, cloud, have, width, scheme) {
     await p2.fill('#f-host', 'sites.acme-sites.com');
     await p2.fill('#f-admins', 'platform@acme.com');
     await p2.fill('#f-clientId', '0oa123');
-    const refused = [['a space', 'https://acme.okta.com/oauth2 default'], ['a tab', 'https://acme.okta.com/oauth2\tdefault'],
+    const refused = [['a space', 'https://acme.okta.com/oauth2 default'], ['the multi-tenant Entra ID endpoint', 'https://login.microsoftonline.com/common/v2.0'], ['a tab', 'https://acme.okta.com/oauth2\tdefault'],
       ['a quote', 'https://x.okta.com/a"b'], ['a backslash', 'https://x.okta.com/a\\b'], ['user:password@', 'https://user:pw@acme.okta.com'],
       ['a query', 'https://acme.okta.com/?x=1'], ['Google with a trailing dot', 'https://accounts.google.com.'], ['Google with a path', 'https://accounts.google.com/o/oauth2'],
       ['Google on another port', 'https://accounts.google.com:8443']];
@@ -176,6 +183,8 @@ async function walk(browser, cloud, have, width, scheme) {
   assert(await page.locator('#app input[type=checkbox]').count() === 0, 'no secret blanks offered on the quick path');
   await page.getByRole('button', { name: 'Skip to my commands' }).click();
   await page.waitForSelector('#commands, .finding, .checking', { timeout: 40000 });
+  // A check still running answers with findings or none: wait for it first.
+  await page.waitForSelector('.checking', { state: 'detached', timeout: 40000 });
   if (!(await page.locator('#commands').count())) {
     const show = page.getByRole('button', { name: 'Show my commands' });
     if (await show.count()) await show.click();

@@ -159,10 +159,9 @@ async function enterprise(browser, width) {
 }
 
 // A basic answer applied past the Basics step goes through the Basics checks
-// again: Google sign-in with no company domains sends the visitor back to
-// Basics with the error, and no files are shown until the domains are in.
-// (The server keeps basic answers only on the choose and basics steps; this
-// is the page's own guard, applied as an Apply on an item would.)
+// again. Nothing there is required: Google sign-in with no company domains
+// keeps the files, with ALLOWED_EMAIL_DOMAINS as a marked blank named in the
+// line above them (the server refuses to start without it).
 async function googleNeedsDomains(browser, width) {
   const page = await browser.newPage({ viewport: { width, height: width < 600 ? 844 : 900 } });
   await page.goto(base + '/setup?product=enterprise');
@@ -178,10 +177,11 @@ async function googleNeedsDomains(browser, width) {
   await page.waitForSelector('#files pre');
   const err = await page.evaluate(() => { const e = window.shSetup.applyBasic('idp', 'google'); window.shSetup.refresh(['idp']); return e; });
   assert(err === '', 'the provider answer applies');
-  assert(await page.locator('#files').count() === 0 && (await page.locator('h2').first().innerText()) === 'Your Enterprise install', 'Google with no company domains goes back to Basics, with no files: ' + width);
-  assert(await page.locator('#f-domains.bad').count() === 1 && /anyone with a Google account/.test(await page.locator('#app').innerText()), 'the domains field shows why');
-  await page.getByRole('button', { name: 'Show my files' }).click();
-  assert(await page.locator('#files').count() === 0, 'and the files stay out of reach until it is filled in');
+  await page.waitForSelector('#files pre');
+  let blank = await page.locator('#files pre').first().innerText();
+  assert(/^# Fill in: your company’s email domains.*\nALLOWED_EMAIL_DOMAINS=$/m.test(blank) && /Company email domains \(ALLOWED_EMAIL_DOMAINS\)/.test(await page.locator('#files .fill').innerText()), 'Google with no company domains: a marked blank, named above the files: ' + width);
+  await page.getByRole('button', { name: 'Back' }).click();
+  await page.waitForSelector('#f-domains');
   await page.fill('#f-domains', 'example.com');
   await page.getByRole('button', { name: 'Show my files' }).click();
   await page.waitForSelector('#files pre');

@@ -6,7 +6,10 @@ every setting that changes it, and gives recipes for common changes.
 
 **Easiest start: the setup helper at https://simple-host.app/setup?product=small-box.** It asks a
 few questions (or every question, in Advanced mode), keeps the default for anything you skip, and
-writes the one-line install command and the `.env` for a small box. It runs in your browser and
+writes the one-line install command and the `.env` for a small box. Nothing is required: with no
+domain yet, the command installs the box in setup mode, which asks for the domain in the browser
+afterwards, and any value only you can know is left in the `.env` as a blank under a `# Fill in:`
+line, named in one line above it. It runs in your browser and
 never asks for a password or key. Just before your files it can **check your choices** for likely
 mistakes (a setting that weakens sign-in, a retention or undo promise cut short, an upload size the
 box cannot hold): it sends only the names and values of the numbers, durations, switches, choices and limits
@@ -18,7 +21,11 @@ error you paste (redacted first, and sent only after you review it); you apply e
 suggests. The files step also gives one block to hand to **your own AI agent**: what the server
 needs, every step with your files in it, and how to check the result.
 
-For **Simple Host Enterprise** (https://simple-host.app/setup?product=enterprise) the basics also
+For **Simple Host Enterprise** (https://simple-host.app/setup?product=enterprise) nothing is
+required either: an empty answer keeps its default (database and role `simplehost`, port 5432) or
+is a `# Fill in:` blank in config.env, and on the AWS quick path the one line asks for anything you
+left empty when it runs in CloudShell. The Postgres host takes any hostname, Kubernetes service
+name (`postgres.db.svc.cluster.local`, `pg-rw.db`) or IP address, with `:port`. The basics also
 ask for the ingress controller's pod range (`TRUSTED_PROXY_CIDRS`, optional: read the pods'
 addresses with `kubectl -n <ingress namespace> get pod -o wide`; empty keeps every private range).
 With UpCloud as the bucket provider the page asks for the Object Storage region (such as

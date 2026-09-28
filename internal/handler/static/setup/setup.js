@@ -30,8 +30,8 @@
   // what it builds is fixed. After a release that changes deploy/terraform,
   // set all three: git rev-parse vX.Y.Z^{commit}, and
   // git show vX.Y.Z:deploy/terraform/<cloud>/apply.sh | sha256sum.
-  var ENT_CLOUD_REF = 'ed1e364762d88a5b6081d1babd3e39382378a46d';
-  var ENT_APPLY_SHA256 = { aws: '5161cc2d5c77190d05cc6d08da46aecfba5178e4a57b80318b89359fccdefe6c' };
+  var ENT_CLOUD_REF = 'a0b04eeb6dc2a348a9f5a7f8049150e9c779b766';
+  var ENT_APPLY_SHA256 = { aws: 'fb19a3c48a37fb1863ae99ce59a297ef049d8dabc8b79079b3bb70208b9d7c25' };
   var ENT_RAW = 'https://raw.githubusercontent.com/vineetu/simple-host-enterprise/';
   // Where a small box is recommended to run. A referral link: the page says so.
   var UPCLOUD_SIGNUP = 'https://signup.upcloud.com/?promo=JF2WCV';
@@ -129,6 +129,9 @@
     if (id === 'upcloud' && b.dbPort === '5432') b.dbPort = '11569';
     else if (id !== 'upcloud' && b.dbPort === '11569') b.dbPort = '5432';
   }
+
+  function idpOf(id) { return IDPS.filter(function (p) { return p.id === id; })[0] || {}; }
+  function bucketOf(id) { return BUCKETS.filter(function (p) { return p.id === id; })[0] || {}; }
 
   var S = {
     product: 'small', mode: 'basic', step: 0, area: 0,
@@ -234,6 +237,15 @@
   }
   // </setupKind>
 
+  // tidy writes a value the way the server reads it, where the typing only
+  // differs in spacing or case: 1,000 or 1 000 as 1000, 8 H as 8h.
+  function tidy(s, v) {
+    var k = setupKind(s);
+    if (k === 'number' && /^[\d\s,_]+$/.test(v)) return v.replace(/[\s,_]/g, '');
+    if (k === 'duration') return v.replace(/\s+/g, '').toLowerCase();
+    if (k === 'rate') return v.replace(/\s+/g, '').toLowerCase();
+    return v;
+  }
   // validate returns an error sentence, or '' when the value is acceptable.
   function validate(s, v) {
     var k = setupKind(s);
@@ -417,10 +429,42 @@
       el('p', { class: 'secret', text: 'A secret: this page leaves it blank in the file for you to fill in on your side.' })
     ]);
   }
-  var HOST = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/;
-  var EMAIL = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+  // The checks below catch an obvious typo and anything that could break a
+  // generated file or command (spaces, quotes, backslashes); every form a
+  // real install uses passes. HOST is any hostname, lower-case: one label
+  // (postgres), a Kubernetes service (pg-rw.db, postgres.db.svc.cluster.local),
+  // an internal or public name, or an IPv4 address.
+  var LABEL = '[a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?';
+  var HOST = new RegExp('^(?=.{1,253}$)' + LABEL + '(\\.' + LABEL + ')*$');
+  // PUBLIC_HOST is a name on the internet, as Let's Encrypt and Route 53 take
+  // it (the small box, and the AWS quick path's address).
+  var PUBLIC_HOST = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/;
+  var IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
+  // An address: anything@anything, without spaces, commas, quotes, brackets
+  // backslashes or shell characters; the domain may be internal (platform@corp).
+  var EMAIL = /^[^\s@,;"\\<>()\[\]`${}|&]+@[^\s@,;"'\\<>()\[\]`${}|&]+$/;
   // A proxy address or range for TRUSTED_PROXY_CIDRS (the server checks it exactly at start).
   var CIDR = /^(\d{1,3}(\.\d{1,3}){3}(\/([0-9]|[12][0-9]|3[0-2]))?|[0-9A-Fa-f]*:[0-9A-Fa-f:.]*(\/([0-9]{1,2}|1[01][0-9]|12[0-8]))?)$/;
+  // hostPort reads a host as people write it: host, host:port, an IPv4 or
+  // IPv6 address ([fd00::1]:5432 or plain fd00::1), with a scheme, a path or
+  // a trailing dot dropped. Returns { host, port, ip, v6 }, or null when it
+  // cannot be a host.
+  function hostPort(v) {
+    v = String(v).trim().toLowerCase().replace(/^[a-z][a-z0-9+.-]*:\/\//, '').replace(/[\/?#].*$/, '');
+    var m = /^\[([0-9a-f:.]+)\](?::(\d{1,5}))?$/.exec(v);
+    if (!m && /^[0-9a-f:.]+$/.test(v) && (v.match(/:/g) || []).length >= 2) m = [v, v, ''];
+    if (m) return /::.*::|:::/.test(m[1]) || m[1].indexOf(':') < 0 ? null : { host: m[1], port: m[2] || '', ip: true, v6: true };
+    m = /^([^:]+)(?::(\d{1,5}))?$/.exec(v);
+    if (!m) return null;
+    var h = m[1].replace(/\.$/, '');
+    if (!HOST.test(h) || (m[2] && (+m[2] < 1 || +m[2] > 65535))) return null;
+    return { host: h, port: m[2] || '', ip: IPV4.test(h), v6: false };
+  }
+  // splitList reads a list typed with commas, semicolons or spaces.
+  function splitList(v) { return String(v).split(/[\s,;]+/).map(function (x) { return x.trim(); }).filter(Boolean); }
+  function emailsOk(v) { return splitList(v).every(function (a) { return EMAIL.test(a); }); }
+  // A company email domain: a hostname, with a leading @ dropped.
+  function domainList(v) { return splitList(v).map(function (d) { return d.toLowerCase().replace(/^@/, '').replace(/\.$/, ''); }); }
   // sh quotes a value for a shell command: bare when it has only characters
   // no shell treats specially, else in single quotes.
   function sh(v) {
@@ -515,7 +559,7 @@
     // The Basic path's template issuer (YOUR-ORG) is not an answer here.
     if (/YOUR-/.test(b.issuer) && presetOf(IDPS, 'issuer', b.issuer)) b.issuer = '';
     box.appendChild(el('h2', { text: 'Simple Host Enterprise on ' + c.name }));
-    box.appendChild(el('p', { class: 'lede', text: 'Everything else is set up with its default. Secrets are made in your ' + c.name + ' account; this page never sees one.' }));
+    box.appendChild(el('p', { class: 'lede', text: 'Everything else is set up with its default. Leave any of these empty and the command asks for it in ' + c.shell + '. Secrets are made in your ' + c.name + ' account; this page never sees one.' }));
     box.appendChild(textField('host', b, 'Address', { name: 'PUBLIC_BASE_URL', placeholder: 'sites.example.com',
       help: 'Where Simple Host lives. Each person gets <name>.<address> and each site its own name under that, so use a domain of its own (like example-sites.com) or a name under one, not your company’s main domain.' }));
     box.appendChild(textField('admins', b, 'Admin emails', { name: 'ADMIN_EMAILS', placeholder: 'platform@example.com, alex@example.com', help: byName('ADMIN_EMAILS').description }));
@@ -528,7 +572,7 @@
     if (isGoogle(b.issuer)) {
       b.shownDomains = true;
       if (!b.domains && b.admins) b.domains = b.admins.split(',').map(function (a) { return (a.split('@')[1] || '').trim().toLowerCase(); }).filter(function (d, i, all) { return d && all.indexOf(d) === i; }).join(',');
-      box.appendChild(textField('domains', b, 'Company email domains', { name: 'ALLOWED_EMAIL_DOMAINS', placeholder: 'example.com', help: 'Required with Google: without it, anyone with a Google account could sign in.' }));
+      box.appendChild(textField('domains', b, 'Company email domains', { name: 'ALLOWED_EMAIL_DOMAINS', placeholder: 'example.com', help: 'Needed with Google: without it, anyone with a Google account could sign in.' }));
     }
     box.appendChild(el('p', { class: 'secret', text: 'The client secret is not asked for here. You type it into ' + c.shell + ' when the command asks, and it goes straight into your cloud’s secret store.' }));
     box.appendChild(el('h3', { text: 'Where', style: 'margin-top:26px' }));
@@ -564,7 +608,7 @@
     if (S.product === 'small') {
       app.appendChild(renderWhere(b));
       box.appendChild(el('h2', { text: 'Your small box' }));
-      box.appendChild(el('p', { class: 'lede', text: 'Two names pointing at your server: one for Simple Host itself, one for the sites people publish. Keeping them apart means a published page can never reach the dashboard.' }));
+      box.appendChild(el('p', { class: 'lede', text: 'Two names pointing at your server: one for Simple Host itself, one for the sites people publish. Keeping them apart means a published page can never reach the dashboard. No domain yet? Leave it empty: the server asks for it after the install.' }));
       box.appendChild(textField('domain', b, 'Domain', { name: 'SITE_DOMAIN · --host', placeholder: 'hack.example.com', help: byName('SITE_DOMAIN').description,
         oninput: function () { var c = document.getElementById(uid('content')); if (c && !b.contentTouched) { c.placeholder = b.domain ? 'sites.' + b.domain : 'sites.hack.example.com'; } } }));
       box.appendChild(textField('content', b, 'Sites hostname', { name: 'CONTENT_HOST · --content', placeholder: b.domain ? 'sites.' + b.domain : 'sites.hack.example.com',
@@ -599,7 +643,7 @@
       box.appendChild(signin);
     } else {
       box.appendChild(el('h2', { text: 'Your Enterprise install' }));
-      box.appendChild(el('p', { class: 'lede', text: 'The values config.env needs. Secrets (the client secret, database passwords, keys) are left as blanks in secrets.env for you to fill in.' }));
+      box.appendChild(el('p', { class: 'lede', text: 'The values config.env needs. Leave any of them empty: it keeps its default, or is left as a marked blank in the file for you to fill in later. Secrets (the client secret, database passwords, keys) are always blanks in secrets.env.' }));
       box.appendChild(textField('host', b, 'Address', { name: 'PUBLIC_BASE_URL', placeholder: 'sites.example.com', help: byName('PUBLIC_BASE_URL').description }));
       box.appendChild(textField('admins', b, 'Admin emails', { name: 'ADMIN_EMAILS', placeholder: 'platform@example.com, alex@example.com', help: byName('ADMIN_EMAILS').description }));
       box.appendChild(el('h3', { text: 'Sign-in (OIDC)', style: 'margin-top:26px' }));
@@ -632,17 +676,17 @@
       box.appendChild(el('div', { class: 'field' }, [el('label', { for: uid('bucket'), text: 'Bucket provider' }), bSel]));
       box.appendChild(textField('endpoint', b, 'Bucket endpoint', { name: 'BACKUP_STORAGE_ENDPOINT', help: byName('BACKUP_STORAGE_ENDPOINT').description }));
       var upcloud = b.bucket === 'upcloud';
-      box.appendChild(textField('region', b, 'Region', { name: 'BACKUP_STORAGE_REGION', placeholder: upcloud ? 'europe-2' : '',
+      box.appendChild(textField('region', b, 'Region', { name: 'BACKUP_STORAGE_REGION', placeholder: upcloud ? 'europe-2' : 'us-east-1',
         help: upcloud ? 'The Object Storage service’s region, as in its endpoint (such as europe-2).' : 'The region the bucket lives in.' }));
       box.appendChild(textField('bucketName', b, 'Bucket name', { name: 'BACKUP_STORAGE_BUCKET', placeholder: 'simple-host-sites', help: byName('BACKUP_STORAGE_BUCKET').description }));
       box.appendChild(radios('creds', b, 'Bucket credentials', [['keys', 'Access keys (in secrets.env)'], ['identity', 'Workload identity (no keys)']]));
-      box.appendChild(textField('dbHost', b, 'Postgres host', { name: 'DB_HOST', placeholder: upcloud ? 'public-….db.upclouddatabases.com' : 'postgres.internal.example.com',
-        help: 'A managed Postgres with point-in-time recovery; nothing in the package backs up the database.' +
+      box.appendChild(textField('dbHost', b, 'Postgres host', { name: 'DB_HOST', placeholder: upcloud ? 'public-….db.upclouddatabases.com' : 'postgres.db.svc.cluster.local',
+        help: 'Any hostname, service name or IP address, with :port if it is not 5432. A managed Postgres with point-in-time recovery; nothing in the package backs up the database.' +
           (upcloud ? ' On UpCloud’s managed Postgres, use the public-… hostname (the component whose route is public): the plain one resolves to a private address from outside UpCloud.' : '') }));
-      box.appendChild(textField('dbPort', b, 'Postgres port', { name: 'DB_PORT', type: 'number',
+      box.appendChild(textField('dbPort', b, 'Postgres port', { name: 'DB_PORT', type: 'number', placeholder: '5432',
         help: upcloud ? 'UpCloud’s managed Postgres listens on 11569, not 5432 (filled in when you picked UpCloud).' : null }));
-      box.appendChild(textField('dbName', b, 'Database name', { name: 'DB_NAME' }));
-      box.appendChild(textField('dbUser', b, 'Owning role', { name: 'DB_USER', help: byName('DB_USER').description }));
+      box.appendChild(textField('dbName', b, 'Database name', { name: 'DB_NAME', placeholder: 'simplehost' }));
+      box.appendChild(textField('dbUser', b, 'Owning role', { name: 'DB_USER', placeholder: 'simplehost', help: byName('DB_USER').description }));
       box.appendChild(el('h3', { text: 'Ingress', style: 'margin-top:26px' }));
       box.appendChild(textField('proxies', b, 'Ingress controller’s pod range (optional)', { name: 'TRUSTED_PROXY_CIDRS', placeholder: byName('TRUSTED_PROXY_CIDRS').default,
         help: 'The addresses your ingress controller’s pods get, so rate limits and logs see each person’s address, not the ingress’s. ' +
@@ -662,20 +706,18 @@
     ]));
   }
 
+  // checkBasics tidies the basic answers and checks the ones given. Nothing
+  // is required: an empty answer is its default, a marked blank in the files
+  // or, on the quick path, a question the command asks. What is refused is
+  // an obvious typo, or anything that could break the files or the command.
   function checkBasics() {
-    var b = S.basic[S.product], e = {};
-    if (S.product === 'small') {
-      b.domain = b.domain.toLowerCase();
-      b.content = b.content.toLowerCase();
-      if (!HOST.test(b.domain)) e.domain = 'A domain name like hack.example.com.';
-      if (b.content && (!HOST.test(b.content) || b.content === b.domain)) e.content = 'A different hostname, like sites.' + (b.domain || 'hack.example.com') + '.';
-      if (b.email && !EMAIL.test(b.email)) e.email = 'An email address, or leave it empty.';
-      if (b.mailFrom && /[\r\n`]/.test(b.mailFrom)) e.mailFrom = 'One line, with no backticks.';
-      if (b.googleId && !/^[A-Za-z0-9._-]+$/.test(b.googleId)) e.googleId = 'The client ID as Google shows it.';
-    } else if (cloud()) {
-      var c = cloud();
-      b.host = b.host.toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '');
-      if (!HOST.test(b.host)) e.host = 'A hostname like sites.example.com.';
+    var b = S.basic[S.product], e = {}, h;
+    // An issuer typed without https:// gets it; a template (YOUR-…) is
+    // not an answer, so it is left empty.
+    var issuer = function () {
+      if (/YOUR-/.test(b.issuer) && presetOf(IDPS, 'issuer', b.issuer)) b.issuer = '';
+      if (!b.issuer) return;
+      if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(b.issuer)) b.issuer = 'https://' + b.issuer;
       // The typed value is checked as typed; only a value that passes is
       // normalised (host case, :443, trailing slashes).
       if (!ISSUER.test(b.issuer) || b.issuer.length > 2048) e.issuer = 'An https:// URL, with no spaces.';
@@ -683,37 +725,83 @@
         b.issuer = normIssuer(b.issuer);
         if (/YOUR-/.test(b.issuer)) e.issuer = 'Replace the YOUR-… part with yours.';
         else if (isGoogle(b.issuer) && b.issuer !== 'https://accounts.google.com') e.issuer = 'Google’s issuer is exactly https://accounts.google.com.';
+        else if (/^https:\/\/login\.microsoftonline\.com\/(common|organizations|consumers)(\/|$)/i.test(b.issuer)) e.issuer = 'Use your own tenant’s issuer: https://login.microsoftonline.com/<tenant-id>/v2.0.';
       }
-      if (!b.clientId) e.clientId = 'The client ID from your identity provider.';
-      else if (/[\s"\\]/.test(b.clientId) || b.clientId.length > 512) e.clientId = 'The client ID as your identity provider shows it.';
-      if (b.admins && b.admins.split(',').some(function (a) { return !EMAIL.test(a.trim()); })) e.admins = 'Email addresses separated by commas.';
-      if (!b.admins) e.admins = 'At least one admin, or nobody can approve anything.';
-      if (isGoogle(b.issuer)) {
-        b.domains = b.domains.split(',').map(function (x) { return x.trim().toLowerCase(); }).filter(Boolean).join(',');
-        if (!b.domains) e.domains = 'Required with Google, or anyone with a Google account could sign in.';
-        else if (!b.domains.split(',').every(function (d) { return HOST.test(d); })) e.domains = 'Domains like example.com, separated by commas.';
+    };
+    var clientId = function () {
+      if (b.clientId && (/[\s"\\]/.test(b.clientId) || b.clientId.length > 512)) e.clientId = 'The client ID as your identity provider shows it.';
+    };
+    var admins = function () {
+      b.admins = splitList(b.admins).join(', ');
+      if (!emailsOk(b.admins)) e.admins = 'Email addresses separated by commas.';
+    };
+    var domains = function () {
+      b.domains = domainList(b.domains).join(',');
+      if (!domainList(b.domains).every(function (d) { return HOST.test(d); })) e.domains = 'Domains like example.com, separated by commas.';
+    };
+    if (S.product === 'small') {
+      // A public name: Let's Encrypt issues its certificates.
+      var pub = function (key, what) {
+        h = b[key] ? hostPort(b[key]) : null;
+        if (!b[key]) return;
+        if (!h) e[key] = 'A ' + what + ' like hack.example.com.';
+        else if (h.ip) e[key] = 'A name, not an IP address: point the name at the server’s address.';
+        else if (h.port) e[key] = 'Without a port: the box answers on 80 and 443.';
+        else if (!PUBLIC_HOST.test(h.host)) e[key] = 'A ' + what + ' like hack.example.com.';
+        else b[key] = h.host;
+      };
+      pub('domain', 'domain name');
+      pub('content', 'hostname');
+      if (!e.content && b.content && b.content === b.domain) e.content = 'A different hostname, like sites.' + b.domain + '.';
+      if (b.email && !EMAIL.test(b.email)) e.email = 'An email address, or leave it empty.';
+      if (b.mailFrom && /[\r\n`]/.test(b.mailFrom)) e.mailFrom = 'One line, with no backticks.';
+      if (b.googleId && !/^[A-Za-z0-9._-]+$/.test(b.googleId)) e.googleId = 'The client ID as Google shows it.';
+    } else if (cloud()) {
+      var c = cloud();
+      // Route 53 and Let's Encrypt: a public name, no port.
+      h = b.host ? hostPort(b.host) : null;
+      if (b.host) {
+        if (h && !h.ip && !h.port && PUBLIC_HOST.test(h.host)) b.host = h.host;
+        else e.host = h && h.ip ? 'A name, not an IP address: everyone gets a name under it.' : h && h.port ? 'Without a port: it is served on 443.' : 'A hostname like sites.example.com.';
       }
+      issuer();
+      clientId();
+      admins();
+      if (isGoogle(b.issuer)) domains();
       if (c.regions.indexOf(b.cloudRegion) < 0) e.cloudRegion = 'Pick a region.';
-      if (b.cluster === 'yes' && !(c.id === 'aws' ? /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/ : /^[A-Za-z0-9][A-Za-z0-9_-]{0,62}$/).test(b.clusterName)) e.clusterName = 'The cluster’s name: letters, digits, - and _.';
+      if (b.cluster === 'yes' && b.clusterName && !(c.id === 'aws' ? /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/ : /^[A-Za-z0-9][A-Za-z0-9_-]{0,62}$/).test(b.clusterName)) e.clusterName = 'The cluster’s name: letters, digits, - and _.';
     } else {
-      b.host = b.host.toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '');
-      if (!HOST.test(b.host)) e.host = 'A hostname like sites.example.com.';
-      if (!/^https:\/\/[^\s/]+/.test(b.issuer)) e.issuer = 'An https:// URL.';
-      else if (/YOUR-/.test(b.issuer)) e.issuer = 'Replace the YOUR-… part with yours.';
-      if (!b.clientId) e.clientId = 'The client ID from your identity provider.';
-      if (b.admins && b.admins.split(',').some(function (a) { return !EMAIL.test(a.trim()); })) e.admins = 'Email addresses separated by commas.';
-      if (!b.admins) e.admins = 'At least one admin, or nobody can approve anything.';
-      if (b.idp === 'google' && !b.domains) e.domains = 'Required with Google, or anyone with a Google account could sign in.';
-      if (b.certs === 'auto' && !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/.test(b.issuerName)) e.issuerName = 'The ClusterIssuer’s name, like internal-ca.';
-      if (b.smtp && !EMAIL.test((b.smtpFrom.match(/<([^>]+)>/) || [0, b.smtpFrom])[1])) e.smtpFrom = 'An address, like Simple Host <hosting@example.com>.';
-      if (!/^https:\/\/[^\s]+$/.test(b.endpoint) || /YOUR-/.test(b.endpoint)) e.endpoint = 'The bucket’s https:// endpoint.';
-      if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(b.bucketName)) e.bucketName = 'A bucket name.';
-      if (!b.region) e.region = 'The bucket’s region.';
-      if (!HOST.test(b.dbHost) && !/^\d+\.\d+\.\d+\.\d+$/.test(b.dbHost)) e.dbHost = 'The database host name.';
-      if (!/^\d+$/.test(b.dbPort) || +b.dbPort < 1 || +b.dbPort > 65535) e.dbPort = '1 to 65535.';
-      if (!/^[A-Za-z0-9_]+$/.test(b.dbName)) e.dbName = 'Letters, digits and _.';
-      if (!/^[A-Za-z0-9_]+$/.test(b.dbUser)) e.dbUser = 'Letters, digits and _.';
-      b.proxies = b.proxies.split(',').map(function (x) { return x.trim(); }).filter(Boolean).join(',');
+      // The address may be internal (sites.corp.internal) and have a port.
+      h = b.host ? hostPort(b.host) : null;
+      if (b.host) {
+        if (h && !h.ip) b.host = h.host + (h.port && h.port !== '443' ? ':' + h.port : '');
+        else e.host = h ? 'A name, not an IP address: everyone gets a name under it.' : 'A hostname like sites.example.com.';
+      }
+      issuer();
+      clientId();
+      admins();
+      domains();
+      b.issuerName = b.issuerName.toLowerCase();
+      if (b.certs === 'auto' && b.issuerName && !/^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$/.test(b.issuerName)) e.issuerName = 'The ClusterIssuer’s name, like internal-ca.';
+      if (b.smtp && b.smtpFrom && !EMAIL.test((b.smtpFrom.match(/<([^>]+)>\s*$/) || [0, b.smtpFrom])[1].trim())) e.smtpFrom = 'An address, like Simple Host <hosting@example.com>.';
+      if (b.smtp && /[\r\n`]/.test(b.smtpFrom)) e.smtpFrom = 'One line, with no backticks.';
+      if (/YOUR-/.test(b.endpoint) && presetOf(BUCKETS, 'endpoint', b.endpoint)) b.endpoint = '';
+      if (b.endpoint && !/^[a-z][a-z0-9+.-]*:\/\//i.test(b.endpoint)) b.endpoint = 'https://' + b.endpoint;
+      if (b.endpoint && !/^https:\/\/[^\s"'\\`]+$/i.test(b.endpoint)) e.endpoint = /^http:/i.test(b.endpoint) ? 'An https:// endpoint.' : 'The bucket’s https:// endpoint, with no spaces.';
+      else if (/YOUR-/.test(b.endpoint)) e.endpoint = 'Replace the YOUR-… part with yours.';
+      if (b.bucketName && !/^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$/.test(b.bucketName)) e.bucketName = 'A bucket name: letters, digits, dots, - and _.';
+      if (b.region && !/^[A-Za-z0-9._-]{1,64}$/.test(b.region)) e.region = 'The region, like us-east-1.';
+      // The Postgres host as people write it; a port in it is the port.
+      h = b.dbHost ? hostPort(b.dbHost) : null;
+      if (b.dbHost) {
+        if (!h) e.dbHost = 'A hostname or IP address, like postgres.db.svc.cluster.local or 10.0.0.5.';
+        else { b.dbHost = h.v6 ? '[' + h.host + ']' : h.host; if (h.port) b.dbPort = h.port; }
+      }
+      b.dbPort = String(b.dbPort == null ? '' : b.dbPort).trim();
+      if (b.dbPort && (!/^\d+$/.test(b.dbPort) || +b.dbPort < 1 || +b.dbPort > 65535)) e.dbPort = '1 to 65535.';
+      if (b.dbName && !/^[A-Za-z0-9_.-]{1,63}$/.test(b.dbName)) e.dbName = 'Letters, digits, _ and -.';
+      if (b.dbUser && !/^[A-Za-z0-9_.-]{1,63}$/.test(b.dbUser)) e.dbUser = 'Letters, digits, _ and -.';
+      b.proxies = splitList(b.proxies).join(',');
       if (b.proxies && !b.proxies.split(',').every(function (x) { return CIDR.test(x); })) e.proxies = 'Ranges like 192.168.0.0/16, separated by commas.';
     }
     S.errors = e;
@@ -771,7 +859,7 @@
     help.id = id + '-h';
     var check = function () {
       // Empty keeps the default, as an unset variable does.
-      var v = input.value.trim();
+      var v = tidy(s, input.value.trim());
       var msg = v === '' ? '' : validate(s, v);
       if (v === '') v = def;
       errBox.hidden = !msg; errBox.textContent = msg; input.className = msg ? 'bad' : '';
@@ -852,10 +940,16 @@
     extra.sort(function (x, y) { return advNames.indexOf(x) - advNames.indexOf(y); });
     var optionalSecrets = Object.keys(S.secrets[p]).filter(function (n) { return advNames.indexOf(n) >= 0; });
 
+    // blanks: what the person fills in, named in one line above the files.
+    var blanks = [];
+    var fillIn = function (name, hint, label) { blanks.push(label + ' (' + name + ')'); return '# Fill in: ' + hint + '\n' + name + '='; };
     if (p === 'small') {
-      var content = b.content || 'sites.' + b.domain;
-      var flags = ['--host', sh(b.domain), '--content', sh(content)];
-      chosen.push(['Where it runs', targetOf('small').name], ['Domain', b.domain], ['Sites hostname', content]);
+      // No domain yet: the installer starts the box in setup mode, where the
+      // domain is chosen in the browser (install.sh without --host).
+      var content = b.domain ? b.content || 'sites.' + b.domain : '';
+      var flags = b.domain ? ['--host', sh(b.domain), '--content', sh(content)] : [];
+      chosen.push(['Where it runs', targetOf('small').name], ['Domain', b.domain || 'chosen on the server after the install'],
+        ['Sites hostname', content || 'chosen with the domain']);
       if (b.email) { flags.push('--email', sh(b.email)); chosen.push(['Certificate notices', b.email]); }
       var env = [];
       extra.forEach(function (n) {
@@ -867,57 +961,84 @@
       var fill = [];
       if (b.codes) {
         fill.push('RESEND_API_KEY');
-        env.unshift(envLine('MAIL_FROM', b.mailFrom || 'Simple Host <noreply@' + b.domain + '>'));
+        env.unshift(b.mailFrom || b.domain ? envLine('MAIL_FROM', b.mailFrom || 'Simple Host <noreply@' + b.domain + '>')
+          : fillIn('MAIL_FROM', 'the sender, like Simple Host <noreply@your-domain>, on a domain verified with Resend', 'Send email from'));
         chosen.push(['Sign-in', 'emailed codes']);
       }
       if (b.google) {
-        env.push(b.googleId ? envLine('GOOGLE_OAUTH_CLIENT_ID', b.googleId) : '# Fill in: the Google OAuth client ID\nGOOGLE_OAUTH_CLIENT_ID=');
+        env.push(b.googleId ? envLine('GOOGLE_OAUTH_CLIENT_ID', b.googleId) : fillIn('GOOGLE_OAUTH_CLIENT_ID', 'the Google OAuth client ID', 'Google client ID'));
         fill.push('GOOGLE_OAUTH_CLIENT_SECRET');
         chosen.push(['Sign-in', 'Google']);
       }
       if (!b.codes && !b.google) chosen.push(['Sign-in', 'admin key only']);
       fill = fill.concat(optionalSecrets);
+      var SECRET_LABELS = { RESEND_API_KEY: 'Resend API key', GOOGLE_OAUTH_CLIENT_SECRET: 'Google client secret' };
+      fill.forEach(function (n) { blanks.push(SECRET_LABELS[n] ? SECRET_LABELS[n] + ' (' + n + ')' : n); });
       var envText = env.concat(secretBlock(fill)).join('\n');
-      var cmd = 'f=$(mktemp) && curl -fsSL ' + INSTALL_URL + ' -o "$f" && printf \'%s  %s\\n\' ' + INSTALLER_SHA256 + ' "$f" | sha256sum -c --quiet - && sudo bash "$f" ' + flags.join(' ');
-      return { chosen: chosen, cmd: cmd, env: envText ? '# Simple Host settings (https://simple-host.app/setup)\n' + envText + '\n' : '' };
+      var cmd = 'f=$(mktemp) && curl -fsSL ' + INSTALL_URL + ' -o "$f" && printf \'%s  %s\\n\' ' + INSTALLER_SHA256 + ' "$f" | sha256sum -c --quiet - && sudo bash "$f"' + (flags.length ? ' ' + flags.join(' ') : '');
+      return { chosen: chosen, cmd: cmd, env: envText ? '# Simple Host settings (https://simple-host.app/setup)\n' + envText + '\n' : '', blanks: blanks };
     }
 
     // The keys INSTALL.md says to leave as in config.env.example: written
     // here with their values (the default unless changed in Advanced), so
-    // the file needs nothing from the example.
+    // the file needs nothing from the example. An answer left empty is its
+    // default, or, where only the person can know it, a marked blank.
     var asExample = function (n) { var s = byName(n); return [n, s ? valueOf(s) : '']; };
+    var FILL = {
+      PUBLIC_BASE_URL: ['the address people open, like https://sites.example.com, on a domain of its own', 'Address'],
+      ADMIN_EMAILS: ['the admins’ email addresses, separated by commas', 'Admin emails'],
+      OIDC_ISSUER: ['your identity provider’s issuer URL, like ' + (idpOf(b.idp).issuer || 'https://login.example.com'), 'Issuer URL'],
+      OIDC_CLIENT_ID: ['the client ID of the web application you register there, with the redirect URI https://<address>/auth/callback', 'Client ID'],
+      ALLOWED_EMAIL_DOMAINS: ['your company’s email domains, like example.com (needed with Google: without it any Google account could sign in)', 'Company email domains'],
+      OWNER_CERT_ISSUER: ['the cert-manager ClusterIssuer that signs each owner’s certificate, like internal-ca', 'cert-manager ClusterIssuer'],
+      SMTP_FROM: ['the sender, like Simple Host <hosting@example.com>', 'Send email from'],
+      DB_HOST: ['your Postgres host: a hostname, a Kubernetes service name (postgres.db.svc.cluster.local) or an IP address', 'Postgres host'],
+      BACKUP_STORAGE_ENDPOINT: ['the bucket’s https:// endpoint' + (bucketOf(b.bucket).endpoint ? ', like ' + bucketOf(b.bucket).endpoint : ''), 'Bucket endpoint'],
+      BACKUP_STORAGE_REGION: ['the bucket’s region, as in its endpoint (such as europe-2)', 'Bucket region'],
+      BACKUP_STORAGE_BUCKET: ['the bucket’s name', 'Bucket name']
+    };
+    var google = isGoogle(b.issuer) || b.idp === 'google';
     var preset = [
-      ['PUBLIC_BASE_URL', 'https://' + b.host], ['SECURE_MODE', 'true'], asExample('PORT'), asExample('HTTPS_REDIRECT_PORT'),
-      ['ADMIN_EMAILS', b.admins.split(',').map(function (x) { return x.trim().toLowerCase(); }).join(',')],
+      ['PUBLIC_BASE_URL', b.host ? 'https://' + b.host : ''], ['SECURE_MODE', 'true'], asExample('PORT'), asExample('HTTPS_REDIRECT_PORT'),
+      ['ADMIN_EMAILS', splitList(b.admins).map(function (x) { return x.toLowerCase(); }).join(',')],
       ['OIDC_ISSUER', b.issuer.replace(/\/+$/, '')], ['OIDC_CLIENT_ID', b.clientId], asExample('OIDC_SCOPES')
     ];
-    if (b.domains) preset.push(['ALLOWED_EMAIL_DOMAINS', b.domains.split(',').map(function (x) { return x.trim().toLowerCase(); }).join(',')]);
+    if (b.domains || google) preset.push(['ALLOWED_EMAIL_DOMAINS', domainList(b.domains).join(',')]);
     preset.push(asExample('SESSION_TTL'), asExample('SESSION_IDLE'));
     if (b.certs === 'auto') preset.push(['OWNER_CERT_ISSUER', b.issuerName]); else preset.push(['OWNER_CERTS', 'manual']);
     if (b.smtp) preset.push(['SMTP_FROM', b.smtpFrom]);
     if (b.proxies) preset.push(['TRUSTED_PROXY_CIDRS', b.proxies]);
     preset.push(['DB_HOST', b.dbHost]);
-    if (b.dbPort !== '5432') preset.push(['DB_PORT', b.dbPort]);
-    preset.push(['DB_NAME', b.dbName], ['DB_USER', b.dbUser], asExample('DB_SSLMODE'), ['DB_SSL_ROOT_CERT', '/etc/simple-host/db-ca/ca.crt'],
-      ['BACKUP_STORAGE_ENDPOINT', b.endpoint], ['BACKUP_STORAGE_REGION', b.region], ['BACKUP_STORAGE_BUCKET', b.bucketName],
-      asExample('BACKUP_STORAGE_PREFIX'), asExample('BACKUP_SSE'));
+    if (b.dbPort && b.dbPort !== '5432') preset.push(['DB_PORT', b.dbPort]);
+    preset.push(['DB_NAME', b.dbName || 'simplehost'], ['DB_USER', b.dbUser || 'simplehost'], asExample('DB_SSLMODE'), ['DB_SSL_ROOT_CERT', '/etc/simple-host/db-ca/ca.crt'],
+      ['BACKUP_STORAGE_ENDPOINT', b.endpoint]);
+    // An empty region keeps the server's default (us-east-1), except on
+    // UpCloud, whose regions are its own.
+    if (b.region || b.bucket === 'upcloud') preset.push(['BACKUP_STORAGE_REGION', b.region]);
+    preset.push(['BACKUP_STORAGE_BUCKET', b.bucketName], asExample('BACKUP_STORAGE_PREFIX'), asExample('BACKUP_SSE'));
     var written = {};
-    preset.forEach(function (kv) { written[kv[0]] = true; cfg.push(envLine(kv[0], kv[1])); });
+    preset.forEach(function (kv) {
+      written[kv[0]] = true;
+      cfg.push(kv[1] === '' && FILL[kv[0]] ? fillIn(kv[0], FILL[kv[0]][0], FILL[kv[0]][1]) : envLine(kv[0], kv[1]));
+    });
     extra.forEach(function (n) {
       if (!written[n]) cfg.push(envLine(n, changed[n]));
       chosen.push([n, changed[n] + '  (default ' + (byName(n).default || 'none') + ')']);
     });
-    chosen.unshift(['Address', 'https://' + b.host], ['Sign-in', b.issuer], ['Bucket', b.bucketName + ' at ' + b.endpoint],
-      ['Database', b.dbName + ' on ' + b.dbHost], ['Email', b.smtp ? 'SMTP relay' : 'none'],
-      ['Site certificates', b.certs === 'auto' ? 'cert-manager (' + b.issuerName + ')' : 'issued by you']);
+    var LATER = 'to fill in';
+    chosen.unshift(['Address', b.host ? 'https://' + b.host : LATER], ['Sign-in', b.issuer || LATER],
+      ['Bucket', b.bucketName && b.endpoint ? b.bucketName + ' at ' + b.endpoint : (b.bucketName || 'name ' + LATER) + ', ' + (b.endpoint || 'endpoint ' + LATER)],
+      ['Database', (b.dbName || 'simplehost') + (b.dbHost ? ' on ' + b.dbHost + (b.dbPort && b.dbPort !== '5432' ? ':' + b.dbPort : '') : ', host ' + LATER)], ['Email', b.smtp ? 'SMTP relay' : 'none'],
+      ['Site certificates', b.certs === 'auto' ? 'cert-manager (' + (b.issuerName || LATER) + ')' : 'issued by you']);
     secrets = ['OIDC_CLIENT_SECRET', 'SESSION_SIGNING_KEY', 'DB_PASSWORD', 'DB_APP_PASSWORD', 'BACKUP_ENVELOPE_KEY'];
     if (b.creds === 'keys') secrets.push('BACKUP_STORAGE_ACCESS_KEY_ID', 'BACKUP_STORAGE_SECRET_ACCESS_KEY');
     if (b.smtp) secrets.push('SMTP_URL');
     secrets = secrets.concat(optionalSecrets.filter(function (n) { return secrets.indexOf(n) < 0; }));
     return {
-      chosen: chosen,
+      chosen: chosen, blanks: blanks,
       config: '# Simple Host Enterprise: deploy/overlays/byo/config.env (https://simple-host.app/setup)\n' +
-        '# Complete as it is: anything not listed keeps its default (docs/configuration.md); nothing else from config.env.example is needed.\n' + cfg.join('\n') + '\n',
+        '# Complete as it is: anything not listed keeps its default (docs/configuration.md); nothing else from config.env.example is needed.\n' +
+        (blanks.length ? '# Fill in each blank marked "Fill in" before you apply it.\n' : '') + cfg.join('\n') + '\n',
       secrets: '# deploy/overlays/byo/secrets.env: becomes the simple-host-secrets Secret. Never commit it.\n' + secretBlock(secrets).join('\n') + '\n'
     };
   }
@@ -929,21 +1050,39 @@
     return '"' + String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$\{/g, function () { return '$${'; }).replace(/%\{/g, function () { return '%%{'; }) + '"';
   }
   function list(v) { return v.split(',').map(function (x) { return x.trim().toLowerCase(); }).filter(Boolean); }
+  // cloudAsked are the quick path's answers left empty, in the order the
+  // command asks for them: [tfvars name, label].
+  function cloudAsked() {
+    var b = S.basic.ent, out = [];
+    if (!b.host) out.push(['base_domain', 'Address']);
+    if (!list(b.admins).length) out.push(['admin_emails', 'Admin emails']);
+    if (!b.issuer) out.push(['oidc_issuer', 'Issuer URL']);
+    if (isGoogle(b.issuer) && !list(b.domains).length) out.push(['allowed_email_domains', 'Company email domains']);
+    if (!b.clientId) out.push(['oidc_client_id', 'Client ID']);
+    if (b.cluster === 'yes' && !b.clusterName) out.push(['cluster_name', 'Cluster name']);
+    return out;
+  }
   function buildCloud(c) {
     var b = S.basic.ent, changed = S.values.ent, adv = advancedSettings().map(function (s) { return s.name; });
     var extra = Object.keys(changed).filter(function (n) { return adv.indexOf(n) >= 0; }).sort(function (x, y) { return adv.indexOf(x) - adv.indexOf(y); });
-    var issuer = normIssuer(b.issuer), rows = [['create_cluster', b.cluster === 'no' ? 'true' : 'false']];
-    if (b.cluster === 'yes') rows.push(['cluster_name', hcl(b.clusterName)]);
-    rows.push(['region', hcl(b.cloudRegion)], ['base_domain', hcl(b.host)], ['admin_emails', '[' + list(b.admins).map(hcl).join(', ') + ']']);
-    if (isGoogle(issuer)) rows.push(['allowed_email_domains', '[' + list(b.domains).map(hcl).join(', ') + ']']);
-    rows.push(['oidc_issuer', hcl(issuer)], ['oidc_client_id', hcl(b.clientId)]);
+    // An answer left empty is left out: the command asks for it.
+    var issuer = b.issuer ? normIssuer(b.issuer) : '', rows = [['create_cluster', b.cluster === 'no' ? 'true' : 'false']], ASKED = 'asked in ' + c.shell;
+    if (b.cluster === 'yes' && b.clusterName) rows.push(['cluster_name', hcl(b.clusterName)]);
+    rows.push(['region', hcl(b.cloudRegion)]);
+    if (b.host) rows.push(['base_domain', hcl(b.host)]);
+    if (list(b.admins).length) rows.push(['admin_emails', '[' + list(b.admins).map(hcl).join(', ') + ']']);
+    if (isGoogle(issuer) && list(b.domains).length) rows.push(['allowed_email_domains', '[' + list(b.domains).map(function (d) { return d.replace(/^@/, ''); }).map(hcl).join(', ') + ']']);
+    if (issuer) rows.push(['oidc_issuer', hcl(issuer)]);
+    if (b.clientId) rows.push(['oidc_client_id', hcl(b.clientId)]);
     var w = 0;
     rows.forEach(function (r) { w = Math.max(w, r[0].length); });
     var L = ['# Simple Host Enterprise on ' + c.name + ': terraform.tfvars for deploy/terraform/' + c.id + ' (https://simple-host.app/setup)',
       '# No secrets: the client secret is typed in the shell, the rest are generated in your account.'];
+    var asked = cloudAsked();
+    if (asked.length) L.push('# Left for apply.sh to ask for: ' + asked.map(function (x) { return x[0]; }).join(', ') + '.');
     rows.forEach(function (r) { L.push(r[0] + new Array(w - r[0].length + 2).join(' ') + '= ' + r[1]); });
-    var chosen = [['Where it runs', c.name + ', ' + b.cloudRegion], ['Cluster', b.cluster === 'yes' ? b.clusterName + ' (yours)' : 'a new ' + c.k8s + ' cluster'],
-      ['Address', 'https://' + b.host], ['Sign-in', issuer]];
+    var chosen = [['Where it runs', c.name + ', ' + b.cloudRegion], ['Cluster', b.cluster === 'yes' ? (b.clusterName ? b.clusterName + ' (yours)' : 'yours, its name ' + ASKED) : 'a new ' + c.k8s + ' cluster'],
+      ['Address', b.host ? 'https://' + b.host : ASKED], ['Sign-in', issuer || ASKED]];
     if (extra.length) {
       L.push('extra_config = {');
       extra.forEach(function (n) {
@@ -956,7 +1095,7 @@
     var b64 = btoa(unescape(encodeURIComponent(tfvars)));
     var cmd = 'f=$(mktemp) && curl -fsSL ' + ENT_RAW + ENT_CLOUD_REF + '/deploy/terraform/' + c.id + '/apply.sh -o "$f" && printf \'%s  %s\\n\' ' +
       ENT_APPLY_SHA256[c.id] + ' "$f" | sha256sum -c --quiet - && bash "$f" --ref ' + ENT_CLOUD_REF + ' --tfvars ' + b64;
-    return { chosen: chosen, tfvars: tfvars, cmd: cmd };
+    return { chosen: chosen, tfvars: tfvars, cmd: cmd, asked: asked };
   }
   var SECRET_CREDS = "printf 'Client secret: '; trap 'stty echo 2>/dev/null' INT; read -rs TF_VAR_oidc_client_secret; trap - INT; echo; export TF_VAR_oidc_client_secret";
   function shellUrl(c, region) {
@@ -965,27 +1104,34 @@
   // cloudHandoff is the block for an AI agent that works in a shell signed in
   // to the cloud: the same line, with the plan shown to the person first.
   function cloudHandoff(r, c) {
-    var b = S.basic.ent, origin = location.origin, L = [];
+    var b = S.basic.ent, addr = b.host || '<address>', origin = location.origin, L = [];
     var who = c.id === 'aws' ? 'aws sts get-caller-identity' : 'az account show --query "{subscription:name, id:id, user:user.name}"';
     L.push('# Set up Simple Host Enterprise on ' + c.name, '');
     L.push('These are instructions for you, my AI agent, from ' + origin + '/setup. Work through them in order. Stop at the first step that fails and show me its exact error. Never print, log or commit a secret.', '');
-    L.push('Where it runs: ' + c.name + ', region ' + b.cloudRegion + ', ' + (b.cluster === 'yes' ? 'my existing ' + c.k8s + ' cluster ' + b.clusterName + ' (I have cluster-admin access to it)' : 'a new ' + c.k8s + ' cluster that the command creates') + '. The command runs Terraform (the module deploy/terraform/' + c.id + ' of github.com/vineetu/simple-host-enterprise) and keeps its state in my own account.', '');
+    L.push('Where it runs: ' + c.name + ', region ' + b.cloudRegion + ', ' + (b.cluster === 'yes' ? 'my existing ' + c.k8s + ' cluster' + (b.clusterName ? ' ' + b.clusterName : '') + ' (I have cluster-admin access to it)' : 'a new ' + c.k8s + ' cluster that the command creates') + '. The command runs Terraform (the module deploy/terraform/' + c.id + ' of github.com/vineetu/simple-host-enterprise) and keeps its state in my own account.', '');
     L.push('1. Check this shell is signed in to the right account: `' + who + '`. Tell me the account and ask me to confirm it before going on.', '');
     L.push('2. The sign-in app’s client secret: before starting you I set it in this terminal as TF_VAR_oidc_client_secret. Check with `test -n "$TF_VAR_oidc_client_secret" && echo set`. If it is not set, stop and ask me to quit you, run this in the terminal and start you again (a re-run after a first successful one does not need it: the stored secret is kept):', '', FENCE + 'sh', SECRET_CREDS, FENCE, '');
+    var TFV = { base_domain: "TF_VAR_base_domain='sites.example.com'", admin_emails: 'TF_VAR_admin_emails=\'["alex@example.com"]\'', oidc_issuer: "TF_VAR_oidc_issuer='https://your-org.okta.com'",
+      allowed_email_domains: 'TF_VAR_allowed_email_domains=\'["example.com"]\'', oidc_client_id: "TF_VAR_oidc_client_id='0oa123'", cluster_name: "TF_VAR_cluster_name='prod-eks'" };
+    if (r.asked.length) {
+      L.push('Before step 3: the line does not have these, so ask me for each: ' + r.asked.map(function (x) { return x[1] + ' (' + x[0] + ')'; }).join(', ') +
+        '. Put them in front of `bash` in the line, each value in single quotes, like ' + r.asked.map(function (x) { return '`' + TFV[x[0]] + '`'; }).join(' ') +
+        ' (a list is written \'["a@example.com", "b@example.com"]\'), and use that line in steps 3 and 4. Without them it stops and lists them: it asks for them only at a terminal.', '');
+    }
     L.push('3. See what it will create: run this line with ` --plan` added at the end. It installs Terraform if it is missing, fetches the module at a pinned commit after checking its checksum, and prints the plan. Tell me how many resources it adds and ask me before going on.', '', FENCE + 'sh', r.cmd, FENCE, '');
     L.push('4. Apply: after I say yes, run the same line with ` --yes` added at the end. ' + (b.cluster === 'yes' ? 'A first install takes about 15 minutes' : 'A first install takes about 25 minutes (the cluster is most of it)') + '; on an install that exists it applies only the changes. If it stops, running the same line again picks up where it stopped. In ' + c.shell + ' the shell closes after about 20 minutes without a key press, which stops the work: remind me to press Enter in it every 10 minutes or so.', '');
-    L.push('5. DNS: the first numbered step of its final output, "1. DNS:", either lists NS records for ' + b.host + ' to add (in the DNS zone of the domain above it, or as the name servers at the registrar if ' + b.host + ' is a domain of its own): tell me exactly which records to add and where, and wait for me; then check that `dig +short NS ' + sh(b.host) + '` prints them. Or it says ' + b.host + ' is already a Route 53 zone in this account, with nothing to add.', '');
+    L.push('5. DNS: the first numbered step of its final output, "1. DNS:", either lists NS records for ' + addr + ' to add (in the DNS zone of the domain above it, or as the name servers at the registrar if ' + addr + ' is a domain of its own): tell me exactly which records to add and where, and wait for me; then check that `dig +short NS ' + sh(addr) + '` prints them. Or it says ' + addr + ' is already a Route 53 zone in this account, with nothing to add.', '');
     L.push('6. Check it works (certificates can take a few minutes after the DNS change):');
-    L.push('   - `curl -fsS ' + sh('https://' + b.host + '/readyz') + '` prints {"status":"ok"}.');
-    L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' ' + sh('https://install-check.' + b.host + '/healthz') + '` prints a status code (401 or 404 is fine; a TLS or DNS error is not).', '');
-    L.push('7. Tell me: sign in at https://' + b.host + '/auth/login with an admin email (' + list(b.admins).join(', ') + '), and where the generated secrets are kept (the secrets_location output). The envelope key there is the only way to read the sites: it must be backed up. Then remind me to close this terminal (or run `unset TF_VAR_oidc_client_secret`).', '');
+    L.push('   - `curl -fsS ' + sh('https://' + addr + '/readyz') + '` prints {"status":"ok"}.');
+    L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' ' + sh('https://install-check.' + addr + '/healthz') + '` prints a status code (401 or 404 is fine; a TLS or DNS error is not).', '');
+    L.push('7. Tell me: sign in at https://' + addr + '/auth/login with an admin email (' + (list(b.admins).join(', ') || 'one of the admins I gave') + '), and where the generated secrets are kept (the secrets_location output). The envelope key there is the only way to read the sites: it must be backed up. Then remind me to close this terminal (or run `unset TF_VAR_oidc_client_secret`).', '');
     L.push(window.shSetupAssist
       ? 'If anything fails and the output does not tell you how to fix it, tell me: I can paste the error at ' + origin + '/setup?product=enterprise&cloud=' + c.id + '#help for help.'
       : 'If anything fails and the output does not tell you how to fix it, tell me and show me the error.');
     return L.join('\n') + '\n';
   }
   function renderCloudOutput(c) {
-    var b = S.basic.ent, r = buildCloud(c);
+    var b = S.basic.ent, addr = b.host || '<address>', r = buildCloud(c);
     if (S.check.note) app.appendChild(el('p', { class: 'check-note', role: 'status', text: S.check.note }));
     app.appendChild(el('div', { class: 'card', id: 'commands' }, [
       el('h2', { text: 'Set it up on ' + c.name }),
@@ -994,15 +1140,16 @@
           ' in the account it should run in, and paste this line. It asks for your sign-in app’s client secret (not shown as you type), shows what it will create, and waits for you to type yes. It takes about ' +
           (b.cluster === 'yes' ? '15' : '25') + ' minutes: keep the tab open, stay with it until it asks you to type yes, then press Enter every 10 minutes or so, because ' + c.shell + ' closes after about 20 minutes without a key press. If it closes, open it again and paste the same line: it picks up where it stopped. To change an install you already have, paste its new line the same way: it applies only the changes.'])
       ]),
+      r.asked.length ? fillLine(r.asked.map(function (x) { return x[1]; }), '', 'It asks for these when it runs: ') : null,
       block('Paste into ' + c.shell, r.cmd),
       el('ol', { class: 'steps', start: '2' }, [
-        el('li', null, ['DNS. Its final output starts with the records to add for ', el('code', { text: b.host }), '. Usually these are 4 NS records. If ', el('code', { text: b.host }),
+        el('li', null, ['DNS. Its final output starts with the records to add for ', el('code', { text: addr }), '. Usually these are 4 NS records. If ', el('code', { text: addr }),
           ' is under a domain you already manage (like sites.example.com under example.com), add them in that domain’s DNS zone. If it is a domain of its own (like example-sites.com), set them as its name servers at your registrar instead. If ',
-          el('code', { text: b.host }), ' is already a Route 53 zone in this account, it says so and there is nothing to add. Certificates follow by themselves within minutes.']),
+          el('code', { text: addr }), ' is already a Route 53 zone in this account, it says so and there is nothing to add. Certificates follow by themselves within minutes.']),
         el('li', null, ['Check it: this prints ', el('code', { text: '{"status":"ok"}' }), '. Then sign in at ',
-          el('a', { href: 'https://' + b.host + '/auth/login', text: 'https://' + b.host + '/auth/login' }), ' with an admin email.'])
+          b.host ? el('a', { href: 'https://' + addr + '/auth/login', text: 'https://' + addr + '/auth/login' }) : el('code', { text: 'https://' + addr + '/auth/login' }), ' with an admin email.'])
       ]),
-      block('Check', 'curl -fsS ' + sh('https://' + b.host + '/readyz'))
+      block('Check', 'curl -fsS ' + sh('https://' + addr + '/readyz'))
     ]));
     app.appendChild(el('div', { class: 'card' }, [
       el('h2', { text: 'What you chose' }),
@@ -1108,7 +1255,10 @@
     L.push('These are instructions for you, my AI agent, from ' + origin + '/setup. Work through them in order. Stop at the first step that fails and show me its exact error. Never print, log or commit a secret: ask me for each secret value and put it straight into the file.', '');
     L.push('Where it runs: ' + t.needs + '.', '');
     if (p === 'small') {
-      var content = b.content || 'sites.' + b.domain, recs = dnsRecords(b.domain, content);
+      // With no domain on the page, the agent asks for it: <domain> and
+      // <sites> stand for the answers.
+      var domain = b.domain || '<domain>', content = b.domain ? b.content || 'sites.' + b.domain : '<sites>', recs = dnsRecords(domain, content);
+      if (!b.domain) L.push(n++ + '. Domain: ask me for the domain Simple Host lives at (like hack.example.com) and the hostname for published sites (sites.<domain> unless I say otherwise). Below, <domain> and <sites> stand for my answers.', '');
       var ssh = '', host = 'the server';
       if (t.id === 'upcloud') {
         ssh = 'ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/simple-host root@<the server’s IPv4>';
@@ -1125,29 +1275,30 @@
         L.push('   - UpCloud’s firewall is off for a new server. If it is on, allow ports 22, 80 and 443 in.', '');
         host = 'the server (`' + ssh + '`)';
       }
-      L.push(n++ + '. DNS: at my domain’s DNS provider, ' + dnsText(recs, content) + '. If you can manage that DNS provider from here, ask me before changing anything; otherwise tell me the exact records to add and wait for me. Check that `dig +short ' + sh(b.domain) + '` and `dig +short ' + sh(content) + '` both print the address. Certificates are issued on the first visit, so both names must point at the server first.', '');
-      L.push(n++ + '. Install: on ' + host + ', run this. It installs Docker, starts Simple Host from the release it pins (' + INSTALLER_RELEASE + ') and prints the admin key: give it to me. The server keeps it in /opt/simple-host/.env (ADMIN_API_KEY) and re-running the command prints it again; do not copy it anywhere else.', '', FENCE + 'sh', r.cmd, FENCE, '');
+      L.push(n++ + '. DNS: at my domain’s DNS provider, ' + dnsText(recs, content) + '. If you can manage that DNS provider from here, ask me before changing anything; otherwise tell me the exact records to add and wait for me. Check that `dig +short ' + (b.domain ? sh(domain) : domain) + '` and `dig +short ' + (b.domain ? sh(content) : content) + '` both print the address. Certificates are issued on the first visit, so both names must point at the server first.', '');
+      L.push(n++ + '. Install: on ' + host + ', run this' + (b.domain ? '' : ' with --host <domain> --content <sites> added at the end (each in single quotes)') + '. It installs Docker, starts Simple Host from the release it pins (' + INSTALLER_RELEASE + ') and prints the admin key: give it to me. The server keeps it in /opt/simple-host/.env (ADMIN_API_KEY) and re-running the command prints it again; do not copy it anywhere else.', '', FENCE + 'sh', r.cmd, FENCE, '');
       if (r.env) {
         L.push(n++ + '. Settings: add these lines to the end of /opt/simple-host/.env on the server (it needs sudo). Ask me for each blank value; do not invent one. Then run `cd /opt/simple-host && sudo docker compose up -d`.', '', FENCE, r.env.replace(/\n$/, ''), FENCE, '');
       }
       L.push(n++ + '. Check it works:');
-      L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' ' + sh('https://' + b.domain + '/healthz') + '` prints 200.');
+      L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' ' + (b.domain ? sh('https://' + domain + '/healthz') : 'https://<domain>/healthz') + '` prints 200.');
       L.push('   - `cd /opt/simple-host && sudo docker compose ps`, on the server, shows every service running.');
-      L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' ' + sh('https://' + content + '/') + '` prints a status code with no certificate error.');
+      L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' ' + (b.domain ? sh('https://' + content + '/') : 'https://<sites>/') + '` prints a status code with no certificate error.');
       L.push('   - `cd /opt/simple-host && sudo docker compose exec -T app simple-host version`, on the server, names the release (' + INSTALLER_RELEASE + ').', '');
-      L.push(n++ + '. Tell me: the admin page, https://' + b.domain + '/admin (open it and paste the admin key there)' + (t.id === 'upcloud' ? ', the server’s UUID, address, plan and zone. Then remind me to run `' + UPCLOUD_UNSET + '` in this terminal (or close it) once you are done with UpCloud, and to keep the token or API user limited (a token with an expiry, an API user with only server permissions) and, if I can, to my own IP address' : '') + '.', '');
+      L.push(n++ + '. Tell me: the admin page, https://' + domain + '/admin (open it and paste the admin key there)' + (t.id === 'upcloud' ? ', the server’s UUID, address, plan and zone. Then remind me to run `' + UPCLOUD_UNSET + '` in this terminal (or close it) once you are done with UpCloud, and to keep the token or API user limited (a token with an expiry, an API user with only server permissions) and, if I can, to my own IP address' : '') + '.', '');
     } else {
+      var addr = b.host || '<address>';
       L.push('1. Get the package: `git clone https://github.com/vineetu/simple-host-enterprise && cd simple-host-enterprise`. Its INSTALL.md is a runbook written for AI agents: follow it top to bottom, and use the two files below as the config.env and secrets.env it asks for. Name the kubectl context on every call.', '');
-      L.push('2. Save this as deploy/overlays/byo/config.env:', '', FENCE, r.config.replace(/\n$/, ''), FENCE, '');
+      L.push('2. Save this as deploy/overlays/byo/config.env' + (r.blanks.length ? ', with each value marked "Fill in" filled in: ask me for each one (' + r.blanks.join(', ') + '); do not invent one' : '') + ':', '', FENCE, r.config.replace(/\n$/, ''), FENCE, '');
       L.push('3. Save this as deploy/overlays/byo/secrets.env and fill in every blank from its hint: generate what can be generated, ask me for the rest. Check that `git check-ignore deploy/overlays/byo/config.env deploy/overlays/byo/secrets.env` prints both paths before writing them.', '', FENCE, r.secrets.replace(/\n$/, ''), FENCE, '');
       L.push('4. In deploy/overlays/byo, set the image digest in kustomization.yaml and the address in ingress-patch.yaml, and save the database’s CA certificate as db-ca.crt (INSTALL.md, section 5).', '');
       L.push('5. Apply: `make install OVERLAY=deploy/overlays/byo INSTALL_CONTEXT=<the kubectl context>`, then `kubectl --context <the kubectl context> -n simple-host rollout status deploy/simple-host --timeout=300s`.', '');
       L.push('6. Check it works:');
-      L.push('   - `curl -fsS ' + sh('https://' + b.host + '/readyz') + '` prints {"status":"ok"}.');
-      L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' ' + sh('https://install-check.' + b.host + '/healthz') + '` prints a status code (401 or 404 is fine; a TLS or DNS error is not).');
-      L.push('   - An admin signs in at https://' + b.host + '/auth/login.', '');
-      L.push('7. Finish as INSTALL.md sections 8 and 9 say: HUMAN STEP D (an admin confirms is_admin at /api/me and mints a Full key on /dashboard), then `make smoke BASE=' + sh('https://' + b.host) + ' KEY_FILE="$HOME/.simple-host-install-key"`, which must pass. ' +
-        (b.certs === 'auto' ? 'If OWNER_CERT_ISSUER (' + b.issuerName + ') is an internal CA, the machine running make smoke must trust it, or its owner-host check fails with "not ready" (curl exit 60 or 35): run it with CURL_CA_BUNDLE set to a file holding the system CAs plus the company CA.' : 'The owner certificates you issue must be trusted by the machine running make smoke (for an internal CA, set CURL_CA_BUNDLE to a file holding the system CAs plus the company CA).'), '');
+      L.push('   - `curl -fsS ' + sh('https://' + addr + '/readyz') + '` prints {"status":"ok"}.');
+      L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' ' + sh('https://install-check.' + addr + '/healthz') + '` prints a status code (401 or 404 is fine; a TLS or DNS error is not).');
+      L.push('   - An admin signs in at https://' + addr + '/auth/login.', '');
+      L.push('7. Finish as INSTALL.md sections 8 and 9 say: HUMAN STEP D (an admin confirms is_admin at /api/me and mints a Full key on /dashboard), then `make smoke BASE=' + sh('https://' + addr) + ' KEY_FILE="$HOME/.simple-host-install-key"`, which must pass. ' +
+        (b.certs === 'auto' ? 'If OWNER_CERT_ISSUER (' + (b.issuerName || 'yours') + ') is an internal CA, the machine running make smoke must trust it, or its owner-host check fails with "not ready" (curl exit 60 or 35): run it with CURL_CA_BUNDLE set to a file holding the system CAs plus the company CA.' : 'The owner certificates you issue must be trusted by the machine running make smoke (for an internal CA, set CURL_CA_BUNDLE to a file holding the system CAs plus the company CA).'), '');
     }
     L.push(window.shSetupAssist
       ? 'If anything fails and the output does not tell you how to fix it, tell me: I can paste the error at ' + origin + '/setup?product=' + product + '#help for help.'
@@ -1274,6 +1425,12 @@
     ]));
   }
 
+  // fillLine is the one line naming what is left to fill in, or null.
+  function fillLine(blanks, tail, lead) {
+    if (!blanks.length && !tail) return null;
+    return el('p', { class: 'fill', role: 'note', text: (lead || 'Fill in before you run it: ') + blanks.concat(tail ? [tail] : []).join(', ') + '.' });
+  }
+
   function renderOutput() {
     var pl = checkPayload(), key = pl ? JSON.stringify(pl) : '';
     if (!key) { if (S.check.state === 'running') stopCheck(); S.check = { key: '', state: '', findings: [], note: '', seq: S.check.seq }; }
@@ -1303,16 +1460,20 @@
       ]));
     }
     if (S.product === 'small') {
+      var sb = S.basic.small, sContent = sb.content || 'sites.' + sb.domain;
       card.appendChild(el('h2', { text: t.id === 'upcloud' ? 'Or do it by hand' : 'Your small box' }));
       card.appendChild(el('ol', { class: 'steps' }, [
         t.id === 'upcloud' ? el('li', { text: 'In the UpCloud control panel, create the server: the smallest plan with 1 CPU and 1 GB of RAM, the plain Ubuntu Server 24.04 LTS image, your SSH key.' }) : null,
-        el('li', { text: 'At your domain’s DNS provider, add ' + dnsText(dnsRecords(S.basic.small.domain, S.basic.small.content || 'sites.' + S.basic.small.domain), S.basic.small.content || 'sites.' + S.basic.small.domain) +
-          '. The server is a fresh Ubuntu server with ports 80 and 443 open.' }),
-        el('li', { text: 'On the server, run the install command below. It installs Docker, starts Simple Host and prints the admin key: keep it. The server keeps it in /opt/simple-host/.env, and re-running the command prints it again. Sign in with it at /admin.' }),
+        el('li', { text: sb.domain ? 'At your domain’s DNS provider, add ' + dnsText(dnsRecords(sb.domain, sContent), sContent) + '. The server is a fresh Ubuntu server with ports 80 and 443 open.'
+          : 'At your domain’s DNS provider, add A records pointing at the server’s public IPv4 address for your domain and *.<your domain>. The server is a fresh Ubuntu server with ports 80 and 443 open.' }),
+        el('li', { text: sb.domain ? 'On the server, run the install command below. It installs Docker, starts Simple Host and prints the admin key: keep it. The server keeps it in /opt/simple-host/.env, and re-running the command prints it again. Sign in with it at /admin.'
+          : 'On the server, run the install command below. It installs Docker, starts Simple Host and prints a setup address and password: open it, choose your domain there, and keep the admin key it gives you. Sign in with it at /admin.' }),
         r.env ? el('li', null, ['Open ', el('code', { text: 'sudo nano /opt/simple-host/.env' }), ', paste the settings at the end, fill in any blanks, save, then run ',
           el('code', { text: 'cd /opt/simple-host && sudo docker compose up -d' }), '. Re-running the installer (also how you upgrade) keeps them.']) : null
       ]));
       card.appendChild(el('div', { style: 'height:16px' }));
+      var fl = fillLine(r.blanks, '', 'Fill in before you save the settings: ');
+      if (fl) card.appendChild(fl);
       card.appendChild(block('Install command', r.cmd));
       if (r.env) card.appendChild(block('Settings for /opt/simple-host/.env', r.env, 'simple-host.env'));
       else card.appendChild(el('p', { class: 'note', text: 'No settings file needed: everything else keeps its default.' }));
@@ -1320,7 +1481,7 @@
       card.appendChild(el('h2', { text: 'Your Enterprise install' }));
       card.appendChild(el('ol', { class: 'steps' }, [
         el('li', null, ['Clone ', el('code', { text: 'github.com/vineetu/simple-host-enterprise' }), ' and save both files below into ', el('code', { text: 'deploy/overlays/byo/' }), '.']),
-        el('li', { text: 'Fill in every blank in secrets.env (or have your External Secrets Operator create the simple-host-secrets Secret with those keys).' }),
+        el('li', { text: (r.blanks.length ? 'Fill in the values marked “Fill in” in config.env, and every blank in secrets.env' : 'Fill in every blank in secrets.env') + ' (or have your External Secrets Operator create the simple-host-secrets Secret with those keys).' }),
         el('li', null, ['In the same folder, set the image digest in ', el('code', { text: 'kustomization.yaml' }), ', your address in ', el('code', { text: 'ingress-patch.yaml' }),
           ', and save your database’s CA certificate as ', el('code', { text: 'db-ca.crt' }), ' (INSTALL.md, section 5).']),
         el('li', null, ['Apply: ', el('code', { text: 'make install OVERLAY=deploy/overlays/byo' }), ' (installs cert-manager and an ingress controller if missing, checks the overlay, applies and waits). With kustomize alone: ',
@@ -1328,6 +1489,7 @@
         el('li', null, ['Changing a setting later: edit config.env, apply again, then ', el('code', { text: 'kubectl -n simple-host rollout restart deploy/simple-host' }), '.'])
       ]));
       card.appendChild(el('div', { style: 'height:16px' }));
+      card.appendChild(fillLine(r.blanks, 'the secrets in secrets.env'));
       card.appendChild(block('config.env (the ConfigMap)', r.config, 'config.env'));
       card.appendChild(block('secrets.env (the Secret, blanks to fill in)', r.secrets, 'secrets.env'));
     }

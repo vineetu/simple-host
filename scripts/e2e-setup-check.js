@@ -158,7 +158,7 @@ async function enterpriseToCheck(page, width) {
   await p4.fill('#f-dbHost', 'public-sh-abc.db.upclouddatabases.com');
   await p4.fill('#f-proxies', 'not a range');
   await p4.getByRole('button', { name: 'Show my files' }).click();
-  assert(await p4.locator('#f-region.bad').count() === 1 && await p4.locator('#f-proxies.bad').count() === 1, 'region required, bad range refused');
+  assert(await p4.locator('#f-region.bad').count() === 0 && await p4.locator('#f-proxies.bad').count() === 1, 'an empty region is not an error; a bad range is refused');
   await p4.fill('#f-region', 'europe-2');
   await p4.fill('#f-proxies', '192.168.0.0/16');
   await p4.screenshot({ path: `${shots}/setup-ent-upcloud-390.png`, fullPage: true });
