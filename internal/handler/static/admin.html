@@ -443,24 +443,48 @@ async function downloadAll(){
   finally{ btn.disabled=false; }
 }
 
-function renderNotFound(){
-  document.title='Not found · simple·host';
-  // Only the page body is swapped: the shared header and footer stay, as they
-  // do on the real 404.
+// renderSignIn replaces the page body with the admin key sign-in: what a
+// person sees at /admin with no key in this browser, a key the server no
+// longer takes, or a key that is not the admin's. The key is checked against
+// an admin-only route and kept in this browser (as the dashboard keeps it)
+// only when it is the admin key.
+function renderSignIn(why){
+  document.title='Admin sign-in · simple·host';
   var main=document.getElementById('admin-main'); if(!main) return;
-  main.outerHTML='<div class="container" style="padding-top:80px;text-align:center">'+
-    '<div style="font-size:44px;font-weight:600;letter-spacing:-1px">404</div>'+
-    '<p style="color:var(--text-secondary);margin-top:8px">That page does not exist.</p>'+
-    '<p style="margin-top:22px"><a href="/" style="color:var(--text-secondary)">← simple·host</a></p></div>';
+  main.innerHTML='<p class="page-tag">Admin</p>'+
+    '<div class="panel" id="signin" style="max-width:560px">'+
+    '<h2 style="font-size:20px;margin-bottom:6px">Sign in with the admin key</h2>'+
+    '<p class="ph" id="signin-why"></p>'+
+    '<form class="row" id="signin-form" style="margin-top:14px">'+
+    '<input type="password" id="signin-key" autocomplete="off" spellcheck="false" placeholder="Paste the admin key" aria-label="Admin key" required>'+
+    '<button class="btn" type="submit" id="signin-btn">Sign in</button></form>'+
+    '<p class="ph" style="margin-top:12px">On a small box the admin key is <code>ADMIN_API_KEY</code> in <code>/opt/simple-host/.env</code> on the server; re-running the installer prints it again. It is kept in this browser once you sign in.</p>'+
+    '<div id="signin-msg" class="msg err" role="alert" hidden></div></div>';
+  document.getElementById('signin-why').textContent=why;
+  document.getElementById('signin-form').addEventListener('submit', async function(e){
+    e.preventDefault();
+    var key=document.getElementById('signin-key').value.trim(), msg=document.getElementById('signin-msg');
+    if(!key) return;
+    var btn=document.getElementById('signin-btn'); btn.disabled=true; msg.hidden=true;
+    try{
+      var res=await fetch('/v1/admin/users',{headers:{'X-API-Key':key}});
+      if(res.ok){ localStorage.setItem('apiKey', key); location.reload(); return; }
+      msg.textContent=res.status===401?'That key was not recognised.':res.status===429?'Too many tries. Wait a minute, then try again.':'That key is not the admin key.';
+      msg.hidden=false;
+    }catch(err){ msg.textContent='Cannot reach the server.'; msg.hidden=false; }
+    finally{ btn.disabled=false; }
+  });
+  document.getElementById('signin-key').focus();
 }
 
 async function load(){
-  if(!apiKey){ renderNotFound(); return; }
+  if(!apiKey){ renderSignIn('The admin page opens with the admin key.'); return; }
   status('Loading…');
   try{
     var res=await fetch('/v1/admin/users',{headers:{'X-API-Key':apiKey}});
     if(res.ok){ var ip=document.getElementById('issue'); if(ip) ip.hidden=false; }
-    if(res.status===401||res.status===403||res.status===404){ renderNotFound(); return; }
+    if(res.status===401){ renderSignIn('The key in this browser is no longer accepted. Sign in with the admin key.'); return; }
+    if(res.status===403||res.status===404){ renderSignIn('You are signed in with a key that is not the admin key.'); return; }
     var data=await res.json().catch(function(){return{};});
     if(!res.ok){ status(data.error||('HTTP '+res.status), true); return; }
     document.getElementById('status').hidden=true;
