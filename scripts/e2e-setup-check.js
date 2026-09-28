@@ -143,15 +143,19 @@ async function enterpriseToCheck(page, width) {
   await p4.fill('#f-admins', 'platform@example.com');
   await p4.fill('#f-clientId', 'client-123');
   await p4.fill('#f-issuer', 'https://acme.okta.com');
+  await p4.selectOption('#f-idp', 'entra');
+  assert(await p4.inputValue('#f-issuer') === 'https://acme.okta.com', 'another provider keeps a typed issuer (no template over it)');
+  await p4.selectOption('#f-idp', 'okta');
   await p4.fill('#f-issuerName', 'internal-ca');
+  assert(await p4.inputValue('#f-dbPort') === '5432', 'Postgres port starts at 5432');
   await p4.selectOption('#f-bucket', 'upcloud');
   assert(await p4.inputValue('#f-region') === '', 'UpCloud: no preset region');
+  assert(await p4.inputValue('#f-dbPort') === '11569', 'UpCloud: the Postgres port is filled in as 11569');
   assert(/public-/.test(await p4.locator('#f-dbHost-h').innerText()) && /11569/.test(await p4.locator('#f-dbPort-h').innerText()), 'UpCloud: Postgres hints');
   assert(/192\.168\.0\.0\/16/.test(await p4.locator('#f-proxies-h').innerText()), 'UpCloud: pod range hint');
   await p4.fill('#f-endpoint', 'https://abc12.upcloudobjects.com');
   await p4.fill('#f-bucketName', 'sh-sites');
   await p4.fill('#f-dbHost', 'public-sh-abc.db.upclouddatabases.com');
-  await p4.fill('#f-dbPort', '11569');
   await p4.fill('#f-proxies', 'not a range');
   await p4.getByRole('button', { name: 'Show my files' }).click();
   assert(await p4.locator('#f-region.bad').count() === 1 && await p4.locator('#f-proxies.bad').count() === 1, 'region required, bad range refused');
@@ -165,6 +169,11 @@ async function enterpriseToCheck(page, width) {
   await p4.waitForSelector('pre');
   const entCfg = await p4.locator('pre').first().innerText();
   assert(/^TRUSTED_PROXY_CIDRS=192\.168\.0\.0\/16$/m.test(entCfg) && /^BACKUP_STORAGE_REGION=europe-2$/m.test(entCfg) && /^DB_PORT=11569$/m.test(entCfg), 'config.env carries the pod range, region and port');
+  assert(/^# Complete as it is: anything not listed keeps its default/m.test(entCfg), 'config.env says it is complete');
+  for (const line of ['PORT=8080', 'HTTPS_REDIRECT_PORT=8081', 'OIDC_SCOPES=openid email profile', 'SESSION_TTL=8h', 'SESSION_IDLE=30m', 'DB_SSLMODE=verify-full', 'BACKUP_STORAGE_PREFIX=backups/', 'BACKUP_SSE=AES256'])
+    assert(new RegExp('^' + line.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&') + '$', 'm').test(entCfg), 'config.env has the example\'s ' + line);
+  const entAgent = await p4.locator('#agent pre').last().innerText();
+  assert(/HUMAN STEP D/.test(entAgent) && /make smoke BASE=https:\/\/sites\.example\.com/.test(entAgent) && /CURL_CA_BUNDLE/.test(entAgent) && /internal-ca/.test(entAgent), 'the handoff ends with HUMAN STEP D, make smoke and the internal-CA note');
   await browser.close();
   console.log('ALL OK');
 })().catch(e => { console.error(e); process.exit(1); });

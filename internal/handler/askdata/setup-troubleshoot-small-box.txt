@@ -1,5 +1,6 @@
 Installing a small box: what goes wrong, how to confirm it, the fix.
 
+Which release a box runs: cd /opt/simple-host && sudo docker compose exec -T app simple-host version (simple-host is not a command on the server itself; the admin page names the release too).
 Where to look: the installer prints FAILED: and a line to diagnose with. The app's log: cd /opt/simple-host && sudo docker compose logs --tail 100 app. Caddy (certificates, HTTPS): sudo docker compose logs --tail 100 caddy. The database: sudo docker compose logs --tail 50 db. What is running: sudo docker compose ps. Health: curl -fsS https://<domain>/healthz answers 200 when the server is up.
 
 The installer:
@@ -13,10 +14,14 @@ The installer:
 - Docker could not be installed: the installer expects a fresh Ubuntu server with sudo.
 
 Creating the server at UpCloud:
-- "Authentication failed" or 401 from upctl or the API: UPCLOUD_USERNAME and UPCLOUD_PASSWORD are not set in the terminal the agent runs in, or name the main account instead of an API user, or the API user lacks API access (control panel: the sub-account's permissions, API connections allowed, and its IP allow-list if one is set). Set them again with the line the page gives, then restart the agent in that terminal.
+- The agent says the UpCloud credentials are not set: neither UPCLOUD_TOKEN nor UPCLOUD_USERNAME and UPCLOUD_PASSWORD is set in the terminal it runs in. An API token (ucat_..., from the control panel's Account, API tokens) works as well as an API user and is the simpler choice: run the page's token line in that terminal, then start the agent there again. There is no need to create an API user when you have a token.
+- "Authentication failed" or 401 from upctl or the API: with a token, it has expired, was revoked, or its IP allow-list does not include this machine (make a new one); with an API user, the variables name the main account instead of an API user, or the API user lacks API access (control panel: the sub-account's permissions, API connections allowed, and its IP allow-list if one is set). Set them again with the line the page gives, then restart the agent in that terminal. With curl, a token goes in an Authorization: Bearer header, an API user in Authorization: Basic.
 - TIER_INVALID when creating the server: the small plans take storage tier standard only; the message names the tier, but the fix is the tier, not the plan.
 - The disk is too small for the template: two templates are named Ubuntu Server 24.04 LTS, and the one with NVIDIA drivers and CUDA needs 20 GB. Take the plain one.
 - The plan is not found: plan names change; list the plans and take the smallest with 1 CPU and 1 GB of RAM.
+- upctl storage list --template prints nothing: use the API, GET /1.3/storage/template.
+- The monthly price: no upctl command shows prices. GET /1.3/price has, per zone, server_plan_<plan> with price in cents per hour; times 730 is a month (the smallest plan is about $4 at list price).
+- SSH says "Connection refused" right after the server reaches started: sshd takes a minute or so to come up. Retry every few seconds for up to two minutes.
 - SSH times out: use the server's public IPv4 address (access public, family IPv4), not the 10.x utility address, and wait until the server's state is started. If the server has UpCloud's firewall on, allow 22, 80 and 443.
 
 Addresses and certificates:
@@ -39,6 +44,8 @@ The app refuses to start (the app log ends with "load config:" and a reason). A 
 The fix for a setting is to change that line in /opt/simple-host/.env to an allowed value, then cd /opt/simple-host && sudo docker compose up -d.
 
 Sign-in:
+- /admin shows a sign-in box: paste the admin key there (ADMIN_API_KEY in /opt/simple-host/.env on the server; re-running the installer prints it). "That key is not the admin key" means the key pasted is a person's key.
+- The admin's sites live under the domain's first label (sites.<domain>/<label>/<site>/), or organiser when that label is reserved (hack, www, api and similar).
 - Emailed codes never arrive: the Resend key is missing or wrong, or MAIL_FROM is not on a domain verified with Resend. Check the domain's status in Resend, and the app log around the sign-in.
 - Google sign-in says redirect_uri_mismatch: the Google OAuth client's redirect URI must be exactly https://<domain>/v1/auth/oauth/google/callback.
 - Nobody can sign in: with neither emailed codes nor Google set up, only the admin key signs in.

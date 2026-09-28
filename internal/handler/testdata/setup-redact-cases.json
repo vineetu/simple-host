@@ -203,5 +203,10 @@
   "name": "settings and prose that are not secrets kept",
   "in": "RATE_LIMIT_VISITOR_AUTH=30 KEY_IDLE_EXPIRY_DAYS=5\nthe key: see docs\ngo test -run TestX ./...",
   "out": "RATE_LIMIT_VISITOR_AUTH=30 KEY_IDLE_EXPIRY_DAYS=5\nthe key: see docs\ngo test -run TestX ./..."
+ },
+ {
+  "name": "UpCloud API token hidden, hostnames and curl's TLS error kept",
+  "in": "export UPCLOUD_TOKEN=ucat_01DQE3AJDEBFEKECFM558TGH2F\nheader = \"Authorization: Bearer ucat_01DQE3AJDEBFEKECFM558TGH2F\"\ncurl: (60) SSL certificate problem: unable to get local issuer certificate\nsmoke: plan.alice.e2e.example.net not ready after 300s (https://plan.alice.e2e.example.net/healthz)",
+  "out": "export UPCLOUD_TOKEN=[redacted]\nheader = \"Authorization: Bearer [redacted]\"\ncurl: (60) SSL certificate problem: unable to get local issuer certificate\nsmoke: plan.alice.e2e.example.net not ready after 300s (https://plan.alice.e2e.example.net/healthz)"
  }
 ]

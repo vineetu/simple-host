@@ -35,6 +35,7 @@ Sign-in:
 - 429 or "gave no redirect" after many sign-ins: sign-in is rate limited per address; wait two to three minutes.
 
 Addresses, certificates and uploads:
+- make smoke fails with "<site host> not ready after 300s" (the owner host check), or curl from the admin's machine exits 60 ("SSL certificate problem: unable to get local issuer certificate") or 35, while kubectl -n simple-host describe certificate shows the owner's certificate Ready and OWNER_CERT_ISSUER is an internal CA: the server is fine; the machine running the check does not trust the company CA. Confirm with curl -v https://<site host>/ from that machine (the error names the certificate). Fix: run the check from a machine that trusts the CA, or CURL_CA_BUNDLE=<a file with the system CAs plus the company CA> make smoke BASE=... KEY_FILE=...; browsers need the CA in the OS or browser trust store. Do not change the ingress or the redirect for this.
 - A person's or site's address gives a DNS or TLS error: one wildcard DNS record must cover *.<address> at every depth, and each owner's *.<owner>.<address> certificate needs DNS-01 (a wildcard cannot use HTTP-01) or an internal CA issuer.
 - Sites stay at <owner>.<address>/<site>/: the owner's certificate is not ready. Check OWNER_CERT_ISSUER names a ClusterIssuer that exists, and kubectl describe certificate for that owner.
 - A certificate never becomes ready: the DNS-01 solver's credential or zone; kubectl describe the certificate, order and challenge.

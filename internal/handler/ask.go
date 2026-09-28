@@ -925,6 +925,40 @@ func askLinkAllowed(u string, links map[string]bool) bool {
 // nothing when the label itself looks like an address), bare addresses
 // elsewhere removed, and at most askMaxAnswerWords words.
 func cleanAnswer(s string, links map[string]bool) string {
+	return cleanAnswerWith(s, links, false)
+}
+
+// cleanSetupAnswer is cleanAnswer for the setup assistant, whose answers
+// carry commands: an address it removes becomes its scheme and path on a
+// placeholder host (curl -fsS https://<your-host>/healthz) instead of
+// disappearing, so the command still reads right and the person puts their
+// own host back. The host, query and fragment still go.
+func cleanSetupAnswer(s string) string {
+	return cleanAnswerWith(s, nil, true)
+}
+
+// askPlaceholderHost stands in for a host the setup assistant's answer named.
+const askPlaceholderHost = "<your-host>"
+
+// placeholderURL is u (an address askBareURL matched, or a link label that
+// looks like one) with its host replaced by askPlaceholderHost and its query
+// and fragment dropped.
+func placeholderURL(u string) string {
+	scheme, rest := "", u
+	if i := strings.Index(u, "://"); i >= 0 {
+		scheme, rest = u[:i+3], u[i+3:]
+	}
+	path := ""
+	if i := strings.IndexAny(rest, "/?#"); i >= 0 {
+		path = rest[i:]
+	}
+	if i := strings.IndexAny(path, "?#"); i >= 0 {
+		path = path[:i]
+	}
+	return scheme + askPlaceholderHost + path
+}
+
+func cleanAnswerWith(s string, links map[string]bool, placeholder bool) string {
 	s = askMDNoise.ReplaceAllString(strings.TrimSpace(s), "")
 	s = askMDUnder.ReplaceAllString(s, "$1$2")
 	s = askMDLink.ReplaceAllStringFunc(s, func(m string) string {
@@ -933,6 +967,9 @@ func cleanAnswer(s string, links map[string]bool) string {
 			return m
 		}
 		if askURLish.MatchString(strings.TrimSpace(p[1])) {
+			if placeholder {
+				return placeholderURL(strings.TrimSpace(p[1]))
+			}
 			return ""
 		}
 		return p[1]
@@ -940,7 +977,7 @@ func cleanAnswer(s string, links map[string]bool) string {
 	// Bare addresses outside a kept link: allowed pages stay as text, the
 	// rest go. A kept link's own address sits inside "](…)", which this
 	// pattern cannot start in without "http" — so check the rune before.
-	s = replaceBareURLs(s, links)
+	s = replaceBareURLs(s, links, placeholder)
 	s = askSpaceRuns.ReplaceAllString(s, " ")
 	words := 0
 	for i := 0; i < len(s); {
@@ -962,8 +999,8 @@ func cleanAnswer(s string, links map[string]bool) string {
 }
 
 // replaceBareURLs removes addresses that are not a kept markdown link's target
-// and not an allowed page.
-func replaceBareURLs(s string, links map[string]bool) string {
+// and not an allowed page (with placeholder, puts placeholderURL in their place).
+func replaceBareURLs(s string, links map[string]bool, placeholder bool) string {
 	var b strings.Builder
 	last := 0
 	for _, loc := range askBareURL.FindAllStringIndex(s, -1) {
@@ -974,6 +1011,9 @@ func replaceBareURLs(s string, links map[string]bool) string {
 			continue
 		}
 		b.WriteString(s[last:loc[0]])
+		if placeholder {
+			b.WriteString(placeholderURL(u))
+		}
 		last = end
 	}
 	b.WriteString(s[last:])

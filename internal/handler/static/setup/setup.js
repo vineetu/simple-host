@@ -55,6 +55,31 @@
   ];
   // </setupBasics>
 
+  // presetOf: v is empty or one of the list's own template values, so
+  // picking another provider may replace it; anything the person typed stays.
+  function presetOf(list, key, v) {
+    return !v || list.some(function (p) { return p[key] === v; });
+  }
+  // pickIdp and pickBucket answer the provider questions, from the list or
+  // the assistant: the template issuer, endpoint and region follow only
+  // where the person has not typed their own. With UpCloud the Postgres port
+  // becomes UpCloud's managed Postgres port, 11569, while it is still 5432
+  // (and goes back when another provider is picked).
+  function pickIdp(b, id) {
+    b.idp = id;
+    IDPS.forEach(function (p) { if (p.id === id && presetOf(IDPS, 'issuer', b.issuer)) b.issuer = p.issuer; });
+  }
+  function pickBucket(b, id) {
+    b.bucket = id;
+    BUCKETS.forEach(function (p) {
+      if (p.id !== id) return;
+      if (presetOf(BUCKETS, 'endpoint', b.endpoint)) b.endpoint = p.endpoint;
+      if (presetOf(BUCKETS, 'region', b.region)) b.region = p.region;
+    });
+    if (id === 'upcloud' && b.dbPort === '5432') b.dbPort = '11569';
+    else if (id !== 'upcloud' && b.dbPort === '11569') b.dbPort = '5432';
+  }
+
   var S = {
     product: 'small', mode: 'basic', step: 0, area: 0,
     data: {},
@@ -306,14 +331,14 @@
   // link, and the page says so) and what to do there.
   function upcloudOffer() {
     return el('div', { class: 'upcloud' }, [
-      el('p', { class: 'note', style: 'margin:0 0 12px', text: 'The smallest UpCloud server (1 CPU, 1 GB, about $5/month) runs Simple Host comfortably; we test on it.' }),
+      el('p', { class: 'note', style: 'margin:0 0 12px', text: 'The smallest UpCloud server (1 CPU, 1 GB, about $4/month) runs Simple Host comfortably; we test on it.' }),
       el('a', { class: 'btn solid cta', href: UPCLOUD_SIGNUP, target: '_blank', rel: 'noopener', text: 'Create your UpCloud account — $25 in credits' }),
       el('p', { class: 'fine', text: 'Referral link. New accounts through this link get $25 of UpCloud credit; their terms apply.' }),
       el('ol', { class: 'steps' }, [
         el('li', { text: 'Create your UpCloud account.' }),
-        el('li', { text: 'In the UpCloud control panel, create an API user: a sub-account with API access allowed. ' + UPCLOUD_LIMIT + ' Its username and password stay with you; this page never asks for them.' }),
+        el('li', { text: 'In the UpCloud control panel, create an API token (Account → API tokens; recommended) or an API user (a sub-account with API access allowed). ' + UPCLOUD_LIMIT + ' It stays with you; this page never asks for it.' }),
         el('li', { text: 'Answer the questions on this page.' }),
-        el('li', { text: 'On the last step, set the API user in your terminal (the page gives the command) and copy the prompt into your AI agent. It creates the server, sets it up and checks it.' })
+        el('li', { text: 'On the last step, set the token (or the API user) in your terminal (the page gives the command) and copy the prompt into your AI agent. It creates the server, sets it up and checks it.' })
       ])
     ]);
   }
@@ -330,7 +355,7 @@
       el('fieldset', null, [
         el('legend', { class: 'note', text: 'Your own server, at a cloud provider or anywhere with a public address.' }),
         el('div', { class: 'choices' }, [
-          choice('where', 'upcloud', b.where, 'UpCloud (recommended)', 'A new server there, created by your AI agent with your UpCloud API user.', function (v) { b.where = v; draw(); }),
+          choice('where', 'upcloud', b.where, 'UpCloud (recommended)', 'A new server there, created by your AI agent with your UpCloud API token or API user.', function (v) { b.where = v; draw(); }),
           choice('where', 'server', b.where, 'A server I already have', 'Any fresh Ubuntu server you can SSH into.', function (v) { b.where = v; draw(); })
         ])
       ]),
@@ -372,7 +397,7 @@
           signin.appendChild(secretNote('GOOGLE_OAUTH_CLIENT_SECRET', 'Google client secret'));
         }
         if (!b.codes && !b.google) {
-          signin.appendChild(el('p', { class: 'note', text: 'With neither, only the admin key (printed once by the installer) can sign in. People you hand keys to can still publish.' }));
+          signin.appendChild(el('p', { class: 'note', text: 'With neither, only the admin key (the installer prints it; it is kept in /opt/simple-host/.env on the server) can sign in, at /admin. People you hand keys to can still publish.' }));
         }
       };
       drawSignin();
@@ -385,8 +410,7 @@
       box.appendChild(textField('admins', b, 'Admin emails', { name: 'ADMIN_EMAILS', placeholder: 'platform@example.com, alex@example.com', help: byName('ADMIN_EMAILS').description }));
       box.appendChild(el('h3', { text: 'Sign-in (OIDC)', style: 'margin-top:26px' }));
       var idpSel = el('select', { id: uid('idp'), onchange: function () {
-        b.idp = idpSel.value;
-        IDPS.forEach(function (p) { if (p.id === b.idp) b.issuer = p.issuer; });
+        pickIdp(b, idpSel.value);
         render();
       } }, IDPS.map(function (p) { return el('option', { value: p.id, text: p.name }); }));
       idpSel.value = b.idp;
@@ -406,8 +430,7 @@
       }
       box.appendChild(el('h3', { text: 'Where data lives', style: 'margin-top:26px' }));
       var bSel = el('select', { id: uid('bucket'), onchange: function () {
-        b.bucket = bSel.value;
-        BUCKETS.forEach(function (p) { if (p.id === b.bucket) { b.endpoint = p.endpoint; b.region = p.region; } });
+        pickBucket(b, bSel.value);
         render();
       } }, BUCKETS.map(function (p) { return el('option', { value: p.id, text: p.name }); }));
       bSel.value = b.bucket;
@@ -422,7 +445,7 @@
         help: 'A managed Postgres with point-in-time recovery; nothing in the package backs up the database.' +
           (upcloud ? ' On UpCloud’s managed Postgres, use the public-… hostname (the component whose route is public): the plain one resolves to a private address from outside UpCloud.' : '') }));
       box.appendChild(textField('dbPort', b, 'Postgres port', { name: 'DB_PORT', type: 'number',
-        help: upcloud ? 'UpCloud’s managed Postgres listens on 11569, not 5432.' : null }));
+        help: upcloud ? 'UpCloud’s managed Postgres listens on 11569, not 5432 (filled in when you picked UpCloud).' : null }));
       box.appendChild(textField('dbName', b, 'Database name', { name: 'DB_NAME' }));
       box.appendChild(textField('dbUser', b, 'Owning role', { name: 'DB_USER', help: byName('DB_USER').description }));
       box.appendChild(el('h3', { text: 'Ingress', style: 'margin-top:26px' }));
@@ -634,22 +657,29 @@
       return { chosen: chosen, cmd: cmd, env: envText ? '# Simple Host settings (https://simple-host.app/setup)\n' + envText + '\n' : '' };
     }
 
+    // The keys INSTALL.md says to leave as in config.env.example: written
+    // here with their values (the default unless changed in Advanced), so
+    // the file needs nothing from the example.
+    var asExample = function (n) { var s = byName(n); return [n, s ? valueOf(s) : '']; };
     var preset = [
-      ['PUBLIC_BASE_URL', 'https://' + b.host], ['SECURE_MODE', 'true'],
+      ['PUBLIC_BASE_URL', 'https://' + b.host], ['SECURE_MODE', 'true'], asExample('PORT'), asExample('HTTPS_REDIRECT_PORT'),
       ['ADMIN_EMAILS', b.admins.split(',').map(function (x) { return x.trim().toLowerCase(); }).join(',')],
-      ['OIDC_ISSUER', b.issuer.replace(/\/+$/, '')], ['OIDC_CLIENT_ID', b.clientId]
+      ['OIDC_ISSUER', b.issuer.replace(/\/+$/, '')], ['OIDC_CLIENT_ID', b.clientId], asExample('OIDC_SCOPES')
     ];
     if (b.domains) preset.push(['ALLOWED_EMAIL_DOMAINS', b.domains.split(',').map(function (x) { return x.trim().toLowerCase(); }).join(',')]);
+    preset.push(asExample('SESSION_TTL'), asExample('SESSION_IDLE'));
     if (b.certs === 'auto') preset.push(['OWNER_CERT_ISSUER', b.issuerName]); else preset.push(['OWNER_CERTS', 'manual']);
     if (b.smtp) preset.push(['SMTP_FROM', b.smtpFrom]);
     if (b.proxies) preset.push(['TRUSTED_PROXY_CIDRS', b.proxies]);
     preset.push(['DB_HOST', b.dbHost]);
     if (b.dbPort !== '5432') preset.push(['DB_PORT', b.dbPort]);
-    preset.push(['DB_NAME', b.dbName], ['DB_USER', b.dbUser], ['DB_SSL_ROOT_CERT', '/etc/simple-host/db-ca/ca.crt'],
-      ['BACKUP_STORAGE_ENDPOINT', b.endpoint], ['BACKUP_STORAGE_REGION', b.region], ['BACKUP_STORAGE_BUCKET', b.bucketName]);
-    preset.forEach(function (kv) { cfg.push(envLine(kv[0], kv[1])); });
+    preset.push(['DB_NAME', b.dbName], ['DB_USER', b.dbUser], asExample('DB_SSLMODE'), ['DB_SSL_ROOT_CERT', '/etc/simple-host/db-ca/ca.crt'],
+      ['BACKUP_STORAGE_ENDPOINT', b.endpoint], ['BACKUP_STORAGE_REGION', b.region], ['BACKUP_STORAGE_BUCKET', b.bucketName],
+      asExample('BACKUP_STORAGE_PREFIX'), asExample('BACKUP_SSE'));
+    var written = {};
+    preset.forEach(function (kv) { written[kv[0]] = true; cfg.push(envLine(kv[0], kv[1])); });
     extra.forEach(function (n) {
-      cfg.push(envLine(n, changed[n]));
+      if (!written[n]) cfg.push(envLine(n, changed[n]));
       chosen.push([n, changed[n] + '  (default ' + (byName(n).default || 'none') + ')']);
     });
     chosen.unshift(['Address', 'https://' + b.host], ['Sign-in', b.issuer], ['Bucket', b.bucketName + ' at ' + b.endpoint],
@@ -661,7 +691,8 @@
     secrets = secrets.concat(optionalSecrets.filter(function (n) { return secrets.indexOf(n) < 0; }));
     return {
       chosen: chosen,
-      config: '# Simple Host Enterprise: deploy/overlays/byo/config.env (https://simple-host.app/setup)\n' + cfg.join('\n') + '\n',
+      config: '# Simple Host Enterprise: deploy/overlays/byo/config.env (https://simple-host.app/setup)\n' +
+        '# Complete as it is: anything not listed keeps its default (docs/configuration.md); nothing else from config.env.example is needed.\n' + cfg.join('\n') + '\n',
       secrets: '# deploy/overlays/byo/secrets.env: becomes the simple-host-secrets Secret. Never commit it.\n' + secretBlock(secrets).join('\n') + '\n'
     };
   }
@@ -706,21 +737,28 @@
     for (var i = 0; i < list.length; i++) if (list[i].id === want) return list[i];
     return list[0];
   }
-  // UPCLOUD_CREDS is the line the person runs in their own terminal before
-  // starting their agent: it asks for the API user's name and password
-  // (the password without echo: read -s, with a trap that turns echo back on
-  // if Ctrl-C stops it) and exports both, so they never pass through this
-  // page, the agent's chat or the shell history. bash and zsh alike.
+  // UPCLOUD_TOKEN_CREDS and UPCLOUD_CREDS are the lines the person runs in
+  // their own terminal before starting their agent, one or the other: an API
+  // token (recommended; upctl reads UPCLOUD_TOKEN), or an API user's name and
+  // password. Secrets are read without echo (read -s, with a trap that turns
+  // echo back on if Ctrl-C stops it) and exported, so they never pass through
+  // this page, the agent's chat or the shell history. bash and zsh alike.
+  var UPCLOUD_TOKEN_CREDS = "printf 'UpCloud API token: '; trap 'stty echo 2>/dev/null' INT; read -rs UPCLOUD_TOKEN; trap - INT; echo; export UPCLOUD_TOKEN";
   var UPCLOUD_CREDS = "printf 'UpCloud API username: '; read -r UPCLOUD_USERNAME; printf 'UpCloud API password: '; trap 'stty echo 2>/dev/null' INT; read -rs UPCLOUD_PASSWORD; trap - INT; echo; export UPCLOUD_USERNAME UPCLOUD_PASSWORD";
-  // What to do with the API user afterwards, on the page and in the prompt.
-  var UPCLOUD_UNSET = 'unset UPCLOUD_USERNAME UPCLOUD_PASSWORD';
-  var UPCLOUD_LIMIT = 'Give the API user only the server permissions it needs and, if you can, allow only your own IP address in its API settings.';
+  // What to do with the credentials afterwards, on the page and in the prompt.
+  var UPCLOUD_UNSET = 'unset UPCLOUD_TOKEN UPCLOUD_USERNAME UPCLOUD_PASSWORD';
+  var UPCLOUD_LIMIT = 'Keep it limited: give a token an expiry, give an API user only the server permissions it needs and, if you can, allow only your own IP address.';
   // dnsNames are the A records the installer needs: the domain, and the
   // sites hostname, which a wildcard covers when it sits under the domain.
   function dnsRecords(domain, content) {
     var recs = [domain, '*.' + domain];
     if (content.slice(-(domain.length + 1)) !== '.' + domain) recs.push(content);
     return recs;
+  }
+  // dnsText says which records to add, the same way in the prompt and in
+  // the steps by hand.
+  function dnsText(recs, content) {
+    return 'A records pointing at the server’s public IPv4 address: ' + recs.join(', ') + (recs.length === 2 ? ' (the wildcard covers ' + content + ')' : '');
   }
   var FENCE = '```';
   // handoff is the whole block for the person's own AI agent: what the
@@ -740,29 +778,30 @@
       var ssh = '', host = 'the server';
       if (t.id === 'upcloud') {
         ssh = 'ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/simple-host root@<the server’s IPv4>';
-        L.push(n++ + '. UpCloud credentials: I created an API user in the UpCloud control panel (a sub-account with API access) and set its username and password in this terminal as UPCLOUD_USERNAME and UPCLOUD_PASSWORD before starting you. Use them only from the environment: never ask me to paste them into this chat, never print them, and never write them to a file, a log or a command line. Check with `test -n "$UPCLOUD_USERNAME" && test -n "$UPCLOUD_PASSWORD" && echo set`. If they are not set, stop and ask me to quit you, run this in the terminal, and start you again:', '', FENCE + 'sh', UPCLOUD_CREDS, FENCE, '');
-        L.push(n++ + '. Tools: use `upctl`, UpCloud’s command-line tool (https://github.com/UpCloudLtd/upcloud-cli; it reads those two variables), installing it if it is missing, or the API at https://api.upcloud.com/1.3 with curl reading the credentials from its standard input, never its arguments: `printf \'header = "Authorization: Basic %s"\\n\' "$(printf \'%s:%s\' "$UPCLOUD_USERNAME" "$UPCLOUD_PASSWORD" | base64 | tr -d \'\\n\')" | curl -fsS -K - https://api.upcloud.com/1.3/account`. Confirm access with `upctl account show` (or that request). Check each command’s current flags with `--help` rather than guessing.', '');
+        L.push(n++ + '. UpCloud credentials: before starting you I set them in this terminal, either an API token as UPCLOUD_TOKEN (preferred) or an API user (a sub-account with API access) as UPCLOUD_USERNAME and UPCLOUD_PASSWORD. Use them only from the environment: never ask me to paste them into this chat, never print them, and never write them to a file, a log or a command line. Check with `{ test -n "$UPCLOUD_TOKEN" || { test -n "$UPCLOUD_USERNAME" && test -n "$UPCLOUD_PASSWORD"; }; } && echo set`. If neither is set, stop and ask me to quit you, run one of these in the terminal (the token, or the API user), and start you again:', '', FENCE + 'sh', UPCLOUD_TOKEN_CREDS, FENCE, '', FENCE + 'sh', UPCLOUD_CREDS, FENCE, '');
+        L.push(n++ + '. Tools: use `upctl`, UpCloud’s command-line tool (https://github.com/UpCloudLtd/upcloud-cli; it reads UPCLOUD_TOKEN, or the username and password), installing it if it is missing, or the API at https://api.upcloud.com/1.3 with curl reading the credentials from its standard input, never its arguments. With the token: `printf \'header = "Authorization: Bearer %s"\\n\' "$UPCLOUD_TOKEN" | curl -fsS -K - https://api.upcloud.com/1.3/account`. With the API user: `printf \'header = "Authorization: Basic %s"\\n\' "$(printf \'%s:%s\' "$UPCLOUD_USERNAME" "$UPCLOUD_PASSWORD" | base64 | tr -d \'\\n\')" | curl -fsS -K - https://api.upcloud.com/1.3/account`. Confirm access with `upctl account show` (or that request). Check each command’s current flags with `--help` rather than guessing.', '');
         L.push(n++ + '. SSH key: use ~/.ssh/simple-host if it exists; otherwise create it with `ssh-keygen -t ed25519 -N \'\' -f ~/.ssh/simple-host -C simple-host`. Never overwrite an existing key.', '');
         L.push(n++ + '. Create the server:');
-        L.push('   - Plan: list the plans (`upctl server plans`, or `GET /1.3/plan`) and take the smallest with at least 1 CPU and 1 GB of RAM: STARTER-1xCPU-1GB today; if it is gone, its current equivalent. Tell me the plan and its monthly price before creating anything.');
         L.push('   - Zone: list them (`upctl zone list`, or `GET /1.3/zone`) and ask me which one is nearest the people who will use it.');
-        L.push('   - Image: the plain Ubuntu Server 24.04 LTS template (`GET /1.3/storage/template`). Two templates carry that name; the one with NVIDIA drivers and CUDA needs a 20 GB disk, so take the other.');
+        L.push('   - Plan: list the plans (`upctl server plans`, or `GET /1.3/plan`) and take the smallest with at least 1 CPU and 1 GB of RAM: STARTER-1xCPU-1GB today; if it is gone, its current equivalent. Prices are only in the API: `GET /1.3/price` has, for each zone, an entry `server_plan_<plan>` whose `price` is in cents per hour (times 730 for a month; about $4 a month for the smallest at list price). Tell me the plan and its monthly price before creating anything.');
+        L.push('   - Image: the plain Ubuntu Server 24.04 LTS template (`GET /1.3/storage/template`; `upctl storage list --template` can come back empty, so use the API). Two templates carry that name; the one with NVIDIA drivers and CUDA needs a 20 GB disk, so take the other.');
         L.push('   - Disk: the plan’s included storage size, tier `standard` (the small plans refuse any other tier with TIER_INVALID).');
         L.push('   - Login user root with the public key ~/.ssh/simple-host.pub, metadata on, one public IPv4 interface, title and hostname simple-host.');
-        L.push('   - Create it once, then poll until its state is `started`. Its address is the one where access is `public` and family `IPv4` (never the 10.x utility address). Tell me the server’s UUID and address.');
+        L.push('   - Create it once, then poll until its state is `started`. Its address is the one where access is `public` and family `IPv4` (never the 10.x utility address). Tell me the server’s UUID and address. SSH can refuse connections for a minute or so after `started`: retry every few seconds for up to two minutes before calling it a failure.');
         L.push('   - UpCloud’s firewall is off for a new server. If it is on, allow ports 22, 80 and 443 in.', '');
         host = 'the server (`' + ssh + '`)';
       }
-      L.push(n++ + '. DNS: at my domain’s DNS provider these A records must point at the server’s public IPv4 address: ' + recs.join(', ') + (recs.length === 2 ? ' (the wildcard covers ' + content + ')' : '') + '. If you can manage that DNS provider from here, ask me before changing anything; otherwise tell me the exact records to add and wait for me. Check that `dig +short ' + sh(b.domain) + '` and `dig +short ' + sh(content) + '` both print the address. Certificates are issued on the first visit, so both names must point at the server first.', '');
-      L.push(n++ + '. Install: on ' + host + ', run this. It installs Docker, starts Simple Host from the release it pins (' + INSTALLER_RELEASE + ') and prints the admin key once: give the admin key to me and do not write it anywhere else.', '', FENCE + 'sh', r.cmd, FENCE, '');
+      L.push(n++ + '. DNS: at my domain’s DNS provider, ' + dnsText(recs, content) + '. If you can manage that DNS provider from here, ask me before changing anything; otherwise tell me the exact records to add and wait for me. Check that `dig +short ' + sh(b.domain) + '` and `dig +short ' + sh(content) + '` both print the address. Certificates are issued on the first visit, so both names must point at the server first.', '');
+      L.push(n++ + '. Install: on ' + host + ', run this. It installs Docker, starts Simple Host from the release it pins (' + INSTALLER_RELEASE + ') and prints the admin key: give it to me. The server keeps it in /opt/simple-host/.env (ADMIN_API_KEY) and re-running the command prints it again; do not copy it anywhere else.', '', FENCE + 'sh', r.cmd, FENCE, '');
       if (r.env) {
         L.push(n++ + '. Settings: add these lines to the end of /opt/simple-host/.env on the server (it needs sudo). Ask me for each blank value; do not invent one. Then run `cd /opt/simple-host && sudo docker compose up -d`.', '', FENCE, r.env.replace(/\n$/, ''), FENCE, '');
       }
       L.push(n++ + '. Check it works:');
       L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' ' + sh('https://' + b.domain + '/healthz') + '` prints 200.');
       L.push('   - `cd /opt/simple-host && sudo docker compose ps`, on the server, shows every service running.');
-      L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' ' + sh('https://' + content + '/') + '` prints a status code with no certificate error.', '');
-      L.push(n++ + '. Tell me: the admin page, https://' + b.domain + '/admin (it signs in with the admin key)' + (t.id === 'upcloud' ? ', the server’s UUID, address, plan and zone. Then remind me to run `' + UPCLOUD_UNSET + '` in this terminal (or close it) once you are done with UpCloud, and to keep the API user limited to server permissions and, if I can, to my own IP address' : '') + '.', '');
+      L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' ' + sh('https://' + content + '/') + '` prints a status code with no certificate error.');
+      L.push('   - `cd /opt/simple-host && sudo docker compose exec -T app simple-host version`, on the server, names the release (' + INSTALLER_RELEASE + ').', '');
+      L.push(n++ + '. Tell me: the admin page, https://' + b.domain + '/admin (open it and paste the admin key there)' + (t.id === 'upcloud' ? ', the server’s UUID, address, plan and zone. Then remind me to run `' + UPCLOUD_UNSET + '` in this terminal (or close it) once you are done with UpCloud, and to keep the token or API user limited (a token with an expiry, an API user with only server permissions) and, if I can, to my own IP address' : '') + '.', '');
     } else {
       L.push('1. Get the package: `git clone https://github.com/vineetu/simple-host-enterprise && cd simple-host-enterprise`. Its INSTALL.md is a runbook written for AI agents: follow it top to bottom, and use the two files below as the config.env and secrets.env it asks for. Name the kubectl context on every call.', '');
       L.push('2. Save this as deploy/overlays/byo/config.env:', '', FENCE, r.config.replace(/\n$/, ''), FENCE, '');
@@ -773,6 +812,8 @@
       L.push('   - `curl -fsS ' + sh('https://' + b.host + '/readyz') + '` prints {"status":"ok"}.');
       L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' ' + sh('https://install-check.' + b.host + '/healthz') + '` prints a status code (401 or 404 is fine; a TLS or DNS error is not).');
       L.push('   - An admin signs in at https://' + b.host + '/auth/login.', '');
+      L.push('7. Finish as INSTALL.md sections 8 and 9 say: HUMAN STEP D (an admin confirms is_admin at /api/me and mints a Full key on /dashboard), then `make smoke BASE=' + sh('https://' + b.host) + ' KEY_FILE="$HOME/.simple-host-install-key"`, which must pass. ' +
+        (b.certs === 'auto' ? 'If OWNER_CERT_ISSUER (' + b.issuerName + ') is an internal CA, the machine running make smoke must trust it, or its owner-host check fails with "not ready" (curl exit 60 or 35): run it with CURL_CA_BUNDLE set to a file holding the system CAs plus the company CA.' : 'The owner certificates you issue must be trusted by the machine running make smoke (for an internal CA, set CURL_CA_BUNDLE to a file holding the system CAs plus the company CA).'), '');
     }
     L.push(window.shSetupAssist
       ? 'If anything fails and the output does not tell you how to fix it, tell me: I can paste the error at ' + origin + '/setup?product=' + product + '#help for help.'
@@ -914,24 +955,25 @@
         el('h2', { text: 'Set it up on UpCloud with your AI agent' }),
         el('p', { class: 'note', style: 'margin:0 0 4px', text: 'Your agent creates the server in your UpCloud account, points your names at it, installs Simple Host with your choices and checks it. It asks you before spending anything and for every secret.' }),
         el('ol', { class: 'steps' }, [
-          el('li', null, ['An UpCloud account with an API user (a sub-account with API access). No account yet? ',
+          el('li', null, ['An UpCloud account with an API token (recommended) or an API user (a sub-account with API access). No account yet? ',
             el('a', { href: UPCLOUD_SIGNUP, target: '_blank', rel: 'noopener', text: 'Create your UpCloud account' }),
             el('span', { class: 'fine-inline', text: ' (referral link: $25 of credit for new accounts; their terms apply)' }), '.']),
-          el('li', { text: 'In the terminal you use your agent in, run this. It asks for the API user’s name and password (the password is not shown) and keeps them in that terminal only: not on this page, not in your agent’s chat, not in your shell history.' })
+          el('li', { text: 'In the terminal you use your agent in, run one of these: the first for an API token, the second for an API user. It asks for the token (or the name and password; secrets are not shown) and keeps it in that terminal only: not on this page, not in your agent’s chat, not in your shell history.' })
         ]),
-        block('In your terminal', UPCLOUD_CREDS),
+        block('In your terminal: API token (recommended)', UPCLOUD_TOKEN_CREDS),
+        block('Or: API user', UPCLOUD_CREDS),
         el('ol', { class: 'steps', start: '3' }, [el('li', { text: 'Start your AI agent in that terminal and give it this.' })]),
         block('For your AI agent', agent, 'simple-host-setup.md'),
-        el('p', { class: 'note', style: 'margin:8px 0 0' }, ['When the server is up, run ', el('code', { text: UPCLOUD_UNSET }), ' in that terminal, or close it: until then every program started there can read the API user. ' + UPCLOUD_LIMIT])
+        el('p', { class: 'note', style: 'margin:8px 0 0' }, ['When the server is up, run ', el('code', { text: UPCLOUD_UNSET }), ' in that terminal, or close it: until then every program started there can read the token or API user. ' + UPCLOUD_LIMIT])
       ]));
     }
     if (S.product === 'small') {
       card.appendChild(el('h2', { text: t.id === 'upcloud' ? 'Or do it by hand' : 'Your small box' }));
       card.appendChild(el('ol', { class: 'steps' }, [
         t.id === 'upcloud' ? el('li', { text: 'In the UpCloud control panel, create the server: the smallest plan with 1 CPU and 1 GB of RAM, the plain Ubuntu Server 24.04 LTS image, your SSH key.' }) : null,
-        el('li', null, ['Point ', el('code', { text: S.basic.small.domain }), ' and ', el('code', { text: S.basic.small.content || 'sites.' + S.basic.small.domain }),
-          ' at your server (an A record each), on a fresh Ubuntu server with ports 80 and 443 open.']),
-        el('li', { text: 'On the server, run the install command below. It installs Docker, starts Simple Host and prints the admin key once: keep it.' }),
+        el('li', { text: 'At your domain’s DNS provider, add ' + dnsText(dnsRecords(S.basic.small.domain, S.basic.small.content || 'sites.' + S.basic.small.domain), S.basic.small.content || 'sites.' + S.basic.small.domain) +
+          '. The server is a fresh Ubuntu server with ports 80 and 443 open.' }),
+        el('li', { text: 'On the server, run the install command below. It installs Docker, starts Simple Host and prints the admin key: keep it. The server keeps it in /opt/simple-host/.env, and re-running the command prints it again. Sign in with it at /admin.' }),
         r.env ? el('li', null, ['Open ', el('code', { text: 'sudo nano /opt/simple-host/.env' }), ', paste the settings at the end, fill in any blanks, save, then run ',
           el('code', { text: 'cd /opt/simple-host && sudo docker compose up -d' }), '. Re-running the installer (also how you upgrade) keeps them.']) : null
       ]));
@@ -1062,13 +1104,14 @@
       return { label: q.label, valueLabel: q.values[value], currentLabel: q.values[basicNow(key)] || basicNow(key), same: basicNow(key) === value };
     },
     // applyBasic answers a basic question as its own control does: picking
-    // a provider fills in its template address, as the list itself does.
+    // a provider fills in its template address where none was typed, as the
+    // list itself does.
     applyBasic: function (key, value) {
       var q = BASIC_CHOICES[S.product][key], b = S.basic[S.product];
       if (!q || q.values[value] == null) return 'Not an answer this question takes.';
       if (key === 'codes' || key === 'google' || key === 'smtp') b[key] = value === 'true';
-      else if (key === 'idp') { b.idp = value; IDPS.forEach(function (p) { if (p.id === value) b.issuer = p.issuer; }); }
-      else if (key === 'bucket') { b.bucket = value; BUCKETS.forEach(function (p) { if (p.id === value) { b.endpoint = p.endpoint; b.region = p.region; } }); }
+      else if (key === 'idp') pickIdp(b, value);
+      else if (key === 'bucket') pickBucket(b, value);
       else b[key] = value;
       basicApplied = true;
       return '';

@@ -135,7 +135,7 @@ async function enterprise(browser, width) {
   assert(await turn.locator('.sh-assist-item').count() === 1 && /SESSION_IDLE to 30m/.test(await turn.innerText()), 'clean-up offers a reset to the default');
   await turn.getByRole('button', { name: /^Apply:/ }).click();
   cfg = await page.locator('#files pre').first().innerText();
-  assert(!/SESSION_IDLE/.test(cfg) && cfg.includes('SESSION_TTL=4h'), 'the files follow at once: SESSION_IDLE back to its default');
+  assert(cfg.includes('SESSION_IDLE=30m') && !cfg.includes('SESSION_IDLE=15m') && cfg.includes('SESSION_TTL=4h'), 'the files follow at once: SESSION_IDLE back to its default');
   assert((await page.locator('.check-note').innerText()) === 'Updated with the assistant.', 'the files say they were updated, with no second check');
   await shot(page, `${tag}-4-cleanup`);
 
@@ -201,8 +201,8 @@ async function upcloud(page, tag) {
   assert(await btn.getAttribute('target') === '_blank' && /\bnoopener\b/.test(await btn.getAttribute('rel')), 'it opens in a new tab with rel=noopener');
   const where = await page.locator('#where').innerText();
   assert(where.includes('Referral link. New accounts through this link get $25 of UpCloud credit; their terms apply.'), 'the referral note sits under it');
-  assert(where.includes('The smallest UpCloud server (1 CPU, 1 GB, about $5/month) runs Simple Host comfortably; we test on it.'), 'with one line on why');
-  assert(/create an API user/.test(where) && /copy the prompt into your AI agent/.test(where), 'and the steps: account, API user, this page, the prompt');
+  assert(where.includes('The smallest UpCloud server (1 CPU, 1 GB, about $4/month) runs Simple Host comfortably; we test on it.'), 'with one line on why');
+  assert(/create an API token \(Account → API tokens; recommended\) or an API user/.test(where) && /copy the prompt into your AI agent/.test(where), 'and the steps: account, API token or user, this page, the prompt');
   const creds = await page.evaluate(() => [...document.querySelectorAll('input, textarea, select')].filter(i => i.type !== 'radio' && i.type !== 'checkbox').filter(i => i.type === 'password' || /upcloud|password|token|secret|credential/i.test(i.id + ' ' + i.name + ' ' + (i.labels && i.labels[0] ? i.labels[0].textContent : ''))).map(i => i.id || i.name));
   assert(creds.length === 0, 'no field on the page takes a credential: ' + creds.join(', '));
   await page.locator('#where').screenshot({ path: `${shots}/${tag}-0-upcloud.png` });
@@ -246,20 +246,26 @@ async function smallBox(browser, width) {
   let env = await page.locator('#files pre').nth(1).innerText();
   for (const line of ['RATE_LIMIT_UPLOAD=120,2s', 'RATE_LIMIT_STATE=240,250ms', 'MAX_SITES_PER_ACCOUNT=20']) assert(env.includes(line), '.env has ' + line);
   assert(await page.locator('#agent').evaluate(n => n === document.querySelector('#app .card')), 'on UpCloud the block for your agent comes first');
-  const creds = await page.locator('#agent pre').first().innerText();
+  const tokenLine = await page.locator('#agent pre').first().innerText();
+  assert(/trap 'stty echo 2>\/dev\/null' INT; read -rs UPCLOUD_TOKEN; trap - INT/.test(tokenLine) && /export UPCLOUD_TOKEN$/.test(tokenLine) && !tokenLine.includes('\n'), 'the first terminal line asks for an API token, unseen: ' + tokenLine);
+  const creds = await page.locator('#agent pre').nth(1).innerText();
   assert(/read -r UPCLOUD_USERNAME/.test(creds) && /trap 'stty echo 2>\/dev\/null' INT; read -rs UPCLOUD_PASSWORD; trap - INT/.test(creds) && /export UPCLOUD_USERNAME UPCLOUD_PASSWORD$/.test(creds) && !creds.includes('\n'), 'the terminal line asks for the API user and keeps the password unseen: ' + creds);
   const agent = await page.locator('#agent pre').last().innerText();
   const pinned = /f=\$\(mktemp\) && curl -fsSL https:\/\/raw\.githubusercontent\.com\/vineetu\/simple-host\/[0-9a-f]{40}\/deploy\/install\/install\.sh -o "\$f" && printf '%s  %s\\n' [0-9a-f]{64} "\$f" \| sha256sum -c --quiet - && sudo bash "\$f" --host hack\.example\.com --content sites\.hack\.example\.com/;
   assert(pinned.test(agent) && !/simple-host\/main\//.test(agent), 'the prompt runs the installer from the pinned commit, checked against its sha256, with this page\'s flags');
   assert(pinned.test(await page.locator('#files pre').first().innerText()), 'so does the install command');
-  for (const want of ['UpCloud', 'UPCLOUD_USERNAME', 'upctl', 'STARTER-1xCPU-1GB', 'Ubuntu Server 24.04 LTS', 'tier `standard`', '~/.ssh/simple-host.pub', 'hack.example.com, *.hack.example.com', 'https://hack.example.com/admin', 'https://hack.example.com/healthz', 'root@<the server’s IPv4>'])
+  for (const want of ['UpCloud', 'UPCLOUD_TOKEN', 'UPCLOUD_USERNAME', 'GET /1.3/price', 'about $4 a month', 'retry every few seconds', 'docker compose exec -T app simple-host version', 'The server keeps it in /opt/simple-host/.env', 'upctl', 'STARTER-1xCPU-1GB', 'Ubuntu Server 24.04 LTS', 'tier `standard`', '~/.ssh/simple-host.pub', 'hack.example.com, *.hack.example.com', 'https://hack.example.com/admin', 'https://hack.example.com/healthz', 'root@<the server’s IPv4>'])
     assert(agent.includes(want), 'the UpCloud prompt has ' + want);
   assert(/never ask me to paste them into this chat, never print them, and never write them to a file/.test(agent), 'the prompt keeps the UpCloud credentials in the environment');
-  assert(agent.includes('unset UPCLOUD_USERNAME UPCLOUD_PASSWORD') && /own IP address/.test(agent), 'the prompt ends with unsetting the API user and keeping it limited');
+  assert(agent.includes('unset UPCLOUD_TOKEN UPCLOUD_USERNAME UPCLOUD_PASSWORD') && /own IP address/.test(agent), 'the prompt ends with unsetting the API user and keeping it limited');
   const agentCard = await page.locator('#agent').innerText();
-  assert(agentCard.includes('unset UPCLOUD_USERNAME UPCLOUD_PASSWORD') && /only the server permissions it needs/.test(agentCard), 'the page says to unset the API user afterwards and to limit it');
+  assert(agentCard.includes('unset UPCLOUD_TOKEN UPCLOUD_USERNAME UPCLOUD_PASSWORD') && /only the server permissions it needs/.test(agentCard), 'the page says to unset the API user afterwards and to limit it');
   assert(!/UPCLOUD_PASSWORD=\S/.test(agent) && !/curl[^\n]* -u /.test(agent), 'the prompt holds no credential value and never puts one in a command\'s arguments');
   assert(agent.includes(`printf 'header = "Authorization: Basic %s"\\n' "$(printf '%s:%s' "$UPCLOUD_USERNAME" "$UPCLOUD_PASSWORD" | base64 | tr -d '\\n')" | curl -fsS -K - https://api.upcloud.com/1.3/account`), 'curl reads the API user from its standard input');
+  assert(agent.includes(`printf 'header = "Authorization: Bearer %s"\\n' "$UPCLOUD_TOKEN" | curl -fsS -K - https://api.upcloud.com/1.3/account`), 'and the token too');
+  assert(agent.includes('{ test -n "$UPCLOUD_TOKEN" || { test -n "$UPCLOUD_USERNAME" && test -n "$UPCLOUD_PASSWORD"; }; } && echo set'), 'the check accepts a token or an API user');
+  const byHand = await page.locator('#files').innerText();
+  assert(byHand.includes('A records pointing at the server’s public IPv4 address: hack.example.com, *.hack.example.com (the wildcard covers sites.hack.example.com)') && agent.includes('A records pointing at the server’s public IPv4 address: hack.example.com, *.hack.example.com (the wildcard covers sites.hack.example.com)'), 'the steps by hand and the prompt describe DNS the same way');
   assert(agent.includes('dig +short hack.example.com') && agent.includes('RATE_LIMIT_UPLOAD=120,2s') && agent.includes('/healthz') && agent.includes('/setup?product=small-box#help'), 'the block for your AI agent has DNS, the files, the checks and the help link');
   await page.locator('#agent').screenshot({ path: `${shots}/${tag}-files-agent.png` });
 

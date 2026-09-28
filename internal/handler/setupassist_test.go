@@ -666,3 +666,57 @@ func TestSetupAssistOnlyWhenEnabled(t *testing.T) {
 		}
 	}
 }
+
+// Enterprise trial F4: an address the answer names is not deleted from a
+// command (which left "curl -vkI ."), it becomes the same path on a
+// placeholder host. Allowed nowhere else: /v1/ask still drops addresses.
+func TestSetupAssistAnswerKeepsCommandsUsable(t *testing.T) {
+	reply := assistReply("Confirm with curl -vkI https://plan.alice.e2e.example.net/healthz?x=1. Then check https://dex.e2e.example.net/.well-known/openid-configuration, [the issuer](https://evil.example/x) and [https://evil.example/y](https://evil.example/y) or www.evil.example/z.", `{"changes":[]}`)
+	f := &fakeSidecar{answer: reply}
+	_, mux := newTestSetupAssist(t, f, AskOptions{})
+	got := decodeAssist(t, postAssist(mux, `{"product":"enterprise","step":"files","message":"smoke says not ready"}`, nil))
+	want := "Confirm with curl -vkI https://<your-host>/healthz. Then check https://<your-host>/.well-known/openid-configuration, the issuer and https://<your-host>/y or <your-host>/z."
+	if got.Answer != want {
+		t.Errorf("answer:\n got %q\nwant %q", got.Answer, want)
+	}
+	if strings.Contains(got.Answer, "e2e.example.net") || strings.Contains(got.Answer, "evil") {
+		t.Errorf("a host survived: %q", got.Answer)
+	}
+	if a := cleanAnswer("See https://evil.example/x now.", nil); a != "See now." {
+		t.Errorf("/v1/ask still drops addresses: %q", a)
+	}
+}
+
+// Enterprise trial F2: a value that is a template (YOUR-ORG, example.com,
+// REPLACE_WITH_…, <…>) is never proposed, whatever the setting.
+func TestSetupAssistDropsPlaceholderValues(t *testing.T) {
+	for _, v := range []string{"https://YOUR-ORG.okta.com", "sites.example.com", "REPLACE_WITH_YOUR_CLIENT_ID", "<your-host>"} {
+		if !setupPlaceholderValue.MatchString(v) {
+			t.Errorf("%q not taken for a placeholder", v)
+		}
+	}
+	for _, v := range []string{"4h", "12h", "aws:kms", "10,10s", "AES256", "owner"} {
+		if setupPlaceholderValue.MatchString(v) {
+			t.Errorf("%q taken for a placeholder", v)
+		}
+	}
+}
+
+// The trials' knowledge reaches the model: the UpCloud API token, the price,
+// the admin sign-in at /admin, the version command, the internal-CA smoke
+// failure, the IdP session advice and the complete config.env; and the rules
+// forbid unasked basic answers.
+func TestSetupAssistTrialKnowledge(t *testing.T) {
+	small := setupAssistPromptFor(setupRegistryFor("small-box"))
+	for _, want := range []string{"UPCLOUD_TOKEN", "about $4 a month", "https://<domain>/admin", "docker compose exec -T app simple-host version", "GET /1.3/price", "Connection refused", "There is no need to create an API user when you have a token"} {
+		if !strings.Contains(small, want) {
+			t.Errorf("small-box prompt lacks %q", want)
+		}
+	}
+	ent := setupAssistPromptFor(setupRegistryFor("enterprise"))
+	for _, want := range []string{"CURL_CA_BUNDLE", "exits 60", "match the identity provider's own session policy", "HUMAN STEP D", "make smoke", "PORT, HTTPS_REDIRECT_PORT, OIDC_SCOPES", "never propose a basic answer, or any change, the person did not ask for", "https://<your-host>/<path>"} {
+		if !strings.Contains(ent, want) {
+			t.Errorf("enterprise prompt lacks %q", want)
+		}
+	}
+}
