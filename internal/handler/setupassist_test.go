@@ -616,12 +616,13 @@ func TestSetupBasicsMatchPage(t *testing.T) {
 	if i < 0 || j < i {
 		t.Fatal("setup.js lacks the <setupBasics> block")
 	}
-	prog := src[i:j] + "\nprocess.stdout.write(JSON.stringify({small: SMALL_BASIC, ent: ENT_BASIC, idps: IDPS.map(function (p) { return p.id; }), buckets: BUCKETS.map(function (p) { return p.id; })}));"
+	prog := src[i:j] + "\nprocess.stdout.write(JSON.stringify({small: SMALL_BASIC, ent: ENT_BASIC, idps: IDPS.map(function (p) { return p.id; }), buckets: BUCKETS.map(function (p) { return p.id; })," +
+		" clouds: CLOUDS.map(function (c) { return c.id; }).concat(['diy']), regions: [].concat.apply([], CLOUDS.map(function (c) { return c.regions; }))}));"
 	b, err := exec.Command(node, "-e", prog).Output()
 	if err != nil {
 		t.Fatalf("node: %v", err)
 	}
-	var page struct{ Small, Ent, Idps, Buckets []string }
+	var page struct{ Small, Ent, Idps, Buckets, Clouds, Regions []string }
 	if err := json.Unmarshal(b, &page); err != nil {
 		t.Fatal(err)
 	}
@@ -633,6 +634,12 @@ func TestSetupBasicsMatchPage(t *testing.T) {
 	}
 	if c := setupBasicChoiceOf("enterprise", "bucket"); c == nil || !slices.Equal(page.Buckets, c.values) {
 		t.Errorf("bucket providers: page %v, server %+v", page.Buckets, c)
+	}
+	if c := setupBasicChoiceOf("enterprise", "cloud"); c == nil || !slices.Equal(page.Clouds, c.values) {
+		t.Errorf("clouds: page %v, server %+v", page.Clouds, c)
+	}
+	if c := setupBasicChoiceOf("enterprise", "cloudRegion"); c == nil || !slices.Equal(page.Regions, c.values) {
+		t.Errorf("cloud regions: page %v, server %+v", page.Regions, c)
 	}
 }
 

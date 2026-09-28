@@ -24,6 +24,15 @@
   var INSTALLER_COMMIT = '970c5afdb8b2bd105420bb5adeadabe0663da3ca';
   var INSTALLER_SHA256 = '8c579ef16eac0b5116a70e5f7d733b12411d21e16ee3e84e1d8bccaa8726fb6e';
   var INSTALL_URL = 'https://raw.githubusercontent.com/vineetu/simple-host/' + INSTALLER_COMMIT + '/deploy/install/install.sh';
+  // The enterprise repo commit the cloud commands run: the line fetches
+  // deploy/terraform/<cloud>/apply.sh at this commit and checks its sha256
+  // before running it, and apply.sh fetches the module at the same commit, so
+  // what it builds is fixed. After a release that changes deploy/terraform,
+  // set all three: git rev-parse vX.Y.Z^{commit}, and
+  // git show vX.Y.Z:deploy/terraform/<cloud>/apply.sh | sha256sum.
+  var ENT_CLOUD_REF = 'd85d077367b68567e25feb40d74eb243cad8543c';
+  var ENT_APPLY_SHA256 = { aws: '64f16aa8049e725c4e232cb16dc8063412da93422f9478633e3c64fd02906df4' };
+  var ENT_RAW = 'https://raw.githubusercontent.com/vineetu/simple-host-enterprise/';
   // Where a small box is recommended to run. A referral link: the page says so.
   var UPCLOUD_SIGNUP = 'https://signup.upcloud.com/?promo=JF2WCV';
   // What install.sh writes when its flag is not given (deploy/install/install.sh).
@@ -53,6 +62,28 @@
     { id: 'upcloud', name: 'UpCloud', endpoint: 'https://YOUR-ENDPOINT.upcloudobjects.com', region: '' },
     { id: 'other', name: 'Another S3-compatible store', endpoint: '', region: 'us-east-1' }
   ];
+  // Where Enterprise runs. A cloud here gets the quick path: one line for
+  // that cloud's own browser shell, which runs the Terraform module in
+  // deploy/terraform/<id> of the enterprise repo (cluster or yours, database,
+  // bucket, secrets, certificates, Simple Host). Adding a cloud is one entry
+  // here and its module. 'diy' (any other cluster) is the path that writes
+  // config.env and secrets.env. tz picks the region preselected for the
+  // visitor's time zone; the first match wins, else region. on: false keeps
+  // a cloud out of the page (not shown, ?cloud= ignored) until its module has
+  // been run end to end: a feature works fully or is not offered.
+  var ALL_CLOUDS = [
+    { id: 'aws', on: true, name: 'AWS', k8s: 'EKS', shell: 'AWS CloudShell', region: 'us-east-1', what: 'EKS, RDS for PostgreSQL and S3',
+      regions: ['us-east-1', 'us-east-2', 'us-west-2', 'ca-central-1', 'sa-east-1', 'eu-west-1', 'eu-west-2', 'eu-central-1', 'eu-north-1', 'ap-south-1', 'ap-southeast-1', 'ap-southeast-2', 'ap-northeast-1'],
+      tz: [['^America/(Los_Angeles|Vancouver|Tijuana|Phoenix|Denver|Boise|Edmonton)', 'us-west-2'], ['^America/(Toronto|Montreal|Halifax)', 'ca-central-1'], ['^America/(Sao_Paulo|Argentina|Santiago|Bogota|Lima|Montevideo)', 'sa-east-1'],
+        ['^America/', 'us-east-1'], ['^Europe/(London|Dublin|Lisbon)', 'eu-west-2'], ['^Europe/(Stockholm|Helsinki|Oslo|Copenhagen|Tallinn|Riga|Vilnius)', 'eu-north-1'], ['^Europe/', 'eu-central-1'],
+        ['^Asia/(Kolkata|Calcutta|Colombo|Kathmandu|Dhaka|Karachi)', 'ap-south-1'], ['^Asia/(Tokyo|Seoul)', 'ap-northeast-1'], ['^(Australia/|Pacific/Auckland)', 'ap-southeast-2'], ['^Asia/', 'ap-southeast-1']] },
+    { id: 'azure', on: false, name: 'Azure', k8s: 'AKS', shell: 'Azure Cloud Shell', region: 'eastus', what: 'AKS, Azure Database for PostgreSQL and Blob Storage',
+      regions: ['eastus', 'eastus2', 'centralus', 'westus2', 'westus3', 'canadacentral', 'brazilsouth', 'northeurope', 'westeurope', 'uksouth', 'germanywestcentral', 'swedencentral', 'centralindia', 'southeastasia', 'japaneast', 'australiaeast'],
+      tz: [['^America/(Los_Angeles|Vancouver|Tijuana|Phoenix|Denver|Boise|Edmonton)', 'westus2'], ['^America/(Toronto|Montreal|Halifax)', 'canadacentral'], ['^America/(Sao_Paulo|Argentina|Santiago|Bogota|Lima|Montevideo)', 'brazilsouth'],
+        ['^America/', 'eastus'], ['^Europe/(London|Dublin|Lisbon)', 'uksouth'], ['^Europe/(Stockholm|Helsinki|Oslo|Copenhagen|Tallinn|Riga|Vilnius)', 'swedencentral'], ['^Europe/(Berlin|Zurich|Vienna)', 'germanywestcentral'], ['^Europe/', 'westeurope'],
+        ['^Asia/(Kolkata|Calcutta|Colombo|Kathmandu|Dhaka|Karachi)', 'centralindia'], ['^Asia/(Tokyo|Seoul)', 'japaneast'], ['^(Australia/|Pacific/Auckland)', 'australiaeast'], ['^Asia/', 'southeastasia']] }
+  ];
+  var CLOUDS = ALL_CLOUDS.filter(function (c) { return c.on; });
   // </setupBasics>
 
   // presetOf: v is empty or one of the list's own template values, so
@@ -68,6 +99,25 @@
   function pickIdp(b, id) {
     b.idp = id;
     IDPS.forEach(function (p) { if (p.id === id && presetOf(IDPS, 'issuer', b.issuer)) b.issuer = p.issuer; });
+  }
+  // cloudById is the entry for a cloud id; null for 'diy'.
+  function cloudById(id) {
+    for (var i = 0; i < CLOUDS.length; i++) if (CLOUDS[i].id === id) return CLOUDS[i];
+    return null;
+  }
+  // guessRegion is the cloud's region nearest the visitor's time zone.
+  function guessRegion(c) {
+    var tz = '';
+    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { /* keep the default */ }
+    for (var i = 0; i < c.tz.length; i++) if (new RegExp(c.tz[i][0]).test(tz)) return c.tz[i][1];
+    return c.region;
+  }
+  // pickCloud answers "Where will it run?": a cloud's region list replaces the
+  // region unless it is already one of that cloud's.
+  function pickCloud(b, id) {
+    b.cloud = id;
+    var c = cloudById(id);
+    if (c && c.regions.indexOf(b.cloudRegion) < 0) b.cloudRegion = guessRegion(c);
   }
   function pickBucket(b, id) {
     b.bucket = id;
@@ -89,7 +139,8 @@
       small: { where: 'upcloud', domain: '', content: '', email: '', codes: true, google: false, mailFrom: '', googleId: '' },
       ent: { host: '', admins: '', idp: 'okta', issuer: IDPS[0].issuer, clientId: '', domains: '', certs: 'auto', issuerName: '',
         smtp: false, smtpFrom: '', bucket: 'aws', endpoint: BUCKETS[0].endpoint, region: BUCKETS[0].region, bucketName: '',
-        creds: 'keys', dbHost: '', dbPort: '5432', dbName: 'simplehost', dbUser: 'simplehost', proxies: '' }
+        creds: 'keys', dbHost: '', dbPort: '5432', dbName: 'simplehost', dbUser: 'simplehost', proxies: '',
+        cloud: 'diy', cluster: 'no', cloudRegion: '', clusterName: '' }
     },
     errors: {},
     // The check: key is the request it answered (so the same choices are not
@@ -103,6 +154,10 @@
     var want = new URLSearchParams(location.search).get('product');
     if (want === 'enterprise') S.product = 'ent';
     else if (want === 'small-box') S.product = 'small';
+    // ?product=enterprise&cloud=aws (the links on the enterprise page)
+    // preselects where it runs too.
+    var wantCloud = new URLSearchParams(location.search).get('cloud');
+    if (S.product === 'ent' && cloudById(wantCloud)) pickCloud(S.basic.ent, wantCloud);
   } catch (e) { /* keep the default */ }
 
   var app = document.getElementById('app');
@@ -208,6 +263,10 @@
     return '';
   }
 
+  // cloud is the chosen cloud when Enterprise runs on one (the quick path),
+  // else null.
+  function cloud() { return S.product === 'ent' ? cloudById(S.basic.ent.cloud) : null; }
+
   // ── Progress ──
   function renderProgress() {
     var lis = document.querySelectorAll('#progress li');
@@ -216,6 +275,8 @@
       lis[i].className = (i === S.step ? 'on' : (i < S.step ? 'done' : ''));
       lis[i].hidden = steps.indexOf(i) < 0;
     }
+    var last = lis.length && lis[lis.length - 1].querySelector('.n');
+    if (last) last.textContent = cloud() ? 'Your commands' : 'Your files';
   }
 
   function go(step) {
@@ -250,6 +311,19 @@
       el('b', { text: title }), el('span', { text: sub })
     ]);
   }
+  // redrawChoose answers a question on the first step that changes which
+  // questions follow it: the step is drawn again with focus kept on the answer.
+  function redrawChoose(name, set) {
+    return function (v) {
+      if (set) set(v); else S[name] = v;
+      // The quick path has no Basic/Advanced question: Advanced is an optional
+      // link on its Basics step.
+      if (cloud()) S.mode = 'basic';
+      render();
+      var r = app.querySelector('input[name="' + name + '"][value="' + v + '"]');
+      if (r) r.focus();
+    };
+  }
   function renderChoose() {
     var err = el('p', { class: 'err', role: 'alert', hidden: true });
     app.appendChild(el('div', { class: 'card' }, [
@@ -257,21 +331,48 @@
       el('fieldset', null, [
         el('legend', { class: 'note', text: 'Choose one.' }),
         el('div', { class: 'choices' }, [
-          choice('product', 'small', S.product, 'Small box', 'One server with Docker: self-hosting, a team or a hackathon. Runs on 1 CPU and 1 GB of RAM.', function (v) { S.product = v; }),
-          choice('product', 'ent', S.product, 'Enterprise', 'Your company’s Kubernetes cluster, behind your own sign-in, with Postgres and an S3-compatible bucket.', function (v) { S.product = v; })
+          choice('product', 'small', S.product, 'Small box', 'One server with Docker: self-hosting, a team or a hackathon. Runs on 1 CPU and 1 GB of RAM.', redrawChoose('product')),
+          choice('product', 'ent', S.product, 'Enterprise', 'Your company’s Kubernetes cluster, behind your own sign-in, with Postgres and a bucket.', redrawChoose('product'))
         ])
       ])
     ]));
-    app.appendChild(el('div', { class: 'card' }, [
-      el('h2', { text: 'How much do you want to decide?' }),
-      el('fieldset', null, [
-        el('legend', { class: 'note', text: 'You can go back and change this.' }),
-        el('div', { class: 'choices' }, [
-          choice('mode', 'basic', S.mode, 'Basic', 'A few questions. Everything else keeps the default, which is what simple-host.app runs.', function (v) { S.mode = v; renderProgress(); }),
-          choice('mode', 'advanced', S.mode, 'Advanced', 'The basics, then every setting, area by area, each with its default already chosen.', function (v) { S.mode = v; renderProgress(); })
+    var b = S.basic.ent, c = cloud();
+    if (S.product === 'ent') {
+      app.appendChild(el('div', { class: 'card', id: 'where' }, [
+        el('h2', { text: 'Where will it run?' }),
+        el('fieldset', null, [
+          el('legend', { class: 'note', text: 'On ' + CLOUDS.map(function (x) { return x.name; }).join(' or ') + ', one command in the cloud’s own browser shell sets up everything in your account.' }),
+          el('div', { class: 'choices' }, CLOUDS.map(function (x) {
+            return choice('cloud', x.id, b.cloud, x.name, x.what + ', set up by one command in ' + x.shell + '.', redrawChoose('cloud', function (v) { pickCloud(b, v); }));
+          }).concat([
+            choice('cloud', 'diy', b.cloud, 'Something else / I’ll do it myself', 'Any Kubernetes cluster with your own Postgres and bucket. You get config.env and secrets.env to apply.', redrawChoose('cloud', function (v) { pickCloud(b, v); }))
+          ]))
         ])
-      ])
-    ]));
+      ]));
+    }
+    if (c) {
+      app.appendChild(el('div', { class: 'card', id: 'cluster' }, [
+        el('h2', { text: 'Do you already have a Kubernetes cluster on ' + c.name + '?' }),
+        el('fieldset', null, [
+          el('legend', { class: 'note', text: 'Either way you get one command.' }),
+          el('div', { class: 'choices' }, [
+            choice('cluster', 'yes', b.cluster, 'Yes', 'Install into my ' + c.k8s + ' cluster. It needs cluster-admin access from ' + c.shell + '.', function (v) { b.cluster = v; }),
+            choice('cluster', 'no', b.cluster, 'No', 'Create one for it: a small ' + c.k8s + ' cluster with 2 nodes.', function (v) { b.cluster = v; })
+          ])
+        ])
+      ]));
+    } else {
+      app.appendChild(el('div', { class: 'card' }, [
+        el('h2', { text: 'How much do you want to decide?' }),
+        el('fieldset', null, [
+          el('legend', { class: 'note', text: 'You can go back and change this.' }),
+          el('div', { class: 'choices' }, [
+            choice('mode', 'basic', S.mode, 'Basic', 'A few questions. Everything else keeps the default, which is what simple-host.app runs.', function (v) { S.mode = v; renderProgress(); }),
+            choice('mode', 'advanced', S.mode, 'Advanced', 'The basics, then every setting, area by area, each with its default already chosen.', function (v) { S.mode = v; renderProgress(); })
+          ])
+        ])
+      ]));
+    }
     app.appendChild(el('div', { class: 'nav' }, [el('span'), el('button', { class: 'btn solid', type: 'button', text: 'Next', onclick: function () {
       load(S.product).then(function () { go(1); }).catch(function () {
         err.hidden = false; err.textContent = 'The settings list did not load. Reload the page and try again.';
@@ -390,7 +491,58 @@
     ]);
   }
 
+  // The quick path's questions: what cannot be found out or defaulted.
+  var ISSUER_HELP = 'Okta: https://<your-org>.okta.com · Microsoft Entra ID: https://login.microsoftonline.com/<tenant-id>/v2.0 · Google Workspace: https://accounts.google.com · Keycloak: https://<host>/realms/<realm>';
+  function isGoogle(issuer) { return /^https:\/\/accounts\.google\.com\/?$/.test(issuer); }
+  function renderCloudBasics(c) {
+    var b = S.basic.ent, box = el('div', { class: 'card' });
+    // The Basic path's template issuer (YOUR-ORG) is not an answer here.
+    if (/YOUR-/.test(b.issuer) && presetOf(IDPS, 'issuer', b.issuer)) b.issuer = '';
+    box.appendChild(el('h2', { text: 'Simple Host Enterprise on ' + c.name }));
+    box.appendChild(el('p', { class: 'lede', text: 'Everything else is set up with its default. Secrets are made in your ' + c.name + ' account; this page never sees one.' }));
+    box.appendChild(textField('host', b, 'Address', { name: 'PUBLIC_BASE_URL', placeholder: 'sites.example.com',
+      help: 'Where Simple Host lives. Each person gets <name>.<address> and each site its own name under that, so use a domain of its own (like example-sites.com) or a name under one, not your company’s main domain.' }));
+    box.appendChild(textField('admins', b, 'Admin emails', { name: 'ADMIN_EMAILS', placeholder: 'platform@example.com, alex@example.com', help: byName('ADMIN_EMAILS').description }));
+    box.appendChild(el('h3', { text: 'Sign-in', style: 'margin-top:26px' }));
+    box.appendChild(el('p', { class: 'note', style: 'margin:0 0 14px' }, ['Register a web application at your identity provider with the redirect URI ',
+      el('code', { text: 'https://' + (b.host || '<address>') + '/auth/callback' }), '.']));
+    box.appendChild(textField('issuer', b, 'Issuer URL', { name: 'OIDC_ISSUER', placeholder: 'https://your-org.okta.com', help: ISSUER_HELP,
+      oninput: function () { var g = isGoogle(b.issuer); if (g !== !!b.shownDomains) { b.shownDomains = g; render(); var i = document.getElementById(uid('issuer')); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } } } }));
+    box.appendChild(textField('clientId', b, 'Client ID', { name: 'OIDC_CLIENT_ID' }));
+    if (isGoogle(b.issuer)) {
+      b.shownDomains = true;
+      if (!b.domains && b.admins) b.domains = b.admins.split(',').map(function (a) { return (a.split('@')[1] || '').trim().toLowerCase(); }).filter(function (d, i, all) { return d && all.indexOf(d) === i; }).join(',');
+      box.appendChild(textField('domains', b, 'Company email domains', { name: 'ALLOWED_EMAIL_DOMAINS', placeholder: 'example.com', help: 'Required with Google: without it, anyone with a Google account could sign in.' }));
+    }
+    box.appendChild(el('p', { class: 'secret', text: 'The client secret is not asked for here. You type it into ' + c.shell + ' when the command asks, and it goes straight into your cloud’s secret store.' }));
+    box.appendChild(el('h3', { text: 'Where', style: 'margin-top:26px' }));
+    var rSel = el('select', { id: uid('cloudRegion'), onchange: function () { b.cloudRegion = rSel.value; } }, c.regions.map(function (r) { return el('option', { value: r, text: r }); }));
+    if (c.regions.indexOf(b.cloudRegion) < 0) b.cloudRegion = guessRegion(c);
+    rSel.value = b.cloudRegion;
+    box.appendChild(el('div', { class: 'field' }, [el('label', { for: uid('cloudRegion'), text: 'Region' }),
+      el('p', { class: 'help', text: 'Where the cluster, database and bucket live. Picked from your time zone; any region works.' }), rSel]));
+    if (b.cluster === 'yes') {
+      box.appendChild(textField('clusterName', b, 'Your ' + c.k8s + ' cluster’s name', { placeholder: c.id === 'aws' ? 'prod-eks' : 'prod-aks',
+        help: c.id === 'aws' ? 'As aws eks list-clusters shows it, in the region above.' : 'As az aks list -o table shows it, in the region above.' }));
+    }
+    app.appendChild(box);
+    app.appendChild(el('div', { class: 'nav' }, [
+      el('button', { class: 'btn', type: 'button', text: 'Back', onclick: function () { S.errors = {}; go(0); } }),
+      el('span', { class: 'row' }, [
+        el('button', { class: 'btn', type: 'button', text: 'More settings (optional)', onclick: function () {
+          if (!checkBasics()) { render(); var bad = app.querySelector('.bad'); if (bad) bad.focus(); return; }
+          S.mode = 'advanced'; S.area = 0; go(2);
+        } }),
+        el('button', { class: 'btn solid', type: 'button', text: 'Show my commands', onclick: function () {
+          if (!checkBasics()) { render(); var bad = app.querySelector('.bad'); if (bad) bad.focus(); return; }
+          go(3);
+        } })
+      ])
+    ]));
+  }
+
   function renderBasics() {
+    if (cloud()) { renderCloudBasics(cloud()); return; }
     var box = el('div', { class: 'card' });
     var b = S.basic[S.product];
     if (S.product === 'small') {
@@ -480,12 +632,13 @@
         help: 'The addresses your ingress controller’s pods get, so rate limits and logs see each person’s address, not the ingress’s. ' +
           'Read them with kubectl -n <ingress namespace> get pod -o wide and give the pod network range they fall in, like 192.168.0.0/16' +
           (upcloud ? ' (UpCloud’s Kubernetes gives pods addresses from 192.168.0.0/16)' : '') +
+          (b.bucket === 'aws' ? ' (with an AWS ALB there are no proxy pods: give the VPC’s CIDR)' : '') +
           '. Empty keeps the default, every private range, which trusts any pod in the cluster to name the client.' }));
     }
     app.appendChild(box);
     app.appendChild(el('div', { class: 'nav' }, [
       el('button', { class: 'btn', type: 'button', text: 'Back', onclick: function () { S.errors = {}; go(0); } }),
-      el('button', { class: 'btn solid', type: 'button', text: S.mode === 'advanced' ? 'Next: every setting' : 'Show my files', onclick: function () {
+      el('button', { class: 'btn solid', type: 'button', text: S.mode === 'advanced' ? 'Next: every setting' : (cloud() ? 'Show my commands' : 'Show my files'), onclick: function () {
         if (!checkBasics()) { render(); var bad = app.querySelector('.bad'); if (bad) bad.focus(); return; }
         S.area = 0;
         go(S.mode === 'advanced' ? 2 : 3);
@@ -503,6 +656,23 @@
       if (b.email && !EMAIL.test(b.email)) e.email = 'An email address, or leave it empty.';
       if (b.mailFrom && /[\r\n`]/.test(b.mailFrom)) e.mailFrom = 'One line, with no backticks.';
       if (b.googleId && !/^[A-Za-z0-9._-]+$/.test(b.googleId)) e.googleId = 'The client ID as Google shows it.';
+    } else if (cloud()) {
+      var c = cloud();
+      b.host = b.host.toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+      if (!HOST.test(b.host)) e.host = 'A hostname like sites.example.com.';
+      if (!/^https:\/\/[^\s/]+/.test(b.issuer)) e.issuer = 'An https:// URL.';
+      else if (/YOUR-/.test(b.issuer)) e.issuer = 'Replace the YOUR-… part with yours.';
+      if (!b.clientId) e.clientId = 'The client ID from your identity provider.';
+      else if (/[\s"\\]/.test(b.clientId)) e.clientId = 'The client ID as your identity provider shows it.';
+      if (b.admins && b.admins.split(',').some(function (a) { return !EMAIL.test(a.trim()); })) e.admins = 'Email addresses separated by commas.';
+      if (!b.admins) e.admins = 'At least one admin, or nobody can approve anything.';
+      if (isGoogle(b.issuer)) {
+        b.domains = b.domains.split(',').map(function (x) { return x.trim().toLowerCase(); }).filter(Boolean).join(',');
+        if (!b.domains) e.domains = 'Required with Google, or anyone with a Google account could sign in.';
+        else if (!b.domains.split(',').every(function (d) { return HOST.test(d); })) e.domains = 'Domains like example.com, separated by commas.';
+      }
+      if (c.regions.indexOf(b.cloudRegion) < 0) e.cloudRegion = 'Pick a region.';
+      if (b.cluster === 'yes' && !(c.id === 'aws' ? /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/ : /^[A-Za-z0-9][A-Za-z0-9_-]{0,62}$/).test(b.clusterName)) e.clusterName = 'The cluster’s name: letters, digits, - and _.';
     } else {
       b.host = b.host.toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '');
       if (!HOST.test(b.host)) e.host = 'A hostname like sites.example.com.';
@@ -529,11 +699,17 @@
   }
 
   // ── Step 3: every setting, area by area ──
+  // Settings the quick path's module sets itself (the Service's ports, the
+  // Ingress it creates, verified TLS to the database).
+  var QUICK_FIXED = ['PORT', 'HTTPS_REDIRECT_PORT', 'OWNER_INGRESS_TEMPLATE', 'DB_SSLMODE', 'DB_INSECURE_ALLOWED', 'BACKUP_STORAGE_INSECURE_ALLOWED', 'OIDC_INSECURE_ALLOWED', 'DB_INCLUSTER_EVALUATION'];
   function advancedSettings() {
-    var basic = S.product === 'small' ? SMALL_BASIC : ENT_BASIC;
+    var basic = S.product === 'small' ? SMALL_BASIC : ENT_BASIC, quick = !!cloud();
     return settings().filter(function (s) {
       if (basic.indexOf(s.name) >= 0) return false;
       if (S.product === 'small' && !s.small_box) return false;
+      // On the quick path secrets live in the cloud's secret store, not in a
+      // file with blanks: only plain settings are offered.
+      if (quick && (s.type === 'secret' || QUICK_FIXED.indexOf(s.name) >= 0)) return false;
       return true;
     });
   }
@@ -610,8 +786,8 @@
     app.appendChild(el('div', { class: 'nav' }, [
       el('button', { class: 'btn', type: 'button', text: 'Back', onclick: function () { if (S.area > 0) { S.area--; go(2); } else go(1); } }),
       el('span', { class: 'row' }, [
-        S.area < list.length - 1 ? el('button', { class: 'btn', type: 'button', text: 'Skip to my files', onclick: function () { if (!bad()) go(3); else bad().focus(); } }) : null,
-        el('button', { class: 'btn solid', type: 'button', text: S.area < list.length - 1 ? 'Next: ' + list[S.area + 1].group.name : 'Show my files', onclick: function () {
+        S.area < list.length - 1 ? el('button', { class: 'btn', type: 'button', text: cloud() ? 'Skip to my commands' : 'Skip to my files', onclick: function () { if (!bad()) go(3); else bad().focus(); } }) : null,
+        el('button', { class: 'btn solid', type: 'button', text: S.area < list.length - 1 ? 'Next: ' + list[S.area + 1].group.name : (cloud() ? 'Show my commands' : 'Show my files'), onclick: function () {
           if (bad()) { bad().focus(); return; }
           if (S.area < list.length - 1) { S.area++; go(2); } else go(3);
         } })
@@ -722,6 +898,110 @@
         '# Complete as it is: anything not listed keeps its default (docs/configuration.md); nothing else from config.env.example is needed.\n' + cfg.join('\n') + '\n',
       secrets: '# deploy/overlays/byo/secrets.env: becomes the simple-host-secrets Secret. Never commit it.\n' + secretBlock(secrets).join('\n') + '\n'
     };
+  }
+
+  // ── The quick path's output: terraform.tfvars and the one line ──
+  // hcl writes a Terraform string.
+  function hcl(v) {
+    return '"' + String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$\{/g, '$${').replace(/%\{/g, '%%{') + '"';
+  }
+  function list(v) { return v.split(',').map(function (x) { return x.trim().toLowerCase(); }).filter(Boolean); }
+  function buildCloud(c) {
+    var b = S.basic.ent, changed = S.values.ent, adv = advancedSettings().map(function (s) { return s.name; });
+    var extra = Object.keys(changed).filter(function (n) { return adv.indexOf(n) >= 0; }).sort(function (x, y) { return adv.indexOf(x) - adv.indexOf(y); });
+    var issuer = b.issuer.replace(/\/+$/, ''), rows = [['create_cluster', b.cluster === 'no' ? 'true' : 'false']];
+    if (b.cluster === 'yes') rows.push(['cluster_name', hcl(b.clusterName)]);
+    rows.push(['region', hcl(b.cloudRegion)], ['base_domain', hcl(b.host)], ['admin_emails', '[' + list(b.admins).map(hcl).join(', ') + ']']);
+    if (isGoogle(issuer)) rows.push(['allowed_email_domains', '[' + list(b.domains).map(hcl).join(', ') + ']']);
+    rows.push(['oidc_issuer', hcl(issuer)], ['oidc_client_id', hcl(b.clientId)]);
+    var w = 0;
+    rows.forEach(function (r) { w = Math.max(w, r[0].length); });
+    var L = ['# Simple Host Enterprise on ' + c.name + ': terraform.tfvars for deploy/terraform/' + c.id + ' (https://simple-host.app/setup)',
+      '# No secrets: the client secret is typed in the shell, the rest are generated in your account.'];
+    rows.forEach(function (r) { L.push(r[0] + new Array(w - r[0].length + 2).join(' ') + '= ' + r[1]); });
+    var chosen = [['Where it runs', c.name + ', ' + b.cloudRegion], ['Cluster', b.cluster === 'yes' ? b.clusterName + ' (yours)' : 'a new ' + c.k8s + ' cluster'],
+      ['Address', 'https://' + b.host], ['Sign-in', issuer]];
+    if (extra.length) {
+      L.push('extra_config = {');
+      extra.forEach(function (n) {
+        L.push('  ' + n + ' = ' + hcl(changed[n]));
+        chosen.push([n, changed[n] + '  (default ' + (byName(n).default || 'none') + ')']);
+      });
+      L.push('}');
+    }
+    var tfvars = L.join('\n') + '\n';
+    var b64 = btoa(unescape(encodeURIComponent(tfvars)));
+    var cmd = 'f=$(mktemp) && curl -fsSL ' + ENT_RAW + ENT_CLOUD_REF + '/deploy/terraform/' + c.id + '/apply.sh -o "$f" && printf \'%s  %s\\n\' ' +
+      ENT_APPLY_SHA256[c.id] + ' "$f" | sha256sum -c --quiet - && bash "$f" --ref ' + ENT_CLOUD_REF + ' --tfvars ' + b64;
+    return { chosen: chosen, tfvars: tfvars, cmd: cmd };
+  }
+  var SECRET_CREDS = "printf 'Client secret: '; trap 'stty echo 2>/dev/null' INT; read -rs TF_VAR_oidc_client_secret; trap - INT; echo; export TF_VAR_oidc_client_secret";
+  function shellUrl(c, region) {
+    return c.id === 'aws' ? 'https://console.aws.amazon.com/cloudshell/home?region=' + region : 'https://shell.azure.com/bash';
+  }
+  // cloudHandoff is the block for an AI agent that works in a shell signed in
+  // to the cloud: the same line, with the plan shown to the person first.
+  function cloudHandoff(r, c) {
+    var b = S.basic.ent, origin = location.origin, L = [];
+    var who = c.id === 'aws' ? 'aws sts get-caller-identity' : 'az account show --query "{subscription:name, id:id, user:user.name}"';
+    L.push('# Set up Simple Host Enterprise on ' + c.name, '');
+    L.push('These are instructions for you, my AI agent, from ' + origin + '/setup. Work through them in order. Stop at the first step that fails and show me its exact error. Never print, log or commit a secret.', '');
+    L.push('Where it runs: ' + c.name + ', region ' + b.cloudRegion + ', ' + (b.cluster === 'yes' ? 'my existing ' + c.k8s + ' cluster ' + b.clusterName + ' (I have cluster-admin access to it)' : 'a new ' + c.k8s + ' cluster that the command creates') + '. The command runs Terraform (the module deploy/terraform/' + c.id + ' of github.com/vineetu/simple-host-enterprise) and keeps its state in my own account.', '');
+    L.push('1. Check this shell is signed in to the right account: `' + who + '`. Tell me the account and ask me to confirm it before going on.', '');
+    L.push('2. The sign-in app’s client secret: before starting you I set it in this terminal as TF_VAR_oidc_client_secret. Check with `test -n "$TF_VAR_oidc_client_secret" && echo set`. If it is not set, stop and ask me to quit you, run this in the terminal and start you again (a re-run after a first successful one does not need it: the stored secret is kept):', '', FENCE + 'sh', SECRET_CREDS, FENCE, '');
+    L.push('3. See what it will create: run this line with ` --plan` added at the end. It installs Terraform if it is missing, fetches the module at a pinned commit after checking its checksum, and prints the plan. Tell me how many resources it adds and ask me before going on.', '', FENCE + 'sh', r.cmd, FENCE, '');
+    L.push('4. Apply: after I say yes, run the same line with ` --yes` added at the end. ' + (b.cluster === 'yes' ? 'It takes about 15 minutes.' : 'It takes about 25 minutes (the cluster is most of it).') + ' If it stops, running it again continues where it stopped.', '');
+    L.push('5. DNS: it ends by printing NS records for ' + b.host + '. Tell me exactly which records to add at my DNS provider and wait for me. Then check that `dig +short NS ' + sh(b.host) + '` prints them.', '');
+    L.push('6. Check it works (certificates can take a few minutes after the DNS change):');
+    L.push('   - `curl -fsS ' + sh('https://' + b.host + '/readyz') + '` prints {"status":"ok"}.');
+    L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' ' + sh('https://install-check.' + b.host + '/healthz') + '` prints a status code (401 or 404 is fine; a TLS or DNS error is not).', '');
+    L.push('7. Tell me: sign in at https://' + b.host + '/auth/login with an admin email (' + list(b.admins).join(', ') + '), and where the generated secrets are kept (the secrets_location output). The envelope key there is the only way to read the sites: it must be backed up. Then remind me to close this terminal (or run `unset TF_VAR_oidc_client_secret`).', '');
+    L.push(window.shSetupAssist
+      ? 'If anything fails and the output does not tell you how to fix it, tell me: I can paste the error at ' + origin + '/setup?product=enterprise&cloud=' + c.id + '#help for help.'
+      : 'If anything fails and the output does not tell you how to fix it, tell me and show me the error.');
+    return L.join('\n') + '\n';
+  }
+  function renderCloudOutput(c) {
+    var b = S.basic.ent, r = buildCloud(c);
+    if (S.check.note) app.appendChild(el('p', { class: 'check-note', role: 'status', text: S.check.note }));
+    app.appendChild(el('div', { class: 'card', id: 'commands' }, [
+      el('h2', { text: 'Set it up on ' + c.name }),
+      el('p', { class: 'note', style: 'margin:0 0 4px', text: (b.cluster === 'yes' ? 'About 15 minutes' : 'About 25 minutes, most of it creating the cluster') + '. ' + c.shell + ' may close after about 20 minutes without a key press; if it does, open it again and paste the same line: it continues where it stopped.' }),
+      el('ol', { class: 'steps' }, [
+        el('li', null, ['Open ', el('a', { href: shellUrl(c, b.cloudRegion), target: '_blank', rel: 'noopener', text: c.shell }),
+          ' in the account it should run in, and paste this line. It asks for your sign-in app’s client secret (not shown as you type), shows what it will create, and waits for you to type yes.'])
+      ]),
+      block('Paste into ' + c.shell, r.cmd),
+      el('ol', { class: 'steps', start: '2' }, [
+        el('li', null, ['When it finishes, it prints name server (NS) records for ', el('code', { text: b.host }),
+          '. Add them at your DNS provider (for a domain of its own, set them as its name servers at the registrar). Certificates follow by themselves within minutes.']),
+        el('li', null, ['Check it: this prints ', el('code', { text: '{"status":"ok"}' }), '. Then sign in at ',
+          el('a', { href: 'https://' + b.host + '/auth/login', text: 'https://' + b.host + '/auth/login' }), ' with an admin email.'])
+      ]),
+      block('Check', 'curl -fsS ' + sh('https://' + b.host + '/readyz'))
+    ]));
+    app.appendChild(el('div', { class: 'card', id: 'agent' }, [
+      el('h2', { text: 'Set it up with your AI agent' }),
+      el('p', { class: 'note', style: 'margin:0 0 4px', text: 'Rather have an AI agent run it, in a terminal signed in to ' + c.name + '? Copy this into it. It shows you the plan before creating anything, and never sees the client secret.' }),
+      block('For your AI agent', cloudHandoff(r, c), 'simple-host-setup.md')
+    ]));
+    app.appendChild(el('div', { class: 'card', id: 'tfvars' }, [
+      el('h2', { text: 'Or run the Terraform yourself' }),
+      el('p', { class: 'note', style: 'margin:0 0 4px' }, ['For your own pipeline: the module is ', el('code', { text: 'deploy/terraform/' + c.id }),
+        ' in github.com/vineetu/simple-host-enterprise at commit ', el('code', { text: ENT_CLOUD_REF.slice(0, 12) }), ', and its README says how. These are your answers:']),
+      block('terraform.tfvars', r.tfvars, 'terraform.tfvars')
+    ]));
+    app.appendChild(el('div', { class: 'card' }, [
+      el('h2', { text: 'What you chose' }),
+      el('ul', { class: 'summary' }, r.chosen.map(function (x) { return el('li', null, [el('span', { text: x[0] }), el('span', { text: x[1] })]); })),
+      el('p', { class: 'note', text: 'Everything not listed keeps its default. Every setting is explained in the advanced settings docs.' })
+    ]));
+    app.appendChild(el('div', { class: 'nav' }, [
+      el('button', { class: 'btn', type: 'button', text: 'Back', onclick: function () {
+        if (S.mode === 'advanced') { S.area = areas().length - 1; go(2); } else go(1);
+      } }),
+      el('button', { class: 'btn', type: 'button', text: 'Start over', onclick: function () { location.reload(); } })
+    ]));
   }
 
   function copyButton(getText, label) {
@@ -861,7 +1141,7 @@
       out[name] = String(v); n++;
     };
     Object.keys(S.values[p]).forEach(function (k) { if (adv.indexOf(k) >= 0) add(k, S.values[p][k]); });
-    if (p === 'ent') {
+    if (p === 'ent' && !cloud()) {
       if (S.basic.ent.certs !== 'auto') add('OWNER_CERTS', 'manual');
       add('DB_PORT', S.basic.ent.dbPort);
     }
@@ -957,7 +1237,7 @@
       el('button', { class: 'btn', type: 'button', text: 'Back', onclick: function () {
         if (S.mode === 'advanced') { S.area = areas().length - 1; go(2); } else go(1);
       } }),
-      el('button', { class: 'btn solid', type: 'button', text: 'Show my files', onclick: function () {
+      el('button', { class: 'btn solid', type: 'button', text: (cloud() ? 'Show my commands' : 'Show my files'), onclick: function () {
         var applied = list.filter(function (f) { return f.decision === 'applied'; }).length;
         S.check.state = 'done';
         S.check.key = checkKey();
@@ -973,6 +1253,7 @@
     else if (S.check.key !== key) { runCheck(pl, key); return; }
     else if (S.check.state === 'running') { drawChecking(); return; }
     else if (S.check.state === 'review') { renderReview(); return; }
+    if (cloud()) { renderCloudOutput(cloud()); return; }
     var r = build(), card = el('div', { class: 'card', id: 'files' }), t = targetOf(S.product), agent = handoff(r);
     if (S.check.note) app.appendChild(el('p', { class: 'check-note', role: 'status', text: S.check.note }));
     // On UpCloud the agent does the work: its block comes first, with the
@@ -1057,6 +1338,9 @@
       google: { label: 'Sign-in with Google', values: { 'true': 'Yes', 'false': 'No' } }
     },
     ent: {
+      cloud: { label: 'Where it runs', values: { diy: 'Something else / I’ll do it myself' } },
+      cluster: { label: 'A Kubernetes cluster there already', values: { yes: 'Yes', no: 'No, create one' } },
+      cloudRegion: { label: 'Region', values: {} },
       idp: { label: 'Identity provider', values: {} },
       certs: { label: 'Site certificates', values: { auto: 'cert-manager issues them', manual: 'I issue them myself' } },
       smtp: { label: 'Email owners about sites nobody uses', values: { 'false': 'No email', 'true': 'Through our SMTP relay' } },
@@ -1066,6 +1350,18 @@
   };
   IDPS.forEach(function (p) { BASIC_CHOICES.ent.idp.values[p.id] = p.name; });
   BUCKETS.forEach(function (p) { BASIC_CHOICES.ent.bucket.values[p.id] = p.name; });
+  CLOUDS.forEach(function (c) {
+    BASIC_CHOICES.ent.cloud.values[c.id] = c.name;
+    c.regions.forEach(function (r) { BASIC_CHOICES.ent.cloudRegion.values[r] = r; });
+  });
+  // A region is an answer only for the cloud chosen (the list above has every
+  // cloud's), and the region and cluster questions only exist on a cloud.
+  function basicOffered(key, value) {
+    var c = cloud();
+    if (['certs', 'smtp', 'bucket', 'creds'].indexOf(key) >= 0) return !c;
+    if (key !== 'cluster' && key !== 'cloudRegion') return true;
+    return !!c && (key === 'cluster' || c.regions.indexOf(value) >= 0);
+  }
 
   function basicNow(key) { return String(S.basic[S.product][key]); }
   function groupName(s) {
@@ -1105,7 +1401,12 @@
           if (s && choices[k] == null && INSTALLER_DEFAULTS[k] !== s.default) choices[k] = INSTALLER_DEFAULTS[k];
         });
       }
-      Object.keys(BASIC_CHOICES[p]).forEach(function (k) { basics[k] = basicNow(k); });
+      // On the quick path the file-only questions (certificates, email,
+      // bucket) are not asked; elsewhere, the cloud ones are not.
+      var quickOnly = ['cluster', 'cloudRegion'], fileOnly = ['certs', 'smtp', 'bucket', 'creds'];
+      Object.keys(BASIC_CHOICES[p]).forEach(function (k) {
+        if ((cloud() ? fileOnly : quickOnly).indexOf(k) < 0) basics[k] = basicNow(k);
+      });
       var ctx = { product: p === 'small' ? 'small-box' : 'enterprise', step: STEPS[S.step], mode: S.mode, choices: choices, basics: basics };
       if (S.step === 2 && S.data[p]) { var a = areas()[S.area]; if (a) ctx.area = a.group.id; }
       return ctx;
@@ -1127,7 +1428,7 @@
     },
     describeBasic: function (key, value) {
       var q = BASIC_CHOICES[S.product][key];
-      if (!q || q.values[value] == null) return null;
+      if (!q || q.values[value] == null || !basicOffered(key, value)) return null;
       return { label: q.label, valueLabel: q.values[value], currentLabel: q.values[basicNow(key)] || basicNow(key), same: basicNow(key) === value };
     },
     // applyBasic answers a basic question as its own control does: picking
@@ -1135,8 +1436,9 @@
     // list itself does.
     applyBasic: function (key, value) {
       var q = BASIC_CHOICES[S.product][key], b = S.basic[S.product];
-      if (!q || q.values[value] == null) return 'Not an answer this question takes.';
+      if (!q || q.values[value] == null || !basicOffered(key, value)) return 'Not an answer this question takes.';
       if (key === 'codes' || key === 'google' || key === 'smtp') b[key] = value === 'true';
+      else if (key === 'cloud') pickCloud(b, value);
       else if (key === 'idp') pickIdp(b, value);
       else if (key === 'bucket') pickBucket(b, value);
       else b[key] = value;

@@ -492,6 +492,15 @@ What follows from that, and is not negotiable without changing the line above:
   `location ^~ /internal/` carries `internal;` (`deploy/prod/nginx-internal-lock.sh`, the
   content host included), so those pages are reached only through nginx's own rewrites and
   error pages. Reason: security review L2. Owner approved 2026-09-27.
+- **2026-09-28. Enterprise on AWS: a quick path by Terraform.** /setup asks where Enterprise
+  runs; AWS (plus "already have a cluster?") gives one line for AWS CloudShell that runs
+  `deploy/terraform/aws` in the enterprise repo; "Something else" keeps the agnostic
+  config.env path as it was. Azure is paused by the owner and Google Cloud untested, so
+  neither is offered (a feature works fully or is not offered); each is one `CLOUDS` entry
+  to switch on. Ingress is Traefik + cert-manager with
+  the address delegated to a cloud DNS zone, so owner certificates stay automatic whatever DNS
+  provider holds the parent. Reason: owner asked for an easier path by cloud, "keep it simple".
+  Owner decision 2026-09-28.
 
 ## Open, deliberately parked
 

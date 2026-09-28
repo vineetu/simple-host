@@ -123,3 +123,51 @@ func TestSetupHelperUpCloudReferral(t *testing.T) {
 		t.Error("UPCLOUD_SIGNUP changed")
 	}
 }
+
+// The quick path's line runs deploy/terraform/<cloud>/apply.sh from the
+// enterprise repo at a pinned commit, checked against its sha256 first. With
+// SH_ENTERPRISE_REPO pointing at a checkout of that repo, the pins are checked
+// against it.
+func TestSetupHelperCloudPins(t *testing.T) {
+	js, err := staticFiles.ReadFile("static/setup/setup.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := string(js)
+	ref := regexp.MustCompile(`var ENT_CLOUD_REF = '([0-9a-f]{40})';`).FindStringSubmatch(src)
+	sums := regexp.MustCompile(`var ENT_APPLY_SHA256 = \{([^}]*)\};`).FindStringSubmatch(src)
+	if ref == nil || sums == nil {
+		t.Fatalf("pins not found: ENT_CLOUD_REF %q, ENT_APPLY_SHA256 %q", ref, sums)
+	}
+	pinned := map[string]string{}
+	for _, m := range regexp.MustCompile(`(\w+): '([^']*)'`).FindAllStringSubmatch(sums[1], -1) {
+		if !regexp.MustCompile(`^[0-9a-f]{64}$`).MatchString(m[2]) {
+			t.Errorf("ENT_APPLY_SHA256.%s = %q, not a sha256", m[1], m[2])
+		}
+		pinned[m[1]] = m[2]
+	}
+	// Every cloud switched on has a pin.
+	for _, m := range regexp.MustCompile(`\{ id: '(\w+)', on: true,`).FindAllStringSubmatch(src, -1) {
+		if pinned[m[1]] == "" {
+			t.Errorf("cloud %s is on but ENT_APPLY_SHA256 has no pin for it", m[1])
+		}
+	}
+	if !strings.Contains(src, `ENT_RAW + ENT_CLOUD_REF + '/deploy/terraform/' + c.id + '/apply.sh -o "$f" && printf \'%s  %s\\n\' ' +`) ||
+		!strings.Contains(src, `ENT_APPLY_SHA256[c.id] + ' "$f" | sha256sum -c --quiet - && bash "$f" --ref ' + ENT_CLOUD_REF`) {
+		t.Error("the cloud command must fetch apply.sh by the pinned commit and check its sha256 before running it")
+	}
+	repo := os.Getenv("SH_ENTERPRISE_REPO")
+	if repo == "" {
+		t.Skip("SH_ENTERPRISE_REPO unset; pins not checked against the enterprise repo")
+	}
+	for cloud, sum := range pinned {
+		out, err := exec.Command("git", "-C", repo, "show", ref[1]+":deploy/terraform/"+cloud+"/apply.sh").Output()
+		if err != nil {
+			t.Errorf("%s: apply.sh not at %s in %s: %v", cloud, ref[1], repo, err)
+			continue
+		}
+		if got := fmt.Sprintf("%x", sha256.Sum256(out)); got != sum {
+			t.Errorf("%s: apply.sh at %s has sha256 %s, setup.js pins %s", cloud, ref[1], got, sum)
+		}
+	}
+}

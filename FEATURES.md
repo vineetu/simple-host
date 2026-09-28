@@ -692,7 +692,17 @@ Static audience pages shared as direct links. **Status: live.**
 Go: `h/ui.go`, `h/chrome.go`. Assets: `st/og.png`, `st/favicon.svg`, `st/site.css`.
 
 **Setup helper (`/setup`).** A page like start.spring.io for running your own: choose **Small box** (one server with
-Docker Compose) or **Enterprise** (Kubernetes), then **Basic** (small box: domain, sites hostname, certificate email,
+Docker Compose) or **Enterprise** (Kubernetes). Enterprise asks **Where will it run?**: **AWS** (the
+quick path) or **Something else / I'll do it myself** (the default; everything below). On AWS it asks whether an EKS
+cluster already exists there, then only the address, admin emails, OIDC issuer and client ID (email domains with
+Google, prefilled from the admins), the region (preselected from the time zone) and an existing cluster's name, with
+Advanced as an optional "More settings" link (plain settings only; they become `extra_config`). The output is one line
+for AWS CloudShell that fetches `deploy/terraform/<cloud>/apply.sh` from the enterprise repo at
+`ENT_CLOUD_REF`, checks it against `ENT_APPLY_SHA256`, and runs the Terraform module with the page's
+`terraform.tfvars` (base64 in the line; also shown for pipelines); the client secret is typed in the shell. Then the
+NS records it prints, and `/readyz`; plus an agent handoff that shows the plan (`--plan`) before applying.
+`?product=enterprise&cloud=aws` preselects it (the `/enterprise` hero link). Azure (paused) and Google Cloud are
+not offered; each is one `CLOUDS` entry (`on: true`) plus its module. Otherwise: **Basic** (small box: domain, sites hostname, certificate email,
 sign-in by emailed code and/or Google, sender, and **Where it runs**: UpCloud (recommended, the default) or a server
 you already have; Enterprise: address, admins, OIDC issuer/client/domains, owner
 certificate issuer, SMTP, bucket provider/endpoint/region/name/credentials, Postgres, and the ingress controller's pod

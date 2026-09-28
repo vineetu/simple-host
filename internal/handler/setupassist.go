@@ -95,12 +95,21 @@ var setupBasicChoices = map[string][]setupBasicChoice{
 		{"google", []string{"true", "false"}, "Sign-in with Google (default false). Needs a Google OAuth client; the person types its client ID and adds the secret themselves."},
 	},
 	"enterprise": {
+		{"cloud", []string{"aws", "diy"}, "Where it runs, default diy. aws = AWS, the quick path: the page asks only the address, admin emails, the sign-in issuer and client ID, the region and (with an existing cluster) its name, then gives one line to paste into AWS CloudShell. That line runs Terraform in the person's own AWS account: a new EKS cluster or theirs, RDS Postgres, the S3 bucket, generated secrets in AWS Secrets Manager, the ingress and certificates, and Simple Host; the client secret is typed in the shell. diy = any other Kubernetes cluster (Azure and Google Cloud included for now): the page writes config.env and secrets.env to apply by hand (the questions below about certificates, email, bucket and database are for diy only)."},
+		{"cluster", []string{"yes", "no"}, "With aws only: is there an EKS cluster there already, default no. no = Terraform creates a small one with 2 nodes; yes = it installs into theirs (they type its name and need cluster-admin access)."},
+		{"cloudRegion", setupCloudRegions, "With aws only: the AWS region for the cluster, database and bucket, preselected from the person's time zone."},
 		{"idp", []string{"okta", "entra", "google", "keycloak", "other"}, "Identity provider for sign-in (OIDC), default okta. okta = Okta; entra = Microsoft Entra ID (Microsoft or Azure AD sign-in); google = Google Workspace (company email domains then become required); keycloak = Keycloak; other = another OIDC provider. Picking one fills a template issuer URL the person completes."},
 		{"certs", []string{"auto", "manual"}, "Each owner's site certificate, default auto. auto = cert-manager issues them through a ClusterIssuer the person names; manual = they issue them themselves."},
 		{"smtp", []string{"true", "false"}, "Email owners about sites nobody uses, through the company's SMTP relay (default false). Only idle-site cleanup sends email."},
 		{"bucket", []string{"aws", "gcs", "oci", "upcloud", "other"}, "Bucket provider, default aws. aws = AWS S3; gcs = Google Cloud Storage; oci = Oracle Cloud; upcloud = UpCloud; other = another S3-compatible store. Picking one fills a template endpoint and, except for UpCloud, a region (UpCloud's region is the Object Storage service's, such as europe-2, which the person types)."},
 		{"creds", []string{"keys", "identity"}, "Bucket credentials, default keys. keys = access keys in secrets.env; identity = workload identity, no keys."},
 	},
+}
+
+// setupCloudRegions are the regions the page offers, cloud by cloud (the
+// clouds switched on in CLOUDS in setup.js; a test keeps them equal).
+var setupCloudRegions = []string{
+	"us-east-1", "us-east-2", "us-west-2", "ca-central-1", "sa-east-1", "eu-west-1", "eu-west-2", "eu-central-1", "eu-north-1", "ap-south-1", "ap-southeast-1", "ap-southeast-2", "ap-northeast-1",
 }
 
 // setupBasicText are the basic questions the visitor types, for the prompt:
@@ -111,14 +120,15 @@ var setupBasicText = map[string]string{
 - Email for certificate notices (the installer's --email), optional.
 - Send email from (MAIL_FROM), when emailed codes are on.
 - Google client ID (GOOGLE_OAUTH_CLIENT_ID), when Google sign-in is on; optional here.`,
-	"enterprise": `- Address (PUBLIC_BASE_URL): the install's hostname, like sites.example.com, on its own registrable domain.
+	"enterprise": `- With cloud aws (the quick path), only: address, admin emails, issuer URL, client ID, company email domains (asked only with Google, prefilled from the admin emails), and the existing cluster's name when cluster is yes. Everything below that is not in this line is diy only.
+- Address (PUBLIC_BASE_URL): the install's hostname, like sites.example.com, on its own registrable domain.
 - Admin emails (ADMIN_EMAILS): at least one.
 - Issuer URL (OIDC_ISSUER) and client ID (OIDC_CLIENT_ID) from the identity provider; the client secret goes in secrets.env.
 - Company email domains (ALLOWED_EMAIL_DOMAINS): required with Google Workspace, optional otherwise.
 - cert-manager ClusterIssuer name (OWNER_CERT_ISSUER), when certificates are auto.
 - Send email from (SMTP_FROM), when the SMTP relay is on.
 - Bucket endpoint, region and name; Postgres host, port, database name and owning role. On UpCloud: the region is the Object Storage service's (such as europe-2), and its managed Postgres is reached at the public-… hostname (the plain one resolves to a private address from outside UpCloud) on port 11569, not 5432.
-- Ingress controller's pod range (TRUSTED_PROXY_CIDRS), optional: the range the ingress controller's pods get addresses from (kubectl -n <ingress namespace> get pod -o wide), so rate limits and logs see each person's address; 192.168.0.0/16 on UpCloud's Kubernetes. Empty keeps the default, every private range.
+- Ingress controller's pod range (TRUSTED_PROXY_CIDRS), optional: the range the ingress controller's pods get addresses from (kubectl -n <ingress namespace> get pod -o wide), so rate limits and logs see each person's address; 192.168.0.0/16 on UpCloud's Kubernetes; with an AWS ALB (no proxy pods) the VPC CIDR. Empty keeps the default, every private range.
 - SECURE_MODE is always true in the files the helper writes.`,
 }
 
