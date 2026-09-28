@@ -18,6 +18,12 @@ error you paste (redacted first, and sent only after you review it); you apply e
 suggests. The files step also gives one block to hand to **your own AI agent**: what the server
 needs, every step with your files in it, and how to check the result.
 
+For **Simple Host Enterprise** (https://simple-host.app/setup?product=enterprise) the basics also
+ask for the ingress controller's pod range (`TRUSTED_PROXY_CIDRS`, optional: read the pods'
+addresses with `kubectl -n <ingress namespace> get pod -o wide`; empty keeps every private range).
+With UpCloud as the bucket provider the page asks for the Object Storage region (such as
+`europe-2`) and says to reach UpCloud's managed Postgres at its `public-…` hostname on port 11569.
+
 ## Where to run a small box
 
 Any fresh Ubuntu server with a public IPv4 address works. We recommend **UpCloud**: the smallest

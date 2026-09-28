@@ -132,6 +132,36 @@ async function enterpriseToCheck(page, width) {
   await p3.getByRole('button', { name: 'Skip the check' }).click();
   await p3.waitForSelector('pre');
   assert((await p3.locator('.check-note').innerText()) === 'Check skipped.', 'Skip the check shows the files');
+  // 5. Enterprise basics on UpCloud: the region is asked (never preset), the
+  // Postgres fields name the public- host and port 11569, and the ingress
+  // pod range lands in config.env.
+  const p4 = await browser.newPage();
+  await p4.setViewportSize({ width: 390, height: 900 });
+  await p4.goto(base + '/setup?product=enterprise');
+  await p4.getByRole('button', { name: 'Next' }).click();
+  await p4.fill('#f-host', 'sites.example.com');
+  await p4.fill('#f-admins', 'platform@example.com');
+  await p4.fill('#f-clientId', 'client-123');
+  await p4.fill('#f-issuer', 'https://acme.okta.com');
+  await p4.fill('#f-issuerName', 'internal-ca');
+  await p4.selectOption('#f-bucket', 'upcloud');
+  assert(await p4.inputValue('#f-region') === '', 'UpCloud: no preset region');
+  assert(/public-/.test(await p4.locator('#f-dbHost-h').innerText()) && /11569/.test(await p4.locator('#f-dbPort-h').innerText()), 'UpCloud: Postgres hints');
+  assert(/192\.168\.0\.0\/16/.test(await p4.locator('#f-proxies-h').innerText()), 'UpCloud: pod range hint');
+  await p4.fill('#f-endpoint', 'https://abc12.upcloudobjects.com');
+  await p4.fill('#f-bucketName', 'sh-sites');
+  await p4.fill('#f-dbHost', 'public-sh-abc.db.upclouddatabases.com');
+  await p4.fill('#f-dbPort', '11569');
+  await p4.fill('#f-proxies', 'not a range');
+  await p4.getByRole('button', { name: 'Show my files' }).click();
+  assert(await p4.locator('#f-region.bad').count() === 1 && await p4.locator('#f-proxies.bad').count() === 1, 'region required, bad range refused');
+  await p4.fill('#f-region', 'europe-2');
+  await p4.fill('#f-proxies', '192.168.0.0/16');
+  await p4.screenshot({ path: `${shots}/setup-ent-upcloud-390.png`, fullPage: true });
+  await p4.getByRole('button', { name: 'Show my files' }).click();
+  await p4.waitForSelector('pre');
+  const entCfg = await p4.locator('pre').first().innerText();
+  assert(/^TRUSTED_PROXY_CIDRS=192\.168\.0\.0\/16$/m.test(entCfg) && /^BACKUP_STORAGE_REGION=europe-2$/m.test(entCfg) && /^DB_PORT=11569$/m.test(entCfg), 'config.env carries the pod range, region and port');
   await browser.close();
   console.log('ALL OK');
 })().catch(e => { console.error(e); process.exit(1); });

@@ -37,7 +37,7 @@
     'ALLOWED_EMAIL_DOMAINS', 'OWNER_CERTS', 'OWNER_CERT_ISSUER', 'SMTP_URL', 'SMTP_FROM', 'SESSION_SIGNING_KEY',
     'BACKUP_STORAGE_ENDPOINT', 'BACKUP_STORAGE_REGION', 'BACKUP_STORAGE_BUCKET', 'BACKUP_STORAGE_ACCESS_KEY_ID',
     'BACKUP_STORAGE_SECRET_ACCESS_KEY', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_APP_PASSWORD',
-    'DB_SSL_ROOT_CERT', 'DB_DSN'];
+    'DB_SSL_ROOT_CERT', 'DB_DSN', 'TRUSTED_PROXY_CIDRS'];
 
   var IDPS = [
     { id: 'okta', name: 'Okta', issuer: 'https://YOUR-ORG.okta.com' },
@@ -50,7 +50,7 @@
     { id: 'aws', name: 'AWS S3', endpoint: 'https://s3.us-east-1.amazonaws.com', region: 'us-east-1' },
     { id: 'gcs', name: 'Google Cloud Storage', endpoint: 'https://storage.googleapis.com', region: 'us-central1' },
     { id: 'oci', name: 'Oracle Cloud', endpoint: 'https://YOUR-NAMESPACE.compat.objectstorage.us-ashburn-1.oraclecloud.com', region: 'us-ashburn-1' },
-    { id: 'upcloud', name: 'UpCloud', endpoint: 'https://YOUR-ENDPOINT.upcloudobjects.com', region: 'us-1' },
+    { id: 'upcloud', name: 'UpCloud', endpoint: 'https://YOUR-ENDPOINT.upcloudobjects.com', region: '' },
     { id: 'other', name: 'Another S3-compatible store', endpoint: '', region: 'us-east-1' }
   ];
   // </setupBasics>
@@ -64,7 +64,7 @@
       small: { where: 'upcloud', domain: '', content: '', email: '', codes: true, google: false, mailFrom: '', googleId: '' },
       ent: { host: '', admins: '', idp: 'okta', issuer: IDPS[0].issuer, clientId: '', domains: '', certs: 'auto', issuerName: '',
         smtp: false, smtpFrom: '', bucket: 'aws', endpoint: BUCKETS[0].endpoint, region: BUCKETS[0].region, bucketName: '',
-        creds: 'keys', dbHost: '', dbPort: '5432', dbName: 'simplehost', dbUser: 'simplehost' }
+        creds: 'keys', dbHost: '', dbPort: '5432', dbName: 'simplehost', dbUser: 'simplehost', proxies: '' }
     },
     errors: {},
     // The check: key is the request it answered (so the same choices are not
@@ -293,6 +293,8 @@
   }
   var HOST = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/;
   var EMAIL = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+  // A proxy address or range for TRUSTED_PROXY_CIDRS (the server checks it exactly at start).
+  var CIDR = /^(\d{1,3}(\.\d{1,3}){3}(\/([0-9]|[12][0-9]|3[0-2]))?|[0-9A-Fa-f]*:[0-9A-Fa-f:.]*(\/([0-9]{1,2}|1[01][0-9]|12[0-8]))?)$/;
   // sh quotes a value for a shell command: bare when it has only characters
   // no shell treats specially, else in single quotes.
   function sh(v) {
@@ -411,13 +413,24 @@
       bSel.value = b.bucket;
       box.appendChild(el('div', { class: 'field' }, [el('label', { for: uid('bucket'), text: 'Bucket provider' }), bSel]));
       box.appendChild(textField('endpoint', b, 'Bucket endpoint', { name: 'BACKUP_STORAGE_ENDPOINT', help: byName('BACKUP_STORAGE_ENDPOINT').description }));
-      box.appendChild(textField('region', b, 'Region', { name: 'BACKUP_STORAGE_REGION' }));
+      var upcloud = b.bucket === 'upcloud';
+      box.appendChild(textField('region', b, 'Region', { name: 'BACKUP_STORAGE_REGION', placeholder: upcloud ? 'europe-2' : '',
+        help: upcloud ? 'The Object Storage service’s region, as in its endpoint (such as europe-2).' : 'The region the bucket lives in.' }));
       box.appendChild(textField('bucketName', b, 'Bucket name', { name: 'BACKUP_STORAGE_BUCKET', placeholder: 'simple-host-sites', help: byName('BACKUP_STORAGE_BUCKET').description }));
       box.appendChild(radios('creds', b, 'Bucket credentials', [['keys', 'Access keys (in secrets.env)'], ['identity', 'Workload identity (no keys)']]));
-      box.appendChild(textField('dbHost', b, 'Postgres host', { name: 'DB_HOST', placeholder: 'postgres.internal.example.com', help: 'A managed Postgres with point-in-time recovery; nothing in the package backs up the database.' }));
-      box.appendChild(textField('dbPort', b, 'Postgres port', { name: 'DB_PORT', type: 'number' }));
+      box.appendChild(textField('dbHost', b, 'Postgres host', { name: 'DB_HOST', placeholder: upcloud ? 'public-….db.upclouddatabases.com' : 'postgres.internal.example.com',
+        help: 'A managed Postgres with point-in-time recovery; nothing in the package backs up the database.' +
+          (upcloud ? ' On UpCloud’s managed Postgres, use the public-… hostname (the component whose route is public): the plain one resolves to a private address from outside UpCloud.' : '') }));
+      box.appendChild(textField('dbPort', b, 'Postgres port', { name: 'DB_PORT', type: 'number',
+        help: upcloud ? 'UpCloud’s managed Postgres listens on 11569, not 5432.' : null }));
       box.appendChild(textField('dbName', b, 'Database name', { name: 'DB_NAME' }));
       box.appendChild(textField('dbUser', b, 'Owning role', { name: 'DB_USER', help: byName('DB_USER').description }));
+      box.appendChild(el('h3', { text: 'Ingress', style: 'margin-top:26px' }));
+      box.appendChild(textField('proxies', b, 'Ingress controller’s pod range (optional)', { name: 'TRUSTED_PROXY_CIDRS', placeholder: byName('TRUSTED_PROXY_CIDRS').default,
+        help: 'The addresses your ingress controller’s pods get, so rate limits and logs see each person’s address, not the ingress’s. ' +
+          'Read them with kubectl -n <ingress namespace> get pod -o wide and give the pod network range they fall in, like 192.168.0.0/16' +
+          (upcloud ? ' (UpCloud’s Kubernetes gives pods addresses from 192.168.0.0/16)' : '') +
+          '. Empty keeps the default, every private range, which trusts any pod in the cluster to name the client.' }));
     }
     app.appendChild(box);
     app.appendChild(el('div', { class: 'nav' }, [
@@ -458,6 +471,8 @@
       if (!/^\d+$/.test(b.dbPort) || +b.dbPort < 1 || +b.dbPort > 65535) e.dbPort = '1 to 65535.';
       if (!/^[A-Za-z0-9_]+$/.test(b.dbName)) e.dbName = 'Letters, digits and _.';
       if (!/^[A-Za-z0-9_]+$/.test(b.dbUser)) e.dbUser = 'Letters, digits and _.';
+      b.proxies = b.proxies.split(',').map(function (x) { return x.trim(); }).filter(Boolean).join(',');
+      if (b.proxies && !b.proxies.split(',').every(function (x) { return CIDR.test(x); })) e.proxies = 'Ranges like 192.168.0.0/16, separated by commas.';
     }
     S.errors = e;
     return Object.keys(e).length === 0;
@@ -627,6 +642,7 @@
     if (b.domains) preset.push(['ALLOWED_EMAIL_DOMAINS', b.domains.split(',').map(function (x) { return x.trim().toLowerCase(); }).join(',')]);
     if (b.certs === 'auto') preset.push(['OWNER_CERT_ISSUER', b.issuerName]); else preset.push(['OWNER_CERTS', 'manual']);
     if (b.smtp) preset.push(['SMTP_FROM', b.smtpFrom]);
+    if (b.proxies) preset.push(['TRUSTED_PROXY_CIDRS', b.proxies]);
     preset.push(['DB_HOST', b.dbHost]);
     if (b.dbPort !== '5432') preset.push(['DB_PORT', b.dbPort]);
     preset.push(['DB_NAME', b.dbName], ['DB_USER', b.dbUser], ['DB_SSL_ROOT_CERT', '/etc/simple-host/db-ca/ca.crt'],

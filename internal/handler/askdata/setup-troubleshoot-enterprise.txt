@@ -50,5 +50,7 @@ Bucket:
 Clouds:
 - kubectl times out or says EOF on a new UpCloud cluster: its API admits no addresses until you add yours to the allow-list.
 - UpCloud's load balancer must pass TCP through with PROXY protocol, or every host gets the load balancer's certificate and every client looks like one address.
+- Every client looks like one address (rate limits hit everyone at once) with PROXY protocol on: TRUSTED_PROXY_CIDRS does not cover the ingress controller's pods; read their addresses with kubectl -n <ingress namespace> get pod -o wide and use the pod network range they fall in (UpCloud's Kubernetes assigns pods from its own pool, not the node's podCIDR).
+- The migrate step cannot reach UpCloud's managed Postgres: DB_HOST must be the public-… hostname (the plain one resolves to a private 10.33.x address from outside UpCloud), DB_PORT 11569, and the database's IP filter must admit the worker nodes' public IPs (they change when nodes are replaced).
 - Azure free-trial subscriptions may refuse to create a Postgres flexible server ("The location is restricted from performing this operation"); a quota request or pay-as-you-go fixes it.
 - Google's ManagedCertificate does not issue wildcards.

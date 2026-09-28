@@ -76,7 +76,7 @@ var setupHelperBasics = map[string][]string{
 		"ALLOWED_EMAIL_DOMAINS", "OWNER_CERTS", "OWNER_CERT_ISSUER", "SMTP_URL", "SMTP_FROM", "SESSION_SIGNING_KEY",
 		"BACKUP_STORAGE_ENDPOINT", "BACKUP_STORAGE_REGION", "BACKUP_STORAGE_BUCKET", "BACKUP_STORAGE_ACCESS_KEY_ID",
 		"BACKUP_STORAGE_SECRET_ACCESS_KEY", "DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD", "DB_APP_PASSWORD",
-		"DB_SSL_ROOT_CERT", "DB_DSN"},
+		"DB_SSL_ROOT_CERT", "DB_DSN", "TRUSTED_PROXY_CIDRS"},
 }
 
 // setupBasicChoice is a basic question answered by picking from a fixed list:
@@ -98,7 +98,7 @@ var setupBasicChoices = map[string][]setupBasicChoice{
 		{"idp", []string{"okta", "entra", "google", "keycloak", "other"}, "Identity provider for sign-in (OIDC), default okta. okta = Okta; entra = Microsoft Entra ID (Microsoft or Azure AD sign-in); google = Google Workspace (company email domains then become required); keycloak = Keycloak; other = another OIDC provider. Picking one fills a template issuer URL the person completes."},
 		{"certs", []string{"auto", "manual"}, "Each owner's site certificate, default auto. auto = cert-manager issues them through a ClusterIssuer the person names; manual = they issue them themselves."},
 		{"smtp", []string{"true", "false"}, "Email owners about sites nobody uses, through the company's SMTP relay (default false). Only idle-site cleanup sends email."},
-		{"bucket", []string{"aws", "gcs", "oci", "upcloud", "other"}, "Bucket provider, default aws. aws = AWS S3; gcs = Google Cloud Storage; oci = Oracle Cloud; upcloud = UpCloud; other = another S3-compatible store. Picking one fills a template endpoint and region."},
+		{"bucket", []string{"aws", "gcs", "oci", "upcloud", "other"}, "Bucket provider, default aws. aws = AWS S3; gcs = Google Cloud Storage; oci = Oracle Cloud; upcloud = UpCloud; other = another S3-compatible store. Picking one fills a template endpoint and, except for UpCloud, a region (UpCloud's region is the Object Storage service's, such as europe-2, which the person types)."},
 		{"creds", []string{"keys", "identity"}, "Bucket credentials, default keys. keys = access keys in secrets.env; identity = workload identity, no keys."},
 	},
 }
@@ -117,7 +117,8 @@ var setupBasicText = map[string]string{
 - Company email domains (ALLOWED_EMAIL_DOMAINS): required with Google Workspace, optional otherwise.
 - cert-manager ClusterIssuer name (OWNER_CERT_ISSUER), when certificates are auto.
 - Send email from (SMTP_FROM), when the SMTP relay is on.
-- Bucket endpoint, region and name; Postgres host, port, database name and owning role.
+- Bucket endpoint, region and name; Postgres host, port, database name and owning role. On UpCloud: the region is the Object Storage service's (such as europe-2), and its managed Postgres is reached at the public-… hostname (the plain one resolves to a private address from outside UpCloud) on port 11569, not 5432.
+- Ingress controller's pod range (TRUSTED_PROXY_CIDRS), optional: the range the ingress controller's pods get addresses from (kubectl -n <ingress namespace> get pod -o wide), so rate limits and logs see each person's address; 192.168.0.0/16 on UpCloud's Kubernetes. Empty keeps the default, every private range.
 - SECURE_MODE is always true in the files the helper writes.`,
 }
 

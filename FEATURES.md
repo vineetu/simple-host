@@ -693,7 +693,10 @@ Go: `h/ui.go`, `h/chrome.go`. Assets: `st/og.png`, `st/favicon.svg`, `st/site.cs
 Docker Compose) or **Enterprise** (Kubernetes), then **Basic** (small box: domain, sites hostname, certificate email,
 sign-in by emailed code and/or Google, sender, and **Where it runs**: UpCloud (recommended, the default) or a server
 you already have; Enterprise: address, admins, OIDC issuer/client/domains, owner
-certificate issuer, SMTP, bucket provider/endpoint/region/name/credentials, Postgres) or **Advanced** (the basics, then
+certificate issuer, SMTP, bucket provider/endpoint/region/name/credentials, Postgres, and the ingress controller's pod
+range (`TRUSTED_PROXY_CIDRS`, optional, empty keeps every private range); with UpCloud as the bucket provider the
+region is asked (the Object Storage region, such as europe-2, never preset) and the Postgres fields say to use the
+managed database's `public-…` hostname and port 11569) or **Advanced** (the basics, then
 every other setting area by area, default preselected, a one-line explanation, range checks as you type, Skip
 restores the default, progress by step and area). **UpCloud** (small box, "Where it runs"): one line on why ("The
 smallest UpCloud server (1 CPU, 1 GB, about $5/month) runs Simple Host comfortably; we test on it."), a **Create your
