@@ -108,6 +108,31 @@ async function walk(browser, cloud, have, width, scheme) {
   const browser = await chromium.launch();
   for (const have of ['no', 'yes']) for (const scheme of ['light', 'dark']) for (const width of [390, 1280]) await walk(browser, 'aws', have, width, scheme);
 
+  // The issuer is checked as typed, before any normalising.
+  {
+    const p2 = await browser.newPage();
+    await p2.goto(`${base}/setup?product=enterprise&cloud=aws`);
+    await p2.getByRole('button', { name: 'Next' }).click();
+    await p2.waitForSelector('#f-host');
+    await p2.fill('#f-host', 'sites.acme-sites.com');
+    await p2.fill('#f-admins', 'platform@acme.com');
+    await p2.fill('#f-clientId', '0oa123');
+    const refused = [['a space', 'https://acme.okta.com/oauth2 default'], ['a tab', 'https://acme.okta.com/oauth2\tdefault'],
+      ['a quote', 'https://x.okta.com/a"b'], ['a backslash', 'https://x.okta.com/a\\b'], ['user:password@', 'https://user:pw@acme.okta.com'],
+      ['a query', 'https://acme.okta.com/?x=1'], ['Google with a trailing dot', 'https://accounts.google.com.'], ['Google with a path', 'https://accounts.google.com/o/oauth2'],
+      ['Google on another port', 'https://accounts.google.com:8443']];
+    for (const [what, v] of refused) {
+      await p2.locator('#f-issuer').evaluate((el, val) => { el.value = val; el.dispatchEvent(new Event('input')); }, v);
+      if (await p2.locator('#f-domains').count()) await p2.fill('#f-domains', 'acme.com');
+      await p2.getByRole('button', { name: 'Show my commands' }).click();
+      assert(await p2.locator('#f-issuer.bad').count() === 1 && await p2.locator('#commands').count() === 0, `issuer with ${what} is refused`);
+    }
+    // A newline cannot reach the field (the browser drops it from a one-line input); what is kept is one line.
+    await p2.locator('#f-issuer').evaluate(el => { el.value = 'https://acme.okta.com/a\nb'; el.dispatchEvent(new Event('input')); });
+    assert(!(await p2.locator('#f-issuer').inputValue()).includes('\n'), 'a newline never reaches the issuer');
+    await p2.close();
+  }
+
   // Azure is not offered yet: no choice, and ?cloud=azure is ignored.
   const page = await browser.newPage();
   await page.goto(`${base}/setup?product=enterprise&cloud=azure`);

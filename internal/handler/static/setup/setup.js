@@ -30,8 +30,8 @@
   // what it builds is fixed. After a release that changes deploy/terraform,
   // set all three: git rev-parse vX.Y.Z^{commit}, and
   // git show vX.Y.Z:deploy/terraform/<cloud>/apply.sh | sha256sum.
-  var ENT_CLOUD_REF = 'f954be22c57185bae29a35d1f6b71d7b6001d6b7';
-  var ENT_APPLY_SHA256 = { aws: 'e025ef603dadd6df5d2959c67f1763a79734ca46c01f92f0130435f1baf1c8f1' };
+  var ENT_CLOUD_REF = '6b11ba3604df444b453d36b1802ad1cf91966a65';
+  var ENT_APPLY_SHA256 = { aws: 'fe2083ea974a084c71f097ecd5dc0f8b280788c011ef7d34803c37118d8e1933' };
   var ENT_RAW = 'https://raw.githubusercontent.com/vineetu/simple-host-enterprise/';
   // Where a small box is recommended to run. A referral link: the page says so.
   var UPCLOUD_SIGNUP = 'https://signup.upcloud.com/?promo=JF2WCV';
@@ -502,9 +502,14 @@
       return 'https://' + x.hostname.toLowerCase() + (x.port && x.port !== '443' ? ':' + x.port : '') + x.pathname.replace(/\/+$/, '');
     } catch (e) { return u; }
   }
-  function isGoogle(issuer) { return normIssuer(issuer) === 'https://accounts.google.com'; }
+  // Google's host in any spelling (case, a trailing dot, a port, a path)
+  // counts as Google, so company email domains are always asked for it.
+  function isGoogle(issuer) {
+    try { return new URL(issuer).hostname.toLowerCase().replace(/\.$/, '') === 'accounts.google.com'; }
+    catch (e) { return false; }
+  }
   // An https URL with no spaces, quotes or backslashes, at most 2048 characters.
-  var ISSUER = /^https:\/\/[^\s\/"\\?#]+(\/[^\s"\\?#]*)?$/;
+  var ISSUER = /^https:\/\/[^\s\/"\\?#@]+(\/[^\s"\\?#]*)?$/;
   function renderCloudBasics(c) {
     var b = S.basic.ent, box = el('div', { class: 'card' });
     // The Basic path's template issuer (YOUR-ORG) is not an answer here.
@@ -671,9 +676,14 @@
       var c = cloud();
       b.host = b.host.toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '');
       if (!HOST.test(b.host)) e.host = 'A hostname like sites.example.com.';
-      b.issuer = normIssuer(b.issuer);
+      // The typed value is checked as typed; only a value that passes is
+      // normalised (host case, :443, trailing slashes).
       if (!ISSUER.test(b.issuer) || b.issuer.length > 2048) e.issuer = 'An https:// URL, with no spaces.';
-      else if (/YOUR-/.test(b.issuer)) e.issuer = 'Replace the YOUR-… part with yours.';
+      else {
+        b.issuer = normIssuer(b.issuer);
+        if (/YOUR-/.test(b.issuer)) e.issuer = 'Replace the YOUR-… part with yours.';
+        else if (isGoogle(b.issuer) && b.issuer !== 'https://accounts.google.com') e.issuer = 'Google’s issuer is exactly https://accounts.google.com.';
+      }
       if (!b.clientId) e.clientId = 'The client ID from your identity provider.';
       else if (/[\s"\\]/.test(b.clientId) || b.clientId.length > 512) e.clientId = 'The client ID as your identity provider shows it.';
       if (b.admins && b.admins.split(',').some(function (a) { return !EMAIL.test(a.trim()); })) e.admins = 'Email addresses separated by commas.';
@@ -964,7 +974,7 @@
     L.push('2. The sign-in app’s client secret: before starting you I set it in this terminal as TF_VAR_oidc_client_secret. Check with `test -n "$TF_VAR_oidc_client_secret" && echo set`. If it is not set, stop and ask me to quit you, run this in the terminal and start you again (a re-run after a first successful one does not need it: the stored secret is kept):', '', FENCE + 'sh', SECRET_CREDS, FENCE, '');
     L.push('3. See what it will create: run this line with ` --plan` added at the end. It installs Terraform if it is missing, fetches the module at a pinned commit after checking its checksum, and prints the plan. Tell me how many resources it adds and ask me before going on.', '', FENCE + 'sh', r.cmd, FENCE, '');
     L.push('4. Apply: after I say yes, run the same line with ` --yes` added at the end. ' + (b.cluster === 'yes' ? 'It takes about 15 minutes.' : 'It takes about 25 minutes (the cluster is most of it).') + ' If it stops, running the same line again picks up where it stopped. In ' + c.shell + ' the shell closes after about 20 minutes without a key press, which stops the work: remind me to press Enter in it every 10 minutes or so.', '');
-    L.push('5. DNS: it ends with "1. DNS:". Either it lists NS records for ' + b.host + ' to add (in the DNS zone of the domain above it, or as the name servers at the registrar if ' + b.host + ' is a domain of its own): tell me exactly which records to add and where, and wait for me; then check that `dig +short NS ' + sh(b.host) + '` prints them. Or it says ' + b.host + ' is already a Route 53 zone in this account, with nothing to add.', '');
+    L.push('5. DNS: the first numbered step of its final output, "1. DNS:", either lists NS records for ' + b.host + ' to add (in the DNS zone of the domain above it, or as the name servers at the registrar if ' + b.host + ' is a domain of its own): tell me exactly which records to add and where, and wait for me; then check that `dig +short NS ' + sh(b.host) + '` prints them. Or it says ' + b.host + ' is already a Route 53 zone in this account, with nothing to add.', '');
     L.push('6. Check it works (certificates can take a few minutes after the DNS change):');
     L.push('   - `curl -fsS ' + sh('https://' + b.host + '/readyz') + '` prints {"status":"ok"}.');
     L.push('   - `curl -sS -o /dev/null -w \'%{http_code}\\n\' ' + sh('https://install-check.' + b.host + '/healthz') + '` prints a status code (401 or 404 is fine; a TLS or DNS error is not).', '');
