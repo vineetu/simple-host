@@ -90,6 +90,23 @@ paths:
             text/markdown:
               schema: { type: string }
         '404': { description: No such skill }
+  /v1/skills/{name}/SKILL.md:
+    get:
+      operationId: getSkillMarkdown
+      summary: Fetch one skill's SKILL.md (markdown), same as /v1/skills/{name}
+      description: Same response as /v1/skills/{name}. Public, no auth.
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: The skill's SKILL.md
+          content:
+            text/markdown:
+              schema: { type: string }
+        '404': { description: No such skill }
   /v1/skills/{name}/references/{file}:
     get:
       operationId: getSkillReference

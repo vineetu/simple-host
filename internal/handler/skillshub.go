@@ -16,6 +16,7 @@ import (
 //
 //	GET /v1/skills            → JSON catalog {plugin, version, skills:[{name,description,url}]}
 //	GET /v1/skills/{name}     → that skill's raw SKILL.md (text/markdown)
+//	GET /v1/skills/{name}/SKILL.md → the same
 //
 // It reads the embedded skill bundle, so it always reflects what this server
 // actually ships (connect-domain included, plus anything added later).
@@ -235,6 +236,9 @@ func serveWellKnownSkillsIndex(w http.ResponseWriter, r *http.Request) {
 func RegisterSkillsHub(mux *http.ServeMux, publicBaseURL string) {
 	mux.HandleFunc("GET /v1/skills", serveSkillsCatalog(publicBaseURL))
 	mux.HandleFunc("GET /v1/skills/{name}", serveSkillDoc)
+	// Agents append /SKILL.md by habit (it works under /skills/ and
+	// /.well-known/skills/), so accept it here too.
+	mux.HandleFunc("GET /v1/skills/{name}/SKILL.md", serveSkillDoc)
 	mux.HandleFunc("GET /v1/skills/{name}/references/{file}", serveSkillReference)
 	// Well-known agent-skills discovery (Hermes/OpenClaw/etc.).
 	mux.HandleFunc("GET /.well-known/skills/index.json", serveWellKnownSkillsIndex)

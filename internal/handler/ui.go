@@ -92,6 +92,12 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	for _, dir := range bundledSkillDirs() {
 		mux.HandleFunc("GET /skills/"+dir+".zip", serveSkillZip(dir))
 		mux.HandleFunc("GET /skills/"+dir+"/SKILL.md", serveSkillMarkdown(dir))
+		// Same shapes as /v1/skills/…: the bare skill path and its references.
+		mux.HandleFunc("GET /skills/"+dir, serveSkillMarkdown(dir))
+		mux.HandleFunc("GET /skills/"+dir+"/references/{file}", func(w http.ResponseWriter, r *http.Request) {
+			r.SetPathValue("name", dir)
+			serveSkillReference(w, r)
+		})
 	}
 	mux.HandleFunc("GET /plugin.zip", servePluginZip)
 	mux.HandleFunc("GET /install.sh", serveInstallScript(publicBaseURL))
