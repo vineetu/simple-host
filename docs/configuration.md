@@ -203,7 +203,7 @@ than 10 times looser than its default. A `RATE_LIMIT_*` variable that is not one
 | `RATE_LIMIT_VISITOR` | 20,5s | **80,1.25s** (security-sensitive) | Finishing a visitor sign-in and signing out, per address. |
 | `RATE_LIMIT_UPLOAD` | 30,10s | any (warns past 10×) | Uploads and deploys per client. |
 | `RATE_LIMIT_STATE` | 60,1s | any (warns past 10×) | Saved-data and list writes per client. |
-| `RATE_LIMIT_SITE_OPS` | 30,2s | any (warns past 10×) | Deleting, changing and restoring sites, and deleting the account, per address. |
+| `RATE_LIMIT_SITE_OPS` | 30,2s | any (warns past 10×) | Deleting, changing and restoring sites, deleting the account, and admin sign-in tries, per address. |
 | `RATE_LIMIT_EXPORT` | 10,10s | any (warns past 10×) | Export downloads per address (site, account and link downloads). |
 | `RATE_LIMIT_ANALYTICS` | 30,2s | any (warns past 10×) | Top pages and referring domains reads, per address. |
 | `RATE_LIMIT_TLS_ASK` | 60,100ms | any (warns past 10×) | Certificate checks (`/internal/tls-ask`), per address. |

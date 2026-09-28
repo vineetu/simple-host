@@ -448,9 +448,27 @@ async function downloadAll(){
 // longer takes, or a key that is not the admin's. The key is checked against
 // an admin-only route and kept in this browser (as the dashboard keeps it)
 // only when it is the admin key.
+// <plainHTTP>
+// keyOverPlainHTTP: a key typed on this page would cross the network
+// unencrypted (plain http to anything but this computer).
+function keyOverPlainHTTP(protocol, hostname){
+  var h=String(hostname).toLowerCase().replace(/^\[|\]$/g,'');
+  return protocol==='http:' && !(h==='localhost' || /\.localhost$/.test(h) || /^127\./.test(h) || h==='::1');
+}
+// </plainHTTP>
 function renderSignIn(why){
   document.title='Admin sign-in · simple·host';
   var main=document.getElementById('admin-main'); if(!main) return;
+  if(keyOverPlainHTTP(location.protocol, location.hostname)){
+    main.innerHTML='<p class="page-tag">Admin</p>'+
+      '<div class="panel" id="signin" style="max-width:560px">'+
+      '<h2 style="font-size:20px;margin-bottom:6px">Open the admin page over https</h2>'+
+      '<p class="ph">This address is plain http, so the admin key would travel unencrypted. Sign in at <a id="signin-https"></a> instead.</p>'+
+      '<p class="ph" style="margin-top:12px">If that address does not open yet, finish the DNS and HTTPS setup first, then sign in there.</p></div>';
+    var link=document.getElementById('signin-https'), u='https://'+location.host+'/admin';
+    link.href=u; link.textContent=u;
+    return;
+  }
   main.innerHTML='<p class="page-tag">Admin</p>'+
     '<div class="panel" id="signin" style="max-width:560px">'+
     '<h2 style="font-size:20px;margin-bottom:6px">Sign in with the admin key</h2>'+

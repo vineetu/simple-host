@@ -208,5 +208,10 @@
   "name": "UpCloud API token hidden, hostnames and curl's TLS error kept",
   "in": "export UPCLOUD_TOKEN=ucat_01DQE3AJDEBFEKECFM558TGH2F\nheader = \"Authorization: Bearer ucat_01DQE3AJDEBFEKECFM558TGH2F\"\ncurl: (60) SSL certificate problem: unable to get local issuer certificate\nsmoke: plan.alice.e2e.example.net not ready after 300s (https://plan.alice.e2e.example.net/healthz)",
   "out": "export UPCLOUD_TOKEN=[redacted]\nheader = \"Authorization: Bearer [redacted]\"\ncurl: (60) SSL certificate problem: unable to get local issuer certificate\nsmoke: plan.alice.e2e.example.net not ready after 300s (https://plan.alice.e2e.example.net/healthz)"
+ },
+ {
+  "name": "bare admin key in prose",
+  "in": "Your admin key is sh_admin_0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f (kept in /opt/simple-host/.env).",
+  "out": "Your admin key is [redacted key] (kept in /opt/simple-host/.env)."
  }
 ]

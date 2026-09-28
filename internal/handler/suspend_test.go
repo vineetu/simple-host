@@ -4,8 +4,10 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
 	"io"
 	"net/http"
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -253,5 +255,74 @@ func TestAdminExportAll(t *testing.T) {
 	}
 	if seen[oh+"/shop/files/index.html"] != "<h1>shop</h1>" {
 		t.Fatalf("wrong content: %q", seen[oh+"/shop/files/index.html"])
+	}
+}
+
+// Wrong keys typed at /admin are rate limited per address, so the sign-in
+// form's "Too many tries" answer is real.
+func TestAdminUsersWrongKeysRateLimited(t *testing.T) {
+	withLimits(t, map[string]string{"RATE_LIMIT_SITE_OPS": "3,1m"})
+	a := newPersonApp(t, "serve")
+	bad := map[string]string{"X-API-Key": "sh_admin_" + strings.Repeat("0", 48)}
+	for i := 0; i < 3; i++ {
+		if r := a.at(t, "GET", "simple-host.test", "/v1/admin/users", nil, bad); r.status != http.StatusUnauthorized {
+			t.Fatalf("wrong key %d: %d %s", i, r.status, r.body)
+		}
+	}
+	if r := a.at(t, "GET", "simple-host.test", "/v1/admin/users", nil, bad); r.status != http.StatusTooManyRequests {
+		t.Fatalf("fourth wrong key: %d %s", r.status, r.body)
+	}
+}
+
+// The /admin sign-in form is not offered over plain http except on this
+// computer: the page's <plainHTTP> block, run under node.
+func TestAdminSignInPlainHTTP(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node is not installed")
+	}
+	page, err := staticFiles.ReadFile("static/admin.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := string(page)
+	i, j := strings.Index(src, "// <plainHTTP>"), strings.Index(src, "// </plainHTTP>")
+	if i < 0 || j < i {
+		t.Fatal("admin.html lacks the <plainHTTP> block")
+	}
+	cases := []struct {
+		proto, host string
+		refuse      bool
+	}{
+		{"http:", "203.0.113.7", true},
+		{"http:", "builds.example.com", true},
+		{"http:", "localhost", false},
+		{"http:", "app.localhost", false},
+		{"http:", "127.0.0.1", false},
+		{"http:", "[::1]", false},
+		{"https:", "203.0.113.7", false},
+		{"https:", "builds.example.com", false},
+	}
+	var in [][2]string
+	for _, c := range cases {
+		in = append(in, [2]string{c.proto, c.host})
+	}
+	b, _ := json.Marshal(in)
+	prog := src[i:j] + "\nprocess.stdout.write(JSON.stringify(" + string(b) + ".map(function(c){return keyOverPlainHTTP(c[0],c[1]);})));"
+	out, err := exec.Command(node, "-e", prog).Output()
+	if err != nil {
+		t.Fatalf("node: %v", err)
+	}
+	var got []bool
+	if err := json.Unmarshal(out, &got); err != nil {
+		t.Fatal(err)
+	}
+	for k, c := range cases {
+		if got[k] != c.refuse {
+			t.Errorf("%s//%s: refuse=%v, want %v", c.proto, c.host, got[k], c.refuse)
+		}
+	}
+	if !strings.Contains(src, "if(keyOverPlainHTTP(location.protocol, location.hostname)){") {
+		t.Error("renderSignIn does not check keyOverPlainHTTP before the form")
 	}
 }

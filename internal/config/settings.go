@@ -135,7 +135,7 @@ var knobDocs = map[string]knobDoc{
 	"RATE_LIMIT_VISITOR":           {"accounts", "Finishing a visitor sign-in and signing out, per address.", true, true},
 	"RATE_LIMIT_UPLOAD":            {"sites", "Uploads and deploys per client.", false, true},
 	"RATE_LIMIT_STATE":             {"data", "Saved-data and list writes per client.", false, true},
-	"RATE_LIMIT_SITE_OPS":          {"sites", "Deleting, changing and restoring sites, per address.", false, true},
+	"RATE_LIMIT_SITE_OPS":          {"sites", "Deleting, changing and restoring sites, and admin sign-in tries, per address.", false, true},
 	"RATE_LIMIT_EXPORT":            {"sites", "Site and account downloads per address.", false, true},
 	"RATE_LIMIT_ANALYTICS":         {"sites", "Top pages and referring domains reads, per address.", false, true},
 	"RATE_LIMIT_TLS_ASK":           {"domains", "Certificate checks (/internal/tls-ask), per address.", false, true},

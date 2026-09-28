@@ -57,7 +57,7 @@ var setupRedactRules = []setupRedactRule{
 	{re: regexp.MustCompile(`(?i)(["']` + setupRedactName + `["'][ \t]*:[ \t]*)(?:"(?:[^"\\\n]|\\.)*"|'[^'\n]*'|[^\t\n\f\r ,;}]+)`), with: "${1}[redacted]"},
 	{re: regexp.MustCompile(`(?i)\b(` + setupRedactName + `)=(?:"[^"\n]*"|'[^'\n]*'|[^\t\n\f\r &;'",]+)`), with: "${1}=[redacted]"},
 	{re: regexp.MustCompile(`\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{2,}`), with: "[redacted token]"},
-	{re: regexp.MustCompile(`\b(?:sh(?:k|at|rt|ac|c|cs|int)_|sk-|sk_|pk_|rk_|re_|ghp_|gho_|ghu_|ghs_|ghr_|github_pat_|glpat-|xai-|xox[abpors]-|ucat_)[A-Za-z0-9_-]{12,}`), with: "[redacted key]"},
+	{re: regexp.MustCompile(`\b(?:sh(?:k|at|rt|ac|c|cs|int|_admin)_|sk-|sk_|pk_|rk_|re_|ghp_|gho_|ghu_|ghs_|ghr_|github_pat_|glpat-|xai-|xox[abpors]-|ucat_)[A-Za-z0-9_-]{12,}`), with: "[redacted key]"},
 	{re: regexp.MustCompile(`\b(?:AKIA|ASIA)[0-9A-Z]{16}\b`), with: "[redacted key]"},
 	{re: regexp.MustCompile(`[A-Za-z0-9._%+` + setupRedactEmailCh + `-]+[@\x{ff20}][A-Za-z0-9` + setupRedactEmailCh + `-]+(?:\.[A-Za-z0-9` + setupRedactEmailCh + `-]+)+`), with: "[email]"},
 	{re: regexp.MustCompile(`\b[0-9a-fA-F]{32,}\b`), with: "[redacted]"},

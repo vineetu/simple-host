@@ -363,7 +363,8 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// The address before the download became a .zip; serves the same zip.
 	mux.Handle("GET /v1/me/export.tar.gz", authMiddleware(rateLimitByIP(exportLimiter, http.HandlerFunc(h.exportMe))))
 	mux.Handle("DELETE /v1/me", authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.deleteMe))))
-	mux.Handle("GET /v1/admin/users", authMiddleware(http.HandlerFunc(h.adminUsers)))
+	// The limiter sits outside auth so wrong keys typed at /admin count too.
+	mux.Handle("GET /v1/admin/users", rateLimitByIP(siteOpLimiter, authMiddleware(http.HandlerFunc(h.adminUsers))))
 	// Operator take-down (suspend.go): a site, or a person and all their
 	// sites, without deleting anything; restore / enable reverses it.
 	mux.Handle("POST /v1/admin/sites/{id}/suspend", authMiddleware(h.setSiteSuspension(true)))

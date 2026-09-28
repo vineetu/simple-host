@@ -49,7 +49,7 @@
     [new RegExp('(["\']' + NAME + '["\'][ \\t]*:[ \\t]*)(?:"(?:[^"\\\\\\n]|\\\\.)*"|\'[^\'\\n]*\'|[^\\t\\n\\f\\r ,;}]+)', 'gi'), '$1[redacted]'],
     [new RegExp('\\b(' + NAME + ')=(?:"[^"\\n]*"|\'[^\'\\n]*\'|[^\\t\\n\\f\\r &;\'",]+)', 'gi'), '$1=[redacted]'],
     [/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{2,}/g, '[redacted token]'],
-    [/\b(?:sh(?:k|at|rt|ac|c|cs|int)_|sk-|sk_|pk_|rk_|re_|ghp_|gho_|ghu_|ghs_|ghr_|github_pat_|glpat-|xai-|xox[abpors]-|ucat_)[A-Za-z0-9_-]{12,}/g, '[redacted key]'],
+    [/\b(?:sh(?:k|at|rt|ac|c|cs|int|_admin)_|sk-|sk_|pk_|rk_|re_|ghp_|gho_|ghu_|ghs_|ghr_|github_pat_|glpat-|xai-|xox[abpors]-|ucat_)[A-Za-z0-9_-]{12,}/g, '[redacted key]'],
     [/\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g, '[redacted key]'],
     [/[A-Za-z0-9._%+\u00a1-\u1fff\u2070-\u2fff\u3001-\ud7ff\uf900-\uffef-]+[@\uff20][A-Za-z0-9\u00a1-\u1fff\u2070-\u2fff\u3001-\ud7ff\uf900-\uffef-]+(?:\.[A-Za-z0-9\u00a1-\u1fff\u2070-\u2fff\u3001-\ud7ff\uf900-\uffef-]+)+/g, '[email]'],
     [/\b[0-9a-fA-F]{32,}\b/g, '[redacted]'],

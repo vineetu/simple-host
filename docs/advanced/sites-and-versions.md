@@ -21,7 +21,7 @@ keeps all.
 | `PREVIEW_LINK_TTL_MINUTES` | `60` | 5–10080 minutes | How long a preview link to a stored version works. **Security-sensitive.** |
 | `EXPORT_LINK_TTL_MINUTES` | `10` | 1–60 minutes | How long a site download link works (it holds private lists too). **Security-sensitive.** |
 | `RATE_LIMIT_UPLOAD` | `30,10s` | any (warns past 10× looser) | Uploads and deploys per client. |
-| `RATE_LIMIT_SITE_OPS` | `30,2s` | any (warns past 10× looser) | Deleting, changing and restoring sites, per address. |
+| `RATE_LIMIT_SITE_OPS` | `30,2s` | any (warns past 10× looser) | Deleting, changing and restoring sites, and admin sign-in tries, per address. |
 | `RATE_LIMIT_EXPORT` | `10,10s` | any (warns past 10× looser) | Site and account downloads per address. |
 | `RATE_LIMIT_ANALYTICS` | `30,2s` | any (warns past 10× looser) | Top pages and referring domains reads, per address. |
 | `MAX_ARCHIVE_MB` | `100` | at least 1 MB | Largest upload, and the size one site may have. |

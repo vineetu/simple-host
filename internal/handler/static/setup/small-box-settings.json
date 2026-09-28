@@ -573,7 +573,7 @@
     {
       "name": "RATE_LIMIT_SITE_OPS",
       "group": "sites",
-      "description": "Deleting, changing and restoring sites, per address.",
+      "description": "Deleting, changing and restoring sites, and admin sign-in tries, per address.",
       "type": "rate",
       "default": "30,2s",
       "security_sensitive": false,

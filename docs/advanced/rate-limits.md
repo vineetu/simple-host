@@ -21,7 +21,7 @@ at startup. The others may be set to anything, with a startup warning past ten t
 | `RATE_LIMIT_OAUTH_AUTHORIZE` | `30,2s` | stricter freely; loosest `120,500ms` | AI app sign-in requests on the connector, per address. **Security-sensitive.** |
 | `RATE_LIMIT_OAUTH_TOKEN` | `30,2s` | stricter freely; loosest `120,500ms` | AI app token requests on the connector, per address. **Security-sensitive.** |
 | `RATE_LIMIT_UPLOAD` | `30,10s` | any (warns past 10× looser) | Uploads and deploys per client. |
-| `RATE_LIMIT_SITE_OPS` | `30,2s` | any (warns past 10× looser) | Deleting, changing and restoring sites, per address. |
+| `RATE_LIMIT_SITE_OPS` | `30,2s` | any (warns past 10× looser) | Deleting, changing and restoring sites, and admin sign-in tries, per address. |
 | `RATE_LIMIT_EXPORT` | `10,10s` | any (warns past 10× looser) | Site and account downloads per address. |
 | `RATE_LIMIT_ANALYTICS` | `30,2s` | any (warns past 10× looser) | Top pages and referring domains reads, per address. |
 | `RATE_LIMIT_STATE` | `60,1s` | any (warns past 10× looser) | Saved-data and list writes per client. |
