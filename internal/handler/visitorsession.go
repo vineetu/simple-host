@@ -482,7 +482,7 @@ func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !h.authorizeStateOrigin(w, r, siteName) {
-		writeJSON(w, http.StatusForbidden, errorResponse{Error: "forbidden"})
+		writeOriginRefused(w)
 		return
 	}
 	siteID, err := h.resolveSiteID(r, siteName)

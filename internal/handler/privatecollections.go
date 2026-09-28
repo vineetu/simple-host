@@ -278,6 +278,9 @@ func (h *SiteHandler) appendPrivate(w http.ResponseWriter, r *http.Request, site
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "a private list takes one JSON object per item"})
 		return
 	}
+	if !storableJSON(w, raw) {
+		return
+	}
 	claim, handled := h.idemBegin(w, r, siteID, "POST collections/"+coll, db.Actor{ID: sess.UserID}, raw, h.replayItem(w, r, siteID, coll))
 	if handled {
 		return
@@ -364,6 +367,9 @@ func (h *SiteHandler) setCollectionPrivacy(w http.ResponseWriter, r *http.Reques
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	if *req.Private && !set.Private && !h.signInNeededOK(w, "Private lists") {
+		return
+	}
 	if *req.Private && !hasHome {
 		writeJSON(w, http.StatusConflict, map[string]string{
 			"error": strings.Replace(privateListNeedsDomain, "%s", h.siteDomain, 1),
@@ -374,12 +380,13 @@ func (h *SiteHandler) setCollectionPrivacy(w http.ResponseWriter, r *http.Reques
 	if !*req.Private && (set.Kind == db.KindEntries || (set.Kind == "" && !set.Shared)) && !h.publicEntriesOK(w) {
 		return
 	}
-	if !*req.Private && set.Private && !h.confirmPublicOK(w, r, siteID, coll, "a public list", req.ConfirmPublic) {
-		return
-	}
 	// On a site that needs kinds, choosing privacy declares the name as
-	// Submissions (with the default email for that visibility).
-	setPrivacy := func() error { return db.SetCollectionPrivate(r.Context(), h.database, siteID, coll, *req.Private) }
+	// Submissions (with the default email for that visibility). Making a
+	// private list public is checked under the name's lock: while it holds
+	// entries (Recently deleted too) only with confirm_public.
+	setPrivacy := func() error {
+		return db.SetCollectionPrivateLocked(r.Context(), h.database, siteID, coll, *req.Private, req.ConfirmPublic)
+	}
 	if set.Kind == "" && !set.Shared {
 		if !h.entriesNameRoom(w, r, siteID, coll) {
 			return
@@ -389,10 +396,15 @@ func (h *SiteHandler) setCollectionPrivacy(w http.ResponseWriter, r *http.Reques
 			notify = db.NotifyOff
 		}
 		setPrivacy = func() error {
-			return db.DeclareData(r.Context(), h.database, siteID, coll, db.KindEntries, *req.Private, false, notify)
+			return db.DeclareDataLocked(r.Context(), h.database, siteID, coll, db.KindEntries, *req.Private, false, notify, req.ConfirmPublic)
 		}
 	}
 	if err := setPrivacy(); err != nil {
+		var pe *db.PrivateItemsError
+		if errors.As(err, &pe) {
+			writePrivateItems(w, coll, pe, "a public list")
+			return
+		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
@@ -523,16 +535,24 @@ func (h *SiteHandler) updatePrivateItem(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxCollectionItemSize)
+	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxCollectionItemSize))
 	var patch map[string]json.RawMessage
-	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(&patch); err != nil || patch == nil || dec.More() {
+	if err == nil {
+		dec := json.NewDecoder(bytes.NewReader(raw))
+		if err = dec.Decode(&patch); err == nil && (patch == nil || dec.More()) {
+			err = errors.New("not one object")
+		}
+	}
+	if err != nil {
 		var maxErr *http.MaxBytesError
 		if errors.As(err, &maxErr) {
 			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large", Code: "item_too_large"})
 			return
 		}
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `send a JSON object of the fields to change, e.g. {"status": "done"}`})
+		return
+	}
+	if !storableJSON(w, raw) {
 		return
 	}
 	errTooLarge := errors.New("too large")

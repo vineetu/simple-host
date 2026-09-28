@@ -75,6 +75,8 @@ func newHostRewriter(siteDomain, contentHost, cnameTarget string) *hostRewriter 
 		"&lt;handle&gt;."+canonicalSiteDomain+"/&lt;site&gt;", contentHost+"/&lt;handle&gt;/&lt;site&gt;",
 		"&lt;handle&gt;."+canonicalSiteDomain+"/", contentHost+"/&lt;handle&gt;/",
 		"&lt;handle&gt;."+canonicalSiteDomain, contentHost+"/&lt;handle&gt;",
+		// Every site shares the content host's origin in the path model.
+		"(its own browser origin)", "(one browser origin, shared by every site on this server)",
 		"sites."+canonicalSiteDomain, contentHost,
 		"cname."+canonicalSiteDomain, cnameTarget,
 		canonicalSiteDomain, siteDomain,
@@ -116,6 +118,9 @@ func serveRewrittenAsset(name string, rw *hostRewriter, modTime time.Time) http.
 			if err == nil {
 				body = instanceLimits.apply(rw.apply(body))
 			}
+			if err == nil && name == "llms.txt" && instanceNote != "" {
+				body = append([]byte(instanceNote), body...)
+			}
 		}
 		if err != nil {
 			http.NotFound(w, r)
@@ -143,6 +148,66 @@ var instanceHosts *hostRewriter
 // startup, before serving.
 func SetInstanceHosts(siteDomain, contentHost, cnameTarget string) {
 	instanceHosts = newHostRewriter(siteDomain, contentHost, cnameTarget)
+}
+
+// InstanceFacts is what this install's llms.txt says about itself, above the
+// text every install shares (which describes simple-host.app).
+type InstanceFacts struct {
+	SiteDomain, ContentHost string
+	// SharedOrigin: every site is served on the content host's one origin
+	// (PERSON_HOSTS and SITE_HOSTS off, as on a small box).
+	SharedOrigin bool
+	// SignInEmail and SignInProviders: how visitors can sign in.
+	SignInEmail     bool
+	SignInProviders []string
+	// Contact: who to ask for help (auth.SupportContact).
+	Contact string
+}
+
+// instanceNote is prepended to llms.txt on an install other than
+// simple-host.app (SetInstanceNote); "" there.
+var instanceNote string
+
+// SetInstanceNote writes the THIS SERVER block of llms.txt from f. Call once
+// at startup, after SetInstanceHosts; it does nothing on simple-host.app.
+func SetInstanceNote(f InstanceFacts) {
+	if instanceHosts == nil {
+		instanceNote = ""
+		return
+	}
+	var b strings.Builder
+	b.WriteString("THIS SERVER (" + f.SiteDomain + ") — read this first: the text after it describes the hosted service at simple-host.app, and where it differs, what is written here is what holds on this server.\n")
+	if f.SharedOrigin {
+		b.WriteString("- Addresses: every site is at https://" + f.ContentHost + "/<handle>/<site>/, and every site on this server shares that one browser origin: localStorage, sessionStorage, IndexedDB and cookies are shared with every other site here. Keep nothing private in the browser, and prefix browser storage keys with the site's name. A free <name>." + f.SiteDomain + " address works only once the operator has pointed a wildcard DNS record (*." + f.SiteDomain + ") at this server.\n")
+		b.WriteString("- Preview links (preview_url, POST .../versions/<n>/preview-link) need a per-site address, which this server does not give sites (409 preview_unavailable): to check a stored version, make it live (PUT .../active-version) and switch back if needed.\n")
+	}
+	var ways []string
+	if f.SignInEmail {
+		ways = append(ways, "an emailed code")
+	}
+	for _, p := range f.SignInProviders {
+		if name := map[string]string{"google": "Google", "github": "GitHub"}[p]; name != "" {
+			ways = append(ways, name)
+		}
+	}
+	if len(ways) == 0 {
+		b.WriteString("- Visitor sign-in: visitors cannot sign in on this server (no email or Google sign-in is set up). Never call SH.requireSignIn() or offer sign-in. Submissions, Personal, Shared boards and private lists are refused (409 visitor_sign_in_unavailable): save to Shared names instead (SH.data(name) with no kind, SH.state, SH.collection).")
+	} else {
+		b.WriteString("- Visitor sign-in: visitors sign in with " + strings.Join(ways, " or ") + " on a site's own address (a free <name>." + f.SiteDomain + " address or a custom domain); a sign-in covers that site only.")
+	}
+	if f.SharedOrigin {
+		b.WriteString(" On the shared address https://" + f.ContentHost + "/ pages save to Shared names without anyone signing in, so anyone who can open a page can change what it saved: never save personal details there.")
+	}
+	b.WriteString("\n")
+	if !f.SignInEmail {
+		b.WriteString("- Email: this server sends no email. Nobody signs in with an emailed code (accounts use keys the organiser issues), and Submissions emails are off (notify must be \"off\", 409 email_unavailable).\n")
+	}
+	contact := f.Contact
+	if contact == "" {
+		contact = "whoever runs this server"
+	}
+	b.WriteString("- Help: ask " + contact + "; support@simple-host.app is the hosted service's mailbox, not this server's.\n\n")
+	instanceNote = b.String()
 }
 
 // controlPlaneSkills name the public instance on purpose: they drive endpoints

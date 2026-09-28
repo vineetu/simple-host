@@ -1331,7 +1331,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { description: "The operator has taken the site down (code site_suspended)" }
         '404': { description: Site or version not found (including pruned versions) }
-        '409': { description: "The site has no address of its own to preview on (code preview_unavailable)" }
+        '409': { description: "No preview link (code preview_unavailable): the site has no address of its own yet, or the server gives sites none (every site on one shared address, as on a small box), which the message says" }
 
   /v1/sites/{sitename}/active-version:
     put:
@@ -1840,7 +1840,7 @@ paths:
         before is kept for 30 days (GET .../state/history; restore with POST
         .../state/history/{id}/restore). Optionally pass
         `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict).
-        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}.
+        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}.
       tags: [State]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -1868,7 +1868,7 @@ paths:
       summary: Atomically update per-site state
       description: >-
         Apply one or more atomic operations so concurrent writers never clobber.
-        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Ops — `set` (path,value), `inc` (path,by),
+        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Ops — `set` (path,value), `inc` (path,by),
         `append` (path,value), `remove` (path), `removeWhere` (path,match).
         Numbers keep their exact digits (a whole-number `inc` adds exactly).
         Every change keeps the document from before it for 30 days (GET .../state/history).
@@ -1995,7 +1995,7 @@ paths:
       summary: Append an item to a collection
       description: >-
         Adds one item (O(1) insert). For signups, RSVPs, submissions.
-        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged.
+        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged.
         PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.
       tags: [Collections]
       parameters:
@@ -2212,7 +2212,9 @@ paths:
         name that holds entries as public Submissions would let anyone read
         them: 409 confirm_public (with `count`) until the request carries
         `"confirm_public": true`. A private name becomes Page info only while
-        it is empty (409 has_entries). Public Submissions are refused on an
+        it is empty (409 has_entries). Both count what is in the name's
+        Recently deleted too (a restore brings it back) and are checked under
+        the name's lock. Public Submissions are refused on an
         install with WRITE_AUTH_MODE=off (409 visitor_sign_in_off).
         `{"kind": "mine"}` is **Personal**: one private record per signed-in
         visitor (a habit tracker, saved progress), stored private. Simple Host's
@@ -2277,7 +2279,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: too_many_names, has_entries, has_records, confirm_public, visitor_sign_in_off or custom_domain_required
+          description: too_many_names, has_entries, has_records, confirm_public, visitor_sign_in_off, custom_domain_required, visitor_sign_in_unavailable (no visitor can sign in on this server; Submissions, Personal and Shared boards are not offered) or email_unavailable (the server sends no email; notify must be off)
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
 
   /v1/sites/{sitename}/data/{coll}:
@@ -2361,7 +2363,7 @@ paths:
           content: { application/json: { schema: { type: object, properties: { id: { type: integer }, data: { type: object }, created_at: { type: string, format: date-time } } } } }
         '401': { description: visitor_auth_required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '403': { description: "not_allowed_to_save, private_visitor_only, csrf_required", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '409': { description: "declare_first, wrong_kind, one_per_person or list_full", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "declare_first, wrong_kind, one_per_person, list_full or kind_changed (the owner changed what the name is while the save was on its way; nothing was saved)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '413': { description: item_too_large, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     put:
       operationId: putData
@@ -2725,7 +2727,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: custom_domain_required, confirm_public (with `count`), visitor_sign_in_off, wrong_kind or too_many_names
+          description: custom_domain_required, confirm_public (with `count`), visitor_sign_in_off, wrong_kind, too_many_names or visitor_sign_in_unavailable (no visitor can sign in on this server, so a list is not made private)
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
 
   /v1/sites/{sitename}/collections/{coll}/items/{id}:
@@ -2958,7 +2960,7 @@ paths:
           content: { application/json: { schema: { type: object, properties: { site: { type: string }, collection: { type: string }, restored: { type: integer }, item: { type: object, properties: { id: { type: integer }, data: {}, created_at: { type: string, format: date-time } } } } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { description: "The change holds no earlier value (nothing_to_restore), or a Shared board would go past its cap (list_full)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "The change holds no earlier value (nothing_to_restore), a Shared board would go past its cap (list_full), or a Page info name would hold two documents (one_document)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '507': { $ref: '#/components/responses/SiteFull' }
 
   /v1/sites/{sitename}/collections/{coll}/deleted:
@@ -3094,7 +3096,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { description: "list_full: a Shared board would go past its cap", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "list_full: a Shared board would go past its cap; one_document: a Page info name would hold two documents (it brings one back only while it holds none)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '507': { $ref: '#/components/responses/SiteFull' }
 
   /v1/sites/{sitename}/collections/{coll}/items/{id}/restore:
@@ -3113,7 +3115,7 @@ paths:
           content: { application/json: { schema: { type: object, properties: { site: { type: string }, collection: { type: string }, restored: { type: integer, enum: [1] } } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Not in the list's Recently deleted (not_found), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '409': { description: "list_full: a Shared board would go past its cap", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "list_full: a Shared board would go past its cap; one_document: a Page info name would hold two documents (it brings one back only while it holds none)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /v1/u/{handle}/sites/{sitename}/state/history:
     get:
@@ -3271,7 +3273,7 @@ paths:
           content: { application/json: { schema: { type: object, properties: { site: { type: string }, collection: { type: string }, restored: { type: integer }, item: { type: object, properties: { id: { type: integer }, data: {}, created_at: { type: string, format: date-time } } } } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { description: "The change holds no earlier value (nothing_to_restore), or a Shared board would go past its cap (list_full)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "The change holds no earlier value (nothing_to_restore), a Shared board would go past its cap (list_full), or a Page info name would hold two documents (one_document)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '507': { $ref: '#/components/responses/SiteFull' }
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted:
@@ -3378,7 +3380,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { description: "list_full: a Shared board would go past its cap", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "list_full: a Shared board would go past its cap; one_document: a Page info name would hold two documents (it brings one back only while it holds none)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '507': { $ref: '#/components/responses/SiteFull' }
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}/restore:
@@ -3398,7 +3400,7 @@ paths:
           content: { application/json: { schema: { type: object, properties: { site: { type: string }, collection: { type: string }, restored: { type: integer, enum: [1] } } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Not in the list's Recently deleted (not_found), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '409': { description: "list_full: a Shared board would go past its cap", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "list_full: a Shared board would go past its cap; one_document: a Page info name would hold two documents (it brings one back only while it holds none)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /v1/u/{handle}/sites/{sitename}/history:
     delete:
@@ -3513,7 +3515,7 @@ paths:
         before is kept for 30 days (GET .../state/history; restore with POST
         .../state/history/{id}/restore). Optionally pass
         `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict).
-        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}.
+        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}.
         v3 user-scoped, path-model-canonical variant: resolves the site by
         (handle -> user_id) + (user_id, name).
       tags: [State]
@@ -3544,7 +3546,7 @@ paths:
       summary: Atomically update per-site state (v3, by handle)
       description: >-
         Apply one or more atomic operations so concurrent writers never clobber.
-        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Ops — `set` (path,value), `inc` (path,by),
+        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Ops — `set` (path,value), `inc` (path,by),
         `append` (path,value), `remove` (path), `removeWhere` (path,match).
         Numbers keep their exact digits (a whole-number `inc` adds exactly).
         Every change keeps the document from before it for 30 days (GET .../state/history).
@@ -3619,7 +3621,7 @@ paths:
       requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
       responses:
         '201': { description: The stored entry, content: { application/json: { schema: { type: object } } } }
-        '409': { description: "declare_first, wrong_kind, one_per_person or list_full", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "declare_first, wrong_kind, one_per_person, list_full or kind_changed (the owner changed what the name is while the save was on its way; nothing was saved)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     put:
       operationId: putDataByHandle
       summary: Save Page info (owner, by handle)
@@ -3807,7 +3809,7 @@ paths:
       summary: Append an item to a collection (v3, by handle)
       description: >-
         Adds one item (O(1) insert). For signups, RSVPs, submissions.
-        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged.
+        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged.
         PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.
         v3 user-scoped, path-model-canonical variant: resolves the site by
         (handle -> user_id) + (user_id, name).
@@ -5987,7 +5989,7 @@ components:
           example: domain_taken
 
   responses:
-    BadRequest: { description: Invalid request, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    BadRequest: { description: "Invalid request. A saved-data write whose JSON holds a NUL character (\\u0000), half of a surrogate pair or bytes that are not UTF-8 is code invalid_json.", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     Unauthorized: { description: "Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel).", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     Forbidden: { description: Admin access required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     NotFound: { description: Not found, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
@@ -5995,7 +5997,7 @@ components:
     TooLarge: { description: "Payload too large (on saved data, code item_too_large)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     TooManyRequests: { description: "Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     SiteFull: { description: "The write would grow the site's live saved data (the page-data document plus live list items; history and Recently deleted are not counted) past 50 MB (SAVED_DATA_SITE_MAX_MB) (code site_full). Writes that do not grow it always go through; deleting list items or clearing a list makes room at once.", content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: "this site's saved data is full (50 MB of page data and list items); the owner can delete list items or clear lists to make room", code: site_full } } } }
-    OriginMismatch: { description: Origin/Referer does not match the site, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    OriginMismatch: { description: "Origin/Referer is not one of the site's own addresses (code origin_not_allowed). An agent or script sends the site owner's X-API-Key and no Origin or Referer, which needs no page.", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     VisitorAuthRequired:
       description: Visitor sign-in required to write (WRITE_AUTH_MODE=on)
       content:

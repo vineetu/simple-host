@@ -127,25 +127,77 @@ func DeclareData(ctx context.Context, q Querier, siteID, name, kind string, priv
 // cannot become Personal, or stop being Personal.
 var ErrNameHasRows = errors.New("the name holds items")
 
+// ErrSeveralItems: a list with more than one live item cannot become Page
+// info, which is one document.
+var ErrSeveralItems = errors.New("the name holds several items")
+
+// ErrKindChanged: the name's declaration changed after the caller read it
+// (the owner changed its kind at the same moment); nothing was saved.
+var ErrKindChanged = errors.New("the name's kind changed")
+
+// PrivateItemsError: a change would make a private name readable by anyone
+// while it holds items, live or in Recently deleted (a restore would bring
+// those back under the public name). Content: the change is to Page info,
+// which a private name becomes only when it holds nothing at all; any other
+// change needs the owner's confirm_public.
+type PrivateItemsError struct {
+	Live, Deleted int64
+	Content       bool
+}
+
+func (e *PrivateItemsError) Error() string { return "the private name holds items" }
+
+// lockDeclaration takes the name's declaration-row lock (the row is made
+// first when missing) and returns its kind and private flag.
+func lockDeclaration(ctx context.Context, tx *sql.Tx, siteID, name string) (kind string, private bool, err error) {
+	if _, err = tx.ExecContext(ctx, `
+		INSERT INTO collection_settings (site_id, collection) VALUES ($1, $2) ON CONFLICT DO NOTHING`, siteID, name); err != nil {
+		return
+	}
+	err = tx.QueryRowContext(ctx, `
+		SELECT COALESCE(kind, ''), private FROM collection_settings WHERE site_id = $1 AND collection = $2 FOR UPDATE`, siteID, name).Scan(&kind, &private)
+	return
+}
+
+// publicGate runs under the declaration lock before a private name (cur,
+// curPrivate) becomes readable by anyone as kind with private. Items in
+// Recently deleted count: they come back under the name on a restore.
+func publicGate(ctx context.Context, tx *sql.Tx, siteID, name, cur string, curPrivate bool, kind string, private, confirmPublic bool) error {
+	public := kind == KindContent || kind == KindBoard || (kind != KindPersonal && !private)
+	if cur == KindPersonal || !curPrivate || !public {
+		return nil
+	}
+	var live, deleted int64
+	if err := tx.QueryRowContext(ctx, `
+		SELECT count(*) FILTER (WHERE deleted_at IS NULL), count(*) FILTER (WHERE deleted_at IS NOT NULL)
+		  FROM collection_items WHERE site_id = $1 AND collection = $2`, siteID, name).Scan(&live, &deleted); err != nil {
+		return err
+	}
+	if live+deleted == 0 || (kind != KindContent && confirmPublic) {
+		return nil
+	}
+	return &PrivateItemsError{Live: live, Deleted: deleted, Content: kind == KindContent}
+}
+
 // DeclareDataLocked is DeclareData under the name's declaration-row lock, the
 // one SavePersonal, AppendEntry and PutContent take, so no save lands between
-// the check and the change. A change to or from Personal is refused with
-// ErrNameHasRows while the name holds any item, live or in Recently deleted:
-// a Personal record never becomes an item the owner reads, and an item never
-// becomes someone's Personal record. The row is made first when missing.
-func DeclareDataLocked(ctx context.Context, database *sql.DB, siteID, name, kind string, private, onePerPerson bool, notify string) error {
+// the checks and the change. Refused, all checked under that lock:
+//   - a change to or from Personal while the name holds any item, live or in
+//     Recently deleted (ErrNameHasRows): a Personal record never becomes an
+//     item the owner reads, and an item never becomes someone's record;
+//   - a private name made readable by anyone (Page info, a Shared board,
+//     public Submissions) while it holds items, live or in Recently deleted
+//     (*PrivateItemsError): never for Page info, and otherwise only with
+//     confirmPublic;
+//   - a list with several live items made Page info (ErrSeveralItems).
+func DeclareDataLocked(ctx context.Context, database *sql.DB, siteID, name, kind string, private, onePerPerson bool, notify string, confirmPublic bool) error {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO collection_settings (site_id, collection) VALUES ($1, $2) ON CONFLICT DO NOTHING`, siteID, name); err != nil {
-		return err
-	}
-	var cur string
-	if err := tx.QueryRowContext(ctx, `
-		SELECT COALESCE(kind, '') FROM collection_settings WHERE site_id = $1 AND collection = $2 FOR UPDATE`, siteID, name).Scan(&cur); err != nil {
+	cur, curPrivate, err := lockDeclaration(ctx, tx, siteID, name)
+	if err != nil {
 		return err
 	}
 	if cur != kind && (cur == KindPersonal || kind == KindPersonal) {
@@ -157,7 +209,42 @@ func DeclareDataLocked(ctx context.Context, database *sql.DB, siteID, name, kind
 			return ErrNameHasRows
 		}
 	}
+	if err := publicGate(ctx, tx, siteID, name, cur, curPrivate, kind, private, confirmPublic); err != nil {
+		return err
+	}
+	if kind == KindContent && cur != KindContent {
+		many, err := NameHoldsItems(ctx, tx, siteID, name, 1)
+		if err != nil {
+			return err
+		}
+		if many {
+			return ErrSeveralItems
+		}
+	}
 	if err := DeclareData(ctx, tx, siteID, name, kind, private, onePerPerson, notify); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// SetCollectionPrivateLocked is SetCollectionPrivate under the declaration
+// lock, with publicGate: a private list made public while it holds items,
+// live or in Recently deleted, needs confirmPublic (*PrivateItemsError).
+func SetCollectionPrivateLocked(ctx context.Context, database *sql.DB, siteID, name string, private, confirmPublic bool) error {
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	cur, curPrivate, err := lockDeclaration(ctx, tx, siteID, name)
+	if err != nil {
+		return err
+	}
+	if err := publicGate(ctx, tx, siteID, name, cur, curPrivate, cur, private, confirmPublic); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE collection_settings SET private = $3, updated_at = now() WHERE site_id = $1 AND collection = $2`, siteID, name, private); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -292,17 +379,23 @@ func PutContent(ctx context.Context, database *sql.DB, siteID, name string, data
 // id of the one they have; 0 when it was sent by another account of the same
 // address). A person is the account or its address with any +tag dropped
 // (BaseEmail). The declaration row is locked, so two saves at once cannot
-// both pass either check.
-func AppendEntry(ctx context.Context, database *sql.DB, siteID, name string, data json.RawMessage, a Actor, onePerPerson bool, maxItems int) (CollectionItem, int64, error) {
+// both pass either check; under it the name must still be kind (Submissions,
+// or a Shared board), else ErrKindChanged.
+func AppendEntry(ctx context.Context, database *sql.DB, siteID, name, kind string, data json.RawMessage, a Actor, onePerPerson bool, maxItems int) (CollectionItem, int64, error) {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return CollectionItem{}, 0, err
 	}
 	defer tx.Rollback()
-	var one int
+	// Under the lock, the name is still what the caller read: a change of
+	// kind (to Page info, say) may have committed since.
+	var cur string
 	if err := tx.QueryRowContext(ctx, `
-		SELECT 1 FROM collection_settings WHERE site_id = $1 AND collection = $2 FOR UPDATE`, siteID, name).Scan(&one); err != nil {
+		SELECT COALESCE(kind, '') FROM collection_settings WHERE site_id = $1 AND collection = $2 FOR UPDATE`, siteID, name).Scan(&cur); err != nil {
 		return CollectionItem{}, 0, err
+	}
+	if cur != kind {
+		return CollectionItem{}, 0, ErrKindChanged
 	}
 	if onePerPerson && a.ID != "" {
 		have, mine, err := livePersonEntry(ctx, tx, siteID, name, a, 0)
@@ -339,7 +432,7 @@ func ListOwnEntries(ctx context.Context, database *sql.DB, siteID, name, userID 
 	rows, err := database.QueryContext(ctx, `
 		SELECT id, data, created_at FROM collection_items
 		 WHERE site_id = $1 AND collection = $2 AND submitted_by = $3 AND deleted_at IS NULL
-		   AND ($4 = 0 OR id < $4)
+		   AND ($4::bigint = 0 OR id < $4)
 		 ORDER BY id DESC LIMIT $5`, siteID, name, userID, before, limit)
 	if err != nil {
 		return nil, err
@@ -635,7 +728,7 @@ func ListItemHistory(ctx context.Context, database *sql.DB, siteID, name string,
 		SELECT id, item_id, op, `+byExpr+`, actor_kind, created_at,
 		       COALESCE(octet_length(prev::text), octet_length(diff::text), 0)
 		  FROM data_history
-		 WHERE site_id = $1 AND kind = 'list' AND name = $2 AND item_id = $3 AND ($4 = 0 OR id < $4)
+		 WHERE site_id = $1 AND kind = 'list' AND name = $2 AND item_id = $3 AND ($4::bigint = 0 OR id < $4)
 		 ORDER BY id DESC
 		 LIMIT $5`, siteID, name, itemID, before, limit)
 	if err != nil {
@@ -794,16 +887,23 @@ type NotifyDue struct {
 	SentAt     *time.Time
 	Count      int64
 	CheckUntil time.Time
+	// LastID is the newest entry counted; the claim records it, and the
+	// next email counts only entries after it.
+	LastID int64
 }
 
 // DueNotifications lists every name with notify each or daily whose interval
 // has passed and that has new entries from people other than the owner since
 // the last email (or since it was declared). Taken-down, offline and deleted
-// sites are skipped.
+// sites are skipped. "Since" is by id once an email recorded one: entries of
+// a Submissions name go in one at a time under the name's lock, so their ids
+// are in commit order, while created_at (a transaction's start) is not, and
+// an entry committed just after one digest read would be missed by every
+// later one.
 func DueNotifications(ctx context.Context, database *sql.DB, each, daily time.Duration) ([]NotifyDue, error) {
 	rows, err := database.QueryContext(ctx, `
 		WITH due AS (
-			SELECT cs.site_id, cs.collection, cs.notify, cs.notify_sent_at,
+			SELECT cs.site_id, cs.collection, cs.notify, cs.notify_sent_at, cs.notify_last_id,
 			       COALESCE(cs.notify_sent_at, cs.declared_at, cs.updated_at) AS since
 			  FROM collection_settings cs
 			 WHERE cs.kind = 'entries' AND cs.notify IN ('each', 'daily')
@@ -811,12 +911,13 @@ func DueNotifications(ctx context.Context, database *sql.DB, each, daily time.Du
 			       now() - CASE WHEN cs.notify = 'each' THEN $1::interval ELSE $2::interval END
 		)
 		SELECT d.site_id, s.name, COALESCE(u.handle, ''), s.user_id, d.collection, d.notify, d.since, d.notify_sent_at, now(),
-		       count(ci.id)
+		       count(ci.id), max(ci.id)
 		  FROM due d
 		  JOIN sites s ON s.id = d.site_id AND s.deleted_at IS NULL AND s.suspended_at IS NULL AND s.offline_at IS NULL
 		  JOIN users u ON u.id = s.user_id
 		  JOIN collection_items ci ON ci.site_id = d.site_id AND ci.collection = d.collection
-		   AND ci.deleted_at IS NULL AND ci.created_at > d.since
+		   AND ci.deleted_at IS NULL
+		   AND CASE WHEN d.notify_last_id IS NULL THEN ci.created_at > d.since ELSE ci.id > d.notify_last_id END
 		   AND ci.submitted_by IS DISTINCT FROM s.user_id
 		 GROUP BY d.site_id, s.name, u.handle, s.user_id, d.collection, d.notify, d.since, d.notify_sent_at`,
 		each.String(), daily.String())
@@ -828,7 +929,7 @@ func DueNotifications(ctx context.Context, database *sql.DB, each, daily time.Du
 	for rows.Next() {
 		var n NotifyDue
 		var sent sql.NullTime
-		if err := rows.Scan(&n.SiteID, &n.SiteName, &n.Handle, &n.OwnerID, &n.Name, &n.Notify, &n.Since, &sent, &n.CheckUntil, &n.Count); err != nil {
+		if err := rows.Scan(&n.SiteID, &n.SiteName, &n.Handle, &n.OwnerID, &n.Name, &n.Notify, &n.Since, &sent, &n.CheckUntil, &n.Count, &n.LastID); err != nil {
 			return nil, err
 		}
 		if sent.Valid {
@@ -841,14 +942,14 @@ func DueNotifications(ctx context.Context, database *sql.DB, each, daily time.Du
 }
 
 // ClaimNotification records, before the email goes out, that the owner is
-// emailed about d's entries up to d.CheckUntil. Only one caller wins it (the
+// emailed about d's entries up to d.CheckUntil and d.LastID. Only one caller wins it (the
 // row still holds the notify_sent_at that DueNotifications read), so two
 // servers never both send, and a failed send is not retried every tick.
 func ClaimNotification(ctx context.Context, database *sql.DB, d NotifyDue) (bool, error) {
 	res, err := database.ExecContext(ctx, `
-		UPDATE collection_settings SET notify_sent_at = $3
+		UPDATE collection_settings SET notify_sent_at = $3, notify_last_id = GREATEST(COALESCE(notify_last_id, 0), $5)
 		 WHERE site_id = $1 AND collection = $2 AND notify_sent_at IS NOT DISTINCT FROM $4`,
-		d.SiteID, d.Name, d.CheckUntil, d.SentAt)
+		d.SiteID, d.Name, d.CheckUntil, d.SentAt, d.LastID)
 	if err != nil {
 		return false, err
 	}

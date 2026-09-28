@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
@@ -76,13 +77,41 @@ func (h *SiteHandler) SetSavedData(c config.SavedData) {
 func (h *SiteHandler) boundHistory(r *http.Request, siteID string) {
 	capBytes := int64(h.savedData.HistoryMaxMB) << 20
 	ctx := context.WithoutCancel(r.Context())
-	over, err := db.HistoryOverCap(ctx, h.database, siteID, capBytes)
-	if err != nil || !over || (h.thinLimiter != nil && !h.thinLimiter.allow(siteID)) {
+	size, err := db.HistoryBytes(ctx, h.database, siteID)
+	if err != nil || size <= capBytes || h.thinPointless(siteID, size, capBytes) || (h.thinLimiter != nil && !h.thinLimiter.allow(siteID)) {
 		return
 	}
-	if _, err := db.ThinSiteHistory(ctx, h.database, siteID, capBytes); err != nil {
+	h.thin(ctx, siteID, capBytes)
+}
+
+// thinMargin is how much a site's history grows past the size it was left at
+// by a thin that could not bring it under the cap before thinning runs again:
+// a sixteenth of the cap, at least 64 KB.
+func thinMargin(capBytes int64) int64 { return max(capBytes/16, 64<<10) }
+
+// thinPointless: the last thin of siteID left it over the cap (the per-day
+// copies that thinning keeps hold more than the cap) and it has not grown by
+// thinMargin since, so thinning again would sort its whole history to delete
+// little or nothing.
+func (h *SiteHandler) thinPointless(siteID string, size, capBytes int64) bool {
+	v, ok := h.thinStuck.Load(siteID)
+	return ok && size < v.(int64)+thinMargin(capBytes)
+}
+
+// thin thins siteID's history to capBytes and notes whether it stayed over
+// (thinPointless). Returns how many changes went.
+func (h *SiteHandler) thin(ctx context.Context, siteID string, capBytes int64) int64 {
+	n, err := db.ThinSiteHistory(ctx, h.database, siteID, capBytes)
+	if err != nil {
 		log.Printf("saved-data thin site_id=%s: %v", siteID, err)
+		return 0
 	}
+	if size, err := db.HistoryBytes(ctx, h.database, siteID); err == nil && size > capBytes {
+		h.thinStuck.Store(siteID, size)
+	} else {
+		h.thinStuck.Delete(siteID)
+	}
+	return n
 }
 
 // siteMaxBytes is SAVED_DATA_SITE_MAX_MB in bytes.
@@ -334,14 +363,21 @@ func (h *SiteHandler) sweepSavedData(ctx context.Context) {
 		log.Printf("saved-data sweep (cap): %v", err)
 	}
 	var thinned int64
+	over := make(map[string]bool, len(sites))
 	for _, id := range sites {
-		n, err := db.ThinSiteHistory(ctx, h.database, id, capBytes)
-		if err != nil {
-			log.Printf("saved-data thin site_id=%s: %v", id, err)
+		over[id] = true
+		size, err := db.HistoryBytes(ctx, h.database, id)
+		if err != nil || h.thinPointless(id, size, capBytes) {
 			continue
 		}
-		thinned += n
+		thinned += h.thin(ctx, id, capBytes)
 	}
+	h.thinStuck.Range(func(k, _ any) bool {
+		if !over[k.(string)] {
+			h.thinStuck.Delete(k)
+		}
+		return true
+	})
 	if hist+items+idem+thinned+watch > 0 {
 		log.Printf("saved-data sweep: history=%d deleted_items=%d idempotency=%d thinned=%d watch=%d", hist, items, idem, thinned, watch)
 	}
@@ -575,6 +611,8 @@ func (h *SiteHandler) restoreListHistory(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusConflict, errorResponse{Error: err.Error(), Code: "nothing_to_restore"})
 	case errors.Is(err, db.ErrNameFull):
 		h.writeBoardFull(w)
+	case errors.Is(err, db.ErrOneDocument):
+		writeOneDocument(w, coll)
 	case errors.Is(err, db.ErrSiteFull):
 		h.writeSiteFull(w)
 	case err != nil:
@@ -668,6 +706,10 @@ func (h *SiteHandler) restoreDeletedItem(w http.ResponseWriter, r *http.Request)
 		h.writeSiteFull(w)
 		return
 	}
+	if errors.Is(err, db.ErrOneDocument) {
+		writeOneDocument(w, coll)
+		return
+	}
 	if errors.Is(err, db.ErrNameFull) {
 		writeJSON(w, http.StatusConflict, errorResponse{
 			Error: fmt.Sprintf("bringing these back would take the board past %d items; delete some first, or restore fewer (a shorter within_minutes, or one at a time)", h.savedData.BoardMax),
@@ -684,6 +726,15 @@ func (h *SiteHandler) restoreDeletedItem(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"site": siteName, "collection": coll, "restored": n})
+}
+
+// writeOneDocument: Page info is one document, so an earlier one comes back
+// only while the name holds none.
+func writeOneDocument(w http.ResponseWriter, name string) {
+	writeJSON(w, http.StatusConflict, errorResponse{
+		Error: fmt.Sprintf("%q is page info, which is one document, and bringing this back would make a second one beside it. To put an earlier document back, save it again with PUT (the current one stays in its history), or clear the current document first and bring back one at a time", name),
+		Code:  "one_document",
+	})
 }
 
 // boardCap is SAVED_DATA_BOARD_MAX when coll is a Shared board (restores
@@ -815,4 +866,59 @@ func (h *SiteHandler) adminDataWatch(w http.ResponseWriter, r *http.Request) {
 		resp["days_counted"] = int(time.Since(first).Hours()/24) + 1
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// storableJSON: saved data is stored as Postgres jsonb, which holds no U+0000
+// (\u0000), no unpaired surrogate (\ud800 alone) and no invalid UTF-8, all of
+// which Go's JSON accepts. A body with any of them is refused here with 400
+// invalid_json instead of failing in the database. Writes the refusal; false
+// then. body is JSON Go already accepts (or about to be checked as such).
+func storableJSON(w http.ResponseWriter, body []byte) bool {
+	if jsonStorable(body) {
+		return true
+	}
+	writeJSON(w, http.StatusBadRequest, errorResponse{
+		Error: `the JSON holds text that cannot be saved: a NUL character (\u0000), half of a surrogate pair (\ud800 alone) or bytes that are not UTF-8. Remove it and send again`,
+		Code:  "invalid_json",
+	})
+	return false
+}
+
+// jsonStorable reports whether JSON text body has none of what jsonb refuses.
+// Backslashes appear only inside strings in JSON, so escapes are found by
+// scanning the bytes.
+func jsonStorable(body []byte) bool {
+	if !utf8.Valid(body) {
+		return false
+	}
+	hex4 := func(i int) (rune, bool) {
+		if i+6 > len(body) || body[i] != '\\' || body[i+1] != 'u' {
+			return 0, false
+		}
+		n, err := strconv.ParseUint(string(body[i+2:i+6]), 16, 32)
+		return rune(n), err == nil
+	}
+	for i := 0; i < len(body); i++ {
+		if body[i] != '\\' {
+			continue
+		}
+		if i+1 < len(body) && body[i+1] == 'u' {
+			r, ok := hex4(i)
+			switch {
+			case !ok:
+			case r == 0:
+				return false
+			case r >= 0xD800 && r <= 0xDBFF:
+				lo, ok := hex4(i + 6)
+				if !ok || lo < 0xDC00 || lo > 0xDFFF {
+					return false
+				}
+				i += 6
+			case r >= 0xDC00 && r <= 0xDFFF:
+				return false
+			}
+		}
+		i++ // the escaped character: \\ never starts another escape
+	}
+	return true
 }

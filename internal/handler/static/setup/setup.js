@@ -10,7 +10,10 @@
   'use strict';
 
   var FILES = { small: '/setup/small-box-settings.json', ent: '/setup/enterprise-settings.json' };
-  var INSTALL_URL = 'https://raw.githubusercontent.com/vineetu/simple-host/main/deploy/install/install.sh';
+  // The installer of the release this server runs (deploy/install/install.sh
+  // VERSION; scripts/check-docs-sync.sh keeps the two the same), never main:
+  // main can pin a release whose image is not published yet.
+  var INSTALL_URL = 'https://raw.githubusercontent.com/vineetu/simple-host/v0.7.2/deploy/install/install.sh';
   // What install.sh writes when its flag is not given (deploy/install/install.sh).
   var INSTALLER_DEFAULTS = { KEEP_VERSIONS: '1', MAX_ARCHIVE_MB: '100' };
 

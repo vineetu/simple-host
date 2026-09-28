@@ -2606,7 +2606,7 @@
             "description": "Site or version not found (including pruned versions)"
           },
           "409": {
-            "description": "The site has no address of its own to preview on (code preview_unavailable)"
+            "description": "No preview link (code preview_unavailable): the site has no address of its own yet, or the server gives sites none (every site on one shared address, as on a small box), which the message says"
           }
         }
       }
@@ -3589,7 +3589,7 @@
       "put": {
         "operationId": "putSitesBySitenameState",
         "summary": "Replace per-site JSON state",
-        "description": "Overwrites the whole blob (\u2264 1 MB), last-write-wins. The document from before is kept for 30 days (GET .../state/history; restore with POST .../state/history/{id}/restore). Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}.",
+        "description": "Overwrites the whole blob (\u2264 1 MB), last-write-wins. The document from before is kept for 30 days (GET .../state/history; restore with POST .../state/history/{id}/restore). Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}.",
         "tags": [
           "State"
         ],
@@ -3704,7 +3704,7 @@
       "patch": {
         "operationId": "patchSitesBySitenameState",
         "summary": "Atomically update per-site state",
-        "description": "Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Ops \u2014 `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match). Numbers keep their exact digits (a whole-number `inc` adds exactly). Every change keeps the document from before it for 30 days (GET .../state/history).",
+        "description": "Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Ops \u2014 `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match). Numbers keep their exact digits (a whole-number `inc` adds exactly). Every change keeps the document from before it for 30 days (GET .../state/history).",
         "tags": [
           "State"
         ],
@@ -4072,7 +4072,7 @@
       "post": {
         "operationId": "postSitesBySitenameCollectionsByColl",
         "summary": "Append an item to a collection",
-        "description": "Adds one item (O(1) insert). For signups, RSVPs, submissions. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Each item \u2264 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged. PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.",
+        "description": "Adds one item (O(1) insert). For signups, RSVPs, submissions. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Each item \u2264 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged. PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.",
         "tags": [
           "Collections"
         ],
@@ -4597,7 +4597,7 @@
       "put": {
         "operationId": "declareData",
         "summary": "Declare what a data name is (owner)",
-        "description": "Owner only (X-API-Key, connector token, or the operator). Every piece of saved data has a name and one kind, and the kind decides who reads and who changes what. `{\"kind\": \"content\"}` is **Page info**: one JSON object only the owner writes (PUT .../data/{coll}) and anyone reads; a site declares at most 20 Page info names (SAVED_DATA_CONTENT_NAMES_MAX, 409 too_many_names); a name holding several entries cannot become one (409 has_entries). `{\"kind\": \"entries\"}` is **Submissions**: things visitors send. Options: `visibility` (`owner`, the default: only the owner reads them all, each visitor reads their own; or `public`: anyone reads them, without who sent them), `one_per_person` (one live entry per signed-in visitor), `notify` (email the owner: `daily`, the default while private; `each`, batched soon after they arrive; `off`, the default when public). A field left out keeps what the name had. A name nobody declared is **Shared** (anyone reads it, anyone signed in adds to it); with SAVED_DATA_DEFAULT_KIND=declare_first, on a site made after the kinds it takes no saves at all (409 declare_first). Product words are accepted for kind (\"Page info\", \"Submissions\"). Submissions need the site on an address of its own, where visitors sign in (409 custom_domain_required on instances without one); a site declares at most 50 Submissions names (SAVED_DATA_ENTRIES_NAMES_MAX, 409 too_many_names). Declaring a private name that holds entries as public Submissions would let anyone read them: 409 confirm_public (with `count`) until the request carries `\"confirm_public\": true`. A private name becomes Page info only while it is empty (409 has_entries). Public Submissions are refused on an install with WRITE_AUTH_MODE=off (409 visitor_sign_in_off). `{\"kind\": \"mine\"}` is **Personal**: one private record per signed-in visitor (a habit tracker, saved progress), stored private. Simple Host's owner tools (key, connector, owner app, exports) never show a person's record: the owner sees how many people have one and their size (from 3 people up). The site's own pages run in the visitor's browser and can read that visitor's record, so Personal is as private as the site's pages are trustworthy. A name holds records for at most 1,000 people (SAVED_DATA_PERSONAL_PEOPLE_MAX; a new person past it: 409 people_full). A name must be empty (nothing live or in Recently deleted) to become Personal (409 has_entries), and a Personal name that holds records never becomes another kind (409 has_records; both checked under the name's lock, so no save lands in between); a site declares at most 20 Personal names (SAVED_DATA_PERSONAL_NAMES_MAX). `{\"kind\": \"board\"}` is a **Shared board**: anyone reads it; signed-in visitors add, change and delete items one at a time; only the owner clears it; private entries become a board only with `confirm_public`; a site declares at most 20 Shared board names (SAVED_DATA_BOARD_NAMES_MAX). Neither takes options (400 invalid_kind), and both need the site's own address (409 custom_domain_required). Product words are accepted (\"Personal\", \"Shared board\").",
+        "description": "Owner only (X-API-Key, connector token, or the operator). Every piece of saved data has a name and one kind, and the kind decides who reads and who changes what. `{\"kind\": \"content\"}` is **Page info**: one JSON object only the owner writes (PUT .../data/{coll}) and anyone reads; a site declares at most 20 Page info names (SAVED_DATA_CONTENT_NAMES_MAX, 409 too_many_names); a name holding several entries cannot become one (409 has_entries). `{\"kind\": \"entries\"}` is **Submissions**: things visitors send. Options: `visibility` (`owner`, the default: only the owner reads them all, each visitor reads their own; or `public`: anyone reads them, without who sent them), `one_per_person` (one live entry per signed-in visitor), `notify` (email the owner: `daily`, the default while private; `each`, batched soon after they arrive; `off`, the default when public). A field left out keeps what the name had. A name nobody declared is **Shared** (anyone reads it, anyone signed in adds to it); with SAVED_DATA_DEFAULT_KIND=declare_first, on a site made after the kinds it takes no saves at all (409 declare_first). Product words are accepted for kind (\"Page info\", \"Submissions\"). Submissions need the site on an address of its own, where visitors sign in (409 custom_domain_required on instances without one); a site declares at most 50 Submissions names (SAVED_DATA_ENTRIES_NAMES_MAX, 409 too_many_names). Declaring a private name that holds entries as public Submissions would let anyone read them: 409 confirm_public (with `count`) until the request carries `\"confirm_public\": true`. A private name becomes Page info only while it is empty (409 has_entries). Both count what is in the name's Recently deleted too (a restore brings it back) and are checked under the name's lock. Public Submissions are refused on an install with WRITE_AUTH_MODE=off (409 visitor_sign_in_off). `{\"kind\": \"mine\"}` is **Personal**: one private record per signed-in visitor (a habit tracker, saved progress), stored private. Simple Host's owner tools (key, connector, owner app, exports) never show a person's record: the owner sees how many people have one and their size (from 3 people up). The site's own pages run in the visitor's browser and can read that visitor's record, so Personal is as private as the site's pages are trustworthy. A name holds records for at most 1,000 people (SAVED_DATA_PERSONAL_PEOPLE_MAX; a new person past it: 409 people_full). A name must be empty (nothing live or in Recently deleted) to become Personal (409 has_entries), and a Personal name that holds records never becomes another kind (409 has_records; both checked under the name's lock, so no save lands in between); a site declares at most 20 Personal names (SAVED_DATA_PERSONAL_NAMES_MAX). `{\"kind\": \"board\"}` is a **Shared board**: anyone reads it; signed-in visitors add, change and delete items one at a time; only the owner clears it; private entries become a board only with `confirm_public`; a site declares at most 20 Shared board names (SAVED_DATA_BOARD_NAMES_MAX). Neither takes options (400 invalid_kind), and both need the site's own address (409 custom_domain_required). Product words are accepted (\"Personal\", \"Shared board\").",
         "tags": [
           "Collections"
         ],
@@ -4739,7 +4739,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "too_many_names, has_entries, has_records, confirm_public, visitor_sign_in_off or custom_domain_required",
+            "description": "too_many_names, has_entries, has_records, confirm_public, visitor_sign_in_off, custom_domain_required, visitor_sign_in_unavailable (no visitor can sign in on this server; Submissions, Personal and Shared boards are not offered) or email_unavailable (the server sends no email; notify must be off)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4926,7 +4926,7 @@
             }
           },
           "409": {
-            "description": "declare_first, wrong_kind, one_per_person or list_full",
+            "description": "declare_first, wrong_kind, one_per_person, list_full or kind_changed (the owner changed what the name is while the save was on its way; nothing was saved)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5976,7 +5976,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "custom_domain_required, confirm_public (with `count`), visitor_sign_in_off, wrong_kind or too_many_names",
+            "description": "custom_domain_required, confirm_public (with `count`), visitor_sign_in_off, wrong_kind, too_many_names or visitor_sign_in_unavailable (no visitor can sign in on this server, so a list is not made private)",
             "content": {
               "application/json": {
                 "schema": {
@@ -6765,7 +6765,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "The change holds no earlier value (nothing_to_restore), or a Shared board would go past its cap (list_full)",
+            "description": "The change holds no earlier value (nothing_to_restore), a Shared board would go past its cap (list_full), or a Page info name would hold two documents (one_document)",
             "content": {
               "application/json": {
                 "schema": {
@@ -7195,7 +7195,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "list_full: a Shared board would go past its cap",
+            "description": "list_full: a Shared board would go past its cap; one_document: a Page info name would hold two documents (it brings one back only while it holds none)",
             "content": {
               "application/json": {
                 "schema": {
@@ -7277,7 +7277,7 @@
             }
           },
           "409": {
-            "description": "list_full: a Shared board would go past its cap",
+            "description": "list_full: a Shared board would go past its cap; one_document: a Page info name would hold two documents (it brings one back only while it holds none)",
             "content": {
               "application/json": {
                 "schema": {
@@ -7938,7 +7938,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "The change holds no earlier value (nothing_to_restore), or a Shared board would go past its cap (list_full)",
+            "description": "The change holds no earlier value (nothing_to_restore), a Shared board would go past its cap (list_full), or a Page info name would hold two documents (one_document)",
             "content": {
               "application/json": {
                 "schema": {
@@ -8306,7 +8306,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "list_full: a Shared board would go past its cap",
+            "description": "list_full: a Shared board would go past its cap; one_document: a Page info name would hold two documents (it brings one back only while it holds none)",
             "content": {
               "application/json": {
                 "schema": {
@@ -8397,7 +8397,7 @@
             }
           },
           "409": {
-            "description": "list_full: a Shared board would go past its cap",
+            "description": "list_full: a Shared board would go past its cap; one_document: a Page info name would hold two documents (it brings one back only while it holds none)",
             "content": {
               "application/json": {
                 "schema": {
@@ -8730,7 +8730,7 @@
       "put": {
         "operationId": "putSiteStateByHandle",
         "summary": "Replace per-site JSON state (v3, by handle)",
-        "description": "Overwrites the whole blob (\u2264 1 MB), last-write-wins. The document from before is kept for 30 days (GET .../state/history; restore with POST .../state/history/{id}/restore). Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Overwrites the whole blob (\u2264 1 MB), last-write-wins. The document from before is kept for 30 days (GET .../state/history; restore with POST .../state/history/{id}/restore). Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "tags": [
           "State"
         ],
@@ -8854,7 +8854,7 @@
       "patch": {
         "operationId": "patchSiteStateByHandle",
         "summary": "Atomically update per-site state (v3, by handle)",
-        "description": "Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Ops \u2014 `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match). Numbers keep their exact digits (a whole-number `inc` adds exactly). Every change keeps the document from before it for 30 days (GET .../state/history). v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Ops \u2014 `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match). Numbers keep their exact digits (a whole-number `inc` adds exactly). Every change keeps the document from before it for 30 days (GET .../state/history). v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "tags": [
           "State"
         ],
@@ -9123,7 +9123,7 @@
             }
           },
           "409": {
-            "description": "declare_first, wrong_kind, one_per_person or list_full",
+            "description": "declare_first, wrong_kind, one_per_person, list_full or kind_changed (the owner changed what the name is while the save was on its way; nothing was saved)",
             "content": {
               "application/json": {
                 "schema": {
@@ -9751,7 +9751,7 @@
       "post": {
         "operationId": "postCollectionByHandle",
         "summary": "Append an item to a collection (v3, by handle)",
-        "description": "Adds one item (O(1) insert). For signups, RSVPs, submissions. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`; another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Each item \u2264 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged. PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Adds one item (O(1) insert). For signups, RSVPs, submissions. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Each item \u2264 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged. PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "tags": [
           "Collections"
         ],
@@ -14563,7 +14563,7 @@
     },
     "responses": {
       "BadRequest": {
-        "description": "Invalid request",
+        "description": "Invalid request. A saved-data write whose JSON holds a NUL character (\\u0000), half of a surrogate pair or bytes that are not UTF-8 is code invalid_json.",
         "content": {
           "application/json": {
             "schema": {
@@ -14647,7 +14647,7 @@
         }
       },
       "OriginMismatch": {
-        "description": "Origin/Referer does not match the site",
+        "description": "Origin/Referer is not one of the site's own addresses (code origin_not_allowed). An agent or script sends the site owner's X-API-Key and no Origin or Referer, which needs no page.",
         "content": {
           "application/json": {
             "schema": {

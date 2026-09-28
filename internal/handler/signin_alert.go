@@ -146,7 +146,7 @@ You can turn these emails off on the same page.
 
 Simple Host
 `, what, when, from, link)
-	return subject, text
+	return subject, supportText(text)
 }
 
 var (

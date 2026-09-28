@@ -12,13 +12,15 @@ connection to a brand-new machine otherwise stops to ask whether you trust its
 fingerprint, and an unattended agent simply hangs there.
 
 ```bash
-ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/hackathon_key <user>@<ip> 'curl -fsSL https://raw.githubusercontent.com/vineetu/simple-host/main/deploy/install/install.sh -o /tmp/install.sh && sudo bash /tmp/install.sh --host <event>.<domain> --content sites.<event>.<domain>'
+ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/hackathon_key <user>@<ip> 'curl -fsSL https://raw.githubusercontent.com/vineetu/simple-host/v0.7.2/deploy/install/install.sh -o /tmp/install.sh && sudo bash /tmp/install.sh --host <event>.<domain> --content sites.<event>.<domain>'
 ```
 
 **Do not pass `--image`.** The script pins one release: the image it pulls and
 the compose file and database schema it fetches all come from that same tag, so
-they always match. The command fetches the current script, so a re-run installs
-the latest release (see Upgrading below).
+they always match. The command fetches the script from that release's tag
+(`v0.7.2` here), never from `main`: for a few minutes after a change lands on
+`main`, `main` can pin a release whose image is not published yet. To install a
+newer release, use its tag in the URL (see Upgrading below).
 
 Optional flags:
 
@@ -27,7 +29,8 @@ Optional flags:
 **Omit `--host` and the box comes up in setup mode instead** — how it looks
 fresh out of a cloud provider's catalog, before anyone has said where it
 lives. The script generates a setup password, writes it to
-`/opt/simple-host/.env`, and prints it once:
+`/opt/simple-host/.env`, and prints it (a re-run prints it again until setup
+is done):
 
 ```json
 {"setup_url":"http://<ip>/","dir":"/opt/simple-host"}
@@ -57,9 +60,9 @@ retry will not lock the organiser out or break the database.
 {"host":"https://builds.example.com","content_host":"https://sites.builds.example.com","admin_api_key":"sh_admin_...","dir":"/opt/simple-host"}
 ```
 
-**Give the admin key to the organiser immediately.** It is displayed once.
-Nothing else can show it, and without it they are not the administrator of their
-own instance.
+**Give the admin key to the organiser immediately.** Without it they are not the
+administrator of their own instance. It is kept in `/opt/simple-host/.env`
+(`ADMIN_API_KEY`), and re-running the install command prints it again.
 
 ## Certificates
 
@@ -96,8 +99,9 @@ the organiser the lines it printed; the previous app was not restarted.
 
 ## Upgrading
 
-To move a running instance to a newer release, **re-run the same install
-command**. It keeps the admin key, database password and size settings, pulls
+To move a running instance to a newer release, **re-run the install command
+with the newer release's tag in the URL** (the same flags; a box set up in the
+browser needs no `--host`: its hostnames are in its database). It keeps the admin key, database password and size settings, pulls
 the release the current script pins, applies that release's database changes
 (`simple-host migrate`, each change once) and only then starts the new app.
 Sites, saved data and accounts are untouched. Do it between sessions rather

@@ -76,6 +76,9 @@ type Config struct {
 	// ServerName and Version identify this server to clients.
 	ServerName string
 	Version    string
+	// SupportContact replaces the hosted support address in hints on
+	// another install ("" keeps it).
+	SupportContact string
 	// MaxBodyBytes bounds one message. Inline deploys travel in the body, so
 	// it sits above the per-site upload limit.
 	MaxBodyBytes int64
@@ -94,6 +97,7 @@ func NewServer(cfg Config) *Server {
 	if cfg.MaxBodyBytes <= 0 {
 		cfg.MaxBodyBytes = 16 << 20
 	}
+	supportContact = cfg.SupportContact
 	tools := Tools()
 	byName := make(map[string]Tool, len(tools))
 	for _, tool := range tools {

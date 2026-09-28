@@ -307,10 +307,14 @@ entries only from a signed-in visitor (401 `visitor_auth_required`) on the site'
 `SAVED_DATA_ENTRIES_NAMES_MAX` (50) Submissions names per site. Making a private name that holds
 entries public (declaring it public Submissions, or `{"private": false}` on the privacy switch) is
 409 `confirm_public` (with the count) until `confirm_public: true`; the owner app asks first. A
-private name becomes Page info only while it is empty (409 `has_entries`), and a Page info read
-shows `_submitted_by` to nobody but the owner. With `WRITE_AUTH_MODE=off` public Submissions are
+private name becomes Page info only while it is empty (409 `has_entries`). Both count the
+name's Recently deleted (a restore brings it back) and run under the name's lock; a save that
+lands just as the kind changes is refused (409 `kind_changed`, nothing saved). Page info brings a
+deleted document back only while it holds none (409 `one_document`), so it stays one document. A
+Page info read shows `_submitted_by` to nobody but the owner. With `WRITE_AUTH_MODE=off` public Submissions are
 refused (409 `visitor_sign_in_off`: that mode reads no visitor sign-in on public saves). Submission emails are claimed before they are
-sent (once across servers; a failed send is not retried). **A name nobody declared is Shared**
+sent (once across servers; a failed send is not retried) and count the entries after the last one
+emailed, by id, so one saved just as a digest ran is in the next. **A name nobody declared is Shared**
 (owner decision 2026-09-27): anyone reads it and signed-in visitors save to it, as before the
 kinds, on every site, so old skills, AI create and uploads keep working; `/kind` says `label`
 "Shared", `accepts_saves: true`; the owner app shows a "shared" badge. With
@@ -331,7 +335,7 @@ tightenings wait for the 7-day watch. **Status: built (branch sd/step2).**
 | Go | `h/kinds.go` (`declareData`, `getData`, `putContent`, `updateEntry`, `withdrawEntry`, `undoWithdraw`, `visitorWriteOK` + `saverOK`, savers, `sendSubmissionEmails`, `notifyStop`), `h/collections.go` / `h/privatecollections.go` (kind check, entry rules), `internal/db/kinds.go`, `internal/mcp/kinds.go` |
 | DB | `collection_settings` (`kind`, `one_per_person`, `notify`, `notify_sent_at`, `declared_at`), `sites.savers_mode`, `site_savers`, `sites.legacy_data` (true for sites from before the kinds; false on create) · migration `sd2-saved-data-kinds.sql` |
 | Env | `SAVED_DATA_CONTENT_MAX_KB`, `SAVED_DATA_CONTENT_NAMES_MAX`, `SAVED_DATA_ENTRY_MAX_KB`, `SAVED_DATA_ENTRIES_MAX`, `SAVED_DATA_WITHDRAW_UNDO_MINUTES`, `SAVED_DATA_NOTIFY_EACH_MINUTES`, `SAVED_DATA_NOTIFY_DAILY_HOURS`, `SAVED_DATA_SAVERS_MAX`, `SAVED_DATA_ENTRIES_NAMES_MAX`, `SAVED_DATA_DEFAULT_KIND` (`shared` \| `declare_first`) |
-| Limits | codes `declare_first`, `wrong_kind`, `owner_only`, `one_per_person`, `list_full`, `not_allowed_to_save`, `undo_expired`, `too_many_names`, `has_entries`, `invalid_kind`, `invalid_savers`, `too_many_savers`, `no_author`, `item_too_large`, `confirm_public`, `visitor_auth_required`, `visitor_sign_in_off` (Submissions) |
+| Limits | codes `declare_first`, `wrong_kind`, `owner_only`, `one_per_person`, `list_full`, `not_allowed_to_save`, `undo_expired`, `too_many_names`, `has_entries`, `invalid_kind`, `invalid_savers`, `too_many_savers`, `no_author`, `item_too_large`, `confirm_public`, `visitor_auth_required`, `visitor_sign_in_off`, `kind_changed`, `one_document` (Submissions, Page info); `invalid_json` (400: a NUL character, half a surrogate pair or bytes that are not UTF-8, which the database cannot store) |
 
 ### Personal and Shared board (saved data, steps 3 and 4)
 
@@ -660,7 +664,9 @@ because Vercel rejects `EVENT_DNS_TOKEN`.
 | Routes | `GET /hackathons` (simple-hack.app `/` is proxied here by nginx) · `GET /v1/events` · `POST /v1/events` (`{name, ip, domain}` → Vercel A records for `<name>.<domain>` and `sites.<name>.<domain>`; 21-day claim, max 5 per account) · `DELETE /v1/events/{name}` · setup mode only (no hostname configured): `/` (`setup.html`), `GET /v1/setup/state`, `POST /v1/setup/verify`, `POST /v1/setup/own-domain`, `GET /v1/setup/dns-check`, `POST /v1/setup/free-name` (proxies to `SETUP_PUBLIC_API` `/v1/events`), `POST /v1/setup/finish` · admin routes in §11 · export in §1 |
 | Skill | `sk/run-hackathon/SKILL.md` (§What the organiser needs, §The flow 1–8, + references `dns.md`, `install.md`, `providers.md`, `teardown.md`) — served per-skill, excluded from `/skills.zip` and the plugin |
 | Pages | `st/hackathons.html` (organiser prompt, swaps in `location.host`), `st/og-hack.png`, `st/setup.html`, `st/admin.html` |
-| Go | `h/eventdomain.go` (claim/release/list, hourly sweep), `internal/eventdns/{vercel,inuse}.go`, `h/setup.go` (`InstanceConfigured`, setup restart), `h/chrome.go` (`HackHome` when host is `simple-hack.*`), `h/instancehost.go` (host rewriting for non-canonical instances) |
+| Go | `h/eventdomain.go` (claim/release/list, hourly sweep), `internal/eventdns/{vercel,inuse}.go`, `h/setup.go` (`InstanceConfigured`, setup restart), `h/chrome.go` (`HackHome` when host is `simple-hack.*`), `h/instancehost.go` (host rewriting for non-canonical instances; `SetInstanceNote`: llms.txt opens with a THIS SERVER block — one shared browser origin, previews need per-site addresses, how visitors sign in or that they cannot, whether email is sent, who to ask) |
+| No sign-in, no email | With no email and no Google/GitHub sign-in, Submissions, Personal, Shared boards and making a list private are 409 `visitor_sign_in_unavailable`; with no email, Submissions emails default off and `notify` each/daily is 409 `email_unavailable`. Off simple-host.app, messages, emails, the export README and connector hints name `IDLE_REPLY_TO` or "whoever runs this server" (`auth.SetSupportContact`), and `invalid_api_key` says to ask for a new key where no email sign-in exists. |
+| Content host (Caddy) | `deploy/compose/Caddyfile` serves files and hands the app what is not one, as the hosted nginx does: `domain-redirect` marker → `/internal/domain-redirect`, a missing site → `/internal/site-redirect` (a renamed site's old name redirects), `/<handle>/` → `/internal/showcase`, file misses and the root → `/internal/notfound`; `/internal/*` from outside is 404 on every host. Tested by `deploy/compose/Caddyfile_test.sh` (in `make check`, Docker) and the hackathon e2e. The installer re-run on a box set up in the browser reports its hostnames instead of failing. |
 | DB | `event_domains`, `instance_config` |
 | Env | `EVENT_DNS_TOKEN`, `EVENT_DNS_TEAM_ID`, `EVENT_DOMAINS`, `SETUP_PASSWORD`, `SETUP_PUBLIC_API`, `PERSON_HOSTS` (off on event instances), `MAX_ARCHIVE_MB`, `KEEP_VERSIONS`, `BIND_ADDR` |
 | External | Vercel DNS API; Docker Compose + Caddy (`deploy/compose/`, `deploy/install/install.sh`; container logs capped at 3 × 10 MB per service, Caddy access log rolled daily and rolls deleted after 28 days, so raw IPs ≤30 days); live nginx `/etc/nginx/sites-enabled/simple-hack.app`; `scripts/e2e-hackathon.sh`, `scripts/check-fresh-install.sh` |
@@ -771,7 +777,7 @@ confirmation (§7); a custom domain failing for a day (§3); the idle-site warni
 notices (§1, reply-to support@simple-host.app, `SendNoticeReplyTo`); new-Submissions digests
 ("Email me": daily, each at most every 10 minutes, or off) with a signed stop link (§5; the
 emailed one-time links carry their token after `#`, so it never reaches a server log). Stale-skill `_notice` in JSON
-responses (§9) is the only in-band notice.
+objects and the `X-Skill-Notice` header (§9; arrays stay bare) is the only in-band notice.
 
 ## 20. Operations (health, schema, CLI)
 

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -300,7 +301,8 @@ func TestPreviewBeforeLive(t *testing.T) {
 		t.Fatalf("live changed: %d %s", r.status, r.body)
 	}
 	vs := a.at(t, "GET", apex, "/v1/sites/shop/versions", nil, okey)
-	if !strings.Contains(string(vs.body), `"status":"ready","version_number":2`) {
+	var versions []map[string]any
+	if err := json.Unmarshal(vs.body, &versions); err != nil || len(versions) == 0 || versions[0]["version_number"] != float64(2) || versions[0]["status"] != "ready" {
 		t.Fatalf("versions: %s", vs.body)
 	}
 
@@ -396,7 +398,8 @@ func TestPreviewBeforeLive(t *testing.T) {
 		t.Fatalf("live after make live: %d %s", r.status, r.body)
 	}
 	vs = a.at(t, "GET", apex, "/v1/sites/shop/versions", nil, okey)
-	if !strings.Contains(string(vs.body), `"status":"active","version_number":2`) {
+	versions = nil
+	if err := json.Unmarshal(vs.body, &versions); err != nil || len(versions) == 0 || versions[0]["version_number"] != float64(2) || versions[0]["status"] != "active" {
 		t.Fatalf("versions after make live: %s", vs.body)
 	}
 

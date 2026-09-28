@@ -55,8 +55,17 @@ https:// {
 		format json
 	}
 
+	# /internal/* is for this file's own rewrites below (and Caddy's own
+	# certificate check, which reaches the app directly): from outside it is
+	# not found, on every hostname. Otherwise /internal/tls-ask would tell
+	# anyone which names this box serves.
+	@internal path /internal/*
+	handle @internal {
+		respond 404
+	}
+
 	# The API belongs to the application on every hostname.
-	@api path /v1/* /internal/*
+	@api path /v1/*
 	handle @api {
 		reverse_proxy app:8090
 	}
@@ -67,36 +76,94 @@ https:// {
 	# A regex, not `host sites.*`: Caddy's host wildcard covers exactly one
 	# label, so `sites.*` matches sites.example but never
 	# sites.event.example.com, which is the shape every event actually uses.
+	#
+	# The same rules as the hosted nginx content host
+	# (deploy/prod/nginx-sites-content-host.conf): what is not a file on disk
+	# goes to the application, so an old name of a renamed site redirects, a
+	# site with its own address redirects there, /<handle>/ is the person's
+	# page, and a miss is the branded not-found page rather than an empty 404.
 	@content header_regexp Host ^sites\.
 	handle @content {
-		@nodir path_regexp nodir ^/([a-z0-9-]{1,39})/([a-z0-9-]{1,63})$
-		redir @nodir {uri}/ 308
+		# A route, so everything runs in the order written.
+		route {
+			@nodir path_regexp nodir ^/([a-z0-9-]{1,39})/([a-z0-9-]{1,63})$
+			redir @nodir {uri}/ 308
 
-		@site path_regexp site ^/([a-z0-9-]{1,39})/([a-z0-9-]{1,63})(/.*)?$
-		# A route, so these run in the order written. A site the operator
-		# has taken down carries a `suspended` marker in its folder: every
-		# path of it answers the application's take-down page instead.
-		route @site {
-			@suspended file {
-				root /data/sites/handles
-				try_files /{re.site.1}/{re.site.2}/suspended
+			@site path_regexp site ^/([a-z0-9-]{1,39})/([a-z0-9-]{1,63})(/.*)?$
+			route @site {
+				# A site with its own address lives there: the application
+				# answers a redirect with the same path.
+				@domainredirect file {
+					root /data/sites/handles
+					try_files /{re.site.1}/{re.site.2}/domain-redirect
+				}
+				route @domainredirect {
+					rewrite * /internal/domain-redirect/{re.site.1}/{re.site.2}{re.site.3}
+					reverse_proxy app:8090
+				}
+				# A site the operator has taken down carries a `suspended`
+				# marker in its folder: every path of it answers the
+				# application's take-down page instead.
+				@suspended file {
+					root /data/sites/handles
+					try_files /{re.site.1}/{re.site.2}/suspended
+				}
+				route @suspended {
+					rewrite * /internal/suspended
+					reverse_proxy app:8090
+				}
+				# Taken offline by its owner: the offline page (after the
+				# take-down check, which wins).
+				@offline file {
+					root /data/sites/handles
+					try_files /{re.site.1}/{re.site.2}/offline
+				}
+				route @offline {
+					rewrite * /internal/offline
+					reverse_proxy app:8090
+				}
+				# No such site here: the application redirects an old name
+				# of a renamed site to its new address, or answers the
+				# not-found page.
+				@nosite not file {
+					root /data/sites/handles
+					try_files /{re.site.1}/{re.site.2}/current/
+				}
+				route @nosite {
+					rewrite * /internal/site-redirect/{re.site.1}/{re.site.2}{re.site.3}
+					reverse_proxy app:8090
+				}
+				rewrite * /{re.site.1}/{re.site.2}/current{re.site.3}
+				root * /data/sites/handles
+				file_server
 			}
-			rewrite @suspended /internal/suspended
-			reverse_proxy @suspended app:8090
-			# Taken offline by its owner: the offline page (after the
-			# take-down check, which wins).
-			@offline file {
-				root /data/sites/handles
-				try_files /{re.site.1}/{re.site.2}/offline
+
+			# /<handle> and /<handle>/: the person's page of public sites.
+			@person path_regexp person ^/([a-z0-9-]{1,39})/?$
+			route @person {
+				rewrite * /internal/showcase/{re.person.1}
+				reverse_proxy app:8090
 			}
-			rewrite @offline /internal/offline
-			reverse_proxy @offline app:8090
-			rewrite * /{re.site.1}/{re.site.2}/current{re.site.3}
-			root * /data/sites/handles
-			file_server
+
+			# Anything else here (the bare root, a path no site can have)
+			# is the not-found page.
+			rewrite * /internal/notfound
+			reverse_proxy app:8090 {
+				header_up X-Original-URI {http.request.orig_uri}
+			}
 		}
-		root * /data/sites/handles
-		file_server
+	}
+
+	# A file a site does not have: the branded not-found page, which links
+	# back to the person's page (the application reads X-Original-URI).
+	handle_errors 404 {
+		@contentmiss header_regexp Host ^sites\.
+		route @contentmiss {
+			rewrite * /internal/notfound
+			reverse_proxy app:8090 {
+				header_up X-Original-URI {http.request.orig_uri}
+			}
+		}
 	}
 
 	# Everything else is the dashboard, sign-in and, before setup, the setup page.
@@ -109,5 +176,11 @@ https:// {
 # yet, and the person who created it only knows its IP, so the setup page has to
 # be reachable before any certificate can exist.
 :80 {
-	reverse_proxy app:8090
+	@internal path /internal/*
+	handle @internal {
+		respond 404
+	}
+	handle {
+		reverse_proxy app:8090
+	}
 }

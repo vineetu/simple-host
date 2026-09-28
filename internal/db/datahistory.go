@@ -362,7 +362,7 @@ func ListHistory(ctx context.Context, database *sql.DB, siteID, kind, name strin
 		SELECT id, item_id, op, `+byExpr+`, actor_kind, created_at,
 		       COALESCE(octet_length(prev::text), octet_length(diff::text), 0)
 		  FROM data_history
-		 WHERE site_id = $1 AND kind = $2 AND name = $3 AND ($4 = 0 OR id < $4)
+		 WHERE site_id = $1 AND kind = $2 AND name = $3 AND ($4::bigint = 0 OR id < $4)
 		 ORDER BY id DESC
 		 LIMIT $5`, siteID, kind, name, before, limit)
 	if err != nil {
@@ -518,9 +518,10 @@ func SoftClearCollection(ctx context.Context, database *sql.DB, siteID, collecti
 // of the list (id == 0) and returns how many came back. onlyCleared brings
 // back only items the owner's clear took (a Personal name: a record its
 // person deleted stays deleted). within > 0 brings back only items deleted
-// that recently. maxItems > 0 (a Shared board) takes the name's declaration
-// lock and refuses with ErrNameFull when the name would hold more than
-// maxItems live items. ErrSiteFull when they would take the site past
+// that recently. The name's declaration lock is held throughout. maxItems > 0
+// (a Shared board) refuses with ErrNameFull when the name would hold more
+// than maxItems live items; a Page info name refuses with ErrOneDocument when
+// it would hold more than one. ErrSiteFull when they would take the site past
 // maxBytes.
 func UndeleteItems(ctx context.Context, database *sql.DB, siteID, collection string, id int64, a Actor, maxBytes int64, onlyCleared bool, within time.Duration, maxItems int) (int64, error) {
 	tx, err := database.BeginTx(ctx, nil)
@@ -528,14 +529,15 @@ func UndeleteItems(ctx context.Context, database *sql.DB, siteID, collection str
 		return 0, err
 	}
 	defer tx.Rollback()
-	if err := lockNameFor(ctx, tx, siteID, collection, maxItems); err != nil {
+	kind, err := lockNameFor(ctx, tx, siteID, collection)
+	if err != nil {
 		return 0, err
 	}
 	var n int64
 	err = tx.QueryRowContext(ctx, `
 		WITH back AS (
 			UPDATE collection_items SET deleted_at = NULL
-			 WHERE site_id = $1 AND collection = $2 AND deleted_at IS NOT NULL AND ($3 = 0 OR id = $3)
+			 WHERE site_id = $1 AND collection = $2 AND deleted_at IS NOT NULL AND ($3::bigint = 0 OR id = $3)
 			   AND (NOT $7 OR (SELECT h.op FROM data_history h WHERE h.item_id = collection_items.id
 			                    ORDER BY h.id DESC LIMIT 1) = 'clear')
 			   AND ($8 = 0 OR deleted_at >= now() - make_interval(secs => $8))
@@ -552,6 +554,9 @@ func UndeleteItems(ctx context.Context, database *sql.DB, siteID, collection str
 		if err := itemsWithin(ctx, tx, siteID, collection, maxItems); err != nil {
 			return 0, err
 		}
+		if err := oneDocument(ctx, tx, siteID, collection, kind); err != nil {
+			return 0, err
+		}
 		if err := roomAfter(ctx, tx, siteID, maxBytes); err != nil {
 			return 0, err
 		}
@@ -559,15 +564,37 @@ func UndeleteItems(ctx context.Context, database *sql.DB, siteID, collection str
 	return n, tx.Commit()
 }
 
-// lockNameFor takes a capped name's declaration-row lock (maxItems > 0), so
-// a restore and an add cannot both pass the cap.
-func lockNameFor(ctx context.Context, tx *sql.Tx, siteID, name string, maxItems int) error {
-	if maxItems <= 0 {
+// ErrOneDocument: Page info is one document, and bringing this item back
+// would make a second live one beside it.
+var ErrOneDocument = errors.New("page info holds one document")
+
+// lockNameFor takes the name's declaration-row lock when it has one, so a
+// restore and an add (or a change of kind) cannot interleave, and returns
+// its kind ("" when undeclared).
+func lockNameFor(ctx context.Context, tx *sql.Tx, siteID, name string) (string, error) {
+	var kind string
+	err := tx.QueryRowContext(ctx, `
+		SELECT COALESCE(kind, '') FROM collection_settings WHERE site_id = $1 AND collection = $2 FOR UPDATE`, siteID, name).Scan(&kind)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return kind, err
+}
+
+// oneDocument is ErrOneDocument when a Page info name (kind content) now
+// holds more than one live item.
+func oneDocument(ctx context.Context, tx *sql.Tx, siteID, name, kind string) error {
+	if kind != KindContent {
 		return nil
 	}
-	var one int
-	return tx.QueryRowContext(ctx, `
-		SELECT 1 FROM collection_settings WHERE site_id = $1 AND collection = $2 FOR UPDATE`, siteID, name).Scan(&one)
+	many, err := NameHoldsItems(ctx, tx, siteID, name, 1)
+	if err != nil {
+		return err
+	}
+	if many {
+		return ErrOneDocument
+	}
+	return nil
 }
 
 // itemsWithin is ErrNameFull when a capped name (maxItems > 0) now holds more
@@ -590,14 +617,16 @@ func itemsWithin(ctx context.Context, tx *sql.Tx, siteID, name string, maxItems 
 // back; an edit or an earlier restore puts back the item's data from before
 // it (and brings the item back if it was deleted since). ErrSiteFull when
 // that grows the site past maxBytes; with maxItems > 0 (a Shared board),
-// ErrNameFull when an item brought back would take the name past maxItems.
+// ErrNameFull when an item brought back would take the name past maxItems;
+// ErrOneDocument when it would be a second live Page info document.
 func RestoreItemVersion(ctx context.Context, database *sql.DB, siteID, collection string, id int64, a Actor, maxBytes int64, maxItems int) (CollectionItem, error) {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return CollectionItem{}, err
 	}
 	defer tx.Rollback()
-	if err := lockNameFor(ctx, tx, siteID, collection, maxItems); err != nil {
+	kind, err := lockNameFor(ctx, tx, siteID, collection)
+	if err != nil {
 		return CollectionItem{}, err
 	}
 	e, err := GetHistoryEntry(ctx, tx, siteID, HistoryList, collection, id)
@@ -642,6 +671,9 @@ func RestoreItemVersion(ctx context.Context, database *sql.DB, siteID, collectio
 		if err := itemsWithin(ctx, tx, siteID, collection, maxItems); err != nil {
 			return CollectionItem{}, err
 		}
+		if err := oneDocument(ctx, tx, siteID, collection, kind); err != nil {
+			return CollectionItem{}, err
+		}
 	}
 	if grew {
 		if err := roomAfter(ctx, tx, siteID, maxBytes); err != nil {
@@ -678,7 +710,7 @@ func ListDeletedItems(ctx context.Context, database *sql.DB, siteID, collection 
 		SELECT id, data, created_at, deleted_at, `+authorExpr+`
 		  FROM collection_items
 		 WHERE site_id = $1 AND collection = $2 AND deleted_at IS NOT NULL
-		   AND ($3 = 0 OR (deleted_at, id) < ($4, $3))
+		   AND ($3::bigint = 0 OR (deleted_at, id) < ($4, $3))
 		 ORDER BY deleted_at DESC, id DESC
 		 LIMIT $5`, siteID, collection, after.ID, after.At, limit)
 	if err != nil {
@@ -706,7 +738,7 @@ func ListDeletedItems(ctx context.Context, database *sql.DB, siteID, collection 
 func PurgeDeletedItems(ctx context.Context, database *sql.DB, siteID, collection string, id int64) (int64, error) {
 	res, err := database.ExecContext(ctx, `
 		DELETE FROM collection_items
-		 WHERE site_id = $1 AND collection = $2 AND deleted_at IS NOT NULL AND ($3 = 0 OR id = $3)`, siteID, collection, id)
+		 WHERE site_id = $1 AND collection = $2 AND deleted_at IS NOT NULL AND ($3::bigint = 0 OR id = $3)`, siteID, collection, id)
 	if err != nil {
 		return 0, err
 	}
@@ -758,15 +790,15 @@ func PurgeSavedData(ctx context.Context, database *sql.DB, undoDays int) (histor
 // (sd1-saved-data-safety3-history-bytes.sql).
 const historySize = `COALESCE(octet_length(prev::text), octet_length(diff::text), 0)`
 
-// HistoryOverCap reports whether a site's history holds more than capBytes
-// (sites.history_bytes: one row read).
-func HistoryOverCap(ctx context.Context, q Querier, siteID string, capBytes int64) (bool, error) {
-	var over bool
-	err := q.QueryRowContext(ctx, `SELECT history_bytes > $2 FROM sites WHERE id = $1`, siteID, capBytes).Scan(&over)
+// HistoryBytes is a site's history size (sites.history_bytes); 0 when the
+// site is gone.
+func HistoryBytes(ctx context.Context, q Querier, siteID string) (int64, error) {
+	var n int64
+	err := q.QueryRowContext(ctx, `SELECT history_bytes FROM sites WHERE id = $1`, siteID).Scan(&n)
 	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
+		return 0, nil
 	}
-	return over, err
+	return n, err
 }
 
 // SitesOverHistoryCap lists the sites whose history holds more than capBytes.

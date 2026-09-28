@@ -58,8 +58,12 @@ func TestPublicReadsWithoutOrigin(t *testing.T) {
 		}
 	}
 
-	// Writes are unchanged: no Origin, no write, even with a key.
-	if r := a.at(t, "PUT", apex, "/v1/sites/board/state", map[string]any{"votes": 0}, map[string]string{"X-API-Key": olive.key}); r.status != http.StatusForbidden {
-		t.Fatalf("originless write: %d %s", r.status, r.body)
+	// Writes with no Origin: the owner's key writes (an agent, as llms.txt
+	// says); without a key, nothing is written.
+	if r := a.at(t, "PUT", apex, "/v1/sites/board/state", map[string]any{"votes": 0}, map[string]string{"X-API-Key": olive.key}); r.status != http.StatusOK {
+		t.Fatalf("originless owner write: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "PUT", apex, "/v1/sites/board/state", map[string]any{"votes": 9}, nil); r.status != http.StatusForbidden {
+		t.Fatalf("originless write without a key: %d %s", r.status, r.body)
 	}
 }

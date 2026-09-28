@@ -125,6 +125,38 @@ type SiteHandler struct {
 	boardLimiter *rateLimiter
 	// thinLimiter spaces out boundHistory's thinning: once a second per site.
 	thinLimiter *rateLimiter
+	// noVisitorSignIn: this install has no way for a visitor to sign in (no
+	// email codes, no Google/GitHub), so kinds that take saves only from
+	// signed-in visitors are refused. noEmail: it sends no email, so
+	// Submissions emails are off. Both false unless SetVisitorSignIn says.
+	noVisitorSignIn, noEmail bool
+	// thinStuck: sites whose history stayed over the cap after a thin (what
+	// is left is the per-day copies thinning keeps), with its size then.
+	// Thinning is skipped for them until the history grows by thinMargin.
+	thinStuck sync.Map // site id -> int64
+}
+
+// SetVisitorSignIn records how visitors can sign in on this install: email
+// codes (email) and the OAuth providers configured (providers).
+func (h *SiteHandler) SetVisitorSignIn(email bool, providers []string) {
+	h.noEmail = !email
+	h.noVisitorSignIn = !email && len(providers) == 0
+}
+
+// signInNeededOK refuses what needs a signed-in visitor (Submissions,
+// Personal, a Shared board, a private list: what) on an install where no
+// visitor can sign in. Writes the 409; false then.
+func (h *SiteHandler) signInNeededOK(w http.ResponseWriter, what string) bool {
+	if !h.noVisitorSignIn {
+		return true
+	}
+	writeJSON(w, http.StatusConflict, errorResponse{
+		Error: what + " take saves only from visitors who sign in, and visitors cannot sign in on this server: it has no sign-in method set up " +
+			"(email codes need RESEND_API_KEY; Google sign-in needs GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET). " +
+			"Use a Shared name (no kind) instead, or ask whoever runs this server to set one up",
+		Code: "visitor_sign_in_unavailable",
+	})
+	return false
 }
 
 // lockSite acquires the per-site upload mutex for one account's site name and
@@ -983,6 +1015,26 @@ func (h *SiteHandler) authorizeStateOrigin(w http.ResponseWriter, r *http.Reques
 	return true
 }
 
+// writeOriginRefused is the 403 for a request from a page that is not one of
+// the site's own addresses (or that names no page and holds no key of the
+// site's owner).
+func writeOriginRefused(w http.ResponseWriter) {
+	writeJSON(w, http.StatusForbidden, errorResponse{
+		Error: "this request comes from a page that is not one of this site's own addresses, so it cannot use the site's saved data. " +
+			"A page saves from the site itself; an agent or script sends the site owner's X-API-Key and no Origin header",
+		Code: "origin_not_allowed",
+	})
+}
+
+// keyWithoutPage: the request carries an API key and names no page (no
+// Origin, no Referer): an agent or a script. The key is the authorization
+// (the write path checks it is the site owner's, or the admin's); a browser
+// never sends one on its own, and a page cannot add it cross-origin without a
+// preflight the Origin gate refuses.
+func keyWithoutPage(r *http.Request) bool {
+	return r.Header.Get("X-API-Key") != "" && noBrowserOrigin(r)
+}
+
 // noBrowserOrigin reports whether r carries neither Origin nor Referer: a
 // script, curl or an agent rather than a page. Saved state and public lists
 // are public to read, so such a read needs no Origin check; there is no
@@ -1034,7 +1086,7 @@ func (h *SiteHandler) getSiteState(w http.ResponseWriter, r *http.Request) {
 	// pins the site to the key's owner rather than the oldest same name.
 	siteID, ownerKey := h.ownerSiteIDFromKey(r, siteName)
 	if !ownerKey && !h.authorizePublicRead(w, r, siteName) {
-		writeJSON(w, http.StatusForbidden, errorResponse{Error: "forbidden"})
+		writeOriginRefused(w)
 		return
 	}
 
@@ -1119,8 +1171,9 @@ func (h *SiteHandler) putSiteState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !h.authorizeStateOrigin(w, r, siteName) {
-		writeJSON(w, http.StatusForbidden, errorResponse{Error: "forbidden"})
+	// The site's own pages (Origin), or an agent with the owner's key.
+	if !keyWithoutPage(r) && !h.authorizeStateOrigin(w, r, siteName) {
+		writeOriginRefused(w)
 		return
 	}
 
@@ -1153,6 +1206,9 @@ func (h *SiteHandler) putSiteState(w http.ResponseWriter, r *http.Request) {
 
 	if !json.Valid(body) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid json"})
+		return
+	}
+	if !storableJSON(w, body) {
 		return
 	}
 
@@ -1884,11 +1940,11 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.disk.UpdateCurrent(site.UserID, site.Name, req.VersionNumber); err != nil {
+	prev, err := db.SiteActiveVersion(r.Context(), tx, site.ID)
+	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-
 	if err := db.UpdateSiteActiveVersion(r.Context(), tx, site.ID, req.VersionNumber); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -1898,7 +1954,19 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	// The served files change only once every database step has worked,
+	// still under the site's lock (so two rollbacks cannot cross), and go
+	// back if the commit then fails: what is served matches active_version.
+	if err := h.disk.UpdateCurrent(site.UserID, site.Name, req.VersionNumber); err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
 	if err := tx.Commit(); err != nil {
+		if prev != req.VersionNumber {
+			if rerr := h.disk.UpdateCurrent(site.UserID, site.Name, prev); rerr != nil {
+				log.Printf("rollback site_id=%s: commit failed (%v) and serving v%d again failed: %v", site.ID, err, prev, rerr)
+			}
+		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}

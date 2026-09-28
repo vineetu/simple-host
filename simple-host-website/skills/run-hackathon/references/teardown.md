@@ -43,9 +43,13 @@ Ask the provider for its server list and confirm the event server is absent,
 then check DNS:
 
 ```bash
-dig +short <event>.<domain> A       # returns nothing
-dig +short sites.<event>.<domain> A # returns nothing
+dig +short <event>.<domain> A       # no longer the server's IP
+dig +short sites.<event>.<domain> A # no longer the server's IP
 ```
+
+Each returns nothing, or an address that is not the server's: a domain with a
+wildcard or apex record answers every name, so after the records go the names
+resolve to that instead (simple-hack.app does this).
 
 Tell the organiser to check their provider's billing page in a day. A forgotten
 disk or a floating IP is the usual way a finished event keeps costing money.

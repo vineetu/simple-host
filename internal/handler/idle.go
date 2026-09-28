@@ -379,7 +379,7 @@ func idleLinkToken(w http.ResponseWriter, r *http.Request) string { return linkT
 func (h *SiteHandler) idleLinkUsable(w http.ResponseWriter, r *http.Request, l db.IdleLink) bool {
 	if l.TakenDown {
 		h.renderMessagePage(w, r, http.StatusForbidden, "This site is taken down",
-			"The link does nothing while the site is taken down. Write to support@simple-host.app if you think this is a mistake.",
+			supportText("The link does nothing while the site is taken down. Write to support@simple-host.app if you think this is a mistake."),
 			h.exportLinkBase()+"/", "Go to Simple Host")
 		return false
 	}

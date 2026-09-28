@@ -110,6 +110,21 @@ func (h *SiteHandler) previewBase(site db.Site) (string, bool) {
 	return "", false
 }
 
+// SharedOrigin reports whether every site is served on the content host's
+// one origin (no per-site or per-person addresses: a small box).
+func (h *SiteHandler) SharedOrigin() bool { return !h.siteHostsOn() && !h.personHostsOn() }
+
+// noPreviewWhy says why a site has no preview link. A preview is served on
+// the site's own address (its own browser origin); a server that gives sites
+// none (SITE_HOSTS and PERSON_HOSTS off, as on a small box) never has one.
+func (h *SiteHandler) noPreviewWhy() string {
+	if h.SharedOrigin() {
+		return "preview links need a per-site address, and this server serves every site on one shared address, so it makes none. " +
+			"To see a stored version, make it live (PUT /v1/sites/<site>/active-version) and switch back if it is not right"
+	}
+	return "this site has no address of its own yet to preview on (its address is still being set up); try again later"
+}
+
 // previewLink mints a preview address for version n of site.
 func (h *SiteHandler) previewLink(site db.Site, n int) (string, time.Time, bool) {
 	base, ok := h.previewBase(site)
@@ -157,6 +172,8 @@ func (h *SiteHandler) writeUnpublished(w http.ResponseWriter, site db.Site, n in
 	if link, exp, ok := h.previewLink(site, n); ok {
 		resp.PreviewURL = link
 		resp.PreviewExpiresAt = &exp
+	} else {
+		resp.Note += " No preview link: " + h.noPreviewWhy() + "."
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -198,7 +215,7 @@ func (h *SiteHandler) createPreviewLink(w http.ResponseWriter, r *http.Request) 
 	}
 	link, expires, ok := h.previewLink(site, n)
 	if !ok {
-		writeJSON(w, http.StatusConflict, errorResponse{Error: "this site has no address of its own to preview on", Code: "preview_unavailable"})
+		writeJSON(w, http.StatusConflict, errorResponse{Error: h.noPreviewWhy(), Code: "preview_unavailable"})
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")

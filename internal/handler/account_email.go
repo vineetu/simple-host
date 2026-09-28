@@ -75,7 +75,7 @@ func (h *UserHandler) emailChangeRefused(w http.ResponseWriter, r *http.Request,
 	case h.previewAccounts[strings.ToLower(user.Username)]:
 		return refuse("preview_account", "this account's email is set by the operator")
 	case !strings.Contains(user.Username, "@"):
-		return refuse("no_current_email", "this account does not sign in with an email address, so there is none to confirm the change from; write to support@simple-host.app")
+		return refuse("no_current_email", supportText("this account does not sign in with an email address, so there is none to confirm the change from; write to support@simple-host.app"))
 	}
 	t, err := db.GetSignInAlertTarget(r.Context(), h.database, user.ID)
 	if err != nil {
@@ -178,7 +178,7 @@ func (h *UserHandler) sendEmailChangeCurrentCode(current, newAddress, code strin
 	if !ok {
 		return h.mailer.SendSignInCode(current, code, "")
 	}
-	return mailer.SendNotice(current, "Simple Host: confirm changing your sign-in email ("+code+")", `Someone signed in to your Simple Host account asked to change its sign-in email to `+maskEmail(newAddress)+`.
+	return mailer.SendNotice(current, "Simple Host: confirm changing your sign-in email ("+code+")", supportText(`Someone signed in to your Simple Host account asked to change its sign-in email to `+maskEmail(newAddress)+`.
 
 If that was you, enter this code together with the one sent to the new address:
 
@@ -187,7 +187,7 @@ If that was you, enter this code together with the one sent to the new address:
 It expires in `+config.Span(authTokenTTL())+`. If it wasn't you, do not share this code: without it nothing changes. Someone has one of your keys, so sign in and remove the keys you don't recognise, or write to support@simple-host.app.
 
 Simple Host
-`)
+`))
 }
 
 func (h *UserHandler) verifyEmailChange(w http.ResponseWriter, r *http.Request) {
@@ -308,7 +308,7 @@ Undoing puts the account back on this address, signs out every key and every sig
 Simple Host
 `
 	h.alerts.run(func() {
-		if err := mailer.SendNotice(oldEmail, "Your Simple Host sign-in email was changed", text); err != nil {
+		if err := mailer.SendNotice(oldEmail, "Your Simple Host sign-in email was changed", supportText(text)); err != nil {
 			log.Printf("email change: notice to old address: %v", err)
 		}
 	})
@@ -326,7 +326,7 @@ func (h *UserHandler) undoEmailChange(w http.ResponseWriter, r *http.Request) {
 	home := strings.TrimRight(h.publicBaseURL, "/") + "/"
 	gone := func() {
 		writeMessagePage(w, r, "", http.StatusNotFound, "This link has already been used or has expired",
-			"If your sign-in email was changed without you, write to support@simple-host.app.", home, "Go to Simple Host", "")
+			supportText("If your sign-in email was changed without you, write to support@simple-host.app."), home, "Go to Simple Host", "")
 	}
 	if len(tok) != 48 {
 		gone()
@@ -355,7 +355,7 @@ func (h *UserHandler) undoEmailChange(w http.ResponseWriter, r *http.Request) {
 		return
 	case errors.Is(err, db.ErrUndoAddressTaken):
 		writeMessagePage(w, r, "", http.StatusConflict, "That address is used by another account now",
-			"Write to support@simple-host.app and we will sort it out.", home, "Go to Simple Host", "")
+			supportText("Write to support@simple-host.app and we will sort it out."), home, "Go to Simple Host", "")
 		return
 	case err != nil:
 		log.Printf("email change undo: %v", err)

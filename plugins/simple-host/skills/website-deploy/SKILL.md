@@ -28,7 +28,7 @@ JavaScript can call.
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.26.1`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.26.2`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -259,7 +259,8 @@ app). Full code, limits and error codes: `references/backend.md`.
 - **Origin-gating trips up non-browser reads.** A `curl`/script read with no
   `Origin` gets **403**. Send one:
   `curl -H "Origin: https://<name>.<handle>.simple-host.app" https://<name>.<handle>.simple-host.app/v1/sites/<name>/state`
-- **On a staleness notice:** API responses carry a `_notice` field when this skill
+- **On a staleness notice:** API responses carry a `_notice` field (and an
+  `X-Skill-Notice` header; a list answer carries only the header) when this skill
   is out of date. Relay it to the user verbatim, then update the skill the way it
   was installed — usually `npx skills add vineetu/simple-host`; other ways are at
   https://simple-host.app/docs.html#install-skills. Never pipe a downloaded script

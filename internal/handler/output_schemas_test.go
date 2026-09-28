@@ -123,7 +123,8 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	call("list_collections", map[string]any{"site": "shop"})
 	call("update_collection_item", map[string]any{"site": "shop", "collection": "orders", "id": id, "fields": map[string]any{"status": "done"}})
 	call("delete_collection_item", map[string]any{"site": "shop", "collection": "orders", "id": id, "confirm_id": id})
-	call("set_collection_privacy", map[string]any{"site": "shop", "collection": "orders", "private": false})
+	// What it held is in Recently deleted, so making it public is confirmed.
+	call("set_collection_privacy", map[string]any{"site": "shop", "collection": "orders", "private": false, "confirm_public": true})
 	call("clear_collection", map[string]any{"site": "shop", "collection": "orders", "confirm_collection": "orders"})
 	// Undo: every change is kept, deleted items come back.
 	if s := call("list_deleted", map[string]any{"site": "shop", "collection": "orders"}); len(s["items"].([]any)) != 1 {

@@ -117,6 +117,9 @@ func (h *SiteHandler) appendBoard(w http.ResponseWriter, r *http.Request, siteID
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `a board item is one JSON object, e.g. {"text": "milk", "done": false}`, Code: "not_an_object"})
 		return
 	}
+	if !storableJSON(w, raw) {
+		return
+	}
 	body := json.RawMessage(bytes.TrimSpace(raw))
 	// The server's own stamp keys are never the visitor's to set.
 	stamped := false
@@ -140,12 +143,12 @@ func (h *SiteHandler) appendBoard(w http.ResponseWriter, r *http.Request, siteID
 	if !h.siteHasRoom(w, r, siteID, int64(len(body))) {
 		return
 	}
-	it, _, err := db.AppendEntry(r.Context(), h.database, siteID, set.Name, body, actor, false, h.savedData.BoardMax)
+	it, _, err := db.AppendEntry(r.Context(), h.database, siteID, set.Name, db.KindBoard, body, actor, false, h.savedData.BoardMax)
 	switch {
 	case errors.Is(err, db.ErrNameFull):
 		h.writeBoardFull(w)
 		return
-	case errors.Is(err, sql.ErrNoRows):
+	case errors.Is(err, sql.ErrNoRows), errors.Is(err, db.ErrKindChanged):
 		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("%q is not a board any more", set.Name), Code: "wrong_kind"})
 		return
 	case err != nil:
@@ -184,15 +187,24 @@ func (h *SiteHandler) updateBoardItem(w http.ResponseWriter, r *http.Request, si
 		ifVersion = int64(n)
 	}
 	maxBytes := h.boardItemMax()
+	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBytes))
 	var patch map[string]json.RawMessage
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBytes))
-	if err := dec.Decode(&patch); err != nil || patch == nil || dec.More() {
+	if err == nil {
+		dec := json.NewDecoder(bytes.NewReader(raw))
+		if err = dec.Decode(&patch); err == nil && (patch == nil || dec.More()) {
+			err = errors.New("not one object")
+		}
+	}
+	if err != nil {
 		var maxErr *http.MaxBytesError
 		if errors.As(err, &maxErr) {
 			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large", Code: "item_too_large"})
 			return
 		}
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `send a JSON object of the fields to change, e.g. {"done": true}`})
+		return
+	}
+	if !storableJSON(w, raw) {
 		return
 	}
 	errTooLarge := errors.New("too large")

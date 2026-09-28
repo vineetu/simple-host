@@ -26,7 +26,7 @@ func (h *SiteHandler) visitorEmailSite(w http.ResponseWriter, r *http.Request) (
 	}
 	name := strings.TrimSpace(r.PathValue("sitename"))
 	if !h.authorizeStateOrigin(w, r, name) {
-		writeJSON(w, http.StatusForbidden, errorResponse{Error: "forbidden"})
+		writeOriginRefused(w)
 		return "", false
 	}
 	id, err := h.resolveSiteID(r, name)

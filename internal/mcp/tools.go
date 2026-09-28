@@ -157,6 +157,9 @@ func restError(tool string, u upstreamResult) error {
 		msg = http.StatusText(u.status)
 	}
 	hint := codeHint(payload.Code)
+	if supportContact != "" {
+		hint = strings.ReplaceAll(hint, "support@simple-host.app", supportContact)
+	}
 	if hint != "" && payload.Code == "use_custom_domain" && payload.Domain != "" {
 		hint += " Its own address: " + payload.Domain + "."
 	}
@@ -188,44 +191,54 @@ var codeHints = map[string]string{
 	"site_quota_reached": "This account has as many sites as it may hold. Tell the person; a site must be deleted (delete_site) before another can be created. Do not retry.",
 	"append_only": "Items in a public list cannot be edited; only a private list allows that. The owner can still remove one (delete_collection_item) or empty the list (clear_collection). " +
 		"If the person wants to edit items, make the list private with set_collection_privacy; otherwise tell them.",
-	"custom_domain_required":   "This needs the site to have its own address first. Give it one with connect_domain (a free <name>.simple-host.app is active at once), then call again.",
-	"private_visitor_only":     "A private list takes new items only from visitors signed in on the site's own address; an agent cannot add to it. Read it with read_collection, or tell the person.",
-	"private_needs_own_domain": "A private list takes submissions only on the site's own address, from a signed-in visitor. Tell the person rather than retrying.",
-	"use_custom_domain":        "This site saves on its own address, not the shared one. Tell the person; do not retry the same call.",
-	"visitor_auth_required":    "Saving here needs a signed-in visitor on the site's own address; an agent cannot do it. Tell the person rather than retrying.",
-	"not_an_object":            "The saved value is not a JSON object, so it has no fields to change. For state, send a whole new document with update_state replace; for a list item, delete it instead.",
-	"not_found":                "Nothing of that name here. Check the site with list_sites, the list with list_collections and the item id with read_collection.",
-	"missing_api_key":          "The connection to Simple Host is no longer signed in. Ask the person to reconnect Simple Host in their app's connector settings.",
-	"wrong_auth_header":        "The connection to Simple Host is no longer signed in. Ask the person to reconnect Simple Host in their app's connector settings.",
-	"invalid_api_key":          "The connection to Simple Host is no longer signed in. Ask the person to reconnect Simple Host in their app's connector settings.",
-	"deploy_only_key":          "This key is deploy-only: it can create, update, roll back and list sites and make preview links, nothing else. Tell the person this needs a full key (the Keys panel on their Simple Host page makes one); do not retry.",
-	"key_expired":              "This API key has expired. Ask the person for a new key (the Keys panel on their Simple Host page makes one); do not retry.",
-	"key_expired_idle":         "This API key stopped working because it went unused too long. Ask the person for a new key (the Keys panel on their Simple Host page makes one); do not retry.",
-	"invalid_token":            "The connection to Simple Host is no longer signed in. Ask the person to reconnect Simple Host in their app's connector settings.",
-	"site_suspended":           "The operator has taken this site down, and changes to it are refused until it is restored. Tell the person; do not retry.",
-	"account_suspended":        "This account is suspended by the operator. Tell the person to contact support@simple-host.app; do not retry.",
-	"preview_unavailable":      "This site has no address of its own to show a preview on. Tell the person; the version can still be made live with rollback_site.",
-	"site_offline":             "The owner has taken this site offline, so visitors cannot save to it. Put it back online with set_site_offline if the person wants that; the owner's own changes still work.",
-	"declare_first":            "This name has no kind yet, and here that means nothing can be saved under it. Say what it is with declare_data: kind entries for things visitors send, kind content for page info only the owner writes. Then call again.",
-	"confirm_public":           "This name holds private entries, and that change would let anyone read them. Tell the person how many and what becomes public; only if they agree, call the same tool again with confirm_public true.",
-	"wrong_kind":               "This name is declared as another kind. Page info (content) is written whole with update_data; Submissions (entries) and Shared boards (board) take new items with add_to_collection; Personal records (mine) are written only by each visitor from the page. Check list_data, or change the kind with declare_data if the person wants.",
-	"personal_data":            "This name is Personal: each visitor's own record, which Simple Host's owner tools never show (the site's own pages read it for that visitor). list_data shows how many people have one and their size; clear_collection empties it for everyone after the person confirms. Tell the person rather than retrying.",
-	"has_records":              "That Personal name holds visitors' records, so it cannot become another kind (their data would become readable). Use another name, or empty it and delete its Recently deleted for good first, after the person confirms.",
-	"version_conflict":         "Someone changed this board item since the version you sent. The answer holds the item as it is now: apply the change to it and send it again.",
-	"owner_only":               "Only the site's owner can change page info. Tell the person; a visitor cannot.",
-	"one_per_person":           "This list takes one entry per person, and this person already has one. Change that entry instead, or withdraw it first.",
-	"list_full":                "This list is full. The owner can delete entries (delete_collection_item) or clear it (clear_collection) to make room.",
-	"not_allowed_to_save":      "The site's owner has not allowed this account to save here (list_data shows who may save; set_who_can_save changes it). Tell the person rather than retrying.",
-	"too_many_names":           "The site has as many names of that kind as it may hold. Keep related settings in one page info document, and reuse a Submissions name for the same kind of thing.",
-	"has_entries":              "That name holds entries (several, or private ones) that the new kind cannot keep as they are: page info is one public document, and a Personal name starts empty. Use another name.",
-	"visitor_sign_in_off":      "This install does not read visitor sign-in on public saves, so public Submissions could never take an entry. Keep them private, or leave the name Shared; tell the person.",
-	"invalid_kind":             "kind is entries (Submissions), content (Page info), mine (Personal) or board (Shared board); visibility, one_per_person and notify apply to entries only. Correct the arguments and call again.",
-	"invalid_savers":           "Send emails (ann@example.com) or whole domains (@company.com). Correct the list and call again.",
-	"too_many_savers":          "The who-may-save and block lists together are full. Remove some entries (set_who_can_save) first.",
-	"no_author":                "That entry was saved without a sign-in, so there is nobody to block. Delete it instead if the person wants.",
+	"custom_domain_required":      "This needs the site to have its own address first. Give it one with connect_domain (a free <name>.simple-host.app is active at once), then call again.",
+	"private_visitor_only":        "A private list takes new items only from visitors signed in on the site's own address; an agent cannot add to it. Read it with read_collection, or tell the person.",
+	"private_needs_own_domain":    "A private list takes submissions only on the site's own address, from a signed-in visitor. Tell the person rather than retrying.",
+	"use_custom_domain":           "This site saves on its own address, not the shared one. Tell the person; do not retry the same call.",
+	"visitor_auth_required":       "Saving here needs a signed-in visitor on the site's own address; an agent cannot do it. Tell the person rather than retrying.",
+	"not_an_object":               "The saved value is not a JSON object, so it has no fields to change. For state, send a whole new document with update_state replace; for a list item, delete it instead.",
+	"not_found":                   "Nothing of that name here. Check the site with list_sites, the list with list_collections and the item id with read_collection.",
+	"missing_api_key":             "The connection to Simple Host is no longer signed in. Ask the person to reconnect Simple Host in their app's connector settings.",
+	"wrong_auth_header":           "The connection to Simple Host is no longer signed in. Ask the person to reconnect Simple Host in their app's connector settings.",
+	"invalid_api_key":             "The connection to Simple Host is no longer signed in. Ask the person to reconnect Simple Host in their app's connector settings.",
+	"deploy_only_key":             "This key is deploy-only: it can create, update, roll back and list sites and make preview links, nothing else. Tell the person this needs a full key (the Keys panel on their Simple Host page makes one); do not retry.",
+	"key_expired":                 "This API key has expired. Ask the person for a new key (the Keys panel on their Simple Host page makes one); do not retry.",
+	"key_expired_idle":            "This API key stopped working because it went unused too long. Ask the person for a new key (the Keys panel on their Simple Host page makes one); do not retry.",
+	"invalid_token":               "The connection to Simple Host is no longer signed in. Ask the person to reconnect Simple Host in their app's connector settings.",
+	"site_suspended":              "The operator has taken this site down, and changes to it are refused until it is restored. Tell the person; do not retry.",
+	"account_suspended":           "This account is suspended by the operator. Tell the person to contact support@simple-host.app; do not retry.",
+	"preview_unavailable":         "This site has no address of its own to show a preview on. Tell the person; the version can still be made live with rollback_site.",
+	"site_offline":                "The owner has taken this site offline, so visitors cannot save to it. Put it back online with set_site_offline if the person wants that; the owner's own changes still work.",
+	"declare_first":               "This name has no kind yet, and here that means nothing can be saved under it. Say what it is with declare_data: kind entries for things visitors send, kind content for page info only the owner writes. Then call again.",
+	"confirm_public":              "This name holds private entries, and that change would let anyone read them. Tell the person how many and what becomes public; only if they agree, call the same tool again with confirm_public true.",
+	"wrong_kind":                  "This name is declared as another kind. Page info (content) is written whole with update_data; Submissions (entries) and Shared boards (board) take new items with add_to_collection; Personal records (mine) are written only by each visitor from the page. Check list_data, or change the kind with declare_data if the person wants.",
+	"personal_data":               "This name is Personal: each visitor's own record, which Simple Host's owner tools never show (the site's own pages read it for that visitor). list_data shows how many people have one and their size; clear_collection empties it for everyone after the person confirms. Tell the person rather than retrying.",
+	"has_records":                 "That Personal name holds visitors' records, so it cannot become another kind (their data would become readable). Use another name, or empty it and delete its Recently deleted for good first, after the person confirms.",
+	"version_conflict":            "Someone changed this board item since the version you sent. The answer holds the item as it is now: apply the change to it and send it again.",
+	"owner_only":                  "Only the site's owner can change page info. Tell the person; a visitor cannot.",
+	"one_per_person":              "This list takes one entry per person, and this person already has one. Change that entry instead, or withdraw it first.",
+	"list_full":                   "This list is full. The owner can delete entries (delete_collection_item) or clear it (clear_collection) to make room.",
+	"not_allowed_to_save":         "The site's owner has not allowed this account to save here (list_data shows who may save; set_who_can_save changes it). Tell the person rather than retrying.",
+	"too_many_names":              "The site has as many names of that kind as it may hold. Keep related settings in one page info document, and reuse a Submissions name for the same kind of thing.",
+	"has_entries":                 "That name holds entries (several, or private ones) that the new kind cannot keep as they are: page info is one public document, and a Personal name starts empty. Use another name.",
+	"invalid_json":                "The data holds text the database cannot store: a NUL character (\\u0000), half of a surrogate pair, or bytes that are not UTF-8. Remove it and call again.",
+	"origin_not_allowed":          "The request came from a page that is not one of this site's own addresses. Write with the site owner's key and no Origin header (the connector does), or from the site's own page.",
+	"visitor_sign_in_unavailable": "Visitors cannot sign in on this server, so Submissions, Personal, Shared boards and private lists cannot take saves here. Use a Shared name (no kind) instead, and tell the person; whoever runs the server can set up email or Google sign-in.",
+	"email_unavailable":           "This server sends no email, so it cannot email the owner about new entries. Declare the name again with notify off.",
+	"one_document":                "Page info is one document, and bringing that back would make a second one. To put an earlier document back, send it whole with update_data (the current one stays in its history).",
+	"kind_changed":                "The owner changed what this name is while the save was on its way; nothing was saved. Check list_data, then call again if it still fits.",
+	"visitor_sign_in_off":         "This install does not read visitor sign-in on public saves, so public Submissions could never take an entry. Keep them private, or leave the name Shared; tell the person.",
+	"invalid_kind":                "kind is entries (Submissions), content (Page info), mine (Personal) or board (Shared board); visibility, one_per_person and notify apply to entries only. Correct the arguments and call again.",
+	"invalid_savers":              "Send emails (ann@example.com) or whole domains (@company.com). Correct the list and call again.",
+	"too_many_savers":             "The who-may-save and block lists together are full. Remove some entries (set_who_can_save) first.",
+	"no_author":                   "That entry was saved without a sign-in, so there is nobody to block. Delete it instead if the person wants.",
 }
 
 func codeHint(code string) string { return codeHints[code] }
+
+// supportContact replaces the hosted support address in hints on another
+// install (Config.SupportContact; "" keeps it).
+var supportContact string
 
 // statusHint is the fallback for a refusal with no known code.
 func statusHint(status int, msg string) string {
