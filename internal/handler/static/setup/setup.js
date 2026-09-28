@@ -996,7 +996,7 @@
       ]),
       block('Paste into ' + c.shell, r.cmd),
       el('ol', { class: 'steps', start: '2' }, [
-        el('li', null, ['DNS. It ends with the records to add for ', el('code', { text: b.host }), '. Usually these are 4 NS records. If ', el('code', { text: b.host }),
+        el('li', null, ['DNS. Its final output starts with the records to add for ', el('code', { text: b.host }), '. Usually these are 4 NS records. If ', el('code', { text: b.host }),
           ' is under a domain you already manage (like sites.example.com under example.com), add them in that domain’s DNS zone. If it is a domain of its own (like example-sites.com), set them as its name servers at your registrar instead. If ',
           el('code', { text: b.host }), ' is already a Route 53 zone in this account, it says so and there is nothing to add. Certificates follow by themselves within minutes.']),
         el('li', null, ['Check it: this prints ', el('code', { text: '{"status":"ok"}' }), '. Then sign in at ',
