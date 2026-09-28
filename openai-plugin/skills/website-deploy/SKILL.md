@@ -71,8 +71,6 @@ its files first). `create_site` never overwrites an existing site.
 
 - Send every file inline: `{"index.html": "...", "css/style.css": "..."}`. `index.html` is
   required. Binary files (images, fonts) go in `files_base64`; a path is never in both maps.
-- **Relative links only.** The same site can be served at a host root or under a path, so
-  `css/style.css`, `./img/a.jpg`, `about/` work and `/css/style.css` breaks.
 - **Static files only**: HTML, CSS, JS, images, fonts, media. Nothing runs on the server (no
   PHP, Node, Python, server routes). One self-contained `index.html` is fine for small sites.
 - Site names: lowercase letters, numbers, hyphens (`garden-party`), unique in the account.
@@ -82,11 +80,13 @@ its files first). `create_site` never overwrites an existing site.
   until its certificate is issued, usually within about 10 minutes; the returned `url` is right
   either way.) Old `https://<handle>.simple-host.app/<site>/` and
   `https://sites.simple-host.app/<handle>/<site>/` links redirect to the site's address.
-- Check your work before calling it done: relative links only, every referenced file is in the
-  set you sent, names match case exactly. If you can open the url, do it and confirm the page
+- Check your work before calling it done: every referenced file is in the set you sent, names match case exactly. If you can open the url, do it and confirm the page
   and its styles load.
 - Framework projects (Vite, Next.js, Astro...) or building from a local folder: read
   `references/frameworks-and-files.md`.
+- Tip: use relative links (`style.css`, not `/style.css`, and `about.html`, not `/about`) so
+  previews and a new site's first minutes work too; root-relative links work only at the live
+  address.
 
 ## Changing an existing site
 

@@ -32,7 +32,7 @@ framework project that is the build output (`dist/`, `build/`, `out/`, `public/`
   routes, Nuxt server handlers). Nothing runs server-side here.
 - Flag absolute filesystem paths in HTML (`/Users/...`, `C:\...`, `file:///...`).
 - Flag root-absolute asset links in HTML/CSS/JS (`href="/css/..."`,
-  `src="/assets/..."`, `url(/fonts/...)`). These break under the path model.
+  `src="/assets/..."`, `url(/fonts/...)`). These work at the live address but break in previews and a new site's first minutes.
 - Flag case mismatches between HTML references and real filenames — works on
   macOS, breaks on Linux.
 

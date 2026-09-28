@@ -40,7 +40,7 @@ JavaScript can call.
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.1`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.2`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -48,7 +48,7 @@ JavaScript can call.
   `%USERPROFILE%` only in `cmd`). Some tool-call paths do not expand a literal `~`.
 - OpenAPI reference: `/docs.html`
 
-## The one rule that breaks sites: use relative links
+## Where a site lives
 
 Every site gets its own address:
 
@@ -65,11 +65,6 @@ always the one that works. While it is at that fallback, the response carries
 `address_state` (connector: `address_note`; `GET /v1/me` / `who_am_i`: `address`) with
 `state` `waiting` or `failing`, a rough `ready_in_hours`, and a `note`: pass the note on,
 since visitors' sign-ins and browser-kept data start fresh when the address switches.
-
-The same site can be served under a path (that fallback address) or at a domain root,
-so a root-absolute URL like `/css/app.css` can resolve off the site and 404. Use
-`css/app.css`, `./img/x.png`, `../shared/y`. For framework builds, set the
-base/public path so the output emits relative URLs.
 
 Old `<handle>.simple-host.app/<site>/` and `sites.simple-host.app/<handle>/<site>/`
 links redirect to the site's address.
@@ -128,6 +123,11 @@ Package the built directory as `.tar.gz` or `.zip` and `POST /v1/sites/<sitename
 
 Do not upload a source tree for a project that has a build step. Upload the
 production build output.
+
+**Tip:** use relative links (`style.css`, not `/style.css`, and `about.html`, not
+`/about`) so previews and a new site's first minutes work too; root-relative links work
+only at the live address. For framework builds, set the base/public path so the output
+emits relative URLs.
 
 **Redeploy on every push (CI):** `PUT` with `?create=1` creates or updates in
 one call; use a deploy-only key as the CI secret. A deploy key can publish

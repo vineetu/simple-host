@@ -71,7 +71,7 @@ What it is: any folder of HTML/CSS/JS/assets served as-is. Build any framework's
 
 When to choose: every Website Deploy site starts here. Deploy first, then layer storage and external calls.
 
-Gotchas: the same site can be served at a host root or under a path (the fallback `<handle>.simple-host.app/<sitename>/`), so **relative links are required**. Root-absolute paths like `/css/app.css` can resolve to the wrong place and break — use `css/app.css`, `./img/x.png`, `../shared/y`. For framework builds, set the base/public path so output uses relative URLs (e.g. Vite `base: './'`, Next `basePath` / relative assets, etc.). Don't ship `node_modules/` or `.env`. Each archive is capped at 100 MB.
+Gotchas: use relative links (`style.css`, not `/style.css`, and `about.html`, not `/about`) so previews and a new site's first minutes work too; root-relative links work only at the live address. For framework builds, set the base/public path so output uses relative URLs (e.g. Vite `base: './'`, Next `basePath` / relative assets, etc.). Don't ship `node_modules/` or `.env`. Each archive is capped at 100 MB.
 
 ### 2. Per-site JSON state (shared across visitors)
 

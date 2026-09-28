@@ -107,7 +107,7 @@ func TestInitializeNegotiatesAndCarriesInstructions(t *testing.T) {
 		if res["protocolVersion"] != want {
 			t.Errorf("requested %s: got %v, want %s", requested, res["protocolVersion"], want)
 		}
-		if !strings.Contains(res["instructions"].(string), "RELATIVE links") {
+		if !strings.Contains(res["instructions"].(string), "relative links") {
 			t.Error("instructions missing the relative-links rule")
 		}
 		if _, ok := res["capabilities"].(map[string]any)["tools"]; !ok {

@@ -4,9 +4,9 @@ Detect from `package.json` (dependencies and `scripts`) plus root config files.
 Run the framework's **production** build with a **relative** base/public path,
 then upload the output directory.
 
-A site is served at the root of its own host and, on some addresses, under a
-path (the fallback `<handle>.simple-host.app/<sitename>/`), so root-absolute `/assets/...` can
-break and relative `./assets/...` always works. Nothing runs at serve time — only static files
+A site is served at the root of its own host, where root-absolute `/assets/...` works too;
+version previews and a brand-new account's first minutes (`<handle>.simple-host.app/<sitename>/`)
+serve it under a path, where only relative `./assets/...` works. Nothing runs at serve time — only static files
 are served.
 
 | Framework | Detect | Build (with relative base) | Output |
@@ -25,7 +25,7 @@ are served.
 **Unrecognized build system** (Eleventy, Hugo, Jekyll, Remix static export, Qwik,
 SolidStart, VitePress, Docusaurus, …): run its normal production build with a
 relative base/public path and upload the output directory. The rule does not
-change — root-absolute asset URLs break wherever the site is served under a path.
+change — root-absolute asset URLs break in previews and a new site's first minutes.
 
 Never string-rewrite a built bundle to repair its base path. Rebuild with the
 framework's own configuration.
