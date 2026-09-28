@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "simple-host",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Plan, build and publish websites on Simple Host (simple-host.app) from a conversation, with a small built-in backend so forms, RSVPs, surveys, votes and orders save and can be read back, and connect a custom domain.",
   "author": {
     "name": "Vineet Sriram",
@@ -25,25 +25,28 @@
       "interface": {
         "displayName": "Simple Host",
         "shortDescription": "Describe a site. It's online.",
-        "longDescription": "Tell ChatGPT the website you want (a portfolio, an event page with RSVPs, a small shop, a sign-up form, a survey) and Simple Host puts it online at an address you can share straight away. Every site can save what people send it: RSVPs, orders, votes and survey answers are kept, and you can download them as a spreadsheet. Every site gets its own address, and orders, RSVPs and survey answers can go in a private list on it that only you can read. Sign in once and ChatGPT remembers you in every chat after that. Change a site any time by asking for it, and go back to any earlier version if you don't like the change. Pages are public to anyone with the link, so keep private information in private lists. Free to start.",
+        "longDescription": "Tell ChatGPT the website you want (a portfolio, an event page with RSVPs, a small shop, a sign-up form, a survey) and Simple Host puts it online at its own address that you can share straight away.\n\nEvery site can save what people send it. RSVPs, orders, votes and survey answers are kept, and you can download them as a spreadsheet. Orders, RSVPs and sign-ups can go in a private list that only you can read, and you choose who may save: anyone who signs in, or only the people you list.\n\nChange a site any time by asking for it. Earlier versions are kept, so you can preview one or put it back. Saved data keeps 30 days of history, so a deleted entry or an unwanted change can be restored, and a deleted site can be brought back for 7 days.\n\nAsk how many people visited, which pages they read and where they came from. Give a site a free name.simple-host.app address or connect your own domain, and download a copy of any site whenever you like.\n\nSign in once and ChatGPT remembers you in every chat after that. Pages are public to anyone with the link, so keep private information in private lists. Free to start.",
         "developerName": "Vineet Sriram",
         "category": "Productivity",
         "capabilities": [
-          "Publish websites at a public address",
-          "Edit, rename, roll back and delete your sites",
+          "Publish websites, each at its own public address",
+          "Edit, rename, preview, roll back and delete your sites",
           "Save form submissions, RSVPs, votes and orders",
-          "Read what your sites have collected",
-          "Connect your own domain",
-          "See how many people visited"
+          "Keep orders and sign-ups in private lists only you can read",
+          "Read what your sites have collected, and undo changes for 30 days",
+          "Choose who can save on a site, and block people",
+          "Connect your own domain or a free simple-host.app address",
+          "See visitors, top pages and where they came from",
+          "Download a copy of any site"
         ],
         "websiteURL": "https://simple-host.app",
         "supportURL": "https://simple-host.app/support",
         "privacyPolicyURL": "https://simple-host.app/privacy.html",
         "termsOfServiceURL": "https://simple-host.app/terms",
         "defaultPrompt": [
-          "Build a small shop for my spice pantry on its own simple-host.app address, with a private order form only I can read",
-          "Make a site for my home cleaning business on its own simple-host.app address, with a booking form that saves privately",
-          "Create a resource hub for local families with a sign-up form, on its own simple-host.app address, and show me who signed up"
+          "Build a small shop for my spice pantry with an order form, and keep the orders private so only I can read them",
+          "Make a site for my home cleaning business with a booking form, then show me who has booked",
+          "Create a sign-up page for a local families resource hub, and tell me how many people visited this week"
         ],
         "brandColor": "#428AF6",
         "brandColorDark": "#6BA4FF",

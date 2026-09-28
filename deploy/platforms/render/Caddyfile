@@ -1,0 +1,140 @@
+# Caddy for the small box on Render: deploy/compose/Caddyfile with the TLS
+# parts removed. Render's edge terminates HTTPS (custom domains) and forwards
+# plain HTTP to the service's PORT, which start.sh passes in as WEB_PORT.
+# Caddy is still needed: it serves published sites straight from the disk,
+# hides /internal/*, and writes the access log that visitor analytics reads.
+# The server alone does none of that.
+{
+	admin off
+	auto_https off
+	servers {
+		# Render's proxy reaches Caddy over loopback (::1) and sits behind
+		# Cloudflare, which names the visitor in CF-Connecting-IP and refuses
+		# (403) a request that arrives already carrying one. X-Forwarded-For
+		# is no good here: its first entry is whatever the visitor sent.
+		# Trusting CF-Connecting-IP gives the access log (visitor analytics)
+		# and the server's rate limits the visitor's address.
+		trusted_proxies static private_ranges
+		client_ip_headers CF-Connecting-IP
+	}
+}
+
+(app) {
+	reverse_proxy 127.0.0.1:8090 {
+		# The server rate-limits by the LAST X-Forwarded-For entry. Behind
+		# Render that is Render's internal proxy for every visitor (one shared
+		# bucket), so it is replaced with the visitor's address alone.
+		header_up X-Forwarded-For {client_ip}
+		header_up X-Forwarded-Proto https
+	}
+}
+
+:{$WEB_PORT} {
+	log {
+		output file /data/caddy-logs/access.log {
+			mode 644
+			roll_size 64MiB
+			roll_at 00:00
+			roll_keep 35
+			roll_keep_for 672h
+		}
+		format json
+	}
+	# Render checks /healthz every few seconds; logged, that would slowly
+	# fill a 1 GB disk. Once the service has custom domains, Render sends the
+	# check with one of them as the Host, which can be sites.<domain>; there
+	# the content routes below would answer 404 and the deploy would never go
+	# live. So /healthz goes to the server on every host.
+	@health path /healthz
+	log_skip @health
+	handle @health {
+		import app
+	}
+
+	# /internal/* is for this file's own rewrites: from outside it is not found.
+	@internal path /internal/*
+	handle @internal {
+		respond 404
+	}
+
+	@api path /v1/*
+	handle @api {
+		import app
+	}
+
+	@content header_regexp Host ^sites\.
+	handle @content {
+		route {
+			@nodir path_regexp nodir ^/([a-z0-9-]{1,39})/([a-z0-9-]{1,63})$
+			redir @nodir {uri}/ 308
+
+			@site path_regexp site ^/([a-z0-9-]{1,39})/([a-z0-9-]{1,63})(/.*)?$
+			route @site {
+				@domainredirect file {
+					root /data/sites/handles
+					try_files /{re.site.1}/{re.site.2}/domain-redirect
+				}
+				route @domainredirect {
+					rewrite * /internal/domain-redirect/{re.site.1}/{re.site.2}{re.site.3}
+					import app
+				}
+				@suspended file {
+					root /data/sites/handles
+					try_files /{re.site.1}/{re.site.2}/suspended
+				}
+				route @suspended {
+					rewrite * /internal/suspended
+					import app
+				}
+				@offline file {
+					root /data/sites/handles
+					try_files /{re.site.1}/{re.site.2}/offline
+				}
+				route @offline {
+					rewrite * /internal/offline
+					import app
+				}
+				@nosite not file {
+					root /data/sites/handles
+					try_files /{re.site.1}/{re.site.2}/current/
+				}
+				route @nosite {
+					rewrite * /internal/site-redirect/{re.site.1}/{re.site.2}{re.site.3}
+					import app
+				}
+				rewrite * /{re.site.1}/{re.site.2}/current{re.site.3}
+				root * /data/sites/handles
+				file_server
+			}
+
+			@person path_regexp person ^/([a-z0-9-]{1,39})/?$
+			route @person {
+				rewrite * /internal/showcase/{re.person.1}
+				import app
+			}
+
+			rewrite * /internal/notfound
+			reverse_proxy 127.0.0.1:8090 {
+				header_up X-Original-URI {http.request.orig_uri}
+				header_up X-Forwarded-For {client_ip}
+				header_up X-Forwarded-Proto https
+			}
+		}
+	}
+
+	handle_errors 404 {
+		@contentmiss header_regexp Host ^sites\.
+		route @contentmiss {
+			rewrite * /internal/notfound
+			reverse_proxy 127.0.0.1:8090 {
+				header_up X-Original-URI {http.request.orig_uri}
+				header_up X-Forwarded-For {client_ip}
+				header_up X-Forwarded-Proto https
+			}
+		}
+	}
+
+	handle {
+		import app
+	}
+}

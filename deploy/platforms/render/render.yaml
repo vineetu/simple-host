@@ -1,0 +1,57 @@
+# Simple Host small box on Render, as a Blueprint. docs/platforms/render.md
+# walks through it. Set the three hostnames, push your copy of the repository,
+# then New > Blueprint in the Render dashboard with the Blueprint Path
+# deploy/platforms/render/render.yaml.
+#
+# Needs a card on the workspace: a disk and the Pre-Deploy Command are paid
+# features, and a free web service loses every published site when it sleeps.
+services:
+  - type: web
+    name: simple-host
+    runtime: docker
+    plan: 0.5c-512mb         # "Starter", $7/month: the smallest plan that takes a disk
+    region: oregon
+    dockerfilePath: ./deploy/platforms/render/Dockerfile
+    dockerContext: ./deploy/platforms/render
+    # Loads the schema into a new database, then `simple-host migrate`, on
+    # separate compute before every deploy. A failure stops the deploy and
+    # leaves the running version alone.
+    preDeployCommand: /usr/local/bin/start.sh release
+    healthCheckPath: /healthz
+    numInstances: 1          # a disk pins the service to one instance
+    disk:
+      name: simple-host-data
+      mountPath: /data       # published sites and the access log
+      sizeGB: 1
+    envVars:
+      - key: DB_DSN
+        fromDatabase:
+          name: simple-host-db
+          property: connectionString
+      - key: ADMIN_API_KEY
+        generateValue: true  # the first admin's sign-in; read it in the dashboard
+      - key: SITE_DOMAIN
+        value: hack.example.com
+      - key: CONTENT_HOST
+        value: sites.hack.example.com
+      - key: PUBLIC_BASE_URL
+        value: https://hack.example.com
+      # How big one website may be (MB), and how many deploys of each to keep.
+      # The VPS small box keeps 1 (no rollback); 3 allows going back two versions.
+      - key: MAX_ARCHIVE_MB
+        value: "100"
+      - key: KEEP_VERSIONS
+        value: "3"
+    domains:
+      - hack.example.com
+      - sites.hack.example.com
+
+databases:
+  - name: simple-host-db
+    plan: 0.1c-256mb         # $6/month plus $0.30/GB of storage
+    region: oregon
+    postgresMajorVersion: "16"
+    databaseName: simplehost
+    user: simplehost
+    diskSizeGB: 1
+    ipAllowList: []          # reachable only from your Render services

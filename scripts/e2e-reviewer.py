@@ -9,7 +9,7 @@ registration -> consent page offers "Reviewer sign-in" -> reviewer sign-in with
 email + password only -> Allow -> code -> token (PKCE, resource=/mcp) ->
 tools/list (every tool carries all three hints) -> who_am_i -> create_site ->
 the page is served at the returned URL -> read_collection/list_sites carry no
-internal ids -> delete_site cleans up. Also: a wrong password is refused.
+account ids -> delete_site cleans up. Also: a wrong password is refused.
 Set EXPECT_CHALLENGE to the token to compare it exactly.
 """
 import base64, hashlib, json, os, re, secrets, sys, urllib.error, urllib.parse, urllib.request
@@ -121,6 +121,11 @@ for t in tools:
 me = call("who_am_i", {})
 check(not me["isError"] and me["structuredContent"]["email"] == EMAIL.lower(), "who_am_i is the reviewer")
 
+# A run that stopped half way leaves its throwaway site behind; remove it first.
+for s in call("list_sites", {})["structuredContent"].get("sites", []):
+    if s.get("name", "").startswith("reviewer-e2e-"):
+        call("delete_site", {"site": s["name"], "confirm_name": s["name"]})
+
 site = "reviewer-e2e-" + secrets.token_hex(3)
 html = "<!DOCTYPE html><html><head><meta charset=utf-8><title>Reviewer e2e</title></head><body><h1>Published through the connector</h1></body></html>"
 res = call("create_site", {"site": site, "files": {"index.html": html}})
@@ -135,7 +140,9 @@ res = call("add_to_collection", {"site": site, "collection": "rsvps", "item": {"
 check(not res["isError"], "add_to_collection")
 res = call("read_collection", {"site": site, "collection": "rsvps"})
 body = json.dumps(res)
-check(res["structuredContent"]["items"][0]["data"]["name"] == "Reviewer" and '"id"' not in body, "read_collection returns the data, no row ids")
+# Each item carries its public item id (delete_collection_item and update_collection_item
+# take it); account ids and other bookkeeping never appear.
+check(res["structuredContent"]["items"][0]["data"]["name"] == "Reviewer" and not any(k in body for k in ("\"site_id\"", "\"user_id\"", "\"submitted_by\"", "owner_username")), "read_collection returns the data, no account ids")
 res = call("list_sites", {})
 body = json.dumps(res)
 check(not any(k in body for k in ('"id"', "user_id", "updated_at", "owner_username")), "list_sites carries no internal ids or bookkeeping")
