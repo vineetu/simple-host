@@ -1326,7 +1326,7 @@ func (h *SiteHandler) commitCreate(w http.ResponseWriter, r *http.Request, user 
 	// A guest-created users row has a NULL handle until owner-intent. First
 	// deploy is owner-intent: assign before building the path-model site URL.
 	if user != nil && (!user.Handle.Valid || user.Handle.String == "") {
-		assignHandle(r.Context(), h.database, user.ID, user.Username)
+		assignHandle(r.Context(), h.database, user.ID, handleSeed(user, h.siteDomain))
 		if refetched, err := db.GetUserByUsername(r.Context(), h.database, user.Username); err == nil {
 			*user = refetched
 		}

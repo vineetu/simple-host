@@ -87,6 +87,23 @@ func sanitizeHandleBase(email string) string {
 	return s
 }
 
+// handleSeed is what a first handle is derived from: the account's username
+// (its email), except for the instance's own admin row (username "admin",
+// which is reserved and would come out as admin-2). The admin gets the first
+// label of the instance's domain instead (spring for spring.example.com), or
+// "organiser" when that label is reserved or not a handle as written. Taken
+// labels fall through to organiser-2 and so on, as for anyone.
+func handleSeed(user *db.User, siteDomain string) string {
+	if !user.IsAdmin || user.Username != "admin" {
+		return user.Username
+	}
+	label, _, _ := strings.Cut(strings.ToLower(strings.TrimSpace(siteDomain)), ".")
+	if base := sanitizeHandleBase(label); label != "" && base == label && !labelReservedForNew(base) {
+		return base
+	}
+	return "organiser"
+}
+
 // assignHandle claims a free URL-safe handle for userID derived from email.
 // Failures are logged but never fatal — a missing handle must not break sign-in.
 // Owner-intent only: email-code verify, dashboard OAuth, or first deploy.
