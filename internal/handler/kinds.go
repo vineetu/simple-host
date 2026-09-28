@@ -1595,7 +1595,7 @@ func (h *SiteHandler) notifyStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, err := db.SetNotify(r.Context(), h.database, siteID, name, db.NotifyOff); err != nil {
-		h.renderServiceError(w)
+		h.renderServiceError(w, r)
 		return
 	}
 	h.renderMessagePage(w, r, http.StatusOK, "Stopped: no more emails about "+html.EscapeString(name),

@@ -22,6 +22,12 @@ import (
 //	<!--sh:header-->  first thing in <body>
 //	<!--sh:footer-->  after the page's content, before its scripts
 //
+// The theme — Match my system, Light or Dark, one choice under localStorage
+// 'sh-theme' for every page — is partials/theme.html, which the head partial
+// includes. A page with no other chrome (the first-run wizard, the offline and
+// take-down pages, the bare sign-in-failed page) carries <!--sh:theme--> in its
+// <head> for the same script alone. No page has a theme rule of its own.
+//
 // Every path that serves an HTML page goes through withChrome: the file server
 // (chromeFileServer, including "/" → index.html), serveStaticPage, the
 // host-rewritten install.html on other instances (serveRewrittenAsset), and the
@@ -31,6 +37,7 @@ const (
 	markerHead   = "<!--sh:head-->"
 	markerHeader = "<!--sh:header-->"
 	markerFooter = "<!--sh:footer-->"
+	markerTheme  = "<!--sh:theme-->"
 )
 
 // markerAsk is where a page wants an "Ask" assistant, named in the marker:
@@ -164,6 +171,7 @@ func withChrome(page []byte, d chromeData) ([]byte, error) {
 		{markerHead, "head.html"},
 		{markerHeader, "header.html"},
 		{markerFooter, "footer.html"},
+		{markerTheme, "theme.html"},
 	} {
 		if !bytes.Contains(page, []byte(m.marker)) {
 			continue
@@ -197,6 +205,16 @@ func withChrome(page []byte, d chromeData) ([]byte, error) {
 		page = append(page[:loc[0]:loc[0]], append(out, page[loc[1]:]...)...)
 	}
 	return page, nil
+}
+
+// themed fills the theme marker of a page built in Go that has no other
+// chrome. It runs once, at package init.
+func themed(page string) string {
+	b, err := withChrome([]byte(page), chromeData{})
+	if err != nil {
+		panic("theme partial: " + err.Error())
+	}
+	return string(b)
 }
 
 type chromeCacheKey struct {

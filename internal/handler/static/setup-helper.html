@@ -8,17 +8,25 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <!--sh:head-->
   <style>
-    /* Tokens, base type and the header/footer live in /site.css. This page is
-       light only: the light tokens are pinned here, header and footer too. */
+    /* Tokens, base type and the header/footer live in /site.css. This page
+       uses the navy document style: its accent and a few surfaces are set
+       here for both themes, header and footer too; light or dark follows the
+       site-wide theme (partials/theme.html). */
     html:root, html:root .sh-header, html:root .sh-footer {
-      color-scheme: light;
-      --bg: #f7f8fb; --surface: #ffffff; --grid: #e9edf4; --border: #e2e8f0; --border-hi: #cbd5e1;
-      --text: #0f172a; --text-secondary: #475569; --dim: #94a3b8;
-      --accent: #17336b; --accent-hover: #0e2250; --success: #059669; --error: #e11d48;
-      --header-bg: rgba(255, 255, 255, 0.82); --on-accent: #ffffff;
+      --accent: #17336b; --accent-hover: #0e2250; --on-accent: #ffffff;
+      --field-bg: #ffffff; --tint: #f3f6fc; --soft: #f6f8fb; --code-bg: #eef2f8;
+      --warn: #d97706; --warn-ink: #8a4b00; --warn-bg: #fff4e0; --warn-soft: #fffaf2;
+      --flash: #e8eefb; --flash-ring: #c9d6f2;
     }
-    /* Light only, so the header's theme switch has nothing to do here. */
-    #theme-toggle { display: none; }
+    html[data-theme="dark"]:root, html[data-theme="dark"]:root .sh-header, html[data-theme="dark"]:root .sh-footer {
+      --bg: #0c1424; --surface: #111a2b; --grid: #13203a; --border: #2a3548; --border-hi: #3a475c;
+      --text: #e6ebf3; --text-secondary: #a3afc1; --dim: #6b778a;
+      --accent: #9db8ec; --accent-hover: #c3d4f5; --on-accent: #0c1424;
+      --header-bg: rgba(12, 20, 36, 0.82);
+      --field-bg: #0c1424; --tint: #1b2b4b; --soft: #13203a; --code-bg: #18233a;
+      --warn: #e8a33d; --warn-ink: #f2c27a; --warn-bg: #3a2a10; --warn-soft: #221a0e;
+      --flash: #1b2b4b; --flash-ring: #3d5a8f;
+    }
     body { background: var(--bg); color: var(--text); min-height: 100vh; }
     .wrap { max-width: 760px; margin: 0 auto; padding: 0 24px; }
     main { padding: 40px 0 88px; }
@@ -28,7 +36,7 @@
     h3 { font-size: 16px; font-weight: 650; margin: 0 0 4px; }
     .lede { font-size: 17px; color: var(--text-secondary); line-height: 1.55; margin: 0 0 22px; }
     .note { font-size: 14px; color: var(--text-secondary); line-height: 1.5; margin: 6px 0 0; }
-    code { font-family: var(--mono); font-size: .9em; background: #eef2f8; padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+    code { font-family: var(--mono); font-size: .9em; background: var(--code-bg); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
 
     /* Progress */
     .progress { display: flex; gap: 6px; list-style: none; margin: 0 0 28px; padding: 0; counter-reset: p; }
@@ -46,7 +54,7 @@
     .choice input { position: absolute; opacity: 0; pointer-events: none; }
     .choice b { display: block; font-size: 16px; margin-bottom: 4px; }
     .choice span { display: block; font-size: 14px; color: var(--text-secondary); line-height: 1.45; }
-    .choice:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: #f3f6fc; }
+    .choice:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--tint); }
     .choice:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 
     /* Fields */
@@ -56,27 +64,27 @@
     .field .name { font-family: var(--mono); font-size: 12px; color: var(--text-secondary); font-weight: 400; margin-left: 6px; overflow-wrap: anywhere; }
     .field .help { font-size: 14px; color: var(--text-secondary); margin: 0 0 8px; line-height: 1.45; }
     input[type=text], input[type=email], input[type=number], select {
-      width: 100%; font: inherit; font-size: 16px; color: var(--text); background: #fff;
+      width: 100%; font: inherit; font-size: 16px; color: var(--text); background: var(--field-bg);
       border: 1px solid var(--border-hi); border-radius: 8px; padding: 9px 11px; min-height: 42px;
     }
     input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
     input.bad { border-color: var(--error); }
     .err { color: var(--error); font-size: 13px; margin-top: 4px; }
     .opts { display: flex; flex-wrap: wrap; gap: 8px; }
-    .opt { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border-hi); border-radius: 999px; padding: 6px 12px; font-size: 14px; cursor: pointer; background: #fff; min-height: 36px; }
+    .opt { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border-hi); border-radius: 999px; padding: 6px 12px; font-size: 14px; cursor: pointer; background: var(--field-bg); min-height: 36px; }
     .opt input { accent-color: var(--accent); margin: 0; }
-    .opt:has(input:checked) { border-color: var(--accent); background: #f3f6fc; font-weight: 600; }
+    .opt:has(input:checked) { border-color: var(--accent); background: var(--tint); font-weight: 600; }
     .row { display: flex; gap: 8px; align-items: center; }
     .row input { flex: 1; }
     .skip { flex: none; font: inherit; font-size: 13px; color: var(--text-secondary); background: none; border: 0; padding: 6px 4px; cursor: pointer; text-decoration: underline; }
-    .tag { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; color: #8a4b00; background: #fff4e0; border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px; }
-    .secret { font-size: 14px; color: var(--text-secondary); background: #f6f8fb; border: 1px dashed var(--border-hi); border-radius: 8px; padding: 10px 12px; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; color: var(--warn-ink); background: var(--warn-bg); border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px; }
+    .secret { font-size: 14px; color: var(--text-secondary); background: var(--soft); border: 1px dashed var(--border-hi); border-radius: 8px; padding: 10px 12px; }
     fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
     legend { padding: 0; }
 
     /* Buttons */
     .nav { display: flex; gap: 10px; justify-content: space-between; align-items: center; margin-top: 22px; flex-wrap: wrap; }
-    .btn { font: inherit; font-size: 15px; font-weight: 600; border-radius: 8px; padding: 10px 18px; min-height: 44px; cursor: pointer; border: 1px solid var(--border-hi); background: #fff; color: var(--text); }
+    .btn { font: inherit; font-size: 15px; font-weight: 600; border-radius: 8px; padding: 10px 18px; min-height: 44px; cursor: pointer; border: 1px solid var(--border-hi); background: var(--field-bg); color: var(--text); }
     .btn:hover { border-color: var(--accent); color: var(--accent); }
     .btn.solid { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
     .btn.solid:hover { background: var(--accent-hover); color: var(--on-accent); }
@@ -113,12 +121,12 @@
     @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
     .checking .skip { padding-left: 0; }
     .finding { border: 1px solid var(--border); border-left: 4px solid var(--border-hi); border-radius: 8px; padding: 12px 14px; margin: 0 0 12px; }
-    .finding.warn { border-left-color: #d97706; background: #fffaf2; }
-    .finding.info { border-left-color: var(--accent); background: #f6f8fc; }
+    .finding.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+    .finding.info { border-left-color: var(--accent); background: var(--soft); }
     .finding p { margin: 6px 0 0; font-size: 15px; line-height: 1.5; }
     .finding-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
     .finding .sev { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-    .finding.warn .sev { color: #8a4b00; }
+    .finding.warn .sev { color: var(--warn-ink); }
     .finding.info .sev { color: var(--accent); }
     .finding .name { font-family: var(--mono); font-size: 12.5px; color: var(--text-secondary); overflow-wrap: anywhere; }
     .finding .suggest { font-size: 14px; color: var(--text-secondary); }
@@ -129,8 +137,8 @@
     /* The assistant (setup/assist.js): the Ask panel's look from site.css,
        with suggested changes to apply, and beside the form on wide screens. */
     .field.assisted { animation: assisted 2.4s ease-out; border-radius: 8px; }
-    @keyframes assisted { from { background: #e8eefb; box-shadow: 0 0 0 8px #e8eefb; } to { background: transparent; box-shadow: 0 0 0 8px transparent; } }
-    @media (prefers-reduced-motion: reduce) { .field.assisted { animation: none; outline: 2px solid #c9d6f2; outline-offset: 6px; } }
+    @keyframes assisted { from { background: var(--flash); box-shadow: 0 0 0 8px var(--flash); } to { background: transparent; box-shadow: 0 0 0 8px transparent; } }
+    @media (prefers-reduced-motion: reduce) { .field.assisted { animation: none; outline: 2px solid var(--flash-ring); outline-offset: 6px; } }
     .sh-assist .sh-ask-head > div { min-width: 0; }
     .sh-assist .sh-assist-for { margin: 1px 0 0; font-size: 12.5px; color: var(--text-secondary); }
     .sh-assist .sh-assist-intro { padding: 12px 16px 0; font-size: 14px; line-height: 1.5; color: var(--text-secondary); }
@@ -138,17 +146,17 @@
     .sh-assist .sh-assist-example { display: block; width: 100%; text-align: left; font: inherit; font-size: 13.5px; line-height: 1.4; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin: 0 0 8px; cursor: pointer; }
     .sh-assist .sh-assist-example:hover { border-color: var(--accent); }
     .sh-assist .sh-assist-tools { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 16px 0; }
-    .sh-assist .sh-assist-quick { font: inherit; font-size: 13px; font-weight: 600; color: var(--accent); background: #fff; border: 1px solid var(--border-hi); border-radius: 999px; padding: 6px 12px; min-height: 34px; cursor: pointer; }
+    .sh-assist .sh-assist-quick { font: inherit; font-size: 13px; font-weight: 600; color: var(--accent); background: var(--field-bg); border: 1px solid var(--border-hi); border-radius: 999px; padding: 6px 12px; min-height: 34px; cursor: pointer; }
     .sh-assist .sh-assist-quick:hover { border-color: var(--accent); }
     .sh-assist button:disabled { opacity: .6; cursor: default; }
     .sh-assist .sh-assist-changes { margin-top: 10px; }
     .sh-assist .sh-assist-changes ul { list-style: none; margin: 0; padding: 0; }
-    .sh-assist .sh-assist-item { border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 8px; padding: 9px 11px; margin: 0 0 8px; background: #f7f9fd; }
+    .sh-assist .sh-assist-item { border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 8px; padding: 9px 11px; margin: 0 0 8px; background: var(--soft); }
     .sh-assist .sh-assist-what { margin: 0; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
     .sh-assist .sh-assist-what b { font-weight: 650; }
     .sh-assist .sh-assist-now { margin: 3px 0 0; font-size: 12.5px; color: var(--text-secondary); overflow-wrap: anywhere; }
     .sh-assist .sh-assist-acts { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
-    .sh-assist .sh-assist-acts button, .sh-assist .sh-assist-all { font: inherit; font-size: 13px; font-weight: 600; border-radius: 7px; padding: 5px 12px; min-height: 32px; cursor: pointer; border: 1px solid var(--border-hi); background: #fff; color: var(--text); }
+    .sh-assist .sh-assist-acts button, .sh-assist .sh-assist-all { font: inherit; font-size: 13px; font-weight: 600; border-radius: 7px; padding: 5px 12px; min-height: 32px; cursor: pointer; border: 1px solid var(--border-hi); background: var(--field-bg); color: var(--text); }
     .sh-assist .sh-assist-apply { background: var(--accent) !important; border-color: var(--accent) !important; color: var(--on-accent) !important; }
     .sh-assist .sh-assist-apply:hover { background: var(--accent-hover) !important; }
     .sh-assist .sh-assist-acts button:focus-visible, .sh-assist .sh-assist-all:focus-visible, .sh-assist .sh-assist-quick:focus-visible, .sh-assist .sh-assist-example:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

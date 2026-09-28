@@ -24,12 +24,12 @@ import (
 
 // offlinePage is served on the site's own origins (custom domains included),
 // so it loads nothing and names no one.
-const offlinePage = `<!doctype html>
+var offlinePage = themed(`<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex"><title>Site offline</title>
-<style>body{font:17px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1a2233;background:#fff;margin:0;padding:15vh 20px;text-align:center}h1{font-size:26px;margin:0 0 8px}p{color:#5b6576;margin:0}</style>
+<meta name="robots" content="noindex"><!--sh:theme--><title>Site offline</title>
+<style>body{font:17px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1a2233;background:#fff;margin:0;padding:15vh 20px;text-align:center}h1{font-size:26px;margin:0 0 8px}p{color:#5b6576;margin:0}html[data-theme=dark] body{color:#e6ebf3;background:#0b1222}html[data-theme=dark] p{color:#a3afc1}</style>
 </head><body><h1>This site is offline</h1><p>Its owner has taken it offline for now.</p></body></html>
-`
+`)
 
 // serveOffline writes the offline page: 503 (a pause, not a removal) and
 // no-store, so switching the site back on takes effect on the next load.

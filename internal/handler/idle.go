@@ -355,7 +355,7 @@ func (h *SiteHandler) idleLinkSite(w http.ResponseWriter, r *http.Request) (db.I
 	l, err := db.GetIdleLink(r.Context(), h.database, idleTokenHash(tok))
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
-			h.renderServiceError(w)
+			h.renderServiceError(w, r)
 			return db.IdleLink{}, false
 		}
 		h.idleLinkGone(w, r)
@@ -407,7 +407,7 @@ func (h *SiteHandler) idleKeep(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := db.KeepIdleSite(r.Context(), h.database, l.SiteID); err != nil {
-		h.renderServiceError(w)
+		h.renderServiceError(w, r)
 		return
 	}
 	h.renderMessagePage(w, r, http.StatusOK, "Kept: "+html.EscapeString(l.Name)+" stays online",
@@ -445,7 +445,7 @@ func (h *SiteHandler) idleRestore(w http.ResponseWriter, r *http.Request) {
 	}
 	owner, err := db.GetUserByID(r.Context(), h.database, l.UserID)
 	if err != nil {
-		h.renderServiceError(w)
+		h.renderServiceError(w, r)
 		return
 	}
 	// RestoreDeletedSite ends the link and restarts the idle clock.
@@ -456,7 +456,7 @@ func (h *SiteHandler) idleRestore(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.Printf("idle-site restore %s: %v", l.SiteID, err)
-		h.renderServiceError(w)
+		h.renderServiceError(w, r)
 		return
 	}
 	addr := h.siteURLFor(site)

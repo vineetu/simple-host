@@ -24,10 +24,9 @@ import (
 	"golang.org/x/oauth2"
 )
 
-const (
-	oauthStateTTL   = 10 * time.Minute
-	oauthHTMLFailed = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Sign-in failed</title></head><body><p>Sign-in failed. Close this tab and try again from the site.</p></body></html>`
-)
+const oauthStateTTL = 10 * time.Minute
+
+var oauthHTMLFailed = themed(`<!DOCTYPE html><html><head><meta charset="utf-8"><!--sh:theme--><title>Sign-in failed</title></head><body><p>Sign-in failed. Close this tab and try again from the site.</p></body></html>`)
 
 // visitorHandleRe / visitorSitenameRe are the path-model segments allowed in
 // return_to (SPEC §2.1). Sitename is the nginx content-host charset, not the

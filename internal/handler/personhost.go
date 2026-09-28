@@ -247,7 +247,7 @@ func (h *SiteHandler) PersonHosts(api, next http.Handler) http.Handler {
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				log.Printf("person host %s: %v", host, err)
-				h.renderServiceError(w)
+				h.renderServiceError(w, r)
 				return
 			}
 			if current, aerr := db.ResolveHandleAlias(r.Context(), h.database, label); aerr == nil && handleAddressable(current) {
@@ -295,7 +295,7 @@ func (h *SiteHandler) servePersonHost(w http.ResponseWriter, r *http.Request, us
 	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, seg)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
-			h.renderServiceError(w)
+			h.renderServiceError(w, r)
 			return
 		}
 		// A root-absolute link written for the old path address

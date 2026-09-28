@@ -179,7 +179,8 @@ code, kbd, samp, pre { font-family: var(--mono); }
 }
 .sh-header .sh-acct-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
 .sh-header .sh-acct-btn svg { display: block; flex: none; }
-.sh-header .sh-acct-menu {
+.sh-header .sh-acct-menu,
+.sh-header .sh-theme-menu {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
@@ -192,9 +193,11 @@ code, kbd, samp, pre { font-family: var(--mono); }
   border-radius: 10px;
   box-shadow: 0 10px 30px rgba(2, 6, 23, 0.18);
 }
-.sh-header .sh-acct-menu[hidden] { display: none; }
+.sh-header .sh-acct-menu[hidden],
+.sh-header .sh-theme-menu[hidden] { display: none; }
 .sh-header .sh-acct-menu a,
-.sh-header .sh-acct-menu button {
+.sh-header .sh-acct-menu button,
+.sh-header .sh-theme-menu button {
   display: block;
   width: 100%;
   margin: 0;
@@ -211,7 +214,8 @@ code, kbd, samp, pre { font-family: var(--mono); }
   cursor: pointer;
 }
 .sh-header .sh-acct-menu a:hover,
-.sh-header .sh-acct-menu button:hover { background: var(--grid); }
+.sh-header .sh-acct-menu button:hover,
+.sh-header .sh-theme-menu button:hover { background: var(--grid); }
 .sh-header .sh-acct-menu button { color: var(--text-secondary); }
 .sh-header .sh-theme {
   flex: none;
@@ -231,7 +235,14 @@ code, kbd, samp, pre { font-family: var(--mono); }
   cursor: pointer;
   transition: none;
 }
-.sh-header .sh-theme:hover { border-color: var(--accent); color: var(--accent); }
+.sh-header .sh-theme:hover,
+.sh-header .sh-theme[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+/* The theme menu: Match my system, Light, Dark. The chosen one carries a tick. */
+.sh-header .sh-themes { position: relative; flex: none; }
+.sh-header .sh-theme-menu { min-width: 180px; }
+.sh-header .sh-theme-menu button { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sh-header .sh-theme-menu button[aria-checked="true"] { font-weight: 600; }
+.sh-header .sh-theme-menu button[aria-checked="true"]::after { content: "\2713"; color: var(--accent); }
 .sh-header .sh-theme svg { display: block; }
 
 /* ---- Footer -------------------------------------------------------------- */
@@ -311,6 +322,7 @@ code, kbd, samp, pre { font-family: var(--mono); }
    (data-tone="navy") use their navy document colours. */
 .sh-ask { font-family: var(--font); }
 .sh-ask[data-tone="navy"] { --accent: #17336b; --accent-hover: #0e2250; --on-accent: #fff; --surface: #fff; --bg: #f7f8fb; --border: #d8dde5; --border-hi: #c3cad6; --text: #0f172a; --text-secondary: #5f6b7c; }
+html[data-theme="dark"] .sh-ask[data-tone="navy"] { --accent: #9db8ec; --accent-hover: #c3d4f5; --on-accent: #0c1424; --surface: #111a2b; --bg: #0c1424; --border: #2a3548; --border-hi: #3a475c; --text: #e6ebf3; --text-secondary: #8f9bad; }
 body:has(.sh-ask-fab) { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
 .sh-ask .sh-ask-fab { position: fixed; z-index: 60; right: max(16px, calc(env(safe-area-inset-right, 0px) + 12px)); bottom: max(16px, calc(env(safe-area-inset-bottom, 0px) + 12px)); display: inline-flex; align-items: center; gap: 7px; height: 44px; padding: 0 18px 0 15px; font: inherit; font-size: 15px; font-weight: 600; line-height: 1; border: 0; border-radius: 999px; background: var(--accent); color: var(--on-accent); cursor: pointer; box-shadow: 0 6px 18px rgba(15, 23, 42, .18), 0 1px 3px rgba(15, 23, 42, .12); }
 .sh-ask .sh-ask-fab:hover { background: var(--accent-hover); }

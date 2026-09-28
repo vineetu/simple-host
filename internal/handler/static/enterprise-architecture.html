@@ -14,19 +14,10 @@
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <!--sh:head-->
-  <script>
-    // Light unless the reader picked dark with the header's toggle (the OS
-    // setting is not followed on this page; owner decision 2026-09-27).
-    (function () {
-      var root = document.documentElement;
-      root.dataset.themeDefault = 'light';
-      try { root.dataset.theme = localStorage.getItem('sh-theme') || 'light'; } catch (e) { root.dataset.theme = 'light'; }
-    })();
-  </script>
   <style>
     /* Tokens, base type and the header/footer live in /site.css. This page
-       adds its own navy document style on top: light by default, a dark
-       navy palette when the reader picks dark (the header's toggle). */
+       adds its own navy document style on top, light or a dark navy palette
+       with the site-wide theme (partials/theme.html). */
     .arch {
       --navy: #17336b;
       --navy-ink: #0e2250;

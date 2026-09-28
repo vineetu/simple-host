@@ -271,7 +271,7 @@ func (h *SiteHandler) servePreview(w http.ResponseWriter, r *http.Request, site 
 	kept, err := db.VersionKept(r.Context(), h.database, site.ID, n)
 	if err != nil {
 		log.Printf("preview %s v%d: %v", site.ID, n, err)
-		h.renderServiceError(w)
+		h.renderServiceError(w, r)
 		return
 	}
 	if !kept {

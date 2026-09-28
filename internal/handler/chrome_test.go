@@ -265,15 +265,23 @@ func TestChromeFileServerLeavesTheRestAlone(t *testing.T) {
 }
 
 func TestSetupPageHasNoChrome(t *testing.T) {
-	// The first-run wizard on an unconfigured box stays exactly as written.
+	// The first-run wizard on an unconfigured box has no header or footer;
+	// it carries the shared theme script alone (<!--sh:theme-->).
 	raw, err := staticFiles.ReadFile("static/setup.html")
 	if err != nil {
 		t.Fatal(err)
 	}
 	rec := httptest.NewRecorder()
 	serveStaticPage("setup.html").ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
-	if rec.Body.String() != string(raw) {
-		t.Error("setup.html was altered in serving")
+	body := rec.Body.String()
+	if strings.Contains(body, `class="sh-header"`) || strings.Contains(body, `class="sh-footer"`) || strings.Contains(body, "site.css") {
+		t.Error("setup.html gained chrome")
+	}
+	if strings.Count(body, themeScriptNeedle) != 1 || strings.Contains(body, markerTheme) {
+		t.Error("setup.html: want the shared theme script exactly once in place of its marker")
+	}
+	if strings.Replace(body, themeScriptFor(t), markerTheme, 1) != string(raw) {
+		t.Error("setup.html was altered in serving beyond its theme marker")
 	}
 }
 

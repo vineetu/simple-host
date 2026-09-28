@@ -13,15 +13,6 @@
   <meta property="og:image" content="https://simple-host.app/og.png">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <!--sh:head-->
-  <script>
-    // Light unless the reader picked dark with the header's toggle, as on the
-    // enterprise pages.
-    (function () {
-      var root = document.documentElement;
-      root.dataset.themeDefault = 'light';
-      try { root.dataset.theme = localStorage.getItem('sh-theme') || 'light'; } catch (e) { root.dataset.theme = 'light'; }
-    })();
-  </script>
   <style>
     /* Tokens, base type and the header/footer live in /site.css. */
     :root {

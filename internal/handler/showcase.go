@@ -150,13 +150,13 @@ func (h *SiteHandler) renderShowcase(w http.ResponseWriter, r *http.Request, han
 			h.renderNotFound(w, r, "/"+handle)
 			return
 		}
-		h.renderServiceError(w)
+		h.renderServiceError(w, r)
 		return
 	}
 
 	sites, err := db.ListSitesByUser(r.Context(), h.database, user.ID)
 	if err != nil {
-		h.renderServiceError(w)
+		h.renderServiceError(w, r)
 		return
 	}
 
@@ -190,7 +190,7 @@ func (h *SiteHandler) renderShowcase(w http.ResponseWriter, r *http.Request, han
 
 	page, err := showcasePage(chromeDataFor(r, h.chromeBase(r)), data)
 	if err != nil {
-		h.renderServiceError(w)
+		h.renderServiceError(w, r)
 		return
 	}
 
@@ -422,9 +422,11 @@ func writeMessagePage(w http.ResponseWriter, r *http.Request, base string, statu
 	_, _ = w.Write([]byte(page))
 }
 
-func (h *SiteHandler) renderServiceError(w http.ResponseWriter) {
+var serviceErrorPage = themed(`<!doctype html><meta charset=utf-8><meta name=robots content=noindex><!--sh:theme--><title>Temporarily unavailable</title><h1>Temporarily unavailable</h1><p>Please try again in a moment.</p>`)
+
+func (h *SiteHandler) renderServiceError(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusServiceUnavailable)
-	_, _ = w.Write([]byte(`<!doctype html><meta charset=utf-8><meta name=robots content=noindex><title>Temporarily unavailable</title><h1>Temporarily unavailable</h1><p>Please try again in a moment.</p>`))
+	_, _ = w.Write(stampNonce(r, []byte(serviceErrorPage)))
 }

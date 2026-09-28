@@ -200,7 +200,7 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				log.Printf("site host %s: %v", host, err)
-				h.renderServiceError(w)
+				h.renderServiceError(w, r)
 				return
 			}
 			// An old handle kept as an alias: the site's current address.
@@ -226,7 +226,7 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				log.Printf("site host %s: %v", host, err)
-				h.renderServiceError(w)
+				h.renderServiceError(w, r)
 				return
 			}
 			// An old name of a renamed site: its current address.

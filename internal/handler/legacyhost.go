@@ -65,7 +65,7 @@ func (h *SiteHandler) LegacyHostRedirect(next http.Handler) http.Handler {
 			return
 		case !errors.Is(err, sql.ErrNoRows):
 			log.Printf("legacy host %s: %v", host, err)
-			h.renderServiceError(w)
+			h.renderServiceError(w, r)
 			return
 		}
 
@@ -73,7 +73,7 @@ func (h *SiteHandler) LegacyHostRedirect(next http.Handler) http.Handler {
 		// answers as removed (restore brings it back), never another site.
 		if held, err := db.DomainHeldByDeletedSite(r.Context(), h.database, host); err != nil {
 			log.Printf("legacy host %s: %v", host, err)
-			h.renderServiceError(w)
+			h.renderServiceError(w, r)
 			return
 		} else if held {
 			h.renderNotFoundPage(w, r, "This site was removed",

@@ -33,12 +33,12 @@ var uuidShape = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4
 // takedownPage is what every address of a suspended site answers. Plain on
 // purpose: it is served on the site's own origins (custom domains included),
 // so it loads nothing and names no one.
-const takedownPage = `<!doctype html>
+var takedownPage = themed(`<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex"><title>Site taken down</title>
-<style>body{font:17px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1a2233;background:#fff;margin:0;padding:15vh 20px;text-align:center}h1{font-size:26px;margin:0 0 8px}p{color:#5b6576;margin:0}</style>
+<meta name="robots" content="noindex"><!--sh:theme--><title>Site taken down</title>
+<style>body{font:17px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1a2233;background:#fff;margin:0;padding:15vh 20px;text-align:center}h1{font-size:26px;margin:0 0 8px}p{color:#5b6576;margin:0}html[data-theme=dark] body{color:#e6ebf3;background:#0b1222}html[data-theme=dark] p{color:#a3afc1}</style>
 </head><body><h1>This site has been taken down</h1><p>It is no longer available.</p></body></html>
-`
+`)
 
 // serveTakedown writes the take-down page. 410 so it is not cached as the
 // site's content; no-store so a restore takes effect on the next load.
