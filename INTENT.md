@@ -531,3 +531,10 @@ What follows from that, and is not negotiable without changing the line above:
 
 - Whether a site that disconnects its domain should be migrated back to a "normal" shared-host site in some
   guided way, rather than just having the redirect stop. Parked 2026-09-06; revisit when it happens.
+- **2026-09-28. A new account chooses its address at sign-up; pages never use native dialogs.**
+  When an emailed code, link or Google sign-in would create an account, the person (or their
+  agent, via `choose_handle` then `handle` on `POST /v1/auth/verify`) chooses the handle before
+  it is created, prefilled with the address it would have been given; a taken or reserved one
+  is refused at once, naming the address. No page uses the browser's confirm/alert/prompt: AI
+  browser agents cannot see them, so the page hangs. Reason: an owner's agent got `hello-2`
+  and then could not change it. Owner decision 2026-09-28.

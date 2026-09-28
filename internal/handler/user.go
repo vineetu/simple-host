@@ -37,6 +37,8 @@ type UserHandler struct {
 	// (mail-bomb + code-grinding defense). See ratelimit.go.
 	ipLimiter    *rateLimiter
 	emailLimiter *rateLimiter
+	// checkLimiter caps address checks per client IP (GET /v1/handles/check).
+	checkLimiter *rateLimiter
 
 	// publicPage builds an account's public page address (SiteHandler.PersonPageURL).
 	publicPage func(handle string) string
@@ -94,6 +96,14 @@ type verifyRequest struct {
 	// Name labels the key this sign-in issues (Keys panel). Optional: a link
 	// or Google sign-in defaults to "dashboard sign-in", a code to "agent sign-in".
 	Name string `json:"name"`
+	// Handle is the address a NEW account takes (ignored when the account
+	// exists). Refused as invalid_handle, handle_reserved or handle_taken
+	// without using up the code, so the caller can try another.
+	Handle *string `json:"handle"`
+	// ChooseHandle: when this sign-in would create the account, create
+	// nothing yet and answer 409 choose_handle with a suggested address; the
+	// caller asks the person and verifies again with Handle.
+	ChooseHandle bool `json:"choose_handle"`
 }
 
 type authResponse struct {
@@ -110,6 +120,10 @@ type errorResponse struct {
 	// Code is a stable snake_case name for the failure, set where one error
 	// status has more than one meaning (the MCP tools key their hints on it).
 	Code string `json:"code,omitempty"`
+	// SuggestedHandle and Address come with code choose_handle (a new
+	// account's sign-in asked to choose its address first).
+	SuggestedHandle string `json:"suggested_handle,omitempty"`
+	Address         string `json:"address,omitempty"`
 }
 
 func NewUserHandler(database *sql.DB, mailer email.Sender, publicBaseURL string) *UserHandler {
@@ -119,7 +133,10 @@ func NewUserHandler(database *sql.DB, mailer email.Sender, publicBaseURL string)
 	emailLimiter := newRateLimiterFor(config.Active().RateSigninEmail)
 	ipLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	emailLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	checkLimiter := newRateLimiterFor(config.Active().RateHandleCheck)
+	checkLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	return &UserHandler{
+		checkLimiter:  checkLimiter,
 		database:      database,
 		mailer:        mailer,
 		publicBaseURL: strings.TrimRight(publicBaseURL, "/"),
@@ -132,6 +149,7 @@ func NewUserHandler(database *sql.DB, mailer email.Sender, publicBaseURL string)
 func (h *UserHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddleware func(http.Handler) http.Handler) {
 	mux.Handle("POST /v1/auth", noticeMiddleware(rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.requestSignIn))))
 	mux.Handle("POST /v1/auth/verify", noticeMiddleware(rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.verifySignIn))))
+	mux.Handle("GET /v1/handles/check", rateLimitByIP(h.checkLimiter, http.HandlerFunc(h.handleCheck)))
 	mux.Handle("GET /v1/me", noticeMiddleware(authMiddleware(http.HandlerFunc(h.me))))
 	mux.Handle("POST /v1/me/api-key/rotate", noticeMiddleware(authMiddleware(http.HandlerFunc(h.rotateAPIKey))))
 	mux.Handle("POST /v1/me/sign-out", noticeMiddleware(authMiddleware(http.HandlerFunc(h.signOut))))

@@ -17,6 +17,7 @@ at startup. The others may be set to anything, with a startup warning past ten t
 | `RATE_LIMIT_VISITOR_OAUTH` | `20,5s` | stricter freely; loosest `80,1.25s` | Visitor Google sign-ins per address. **Security-sensitive.** |
 | `RATE_LIMIT_VISITOR_AUTH` | `20,5s` | stricter freely; loosest `80,1.25s` | Visitor email-code sign-ins per address. **Security-sensitive.** |
 | `RATE_LIMIT_VISITOR` | `20,5s` | stricter freely; loosest `80,1.25s` | Finishing a visitor sign-in and signing out, per address. **Security-sensitive.** |
+| `RATE_LIMIT_HANDLE_CHECK` | `30,2s` | any (warns past 10× looser) | Address availability checks while someone types a handle (GET /v1/handles/check), per address. |
 | `RATE_LIMIT_OAUTH_REGISTER` | `10,6m` | stricter freely; loosest `40,1m30s` | AI app registrations on the connector, per address. **Security-sensitive.** |
 | `RATE_LIMIT_OAUTH_AUTHORIZE` | `30,2s` | stricter freely; loosest `120,500ms` | AI app sign-in requests on the connector, per address. **Security-sensitive.** |
 | `RATE_LIMIT_OAUTH_TOKEN` | `30,2s` | stricter freely; loosest `120,500ms` | AI app token requests on the connector, per address. **Security-sensitive.** |

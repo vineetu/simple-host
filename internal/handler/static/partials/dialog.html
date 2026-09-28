@@ -7,6 +7,10 @@
        shConfirm({title, body, confirmLabel, cancelLabel, danger}) → Promise<boolean>
        shPrompt({title, body, label, value, placeholder, confirmLabel}) → Promise<string|null>
        shAlert({title, body, okLabel, copy}) → Promise<void>
+     shPrompt also takes check(value) → Promise<{ok, message}> (run while
+     typing), and message/messageBad for a first line under the field.
+     shHandleCheck(value, key?) asks GET /v1/handles/check; shVerifySignIn(body)
+     is POST /v1/auth/verify that asks a new account for its address first.
      Escape or Cancel settles false / null; focus returns where it was. */
   (function () {
     var dlg, settle = null;
@@ -21,7 +25,8 @@
         '<form class="sh-dlg-box" method="dialog" novalidate>' +
           '<h2 class="sh-dlg-title" id="sh-dlg-title"></h2>' +
           '<p class="sh-dlg-body" id="sh-dlg-body"></p>' +
-          '<label class="sh-dlg-field"><span class="sh-dlg-label"></span><input class="sh-dlg-input" type="text" autocomplete="off" spellcheck="false"></label>' +
+          '<label class="sh-dlg-field"><span class="sh-dlg-label"></span><input class="sh-dlg-input" type="text" autocomplete="off" spellcheck="false" autocapitalize="off"></label>' +
+          '<p class="sh-dlg-msg" aria-live="polite" hidden></p>' +
           '<div class="sh-dlg-copy"><input class="sh-dlg-input" type="text" readonly aria-label="Value to copy"><button class="sh-dlg-btn" type="button" data-sh-dlg="copy">Copy</button></div>' +
           '<div class="sh-dlg-actions">' +
             '<button class="sh-dlg-btn" type="button" data-sh-dlg="cancel"></button>' +
@@ -30,7 +35,18 @@
         '</form>';
       document.body.appendChild(dlg);
       var q = function (s) { return dlg.querySelector(s); };
-      q('form').addEventListener('submit', function (e) { e.preventDefault(); close(true); });
+      q('form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (!checker) { close(true); return; }
+        // A checked answer closes only once its check says yes.
+        runCheck(true).then(function (ok) { if (ok) close(true); });
+      });
+      q('.sh-dlg-field input').addEventListener('input', function () {
+        if (!checker) return;
+        clearTimeout(checkTimer);
+        q('[data-sh-dlg="ok"]').disabled = true;
+        checkTimer = setTimeout(function () { runCheck(false); }, 350);
+      });
       q('[data-sh-dlg="cancel"]').addEventListener('click', function () { close(false); });
       q('[data-sh-dlg="copy"]').addEventListener('click', function () {
         var b = this, inp = q('.sh-dlg-copy input');
@@ -42,6 +58,24 @@
       dlg.addEventListener('cancel', function (e) { e.preventDefault(); close(false); });
       // A press on the backdrop (the <dialog> itself, outside the box) cancels.
       dlg.addEventListener('click', function (e) { if (e.target === dlg) close(false); });
+    };
+    // shPrompt's optional check(value) → Promise<{ok, message}>: run while
+    // typing (debounced) and again on submit; its message shows under the
+    // field, and OK waits for a yes.
+    var checker = null, checkTimer = null, checkSeq = 0;
+    var runCheck = function (final) {
+      var inp = dlg.querySelector('.sh-dlg-field input'), msg = dlg.querySelector('.sh-dlg-msg');
+      var okBtn = dlg.querySelector('[data-sh-dlg="ok"]'), seq = ++checkSeq, value = inp.value;
+      okBtn.disabled = true;
+      return Promise.resolve(checker(value)).catch(function () { return { ok: final, message: '' }; }).then(function (r) {
+        if (seq !== checkSeq) return false;
+        r = r || {};
+        msg.textContent = r.message || '';
+        msg.hidden = !r.message;
+        msg.classList.toggle('sh-dlg-bad', !r.ok);
+        okBtn.disabled = !r.ok;
+        return !!r.ok;
+      });
     };
     var close = function (ok) {
       if (!settle) return;
@@ -72,6 +106,12 @@
       okBtn.classList.toggle('sh-dlg-danger', !!o.danger);
       cancelBtn.textContent = o.cancelLabel || 'Cancel';
       cancelBtn.hidden = kind === 'alert';
+      checker = kind === 'prompt' && typeof o.check === 'function' ? o.check : null;
+      clearTimeout(checkTimer); checkSeq++;
+      okBtn.disabled = false;
+      var msgEl = q('.sh-dlg-msg');
+      msgEl.textContent = o.message || ''; msgEl.hidden = !o.message; msgEl.classList.toggle('sh-dlg-bad', !!o.messageBad);
+      if (checker) runCheck(false);
       var back = document.activeElement;
       return new Promise(function (resolve) {
         settle = function (ok) {
@@ -88,6 +128,48 @@
       });
     };
     window.shConfirm = function (o) { return open('confirm', o); };
+    window.shHandleCheck = function (value, key) {
+      // GET /v1/handles/check, worded for the field: free, or why not.
+      var h = String(value || '').trim().toLowerCase();
+      if (!h) return Promise.resolve({ ok: false, message: '' });
+      var headers = key ? { 'X-API-Key': key } : {};
+      return fetch('/v1/handles/check?handle=' + encodeURIComponent(h), { headers: headers, credentials: 'same-origin' })
+        .then(function (r) { return r.json().then(function (b) { return { status: r.status, b: b }; }); })
+        .then(function (x) {
+          if (x.status === 429) return { ok: true, message: '' }; // the save still decides
+          if (x.b.available) return { ok: true, message: x.b.address + ' is free.' };
+          return { ok: false, message: x.b.error || 'That address cannot be used.' };
+        });
+    };
+    // Sign-in by emailed code, link or Google: POST /v1/auth/verify. When it
+    // would create a new account the server asks for the address first
+    // (409 choose_handle): ask here, prefilled with its suggestion, checked
+    // while typing, then verify again with it. Resolves {ok, status, body};
+    // cancelled: true when the person closed the question (nothing created,
+    // the code still works).
+    window.shVerifySignIn = function (body) {
+      var post = function (b) {
+        return fetch('/v1/auth/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) })
+          .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, status: r.status, body: d }; }); });
+      };
+      var first = Object.assign({}, body, { choose_handle: true });
+      return post(first).then(function loop(r, prev) {
+        var c = r.body && r.body.code;
+        if (c !== 'choose_handle' && c !== 'handle_taken' && c !== 'handle_reserved' && c !== 'invalid_handle') return r;
+        var suggestion = c === 'choose_handle' ? (r.body.suggested_handle || '') : (prev || '');
+        return window.shPrompt({
+          title: 'Choose your address',
+          body: 'Your page and every site\'s address start with this name. You can change it later from your dashboard, not more than once in 30 days.',
+          label: 'Address', value: suggestion, confirmLabel: 'Continue', cancelLabel: 'Cancel',
+          message: c === 'choose_handle' ? '' : r.body.error, messageBad: c !== 'choose_handle',
+          check: function (v) { return window.shHandleCheck(v); }
+        }).then(function (h) {
+          if (h == null) return { ok: false, status: 0, cancelled: true, body: { error: 'Sign-up cancelled: nothing was created. Enter the code again to continue.' } };
+          h = h.trim().toLowerCase();
+          return post(Object.assign({}, body, { handle: h })).then(function (r2) { return loop(r2, h); });
+        });
+      });
+    };
     window.shPrompt = function (o) { return open('prompt', o); };
     window.shAlert = function (o) { return open('alert', o); };
   })();

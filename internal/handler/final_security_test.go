@@ -283,7 +283,7 @@ func TestReservedNewNames(t *testing.T) {
 			t.Fatalf("claim %s: %d %s", n, r.status, r.body)
 		}
 	}
-	if r := a.at(t, "PATCH", pcSiteDomain, "/v1/me", map[string]string{"handle": "security"}, key); r.status != 400 || !strings.Contains(string(r.body), "reserved; pick another") {
+	if r := a.at(t, "PATCH", pcSiteDomain, "/v1/me", map[string]string{"handle": "security"}, key); r.status != 409 || r.json(t)["code"] != "handle_reserved" || !strings.Contains(string(r.body), "That address is reserved: security."+pcSiteDomain) {
 		t.Fatalf("handle change: %d %s", r.status, r.body)
 	}
 	// A sign-up whose address would make a reserved handle gets another.

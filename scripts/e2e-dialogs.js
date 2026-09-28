@@ -8,6 +8,8 @@
 //      PATCH is sent; "Yes, change my address" sends it and the page moves.
 //   2. A site's "Take offline": in-page confirm, then the PATCH; put back online.
 //   3. Keys → "Sign out everywhere": in-page confirm, then a new key.
+//   1b. A taken address (TAKEN) is refused in the page with the reason; no
+//      question, no PATCH, still signed in; PATCH /v1/me with it is a 409.
 //   4. The dialog fits at 390 px and follows the light and dark themes.
 //   5. Your data → Delete my account: typed confirmation, then the in-page
 //      "Your account and all its data were deleted" notice; OK signs out.
@@ -64,6 +66,25 @@ const assert = (c, m) => { if (!c) { console.error('FAIL: ' + m); process.exitCo
   await dlg.waitFor({ state: 'hidden', timeout: 3000 });
   await p.waitForTimeout(500);
   assert(!sent.includes('PATCH /v1/me'), 'Escape cancels: no PATCH /v1/me sent');
+  assert(await p.evaluate((k) => localStorage.getItem('apiKey') === k, key0), 'cancelling keeps this browser signed in');
+
+  // A taken or reserved address (TAKEN, default "admin") is refused at once,
+  // in the page, before any question; the page and the sign-in stay.
+  const taken = process.env.TAKEN || 'admin';
+  await p.locator('#addr-input').fill(taken);
+  await p.waitForFunction(() => { const m = document.getElementById('addr-msg'); return m && !m.hidden && m.classList.contains('bad'); }, null, { timeout: 8000 });
+  const whyTyping = await p.locator('#addr-msg').textContent();
+  assert(/^That address is (taken|reserved): /.test(whyTyping), `typing a taken address says why (${whyTyping})`);
+  await p.locator('#addr-save').click();
+  await p.waitForTimeout(1200);
+  assert(!(await dlg.isVisible()) && !sent.includes('PATCH /v1/me'), 'saving it asks nothing and sends no PATCH');
+  assert(await p.locator('#addr-current').isVisible() && await p.evaluate((k) => localStorage.getItem('apiKey') === k, key0), 'the page and the sign-in stay');
+  const direct = await p.request.patch(base + '/v1/me', { headers: { 'X-API-Key': key0, 'Content-Type': 'application/json' }, data: { handle: taken } });
+  const dj = await direct.json();
+  assert(direct.status() === 409 && /^handle_(taken|reserved)$/.test(dj.code) && dj.error.indexOf(taken + '.') > 0, `PATCH /v1/me with it: 409 ${dj.code} "${dj.error}"`);
+
+  await p.locator('#addr-input').fill(newHandle);
+  await p.waitForFunction(() => { const m = document.getElementById('addr-msg'); return m && !m.hidden && !m.classList.contains('bad'); }, null, { timeout: 8000 });
   await p.locator('#addr-save').click();
   await dlg.waitFor({ state: 'visible', timeout: 5000 });
   // The page moves to <main site>/<new handle>; a local server's main site

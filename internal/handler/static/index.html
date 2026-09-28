@@ -1447,14 +1447,10 @@ function parseAnalyticsSummary(data) {
 
       setBtnLoading('verify-btn', true);
       try {
-        const res = await fetch('/v1/auth/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: pendingEmail, code, name: 'dashboard sign-in' })
-        });
-        const data = await res.json();
-        if (res.ok) completeSignIn(data);
-        else toast(data.error || 'Invalid code', 'error');
+        // A new account chooses its address first (shVerifySignIn asks).
+        const r = await window.shVerifySignIn({ email: pendingEmail, code, name: 'dashboard sign-in' });
+        if (r.ok) completeSignIn(r.body);
+        else toast(r.body.error || 'Invalid code', 'error');
       } catch {
         toast('Cannot reach server', 'error');
       } finally {
@@ -1465,17 +1461,12 @@ function parseAnalyticsSummary(data) {
     // Step 2b: verify a token from a magic link
     async function verifyMagicLink(token, nonce) {
       try {
-        const res = await fetch('/v1/auth/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, nonce })
-        });
-        const data = await res.json();
-        if (res.ok) {
-          completeSignIn(data);
+        const r = await window.shVerifySignIn({ token, nonce });
+        if (r.ok) {
+          completeSignIn(r.body);
         } else {
           showAuthStep('email');
-          toast(data.error || 'Link expired — try again', 'error');
+          toast(r.body.error || 'Link expired — try again', 'error');
         }
       } catch {
         showAuthStep('email');

@@ -391,6 +391,17 @@
       "small_box": true
     },
     {
+      "name": "RATE_LIMIT_HANDLE_CHECK",
+      "group": "accounts",
+      "description": "Address availability checks while someone types a handle (GET /v1/handles/check), per address.",
+      "type": "rate",
+      "default": "30,2s",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
       "name": "RATE_LIMIT_OAUTH_REGISTER",
       "group": "accounts",
       "description": "AI app registrations on the connector, per address.",

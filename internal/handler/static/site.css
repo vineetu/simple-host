@@ -385,3 +385,6 @@ body:has(.sh-ask-fab) { padding-bottom: calc(76px + env(safe-area-inset-bottom, 
   .sh-dlg .sh-dlg-actions { flex-direction: column-reverse; }
   .sh-dlg .sh-dlg-actions .sh-dlg-btn { width: 100%; }
 }
+.sh-dlg .sh-dlg-msg { margin: 8px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--success); overflow-wrap: anywhere; }
+.sh-dlg .sh-dlg-msg.sh-dlg-bad { color: var(--error); }
+.sh-dlg .sh-dlg-btn:disabled { opacity: .55; cursor: default; }

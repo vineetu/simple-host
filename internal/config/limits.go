@@ -83,6 +83,7 @@ type Limits struct {
 	RateTLSAsk          Rate // RATE_LIMIT_TLS_ASK
 	RateDomainCheck     Rate // RATE_LIMIT_DOMAIN_CHECK
 	RateDomainCheckUser Rate // RATE_LIMIT_DOMAIN_CHECK_USER
+	RateHandleCheck     Rate // RATE_LIMIT_HANDLE_CHECK
 	RateOAuthRegister   Rate // RATE_LIMIT_OAUTH_REGISTER
 	RateOAuthAuthorize  Rate // RATE_LIMIT_OAUTH_AUTHORIZE
 	RateOAuthToken      Rate // RATE_LIMIT_OAUTH_TOKEN
@@ -308,6 +309,7 @@ func DefaultLimits() Limits {
 		RateTLSAsk:          Rate{60, 100 * time.Millisecond},
 		RateDomainCheck:     Rate{10, 10 * time.Second},
 		RateDomainCheckUser: Rate{3, 30 * time.Second},
+		RateHandleCheck:     Rate{30, 2 * time.Second},
 		RateOAuthRegister:   Rate{10, 6 * time.Minute},
 		RateOAuthAuthorize:  Rate{30, 2 * time.Second},
 		RateOAuthToken:      Rate{30, 2 * time.Second},
@@ -494,6 +496,7 @@ func Knobs() []Knob {
 		rateKnob("RATE_LIMIT_TLS_ASK", func(l *Limits) *Rate { return &l.RateTLSAsk }),
 		rateKnob("RATE_LIMIT_DOMAIN_CHECK", func(l *Limits) *Rate { return &l.RateDomainCheck }),
 		rateKnob("RATE_LIMIT_DOMAIN_CHECK_USER", func(l *Limits) *Rate { return &l.RateDomainCheckUser }),
+		rateKnob("RATE_LIMIT_HANDLE_CHECK", func(l *Limits) *Rate { return &l.RateHandleCheck }),
 		secRateKnob("RATE_LIMIT_OAUTH_REGISTER", func(l *Limits) *Rate { return &l.RateOAuthRegister }),
 		secRateKnob("RATE_LIMIT_OAUTH_AUTHORIZE", func(l *Limits) *Rate { return &l.RateOAuthAuthorize }),
 		secRateKnob("RATE_LIMIT_OAUTH_TOKEN", func(l *Limits) *Rate { return &l.RateOAuthToken }),

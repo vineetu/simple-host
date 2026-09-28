@@ -307,6 +307,19 @@ func (h *SiteHandler) patchMe(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, errorResponse{Error: "invalid request body"})
 		return
 	}
+	// A new address is judged first, so a taken, reserved or malformed one
+	// is refused at once with the address named (judgeHandle).
+	if req.Handle != nil && *req.Handle != user.Handle.String {
+		v, jerr := judgeHandle(r.Context(), h.database, user.ID, *req.Handle)
+		if jerr != nil {
+			writeJSON(w, 500, errorResponse{Error: "internal server error"})
+			return
+		}
+		if v.Status != 0 {
+			writeJSON(w, v.Status, errorResponse{Error: v.Error, Code: v.Code, Address: v.Address})
+			return
+		}
+	}
 	if err := validateProfile(&req); err != nil {
 		writeJSON(w, 400, errorResponse{Error: err.Error()})
 		return
@@ -366,7 +379,7 @@ func (h *SiteHandler) patchMe(w http.ResponseWriter, r *http.Request) {
 			}
 			_, err = db.RenameHandleTx(r.Context(), tx, user.ID, *req.Handle)
 			if errors.Is(err, db.ErrDomainTaken) || isUniqueViolation(err) {
-				writeJSON(w, 409, errorResponse{Error: "handle already taken"})
+				writeJSON(w, 409, errorResponse{Error: handleTakenMsg(*req.Handle), Code: "handle_taken", Address: handleAddress(*req.Handle)})
 				return
 			}
 			if err != nil {
@@ -381,12 +394,12 @@ func (h *SiteHandler) patchMe(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if !free {
-				writeJSON(w, 409, errorResponse{Error: "handle already taken"})
+				writeJSON(w, 409, errorResponse{Error: handleTakenMsg(*req.Handle), Code: "handle_taken", Address: handleAddress(*req.Handle)})
 				return
 			}
 			_, err = tx.ExecContext(r.Context(), "UPDATE users SET handle=$2, handle_changed_at=now() WHERE id=$1", user.ID, *req.Handle)
 			if isUniqueViolation(err) {
-				writeJSON(w, 409, errorResponse{Error: "handle already taken"})
+				writeJSON(w, 409, errorResponse{Error: handleTakenMsg(*req.Handle), Code: "handle_taken", Address: handleAddress(*req.Handle)})
 				return
 			}
 			if err != nil {

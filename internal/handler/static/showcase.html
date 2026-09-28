@@ -149,6 +149,8 @@
     /* Your address (cp/recover) */
     .addr-form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px 0; border-top: 1px solid var(--border); }
     .addr-form label { font-size: 14px; color: var(--text-secondary); }
+    .addr-msg { flex-basis: 100%; margin: 0; font-size: 13.5px; color: var(--success); overflow-wrap: anywhere; }
+    .addr-msg.bad { color: var(--error); }
     .addr-field { display: inline-flex; align-items: center; gap: 2px; font-size: 14px; color: var(--text-secondary); }
     .addr-field input { font: inherit; color: var(--text); padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; width: 14em; max-width: 60vw; }
     .section-num {
@@ -890,6 +892,7 @@
           <span class="addr-field"><input type="text" id="addr-input" autocomplete="off" spellcheck="false" maxlength="39"><span id="addr-suffix"></span></span>
           <button type="submit" class="btn btn-primary btn-small" id="addr-save">Save</button>
           <button type="button" class="btn-ghost btn-small" id="addr-cancel">Cancel</button>
+          <p class="addr-msg" id="addr-msg" aria-live="polite" hidden></p>
         </form>
       </div>
       <div class="section" id="owner-deleted" hidden>
@@ -3723,13 +3726,10 @@ function parseAnalyticsSummary(data) {
       var btn = document.getElementById('ai-code-btn');
       btn.disabled = true;
       try {
-        var res = await fetch('/v1/auth/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: pendingAuthEmail, code: code, name: 'dashboard sign-in' })
-        });
-        var data = await res.json().catch(function () { return {}; });
-        if (res.ok && data.api_key) {
+        // A new account chooses its address first (shVerifySignIn asks).
+        var vr = await window.shVerifySignIn({ email: pendingAuthEmail, code: code, name: 'dashboard sign-in' });
+        var data = vr.body || {};
+        if (vr.ok && data.api_key) {
           apiKey = data.api_key;
           // Stored only on the base origin (simple-host.app). This page is also
           // a person's page on <handle>.simple-host.app, whose storage sites
@@ -4117,7 +4117,26 @@ function parseAnalyticsSummary(data) {
         document.getElementById('addr-suffix').textContent = suffix;
         document.getElementById('owner-address').hidden = false;
       }
+      // The address is checked while it is typed (GET /v1/handles/check,
+      // debounced), and a refusal from the save shows in the same line.
+      var addrMsg = document.getElementById('addr-msg'), addrTimer = null, addrSeq = 0;
+      function showAddrMsg(text, bad) {
+        addrMsg.textContent = text || '';
+        addrMsg.hidden = !text;
+        addrMsg.classList.toggle('bad', !!bad);
+      }
+      document.getElementById('addr-input').addEventListener('input', function () {
+        clearTimeout(addrTimer);
+        var v = this.value.trim().toLowerCase(), seq = ++addrSeq;
+        if (!v || v === HANDLE) { showAddrMsg(''); return; }
+        addrTimer = setTimeout(function () {
+          window.shHandleCheck(v, apiKey).then(function (r) {
+            if (seq === addrSeq) showAddrMsg(r.message, !r.ok);
+          }).catch(function () {});
+        }, 350);
+      });
       function openForm(open) {
+        showAddrMsg('');
         document.getElementById('addr-form').hidden = !open;
         document.getElementById('addr-change').hidden = open;
         if (open) {
@@ -4134,9 +4153,12 @@ function parseAnalyticsSummary(data) {
         var next = document.getElementById('addr-input').value.trim().toLowerCase();
         if (next === HANDLE) { openForm(false); return; }
         if (!HANDLE_RE.test(next) || next.indexOf('xn--') === 0) {
-          toast('Use 1 to 39 lowercase letters, numbers or hyphens, not starting or ending with a hyphen.', 'error');
+          showAddrMsg('Use 1 to 39 lowercase letters, numbers or hyphens, not starting or ending with a hyphen.', true);
           return;
         }
+        // Taken or reserved: say so now, before asking to confirm.
+        var pre = await window.shHandleCheck(next, apiKey).catch(function () { return { ok: true }; });
+        if (!pre.ok) { showAddrMsg(pre.message, true); document.getElementById('addr-input').focus(); return; }
         var ok = await shConfirm({
           title: 'Change your address to ' + next + suffix + '?',
           body: 'Old links to your page and your sites keep working: they redirect to the new address.\n\n' +
@@ -4149,13 +4171,14 @@ function parseAnalyticsSummary(data) {
         btn.disabled = true;
         try {
           var res = await api('PATCH', '/v1/me', { handle: next });
-          if (res.status === 409) { toast('That address is already taken. Try another.', 'error'); return; }
-          if (!res.ok) { toast(await errorOf(res, 'Could not change your address'), 'error'); return; }
+          // A refused save keeps the page and the sign-in as they are: the
+          // reason shows under the field and the form stays open.
+          if (!res.ok) { var why = await errorOf(res, 'Could not change your address. Try again.'); showAddrMsg(why, true); toast(why, 'error'); return; }
           var me = await res.json();
           toast('Your address is now ' + me.handle + suffix, 'success');
           location.href = MAIN_URL.replace(/\/$/, '') + '/' + encodeURIComponent(me.handle);
         } catch (err) {
-          toast('Could not change your address', 'error');
+          showAddrMsg('Could not reach Simple Host. Nothing changed; try again.', true);
         } finally {
           btn.disabled = false;
         }

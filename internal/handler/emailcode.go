@@ -134,6 +134,33 @@ func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter
 		}
 	}
 
+	// The code is right. A new account's address: chosen now, before
+	// anything is created or the code is spent, so a refusal can be retried.
+	var chosen string
+	if purpose == "dashboard" && (req.Handle != nil || req.ChooseHandle) {
+		_, lerr := db.GetUserByUsername(ctx, database, tok.Email)
+		switch {
+		case errors.Is(lerr, sql.ErrNoRows) && req.Handle != nil:
+			chosen = strings.ToLower(strings.TrimSpace(*req.Handle))
+			v, jerr := judgeHandle(ctx, database, "", chosen)
+			if jerr != nil {
+				return db.User{}, false, http.StatusInternalServerError, errorResponse{Error: "internal server error"}
+			}
+			if v.Status != 0 {
+				return db.User{}, false, v.Status, errorResponse{Error: v.Error, Code: v.Code, Address: v.Address}
+			}
+		case errors.Is(lerr, sql.ErrNoRows):
+			sug := suggestHandle(ctx, database, tok.Email)
+			return db.User{}, false, http.StatusConflict, errorResponse{
+				Error: "Choose your address before the account is created: send the same code again with \"handle\". You can change it later, not more than once in 30 days.",
+				Code:  "choose_handle", SuggestedHandle: sug, Address: handleAddress(sug),
+			}
+		case lerr != nil:
+			log.Printf("auth: lookup before choosing a handle: %v", lerr)
+			return db.User{}, false, http.StatusInternalServerError, errorResponse{Error: "internal server error"}
+		}
+	}
+
 	// Spend the token and look the account up in one transaction. A sign-in
 	// email change retires the old address's tokens in its own transaction,
 	// so the two serialize on the token row: either this verify finds the
@@ -185,7 +212,18 @@ func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter
 	// still have a NULL handle). ClaimHandle only writes WHERE handle IS NULL,
 	// so existing handles are never overwritten.
 	if purpose == "dashboard" && (created || !user.Handle.Valid) {
-		assignHandle(ctx, database, user.ID, tok.Email)
+		claimed := false
+		if created && chosen != "" {
+			ok, cerr := db.ClaimHandle(ctx, database, user.ID, chosen)
+			if cerr != nil {
+				log.Printf("auth: ClaimHandle(chosen %s): %v", chosen, cerr)
+			}
+			claimed = ok
+		}
+		if !claimed {
+			// Not asked, or taken in the moment since the check: the old rule.
+			assignHandle(ctx, database, user.ID, tok.Email)
+		}
 		if refetched, rerr := db.GetUserByUsername(ctx, database, tok.Email); rerr == nil {
 			user = refetched
 		} else {

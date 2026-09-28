@@ -203,10 +203,10 @@ func TestPersonHostsServeAndCanonical(t *testing.T) {
 		t.Fatalf("claim someone's handle: %d %s", r.status, r.body)
 	}
 	fresh := a.newPerson(t, "fresh")
-	if r := a.at(t, "PATCH", apex, "/v1/me", map[string]string{"handle": "olive-blog"}, map[string]string{"X-API-Key": fresh.key}); r.status != http.StatusConflict {
+	if r := a.at(t, "PATCH", apex, "/v1/me", map[string]string{"handle": "olive-blog"}, map[string]string{"X-API-Key": fresh.key}); r.status != http.StatusConflict || r.json(t)["code"] != "handle_taken" || !strings.Contains(string(r.body), "That address is taken: olive-blog."+pcSiteDomain+" is already in use. Try another.") {
 		t.Fatalf("handle on a claimed name: %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "PATCH", apex, "/v1/me", map[string]string{"handle": "sites"}, map[string]string{"X-API-Key": fresh.key}); r.status != http.StatusBadRequest {
+	if r := a.at(t, "PATCH", apex, "/v1/me", map[string]string{"handle": "sites"}, map[string]string{"X-API-Key": fresh.key}); r.status != http.StatusConflict || r.json(t)["code"] != "handle_reserved" {
 		t.Fatalf("reserved handle: %d %s", r.status, r.body)
 	}
 

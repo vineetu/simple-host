@@ -1,4 +1,4 @@
-# OpenAI plugin submission kit — Simple Host 0.9.1
+# OpenAI plugin submission kit — Simple Host 0.9.2
 
 Everything to paste into the plugin portal (https://platform.openai.com/plugins), in portal
 order, plus the steps only the owner can do. Checked against the OpenAI docs as of 2026-09-24 (update rules re-checked 2026-09-28):
@@ -12,7 +12,7 @@ fallback zip). They land in `dist/`.
 
 **Submitted 2026-09-24 as version 0.3.0** (22 tools; justifications, test cases and app info
 uploaded as the `chatgpt-app-submission.json` of commit `30d12c5`). **To update it**, submit a new
-version, 0.9.1: OpenAI re-scans the MCP tools by itself (new and changed tools go live once its
+version, 0.9.2: OpenAI re-scans the MCP tools by itself (new and changed tools go live once its
 automated checks pass), but changed plugin information needs a new version, review and publication
 (developers.openai.com/plugins/deploy/submission). Rescan the tools (40 now), upload the current
 `chatgpt-app-submission.json` in the "Use Codex" box (all 40 tools with three justifications
@@ -229,7 +229,7 @@ governing-law clause names one jurisdiction, start there.
 
 ## 8. Release notes
 
-> Simple Host 0.9.1. The listing now describes what the connector does today; the MCP server is unchanged in address and sign-in (https://simple-host.app/mcp, OAuth 2.1 with dynamic client registration and PKCE).
+> Simple Host 0.9.2. The listing now describes what the connector does today; the MCP server is unchanged in address and sign-in (https://simple-host.app/mcp, OAuth 2.1 with dynamic client registration and PKCE).
 > - Every site now lives at its own address, `<site>.<handle>.simple-host.app`; a free `<name>.simple-host.app` or the person's own domain stays optional.
 > - 40 tools (22 in 0.3.0). New: preview_version, list_deleted_sites, restore_site, set_site_offline, keep_site, clear_collection, data_history, restore_data, list_deleted, restore_item, delete_forever, remove_domain, export_site, declare_data, list_data, update_data, set_who_can_save, block_person.
 > - Undo: deleted sites can be restored for 7 days; saved data and list items keep 30 days of history and can be put back.
@@ -237,6 +237,7 @@ governing-law clause names one jurisdiction, start there.
 > - Visitor counts now include top pages and referring domains; a site can be downloaded as a copy through a 10-minute link.
 > - Every destructive tool asks for the name, id or domain typed twice and tells the model to get explicit confirmation first.
 > - The skills ask the person once before a new site goes online (name, address, public to anyone with the link), and before deleting, making private data public, changing who can see or save, connecting a domain or rolling back.
+> - A new account chooses its address (handle) when signing up instead of being given one; it can be changed later from the dashboard, not more than once in 30 days.
 > Reviewer access is unchanged: on the Simple Host sign-in page choose "Reviewer sign-in" and use the demo credentials provided; the account holds three sample sites (garden-party-rsvp, feedback-survey, pickle-shop) and their data.
 
 Then the policy attestations, and **Submit for Review**. After approval, **Publish** from the

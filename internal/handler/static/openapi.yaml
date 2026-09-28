@@ -179,6 +179,8 @@ paths:
                 token: { type: string, description: magic-link token (alternative to email+code) }
                 nonce: { type: string, description: required with token — the nonce whose hash was sent when the link was requested }
                 name: { type: string, maxLength: 60, description: "Optional label for the key this sign-in issues, shown in the Keys list (GET /v1/me/keys). Defaults to \"dashboard sign-in\" for a link or Google, \"agent sign-in\" for a typed code." }
+                choose_handle: { type: boolean, description: "When this sign-in would create a new account: create nothing yet and answer 409 with code choose_handle and a suggested_handle, without using up the code. Ask the person which address they want, then verify again with the same code and handle. Ignored for an existing account." }
+                handle: { type: string, pattern: '^[a-z0-9-]{1,39}$', description: "The address (<handle>.simple-host.app) a NEW account takes; ignored for an existing account. Refused as 400 invalid_handle, 409 handle_reserved or 409 handle_taken without using up the code, so another can be tried. It can be changed later (PATCH /v1/me), not more than once in 30 days after publishing. Without handle or choose_handle a new account is given one." }
       responses:
         '200':
           description: Authenticated
@@ -186,11 +188,52 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/AuthResponse' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '409':
+          description: "code choose_handle (a new account: choose its address first; carries suggested_handle and address), or handle_taken / handle_reserved (the handle sent cannot be had; error names the address). The code is not used up."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                  code: { type: string, enum: [choose_handle, handle_taken, handle_reserved] }
+                  suggested_handle: { type: string }
+                  address: { type: string, example: rose.simple-host.app }
         '401':
           description: Invalid or expired code
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+
+  /v1/handles/check:
+    get:
+      operationId: getHandleCheck
+      summary: Is this address (handle) free?
+      description: >-
+        Whether <handle>.simple-host.app can be taken as an account's address: at sign-up (POST /v1/auth/verify
+        with handle) or as a change (PATCH /v1/me). Handles, old handles that still redirect, free
+        <name>.simple-host.app addresses claimed by sites and reserved names share one namespace. With
+        X-API-Key the account's own handle counts as available. Rate limited per address
+        (RATE_LIMIT_HANDLE_CHECK); no CORS, and a cross-site browser request gets 403. A claim still decides.
+      tags: [Auth]
+      parameters:
+        - { name: handle, in: query, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: The verdict
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [handle, available, address]
+                properties:
+                  handle: { type: string }
+                  available: { type: boolean }
+                  address: { type: string, example: rose.simple-host.app }
+                  code: { type: string, enum: [invalid_handle, handle_reserved, handle_taken] }
+                  error: { type: string, example: "That address is taken: rose.simple-host.app is already in use. Try another." }
+        '403': { description: Cross-site browser request }
+        '429': { description: Too many checks from this address }
 
   /v1/auth/oauth/providers:
     get:
@@ -437,7 +480,7 @@ paths:
         '200': {description: Updated account profile}
         '400': {description: "Invalid profile, or signin_alerts sent without an account key (code not_an_account_key)"}
         '401': {description: API key required}
-        '409': {description: Handle taken}
+        '409': {description: "The handle cannot be had: code handle_taken (another account's handle or old handle, or a site's claimed free name; error says \"That address is taken: <handle>.simple-host.app is already in use. Try another.\") or handle_reserved. A malformed handle is 400 invalid_handle."}
         '429':
           description: The handle already changed within the last 30 days after publishing
           content:

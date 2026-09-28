@@ -209,6 +209,7 @@ than 10 times looser than its default. A `RATE_LIMIT_*` variable that is not one
 | `RATE_LIMIT_TLS_ASK` | 60,100ms | any (warns past 10×) | Certificate checks (`/internal/tls-ask`), per address. |
 | `RATE_LIMIT_DOMAIN_CHECK` | 10,10s | any (warns past 10×) | "Check again" on a domain, per address. |
 | `RATE_LIMIT_DOMAIN_CHECK_USER` | 3,30s | any (warns past 10×) | "Check again" on a domain, per account. |
+| `RATE_LIMIT_HANDLE_CHECK` | 30,2s | any (warns past 10×) | Address availability checks while someone types a handle (`GET /v1/handles/check`), per address. |
 | `RATE_LIMIT_OAUTH_REGISTER` | 10,6m | **40,1m30s** (security-sensitive) | Connector app registrations per address. |
 | `RATE_LIMIT_OAUTH_AUTHORIZE` | 30,2s | **120,500ms** (security-sensitive) | Connector authorization requests per address. |
 | `RATE_LIMIT_OAUTH_TOKEN` | 30,2s | **120,500ms** (security-sensitive) | Connector token requests per address. |

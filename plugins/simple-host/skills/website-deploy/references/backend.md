@@ -648,8 +648,11 @@ email code:
    → 202 `{message, email, expires_in_seconds: 900}`. The person receives a
    6-digit code.
 2. Ask the person for the code, then `POST https://simple-host.app/v1/auth/verify`
-   with `{"email":"person@example.com","code":"123456"}` → 200 with `api_key`
-   (the account is created if it did not exist).
+   with `{"email":"person@example.com","code":"123456","choose_handle":true}` →
+   200 with `api_key`. If there is no account yet, it answers 409
+   `choose_handle` with a `suggested_handle` instead (the code stays good): ask
+   which address they want, then verify again with the same code plus
+   `"handle"` to create the account. See `register.md`.
 3. Send `X-API-Key: <that key>` on the writes.
 
 Codes are bound to where they were requested: one requested through `/v1/auth`

@@ -141,6 +141,7 @@ var knobDocs = map[string]knobDoc{
 	"RATE_LIMIT_TLS_ASK":           {"domains", "Certificate checks (/internal/tls-ask), per address.", false, true},
 	"RATE_LIMIT_DOMAIN_CHECK":      {"domains", "\"Check again\" on a domain, per address.", false, true},
 	"RATE_LIMIT_DOMAIN_CHECK_USER": {"domains", "\"Check again\" on a domain, per account.", false, true},
+	"RATE_LIMIT_HANDLE_CHECK":      {"accounts", "Address availability checks while someone types a handle (GET /v1/handles/check), per address.", false, true},
 	"RATE_LIMIT_OAUTH_REGISTER":    {"accounts", "AI app registrations on the connector, per address.", true, true},
 	"RATE_LIMIT_OAUTH_AUTHORIZE":   {"accounts", "AI app sign-in requests on the connector, per address.", true, true},
 	"RATE_LIMIT_OAUTH_TOKEN":       {"accounts", "AI app token requests on the connector, per address.", true, true},

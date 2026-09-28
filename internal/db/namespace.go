@@ -82,6 +82,35 @@ func HandleAvailable(ctx context.Context, tx *sql.Tx, userID, handle string) (bo
 	return !taken, err
 }
 
+// HandleInUse reports, without taking the namespace lock, whether handle is
+// someone else's: another account's handle or alias (a retired one too), a
+// site's claimed <handle>.<SITE_DOMAIN> or a retired name-subdomain. For the
+// availability check and early refusals; a claim still decides under the lock.
+// userID may be empty (nobody's own handle counts as free then).
+func HandleInUse(ctx context.Context, q Querier, userID, handle string) (bool, error) {
+	h := strings.ToLower(handle)
+	var taken bool
+	err := q.QueryRowContext(ctx, `
+		SELECT EXISTS (SELECT 1 FROM users WHERE handle = $1 AND id::text IS DISTINCT FROM $2)
+		    OR EXISTS (SELECT 1 FROM handle_aliases WHERE handle = $1 AND user_id::text IS DISTINCT FROM $2)`,
+		h, userID).Scan(&taken)
+	if err != nil || taken {
+		return taken, err
+	}
+	domain := currentPlatformDomain()
+	if domain == "" {
+		return false, nil
+	}
+	host := h + "." + domain
+	err = q.QueryRowContext(ctx, `
+		SELECT EXISTS (SELECT 1 FROM sites WHERE lower(custom_domain) = $1 OR lower(previous_domain) = $1)
+		    OR EXISTS (SELECT 1 FROM legacy_hostnames WHERE lower(hostname) = $1)`, host).Scan(&taken)
+	return taken, err
+}
+
+// PlatformDomain is SITE_DOMAIN as the namespace checks see it ("" when off).
+func PlatformDomain() string { return currentPlatformDomain() }
+
 // platformNameIsHandle reports whether label is an account's handle or an
 // old handle kept as an alias. Callers hold the namespace lock.
 func platformNameIsHandle(ctx context.Context, tx *sql.Tx, label string) (bool, error) {
