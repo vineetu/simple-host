@@ -163,9 +163,9 @@ func (h *SiteHandler) saveEntry(w http.ResponseWriter, r *http.Request, siteID s
 	var err error
 	var have int64
 	if set.Kind == db.KindEntries {
-		item, have, err = db.AppendEntry(r.Context(), h.database, siteID, set.Name, db.KindEntries, body, a, set.OnePerPerson && a.ID != "", h.savedData.EntriesMax)
+		item, have, err = db.AppendEntry(r.Context(), h.database, siteID, set.Name, db.KindEntries, set.Private, body, a, set.OnePerPerson && a.ID != "", h.savedData.EntriesMax)
 	} else {
-		item, err = db.AppendCollectionItemByID(r.Context(), h.database, siteID, set.Name, body, a)
+		item, err = db.AppendCollectionItemByID(r.Context(), h.database, siteID, set.Name, set.Private, body, a)
 	}
 	switch {
 	case errors.Is(err, db.ErrOnePerPerson) && have == 0:

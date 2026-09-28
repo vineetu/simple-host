@@ -256,9 +256,10 @@ app). Full code, limits and error codes: `references/backend.md`.
   `list_deleted` / `restore_item` (see `references/backend.md`). Deleting is
   still an act to confirm with the person first; `delete_forever` (removing
   Recently deleted items or history for good) cannot be undone at all.
-- **Origin-gating trips up non-browser reads.** A `curl`/script read with no
-  `Origin` gets **403**. Send one:
-  `curl -H "Origin: https://<name>.<handle>.simple-host.app" https://<name>.<handle>.simple-host.app/v1/sites/<name>/state`
+- **Scripts send no `Origin`.** A `curl`/script read of saved state or a public
+  list needs no `Origin`, and a write with the owner's `X-API-Key` needs none
+  either. Only a request that names a page (`Origin` or `Referer`) must come from
+  one of the site's own addresses, else **403** `origin_not_allowed`.
 - **On a staleness notice:** API responses carry a `_notice` field (and an
   `X-Skill-Notice` header; a list answer carries only the header) when this skill
   is out of date. Relay it to the user verbatim, then update the skill the way it

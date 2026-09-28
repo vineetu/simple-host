@@ -4926,7 +4926,7 @@
             }
           },
           "409": {
-            "description": "declare_first, wrong_kind, one_per_person, list_full or kind_changed (the owner changed what the name is while the save was on its way; nothing was saved)",
+            "description": "declare_first, wrong_kind, one_per_person, list_full or kind_changed (the owner changed what the name is, or made it private or public, while the save was on its way; nothing was saved)",
             "content": {
               "application/json": {
                 "schema": {
@@ -9123,7 +9123,7 @@
             }
           },
           "409": {
-            "description": "declare_first, wrong_kind, one_per_person, list_full or kind_changed (the owner changed what the name is while the save was on its way; nothing was saved)",
+            "description": "declare_first, wrong_kind, one_per_person, list_full or kind_changed (the owner changed what the name is, or made it private or public, while the save was on its way; nothing was saved)",
             "content": {
               "application/json": {
                 "schema": {

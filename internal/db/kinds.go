@@ -380,21 +380,24 @@ func PutContent(ctx context.Context, database *sql.DB, siteID, name string, data
 // address). A person is the account or its address with any +tag dropped
 // (BaseEmail). The declaration row is locked, so two saves at once cannot
 // both pass either check; under it the name must still be kind (Submissions,
-// or a Shared board), else ErrKindChanged.
-func AppendEntry(ctx context.Context, database *sql.DB, siteID, name, kind string, data json.RawMessage, a Actor, onePerPerson bool, maxItems int) (CollectionItem, int64, error) {
+// or a Shared board) with the privacy the caller read (private), else
+// ErrKindChanged.
+func AppendEntry(ctx context.Context, database *sql.DB, siteID, name, kind string, private bool, data json.RawMessage, a Actor, onePerPerson bool, maxItems int) (CollectionItem, int64, error) {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return CollectionItem{}, 0, err
 	}
 	defer tx.Rollback()
 	// Under the lock, the name is still what the caller read: a change of
-	// kind (to Page info, say) may have committed since.
+	// kind (to Page info, say) or of privacy (a private list made public
+	// while this entry was on its way) may have committed since.
 	var cur string
+	var curPrivate bool
 	if err := tx.QueryRowContext(ctx, `
-		SELECT COALESCE(kind, '') FROM collection_settings WHERE site_id = $1 AND collection = $2 FOR UPDATE`, siteID, name).Scan(&cur); err != nil {
+		SELECT COALESCE(kind, ''), private FROM collection_settings WHERE site_id = $1 AND collection = $2 FOR UPDATE`, siteID, name).Scan(&cur, &curPrivate); err != nil {
 		return CollectionItem{}, 0, err
 	}
-	if cur != kind {
+	if cur != kind || curPrivate != private {
 		return CollectionItem{}, 0, ErrKindChanged
 	}
 	if onePerPerson && a.ID != "" {

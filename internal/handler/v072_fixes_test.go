@@ -69,15 +69,84 @@ func TestAppendRechecksKindUnderLock(t *testing.T) {
 	s := newKindsSite(t, true)
 	ctx := context.Background()
 	s.declare(t, "menu", map[string]any{"kind": "content"})
-	if _, _, err := db.AppendEntry(ctx, s.a.database, s.shopID, "menu", db.KindEntries, []byte(`{"a":1}`), db.Actor{}, false, 100); !errors.Is(err, db.ErrKindChanged) {
+	if _, _, err := db.AppendEntry(ctx, s.a.database, s.shopID, "menu", db.KindEntries, false, []byte(`{"a":1}`), db.Actor{}, false, 100); !errors.Is(err, db.ErrKindChanged) {
 		t.Fatalf("entry into page info: %v", err)
 	}
-	if _, err := db.AppendCollectionItemByID(ctx, s.a.database, s.shopID, "menu", []byte(`{"a":1}`), db.Actor{}); !errors.Is(err, db.ErrKindChanged) {
+	if _, err := db.AppendCollectionItemByID(ctx, s.a.database, s.shopID, "menu", false, []byte(`{"a":1}`), db.Actor{}); !errors.Is(err, db.ErrKindChanged) {
 		t.Fatalf("legacy append into page info: %v", err)
 	}
 	// An undeclared name still takes legacy appends.
-	if _, err := db.AppendCollectionItemByID(ctx, s.a.database, s.shopID, "guestbook", []byte(`{"a":1}`), db.Actor{}); err != nil {
+	if _, err := db.AppendCollectionItemByID(ctx, s.a.database, s.shopID, "guestbook", false, []byte(`{"a":1}`), db.Actor{}); err != nil {
 		t.Fatalf("legacy append: %v", err)
+	}
+}
+
+// Review F1: an append checked against a private list never lands after the
+// list was made public (or the reverse): privacy is re-read under the lock.
+func TestAppendRechecksPrivacyUnderLock(t *testing.T) {
+	s := newKindsSite(t, true)
+	ctx := context.Background()
+	if _, err := s.a.database.ExecContext(ctx, `
+		INSERT INTO collection_settings (site_id, collection, private) VALUES ($1, 'rsvps', true)
+		ON CONFLICT (site_id, collection) DO UPDATE SET private = true`, s.shopID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.AppendCollectionItemByID(ctx, s.a.database, s.shopID, "rsvps", false, []byte(`{"a":1}`), db.Actor{}); !errors.Is(err, db.ErrKindChanged) {
+		t.Fatalf("legacy append read as public into a private list: %v", err)
+	}
+	if _, err := db.AppendCollectionItemByID(ctx, s.a.database, s.shopID, "rsvps", true, []byte(`{"a":1}`), db.Actor{}); err != nil {
+		t.Fatalf("legacy append into the private list it read: %v", err)
+	}
+	s.declare(t, "orders", map[string]any{"kind": "entries"})
+	if _, _, err := db.AppendEntry(ctx, s.a.database, s.shopID, "orders", db.KindEntries, false, []byte(`{"a":1}`), db.Actor{}, false, 100); !errors.Is(err, db.ErrKindChanged) {
+		t.Fatalf("entry read as public into private submissions: %v", err)
+	}
+	if _, _, err := db.AppendEntry(ctx, s.a.database, s.shopID, "orders", db.KindEntries, true, []byte(`{"a":1}`), db.Actor{}, false, 100); err != nil {
+		t.Fatalf("entry into the private submissions it read: %v", err)
+	}
+}
+
+// Review F2: a first declaration of a name nobody declared yet and an append
+// to it serialise: the append waits for the declaration's lock and then sees
+// the new kind, instead of slipping in beside it.
+func TestAppendWaitsForFirstDeclaration(t *testing.T) {
+	s := newKindsSite(t, true)
+	ctx := context.Background()
+	tx, err := s.a.database.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `INSERT INTO collection_settings (site_id, collection) VALUES ($1, 'fresh') ON CONFLICT DO NOTHING`, s.shopID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE collection_settings SET kind = 'content' WHERE site_id = $1 AND collection = 'fresh'`, s.shopID); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := db.AppendCollectionItemByID(ctx, s.a.database, s.shopID, "fresh", false, []byte(`{"a":1}`), db.Actor{})
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("append finished while the first declaration held its lock: %v", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		if !errors.Is(err, db.ErrKindChanged) {
+			t.Fatalf("append after the declaration: %v, want ErrKindChanged", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("append never finished")
+	}
+	var n int
+	if err := s.a.database.QueryRowContext(ctx, `SELECT count(*) FROM collection_items WHERE site_id = $1 AND collection = 'fresh'`, s.shopID).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("items under the new page info: %d %v", n, err)
 	}
 }
 

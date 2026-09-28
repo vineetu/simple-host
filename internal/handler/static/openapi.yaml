@@ -2363,7 +2363,7 @@ paths:
           content: { application/json: { schema: { type: object, properties: { id: { type: integer }, data: { type: object }, created_at: { type: string, format: date-time } } } } }
         '401': { description: visitor_auth_required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '403': { description: "not_allowed_to_save, private_visitor_only, csrf_required", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '409': { description: "declare_first, wrong_kind, one_per_person, list_full or kind_changed (the owner changed what the name is while the save was on its way; nothing was saved)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "declare_first, wrong_kind, one_per_person, list_full or kind_changed (the owner changed what the name is, or made it private or public, while the save was on its way; nothing was saved)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '413': { description: item_too_large, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     put:
       operationId: putData
@@ -3621,7 +3621,7 @@ paths:
       requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
       responses:
         '201': { description: The stored entry, content: { application/json: { schema: { type: object } } } }
-        '409': { description: "declare_first, wrong_kind, one_per_person, list_full or kind_changed (the owner changed what the name is while the save was on its way; nothing was saved)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "declare_first, wrong_kind, one_per_person, list_full or kind_changed (the owner changed what the name is, or made it private or public, while the save was on its way; nothing was saved)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     put:
       operationId: putDataByHandle
       summary: Save Page info (owner, by handle)

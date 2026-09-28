@@ -309,7 +309,7 @@ entries public (declaring it public Submissions, or `{"private": false}` on the 
 409 `confirm_public` (with the count) until `confirm_public: true`; the owner app asks first. A
 private name becomes Page info only while it is empty (409 `has_entries`). Both count the
 name's Recently deleted (a restore brings it back) and run under the name's lock; a save that
-lands just as the kind changes is refused (409 `kind_changed`, nothing saved). Page info brings a
+lands just as the kind or the privacy changes is refused (409 `kind_changed`, nothing saved). Page info brings a
 deleted document back only while it holds none (409 `one_document`), so it stays one document. A
 Page info read shows `_submitted_by` to nobody but the owner. With `WRITE_AUTH_MODE=off` public Submissions are
 refused (409 `visitor_sign_in_off`: that mode reads no visitor sign-in on public saves). Submission emails are claimed before they are

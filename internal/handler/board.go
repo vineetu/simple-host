@@ -143,7 +143,7 @@ func (h *SiteHandler) appendBoard(w http.ResponseWriter, r *http.Request, siteID
 	if !h.siteHasRoom(w, r, siteID, int64(len(body))) {
 		return
 	}
-	it, _, err := db.AppendEntry(r.Context(), h.database, siteID, set.Name, db.KindBoard, body, actor, false, h.savedData.BoardMax)
+	it, _, err := db.AppendEntry(r.Context(), h.database, siteID, set.Name, db.KindBoard, set.Private, body, actor, false, h.savedData.BoardMax)
 	switch {
 	case errors.Is(err, db.ErrNameFull):
 		h.writeBoardFull(w)

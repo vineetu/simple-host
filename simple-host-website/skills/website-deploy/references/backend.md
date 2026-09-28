@@ -251,9 +251,11 @@ await fetch(API + '/collections/entries', { method: 'POST', credentials: 'includ
   body: JSON.stringify({ text: 'hello' }) });
 ```
 
-Reads are gated on the request `Origin`, which a browser page sends by itself;
-a `curl` or script with no `Origin` gets 403 on reads, so send one:
-`curl -H "Origin: https://<sitename>.<handle>.simple-host.app" https://<sitename>.<handle>.simple-host.app/v1/sites/<sitename>/state`.
+A request from a page (it sends `Origin` or `Referer` by itself) must come from
+one of the site's own addresses, else 403 `origin_not_allowed`. A `curl` or
+script sends neither: it reads saved state and public lists as they are, and
+writes with the owner's `X-API-Key`, no `Origin` needed:
+`curl https://<sitename>.<handle>.simple-host.app/v1/sites/<sitename>/state`.
 
 ## Shared JSON state (one document per site)
 
@@ -665,7 +667,7 @@ management. An agent that already holds the owner's key needs none of this.
 | 401 | `{"error":"invalid API key","code":"invalid_api_key"}` | Unknown `X-API-Key`. Do not retry with the same key. |
 | 404 | `{"error":"site not found"}` | On a write with a key: the key's account does not own this site (or it does not exist). Use the owner's key; do not retry. |
 | 401 | `{"error":"this site saves on its own domain","code":"use_custom_domain","domain":"recipes.brand.com"}` | The site has a domain and this was sent through its previous address: that address takes no writes for it, key or not (its page URL itself 302s to the domain). Pages: link the visitor to the same page on `domain`. Agents: write through the apex `https://simple-host.app/v1/...` or the domain's `/v1/`. Do not retry here. |
-| 403 | (reads) | No `Origin` header on a non-browser read. Send one. |
+| 403 | `origin_not_allowed` | The request came from a page that is not one of the site's own addresses. Scripts send no `Origin`. |
 | 413 | `{"error":"item too large","code":"item_too_large"}` | Over 64 KB (an item) or 1 MB (the document). |
 | 429 | `{"error":"rate limit exceeded, slow down","code":"rate_limited"}` | Too many requests from this address. Wait (`Retry-After`) and poll less often. |
 | 507 | `{"error":"…","code":"site_full"}` | The write would grow the site's live saved data (page data plus list items) past 50 MB. The owner deletes items or clears a list; writes that do not grow it still go through. |

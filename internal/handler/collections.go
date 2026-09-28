@@ -160,8 +160,8 @@ func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Owner (or admin) API key is an alternative to the Origin gate so the
-	// dashboard can read a collection. POST still goes through collectionGate
-	// only — this branch is GET-only. When the key matches, resolve the
+	// dashboard can read a collection (a keyed POST with no page skips the
+	// gate too, in appendCollection). When the key matches, resolve the
 	// site by owner (not the legacy oldest-name lookup) so two same-named
 	// sites cannot leak each other's rows.
 	var siteID string
