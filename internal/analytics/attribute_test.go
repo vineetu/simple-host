@@ -157,3 +157,28 @@ func TestAttributeBothBases(t *testing.T) {
 		t.Fatalf("base hit attributed without the base: %q", got)
 	}
 }
+
+// A hit on an address family's <label>.<suffix> counts for the family
+// owner's site <prefix><label>; an exact custom domain under it wins.
+func TestAttributeFamily(t *testing.T) {
+	i := NewIngester(nil, "", "s", "sites.example.app", "example.app")
+	m := &attrMaps{
+		handleToUser: map[string]string{},
+		userNameToID: map[string]string{"u1/voucher-meera": "s1", "u1/meera": "s2", "u2/zed": "s9"},
+		nameToOldest: map[string]string{},
+		domainToID:   map[string]string{"special.voucher.example.com": "s3"},
+		families:     map[string]familyAttr{"voucher.example.com": {userID: "u1", prefix: "voucher-"}, "quotes.example.com": {userID: "u1"}},
+	}
+	for host, want := range map[string]string{
+		"meera.voucher.example.com":   "s1",
+		"meera.quotes.example.com":    "s2",
+		"special.voucher.example.com": "s3",
+		"zed.quotes.example.com":      "",
+		"a.meera.voucher.example.com": "",
+		"voucher.example.com":         "",
+	} {
+		if got, _ := i.attribute(host, "/x", m); got != want {
+			t.Errorf("%s: %q, want %q", host, got, want)
+		}
+	}
+}

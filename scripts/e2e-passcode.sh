@@ -5,7 +5,8 @@
 # A canary string goes into every kind of file of a test site; the site is
 # locked; every address is swept (site host, person path while a certificate
 # is pending, the legacy content host, a claimed free name, a custom domain
-# through nginx, link-preview bots) and the canary must never come back
+# through nginx, an address-family host and its nginx marker rewrite,
+# link-preview bots) and the canary must never come back
 # without the unlock. Then the unlock works on that one host, a new passcode
 # signs everyone out, SITE_PASSCODES=off refuses new locks (409) while the
 # existing one keeps asking, and the server's log never holds a passcode or
@@ -40,11 +41,12 @@ if [ -z "$BIN" ]; then
   (cd "$ROOT" && CGO_ENABLED=0 go build -o "$WORK/simple-host" ./cmd/server)
   BIN=$WORK/simple-host
 fi
-mkdir -p "$WORK/sites" "$WORK/certs/ready" "$WORK/certs/requests"
+mkdir -p "$WORK/sites" "$WORK/certs/ready" "$WORK/certs/requests" "$WORK/fam/ready" "$WORK/fam/requests" "$WORK/fam/failed"
 
 start() { # $1 = SITE_PASSCODES
   DB_DSN="$DB_DSN" DATA_DIR="$WORK/sites" SITE_DOMAIN=$DOMAIN ADMIN_API_KEY=$ADMIN PORT=$PORT BIND_ADDR=127.0.0.1 \
     PERSON_HOSTS=canonical SITE_HOSTS=canonical SITE_CERT_DIR="$WORK/certs" \
+    ADDRESS_FAMILY_CERT_DIR="$WORK/fam" ADDRESS_FAMILY_CACHE_SECONDS=1 \
     PASSCODE_ENC_KEY="$PKEY" SITE_PASSCODES="$1" \
     "$BIN" >>"$WORK/server.log" 2>&1 &
   SRV=$!
@@ -98,6 +100,34 @@ UID1=$(for u in $(ls "$WORK/sites/by-id"); do if [ -f "$WORK/sites/by-id/$u/trip
 [ -n "$UID1" ] || fail "no passcode marker next to current"
 FOLDER=$WORK/sites/by-id/$UID1/trip
 
+# ... an address family's host (familyhost.go): *.fam.test for olive, made
+# live by hand (its DNS cannot be proven here).
+FSUF=fam-$(openssl rand -hex 3).test
+FAMILY=trip.$FSUF
+if command -v psql >/dev/null; then
+  FID=$(req $DOMAIN "/v1/admin/users/$UID1/address-families" -H "X-API-Key: $ADMIN" -H 'Content-Type: application/json' \
+    -d "{\"suffix\":\"*.$FSUF\",\"proof_exempt\":true,\"cert_name\":\"$FSUF\",\"canonical\":false}" | json 'd["id"]')
+  psql "$DB_DSN" -qAt -c "UPDATE address_families SET verified_at = now(), status = 'active' WHERE id = '$FID'"
+  req $DOMAIN "/v1/admin/address-families/$FID/check" -X POST -H "X-API-Key: $ADMIN" -o /dev/null
+  printf 'prefix=\ncert=%s\nexpires=1900000000\nreserved=www\n' "$FSUF" > "$WORK/fam/ready/$FSUF"
+  sleep 2
+  # trip lives on its claimed name: the family host sends visitors there
+  # (where the gate is); nothing of the site is served on the way.
+  [ "$(req $FAMILY /app.js -o /dev/null -w '%{http_code} %{redirect_url}')" = "302 https://$FREE/app.js" ] || fail "family host: $(req $FAMILY /app.js -o /dev/null -w '%{http_code} %{redirect_url}')"
+  # camp (oscar) has no domain of its own: a family of oscar's shows the gate.
+  FID2=$(req $DOMAIN "/v1/admin/users/$(psql "$DB_DSN" -qAt -c "SELECT user_id FROM sites WHERE name = 'camp' AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1")/address-families" -H "X-API-Key: $ADMIN" -H 'Content-Type: application/json' \
+    -d "{\"suffix\":\"*.o$FSUF\",\"proof_exempt\":true,\"cert_name\":\"o$FSUF\",\"canonical\":false}" | json 'd["id"]')
+  psql "$DB_DSN" -qAt -c "UPDATE address_families SET verified_at = now(), status = 'active' WHERE id = '$FID2'"
+  req $DOMAIN "/v1/admin/address-families/$FID2/check" -X POST -H "X-API-Key: $ADMIN" -o /dev/null
+  printf 'prefix=\ncert=o%s\nexpires=1900000000\nreserved=www\n' "$FSUF" > "$WORK/fam/ready/o$FSUF"
+  FAMILY2=camp.o$FSUF
+  sleep 2
+  [ "$(code $FAMILY2 /)" = 401 ] || fail "family host is not the gate ($(code $FAMILY2 /))"
+  FAM=1
+else
+  echo "note: no psql; family leg skipped"; FAM=
+fi
+
 # ... and a custom domain served from disk by nginx, as the issuer's template does.
 if command -v nginx >/dev/null; then
   SITE_ID=$(req $DOMAIN /v1/sites -H "X-API-Key: $KEY" | python3 -c "import json,sys; print([s['id'] for s in json.load(sys.stdin)['sites'] if s['name']=='trip'][0])" 2>/dev/null || true)
@@ -143,7 +173,7 @@ ngx() { local path=$1; shift; curl -s -H "Host: $CUSTOM" "$@" "http://127.0.0.1:
 n=0
 for path in / /index.html /app.js /data.json /img.svg /days/ /days /nope /sitemap.xml "/app.js?x=1" /trip/app.js "/$H/trip/app.js"; do
   for ua in curl/8 "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)" "facebookexternalhit/1.1" "WhatsApp/2.23" "Twitterbot/1.0"; do
-    for addr in site person legacy legacy-marker person2 custom; do
+    for addr in site person legacy legacy-marker person2 custom family family-marker; do
       case $addr in
         site) out=$(req "$SITE" "$path" -A "$ua") ;;
         person) out=$(req "$PERSON" "/trip$path" -A "$ua") ;;
@@ -151,6 +181,8 @@ for path in / /index.html /app.js /data.json /img.svg /days/ /days /nope /sitema
         legacy) out=$(req "sites.$DOMAIN" "/internal/site-redirect/$H/trip$path" -A "$ua") ;;
         legacy-marker) out=$(req "sites.$DOMAIN" "/internal/passcode/$H/trip$path" -A "$ua") ;;
         custom) [ -n "$NG" ] || continue; out=$(ngx "$path" -A "$ua") ;;
+        family) [ -n "$FAM" ] || continue; out=$(req "$FAMILY" "$path" -A "$ua"); out2=$(req "$FAMILY2" "$path" -A "$ua"); out="$out$out2" ;;
+        family-marker) [ -n "$FAM" ] || continue; out=$(req "$FAMILY" "/internal/passcode$path" -A "$ua"); out2=$(req "$FAMILY2" "/internal/passcode$path" -A "$ua"); out="$out$out2" ;;
       esac
       case $out in *"$CANARY"*) fail "$addr $path ($ua) leaked the canary" ;; esac
       n=$((n + 1))
@@ -158,7 +190,7 @@ for path in / /index.html /app.js /data.json /img.svg /days/ /days /nope /sitema
   done
 done
 for path in /v1/sites/trip/state "/v1/u/$H/sites/trip/state" /v1/sites/trip/collections/x /v1/sites/trip/data/x; do
-  for host in $DOMAIN "$SITE" "$PERSON" "sites.$DOMAIN"; do
+  for host in $DOMAIN "$SITE" "$PERSON" "sites.$DOMAIN" ${FAM:+"$FAMILY" "$FAMILY2"}; do
     out=$(req "$host" "$path")
     case $out in *"$CANARY"*) fail "data $host$path leaked" ;; esac
     n=$((n + 1))

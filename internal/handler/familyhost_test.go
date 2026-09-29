@@ -684,3 +684,79 @@ func TestFamilyElsewhere(t *testing.T) {
 	}
 	_ = uid
 }
+
+// While the base moves (SITE_BASE_MOVE=redirect), an old site host whose
+// site lives at a family address goes there in one hop.
+func TestFamilyBaseMoveOneHop(t *testing.T) {
+	a, siteDir, baseDir := newBaseApp(t, "redirect")
+	famDir := t.TempDir()
+	for _, d := range []string{"requests", "ready", "failed"} {
+		if err := os.MkdirAll(filepath.Join(famDir, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	a.sites.SetAddressFamilies(famDir)
+	dns := stubFamilyDNS(t)
+	olive := a.newPerson(t, "olive")
+	a.deploy(t, olive, "meera")
+	a.deploy(t, olive, "plain")
+	_, oh := a.userID(t, olive)
+	markReady(t, siteDir, oh)
+	markReady(t, baseDir, oh)
+	a.liveFamily(t, famDir, dns, olive, "quotes.fam.test", "", true, 0)
+	a.at(t, "PATCH", pcSiteDomain, "/v1/me/address-families/quotes.fam.test", map[string]any{"site_prefix": "m"}, map[string]string{"X-API-Key": olive.key})
+	markFamilyReady(t, famDir, "quotes.fam.test", "m")
+	a.sites.refreshFamilies(context.Background())
+	old := "meera." + oh + "." + pcSiteDomain
+	if r := a.at(t, "GET", old, "/p?q=1", nil, nil); r.status != http.StatusFound || r.header.Get("Location") != "https://eera.quotes.fam.test/p?q=1" {
+		t.Fatalf("old site host: %d %q", r.status, r.header.Get("Location"))
+	}
+	// A site without one moves to the new base as before.
+	if r := a.at(t, "GET", "plain."+oh+"."+pcSiteDomain, "/", nil, nil); r.status != http.StatusFound || r.header.Get("Location") != "https://plain."+oh+"."+sbBase+"/" {
+		t.Fatalf("plain site: %d %q", r.status, r.header.Get("Location"))
+	}
+}
+
+// Idle cleanup keeps a site whose main address is a verified family of its
+// account (IDLE_EXEMPT_FAMILY_SITES), and not one outside the family.
+func TestFamilyIdleExempt(t *testing.T) {
+	a, _, _, _ := newFamilyApp(t)
+	ctx := context.Background()
+	a.sites.SetIdleCleanup(true, 50)
+	a.sites.SetIdleExempt(nil, "")
+	olive := a.newPerson(t, "olive")
+	a.deploy(t, olive, "voucher-meera")
+	a.deploy(t, olive, "quiet")
+	uid, _ := a.userID(t, olive)
+	for _, s := range []string{"voucher-meera", "quiet"} {
+		id := a.siteID(t, olive, s)
+		if _, err := a.database.ExecContext(ctx, `UPDATE sites SET created_at = now() - interval '100 days', updated_at = now() - interval '100 days' WHERE id = $1`, id); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := a.database.ExecContext(ctx, `UPDATE versions SET created_at = now() - interval '100 days' WHERE site_id = $1`, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := a.database.ExecContext(ctx, `INSERT INTO analytics_ingest_state (logfile, updated_at) VALUES ('idle-test', now()) ON CONFLICT (logfile) DO UPDATE SET updated_at = now()`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.database.ExecContext(ctx, `INSERT INTO address_families (user_id, suffix, site_prefix, verified_at, status) VALUES ($1, $2, 'voucher-', now(), 'active')`, uid, "idle-"+strings.ToLower(uid[:8])+".test"); err != nil {
+		t.Fatal(err)
+	}
+	r := a.at(t, "GET", pcSiteDomain, "/v1/admin/idle-sites", nil, map[string]string{"X-API-Key": a.admin})
+	if r.status != 200 || strings.Contains(string(r.body), `"site":"voucher-meera"`) || !strings.Contains(string(r.body), `"site":"quiet"`) {
+		t.Fatalf("idle dry run: %d %s", r.status, r.body)
+	}
+	func() {
+		old := *config.Active()
+		l := old
+		l.IdleExemptFamilySites = false
+		config.SetActive(l)
+		defer config.SetActive(old)
+		a.sites.SetIdleExempt(nil, "")
+		r := a.at(t, "GET", pcSiteDomain, "/v1/admin/idle-sites", nil, map[string]string{"X-API-Key": a.admin})
+		if !strings.Contains(string(r.body), `"site":"voucher-meera"`) {
+			t.Fatalf("exemption off: %s", r.body)
+		}
+	}()
+}

@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	db "github.com/vsriram/simple-host/internal/db"
 )
 
 // The base domain of people's addresses (owner decision 2026-09-28).
@@ -336,6 +338,18 @@ func (h *SiteHandler) legacyBaseTarget(r *http.Request) (string, int, bool) {
 	query := ""
 	if r.URL.RawQuery != "" {
 		query = "?" + r.URL.RawQuery
+	}
+	// A site whose main address is not a Simple Host one (its own domain,
+	// or its address family) goes straight there: one hop, and a 302, since
+	// that address can change.
+	if len(parts) == 2 && validSiteName.MatchString(parts[0]) {
+		if u, err := db.GetUserByHandle(r.Context(), h.database, parts[1]); err == nil {
+			if site, err := db.GetSiteByUser(r.Context(), h.database, u.ID, parts[0]); err == nil {
+				if own, has, err := h.siteOwnAddress(r.Context(), site.ID); err == nil && has {
+					return "https://" + strings.ToLower(own.Domain) + escaped + query, http.StatusFound, true
+				}
+			}
+		}
 	}
 	if len(parts) == 2 && !h.siteCertReadyOn(parts[1], h.siteBase) {
 		return "https://" + h.personHostOn(parts[1], h.siteBase) + "/" + parts[0] + escaped + query, http.StatusFound, true
