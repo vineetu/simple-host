@@ -42,6 +42,8 @@ tags:
     description: Per-site lists (POST is a write; declared kinds under /data)
   - name: Custom domains
     description: Give a site a nicer address — a free <name>.simple-host.site or one custom domain (CNAME or A record plus a TXT ownership record; its certificate is issued automatically once both are seen). Optional.
+  - name: Address families
+    description: Connect *.<domain> once so every site of the account answers at <site>.<domain> (a wildcard DNS record plus a TXT ownership record; the operator sets up the wildcard certificate). Optional.
   - name: Analytics
     description: Per-site visitor analytics (server-side, owner-scoped)
   - name: AI
@@ -4379,7 +4381,10 @@ paths:
         site's own address serves again) and can be connected afresh, with the TXT
         record, by whoever holds it; while it is being released, binding it answers
         409 domain_releasing.
-        Hijacking the platform zone is rejected. Owner only (API key).
+        The platform's own zones (including event domains such as simple-hack.app) are
+        refused (400 invalid_domain). A domain under the account's own address family
+        may be connected; the exact domain wins. `*.<domain>` answers 400
+        use_address_family (see POST /v1/me/address-families). Owner only (API key).
 
 
         www and the bare domain (where the certificate issuer runs, as on simple-host.app;
@@ -4443,17 +4448,17 @@ paths:
                   partner_status: { type: string, enum: [pending, live, not_set_up], description: "pending: the chosen name has no certificate yet (the partner is added with it). live: it forwards to the chosen name. not_set_up: it is not on the certificate (partner_note says why: not pointed here, served by another site on this server, or connected to a site of its own); it is added automatically once fixed (checked every few hours)." }
                   partner_note: { type: string, description: "Why the partner is not set up. Present only then." }
         '400':
-          description: Invalid domain. For a <name>.simple-host.site address, `code` is name_reserved or invalid_name.
+          description: Invalid domain. For a <name>.simple-host.site address, `code` is name_reserved or invalid_name. A wildcard (`*.<domain>`) is use_address_family (connect it with POST /v1/me/address-families).
           content:
             application/json:
-              schema: { type: object, properties: { error: { type: string }, code: { type: string, enum: [name_reserved, invalid_name] } } }
+              schema: { type: object, properties: { error: { type: string }, code: { type: string, enum: [name_reserved, invalid_name, invalid_domain, use_address_family] } } }
               examples:
                 reserved: { value: { error: "that name is reserved; pick another", code: name_reserved } }
                 invalid: { value: { error: "the name may use lowercase letters, numbers and hyphens (not at the start or end), up to 63 characters", code: invalid_name } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: "domain_taken: the domain is verified (or past its ownership proof) for another site, or the <name>.simple-host.site address is held by another site or is someone's handle. domain_releasing: the domain was just disconnected and the certificate issuer is still letting go of it; try again in 10 minutes."
+          description: "domain_taken: the domain is verified (or past its ownership proof) for another site, it is under another account's address family, or the <name>.simple-host.site address is held by another site or is someone's handle. domain_releasing: the domain was just disconnected and the certificate issuer is still letting go of it; try again in 10 minutes."
           content:
             application/json:
               schema:
@@ -4585,6 +4590,190 @@ paths:
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: this site has no domain connected, code: no_domain } } }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
+
+  /v1/me/address-families:
+    post:
+      operationId: createAddressFamily
+      summary: Connect *.<domain> so every site of the account answers under it
+      description: >-
+        An address family: the account connects `*.<suffix>` once (e.g.
+        `*.trips.example.com`), and every site of the account named
+        `<site_prefix><label>` then answers at `https://<label>.<suffix>/`, including
+        sites created later. `site_prefix` is optional (with `voucher-`,
+        `meera.voucher.example.com` is the site `voucher-meera`). All the account's
+        matching sites answer; another account's sites never do. The label is one DNS
+        label; names in ADDRESS_FAMILY_RESERVED_LABELS (default `www`) never name a site.
+
+
+        Two DNS records prove it: the wildcard record `dns` (CNAME `*.<suffix>` to the
+        CNAME target; `dns_a` is the A-record alternative) and the ownership record
+        `dns_txt` (TXT `_simple-host.<suffix>` holding the family's token, kept in
+        place). Nothing is served before both are seen. A pending family expires
+        after 24 hours (ADDRESS_FAMILY_UNPROVEN_HOURS). Several accounts may wait on
+        the same name: the first to prove it wins, and the others are dropped and
+        emailed. Once verified the family is exclusive: no other account can connect
+        it, a family overlapping it, or a custom domain under it (409 domain_taken).
+        The same account may put a custom domain under its own family; the exact
+        domain wins.
+
+
+        Certificates: the operator sets up a wildcard certificate for `*.<suffix>`
+        (`cert_mode` `wildcard`, the only mode now). Until then `certificate.status` is
+        `waiting_for_operator` and nothing is served; write to support@simple-host.app.
+        `per_host` (a certificate per site name) is not available yet (400
+        cert_mode_unavailable).
+
+
+        Main address (`canonical`, default true): a site's main address is its custom
+        domain or free name, else its most specific canonical family address (longest
+        site_prefix, then lowest rank, then suffix), else its own address. When a family
+        address is the main one, the site's own address redirects there (302) and
+        sign-in and saves happen there (the own address refuses writes with
+        use_custom_domain). Every family address of a site keeps working either way.
+        `canonical: false` keeps the site's own address as the main one.
+
+
+        A verified family that fails its checks (the TXT record gone, the wildcard
+        moved) is emailed about after 24 hours and disconnected after 72; connecting it
+        again needs the TXT record again. Answers 200 with the existing family when the
+        account already has it. Owner only (API key).
+      tags: [Address families]
+      security: [{ apiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddressFamilyRequest' }
+            example: { suffix: "*.trips.example.com" }
+      responses:
+        '200':
+          description: The account already has this family; it is returned unchanged
+          content: { application/json: { schema: { $ref: '#/components/schemas/AddressFamily' } } }
+        '201':
+          description: Connected; pending until both DNS records are seen
+          content: { application/json: { schema: { $ref: '#/components/schemas/AddressFamily' } } }
+        '400':
+          description: "invalid_domain (not a domain you can own, a public suffix, an internationalised name, or the platform's own, e.g. simple-host.app or simple-hack.app), invalid_site_prefix (lowercase letters, digits and hyphens, not at the start, up to 40 characters), invalid_rank (0 to 1000), cert_mode_unavailable (per_host), invalid_cert_mode."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: "rank must be between 0 and 1000", code: invalid_rank }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: account_suspended
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '409':
+          description: "domain_taken (the name, or one over or under it, is connected to another account), address_family_limit (ADDRESS_FAMILIES_PER_ACCOUNT reached), address_families_unavailable (this server does not offer address families)."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: "*.trips.example.com (or a name under it) is connected to another account", code: domain_taken }
+    get:
+      operationId: listAddressFamilies
+      summary: The account's address families
+      description: Every address family of the account, pending or verified. `available` says whether this server offers address families. Owner only (API key).
+      tags: [Address families]
+      security: [{ apiKey: [] }]
+      responses:
+        '200':
+          description: The account's families
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [address_families, available]
+                properties:
+                  address_families: { type: array, items: { $ref: '#/components/schemas/AddressFamily' } }
+                  available: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/me/address-families/{suffix}:
+    parameters:
+      - { $ref: '#/components/parameters/familySuffix' }
+    get:
+      operationId: getAddressFamily
+      summary: One address family
+      description: The family, with its DNS records, status and certificate. `?sites=1` adds `sites`, every matching site and its address under the family. Owner only (API key).
+      tags: [Address families]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: query, name: sites, required: false, description: "1: list every matching site and its address", schema: { type: string, enum: ['1'] } }
+      responses:
+        '200':
+          description: The family
+          content: { application/json: { schema: { $ref: '#/components/schemas/AddressFamily' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: no_address_family
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: "no address family *.trips.example.com on this account", code: no_address_family } } }
+    patch:
+      operationId: patchAddressFamily
+      summary: Change a family's site prefix, rank or main-address switch
+      description: >-
+        Send any of `site_prefix`, `rank` and `canonical`; the others stay. Changing
+        the prefix changes which sites answer at once. Owner only (API key).
+      tags: [Address families]
+      security: [{ apiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                site_prefix: { type: string, example: voucher- }
+                rank: { type: integer, minimum: 0, maximum: 1000 }
+                canonical: { type: boolean }
+      responses:
+        '200':
+          description: The family after the change
+          content: { application/json: { schema: { $ref: '#/components/schemas/AddressFamily' } } }
+        '400':
+          description: invalid_site_prefix or invalid_rank
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: no_address_family
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    delete:
+      operationId: deleteAddressFamily
+      summary: Disconnect an address family
+      description: >-
+        Every site stops answering under the family at once and goes back to its own
+        address (or its domain). Connecting it again needs the TXT record again. Owner
+        only (API key).
+      tags: [Address families]
+      security: [{ apiKey: [] }]
+      responses:
+        '204': { description: Disconnected }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: no_address_family
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+  /v1/me/address-families/{suffix}/check:
+    parameters:
+      - { $ref: '#/components/parameters/familySuffix' }
+    post:
+      operationId: checkAddressFamily
+      summary: Check an address family again now
+      description: >-
+        Proves the family now (the TXT record, a random name under the wildcard
+        resolving only to this server and, once live, one site answering over HTTPS)
+        instead of waiting for the background check (every 10 minutes), then answers
+        like GET with the new `status` and `last_error`. Owner only (API key);
+        rate-limited per address and per account (429 rate_limited).
+      tags: [Address families]
+      security: [{ apiKey: [] }]
+      responses:
+        '200':
+          description: The family after the check
+          content: { application/json: { schema: { $ref: '#/components/schemas/AddressFamily' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: no_address_family (none, or it was let go)
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/admin/idle-sites:
     get:
@@ -6262,6 +6451,130 @@ paths:
         '204': { description: Disconnected }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /v1/admin/address-families:
+    get:
+      operationId: adminListAddressFamilies
+      summary: Every address family (admin only)
+      description: Admin only (anyone else gets 404). Every family on the server, with its owner and the certificate lineage.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      responses:
+        '200':
+          description: All families
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  address_families: { type: array, items: { $ref: '#/components/schemas/AddressFamily' } }
+                  available: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/admin/users/{id}/address-families:
+    post:
+      operationId: adminCreateAddressFamily
+      summary: Connect an address family for an account (admin only)
+      description: >-
+        POST /v1/me/address-families for the account named by id, plus two admin
+        fields: `cert_name`, the certbot lineage of the operator's wildcard certificate
+        for `*.<suffix>`, and `proof_exempt`, which verifies the family without the TXT
+        record (for a family the operator already runs; the wildcard must still point
+        here). Admin only (anyone else gets 404); logged.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - { $ref: '#/components/schemas/AddressFamilyRequest' }
+                - type: object
+                  properties:
+                    cert_name: { type: string, example: trips.example.com }
+                    proof_exempt: { type: boolean }
+      responses:
+        '200': { description: The account already has it, content: { application/json: { schema: { $ref: '#/components/schemas/AddressFamily' } } } }
+        '201': { description: Connected, content: { application/json: { schema: { $ref: '#/components/schemas/AddressFamily' } } } }
+        '400': { description: "As the owner route, plus invalid_cert_name", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: account_suspended, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: "domain_taken, address_family_limit or address_families_unavailable", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /v1/admin/address-families/{id}:
+    delete:
+      operationId: adminDeleteAddressFamily
+      summary: Disconnect an address family (admin only)
+      description: As DELETE /v1/me/address-families/{suffix}, for any family (support or abuse). Admin only (anyone else gets 404); logged.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Disconnected }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/admin/address-families/{id}/cert-mode:
+    put:
+      operationId: adminSetAddressFamilyCert
+      summary: Name the operator's wildcard certificate for a family (admin only)
+      description: >-
+        `cert_name` is the certbot lineage covering `*.<suffix>` (renewed by certbot as
+        usual); an empty `cert_name` takes it away, and the family waits for the
+        operator again. `cert_mode` is `wildcard` (`per_host` answers 400
+        cert_mode_unavailable). Admin only (anyone else gets 404); logged.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cert_mode: { type: string, enum: [wildcard] }
+                cert_name: { type: string, example: trips.example.com }
+      responses:
+        '200': { description: The family, content: { application/json: { schema: { $ref: '#/components/schemas/AddressFamily' } } } }
+        '400': { description: "cert_mode_unavailable, invalid_cert_mode or invalid_cert_name", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/admin/address-families/{id}/proof-exempt:
+    put:
+      operationId: adminSetAddressFamilyProofExempt
+      summary: Verify a family without its TXT record (admin only)
+      description: For a family the operator already runs. The wildcard record must still point here. Admin only (anyone else gets 404); logged.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [proof_exempt], properties: { proof_exempt: { type: boolean } } }
+      responses:
+        '200': { description: The family, content: { application/json: { schema: { $ref: '#/components/schemas/AddressFamily' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/admin/address-families/{id}/check:
+    post:
+      operationId: adminCheckAddressFamily
+      summary: Check an address family now (admin only)
+      description: As POST /v1/me/address-families/{suffix}/check, for any family, without the rate limit. Admin only (anyone else gets 404).
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: The family after the check, content: { application/json: { schema: { $ref: '#/components/schemas/AddressFamily' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /v1/admin/sites/{id}:
     delete:
       operationId: adminDeleteSite
@@ -6367,6 +6680,7 @@ components:
     sitename: { name: sitename, in: path, required: true, schema: { type: string }, example: my-cool-site }
     create: { name: create, in: query, required: false, schema: { type: string, enum: ['1', '0', 'true', 'false'], default: '0' }, description: "1 creates the site when you have none of that name (reserved names, the site quota and publish=false are refused as on POST), so one PUT deploys from CI whether or not the site exists" }
     publish: { name: publish, in: query, required: false, schema: { type: boolean, default: true }, description: "false stores the new version without making it live (updates only; a new site's first version always goes live: 400)" }
+    familySuffix: { name: suffix, in: path, required: true, description: "The family: trips.example.com or *.trips.example.com (URL-escaped)", schema: { type: string }, example: trips.example.com }
     coll: { name: coll, in: path, required: true, schema: { type: string }, example: signups }
     csrf: { name: X-SH-CSRF, in: header, required: false, schema: { type: string, enum: ['1'] }, description: Required on cookie-authenticated writes }
     idempotencyKey: { name: Idempotency-Key, in: header, required: false, schema: { type: string, maxLength: 255 }, description: "Any unique string per write (e.g. a random UUID). For a writer with an identity (the owner's key or connector, or a visitor signed in on the site) a retry with the same key and the same body on the same site and route is saved once, for 24 hours (SAVED_DATA_IDEMPOTENCY_HOURS), and answered with `Idempotent-Replayed: true`: an append with the item it made, a PATCH with the document as it is now and its ETag. The same key with a different body gets 409 idempotency_key_reused; while the first request is still running, 409 idempotency_in_progress; a failed request is not remembered. Writes made without signing in ignore the header. Longer than 255 characters: 400 invalid_idempotency_key." }
@@ -6495,7 +6809,84 @@ components:
         keep: { type: boolean, description: "Site list only: the owner marked the site Keep; it is never flagged as idle (PUT .../keep)" }
         idle_removal_at: { type: string, format: date-time, description: "Site list only: the site had no visits by people and no new version for 90 days and its owner was emailed; it moves to Recently deleted at this time unless it is kept, visited or updated" }
         keep_versions: { type: integer, description: "How many versions of this site are kept, when its owner set it (PUT .../keep-versions): the newest N plus the live one. Absent = this server's setting" }
+        family_address: { type: string, description: "The site's address under its account's most specific live address family (https://<label>.<suffix>/): its main address unless it has a domain of its own. Absent when no family serves it. site_url stays the site's own address.", example: https://lisbon.trips.example.com/ }
+        family_addresses: { type: array, items: { type: string }, description: "Every address family address the site answers at, the most specific first" }
         passcode_protected: { type: boolean, description: "Present and true when the site has a passcode (PUT .../lock): every address shows \"This site is protected\" until a visitor enters it. The passcode itself is only in GET .../lock." }
+
+    AddressFamilyRequest:
+      type: object
+      description: "`suffix` or `family` names it: `*.trips.example.com` or `trips.example.com`."
+      properties:
+        suffix: { type: string, example: "*.trips.example.com" }
+        family: { type: string, description: Same as suffix }
+        site_prefix: { type: string, description: "Sites named <site_prefix><label> answer at <label>.<suffix>. Lowercase letters, digits and hyphens, not at the start, up to 40 characters. Default none.", example: voucher- }
+        rank: { type: integer, minimum: 0, maximum: 1000, default: 0, description: "Tie-break between families with the same site_prefix: the lowest rank is the main address." }
+        canonical: { type: boolean, default: true, description: "A family address is the site's main address (unless the site has a domain of its own); false keeps the site's own address as the main one." }
+        cert_mode: { type: string, enum: [wildcard, per_host], default: wildcard, description: "wildcard: the operator's wildcard certificate. per_host is not available yet (400 cert_mode_unavailable)." }
+
+    AddressFamily:
+      type: object
+      required: [id, family, suffix, site_prefix, rank, canonical, status, live, bound_at, certificate]
+      properties:
+        id: { type: string, format: uuid }
+        family: { type: string, example: "*.trips.example.com" }
+        suffix: { type: string, example: trips.example.com }
+        site_prefix: { type: string, example: "" }
+        rank: { type: integer }
+        canonical: { type: boolean, description: "Whether a family address is each matching site's main address (unless it has a domain of its own)" }
+        status: { type: string, enum: [pending, active, failing], description: "pending (waiting for the DNS records), active (verified), failing (verified, but its checks fail now)" }
+        live: { type: boolean, description: "Its addresses are answered now: verified and its certificate live" }
+        last_error: { type: string, description: What the last check found, when it failed }
+        bound_at: { type: string, format: date-time }
+        verified_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time, description: "Pending only: when it is dropped if its records are still not seen" }
+        failing_since: { type: string, format: date-time }
+        release_at: { type: string, format: date-time, description: "When a failing family is disconnected (after its owner was emailed)" }
+        dns:
+          description: The wildcard record to add at the registrar
+          type: object
+          properties:
+            type: { type: string, example: CNAME }
+            host: { type: string, example: "*.trips.example.com" }
+            value: { type: string, example: cname.simple-host.app }
+        dns_a:
+          description: The A-record alternative to dns, where the server hands one out
+          type: object
+          properties:
+            type: { type: string, example: A }
+            host: { type: string, example: "*.trips.example.com" }
+            value: { type: string, example: 203.0.113.7 }
+        dns_txt:
+          description: "The ownership record: TXT _simple-host.<suffix> holding the family's token. Keep it in place. Absent when the operator exempted the family from it."
+          type: object
+          properties:
+            type: { type: string, example: TXT }
+            host: { type: string, example: _simple-host.trips.example.com }
+            value: { type: string, example: sh-0123456789abcdef0123456789abcdef }
+        proof_exempt: { type: boolean, description: Present and true when the operator verified it without the TXT record }
+        certificate:
+          type: object
+          required: [mode, status]
+          properties:
+            mode: { type: string, enum: [wildcard] }
+            status: { type: string, enum: [waiting_for_operator, pending, issuing, live, failed], description: "waiting_for_operator (the operator has not set up the wildcard certificate yet), pending (the family is not verified yet), issuing (being put in service), live, failed (note says why)" }
+            note: { type: string }
+            expires_at: { type: string, format: date-time }
+        example_url: { type: string, description: "One matching site's address under the family", example: https://lisbon.trips.example.com/ }
+        sites:
+          description: "Only with ?sites=1: every matching site and its address"
+          type: array
+          items:
+            type: object
+            required: [site, address, main]
+            properties:
+              site: { type: string, example: lisbon }
+              address: { type: string, example: https://lisbon.trips.example.com/ }
+              main: { type: boolean, description: This is the site's main address }
+              lives_at: { type: string, description: "The site has a domain of its own; this address redirects there" }
+        owner: { type: string, description: "Admin view only: the owner's email" }
+        owner_id: { type: string, description: "Admin view only: the owner's account id" }
+        cert_name: { type: string, description: "Admin view only: the operator's certificate lineage" }
 
     SitePasscode:
       type: object
@@ -6598,7 +6989,11 @@ components:
             host, nor the owner's or admin's key), invalid_passcode (400),
             passcodes_not_enabled and passcode_needs_own_address (409: a
             passcode cannot be set on this server), no_passcode (409),
-            invalid_request (400). New codes may be added.
+            invalid_request (400), use_address_family (400: a *.<domain>
+            sent to a site's domain route), no_address_family (404),
+            invalid_site_prefix, invalid_rank, invalid_cert_mode,
+            cert_mode_unavailable (400), address_family_limit and
+            address_families_unavailable (409). New codes may be added.
           example: domain_taken
 
   responses:

@@ -264,6 +264,7 @@ another setting.
 | `SITE_BASE_CERT_DIR` | none | Like `SITE_CERT_DIR`, for the per-person certificates under `SITE_BASE_DOMAIN` (`deploy/site-certs/simple-host-site-certs-site.*`). Required once `SITE_BASE_MOVE` is on and `SITE_BASE_DOMAIN` differs from `SITE_DOMAIN`: the server refuses to start without it, or when its `ready/` or `requests/` is missing (it never creates them). |
 | `PASSCODE_ENC_KEY` | none | Seals site passcodes (AES-256-GCM; 32 random bytes, base64: `openssl rand -base64 32`). Secret. Unset: no site can get a passcode. Changing it makes every stored passcode unreadable and signs every visitor out. |
 | `DOMAIN_CERT_DIR` | none | Custom-domain certificate hand-off with the root issuer (`deploy/domain-certs/`). |
+| `ADDRESS_FAMILY_CERT_DIR` | none | Address-family hand-off with the root family issuer (`deploy/family-certs/`): requests go in, `ready/` says a family is served. Empty: no address family is ever served. |
 | `SETUP_PASSWORD` | none | The password a box in setup mode asks for (install.sh generates it). |
 | `SETUP_PUBLIC_API` | `https://simple-host.app` | Where a box in setup mode claims a free hostname from. |
 | `OPENAI_APPS_CHALLENGE` | none | The OpenAI plugin portal's domain-verification token. |

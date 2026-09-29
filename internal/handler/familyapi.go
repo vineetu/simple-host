@@ -156,6 +156,7 @@ type familyResponse struct {
 	Sites       []familySite `json:"sites,omitempty"`
 	// Admin view only.
 	Owner    string `json:"owner,omitempty"`
+	OwnerID  string `json:"owner_id,omitempty"`
 	CertName string `json:"cert_name,omitempty"`
 }
 
@@ -802,7 +803,7 @@ func (h *SiteHandler) adminListFamilies(w http.ResponseWriter, r *http.Request) 
 	out := make([]familyResponse, 0, len(fams))
 	for _, f := range fams {
 		resp := h.familyResponseFor(r.Context(), f, false)
-		resp.Owner, resp.CertName = f.Email, f.CertName
+		resp.Owner, resp.OwnerID, resp.CertName = f.Email, f.UserID, f.CertName
 		out = append(out, resp)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"address_families": out, "available": h.familiesOn()})
@@ -882,7 +883,7 @@ func (h *SiteHandler) adminSetFamilyCert(w http.ResponseWriter, r *http.Request)
 	h.syncFamilyRequest(f)
 	h.refreshFamilies(r.Context())
 	resp := h.familyResponseFor(r.Context(), f, false)
-	resp.Owner, resp.CertName = f.Email, f.CertName
+	resp.Owner, resp.OwnerID, resp.CertName = f.Email, f.UserID, f.CertName
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -908,7 +909,7 @@ func (h *SiteHandler) adminSetFamilyProofExempt(w http.ResponseWriter, r *http.R
 	log.Printf("admin %s set address family *.%s proof exempt to %v", adminName(r), f.Suffix, *req.ProofExempt)
 	f, _ = db.GetFamilyByID(r.Context(), h.database, f.ID)
 	resp := h.familyResponseFor(r.Context(), f, false)
-	resp.Owner, resp.CertName = f.Email, f.CertName
+	resp.Owner, resp.OwnerID, resp.CertName = f.Email, f.UserID, f.CertName
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -944,7 +945,7 @@ func (h *SiteHandler) adminCheckFamily(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp := h.familyResponseFor(r.Context(), f, false)
-	resp.Owner, resp.CertName = f.Email, f.CertName
+	resp.Owner, resp.OwnerID, resp.CertName = f.Email, f.UserID, f.CertName
 	writeJSON(w, http.StatusOK, resp)
 }
 

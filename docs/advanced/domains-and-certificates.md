@@ -11,6 +11,26 @@ together, one redirecting to the other.
 and later stops being the site's address; the date in that email holds even if the setting
 changes.
 
+**Address families.** An account can connect `*.<its domain>` once, and every one of its sites
+then answers at `<site>.<its domain>` (with an optional site-name prefix: `*.voucher.brand.com`
+with prefix `voucher-` serves the sites `voucher-<name>`). The owner adds a wildcard record
+(`CNAME *.<domain>` to `CNAME_TARGET`, or an A record to `CUSTOM_DOMAIN_IP`) and a TXT record
+`_simple-host.<domain>` holding the family's token. Nothing is served before both are seen; a
+family still unproven after `ADDRESS_FAMILY_UNPROVEN_HOURS` is dropped. Once verified it is the
+account's alone: no other account can connect it, a family overlapping it, or a custom domain
+under it. A family failing its checks emails its owner after `ADDRESS_FAMILY_LAPSE_WARN_HOURS`
+and is disconnected after `ADDRESS_FAMILY_LAPSE_HOURS`. The event domains and the server's own
+zones are never accepted as a custom domain or a family.
+
+Certificates for families are the operator's in this release: issue a wildcard certificate for
+`*.<domain>` with certbot (DNS-01, renewed as usual), then name its lineage on the family from
+the admin API (`PUT /v1/admin/address-families/{id}/cert-mode`
+`{"cert_mode":"wildcard","cert_name":"<lineage>"}`). Until then the family shows
+`waiting_for_operator`. The family issuer (`deploy/family-certs/`) checks the lineage covers the
+family and writes one nginx file per family; it never issues, renews or deletes a certificate.
+Families need `ADDRESS_FAMILY_CERT_DIR` pointing at that issuer's state directory; without it no
+family is ever served. They are not available on a small box with Caddy yet.
+
 **Event hostnames** (`<name>.<event domain>` handed to hackathon organisers) are a feature of
 the public instance only.
 
@@ -33,7 +53,7 @@ the public instance only.
 | `ADDRESS_FAMILY_CHECK_INTERVAL_MINUTES` | `10` | 1–60 minutes | How often address families are checked. |
 | `ADDRESS_FAMILY_ACTIVE_RECHECK_MINUTES` | `60` | 5–1440 minutes | How often a working address family's DNS records are proved again. |
 | `ADDRESS_FAMILY_CERTS_PER_ACCOUNT_DAILY` | `12` | 1–1000 certificates | Per-site-name certificates one account's families may ask for in a day (for a later release; wildcard families need none). |
-| `ADDRESS_FAMILY_RESERVED_LABELS` | `www` | 0–0 labels | Names (comma-separated) that never name a site under an address family. |
+| `ADDRESS_FAMILY_RESERVED_LABELS` | `www` | DNS labels | Names (comma-separated) that never name a site under an address family. |
 | `ADDRESS_FAMILY_CACHE_SECONDS` | `30` | 1–3600 seconds | How long the server keeps its list of working address families before reading it again. |
 | `RATE_LIMIT_TLS_ASK` | `60,100ms` | any (warns past 10× looser) | Certificate checks (/internal/tls-ask), per address. |
 | `RATE_LIMIT_DOMAIN_CHECK` | `10,10s` | any (warns past 10× looser) | "Check again" on a domain, per address. |
@@ -62,3 +82,10 @@ told the right A record.
 DOMAIN_UNPROVEN_HOURS=6
 DOMAIN_UNPROVEN_MAX_DAYS=2
 ```
+
+**Adopt an existing hand-made wildcard server.** Connect the family for the account from the
+admin API with its lineage (`POST /v1/admin/users/{id}/address-families`
+`{"suffix":"*.trips.brand.com","cert_name":"trips.brand.com","canonical":false}`, and
+`"proof_exempt":true` if you already run its DNS). Once it is verified, the issuer reports
+"already served here" until `deploy/prod/family-adopt.sh <domain> --old <vhost>` (dry run; then
+`--apply`) swaps the hand-made server for the managed one; `--rollback --apply` puts it back.

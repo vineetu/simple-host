@@ -192,6 +192,39 @@ dig +short recipes.brand.com @curitiba.ns.porkbun.com
 
 ---
 
+## Wildcard records (address families)
+
+For an address family (`*.trips.brand.com`, the skill's "Many sites under one name") the two
+records are **CNAME `*.trips` → `cname.simple-host.app`** (or **A `*.trips` → the IP in
+`dns_a`**) and **TXT `_simple-host.trips`** holding the family's token (`dns_txt`). The name is
+the label form with a `*.` in front: for `*.trips.brand.com` in the zone `brand.com` it is
+`*.trips`; for `*.brand.com` it is `*`. Same rules as above: add, don't replace; leave MX and
+other TXT records alone; keep the TXT record in place.
+
+- A record for a specific name under the wildcard (say `shop.trips`) still wins for that one
+  name; only names with no record of their own come here.
+- Remove any other `*.trips` A, AAAA or CNAME record first (a parking wildcard, or an old host):
+  the check looks up a random name under the wildcard and wants every answer to be this server.
+- **GoDaddy:** DNS tab → **Add New Record** → Type `CNAME` · Name `*.trips` · Value
+  `cname.simple-host.app` · TTL 600; then Type `TXT` · Name `_simple-host.trips`. API: the same
+  `PATCH /v1/domains/$ZONE/records` call with `"name":"*.trips"`. New GoDaddy domains may carry a
+  parking `CNAME *` or `A *`; for a family on the bare domain (`*`) edit that one instead of adding
+  a second.
+- **Vercel DNS:** Domains → the domain → **Add** → Name `*.trips` · Type `CNAME` · Value
+  `cname.simple-host.app` · TTL 60; API body `{"name":"*.trips","type":"CNAME","value":"cname.simple-host.app","ttl":60}`.
+  The TXT record the same way with Name `_simple-host.trips`.
+- **Porkbun:** DNS Records → **Add Record** → Type `CNAME` · Host `*.trips` · Answer
+  `cname.simple-host.app` · TTL 600; API `dns/create/$ZONE` with `"name":"*.trips"`. The default
+  parking `CNAME *` only matters for a family on the bare domain (`*`): delete it first then.
+- **Cloudflare:** DNS → Records → **Add record** → Type `CNAME` · Name `*.trips` · Target
+  `cname.simple-host.app` · Proxy status **DNS only** (grey cloud), not proxied: a proxied
+  wildcard hides this server from the check and the certificate. TXT at `_simple-host.trips`.
+- **Check it landed:** `dig +short anything-random.trips.brand.com @<the zone's nameserver>`
+  should answer `cname.simple-host.app.` (or the IP), and
+  `dig +short TXT _simple-host.trips.brand.com @<the zone's nameserver>` the token.
+
+---
+
 ## Any other registrar / DNS host
 
 Same two records, same rules. Work out where DNS actually lives (`dig NS <zone> +short` — Cloudflare,

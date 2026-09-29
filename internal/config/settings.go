@@ -380,7 +380,7 @@ func Settings() []Setting {
 			}
 		case "on/off":
 			s.Type, s.Unit, s.Allowed = "bool", "", []string{"on", "off"}
-		case "email address", "model name":
+		case "email address", "model name", "DNS labels":
 			s.Type = "string"
 		case "seconds", "minutes", "hours", "days":
 			s.Type = "duration"

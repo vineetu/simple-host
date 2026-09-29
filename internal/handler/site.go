@@ -2232,7 +2232,7 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 		if vis == "" {
 			vis = "unlisted"
 		}
-		byUser[s.UserID] = append(byUser[s.UserID], map[string]any{
+		m := map[string]any{
 			"id":               s.ID,
 			"name":             s.Name,
 			"site_url":         h.siteURLFor(s),
@@ -2247,7 +2247,18 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 			"suspended":        s.Suspended(),
 			"suspended_reason": s.SuspendedReason(),
 			"suspended_by":     suspendedBy(s),
-		})
+		}
+		if host, ok := h.siteFamilyAddress(s.UserID, s.Name); ok {
+			m["family_address"] = "https://" + host + "/"
+		}
+		if addrs := h.siteFamilyAddrs(s.UserID, s.Name); len(addrs) > 0 {
+			list := make([]string, 0, len(addrs))
+			for _, a := range addrs {
+				list = append(list, "https://"+a.Host+"/")
+			}
+			m["family_addresses"] = list
+		}
+		byUser[s.UserID] = append(byUser[s.UserID], m)
 	}
 
 	out := make([]map[string]any, 0, len(users))

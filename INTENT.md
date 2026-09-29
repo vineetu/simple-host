@@ -129,6 +129,11 @@ What follows from that, and is not negotiable without changing the line above:
   apex or the domain. Reads stay public. Disconnecting the domain reverses both at once and
   strands links people saved to the domain; the owner accepts that. Reason: one address, one
   place to save, one place to sign in, and no back door around per-person writes.
+  Amended 2026-09-29 (address families): one home address, several addresses. A site's main
+  address is its custom domain (or free name), else its most specific canonical family address,
+  else its own address. Saves and sign-in happen on the main address and on its family
+  addresses; the site's own address redirects to the main one; every family address keeps
+  working (a site with a domain of its own redirects from them to it).
 - **2026-09-06. A domain binding is provisional until DNS proves it.** Unproven bindings can be
   taken over by another site and expire after 24 hours; only a verified binding is exclusive.
   Refined 2026-09-27: the proof is a TXT ownership record, and a binding past it cannot be taken
@@ -558,6 +563,22 @@ What follows from that, and is not negotiable without changing the line above:
   shared with a group ("go work on it", 2026-09-29). Built and deployed dark
   (`SITE_PASSCODES=off` on simple-host.app), switched on after the "address families" feature.
   Enterprise: different on purpose (its access levels are tied to real identity).
+- **2026-09-29. Address families: one domain for every site of an account.** An account connects
+  `*.<its domain>` once (a wildcard DNS record plus the TXT ownership record) and every site X of
+  the account answers at `X.<its domain>`, with an optional site-name prefix (`*.voucher.x.com`
+  serves the sites `voucher-X`). All of the account's matching sites answer, with no per-site
+  opt-in (each is already public at its own address); another account's sites never do. Nothing
+  is served before the proof; once verified the family is the account's alone, and one that
+  stops passing its checks is disconnected after 72 hours. A family address is the site's main
+  address by default (below a custom domain, above its own address; see the 2026-09-06
+  amendment), with a per-family switch. Release 1 serves families with a wildcard certificate the
+  operator sets up (the admin names it; the family waits until then); one certificate per site
+  name, self-serve on the customer's own DNS, is a later release. Hosted only: Enterprise has no
+  custom domains, so it is different on purpose. Reason: chhotabreak runs four hand-made wildcard
+  families (`*.trips`, `*.quotes`, `*.voucher`, `*.guide` under chhotabreak.com) where sign-in,
+  saves and analytics did not work and every change needed the operator; one domain per account
+  covering every site is what she needs. Owner decision 2026-09-29; design:
+  `docs/designs/address-families.md`.
 
 ## Open, deliberately parked
 

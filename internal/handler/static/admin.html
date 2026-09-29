@@ -110,6 +110,13 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
 .panel-inner{border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--surface)}
 .vrow{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:4px 0;font-size:14px}
 .data-rows{max-height:360px;overflow:auto;margin-top:8px}
+/* Address families of one account (Users, account details). */
+.fam-adm{margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.fam-one{padding:8px 0;border-bottom:1px solid var(--border);font-size:14px;overflow-wrap:anywhere}
+.fam-one .mono{white-space:normal}
+.fam-adm .form-row label input.in{width:200px;max-width:100%}
+.form-row label.chk{flex-direction:row;align-items:center;gap:6px;min-height:38px}
+.form-row label.chk input{width:auto}
 
 /* The Sites actions column stays in view while the table scrolls sideways. */
 #s-table th:last-child,#s-table tr[data-site] td:last-child{position:sticky;right:0;background:var(--bg);padding-left:8px;box-shadow:-8px 0 8px -8px rgba(2,6,23,.25)}
@@ -204,7 +211,7 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
       <div class="chips" role="group" aria-label="Filter sites" id="s-chips">
         <button type="button" class="chip" data-filter="all" aria-pressed="true">All</button>
         <button type="button" class="chip" data-filter="down" aria-pressed="false">Taken down</button>
-        <button type="button" class="chip" data-filter="domain" aria-pressed="false">Has custom domain</button>
+        <button type="button" class="chip" data-filter="domain" aria-pressed="false">Has own address</button>
         <button type="button" class="chip" data-filter="unlisted" aria-pressed="false">Unlisted</button>
       </div>
       <div class="tbl-wrap"><table class="t nowrap" id="s-table"><thead><tr>
@@ -212,7 +219,7 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
         <th data-sort="owner"><button type="button" class="th-btn" data-sort="owner">Owner <span aria-hidden="true"></span></button></th>
         <th data-sort="size" class="num"><button type="button" class="th-btn" data-sort="size">Size <span aria-hidden="true"></span></button></th>
         <th data-sort="updated"><button type="button" class="th-btn" data-sort="updated">Last updated <span aria-hidden="true"></span></button></th>
-        <th>Visibility</th><th>Status</th><th>Domain</th><th><span class="muted">Actions</span></th>
+        <th>Visibility</th><th>Status</th><th>Own address</th><th><span class="muted">Actions</span></th>
       </tr></thead><tbody id="s-rows"></tbody></table></div>
       <div class="pager" id="s-pager"></div>
     </div>
@@ -569,7 +576,7 @@ function userPanel(u){
   var why=u.suspended?'<div class="down-note">Suspended: '+esc(u.suspended_reason)+'. Keys, connected apps and sign-in are refused; every site of theirs is taken down.</div>':'';
   var list=sites.length?'<div class="site-mini">'+sites.map(function(s){
     var st=s.suspended?' <span class="tag down">taken down</span>':s.offline?' <span class="tag">offline</span>':!s.site_url?' <span class="tag">not live</span>':'';
-    return '<div><strong>'+esc(s.name)+'</strong>'+st+(s.site_url?'<br><a href="'+esc(s.site_url)+'" target="_blank" rel="noopener">'+esc(s.site_url.replace(/^https?:\/\//,''))+'</a>':'')+(s.custom_domain?'<br><span class="muted">'+esc(s.custom_domain)+'</span>':'')+'</div>';
+    return '<div><strong>'+esc(s.name)+'</strong>'+st+(s.site_url?'<br><a href="'+esc(s.site_url)+'" target="_blank" rel="noopener">'+esc(s.site_url.replace(/^https?:\/\//,''))+'</a>':'')+(s.custom_domain?'<br><span class="muted">'+esc(s.custom_domain)+'</span>':'')+(s.family_address?'<br><span class="muted">'+esc(hostOf(s.family_address))+' · family</span>':'')+'</div>';
   }).join('')+'</div>':'<div class="muted">No sites yet.</div>';
   var acts='';
   if(!u.is_admin){
@@ -581,7 +588,7 @@ function userPanel(u){
       '<button type="button" class="btn ghost sm" data-goto-sites="'+esc(u.handle||u.username)+'">Open in Sites</button></div>';
   }
   var meta='<div class="muted" style="font-size:13px;margin-bottom:6px">'+esc(u.username)+(u.display_name?' · '+esc(u.display_name):'')+' · joined '+esc(dateOf(u.created_at))+(u.is_admin?'':' · source: '+sourceCell(u))+'</div>';
-  return meta+why+list+acts;
+  return meta+why+list+acts+famPanel(u);
 }
 $('u-search').addEventListener('input', function(){ US.q=this.value; US.page=0; renderUsers(); });
 $('u-sort').addEventListener('click', function(e){ e.stopPropagation(); US.newestFirst=!US.newestFirst; renderUsers(); });
@@ -591,6 +598,122 @@ $('u-rows').addEventListener('click', function(e){
   var tr=e.target.closest('tr[data-user]'); if(!tr) return;
   var id=tr.dataset.user; US.open[id]=!US.open[id]; renderUsers();
   var t=document.querySelector('tr[data-user="'+id+'"] .row-toggle'); if(t) t.focus();
+});
+
+// ---------------------------------------------------------------- address families
+// *.<domain> for every site of one account. GET /v1/admin/address-families
+// loads the first time an account is opened; each account lists the ones
+// whose owner_id is its id. Nothing shows while the server has them off.
+var FAM={list:null, available:false, promise:null, failed:false};
+function hostOf(u){ return String(u||'').replace(/^https?:\/\//,'').replace(/\/$/,''); }
+function loadFamilies(){
+  if(FAM.promise) return FAM.promise;
+  FAM.failed=false;
+  FAM.promise=api('GET','/v1/admin/address-families').then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(d){ FAM.list=d.address_families||[]; FAM.available=!!d.available; if(current==='users') renderUsers(); })
+    .catch(function(){ FAM.failed=true; FAM.promise=null; if(current==='users') renderUsers(); });
+  return FAM.promise;
+}
+async function reloadFamilies(){ FAM.promise=null; await loadFamilies(); }
+function famById(id){ var l=FAM.list||[]; for(var i=0;i<l.length;i++) if(l[i].id===id) return l[i]; return null; }
+function famTag(f){
+  var c=f.certificate||{};
+  if(f.live) return '<span class="tag ok">live</span>';
+  if(f.status==='failing') return '<span class="tag down">not working</span>';
+  if(f.status==='pending') return '<span class="tag">waiting for DNS</span>';
+  if(c.status==='waiting_for_operator') return '<span class="tag warn">needs the certificate</span>';
+  if(c.status==='failed') return '<span class="tag down">certificate failed</span>';
+  return '<span class="tag">certificate on its way</span>';
+}
+function famCertLine(f){
+  var c=f.certificate||{};
+  var w={waiting_for_operator:'waiting for the operator', pending:'waits for the DNS check', issuing:'on its way', live:'live', failed:'failed'}[c.status]||c.status||'';
+  return 'Certificate: '+esc(w)+(f.cert_name?' · <span class="mono">'+esc(f.cert_name)+'</span>':'')+(c.expires_at?' · expires '+esc(dateOf(c.expires_at)):'')+(c.note&&c.status!=='waiting_for_operator'?' · '+esc(c.note):'');
+}
+function famRow(f){
+  var id=esc(f.id);
+  var recs=f.status!=='active'?[f.dns,f.dns_a,f.dns_txt].filter(Boolean).map(function(r){ return '<div class="mono">'+esc(r.type)+' '+esc(r.host)+' → '+esc(r.value)+'</div>'; }).join(''):'';
+  return '<div class="fam-one">'+
+    '<div><strong>'+esc(f.family)+'</strong> '+famTag(f)+(f.site_prefix?' <span class="muted">· site prefix '+esc(f.site_prefix)+'</span>':'')+' <span class="muted">· '+(f.canonical?'main address':'not the main address')+'</span></div>'+
+    '<div class="sub muted">'+famCertLine(f)+'</div>'+
+    (f.last_error&&!f.live?'<div class="down-note">Last check: '+esc(f.last_error)+'</div>':'')+
+    (f.release_at?'<div class="down-note">Disconnected on '+esc(dateOf(f.release_at))+' unless it works again.</div>':'')+
+    recs+
+    '<div class="form-row">'+
+      '<label>Wildcard certificate (operator) <input class="in" type="text" data-fam-cert-in="'+id+'" value="'+esc(f.cert_name||'')+'" placeholder="certificate name" autocomplete="off" spellcheck="false"></label>'+
+      '<button type="button" class="btn ghost sm" data-fam-cert="'+id+'">Save</button>'+
+      '<label class="chk"><input type="checkbox" data-fam-exempt="'+id+'"'+(f.proof_exempt?' checked':'')+'> Proof exempt</label>'+
+    '</div>'+
+    '<div class="actions">'+
+      '<button type="button" class="btn ghost sm" data-fam-check="'+id+'">Check</button>'+
+      '<button type="button" class="btn danger sm" data-fam-delete="'+id+'">Disconnect</button>'+
+    '</div></div>';
+}
+function famPanel(u){
+  if(!FAM.list&&!FAM.failed){ loadFamilies(); return ''; }
+  if(FAM.failed) return '<div class="fam-adm muted">Could not load address families. <button type="button" class="btn ghost sm" data-fam-retry>Try again</button></div>';
+  if(!FAM.available) return '';
+  var email=emailOf(u).toLowerCase();
+  var mine=FAM.list.filter(function(f){ return f.owner_id?f.owner_id===u.id:(email&&String(f.owner||'').toLowerCase()===email); });
+  var uid=esc(u.id);
+  return '<div class="fam-adm"><strong>Address families</strong>'+
+    (mine.length?mine.map(famRow).join(''):'<div class="muted" style="font-size:14px">None.</div>')+
+    '<details class="box"><summary>Connect a family for this account</summary>'+
+      '<div class="form-row" data-fam-new="'+uid+'">'+
+        '<label>Domain <input class="in" type="text" data-fam-f="suffix" placeholder="*.sites.example.com" autocomplete="off" spellcheck="false"></label>'+
+        '<label>Site prefix <input class="in" type="text" data-fam-f="prefix" placeholder="optional" autocomplete="off" spellcheck="false" maxlength="40"></label>'+
+        '<label>Wildcard certificate (operator) <input class="in" type="text" data-fam-f="cert" placeholder="optional" autocomplete="off" spellcheck="false"></label>'+
+        '<label class="chk"><input type="checkbox" data-fam-f="canonical" checked> Main address</label>'+
+        '<label class="chk"><input type="checkbox" data-fam-f="exempt"> Proof exempt</label>'+
+        '<button type="button" class="btn sm" data-fam-connect="'+uid+'">Connect</button>'+
+      '</div></details></div>';
+}
+async function famCall(method, path, body, done){
+  try{
+    var res=await api(method, path, body);
+    if(res.status!==204&&!res.ok){ status(await errOf(res), true); return false; }
+    await reloadFamilies(); await reloadUsers(); status(done);
+    return true;
+  }catch(e){ status('Cannot reach the server', true); return false; }
+}
+async function famSetCert(f, name){
+  if(!name&&f.cert_name&&!(await shConfirm({title:'Take the certificate away from '+f.family+'?', body:'Owner: '+f.owner+'. No site answers under '+f.family+' until a certificate is set again.', confirmLabel:'Take it away', danger:true}))){ renderUsers(); return; }
+  famCall('PUT','/v1/admin/address-families/'+encodeURIComponent(f.id)+'/cert-mode',{cert_mode:'wildcard', cert_name:name}, name?'Set the certificate of '+f.family+' to '+name+'.':'Took the certificate away from '+f.family+'.');
+}
+async function famDisconnect(f){
+  if(!(await shConfirm({title:'Disconnect '+f.family+'?', body:'Owner: '+f.owner+'. Every site stops answering under '+f.family+'. The sites keep their other addresses.', confirmLabel:'Disconnect', danger:true}))) return;
+  famCall('DELETE','/v1/admin/address-families/'+encodeURIComponent(f.id), undefined, 'Disconnected '+f.family+'.');
+}
+async function famCheck(f, btn){
+  btn.disabled=true; btn.textContent='Checking…';
+  try{
+    var res=await api('POST','/v1/admin/address-families/'+encodeURIComponent(f.id)+'/check');
+    if(!res.ok){ status(await errOf(res), true); btn.disabled=false; btn.textContent='Check'; return; }
+    var n=await res.json();
+    await reloadFamilies(); await reloadUsers();
+    status(n.live?n.family+' is live.':n.family+': '+(n.last_error||'not working yet')+'.', !n.live&&!!n.last_error);
+  }catch(e){ status('Cannot reach the server', true); btn.disabled=false; btn.textContent='Check'; }
+}
+function famConnect(u, row){
+  var v=function(k){ return row.querySelector('[data-fam-f="'+k+'"]'); };
+  var suffix=v('suffix').value.trim(); if(!suffix){ v('suffix').focus(); return; }
+  famCall('POST','/v1/admin/users/'+encodeURIComponent(u.id)+'/address-families',
+    {suffix:suffix, site_prefix:v('prefix').value.trim(), canonical:v('canonical').checked, cert_name:v('cert').value.trim(), proof_exempt:v('exempt').checked},
+    'Connected '+(suffix.indexOf('*.')===0?suffix:'*.'+suffix)+' for '+(u.handle||u.username)+'.');
+}
+$('u-rows').addEventListener('click', function(e){
+  var b=e.target.closest('button'); if(!b) return;
+  var d=b.dataset, f;
+  if(d.famRetry!=null){ FAM.failed=false; renderUsers(); }
+  else if(d.famCert&&(f=famById(d.famCert))) famSetCert(f, (b.closest('.form-row').querySelector('[data-fam-cert-in]').value||'').trim().toLowerCase());
+  else if(d.famCheck&&(f=famById(d.famCheck))) famCheck(f, b);
+  else if(d.famDelete&&(f=famById(d.famDelete))) famDisconnect(f);
+  else if(d.famConnect&&D.byId[d.famConnect]) famConnect(D.byId[d.famConnect], b.closest('[data-fam-new]'));
+});
+$('u-rows').addEventListener('change', function(e){
+  var id=e.target.getAttribute('data-fam-exempt'), f=id&&famById(id); if(!f) return;
+  famCall('PUT','/v1/admin/address-families/'+encodeURIComponent(f.id)+'/proof-exempt',{proof_exempt:e.target.checked},
+    f.family+(e.target.checked?' no longer needs its TXT record.':' needs its TXT record again.')).then(function(ok){ if(!ok) renderUsers(); });
 });
 
 // ---------------------------------------------------------------- sites
@@ -605,10 +728,10 @@ function siteRows(){
   var q=SS.q.trim().toLowerCase();
   var rows=D.sites.filter(function(s){
     if(SS.filter==='down'&&!s.suspended) return false;
-    if(SS.filter==='domain'&&!s.custom_domain) return false;
+    if(SS.filter==='domain'&&!s.custom_domain&&!s.family_address) return false;
     if(SS.filter==='unlisted'&&s.visibility!=='unlisted') return false;
     if(!q) return true;
-    return (s.name+' '+(s.owner.handle||'')+' '+s.owner.username+' '+(s.custom_domain||'')).toLowerCase().indexOf(q)>=0;
+    return (s.name+' '+(s.owner.handle||'')+' '+s.owner.username+' '+(s.custom_domain||'')+' '+hostOf(s.family_address)).toLowerCase().indexOf(q)>=0;
   });
   var key={
     name:function(s){ return s.name.toLowerCase(); },
@@ -633,7 +756,8 @@ function renderSites(){
   $('s-rows').innerHTML=slice.map(function(s){
     var o=s.owner, p=SS.panel[s.id];
     var link=s.site_url?'<a href="'+esc(s.site_url)+'" target="_blank" rel="noopener">'+esc(s.name)+'</a>':esc(s.name);
-    var dom=s.custom_domain?esc(s.custom_domain)+(s.domain_status&&s.domain_status!=='active'?' <span class="muted">· '+esc(s.domain_status)+'</span>':''):'<span class="muted">—</span>';
+    var fam=s.family_address?esc(hostOf(s.family_address))+' <span class="muted">· family</span>':'';
+    var dom=s.custom_domain?esc(s.custom_domain)+(s.domain_status&&s.domain_status!=='active'?' <span class="muted">· '+esc(s.domain_status)+'</span>':'')+(fam?'<div class="sub">'+fam+'</div>':''):(fam||'<span class="muted">—</span>');
     return '<tr data-site="'+esc(s.id)+'"><td>'+link+'</td><td>'+esc(o.handle||o.username)+'</td>'+
       '<td class="num">'+(s.size==null?'<span class="muted">'+(D.usage||D.usageFailed?'—':'…')+'</span>':bytes(s.size))+'</td>'+
       '<td>'+esc(dateOf(updatedAt(s)))+' <span class="muted ago">· '+esc(ago(updatedAt(s)))+'</span></td>'+

@@ -525,7 +525,7 @@ func Knobs() []Knob {
 		durKnob("ADDRESS_FAMILY_CHECK_INTERVAL_MINUTES", "minutes", m, 1, 60, func(l *Limits) *time.Duration { return &l.FamilyCheckInterval }),
 		durKnob("ADDRESS_FAMILY_ACTIVE_RECHECK_MINUTES", "minutes", m, 5, 24*60, func(l *Limits) *time.Duration { return &l.FamilyActiveRecheck }),
 		intKnob("ADDRESS_FAMILY_CERTS_PER_ACCOUNT_DAILY", "certificates", 1, 1000, func(l *Limits) *int { return &l.FamilyCertsDaily }),
-		{Env: "ADDRESS_FAMILY_RESERVED_LABELS", Unit: "labels",
+		{Env: "ADDRESS_FAMILY_RESERVED_LABELS", Unit: "DNS labels",
 			Value: func(l *Limits) string { return l.FamilyReservedLabels },
 			set: func(l *Limits, v string) error {
 				var out []string

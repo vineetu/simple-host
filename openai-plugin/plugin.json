@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "simple-host",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "description": "Plan, build and publish websites on Simple Host (simple-host.app) from a conversation, with a small built-in backend so forms, RSVPs, surveys, votes and orders save and can be read back, and connect a custom domain.",
   "author": {
     "name": "Vineet Sriram",

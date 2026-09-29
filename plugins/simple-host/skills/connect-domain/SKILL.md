@@ -78,6 +78,8 @@ they have none) and — absent your own DNS access — pasting the records are t
 - The user asks to use their own domain / brand for a site.
 - The user wants a shorter address than `<site>.<handle>.simple-host.app`. The free
   `<name>.simple-host.app` is the fastest route.
+- The user wants every site of their account under one domain of theirs
+  (`<site>.trips.brand.com`): see "Many sites under one name" below.
 
 Sign-in and private collections do not need this skill; they work on the site's own address.
 
@@ -299,6 +301,71 @@ Disconnecting reverses both changes immediately — that address stops redirecti
 accepts saves again (the redirect is a 302, so nothing stays cached) — and any link people saved
 to the domain simply stops working. Tell the user they can also remove the DNS record at their
 registrar afterward.
+
+## Many sites under one name: `*.<domain>`
+
+An **address family** gives every site of the person's account an address under one domain
+of theirs: connect `*.trips.brand.com` once, and every site `X` answers at
+`https://X.trips.brand.com/`, including sites made later. It is for the whole account, not one
+site.
+
+**Ask the person first.** It applies to every site of their account (all of them answer
+under the domain, and it becomes each site's main address, see below). Name the domain and
+wait for a yes.
+
+With the connector: `connect_domain` with `domain` `*.trips.brand.com` and no `site`. Without
+it:
+```
+POST /v1/me/address-families
+X-API-Key: <api_key>
+Content-Type: application/json
+
+{ "suffix": "*.trips.brand.com" }
+```
+The answer (the connector's `dns_record` and `ownership_record` are the same two records):
+```json
+{
+  "family": "*.trips.brand.com",
+  "status": "pending",
+  "dns": { "type": "CNAME", "host": "*.trips.brand.com", "value": "cname.simple-host.app" },
+  "dns_txt": { "type": "TXT", "host": "_simple-host.trips.brand.com", "value": "sh-0123456789abcdef0123456789abcdef" },
+  "certificate": { "mode": "wildcard", "status": "waiting_for_operator" }
+}
+```
+Relay both records exactly, as in step 3: the **wildcard record** (Type CNAME, Name/Host
+`*.trips`, Value `cname.simple-host.app`; `dns_a` is the A-record alternative when the answer
+has one) and the **TXT record** (Name/Host `_simple-host.trips`, the value from `dns_txt`, kept in
+place). Registrar help for wildcard records: `references/registrars.md` §Wildcard records ·
+https://simple-host.app/v1/skills/connect-domain/references/registrars.md. Nothing is served
+before both are seen, and a family whose records are not seen within a day is dropped.
+
+- **Which sites answer.** Every site of the account. With a prefix, only sites whose name
+  starts with it: `{"suffix": "*.voucher.brand.com", "site_prefix": "voucher-"}` makes
+  `meera.voucher.brand.com` the site `voucher-meera`. Another account's sites never answer there.
+  `www` never names a site.
+- **The main address.** By default a family address becomes each site's main address, unless the
+  site has its own domain or free name: the site's `<site>.<handle>.simple-host.app` address
+  redirects there, and visitors sign in and save there. Every family address keeps working either
+  way. `"canonical": false` (at connect, or `PATCH /v1/me/address-families/trips.brand.com`)
+  keeps each site's own address as the main one. Tool results' `url` and the site list's
+  `family_address` give the address to hand out.
+- **The certificate (this release).** The operator sets up the wildcard certificate for
+  `*.trips.brand.com`; until then `certificate.status` is `waiting_for_operator` and nothing is
+  served. Tell the person, and point them to support@simple-host.app if it has been more than a
+  day. Then it reads `live`.
+- **Check it** with `domain_status` and `domain` `*.trips.brand.com` (without the connector:
+  `GET /v1/me/address-families/trips.brand.com`, or `POST .../trips.brand.com/check` to check
+  now). `status` is `pending` (records not seen yet; `last_error`, the connector's `last_check`, says which), `active`, or
+  `failing` (it stopped passing its checks: the person is emailed after a day and it is
+  disconnected after three). `live: true` means it serves. `?sites=1` on the GET lists every
+  site and its address.
+- **Taken.** 409 `domain_taken`: another account holds that name (or one over or under it).
+  Once verified, the family is the person's alone.
+- **Disconnect** only after the person confirms: `remove_domain` with `confirm_domain`
+  `*.trips.brand.com`, or `DELETE /v1/me/address-families/trips.brand.com`. Every site goes back
+  to its own address at once.
+- Sending `*.brand.com` to a site's `POST /v1/sites/{site}/domain` answers 400
+  `use_address_family`; use the family route above.
 
 ## Backend on a connected domain
 

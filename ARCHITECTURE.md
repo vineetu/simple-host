@@ -26,7 +26,8 @@ is the same binary behind its own nginx vhost (`/` proxies to `/hackathons`).
 Every hostname reaches the binary through nginx on `127.0.0.1:8090`. Inside, the handler chain
 is (`cmd/server/main.go`):
 
-`BoundSubdomains` → `SiteHosts` → `PersonHosts` → `LegacyHostRedirect` → app, where app is
+`FamilyHosts` → `SiteBaseHosts` → `BoundSubdomains` → `SiteHosts` → `PersonHosts` →
+`LegacyHostRedirect` → app, where app is
 `SecurityHeaders(CORS(apiMetrics(BearerAuth(mux))))`.
 
 **Apex `simple-host.app` (and simple-hack.app).** nginx proxies everything to the app except
@@ -64,6 +65,29 @@ left alone. A site keeps serving at its earlier own address (`previous_domain`) 
 domain is verified; a verified domain failing for 24 h emails the owner, and after 72 h its
 verification is cleared. A claimed `<name>.simple-host.app` the site lets go is kept in
 `legacy_hostnames` and redirects to the site (`legacyhost.go`).
+
+**Address families `<label>.<suffix>`** (`familyhost.go`, `familyapi.go`, `db/families.go`;
+design `docs/designs/address-families.md`). An account connects `*.<suffix>`; its site named
+`<site_prefix><label>` answers at `<label>.<suffix>`. The host alone names the account and the
+site, so no other account's site is reachable there. A family is verified by its TXT record
+(or the admin's proof exemption) plus the wildcard resolving only here, re-checked every 10
+minutes (hourly once active); once verified the app links `/srv/simple-host/sites/families/<suffix>`
+→ `by-id/<user_id>` and writes `ADDRESS_FAMILY_CERT_DIR/requests/<suffix>` (token, link target,
+certificate mode and lineage, site prefix, reserved labels). A root-owned issuer
+(`deploy/family-certs/issue.sh`, installed as `/usr/local/sbin/simple-host-family-certs`, state
+`/var/lib/simple-host-family-certs`, path unit + 10-minute timer) checks that the operator's
+wildcard lineage covers `*.<suffix>` (it never issues, renews or deletes a certificate; certbot
+renews it as usual), refuses a family any other nginx server answers, writes
+`sites-enabled/simple-host-family-<suffix>` from `vhost.conf.template`, reloads nginx and writes
+`ready/<suffix>`. The app treats a family as live only while that marker's prefix matches.
+nginx serves files straight from `families/<suffix>/<prefix>$label/current` with the
+take-down, offline, passcode and lives-elsewhere markers, and sends `/v1/`, `/internal/` and
+misses to the app, where `FamilyHosts` (outermost in the chain) answers them: the API bound to
+that one site, renamed labels (302 to the new one), missing sites (404), and a site with a
+domain of its own (302 there). The main-address ranking (domain > most specific canonical family
+> site host) decides where the site host redirects and where sign-in and saves happen.
+`deploy/prod/family-adopt.sh` moves a hand-made wildcard vhost to the managed file (dry run by
+default, `--apply`, `--rollback`).
 
 **Person hosts `<handle>.simple-host.app`** (`personhost.go`). The wildcard vhost
 proxies to the app; `PersonHosts` recognises the handle (aliases such as `admin` →

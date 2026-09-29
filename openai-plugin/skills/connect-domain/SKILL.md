@@ -116,6 +116,30 @@ domain of their own.
 5. **Done** when the status is `active`. Give the person `https://<their domain>/` and remind
    them the old address now redirects there.
 
+## Many sites under one name: `*.<domain>`
+
+An address family puts every site of the person's account under one domain of theirs:
+connect `*.trips.example.com` once and every site `X` answers at `https://X.trips.example.com/`,
+including sites made later.
+
+- **Ask first:** it applies to every site of their account. Name the domain and wait for a yes.
+- `connect_domain` with `domain: "*.trips.example.com"` and no `site`. Relay the two records
+  from the answer: the wildcard record `dns_record` (Type CNAME · Name `*.trips` · Value
+  `cname.simple-host.app`) and the TXT record `ownership_record` (Name `_simple-host.trips`,
+  kept in place). At Cloudflare the wildcard must be **DNS only**, not proxied. Remove any other
+  `*.trips` record first.
+- Every site answers there, or with a prefix only the sites whose name starts with it
+  (`voucher-` makes `meera.voucher.example.com` the site `voucher-meera`).
+- By default a family address becomes each site's main address, unless the site has its own
+  domain: its own address redirects there and visitors sign in and save there. The tools' `url`
+  is the address to give out.
+- In this release Simple Host's operator sets up the wildcard certificate: until then the
+  certificate reads `waiting_for_operator`; tell the person, and point them to
+  support@simple-host.app if it has been more than a day.
+- Check with `domain_status` and `domain: "*.trips.example.com"`: `pending` (records not seen
+  yet; `last_check` says which), `active`, or `failing`. Disconnect only after the person
+  confirms: `remove_domain` with `confirm_domain: "*.trips.example.com"`.
+
 ## Registrar credentials
 
 Relaying the records is the default. Do not ask for registrar logins or access tokens. If the

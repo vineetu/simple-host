@@ -30,7 +30,7 @@ Conventions:
 - Owner auth = `X-API-Key` via `authMiddleware` (`internal/auth/middleware.go`), or a connector
   Bearer token that `connector.BearerAuth` turns into a per-request internal key.
 - Cross-cutting on every request: `SecurityHeaders` → `CORS` (`h/cors.go`) → `apiMetrics.Wrap`
-  → `connector.BearerAuth` → mux, behind `BoundSubdomains` → `SiteHosts` →
+  → `connector.BearerAuth` → mux, behind `FamilyHosts` → `SiteBaseHosts` → `BoundSubdomains` → `SiteHosts` →
   `PersonHosts` → `LegacyHostRedirect` host routing (`cmd/server/main.go`). JSON owner routes also go through
   `NoticeMiddleware` (stale-skill `_notice`, `h/notice_middleware.go`).
 
@@ -239,10 +239,41 @@ offered nor asked for, and the issuer skips a partner whose `domains/` link poin
 site.
 Nothing is stored for the partner: it follows from the domain, its state is the ready marker.
 
+**Address families (`*.<domain>` for every site of an account).** An account connects
+`*.<suffix>` once (e.g. `*.trips.example.com`); every site of the account named
+`<site_prefix><label>` then answers at `<label>.<suffix>`, including sites made later
+(`site_prefix` is optional: with `voucher-`, `meera.voucher.example.com` is the site
+`voucher-meera`). No per-site opt-in; another account's sites never answer there; labels in
+`ADDRESS_FAMILY_RESERVED_LABELS` (`www`) never name a site. Proof: TXT `_simple-host.<suffix>` =
+the family's token plus the wildcard record (`CNAME *.<suffix>` → the CNAME target, or `A`)
+pointing only here; nothing is served before that, and a pending family is dropped after 24 h.
+Several accounts may wait on one name: the first to prove it wins, the others are dropped and
+emailed. Verified = exclusive: no other account can connect it, an overlapping family, or a
+custom domain under it (409 `domain_taken`); the same account may put a custom domain under its
+own family (the exact domain wins, and the site's family addresses redirect to its domain).
+Release 1 certificates: `cert_mode` `wildcard` only; the operator sets up the wildcard
+certificate (certbot renews it as usual) and the admin names its lineage (`cert_name`); until
+then `certificate.status` is `waiting_for_operator`. `per_host` answers 400
+`cert_mode_unavailable` (release 2). Main address (`canonical`, default on): custom domain or
+free name > the most specific canonical family (longest prefix, then lowest `rank`, then
+suffix) > the site host; when a family address is main, the site host and old links 302 there
+and refuse sign-in and saves (`use_custom_domain`). Every family address keeps working either
+way. On a family address sign-in (Google, email code with a same-origin request), saved data,
+private lists, analytics, the report form, take-down/offline/passcode, rename (old label 302s),
+delete (404) and restore work as on a custom domain. A verified family failing its checks is
+emailed at 24 h and disconnected at 72 h (reconnecting needs the TXT again). The admin may mark
+one `proof_exempt` (the wildcard must still point here). Idle cleanup exempts sites whose main
+address is a family (`IDLE_EXEMPT_FAMILY_SITES`). `simple-hack.app` (`EVENT_DOMAINS`) and every
+platform zone are refused as custom domains and as family suffixes. **Status: live** (hosted
+only; `flag` elsewhere: needs `ADDRESS_FAMILY_CERT_DIR`). Design: `docs/designs/address-families.md`.
+
 | Surface | Details |
 |---|---|
 | Routes | `POST /v1/sites/{sitename}/domain` (bind; a `<name>.<SITE_DOMAIN>` value takes the free-name path) · `GET /v1/sites/{sitename}/domain` · `POST /v1/sites/{sitename}/domain/check` ("Check again": re-prove now; rate-limited per IP and per account, 429 `rate_limited`) · `DELETE /v1/sites/{sitename}/domain` · `GET /internal/tls-ask` (Caddy on-demand TLS gate) · `GET /internal/domain-redirect/{handle}/{sitename}` · `GET /internal/domain-redirect/{handle}/{sitename}/{rest...}` · host-routed `BoundSubdomains` serves a claimed name or custom domain at its root |
-| MCP tools | `connect_domain`, `domain_status`, `remove_domain` (confirm-first: `confirm_domain`) |
+| MCP tools | `connect_domain`, `domain_status`, `remove_domain` (confirm-first: `confirm_domain`); each takes `*.<domain>` (no site) for an address family |
+| Family routes | `POST /v1/me/address-families` · `GET /v1/me/address-families` · `GET /v1/me/address-families/{suffix}` (`?sites=1`) · `PATCH /v1/me/address-families/{suffix}` (`site_prefix`, `rank`, `canonical`) · `DELETE /v1/me/address-families/{suffix}` · `POST /v1/me/address-families/{suffix}/check` (rate-limited, 429 `rate_limited`) · `POST /v1/sites/{sitename}/domain` with `*.x` → 400 `use_address_family` · admin: `GET /v1/admin/address-families` · `POST /v1/admin/users/{id}/address-families` (+`cert_name`, `proof_exempt`) · `PUT /v1/admin/address-families/{id}/cert-mode` · `PUT /v1/admin/address-families/{id}/proof-exempt` · `POST /v1/admin/address-families/{id}/check` · `DELETE /v1/admin/address-families/{id}` · `GET /internal/family/{rest...}` (nginx's lives-elsewhere rewrite: redirect to the site's own domain) · host-routed `FamilyHosts` |
+| Family fields | family: `family`, `suffix`, `site_prefix`, `rank`, `canonical`, `status` (`pending`/`active`/`failing`), `live`, `last_error`, `expires_at`, `failing_since`, `release_at`, `dns`, `dns_a`, `dns_txt`, `proof_exempt`, `certificate {mode, status: waiting_for_operator/pending/issuing/live/failed, note, expires_at}`, `example_url`, `sites[]` · site responses: `family_address` (main family address), `family_addresses[]` (`site_url` unchanged) · MCP `family {site_prefix, main_address, live, example_url, certificate_note}`; `url` = active domain, else `family_address`, else `site_url` |
+| Family code | `h/familyhost.go` (index of live families, resolver, ranking, `FamilyHosts`, lives-elsewhere marker), `h/familyapi.go` (API, checks, lapse, issuer hand-off, admin), `internal/db/families.go`, `internal/storage/families.go` (`families/<suffix>` → `by-id/<user_id>`); tables `address_families`, `family_cert_requests` (migration `v077`); issuer `deploy/family-certs/` (`issue.sh` → `/usr/local/sbin/simple-host-family-certs`, state `/var/lib/simple-host-family-certs`, one `sites-enabled/simple-host-family-<suffix>` per family from `vhost.conf.template`; never issues, renews or deletes a certificate; refuses a family another server answers) · `deploy/prod/family-adopt.sh` (hand-made wildcard vhost → managed file; dry run, `--apply`, `--rollback`) · env `ADDRESS_FAMILIES`, `ADDRESS_FAMILY_*`, `IDLE_EXEMPT_FAMILY_SITES`, `RATE_LIMIT_ADDRESS_FAMILY_CHECK(_USER)` |
 | Skill | `connect-domain/SKILL.md` §The free address, §The flow (1–5, Disconnect), §Backend on a connected domain, §Gotchas · `connect-domain/references/registrars.md` (Vercel, GoDaddy, Porkbun, other) · `website-deploy/references/operations.md` §A nicer address · `website-deploy-builder/SKILL.md` §8 |
 | Pages | `st/showcase.html` owner app (connect, disconnect, status; for a domain not live yet the certificate status, both DNS records (A/CNAME and TXT), last problem, expiry and Check again) · `st/index.html` (connect/disconnect on the site card, both DNS records and the last problem for a domain not live yet, the www/bare partner's record and state, accounts without a handle and admin tab) |
 | API fields | `GET /domain`: `dns` (A/CNAME), `dns_txt` (TXT `_simple-host.<domain>` = token), `certificate_status`, `last_error`, `previous_domain`, `failing_since`, `partner_domain`, `dns_partner`, `partner_status` (`pending`/`live`/`not_set_up`), `partner_note` · `GET /v1/sites`: `domain_dns`, `domain_dns_txt` for a domain not active; `domain_partner`, `domain_partner_dns`, `domain_partner_status`, `domain_partner_note` · MCP `ownership_record` next to `dns_record`, `partner` |
@@ -1078,9 +1109,9 @@ objects and the `X-Skill-Notice` header (§9; arrays stay bare) is the only in-b
 | `list_deleted` | `GET /v1/sites/{s}/collections/{c}/deleted` | 5 |
 | `restore_item` | `POST …/collections/{c}/items/{id}/restore` or `…/deleted/restore` | 5 |
 | `delete_forever` | `DELETE …/collections/{c}/deleted/{id}`, `DELETE …/collections/{c}/deleted` or `DELETE /v1/sites/{s}/history` | 4, 5 |
-| `connect_domain` | `POST /v1/sites/{s}/domain` | 3 |
-| `domain_status` | `GET /v1/sites/{s}/domain` | 3 |
-| `remove_domain` | `DELETE /v1/sites/{s}/domain` | 3 |
+| `connect_domain` | `POST /v1/sites/{s}/domain`; `*.<domain>` (no site): `POST /v1/me/address-families` | 3 |
+| `domain_status` | `GET /v1/sites/{s}/domain`; `*.<domain>`: `GET /v1/me/address-families/{suffix}` | 3 |
+| `remove_domain` | `DELETE /v1/sites/{s}/domain`; `*.<domain>`: `DELETE /v1/me/address-families/{suffix}` | 3 |
 | `site_analytics` | `GET /v1/sites/{s}/analytics?days=` + `GET /v1/sites/{s}/analytics/top?days=` | 12 |
 | `export_site` | `POST /v1/sites/{s}/export-link` (returns a link to `GET /v1/export?token=`) | 1 |
 | `declare_data` | `PUT /v1/sites/{s}/data/{name}/kind` | 5 |

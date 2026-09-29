@@ -154,14 +154,17 @@ func overlapsSQL(a, c string) string {
 }
 
 // familyConflict reports whether another account holds suffix: a verified
-// family of theirs overlaps it, or a site of theirs has (or still serves at)
-// a custom domain equal to it or under it.
+// family of theirs overlaps it, or a site of theirs has a proven custom
+// domain equal to it or under it (a verified one, or the earlier proven
+// address it still serves at). A pending custom domain proves nothing and
+// blocks nothing: anyone can bind one, so counting it would let a stranger
+// hold a family off forever.
 func familyConflict(ctx context.Context, q Querier, userID, suffix string) (bool, error) {
 	var taken bool
 	err := q.QueryRowContext(ctx, `SELECT
 		EXISTS (SELECT 1 FROM address_families f WHERE f.user_id <> $1 AND f.verified_at IS NOT NULL AND `+overlapsSQL("$2", "f.suffix")+`)
-		OR EXISTS (SELECT 1 FROM sites s WHERE s.user_id <> $1 AND (
-			lower(s.custom_domain) = $2 OR right(lower(s.custom_domain), length($2) + 1) = '.' || $2
+		OR EXISTS (SELECT 1 FROM sites s WHERE s.user_id <> $1 AND s.deleted_at IS NULL AND (
+			(s.domain_verified_at IS NOT NULL AND (lower(s.custom_domain) = $2 OR right(lower(s.custom_domain), length($2) + 1) = '.' || $2))
 			OR lower(s.previous_domain) = $2 OR right(lower(s.previous_domain), length($2) + 1) = '.' || $2))`,
 		userID, suffix).Scan(&taken)
 	return taken, err

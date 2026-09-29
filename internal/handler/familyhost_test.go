@@ -63,6 +63,7 @@ func newFamilyApp(t *testing.T) (*privateApp, string, string, *familyDNS) {
 	}
 	a.sites.SetAddressFamilies(famDir)
 	a.sites.SetPlatformZones(pcSiteDomain, "simple-hack.test")
+	clearTestFamilies(t, a)
 	return a, siteDir, famDir, stubFamilyDNS(t)
 }
 
@@ -106,6 +107,20 @@ func (a *privateApp) liveFamily(t *testing.T, famDir string, dns *familyDNS, p p
 	markFamilyReady(t, famDir, suffix, prefix)
 	a.sites.refreshFamilies(context.Background())
 	return f
+}
+
+// clearTestFamilies forgets families and custom domains of earlier runs
+// under the reserved .test TLD (the test database is shared across runs, and
+// a verified family is exclusive).
+func clearTestFamilies(t *testing.T, a *privateApp) {
+	t.Helper()
+	if _, err := a.database.Exec(`DELETE FROM address_families WHERE suffix LIKE '%.test'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.database.Exec(`UPDATE sites SET custom_domain = NULL, domain_status = NULL, domain_verified_at = NULL, previous_domain = NULL
+		WHERE custom_domain LIKE '%.fam.test' OR custom_domain LIKE '%.block.test' OR custom_domain LIKE '%.proven.test'`); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func markFamilyReady(t *testing.T, famDir, suffix, prefix string) {
@@ -689,6 +704,7 @@ func TestFamilyElsewhere(t *testing.T) {
 // site lives at a family address goes there in one hop.
 func TestFamilyBaseMoveOneHop(t *testing.T) {
 	a, siteDir, baseDir := newBaseApp(t, "redirect")
+	clearTestFamilies(t, a)
 	famDir := t.TempDir()
 	for _, d := range []string{"requests", "ready", "failed"} {
 		if err := os.MkdirAll(filepath.Join(famDir, d), 0o755); err != nil {
@@ -759,4 +775,37 @@ func TestFamilyIdleExempt(t *testing.T) {
 			t.Fatalf("exemption off: %s", r.body)
 		}
 	}()
+}
+
+// A stranger's pending custom domain under a name never holds a family off
+// (anyone can bind one without proof); a proven one does.
+func TestFamilyPendingDomainDoesNotBlock(t *testing.T) {
+	a, _, _, dns := newFamilyApp(t)
+	olive, oscar := a.newPerson(t, "olive"), a.newPerson(t, "oscar")
+	a.deploy(t, oscar, "zed")
+	a.deploy(t, oscar, "yak")
+	ctx := context.Background()
+	if r := a.at(t, "POST", pcSiteDomain, "/v1/sites/zed/domain", map[string]string{"domain": "zed.block.test"}, map[string]string{"X-API-Key": oscar.key}); r.status != 200 {
+		t.Fatalf("oscar binds: %d %s", r.status, r.body)
+	}
+	r := a.at(t, "POST", pcSiteDomain, "/v1/me/address-families", map[string]string{"suffix": "*.block.test"}, map[string]string{"X-API-Key": olive.key})
+	if r.status != http.StatusCreated {
+		t.Fatalf("olive blocked by a pending domain: %d %s", r.status, r.body)
+	}
+	f, _ := db.GetFamilyByID(ctx, a.database, r.json(t)["id"].(string))
+	dns.txt["_simple-host.block.test"] = f.Token
+	a.sites.checkFamily(ctx, f, a.sites.serverAddrs(ctx))
+	if f, _ = db.GetFamilyByID(ctx, a.database, f.ID); !f.VerifiedAt.Valid {
+		t.Fatalf("not verified past a pending domain: %+v", f)
+	}
+	// A proven domain of another account does hold a name.
+	if r := a.at(t, "POST", pcSiteDomain, "/v1/sites/yak/domain", map[string]string{"domain": "yak.proven.test"}, map[string]string{"X-API-Key": oscar.key}); r.status != 200 {
+		t.Fatalf("bind: %d %s", r.status, r.body)
+	}
+	if _, err := a.database.Exec(`UPDATE sites SET domain_verified_at = now(), domain_status = 'active' WHERE custom_domain = 'yak.proven.test'`); err != nil {
+		t.Fatal(err)
+	}
+	if r := a.at(t, "POST", pcSiteDomain, "/v1/me/address-families", map[string]string{"suffix": "*.proven.test"}, map[string]string{"X-API-Key": olive.key}); r.status != http.StatusConflict {
+		t.Fatalf("family over a proven domain: %d %s", r.status, r.body)
+	}
 }

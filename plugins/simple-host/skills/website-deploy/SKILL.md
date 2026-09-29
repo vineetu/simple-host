@@ -51,7 +51,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.4`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.5`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -162,6 +162,9 @@ custom domain set `window.SH_CONFIG = { site: "<sitename>" }` before the tag
 Want a nicer address? Take a free `<name>.simple-host.app` or connect your own
 domain (the `connect-domain` skill). The site moves there and its old address
 redirects. Optional; sign-in works without it.
+If the account has an address family (`*.<their domain>`), each site also answers at
+`<sitename>.<their domain>`, usually as its main address: give the person the `url`
+(connector) or `family_address` the answer returns.
 
 Agents write with the site owner's API key (`X-API-Key`); another account's key
 gets 404 and writes nothing. An agent acting for the owner uses the connector if

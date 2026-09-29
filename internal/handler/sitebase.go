@@ -342,7 +342,7 @@ func (h *SiteHandler) legacyBaseTarget(r *http.Request) (string, int, bool) {
 	// A site whose main address is not a Simple Host one (its own domain,
 	// or its address family) goes straight there: one hop, and a 302, since
 	// that address can change.
-	if len(parts) == 2 && validSiteName.MatchString(parts[0]) {
+	if len(parts) == 2 && h.database != nil && validSiteName.MatchString(parts[0]) {
 		if u, err := db.GetUserByHandle(r.Context(), h.database, parts[1]); err == nil {
 			if site, err := db.GetSiteByUser(r.Context(), h.database, u.ID, parts[0]); err == nil {
 				if own, has, err := h.siteOwnAddress(r.Context(), site.ID); err == nil && has {

@@ -15,6 +15,14 @@ wildcard certificate per person, which a small box does not have, so both are `o
 sites live at `sites.<domain>/<handle>/<site>/`. `serve` answers on the new addresses without
 handing them out; `canonical` hands them out and redirects the old ones.
 
+**Address families.** An account can also connect `*.<its domain>` so every one of its sites
+answers at `<site>.<its domain>` (see [Domains and certificates](domains-and-certificates.md)).
+A site then has one main address: its custom domain or free name, else its most specific
+family address (unless that family's `canonical` switch is off), else its own address. The
+site's own address redirects to the main one, and sign-in and saves happen there; every family
+address of a site keeps working. `ADDRESS_FAMILIES` turns the feature off; it also needs
+`ADDRESS_FAMILY_CERT_DIR` and the family issuer, so it is off in practice on a small box.
+
 <!-- settings:group=server -->
 | Setting | Default | Allowed | What it does |
 |---|---|---|---|

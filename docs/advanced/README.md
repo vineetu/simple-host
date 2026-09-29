@@ -105,7 +105,7 @@ value in force.
 | [Accounts and sign-in](accounts-and-sign-in.md) | Owner sign-in (email codes, Google), API keys, visitor sign-in, AI app connections |
 | [Sites and versions](sites-and-versions.md) | Site and upload size, versions kept, preview and download links, sites per account |
 | [Saved data](saved-data.md) | What pages save, undo and history, size limits, who may write |
-| [Domains and certificates](domains-and-certificates.md) | Custom domains, their checks and release, certificates |
+| [Domains and certificates](domains-and-certificates.md) | Custom domains, address families, their checks and release, certificates |
 | [Cleanup and retention](cleanup-and-retention.md) | Recently deleted, idle-site cleanup, how long analytics are kept |
 | [Email](email.md) | Sending email with Resend, the sender, reply-to |
 | [AI features](ai-features.md) | "Ask about this page" and the model backend |

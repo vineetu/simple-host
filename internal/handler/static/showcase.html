@@ -153,6 +153,17 @@
     .addr-msg.bad { color: var(--error); }
     .addr-field { display: inline-flex; align-items: center; gap: 2px; font-size: 14px; color: var(--text-secondary); }
     .addr-field input { font: inherit; color: var(--text); padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; width: 14em; max-width: 60vw; }
+    /* Address families (families) */
+    .fam-new { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px 0; border-top: 1px solid var(--border); }
+    .fam-new input { font: inherit; font-size: 14px; color: var(--text); background: var(--bg); padding: 5px 8px; border: 1px solid var(--border-hi); border-radius: 8px; width: 16em; max-width: 100%; outline: none; }
+    .fam-new input:focus { border-color: var(--accent); }
+    .fam-item .fam-opts { display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; }
+    .fam-item .fam-opts label { display: inline-flex; align-items: center; gap: 6px; }
+    .row-panel .fam-opts input[type="text"] { width: 12em; }
+    .fam-sites { display: flex; flex-direction: column; gap: 4px; }
+    .fam-sites a, .fam-sub a { color: var(--accent); text-decoration: none; }
+    .fam-sites a:hover, .fam-sub a:hover { text-decoration: underline; }
+    .dns-rec .dns-copy { margin-left: auto; font-family: var(--font); }
     .section-num {
       display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
       margin-bottom: 16px;
@@ -919,6 +930,24 @@
         <div id="deleted-list"></div>
       </div>
       <!-- ==== end Your address + Recently deleted ==== -->
+      <!-- ==== Address families (families) ====
+           *.<domain> once for every site of the account (GET/POST/PATCH/DELETE
+           /v1/me/address-families). Self-contained: markup here, the "Address
+           families" CSS and the matching script block at the end of the page.
+           Owner-only, and hidden while the server has families off. -->
+      <div class="section" id="owner-families" hidden>
+        <div class="section-num"><h2>Address families</h2><span class="line"></span></div>
+        <p class="conn-note">All your sites under one name: connect <b>*.sites.example.com</b> once and each site answers at <i>site</i>.sites.example.com. It needs two DNS records at your registrar, shown after you connect.</p>
+        <div id="fam-list"></div>
+        <form class="fam-new" id="fam-new-form">
+          <input type="text" id="fam-new-suffix" placeholder="*.sites.example.com" autocomplete="off" spellcheck="false" aria-label="Domain for all your sites">
+          <input type="text" id="fam-new-prefix" placeholder="Site prefix (optional)" autocomplete="off" spellcheck="false" maxlength="40" aria-label="Site prefix (optional)">
+          <button class="btn btn-primary btn-small" type="submit" id="fam-new-btn">Connect</button>
+          <p class="addr-msg bad" id="fam-new-msg" aria-live="polite" hidden></p>
+        </form>
+        <p class="conn-note">A site prefix picks the sites and is left out of the address: with <b>shop-</b>, the site shop-cakes answers at cakes.sites.example.com and sites without it don't.</p>
+      </div>
+      <!-- ==== end Address families ==== -->
       <!-- ==== Your data (cp/gdpr) ====
            Self-contained: markup here, the "Your data" CSS, and the matching
            script block at the end of the page. Owner-only. -->
@@ -2625,12 +2654,14 @@ function parseAnalyticsSummary(data) {
     }
     function domainActive(s) { return !!(s.custom_domain && s.domain_status === 'active'); }
     // The address the site answers at: its connected domain once that is
-    // live, otherwise its own address from the API (site_url).
+    // live, then its address family's (family_address, only once live),
+    // otherwise its own address from the API (site_url).
     function siteOpenUrl(s) {
       if (domainActive(s)) return 'https://' + s.custom_domain + '/';
       // A new domain that is not live yet: the site keeps answering at its
       // earlier address until it is.
       if (s.previous_domain) return 'https://' + s.previous_domain + '/';
+      if (s.family_address) return s.family_address;
       if (s.site_url) return s.site_url;
       var base = SHOWCASE.sitesBaseUrl || '';
       return base + '/' + encodeURIComponent(HANDLE) + '/' + encodeURIComponent(s.name || '') + '/';
@@ -2779,6 +2810,7 @@ function parseAnalyticsSummary(data) {
           '<div class="panel-err" hidden></div>' +
           '<div class="panel-btns">' +
             '<button type="button" class="btn-small btn-primary" data-act="connectDomain" data-name="' + n + '">Connect</button>' +
+            (familiesOn() ? '<button type="button" class="btn-small btn-secondary" data-act="domainFamilyMode" data-name="' + n + '">All my sites (*.name)</button>' : '') +
             '<button type="button" class="btn-small btn-ghost" data-act="closePanel" data-name="' + n + '">Cancel</button>' +
           '</div>';
         var inp = panel.querySelector('input');
@@ -2811,6 +2843,55 @@ function parseAnalyticsSummary(data) {
       var panel = s && rowPanel(name, 'domain');
       if (panel) renderDomainPanel(panel, s);
     }
+    // Address families (*.name for every site of the account) live in the
+    // "Address families" script block below; the domain panel offers them
+    // only when that block found the server has them on.
+    function familiesOn() { return !!(window.shFamilies && window.shFamilies.available); }
+    function domainPanelOf(name) {
+      var panel = document.querySelector('[data-panel="' + cssEsc(name) + '"]');
+      return panel && panel.getAttribute('data-kind') === 'domain' ? panel : null;
+    }
+    // The domain panel switched to "All my sites": connects *.name for the
+    // whole account (POST /v1/me/address-families), not for this site alone.
+    function domainFamilyMode(name, prefill) {
+      var s = ownerSite(name), panel = domainPanelOf(name);
+      if (!s || !panel || !familiesOn()) return;
+      var n = escAttr(name), id = 'famdom-' + n;
+      panel.innerHTML = '<label for="' + id + '">Put all your sites under one name</label>' +
+        '<input type="text" id="' + id + '" placeholder="*.sites.example.com" autocomplete="off" spellcheck="false" value="' + escAttr(prefill || '') + '">' +
+        '<div class="panel-field"><label for="' + id + '-p">Site prefix (optional)</label>' +
+          '<input type="text" id="' + id + '-p" placeholder="shop-" autocomplete="off" spellcheck="false" maxlength="40"></div>' +
+        '<div class="panel-note">Each site answers at <i>site</i>.<i>name</i>, <b>' + esc(name) + '</b> included. It needs two DNS records at your registrar, shown next. A site with a domain of its own keeps it.</div>' +
+        '<div class="panel-err" hidden></div>' +
+        '<div class="panel-btns">' +
+          '<button type="button" class="btn-small btn-primary" data-act="connectFamilyFromDomain" data-name="' + n + '">Connect</button>' +
+          '<button type="button" class="btn-small btn-secondary" data-act="domainSiteMode" data-name="' + n + '">Just this site</button>' +
+          '<button type="button" class="btn-small btn-ghost" data-act="closePanel" data-name="' + n + '">Cancel</button>' +
+        '</div>';
+      var inp = panel.querySelector('input');
+      if (inp) inp.focus();
+    }
+    function domainSiteMode(name) {
+      var s = ownerSite(name), panel = domainPanelOf(name);
+      if (s && panel) renderDomainPanel(panel, s);
+    }
+    async function connectFamilyFromDomain(name, btn) {
+      var panel = domainPanelOf(name);
+      if (!panel || !window.shFamilies) return;
+      var inputs = panel.querySelectorAll('input');
+      var suffix = (inputs[0].value || '').trim(), prefix = (inputs[1].value || '').trim();
+      if (!suffix) return;
+      var errEl = panel.querySelector('.panel-err');
+      btn.disabled = true;
+      var r = await window.shFamilies.connect(suffix, prefix);
+      if (!r.ok) { errEl.textContent = r.error; errEl.hidden = false; btn.disabled = false; return; }
+      var f = r.family;
+      toast('Connected ' + f.family + '. Add the DNS records shown.', 'success');
+      panel.innerHTML = '<div><b>' + esc(f.family) + '</b> · ' + esc(window.shFamilies.word(f)) + '</div>' +
+        window.shFamilies.details(f) +
+        '<div class="panel-note">It is under Address families on this page from now on.</div>' +
+        '<div class="panel-btns"><button type="button" class="btn-small btn-ghost" data-act="closePanel" data-name="' + escAttr(name) + '">Close</button></div>';
+    }
     async function reopenDomain(name) {
       await reloadOwnerSites();
       openDomain(name);
@@ -2824,6 +2905,8 @@ function parseAnalyticsSummary(data) {
       try {
         var res = await api('POST', sitePathPart(name) + '/domain', { domain: d });
         var body = await res.json().catch(function () { return {}; });
+        // *.name is for every site of the account: switch to that flow.
+        if (body.code === 'use_address_family' && familiesOn()) { domainFamilyMode(name, d); return; }
         if (!res.ok) { errEl.textContent = body.error || 'Could not connect the domain'; errEl.hidden = false; btn.disabled = false; return; }
         toast(body.status === 'active' ? d + ' is live' : 'Connected. Add the DNS records shown.', 'success');
         await reopenDomain(name);
@@ -4432,6 +4515,9 @@ function parseAnalyticsSummary(data) {
       connectDomain: function (d, el) { connectDomain(d.name, el); },
       checkDomain: function (d, el) { checkDomain(d.name, el); },
       disconnectDomain: function (d, el) { disconnectDomain(d.name, el); },
+      domainFamilyMode: function (d) { domainFamilyMode(d.name); },
+      domainSiteMode: function (d) { domainSiteMode(d.name); },
+      connectFamilyFromDomain: function (d, el) { connectFamilyFromDomain(d.name, el); },
       downloadSite: function (d, el) { downloadSite(d.name, el); },
       closePanel: function (d) { hideRowPanel(d.name); }
     };
@@ -4597,6 +4683,239 @@ function parseAnalyticsSummary(data) {
       })();
     })();
     // ==== end Your address + Recently deleted ====
+  </script>
+  <script>
+    // ==== Address families (families) ====
+    // *.<domain> once for every site of the account: GET/POST/PATCH/DELETE
+    // /v1/me/address-families, POST .../{suffix}/check. Owner-only: uses the
+    // page script's api, esc, escAttr, toast, fmtDate, fmtDateTime, HANDLE and
+    // apiKey, and shows nothing unless /v1/me says this visitor owns HANDLE
+    // and the server has families on. window.shFamilies hands the domain
+    // panel what it needs (available, connect, word, details).
+    (function () {
+      if (!apiKey) return;
+      var box = document.getElementById('owner-families');
+      var list = document.getElementById('fam-list');
+      var fams = [];
+      function cap(msg) { msg = String(msg || ''); return msg.charAt(0).toUpperCase() + msg.slice(1); }
+      async function errorOf(res, fallback) {
+        var body = null;
+        try { body = await res.json(); } catch (e) {}
+        return cap((body && body.error) || fallback);
+      }
+      function famPath(f, rest) { return '/v1/me/address-families/' + encodeURIComponent(f.suffix) + (rest || ''); }
+      function host(u) { return String(u || '').replace(/^https?:\/\//, '').replace(/\/$/, ''); }
+
+      // The words for a family's state, as the domain panel words a domain's.
+      function word(f) {
+        if (f.live) return 'live';
+        if (f.status === 'failing') return 'not working';
+        if (f.status === 'pending') return 'waiting for DNS';
+        var c = f.certificate || {};
+        if (c.status === 'waiting_for_operator') return 'waiting for the certificate';
+        if (c.status === 'failed') return 'certificate failed';
+        return 'waiting for certificate';
+      }
+      function badge(f) {
+        var c = f.certificate || {};
+        var cls = f.live ? 'public' : (f.status === 'failing' || c.status === 'failed') ? 'dom-error' : 'dom-pending';
+        return '<span class="vis-badge ' + cls + '">' + esc(word(f)) + '</span>';
+      }
+      function rec(r) {
+        return '<div class="dns-rec"><span>' + esc(r.type) + '</span><span>' + esc(r.host) + '</span><span>' + esc(r.value) + '</span>' +
+          '<button type="button" class="btn-small btn-ghost dns-copy" data-copy="' + escAttr(r.value) + '">Copy</button></div>';
+      }
+      // Everything about a family that is not its controls: which sites
+      // answer where, the records to add, the certificate and the dates.
+      function details(f) {
+        var c = f.certificate || {}, html = '';
+        var who = f.site_prefix ? 'Sites named <b>' + esc(f.site_prefix) + '</b><i>name</i> answer at <i>name</i>.' + esc(f.suffix) : 'Each site answers at <i>site</i>.' + esc(f.suffix);
+        html += '<div class="panel-note fam-sub">' + who + (f.example_url ? ', e.g. ' + (f.live ? '<a href="' + escAttr(f.example_url) + '" target="_blank" rel="noopener">' + esc(host(f.example_url)) + '</a>' : '<b>' + esc(host(f.example_url)) + '</b>') : '') + '.</div>';
+        if (f.status !== 'active' && f.dns) {
+          var recs = [rec(f.dns)];
+          if (f.dns_a) recs.push('<div class="panel-note">Or, if your registrar has no CNAME for *, this A record in its place:</div>' + rec(f.dns_a));
+          if (f.dns_txt) recs.push(rec(f.dns_txt));
+          html += '<div class="panel-note">Add ' + (f.dns_txt ? 'these records' : 'this record') + ' at your domain registrar' +
+            (f.dns_txt ? ' (the TXT record shows the domain is yours; keep it in place)' : '') + ':</div>' + recs.join('');
+        }
+        if (!f.live) {
+          if (c.status === 'failed') html += '<div class="panel-err">Certificate failed' + (c.note ? ': ' + esc(c.note) : '') + '</div>';
+          else if (c.status === 'waiting_for_operator') html += '<div class="panel-note">Certificate: ' + esc(c.note || 'the operator sets it up') + '.</div>';
+          else if (c.status === 'issuing') html += '<div class="panel-note">Certificate: on its way.</div>';
+        }
+        if (f.last_error && !f.live) html += '<div class="panel-err">Last check: ' + esc(f.last_error) + '</div>';
+        if (f.expires_at) html += '<div class="panel-note">If it is not working by ' + fmtDateTime(f.expires_at) + ', the name is released and you can connect it again.</div>';
+        if (f.release_at) html += '<div class="panel-err">Not working' + (f.failing_since ? ' since ' + fmtDateTime(f.failing_since) : '') + '. If it is still not working by ' + fmtDateTime(f.release_at) + ', it is disconnected.</div>';
+        return html;
+      }
+
+      function render() {
+        list.innerHTML = fams.map(function (f, i) {
+          return '<div class="row-panel fam-item" data-fam="' + i + '">' +
+            '<div><b>' + esc(f.family) + '</b> ' + badge(f) + '</div>' +
+            details(f) +
+            '<div class="fam-opts">' +
+              '<label class="panel-check" title="Sites without a domain of their own use this address first; their other addresses keep working."><input type="checkbox" data-fam-act="canonical"' + (f.canonical ? ' checked' : '') + '> Main address</label>' +
+              '<label>Site prefix <input type="text" data-fam-prefix value="' + escAttr(f.site_prefix || '') + '" placeholder="none" autocomplete="off" spellcheck="false" maxlength="40"></label>' +
+              '<button type="button" class="btn-small btn-secondary" data-fam-act="prefix" hidden>Save</button>' +
+            '</div>' +
+            '<div class="panel-btns">' +
+              (!f.live ? '<button type="button" class="btn-small btn-primary" data-fam-act="check">Check again</button>' : '') +
+              '<button type="button" class="btn-small btn-secondary" data-fam-act="sites">Sites</button>' +
+              '<button type="button" class="btn-small btn-secondary" data-fam-act="disconnect">Disconnect</button>' +
+            '</div>' +
+            '<div class="fam-sites" hidden></div>' +
+          '</div>';
+        }).join('');
+      }
+      async function load() {
+        var data = null;
+        try {
+          var res = await api('GET', '/v1/me/address-families');
+          if (res.ok) data = await res.json();
+        } catch (e) {}
+        var on = !!(data && data.available);
+        if (window.shFamilies) window.shFamilies.available = on;
+        box.hidden = !on;
+        if (!on) return;
+        fams = data.address_families || [];
+        render();
+      }
+      // A change here moves sites' main addresses: re-read the site rows too.
+      function changed() {
+        load();
+        if (typeof reloadOwnerSites === 'function') reloadOwnerSites();
+      }
+      async function connect(suffix, prefix) {
+        try {
+          var res = await api('POST', '/v1/me/address-families', { suffix: suffix, site_prefix: prefix || '' });
+          if (!res.ok) return { ok: false, error: await errorOf(res, 'Could not connect it') };
+          var f = await res.json();
+          // A new family is not live yet, so no site row changes: the domain
+          // panel that asked keeps showing its records.
+          load();
+          return { ok: true, family: f };
+        } catch (e) {
+          return { ok: false, error: 'Could not reach Simple Host. Try again.' };
+        }
+      }
+
+      document.getElementById('fam-new-form').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var msg = document.getElementById('fam-new-msg'), btn = document.getElementById('fam-new-btn');
+        var suffix = document.getElementById('fam-new-suffix').value.trim();
+        if (!suffix) return;
+        msg.hidden = true;
+        btn.disabled = true;
+        var r = await connect(suffix, document.getElementById('fam-new-prefix').value.trim());
+        btn.disabled = false;
+        if (!r.ok) { msg.textContent = r.error; msg.hidden = false; return; }
+        document.getElementById('fam-new-suffix').value = '';
+        document.getElementById('fam-new-prefix').value = '';
+        toast('Connected ' + r.family.family + '. Add the DNS records shown.', 'success');
+      });
+
+      async function patch(f, body, what) {
+        try {
+          var res = await api('PATCH', famPath(f), body);
+          if (!res.ok) { toast(await errorOf(res, 'Could not change ' + what), 'error'); load(); return; }
+          toast('Saved', 'success');
+          changed();
+        } catch (e) { toast('Could not change ' + what, 'error'); load(); }
+      }
+      async function check(f, btn) {
+        btn.disabled = true;
+        btn.textContent = 'Checking…';
+        try {
+          var res = await api('POST', famPath(f, '/check'));
+          if (!res.ok) { toast(await errorOf(res, 'Could not check it'), 'error'); btn.disabled = false; btn.textContent = 'Check again'; return; }
+          var n = await res.json();
+          toast(n.live ? n.family + ' is live' : 'Not working yet', n.live ? 'success' : 'error');
+          changed();
+        } catch (e) {
+          toast('Could not check it', 'error');
+          btn.disabled = false; btn.textContent = 'Check again';
+        }
+      }
+      async function disconnect(f, btn) {
+        if (!(await shConfirm({ title: 'Disconnect ' + f.family + '?', body: 'Every site stops answering under ' + f.family + '. The sites keep their other addresses.', confirmLabel: 'Disconnect', danger: true }))) return;
+        btn.disabled = true;
+        try {
+          var res = await api('DELETE', famPath(f));
+          if (res.status !== 204 && !res.ok) { toast(await errorOf(res, 'Could not disconnect'), 'error'); btn.disabled = false; return; }
+          toast(f.family + ' disconnected', 'success');
+          changed();
+        } catch (e) {
+          toast('Could not disconnect', 'error');
+          btn.disabled = false;
+        }
+      }
+      async function showSites(f, item, btn) {
+        var el = item.querySelector('.fam-sites');
+        if (!el.hidden) { el.hidden = true; return; }
+        el.hidden = false;
+        el.textContent = 'Loading…';
+        try {
+          var res = await api('GET', famPath(f, '?sites=1'));
+          if (!res.ok) { el.textContent = await errorOf(res, 'Could not load the sites'); return; }
+          var sites = (await res.json()).sites || [];
+          el.innerHTML = sites.length ? sites.map(function (s) {
+            var addr = f.live ? '<a href="' + escAttr(s.address) + '" target="_blank" rel="noopener">' + esc(host(s.address)) + '</a>' : esc(host(s.address));
+            return '<div><b>' + esc(s.site) + '</b> · ' + addr +
+              (s.main ? ' <span class="vis-badge public">main address</span>' : '') +
+              (s.lives_at ? ' <span class="panel-note">(lives at ' + esc(host(s.lives_at)) + ')</span>' : '') + '</div>';
+          }).join('') : '<div class="panel-note">' + (f.site_prefix ? 'No site is named ' + esc(f.site_prefix) + '… yet.' : 'No sites yet.') + '</div>';
+        } catch (e) { el.textContent = 'Could not load the sites'; }
+      }
+
+      list.addEventListener('input', function (e) {
+        if (!e.target.hasAttribute('data-fam-prefix')) return;
+        var item = e.target.closest('[data-fam]'), f = fams[Number(item.getAttribute('data-fam'))];
+        item.querySelector('[data-fam-act="prefix"]').hidden = e.target.value.trim().toLowerCase() === (f.site_prefix || '');
+      });
+      list.addEventListener('change', function (e) {
+        if (e.target.getAttribute('data-fam-act') !== 'canonical') return;
+        var f = fams[Number(e.target.closest('[data-fam]').getAttribute('data-fam'))];
+        patch(f, { canonical: e.target.checked }, 'the main address');
+      });
+      list.addEventListener('click', function (e) {
+        var btn = e.target.closest('button[data-fam-act]');
+        if (!btn) return;
+        var item = btn.closest('[data-fam]'), f = fams[Number(item.getAttribute('data-fam'))], act = btn.getAttribute('data-fam-act');
+        if (act === 'check') check(f, btn);
+        else if (act === 'disconnect') disconnect(f, btn);
+        else if (act === 'sites') showSites(f, item, btn);
+        else if (act === 'prefix') patch(f, { site_prefix: item.querySelector('[data-fam-prefix]').value.trim() }, 'the site prefix');
+      });
+      // Copy a DNS record's value (here and in a site's domain panel).
+      document.addEventListener('click', function (e) {
+        var btn = e.target.closest('button[data-copy]');
+        if (!btn) return;
+        var text = btn.getAttribute('data-copy');
+        var ok = function () { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = 'Copy'; }, 1500); };
+        var fallback = function () {
+          var ta = document.createElement('textarea');
+          ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.select();
+          try { document.execCommand('copy'); ok(); } catch (err) { /* nothing else to try */ }
+          document.body.removeChild(ta);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok).catch(fallback);
+        else fallback();
+      });
+
+      (async function () {
+        try {
+          var res = await api('GET', '/v1/me');
+          if (!res.ok) return;
+          var me = await res.json();
+          if (!me || !me.handle || me.handle !== HANDLE) return;
+          window.shFamilies = { available: false, connect: connect, word: word, details: details };
+          load();
+        } catch (e) {}
+      })();
+    })();
+    // ==== end Address families ====
   </script>
 
   <script>
