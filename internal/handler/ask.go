@@ -276,7 +276,10 @@ func askPageFor(path string) string {
 }
 
 //go:embed askdata/*.txt
-var askData embed.FS
+var embeddedAskData embed.FS
+
+// askData is the ask packs as used, with the base swap (basetext.go).
+var askData = baseTextFS{embeddedAskData}
 
 var (
 	askPacksOnce sync.Once

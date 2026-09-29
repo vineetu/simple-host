@@ -164,6 +164,21 @@ else
   fail=1
 fi
 
+# auth.js's API address per page host (the moving-base copy is run by
+# TestAuthJSBases in internal/handler).
+echo "== auth.js picks the API address =="
+if command -v node >/dev/null 2>&1; then
+  if out=$(node web/auth-base.test.js 2>&1); then
+    echo "  ok — $(tail -n1 <<<"$out" | sed 's/^# //')"
+  else
+    echo "$out" | sed 's/^/  /'
+    fail=1
+  fi
+else
+  echo "  FAIL: node unavailable — auth.js address tests could not run"
+  fail=1
+fi
+
 # ── served assets that name the host must go through the rewriter ──
 # An instance on another domain has to describe itself. Any static asset that
 # names simple-host.app but is NOT in rewrittenAssets would tell a hackathon's
@@ -214,6 +229,9 @@ fi
 
 # ── the canonical docs give the site address, not an older form ──
 # Owner decision 2026-09-26: a site's address is https://<site>.<handle>.simple-host.app/.
+# The pages, llms.txt, the spec and the connector's text write it under
+# simple-host.site (the base people's addresses move to, 2026-09-28; served as
+# simple-host.app until the move hands it out); the skills still say .app.
 # Two older forms still work and redirect: the shared path form
 # sites.simple-host.app/<handle>/<site>/ and the person-path form
 # <handle>.simple-host.app/<site>/ (which is also the brief fallback for a person
@@ -228,7 +246,7 @@ old_addr='sites\.(simple-host\.app|<[^>/]+>|\{[^}/]+\}|&lt;[^/]+&gt;)/(<|\{|&lt;
 offending=$(grep -rnE "$old_addr" "${canon_docs[@]}" 2>/dev/null \
   | grep -v '^simple-host-website/skills/run-hackathon/' \
   | grep -viE 'old|legacy|redirect' || true)
-person_path='(<handle>|\{handle\}|&lt;handle&gt;)\.simple-host\.app/(<(site|sitename|name)>|\{(site|sitename|name)\}|&lt;(site|sitename|name)&gt;)'
+person_path='(<handle>|\{handle\}|&lt;handle&gt;)\.simple-host\.(app|site)/(<(site|sitename|name)>|\{(site|sitename|name)\}|&lt;(site|sitename|name)&gt;)'
 offending_pp=$(grep -rnE "$person_path" "${canon_docs[@]}" 2>/dev/null \
   | grep -v '^simple-host-website/skills/run-hackathon/' \
   | grep -viE 'old|legacy|redirect|fallback|briefly|brand-new|new account|until|pending' || true)
@@ -242,7 +260,7 @@ if [ -n "$offending_pp" ]; then
 fi
 missing_site=""
 for doc in "$LLMS" "$OPENAPI" "$SKILL_DEPLOY" "$SKILL_BUILD" simple-host-website/skills/connect-domain/SKILL.md internal/mcp/instructions.go; do
-  grep -qE '<(site|sitename|name)>\.<handle>\.simple-host\.app' "$doc" || missing_site="$missing_site $doc"
+  grep -qE '<(site|sitename|name)>\.<handle>\.simple-host\.(app|site)' "$doc" || missing_site="$missing_site $doc"
 done
 if [ -n "$missing_site" ]; then
   echo "  FAIL: does not give the site address <site>.<handle>.simple-host.app:$missing_site"

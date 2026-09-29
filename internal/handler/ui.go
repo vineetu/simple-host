@@ -22,7 +22,11 @@ import (
 )
 
 //go:embed all:static
-var staticFiles embed.FS
+var embeddedStatic embed.FS
+
+// staticFiles is the embedded tree as served: people's addresses written
+// under simple-host.site are swapped as basetext.go says.
+var staticFiles = baseTextFS{embeddedStatic}
 
 var (
 	skillsZipOnce  sync.Once

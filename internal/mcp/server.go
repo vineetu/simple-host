@@ -98,7 +98,7 @@ func NewServer(cfg Config) *Server {
 		cfg.MaxBodyBytes = 16 << 20
 	}
 	supportContact = cfg.SupportContact
-	tools := Tools()
+	tools := addressTools(Tools())
 	byName := make(map[string]Tool, len(tools))
 	for _, tool := range tools {
 		byName[tool.Name] = tool
@@ -322,7 +322,7 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 			"protocolVersion": negotiateInitialize(metaProtocolVersion(req.Params)),
 			"capabilities":    map[string]any{"tools": map[string]any{"listChanged": false}},
 			"serverInfo":      s.serverInfo(),
-			"instructions":    Instructions(),
+			"instructions":    addressText(Instructions()),
 		})
 
 	// ping is a keepalive in every revision that has it, and a failure reads
@@ -339,7 +339,7 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 			"supportedVersions": supportedVersions,
 			"capabilities":      map[string]any{"tools": map[string]any{"listChanged": false}},
 			"serverInfo":        s.serverInfo(),
-			"instructions":      Instructions(),
+			"instructions":      addressText(Instructions()),
 			"ttlMs":             cacheTTLMillis,
 			"cacheScope":        "private",
 		}))

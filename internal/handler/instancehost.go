@@ -145,15 +145,30 @@ func serveRewrittenAsset(name string, rw *hostRewriter, modTime time.Time) http.
 var instanceHosts *hostRewriter
 
 // SetInstanceHosts configures host rewriting for served assets. Call once, at
-// startup, before serving.
-func SetInstanceHosts(siteDomain, contentHost, cnameTarget string) {
+// startup, before serving. handoutBase (optional; default siteDomain) is the
+// domain people's addresses are handed out under (sitebase.go): it decides
+// how the embedded text names them (basetext.go).
+func SetInstanceHosts(siteDomain, contentHost, cnameTarget string, handoutBase ...string) {
+	base := siteDomain
+	if len(handoutBase) > 0 && handoutBase[0] != "" {
+		base = handoutBase[0]
+	}
+	setBaseText(siteDomain, base)
 	instanceHosts = newHostRewriter(siteDomain, contentHost, cnameTarget)
+	instanceIsCanonical = siteDomain == "" || siteDomain == canonicalSiteDomain
 }
+
+// instanceIsCanonical: this is the hosted service (or has no domain), which
+// the shared text describes, so llms.txt needs no THIS SERVER note.
+var instanceIsCanonical = true
 
 // InstanceFacts is what this install's llms.txt says about itself, above the
 // text every install shares (which describes simple-host.app).
 type InstanceFacts struct {
 	SiteDomain, ContentHost string
+	// BaseDomain is the domain people's addresses are handed out under
+	// (sitebase.go); "" means SiteDomain.
+	BaseDomain string
 	// SharedOrigin: every site is served on the content host's one origin
 	// (PERSON_HOSTS and SITE_HOSTS off, as on a small box).
 	SharedOrigin bool
@@ -171,14 +186,18 @@ var instanceNote string
 // SetInstanceNote writes the THIS SERVER block of llms.txt from f. Call once
 // at startup, after SetInstanceHosts; it does nothing on simple-host.app.
 func SetInstanceNote(f InstanceFacts) {
-	if instanceHosts == nil {
+	if instanceHosts == nil || instanceIsCanonical {
 		instanceNote = ""
 		return
+	}
+	base := f.BaseDomain
+	if base == "" {
+		base = f.SiteDomain
 	}
 	var b strings.Builder
 	b.WriteString("THIS SERVER (" + f.SiteDomain + ") — read this first: the text after it describes the hosted service at simple-host.app, and where it differs, what is written here is what holds on this server.\n")
 	if f.SharedOrigin {
-		b.WriteString("- Addresses: every site is at https://" + f.ContentHost + "/<handle>/<site>/, and every site on this server shares that one browser origin: localStorage, sessionStorage, IndexedDB and cookies are shared with every other site here. Keep nothing private in the browser, and prefix browser storage keys with the site's name. A free <name>." + f.SiteDomain + " address works only once the operator has pointed a wildcard DNS record (*." + f.SiteDomain + ") at this server.\n")
+		b.WriteString("- Addresses: every site is at https://" + f.ContentHost + "/<handle>/<site>/, and every site on this server shares that one browser origin: localStorage, sessionStorage, IndexedDB and cookies are shared with every other site here. Keep nothing private in the browser, and prefix browser storage keys with the site's name. A free <name>." + base + " address works only once the operator has pointed a wildcard DNS record (*." + base + ") at this server.\n")
 		b.WriteString("- Preview links (preview_url, POST .../versions/<n>/preview-link) need a per-site address, which this server does not give sites (409 preview_unavailable): to check a stored version, make it live (PUT .../active-version) and switch back if needed.\n")
 	}
 	var ways []string
@@ -193,7 +212,7 @@ func SetInstanceNote(f InstanceFacts) {
 	if len(ways) == 0 {
 		b.WriteString("- Visitor sign-in: visitors cannot sign in on this server (no email or Google sign-in is set up). Never call SH.requireSignIn() or offer sign-in. Submissions, Personal, Shared boards and private lists are refused (409 visitor_sign_in_unavailable): save to Shared names instead (SH.data(name) with no kind, SH.state, SH.collection).")
 	} else {
-		b.WriteString("- Visitor sign-in: visitors sign in with " + strings.Join(ways, " or ") + " on a site's own address (a free <name>." + f.SiteDomain + " address or a custom domain); a sign-in covers that site only.")
+		b.WriteString("- Visitor sign-in: visitors sign in with " + strings.Join(ways, " or ") + " on a site's own address (a free <name>." + base + " address or a custom domain); a sign-in covers that site only.")
 	}
 	if f.SharedOrigin {
 		b.WriteString(" On the shared address https://" + f.ContentHost + "/ pages save to Shared names without anyone signing in, so anyone who can open a page can change what it saved: never save personal details there.")
