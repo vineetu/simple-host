@@ -5,7 +5,7 @@
         {{- if .HackHome}}
         <a href="https://simple-host.app/">Simple Host</a>
         {{- else}}
-        <a href="{{.Base}}/"{{if eq .Current "home"}} aria-current="page"{{end}}>Home</a>
+        <a class="sh-nav-home" href="{{.Base}}/"{{if eq .Current "home"}} aria-current="page"{{end}}>Home</a>
         {{- end}}
         <a href="{{.Base}}/install.html"{{if eq .Current "install"}} aria-current="page"{{end}}>Get started</a>
       </nav>

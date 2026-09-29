@@ -313,6 +313,9 @@ code, kbd, samp, pre { font-family: var(--mono); }
   .sh-header .sh-bar { gap: 8px; padding: 12px 12px; }
   .sh-header .sh-nav { gap: 10px; }
   .sh-header .sh-nav a, .sh-header .sh-signin { font-size: 13px; }
+  /* Signed in, "Your sites" is wider than "Sign in" and the bar ran ~30px
+     past a 320px screen. The logo already goes home, so Home steps aside. */
+  .sh-header.sh-authed .sh-nav .sh-nav-home { display: none; }
 }
 
 /* "Ask about this page" box (partials/ask.html, ask.js). Page tokens only, so

@@ -348,6 +348,10 @@
       align-items: center;
     }
     .inv-actions a.btn-small.btn-secondary { text-decoration: none; display: inline-block; }
+    /* Phones: 40px is the smallest target a thumb hits reliably. */
+    @media (max-width: 640px), (pointer: coarse) {
+      .inv-actions .btn-small { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; }
+    }
     .an-spark { display: block; color: var(--accent); }
     .an-spark .an-base { stroke: var(--border-hi); }
 

@@ -543,10 +543,31 @@
 
     .site-url:hover { text-decoration: underline; }
 
+    /* The buttons wrap instead of pushing past the card: beside the site info
+       while they fit, onto their own full-width line under it when they don't
+       (every phone, and a long "Disconnect <domain>" on a laptop). */
+    .site-card { flex-wrap: wrap; gap: 12px 16px; }
+    .site-info { flex: 1 1 240px; min-width: 0; overflow-wrap: anywhere; }
     .site-actions {
       display: flex;
+      flex-wrap: wrap;
       gap: 6px;
-      flex-shrink: 0;
+      min-width: 0;
+      max-width: 100%;
+    }
+    .site-actions > .btn-small { max-width: 100%; overflow-wrap: anywhere; text-align: center; }
+    @media (max-width: 640px), (pointer: coarse) {
+      .site-actions { flex-basis: 100%; gap: 8px; }
+      /* 40px is the smallest target a thumb hits reliably. */
+      .site-actions > .btn-small,
+      .site-actions > a.btn.btn-small {
+        min-height: 40px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 6px 14px;
+        font-size: 13px;
+      }
     }
 
     .site-versions, .site-data {
