@@ -72,6 +72,8 @@ run "custom domains"        "SELECT custom_domain, domain_status FROM sites WHER
 run "domain certificates"   "SELECT previous_domain, domain_cert_status, domain_failing_since, domain_lapse_notified_at FROM sites WHERE previous_domain='x'"
 run "domain ownership"      "SELECT domain_token, custom_domain = ANY(domain_proof_exempt) FROM sites WHERE custom_domain='x'"
 run "domain cert cap"       "SELECT count(DISTINCT domain) FROM domain_cert_requests WHERE user_id='$NIL' AND requested_at > now() - interval '24 hours'"
+run "address families"      "SELECT f.id, f.suffix, f.site_prefix, f.rank, f.canonical, f.token, f.status, f.verified_at, f.checked_at, f.failing_since, f.release_at, f.cert_mode, f.cert_name, f.proof_exempt, u.handle FROM address_families f JOIN users u ON u.id = f.user_id WHERE f.user_id='$NIL' AND f.verified_at IS NOT NULL"
+run "family cert cap"       "SELECT count(DISTINCT host) FROM family_cert_requests WHERE user_id='$NIL' AND requested_at > now() - interval '24 hours'"
 run "recently deleted"      "SELECT id, name, deleted_at FROM sites WHERE user_id='$NIL' AND deleted_at IS NOT NULL"
 run "promised dates"        "SELECT purge_at, idle_remove_at, domain_release_at FROM sites WHERE user_id='$NIL'"
 run "take-down"             "SELECT s.suspended_at, s.suspended_reason, u.suspended_at, u.suspended_reason FROM sites s JOIN users u ON u.id = s.user_id WHERE s.id='$NIL'"
