@@ -36,6 +36,7 @@ Website Deploy is a static-file host at `https://simple-host.app`. Each site liv
 | Agent writing for the site owner (no browser) | The connector (`update_state`, `add_to_collection`) if present; otherwise the owner's own API key, obtained by email code, as `X-API-Key` — works only on sites that account owns (another account's key gets 404). Anyone else saves on the page as a signed-in visitor. See "Saving from an agent" in the `website-deploy` skill's `references/backend.md` |
 | Per-visitor state | `localStorage`, `sessionStorage`, `IndexedDB` (in the browser), or **Personal** (`mine`) when it must follow the visitor to another device |
 | External APIs | `fetch()` from the page to any public CORS-enabled API |
+| Keeping a whole site from people without a passcode | One shared passcode on the whole site (`set_site_passcode`; the person chooses it, any 6+ characters, or asks for 6 digits; ask first). Not a login: anyone given it can pass it on, and saved data is not private per person. No per-page lock |
 | Routing | Static files only — path-relative directories with `index.html`; SPA routing via the framework's hash router or `404.html` fallback |
 
 If your idea needs a server you control, a shared SQL database, your own user accounts and roles, or anything that runs server-side, Website Deploy is not the right host. Say so and stop.
@@ -50,7 +51,7 @@ If your idea needs a server you control, a shared SQL database, your own user ac
 2. The form page calls `await SH.requireSignIn()` before `SH.data('orders', 'entries').add({...})`, and shows the saved item from the answer as the visitor's receipt (and `.mine()` for what they sent before).
 3. An owner page on the site (e.g. `orders.html`) that signs in, lists them (`SH.data('orders').list()`), and has "Mark done" (`.update(id, {status:'done'})`) and "Delete" (`.remove(id)`) buttons. It works only for the owner's account. The owner also has their sites page (every entry with who sent it, a daily email, a spreadsheet download); the agent reads it with `read_collection`.
 
-Public Submissions (a guestbook, public comments) are `"visibility": "public"`; say so plainly. Pages are always public; only private Submissions are closed, readable in full by the site owner and the Simple Host operator (for moderation).
+Public Submissions (a guestbook, public comments) are `"visibility": "public"`; say so plainly. Pages are public to anyone with the link unless the owner puts a passcode on the whole site (then to anyone who also has the passcode); only private Submissions are closed, readable in full by the site owner and the Simple Host operator (for moderation).
 
 **Always pair a form with a viewer.** Any site that COLLECTS data (a signup, RSVP, guestbook, contact form, order) MUST also ship a second page — e.g. `admin.html` — that reads the same collection back (`GET .../collections/<name>?limit=200` → `{items:[{id,data,created_at},…]}`) and lists every entry for the owner, newest first, plus the live total from state. Link it quietly from the main page (a small "Organizer view →" in the footer). A form with nowhere to read the results is only half the feature — and the person you're building for will not think to ask for the viewer, so add it by default. Mark the viewer `<meta name="robots" content="noindex">`. A public collection is readable by anyone with the link, so don't fake a password; if the entries are personal, make the collection private and the viewer becomes the owner page above.
 
@@ -205,6 +206,7 @@ Optional — every site already has its own `https://<sitename>.<handle>.simple-
 | User says | Capabilities |
 |---|---|
 | "a landing page / portfolio / CV" | static only |
+| "only my family / class / team should see it" | static + a site passcode (`set_site_passcode`; they share it themselves) |
 | "a guestbook" | static + public Submissions (`visibility: public`) + `auth.js` sign-in |
 | "a waitlist / event RSVP / signup form" | static + private Submissions (the default; `count()` for a live total) + owner page |
 | "take orders / bookings / a survey" | private Submissions + form with `auth.js` sign-in + owner page (`orders.html`) |
@@ -221,7 +223,7 @@ Optional — every site already has its own `https://<sitename>.<handle>.simple-
 | "a shorter address, but no domain" | static + free `<name>.simple-host.app` (one `connect_domain` call) |
 | "a slide deck I want to share a link to" | build with Slidev, Reveal.js, or similar and deploy the output |
 
-If the user wants something Website Deploy can't host — per-user accounts that span devices, server-side execution, or a shared SQL database — say so explicitly and stop. Suggest they pair Website Deploy (for the static front-end) with a separate backend host (Vercel functions, Cloudflare Workers, Supabase, etc.) where their server-side logic lives. Nicer addresses *are* supported (free `<name>.simple-host.app`, or a custom domain via `connect-domain`). Private or password-locked pages are not — every deployed page is public. Sign-in (Google or email code) gates *writing* to the backend; the only thing gated for reading is a private collection, which only the site owner — and the Simple Host operator, for moderation — can read. Never present "sign in to save" as a private page.
+If the user wants something Website Deploy can't host — per-user accounts that span devices, server-side execution, or a shared SQL database — say so explicitly and stop. Suggest they pair Website Deploy (for the static front-end) with a separate backend host (Vercel functions, Cloudflare Workers, Supabase, etc.) where their server-side logic lives. Nicer addresses *are* supported (free `<name>.simple-host.app`, or a custom domain via `connect-domain`). A single password-locked page or a per-person login to view is not; the only view lock is one shared passcode on a whole site (`set_site_passcode`), which keeps out search engines, link previews and anyone without it, but anyone given it can open the site and pass it on. Sign-in (Google or email code) gates *writing* to the backend; the only data gated per person for reading is a private collection, which only the site owner — and the Simple Host operator, for moderation — can read. Never present "sign in to save" as a private page.
 
 ## Generating a prompt for another agent
 

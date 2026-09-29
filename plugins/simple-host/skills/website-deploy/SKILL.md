@@ -38,8 +38,12 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
   link can open it, and wait for a yes.
 - **Always ask before** deleting a site or saved data, making private data public,
   changing who can see or save, connecting a domain or free address, rolling back,
-  taking a site offline, or lowering how many versions a site keeps. Name exactly
-  what changes.
+  taking a site offline, putting a passcode on a site (or changing or removing
+  it), or lowering how many versions a site keeps. Name exactly what changes.
+- **A passcode:** let the person choose it (any 6 or more characters; digits only
+  is fine) or offer to pick 6 digits for them. Say that a passcode typed in the
+  chat stays in the conversation, and read them the note in
+  `references/operations.md` §Site passcode before setting it.
 - **Updates** to a site the person asked for in this conversation go ahead once
   they ask for the change: publishing it is the point.
 
@@ -87,7 +91,7 @@ some install methods fetch only `SKILL.md` — fetch the URL instead.
 | Detect a framework and build it for path hosting | `references/frameworks.md` · https://simple-host.app/v1/skills/website-deploy/references/frameworks.md |
 | Validate, package, upload, verify | `references/packaging-and-validation.md` · https://simple-host.app/v1/skills/website-deploy/references/packaging-and-validation.md |
 | What is this data (Page info, Submissions, Personal, Shared board), who may save, saving from a page or an agent (connector: `declare_data`, `list_data`, `update_data`, `set_who_can_save`, `block_person`, `read_collection`, `add_to_collection`; older sites: `get_state`, `update_state`) | `references/backend.md` · https://simple-host.app/v1/skills/website-deploy/references/backend.md |
-| Versions, rollback, delete and restore, download a copy, changing the handle, analytics (connector: `list_versions`, `rollback_site`, `preview_version`, `set_site_offline`, `delete_site`, `list_deleted_sites`, `restore_site`, `export_site`, `site_analytics`) | `references/operations.md` · https://simple-host.app/v1/skills/website-deploy/references/operations.md |
+| Versions, rollback, delete and restore, a passcode on a site, download a copy, changing the handle, analytics (connector: `list_versions`, `rollback_site`, `preview_version`, `set_site_offline`, `set_site_passcode`, `delete_site`, `list_deleted_sites`, `restore_site`, `export_site`, `site_analytics`) | `references/operations.md` · https://simple-host.app/v1/skills/website-deploy/references/operations.md |
 | Private collections (orders, RSVPs, sign-ups, anything personal; connector: `set_collection_privacy`) | `references/backend.md` · https://simple-host.app/v1/skills/website-deploy/references/backend.md |
 | A nicer address (optional): a free `<name>.simple-host.app` or a custom domain | the `connect-domain` skill · https://simple-host.app/v1/skills/connect-domain |
 
@@ -165,7 +169,9 @@ it has one; otherwise it gets the owner's key by email code. Both flows,
 the `SH` API and the error bodies: `references/backend.md`.
 
 Sign-in identifies the visitor; it does not make the page private. Pages are
-always public. There is no password-locked page feature.
+public to anyone with the link, unless the owner puts one passcode on the whole
+site (`references/operations.md` §Site passcode). That is a shared passcode, not
+a login, and there is no lock on a single page.
 
 ## What is this data? Choose its kind
 
@@ -262,7 +268,8 @@ app). Full code, limits and error codes: `references/backend.md`.
   `PUT /v1/sites/<sitename>/keep-versions` (`references/operations.md` §Versions kept).
   To show the person a change before visitors see it, deploy with
   `?publish=false` and give them the `preview_url` (see `references/operations.md`).
-- **Sites and their data are public to anyone with the link**, except private
+- **Sites and their data are public to anyone with the link** (a site with a
+  passcode: to anyone who also has the passcode), except private
   Submissions, which only the owner reads in full (each visitor reads their own),
   and Personal records, which the owner's tools never show (the site's own pages
   read each for its own visitor). The visitor
