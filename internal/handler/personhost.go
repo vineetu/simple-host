@@ -157,7 +157,7 @@ type siteHome struct {
 // siteHomeFor returns the site's own origin, or ok=false when it has none (no
 // domain, and person hosts are off or the owner cannot have one).
 func (h *SiteHandler) siteHomeFor(ctx context.Context, siteID string) (siteHome, bool, error) {
-	info, ok, err := h.siteOwnDomain(ctx, siteID)
+	info, ok, err := h.siteOwnAddress(ctx, siteID)
 	if err != nil {
 		return siteHome{}, false, err
 	}
@@ -187,10 +187,20 @@ func (h *SiteHandler) siteHomeFor(ctx context.Context, siteID string) (siteHome,
 // is for a site whose home is its own domain: such a site takes no saves and
 // no sign-in here (owner decision 2026-09-06). Returns the domain.
 func (h *SiteHandler) livesOnDomainElsewhere(r *http.Request, siteID string) (string, bool) {
-	if host := requestHostName(r); !h.isSiteHostName(host) && !h.isPersonHost(r.Context(), host) {
+	host := requestHostName(r)
+	// On a family address: only a domain of its own is elsewhere (every
+	// family address of a site takes its saves and sign-ins).
+	if h.isFamilyHostName(host) {
+		info, ok, err := h.siteOwnDomain(r.Context(), siteID)
+		if err != nil || !ok || strings.EqualFold(info.Domain, host) {
+			return "", false
+		}
+		return info.Domain, true
+	}
+	if !h.isSiteHostName(host) && !h.isPersonHost(r.Context(), host) {
 		return "", false
 	}
-	info, ok, err := h.siteOwnDomain(r.Context(), siteID)
+	info, ok, err := h.siteOwnAddress(r.Context(), siteID)
 	if err != nil || !ok {
 		return "", false
 	}
@@ -201,6 +211,10 @@ func (h *SiteHandler) livesOnDomainElsewhere(r *http.Request, siteID string) (st
 // the first path segment, it must be the owner's, and it must live here (not
 // on a domain of its own). Used by the OAuth start to bind the session.
 func (h *SiteHandler) PersonReturnSite(ctx context.Context, host, p string) (string, bool) {
+	// A family address names its site itself (familyhost.go).
+	if h.isFamilyHostName(host) {
+		return h.FamilyReturnSite(ctx, host)
+	}
 	// A site host names its site itself (sitehost.go); the path does not.
 	if h.isSiteHostName(host) {
 		return h.SiteReturnSite(ctx, host)
@@ -221,7 +235,7 @@ func (h *SiteHandler) PersonReturnSite(ctx context.Context, host, p string) (str
 	if h.siteHostCanonicalOn(owner.Handle.String, site.Name, h.hostBase(host)) {
 		return "", false
 	}
-	if _, has, err := h.siteOwnDomain(ctx, site.ID); err != nil || has {
+	if _, has, err := h.siteOwnAddress(ctx, site.ID); err != nil || has {
 		return "", false
 	}
 	return site.ID, true
@@ -332,7 +346,7 @@ func (h *SiteHandler) servePersonHost(w http.ResponseWriter, r *http.Request, us
 	}
 	// A site with its own domain lives there (302, like the content host, so
 	// disconnecting the domain takes effect at once).
-	if info, has, err := h.siteOwnDomain(r.Context(), site.ID); err == nil && has {
+	if info, has, err := h.siteOwnAddress(r.Context(), site.ID); err == nil && has {
 		w.Header().Set("Cache-Control", "no-store")
 		http.Redirect(w, r, "https://"+info.Domain+"/"+escTail+query, http.StatusFound)
 		return
@@ -405,7 +419,7 @@ func (h *SiteHandler) contentHostRedirect(w http.ResponseWriter, r *http.Request
 		h.renderNotFound(w, r, "/"+handle+"/"+name)
 		return
 	}
-	if info, has, err := h.siteOwnDomain(r.Context(), site.ID); err == nil && has {
+	if info, has, err := h.siteOwnAddress(r.Context(), site.ID); err == nil && has {
 		w.Header().Set("Cache-Control", "no-store")
 		http.Redirect(w, r, "https://"+info.Domain+rest+query, http.StatusFound)
 		return

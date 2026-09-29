@@ -95,7 +95,7 @@ func visitorCookieValue(r *http.Request) string {
 // __Host- cookie counts (a sibling can plant a plain one, never a __Host- one)
 // and only on a same-origin request.
 func (h *SiteHandler) sessionCookieFor(r *http.Request) string {
-	if host := requestHostName(r); h.isPlatformSubdomainHost(host) || h.isSiteHostName(host) {
+	if host := requestHostName(r); h.isPlatformSubdomainHost(host) || h.isSiteHostName(host) || h.isFamilyHostName(host) {
 		if !sameOriginRequest(r) {
 			return ""
 		}
@@ -296,7 +296,7 @@ func (h *SiteHandler) visitorWriteGate(w http.ResponseWriter, r *http.Request, s
 		if info, ok, _ := db.GetSiteDomainInfo(r.Context(), h.database, siteID); ok && info.Domain != "" {
 			// Name the address that works: the earlier one while a new
 			// domain is still pending.
-			if own, has, _ := h.siteOwnDomain(r.Context(), siteID); has {
+			if own, has, _ := h.siteOwnAddress(r.Context(), siteID); has {
 				info.Domain = own.Domain
 			}
 			h.logAnonWrite(r, siteID, siteName, route, collection, mode, "use_custom_domain")
@@ -502,7 +502,7 @@ func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 	// site has its own domain, say so, so the page can send the visitor there.
 	if strings.EqualFold(requestHostName(r), h.contentHost) {
 		resp := map[string]any{"signed_in": false, "sign_in_available": false, "code": "custom_domain_required"}
-		if info, ok, _ := h.siteOwnDomain(r.Context(), siteID); ok && info.Domain != "" {
+		if info, ok, _ := h.siteOwnAddress(r.Context(), siteID); ok && info.Domain != "" {
 			resp["code"] = "use_custom_domain"
 			resp["domain"] = info.Domain
 		} else if h.personHostsCanonical() {

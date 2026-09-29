@@ -54,6 +54,19 @@ type Limits struct {
 	EventTTL             time.Duration // EVENT_TTL_DAYS
 	EventMaxClaims       int           // EVENT_MAX_CLAIMS
 
+	// Address families (handler/familyhost.go).
+	AddressFamilies       bool          // ADDRESS_FAMILIES: on/off (on)
+	FamiliesPerAccount    int           // ADDRESS_FAMILIES_PER_ACCOUNT
+	FamilyUnprovenTTL     time.Duration // ADDRESS_FAMILY_UNPROVEN_HOURS
+	FamilyLapseWarnAfter  time.Duration // ADDRESS_FAMILY_LAPSE_WARN_HOURS
+	FamilyLapseAfter      time.Duration // ADDRESS_FAMILY_LAPSE_HOURS
+	FamilyCheckInterval   time.Duration // ADDRESS_FAMILY_CHECK_INTERVAL_MINUTES
+	FamilyActiveRecheck   time.Duration // ADDRESS_FAMILY_ACTIVE_RECHECK_MINUTES
+	FamilyCertsDaily      int           // ADDRESS_FAMILY_CERTS_PER_ACCOUNT_DAILY
+	FamilyReservedLabels  string        // ADDRESS_FAMILY_RESERVED_LABELS (comma-separated)
+	FamilyCacheTTL        time.Duration // ADDRESS_FAMILY_CACHE_SECONDS
+	IdleExemptFamilySites bool          // IDLE_EXEMPT_FAMILY_SITES
+
 	// Cleanup and retention.
 	DeletedRetention    time.Duration // DELETED_RETENTION_DAYS
 	IdleAfter           time.Duration // IDLE_AFTER_DAYS
@@ -89,6 +102,8 @@ type Limits struct {
 	RateTLSAsk          Rate // RATE_LIMIT_TLS_ASK
 	RateDomainCheck     Rate // RATE_LIMIT_DOMAIN_CHECK
 	RateDomainCheckUser Rate // RATE_LIMIT_DOMAIN_CHECK_USER
+	RateFamilyCheck     Rate // RATE_LIMIT_ADDRESS_FAMILY_CHECK
+	RateFamilyCheckUser Rate // RATE_LIMIT_ADDRESS_FAMILY_CHECK_USER
 	RateHandleCheck     Rate // RATE_LIMIT_HANDLE_CHECK
 	RateOAuthRegister   Rate // RATE_LIMIT_OAUTH_REGISTER
 	RateOAuthAuthorize  Rate // RATE_LIMIT_OAUTH_AUTHORIZE
@@ -288,8 +303,20 @@ func DefaultLimits() Limits {
 		DomainLapseAfter:     72 * time.Hour,
 		DomainCheckInterval:  2 * time.Minute,
 		DomainCertsDaily:     5,
-		EventTTL:             21 * day,
-		EventMaxClaims:       5,
+
+		AddressFamilies:       true,
+		FamiliesPerAccount:    5,
+		FamilyUnprovenTTL:     24 * time.Hour,
+		FamilyLapseWarnAfter:  24 * time.Hour,
+		FamilyLapseAfter:      72 * time.Hour,
+		FamilyCheckInterval:   10 * time.Minute,
+		FamilyActiveRecheck:   time.Hour,
+		FamilyCertsDaily:      12,
+		FamilyReservedLabels:  "www",
+		FamilyCacheTTL:        30 * time.Second,
+		IdleExemptFamilySites: true,
+		EventTTL:              21 * day,
+		EventMaxClaims:        5,
 
 		DeletedRetention:    7 * day,
 		IdleAfter:           90 * day,
@@ -322,6 +349,8 @@ func DefaultLimits() Limits {
 		RateTLSAsk:          Rate{60, 100 * time.Millisecond},
 		RateDomainCheck:     Rate{10, 10 * time.Second},
 		RateDomainCheckUser: Rate{3, 30 * time.Second},
+		RateFamilyCheck:     Rate{10, 10 * time.Second},
+		RateFamilyCheckUser: Rate{3, 30 * time.Second},
 		RateHandleCheck:     Rate{30, 2 * time.Second},
 		RateOAuthRegister:   Rate{10, 6 * time.Minute},
 		RateOAuthAuthorize:  Rate{30, 2 * time.Second},
@@ -438,6 +467,17 @@ func secRateKnob(env string, p func(*Limits) *Rate) Knob {
 	return k
 }
 
+// ReservedFamilyLabels is ADDRESS_FAMILY_RESERVED_LABELS as a list.
+func (l *Limits) ReservedFamilyLabels() []string {
+	if l.FamilyReservedLabels == "" {
+		return nil
+	}
+	return strings.Split(l.FamilyReservedLabels, ",")
+}
+
+// familyLabelShape is one DNS label (ADDRESS_FAMILY_RESERVED_LABELS).
+var familyLabelShape = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
+
 // askModelName is what ASK_MODEL may hold.
 var askModelName = regexp.MustCompile(`^[A-Za-z0-9._:/-]{1,100}$`)
 
@@ -477,6 +517,34 @@ func Knobs() []Knob {
 		durKnob("EVENT_TTL_DAYS", "days", d, 1, 60, func(l *Limits) *time.Duration { return &l.EventTTL }),
 		intKnob("EVENT_MAX_CLAIMS", "names", 1, 100, func(l *Limits) *int { return &l.EventMaxClaims }),
 
+		boolKnob("ADDRESS_FAMILIES", func(l *Limits) *bool { return &l.AddressFamilies }),
+		intKnob("ADDRESS_FAMILIES_PER_ACCOUNT", "families", 0, 100, func(l *Limits) *int { return &l.FamiliesPerAccount }),
+		durKnob("ADDRESS_FAMILY_UNPROVEN_HOURS", "hours", h, 1, 30*24, func(l *Limits) *time.Duration { return &l.FamilyUnprovenTTL }),
+		durKnob("ADDRESS_FAMILY_LAPSE_WARN_HOURS", "hours", h, 1, 30*24, func(l *Limits) *time.Duration { return &l.FamilyLapseWarnAfter }),
+		durKnob("ADDRESS_FAMILY_LAPSE_HOURS", "hours", h, 2, 90*24, func(l *Limits) *time.Duration { return &l.FamilyLapseAfter }),
+		durKnob("ADDRESS_FAMILY_CHECK_INTERVAL_MINUTES", "minutes", m, 1, 60, func(l *Limits) *time.Duration { return &l.FamilyCheckInterval }),
+		durKnob("ADDRESS_FAMILY_ACTIVE_RECHECK_MINUTES", "minutes", m, 5, 24*60, func(l *Limits) *time.Duration { return &l.FamilyActiveRecheck }),
+		intKnob("ADDRESS_FAMILY_CERTS_PER_ACCOUNT_DAILY", "certificates", 1, 1000, func(l *Limits) *int { return &l.FamilyCertsDaily }),
+		{Env: "ADDRESS_FAMILY_RESERVED_LABELS", Unit: "labels",
+			Value: func(l *Limits) string { return l.FamilyReservedLabels },
+			set: func(l *Limits, v string) error {
+				var out []string
+				for _, part := range strings.Split(v, ",") {
+					part = strings.ToLower(strings.TrimSpace(part))
+					if part == "" {
+						continue
+					}
+					if !familyLabelShape.MatchString(part) {
+						return fmt.Errorf("ADDRESS_FAMILY_RESERVED_LABELS=%q: %q is not a DNS label (a-z, 0-9 and hyphens, not at the ends)", v, part)
+					}
+					out = append(out, part)
+				}
+				l.FamilyReservedLabels = strings.Join(out, ",")
+				return nil
+			}},
+		durKnob("ADDRESS_FAMILY_CACHE_SECONDS", "seconds", time.Second, 1, 3600, func(l *Limits) *time.Duration { return &l.FamilyCacheTTL }),
+		boolKnob("IDLE_EXEMPT_FAMILY_SITES", func(l *Limits) *bool { return &l.IdleExemptFamilySites }),
+
 		durKnob("DELETED_RETENTION_DAYS", "days", d, 1, 365, func(l *Limits) *time.Duration { return &l.DeletedRetention }),
 		durKnob("IDLE_AFTER_DAYS", "days", d, 7, 3650, func(l *Limits) *time.Duration { return &l.IdleAfter }),
 		durKnob("IDLE_GRACE_DAYS", "days", d, 1, 365, func(l *Limits) *time.Duration { return &l.IdleGrace }),
@@ -515,6 +583,8 @@ func Knobs() []Knob {
 		rateKnob("RATE_LIMIT_TLS_ASK", func(l *Limits) *Rate { return &l.RateTLSAsk }),
 		rateKnob("RATE_LIMIT_DOMAIN_CHECK", func(l *Limits) *Rate { return &l.RateDomainCheck }),
 		rateKnob("RATE_LIMIT_DOMAIN_CHECK_USER", func(l *Limits) *Rate { return &l.RateDomainCheckUser }),
+		rateKnob("RATE_LIMIT_ADDRESS_FAMILY_CHECK", func(l *Limits) *Rate { return &l.RateFamilyCheck }),
+		rateKnob("RATE_LIMIT_ADDRESS_FAMILY_CHECK_USER", func(l *Limits) *Rate { return &l.RateFamilyCheckUser }),
 		rateKnob("RATE_LIMIT_HANDLE_CHECK", func(l *Limits) *Rate { return &l.RateHandleCheck }),
 		secRateKnob("RATE_LIMIT_OAUTH_REGISTER", func(l *Limits) *Rate { return &l.RateOAuthRegister }),
 		secRateKnob("RATE_LIMIT_OAUTH_AUTHORIZE", func(l *Limits) *Rate { return &l.RateOAuthAuthorize }),
@@ -623,6 +693,9 @@ func LoadLimits(getenv func(string) string) (Limits, error) {
 	case l.DomainLapseAfter <= l.DomainLapseWarnAfter:
 		return DefaultLimits(), fmt.Errorf("DOMAIN_LAPSE_HOURS (%d) must be longer than DOMAIN_LAPSE_WARN_HOURS (%d): the owner is warned before the domain is released",
 			l.DomainLapseAfter/time.Hour, l.DomainLapseWarnAfter/time.Hour)
+	case l.FamilyLapseAfter <= l.FamilyLapseWarnAfter:
+		return DefaultLimits(), fmt.Errorf("ADDRESS_FAMILY_LAPSE_HOURS (%d) must be longer than ADDRESS_FAMILY_LAPSE_WARN_HOURS (%d): the owner is warned before the family is released",
+			l.FamilyLapseAfter/time.Hour, l.FamilyLapseWarnAfter/time.Hour)
 	case l.DomainUnprovenMaxAge < l.DomainUnprovenTTL:
 		return DefaultLimits(), fmt.Errorf("DOMAIN_UNPROVEN_MAX_DAYS (%d days) must not be shorter than DOMAIN_UNPROVEN_HOURS (%d hours)",
 			l.DomainUnprovenMaxAge/day, l.DomainUnprovenTTL/time.Hour)

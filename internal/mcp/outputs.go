@@ -61,7 +61,7 @@ const (
 func siteSummaryProperties() map[string]any {
 	return map[string]any{
 		"name":           outString(outSiteName),
-		"url":            outString("The site's live public address: its connected domain once that is active, otherwise https://<site>.<handle>.simple-host.site/ (or, briefly for a new account, https://<handle>.simple-host.site/<site>/). Give the person this exact value."),
+		"url":            outString("The site's live public address: its connected domain once that is active, else its address under the account's address family (e.g. https://<site>.trips.example.com/) when one serves it, otherwise https://<site>.<handle>.simple-host.site/ (or, briefly for a new account, https://<handle>.simple-host.site/<site>/). Give the person this exact value."),
 		"active_version": outInteger("The version number visitors see now (0 if nothing is published yet)."),
 		"listed":         outBool("Whether the site is listed on the account's public page. An unlisted site is still public to anyone with its address."),
 		"custom_domain":  outString("The site's own domain, present only when one is connected."),
@@ -110,7 +110,7 @@ func domainSchema(justConnected bool) map[string]any {
 	props := map[string]any{
 		"site":   outString(outSiteName),
 		"domain": map[string]any{"type": []string{"string", "null"}, "description": "The connected domain, or null when the site has none."},
-		"status": outEnum("none (no domain), pending (waiting for the DNS record), active (the site is served there), or error (resolves here but HTTPS fails).", "none", "pending", "active", "error"),
+		"status": outEnum("none (no domain), pending (waiting for the DNS record), active (the site is served there), error (resolves here but HTTPS fails), or, for an address family, failing (it stopped passing its checks).", "none", "pending", "active", "error", "failing"),
 		"dns_record": withDescription(outObject(map[string]any{
 			"type":  outString("Record type to add: CNAME for a subdomain, A for an apex domain."),
 			"host":  outString("The name the record is added for."),
@@ -131,9 +131,16 @@ func domainSchema(justConnected bool) map[string]any {
 			}, "type", "host", "value"), "The record that points the partner here too. The ownership record on the domain covers both."),
 			"note": outString("Why the partner is not set up. Present only then."),
 		}, "domain", "status", "dns_record"), "The domain's www / bare partner, which forwards to the domain so both work. Present only for a bare domain or www.<bare domain>."),
-		"last_check":    outString("Why the domain is not active yet, from the most recent check. Present only after a failed check."),
-		"url":           outString("The site's address on this domain. Present only when status is active."),
-		"certificate":   outEnum("The domain's HTTPS certificate: pending (DNS not pointed here yet), issuing (automatic, usually minutes), live, or failed (last_check says why; it is retried). Absent for a free simple-host.site address.", "pending", "issuing", "live", "failed"),
+		"last_check":  outString("Why the domain is not active yet, from the most recent check. Present only after a failed check."),
+		"url":         outString("The site's address on this domain. Present only when status is active."),
+		"certificate": outEnum("The domain's HTTPS certificate: pending (DNS not pointed here yet), issuing (automatic, usually minutes), live, or failed (last_check says why; it is retried). For an address family, waiting_for_operator: the operator sets up its wildcard certificate. Absent for a free simple-host.site address.", "pending", "issuing", "live", "failed", "waiting_for_operator"),
+		"family": withDescription(outObject(map[string]any{
+			"site_prefix":      outString("The site-name prefix: <label>.<domain> is the account's site <site_prefix><label>. Empty: <label> is the site's name."),
+			"main_address":     outBool("Whether a family address is each matching site's main address (handed out; its own address redirects there), unless the site has a domain of its own."),
+			"live":             outBool("Whether the family serves now (verified and its certificate live)."),
+			"example_url":      outString("One site's address under the family."),
+			"certificate_note": outString("About the certificate, when it is not live."),
+		}, "site_prefix", "main_address", "live"), "Present only for an address family (domain *.<domain>): every site of the account answers at <label>.<domain>."),
 		"serving_at":    outString("The site's earlier address, where it is still served until this domain is live (then it redirects here). Present only while a new domain is pending."),
 		"failing_since": outString("When this verified domain started failing its checks. The owner is emailed after " + span(lim().DomainLapseWarnAfter) + "; after " + span(lim().DomainLapseAfter) + " the domain stops being the site's address."),
 		"note":          outString("What to do next. Present only when status is pending."),
@@ -146,7 +153,7 @@ func domainSchema(justConnected bool) map[string]any {
 		// Just connected: the partner waits with the domain.
 		delete(props["partner"].(map[string]any)["properties"].(map[string]any), "note")
 	}
-	return outObject(props, "site", "domain", "status")
+	return outObject(props, "domain", "status")
 }
 
 func outputSchemas() map[string]map[string]any {
@@ -398,10 +405,10 @@ func outputSchemas() map[string]map[string]any {
 		"connect_domain": domainSchema(true),
 		"domain_status":  domainSchema(false),
 		"remove_domain": outObject(map[string]any{
-			"site":    outString(outSiteName),
-			"removed": outString("The address that was disconnected."),
+			"site":    outString(outSiteName + " Absent for an address family."),
+			"removed": outString("The address that was disconnected (*.<domain> for an address family)."),
 			"url":     outString("The site's live address now."),
-		}, "site", "removed"),
+		}, "removed"),
 
 		"site_analytics": outObject(map[string]any{
 			"site":       outString(outSiteName),

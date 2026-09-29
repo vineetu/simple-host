@@ -31,6 +31,8 @@ at startup. The others may be set to anything, with a startup warning past ten t
 | `RATE_LIMIT_TLS_ASK` | `60,100ms` | any (warns past 10× looser) | Certificate checks (/internal/tls-ask), per address. |
 | `RATE_LIMIT_DOMAIN_CHECK` | `10,10s` | any (warns past 10× looser) | "Check again" on a domain, per address. |
 | `RATE_LIMIT_DOMAIN_CHECK_USER` | `3,30s` | any (warns past 10× looser) | "Check again" on a domain, per account. |
+| `RATE_LIMIT_ADDRESS_FAMILY_CHECK` | `10,10s` | any (warns past 10× looser) | "Check again" on an address family, per address. |
+| `RATE_LIMIT_ADDRESS_FAMILY_CHECK_USER` | `3,30s` | any (warns past 10× looser) | "Check again" on an address family, per account. |
 | `RATE_LIMIT_AI_IP` | `20,12s` | any (warns past 10× looser) | AI create requests per address. |
 | `RATE_LIMIT_AI_USER` | `30,10s` | any (warns past 10× looser) | AI create requests per account. |
 | `RATE_LIMIT_TRANSCRIBE` | `60,3s` | any (warns past 10× looser) | Voice input requests, per address and per account. |

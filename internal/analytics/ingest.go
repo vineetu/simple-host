@@ -197,6 +197,12 @@ type attrMaps struct {
 	userNameToID map[string]string // user_id+"/"+name -> site_id
 	nameToOldest map[string]string // name -> oldest site_id
 	domainToID   map[string]string // lower(custom_domain) -> site_id
+	families     map[string]familyAttr
+}
+
+// familyAttr is a verified address family: its owner and site-name prefix.
+type familyAttr struct {
+	userID, prefix string
 }
 
 // runOnce performs one ingest pass: read new log lines, attribute, aggregate,
@@ -605,6 +611,7 @@ func (i *Ingester) buildAttrMaps(ctx context.Context) (*attrMaps, error) {
 		userNameToID: map[string]string{},
 		nameToOldest: map[string]string{},
 		domainToID:   map[string]string{},
+		families:     map[string]familyAttr{},
 	}
 
 	// handle -> user_id
@@ -646,6 +653,27 @@ func (i *Ingester) buildAttrMaps(ctx context.Context) (*attrMaps, error) {
 		}
 	}
 	if err := srows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Address families: <label>.<suffix> is the family owner's site
+	// <prefix><label> (verified families only; handler/familyhost.go).
+	frows, err := i.db.QueryContext(ctx, `
+		SELECT suffix, user_id, site_prefix FROM address_families WHERE verified_at IS NOT NULL
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer frows.Close()
+	for frows.Next() {
+		var fa familyAttr
+		var suffix string
+		if err := frows.Scan(&suffix, &fa.userID, &fa.prefix); err != nil {
+			return nil, err
+		}
+		m.families[strings.ToLower(suffix)] = fa
+	}
+	if err := frows.Err(); err != nil {
 		return nil, err
 	}
 
@@ -1088,8 +1116,17 @@ func (i *Ingester) attribute(host, uri string, maps *attrMaps) (string, string) 
 		break
 	}
 
-	// custom domain
-	return maps.domainToID[host], path
+	// custom domain (an exact one wins over a family it is under)
+	if id := maps.domainToID[host]; id != "" {
+		return id, path
+	}
+	// an address family's <label>.<suffix>
+	if label, suffix, ok := strings.Cut(host, "."); ok && label != "" {
+		if fa, ok := maps.families[suffix]; ok {
+			return maps.userNameToID[fa.userID+"/"+fa.prefix+label], path
+		}
+	}
+	return "", path
 }
 
 // trimPathPrefix drops the first n non-empty segments of path (the handle and

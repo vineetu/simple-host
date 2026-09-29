@@ -6,6 +6,8 @@
 # ownership record for the site the domain is still bound to, skips taken-down
 # sites, and cleans up after disconnected domains. The www / bare partner
 # goes on the certificate as a redirect only when it passes the same checks.
+# An address family's server (simple-host-family-*) counts as another server
+# unless it belongs to the same account as the domain.
 #
 #   bash deploy/domain-certs/issue_test.sh
 set -euo pipefail
@@ -28,6 +30,7 @@ LE_LIVE=$T/live
 LOCK=$T/lock
 IP=203.0.113.7
 PER_RUN=50
+FAMILY_SITES=$T/sites/families
 EOF
 cat > "$T/bin/certbot" <<EOF
 #!/usr/bin/env bash
@@ -169,8 +172,22 @@ printf '%s\n../by-id/u/s\nwww.taken.test\n' "$TOK" > "$T/state/requests/taken.te
 touch "$T/lefail/www.lefail.test"
 printf '%s\n../by-id/u/s\nwww.lefail.test\n' "$TOK" > "$T/state/requests/lefail.test"
 
+# Address families (servers written by simple-host-family-certs): a custom
+# domain inside a family of the same account is not "served elsewhere"; one
+# inside another account's family, or a family with no link, is.
+mkdir -p "$T/sites/families"
+fam() { printf 'server {\n    listen 443 ssl;\n    server_name "~^(?<sh_label>(?!xn--)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\\.%s$";\n}\n' "${1//./\\.}" > "$T/avail/simple-host-family-$1"; ln -s "$T/avail/simple-host-family-$1" "$T/enabled/simple-host-family-$1"; }
+fam mine.test; ln -s ../by-id/u "$T/sites/families/mine.test"
+fam theirs.test; ln -s ../by-id/v "$T/sites/families/theirs.test"
+fam nolink.test
+for d in buy.mine.test buy.theirs.test buy.nolink.test; do
+  ln -s ../by-id/u/s "$S/$d"
+  echo "$TOK" > "$T/txt/$d"
+  printf '%s\n../by-id/u/s\n' "$TOK" > "$T/state/requests/$d"
+done
+
 # Simple Host's own zones are never custom domains, even bound and proven.
-platform="simple-host.site evil.simple-host.site a.b.simple-host.site shop.simple-host.app"
+platform="simple-host.site evil.simple-host.site a.b.simple-host.site shop.simple-host.app simple-hack.app x.simple-hack.app"
 for d in $platform; do
   ln -s ../by-id/u/s "$S/$d"
   echo "$TOK" > "$T/txt/$d"
@@ -221,6 +238,10 @@ for d in $platform; do
   check "$d: a platform zone is refused (request dropped, no certificate, no server)" \
     "[ ! -e '$T/state/requests/$d' ] && [ ! -e '$T/state/ready/$d' ] && [ ! -e '$T/avail/simple-host-domain-$d' ] && ! issued $d"
 done
+check "buy.mine.test: inside a family of the same account: issued" "issued buy.mine.test && [ -f '$T/state/ready/buy.mine.test' ] && [ -L '$T/enabled/simple-host-domain-buy.mine.test' ]"
+check "buy.theirs.test: inside another account's family: already served" "! issued buy.theirs.test && [ ! -e '$T/state/ready/buy.theirs.test' ] && grep -q 'already served here' '$T/state/failed/buy.theirs.test'"
+check "buy.nolink.test: inside a family with no link: already served" "! issued buy.nolink.test && [ ! -e '$T/state/ready/buy.nolink.test' ] && grep -q 'already served here' '$T/state/failed/buy.nolink.test'"
+check "family servers untouched" "[ -L '$T/enabled/simple-host-family-mine.test' ] && [ -L '$T/enabled/simple-host-family-theirs.test' ]"
 check "no nginx configuration in the output" "! grep -q 'server_name' '$T/out'"
 
 # Without a readable nginx configuration nothing is issued.

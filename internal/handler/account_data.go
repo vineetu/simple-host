@@ -209,6 +209,17 @@ func (h *SiteHandler) eraseAccountFiles(ctx context.Context, e db.ErasedAccount)
 	for _, a := range e.Aliases {
 		keep(h.disk.RemoveHandleLinkOf(a, e.UserID))
 	}
+	// Address families: the link (only while it is still this account's)
+	// and the issuer's request, so nothing is served there any more.
+	for _, f := range e.Families {
+		if h.disk.FamilyLinkTarget(f) == filepath.Join("..", "by-id", e.UserID) {
+			keep(h.disk.UnbindFamily(f))
+		}
+		h.removeFamilyRequest(f)
+	}
+	if len(e.Families) > 0 {
+		h.refreshFamilies(ctx)
+	}
 	keep(h.disk.DeleteUser(e.UserID, e.Handle))
 	return first
 }
@@ -405,6 +416,19 @@ func (h *SiteHandler) accountDocuments(ctx context.Context, me db.User) ([]expor
 		"claimed_names":   claimedNames,
 		"custom_domains":  customDomains,
 		"sign_in_methods": ids,
+	}
+	// The account's address families (*.<domain> for every site).
+	if fams, err := db.ListFamiliesByUser(ctx, h.database, me.ID); err == nil {
+		out := []map[string]any{}
+		for _, f := range fams {
+			m := map[string]any{"family": "*." + f.Suffix, "site_prefix": f.SitePrefix, "status": f.Status,
+				"main_address": f.Canonical, "connected_at": f.BoundAt.UTC()}
+			if f.VerifiedAt.Valid {
+				m["verified_at"] = f.VerifiedAt.Time.UTC()
+			}
+			out = append(out, m)
+		}
+		account["address_families"] = out
 	}
 	if strings.Contains(me.Username, "@") {
 		account["email"] = me.Username

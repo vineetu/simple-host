@@ -170,7 +170,7 @@ func (h *SiteHandler) SiteReturnSite(ctx context.Context, host string) (string, 
 	if err != nil || !ok {
 		return "", false
 	}
-	if _, has, err := h.siteOwnDomain(ctx, site.ID); err != nil || has {
+	if _, has, err := h.siteOwnAddress(ctx, site.ID); err != nil || has {
 		return "", false
 	}
 	return site.ID, true
@@ -266,7 +266,7 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 		// domain takes effect at once). Its API here refuses saves and
 		// sign-in (livesOnDomainElsewhere), like on the person host.
 		if !strings.HasPrefix(r.URL.Path, "/v1/") {
-			if info, has, err := h.siteOwnDomain(r.Context(), site.ID); err == nil && has {
+			if info, has, err := h.siteOwnAddress(r.Context(), site.ID); err == nil && has {
 				w.Header().Set("Cache-Control", "no-store")
 				http.Redirect(w, r, "https://"+strings.ToLower(info.Domain)+escaped+query, http.StatusFound)
 				return

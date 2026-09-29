@@ -13,6 +13,9 @@ check:
 	bash scripts/check-docs-sync.sh
 	bash scripts/check-claude-plugin.sh
 	bash deploy/domain-certs/issue_test.sh
+	bash deploy/family-certs/issue_test.sh
+	bash deploy/family-certs/nginx_fixture_test.sh
+	bash deploy/prod/family-adopt_test.sh
 	bash deploy/site-certs/site-certs_test.sh
 	bash deploy/prod/nginx-suspended-marker_test.sh
 	bash deploy/prod/nginx-internal-lock_test.sh

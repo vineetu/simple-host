@@ -94,6 +94,16 @@ simple-host.app runs, so an install that sets none of them behaves exactly as be
 | `DOMAIN_LAPSE_HOURS` | 72 | 2–2160 | ... and it stops being the site's address after this long. Must be longer than `DOMAIN_LAPSE_WARN_HOURS`. Once the owner was emailed, the date in that email holds. |
 | `DOMAIN_CHECK_INTERVAL_MINUTES` | 2 | 1–60 | How often the background domain check runs. |
 | `DOMAIN_CERTS_PER_ACCOUNT_DAILY` | 5 | 1–1000 | New custom-domain certificates one account may ask for in a rolling day. |
+| `ADDRESS_FAMILIES` | on | on / off | `on` lets an account connect `*.<its domain>` once so every site of the account answers at `<site>.<its domain>` (an address family). A family also needs `ADDRESS_FAMILY_CERT_DIR` (the family issuer, deploy/family-certs) and a wildcard certificate the operator sets up; without the directory no family is ever served. |
+| `ADDRESS_FAMILIES_PER_ACCOUNT` | 5 | 0–100 | Address families one account may connect. 0: none. |
+| `ADDRESS_FAMILY_UNPROVEN_HOURS` | 24 | 1–720 | A new address family whose DNS records (the wildcard and the TXT record) are not seen is dropped after this long. It serves nothing meanwhile. |
+| `ADDRESS_FAMILY_LAPSE_WARN_HOURS` | 24 | 1–720 | A verified family failing every check: its owner is emailed after this long. |
+| `ADDRESS_FAMILY_LAPSE_HOURS` | 72 | 2–2160 | ... and it is disconnected after this long. Must be longer than `ADDRESS_FAMILY_LAPSE_WARN_HOURS`. Once the owner was emailed, the date in that email holds. |
+| `ADDRESS_FAMILY_CHECK_INTERVAL_MINUTES` | 10 | 1–60 | How often the background address-family check runs. |
+| `ADDRESS_FAMILY_ACTIVE_RECHECK_MINUTES` | 60 | 5–1440 | How often a working family's DNS records are proved again. |
+| `ADDRESS_FAMILY_CERTS_PER_ACCOUNT_DAILY` | 12 | 1–1000 | Per-site-name certificates one account's families may ask for in a rolling day (for per-host families, a later release; wildcard families need none). |
+| `ADDRESS_FAMILY_RESERVED_LABELS` | www | DNS labels, comma-separated | Names that never name a site under an address family (`www.<family>` is the customer's own). |
+| `ADDRESS_FAMILY_CACHE_SECONDS` | 30 | 1–3600 | How long the server keeps its list of working families before reading it again (every change also refreshes it). |
 | `EVENT_TTL_DAYS` | 21 | 1–60 | How long a claimed event hostname lives before the sweep removes it (re-claiming extends it). Only where `EVENT_DNS_TOKEN` is set. At most 60, so a forgotten claim does not point a name under this domain at a recycled cloud address for months. |
 | `EVENT_MAX_CLAIMS` | 5 | 1–100 | Event hostnames one account may hold at once. |
 
@@ -104,6 +114,7 @@ simple-host.app runs, so an install that sets none of them behaves exactly as be
 | `DELETED_RETENTION_DAYS` | 7 | 1–365 | How long a deleted site stays restorable in Recently deleted (its name stays held until then). Applies to sites deleted after the change. |
 | `IDLE_AFTER_DAYS` | 90 | 7–3650 | Idle cleanup (`IDLE_CLEANUP=on`): a site with no visits, deploys or saves for this long gets its owner a warning email. |
 | `IDLE_GRACE_DAYS` | 30 | 1–365 | ... and moves to Recently deleted this long after the warning if nothing is done. Applies to warnings sent after the change. |
+| `IDLE_EXEMPT_FAMILY_SITES` | on | on / off | `on`: a site whose main address is under a verified address family of its account is never removed as idle, like a site with its own domain. |
 | `IDLE_REPLY_TO` | support@simple-host.app | an email address | Reply-To of the idle-cleanup emails. |
 | `ANALYTICS_RETENTION_DAYS` | 400 | 1–3650 | How long visit analytics aggregates are kept. |
 | `ANALYTICS_PAGES_PER_SITE_DAY` | 200 | 10–10000 | Distinct pages kept in a site's Top pages per day. Paths are normalised first (percent-escapes decoded once, `//` collapsed, query and fragment dropped); views of further new paths that day are counted together as `(other)`. |
@@ -215,6 +226,8 @@ than 10 times looser than its default. A `RATE_LIMIT_*` variable that is not one
 | `RATE_LIMIT_TLS_ASK` | 60,100ms | any (warns past 10×) | Certificate checks (`/internal/tls-ask`), per address. |
 | `RATE_LIMIT_DOMAIN_CHECK` | 10,10s | any (warns past 10×) | "Check again" on a domain, per address. |
 | `RATE_LIMIT_DOMAIN_CHECK_USER` | 3,30s | any (warns past 10×) | "Check again" on a domain, per account. |
+| `RATE_LIMIT_ADDRESS_FAMILY_CHECK` | 10,10s | any (warns past 10×) | "Check again" on an address family, per address. |
+| `RATE_LIMIT_ADDRESS_FAMILY_CHECK_USER` | 3,30s | any (warns past 10×) | "Check again" on an address family, per account. |
 | `RATE_LIMIT_HANDLE_CHECK` | 30,2s | any (warns past 10×) | Address availability checks while someone types a handle (`GET /v1/handles/check`), per address. |
 | `RATE_LIMIT_OAUTH_REGISTER` | 10,6m | **40,1m30s** (security-sensitive) | Connector app registrations per address. |
 | `RATE_LIMIT_OAUTH_AUTHORIZE` | 30,2s | **120,500ms** (security-sensitive) | Connector authorization requests per address. |

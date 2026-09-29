@@ -2,7 +2,8 @@
 # Tests for nginx-internal-lock.sh on throwaway vhost files (no root): every
 # /internal/ location gains `internal;` (multi-line, one-line, the marker's
 # exact-match ones), the content host is skipped without its flag, a second
-# run changes nothing, and a failed nginx -t restores every file. Then, when
+# run changes nothing, a failed nginx -t restores every file, and the
+# rendered address-family template needs no change. Then, when
 # an nginx binary is present, a throwaway nginx (unprivileged, its own port)
 # proves the point of the change: with `internal;`, the take-down/offline
 # and passcode rewrites and the not-found error page still reach the app, while a request
@@ -84,6 +85,23 @@ if NGINX_SITES_DIR="$T/en" BACKUP_DIR="$T/bak" NGINX_TEST=false NGINX_RELOAD=tru
 else
   diff -r "$T/orig" "$T/en" >/dev/null && ok "every file restored" || bad "files left edited"
 fi
+
+echo "== rendered address-family template =="
+# The family issuer's file (with and without prefix and reserved labels)
+# already carries every check and `internal;`: nothing to change.
+mkdir -p "$T/fam/state/requests" "$T/fam/en"
+printf 'STATE=%s/fam/state\nTEMPLATE=%s/../family-certs/vhost.conf.template\n' "$T" "$PWD" > "$T/fam/conf"
+printf 'sh-0123456789abcdef0123456789abcdef\n../by-id/1111\nwildcard\nfam.test\nvoucher-\nwww api\n' > "$T/fam/state/requests/fam.test"
+printf 'sh-0123456789abcdef0123456789abcdef\n../by-id/1111\nwildcard\nplain.test\n\n\n' > "$T/fam/state/requests/plain.test"
+for f in fam.test plain.test; do
+  SIMPLE_HOST_FAMILY_CERTS_CONF="$T/fam/conf" bash ../family-certs/issue.sh --render "$f" > "$T/fam/en/simple-host-family-$f"
+done
+cp -r "$T/fam/en" "$T/fam/orig"
+out=$(NGINX_SITES_DIR="$T/fam/en" BACKUP_DIR="$T/fam/bak" NGINX_TEST=true NGINX_RELOAD=true bash ./nginx-internal-lock.sh --apply)
+for f in fam.test plain.test; do
+  if grep -qF "ok    $T/fam/en/simple-host-family-$f (already internal)" <<<"$out"; then ok "family template ($f): already internal"; else bad "family template ($f): $out"; fi
+done
+diff -r "$T/fam/orig" "$T/fam/en" >/dev/null && ok "family template files unchanged" || bad "family template edited"
 
 echo "== a throwaway nginx: internal pages still reached by rewrites =="
 NGINX=$(command -v nginx || true)

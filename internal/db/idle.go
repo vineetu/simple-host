@@ -34,6 +34,10 @@ import (
 type IdleExempt struct {
 	Handles       []string // lowercased handles
 	ReviewerEmail string   // REVIEW_ACCOUNT_EMAIL, "" when none
+	// FamilySites (IDLE_EXEMPT_FAMILY_SITES): a site whose main address is a
+	// verified address family of its account is kept, like one with a
+	// domain of its own.
+	FamilySites bool
 }
 
 func (e IdleExempt) args() []any {
@@ -96,6 +100,17 @@ func idleEligible(p int) string {
 	AND NOT u.event_account`, p, p+1, p+1)
 }
 
+// eligible is idleEligible plus the family exemption (a constant, not a
+// parameter, so the callers' parameter numbers stay as they are).
+func (e IdleExempt) eligible(p int) string {
+	if !e.FamilySites {
+		return idleEligible(p)
+	}
+	return idleEligible(p) + `
+	AND NOT EXISTS (SELECT 1 FROM address_families f WHERE f.user_id = s.user_id AND f.verified_at IS NOT NULL
+	    AND f.canonical AND left(s.name, length(f.site_prefix)) = f.site_prefix AND length(s.name) > length(f.site_prefix))`
+}
+
 func queryIdleSites(ctx context.Context, database *sql.DB, ex IdleExempt, extra string, args ...any) ([]IdleSite, error) {
 	all := append(ex.args(), args...)
 	rows, err := database.QueryContext(ctx, `
@@ -103,7 +118,7 @@ func queryIdleSites(ctx context.Context, database *sql.DB, ex IdleExempt, extra 
 			SELECT s.id, s.user_id::text AS user_id, s.name, u.username, COALESCE(u.handle, '') AS handle,
 			       `+idleLastActivity+` AS last_activity, s.idle_warned_at, s.idle_remove_at
 			  FROM sites s JOIN users u ON u.id = s.user_id
-			 WHERE s.deleted_at IS NULL AND `+idleEligible(1)+`
+			 WHERE s.deleted_at IS NULL AND `+ex.eligible(1)+`
 		) x WHERE `+extra, all...)
 	if err != nil {
 		return nil, err
@@ -151,7 +166,7 @@ func ClearStaleIdleWarnings(ctx context.Context, database *sql.DB, ex IdleExempt
 		UPDATE sites s SET idle_warned_at = NULL, idle_token_hash = NULL
 		  FROM users u
 		 WHERE u.id = s.user_id AND s.idle_warned_at IS NOT NULL AND s.deleted_at IS NULL
-		   AND (NOT (`+idleEligible(1)+`) OR `+idleLastActivity+` > s.idle_warned_at)`, ex.args()...)
+		   AND (NOT (`+ex.eligible(1)+`) OR `+idleLastActivity+` > s.idle_warned_at)`, ex.args()...)
 	if err != nil {
 		return 0, err
 	}
@@ -169,7 +184,7 @@ func MarkIdleWarned(ctx context.Context, tx *sql.Tx, ex IdleExempt, siteID strin
 	res, err := tx.ExecContext(ctx, `UPDATE sites s SET idle_warned_at = now(), idle_remove_at = $6, idle_token_hash = $4
 		  FROM users u
 		 WHERE s.id = $3 AND u.id = s.user_id AND s.deleted_at IS NULL AND s.idle_warned_at IS NULL
-		   AND `+idleEligible(1)+` AND `+idleLastActivity+` < $5`, args...)
+		   AND `+ex.eligible(1)+` AND `+idleLastActivity+` < $5`, args...)
 	return oneRow(res, err)
 }
 
@@ -185,7 +200,7 @@ func MarkIdleRemoved(ctx context.Context, q Querier, ex IdleExempt, siteID strin
 		  FROM users u
 		 WHERE s.id = $3 AND u.id = s.user_id
 		   AND s.idle_warned_at IS NOT NULL AND `+idleRemoveDue(5)+`
-		   AND `+idleEligible(1)+` AND `+idleLastActivity+` <= s.idle_warned_at`, args...)
+		   AND `+ex.eligible(1)+` AND `+idleLastActivity+` <= s.idle_warned_at`, args...)
 	return oneRow(res, err)
 }
 

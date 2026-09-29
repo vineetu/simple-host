@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -206,6 +207,14 @@ func main() {
 	// auth.js serves pages under every base while addresses move.
 	handler.SetSiteBaseText(siteHandler.ServedBases())
 	siteHandler.SetDomainCerts(cfg.DomainCertDir)
+	// Address families: *.<domain> for every site of an account (familyhost.go).
+	siteHandler.SetAddressFamilies(cfg.FamilyCertDir)
+	// The platform's other zones are never an owner's domain or family.
+	if u, err := url.Parse(cfg.PublicBaseURL); err == nil && u.Hostname() != "" {
+		siteHandler.SetPlatformZones(append([]string{u.Hostname()}, cfg.EventDomains...)...)
+	} else {
+		siteHandler.SetPlatformZones(cfg.EventDomains...)
+	}
 	siteHandler.SetIdleCleanup(cfg.IdleCleanup, cfg.IdleCleanupMaxEmails)
 	siteHandler.SetSavedData(cfg.Limits.SavedData)
 	siteHandler.SetIdleExempt(cfg.IdleCleanupExemptHandles, cfg.ReviewAccountEmail)
@@ -335,7 +344,9 @@ func main() {
 		log.Printf("analytics ingester enabled: %s", cfg.AnalyticsLog)
 	}
 
-	// A claimed <name>.<SITE_DOMAIN> is served like a custom domain (its files
+	// An address family's <label>.<domain> is its account's site (familyhost.go;
+	// never under a platform domain, so it goes first). A claimed
+	// <name>.<SITE_DOMAIN> is served like a custom domain (its files
 	// at the root, /v1 same-origin); <site>.<handle>.<SITE_DOMAIN> is a site's
 	// own address when SITE_HOSTS is on (sitehost.go); an account's handle is
 	// its own address when PERSON_HOSTS is on (personhost.go); every other single-label name
@@ -343,7 +354,7 @@ func main() {
 	app := handler.SecurityHeaders(handler.CORS(apiMetrics.Wrap(connector.BearerAuth(gated))))
 	server := &http.Server{
 		Addr:              net.JoinHostPort(cfg.BindAddr, cfg.Port),
-		Handler:           siteHandler.SiteBaseHosts(siteHandler.BoundSubdomains(app, siteHandler.SiteHosts(app, siteHandler.PersonHosts(app, siteHandler.LegacyHostRedirect(app))))),
+		Handler:           siteHandler.FamilyHosts(app, siteHandler.SiteBaseHosts(siteHandler.BoundSubdomains(app, siteHandler.SiteHosts(app, siteHandler.PersonHosts(app, siteHandler.LegacyHostRedirect(app)))))),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -356,6 +367,7 @@ func main() {
 	siteHandler.StartIdleCleanup(ctx)
 	siteHandler.StartSavedDataSweep(ctx)
 	siteHandler.StartSubmissionEmails(ctx)
+	siteHandler.StartAddressFamilies(ctx)
 
 	serverErr := make(chan error, 1)
 

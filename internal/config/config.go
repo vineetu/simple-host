@@ -224,6 +224,11 @@ type Config struct {
 	// domain resolves to this server), ready/<domain> and failed/<domain>
 	// (written by the issuer). Empty: certificates are issued by hand.
 	DomainCertDir string
+	// FamilyCertDir (ADDRESS_FAMILY_CERT_DIR) is the address-family hand-off
+	// with the root issuer (deploy/family-certs): requests/<suffix> from the
+	// app, ready/<suffix> and failed/<suffix> from the issuer. Empty: no
+	// family is ever served.
+	FamilyCertDir string
 	// IdleCleanup is IDLE_CLEANUP=on (default off): warn owners of sites
 	// idle for IDLE_AFTER_DAYS (90), move them to Recently deleted
 	// IDLE_GRACE_DAYS (30) later unless kept (limits.go). IdleCleanupMaxEmails caps the emails one run sends (default 50).
@@ -391,6 +396,7 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	cfg.DomainCertDir = strings.TrimSpace(os.Getenv("DOMAIN_CERT_DIR"))
+	cfg.FamilyCertDir = strings.TrimSpace(os.Getenv("ADDRESS_FAMILY_CERT_DIR"))
 	cfg.IdleCleanup = strings.EqualFold(strings.TrimSpace(os.Getenv("IDLE_CLEANUP")), "on")
 	if v := strings.TrimSpace(os.Getenv("IDLE_CLEANUP_MAX_EMAILS")); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {

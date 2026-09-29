@@ -355,7 +355,7 @@ func (h *SiteHandler) passcodeElsewhere(w http.ResponseWriter, r *http.Request, 
 		query = "?" + r.URL.RawQuery
 	}
 	target := ""
-	if info, has, err := h.siteOwnDomain(r.Context(), row.SiteID); err == nil && has {
+	if info, has, err := h.siteOwnAddress(r.Context(), row.SiteID); err == nil && has {
 		target = "https://" + strings.ToLower(info.Domain) + escRel
 	} else if handle, _, name, err := db.GetSiteOwner(r.Context(), h.database, row.SiteID); err == nil && handle != "" && h.personAddressFor(handle, name) {
 		target = h.siteAddressWithPath(handle, name, escRel)
@@ -484,8 +484,9 @@ func passcodeGateHTML(host, next, msg string) string {
 
 // passcodePageHandler answers /internal/passcode/{rest...}, where nginx and
 // Caddy send a request for a site whose folder carries the passcode marker.
-// On a custom domain (or a claimed name) the host names the site: the gate,
-// or the file once unlocked. On the content host the path does
+// On a custom domain, a claimed name or a family address the host names the
+// site: the gate, or the file once unlocked (a family address of a site
+// that lives on a domain of its own redirects there first). On the content host the path does
 // (/<handle>/<site>/...): that site's own address. Anything else — a
 // hand-made vhost the app does not know — gets the protected page with no
 // form: closed, never the file.
@@ -509,6 +510,15 @@ func (h *SiteHandler) passcodePageHandler(w http.ResponseWriter, r *http.Request
 	if err != nil || !info.VerifiedAt.Valid {
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			log.Printf("passcode: domain %s: %v", host, err)
+		}
+		// A family address (familyhost.go): the host names the site too.
+		if m, ok, ferr := h.familySiteForHost(r.Context(), host); ferr == nil && ok {
+			h.serveFamilyFile(w, r, m, rest, (&url.URL{Path: rest}).EscapedPath())
+			return
+		} else if ferr != nil {
+			log.Printf("passcode: family host %s: %v", host, ferr)
+			h.renderServiceError(w, r)
+			return
 		}
 		servePasscodeGate(w, r, "", "", 0)
 		return
@@ -549,6 +559,13 @@ func (h *SiteHandler) passcodeSiteForHost(ctx context.Context, host, next string
 			return "", "", false, err
 		}
 		return site.UserID, site.Name, true, nil
+	}
+	// A family address names its site (a custom domain bound under the
+	// family is not one: familySiteForHost leaves it to the lookup below).
+	if m, ok, err := h.familySiteForHost(ctx, host); err != nil {
+		return "", "", false, err
+	} else if ok {
+		return m.Site.UserID, m.Site.Name, true, nil
 	}
 	info, err := db.GetSiteByCustomDomain(ctx, h.database, host)
 	if errors.Is(err, sql.ErrNoRows) {

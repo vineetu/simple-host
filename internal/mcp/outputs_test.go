@@ -213,7 +213,16 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		"GET /v1/sites/broken/domain": fixed(200, `{"domain":"broken.example.com","status":"error","last_error":"HTTPS returned 502","certificate_status":"live","failing_since":"2026-09-01T00:00:00Z",`+
 			`"partner_domain":"www.broken.example.com","partner_status":"not_set_up","partner_note":"www.broken.example.com does not point to this server yet","dns_partner":{"type":"CNAME","host":"www.broken.example.com","value":"sites.simple-host.app"},`+
 			`"dns":{"type":"CNAME","host":"broken.example.com","value":"sites.simple-host.app"}}`),
-		"DELETE /v1/sites/blog/domain":     fixed(204, ""),
+		"DELETE /v1/sites/blog/domain": fixed(204, ""),
+		"POST /v1/me/address-families": fixed(201, `{"id":"f-1","family":"*.trips.example.com","suffix":"trips.example.com","site_prefix":"","rank":0,"canonical":true,"status":"pending","live":false,`+
+			`"bound_at":"2026-09-01T00:00:00Z","expires_at":"2026-09-02T00:00:00Z","dns":{"type":"CNAME","host":"*.trips.example.com","value":"cname.simple-host.app"},`+
+			`"dns_txt":{"type":"TXT","host":"_simple-host.trips.example.com","value":"sh-0123"},"certificate":{"mode":"wildcard","status":"waiting_for_operator","note":"the operator sets it up"},"example_url":"https://blog.trips.example.com/"}`),
+		"GET /v1/me/address-families/trips.example.com": fixed(200, `{"id":"f-1","family":"*.trips.example.com","suffix":"trips.example.com","site_prefix":"voucher-","rank":0,"canonical":false,"status":"active","live":true,`+
+			`"bound_at":"2026-09-01T00:00:00Z","verified_at":"2026-09-01T01:00:00Z","dns":{"type":"CNAME","host":"*.trips.example.com","value":"cname.simple-host.app"},"last_error":"none",`+
+			`"certificate":{"mode":"wildcard","status":"live"},"example_url":"https://blog.trips.example.com/"}`),
+		"DELETE /v1/me/address-families/trips.example.com": fixed(204, ""),
+		"GET /v1/me/address-families/wait.example.org": fixed(200, `{"id":"f-2","family":"*.wait.example.org","suffix":"wait.example.org","site_prefix":"","rank":0,"canonical":true,"status":"pending","live":false,`+
+			`"bound_at":"2026-09-01T00:00:00Z","certificate":{"mode":"wildcard","status":"waiting_for_operator","note":"the operator sets it up"}}`),
 		"POST /v1/sites/blog/export-link":  fixed(200, `{"site":"blog","url":"https://simple-host.app/v1/export?token=abc.def","expires_at":"2026-09-27T10:10:00Z","expires_in":600}`),
 		"GET /v1/sites/blog/analytics":     fixed(200, `{"range_days":7,"totals":`+split+`,"daily":[],"last_24h":`+split+`,"hourly":[],"classified_from":"2026-09-01"}`),
 		"GET /v1/sites/blog/analytics/top": fixed(200, `{"range_days":7,"pages":[{"path":"/","views":3}],"referrers":[{"domain":"news.ycombinator.com","views":2}]}`),
@@ -277,6 +286,10 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		{"domain_status", map[string]any{"site": "broken"}},
 		{"domain_status", map[string]any{"site": "pend"}},
 		{"remove_domain", map[string]any{"site": "blog", "confirm_domain": "rsvp.example.com"}},
+		{"connect_domain", map[string]any{"domain": "*.trips.example.com"}},
+		{"domain_status", map[string]any{"domain": "*.trips.example.com"}},
+		{"domain_status", map[string]any{"domain": "*.wait.example.org"}},
+		{"remove_domain", map[string]any{"confirm_domain": "*.trips.example.com"}},
 		{"site_analytics", map[string]any{"site": "blog", "days": 7}},
 		{"export_site", map[string]any{"site": "blog"}},
 		{"declare_data", map[string]any{"site": "blog", "name": "menu", "kind": "content"}},

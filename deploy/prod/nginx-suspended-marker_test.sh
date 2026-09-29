@@ -6,7 +6,8 @@
 # missing ones right after them, a block with all three is left alone,
 # hand-made vhosts (by-id, $client, $sub) are covered, the content host is
 # edited only with its flag, a second run changes nothing, the result parses
-# (when nginx is installed), and a failed nginx -t restores every file.
+# (when nginx is installed), a failed nginx -t restores every file, and the
+# rendered address-family template needs no change.
 #   bash deploy/prod/nginx-suspended-marker_test.sh
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -180,6 +181,23 @@ if command -v nginx >/dev/null 2>&1; then
     echo "}"; } > "$T/ng/nginx.conf"
   if nginx -t -p "$T/ng" -c "$T/ng/nginx.conf" >/dev/null 2>&1; then ok "edited vhosts parse"; else bad "nginx -t: $(nginx -t -p "$T/ng" -c "$T/ng/nginx.conf" 2>&1 | tail -3)"; fi
 fi
+
+echo "== rendered address-family template =="
+# The family issuer's file (with and without prefix and reserved labels)
+# already carries every check and `internal;`: nothing to change.
+mkdir -p "$T/fam/state/requests" "$T/fam/en"
+printf 'STATE=%s/fam/state\nTEMPLATE=%s/../family-certs/vhost.conf.template\n' "$T" "$PWD" > "$T/fam/conf"
+printf 'sh-0123456789abcdef0123456789abcdef\n../by-id/1111\nwildcard\nfam.test\nvoucher-\nwww api\n' > "$T/fam/state/requests/fam.test"
+printf 'sh-0123456789abcdef0123456789abcdef\n../by-id/1111\nwildcard\nplain.test\n\n\n' > "$T/fam/state/requests/plain.test"
+for f in fam.test plain.test; do
+  SIMPLE_HOST_FAMILY_CERTS_CONF="$T/fam/conf" bash ../family-certs/issue.sh --render "$f" > "$T/fam/en/simple-host-family-$f"
+done
+cp -r "$T/fam/en" "$T/fam/orig"
+out=$(NGINX_SITES_DIR="$T/fam/en" BACKUP_DIR="$T/fam/bak" NGINX_TEST=true NGINX_RELOAD=true bash ./nginx-suspended-marker.sh --apply)
+for f in fam.test plain.test; do
+  if grep -qF "ok    $T/fam/en/simple-host-family-$f (already has the checks)" <<<"$out"; then ok "family template ($f): already has the checks"; else bad "family template ($f): $out"; fi
+done
+diff -r "$T/fam/orig" "$T/fam/en" >/dev/null && ok "family template files unchanged" || bad "family template edited"
 
 echo "== failed nginx -t restores =="
 rm -rf "$T/en" "$T/bak"; cp -r "$T/orig" "$T/en"

@@ -67,7 +67,9 @@ PER_RUN=10
 RETRY_AFTER=21600           # seconds before a failed domain is tried again
 IP=""                       # this server's IPv4 (the A record handed out); default: the apex's A record
 IP6=""                      # this server's IPv6, if AAAA records may point here
-PLATFORM_ZONES="simple-host.app simple-host.site"  # Simple Host's own zones: never a custom domain
+PLATFORM_ZONES="simple-host.app simple-host.site simple-hack.app"  # Simple Host's own zones: never a custom domain
+FAMILY_SITES=/srv/simple-host/sites/families  # address-family links: <suffix> -> ../by-id/<user>
+FAMILY_PREFIX=simple-host-family-            # servers written by simple-host-family-certs
 CONF=${SIMPLE_HOST_DOMAIN_CERTS_CONF:-/etc/simple-host-domain-certs.conf}  # override: tests only
 [ -r "$CONF" ] && . "$CONF"
 
@@ -124,15 +126,34 @@ else
   log "cannot read the nginx configuration (nginx -T); nothing is issued this run"
 fi
 
-# served_elsewhere <domain>: 0 (and the file's name on stdout) when a server
-# in the nginx configuration that this script did not write would answer the
-# domain: an exact server_name, *.parent / .parent / name.*, or a regex
-# (~...). Fails closed: a configuration it cannot parse, or a regex it cannot
-# evaluate, counts as served.
+# served_elsewhere <domain> [link target]: 0 (and the file's name on stdout)
+# when a server in the nginx configuration that this script did not write
+# would answer the domain: an exact server_name, *.parent / .parent / name.*,
+# or a regex (~...). Fails closed: a configuration it cannot parse, or a
+# regex it cannot evaluate, counts as served.
+# One exception: an address family's server (simple-host-family-<suffix>)
+# of the same account. A custom domain inside a family (shop.fam.example
+# while *.fam.example is connected) is the same person's name either way, and
+# nginx prefers the domain's exact server_name. The account is the user id in
+# the domain's link (../by-id/<uid>/<site>; the link target given, or
+# $SITES/<domain>) and in the family's ($FAMILY_SITES/<suffix> ->
+# ../by-id/<uid>); a family of another account, or one without a readable
+# link, still counts as served elsewhere.
 served_elsewhere() {
+  local target=${2:-} uid="" f own=()
+  [ -n "$target" ] || target=$(readlink -- "$SITES/$1" 2>/dev/null || true)
+  if [[ "$target" =~ ^\.\./by-id/([0-9A-Za-z-]+)/[^/]+$ ]]; then
+    uid=${BASH_REMATCH[1]}
+    for f in "$FAMILY_SITES"/*; do
+      if [ -L "$f" ] && [ "$(readlink -- "$f")" = "../by-id/$uid" ]; then
+        own+=("$FAMILY_PREFIX$(basename -- "$f")")
+      fi
+    done
+  fi
   printf '%s' "$NGINX_CONF" | perl -e '
     use strict; use warnings;
-    my ($d, $prefix) = @ARGV; $d = lc $d;
+    my ($d, $prefix, @own) = @ARGV; $d = lc $d;
+    my %own = map { $_ => 1 } @own;
     local $/; my $all = <STDIN> // "";
     my @parts = split /^# configuration file (.+?):[ \t\r]*$/m, $all;
     shift @parts;
@@ -154,7 +175,7 @@ served_elsewhere() {
     while (@parts) {
       my $file = shift @parts; my $body = shift(@parts) // "";
       (my $base = $file) =~ s{.*/}{};
-      next if index($base, $prefix) == 0;
+      next if index($base, $prefix) == 0 || $own{$base};
       my @tok;
       pos($body) = 0;
       while (pos($body) < length($body)) {
@@ -175,7 +196,7 @@ served_elsewhere() {
       }
     }
     exit 1;
-  ' "$1" "$PREFIX"
+  ' "$1" "$PREFIX" "${own[@]}"
 }
 
 # withdraw_ours <domain>: remove the server this script wrote for it, if any.
@@ -260,7 +281,7 @@ partner_blocked() {
   if [ -L "$SITES/$p" ] && [ "$(readlink -- "$SITES/$p")" != "$target" ]; then
     echo "$p is connected to another site"; return 0
   fi
-  if who=$(served_elsewhere "$p"); then
+  if who=$(served_elsewhere "$p" "$target"); then
     log "$p (partner): named by ${who:-another server}"
     echo "$p is already served here by another site on this server"; return 0
   fi
@@ -308,7 +329,7 @@ if [ -d "$SITES" ]; then
       fi
       # Its partner, once another server here names it, comes off ours.
       p=$(ready_partner "$d")
-      if [ -n "$p" ] && [ "$NGINX_OK" = 1 ] && served_elsewhere "$p" >/dev/null; then
+      if [ -n "$p" ] && [ "$NGINX_OK" = 1 ] && served_elsewhere "$p" "$(readlink -- "$SITES/$d")" >/dev/null; then
         serve "$d" "" "$p" "$p is already served here by another site on this server" || true
       fi
       continue

@@ -145,8 +145,23 @@ func visitorEmail(ctx context.Context, database *sql.DB, userID string) (string,
 // domain, else its owner's person address (siteHomeFor). Returns that home.
 func (h *SiteHandler) onOwnDomain(r *http.Request, siteID string) (siteHome, bool, error) {
 	home, ok, err := h.siteHomeFor(r.Context(), siteID)
-	if err != nil || !ok {
+	if err != nil {
 		return home, false, err
+	}
+	// Every family address of the site is its own origin too (its main
+	// address is the most specific one; the others keep working).
+	if h.isSiteFamilyHost(r.Context(), siteID, requestHostName(r)) {
+		if !ok {
+			_, ownerID, _, err := db.GetSiteOwner(r.Context(), h.database, siteID)
+			if err != nil {
+				return siteHome{}, false, err
+			}
+			home = siteHome{Host: requestHostName(r), OwnerID: ownerID, IsDomain: true}
+		}
+		return home, true, nil
+	}
+	if !ok {
+		return home, false, nil
 	}
 	// The same address under the other base counts while the base moves.
 	return home, h.sameUserHost(home.Host, requestHostName(r)), nil
@@ -219,7 +234,7 @@ func (h *SiteHandler) appendPrivate(w http.ResponseWriter, r *http.Request, site
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	if info.IsDomain && !here && (onShared || h.isSiteHostName(requestHostName(r)) || h.isPersonHost(r.Context(), requestHostName(r))) {
+	if info.IsDomain && !here && (onShared || h.isSiteHostName(requestHostName(r)) || h.isPersonHost(r.Context(), requestHostName(r)) || h.isFamilyHostName(requestHostName(r))) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{
 			"error": "this site saves on its own domain", "code": "use_custom_domain", "domain": info.Host,
 		})

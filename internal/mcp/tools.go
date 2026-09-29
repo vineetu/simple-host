@@ -419,6 +419,9 @@ type restSite struct {
 	DomainStatus  string `json:"domain_status"`
 	Visibility    string `json:"visibility"`
 	Offline       bool   `json:"offline"`
+	// FamilyAddress is the site's address under its account's address
+	// family, when one serves it (the address handed out after a domain).
+	FamilyAddress string `json:"family_address"`
 	// AddressState is present while the site is at its interim address.
 	AddressState *struct {
 		Note string `json:"note"`
@@ -426,10 +429,14 @@ type restSite struct {
 }
 
 // liveURL is the one address to give people: a connected, working custom
-// domain wins, because the shared-host address redirects there.
+// domain wins, then the site's address under its account's address family,
+// because the site's own address redirects there.
 func (s restSite) liveURL() string {
 	if s.CustomDomain != "" && s.DomainStatus == "active" {
 		return "https://" + s.CustomDomain + "/"
+	}
+	if s.FamilyAddress != "" {
+		return s.FamilyAddress
 	}
 	return s.SiteURL
 }
@@ -555,6 +562,71 @@ func domainSummary(site string, body []byte) map[string]any {
 		if _, ok := out["partner"]; ok {
 			out["note"] = out["note"].(string) + " Also add partner.dns_record so " + d.PartnerDomain + " forwards to " + *d.Domain + " (the one ownership record covers both)."
 		}
+	}
+	return out
+}
+
+// familyDomain: d names an address family (*.<suffix>); returns the suffix.
+func familyDomain(d string) (string, bool) {
+	d = strings.ToLower(strings.TrimSpace(d))
+	d = strings.TrimPrefix(strings.TrimPrefix(d, "https://"), "http://")
+	d = strings.TrimSuffix(d, "/")
+	suffix, ok := strings.CutPrefix(d, "*.")
+	if !ok || suffix == "" {
+		return "", false
+	}
+	return suffix, true
+}
+
+// familySummary is what a person needs about an address family.
+func familySummary(body []byte) map[string]any {
+	var f struct {
+		Family     string `json:"family"`
+		Suffix     string `json:"suffix"`
+		SitePrefix string `json:"site_prefix"`
+		Canonical  bool   `json:"canonical"`
+		Status     string `json:"status"`
+		Live       bool   `json:"live"`
+		LastError  string `json:"last_error"`
+		ExampleURL string `json:"example_url"`
+		DNS        *struct {
+			Type, Host, Value string
+		} `json:"dns"`
+		TXT *struct {
+			Type, Host, Value string
+		} `json:"dns_txt"`
+		Certificate struct {
+			Status string `json:"status"`
+			Note   string `json:"note"`
+		} `json:"certificate"`
+	}
+	_ = json.Unmarshal(body, &f)
+	out := map[string]any{"domain": f.Family, "status": f.Status}
+	if f.DNS != nil {
+		out["dns_record"] = map[string]any{"type": f.DNS.Type, "host": f.DNS.Host, "value": f.DNS.Value}
+	}
+	if f.TXT != nil {
+		out["ownership_record"] = map[string]any{"type": f.TXT.Type, "host": f.TXT.Host, "value": f.TXT.Value}
+	}
+	if f.Certificate.Status != "" {
+		out["certificate"] = f.Certificate.Status
+	}
+	if f.LastError != "" {
+		out["last_check"] = f.LastError
+	}
+	fam := map[string]any{"site_prefix": f.SitePrefix, "main_address": f.Canonical, "live": f.Live}
+	if f.ExampleURL != "" {
+		fam["example_url"] = f.ExampleURL
+	}
+	if f.Certificate.Note != "" {
+		fam["certificate_note"] = f.Certificate.Note
+	}
+	out["family"] = fam
+	if f.Live && f.ExampleURL != "" {
+		out["url"] = f.ExampleURL
+	}
+	if f.Status == "pending" {
+		out["note"] = "Add both DNS records at the domain's registrar within " + span(lim().FamilyUnprovenTTL) + ": dns_record (the wildcard) points every name under " + f.Suffix + " here, and ownership_record (a TXT record) proves it is the person's; keep the TXT record in place. Then every site X of the account answers at X." + f.Suffix + " once its certificate is live."
 	}
 	return out
 }
@@ -2058,20 +2130,30 @@ func Tools() []Tool {
 			Title: "Connect a custom domain",
 			Description: "Give a site a nicer address (optional: every site already has its own at https://<site>.<handle>.simple-host.site/). Either a free `<name>.simple-host.site` address (e.g. `clay-studio.simple-host.site`): active at once, no DNS step, first come first served. " +
 				"Or the person's own domain (e.g. `rsvp.example.com` or `example.com`): returns the two DNS records they must add at their domain registrar, the address record (dns_record) and a TXT ownership record (ownership_record, to keep in place); relay both exactly, then check with domain_status until it is active. " +
-				"Once active the site lives only at that address, its old address redirects there, and visitors sign in and save there.",
+				"Once active the site lives only at that address, its old address redirects there, and visitors sign in and save there. " +
+				"Or `*.<their domain>` (e.g. `*.trips.example.com`, no `site` needed): an address family for the whole account, so every site X answers at X.trips.example.com once the wildcard DNS record and the TXT ownership record are seen and the operator's wildcard certificate is set up; relay the records and check with domain_status (domain `*.trips.example.com`). Ask before connecting one: it applies to every site of the account.",
 			InputSchema: object(map[string]any{
-				"site":   str(siteDesc),
-				"domain": str("The address without https://: a free `<name>.simple-host.site`, or the person's own domain or subdomain, e.g. `rsvp.example.com`."),
-			}, "site", "domain"),
+				"site":   str(siteDesc + " Not used for a `*.<domain>` address family."),
+				"domain": str("The address without https://: a free `<name>.simple-host.site`, the person's own domain or subdomain, e.g. `rsvp.example.com`, or `*.<domain>` for an address family covering every site of the account."),
+			}, "domain"),
 			// Reaches an arbitrary outside domain and, once DNS proves it,
 			// serves the site there. Nothing is deleted.
 			Annotations: writes(false, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
-				name, err := siteArg(args)
+				domain, err := stringArg(args, "domain")
 				if err != nil {
 					return output{}, err
 				}
-				domain, err := stringArg(args, "domain")
+				if suffix, ok := familyDomain(domain); ok {
+					body, _ := json.Marshal(map[string]string{"suffix": suffix})
+					res := c.do(http.MethodPost, "/v1/me/address-families", body, nil)
+					if !res.ok() {
+						return output{}, restError("connect_domain", res)
+					}
+					out := familySummary(res.body)
+					return output{Text: jsonText(out), Structured: out}, nil
+				}
+				name, err := siteArg(args)
 				if err != nil {
 					return output{}, err
 				}
@@ -2085,12 +2167,26 @@ func Tools() []Tool {
 			},
 		},
 		{
-			Name:        "domain_status",
-			Title:       "Check a custom domain",
-			Description: "Check whether a site's custom domain is connected: pending (the DNS records are not seen yet, or its certificate is being issued) or active. Shows the certificate's progress and, while pending, the earlier address the site is still served at.",
-			InputSchema: object(map[string]any{"site": str(siteDesc)}, "site"),
+			Name:  "domain_status",
+			Title: "Check a custom domain",
+			Description: "Check whether a site's custom domain is connected: pending (the DNS records are not seen yet, or its certificate is being issued) or active. Shows the certificate's progress and, while pending, the earlier address the site is still served at. " +
+				"With domain `*.<domain>`, checks the account's address family instead (no site needed).",
+			InputSchema: object(map[string]any{
+				"site":   str(siteDesc + " Not used with a `*.<domain>` domain."),
+				"domain": str("Optional: `*.<domain>` to check an address family of the account."),
+			}),
 			Annotations: readOnly(),
 			run: func(c *call, args map[string]any) (output, error) {
+				if d, _ := args["domain"].(string); strings.TrimSpace(d) != "" {
+					if suffix, ok := familyDomain(d); ok {
+						res := c.do(http.MethodGet, "/v1/me/address-families/"+url.PathEscape(suffix), nil, nil)
+						if !res.ok() {
+							return output{}, restError("domain_status", res)
+						}
+						out := familySummary(res.body)
+						return output{Text: jsonText(out), Structured: out}, nil
+					}
+				}
 				name, err := siteArg(args)
 				if err != nil {
 					return output{}, err
@@ -2108,21 +2204,30 @@ func Tools() []Tool {
 			Title: "Disconnect a domain",
 			Description: "Disconnect a site's custom domain or free `<name>.simple-host.site` address. Only call this after the person has explicitly confirmed, in this conversation, that they want this specific address disconnected. " +
 				"Pass the address being removed as `confirm_domain` (domain_status shows it). Afterwards the site is served at its own address again (or, if the removed domain was still pending, at the earlier address it was still using). " +
-				"Links to a removed custom domain stop working; a removed free name keeps redirecting to the site and cannot be claimed by anyone else.",
+				"Links to a removed custom domain stop working; a removed free name keeps redirecting to the site and cannot be claimed by anyone else. " +
+				"With confirm_domain `*.<domain>` it disconnects the account's address family (no site needed): every site stops answering under it and goes back to its own address.",
 			InputSchema: object(map[string]any{
-				"site":           str(siteDesc),
-				"confirm_domain": str("The address being disconnected, typed out, as confirmation, e.g. `rsvp.example.com`."),
-			}, "site", "confirm_domain"),
+				"site":           str(siteDesc + " Not used for a `*.<domain>` address family."),
+				"confirm_domain": str("The address being disconnected, typed out, as confirmation, e.g. `rsvp.example.com` or `*.trips.example.com`."),
+			}, "confirm_domain"),
 			// Re-addresses a public site, and a disconnected custom domain can
 			// be claimed by someone else, so it is destructive; calling it
 			// again would disconnect the next address, so not idempotent.
 			Annotations: writes(true, false, true),
 			run: func(c *call, args map[string]any) (output, error) {
-				name, err := siteArg(args)
+				confirm, err := stringArg(args, "confirm_domain")
 				if err != nil {
 					return output{}, err
 				}
-				confirm, err := stringArg(args, "confirm_domain")
+				if suffix, ok := familyDomain(confirm); ok {
+					res := c.do(http.MethodDelete, "/v1/me/address-families/"+url.PathEscape(suffix), nil, nil)
+					if !res.ok() {
+						return output{}, restError("remove_domain", res)
+					}
+					out := map[string]any{"removed": "*." + suffix}
+					return output{Text: "Disconnected the address family *." + suffix + ". Every site answers at its own address again.", Structured: out}, nil
+				}
+				name, err := siteArg(args)
 				if err != nil {
 					return output{}, err
 				}

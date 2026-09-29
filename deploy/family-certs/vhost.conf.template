@@ -1,0 +1,75 @@
+# simple-host-family-certs: written by /usr/local/sbin/simple-host-family-certs
+# for the address family *.__SUFFIX__. Do not edit by hand: it is rewritten
+# whenever the family changes and removed when the family is disconnected or
+# lapses. A name that any other enabled server already answers is hand-made;
+# the issuer leaves such families alone.
+#
+# Address family -> every site of one account: <label>.__SUFFIX__ is that
+# account's site "__PREFIX__<label>". Content is served from the families farm
+# (families/__SUFFIX__ -> by-id/<user_id>); a miss, /v1 and /internal go to
+# the app (saved data, sign-in, the passcode gate, renamed and missing sites).
+# The label is one DNS label (no dots), so no hidden folder is reachable.
+server {
+    listen 443 ssl;
+    server_name "~^(?<sh_label>(?!xn--)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.__SUFFIX_RE__$";
+
+    # Required for the sites' analytics to count anything.
+    access_log /var/log/simple-host/analytics.log shanalytics;
+
+    # The operator's wildcard certificate (cert_mode wildcard): renewed by
+    # certbot as it always was; the issuer only checks it covers the family.
+    ssl_certificate     /etc/letsencrypt/live/__CERT__/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/__CERT__/privkey.pem;
+
+    # __RESERVED_BEGIN__
+    # Labels that never name a site here (ADDRESS_FAMILY_RESERVED_LABELS).
+    if ($sh_label ~ "^(?:__RESERVED_RE__)$") { return 404; }
+    # __RESERVED_END__
+
+    location ^~ /v1/ {
+        proxy_pass http://127.0.0.1:8090;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    # internal: reached only through this file's rewrites; a request from
+    # outside gets 404 (nginx-internal-lock.sh).
+    location ^~ /internal/ {
+        internal;
+        proxy_pass http://127.0.0.1:8090;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    root /srv/simple-host/sites/families/__SUFFIX__/__PREFIX__$sh_label/current;
+    index index.html;
+    # Taken down by the operator: the app's take-down page; taken offline by
+    # its owner: the offline page; locked with a passcode: the app's gate,
+    # keeping the path and query (take-down > offline > passcode, so they
+    # stand in that order); living on a domain of its own: the app's
+    # redirect there. A file that is not on disk (a missing or renamed site,
+    # a site's own 404 page) is the app's to answer.
+    location / {
+        if (-f /srv/simple-host/sites/families/__SUFFIX__/__PREFIX__$sh_label/suspended) { rewrite ^ /internal/suspended last; }
+        if (-f /srv/simple-host/sites/families/__SUFFIX__/__PREFIX__$sh_label/offline) { rewrite ^ /internal/offline last; }
+        if (-f /srv/simple-host/sites/families/__SUFFIX__/__PREFIX__$sh_label/passcode) { rewrite ^ /internal/passcode$uri last; }
+        if (-f /srv/simple-host/sites/families/__SUFFIX__/__PREFIX__$sh_label/lives-elsewhere) { rewrite ^ /internal/family$uri last; }
+        try_files $uri $uri/ @sh_family;
+    }
+    location @sh_family {
+        proxy_pass http://127.0.0.1:8090;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+# http -> https, keeping the ACME challenge path.
+server {
+    listen 80;
+    server_name "~^(?<sh_label>(?!xn--)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.__SUFFIX_RE__$";
+    location /.well-known/acme-challenge/ { root /var/www/acme; }
+    location / { return 301 https://$host$request_uri; }
+}

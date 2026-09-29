@@ -36,6 +36,9 @@ var requiredColumns = map[string][]string{
 	// v075-site-keep-versions.sql adds keep_versions; v076-site-passcode.sql the passcode_* columns.
 	// w2-sites-old-names.sql
 	"site_name_aliases": {"user_id", "name", "site_id"},
+	// v077-address-families.sql
+	"address_families":     {"id", "user_id", "suffix", "site_prefix", "rank", "canonical", "token", "status", "last_error", "bound_at", "verified_at", "checked_at", "failing_since", "lapse_notified_at", "release_at", "cert_mode", "cert_name", "proof_exempt", "created_at"},
+	"family_cert_requests": {"user_id", "host", "requested_at"},
 	// cp-proof-domain-ownership.sql (also the two domain_* columns above)
 	"domain_cert_requests": {"user_id", "domain", "requested_at"},
 	// sd1-saved-data-safety.sql adds deleted_at, submitted_email and the three tables below;

@@ -18,6 +18,7 @@ promised.
 <!-- settings:group=cleanup -->
 | Setting | Default | Allowed | What it does |
 |---|---|---|---|
+| `IDLE_EXEMPT_FAMILY_SITES` | `on` | `on` / `off` | on: a site whose main address is an address family is never removed as idle, like one with its own domain. |
 | `DELETED_RETENTION_DAYS` | `7` | 1–365 days | How long a deleted site stays restorable in Recently deleted. |
 | `IDLE_AFTER_DAYS` | `90` | 7–3650 days | Idle cleanup: a site unused this long gets its owner a warning email. |
 | `IDLE_GRACE_DAYS` | `30` | 1–365 days | Idle cleanup: how long after the warning an unused site moves to Recently deleted. |

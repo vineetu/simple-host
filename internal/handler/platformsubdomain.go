@@ -394,14 +394,17 @@ func (h *SiteHandler) siteOwnDomain(ctx context.Context, siteID string) (db.Site
 }
 
 // syncDomainRedirect points the content-host redirect marker at the site's
-// proven own domain, or removes it when there is none: old
-// sites.<SITE_DOMAIN> links never follow a domain that does not work yet.
+// main address when that is not its own Simple Host address (a proven own
+// domain, or a live canonical family address), or removes it: old
+// sites.<SITE_DOMAIN> links never follow an address that does not work yet.
+// It also keeps the lives-elsewhere marker the family servers read.
 func (h *SiteHandler) syncDomainRedirect(ctx context.Context, siteID string) {
 	_, userID, name, err := db.GetSiteOwner(ctx, h.database, siteID)
 	if err != nil {
 		return
 	}
-	info, has, err := h.siteOwnDomain(ctx, siteID)
+	// The site's main address: its own domain, or its family address.
+	info, has, err := h.siteOwnAddress(ctx, siteID)
 	if err != nil {
 		return
 	}
@@ -413,4 +416,6 @@ func (h *SiteHandler) syncDomainRedirect(ctx context.Context, siteID string) {
 	if err != nil {
 		log.Printf("domain: redirect marker for %s/%s: %v", userID, name, err)
 	}
+	// Its family addresses redirect only to a domain of its own.
+	h.syncLivesElsewhere(ctx, siteID, userID, name)
 }

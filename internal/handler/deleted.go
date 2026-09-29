@@ -199,6 +199,9 @@ func (h *SiteHandler) restoreSite(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	if h.hasLiveFamilies() {
+		h.syncDomainRedirect(r.Context(), site.ID)
+	}
 	writeJSON(w, http.StatusOK, h.toSiteResponse(site, "Restored with all its versions and saved data."))
 }
 

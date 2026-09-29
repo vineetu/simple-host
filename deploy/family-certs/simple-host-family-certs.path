@@ -1,0 +1,9 @@
+[Unit]
+Description=Set up a Simple Host address family as soon as it is requested or changed
+
+[Path]
+PathChanged=/var/lib/simple-host-family-certs/requests
+Unit=simple-host-family-certs.service
+
+[Install]
+WantedBy=paths.target

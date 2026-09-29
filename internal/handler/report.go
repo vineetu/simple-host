@@ -73,7 +73,9 @@ func (h *SiteHandler) ReportHandler() http.Handler {
 			}
 			_, err := db.GetSiteByCustomDomain(ctx, h.database, host)
 			if errors.Is(err, sql.ErrNoRows) {
-				return false, nil
+				// A site's address under a live address family.
+				_, ok, ferr := h.familySiteForHost(ctx, host)
+				return ok, ferr
 			}
 			return err == nil, err
 		},

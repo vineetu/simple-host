@@ -72,7 +72,7 @@ func (h *SiteHandler) SetIdleCleanup(on bool, maxEmails int) {
 // built-in rules: handles (IDLE_CLEANUP_EXEMPT_HANDLES) and the plugin
 // reviewer account (REVIEW_ACCOUNT_EMAIL).
 func (h *SiteHandler) SetIdleExempt(handles []string, reviewerEmail string) {
-	ex := db.IdleExempt{ReviewerEmail: strings.TrimSpace(reviewerEmail)}
+	ex := db.IdleExempt{ReviewerEmail: strings.TrimSpace(reviewerEmail), FamilySites: config.Active().IdleExemptFamilySites}
 	for _, hd := range handles {
 		if hd = strings.ToLower(strings.TrimSpace(hd)); hd != "" {
 			ex.Handles = append(ex.Handles, hd)

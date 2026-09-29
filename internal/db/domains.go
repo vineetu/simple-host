@@ -406,10 +406,21 @@ func BindCustomDomain(ctx context.Context, database *sql.DB, siteID, domain stri
 	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, domain); err != nil {
 		return nil, "", err
 	}
-	var cur string
-	var curVerified bool
-	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(custom_domain, ''), domain_verified_at IS NOT NULL FROM sites WHERE id = $1 FOR UPDATE`, siteID).Scan(&cur, &curVerified); err != nil {
+	// ... and against address families under the same registrable domain
+	// (families.go takes the same lock), so neither can slip past the other.
+	if err := lockFamilyName(ctx, tx, domain); err != nil {
 		return nil, "", err
+	}
+	var cur, owner string
+	var curVerified bool
+	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(custom_domain, ''), domain_verified_at IS NOT NULL, user_id::text FROM sites WHERE id = $1 FOR UPDATE`, siteID).Scan(&cur, &curVerified, &owner); err != nil {
+		return nil, "", err
+	}
+	// A name under another account's verified address family is theirs.
+	if under, err := DomainUnderOtherFamily(ctx, tx, domain, owner); err != nil {
+		return nil, "", err
+	} else if under {
+		return nil, "", ErrDomainTaken
 	}
 	replaced := ""
 	if cur != "" && cur != domain && !curVerified {

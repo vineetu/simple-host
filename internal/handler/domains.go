@@ -73,6 +73,13 @@ func (h *SiteHandler) normalizeDomain(raw string) (string, error) {
 			return "", errors.New("cannot bind a platform host as a custom domain")
 		}
 	}
+	// The platform's other zones (the public site, event domains such as
+	// simple-hack.app).
+	for _, z := range h.platformZones {
+		if isOwnHost(s, z) {
+			return "", errors.New("cannot bind a platform host as a custom domain")
+		}
+	}
 
 	labels := strings.Split(s, ".")
 	for _, label := range labels {
@@ -255,6 +262,12 @@ func (h *SiteHandler) bindDomain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// *.<domain> is an address family for the whole account, not one site's
+	// domain (POST /v1/me/address-families).
+	if isFamilyRequest(req.Domain) {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: req.Domain + " is an address family: every site of the account at <site>." + strings.TrimPrefix(strings.TrimSpace(req.Domain), "*.") + ". Connect it with POST /v1/me/address-families (the connect_domain tool does this for *.<domain>)", Code: "use_address_family"})
+		return
+	}
 	// A free <name>.<SITE_DOMAIN> address: claimed, not proven (we own the zone).
 	cand := domainCandidate(req.Domain)
 	for _, b := range h.servedBases() {
@@ -532,8 +545,9 @@ func (h *SiteHandler) domainRedirect(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	// Only a proven domain: a pending one may not serve anything yet.
-	info, ok, err := h.siteOwnDomain(r.Context(), site.ID)
+	// Only a proven domain (or a live family address): a pending one may not
+	// serve anything yet.
+	info, ok, err := h.siteOwnAddress(r.Context(), site.ID)
 	if err != nil || !ok || info.Domain == "" {
 		// Stale marker: the domain is gone or unproven. Clean up and let the
 		// next request serve.

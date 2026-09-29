@@ -1,0 +1,9 @@
+[Unit]
+Description=Check Simple Host address families every 10 minutes
+
+[Timer]
+OnBootSec=4min
+OnUnitActiveSec=10min
+
+[Install]
+WantedBy=timers.target

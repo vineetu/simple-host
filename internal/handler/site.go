@@ -109,6 +109,15 @@ type SiteHandler struct {
 	baseCertDir string
 	// domainCertDir is DOMAIN_CERT_DIR (domaincert.go).
 	domainCertDir string
+	// familyCertDir is ADDRESS_FAMILY_CERT_DIR and families the live
+	// address families (familyhost.go); the limiters are "Check again".
+	familyCertDir string
+	// platformZones are more of the platform's own zones (the public
+	// site's host, EVENT_DOMAINS): never a custom domain or a family.
+	platformZones          []string
+	families               familyIndex
+	familyCheckLimiter     *rateLimiter
+	familyCheckUserLimiter *rateLimiter
 	// idleCleanup is IDLE_CLEANUP=on and idleMaxEmails its per-run email cap
 	// (idle.go).
 	idleCleanup   bool
@@ -239,6 +248,12 @@ type siteResponse struct {
 	// KeepVersions: how many deploys of this site are kept, when the owner
 	// set it (PUT .../keep-versions); absent = the instance setting.
 	KeepVersions int `json:"keep_versions,omitempty"`
+	// FamilyAddress is the site's address under its account's most specific
+	// live address family (the one handed out: its main address unless it
+	// has a domain of its own); FamilyAddresses every family address it
+	// answers at. site_url stays the site's own Simple Host address.
+	FamilyAddress   string   `json:"family_address,omitempty"`
+	FamilyAddresses []string `json:"family_addresses,omitempty"`
 }
 
 type versionResponse struct {
@@ -478,6 +493,8 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// ... and for a site with a passcode (passcode.go): the gate, the file,
 	// or the site's own address.
 	mux.HandleFunc("GET /internal/passcode/{rest...}", h.passcodePageHandler)
+	// Address families (familyapi.go): the API and the lives-elsewhere page.
+	h.registerFamilyRoutes(mux, authMiddleware, noticeMiddleware)
 	// Site passcodes (passcode.go): the owner's switch, and the gate's form.
 	mux.Handle("GET /v1/sites/{sitename}/lock", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSitePasscode))))
 	mux.Handle("PUT /v1/sites/{sitename}/lock", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.putSitePasscode)))))
@@ -723,6 +740,8 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request, oldName
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	// The main address may change with the name (address families).
+	h.syncDomainRedirect(r.Context(), site.ID)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id": site.ID, "old_name": oldName, "name": newName,
 		"old_url": oldURL, "site_url": newURL, "old_url_status": "redirects",
@@ -898,6 +917,30 @@ func (h *SiteHandler) resolveSiteIDScoped(r *http.Request, siteName string) (str
 		}
 		return site.ID, nil
 	}
+	// On a family address (<label>.<family>) the host names the site too:
+	// its full name or the label (what auth.js derives from the host) is
+	// that site, under its owner's handle route as well; nothing else
+	// resolves there.
+	// (A custom domain bound here under the family is that domain's.)
+	if h.isFamilyHostName(host) && !h.isBoundDomain(r.Context(), host) {
+		m, ok, err := h.familySiteForHost(r.Context(), host)
+		if err != nil {
+			return "", err
+		}
+		if !ok || (siteName != m.Site.Name && siteName != m.Label) {
+			return "", sql.ErrNoRows
+		}
+		if handle != "" {
+			u, err := db.GetUserByHandleOrAlias(r.Context(), h.database, handle)
+			if err != nil {
+				return "", err
+			}
+			if u.ID != m.Site.UserID {
+				return "", sql.ErrNoRows
+			}
+		}
+		return m.Site.ID, nil
+	}
 	owner, onPerson := h.personHostOwner(r.Context(), host)
 	if handle != "" {
 		u, err := db.GetUserByHandleOrAlias(r.Context(), h.database, handle)
@@ -1017,6 +1060,16 @@ func (h *SiteHandler) originIsSiteHostID(ctx context.Context, siteID, host strin
 	return h.sameUserHost(h.siteHostFor(handle, name), host)
 }
 
+// originIsFamilyHostID reports whether the origin is one of the site's
+// family addresses (https, default port) while the family serves it.
+func (h *SiteHandler) originIsFamilyHostID(ctx context.Context, siteID string, origin *url.URL) bool {
+	if origin.Scheme != "https" || origin.Port() != "" || !h.isFamilyHostName(origin.Hostname()) {
+		return false
+	}
+	m, ok, err := h.familySiteForHost(ctx, origin.Hostname())
+	return err == nil && ok && m.Site.ID == siteID
+}
+
 // authorizeStateOrigin checks Origin/Referer and, on a match, sets the CORS
 // headers that allow the calling site to read the response. Returns true if
 // the request is allowed. The gate is keyed to the same site_id that the data
@@ -1057,6 +1110,7 @@ func (h *SiteHandler) authorizeStateOrigin(w http.ResponseWriter, r *http.Reques
 	// <name>.<SITE_DOMAIN> host only redirects, so it serves no page to trust.)
 	if !strings.EqualFold(parsed.Host, h.contentHost) &&
 		!h.originIsSiteHostID(r.Context(), siteID, parsed.Host) &&
+		!h.originIsFamilyHostID(r.Context(), siteID, parsed) &&
 		!h.originIsPersonHostID(r.Context(), siteID, parsed.Host) &&
 		!h.originIsBoundDomainID(r.Context(), siteID, parsed.Host) &&
 		!h.originAllowedForSiteID(r.Context(), siteID, origin) {
@@ -1492,6 +1546,11 @@ func (h *SiteHandler) commitCreate(w http.ResponseWriter, r *http.Request, user 
 
 	site.ActiveVersion = versionNumber
 	site.OwnerHandle = user.Handle.String
+	// Under an address family the new site's main address may be its
+	// family address: old content-host links follow it.
+	if h.hasLiveFamilies() {
+		h.syncDomainRedirect(r.Context(), site.ID)
+	}
 
 	// Queue for cortex-share registration (processed by deploy-watcher)
 	if h.deployScript != "" {
@@ -2316,6 +2375,12 @@ func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
 	if site.LastDeployedAt.Valid {
 		t := site.LastDeployedAt.Time
 		resp.DeployedAt = &t
+	}
+	for _, a := range h.siteFamilyAddrs(site.UserID, site.Name) {
+		resp.FamilyAddresses = append(resp.FamilyAddresses, "https://"+a.Host+"/")
+	}
+	if host, ok := h.siteFamilyAddress(site.UserID, site.Name); ok {
+		resp.FamilyAddress = "https://" + host + "/"
 	}
 	if !(site.CustomDomain.Valid && site.DomainVerifiedAt.Valid) {
 		resp.AddressState = h.siteAddressStateFor(site.OwnerHandle, site.Name)

@@ -1,0 +1,9 @@
+[Unit]
+Description=Write the nginx servers for Simple Host address families (operator's wildcard certificates)
+After=network-online.target nginx.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/simple-host-family-certs
+TimeoutStartSec=10min

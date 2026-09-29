@@ -113,7 +113,7 @@ func (h *SiteHandler) siteAddressFor(ctx context.Context, siteID, escapedPath st
 	if _, _, _, err := db.GetSiteOwner(ctx, h.database, siteID); err != nil {
 		return "", false // gone, or in Recently deleted
 	}
-	if info, has, err := h.siteOwnDomain(ctx, siteID); err == nil && has {
+	if info, has, err := h.siteOwnAddress(ctx, siteID); err == nil && has {
 		return "https://" + strings.ToLower(info.Domain) + "/" + rest, true
 	}
 	handle, _, name, err := db.GetSiteOwner(ctx, h.database, siteID)

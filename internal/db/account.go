@@ -90,6 +90,9 @@ type ErasedAccount struct {
 	Handle  string
 	Aliases []string     // earlier handles, whose disk links go too
 	Sites   []ErasedSite // live and Recently deleted
+	// Families are the account's address-family suffixes, whose links and
+	// issuer requests go too (the rows go with the account).
+	Families []string
 }
 
 // EraseAccount deletes the account locked by LockAccountForDelete and
@@ -158,6 +161,22 @@ func EraseAccount(ctx context.Context, tx *sql.Tx, a AccountForDelete) (ErasedAc
 	}
 	arows.Close()
 	if err := arows.Err(); err != nil {
+		return out, err
+	}
+	frows, err := tx.QueryContext(ctx, `SELECT suffix FROM address_families WHERE user_id = $1 ORDER BY suffix`, a.ID)
+	if err != nil {
+		return out, err
+	}
+	for frows.Next() {
+		var s string
+		if err := frows.Scan(&s); err != nil {
+			frows.Close()
+			return out, err
+		}
+		out.Families = append(out.Families, s)
+	}
+	frows.Close()
+	if err := frows.Err(); err != nil {
 		return out, err
 	}
 
