@@ -26,6 +26,8 @@ handing them out; `canonical` hands them out and redirects the old ones.
 | `DEPLOY_SCRIPT` | none | text | A script run after each site goes live. Empty runs nothing. |
 | `PERSON_HOSTS` | `off` | `off` / `serve` / `canonical` | Each account at its own address, <handle>.<SITE_DOMAIN>. canonical makes it the address handed out. |
 | `SITE_HOSTS` | `off` | `off` / `serve` / `canonical` | Each site at its own address, <site>.<handle>.<SITE_DOMAIN>. Needs PERSON_HOSTS. |
+| `SITE_BASE_DOMAIN` | `<SITE_DOMAIN>` | text | The domain people's and sites' addresses live under, when not SITE_DOMAIN itself. The app stays on SITE_DOMAIN. |
+| `SITE_BASE_MOVE` | `off` | `off` / `serve` / `canonical` / `redirect` / `permanent` | How far addresses have moved from SITE_DOMAIN to SITE_BASE_DOMAIN: both answer (serve), the new ones are handed out (canonical), old ones redirect (redirect: 302, permanent: 301). |
 | `SETUP_PASSWORD` | none | secret | The password a box in setup mode asks for. install.sh generates it. **Security-sensitive.** |
 | `SETUP_PUBLIC_API` | `https://simple-host.app` | text | Where a box in setup mode claims a free hostname from. |
 | `OPENAI_APPS_CHALLENGE` | none | text | The OpenAI plugin portal's domain-verification token. Unset: not served. |

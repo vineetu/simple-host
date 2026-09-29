@@ -197,6 +197,25 @@ type Config struct {
 	// counts as ready (an operator with a certificate that already covers two
 	// labels, or local development).
 	SiteCertDir string
+	// SiteBaseDomain is SITE_BASE_DOMAIN: the domain people's addresses live
+	// under (<handle>.<base>, <site>.<handle>.<base>, free <name>.<base>),
+	// when that is not the app's own domain (owner decision 2026-09-28: the
+	// hosted service moves them to simple-host.site). Default: SITE_DOMAIN,
+	// which is today's single-domain behaviour exactly. The app itself —
+	// dashboard, sign-in, API, emails, the content host and the CNAME target
+	// — always stays on SITE_DOMAIN.
+	SiteBaseDomain string
+	// SiteBaseMove is SITE_BASE_MOVE: off | serve | canonical | redirect |
+	// permanent. How far the move from SITE_DOMAIN to SITE_BASE_DOMAIN has
+	// gone: off (only SITE_DOMAIN addresses exist, the default), serve (both
+	// answer, SITE_DOMAIN addresses are handed out), canonical (base
+	// addresses are handed out, old ones still answer), redirect (old ones
+	// 302 to the base) and permanent (301). No effect while the base equals
+	// SITE_DOMAIN.
+	SiteBaseMove string
+	// SiteBaseCertDir is SITE_BASE_CERT_DIR: the per-person certificate
+	// hand-off (SiteCertDir's layout) for *.<handle>.<SITE_BASE_DOMAIN>.
+	SiteBaseCertDir string
 	// DomainCertDir holds the custom-domain certificate hand-off with the root
 	// issuer (deploy/domain-certs/): requests/<domain> (written here once the
 	// domain resolves to this server), ready/<domain> and failed/<domain>
@@ -350,6 +369,20 @@ func Load() (Config, error) {
 		cfg.SiteHosts = "off"
 	}
 	cfg.SiteCertDir = strings.TrimSpace(os.Getenv("SITE_CERT_DIR"))
+	cfg.SiteBaseDomain = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(os.Getenv("SITE_BASE_DOMAIN")), "."))
+	if cfg.SiteBaseDomain == "" {
+		cfg.SiteBaseDomain = cfg.SiteDomain
+	}
+	switch mode := strings.ToLower(strings.TrimSpace(os.Getenv("SITE_BASE_MOVE"))); mode {
+	case "off", "serve", "canonical", "redirect", "permanent":
+		cfg.SiteBaseMove = mode
+	case "":
+		cfg.SiteBaseMove = "off"
+	default:
+		log.Printf("warning: invalid SITE_BASE_MOVE %q; treating as off", mode)
+		cfg.SiteBaseMove = "off"
+	}
+	cfg.SiteBaseCertDir = strings.TrimSpace(os.Getenv("SITE_BASE_CERT_DIR"))
 	cfg.DomainCertDir = strings.TrimSpace(os.Getenv("DOMAIN_CERT_DIR"))
 	cfg.IdleCleanup = strings.EqualFold(strings.TrimSpace(os.Getenv("IDLE_CLEANUP")), "on")
 	if v := strings.TrimSpace(os.Getenv("IDLE_CLEANUP_MAX_EMAILS")); v != "" {
@@ -392,6 +425,21 @@ func Load() (Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// HandoutBase is the domain addresses are handed out under: SITE_BASE_DOMAIN
+// once SITE_BASE_MOVE is canonical or later, else SITE_DOMAIN. The handler's
+// SiteHandler.HandoutBase answers the same from the same three settings.
+func (c Config) HandoutBase() string {
+	base := strings.ToLower(strings.TrimSpace(c.SiteBaseDomain))
+	d := strings.ToLower(strings.TrimSpace(c.SiteDomain))
+	switch c.SiteBaseMove {
+	case "canonical", "redirect", "permanent":
+		if base != "" && d != "" && base != d && !strings.HasSuffix(base, "."+d) && !strings.HasSuffix(d, "."+base) {
+			return base
+		}
+	}
+	return d
 }
 
 // GoogleOAuthEnabled reports whether both Google client vars are set.

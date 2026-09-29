@@ -240,6 +240,9 @@ another setting.
 | `PERSON_HOSTS` | `off` | `off`, `serve` or `canonical`: `<handle>.<SITE_DOMAIN>` per account. |
 | `SITE_HOSTS` | `off` | `off`, `serve` or `canonical`: `<site>.<handle>.<SITE_DOMAIN>` per site (needs `PERSON_HOSTS`). |
 | `SITE_CERT_DIR` | none | Per-person certificate hand-off with the root issuer (`deploy/site-certs/`). |
+| `SITE_BASE_DOMAIN` | `SITE_DOMAIN` | The domain people's and sites' addresses live under, when not `SITE_DOMAIN` (the app stays on `SITE_DOMAIN`). |
+| `SITE_BASE_MOVE` | `off` | `off`, `serve`, `canonical`, `redirect` or `permanent`: how far addresses have moved from `SITE_DOMAIN` to `SITE_BASE_DOMAIN` (`docs/designs/site-base-domain-move.md`). |
+| `SITE_BASE_CERT_DIR` | none | Like `SITE_CERT_DIR`, for the per-person certificates under `SITE_BASE_DOMAIN` (`deploy/site-certs/simple-host-site-certs-site.*`). |
 | `DOMAIN_CERT_DIR` | none | Custom-domain certificate hand-off with the root issuer (`deploy/domain-certs/`). |
 | `SETUP_PASSWORD` | none | The password a box in setup mode asks for (install.sh generates it). |
 | `SETUP_PUBLIC_API` | `https://simple-host.app` | Where a box in setup mode claims a free hostname from. |

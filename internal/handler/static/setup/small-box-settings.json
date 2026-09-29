@@ -157,6 +157,35 @@
       "small_box": false
     },
     {
+      "name": "SITE_BASE_DOMAIN",
+      "group": "server",
+      "description": "The domain people's and sites' addresses live under, when not SITE_DOMAIN itself. The app stays on SITE_DOMAIN.",
+      "type": "string",
+      "default": "<SITE_DOMAIN>",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "SITE_BASE_MOVE",
+      "group": "server",
+      "description": "How far addresses have moved from SITE_DOMAIN to SITE_BASE_DOMAIN: both answer (serve), the new ones are handed out (canonical), old ones redirect (redirect: 302, permanent: 301).",
+      "type": "enum",
+      "default": "off",
+      "allowed": [
+        "off",
+        "serve",
+        "canonical",
+        "redirect",
+        "permanent"
+      ],
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
       "name": "SETUP_PASSWORD",
       "group": "server",
       "description": "The password a box in setup mode asks for. install.sh generates it.",
@@ -1322,6 +1351,17 @@
       "name": "SITE_CERT_DIR",
       "group": "domains",
       "description": "Where per-person certificates are requested from, and found ready from, the certificate issuer.",
+      "type": "string",
+      "default": "",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "SITE_BASE_CERT_DIR",
+      "group": "domains",
+      "description": "Like SITE_CERT_DIR, for the per-person certificates under SITE_BASE_DOMAIN.",
       "type": "string",
       "default": "",
       "security_sensitive": false,
