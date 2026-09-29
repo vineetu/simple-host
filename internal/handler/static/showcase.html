@@ -369,6 +369,9 @@
 
     .inv-path a { color: inherit; text-decoration: none; }
     .inv-path a:hover { color: var(--text); text-decoration: underline; }
+    .inv-sort { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+    .inv-sort select { font-family: var(--font); font-size: 13px; color: var(--text); background: var(--bg); border: 1px solid var(--border-hi); border-radius: 6px; padding: 4px 6px; }
+    .inv-sort select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
     .inv-meta { font-size: 13px; color: var(--text-secondary); margin-top: 2px; font-variant-numeric: tabular-nums; }
     .vis-badge.dom-pending { color: var(--text-secondary); border-style: dashed; }
     .vis-badge.dom-error { color: var(--error); border-color: color-mix(in srgb, var(--error) 50%, transparent); }
@@ -834,7 +837,7 @@
 
       <!-- Sites view (management inventory) -->
       <div class="section" id="owner-sites-view">
-        <div class="section-num"><h2>Site Inventory</h2><span class="line"></span><button type="button" class="agent-setup-link" id="ai-create-link" data-act="showAiCreate" hidden>Build a site with AI →</button><button type="button" class="agent-setup-link" id="agent-setup-link" data-act="showAgentSetup" hidden>Set up your AI →</button><a class="btn btn-primary btn-small" id="owner-new-site" href="#" target="_self">＋ New site</a></div>
+        <div class="section-num"><h2>Site Inventory</h2><span class="line"></span><button type="button" class="agent-setup-link" id="ai-create-link" data-act="showAiCreate" hidden>Build a site with AI →</button><button type="button" class="agent-setup-link" id="agent-setup-link" data-act="showAgentSetup" hidden>Set up your AI →</button><span class="inv-sort" id="inv-sort-wrap" hidden><label for="inv-sort">Sort</label><select id="inv-sort"><option value="updated">Recently updated</option><option value="created">Recently created</option><option value="name">Name</option><option value="views">Most viewed</option></select></span><a class="btn btn-primary btn-small" id="owner-new-site" href="#" target="_self">＋ New site</a></div>
         <div id="inventory"></div>
       </div>
 
@@ -1634,8 +1637,74 @@ function parseAnalyticsSummary(data) {
       }
     }
 
+    // Order of the inventory: most recently updated first by default; the
+    // choice is kept in localStorage (a convenience only). "Updated" is when
+    // the live version went up (deployed_at), else when the site was created.
+    // "Most viewed" is people's views over 30 days, fetched when first chosen.
+    var INV_SORT_KEY = 'sh-owner-site-sort';
+    var INV_SORTS = ['updated', 'created', 'name', 'views'];
+    var invSort = 'updated';
+    try {
+      var savedSort = localStorage.getItem(INV_SORT_KEY);
+      if (INV_SORTS.indexOf(savedSort) >= 0) invSort = savedSort;
+    } catch (e) {}
+    var invViews = null; // site name -> 30-day people views, once loaded
+    var invViewsFailed = false;
+    function invSiteTime(s, which) {
+      var v = which === 'created' ? s.created_at : (s.deployed_at || s.created_at);
+      var t = v ? Date.parse(v) : NaN;
+      return isNaN(t) ? 0 : t;
+    }
+    function sortInventory(arr) {
+      var copy = (arr || []).slice();
+      var byName = function (a, b) { return String(a.name).localeCompare(String(b.name)); };
+      if (invSort === 'name') return copy.sort(byName);
+      copy.sort(function (a, b) {
+        var va, vb;
+        if (invSort === 'views') {
+          va = (invViews && invViews[a.name]) || 0;
+          vb = (invViews && invViews[b.name]) || 0;
+        } else {
+          va = invSiteTime(a, invSort);
+          vb = invSiteTime(b, invSort);
+        }
+        return (vb - va) || byName(a, b);
+      });
+      return copy;
+    }
+    async function loadInvViews() {
+      if (invViews || invViewsFailed) return;
+      try {
+        var res = await api('GET', '/v1/analytics/sites?days=30');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var m = {};
+        parseAnalyticsSummary(await res.json()).sites.forEach(function (r) { m[r.name] = r.person.views; });
+        invViews = m;
+      } catch (e) {
+        invViewsFailed = true;
+        toast('Couldn\'t load views to sort by (' + e.message + ')', 'error');
+      }
+    }
+    async function setInvSort(mode) {
+      invSort = INV_SORTS.indexOf(mode) >= 0 ? mode : 'updated';
+      try { localStorage.setItem(INV_SORT_KEY, invSort); } catch (e) {}
+      if (invSort === 'views') await loadInvViews();
+      renderInventory(ownerSites);
+    }
+    (function () {
+      var sel = document.getElementById('inv-sort');
+      if (!sel) return;
+      sel.value = invSort;
+      sel.addEventListener('change', function () { setInvSort(sel.value); });
+    })();
+
     function renderInventory(sitesArr) {
       var inv = document.getElementById('inventory');
+      var sortWrap = document.getElementById('inv-sort-wrap');
+      if (sortWrap) sortWrap.hidden = !sitesArr || sitesArr.length < 2;
+      if (invSort === 'views' && !invViews && !invViewsFailed && sitesArr && sitesArr.length > 1) {
+        loadInvViews().then(function () { renderInventory(ownerSites); });
+      }
       // The onboarding blocks (skill install + AI builder) take the page over
       // only while there is nothing else to show; otherwise they collapse to
       // links in the section header.
@@ -1648,7 +1717,7 @@ function parseAnalyticsSummary(data) {
           '</div>';
         return;
       }
-      inv.innerHTML = '<div class="inv-list">' + sitesArr.map(function (s) {
+      inv.innerHTML = '<div class="inv-list">' + sortInventory(sitesArr).map(function (s) {
         return renderInvRow(s);
       }).join('') + '</div>';
       if (pageIsOwn()) observePrivateLists(inv);
@@ -2530,6 +2599,7 @@ function parseAnalyticsSummary(data) {
       var ver = Number(s.active_version) || 0;
       var meta = ver ? 'v' + ver + ' live' : 'nothing published yet';
       if (s.deployed_at) meta += ' · last deployed ' + fmtDateTime(s.deployed_at);
+      if (invSort === 'created' && s.created_at) meta += ' · created ' + fmtDate(s.created_at);
       var own = pageIsOwn();
       return '<div class="inv-row" data-site="' + name + '">' +
         '<div class="inv-main">' +
@@ -2596,6 +2666,8 @@ function parseAnalyticsSummary(data) {
         // Analytics are keyed by site name; a rename or delete makes them stale.
         analyticsCache = {};
         analyticsLoaded = {};
+        invViews = null;
+        invViewsFailed = false;
         renderInventory(ownerSites);
       } catch (e) { /* the old rows stay */ }
     }

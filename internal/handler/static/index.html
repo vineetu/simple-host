@@ -387,6 +387,7 @@
       cursor: pointer;
     }
     .sort-select:hover { border-color: var(--border-hi); }
+    .site-when { color: var(--dim); font-variant-numeric: tabular-nums; }
     .sort-select:focus-visible {
       outline: 2px solid var(--accent);
       outline-offset: 1px;
@@ -1064,6 +1065,8 @@
             <button type="button" class="agent-setup-link" id="agent-setup-link" data-act="showAgentSetup" hidden>Add Simple Host to your AI →</button>
             <label class="sort-label" for="site-sort">Sort</label>
             <select id="site-sort" class="sort-select">
+              <option value="updated">Recently updated</option>
+              <option value="created">Recently created</option>
               <option value="people">Most people</option>
               <option value="bots">Most bots</option>
               <option value="traffic">Most traffic (all)</option>
@@ -1690,16 +1693,54 @@ function parseAnalyticsSummary(data) {
     // the list can be ordered by traffic before the first card is drawn. The
     // per-card lazy fetch still supplies each card's own numbers and 24h chart.
     let siteTraffic = {};
-    let siteSort = 'people';
+    // Default: the site changed most recently first. The choice is kept in
+    // localStorage (a convenience; the page works the same without it).
+    const SITE_SORT_KEY = 'sh-site-sort';
+    const SITE_SORTS = ['updated', 'created', 'people', 'bots', 'traffic', 'name'];
+    let siteSort = 'updated';
+    try {
+      const saved = localStorage.getItem(SITE_SORT_KEY);
+      if (SITE_SORTS.includes(saved)) siteSort = saved;
+    } catch (e) {}
 
     function setSiteSort(mode) {
-      siteSort = mode || 'people';
+      siteSort = SITE_SORTS.includes(mode) ? mode : 'updated';
+      try { localStorage.setItem(SITE_SORT_KEY, siteSort); } catch (e) {}
       renderSites();
+    }
+
+    // "Updated" is when the live version went up (deployed_at); a site with
+    // nothing deployed falls back to when it was created.
+    function siteTime(site, which) {
+      const v = which === 'created' ? site.created_at : (site.deployed_at || site.created_at);
+      const t = v ? Date.parse(v) : NaN;
+      return isNaN(t) ? 0 : t;
+    }
+
+    // "updated 2 days ago" / "created 3 Sep": short, for the muted date on a card.
+    function siteWhen(site) {
+      const which = siteSort === 'created' ? 'created' : 'updated';
+      const t = siteTime(site, which);
+      if (!t) return '';
+      const secs = Math.max(0, (Date.now() - t) / 1000);
+      let rel;
+      if (secs < 60) rel = 'just now';
+      else if (secs < 3600) rel = Math.floor(secs / 60) + ' min ago';
+      else if (secs < 86400) { const h = Math.floor(secs / 3600); rel = h + (h === 1 ? ' hour ago' : ' hours ago'); }
+      else if (secs < 7 * 86400) { const d = Math.floor(secs / 86400); rel = d + (d === 1 ? ' day ago' : ' days ago'); }
+      else {
+        const d = new Date(t);
+        const opts = { day: 'numeric', month: 'short' };
+        if (d.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
+        rel = d.toLocaleDateString(undefined, opts);
+      }
+      return which + ' ' + rel;
     }
 
     // A site absent from the summary drew no traffic in the window, so zero is
     // its real value here, not a missing one.
     function siteSortValue(site) {
+      if (siteSort === 'updated' || siteSort === 'created') return siteTime(site, siteSort);
       const t = siteTraffic[site.name];
       if (!t) return 0;
       switch (siteSort) {
@@ -1749,7 +1790,7 @@ function parseAnalyticsSummary(data) {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         for (const r of parseAnalyticsSummary(await res.json()).sites) siteTraffic[r.name] = r;
       } catch (e) {
-        toast(`Couldn't load analytics — sites are in account order (${e.message})`, 'error');
+        toast(`Couldn't load analytics — the traffic sorts can't order sites (${e.message})`, 'error');
       }
     }
 
@@ -1845,6 +1886,7 @@ function parseAnalyticsSummary(data) {
             <div class="site-meta">
               <span><span class="status-dot ${statusClass}"></span>${statusText}</span>
               <span class="version-badge">v${site.active_version}</span>
+              ${siteWhen(site) ? `<span class="site-when">${esc(siteWhen(site))}</span>` : ''}
               ${showOwner && site.owner_username ? `<span class="owner-badge">${esc(site.owner_username)}</span>` : ''}
               ${hasSiteURL ? `<a class="site-url" href="${esc(site.site_url)}" target="_blank">${esc(site.site_url)}</a>` : ''}
               ${site.custom_domain ? `<span class="owner-badge domain-badge">🌐 ${esc(site.custom_domain)}${site.domain_status ? ' · ' + esc(site.domain_status) : ''}${site.domain_partner_status === 'live' ? ' · ' + esc(site.domain_partner) + ' forwards here' : ''}</span>` : ''}
@@ -2441,6 +2483,7 @@ function parseAnalyticsSummary(data) {
     document.getElementById('email-form').addEventListener('submit', handleAuth);
     document.getElementById('key-form').addEventListener('submit', handleKey);
     document.getElementById('code-form').addEventListener('submit', handleCodeSubmit);
+    document.getElementById('site-sort').value = siteSort;
     document.getElementById('site-sort').addEventListener('change', e => setSiteSort(e.target.value));
     document.getElementById('my-signin-alerts').addEventListener('change', e => setSignInAlerts(e.target));
     document.getElementById('my-data-confirm').addEventListener('input', e => {
