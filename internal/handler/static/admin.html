@@ -127,6 +127,18 @@ table.apx td.err{color:var(--error)}
 #ax-routes-t td:first-child,#ax-ips-t td:first-child{font-family:var(--mono);font-size:13px}
 #ax-ips-t td:first-child .sub{font-family:var(--font)}
 @media (max-width:640px){#ax-ips-t,#ax-routes-t{display:block;overflow-x:auto}}
+/* Users list: one row per account, newest first. Scrolls inside its own box on
+   a phone so the page itself never scrolls sideways. */
+#ulist{margin:40px 0 0}
+#ulist h2{font-size:21px;font-weight:700;letter-spacing:-.01em;margin:0 0 4px}
+#ulist h2 .ucount{color:var(--text-secondary);font-weight:500}
+.ulist-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+#ulist table.apx{margin-top:8px;white-space:nowrap}
+#ulist table.apx td{overflow-wrap:normal}
+#ulist th.sortable button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;display:inline-flex;gap:4px;align-items:center}
+#ulist th.sortable button:hover{color:var(--text)}
+#ulist .rel{color:var(--text-secondary)}
+#ulist .ustate{font-size:13px;color:var(--text-secondary);margin-left:8px}
 </style>
 </head>
 <body data-sh-account>
@@ -151,6 +163,15 @@ table.apx td.err{color:var(--error)}
     </details>
   </div>
   <div id="status" class="msg" hidden></div>
+
+  <!-- Who has joined, newest first (from GET /v1/admin/users, already loaded
+       for the cards below). Only the Joined column sorts. -->
+  <div id="ulist" hidden>
+    <h2>Users <span class="ucount" id="ulist-count"></span></h2>
+    <div class="ulist-wrap">
+      <table class="apx"><thead><tr><th class="num">#</th><th class="sortable" aria-sort="descending"><button type="button" id="ulist-sort">Joined <span id="ulist-arrow" aria-hidden="true">&darr;</span></button></th><th>Handle</th><th>Email</th><th class="num">Sites</th></tr></thead><tbody id="ulist-rows"></tbody></table>
+    </div>
+  </div>
 
   <!-- Issuing participant accounts is how an event works: no email provider, no
        OAuth client, no sign-in. Each key is shown once, here, at creation. -->
@@ -495,6 +516,44 @@ function renderSignIn(why){
   document.getElementById('signin-key').focus();
 }
 
+// Users list (top of the page). # counts from the newest (1 = newest joiner)
+// whichever way the Joined column is sorted, so a number means the same person.
+var ulistUsers=[], ulistNewestFirst=true;
+var MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function joinedDate(s){ var d=new Date(s); if(isNaN(d)) return ''; return d.getDate()+' '+MONTHS[d.getMonth()]+' '+d.getFullYear(); }
+function joinedAgo(s){
+  var d=new Date(s); if(isNaN(d)) return '';
+  var a=new Date(d.getFullYear(),d.getMonth(),d.getDate()), n=new Date(), b=new Date(n.getFullYear(),n.getMonth(),n.getDate());
+  var days=Math.round((b-a)/86400000);
+  if(days<=0) return 'today';
+  if(days===1) return 'yesterday';
+  if(days<30) return days+' days ago';
+  var m=Math.floor(days/30.44); if(m<12) return m+' month'+(m===1?'':'s')+' ago';
+  var y=Math.floor(days/365.25); return y+' year'+(y===1?'':'s')+' ago';
+}
+function renderUserList(){
+  var rows=ulistUsers.slice();
+  if(!ulistNewestFirst) rows.reverse();
+  document.getElementById('ulist-arrow').innerHTML=ulistNewestFirst?'&darr;':'&uarr;';
+  document.getElementById('ulist-sort').closest('th').setAttribute('aria-sort',ulistNewestFirst?'descending':'ascending');
+  document.getElementById('ulist-rows').innerHTML=rows.map(function(x){
+    var u=x.u, link=u.page_url||(u.handle?'https://simple-host.app/'+encodeURIComponent(u.handle):'');
+    var handle=u.handle?'<a href="'+esc(link)+'" target="_blank" rel="noopener">'+esc(u.handle)+'</a>':'<span class="rel">'+esc(u.username)+'</span>';
+    var state=u.suspended?'<span class="ustate">suspended</span>':(u.disabled?'<span class="ustate">disabled</span>':'');
+    var email=String(u.email||(u.username&&u.username.indexOf('@')>0?u.username:''));
+    var when=joinedDate(u.created_at), ago=joinedAgo(u.created_at);
+    return '<tr><td class="num">'+x.n+'</td><td>'+esc(when)+(ago?' <span class="rel">&middot; '+esc(ago)+'</span>':'')+'</td><td>'+handle+state+'</td><td>'+esc(email)+'</td><td class="num">'+(u.site_count||0)+'</td></tr>';
+  }).join('');
+}
+function showUserList(users){
+  var sorted=(users||[]).slice().sort(function(a,b){ return new Date(b.created_at)-new Date(a.created_at); });
+  ulistUsers=sorted.map(function(u,i){ return {u:u,n:i+1}; });
+  document.getElementById('ulist-count').textContent='('+sorted.length+')';
+  document.getElementById('ulist').hidden=false;
+  renderUserList();
+}
+document.getElementById('ulist-sort').addEventListener('click',function(){ ulistNewestFirst=!ulistNewestFirst; renderUserList(); });
+
 async function load(){
   if(!apiKey){ renderSignIn('The admin page opens with the admin key.'); return; }
   status('Loading…');
@@ -511,6 +570,7 @@ async function load(){
     document.getElementById('sc').textContent=data.site_count;
     loadDisk();
     var users=(data.users||[]);
+    showUserList(users);
     // Most sites first, then newest joiners.
     users.sort(function(a,b){ return (b.site_count-a.site_count) || (new Date(b.created_at)-new Date(a.created_at)); });
     document.getElementById('users').innerHTML = users.map(userCard).join('');

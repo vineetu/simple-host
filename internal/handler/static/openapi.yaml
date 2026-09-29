@@ -4718,6 +4718,7 @@ paths:
                         id: { type: string }
                         username: { type: string }
                         handle: { type: string }
+                        page_url: { type: string, description: "Address of the person's public page; empty without a handle" }
                         is_admin: { type: boolean }
                         created_at: { type: string, format: date-time }
                         site_count: { type: integer }

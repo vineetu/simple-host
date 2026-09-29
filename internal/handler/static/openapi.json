@@ -11851,6 +11851,10 @@
                           "handle": {
                             "type": "string"
                           },
+                          "page_url": {
+                            "type": "string",
+                            "description": "Address of the person's public page; empty without a handle"
+                          },
                           "is_admin": {
                             "type": "boolean"
                           },

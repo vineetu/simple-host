@@ -2160,6 +2160,7 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 			"id":               u.ID,
 			"username":         u.Username,
 			"handle":           u.Handle.String,
+			"page_url":         h.PersonPageURL(u.Handle.String),
 			"display_name":     u.DisplayName.String,
 			"is_admin":         u.IsAdmin,
 			"created_at":       u.CreatedAt,
