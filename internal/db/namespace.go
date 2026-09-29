@@ -23,14 +23,47 @@ import (
 var (
 	platformDomainMu sync.RWMutex
 	platformDomain   string
+	// platformAlso are the other domains whose one-label names are the same
+	// names (SITE_DOMAIN and SITE_BASE_DOMAIN while addresses move between
+	// them, docs/designs/site-base-domain-move.md). Usually empty.
+	platformAlso []string
 )
 
 // SetPlatformDomain sets SITE_DOMAIN for the namespace checks. Empty (the
 // default) disables them: an instance with no domain has no names to share.
 func SetPlatformDomain(domain string) {
+	SetPlatformDomains(domain)
+}
+
+// SetPlatformDomains sets the domain names are handed out under (primary:
+// the handle address <handle>.<primary>, the namespace lock key) and every
+// other domain whose one-label names are the same names: a name taken under
+// one is taken under all, and a lookup of <label>.<any> finds a row stored
+// under another.
+func SetPlatformDomains(primary string, also ...string) {
+	p := strings.ToLower(strings.TrimSpace(primary))
+	var rest []string
+	for _, d := range also {
+		d = strings.ToLower(strings.TrimSpace(d))
+		if d != "" && d != p && !containsString(rest, d) {
+			rest = append(rest, d)
+		}
+	}
+	if p == "" {
+		rest = nil
+	}
 	platformDomainMu.Lock()
-	platformDomain = strings.ToLower(strings.TrimSpace(domain))
+	platformDomain, platformAlso = p, rest
 	platformDomainMu.Unlock()
+}
+
+func containsString(list []string, s string) bool {
+	for _, x := range list {
+		if x == s {
+			return true
+		}
+	}
+	return false
 }
 
 func currentPlatformDomain() string {
@@ -39,12 +72,67 @@ func currentPlatformDomain() string {
 	return platformDomain
 }
 
+// platformDomains is the primary domain, then the others ("" primary: none).
+func platformDomains() []string {
+	platformDomainMu.RLock()
+	defer platformDomainMu.RUnlock()
+	if platformDomain == "" {
+		return nil
+	}
+	return append([]string{platformDomain}, platformAlso...)
+}
+
+// platformNameLabel returns the label of a one-label host under any platform
+// domain.
+func platformNameLabel(host string) (string, bool) {
+	host = strings.ToLower(strings.TrimSpace(host))
+	for _, d := range platformDomains() {
+		if !strings.HasSuffix(host, "."+d) {
+			continue
+		}
+		if label := strings.TrimSuffix(host, "."+d); label != "" && !strings.Contains(label, ".") {
+			return label, true
+		}
+	}
+	return "", false
+}
+
+// hostForms is host and, for a one-label platform name, the same label under
+// every other platform domain: every way one name can be stored. Always two
+// entries (the second repeats the first when there is no other form), so
+// queries keep one shape.
+func hostForms(host string) [2]string {
+	host = strings.ToLower(strings.TrimSpace(host))
+	forms := [2]string{host, host}
+	label, ok := platformNameLabel(host)
+	if !ok {
+		return forms
+	}
+	for _, d := range platformDomains() {
+		if f := label + "." + d; f != host {
+			forms[1] = f
+			break
+		}
+	}
+	return forms
+}
+
+// lockKey is the namespace lock key of host: a platform name under its
+// primary form, so both forms of one name take the same lock.
+func lockKey(host string) string {
+	host = strings.ToLower(strings.TrimSpace(host))
+	if label, ok := platformNameLabel(host); ok {
+		return label + "." + currentPlatformDomain()
+	}
+	return host
+}
+
 // ErrNameIsAccountAddress means the name is some account's own address.
 var ErrNameIsAccountAddress = errors.New("that name is an account's address")
 
 // lockPlatformName takes the namespace lock for host inside tx.
 func lockPlatformName(ctx context.Context, tx *sql.Tx, host string) error {
-	_, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, host)
+	_, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, lockKey(host))
 	return err
 }
 
@@ -60,14 +148,14 @@ func handleNameTaken(ctx context.Context, tx *sql.Tx, userID, handle string) (bo
 	if domain == "" {
 		return false, nil
 	}
-	host := strings.ToLower(handle) + "." + domain
+	f := hostForms(strings.ToLower(handle) + "." + domain)
 	var taken bool
 	err := tx.QueryRowContext(ctx, `
-		SELECT EXISTS (SELECT 1 FROM sites WHERE lower(custom_domain) = $1 OR lower(previous_domain) = $1)
-		    OR EXISTS (SELECT 1 FROM legacy_hostnames WHERE lower(hostname) = $1)
+		SELECT EXISTS (SELECT 1 FROM sites WHERE lower(custom_domain) IN ($1, $4) OR lower(previous_domain) IN ($1, $4))
+		    OR EXISTS (SELECT 1 FROM legacy_hostnames WHERE lower(hostname) IN ($1, $4))
 		    OR EXISTS (SELECT 1 FROM handle_aliases WHERE handle = $2 AND user_id::text IS DISTINCT FROM $3)
 		    OR EXISTS (SELECT 1 FROM sites WHERE name = $2 AND deleted_at IS NULL AND user_id::text IS DISTINCT FROM $3)`,
-		host, strings.ToLower(handle), userID).Scan(&taken)
+		f[0], strings.ToLower(handle), userID, f[1]).Scan(&taken)
 	return taken, err
 }
 
@@ -105,11 +193,11 @@ func HandleInUse(ctx context.Context, q Querier, userID, handle string) (bool, e
 	if domain == "" {
 		return false, nil
 	}
-	host := h + "." + domain
+	f := hostForms(h + "." + domain)
 	err = q.QueryRowContext(ctx, `
-		SELECT EXISTS (SELECT 1 FROM sites WHERE lower(custom_domain) = $1 OR lower(previous_domain) = $1)
-		    OR EXISTS (SELECT 1 FROM legacy_hostnames WHERE lower(hostname) = $1)
-		    OR EXISTS (SELECT 1 FROM sites WHERE name = $2 AND deleted_at IS NULL AND user_id::text IS DISTINCT FROM $3)`, host, h, userID).Scan(&taken)
+		SELECT EXISTS (SELECT 1 FROM sites WHERE lower(custom_domain) IN ($1, $4) OR lower(previous_domain) IN ($1, $4))
+		    OR EXISTS (SELECT 1 FROM legacy_hostnames WHERE lower(hostname) IN ($1, $4))
+		    OR EXISTS (SELECT 1 FROM sites WHERE name = $2 AND deleted_at IS NULL AND user_id::text IS DISTINCT FROM $3)`, f[0], h, userID, f[1]).Scan(&taken)
 	return taken, err
 }
 

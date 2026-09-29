@@ -150,12 +150,13 @@ func GetSiteDomainInfo(ctx context.Context, database *sql.DB, siteID string) (Si
 // that earlier address and the binding counts as verified. Returns
 // sql.ErrNoRows when none.
 func GetSiteByCustomDomain(ctx context.Context, database *sql.DB, domain string) (SiteDomainInfo, error) {
-	domain = strings.ToLower(strings.TrimSpace(domain))
-	info, err := scanDomainInfo(database.QueryRowContext(ctx, `SELECT `+domainColumns+` FROM sites WHERE custom_domain = $1 AND deleted_at IS NULL`, domain))
+	// A platform name is found under whichever platform domain it is stored.
+	f := hostForms(domain)
+	info, err := scanDomainInfo(database.QueryRowContext(ctx, `SELECT `+domainColumns+` FROM sites WHERE custom_domain IN ($1, $2) AND deleted_at IS NULL ORDER BY custom_domain = $1 DESC LIMIT 1`, f[0], f[1]))
 	if !errors.Is(err, sql.ErrNoRows) {
 		return info, err
 	}
-	info, err = scanDomainInfo(database.QueryRowContext(ctx, `SELECT `+domainColumns+` FROM sites WHERE previous_domain = $1 AND deleted_at IS NULL`, domain))
+	info, err = scanDomainInfo(database.QueryRowContext(ctx, `SELECT `+domainColumns+` FROM sites WHERE previous_domain IN ($1, $2) AND deleted_at IS NULL ORDER BY previous_domain = $1 DESC LIMIT 1`, f[0], f[1]))
 	if err != nil {
 		return SiteDomainInfo{}, err
 	}
@@ -547,20 +548,16 @@ type RetiredName struct {
 func GetRetiredName(ctx context.Context, database *sql.DB, host string) (RetiredName, error) {
 	var r RetiredName
 	var siteID sql.NullString
-	err := database.QueryRowContext(ctx, `SELECT site_id::text FROM legacy_hostnames WHERE hostname = lower($1)`, host).Scan(&siteID)
+	f := hostForms(host)
+	err := database.QueryRowContext(ctx, `SELECT site_id::text FROM legacy_hostnames WHERE hostname IN (lower($1), lower($2)) ORDER BY hostname = lower($1) DESC LIMIT 1`, f[0], f[1]).Scan(&siteID)
 	r.SiteID = siteID.String
 	return r, err
 }
 
-// isPlatformName: host is exactly one label under the platform domain.
+// isPlatformName: host is exactly one label under a platform domain.
 func isPlatformName(host string) bool {
-	domain := currentPlatformDomain()
-	host = strings.ToLower(strings.TrimSpace(host))
-	if domain == "" || !strings.HasSuffix(host, "."+domain) {
-		return false
-	}
-	label := strings.TrimSuffix(host, "."+domain)
-	return label != "" && !strings.Contains(label, ".")
+	_, ok := platformNameLabel(host)
+	return ok
 }
 
 // GetSiteOwnerEmail returns the sign-in address of the site's owner.
@@ -601,17 +598,19 @@ func ClaimPlatformSubdomain(ctx context.Context, database *sql.DB, siteID, host 
 	if err := tx.QueryRowContext(ctx, `SELECT user_id, COALESCE(custom_domain, ''), COALESCE(previous_domain, '') FROM sites WHERE id = $1 FOR UPDATE`, siteID).Scan(&userID, &cur, &prev); err != nil {
 		return nil, err
 	}
+	// Either form of the name counts (platform names move between domains).
+	f := hostForms(host)
 	var legacyOther bool
 	if err := tx.QueryRowContext(ctx, `
-		SELECT EXISTS (SELECT 1 FROM legacy_hostnames WHERE lower(hostname) = lower($1)
-		    AND site_id IS DISTINCT FROM $2::uuid AND user_id IS DISTINCT FROM $3::uuid)`, host, siteID, userID).Scan(&legacyOther); err != nil {
+		SELECT EXISTS (SELECT 1 FROM legacy_hostnames WHERE lower(hostname) IN (lower($1), lower($4))
+		    AND site_id IS DISTINCT FROM $2::uuid AND user_id IS DISTINCT FROM $3::uuid)`, f[0], siteID, userID, f[1]).Scan(&legacyOther); err != nil {
 		return nil, err
 	}
 	if legacyOther {
 		return nil, ErrDomainTaken
 	}
 	var holder string
-	err = tx.QueryRowContext(ctx, `SELECT id FROM sites WHERE (custom_domain = $1 OR previous_domain = $1) AND id <> $2 LIMIT 1 FOR UPDATE`, host, siteID).Scan(&holder)
+	err = tx.QueryRowContext(ctx, `SELECT id FROM sites WHERE (custom_domain IN ($1, $3) OR previous_domain IN ($1, $3)) AND id <> $2 LIMIT 1 FOR UPDATE`, f[0], siteID, f[1]).Scan(&holder)
 	switch {
 	case err == nil:
 		return nil, ErrDomainTaken
@@ -633,12 +632,14 @@ func ClaimPlatformSubdomain(ctx context.Context, database *sql.DB, siteID, host 
 		WHERE id = $1`, siteID, host); err != nil {
 		return nil, err
 	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM legacy_hostnames WHERE lower(hostname) = lower($1)`, host); err != nil {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM legacy_hostnames WHERE lower(hostname) IN (lower($1), lower($2))`, f[0], f[1]); err != nil {
 		return nil, err
 	}
 	var released []string
 	for _, d := range []string{cur, prev} {
-		if d == "" || strings.EqualFold(d, host) {
+		// The same name under the other platform domain is not released: it
+		// is this claim, stored in its new form.
+		if d == "" || strings.EqualFold(d, f[0]) || strings.EqualFold(d, f[1]) {
 			continue
 		}
 		released = append(released, d)

@@ -174,7 +174,8 @@ func PurgeDeletedSite(ctx context.Context, database *sql.DB, siteID string) ([]s
 // earlier) of a site in Recently deleted, which keeps it held until purge.
 func DomainHeldByDeletedSite(ctx context.Context, q Querier, host string) (bool, error) {
 	var held bool
+	f := hostForms(host)
 	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM sites WHERE deleted_at IS NOT NULL
-		AND (custom_domain = lower($1) OR previous_domain = lower($1)))`, host).Scan(&held)
+		AND (custom_domain IN (lower($1), lower($2)) OR previous_domain IN (lower($1), lower($2))))`, f[0], f[1]).Scan(&held)
 	return held, err
 }
