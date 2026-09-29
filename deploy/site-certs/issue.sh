@@ -4,6 +4,13 @@
 # 2026-09-26). Runs as root from simple-host-site-certs.service (timer every
 # 10 minutes, plus a path unit on new requests).
 #
+# One instance per base domain. With no argument it reads
+# /etc/simple-host-site-certs.conf (optional; simple-host.app defaults).
+# A second instance names its own conf, which must set SITE_DOMAIN and STATE:
+#   simple-host-site-certs /etc/simple-host-site-certs-site.conf
+# (simple-host.site, simple-host-site-certs-site.service). Each instance locks
+# /run/<basename of STATE>.lock, so the two never wait on each other.
+#
 # Hand-off with the Go service (which never runs certbot):
 #   $STATE/requests/<handle>  written by simple-host (a name, nothing else)
 #   $STATE/ready/<handle>     written here once nginx serves the certificate
@@ -30,18 +37,35 @@ DAILY=12          # new certificates per rolling 24h, so a burst of sign-ups can
 PER_RUN=6
 RETRY_AFTER=21600 # seconds before a failed handle is tried again
 IP=""             # A record target; default: the zone apex's A record
-[ -r /etc/simple-host-site-certs.conf ] && . /etc/simple-host-site-certs.conf
-
 HOOKS=/usr/local/lib/certbot-vercel
 DEPLOY_HOOK=/usr/local/sbin/simple-host-site-certs-deploy
 DNS_HELPER=/usr/local/sbin/simple-host-site-certs-dns
+LE_LIVE=/etc/letsencrypt/live
+LOCK_DIR=/run
+LOCK=""           # default: $LOCK_DIR/<basename of STATE>.lock
+DEFAULT_CONF=/etc/simple-host-site-certs.conf
+CONF=${1:-$DEFAULT_CONF}
+if [ "$CONF" = "$DEFAULT_CONF" ]; then
+  # shellcheck source=/dev/null
+  [ -r "$CONF" ] && . "$CONF"
+else
+  # Another instance: its conf must say which domain and state it owns, so a
+  # missing line can never make it act on the default instance's queue.
+  [ -r "$CONF" ] || { echo "site-certs: cannot read $CONF" >&2; exit 1; }
+  SITE_DOMAIN=""; STATE=""
+  # shellcheck source=/dev/null
+  . "$CONF"
+  [ -n "$SITE_DOMAIN" ] && [ -n "$STATE" ] || { echo "site-certs: $CONF must set SITE_DOMAIN and STATE" >&2; exit 1; }
+fi
+[ -n "$LOCK" ] || LOCK="$LOCK_DIR/$(basename "$STATE").lock"
+
 LABEL_RE='^[a-z0-9]([a-z0-9-]{0,37}[a-z0-9])?$'
 # Names that are never a person (the Go service refuses them as handles too).
 RESERVED=" www sites lab api admin mail cname app auth mcp static cdn docs status test dev localhost _acme-challenge "
 
 log() { echo "site-certs: $*"; }
 
-exec 9>/run/simple-host-site-certs.lock
+exec 9>"$LOCK"
 flock -n 9 || { log "another run is in progress"; exit 0; }
 
 install -d -m 0755 -o root -g root "$STATE" "$STATE/ready"
@@ -73,7 +97,7 @@ for h in "${reqs[@]}"; do
     rm -f -- "$STATE/requests/$h"
     continue
   fi
-  lineage="/etc/letsencrypt/live/$h.$SITE_DOMAIN"
+  lineage="$LE_LIVE/$h.$SITE_DOMAIN"
   if [ -f "$lineage/fullchain.pem" ]; then
     # Already issued (e.g. restored, or a marker cleared by hand): make sure
     # its DNS records exist (renewals need them) and redeploy it.

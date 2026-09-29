@@ -13,9 +13,11 @@ check:
 	bash scripts/check-docs-sync.sh
 	bash scripts/check-claude-plugin.sh
 	bash deploy/domain-certs/issue_test.sh
+	bash deploy/site-certs/site-certs_test.sh
 	bash deploy/prod/nginx-suspended-marker_test.sh
 	bash deploy/prod/nginx-internal-lock_test.sh
 	bash deploy/prod/nginx-analytics-logformat-apply_test.sh
+	bash deploy/prod/nginx-site-base-domain_test.sh
 	bash deploy/compose/Caddyfile_test.sh
 	bash scripts/check-fresh-install.sh
 	@bash scripts/check-prices-age.sh || echo "WARNING: the cost calculator's prices need their monthly check (not a failure)"

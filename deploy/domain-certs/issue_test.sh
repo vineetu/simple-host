@@ -169,6 +169,14 @@ printf '%s\n../by-id/u/s\nwww.taken.test\n' "$TOK" > "$T/state/requests/taken.te
 touch "$T/lefail/www.lefail.test"
 printf '%s\n../by-id/u/s\nwww.lefail.test\n' "$TOK" > "$T/state/requests/lefail.test"
 
+# Simple Host's own zones are never custom domains, even bound and proven.
+platform="simple-host.site evil.simple-host.site a.b.simple-host.site shop.simple-host.app"
+for d in $platform; do
+  ln -s ../by-id/u/s "$S/$d"
+  echo "$TOK" > "$T/txt/$d"
+  printf '%s\n../by-id/u/s\n' "$TOK" > "$T/state/requests/$d"
+done
+
 run() { PATH="$T/bin:$PATH" SIMPLE_HOST_DOMAIN_CERTS_CONF="$T/conf" bash "$here/issue.sh" > "$T/out" 2>&1 || { cat "$T/out"; echo "FAIL: issue.sh exited non-zero"; exit 1; }; }
 run
 
@@ -208,6 +216,10 @@ check "www.own.test: proven on its own, comes off own.test's server" "grep -q '^
 check "taken.test: partner bound to another site stays off" "issued taken.test && ! issued www.taken.test && grep -q '^partner-not-set-up www.taken.test: .*connected to another site' '$T/state/ready/taken.test' && ! grep -q 'server_name www.taken.test' '$T/avail/simple-host-domain-taken.test'"
 check "lefail.test: partner refused, chosen name issued alone" "grep -q '^partner-not-set-up www.lefail.test: .*refused' '$T/state/ready/lefail.test' && grep -qx lefail.test '$T/state/owned/lefail.test' && ! grep -qx www.lefail.test '$T/state/owned/lefail.test'"
 check "late2.test: partner named by a hand-made server comes off ours" "grep -q '^partner-not-set-up www.late2.test: .*already served here' '$T/state/ready/late2.test' && ! grep -q 'server_name www.late2.test' '$T/avail/simple-host-domain-late2.test' && grep -q 'server_name late2.test' '$T/avail/simple-host-domain-late2.test'"
+for d in $platform; do
+  check "$d: a platform zone is refused (request dropped, no certificate, no server)" \
+    "[ ! -e '$T/state/requests/$d' ] && [ ! -e '$T/state/ready/$d' ] && [ ! -e '$T/avail/simple-host-domain-$d' ] && ! issued $d"
+done
 check "no nginx configuration in the output" "! grep -q 'server_name' '$T/out'"
 
 # Without a readable nginx configuration nothing is issued.

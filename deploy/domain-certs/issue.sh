@@ -67,12 +67,23 @@ PER_RUN=10
 RETRY_AFTER=21600           # seconds before a failed domain is tried again
 IP=""                       # this server's IPv4 (the A record handed out); default: the apex's A record
 IP6=""                      # this server's IPv6, if AAAA records may point here
+PLATFORM_ZONES="simple-host.app simple-host.site"  # Simple Host's own zones: never a custom domain
 CONF=${SIMPLE_HOST_DOMAIN_CERTS_CONF:-/etc/simple-host-domain-certs.conf}  # override: tests only
 [ -r "$CONF" ] && . "$CONF"
 
 DOMAIN_RE='^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$'
 
 log() { echo "domain-certs: $*"; }
+
+# platform <name>: true for SITE_DOMAIN or a PLATFORM_ZONES zone, or any name
+# under one of them (served by the platform's own servers and certificates).
+platform() {
+  local z
+  for z in $SITE_DOMAIN $PLATFORM_ZONES; do
+    [ "$1" = "$z" ] || [[ "$1" == *".$z" ]] && return 0
+  done
+  return 1
+}
 
 exec 9>"$LOCK"
 flock -n 9 || { log "another run is in progress"; exit 0; }
@@ -361,7 +372,7 @@ issue_cert() {
 mapfile -d '' -t reqs < <(find "$STATE/requests" -maxdepth 1 -type f -printf '%T@ %f\0' | sort -zn | cut -z -d' ' -f2-)
 for d in "${reqs[@]}"; do
   [ -n "$d" ] || continue
-  if [ "${#d}" -gt 253 ] || ! [[ "$d" =~ $DOMAIN_RE ]] || [ "$d" = "$SITE_DOMAIN" ] || [[ "$d" == *".$SITE_DOMAIN" ]]; then
+  if [ "${#d}" -gt 253 ] || ! [[ "$d" =~ $DOMAIN_RE ]] || platform "$d"; then
     log "dropping invalid request name"
     rm -f -- "$STATE/requests/$d"
     continue
@@ -380,7 +391,7 @@ for d in "${reqs[@]}"; do
   if [ -n "$partner" ] && ! { [ "$partner" = "www.$d" ] || [ "$d" = "www.$partner" ]; }; then
     partner=""
   fi
-  if [ -n "$partner" ] && { [ "${#partner}" -gt 253 ] || ! [[ "$partner" =~ $DOMAIN_RE ]] || [ "$partner" = "$SITE_DOMAIN" ] || [[ "$partner" == *".$SITE_DOMAIN" ]]; }; then
+  if [ -n "$partner" ] && { [ "${#partner}" -gt 253 ] || ! [[ "$partner" =~ $DOMAIN_RE ]] || platform "$partner"; }; then
     partner=""
   fi
   if ! [[ "$token" =~ ^sh-[0-9a-f]{32}$ ]] || [ -z "$target" ]; then

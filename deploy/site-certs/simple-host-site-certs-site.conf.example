@@ -1,0 +1,19 @@
+# /etc/simple-host-site-certs-site.conf
+# The simple-host.site instance of simple-host-site-certs (person hosts
+# <handle>.simple-host.site ride the platform wildcard; site hosts
+# <site>.<handle>.simple-host.site need a *.<handle>.simple-host.site
+# certificate each). Read by simple-host-site-certs-site.service and, for
+# renewals, by the deploy hook (it matches lineages by SITE_DOMAIN).
+# SITE_DOMAIN, STATE and NGINX_CERTS are required here.
+SITE_DOMAIN=simple-host.site
+STATE=/var/lib/simple-host-site-certs-site
+NGINX_CERTS=/etc/nginx/simple-host-site-certs-site
+# Let's Encrypt allows 50 new certificates per registered domain per week;
+# simple-host.site has its own 50, separate from simple-host.app's.
+BUDGET=40
+# TEMPORARY: raised from 12 while existing people are backfilled onto
+# simple-host.site. Drop back to 12 once the backlog has drained.
+DAILY=20
+PER_RUN=6
+# RETRY_AFTER=21600
+# IP=  # A record target; default: simple-host.site's apex A record at Vercel
