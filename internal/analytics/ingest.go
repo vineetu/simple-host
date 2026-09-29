@@ -51,6 +51,9 @@ type Ingester struct {
 	salt        string // visitor ip_hash salt, used verbatim (see visitorSalt)
 	contentHost string
 	siteDomain  string
+	// alsoBases are other domains people's addresses live under
+	// (SITE_BASE_DOMAIN while it moves from SITE_DOMAIN; WithBases).
+	alsoBases []string
 	// retentionDays: drop aggregate rows older than this (best-effort,
 	// outside the main tx). ANALYTICS_RETENTION_DAYS, default 400.
 	retentionDays int
@@ -92,6 +95,26 @@ func (i *Ingester) WithItemCaps(pages, referrers int) *Ingester {
 	}
 	if referrers > 0 {
 		i.refsPerDay = referrers
+	}
+	return i
+}
+
+// WithBases adds domains people's addresses also live under (SITE_BASE_DOMAIN
+// while addresses move between it and SITE_DOMAIN): hits there attribute the
+// same way, to the same sites, so charts stay continuous across the move.
+func (i *Ingester) WithBases(bases ...string) *Ingester {
+	for _, b := range bases {
+		b = strings.ToLower(strings.TrimSpace(b))
+		if b == "" || b == i.siteDomain {
+			continue
+		}
+		dup := false
+		for _, x := range i.alsoBases {
+			dup = dup || x == b
+		}
+		if !dup {
+			i.alsoBases = append(i.alsoBases, b)
+		}
 	}
 	return i
 }
@@ -1027,14 +1050,23 @@ func (i *Ingester) attribute(host, uri string, maps *attrMaps) (string, string) 
 
 	// <label>.<siteDomain>: a claimed site address first (it is a domain like
 	// any other), then a person host (<handle>.<siteDomain>/<site>/...), then
-	// the retired per-name host.
-	suffix := "." + i.siteDomain
-	if strings.HasSuffix(host, suffix) {
+	// the retired per-name host. The same under every other base.
+	for _, base := range append([]string{i.siteDomain}, i.alsoBases...) {
+		suffix := "." + base
+		if !strings.HasSuffix(host, suffix) {
+			continue
+		}
 		label := strings.TrimSuffix(host, suffix)
 		// single label only (no dots)
 		if label != "" && !strings.Contains(label, ".") {
 			if id := maps.domainToID[host]; id != "" {
 				return id, path
+			}
+			// A claimed name stored under another base.
+			for _, b := range append([]string{i.siteDomain}, i.alsoBases...) {
+				if id := maps.domainToID[label+"."+b]; b != base && id != "" {
+					return id, path
+				}
 			}
 			if userID, ok := maps.handleToUser[label]; ok {
 				seg, _, _ := strings.Cut(strings.TrimPrefix(path, "/"), "/")
@@ -1053,6 +1085,7 @@ func (i *Ingester) attribute(host, uri string, maps *attrMaps) (string, string) 
 			}
 			return "", ""
 		}
+		break
 	}
 
 	// custom domain

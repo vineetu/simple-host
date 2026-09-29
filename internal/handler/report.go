@@ -63,8 +63,10 @@ func (h *SiteHandler) ReportHandler() http.Handler {
 		perIP:  newRateLimiter(5, 1.0/600),    // 5 reports, then one every 10 minutes
 		global: newRateLimiter(60, 60.0/3600), // 60, then 60 an hour, everyone together
 		hosted: func(ctx context.Context, host string) (bool, error) {
-			if isPlatformHost(host, h.siteDomain) {
-				return true, nil
+			for _, b := range h.servedBases() {
+				if isPlatformHost(host, b) {
+					return true, nil
+				}
 			}
 			if h.database == nil {
 				return false, nil

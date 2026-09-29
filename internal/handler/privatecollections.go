@@ -148,7 +148,8 @@ func (h *SiteHandler) onOwnDomain(r *http.Request, siteID string) (siteHome, boo
 	if err != nil || !ok {
 		return home, false, err
 	}
-	return home, strings.EqualFold(home.Host, requestHostName(r)), nil
+	// The same address under the other base counts while the base moves.
+	return home, h.sameUserHost(home.Host, requestHostName(r)), nil
 }
 
 // ownerBrowserView reports, writing nothing, whether r comes from the site
@@ -372,7 +373,7 @@ func (h *SiteHandler) setCollectionPrivacy(w http.ResponseWriter, r *http.Reques
 	}
 	if *req.Private && !hasHome {
 		writeJSON(w, http.StatusConflict, map[string]string{
-			"error": strings.Replace(privateListNeedsDomain, "%s", h.siteDomain, 1),
+			"error": strings.Replace(privateListNeedsDomain, "%s", h.handoutBase(), 1),
 			"code":  "custom_domain_required",
 		})
 		return

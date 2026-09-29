@@ -73,14 +73,7 @@ func (h *SiteHandler) siteHostsCanonical() bool {
 // valid certificate: the issuer's ready marker exists. Without a hand-off
 // directory every person counts as ready.
 func (h *SiteHandler) siteCertReady(handle string) bool {
-	if h.siteCertDir == "" {
-		return true
-	}
-	if !handleAddressable(handle) {
-		return false
-	}
-	st, err := os.Stat(filepath.Join(h.siteCertDir, "ready", strings.ToLower(handle)))
-	return err == nil && st.Mode().IsRegular()
+	return h.siteCertReadyOn(handle, h.handoutBase())
 }
 
 // siteHostFor is the host of a site's own address.
@@ -93,14 +86,26 @@ func (h *SiteHandler) siteHostFor(handle, name string) string {
 // content host), its name is a host label and its owner's certificate is
 // ready. A site with its own domain still answers here, with a redirect.
 func (h *SiteHandler) siteHostLive(handle, name string) bool {
+	return h.siteHostLiveOn(handle, name, h.handoutBase())
+}
+
+// siteHostLiveOn is siteHostLive for the site host under base (whose
+// certificate readiness is kept apart from the other base's).
+func (h *SiteHandler) siteHostLiveOn(handle, name, base string) bool {
 	return h.siteHostsOn() && h.personAddressFor(handle, name) && validSiteName.MatchString(name) &&
-		!strings.HasPrefix(name, "xn--") && h.siteCertReady(handle)
+		!strings.HasPrefix(name, "xn--") && h.siteCertReadyOn(handle, base)
 }
 
 // siteHostCanonical: the site host is this site's address — handed out, and
 // the target of the person-path and legacy redirects.
 func (h *SiteHandler) siteHostCanonical(handle, name string) bool {
 	return h.siteHostsCanonical() && h.siteHostLive(handle, name)
+}
+
+// siteHostCanonicalOn is siteHostCanonical for the site host under base: the
+// target of a person-path redirect on a person host under that base.
+func (h *SiteHandler) siteHostCanonicalOn(handle, name, base string) bool {
+	return h.siteHostsCanonical() && h.siteHostLiveOn(handle, name, base)
 }
 
 // siteHostLabels splits <site>.<handle>.<SITE_DOMAIN> into its two labels.
@@ -122,7 +127,7 @@ func siteHostLabels(host, siteDomain string) (site, handle string, ok bool) {
 // platform domain). Such a host is never the content host, the apex or a
 // claimed name, and every browser treats it as same-site with all of them.
 func (h *SiteHandler) isSiteHostName(host string) bool {
-	_, _, ok := siteHostLabels(host, h.siteDomain)
+	_, _, _, ok := h.siteHostParts(host)
 	return ok
 }
 
@@ -133,7 +138,7 @@ func (h *SiteHandler) siteHostSite(ctx context.Context, host string) (db.Site, d
 	if !h.siteHostsOn() {
 		return db.Site{}, db.User{}, false, nil
 	}
-	label, handle, ok := siteHostLabels(host, h.siteDomain)
+	label, handle, base, ok := h.siteHostParts(host)
 	if !ok || !handleAddressable(handle) || !validSiteName.MatchString(label) {
 		return db.Site{}, db.User{}, false, nil
 	}
@@ -151,7 +156,7 @@ func (h *SiteHandler) siteHostSite(ctx context.Context, host string) (db.Site, d
 		}
 		return db.Site{}, db.User{}, false, err
 	}
-	if !h.siteHostLive(user.Handle.String, site.Name) {
+	if !h.siteHostLiveOn(user.Handle.String, site.Name, base) {
 		return db.Site{}, db.User{}, false, nil
 	}
 	return site, user, true, nil
@@ -183,7 +188,7 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 			return
 		}
 		host := requestHostName(r)
-		label, handle, ok := siteHostLabels(host, h.siteDomain)
+		label, handle, base, ok := h.siteHostParts(host)
 		if !ok {
 			next.ServeHTTP(w, r)
 			return
@@ -208,7 +213,7 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 				if cu, cerr := db.GetUserByHandle(r.Context(), h.database, current); cerr == nil {
 					if site, serr := db.GetSiteByUser(r.Context(), h.database, cu.ID, label); serr == nil {
 						w.Header().Set("Cache-Control", "no-store")
-						http.Redirect(w, r, h.siteAddressWithPath(current, site.Name, r.URL.EscapedPath())+query, http.StatusFound)
+						http.Redirect(w, r, h.siteAddressWithPathOn(current, site.Name, r.URL.EscapedPath(), base)+query, http.StatusFound)
 						return
 					} else if errors.Is(serr, sql.ErrNoRows) && !strings.HasPrefix(r.URL.Path, "/v1/") {
 						if target, ok := h.renamedSiteAddress(r.Context(), cu.ID, label, r.URL.EscapedPath()); ok {
@@ -252,7 +257,7 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 		}
 		// A preview of one of its versions (preview.go) is served here even
 		// when the site lives on a domain of its own.
-		if strings.HasPrefix(r.URL.Path, "/"+previewPathSegment+"/") && h.siteHostLive(user.Handle.String, site.Name) {
+		if strings.HasPrefix(r.URL.Path, "/"+previewPathSegment+"/") && h.siteHostLiveOn(user.Handle.String, site.Name, base) {
 			site.OwnerHandle = user.Handle.String
 			h.servePreview(w, r, site, strings.TrimPrefix(r.URL.Path, "/"+previewPathSegment+"/"), "/"+previewPathSegment+"/")
 			return
@@ -267,11 +272,11 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 				return
 			}
 		}
-		if !h.siteHostLive(user.Handle.String, site.Name) {
+		if !h.siteHostLiveOn(user.Handle.String, site.Name, base) {
 			// Reachable only when TLS was served for a person whose marker is
 			// missing (e.g. cleared by hand): serve the working address.
 			w.Header().Set("Cache-Control", "no-store")
-			http.Redirect(w, r, h.personPathAddress(user.Handle.String, site.Name)+strings.TrimPrefix(escaped, "/")+query, http.StatusFound)
+			http.Redirect(w, r, h.personPathAddressOn(user.Handle.String, site.Name, base)+strings.TrimPrefix(escaped, "/")+query, http.StatusFound)
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/v1/") {
@@ -346,17 +351,27 @@ func (h *SiteHandler) renamedSiteAddress(ctx context.Context, userID, name, esca
 
 // personPathAddress is https://<handle>.<SITE_DOMAIN>/<site>/.
 func (h *SiteHandler) personPathAddress(handle, name string) string {
-	return "https://" + h.personHostFor(handle) + "/" + name + "/"
+	return h.personPathAddressOn(handle, name, h.handoutBase())
+}
+
+// personPathAddressOn is personPathAddress under base.
+func (h *SiteHandler) personPathAddressOn(handle, name, base string) string {
+	return "https://" + h.personHostOn(handle, base) + "/" + name + "/"
 }
 
 // siteAddressWithPath is the site's current address with an escaped path
 // (starting with "/") appended: its site host when that is canonical, else
 // its person-path address.
 func (h *SiteHandler) siteAddressWithPath(handle, name, escapedPath string) string {
-	if h.siteHostCanonical(handle, name) {
-		return "https://" + h.siteHostFor(handle, name) + "/" + strings.TrimLeft(escapedPath, "/")
+	return h.siteAddressWithPathOn(handle, name, escapedPath, h.handoutBase())
+}
+
+// siteAddressWithPathOn is siteAddressWithPath under base.
+func (h *SiteHandler) siteAddressWithPathOn(handle, name, escapedPath, base string) string {
+	if h.siteHostCanonicalOn(handle, name, base) {
+		return "https://" + h.siteHostOn(handle, name, base) + "/" + strings.TrimLeft(escapedPath, "/")
 	}
-	return h.personPathAddress(handle, name) + strings.TrimLeft(escapedPath, "/")
+	return h.personPathAddressOn(handle, name, base) + strings.TrimLeft(escapedPath, "/")
 }
 
 // renderSiteHostNotFound is the branded 404 for a site host naming no site
@@ -373,28 +388,37 @@ func (h *SiteHandler) renderSiteHostNotFound(w http.ResponseWriter, r *http.Requ
 // creating SITE_CERT_DIR/requests/<handle> (empty; the name is the request).
 // A no-op when site hosts are off, there is no hand-off directory, the handle
 // cannot be a host or its certificate is already ready.
+//
+// Under a moving base (sitebase.go) each base has its own hand-off
+// directory: SITE_DOMAIN's until the base is handed out, and the base's from
+// serve on.
 func (h *SiteHandler) RequestSiteCert(handle string) {
 	handle = strings.ToLower(strings.TrimSpace(handle))
-	if !h.siteHostsOn() || h.siteCertDir == "" || !handleAddressable(handle) || h.siteCertReady(handle) {
+	if !h.siteHostsOn() || !handleAddressable(handle) {
 		return
 	}
-	p := filepath.Join(h.siteCertDir, "requests", handle)
-	f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
-	if err != nil {
-		if !errors.Is(err, os.ErrExist) {
-			log.Printf("site certs: request %s: %v", handle, err)
+	for _, base := range h.certRequestBases() {
+		if h.siteCertReadyOn(handle, base) {
+			continue
 		}
-		return
+		p := filepath.Join(h.certDirFor(base), "requests", handle)
+		f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+		if err != nil {
+			if !errors.Is(err, os.ErrExist) {
+				log.Printf("site certs: request %s: %v", handle, err)
+			}
+			continue
+		}
+		_ = f.Close()
+		log.Printf("site certs: requested *.%s", h.personHostOn(handle, base))
 	}
-	_ = f.Close()
-	log.Printf("site certs: requested *.%s", h.personHostFor(handle))
 }
 
 // requestSiteCertsForAll requests a certificate for every person with at
 // least one site that has none yet (the back-fill, and a safety net for a
 // request that was missed).
 func (h *SiteHandler) requestSiteCertsForAll(ctx context.Context) {
-	if !h.siteHostsOn() || h.siteCertDir == "" {
+	if !h.siteHostsOn() || len(h.certRequestBases()) == 0 {
 		return
 	}
 	handles, err := db.ListHandlesWithSites(ctx, h.database)
@@ -410,7 +434,7 @@ func (h *SiteHandler) requestSiteCertsForAll(ctx context.Context) {
 // StartSiteCertRequests runs requestSiteCertsForAll now and then every
 // interval until ctx ends.
 func (h *SiteHandler) StartSiteCertRequests(ctx context.Context, every time.Duration) {
-	if !h.siteHostsOn() || h.siteCertDir == "" {
+	if !h.siteHostsOn() || len(h.certRequestBases()) == 0 {
 		return
 	}
 	go func() {

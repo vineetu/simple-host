@@ -65,8 +65,13 @@ func (h *SiteHandler) normalizeDomain(raw string) (string, error) {
 
 	// Reject hijacking our own zone: exact match or subdomain of siteDomain /
 	// contentHost (covers cname.<siteDomain> when CNAME_TARGET uses the default).
-	if isOwnHost(s, h.siteDomain) || isOwnHost(s, h.contentHost) {
+	if isOwnHost(s, h.contentHost) {
 		return "", errors.New("cannot bind a platform host as a custom domain")
+	}
+	for _, b := range h.knownBases() {
+		if isOwnHost(s, b) {
+			return "", errors.New("cannot bind a platform host as a custom domain")
+		}
 	}
 
 	labels := strings.Split(s, ".")
@@ -251,9 +256,12 @@ func (h *SiteHandler) bindDomain(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// A free <name>.<SITE_DOMAIN> address: claimed, not proven (we own the zone).
-	if cand := domainCandidate(req.Domain); isOwnHost(cand, h.siteDomain) && !strings.EqualFold(cand, h.siteDomain) {
-		h.bindPlatformSubdomain(w, r, site, cand)
-		return
+	cand := domainCandidate(req.Domain)
+	for _, b := range h.servedBases() {
+		if isOwnHost(cand, b) && !strings.EqualFold(cand, b) {
+			h.bindPlatformSubdomain(w, r, site, cand)
+			return
+		}
 	}
 
 	domain, err := h.normalizeDomain(req.Domain)
@@ -479,7 +487,11 @@ func (h *SiteHandler) tlsAsk(w http.ResponseWriter, r *http.Request) {
 	if i := strings.IndexByte(candidate, ':'); i >= 0 {
 		candidate = candidate[:i]
 	}
-	if isOwnHost(candidate, h.siteDomain) || isOwnHost(candidate, h.contentHost) {
+	own := isOwnHost(candidate, h.contentHost)
+	for _, b := range h.servedBases() {
+		own = own || isOwnHost(candidate, b)
+	}
+	if own {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 		return

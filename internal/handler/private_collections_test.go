@@ -87,7 +87,8 @@ func newPrivateAppMailer(t *testing.T, mailer email.Sender) *privateApp {
 	a.conn.Register(mux, authMW)
 	a.conn.SetSignInAlerts(users.SignInAlerts())
 	app := SecurityHeaders(CORS(a.conn.BearerAuth(mux)))
-	root = a.sites.BoundSubdomains(app, a.sites.SiteHosts(app, a.sites.PersonHosts(app, a.sites.LegacyHostRedirect(app))))
+	// The same chain as cmd/server/main.go.
+	root = a.sites.SiteBaseHosts(a.sites.BoundSubdomains(app, a.sites.SiteHosts(app, a.sites.PersonHosts(app, a.sites.LegacyHostRedirect(app)))))
 	return a
 }
 

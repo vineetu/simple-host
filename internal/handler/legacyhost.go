@@ -24,15 +24,23 @@ import (
 //     (by switching address, disconnecting it, or being deleted).
 //   - Any other name keeps the old per-name model's 301 to the path URL of
 //     the oldest site with that name, or the home page when there is none.
+//
+// Under a moving base (sitebase.go) the same holds for names under the base.
 func (h *SiteHandler) LegacyHostRedirect(next http.Handler) http.Handler {
 	siteDomain := strings.ToLower(strings.TrimSpace(h.siteDomain))
 	contentHost := strings.ToLower(strings.TrimSpace(h.contentHost))
-	suffix := "." + siteDomain
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		host := strings.ToLower(r.Host)
 		if i := strings.IndexByte(host, ':'); i >= 0 {
 			host = host[:i]
+		}
+		suffix := "." + siteDomain
+		for _, b := range h.servedBases() {
+			if strings.HasSuffix(host, "."+b) {
+				suffix = "." + b
+				break
+			}
 		}
 
 		// Not a name-subdomain of ours → leave it alone.

@@ -120,3 +120,40 @@ func TestCapItems(t *testing.T) {
 		t.Errorf("under the cap = %v", got)
 	}
 }
+
+// Under a moving base (SITE_BASE_DOMAIN) hits on either domain attribute to
+// the same sites, including a claimed name stored under the other one.
+func TestAttributeBothBases(t *testing.T) {
+	i := NewIngester(nil, "", "s", "sites.example.app", "example.app").WithBases("example.site", "EXAMPLE.app", "")
+	if len(i.alsoBases) != 1 {
+		t.Fatalf("bases: %v", i.alsoBases)
+	}
+	m := &attrMaps{
+		handleToUser: map[string]string{"olive": "u1"},
+		userNameToID: map[string]string{"u1/shop": "s-shop"},
+		nameToOldest: map[string]string{"legacy": "s-legacy"},
+		domainToID:   map[string]string{"clay.example.app": "s-clay", "moved.example.site": "s-moved"},
+	}
+	for _, tc := range []struct{ host, uri, want, path string }{
+		{"olive.example.site", "/shop/x.html", "s-shop", "/x.html"},
+		{"shop.olive.example.site", "/", "s-shop", "/"},
+		{"shop.olive.example.app", "/", "s-shop", "/"},
+		{"clay.example.site", "/", "s-clay", "/"},
+		{"clay.example.app", "/", "s-clay", "/"},
+		{"moved.example.app", "/p", "s-moved", "/p"},
+		{"moved.example.site", "/p", "s-moved", "/p"},
+		{"legacy.example.site", "/", "s-legacy", "/"},
+		{"a.b.c.example.site", "/", "", ""},
+		{"shop.olive.example.other", "/", "", ""},
+	} {
+		got, path := i.attribute(tc.host, tc.uri, m)
+		if got != tc.want || (got != "" && path != tc.path) {
+			t.Errorf("%s%s: got %q %q want %q %q", tc.host, tc.uri, got, path, tc.want, tc.path)
+		}
+	}
+	// Without the base, today's attribution exactly.
+	plain := NewIngester(nil, "", "s", "sites.example.app", "example.app").WithBases("example.app")
+	if got, _ := plain.attribute("olive.example.site", "/shop/", m); got != "" {
+		t.Fatalf("base hit attributed without the base: %q", got)
+	}
+}

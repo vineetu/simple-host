@@ -120,6 +120,20 @@ renamed site's old name keeps redirecting on all three forms until the name is r
 **Status: live** (`PERSON_HOSTS=canonical`, `SITE_HOSTS=canonical`, 2026-09-26; design:
 `docs/designs/per-site-subdomains.md`).
 
+**Moving to `simple-host.site`** (INTENT 2026-09-28): `SITE_BASE_DOMAIN` is the domain person,
+site and free-name addresses live under, and `SITE_BASE_MOVE` how far they have moved from
+`SITE_DOMAIN`: `serve` (both answer; `.app` handed out), `canonical` (`.site` handed out),
+`redirect` / `permanent` (an old address 302s / 301s to the same labels, path and query under
+the base; `/v1/` is never redirected; a site host whose owner has no certificate under the base
+yet goes to its person path there, 302). The base's apex, www and reserved names 301 to the app.
+Each base has its own certificate hand-off (`SITE_CERT_DIR`, `SITE_BASE_CERT_DIR`); new people
+are asked a certificate under the base from `serve`, and none under `SITE_DOMAIN` from
+`canonical`. A name is one name under both domains: lookups, claims (stored in the handed-out
+form), the handle namespace, sign-in return addresses, origin checks and analytics accept either
+form. `simple-host move-site-base --from <old> --to <new> [--apply]` rewrites stored free and
+retired names (dry run by default; idempotent). **Status: built, dormant** (`SITE_BASE_MOVE`
+unset on simple-host.app; design: `docs/designs/site-base-domain-move.md`).
+
 | Surface | Details |
 |---|---|
 | Routes | Host-routed, not mux: `<site>.<handle>.<SITE_DOMAIN>` → `SiteHosts` (files at `/`, `/v1` same-origin for that one site only) · `<handle>.<SITE_DOMAIN>` → `PersonHosts` (person page at `/`; `/<site>/…` 302s to the site host once the person's certificate is ready, else serves it by path) · `GET /internal/site-redirect/{handle}` · `GET /internal/site-redirect/{handle}/{sitename}` · `GET /internal/site-redirect/{handle}/{sitename}/{rest...}` (302 from `sites.simple-host.app/<h>/<s>/…` to the site's live address; nginx rewrites into these; `vineetu/eb2-wait` excepted in nginx and in `contentHostOnlySites`) · `LegacyHostRedirect`: a retired name (`legacy_hostnames`) 302s to its site's current address, or "This site was removed" once the site is gone or while it is in Recently deleted (its names stay held); any other unclaimed single-label `<name>.<SITE_DOMAIN>` that is not a handle 301s to `sites.<domain>/<handle>/<name>` (which then 302s as above) · an aliased old handle 301s to the new one (person host), 302s on site hosts, content-host paths and the owner app `/<old>` → `/<new>` · a renamed site's old name (`site_name_aliases`) 302s to its current address on the site host, person path, `/internal/site-redirect/*` and the content host's `@notfound` (`GET /internal/notfound` reads `X-Original-URI`) |
@@ -128,7 +142,7 @@ renamed site's old name keeps redirecting on all three forms until the name is r
 | Pages | `st/showcase.html` (person index / public view) |
 | Go | `h/sitehost.go` (`SITE_HOSTS` off/serve/canonical, site-host routing, certificate requests and readiness), `h/siteaddress.go` (own-address state: ready / waiting with an estimate / failing), `h/personhost.go` (`PERSON_HOSTS` off/serve/canonical, `PersonPageURL`, `PersonReturnSite`, `contentHostRedirect`), `h/legacyhost.go`, `h/handles.go` (reserved handles, `assignHandle`; `handleSeed`: the instance admin row's first handle is the domain's first label, or `organiser` when that is reserved, instead of `admin-2`), `internal/db/namespace.go` (one namespace for handles, claimed names, reserved and retired names; `RenameHandle`/`RenameHandleTx`, aliases, `HandleRenamedSince`), `h/instancehost.go` |
 | DB | `users.handle`, `handle_aliases` (e.g. `admin` → `simple-host-team`), `legacy_hostnames` |
-| Env | `PERSON_HOSTS`, `SITE_HOSTS` (needs `PERSON_HOSTS` on), `SITE_CERT_DIR` (e.g. `/var/lib/simple-host-site-certs`: `requests/<handle>` written by the app, `ready/<handle>`, `failed/<handle>`, `issued.log` and `limits` by the issuer and read by the app for the address state), `SITE_DOMAIN`, `CONTENT_HOST` |
+| Env | `SITE_BASE_DOMAIN`, `SITE_BASE_MOVE`, `SITE_BASE_CERT_DIR` (`h/sitebase.go`; served text `h/basetext.go`; `internal/db/sitebasemove.go` and `cmd/server/movesitebase.go`), `PERSON_HOSTS`, `SITE_HOSTS` (needs `PERSON_HOSTS` on), `SITE_CERT_DIR` (e.g. `/var/lib/simple-host-site-certs`: `requests/<handle>` written by the app, `ready/<handle>`, `failed/<handle>`, `issued.log` and `limits` by the issuer and read by the app for the address state), `SITE_DOMAIN`, `CONTENT_HOST` |
 | External | live nginx `/etc/nginx/sites-enabled/sites-content-host` (rewrites to `/internal/site-redirect/*`) and `simple-host` (wildcard `*.simple-host.app` → app; a server for `<site>.<person>.simple-host.app` loads the per-person cert by variable); wildcard cert; per-person certs from the root-owned issuer in `deploy/site-certs/` (path unit on each request plus a 10-minute timer; at most 40 new certificates per rolling week and 12 per day; certbot DNS-01 via the Vercel hooks in `/usr/local/lib/certbot-vercel/`); Public Suffix List entry is **planned** |
 
 ## 3. Claimed `<name>.simple-host.app` and custom domains

@@ -102,6 +102,11 @@ type SiteHandler struct {
 	// siteHosts is SITE_HOSTS and siteCertDir SITE_CERT_DIR (sitehost.go).
 	siteHosts   siteHostMode
 	siteCertDir string
+	// siteBase is SITE_BASE_DOMAIN, baseMove SITE_BASE_MOVE and baseCertDir
+	// SITE_BASE_CERT_DIR (sitebase.go).
+	siteBase    string
+	baseMove    baseMoveMode
+	baseCertDir string
 	// domainCertDir is DOMAIN_CERT_DIR (domaincert.go).
 	domainCertDir string
 	// idleCleanup is IDLE_CLEANUP=on and idleMaxEmails its per-run email cap
@@ -894,7 +899,7 @@ func (h *SiteHandler) resolveSiteIDScoped(r *http.Request, siteName string) (str
 	// no other name resolves there.
 	if host != "" && !strings.EqualFold(host, h.contentHost) && !h.isVisitorApexHost(host) {
 		if info, err := db.GetSiteByCustomDomain(r.Context(), h.database, host); err == nil {
-			label, isPlatform := platformSubdomainLabel(host, h.siteDomain)
+			label, _, isPlatform := h.userHostLabel(host)
 			if info.Name == siteName || (isPlatform && label == siteName) {
 				return info.SiteID, nil
 			}
@@ -913,11 +918,35 @@ func (h *SiteHandler) originAllowedForSiteID(ctx context.Context, siteID, origin
 	}
 	o := strings.ToLower(strings.TrimRight(origin, "/"))
 	for _, a := range origins {
-		if strings.ToLower(strings.TrimRight(a, "/")) == o {
+		a = strings.ToLower(strings.TrimRight(a, "/"))
+		if a == o || h.sameOriginAcrossBases(a, o) {
 			return true
 		}
 	}
 	return false
+}
+
+// sameOriginAcrossBases: two origins that differ only in the base domain of
+// a person, site or claimed-name host (sitebase.go), same scheme and port.
+// An owner who allowed https://x.simple-host.app keeps it working at
+// https://x.simple-host.site without their data being rewritten.
+func (h *SiteHandler) sameOriginAcrossBases(a, b string) bool {
+	if !h.baseSplit() {
+		return false
+	}
+	ua, err := url.Parse(a)
+	if err != nil || ua.Host == "" {
+		return false
+	}
+	ub, err := url.Parse(b)
+	if err != nil || ub.Host == "" {
+		return false
+	}
+	if ua.Scheme != ub.Scheme || ua.Port() != ub.Port() {
+		return false
+	}
+	t := h.twinHost(ua.Hostname())
+	return t != "" && strings.EqualFold(t, ub.Hostname())
 }
 
 // originIsBoundDomainID reports whether host is this site's own custom_domain
@@ -929,7 +958,8 @@ func (h *SiteHandler) originIsBoundDomainID(ctx context.Context, siteID, host st
 		return false
 	}
 	// Also the earlier address it still serves at while a new one is pending.
-	return strings.EqualFold(info.Domain, host) || (info.PreviousDomain != "" && strings.EqualFold(info.PreviousDomain, host))
+	// A claimed name answers under either base while the base moves.
+	return h.sameUserHost(info.Domain, host) || (info.PreviousDomain != "" && h.sameUserHost(info.PreviousDomain, host))
 }
 
 // originIsPersonHostID reports whether host is the person address of the
@@ -943,7 +973,8 @@ func (h *SiteHandler) originIsPersonHostID(ctx context.Context, siteID, host str
 	if err != nil || !h.personAddressFor(handle, name) {
 		return false
 	}
-	return strings.EqualFold(host, h.personHostFor(handle))
+	// Its person host under any base that serves it.
+	return h.sameUserHost(h.personHostFor(handle), host)
 }
 
 // originIsSiteHostID reports whether host is the site's own site host
@@ -953,10 +984,10 @@ func (h *SiteHandler) originIsSiteHostID(ctx context.Context, siteID, host strin
 		return false
 	}
 	handle, _, name, err := db.GetSiteOwner(ctx, h.database, siteID)
-	if err != nil || !h.siteHostLive(handle, name) {
+	if err != nil || !h.siteHostLiveOn(handle, name, h.hostBase(host)) {
 		return false
 	}
-	return strings.EqualFold(host, h.siteHostFor(handle, name))
+	return h.sameUserHost(h.siteHostFor(handle, name), host)
 }
 
 // authorizeStateOrigin checks Origin/Referer and, on a match, sets the CORS

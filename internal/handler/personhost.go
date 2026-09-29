@@ -68,9 +68,10 @@ func handleAddressable(handle string) bool {
 	return visitorHandleRe.MatchString(handle) && handleIsLabel(handle) && !labelReserved(handle)
 }
 
-// personHostFor is the host of an account's own address.
+// personHostFor is the host of an account's own address, as handed out
+// (under the base in use, sitebase.go).
 func (h *SiteHandler) personHostFor(handle string) string {
-	return strings.ToLower(handle) + "." + strings.ToLower(h.siteDomain)
+	return h.personHostOn(handle, h.handoutBase())
 }
 
 // personAddressFor reports whether this site is served at its owner's person
@@ -126,7 +127,7 @@ func (h *SiteHandler) personHostOwner(ctx context.Context, host string) (db.User
 	if !h.personHostsOn() {
 		return db.User{}, false
 	}
-	label, ok := platformSubdomainLabel(host, h.siteDomain)
+	label, _, ok := h.userHostLabel(host)
 	if !ok || !h.isPlatformSubdomainHost(host) || !handleAddressable(label) {
 		return db.User{}, false
 	}
@@ -217,7 +218,7 @@ func (h *SiteHandler) PersonReturnSite(ctx context.Context, host, p string) (str
 		return "", false
 	}
 	// A site on its own site host signs visitors in there, not here.
-	if h.siteHostCanonical(owner.Handle.String, site.Name) {
+	if h.siteHostCanonicalOn(owner.Handle.String, site.Name, h.hostBase(host)) {
 		return "", false
 	}
 	if _, has, err := h.siteOwnDomain(ctx, site.ID); err != nil || has {
@@ -238,7 +239,7 @@ func (h *SiteHandler) PersonHosts(api, next http.Handler) http.Handler {
 			return
 		}
 		host := requestHostName(r)
-		label, ok := platformSubdomainLabel(host, h.siteDomain)
+		label, base, ok := h.userHostLabel(host)
 		if !ok || !h.isPlatformSubdomainHost(host) || !handleAddressable(label) {
 			next.ServeHTTP(w, r)
 			return
@@ -251,7 +252,7 @@ func (h *SiteHandler) PersonHosts(api, next http.Handler) http.Handler {
 				return
 			}
 			if current, aerr := db.ResolveHandleAlias(r.Context(), h.database, label); aerr == nil && handleAddressable(current) {
-				http.Redirect(w, r, "https://"+h.personHostFor(current)+r.URL.RequestURI(), http.StatusMovedPermanently)
+				http.Redirect(w, r, "https://"+h.personHostOn(current, base)+r.URL.RequestURI(), http.StatusMovedPermanently)
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -261,12 +262,12 @@ func (h *SiteHandler) PersonHosts(api, next http.Handler) http.Handler {
 			api.ServeHTTP(w, r)
 			return
 		}
-		h.servePersonHost(w, r, user)
+		h.servePersonHost(w, r, user, base)
 	})
 }
 
-// servePersonHost answers a non-API request on a person host.
-func (h *SiteHandler) servePersonHost(w http.ResponseWriter, r *http.Request, user db.User) {
+// servePersonHost answers a non-API request on a person host under base.
+func (h *SiteHandler) servePersonHost(w http.ResponseWriter, r *http.Request, user db.User, base string) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		w.Header().Set("Allow", "GET, HEAD")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -336,10 +337,11 @@ func (h *SiteHandler) servePersonHost(w http.ResponseWriter, r *http.Request, us
 		http.Redirect(w, r, "https://"+info.Domain+"/"+escTail+query, http.StatusFound)
 		return
 	}
-	// A site on its own site host lives there (302 while the move is new).
-	if h.siteHostCanonical(handle, site.Name) {
+	// A site on its own site host lives there (302 while the move is new),
+	// under the same base as this request.
+	if h.siteHostCanonicalOn(handle, site.Name, base) {
 		w.Header().Set("Cache-Control", "no-store")
-		http.Redirect(w, r, "https://"+h.siteHostFor(handle, site.Name)+"/"+strings.TrimLeft(escTail, "/")+query, http.StatusFound)
+		http.Redirect(w, r, "https://"+h.siteHostOn(handle, site.Name, base)+"/"+strings.TrimLeft(escTail, "/")+query, http.StatusFound)
 		return
 	}
 	_, rel, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
@@ -378,8 +380,11 @@ func (h *SiteHandler) contentHostRedirect(w http.ResponseWriter, r *http.Request
 	current := user.Handle.String
 	if name == "" {
 		if h.personHostsCanonical() && handleAddressable(current) {
-			w.Header().Set("Cache-Control", "no-store")
-			http.Redirect(w, r, h.PersonPageURL(current), http.StatusFound)
+			status := h.moveStatus()
+			if status == http.StatusFound {
+				w.Header().Set("Cache-Control", "no-store")
+			}
+			http.Redirect(w, r, h.PersonPageURL(current), status)
 			return
 		}
 		h.renderShowcase(w, r, current)
@@ -406,8 +411,11 @@ func (h *SiteHandler) contentHostRedirect(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if h.personHostsCanonical() && h.personAddressFor(current, site.Name) {
-		w.Header().Set("Cache-Control", "no-store")
-		http.Redirect(w, r, strings.TrimSuffix(h.SiteURL(current, site.Name), "/")+rest+query, http.StatusFound)
+		status := h.moveStatus()
+		if status == http.StatusFound {
+			w.Header().Set("Cache-Control", "no-store")
+		}
+		http.Redirect(w, r, strings.TrimSuffix(h.SiteURL(current, site.Name), "/")+rest+query, status)
 		return
 	}
 	if r.PathValue("rest") == "" && !strings.HasSuffix(r.URL.Path, "/") {

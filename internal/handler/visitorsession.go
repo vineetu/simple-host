@@ -124,7 +124,7 @@ func (h *SiteHandler) sessionValidFor(r *http.Request, sess db.VisitorSession, s
 	handle, siteOwner, name, err := db.GetSiteOwner(r.Context(), h.database, siteID)
 	// A site on its own site host is its own origin: a person-host sign-in
 	// never covers it (per-site isolation, owner decision 2026-09-26).
-	return err == nil && siteOwner == owner.ID && !h.siteHostCanonical(handle, name)
+	return err == nil && siteOwner == owner.ID && !h.siteHostCanonicalOn(handle, name, h.hostBase(sess.Host))
 }
 
 func hasVisitorCSRF(r *http.Request) bool {
@@ -142,6 +142,10 @@ func hasVisitorCSRF(r *http.Request) bool {
 func (h *SiteHandler) isVisitorApexHost(host string) bool {
 	host = strings.ToLower(host)
 	if host == strings.ToLower(h.siteDomain) || host == "www."+strings.ToLower(h.siteDomain) {
+		return true
+	}
+	// The base's apex and www (sitebase.go) are the app's, never a site's.
+	if b := strings.ToLower(h.siteBase); h.baseSplit() && (host == b || host == "www."+b) {
 		return true
 	}
 	raw := os.Getenv("PUBLIC_BASE_URL")

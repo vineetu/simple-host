@@ -24,6 +24,7 @@ import (
 	"github.com/vsriram/simple-host/internal/eventdns"
 	"github.com/vsriram/simple-host/internal/geoip"
 	"github.com/vsriram/simple-host/internal/handler"
+	"github.com/vsriram/simple-host/internal/mcp"
 	"github.com/vsriram/simple-host/internal/storage"
 )
 
@@ -39,6 +40,11 @@ func main() {
 	// swapped into place. Needs no config or database.
 	if len(os.Args) > 1 && os.Args[1] == "review-account" {
 		os.Exit(runReviewAccountCommand(os.Args[2:]))
+	}
+	// `simple-host move-site-base --from A --to B [--apply]` rewrites stored
+	// free and retired names to a new base domain (movesitebase.go).
+	if len(os.Args) > 1 && os.Args[1] == "move-site-base" {
+		os.Exit(runMoveSiteBaseCommand(os.Args[2:]))
 	}
 	if len(os.Args) > 1 && os.Args[1] == "geoip-verify" {
 		os.Exit(geoipVerify(os.Args[2:]))
@@ -102,6 +108,8 @@ func main() {
 	} else if savedDomain != "" {
 		cfg.SiteDomain, cfg.ContentHost = savedDomain, savedContent
 		cfg.PublicBaseURL = "https://" + savedDomain
+		// Addresses stay under the saved domain: a box set up here has one.
+		cfg.SiteBaseDomain = savedDomain
 		log.Printf("configured by setup: %s / %s", savedDomain, savedContent)
 	} else if !cfg.SiteDomainSet {
 		setup := handler.NewSetupHandler(db, cfg.SetupPublicAPI, cfg.SetupPassword, cfg.DataDir)
@@ -155,7 +163,7 @@ func main() {
 	// health probes are deliberately left alone.
 	// Before anything can serve an asset: the skills zips are built once and
 	// cached for the process lifetime, so the rewriter has to exist first.
-	handler.SetInstanceHosts(cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget)
+	handler.SetInstanceHosts(cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.HandoutBase())
 	// Who a person writes to about their account: the hosted service's
 	// support address only on simple-host.app; elsewhere IDLE_REPLY_TO when
 	// the operator set one, or whoever runs the server.
@@ -194,6 +202,9 @@ func main() {
 	siteHandler.SetVisitorSignIn(cfg.ResendAPIKey != "", cfg.EnabledVisitorProviders())
 	siteHandler.SetPersonHosts(cfg.PersonHosts)
 	siteHandler.SetSiteHosts(cfg.SiteHosts, cfg.SiteCertDir)
+	siteHandler.SetSiteBase(cfg.SiteBaseDomain, cfg.SiteBaseMove, cfg.SiteBaseCertDir)
+	// auth.js serves pages under every base while addresses move.
+	handler.SetSiteBaseText(siteHandler.ServedBases())
 	siteHandler.SetDomainCerts(cfg.DomainCertDir)
 	siteHandler.SetIdleCleanup(cfg.IdleCleanup, cfg.IdleCleanupMaxEmails)
 	siteHandler.SetSavedData(cfg.Limits.SavedData)
@@ -201,11 +212,15 @@ func main() {
 	siteHandler.SetPublicBaseURL(cfg.PublicBaseURL)
 	userHandler.SetPublicPage(siteHandler.PersonPageURL)
 	userHandler.SetAddressState(siteHandler.AddressState)
-	dbpkg.SetPlatformDomain(cfg.SiteDomain)
+	// One namespace across every domain people's addresses live under.
+	dbpkg.SetPlatformDomains(siteHandler.HandoutBase(), siteHandler.ServedBases()...)
 	log.Printf("person hosts: %s; site hosts: %s", cfg.PersonHosts, cfg.SiteHosts)
+	if bases := siteHandler.ServedBases(); len(bases) > 1 {
+		log.Printf("site base move: %s; addresses under %s (handed out: %s)", cfg.SiteBaseMove, strings.Join(bases, " and "), siteHandler.HandoutBase())
+	}
 	siteHandler.Register(mux, authMW, noticeMW)
 	handler.SetInstanceNote(handler.InstanceFacts{
-		SiteDomain: cfg.SiteDomain, ContentHost: cfg.ContentHost,
+		SiteDomain: cfg.SiteDomain, BaseDomain: siteHandler.HandoutBase(), ContentHost: cfg.ContentHost,
 		SharedOrigin: siteHandler.SharedOrigin(),
 		SignInEmail:  cfg.ResendAPIKey != "", SignInProviders: cfg.EnabledVisitorProviders(),
 		Contact: auth.SupportContact,
@@ -214,6 +229,7 @@ func main() {
 	siteHandler.SyncSuspendMarkers(context.Background())
 	oauthHandler := handler.NewOAuthHandler(db, cfg)
 	oauthHandler.SetPersonSiteResolver(siteHandler.PersonReturnSite)
+	oauthHandler.SetSiteBases(siteHandler.ServedBases(), siteHandler.SameUserHost)
 	oauthHandler.Register(mux)
 	// The connector: OAuth 2.1 authorization server + remote MCP endpoint.
 	// Tool calls are served into the bare mux, as the person, so they meet the
@@ -222,6 +238,8 @@ func main() {
 	// one gate (internal/auth/scope.go). The MCP server calls back into the
 	// gated mux, so its tools follow the same table.
 	gated := auth.ScopeGate(db, mux)
+	// The connector's text names people's addresses under the base in use.
+	mcp.SetAddressBase(cfg.SiteDomain, siteHandler.HandoutBase())
 	connector := handler.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, gated)
 	connector.Register(mux, authMW)
 	connector.EnableReviewerSignIn(cfg.ReviewAccountEmail, cfg.ReviewAccountPasswordHash)
@@ -302,6 +320,7 @@ func main() {
 	// aggregates. Off unless ANALYTICS_LOG is set (safe default for local dev).
 	if cfg.AnalyticsLog != "" {
 		analytics.NewIngester(db, cfg.AnalyticsLog, cfg.AdminAPIKey, cfg.ContentHost, cfg.SiteDomain).
+			WithBases(cfg.SiteBaseDomain).
 			WithSalt(cfg.AnalyticsSalt).
 			WithRetentionDays(cfg.Limits.AnalyticsRetention).
 			WithItemCaps(cfg.Limits.AnalyticsPagesDay, cfg.Limits.AnalyticsRefsDay).
@@ -317,7 +336,7 @@ func main() {
 	app := handler.SecurityHeaders(handler.CORS(apiMetrics.Wrap(connector.BearerAuth(gated))))
 	server := &http.Server{
 		Addr:              net.JoinHostPort(cfg.BindAddr, cfg.Port),
-		Handler:           siteHandler.BoundSubdomains(app, siteHandler.SiteHosts(app, siteHandler.PersonHosts(app, siteHandler.LegacyHostRedirect(app)))),
+		Handler:           siteHandler.SiteBaseHosts(siteHandler.BoundSubdomains(app, siteHandler.SiteHosts(app, siteHandler.PersonHosts(app, siteHandler.LegacyHostRedirect(app))))),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

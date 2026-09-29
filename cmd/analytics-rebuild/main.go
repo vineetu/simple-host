@@ -88,7 +88,8 @@ func main() {
 	}
 
 	started := time.Now()
-	ing := analytics.NewIngester(db, cfg.AnalyticsLog, cfg.AdminAPIKey, cfg.ContentHost, cfg.SiteDomain).WithSalt(cfg.AnalyticsSalt)
+	// Both domains, so hits from before and after an address move attribute.
+	ing := analytics.NewIngester(db, cfg.AnalyticsLog, cfg.AdminAPIKey, cfg.ContentHost, cfg.SiteDomain).WithBases(cfg.SiteBaseDomain).WithSalt(cfg.AnalyticsSalt)
 	if err := ing.Rebuild(ctx); err != nil {
 		log.Fatalf("rebuild: %v", err)
 	}

@@ -375,7 +375,7 @@ func (h *SiteHandler) accountDocuments(ctx context.Context, me db.User) ([]expor
 			if d == a.Previous {
 				status = "earlier address, still served while the new one is pending"
 			}
-			if _, ok := platformSubdomainLabel(d, h.siteDomain); ok {
+			if h.isFreeName(d) {
 				claimedNames = append(claimedNames, claimed{Name: d, Site: a.Site})
 			} else {
 				customDomains = append(customDomains, domain{Domain: d, Site: a.Site, Status: status})

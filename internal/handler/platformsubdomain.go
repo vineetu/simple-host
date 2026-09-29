@@ -146,7 +146,7 @@ func platformSubdomainLabel(host, siteDomain string) (string, bool) {
 // domain that is not one of the platform's own hosts (content host, CNAME
 // target, www).
 func (h *SiteHandler) isPlatformSubdomainHost(host string) bool {
-	label, ok := platformSubdomainLabel(host, h.siteDomain)
+	label, _, ok := h.userHostLabel(host)
 	if !ok {
 		return false
 	}
@@ -161,11 +161,15 @@ var errSubdomainReserved = errors.New("that name is reserved; pick another")
 
 // claimableSubdomain validates a requested <label>.<siteDomain>: one DNS label,
 // letters/digits/hyphens, no leading or trailing hyphen, not reserved, and not
-// one of the platform's own hosts (content host, CNAME target).
+// one of the platform's own hosts (content host, CNAME target). While the
+// base moves (sitebase.go) a name under either domain is accepted — older
+// skills write the old one — and the name is always kept under the base
+// handed out.
 func (h *SiteHandler) claimableSubdomain(host string) (string, error) {
-	label, ok := platformSubdomainLabel(host, h.siteDomain)
+	label, _, ok := h.userHostLabel(host)
+	base := h.handoutBase()
 	if !ok {
-		return "", errors.New("a free address is one name under " + h.siteDomain + ", e.g. my-shop." + h.siteDomain)
+		return "", errors.New("a free address is one name under " + base + ", e.g. my-shop." + base)
 	}
 	if !labelRE.MatchString(label) || label[0] == '-' || label[len(label)-1] == '-' {
 		return "", errors.New("the name may use lowercase letters, numbers and hyphens (not at the start or end), up to 63 characters")
@@ -173,9 +177,14 @@ func (h *SiteHandler) claimableSubdomain(host string) (string, error) {
 	if strings.HasPrefix(label, "xn--") {
 		return "", errors.New("internationalised names are not supported")
 	}
-	full := label + "." + strings.ToLower(h.siteDomain)
-	if labelReservedForNew(label) || strings.EqualFold(full, h.contentHost) || strings.EqualFold(full, h.cnameTarget) {
+	full := label + "." + base
+	if labelReservedForNew(label) {
 		return "", errSubdomainReserved
+	}
+	for _, b := range []string{base, strings.ToLower(h.siteDomain)} {
+		if strings.EqualFold(label+"."+b, h.contentHost) || strings.EqualFold(label+"."+b, h.cnameTarget) {
+			return "", errSubdomainReserved
+		}
 	}
 	return full, nil
 }

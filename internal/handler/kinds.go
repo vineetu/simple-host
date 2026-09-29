@@ -1005,14 +1005,14 @@ func (h *SiteHandler) declareData(w http.ResponseWriter, r *http.Request) {
 		}
 		if private && !hasHome {
 			writeJSON(w, http.StatusConflict, errorResponse{
-				Error: strings.Replace(privateListNeedsDomain, "%s", h.siteDomain, 1),
+				Error: strings.Replace(privateListNeedsDomain, "%s", h.handoutBase(), 1),
 				Code:  "custom_domain_required",
 			})
 			return
 		}
 		if !hasHome {
 			writeJSON(w, http.StatusConflict, errorResponse{
-				Error: "Submissions come from visitors who sign in, and visitors sign in on the site's own address: connect one first (a free <name>." + h.siteDomain + " address works, or your own domain)",
+				Error: "Submissions come from visitors who sign in, and visitors sign in on the site's own address: connect one first (a free <name>." + h.handoutBase() + " address works, or your own domain)",
 				Code:  "custom_domain_required",
 			})
 			return
@@ -1166,7 +1166,7 @@ func (h *SiteHandler) declarePersonalOrBoard(w http.ResponseWriter, r *http.Requ
 	}
 	if !hasHome {
 		writeJSON(w, http.StatusConflict, errorResponse{
-			Error: "visitors save here while signed in, and visitors sign in on the site's own address: connect one first (a free <name>." + h.siteDomain + " address works, or your own domain)",
+			Error: "visitors save here while signed in, and visitors sign in on the site's own address: connect one first (a free <name>." + h.handoutBase() + " address works, or your own domain)",
 			Code:  "custom_domain_required",
 		})
 		return

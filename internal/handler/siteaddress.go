@@ -72,7 +72,8 @@ func (h *SiteHandler) AddressState(handle string) *addressState { return h.siteA
 // hand-off directory, or the handle cannot be a host.
 func (h *SiteHandler) siteAddressState(handle string) *addressState {
 	handle = strings.ToLower(strings.TrimSpace(handle))
-	if handle == "" || !h.siteHostsCanonical() || h.siteCertDir == "" || !handleAddressable(handle) {
+	certDir := h.certDirFor(h.handoutBase()) // the queue of the base handed out
+	if handle == "" || !h.siteHostsCanonical() || certDir == "" || !handleAddressable(handle) {
 		return nil
 	}
 	// Ready is a single file check and never cached: the address handed out
@@ -100,16 +101,17 @@ func (h *SiteHandler) computeAddressState(handle string, now time.Time) *address
 		st.InterimAddress = ""
 		return st
 	}
-	limits := readSiteCertLimits(h.siteCertDir)
+	certDir := h.certDirFor(h.handoutBase())
+	limits := readSiteCertLimits(certDir)
 	var eta time.Time
-	failedAt, failed := fileModTime(filepath.Join(h.siteCertDir, "failed", handle))
+	failedAt, failed := fileModTime(filepath.Join(certDir, "failed", handle))
 	if failed && now.Sub(failedAt) < limits.RetryIn {
 		st.State = "failing"
 		eta = failedAt.Add(limits.RetryIn).Add(limits.Every)
 	} else {
 		st.State = "waiting"
-		ahead := siteCertQueueAhead(h.siteCertDir, handle, now, limits)
-		eta = estimateCertReady(readIssuedLog(h.siteCertDir, now), ahead, now, limits)
+		ahead := siteCertQueueAhead(certDir, handle, now, limits)
+		eta = estimateCertReady(readIssuedLog(certDir, now), ahead, now, limits)
 	}
 	hours := int(math.Ceil(eta.Sub(now).Hours()))
 	if hours < 1 {

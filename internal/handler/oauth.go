@@ -43,6 +43,12 @@ type OAuthHandler struct {
 	// personSite resolves a return_to on a person host to its site
 	// (SiteHandler.PersonReturnSite); nil when person hosts are not wired.
 	personSite func(ctx context.Context, host, path string) (string, bool)
+	// siteBases are the domains people's addresses live under (SITE_DOMAIN,
+	// plus SITE_BASE_DOMAIN while it moves; sitebase.go) and sameHost says
+	// whether two hosts are one address across them. Unset: SITE_DOMAIN
+	// alone and exact matching.
+	siteBases []string
+	sameHost  func(a, b string) bool
 
 	database    *sql.DB
 	cfg         config.Config
@@ -77,6 +83,29 @@ func NewOAuthHandler(database *sql.DB, cfg config.Config) *OAuthHandler {
 // SetPersonSiteResolver lets sign-in return to a site on a person host.
 func (h *OAuthHandler) SetPersonSiteResolver(f func(ctx context.Context, host, path string) (string, bool)) {
 	h.personSite = f
+}
+
+// SetSiteBases wires the base domains of people's addresses
+// (SiteHandler.ServedBases) and their equivalence (SiteHandler.SameUserHost).
+func (h *OAuthHandler) SetSiteBases(bases []string, sameHost func(a, b string) bool) {
+	h.siteBases = bases
+	h.sameHost = sameHost
+}
+
+// bases is siteBases, or SITE_DOMAIN alone when not wired.
+func (h *OAuthHandler) bases() []string {
+	if len(h.siteBases) > 0 {
+		return h.siteBases
+	}
+	return []string{h.cfg.SiteDomain}
+}
+
+// sameAddress is sameHost, or an exact match when not wired.
+func (h *OAuthHandler) sameAddress(a, b string) bool {
+	if h.sameHost != nil {
+		return h.sameHost(a, b)
+	}
+	return strings.EqualFold(a, b)
 }
 
 func (h *OAuthHandler) Register(mux *http.ServeMux) {
@@ -514,14 +543,16 @@ func (h *OAuthHandler) sanitizeReturnTo(ctx context.Context, raw string) (string
 	// the binding itself is the proof (no DNS lookup).
 	if h.isClaimedPlatformSubdomain(host) {
 		info, err := db.GetSiteByCustomDomain(ctx, h.database, host)
-		if err != nil || !info.VerifiedAt.Valid || !strings.EqualFold(info.Domain, host) {
+		if err != nil || !info.VerifiedAt.Valid || !h.sameAddress(info.Domain, host) {
 			return "", sql.NullString{}, "", "", errInvalidReturnTo
 		}
 		return parsed.String(), sql.NullString{String: info.SiteID, Valid: true}, host, "site", nil
 	}
 
-	if isRejectedPlatformHost(host, h.cfg.SiteDomain, h.cfg.ContentHost, publicBaseHost(h.cfg.PublicBaseURL)) {
-		return "", sql.NullString{}, "", "", errInvalidReturnTo
+	for _, b := range h.bases() {
+		if isRejectedPlatformHost(host, b, h.cfg.ContentHost, publicBaseHost(h.cfg.PublicBaseURL)) {
+			return "", sql.NullString{}, "", "", errInvalidReturnTo
+		}
 	}
 
 	info, err := db.GetSiteByCustomDomain(ctx, h.database, host)
@@ -543,7 +574,12 @@ var errInvalidReturnTo = errors.New("invalid return_to")
 // is not one of the platform's own hosts. Whether a site holds it is the
 // caller's lookup.
 func (h *OAuthHandler) isClaimedPlatformSubdomain(host string) bool {
-	label, ok := platformSubdomainLabel(host, h.cfg.SiteDomain)
+	label, ok := "", false
+	for _, b := range h.bases() {
+		if label, ok = platformSubdomainLabel(host, b); ok {
+			break
+		}
+	}
 	if !ok || label == "www" || reservedSubdomainSet[label] {
 		return false
 	}
