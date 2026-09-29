@@ -1530,6 +1530,155 @@ paths:
         '423': { description: The site is taken down by the operator }
         '429': { description: Too many site changes from this address; try again shortly }
 
+  /v1/sites/{sitename}/lock:
+    get:
+      operationId: getSitesBySitenameLock
+      summary: Whether a site has a passcode, and the passcode
+      description: >-
+        Owner only (the owner's key or connector token; a deploy-only key is refused).
+        Says whether the site asks visitors for a passcode and, when it does, the
+        passcode itself and when it was set. The passcode is stored sealed with a server
+        key (AES-256-GCM under PASSCODE_ENC_KEY), so the owner can read it back; the
+        admin's routes never read it. If the server's key changed, `passcode` is absent
+        and `note` says to set a new one. Never cached (Cache-Control: no-store).
+      tags: [Sites]
+      security: [{ apiKey: [] }]
+      parameters: [ { $ref: '#/components/parameters/sitename' } ]
+      responses:
+        '200':
+          description: The site's passcode state
+          headers: { Cache-Control: { schema: { type: string, example: no-store } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/SitePasscode' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: A deploy-only key (deploy_only_key) }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: putSitesBySitenameLock
+      summary: Put a passcode on a whole site, or change it
+      description: >-
+        Owner only (the owner's key or connector token; a deploy-only key is refused).
+        Every address of the site (its own address, the person path while its
+        certificate is pending, a free name, a custom domain) then answers a plain
+        "This site is protected" page (401, noindex, no-store; nothing of the site in
+        it; robots.txt answers `Disallow: /`) until the visitor enters the passcode.
+        A right passcode sets an unlock cookie for that one host (HttpOnly,
+        SameSite=Lax, `__Host-` prefixed, about 400 days) that lasts until the passcode
+        changes or the owner signs everyone out; `.app` and `.site` addresses each need
+        their own unlock. Send `{"passcode": "..."}` (any characters, at least
+        PASSCODE_MIN_LENGTH, default 6, at most 128; digits only is fine; spaces around it
+        are trimmed) or `{"generate": true}` for 6 random digits. Setting the same
+        passcode again changes nothing; a different one signs everyone out. The site
+        leaves the person page. The owner's key, connector token and the admin key still
+        read and write its data; previews still open. Take-down (410) and offline (503)
+        win over the passcode. There is no end date: take the site offline or delete it
+        instead. A passcode keeps out people who don't have it: search engines, link
+        previews, and anyone who finds or is forwarded the link without it. Anyone given
+        it can open the site and pass it on. It is not a login, it does not say who
+        visited, and it does not make saved data private per person.
+      tags: [Sites]
+      security: [{ apiKey: [] }]
+      parameters: [ { $ref: '#/components/parameters/sitename' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Exactly one of passcode or generate
+              properties:
+                passcode: { type: string, maxLength: 128, description: "At least PASSCODE_MIN_LENGTH characters (default 6)", example: "482913" }
+                generate: { type: boolean, description: "true: the server picks 6 random digits" }
+      responses:
+        '200':
+          description: The passcode is set (the answer carries it)
+          headers: { Cache-Control: { schema: { type: string, example: no-store } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/SitePasscode' } } }
+        '400': { description: 'Body is not {"passcode": "..."} or {"generate": true} (invalid_request), or the passcode is too short or too long (invalid_passcode)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: "The operator has taken the site down (site_suspended), or a deploy-only key (deploy_only_key)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: "passcodes_not_enabled (SITE_PASSCODES is off or PASSCODE_ENC_KEY is unset on this server), or passcode_needs_own_address (every site on this server shares one address, as on a small box or an event box, so an unlock would cover every site)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    delete:
+      operationId: deleteSitesBySitenameLock
+      summary: Remove a site's passcode
+      description: >-
+        Owner only (the owner's key or connector token; a deploy-only key is refused).
+        Every address of the site opens to everyone again. Removing a passcode the site
+        does not have is not an error.
+      tags: [Sites]
+      security: [{ apiKey: [] }]
+      parameters: [ { $ref: '#/components/parameters/sitename' } ]
+      responses:
+        '200':
+          description: The site has no passcode
+          content: { application/json: { schema: { $ref: '#/components/schemas/SitePasscode' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: A deploy-only key (deploy_only_key) }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /v1/sites/{sitename}/lock/sign-out-everyone:
+    post:
+      operationId: postSitesBySitenameLockSignOutEveryone
+      summary: Sign every visitor out of a site with a passcode
+      description: >-
+        Owner only (the owner's key or connector token; a deploy-only key is refused).
+        Ends every unlock at once, on every address: each visitor must enter the
+        passcode again. The passcode stays the same.
+      tags: [Sites]
+      security: [{ apiKey: [] }]
+      parameters: [ { $ref: '#/components/parameters/sitename' } ]
+      responses:
+        '200':
+          description: Everyone is signed out
+          content: { application/json: { schema: { $ref: '#/components/schemas/SitePasscode' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: A deploy-only key (deploy_only_key) }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: The site has no passcode (no_passcode), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /v1/site-unlock:
+    post:
+      operationId: postSiteUnlock
+      summary: Enter a site's passcode (the "This site is protected" form)
+      description: >-
+        The form on the "This site is protected" page posts here, on the site's own
+        host; no key. The site is the one the host names (on a person host, the first
+        path segment of `next`). Only a form from a page on the same host is accepted
+        (another origin gets 403 origin_not_allowed as JSON). A right passcode answers
+        303 to `next` with the unlock cookie for this host. A wrong one answers the
+        gate page again (401). Wrong tries are limited per site and address
+        (RATE_LIMIT_PASSCODE_IP, default 5 per 3 minutes, then PASSCODE_LOCKOUT_MINUTES,
+        default 15) and per site from everyone together (RATE_LIMIT_PASSCODE_SITE,
+        default 60 a minute, then PASSCODE_SITE_LOCKOUT_MINUTES, default 15, when every
+        try is refused; visitors already let in are not affected): 429 with Retry-After.
+      tags: [Visitor]
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [passcode]
+              properties:
+                passcode: { type: string }
+                next: { type: string, description: "A path on this host to return to (default /)", example: / }
+      responses:
+        '303':
+          description: Right passcode; go back to `next`
+          headers:
+            Location: { schema: { type: string } }
+            Set-Cookie: { schema: { type: string }, description: "The unlock cookie: __Host-sh_pass_<id>, HttpOnly, Secure, SameSite=Lax, Path=/, about 400 days" }
+        '400': { description: Not a form post }
+        '401': { description: "Wrong passcode: the gate page again, saying so (text/html, noindex, no-store)", content: { text/html: { schema: { type: string } } } }
+        '403': { $ref: '#/components/responses/OriginMismatch' }
+        '429':
+          description: "Too many wrong tries: the gate page saying when to try again (text/html)"
+          headers: { Retry-After: { schema: { type: integer }, description: Seconds } }
+          content: { text/html: { schema: { type: string } } }
+
   /v1/idle/keep:
     get:
       operationId: getIdleKeep
@@ -1912,7 +2061,7 @@ paths:
           headers:
             Access-Control-Allow-Methods: { schema: { type: string, enum: ['GET, OPTIONS'] } }
             Access-Control-Allow-Headers: { schema: { type: string, enum: [Content-Type] } }
-        '403': { $ref: '#/components/responses/OriginMismatch' }
+        '403': { $ref: '#/components/responses/OriginMismatchOrSiteLocked' }
 
   /v1/sites/{sitename}/state:
     get:
@@ -1937,7 +2086,7 @@ paths:
           headers: { ETag: { schema: { type: string } } }
           content: { application/json: { schema: {} } }
         '304': { description: Not modified (matched If-None-Match) }
-        '403': { $ref: '#/components/responses/OriginMismatch' }
+        '403': { $ref: '#/components/responses/OriginMismatchOrSiteLocked' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
     put:
       operationId: putSitesBySitenameState
@@ -1966,7 +2115,7 @@ paths:
                 invalidKey: { value: { error: "invalid API key", code: invalid_api_key } }
                 signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
                 useCustomDomain: { value: { error: "this site saves on its own domain", code: use_custom_domain, domain: recipes.brand.com } }
-        '403': { $ref: '#/components/responses/OriginMismatch' }
+        '403': { $ref: '#/components/responses/OriginMismatchOrSiteLocked' }
         '412': { description: ETag did not match (If-Match) }
         '413': { $ref: '#/components/responses/TooLarge' }
         '507': { $ref: '#/components/responses/SiteFull' }
@@ -2015,7 +2164,7 @@ paths:
                 invalidKey: { value: { error: "invalid API key", code: invalid_api_key } }
                 signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
                 useCustomDomain: { value: { error: "this site saves on its own domain", code: use_custom_domain, domain: recipes.brand.com } }
-        '403': { $ref: '#/components/responses/OriginMismatch' }
+        '403': { $ref: '#/components/responses/OriginMismatchOrSiteLocked' }
         '409': { description: "A retry with the same Idempotency-Key is still running (idempotency_in_progress), the key was used with another body (idempotency_key_reused), or the document is not an object (not_an_object)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '413': { $ref: '#/components/responses/TooLarge' }
         '507': { $ref: '#/components/responses/SiteFull' }
@@ -2092,7 +2241,7 @@ paths:
           description: The body does not repeat the list's name (confirm_required)
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: "to empty this list, send {\"confirm\": \"guestbook\"}", code: confirm_required } } }
         '403':
-          description: A visitor session without `X-SH-CSRF` (csrf_required)
+          description: "A visitor session without `X-SH-CSRF` (csrf_required); or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)"
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
         '404':
           description: The caller is not the owner or operator (not_found)
@@ -2138,10 +2287,10 @@ paths:
                 signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
                 useCustomDomain: { value: { error: "this site saves on its own domain", code: use_custom_domain, domain: recipes.brand.com } }
         '403':
-          description: Origin/Referer does not match the site; missing `X-SH-CSRF` with a visitor session (csrf_required); or, on a private list, an API key was sent (private_visitor_only) or the request did not come through the site's own address (private_needs_own_domain — private lists accept submissions only on the site's own address).
+          description: "Origin/Referer does not match the site; missing `X-SH-CSRF` with a visitor session (csrf_required); or, on a private list, an API key was sent (private_visitor_only) or the request did not come through the site's own address (private_needs_own_domain — private lists accept submissions only on the site's own address).; or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)"
           content:
             application/json:
-              schema: { type: object, properties: { error: { type: string }, code: { type: string, enum: [csrf_required, private_visitor_only, private_needs_own_domain] } } }
+              schema: { type: object, properties: { error: { type: string }, code: { type: string, enum: [site_locked, csrf_required, private_visitor_only, private_needs_own_domain] } } }
               examples:
                 csrf: { value: { error: "missing CSRF header", code: csrf_required } }
                 privateVisitorOnly: { value: { error: "this list is private: only visitors signed in on the site's own address can add to it; API keys cannot", code: private_visitor_only } }
@@ -2174,7 +2323,7 @@ paths:
                   items: { type: array, items: { type: object, properties: { id: { type: integer }, data: { description: the item as saved }, created_at: { type: string, format: date-time }, by: { type: string, description: "who sent it (the address a visitor was signed in with); only in the owner's reads (owner or admin key, or the owner signed in on the site), never in public ones" } } } }
                   next: { type: integer, nullable: true, description: cursor for the next page (pass as `before`) }
                   private: { type: boolean, description: present and true only for a private list }
-        '403': { $ref: '#/components/responses/OriginMismatch' }
+        '403': { $ref: '#/components/responses/OriginMismatchOrSiteLocked' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '404':
           description: Site not found, or a private list and the caller is not its owner (code not_found)
@@ -2291,6 +2440,7 @@ paths:
                   visibility: { type: string, enum: [owner, public] }
                   one_per_person: { type: boolean }
                   accepts_saves: { type: boolean }
+        '403': { $ref: '#/components/responses/SiteLocked' }
         '404': { $ref: '#/components/responses/NotFound' }
     put:
       operationId: declareData
@@ -2423,7 +2573,7 @@ paths:
           description: The document, the list, the visitor's own entries or record, or the count
           content: { application/json: { schema: { type: object } } }
         '304': { description: "Personal or Shared board: unchanged since the If-None-Match ETag" }
-        '403': { description: "personal_data: a Personal record is read only by its own visitor", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: "personal_data: a Personal record is read only by its own visitor, or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '401': { description: "?mine=1 without a visitor signed in on the site (visitor_auth_required)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: declare_first or wrong_kind, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
@@ -2469,7 +2619,7 @@ paths:
           description: The stored entry
           content: { application/json: { schema: { type: object, properties: { id: { type: integer }, data: { type: object }, created_at: { type: string, format: date-time } } } } }
         '401': { description: visitor_auth_required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '403': { description: "not_allowed_to_save, private_visitor_only, csrf_required", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: "not_allowed_to_save, private_visitor_only, csrf_required, or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '409': { description: "declare_first, wrong_kind, one_per_person, list_full or kind_changed (the owner changed what the name is, or made it private or public, while the save was on its way; nothing was saved)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '413': { description: item_too_large, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     put:
@@ -2506,7 +2656,7 @@ paths:
           description: Saved
           content: { application/json: { schema: { type: object, properties: { name: { type: string }, kind: { type: string }, data: { type: object }, saved_at: { type: string, format: date-time } } } } }
         '400': { description: not_an_object, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '403': { description: owner_only, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: "owner_only, or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: "declare_first, wrong_kind or people_full", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '413': { description: item_too_large, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
@@ -2537,7 +2687,7 @@ paths:
           content: { application/json: { schema: { type: object, properties: { name: { type: string }, kind: { type: string }, data: { type: object }, version: { type: integer } } } } }
         '400': { description: Bad ops, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '401': { description: visitor_auth_required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '403': { description: "personal_data (a key), not_allowed_to_save or csrf_required", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: "personal_data (a key), not_allowed_to_save or csrf_required, or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '409': { description: "wrong_kind, declare_first or people_full", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '413': { description: item_too_large, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     delete:
@@ -2560,6 +2710,7 @@ paths:
       responses:
         '200': { description: Deleted, content: { application/json: { schema: { type: object } } } }
         '401': { description: visitor_auth_required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/SiteLocked' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: "wrong_kind or declare_first", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
@@ -2579,6 +2730,7 @@ paths:
       responses:
         '200': { description: The changes, content: { application/json: { schema: { type: object } } } }
         '401': { description: visitor_auth_required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/SiteLocked' }
 
   /v1/sites/{sitename}/data/{coll}/history/{id}:
     get:
@@ -2592,6 +2744,7 @@ paths:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
         '200': { description: The change, content: { application/json: { schema: { type: object } } } }
+        '403': { $ref: '#/components/responses/SiteLocked' }
         '404': { $ref: '#/components/responses/NotFound' }
 
   /v1/sites/{sitename}/data/{coll}/history/{id}/restore:
@@ -2610,6 +2763,7 @@ paths:
         - { $ref: '#/components/parameters/csrf' }
       responses:
         '200': { description: "The record now, with `restored`", content: { application/json: { schema: { type: object } } } }
+        '403': { $ref: '#/components/responses/SiteLocked' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: nothing_to_restore, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
@@ -2642,7 +2796,7 @@ paths:
       responses:
         '200': { description: The entry after the change, content: { application/json: { schema: { type: object } } } }
         '401': { description: visitor_auth_required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '403': { description: "not_allowed_to_save or csrf_required", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: "not_allowed_to_save or csrf_required, or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: "version_conflict (Shared board, with item) or wrong_kind", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     delete:
@@ -2667,6 +2821,7 @@ paths:
         '200': { description: Withdrawn, content: { application/json: { schema: { type: object, properties: { withdrawn: { type: integer }, undo_minutes: { type: integer } } } } } }
         '204': { description: Deleted by the owner }
         '401': { description: visitor_auth_required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/SiteLocked' }
         '404': { $ref: '#/components/responses/NotFound' }
 
   /v1/sites/{sitename}/data/{coll}/items/{id}/undo:
@@ -2690,6 +2845,7 @@ paths:
       responses:
         '200': { description: The entry, back, content: { application/json: { schema: { type: object } } } }
         '401': { description: visitor_auth_required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/SiteLocked' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: "undo_expired, one_per_person or list_full", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
@@ -2879,7 +3035,7 @@ paths:
           description: The body is not one JSON object
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
         '403':
-          description: A visitor session without `X-SH-CSRF` (csrf_required)
+          description: "A visitor session without `X-SH-CSRF` (csrf_required); or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)"
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
         '404':
           description: No such item, or the caller is not the owner or operator (not_found)
@@ -2911,7 +3067,7 @@ paths:
       responses:
         '204': { description: Item deleted }
         '403':
-          description: A visitor session without `X-SH-CSRF` (csrf_required)
+          description: "A visitor session without `X-SH-CSRF` (csrf_required); or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)"
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
         '404':
           description: No such item, or the caller is not the owner or operator (not_found)
@@ -3587,7 +3743,7 @@ paths:
           headers:
             Access-Control-Allow-Methods: { schema: { type: string, enum: ['GET, OPTIONS'] } }
             Access-Control-Allow-Headers: { schema: { type: string, enum: [Content-Type] } }
-        '403': { $ref: '#/components/responses/OriginMismatch' }
+        '403': { $ref: '#/components/responses/OriginMismatchOrSiteLocked' }
 
   /v1/u/{handle}/sites/{sitename}/state:
     get:
@@ -3612,7 +3768,7 @@ paths:
           headers: { ETag: { schema: { type: string } } }
           content: { application/json: { schema: {} } }
         '304': { description: Not modified (matched If-None-Match) }
-        '403': { $ref: '#/components/responses/OriginMismatch' }
+        '403': { $ref: '#/components/responses/OriginMismatchOrSiteLocked' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
     put:
       operationId: putSiteStateByHandle
@@ -3644,7 +3800,7 @@ paths:
                 invalidKey: { value: { error: "invalid API key", code: invalid_api_key } }
                 signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
                 useCustomDomain: { value: { error: "this site saves on its own domain", code: use_custom_domain, domain: recipes.brand.com } }
-        '403': { $ref: '#/components/responses/OriginMismatch' }
+        '403': { $ref: '#/components/responses/OriginMismatchOrSiteLocked' }
         '412': { description: ETag did not match (If-Match) }
         '413': { $ref: '#/components/responses/TooLarge' }
         '507': { $ref: '#/components/responses/SiteFull' }
@@ -3696,7 +3852,7 @@ paths:
                 invalidKey: { value: { error: "invalid API key", code: invalid_api_key } }
                 signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
                 useCustomDomain: { value: { error: "this site saves on its own domain", code: use_custom_domain, domain: recipes.brand.com } }
-        '403': { $ref: '#/components/responses/OriginMismatch' }
+        '403': { $ref: '#/components/responses/OriginMismatchOrSiteLocked' }
         '409': { description: "A retry with the same Idempotency-Key is still running (idempotency_in_progress), the key was used with another body (idempotency_key_reused), or the document is not an object (not_an_object)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '413': { $ref: '#/components/responses/TooLarge' }
         '507': { $ref: '#/components/responses/SiteFull' }
@@ -3713,6 +3869,7 @@ paths:
         - { $ref: '#/components/parameters/coll' }
       responses:
         '200': { description: As without the handle, content: { application/json: { schema: { type: object } } } }
+        '403': { $ref: '#/components/responses/SiteLocked' }
         '404': { $ref: '#/components/responses/NotFound' }
     post:
       operationId: postDataByHandle
@@ -3728,6 +3885,7 @@ paths:
       requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
       responses:
         '201': { description: The stored entry, content: { application/json: { schema: { type: object } } } }
+        '403': { $ref: '#/components/responses/SiteLocked' }
         '409': { description: "declare_first, wrong_kind, one_per_person, list_full or kind_changed (the owner changed what the name is, or made it private or public, while the save was on its way; nothing was saved)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     put:
       operationId: putDataByHandle
@@ -3742,7 +3900,7 @@ paths:
       requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
       responses:
         '200': { description: Saved, content: { application/json: { schema: { type: object } } } }
-        '403': { description: owner_only, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: "owner_only, or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     patch:
       operationId: patchPersonalByHandle
       summary: Change your Personal record with ops (by handle)
@@ -3756,6 +3914,7 @@ paths:
       requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
       responses:
         '200': { description: The record now, content: { application/json: { schema: { type: object } } } }
+        '403': { $ref: '#/components/responses/SiteLocked' }
     delete:
       operationId: deletePersonalByHandle
       summary: Delete your Personal record (by handle)
@@ -3768,6 +3927,7 @@ paths:
         - { $ref: '#/components/parameters/csrf' }
       responses:
         '200': { description: Deleted, content: { application/json: { schema: { type: object } } } }
+        '403': { $ref: '#/components/responses/SiteLocked' }
 
   /v1/u/{handle}/sites/{sitename}/data/{coll}/history:
     get:
@@ -3781,6 +3941,7 @@ paths:
         - { $ref: '#/components/parameters/coll' }
       responses:
         '200': { description: The changes, content: { application/json: { schema: { type: object } } } }
+        '403': { $ref: '#/components/responses/SiteLocked' }
 
   /v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}:
     get:
@@ -3795,6 +3956,7 @@ paths:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
         '200': { description: The change, content: { application/json: { schema: { type: object } } } }
+        '403': { $ref: '#/components/responses/SiteLocked' }
 
   /v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}/restore:
     post:
@@ -3810,6 +3972,7 @@ paths:
         - { $ref: '#/components/parameters/csrf' }
       responses:
         '200': { description: The record now, content: { application/json: { schema: { type: object } } } }
+        '403': { $ref: '#/components/responses/SiteLocked' }
 
   /v1/u/{handle}/sites/{sitename}/data/{coll}/kind:
     get:
@@ -3823,6 +3986,7 @@ paths:
         - { $ref: '#/components/parameters/coll' }
       responses:
         '200': { description: The name's kind, content: { application/json: { schema: { type: object } } } }
+        '403': { $ref: '#/components/responses/SiteLocked' }
 
   /v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}:
     patch:
@@ -3839,6 +4003,7 @@ paths:
       requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
       responses:
         '200': { description: The entry after the change, content: { application/json: { schema: { type: object } } } }
+        '403': { $ref: '#/components/responses/SiteLocked' }
         '404': { $ref: '#/components/responses/NotFound' }
     delete:
       operationId: withdrawOwnEntryByHandle
@@ -3853,6 +4018,7 @@ paths:
         - { $ref: '#/components/parameters/csrf' }
       responses:
         '200': { description: Withdrawn, content: { application/json: { schema: { type: object } } } }
+        '403': { $ref: '#/components/responses/SiteLocked' }
         '404': { $ref: '#/components/responses/NotFound' }
 
   /v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}/undo:
@@ -3869,6 +4035,7 @@ paths:
         - { $ref: '#/components/parameters/csrf' }
       responses:
         '200': { description: The entry, back, content: { application/json: { schema: { type: object } } } }
+        '403': { $ref: '#/components/responses/SiteLocked' }
         '409': { description: "undo_expired, one_per_person or list_full", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}:
@@ -3906,7 +4073,7 @@ paths:
           description: The body does not repeat the list's name (confirm_required)
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: "to empty this list, send {\"confirm\": \"guestbook\"}", code: confirm_required } } }
         '403':
-          description: A visitor session without `X-SH-CSRF` (csrf_required)
+          description: "A visitor session without `X-SH-CSRF` (csrf_required); or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)"
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
         '404':
           description: The caller is not the owner or operator (not_found)
@@ -3955,10 +4122,10 @@ paths:
                 signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
                 useCustomDomain: { value: { error: "this site saves on its own domain", code: use_custom_domain, domain: recipes.brand.com } }
         '403':
-          description: Origin/Referer does not match the site; missing `X-SH-CSRF` with a visitor session (csrf_required); or, on a private list, an API key was sent (private_visitor_only) or the request did not come through the site's own address (private_needs_own_domain — private lists accept submissions only on the site's own address).
+          description: "Origin/Referer does not match the site; missing `X-SH-CSRF` with a visitor session (csrf_required); or, on a private list, an API key was sent (private_visitor_only) or the request did not come through the site's own address (private_needs_own_domain — private lists accept submissions only on the site's own address).; or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)"
           content:
             application/json:
-              schema: { type: object, properties: { error: { type: string }, code: { type: string, enum: [csrf_required, private_visitor_only, private_needs_own_domain] } } }
+              schema: { type: object, properties: { error: { type: string }, code: { type: string, enum: [site_locked, csrf_required, private_visitor_only, private_needs_own_domain] } } }
               examples:
                 csrf: { value: { error: "missing CSRF header", code: csrf_required } }
                 privateVisitorOnly: { value: { error: "this list is private: only visitors signed in on the site's own address can add to it; API keys cannot", code: private_visitor_only } }
@@ -3993,7 +4160,7 @@ paths:
                   items: { type: array, items: { type: object, properties: { id: { type: integer }, data: { description: the item as saved }, created_at: { type: string, format: date-time }, by: { type: string, description: "who sent it (the address a visitor was signed in with); only in the owner's reads (owner or admin key, or the owner signed in on the site), never in public ones" } } } }
                   next: { type: integer, nullable: true, description: cursor for the next page (pass as `before`) }
                   private: { type: boolean, description: present and true only for a private list }
-        '403': { $ref: '#/components/responses/OriginMismatch' }
+        '403': { $ref: '#/components/responses/OriginMismatchOrSiteLocked' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '404':
           description: Site not found, or a private list and the caller is not its owner (code not_found)
@@ -4045,7 +4212,7 @@ paths:
           description: The body is not one JSON object
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
         '403':
-          description: A visitor session without `X-SH-CSRF` (csrf_required)
+          description: "A visitor session without `X-SH-CSRF` (csrf_required); or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)"
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
         '404':
           description: No such item, or the caller is not the owner or operator (not_found)
@@ -4078,7 +4245,7 @@ paths:
       responses:
         '204': { description: Item deleted }
         '403':
-          description: A visitor session without `X-SH-CSRF` (csrf_required)
+          description: "A visitor session without `X-SH-CSRF` (csrf_required); or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)"
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
         '404':
           description: No such item, or the caller is not the owner or operator (not_found)
@@ -5439,7 +5606,7 @@ paths:
         '400':
           description: Missing site name
         '403':
-          description: Origin forbidden
+          description: "Origin forbidden; or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)"
   /v1/sites/{sitename}/visitor/auth/verify:
     post:
       operationId: verifySiteVisitorEmail
@@ -5575,7 +5742,7 @@ paths:
         '400':
           description: Missing site name
         '403':
-          description: Origin forbidden
+          description: "Origin forbidden; or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)"
   /v1/u/{handle}/sites/{sitename}/visitor/auth:
     post:
       operationId: requestUserSiteVisitorEmail
@@ -5708,7 +5875,7 @@ paths:
         '400':
           description: Missing site name
         '403':
-          description: Origin forbidden
+          description: "Origin forbidden; or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)"
   /v1/u/{handle}/sites/{sitename}/visitor/auth/verify:
     post:
       operationId: verifyUserSiteVisitorEmail
@@ -5845,7 +6012,7 @@ paths:
         '400':
           description: Missing site name
         '403':
-          description: Origin forbidden
+          description: "Origin forbidden; or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)"
 
   /v1/admin/users/{id}:
     delete:
@@ -5976,6 +6143,40 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { description: The site is taken down (site_suspended) }
         '404': { $ref: '#/components/responses/NotFound' }
+  /v1/admin/sites/{id}/lock:
+    delete:
+      operationId: adminDeleteSiteLock
+      summary: Remove a site's passcode, for moderation (admin only)
+      description: >-
+        DELETE /v1/sites/{sitename}/lock for anyone's site. Admin only (anyone else gets 404). Runs the owner route of the same name as the site's
+        owner, on the site named by id, with the same checks and effects; each call is logged with the admin. The admin never reads the passcode.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: 'As DELETE /v1/sites/{sitename}/lock' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/admin/sites/{id}/versions/{version}/preview-link:
+    post:
+      operationId: adminCreateSitePreviewLink
+      summary: Preview a version of a site, for moderation (admin only)
+      description: >-
+        POST /v1/sites/{sitename}/versions/{version}/preview-link for anyone's site. Admin only (anyone else gets 404). Runs the owner route of the same name as the site's
+        owner, on the site named by id, with the same checks and effects; each call is logged with the admin. Lets the admin see a site
+        with a passcode without its passcode.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+        - { $ref: '#/components/parameters/version' }
+      responses:
+        '200': { description: 'As POST /v1/sites/{sitename}/versions/{version}/preview-link' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: The site is taken down (site_suspended) }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: No address of its own to preview on (preview_unavailable) }
   /v1/admin/sites/{id}/collections:
     get:
       operationId: adminListSiteCollections
@@ -6294,7 +6495,17 @@ components:
         keep: { type: boolean, description: "Site list only: the owner marked the site Keep; it is never flagged as idle (PUT .../keep)" }
         idle_removal_at: { type: string, format: date-time, description: "Site list only: the site had no visits by people and no new version for 90 days and its owner was emailed; it moves to Recently deleted at this time unless it is kept, visited or updated" }
         keep_versions: { type: integer, description: "How many versions of this site are kept, when its owner set it (PUT .../keep-versions): the newest N plus the live one. Absent = this server's setting" }
+        passcode_protected: { type: boolean, description: "Present and true when the site has a passcode (PUT .../lock): every address shows \"This site is protected\" until a visitor enters it. The passcode itself is only in GET .../lock." }
 
+    SitePasscode:
+      type: object
+      required: [site, passcode_protected]
+      properties:
+        site: { type: string }
+        passcode_protected: { type: boolean }
+        passcode: { type: string, description: "The passcode (owner only; GET and PUT .../lock). Absent when there is none, or when the server's key changed and it cannot be read." }
+        passcode_set_at: { type: string, format: date-time }
+        note: { type: string, description: What happened, in plain words, to relay to the person }
     AddressState:
       type: object
       description: >-
@@ -6382,8 +6593,12 @@ components:
             visitor saves are refused until it is back online, the owner's
             key still writes), preview_read_only (403: a save made from a
             page opened as a version preview), preview_unavailable (409: the
-            site has no address of its own to preview on), invalid_request
-            (400). New codes may be added.
+            site has no address of its own to preview on), site_locked (403:
+            the site has a passcode and the request carries no unlock for this
+            host, nor the owner's or admin's key), invalid_passcode (400),
+            passcodes_not_enabled and passcode_needs_own_address (409: a
+            passcode cannot be set on this server), no_passcode (409),
+            invalid_request (400). New codes may be added.
           example: domain_taken
 
   responses:
@@ -6396,6 +6611,8 @@ components:
     TooManyRequests: { description: "Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     SiteFull: { description: "The write would grow the site's live saved data (the page-data document plus live list items; history and Recently deleted are not counted) past 50 MB (SAVED_DATA_SITE_MAX_MB) (code site_full). Writes that do not grow it always go through; deleting list items or clearing a list makes room at once.", content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: "this site's saved data is full (50 MB of page data and list items); the owner can delete list items or clear lists to make room", code: site_full } } } }
     OriginMismatch: { description: "Origin/Referer is not one of the site's own addresses (code origin_not_allowed). An agent or script sends the site owner's X-API-Key and no Origin or Referer, which needs no page.", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    SiteLocked: { description: "The site has a passcode and the request carries no unlock for this host (code site_locked). A page gets in once the visitor has entered the passcode on the site's own address (the unlock cookie); the owner's or admin's X-API-Key or connector token works without it; a preview page may read. Pages on the site's allowed_origins cannot read a protected site's data.", content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: "this site asks for a passcode; a visitor enters it on the site's page first, and the owner's key or connector works without it", code: site_locked } } } }
+    OriginMismatchOrSiteLocked: { description: "Origin/Referer is not one of the site's own addresses (code origin_not_allowed; an agent or script sends the site owner's X-API-Key and no Origin or Referer), or the site has a passcode and the request carries no unlock for this host, nor the owner's or admin's key (code site_locked).", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     VisitorAuthRequired:
       description: Visitor sign-in required to write (WRITE_AUTH_MODE=on)
       content:

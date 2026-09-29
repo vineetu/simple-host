@@ -114,9 +114,10 @@ CREATE TABLE sites (
   -- ops and the ETag, so it must exist for the state API to work at all.
   state          JSONB,
   state_version  INTEGER NOT NULL DEFAULT 0,
-  -- UNUSED. The private-pages feature was removed (it never locked anything at
-  -- the edge). No code reads or writes this column; kept because dropping it is
-  -- irreversible and it costs nothing.
+  -- UNUSED. The July private-pages feature was removed (it never locked
+  -- anything at the edge). No code reads or writes this column; kept because
+  -- dropping it is irreversible and it costs nothing. The passcode lock of
+  -- 2026-09-29 uses passcode_enc below, never this column.
   view_password_hash TEXT,
   -- Operator take-down (cp-ops-suspend.sql): the site keeps everything, is
   -- served as "taken down" on every address and refuses changes. NULL = live.
@@ -136,7 +137,8 @@ CREATE TABLE sites (
 -- This controls LISTING only. Both values are equally reachable by URL —
 -- nothing on the content-serving path consults this column, and nginx serves
 -- site files from disk without asking the application. 'unlisted' is not
--- privacy.
+-- privacy; the one view-lock is a site passcode (passcode_enc below), which
+-- also keeps a site off the showcase whatever this says.
 ALTER TABLE sites ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'unlisted'
   CHECK (visibility IN ('public', 'unlisted'));
 -- Idempotent for databases created before the default flipped. Existing rows
@@ -158,6 +160,15 @@ ALTER TABLE sites ADD COLUMN IF NOT EXISTS offline_at TIMESTAMPTZ;
 -- 0 = the instance setting (KEEP_VERSIONS), N >= 1 = the newest N plus always
 -- the live one.
 ALTER TABLE sites ADD COLUMN IF NOT EXISTS keep_versions INTEGER NOT NULL DEFAULT 0;
+
+-- A passcode on the whole site (mirrors db/migrations/v076-site-passcode.sql):
+-- passcode_enc is the passcode sealed with AES-256-GCM under PASSCODE_ENC_KEY
+-- (NULL = none); passcode_generation goes up on every change and on "sign
+-- everyone out", which ends every unlock. A `passcode` marker file in the
+-- site folder mirrors it for the servers that read files straight from disk.
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS passcode_enc BYTEA;
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS passcode_set_at TIMESTAMPTZ;
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS passcode_generation INTEGER NOT NULL DEFAULT 0;
 
 -- Old names of renamed sites (mirrors db/migrations/w2-sites-old-names.sql):
 -- links to an old name 302 to the site's current address until a site of

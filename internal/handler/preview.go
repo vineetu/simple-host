@@ -192,7 +192,7 @@ func (h *SiteHandler) createPreviewLink(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "version not found"})
 		return
 	}
-	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, name)
+	site, err := h.siteForCaller(r, user.ID, name)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})

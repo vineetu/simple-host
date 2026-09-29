@@ -64,6 +64,10 @@ simple-host.app runs, so an install that sets none of them behaves exactly as be
 | `MAX_FILES_PER_SITE` | 50000 | 100–50000 | Files in one upload (it can only be lowered: the upload pipeline and disk are sized for 50,000). When `MAX_ARCHIVE_MB` is set, the smaller of this and one file per 4 KB of that budget applies. |
 | `PREVIEW_LINK_TTL_MINUTES` | 60 | 5–10080 | How long a share-preview link to a stored version works. |
 | `EXPORT_LINK_TTL_MINUTES` | 10 | 1–60 | How long a site-export download link works. At most an hour: the link is not single-use and the archive holds private collections. |
+| `SITE_PASSCODES` | on | on / off | `on` lets owners put a passcode on a whole site (needs `PASSCODE_ENC_KEY` and `SITE_HOSTS`/`PERSON_HOSTS` on); `off` refuses new ones, and sites that already have one keep asking for it. |
+| `PASSCODE_MIN_LENGTH` | 6 | 4–64 | Shortest site passcode an owner may set, in characters. Any characters count; digits only is fine. The longest is 128. |
+| `PASSCODE_LOCKOUT_MINUTES` | 15 | 1–1440 | How long one address is refused on a site once it has used up `RATE_LIMIT_PASSCODE_IP`. |
+| `PASSCODE_SITE_LOCKOUT_MINUTES` | 15 | 1–1440 | How long a site refuses every passcode try once `RATE_LIMIT_PASSCODE_SITE` is used up. Visitors already let in are not affected. |
 
 ## Visitors signed in on a site's own address
 
@@ -186,7 +190,7 @@ answer within 45, or the reader is told it couldn't answer.
 
 Each is `<burst>,<every>` (see Units above). Keys are per client address unless noted.
 
-**Security-sensitive** limits (sign-in and email codes, visitor sign-in, the connector's OAuth
+**Security-sensitive** limits (sign-in and email codes, visitor sign-in, site passcode tries, the connector's OAuth
 register, authorize and token endpoints) can be made stricter freely but at most 4 times looser
 than the default: a burst at most 4 times the default and an `<every>` at least a quarter of it.
 Anything looser stops the server at startup with a message naming the ceiling; the Loosest column
@@ -201,6 +205,8 @@ than 10 times looser than its default. A `RATE_LIMIT_*` variable that is not one
 | `RATE_LIMIT_VISITOR_OAUTH` | 20,5s | **80,1.25s** (security-sensitive) | Visitor Google sign-in starts and callbacks per address. |
 | `RATE_LIMIT_VISITOR_AUTH` | 20,5s | **80,1.25s** (security-sensitive) | Visitor email-code sign-in per address. |
 | `RATE_LIMIT_VISITOR` | 20,5s | **80,1.25s** (security-sensitive) | Finishing a visitor sign-in and signing out, per address. |
+| `RATE_LIMIT_PASSCODE_IP` | 5,3m | **20,45s** (security-sensitive) | Wrong passcode tries on one site per address; then `PASSCODE_LOCKOUT_MINUTES` of refusal (429 with `Retry-After`). |
+| `RATE_LIMIT_PASSCODE_SITE` | 60,1m | **240,15s** (security-sensitive) | Wrong passcode tries on one site from everyone together; then `PASSCODE_SITE_LOCKOUT_MINUTES` in which every try is refused. |
 | `RATE_LIMIT_UPLOAD` | 30,10s | any (warns past 10×) | Uploads and deploys per client. |
 | `RATE_LIMIT_STATE` | 60,1s | any (warns past 10×) | Saved-data and list writes per client. |
 | `RATE_LIMIT_SITE_OPS` | 30,2s | any (warns past 10×) | Deleting, changing and restoring sites, deleting the account, and admin sign-in tries, per address. |
@@ -243,6 +249,7 @@ another setting.
 | `SITE_BASE_DOMAIN` | `SITE_DOMAIN` | The domain people's and sites' addresses live under, when not `SITE_DOMAIN` (the app stays on `SITE_DOMAIN`). |
 | `SITE_BASE_MOVE` | `off` | `off`, `serve`, `canonical`, `redirect` or `permanent`: how far addresses have moved from `SITE_DOMAIN` to `SITE_BASE_DOMAIN` (`docs/designs/site-base-domain-move.md`). |
 | `SITE_BASE_CERT_DIR` | none | Like `SITE_CERT_DIR`, for the per-person certificates under `SITE_BASE_DOMAIN` (`deploy/site-certs/simple-host-site-certs-site.*`). Required once `SITE_BASE_MOVE` is on and `SITE_BASE_DOMAIN` differs from `SITE_DOMAIN`: the server refuses to start without it, or when its `ready/` or `requests/` is missing (it never creates them). |
+| `PASSCODE_ENC_KEY` | none | Seals site passcodes (AES-256-GCM; 32 random bytes, base64: `openssl rand -base64 32`). Secret. Unset: no site can get a passcode. Changing it makes every stored passcode unreadable and signs every visitor out. |
 | `DOMAIN_CERT_DIR` | none | Custom-domain certificate hand-off with the root issuer (`deploy/domain-certs/`). |
 | `SETUP_PASSWORD` | none | The password a box in setup mode asks for (install.sh generates it). |
 | `SETUP_PUBLIC_API` | `https://simple-host.app` | Where a box in setup mode claims a free hostname from. |

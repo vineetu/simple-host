@@ -3021,6 +3021,336 @@
         }
       }
     },
+    "/v1/sites/{sitename}/lock": {
+      "get": {
+        "operationId": "getSitesBySitenameLock",
+        "summary": "Whether a site has a passcode, and the passcode",
+        "description": "Owner only (the owner's key or connector token; a deploy-only key is refused). Says whether the site asks visitors for a passcode and, when it does, the passcode itself and when it was set. The passcode is stored sealed with a server key (AES-256-GCM under PASSCODE_ENC_KEY), so the owner can read it back; the admin's routes never read it. If the server's key changed, `passcode` is absent and `note` says to set a new one. Never cached (Cache-Control: no-store).",
+        "tags": [
+          "Sites"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The site's passcode state",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "example": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SitePasscode"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "A deploy-only key (deploy_only_key)"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "put": {
+        "operationId": "putSitesBySitenameLock",
+        "summary": "Put a passcode on a whole site, or change it",
+        "description": "Owner only (the owner's key or connector token; a deploy-only key is refused). Every address of the site (its own address, the person path while its certificate is pending, a free name, a custom domain) then answers a plain \"This site is protected\" page (401, noindex, no-store; nothing of the site in it; robots.txt answers `Disallow: /`) until the visitor enters the passcode. A right passcode sets an unlock cookie for that one host (HttpOnly, SameSite=Lax, `__Host-` prefixed, about 400 days) that lasts until the passcode changes or the owner signs everyone out; `.app` and `.site` addresses each need their own unlock. Send `{\"passcode\": \"...\"}` (any characters, at least PASSCODE_MIN_LENGTH, default 6, at most 128; digits only is fine; spaces around it are trimmed) or `{\"generate\": true}` for 6 random digits. Setting the same passcode again changes nothing; a different one signs everyone out. The site leaves the person page. The owner's key, connector token and the admin key still read and write its data; previews still open. Take-down (410) and offline (503) win over the passcode. There is no end date: take the site offline or delete it instead. A passcode keeps out people who don't have it: search engines, link previews, and anyone who finds or is forwarded the link without it. Anyone given it can open the site and pass it on. It is not a login, it does not say who visited, and it does not make saved data private per person.",
+        "tags": [
+          "Sites"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Exactly one of passcode or generate",
+                "properties": {
+                  "passcode": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "description": "At least PASSCODE_MIN_LENGTH characters (default 6)",
+                    "example": "482913"
+                  },
+                  "generate": {
+                    "type": "boolean",
+                    "description": "true: the server picks 6 random digits"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The passcode is set (the answer carries it)",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "example": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SitePasscode"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body is not {\"passcode\": \"...\"} or {\"generate\": true} (invalid_request), or the passcode is too short or too long (invalid_passcode)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "The operator has taken the site down (site_suspended), or a deploy-only key (deploy_only_key)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "passcodes_not_enabled (SITE_PASSCODES is off or PASSCODE_ENC_KEY is unset on this server), or passcode_needs_own_address (every site on this server shares one address, as on a small box or an event box, so an unlock would cover every site)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSitesBySitenameLock",
+        "summary": "Remove a site's passcode",
+        "description": "Owner only (the owner's key or connector token; a deploy-only key is refused). Every address of the site opens to everyone again. Removing a passcode the site does not have is not an error.",
+        "tags": [
+          "Sites"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The site has no passcode",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SitePasscode"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "A deploy-only key (deploy_only_key)"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/lock/sign-out-everyone": {
+      "post": {
+        "operationId": "postSitesBySitenameLockSignOutEveryone",
+        "summary": "Sign every visitor out of a site with a passcode",
+        "description": "Owner only (the owner's key or connector token; a deploy-only key is refused). Ends every unlock at once, on every address: each visitor must enter the passcode again. The passcode stays the same.",
+        "tags": [
+          "Sites"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Everyone is signed out",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SitePasscode"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "A deploy-only key (deploy_only_key)"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The site has no passcode (no_passcode)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/v1/site-unlock": {
+      "post": {
+        "operationId": "postSiteUnlock",
+        "summary": "Enter a site's passcode (the \"This site is protected\" form)",
+        "description": "The form on the \"This site is protected\" page posts here, on the site's own host; no key. The site is the one the host names (on a person host, the first path segment of `next`). Only a form from a page on the same host is accepted (another origin gets 403 origin_not_allowed as JSON). A right passcode answers 303 to `next` with the unlock cookie for this host. A wrong one answers the gate page again (401). Wrong tries are limited per site and address (RATE_LIMIT_PASSCODE_IP, default 5 per 3 minutes, then PASSCODE_LOCKOUT_MINUTES, default 15) and per site from everyone together (RATE_LIMIT_PASSCODE_SITE, default 60 a minute, then PASSCODE_SITE_LOCKOUT_MINUTES, default 15, when every try is refused; visitors already let in are not affected): 429 with Retry-After.",
+        "tags": [
+          "Visitor"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "passcode"
+                ],
+                "properties": {
+                  "passcode": {
+                    "type": "string"
+                  },
+                  "next": {
+                    "type": "string",
+                    "description": "A path on this host to return to (default /)",
+                    "example": "/"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "303": {
+            "description": "Right passcode; go back to `next`",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "The unlock cookie: __Host-sh_pass_<id>, HttpOnly, Secure, SameSite=Lax, Path=/, about 400 days"
+              }
+            }
+          },
+          "400": {
+            "description": "Not a form post"
+          },
+          "401": {
+            "description": "Wrong passcode: the gate page again, saying so (text/html, noindex, no-store)",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/OriginMismatch"
+          },
+          "429": {
+            "description": "Too many wrong tries: the gate page saying when to try again (text/html)",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds"
+              }
+            },
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/idle/keep": {
       "get": {
         "operationId": "getIdleKeep",
@@ -3765,7 +4095,7 @@
             }
           },
           "403": {
-            "$ref": "#/components/responses/OriginMismatch"
+            "$ref": "#/components/responses/OriginMismatchOrSiteLocked"
           }
         }
       }
@@ -3811,7 +4141,7 @@
             "description": "Not modified (matched If-None-Match)"
           },
           "403": {
-            "$ref": "#/components/responses/OriginMismatch"
+            "$ref": "#/components/responses/OriginMismatchOrSiteLocked"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -3920,7 +4250,7 @@
             }
           },
           "403": {
-            "$ref": "#/components/responses/OriginMismatch"
+            "$ref": "#/components/responses/OriginMismatchOrSiteLocked"
           },
           "412": {
             "description": "ETag did not match (If-Match)"
@@ -4082,7 +4412,7 @@
             }
           },
           "403": {
-            "$ref": "#/components/responses/OriginMismatch"
+            "$ref": "#/components/responses/OriginMismatchOrSiteLocked"
           },
           "409": {
             "description": "A retry with the same Idempotency-Key is still running (idempotency_in_progress), the key was used with another body (idempotency_key_reused), or the document is not an object (not_an_object)",
@@ -4276,7 +4606,7 @@
             }
           },
           "403": {
-            "description": "A visitor session without `X-SH-CSRF` (csrf_required)",
+            "description": "A visitor session without `X-SH-CSRF` (csrf_required); or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4439,7 +4769,7 @@
             }
           },
           "403": {
-            "description": "Origin/Referer does not match the site; missing `X-SH-CSRF` with a visitor session (csrf_required); or, on a private list, an API key was sent (private_visitor_only) or the request did not come through the site's own address (private_needs_own_domain \u2014 private lists accept submissions only on the site's own address).",
+            "description": "Origin/Referer does not match the site; missing `X-SH-CSRF` with a visitor session (csrf_required); or, on a private list, an API key was sent (private_visitor_only) or the request did not come through the site's own address (private_needs_own_domain \u2014 private lists accept submissions only on the site's own address).; or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4451,6 +4781,7 @@
                     "code": {
                       "type": "string",
                       "enum": [
+                        "site_locked",
                         "csrf_required",
                         "private_visitor_only",
                         "private_needs_own_domain"
@@ -4572,7 +4903,7 @@
             }
           },
           "403": {
-            "$ref": "#/components/responses/OriginMismatch"
+            "$ref": "#/components/responses/OriginMismatchOrSiteLocked"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -4821,6 +5152,9 @@
               }
             }
           },
+          "403": {
+            "$ref": "#/components/responses/SiteLocked"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           }
@@ -5045,7 +5379,7 @@
             "description": "Personal or Shared board: unchanged since the If-None-Match ETag"
           },
           "403": {
-            "description": "personal_data: a Personal record is read only by its own visitor",
+            "description": "personal_data: a Personal record is read only by its own visitor, or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5148,7 +5482,7 @@
             }
           },
           "403": {
-            "description": "not_allowed_to_save, private_visitor_only, csrf_required",
+            "description": "not_allowed_to_save, private_visitor_only, csrf_required, or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5248,7 +5582,7 @@
             }
           },
           "403": {
-            "description": "owner_only",
+            "description": "owner_only, or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5377,7 +5711,7 @@
             }
           },
           "403": {
-            "description": "personal_data (a key), not_allowed_to_save or csrf_required",
+            "description": "personal_data (a key), not_allowed_to_save or csrf_required, or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5447,6 +5781,9 @@
               }
             }
           },
+          "403": {
+            "$ref": "#/components/responses/SiteLocked"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -5499,6 +5836,9 @@
                 }
               }
             }
+          },
+          "403": {
+            "$ref": "#/components/responses/SiteLocked"
           }
         }
       }
@@ -5537,6 +5877,9 @@
                 }
               }
             }
+          },
+          "403": {
+            "$ref": "#/components/responses/SiteLocked"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -5581,6 +5924,9 @@
                 }
               }
             }
+          },
+          "403": {
+            "$ref": "#/components/responses/SiteLocked"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -5669,7 +6015,7 @@
             }
           },
           "403": {
-            "description": "not_allowed_to_save or csrf_required",
+            "description": "not_allowed_to_save or csrf_required, or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5751,6 +6097,9 @@
               }
             }
           },
+          "403": {
+            "$ref": "#/components/responses/SiteLocked"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           }
@@ -5805,6 +6154,9 @@
                 }
               }
             }
+          },
+          "403": {
+            "$ref": "#/components/responses/SiteLocked"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -6302,7 +6654,7 @@
             }
           },
           "403": {
-            "description": "A visitor session without `X-SH-CSRF` (csrf_required)",
+            "description": "A visitor session without `X-SH-CSRF` (csrf_required); or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)",
             "content": {
               "application/json": {
                 "schema": {
@@ -6376,7 +6728,7 @@
             "description": "Item deleted"
           },
           "403": {
-            "description": "A visitor session without `X-SH-CSRF` (csrf_required)",
+            "description": "A visitor session without `X-SH-CSRF` (csrf_required); or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)",
             "content": {
               "application/json": {
                 "schema": {
@@ -8897,7 +9249,7 @@
             }
           },
           "403": {
-            "$ref": "#/components/responses/OriginMismatch"
+            "$ref": "#/components/responses/OriginMismatchOrSiteLocked"
           }
         }
       }
@@ -8952,7 +9304,7 @@
             "description": "Not modified (matched If-None-Match)"
           },
           "403": {
-            "$ref": "#/components/responses/OriginMismatch"
+            "$ref": "#/components/responses/OriginMismatchOrSiteLocked"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -9070,7 +9422,7 @@
             }
           },
           "403": {
-            "$ref": "#/components/responses/OriginMismatch"
+            "$ref": "#/components/responses/OriginMismatchOrSiteLocked"
           },
           "412": {
             "description": "ETag did not match (If-Match)"
@@ -9241,7 +9593,7 @@
             }
           },
           "403": {
-            "$ref": "#/components/responses/OriginMismatch"
+            "$ref": "#/components/responses/OriginMismatchOrSiteLocked"
           },
           "409": {
             "description": "A retry with the same Idempotency-Key is still running (idempotency_in_progress), the key was used with another body (idempotency_key_reused), or the document is not an object (not_an_object)",
@@ -9298,6 +9650,9 @@
               }
             }
           },
+          "403": {
+            "$ref": "#/components/responses/SiteLocked"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           }
@@ -9353,6 +9708,9 @@
                 }
               }
             }
+          },
+          "403": {
+            "$ref": "#/components/responses/SiteLocked"
           },
           "409": {
             "description": "declare_first, wrong_kind, one_per_person, list_full or kind_changed (the owner changed what the name is, or made it private or public, while the save was on its way; nothing was saved)",
@@ -9415,7 +9773,7 @@
             }
           },
           "403": {
-            "description": "owner_only",
+            "description": "owner_only, or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)",
             "content": {
               "application/json": {
                 "schema": {
@@ -9473,6 +9831,9 @@
                 }
               }
             }
+          },
+          "403": {
+            "$ref": "#/components/responses/SiteLocked"
           }
         }
       },
@@ -9513,6 +9874,9 @@
                 }
               }
             }
+          },
+          "403": {
+            "$ref": "#/components/responses/SiteLocked"
           }
         }
       }
@@ -9552,6 +9916,9 @@
                 }
               }
             }
+          },
+          "403": {
+            "$ref": "#/components/responses/SiteLocked"
           }
         }
       }
@@ -9599,6 +9966,9 @@
                 }
               }
             }
+          },
+          "403": {
+            "$ref": "#/components/responses/SiteLocked"
           }
         }
       }
@@ -9649,6 +10019,9 @@
                 }
               }
             }
+          },
+          "403": {
+            "$ref": "#/components/responses/SiteLocked"
           }
         }
       }
@@ -9688,6 +10061,9 @@
                 }
               }
             }
+          },
+          "403": {
+            "$ref": "#/components/responses/SiteLocked"
           }
         }
       }
@@ -9749,6 +10125,9 @@
               }
             }
           },
+          "403": {
+            "$ref": "#/components/responses/SiteLocked"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           }
@@ -9799,6 +10178,9 @@
                 }
               }
             }
+          },
+          "403": {
+            "$ref": "#/components/responses/SiteLocked"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -9853,6 +10235,9 @@
                 }
               }
             }
+          },
+          "403": {
+            "$ref": "#/components/responses/SiteLocked"
           },
           "409": {
             "description": "undo_expired, one_per_person or list_full",
@@ -9955,7 +10340,7 @@
             }
           },
           "403": {
-            "description": "A visitor session without `X-SH-CSRF` (csrf_required)",
+            "description": "A visitor session without `X-SH-CSRF` (csrf_required); or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)",
             "content": {
               "application/json": {
                 "schema": {
@@ -10127,7 +10512,7 @@
             }
           },
           "403": {
-            "description": "Origin/Referer does not match the site; missing `X-SH-CSRF` with a visitor session (csrf_required); or, on a private list, an API key was sent (private_visitor_only) or the request did not come through the site's own address (private_needs_own_domain \u2014 private lists accept submissions only on the site's own address).",
+            "description": "Origin/Referer does not match the site; missing `X-SH-CSRF` with a visitor session (csrf_required); or, on a private list, an API key was sent (private_visitor_only) or the request did not come through the site's own address (private_needs_own_domain \u2014 private lists accept submissions only on the site's own address).; or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)",
             "content": {
               "application/json": {
                 "schema": {
@@ -10139,6 +10524,7 @@
                     "code": {
                       "type": "string",
                       "enum": [
+                        "site_locked",
                         "csrf_required",
                         "private_visitor_only",
                         "private_needs_own_domain"
@@ -10269,7 +10655,7 @@
             }
           },
           "403": {
-            "$ref": "#/components/responses/OriginMismatch"
+            "$ref": "#/components/responses/OriginMismatchOrSiteLocked"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -10382,7 +10768,7 @@
             }
           },
           "403": {
-            "description": "A visitor session without `X-SH-CSRF` (csrf_required)",
+            "description": "A visitor session without `X-SH-CSRF` (csrf_required); or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)",
             "content": {
               "application/json": {
                 "schema": {
@@ -10465,7 +10851,7 @@
             "description": "Item deleted"
           },
           "403": {
-            "description": "A visitor session without `X-SH-CSRF` (csrf_required)",
+            "description": "A visitor session without `X-SH-CSRF` (csrf_required); or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)",
             "content": {
               "application/json": {
                 "schema": {
@@ -13196,7 +13582,7 @@
             "description": "Missing site name"
           },
           "403": {
-            "description": "Origin forbidden"
+            "description": "Origin forbidden; or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)"
           }
         }
       }
@@ -13476,7 +13862,7 @@
             "description": "Missing site name"
           },
           "403": {
-            "description": "Origin forbidden"
+            "description": "Origin forbidden; or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)"
           }
         }
       }
@@ -13759,7 +14145,7 @@
             "description": "Missing site name"
           },
           "403": {
-            "description": "Origin forbidden"
+            "description": "Origin forbidden; or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)"
           }
         }
       }
@@ -14055,7 +14441,7 @@
             "description": "Missing site name"
           },
           "403": {
-            "description": "Origin forbidden"
+            "description": "Origin forbidden; or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)"
           }
         }
       }
@@ -14389,6 +14775,89 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/admin/sites/{id}/lock": {
+      "delete": {
+        "operationId": "adminDeleteSiteLock",
+        "summary": "Remove a site's passcode, for moderation (admin only)",
+        "description": "DELETE /v1/sites/{sitename}/lock for anyone's site. Admin only (anyone else gets 404). Runs the owner route of the same name as the site's owner, on the site named by id, with the same checks and effects; each call is logged with the admin. The admin never reads the passcode.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "As DELETE /v1/sites/{sitename}/lock"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/admin/sites/{id}/versions/{version}/preview-link": {
+      "post": {
+        "operationId": "adminCreateSitePreviewLink",
+        "summary": "Preview a version of a site, for moderation (admin only)",
+        "description": "POST /v1/sites/{sitename}/versions/{version}/preview-link for anyone's site. Admin only (anyone else gets 404). Runs the owner route of the same name as the site's owner, on the site named by id, with the same checks and effects; each call is logged with the admin. Lets the admin see a site with a passcode without its passcode.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/version"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "As POST /v1/sites/{sitename}/versions/{version}/preview-link"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "The site is taken down (site_suspended)"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "No address of its own to preview on (preview_unavailable)"
           }
         }
       }
@@ -15300,6 +15769,39 @@
           "keep_versions": {
             "type": "integer",
             "description": "How many versions of this site are kept, when its owner set it (PUT .../keep-versions): the newest N plus the live one. Absent = this server's setting"
+          },
+          "passcode_protected": {
+            "type": "boolean",
+            "description": "Present and true when the site has a passcode (PUT .../lock): every address shows \"This site is protected\" until a visitor enters it. The passcode itself is only in GET .../lock."
+          }
+        }
+      },
+      "SitePasscode": {
+        "type": "object",
+        "required": [
+          "site",
+          "passcode_protected"
+        ],
+        "properties": {
+          "site": {
+            "type": "string"
+          },
+          "passcode_protected": {
+            "type": "boolean"
+          },
+          "passcode": {
+            "type": "string",
+            "description": "The passcode (owner only; GET and PUT .../lock). Absent when there is none, or when the server's key changed and it cannot be read."
+          },
+          "passcode_set_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "note": {
+            "type": "string",
+            "description": "What happened",
+            "in plain words": null,
+            "to relay to the person": null
           }
         }
       },
@@ -15445,7 +15947,7 @@
           },
           "code": {
             "type": "string",
-            "description": "A stable snake_case name for the refusal, present where one status has more than one meaning. site_exists (409: this account already has a site of that name), domain_taken (409: the address belongs to another site or person), invalid_name (400: not 1-63 lowercase letters, digits and hyphens), name_reserved (400: reserved by the platform), invalid_domain (400: not a domain that can be connected), site_quota_reached (403), append_only (409: public list items cannot be edited; the owner may still delete them), custom_domain_required (409: the site needs its own address first), not_an_object (409: the saved value is not a JSON object), private_visitor_only and private_needs_own_domain (403), use_custom_domain and visitor_auth_required (401), missing_api_key, wrong_auth_header (sent Authorization instead of X-API-Key), invalid_api_key (unknown, revoked or signed-out key), key_expired (past the expiry chosen when it was minted) and key_expired_idle (unused too long, KEY_IDLE_EXPIRY_DAYS) (401), deploy_only_key (403: a deploy-only key on a route it may not call), csrf_required (403), recently_deleted (409: the name belongs to a site in Recently deleted), site_not_deleted (409: restore of a live site), confirm_required (400), not_found (404, private collections), export_link_invalid (404: the download link expired or is not valid), site_suspended (403: the operator has taken the site down; changes and public reads of its data are refused until it is restored, `reason` says why), account_suspended (403: the operator has suspended this account; its keys, connected apps and sign-in are refused, `reason` says why), site_offline (403: the owner has taken the site offline; visitor saves are refused until it is back online, the owner's key still writes), preview_read_only (403: a save made from a page opened as a version preview), preview_unavailable (409: the site has no address of its own to preview on), invalid_request (400). New codes may be added.",
+            "description": "A stable snake_case name for the refusal, present where one status has more than one meaning. site_exists (409: this account already has a site of that name), domain_taken (409: the address belongs to another site or person), invalid_name (400: not 1-63 lowercase letters, digits and hyphens), name_reserved (400: reserved by the platform), invalid_domain (400: not a domain that can be connected), site_quota_reached (403), append_only (409: public list items cannot be edited; the owner may still delete them), custom_domain_required (409: the site needs its own address first), not_an_object (409: the saved value is not a JSON object), private_visitor_only and private_needs_own_domain (403), use_custom_domain and visitor_auth_required (401), missing_api_key, wrong_auth_header (sent Authorization instead of X-API-Key), invalid_api_key (unknown, revoked or signed-out key), key_expired (past the expiry chosen when it was minted) and key_expired_idle (unused too long, KEY_IDLE_EXPIRY_DAYS) (401), deploy_only_key (403: a deploy-only key on a route it may not call), csrf_required (403), recently_deleted (409: the name belongs to a site in Recently deleted), site_not_deleted (409: restore of a live site), confirm_required (400), not_found (404, private collections), export_link_invalid (404: the download link expired or is not valid), site_suspended (403: the operator has taken the site down; changes and public reads of its data are refused until it is restored, `reason` says why), account_suspended (403: the operator has suspended this account; its keys, connected apps and sign-in are refused, `reason` says why), site_offline (403: the owner has taken the site offline; visitor saves are refused until it is back online, the owner's key still writes), preview_read_only (403: a save made from a page opened as a version preview), preview_unavailable (409: the site has no address of its own to preview on), site_locked (403: the site has a passcode and the request carries no unlock for this host, nor the owner's or admin's key), invalid_passcode (400), passcodes_not_enabled and passcode_needs_own_address (409: a passcode cannot be set on this server), no_passcode (409), invalid_request (400). New codes may be added.",
             "example": "domain_taken"
           }
         }
@@ -15538,6 +16040,30 @@
       },
       "OriginMismatch": {
         "description": "Origin/Referer is not one of the site's own addresses (code origin_not_allowed). An agent or script sends the site owner's X-API-Key and no Origin or Referer, which needs no page.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "SiteLocked": {
+        "description": "The site has a passcode and the request carries no unlock for this host (code site_locked). A page gets in once the visitor has entered the passcode on the site's own address (the unlock cookie); the owner's or admin's X-API-Key or connector token works without it; a preview page may read. Pages on the site's allowed_origins cannot read a protected site's data.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": "this site asks for a passcode; a visitor enters it on the site's page first, and the owner's key or connector works without it",
+              "code": "site_locked"
+            }
+          }
+        }
+      },
+      "OriginMismatchOrSiteLocked": {
+        "description": "Origin/Referer is not one of the site's own addresses (code origin_not_allowed; an agent or script sends the site owner's X-API-Key and no Origin or Referer), or the site has a passcode and the request carries no unlock for this host, nor the owner's or admin's key (code site_locked).",
         "content": {
           "application/json": {
             "schema": {

@@ -253,6 +253,13 @@ func outputSchemas() map[string]map[string]any {
 			"offline": outBool("Whether the site is offline now."),
 			"url":     outString("The site's address (showing \"This site is offline\" while it is offline)."),
 		}, "site", "offline", "url"),
+		"set_site_passcode": outObject(map[string]any{
+			"site":               outString(outSiteName),
+			"passcode_protected": outBool("Whether visitors must enter a passcode to open the site now."),
+			"passcode":           outString("The current passcode, when the site has one and it can be read back."),
+			"passcode_set_at":    outString("When the passcode was set (RFC 3339)."),
+			"note":               outString("A plain note from Simple Host about the change (pass it on to the person)."),
+		}, "site", "passcode_protected"),
 		"keep_site": outObject(map[string]any{
 			"site": outString(outSiteName),
 			"keep": outBool("true: kept up for good, never flagged as idle; false: flagged (with an email first) after " + span(lim().IdleAfter) + " without visits or updates."),

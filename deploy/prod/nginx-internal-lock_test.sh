@@ -5,7 +5,7 @@
 # run changes nothing, and a failed nginx -t restores every file. Then, when
 # an nginx binary is present, a throwaway nginx (unprivileged, its own port)
 # proves the point of the change: with `internal;`, the take-down/offline
-# rewrites and the not-found error page still reach the app, while a request
+# and passcode rewrites and the not-found error page still reach the app, while a request
 # for /internal/... from outside gets 404.
 #   bash deploy/prod/nginx-internal-lock_test.sh
 set -euo pipefail
@@ -33,6 +33,7 @@ cat > "$T/en/handmade" <<'EOF'
 server {
     location = /internal/suspended { proxy_pass http://127.0.0.1:8090; proxy_set_header Host $host; }
     location = /internal/offline { proxy_pass http://127.0.0.1:8090; }
+    location ^~ /internal/passcode/ { proxy_pass http://127.0.0.1:8090; }
     location ^~ /internal/ { proxy_pass http://127.0.0.1:8090; }
 }
 EOF
@@ -57,7 +58,7 @@ run() { NGINX_SITES_DIR="$T/en" BACKUP_DIR="$T/bak" NGINX_TEST=true NGINX_RELOAD
 
 echo "== dry run =="
 out=$(run)
-for want in "would $T/en/customdomain (1 location(s))" "would $T/en/handmade (3 location(s))" "ok    $T/en/done (already internal)" "skip  $T/en/sites-content-host"; do
+for want in "would $T/en/customdomain (1 location(s))" "would $T/en/handmade (4 location(s))" "ok    $T/en/done (already internal)" "skip  $T/en/sites-content-host"; do
   if grep -qF "$want" <<<"$out"; then ok "$want"; else bad "missing: $want"; fi
 done
 grep -q unrelated <<<"$out" && bad "unrelated vhost touched" || ok "unrelated vhost left alone"
@@ -67,7 +68,7 @@ if grep -q "proxy_pass" <<<"$out"; then bad "file contents printed"; else ok "no
 echo "== apply =="
 run --apply >/dev/null
 grep -A1 'location ^~ /internal/ {' "$T/en/customdomain" | grep -q '^        internal;$' && ok "multi-line block gains internal;" || bad "customdomain: $(cat "$T/en/customdomain")"
-[ "$(grep -c '{ internal; proxy_pass' "$T/en/handmade")" = 3 ] && ok "one-line blocks gain internal;" || bad "handmade: $(cat "$T/en/handmade")"
+[ "$(grep -c '{ internal; proxy_pass' "$T/en/handmade")" = 4 ] && ok "one-line blocks gain internal;" || bad "handmade: $(cat "$T/en/handmade")"
 cmp -s "$T/orig/done" "$T/en/done" && ok "already-internal vhost untouched" || bad "done edited"
 cmp -s "$T/orig/sites-content-host" "$T/en/sites-content-host" && ok "content host untouched without the flag" || bad "content host edited"
 [ -f "$T/bak/customdomain" ] && cmp -s "$T/bak/customdomain" "$T/orig/customdomain" && ok "backup taken" || bad "no backup"
@@ -107,6 +108,8 @@ PY
   echo hello > "$T/ng/site/current/index.html"
   echo hello > "$T/ng/down/current/index.html"
   touch "$T/ng/down/suspended"
+  mkdir -p "$T/ng/locked/current"; echo secret > "$T/ng/locked/current/index.html"
+  touch "$T/ng/locked/passcode"
   cat > "$T/ng/nginx.conf" <<EOF
 pid $T/ng/nginx.pid;
 error_log $T/ng/logs/error.log;
@@ -137,6 +140,18 @@ http {
   }
   server {
     listen 127.0.0.1:$WEB;
+    server_name locked.test;
+    location ^~ /internal/ { proxy_pass http://127.0.0.1:$UP; }
+    root $T/ng/locked/current;
+    location / {
+        if (-f $T/ng/locked/suspended) { rewrite ^ /internal/suspended last; }
+        if (-f $T/ng/locked/offline) { rewrite ^ /internal/offline last; }
+        if (-f $T/ng/locked/passcode) { rewrite ^ /internal/passcode\$uri last; }
+        try_files \$uri \$uri/ =404;
+    }
+  }
+  server {
+    listen 127.0.0.1:$WEB;
     server_name live.test;
     location ^~ /internal/ { proxy_pass http://127.0.0.1:$UP; }
     root $T/ng/site/current;
@@ -160,6 +175,8 @@ EOF
     # From outside it is an unknown path: the site's not-found page, never the showcase.
     r=$(get live.test /internal/showcase/someone); ! grep -q "showcase" <<<"$r" && ok "showcase not reachable from outside ($r)" || bad "outside showcase: $r"
     r=$(get down.test /); [ "$r" = "app:/internal/suspended 200" ] && ok "take-down rewrite still reaches the app" || bad "rewrite: $r"
+    r=$(get locked.test '/a/page.html?x=1&y=2'); [ "$r" = "app:/internal/passcode/a/page.html?x=1&y=2 200" ] && ok "passcode rewrite reaches the app with path and query" || bad "passcode rewrite: $r"
+    r=$(get locked.test /); [ "$r" = "app:/internal/passcode/ 200" ] && ok "passcode rewrite on the site root" || bad "passcode root: $r"
     r=$(get live.test /missing.html); grep -q "app:/internal/notfound" <<<"$r" && ok "error_page still reaches the app" || bad "error_page: $r"
     r=$(get live.test /); [ "$r" = "hello
  200" ] && ok "site files still served" || bad "site: $r"

@@ -40,12 +40,14 @@ server {
     root /srv/simple-host/sites/domains/__DOMAIN__/current;
     index index.html;
     # Taken down by the operator: the app's take-down page; taken offline by
-    # its owner: the offline page (the take-down wins, so it comes first).
-    # Inside location / so /v1/ (the owner's API; the app refuses visitors
-    # itself) is not caught.
+    # its owner: the offline page; locked by its owner with a passcode: the
+    # app's passcode gate, keeping the path and query (take-down > offline >
+    # passcode, so they stand in that order). Inside location / so /v1/ (the
+    # owner's API; the app refuses visitors itself) is not caught.
     location / {
         if (-f /srv/simple-host/sites/domains/__DOMAIN__/suspended) { rewrite ^ /internal/suspended last; }
         if (-f /srv/simple-host/sites/domains/__DOMAIN__/offline) { rewrite ^ /internal/offline last; }
+        if (-f /srv/simple-host/sites/domains/__DOMAIN__/passcode) { rewrite ^ /internal/passcode$uri last; }
         try_files $uri $uri/ =404;
     }
 }

@@ -255,7 +255,9 @@ Tables (`db/schema.sql`):
   cookie. Middleware reads only `X-API-Key` (or a connector token); a site session is never
   owner power.
 - **Reads are public; every page write needs an identity.** The private things are private
-  Submissions and Personal records. No view-lock, no private pages.
+  Submissions and Personal records. The one view-lock is a single passcode on a whole site
+  (`h/passcode.go`, 2026-09-29): a shared code, not a login; no per-page lock, no per-person
+  viewer list.
 - **A site with a domain lives only there.** 302 (not 301) so disconnecting takes effect at once.
 - **One namespace** for handles, claimed names, reserved names and retired hosts.
 - **Never hand out a site host without its certificate.** A TLS name mismatch cannot be fixed

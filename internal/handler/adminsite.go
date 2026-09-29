@@ -33,6 +33,11 @@ func (h *SiteHandler) registerAdminSiteActions(mux *http.ServeMux, authMiddlewar
 	mux.Handle("POST /v1/admin/sites/{id}/domain", authMiddleware(h.asSiteOwner(h.bindDomain)))
 	mux.Handle("DELETE /v1/admin/sites/{id}/domain", authMiddleware(h.asSiteOwner(h.deleteDomain)))
 	mux.Handle("DELETE /v1/admin/sites/{id}", authMiddleware(h.asSiteOwner(h.deleteSite)))
+	// Moderation of a site behind a passcode: remove the passcode, or see a
+	// version through a preview link, without knowing the passcode (the
+	// admin never reads it). Logged like every call here.
+	mux.Handle("DELETE /v1/admin/sites/{id}/lock", authMiddleware(h.asSiteOwner(h.deleteSitePasscode)))
+	mux.Handle("POST /v1/admin/sites/{id}/versions/{version}/preview-link", authMiddleware(h.asSiteOwner(h.createPreviewLink)))
 }
 
 // asSiteOwner runs next for the admin as the owner of the site {id}, with

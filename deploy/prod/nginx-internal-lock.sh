@@ -2,8 +2,8 @@
 # Close the app's /internal/ pages to the internet on every nginx vhost that
 # proxies them (security review 2026-09-27, L2).
 #
-# /internal/* (take-down, offline and not-found pages, the site redirects,
-# showcases, the certificate check) are meant to be reached only through
+# /internal/* (take-down, offline, passcode and not-found pages, the site
+# redirects, showcases, the certificate check) are meant to be reached only through
 # nginx's own rewrites and error pages. A `location ^~ /internal/` without
 # `internal;` also answers requests from outside: anyone could ask
 # /internal/tls-ask whether a domain is a customer, or open any person's
@@ -12,8 +12,9 @@
 # request from outside gets 404.
 #
 # In every vhost it adds `internal;` to each `location ^~ /internal/` (and to
-# the `location = /internal/suspended|offline` proxies that
-# nginx-suspended-marker.sh adds to hand-made vhosts) that does not have it.
+# the `location = /internal/suspended|offline` and
+# `location ^~ /internal/passcode/` proxies that nginx-suspended-marker.sh
+# adds to hand-made vhosts) that does not have it.
 # The issuer's template (deploy/domain-certs/vhost.conf.template) already
 # carries it for new and re-issued domains.
 #
@@ -56,7 +57,7 @@ for f in "$DIR"/*; do
 import re, sys
 src, dst = sys.argv[1], sys.argv[2]
 lines = open(src).read().split("\n")
-loc = re.compile(r'location\s+(\^~\s*/internal/|=\s*/internal/\S+)\s*\{')
+loc = re.compile(r'location\s+(\^~\s*/internal/\S*|=\s*/internal/\S+)\s*\{')
 has_internal = re.compile(r'(^|[\s;{])internal\s*;')
 out, n, i = [], 0, 0
 while i < len(lines):

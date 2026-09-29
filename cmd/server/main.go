@@ -210,6 +210,12 @@ func main() {
 	siteHandler.SetSavedData(cfg.Limits.SavedData)
 	siteHandler.SetIdleExempt(cfg.IdleCleanupExemptHandles, cfg.ReviewAccountEmail)
 	siteHandler.SetPublicBaseURL(cfg.PublicBaseURL)
+	if err := siteHandler.SetPasscodeKey(cfg.PasscodeEncKey); err != nil {
+		log.Fatalf("config: %v", err)
+	}
+	if cfg.Limits.SitePasscodes && cfg.PasscodeEncKey == "" && !siteHandler.SharedOrigin() {
+		log.Printf("site passcodes: PASSCODE_ENC_KEY is not set, so no site can get a passcode")
+	}
 	userHandler.SetPublicPage(siteHandler.PersonPageURL)
 	userHandler.SetAddressState(siteHandler.AddressState)
 	// One namespace across every domain people's addresses live under.
@@ -229,6 +235,7 @@ func main() {
 	siteHandler.SyncSuspendMarkers(context.Background())
 	oauthHandler := handler.NewOAuthHandler(db, cfg)
 	oauthHandler.SetPersonSiteResolver(siteHandler.PersonReturnSite)
+	oauthHandler.SetPasscodeCheck(siteHandler.PasscodeLetsIn)
 	oauthHandler.SetSiteBases(siteHandler.ServedBases(), siteHandler.SameUserHost)
 	oauthHandler.Register(mux)
 	// The connector: OAuth 2.1 authorization server + remote MCP endpoint.

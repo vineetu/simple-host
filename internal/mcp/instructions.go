@@ -25,7 +25,7 @@ PUBLISHING
 - After publishing, give the person the url the tool returned, exactly as returned. Never compose an address yourself.
 
 WHAT IS PUBLIC
-- Every page, all Page info, the shared state and every public list can be read by anyone who has the link. There are no password-protected pages. set_visibility only controls whether a site is listed on the person's public page; it is not privacy. Never put secrets in a page or in saved data.
+- Every page, all Page info, the shared state and every public list can be read by anyone who has the link. The one exception is a site passcode (set_site_passcode): the whole site then asks for one shared passcode, which anyone given it can pass on; it is not a login, and there is no lock on a single page. Ask the person before setting, changing or removing one, and use the passcode they chose. set_visibility only controls whether a site is listed on the person's public page; it is not privacy. Never put secrets in a page or in saved data.
 - The private things are private Submissions (a private collection): only the site owner (and the Simple Host operator, for moderation) reads them all; each visitor reads only their own; and Personal records: Simple Host's owner tools never show a person's Personal record; the site's own pages run in the visitor's browser and can read that visitor's record, so only use Personal on sites you trust. Every site can have them; no domain is needed.
 
 SAVING DATA FROM A PAGE (forms, RSVPs, votes, guestbooks)

@@ -5,7 +5,8 @@
 # certificate lines are swapped for a port; every rule inside it is as shipped).
 # It proves the content host hands the application what is not a file on disk,
 # the way the hosted nginx does: an old name of a renamed site, a site with its
-# own address, the person page, a missing file and the bare root; and that
+# own address, a taken-down, offline or passcode-locked site, the person page, a
+# missing file and the bare root; and that
 # /internal/* from outside is 404 on every host. Skipped without Docker.
 #   bash deploy/compose/Caddyfile_test.sh
 set -euo pipefail
@@ -59,7 +60,10 @@ mkdir -p "$D/live/current/sub" "$D/gone/current" "$D/down/current"
 echo "LIVE PAGE" > "$D/live/current/index.html"
 echo "SUB PAGE" > "$D/live/current/sub/index.html"
 echo "GONE PAGE" > "$D/gone/current/index.html"
-touch "$D/gone/domain-redirect" "$D/down/suspended"
+mkdir -p "$D/locked/current" "$D/off/current"
+echo "LOCKED PAGE" > "$D/locked/current/index.html"
+echo "OFF PAGE" > "$D/off/current/index.html"
+touch "$D/gone/domain-redirect" "$D/down/suspended" "$D/locked/passcode" "$D/off/offline" "$D/off/passcode"
 mkdir -p "$T/log"
 
 docker network create "$N" >/dev/null
@@ -89,6 +93,10 @@ expect "an old name goes to the app's redirect"        $C /alice/old/x/y        
 expect "the query string goes with it"                 $C "/alice/old/?a=1"     200 "APP /internal/site-redirect/alice/old/?a=1"
 expect "a site with its own address redirects there"   $C /alice/gone/p         200 "APP /internal/domain-redirect/alice/gone/p"
 expect "a taken-down site answers the take-down page"  $C /alice/down/          200 "APP /internal/suspended"
+expect "an offline site answers the offline page (over passcode)" $C /alice/off/ 200 "APP /internal/offline"
+expect "a locked site goes to the passcode gate"       $C /alice/locked/        200 "APP /internal/passcode/alice/locked/"
+expect "the gate gets the path and query"              $C "/alice/locked/sub/p.html?a=1&b=2" 200 "APP /internal/passcode/alice/locked/sub/p.html?a=1&b=2"
+expect "a locked site's file is never served"          $C /alice/locked/index.html 200 "APP /internal/passcode/alice/locked/index.html"
 expect "/<handle> is the person page"                  $C /alice                200 "APP /internal/showcase/alice"
 expect "/<handle>/ too"                                $C /alice/               200 "APP /internal/showcase/alice"
 expect "a missing file is the branded not-found page"  $C /alice/live/nope.css  404 "APP /internal/notfound orig=/alice/live/nope.css"

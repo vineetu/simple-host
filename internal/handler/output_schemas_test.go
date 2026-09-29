@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/mcp"
 )
 
@@ -86,6 +87,24 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	call("list_sites", map[string]any{})
 	if s := call("set_site_offline", map[string]any{"site": "shop", "offline": false}); s["offline"] != false {
 		t.Fatalf("set_site_offline back: %v", s)
+	}
+	// A passcode on the whole site: set, read back, sign everyone out, remove.
+	if err := a.sites.SetPasscodeKey("q83vEjRWeJq83vEjRWeJq83vEjRWeJq83vEjRWeJq80="); err != nil {
+		t.Fatal(err)
+	}
+	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true; l.PasscodeMinLength = 6 })
+	if s := call("set_site_passcode", map[string]any{"site": "shop", "action": "set", "passcode": "482915"}); s["passcode_protected"] != true || s["passcode"] != "482915" {
+		t.Fatalf("set_site_passcode set: %v", s)
+	}
+	if s := call("set_site_passcode", map[string]any{"site": "shop", "action": "read"}); s["passcode"] != "482915" || s["passcode_set_at"] == nil {
+		t.Fatalf("set_site_passcode read: %v", s)
+	}
+	call("set_site_passcode", map[string]any{"site": "shop", "action": "sign_out_everyone"})
+	if s := call("set_site_passcode", map[string]any{"site": "shop", "action": "remove"}); s["passcode_protected"] != false {
+		t.Fatalf("set_site_passcode remove: %v", s)
+	}
+	if r := a.rpc(t, token, "tools/call", map[string]any{"name": "set_site_passcode", "arguments": map[string]any{"site": "shop", "action": "sign_out_everyone"}}); !strings.Contains(string(r.body), "no_passcode") {
+		t.Fatalf("sign_out_everyone without a passcode: %s", r.body)
 	}
 	call("keep_site", map[string]any{"site": "shop", "keep": false})
 

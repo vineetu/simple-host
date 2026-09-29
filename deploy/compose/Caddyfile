@@ -122,6 +122,18 @@ https:// {
 					rewrite * /internal/offline
 					reverse_proxy app:8090
 				}
+				# Locked by its owner with a passcode: the app's passcode gate
+				# (after the offline check). It gets the whole original path
+				# and query, /internal/passcode/<handle>/<site>/...?..., and
+				# sends the visitor on to the site's own address.
+				@passcode file {
+					root /data/sites/handles
+					try_files /{re.site.1}/{re.site.2}/passcode
+				}
+				route @passcode {
+					rewrite * /internal/passcode{uri}
+					reverse_proxy app:8090
+				}
 				# No such site here: the application redirects an old name
 				# of a renamed site to its new address, or answers the
 				# not-found page.

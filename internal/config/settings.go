@@ -99,6 +99,13 @@ var knobDocs = map[string]knobDoc{
 	"PREVIEW_LINK_TTL_MINUTES": {"sites", "How long a preview link to a stored version works.", true, true},
 	"EXPORT_LINK_TTL_MINUTES":  {"sites", "How long a site download link works (it holds private lists too).", true, true},
 
+	"SITE_PASSCODES":                {"sites", "on lets owners put a passcode on a site (it needs PASSCODE_ENC_KEY and a per-site address). off refuses new ones; sites that already have one keep asking for it.", false, false},
+	"PASSCODE_MIN_LENGTH":           {"sites", "Shortest passcode an owner may set, in characters. Any characters count; digits only is fine.", false, false},
+	"PASSCODE_LOCKOUT_MINUTES":      {"sites", "How long one address is refused on a site once it has used up RATE_LIMIT_PASSCODE_IP.", false, false},
+	"PASSCODE_SITE_LOCKOUT_MINUTES": {"sites", "How long a site refuses every passcode try once RATE_LIMIT_PASSCODE_SITE is used up (visitors already let in are not affected).", false, false},
+	"RATE_LIMIT_PASSCODE_IP":        {"sites", "Wrong passcode tries on one site per address.", true, false},
+	"RATE_LIMIT_PASSCODE_SITE":      {"sites", "Wrong passcode tries on one site from everyone together.", true, false},
+
 	"VISITOR_SESSION_DAYS":      {"accounts", "How long a visitor stays signed in on a site's own address, however active.", true, true},
 	"VISITOR_SESSION_IDLE_DAYS": {"accounts", "How long a visitor sign-in lasts unused. Not longer than VISITOR_SESSION_DAYS.", true, true},
 
@@ -276,6 +283,8 @@ func otherSettings() []Setting {
 			Description: "Largest upload, and the size one site may have."},
 		{Name: "KEEP_VERSIONS", Group: "sites", Type: "int", Default: "0", Min: i64(0), Unit: "versions", SmallBox: true, InstallFlag: "--keep-versions",
 			Description: "Deploys kept per site; 0 keeps all. install.sh sets 1, which means no rollback."},
+		{Name: "PASSCODE_ENC_KEY", Group: "sites", Type: "secret", Security: true,
+			Description: "Key that seals site passcodes (32 random bytes, base64: openssl rand -base64 32). Unset: no site can get a passcode. Changing it makes every stored passcode unreadable and signs every visitor out; owners then set new ones."},
 		{Name: "PREVIEW_ACCOUNTS", Group: "sites", Type: "string",
 			Description: "Accounts (comma-separated) whose sites expire on their own."},
 		{Name: "PREVIEW_TTL_HOURS", Group: "sites", Type: "duration", Default: "48", Min: i64(1), Unit: "hours",

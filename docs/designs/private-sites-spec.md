@@ -1,4 +1,4 @@
-> **Status: Superseded (2026-09-05)** — by the INTENT non-goal that pages are always public (no view-lock); private collections on a site's own address cover private data instead.
+> **Status: Superseded (2026-09-05; again 2026-09-29)** — first by the INTENT non-goal that pages are always public (private collections on a site's own address cover private data instead), then by the site passcode of 2026-09-29: one shared passcode on a whole site, on per-site origins, stored sealed with a server key (not zero-knowledge; `internal/handler/passcode.go`, INTENT decision "Site passcode").
 
 # Spec: Private Sites (one model — always zero-knowledge)
 

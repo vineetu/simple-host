@@ -64,6 +64,12 @@ type Limits struct {
 	APIMetricsRetention int           // API_METRICS_RETENTION_DAYS (days)
 	IdleReplyTo         string        // IDLE_REPLY_TO
 
+	// Site passcodes (handler/passcode.go).
+	SitePasscodes       bool          // SITE_PASSCODES: on/off (on)
+	PasscodeMinLength   int           // PASSCODE_MIN_LENGTH (6)
+	PasscodeLockout     time.Duration // PASSCODE_LOCKOUT_MINUTES (15)
+	PasscodeSiteLockout time.Duration // PASSCODE_SITE_LOCKOUT_MINUTES (15)
+
 	// AI create.
 	AIMaxJobsPerUser int           // AI_MAX_JOBS_PER_USER
 	AIMaxJobs        int           // AI_MAX_JOBS
@@ -90,6 +96,8 @@ type Limits struct {
 	RateAIIP            Rate // RATE_LIMIT_AI_IP
 	RateAIUser          Rate // RATE_LIMIT_AI_USER
 	RateTranscribe      Rate // RATE_LIMIT_TRANSCRIBE
+	RatePasscodeIP      Rate // RATE_LIMIT_PASSCODE_IP
+	RatePasscodeSite    Rate // RATE_LIMIT_PASSCODE_SITE
 
 	// Saved data (SAVED_DATA_*): history, undo, the watch and the limits.
 	SavedData SavedData
@@ -292,6 +300,11 @@ func DefaultLimits() Limits {
 		APIMetricsRetention: 30,
 		IdleReplyTo:         "support@simple-host.app",
 
+		SitePasscodes:       true,
+		PasscodeMinLength:   6,
+		PasscodeLockout:     15 * time.Minute,
+		PasscodeSiteLockout: 15 * time.Minute,
+
 		AIMaxJobsPerUser: 3,
 		AIMaxJobs:        64,
 		AIJobTimeout:     8 * time.Minute,
@@ -316,6 +329,8 @@ func DefaultLimits() Limits {
 		RateAIIP:            Rate{20, 12 * time.Second},
 		RateAIUser:          Rate{30, 10 * time.Second},
 		RateTranscribe:      Rate{60, 3 * time.Second},
+		RatePasscodeIP:      Rate{5, 3 * time.Minute},
+		RatePasscodeSite:    Rate{60, time.Minute},
 
 		SavedData: DefaultSavedData(),
 
@@ -441,6 +456,10 @@ func Knobs() []Knob {
 		intKnob("MAX_FILES_PER_SITE", "files", 100, 50_000, func(l *Limits) *int { return &l.MaxFilesPerSite }),
 		durKnob("PREVIEW_LINK_TTL_MINUTES", "minutes", m, 5, 7*24*60, func(l *Limits) *time.Duration { return &l.PreviewLinkTTL }),
 		durKnob("EXPORT_LINK_TTL_MINUTES", "minutes", m, 1, 60, func(l *Limits) *time.Duration { return &l.ExportLinkTTL }),
+		boolKnob("SITE_PASSCODES", func(l *Limits) *bool { return &l.SitePasscodes }),
+		intKnob("PASSCODE_MIN_LENGTH", "characters", 4, 64, func(l *Limits) *int { return &l.PasscodeMinLength }),
+		durKnob("PASSCODE_LOCKOUT_MINUTES", "minutes", m, 1, 1440, func(l *Limits) *time.Duration { return &l.PasscodeLockout }),
+		durKnob("PASSCODE_SITE_LOCKOUT_MINUTES", "minutes", m, 1, 1440, func(l *Limits) *time.Duration { return &l.PasscodeSiteLockout }),
 
 		durKnob("VISITOR_SESSION_DAYS", "days", d, 1, 365, func(l *Limits) *time.Duration { return &l.VisitorSessionTTL }),
 		durKnob("VISITOR_SESSION_IDLE_DAYS", "days", d, 1, 365, func(l *Limits) *time.Duration { return &l.VisitorSessionIdle }),
@@ -503,6 +522,8 @@ func Knobs() []Knob {
 		rateKnob("RATE_LIMIT_AI_IP", func(l *Limits) *Rate { return &l.RateAIIP }),
 		rateKnob("RATE_LIMIT_AI_USER", func(l *Limits) *Rate { return &l.RateAIUser }),
 		rateKnob("RATE_LIMIT_TRANSCRIBE", func(l *Limits) *Rate { return &l.RateTranscribe }),
+		secRateKnob("RATE_LIMIT_PASSCODE_IP", func(l *Limits) *Rate { return &l.RatePasscodeIP }),
+		secRateKnob("RATE_LIMIT_PASSCODE_SITE", func(l *Limits) *Rate { return &l.RatePasscodeSite }),
 
 		intKnob("SAVED_DATA_UNDO_DAYS", "days", 1, 365, func(l *Limits) *int { return &l.SavedData.UndoDays }),
 		intKnob("SAVED_DATA_HISTORY_MAX_MB", "MB", 1, 10_240, func(l *Limits) *int { return &l.SavedData.HistoryMaxMB }),

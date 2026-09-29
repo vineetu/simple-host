@@ -86,6 +86,11 @@ type Site struct {
 	// live one (sites.keep_versions). Populated by GetSiteByUser,
 	// ListSitesByUser, ListAllSites and GetSiteByID.
 	KeepVersions int
+
+	// Passcode: the site has a passcode (sites.passcode_enc is set), so every
+	// address asks for it before showing anything (handler/passcode.go).
+	// Populated by GetSiteByUser, ListSitesByUser, ListAllSites and GetSiteByID.
+	Passcode bool
 }
 
 // Suspended reports whether the site is taken down, by itself or through its

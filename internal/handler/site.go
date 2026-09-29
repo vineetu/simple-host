@@ -117,7 +117,10 @@ type SiteHandler struct {
 
 	// exportKey signs short-lived export download links (exportlink.go); per
 	// process, used for nothing else. publicBaseURL is the apex they point at.
-	exportKey     []byte
+	exportKey []byte
+
+	// passcode is the site-passcode key and wrong-try counters (passcode.go).
+	passcode      passcodeState
 	publicBaseURL string
 
 	// savedData is the SAVED_DATA_* knobs, and readLimiter and appendLimiter
@@ -215,6 +218,9 @@ type siteResponse struct {
 	// Offline: its owner has taken it offline (every address shows "This
 	// site is offline", visitor saves are refused; nothing is deleted).
 	Offline bool `json:"offline,omitempty"`
+	// PasscodeProtected: the site asks visitors for a passcode on every
+	// address (passcode.go). The passcode itself is only in GET .../lock.
+	PasscodeProtected bool `json:"passcode_protected,omitempty"`
 	// Only on a deploy with publish=false: the version it stored (not live)
 	// and an hour-long, owner-only preview link for it (preview.go).
 	UnpublishedVersion int        `json:"unpublished_version,omitempty"`
@@ -469,6 +475,18 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.HandleFunc("GET /internal/suspended", h.suspendedPage)
 	// ... and for a site its owner took offline (offline.go).
 	mux.HandleFunc("GET /internal/offline", h.offlinePageHandler)
+	// ... and for a site with a passcode (passcode.go): the gate, the file,
+	// or the site's own address.
+	mux.HandleFunc("GET /internal/passcode/{rest...}", h.passcodePageHandler)
+	// Site passcodes (passcode.go): the owner's switch, and the gate's form.
+	mux.Handle("GET /v1/sites/{sitename}/lock", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSitePasscode))))
+	mux.Handle("PUT /v1/sites/{sitename}/lock", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.putSitePasscode)))))
+	mux.Handle("DELETE /v1/sites/{sitename}/lock", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.deleteSitePasscode)))))
+	mux.Handle("POST /v1/sites/{sitename}/lock/sign-out-everyone", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.signOutEveryone)))))
+	unlockLimiter := newRateLimiterFor(config.Active().RateVisitor)
+	unlockLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	h.passcode.startSweep(5 * time.Minute)
+	mux.Handle("POST /v1/site-unlock", rateLimitByIP(unlockLimiter, http.HandlerFunc(h.unlockSite)))
 
 	// Append-only collections (second backend type): cheap O(1) appends +
 	// paginated reads for large/high-volume lists. Origin-gated like state.
@@ -482,12 +500,12 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// The owner or the platform admin (key, connector token, or the owner's
 	// session on the site's own domain) deletes one item in any list, edits
 	// one in a private list, or empties a whole list. Visitors only append.
-	mux.Handle("PATCH /v1/sites/{sitename}/collections/{coll}/items/{id}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.updatePrivateItem)))
-	mux.Handle("DELETE /v1/sites/{sitename}/collections/{coll}/items/{id}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.deletePrivateItem)))
-	mux.Handle("PATCH /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.updatePrivateItem)))
-	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.deletePrivateItem)))
-	mux.Handle("DELETE /v1/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.clearCollection)))
-	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.clearCollection)))
+	mux.Handle("PATCH /v1/sites/{sitename}/collections/{coll}/items/{id}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.updatePrivateItem))))
+	mux.Handle("DELETE /v1/sites/{sitename}/collections/{coll}/items/{id}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.deletePrivateItem))))
+	mux.Handle("PATCH /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.updatePrivateItem))))
+	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.deletePrivateItem))))
+	mux.Handle("DELETE /v1/sites/{sitename}/collections/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.clearCollection))))
+	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/collections/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.clearCollection))))
 	// History, Recently deleted, restore and delete for good (saveddata.go):
 	// owner or admin only, key or connector token; the {handle} forms name
 	// the site exactly.
@@ -530,76 +548,76 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	stopLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	mux.Handle("GET /v1/data-notify/stop", rateLimitByIP(stopLimiter, http.HandlerFunc(h.notifyStop)))
 	mux.Handle("POST /v1/data-notify/stop", rateLimitByIP(stopLimiter, http.HandlerFunc(h.notifyStop)))
-	mux.Handle("GET /v1/sites/{sitename}/data/{coll}", http.HandlerFunc(h.getData))
-	mux.Handle("GET /v1/sites/{sitename}/data/{coll}/kind", http.HandlerFunc(h.getDataKind))
-	mux.Handle("POST /v1/sites/{sitename}/data/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection)))
-	mux.Handle("PUT /v1/sites/{sitename}/data/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putContent)))
-	mux.Handle("PATCH /v1/sites/{sitename}/data/{coll}/items/{id}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.updateEntry)))
-	mux.Handle("DELETE /v1/sites/{sitename}/data/{coll}/items/{id}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.withdrawEntry)))
-	mux.Handle("POST /v1/sites/{sitename}/data/{coll}/items/{id}/undo", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.undoWithdraw)))
+	mux.Handle("GET /v1/sites/{sitename}/data/{coll}", h.passcodeGate(http.HandlerFunc(h.getData)))
+	mux.Handle("GET /v1/sites/{sitename}/data/{coll}/kind", h.passcodeGate(http.HandlerFunc(h.getDataKind)))
+	mux.Handle("POST /v1/sites/{sitename}/data/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection))))
+	mux.Handle("PUT /v1/sites/{sitename}/data/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putContent))))
+	mux.Handle("PATCH /v1/sites/{sitename}/data/{coll}/items/{id}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.updateEntry))))
+	mux.Handle("DELETE /v1/sites/{sitename}/data/{coll}/items/{id}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.withdrawEntry))))
+	mux.Handle("POST /v1/sites/{sitename}/data/{coll}/items/{id}/undo", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.undoWithdraw))))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/data/{coll}", h.optionsData)
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/data/{coll}/kind", h.optionsData)
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/data/{coll}/items/{id}", h.optionsData)
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/data/{coll}/items/{id}/undo", h.optionsData)
 	// Personal (personal.go): a signed-in visitor's own record, its changes and
 	// their restore. Shared boards use the item routes above (board.go).
-	mux.Handle("PATCH /v1/sites/{sitename}/data/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchData)))
-	mux.Handle("DELETE /v1/sites/{sitename}/data/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.deleteData)))
-	mux.Handle("GET /v1/sites/{sitename}/data/{coll}/history", http.HandlerFunc(h.personalHistory))
-	mux.Handle("GET /v1/sites/{sitename}/data/{coll}/history/{id}", http.HandlerFunc(h.personalHistoryEntry))
-	mux.Handle("POST /v1/sites/{sitename}/data/{coll}/history/{id}/restore", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restorePersonal)))
+	mux.Handle("PATCH /v1/sites/{sitename}/data/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchData))))
+	mux.Handle("DELETE /v1/sites/{sitename}/data/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.deleteData))))
+	mux.Handle("GET /v1/sites/{sitename}/data/{coll}/history", h.passcodeGate(http.HandlerFunc(h.personalHistory)))
+	mux.Handle("GET /v1/sites/{sitename}/data/{coll}/history/{id}", h.passcodeGate(http.HandlerFunc(h.personalHistoryEntry)))
+	mux.Handle("POST /v1/sites/{sitename}/data/{coll}/history/{id}/restore", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restorePersonal))))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/data/{coll}/history", h.optionsData)
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/data/{coll}/history/{id}", h.optionsData)
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/data/{coll}/history/{id}/restore", h.optionsData)
-	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/data/{coll}", http.HandlerFunc(h.getData))
-	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/data/{coll}/kind", http.HandlerFunc(h.getDataKind))
-	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/data/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection)))
-	mux.Handle("PUT /v1/u/{handle}/sites/{sitename}/data/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putContent)))
-	mux.Handle("PATCH /v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.updateEntry)))
-	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.withdrawEntry)))
-	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}/undo", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.undoWithdraw)))
+	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/data/{coll}", h.passcodeGate(http.HandlerFunc(h.getData)))
+	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/data/{coll}/kind", h.passcodeGate(http.HandlerFunc(h.getDataKind)))
+	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/data/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection))))
+	mux.Handle("PUT /v1/u/{handle}/sites/{sitename}/data/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putContent))))
+	mux.Handle("PATCH /v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.updateEntry))))
+	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.withdrawEntry))))
+	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}/undo", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.undoWithdraw))))
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/data/{coll}", h.optionsData)
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/data/{coll}/kind", h.optionsData)
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}", h.optionsData)
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}/undo", h.optionsData)
-	mux.Handle("PATCH /v1/u/{handle}/sites/{sitename}/data/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchData)))
-	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/data/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.deleteData)))
-	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/data/{coll}/history", http.HandlerFunc(h.personalHistory))
-	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}", http.HandlerFunc(h.personalHistoryEntry))
-	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}/restore", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restorePersonal)))
+	mux.Handle("PATCH /v1/u/{handle}/sites/{sitename}/data/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchData))))
+	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/data/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.deleteData))))
+	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/data/{coll}/history", h.passcodeGate(http.HandlerFunc(h.personalHistory)))
+	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}", h.passcodeGate(http.HandlerFunc(h.personalHistoryEntry)))
+	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}/restore", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restorePersonal))))
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/data/{coll}/history", h.optionsData)
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}", h.optionsData)
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}/restore", h.optionsData)
-	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}", http.HandlerFunc(h.listCollection))
-	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection)))
+	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}", h.passcodeGate(http.HandlerFunc(h.listCollection)))
+	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection))))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/collections/{coll}", h.optionsCollection)
 
-	mux.HandleFunc("GET /v1/sites/{sitename}/me", h.getVisitorMe)
+	mux.Handle("GET /v1/sites/{sitename}/me", h.passcodeGate(http.HandlerFunc(h.getVisitorMe)))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/me", h.optionsVisitorMe)
-	mux.HandleFunc("POST /v1/sites/{sitename}/visitor/auth", h.requestVisitorEmail)
+	mux.Handle("POST /v1/sites/{sitename}/visitor/auth", h.passcodeGate(http.HandlerFunc(h.requestVisitorEmail)))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/visitor/auth", h.optionsVisitorEmail)
-	mux.HandleFunc("POST /v1/sites/{sitename}/visitor/auth/verify", h.verifyVisitorEmail)
+	mux.Handle("POST /v1/sites/{sitename}/visitor/auth/verify", h.passcodeGate(http.HandlerFunc(h.verifyVisitorEmail)))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/visitor/auth/verify", h.optionsVisitorEmail)
-	mux.Handle("GET /v1/sites/{sitename}/state", http.HandlerFunc(h.getSiteState))
-	mux.Handle("PUT /v1/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSiteState)))
-	mux.Handle("PATCH /v1/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchSiteState)))
+	mux.Handle("GET /v1/sites/{sitename}/state", h.passcodeGate(http.HandlerFunc(h.getSiteState)))
+	mux.Handle("PUT /v1/sites/{sitename}/state", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSiteState))))
+	mux.Handle("PATCH /v1/sites/{sitename}/state", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchSiteState))))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/state", h.optionsSiteState)
 
 	// v3 user-scoped state/collections: unambiguous after UNIQUE(name) drops.
 	// Same handlers as above; resolveSiteID reads {handle} when present.
-	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/collections/{coll}", http.HandlerFunc(h.listCollection))
-	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/collections/{coll}", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection)))
+	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/collections/{coll}", h.passcodeGate(http.HandlerFunc(h.listCollection)))
+	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/collections/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection))))
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/collections/{coll}", h.optionsCollection)
 
-	mux.HandleFunc("GET /v1/u/{handle}/sites/{sitename}/me", h.getVisitorMe)
+	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/me", h.passcodeGate(http.HandlerFunc(h.getVisitorMe)))
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/me", h.optionsVisitorMe)
-	mux.HandleFunc("POST /v1/u/{handle}/sites/{sitename}/visitor/auth", h.requestVisitorEmail)
+	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/visitor/auth", h.passcodeGate(http.HandlerFunc(h.requestVisitorEmail)))
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/visitor/auth", h.optionsVisitorEmail)
-	mux.HandleFunc("POST /v1/u/{handle}/sites/{sitename}/visitor/auth/verify", h.verifyVisitorEmail)
+	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/visitor/auth/verify", h.passcodeGate(http.HandlerFunc(h.verifyVisitorEmail)))
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/visitor/auth/verify", h.optionsVisitorEmail)
-	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/state", http.HandlerFunc(h.getSiteState))
-	mux.Handle("PUT /v1/u/{handle}/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSiteState)))
-	mux.Handle("PATCH /v1/u/{handle}/sites/{sitename}/state", rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchSiteState)))
+	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/state", h.passcodeGate(http.HandlerFunc(h.getSiteState)))
+	mux.Handle("PUT /v1/u/{handle}/sites/{sitename}/state", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSiteState))))
+	mux.Handle("PATCH /v1/u/{handle}/sites/{sitename}/state", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchSiteState))))
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/state", h.optionsSiteState)
 
 	// Visitor session cookie is issued here (content host / custom domain),
@@ -1046,8 +1064,9 @@ func (h *SiteHandler) authorizeStateOrigin(w http.ResponseWriter, r *http.Reques
 	}
 
 	w.Header().Set("Access-Control-Allow-Origin", origin)
-	// Allow credentials so the page can send its view-session cookie on locked
-	// sites (ACAO is the specific origin above, never "*", as credentials require).
+	// Allow credentials so the page can send its cookies (the visitor
+	// session, and a passcode site's unlock) with the request (ACAO is the
+	// specific origin above, never "*", as credentials require).
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
 	// Expose ETag so the page's JS can read the state version for optimistic
 	// concurrency (ETag is not a CORS-safelisted response header).
@@ -2165,6 +2184,7 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 			"deployed_at":      deployed,
 			"visibility":       vis,
 			"offline":          s.Offline,
+			"passcode":         s.Passcode,
 			"suspended":        s.Suspended(),
 			"suspended_reason": s.SuspendedReason(),
 			"suspended_by":     suspendedBy(s),
@@ -2275,22 +2295,23 @@ func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
 		visibility = "unlisted" // never guess "public"
 	}
 	resp := siteResponse{
-		ID:              site.ID,
-		UserID:          site.UserID,
-		Name:            site.Name,
-		ActiveVersion:   site.ActiveVersion,
-		SiteURL:         h.siteURLFor(site),
-		CreatedAt:       site.CreatedAt,
-		UpdatedAt:       site.UpdatedAt,
-		CustomDomain:    site.CustomDomain.String,
-		DomainStatus:    site.DomainStatus.String,
-		Visibility:      visibility,
-		OwnerUsername:   site.OwnerUsername,
-		Note:            note,
-		Suspended:       site.Suspended(),
-		Offline:         site.Offline,
-		SuspendedReason: site.SuspendedReason(),
-		KeepVersions:    site.KeepVersions,
+		ID:                site.ID,
+		UserID:            site.UserID,
+		Name:              site.Name,
+		ActiveVersion:     site.ActiveVersion,
+		SiteURL:           h.siteURLFor(site),
+		CreatedAt:         site.CreatedAt,
+		UpdatedAt:         site.UpdatedAt,
+		CustomDomain:      site.CustomDomain.String,
+		DomainStatus:      site.DomainStatus.String,
+		Visibility:        visibility,
+		OwnerUsername:     site.OwnerUsername,
+		Note:              note,
+		Suspended:         site.Suspended(),
+		Offline:           site.Offline,
+		SuspendedReason:   site.SuspendedReason(),
+		PasscodeProtected: site.Passcode,
+		KeepVersions:      site.KeepVersions,
 	}
 	if site.LastDeployedAt.Valid {
 		t := site.LastDeployedAt.Time

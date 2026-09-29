@@ -85,6 +85,16 @@
 					rewrite * /internal/offline
 					import app
 				}
+				# Passcode lock (after offline): the app's gate gets
+				# /internal/passcode/<handle>/<site>/...?query.
+				@passcode file {
+					root /data/sites/handles
+					try_files /{re.site.1}/{re.site.2}/passcode
+				}
+				route @passcode {
+					rewrite * /internal/passcode{uri}
+					import app
+				}
 				@nosite not file {
 					root /data/sites/handles
 					try_files /{re.site.1}/{re.site.2}/current/

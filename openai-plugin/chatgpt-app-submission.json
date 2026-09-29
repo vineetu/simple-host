@@ -188,6 +188,18 @@
         "destructive_justification": "Nothing is deleted: files, versions and saved data are kept, and calling it with the other value puts the site back exactly as it was."
       }
     },
+    "set_site_passcode": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It puts a passcode on a site, changes or removes it, or signs every visitor out, so it modifies data.",
+        "open_world_justification": "It changes what the public sees at the site's address on the internet: every address asks for the passcode.",
+        "destructive_justification": "Nothing is deleted: files, versions and saved data are kept, and removing the passcode puts the site back exactly as it was."
+      }
+    },
     "keep_site": {
       "annotations": {
         "readOnlyHint": false,

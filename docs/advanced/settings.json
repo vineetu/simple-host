@@ -600,6 +600,63 @@
       "small_box": true
     },
     {
+      "name": "SITE_PASSCODES",
+      "group": "sites",
+      "description": "on lets owners put a passcode on a site (it needs PASSCODE_ENC_KEY and a per-site address). off refuses new ones; sites that already have one keep asking for it.",
+      "type": "bool",
+      "default": "on",
+      "allowed": [
+        "on",
+        "off"
+      ],
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "PASSCODE_MIN_LENGTH",
+      "group": "sites",
+      "description": "Shortest passcode an owner may set, in characters. Any characters count; digits only is fine.",
+      "type": "int",
+      "default": "6",
+      "min": 4,
+      "max": 64,
+      "unit": "characters",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "PASSCODE_LOCKOUT_MINUTES",
+      "group": "sites",
+      "description": "How long one address is refused on a site once it has used up RATE_LIMIT_PASSCODE_IP.",
+      "type": "duration",
+      "default": "15",
+      "min": 1,
+      "max": 1440,
+      "unit": "minutes",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "PASSCODE_SITE_LOCKOUT_MINUTES",
+      "group": "sites",
+      "description": "How long a site refuses every passcode try once RATE_LIMIT_PASSCODE_SITE is used up (visitors already let in are not affected).",
+      "type": "duration",
+      "default": "15",
+      "min": 1,
+      "max": 1440,
+      "unit": "minutes",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
       "name": "RATE_LIMIT_UPLOAD",
       "group": "sites",
       "description": "Uploads and deploys per client.",
@@ -644,6 +701,30 @@
       "small_box": true
     },
     {
+      "name": "RATE_LIMIT_PASSCODE_IP",
+      "group": "sites",
+      "description": "Wrong passcode tries on one site per address.",
+      "type": "rate",
+      "default": "5,3m",
+      "loosest": "20,45s",
+      "security_sensitive": true,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "RATE_LIMIT_PASSCODE_SITE",
+      "group": "sites",
+      "description": "Wrong passcode tries on one site from everyone together.",
+      "type": "rate",
+      "default": "60,1m",
+      "loosest": "240,15s",
+      "security_sensitive": true,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
       "name": "MAX_ARCHIVE_MB",
       "group": "sites",
       "description": "Largest upload, and the size one site may have.",
@@ -670,6 +751,17 @@
       "basic": false,
       "small_box": true,
       "install_flag": "--keep-versions"
+    },
+    {
+      "name": "PASSCODE_ENC_KEY",
+      "group": "sites",
+      "description": "Key that seals site passcodes (32 random bytes, base64: openssl rand -base64 32). Unset: no site can get a passcode. Changing it makes every stored passcode unreadable and signs every visitor out; owners then set new ones.",
+      "type": "secret",
+      "default": "",
+      "security_sensitive": true,
+      "required": false,
+      "basic": false,
+      "small_box": false
     },
     {
       "name": "PREVIEW_ACCOUNTS",

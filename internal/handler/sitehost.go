@@ -289,6 +289,11 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 			return
 		}
 		w.Header().Set("X-Content-Type-Options", "nosniff")
+		// The gate (take-down, offline, passcode) before anything that
+		// could tell whether a file exists (the redirect below).
+		if h.siteGate(w, r, site.UserID, site.Name, r.URL.Path) {
+			return
+		}
 		// A root-absolute link written for an older address of this site
 		// (/<handle>/<site>/... on the content host, /<site>/... on the
 		// person host) lands here: when no such file exists, send it to the

@@ -138,6 +138,9 @@ type Config struct {
 	// Shared with the speech service to sign short-lived WebSocket tickets.
 	// Empty disables live transcription; the batch endpoint still works.
 	TranscribeTicketSecret string
+	// PasscodeEncKey (PASSCODE_ENC_KEY) seals site passcodes: 32 bytes,
+	// base64. Empty: no site can get a passcode (handler/passcode.go).
+	PasscodeEncKey string
 
 	// Ephemeral "preview" sites. Sites created by an account in PreviewAccounts
 	// get an expires_at = now + PreviewTTL, and a background sweep deletes them
@@ -301,6 +304,7 @@ func Load() (Config, error) {
 	cfg.CustomDomainIP = os.Getenv("CUSTOM_DOMAIN_IP")
 	cfg.AnalyticsLog = os.Getenv("ANALYTICS_LOG")
 	cfg.AnalyticsSalt = strings.TrimSpace(os.Getenv("ANALYTICS_SALT"))
+	cfg.PasscodeEncKey = strings.TrimSpace(os.Getenv("PASSCODE_ENC_KEY"))
 	cfg.GeoIPDir = getEnvOrDefault("GEOIP_DIR", filepath.Join(filepath.Dir(filepath.Clean(cfg.DataDir)), "geoip"))
 
 	// Event hostnames: handed to a hackathon organiser under a domain we own,

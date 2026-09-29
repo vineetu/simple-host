@@ -25,6 +25,8 @@ at startup. The others may be set to anything, with a startup warning past ten t
 | `RATE_LIMIT_SITE_OPS` | `30,2s` | any (warns past 10× looser) | Deleting, changing and restoring sites, and admin sign-in tries, per address. |
 | `RATE_LIMIT_EXPORT` | `10,10s` | any (warns past 10× looser) | Site and account downloads per address. |
 | `RATE_LIMIT_ANALYTICS` | `30,2s` | any (warns past 10× looser) | Top pages and referring domains reads, per address. |
+| `RATE_LIMIT_PASSCODE_IP` | `5,3m` | stricter freely; loosest `20,45s` | Wrong passcode tries on one site per address. **Security-sensitive.** |
+| `RATE_LIMIT_PASSCODE_SITE` | `60,1m` | stricter freely; loosest `240,15s` | Wrong passcode tries on one site from everyone together. **Security-sensitive.** |
 | `RATE_LIMIT_STATE` | `60,1s` | any (warns past 10× looser) | Saved-data and list writes per client. |
 | `RATE_LIMIT_TLS_ASK` | `60,100ms` | any (warns past 10× looser) | Certificate checks (/internal/tls-ask), per address. |
 | `RATE_LIMIT_DOMAIN_CHECK` | `10,10s` | any (warns past 10× looser) | "Check again" on a domain, per address. |

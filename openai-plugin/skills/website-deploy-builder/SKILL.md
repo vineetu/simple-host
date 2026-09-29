@@ -29,8 +29,10 @@ if the idea is clear, go straight to building.
 - **Public APIs** called from the page with `fetch()` (weather, maps, open data), when the API
   allows browser requests and needs no secret key.
 
-Pages are public: anyone with the link can open them, and there are no password-protected
-pages. Saved data is public too, except a private collection. Visitors sign in before saving
+Pages are public: anyone with the link can open them, unless the owner puts one passcode on
+the whole site (`set_site_passcode`): then only people who have the passcode get in. It is a
+shared passcode, not a login, and there is no lock on a single page. Saved data is public to
+whoever can open the site, except a private collection. Visitors sign in before saving
 (Google or an emailed code); that ties a save to a person.
 
 ## Not a fit
@@ -56,6 +58,7 @@ that needs a server.
 | Survey or quiz with answers collected | collection `responses` + `results.html` aggregating them (private and owner-only if answers are personal) |
 | Poll, votes, likes, counter | state with `inc` (remember "already voted" in `localStorage`) |
 | Guestbook, wall of messages | public collection, listed newest first on the page |
+| Only family, a class or a team should see it | a site passcode (`set_site_passcode`), which the person shares themselves |
 | Small shop | product list in the page, cart in `localStorage`, private `orders` collection + owner `orders.html` |
 | Calculator, game, drawing tool, planner | static + `localStorage` |
 | Dashboard from public data | static + `fetch()` to a public API |
@@ -71,8 +74,8 @@ that needs a server.
   owner admin page that shows the list only to the owner signed in. This works on every site's
   own address; a free `<name>.simple-host.app` or their own domain is optional.
 - Public lists stay public: guestbook, votes, public comments. Say so plainly.
-- Pages are always public. Only a private collection is owner-only. Suggest collecting only what
-  is needed.
+- Pages are public unless the whole site has a passcode, and anyone given the passcode can pass
+  it on. Only a private collection is owner-only. Suggest collecting only what is needed.
 
 ## Hand off
 

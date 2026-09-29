@@ -293,15 +293,9 @@ func (h *SiteHandler) serveSiteFile(w http.ResponseWriter, r *http.Request, user
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	// A site the operator has taken down answers the take-down page on
-	// every path, whichever address reached it (suspend.go).
-	if h.disk.IsSuspended(userID, siteName) {
-		serveTakedown(w, r)
-		return
-	}
-	// Taken offline by its owner (offline.go): the same on every address.
-	if h.disk.IsOffline(userID, siteName) {
-		serveOffline(w, r)
+	// Take-down, then offline, then a passcode (passcode.go): the same on
+	// every address that reaches the site's files.
+	if h.siteGate(w, r, userID, siteName, rel) {
 		return
 	}
 	h.serveDirFile(w, r, h.disk.SiteDir(userID, siteName)+"/current", rel, publicPath)

@@ -640,3 +640,41 @@ func (d *DiskStorage) IsOffline(userID, siteName string) bool {
 	_, err := os.Lstat(filepath.Join(d.SiteDir(userID, siteName), offlineMarker))
 	return err == nil
 }
+
+// passcodeMarker is the file that marks a site with a passcode
+// (handler/passcode.go). Like the take-down and offline markers it sits next
+// to `current`, so the servers that read files straight from disk (nginx and
+// Caddy on custom domains and the content host) hand every request for the
+// site to the app instead. It holds nothing secret. Checked after the
+// take-down and offline markers, which win.
+const passcodeMarker = "passcode"
+
+// SetPasscodeMarker writes (on) or removes (off) the passcode marker.
+// Idempotent; like SetSuspended it never creates a missing site folder.
+func (d *DiskStorage) SetPasscodeMarker(userID, siteName string, on bool) error {
+	if !validPathKey(userID) || !validPathKey(siteName) {
+		return fmt.Errorf("invalid site %q/%q", userID, siteName)
+	}
+	p := filepath.Join(d.SiteDir(userID, siteName), passcodeMarker)
+	if !on {
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	}
+	if _, err := os.Stat(d.SiteDir(userID, siteName)); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	return os.WriteFile(p, []byte("this site asks for a passcode\n"), 0o644)
+}
+
+// HasPasscodeMarker reports whether the passcode marker is present.
+func (d *DiskStorage) HasPasscodeMarker(userID, siteName string) bool {
+	if !validPathKey(userID) || !validPathKey(siteName) {
+		return false
+	}
+	_, err := os.Lstat(filepath.Join(d.SiteDir(userID, siteName), passcodeMarker))
+	return err == nil
+}

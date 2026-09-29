@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Teach every nginx vhost that serves site files straight from disk to honour
 # the operator's take-down marker (a `suspended` file in the site folder, see
-# internal/handler/suspend.go) and the owner's offline marker (an `offline`
-# file, internal/handler/offline.go). Without this, a taken-down or offline
-# site with a custom domain keeps serving its files from disk on that domain.
+# internal/handler/suspend.go), the owner's offline marker (an `offline`
+# file, internal/handler/offline.go) and the owner's passcode lock (a
+# `passcode` file). Without this, a taken-down, offline or locked site with a
+# custom domain keeps serving its files from disk on that domain.
 #
-# Go already serves both pages on site hosts, person paths and claimed names;
+# Go already serves these pages on site hosts, person paths and claimed names;
 # nginx only needs the checks where it reads files itself, i.e. any root or
 # alias line under /srv/simple-host/sites/ ending in /current:
 #   root  /srv/simple-host/sites/domains/<domain>/current;       (custom domains)
@@ -13,20 +14,24 @@
 #   root  /srv/simple-host/sites/handles/<h>/$client/current;     (hand-made wildcard vhosts)
 #   root  /srv/simple-host/sites/by-id/<id>/<site>/current;       (hand-made single-site vhosts)
 #   root  /srv/simple-host/sites/$sub/current;                    (lab)
-# In every server block that has such a line it makes sure these two stand for
-# that folder, in this order (the take-down wins):
+# In every server block that has such a line it makes sure these three stand
+# for that folder, in this order (take-down > offline > passcode):
 #   if (-f <same folder>/suspended) { rewrite ^ /internal/suspended last; }
 #   if (-f <same folder>/offline) { rewrite ^ /internal/offline last; }
-# (`rewrite ... last` is one of the two things that are safe inside an `if`).
-# They are checked per server block, not per file: a vhost with the same
-# folder in two blocks gets the checks in both. Where a take-down line
-# already stands in the block (before the root line, or inside `location /`
-# as the issuer's template writes it), the offline line goes right after it.
+#   if (-f <same folder>/passcode) { rewrite ^ /internal/passcode$uri last; }
+# (`rewrite ... last` is one of the two things that are safe inside an `if`;
+# the passcode rewrite keeps the path, and the query string carries over
+# because the replacement has no `?`.) They are checked per server block,
+# not per file: a vhost with the same folder in two blocks gets the checks in
+# both. Where a take-down or offline line already stands in the block (before
+# the root line, or inside `location /` as the issuer's template writes it),
+# the missing later ones go right after it, in order.
 # The rewrites land on the block's `location ^~ /internal/` proxy to the app;
-# a block serving a site folder without one (checks new or already there) gets `location = /internal/suspended` and
-# `location = /internal/offline` proxies (to APP_UPSTREAM, default
-# 127.0.0.1:8090) right after its `server {` line, so hand-made vhosts show
-# the real pages instead of a 404.
+# a block serving a site folder without one (checks new or already there)
+# gets whichever of `location = /internal/suspended`,
+# `location = /internal/offline` and `location ^~ /internal/passcode/` it
+# lacks (internal-only, to APP_UPSTREAM, default 127.0.0.1:8090) right after
+# its `server {` line, so hand-made vhosts show the real pages instead of a 404.
 #
 # Dry run by default: prints only file names and counts, never file contents.
 #   sudo bash deploy/prod/nginx-suspended-marker.sh            # what would change
@@ -70,11 +75,21 @@ src, dst = sys.argv[1], sys.argv[2]
 up = os.environ["APP_UPSTREAM"]
 lines = open(src).read().split("\n")
 pat = re.compile(r'^(\s*)(?:root|alias)\s+(/srv/simple-host/sites/\S+?)/current\S*;')
-susp_pat = re.compile(r'^(\s*)if \(-f (\S+)/suspended\)')
-internal_pat = re.compile(r'^\s*location\s+(\^~\s*/internal/|=\s*/internal/suspended\b)')
+check_pat = re.compile(r'^(\s*)if \(-f (\S+)/(suspended|offline|passcode)\)')
+prefix_pat = re.compile(r'^\s*location\s+\^~\s*/internal/\s*\{')
+exact_pat = re.compile(r'^\s*location\s+(?:=\s*/internal/(suspended|offline)\b|\^~\s*/internal/(passcode)/)')
 server_pat = re.compile(r'^(\s*)server\s*\{')
-off_line = '%sif (-f %s/offline) { rewrite ^ /internal/offline last; }'
-susp_line = '%sif (-f %s/suspended) { rewrite ^ /internal/suspended last; }'
+check_line = {
+    "suspended": '%sif (-f %s/suspended) { rewrite ^ /internal/suspended last; }',
+    "offline": '%sif (-f %s/offline) { rewrite ^ /internal/offline last; }',
+    "passcode": '%sif (-f %s/passcode) { rewrite ^ /internal/passcode$uri last; }',
+}
+order = ("suspended", "offline", "passcode")
+page_loc = {
+    "suspended": "location = /internal/suspended",
+    "offline": "location = /internal/offline",
+    "passcode": "location ^~ /internal/passcode/",
+}
 
 # Which server block each line is in (-1 outside any), by brace depth
 # (comments stripped; vhosts here carry no braces inside strings).
@@ -89,54 +104,70 @@ for i, line in enumerate(lines):
     if depth <= 0:
         depth, cur = 0, -1
 
-# Per block: folders that already have the take-down check, and whether the
-# block already reaches the app's /internal/ pages.
+# Per block: folders that already have a check, whether the block has the
+# catch-all `location ^~ /internal/` proxy, and which per-page proxies it has.
 checked = [set() for _ in starts]
-has_internal = [False for _ in starts]
+has_prefix = [False for _ in starts]
+has_page = [set() for _ in starts]
 for i, line in enumerate(lines):
     b = block[i]
     if b < 0:
         continue
-    sm = susp_pat.match(line)
-    if sm:
-        checked[b].add(sm.group(2))
-    if internal_pat.match(line):
-        has_internal[b] = True
+    cm = check_pat.match(line)
+    if cm:
+        checked[b].add(cm.group(2))
+    if prefix_pat.match(line):
+        has_prefix[b] = True
+    em = exact_pat.match(line)
+    if em:
+        has_page[b].add(em.group(1) or em.group(2))
 
-# Root/alias lines that need both checks before them (first one per folder
-# and block), and whether each block then needs the /internal/ locations.
+# Root/alias lines that need all three checks before them (first one per
+# folder and block), and whether each block serves a site folder at all.
 insert_before = {}
-needs_internal = [False for _ in starts]
+serves = [False for _ in starts]
 for i, line in enumerate(lines):
     m = pat.match(line)
     b = block[i]
     if not m or b < 0:
         continue
-    needs_internal[b] = not has_internal[b]
+    serves[b] = True
     if m.group(2) in checked[b]:
         continue
     insert_before[i] = (m.group(1), m.group(2))
     checked[b].add(m.group(2))
 
+def same_check(line, folder, kind):
+    cm = check_pat.match(line)
+    return bool(cm) and cm.group(2) == folder and cm.group(3) == kind
+
 out, n = [], 0
 for i, line in enumerate(lines):
     if i in insert_before:
         ind, folder = insert_before[i]
-        out.append(susp_line % (ind, folder))
-        out.append(off_line % (ind, folder))
-        n += 2
+        for kind in order:
+            out.append(check_line[kind] % (ind, folder))
+            n += 1
     out.append(line)
     b = block[i]
-    if b >= 0 and starts[b] == i and needs_internal[b]:
+    if b >= 0 and starts[b] == i and serves[b] and not has_prefix[b]:
         ind = server_pat.match(line).group(1) + "    "
-        for page in ("suspended", "offline"):
-            out.append("%slocation = /internal/%s { internal; proxy_pass http://%s; proxy_set_header Host $host; proxy_set_header X-Forwarded-Proto $scheme; }" % (ind, page, up))
+        for page in order:
+            if page in has_page[b]:
+                continue
+            out.append("%s%s { internal; proxy_pass http://%s; proxy_set_header Host $host; proxy_set_header X-Forwarded-Proto $scheme; }" % (ind, page_loc[page], up))
             n += 1
-    sm = susp_pat.match(line)
-    if sm:
-        nxt = lines[i + 1] if i + 1 < len(lines) else ""
-        if "%s/offline)" % sm.group(2) not in nxt:
-            out.append(off_line % (sm.group(1), sm.group(2)))
+    # An existing check is followed by the ones that come after it, in order:
+    # take-down, then offline, then passcode.
+    cm = check_pat.match(line)
+    if cm and cm.group(3) != "passcode":
+        ind, folder = cm.group(1), cm.group(2)
+        rest = order[order.index(cm.group(3)) + 1:]
+        j = i + 1
+        for kind in rest:
+            if j < len(lines) and same_check(lines[j], folder, kind):
+                break  # the source already carries it; its own line continues the chain
+            out.append(check_line[kind] % (ind, folder))
             n += 1
 open(dst, "w").write("\n".join(out))
 print(n)

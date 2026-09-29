@@ -51,6 +51,7 @@ func (a *privateApp) withOAuth(t *testing.T) *OAuthHandler {
 		lookupCNAME: func(context.Context, string) (string, error) { return "cname." + pcSiteDomain + ".", nil },
 	}
 	oh.SetPersonSiteResolver(a.sites.PersonReturnSite)
+	oh.SetPasscodeCheck(a.sites.PasscodeLetsIn)
 	oh.Register(a.mux)
 	return oh
 }

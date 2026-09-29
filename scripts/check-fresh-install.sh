@@ -58,6 +58,7 @@ run "key scope and expiry"  "SELECT scope, expires_at, idle_from FROM api_keys W
 run "sites + versions"      "SELECT id, name, active_version, visibility FROM sites WHERE user_id='$NIL'"
 run "per-site state"        "SELECT COALESCE(state,'null'::jsonb), state_version FROM sites WHERE name='x'"
 run "private pages"         "SELECT view_password_hash FROM sites WHERE name='x'"
+run "site passcode"         "SELECT passcode_enc IS NOT NULL, passcode_set_at, passcode_generation FROM sites WHERE id='$NIL'"
 run "collections"           "SELECT id, data FROM collection_items WHERE site_id='$NIL' AND collection='c' ORDER BY id DESC"
 run "private collections"   "SELECT s.private, i.submitted_by FROM collection_settings s LEFT JOIN collection_items i ON i.site_id = s.site_id AND i.collection = s.collection WHERE s.site_id='$NIL'"
 run "saved-data history"    "SELECT h.id, h.item_id, h.op, h.prev, h.diff, h.actor_id, h.actor_kind, h.actor_email, i.deleted_at, i.submitted_email, s.legacy_data FROM data_history h LEFT JOIN collection_items i ON i.id = h.item_id LEFT JOIN sites s ON s.id = h.site_id WHERE h.site_id='$NIL' AND h.kind = 'state'"

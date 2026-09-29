@@ -43,6 +43,10 @@ type OAuthHandler struct {
 	// personSite resolves a return_to on a person host to its site
 	// (SiteHandler.PersonReturnSite); nil when person hosts are not wired.
 	personSite func(ctx context.Context, host, path string) (string, bool)
+	// passcodeOK reports whether a request may sign in on a site with a
+	// passcode (SiteHandler.PasscodeLetsIn). Unset: such a site signs nobody
+	// in.
+	passcodeOK func(r *http.Request, siteID string) bool
 	// siteBases are the domains people's addresses live under (SITE_DOMAIN,
 	// plus SITE_BASE_DOMAIN while it moves; sitebase.go) and sameHost says
 	// whether two hosts are one address across them. Unset: SITE_DOMAIN
@@ -83,6 +87,12 @@ func NewOAuthHandler(database *sql.DB, cfg config.Config) *OAuthHandler {
 // SetPersonSiteResolver lets sign-in return to a site on a person host.
 func (h *OAuthHandler) SetPersonSiteResolver(f func(ctx context.Context, host, path string) (string, bool)) {
 	h.personSite = f
+}
+
+// SetPasscodeCheck wires SiteHandler.PasscodeLetsIn: visitor sign-in on a
+// site with a passcode needs the unlock first (passcode.go).
+func (h *OAuthHandler) SetPasscodeCheck(f func(r *http.Request, siteID string) bool) {
+	h.passcodeOK = f
 }
 
 // SetSiteBases wires the base domains of people's addresses
@@ -203,6 +213,15 @@ func (h *OAuthHandler) startOnSite(w http.ResponseWriter, r *http.Request) {
 		return
 	} else if susp {
 		writeSiteSuspended(w, reason)
+		return
+	}
+	// Nor does one behind a passcode, until this browser has entered it
+	// (passcode.go).
+	if row, err := db.GetSitePasscode(r.Context(), h.database, siteID.String); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	} else if err == nil && row.Enc != nil && (h.passcodeOK == nil || !h.passcodeOK(r, siteID.String)) {
+		writeSiteLocked(w)
 		return
 	}
 	nonce, err := randomHex(32)

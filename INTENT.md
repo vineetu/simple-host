@@ -60,10 +60,11 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Non-goals
 
-- Private or password-locked pages. Pages are always public; there is no view-lock and docs
-  must not advertise one. The private things are Submissions (a private collection) and Personal
-  records, both on a site's own address (decisions 2026-09-24 "Private collections", 2026-09-25
-  and 2026-09-27 steps 3-4); every other read stays open.
+- Per-page locks and logins for viewing. The one view-lock is a single passcode on a whole site
+  (decision 2026-09-29 "Site passcode"); there is no per-page lock, no per-person viewer list and
+  no viewing sign-in. The private things for saved data stay Submissions (a private collection)
+  and Personal records, both on a site's own address (decisions 2026-09-24 "Private
+  collections", 2026-09-25 and 2026-09-27 steps 3-4).
 - A general-purpose backend. No schema, no queries, no server-side code for site authors.
 - Metered third-party AI keys. AI create runs on the local Grok sidecar only.
 - Starter templates and drop-in widgets. Removed 2026-09-05; agents build pages themselves.
@@ -541,6 +542,22 @@ What follows from that, and is not negotiable without changing the line above:
   never share a registrable domain with the app, and a separate domain can go on the Public
   Suffix List. Owner decision 2026-09-28 ("Build it now and switch later");
   plan: `docs/designs/site-base-domain-move.md`.
+- **2026-09-29. Site passcode: one passcode on a whole site.** Reverses the non-goal "Private or
+  password-locked pages" (and the 2026-07-11 removal of the old view-lock). An owner may put one
+  passcode on a whole site; every address of it then shows a plain "This site is protected" page
+  (noindex, nothing of the site in it) until the visitor enters it, and the site is hidden from
+  the person page. The passcode is readable by the owner (sealed with a server key, not hashed),
+  any 6 or more characters with no format rules (the owner's agent picks the format); an unlock
+  lasts until the passcode changes or the owner signs everyone out, never expires on its own, and
+  there are no end dates (owners use offline or delete). Whole site only, one code per site. The
+  owner's key and connector keep working; previews bypass it; the admin can remove it or preview
+  a version for moderation (logged) but never reads it. Wrong tries are limited per address and
+  per site. It is not a login and says so. Reason: the view-lock was removed because every site
+  shared one origin, so a lock on one could not keep the others out; since 2026-09-26 every site
+  has its own origin, so that reason is gone, and the owner asked for it for travel-trip sites
+  shared with a group ("go work on it", 2026-09-29). Built and deployed dark
+  (`SITE_PASSCODES=off` on simple-host.app), switched on after the "address families" feature.
+  Enterprise: different on purpose (its access levels are tied to real identity).
 
 ## Open, deliberately parked
 

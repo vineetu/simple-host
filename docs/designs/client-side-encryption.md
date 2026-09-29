@@ -1,4 +1,4 @@
-> **Status: Superseded (2026-09-05)** — by the INTENT non-goal that pages are always public; the only private data is private collections (`internal/handler/privatecollections.go`).
+> **Status: Superseded (2026-09-05)** — by the INTENT non-goal that pages are always public; the only private data is private collections (`internal/handler/privatecollections.go`). Since 2026-09-29 a whole site may also carry one shared passcode (`internal/handler/passcode.go`), which is not encryption.
 
 # Design: Encrypting user files in simple-host ("only they can read them")
 
