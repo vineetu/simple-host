@@ -38,7 +38,8 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
   link can open it, and wait for a yes.
 - **Always ask before** deleting a site or saved data, making private data public,
   changing who can see or save, connecting a domain or free address, rolling back,
-  or taking a site offline. Name exactly what changes.
+  taking a site offline, or lowering how many versions a site keeps. Name exactly
+  what changes.
 - **Updates** to a site the person asked for in this conversation go ahead once
   they ask for the change: publishing it is the point.
 
@@ -46,7 +47,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.3`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.4`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -256,7 +257,9 @@ app). Full code, limits and error codes: `references/backend.md`.
   .rb .pl .go .php`), a guardrail against accidental source-tree uploads. Images,
   fonts, audio, video, `.pdf`, `.wasm`, and binary downloads are all fine.
 - **Uploads are append-only.** Re-uploading creates a new version and activates
-  it; older versions stay on disk. Rollback re-points at an existing version.
+  it; older versions stay on disk, each a full copy. Rollback re-points at an
+  existing version. A site redeployed on every change can keep fewer with
+  `PUT /v1/sites/<sitename>/keep-versions` (`references/operations.md` §Versions kept).
   To show the person a change before visitors see it, deploy with
   `?publish=false` and give them the `preview_url` (see `references/operations.md`).
 - **Sites and their data are public to anyone with the link**, except private

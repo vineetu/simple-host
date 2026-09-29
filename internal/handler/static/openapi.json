@@ -2927,6 +2927,100 @@
         }
       }
     },
+    "/v1/sites/{sitename}/keep-versions": {
+      "put": {
+        "operationId": "putSitesBySitenameKeepVersions",
+        "summary": "Set how many versions of a site are kept",
+        "description": "Every deploy stores a full copy of the site as a new version. keep_versions sets how many this site keeps: N from 1 to 1000 keeps the newest N, always including the live one (N counts back from the live version, normally the newest; after a rollback, versions newer than the live one are kept too until the next deploy); 0 goes back to this server's setting (KEEP_VERSIONS; 0 there means keep every version). Setting it removes the older versions at once, for good (their files and their rows; removed_versions names them), and every later deploy removes whatever falls outside it. The value is on the site (keep_versions in GET /v1/sites) when set. Owner only (a full API key; a deploy-only key is refused, since this deletes history).",
+        "tags": [
+          "Sites"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "keep_versions"
+                ],
+                "properties": {
+                  "keep_versions": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000,
+                    "example": 5
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The setting as stored, and what it removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "keep_versions": {
+                      "type": "integer",
+                      "description": "The site's own setting; 0 = this server's"
+                    },
+                    "effective_keep_versions": {
+                      "type": "integer",
+                      "description": "What applies to this site now; 0 = every version is kept"
+                    },
+                    "active_version": {
+                      "type": "integer"
+                    },
+                    "removed_versions": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      },
+                      "description": "Version numbers removed by this call (empty when none)"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body is not {\"keep_versions\": N} with N from 0 to 1000"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "A deploy-only key (deploy_only_key)"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "423": {
+            "description": "The site is taken down by the operator"
+          },
+          "429": {
+            "description": "Too many site changes from this address; try again shortly"
+          }
+        }
+      }
+    },
     "/v1/idle/keep": {
       "get": {
         "operationId": "getIdleKeep",
@@ -15202,6 +15296,10 @@
             "type": "string",
             "format": "date-time",
             "description": "Site list only: the site had no visits by people and no new version for 90 days and its owner was emailed; it moves to Recently deleted at this time unless it is kept, visited or updated"
+          },
+          "keep_versions": {
+            "type": "integer",
+            "description": "How many versions of this site are kept, when its owner set it (PUT .../keep-versions): the newest N plus the live one. Absent = this server's setting"
           }
         }
       },

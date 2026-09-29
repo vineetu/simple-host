@@ -106,13 +106,13 @@ func GetSiteByID(ctx context.Context, q Querier, siteID string) (Site, error) {
 		       s.custom_domain, s.domain_status, s.visibility, u.username, COALESCE(u.handle, ''),
 		       s.suspended_at IS NOT NULL, COALESCE(s.suspended_reason, ''),
 		       u.suspended_at IS NOT NULL, COALESCE(u.suspended_reason, ''),
-		       s.deleted_at IS NOT NULL, s.offline_at IS NOT NULL
+		       s.deleted_at IS NOT NULL, s.offline_at IS NOT NULL, s.keep_versions
 		  FROM sites s JOIN users u ON u.id = s.user_id
 		 WHERE s.id::text = $1`, siteID).Scan(
 		&site.ID, &site.UserID, &site.Name, &site.ActiveVersion, &site.SiteURL, &site.CreatedAt, &site.UpdatedAt,
 		&site.CustomDomain, &site.DomainStatus, &site.Visibility, &site.OwnerUsername, &site.OwnerHandle,
 		&site.SiteSuspended, &site.SiteSuspendedReason, &site.OwnerSuspended, &site.OwnerSuspendedReason,
-		&site.Deleted, &site.Offline,
+		&site.Deleted, &site.Offline, &site.KeepVersions,
 	)
 	return site, err
 }

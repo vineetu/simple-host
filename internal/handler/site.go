@@ -230,6 +230,9 @@ type siteResponse struct {
 	// visited or updated (site list only).
 	Keep          bool       `json:"keep,omitempty"`
 	IdleRemovalAt *time.Time `json:"idle_removal_at,omitempty"`
+	// KeepVersions: how many deploys of this site are kept, when the owner
+	// set it (PUT .../keep-versions); absent = the instance setting.
+	KeepVersions int `json:"keep_versions,omitempty"`
 }
 
 type versionResponse struct {
@@ -408,6 +411,9 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// Idle-site cleanup (idle.go): the Keep flag, the admin dry run, and the
 	// emailed links, which need no sign-in (the token is the authorization).
 	mux.Handle("PUT /v1/sites/{sitename}/keep", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setSiteKeep))))
+	// Deploys kept for this site (0 = the instance's KEEP_VERSIONS); setting
+	// it prunes at once, and every later deploy prunes to it (versions.go).
+	mux.Handle("PUT /v1/sites/{sitename}/keep-versions", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.setKeepVersions)))))
 	mux.Handle("GET /v1/admin/idle-sites", authMiddleware(http.HandlerFunc(h.adminIdleSites)))
 	idleLinkLimiter := newRateLimiter(10, 0.1)
 	idleLinkLimiter.startCleanup(10*time.Minute, 30*time.Minute)
@@ -1595,7 +1601,7 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
 		}
-		h.pruneVersions(r.Context(), site.ID, site.UserID, siteName, site.ActiveVersion)
+		h.pruneVersions(r.Context(), site.ID, site.UserID, siteName, site.ActiveVersion, site.KeepVersions)
 		h.writeUnpublished(w, site, versionNumber)
 		return
 	}
@@ -1632,7 +1638,7 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 	// Retention runs last, on the request context, and only ever removes
 	// history. A failure here is logged and nothing else: the deploy is already
 	// committed, promoted and live.
-	h.pruneVersions(r.Context(), site.ID, site.UserID, siteName, versionNumber)
+	h.pruneVersions(r.Context(), site.ID, site.UserID, siteName, versionNumber, site.KeepVersions)
 
 	site.ActiveVersion = versionNumber
 	writeJSON(w, http.StatusOK, h.toSiteResponse(site, ""))
@@ -2284,6 +2290,7 @@ func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
 		Suspended:       site.Suspended(),
 		Offline:         site.Offline,
 		SuspendedReason: site.SuspendedReason(),
+		KeepVersions:    site.KeepVersions,
 	}
 	if site.LastDeployedAt.Valid {
 		t := site.LastDeployedAt.Time

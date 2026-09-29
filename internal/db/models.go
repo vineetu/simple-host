@@ -80,6 +80,12 @@ type Site struct {
 	// Deleted: the site is in Recently deleted. Only GetSiteByID sees such
 	// rows; every other lookup skips them.
 	Deleted bool
+
+	// KeepVersions is how many deploys of this site are kept: 0 = the
+	// instance setting (KEEP_VERSIONS), N >= 1 = the newest N plus always the
+	// live one (sites.keep_versions). Populated by GetSiteByUser,
+	// ListSitesByUser, ListAllSites and GetSiteByID.
+	KeepVersions int
 }
 
 // Suspended reports whether the site is taken down, by itself or through its

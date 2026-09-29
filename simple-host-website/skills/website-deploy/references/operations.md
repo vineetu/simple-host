@@ -125,13 +125,34 @@ Read a retained version's files (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.3"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.4"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.3"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.4"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte
 sizes. The second streams the file with sandbox CSP. Pruned versions return 404.
+
+## Versions kept
+
+Every deploy stores a full copy of the site, and every version is kept unless
+the server or the site says otherwise. A site that is republished on every
+change (a photo library, a page an app rewrites after each edit) can hold many
+times its own size in history. Set how many versions it keeps:
+
+```
+PUT /v1/sites/<sitename>/keep-versions
+X-API-Key: <api_key>
+{"keep_versions": 5}
+```
+
+`N` from 1 to 1000 keeps the newest `N` plus always the live one; `0` goes back
+to the server's setting. It applies at once: older versions are deleted for good
+(files and history; the answer lists `removed_versions`), and every later deploy
+removes whatever falls outside it. `GET /v1/sites` shows `keep_versions` on a
+site that has it set. Lowering it deletes history that cannot be rolled back
+to, so confirm the number with the person first. A deploy-only key cannot call
+it (403 `deploy_only_key`); use a full key.
 
 ## Delete and restore
 

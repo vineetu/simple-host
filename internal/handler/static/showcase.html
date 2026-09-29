@@ -370,6 +370,8 @@
     .version-row .version-date { color: var(--text-secondary); flex: 1; min-width: 0; }
     .version-row .version-active-tag { color: var(--success); font-weight: 500; }
     .versions-status { color: var(--text-secondary); font-size: 13px; padding: 6px 0; }
+    .versions-keep { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); padding: 0 0 10px; }
+    .versions-keep input { width: 72px; padding: 4px 8px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border-hi); border-radius: 6px; }
 
     .inv-path a { color: inherit; text-decoration: none; }
     .inv-path a:hover { color: var(--text); text-decoration: underline; }
@@ -3059,6 +3061,24 @@ function parseAnalyticsSummary(data) {
       var panel = document.querySelector('[data-versions="' + cssEsc(name) + '"]');
       if (!panel) return;
       if (!panel.hidden) { panel.hidden = true; return; }
+      await loadVersions(name);
+    }
+
+    // How many versions this site keeps (keep_versions on the site; 0 or
+    // absent = the server's setting), with the control that changes it.
+    function keepVersionsLine(name, keep) {
+      var n = escAttr(name);
+      return '<div class="versions-keep">' +
+        '<span>' + (keep > 0 ? 'Keeps the newest ' + keep + ' version' + (keep === 1 ? '' : 's') + '; the live one always stays.' : 'Keeps versions as this server does (every one, unless it is set otherwise).') + '</span>' +
+        '<label for="keepv-' + n + '">Keep the newest</label>' +
+        '<input type="number" id="keepv-' + n + '" min="0" max="1000" step="1" inputmode="numeric" value="' + (keep > 0 ? keep : '') + '" placeholder="all" data-keepv-input="' + n + '">' +
+        '<button type="button" class="btn-small btn-secondary" data-act="saveKeepVersions" data-name="' + n + '">Save</button>' +
+        '</div>';
+    }
+
+    async function loadVersions(name) {
+      var panel = document.querySelector('[data-versions="' + cssEsc(name) + '"]');
+      if (!panel) return;
       panel.innerHTML = '<div class="versions-status">Loading versions…</div>';
       panel.hidden = false;
       try {
@@ -3069,7 +3089,10 @@ function parseAnalyticsSummary(data) {
         if (!versions.length) {
           panel.innerHTML = '<div class="versions-status">No versions found</div>'; return;
         }
-        panel.innerHTML = '<div class="versions-list">' + versions.map(function (v) {
+        var site = ownerSite(name);
+        panel.setAttribute('data-count', String(versions.length));
+        panel.innerHTML = (pageIsOwn() && site ? keepVersionsLine(name, Number(site.keep_versions) || 0) : '') +
+          '<div class="versions-list">' + versions.map(function (v) {
           var n = Number(v.version_number);
           return '<div class="version-row">' +
             '<span class="version-num">v' + esc(v.version_number) + '</span>' +
@@ -3083,6 +3106,35 @@ function parseAnalyticsSummary(data) {
         }).join('') + '</div>';
       } catch (e) {
         panel.innerHTML = '<div class="versions-status">Could not load versions</div>';
+      }
+    }
+
+    // Keep the newest N versions (PUT /v1/sites/{site}/keep-versions): older
+    // ones are deleted at once and after every deploy; empty or 0 goes back
+    // to the server's setting. Asks first when it would delete anything.
+    async function saveKeepVersions(name, btn) {
+      var panel = document.querySelector('[data-versions="' + cssEsc(name) + '"]');
+      var inp = document.querySelector('[data-keepv-input="' + cssEsc(name) + '"]');
+      if (!panel || !inp) return;
+      var raw = String(inp.value || '').trim();
+      var keep = raw === '' ? 0 : Number(raw);
+      if (!Number.isInteger(keep) || keep < 0 || keep > 1000) { toast('Enter a whole number from 1 to 1000, or leave it empty for the server\u2019s setting', 'error'); return; }
+      var count = Number(panel.getAttribute('data-count')) || 0;
+      if (keep > 0 && count > keep && !(await shConfirm({ title: 'Keep only the newest ' + keep + ' version' + (keep === 1 ? '' : 's') + ' of "' + name + '"?', body: 'Older versions are deleted now, for good, and you can\u2019t go back to them. The live version is always kept, and every later update keeps only the newest ' + keep + '.', confirmLabel: 'Delete older versions', danger: true }))) return;
+      if (keep === 0 && (Number((ownerSite(name) || {}).keep_versions) || 0) > 0 && !(await shConfirm({ title: 'Keep versions of "' + name + '" as this server does?', body: 'Most servers keep every version. If this one keeps fewer than ' + name + ' has, the older ones are deleted now, for good.', confirmLabel: 'Use the server\u2019s setting' }))) return;
+      btn.disabled = true;
+      try {
+        var res = await api('PUT', '/v1/sites/' + encodeURIComponent(name) + '/keep-versions', { keep_versions: keep });
+        var body = await res.json().catch(function () { return null; });
+        if (!res.ok) { toast((body && body.error) || 'Could not change this', 'error'); btn.disabled = false; return; }
+        var site = ownerSite(name);
+        if (site) site.keep_versions = keep;
+        var removed = body && Array.isArray(body.removed_versions) ? body.removed_versions.length : 0;
+        toast(removed ? 'Removed ' + removed + ' older version' + (removed === 1 ? '' : 's') : (keep ? name + ' keeps the newest ' + keep : name + ' keeps versions as this server does'), 'success');
+        await loadVersions(name);
+      } catch (e) {
+        toast('Could not change this', 'error');
+        btn.disabled = false;
       }
     }
 
@@ -4130,6 +4182,7 @@ function parseAnalyticsSummary(data) {
       toggleVis: function (d) { toggleVis(d.name, d.vis); },
       toggleKeep: function (d) { toggleKeep(d.name, !!d.keep); },
       toggleVersions: function (d) { toggleVersions(d.name); },
+      saveKeepVersions: function (d, el) { saveKeepVersions(d.name, el); },
       toggleOffline: function (d, el) { toggleOffline(d.name, !!d.offline, el); },
       confirmDelete: function (d) { confirmDelete(d.name); },
       doDelete: function (d, el) { doDelete(d.name, el); },

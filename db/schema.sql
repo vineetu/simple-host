@@ -154,6 +154,11 @@ CREATE INDEX IF NOT EXISTS idx_sites_deleted_at ON sites (deleted_at) WHERE dele
 -- folder mirrors it for the servers that read files straight from disk.
 ALTER TABLE sites ADD COLUMN IF NOT EXISTS offline_at TIMESTAMPTZ;
 
+-- Deploys kept for this site (mirrors db/migrations/v075-site-keep-versions.sql):
+-- 0 = the instance setting (KEEP_VERSIONS), N >= 1 = the newest N plus always
+-- the live one.
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS keep_versions INTEGER NOT NULL DEFAULT 0;
+
 -- Old names of renamed sites (mirrors db/migrations/w2-sites-old-names.sql):
 -- links to an old name 302 to the site's current address until a site of
 -- that name exists again. A site in Recently deleted is skipped.

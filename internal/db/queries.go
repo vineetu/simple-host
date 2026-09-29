@@ -538,7 +538,7 @@ func GetSiteByUser(ctx context.Context, db *sql.DB, userID, name string) (Site, 
 		       sites.suspended_at IS NOT NULL, COALESCE(sites.suspended_reason, ''),
 		       COALESCE((SELECT su.suspended_at IS NOT NULL FROM users su WHERE su.id = sites.user_id), false),
 		       COALESCE((SELECT su.suspended_reason FROM users su WHERE su.id = sites.user_id AND su.suspended_at IS NOT NULL), ''),
-		       sites.offline_at IS NOT NULL
+		       sites.offline_at IS NOT NULL, sites.keep_versions
 		FROM sites
 		WHERE user_id = $1 AND name = $2 AND deleted_at IS NULL
 	`
@@ -561,6 +561,7 @@ func GetSiteByUser(ctx context.Context, db *sql.DB, userID, name string) (Site, 
 		&site.OwnerSuspended,
 		&site.OwnerSuspendedReason,
 		&site.Offline,
+		&site.KeepVersions,
 	)
 	return site, err
 }
@@ -606,7 +607,7 @@ func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 		       s.domain_last_error, s.domain_bound_at, s.domain_verified_at, COALESCE(s.previous_domain, ''), COALESCE(s.domain_cert_status, ''), COALESCE(s.domain_token, ''), (SELECT max(v.created_at) FROM versions v WHERE v.site_id = s.id AND v.status = 'active'),
 		       s.suspended_at IS NOT NULL, COALESCE(s.suspended_reason, ''),
 		       u.suspended_at IS NOT NULL, COALESCE(u.suspended_reason, ''),
-		       s.offline_at IS NOT NULL
+		       s.offline_at IS NOT NULL, s.keep_versions
 		FROM sites s
 		INNER JOIN users u ON u.id = s.user_id
 		WHERE s.deleted_at IS NULL
@@ -647,6 +648,7 @@ func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 			&site.OwnerSuspended,
 			&site.OwnerSuspendedReason,
 			&site.Offline,
+			&site.KeepVersions,
 		); err != nil {
 			return nil, err
 		}
@@ -697,7 +699,7 @@ func ListSitesByUser(ctx context.Context, db *sql.DB, userID string) ([]Site, er
 		       sites.suspended_at IS NOT NULL, COALESCE(sites.suspended_reason, ''),
 		       COALESCE((SELECT su.suspended_at IS NOT NULL FROM users su WHERE su.id = sites.user_id), false),
 		       COALESCE((SELECT su.suspended_reason FROM users su WHERE su.id = sites.user_id AND su.suspended_at IS NOT NULL), ''),
-		       sites.offline_at IS NOT NULL
+		       sites.offline_at IS NOT NULL, sites.keep_versions
 		FROM sites
 		WHERE user_id = $1 AND deleted_at IS NULL
 		ORDER BY created_at ASC, name ASC
@@ -751,6 +753,23 @@ func SetSiteVisibility(ctx context.Context, db *sql.DB, siteID, visibility strin
 	return nil
 }
 
+// SetSiteKeepVersions stores how many deploys of a site are kept (0 = the
+// instance setting). sql.ErrNoRows for an unknown or deleted site.
+func SetSiteKeepVersions(ctx context.Context, q Querier, siteID string, keep int) error {
+	res, err := q.ExecContext(ctx, `UPDATE sites SET keep_versions = $2 WHERE id = $1 AND deleted_at IS NULL`, siteID, keep)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
 func scanSiteRows(rows *sql.Rows) ([]Site, error) {
 	defer rows.Close()
 
@@ -782,6 +801,7 @@ func scanSiteRows(rows *sql.Rows) ([]Site, error) {
 			&site.OwnerSuspended,
 			&site.OwnerSuspendedReason,
 			&site.Offline,
+			&site.KeepVersions,
 		); err != nil {
 			return nil, err
 		}
@@ -1236,10 +1256,15 @@ func GetActiveSiteVersion(ctx context.Context, db *sql.DB, siteID string) (Versi
 // directories that are already gone, so a rollback to one of them would serve
 // nothing; this way a failure leaves directories with no rows, which wastes
 // space until the next deploy retries and is otherwise harmless.
+//
+// The live version is read again inside the DELETE as well as passed in: a
+// rollback that lands between the caller reading the site and this statement
+// must not lose the version it just made live.
 func PruneVersions(ctx context.Context, db *sql.DB, siteID string, keepFrom, activeVersion int) ([]int, error) {
 	rows, err := db.QueryContext(ctx,
 		`DELETE FROM versions
 		  WHERE site_id = $1 AND version_number < $2 AND version_number <> $3
+		    AND version_number <> (SELECT active_version FROM sites WHERE id = $1)
 		  RETURNING version_number`, siteID, keepFrom, activeVersion)
 	if err != nil {
 		return nil, err

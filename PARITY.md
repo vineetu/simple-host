@@ -23,6 +23,7 @@ that should get it). Last derived from both `FEATURES.md` files and code on 2026
 | Area | Hosted | Enterprise | Status |
 |---|---|---|---|
 | Sites: deploy, versions, rollback, delete | tar.gz/zip or inline JSON files; `KEEP_VERSIONS`; rollback; delete | tar.gz or MCP file list, `If-Match` ETags; 5 versions kept; rollback; delete | `same` |
+| Versions kept per site | owner sets `keep_versions` per site (`PUT /v1/sites/{s}/keep-versions`, owner app Versions panel): newest N plus the live one, 0 = `KEEP_VERSIONS`; prunes at once and on every deploy (2026-09-29) | none: every site keeps 5 | `different on purpose` — hosted keeps every version by default, so a site republished on every change needs its own cap; enterprise already caps every site at 5 |
 | Recently deleted (undo a delete) | 7 days: delete takes a site offline and keeps it whole (name, saved data, collections, versions, claimed names held); `GET /v1/me/deleted-sites`, `POST /v1/sites/{s}/restore`, `list_deleted_sites`/`restore_site`, owner app; counts toward the site cap; hourly purge (2026-09-27) | 30 days (`DELETED_RETENTION_DAYS`): whole site (files, saved data, access, viewers, assets) restorable by owner, team member or admin (also after an admin's "Delete sites" for a leaver); name held against create, rename and hand-over; counts toward quota; purged by the sweeper | `same` — windows differ on purpose: a small box's disk vs the bucket's 30-day noncurrent-version retention |
 | Site rename | `PATCH /v1/sites/{s}`, `rename_site`, owner app; old address redirects until the name is reused (2026-09-27) | `POST .../rename`, `rename_site`, dashboard; old address redirects until the name is reused | `same` |
 | Take a site offline (keep everything) | owner switch (owner app, `PATCH /v1/sites/{s}` `{"offline"}`, `set_site_offline`): "This site is offline" (503) on every address, visitor saves (private lists too), visitor reads of saved data and lists, and visitor sign-in refused, owner keeps deploying and reading (2026-09-27) | the only-me access level works as "unpublish": visitors get the host gate, the owner still opens it | `different on purpose` — enterprise sites have access levels; hosted pages are always public, so offline is for everyone |
@@ -130,7 +131,7 @@ Every numbered `FEATURES.md` section, per repo, and the rows above that cover it
 
 | Repo | FEATURES.md section | Rows |
 |---|---|---|
-| hosted | Sites and deploy | Sites; Site rename; Take a site offline; Look before it goes live; Deploy from CI in one call; Recently deleted; Idle-site cleanup; Site export; Upload validation |
+| hosted | Sites and deploy | Sites; Versions kept per site; Site rename; Take a site offline; Look before it goes live; Deploy from CI in one call; Recently deleted; Idle-site cleanup; Site export; Upload validation |
 | hosted | Per-site and per-person addresses, and legacy redirects | Per-site hosts; "Your own address is on its way"; Per-owner certificates; Small-box path model |
 | hosted | Claimed `<name>.simple-host.app` and custom domains | Free names; Custom domains |
 | hosted | Saved state (shared JSON per site) | Saved state; Saved-state history; Who wrote saved data; The saved-data watch |
