@@ -249,7 +249,7 @@ func otherSettings() []Setting {
 		{Name: "SITE_BASE_MOVE", Group: "server", Type: "enum", Default: "off", Allowed: []string{"off", "serve", "canonical", "redirect", "permanent"},
 			Description: "How far addresses have moved from SITE_DOMAIN to SITE_BASE_DOMAIN: both answer (serve), the new ones are handed out (canonical), old ones redirect (redirect: 302, permanent: 301)."},
 		{Name: "SITE_BASE_CERT_DIR", Group: "domains", Type: "string",
-			Description: "Like SITE_CERT_DIR, for the per-person certificates under SITE_BASE_DOMAIN."},
+			Description: "Like SITE_CERT_DIR, for the per-person certificates under SITE_BASE_DOMAIN. Required, with ready/ and requests/ in it, once SITE_BASE_MOVE is on with its own domain: the server will not start without it."},
 		{Name: "DOMAIN_CERT_DIR", Group: "domains", Type: "string",
 			Description: "Where custom-domain certificates are requested from the certificate issuer. Empty: issued by hand."},
 		{Name: "SETUP_PASSWORD", Group: "server", Type: "secret", Security: true,

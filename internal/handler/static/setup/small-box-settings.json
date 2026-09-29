@@ -1361,7 +1361,7 @@
     {
       "name": "SITE_BASE_CERT_DIR",
       "group": "domains",
-      "description": "Like SITE_CERT_DIR, for the per-person certificates under SITE_BASE_DOMAIN.",
+      "description": "Like SITE_CERT_DIR, for the per-person certificates under SITE_BASE_DOMAIN. Required, with ready/ and requests/ in it, once SITE_BASE_MOVE is on with its own domain: the server will not start without it.",
       "type": "string",
       "default": "",
       "security_sensitive": false,

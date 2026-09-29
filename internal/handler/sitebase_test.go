@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -576,5 +577,30 @@ func TestMoveSiteBase(t *testing.T) {
 	}
 	if _, err := db.MoveSiteBase(ctx, a.database, from, from, nil, false); err == nil {
 		t.Fatal("same domain accepted")
+	}
+}
+
+// A fully qualified Host (trailing dot) is the same address as without it.
+func TestLegacyBaseTargetTrailingDot(t *testing.T) {
+	a := &SiteHandler{siteDomain: "simple-host.app", contentHost: "sites.simple-host.app"}
+	a.SetSiteBase("simple-host.site", "permanent", "")
+	for host, want := range map[string]string{
+		"clay.simple-host.app":       "https://clay.simple-host.site/x?y=1",
+		"clay.simple-host.app.":      "https://clay.simple-host.site/x?y=1",
+		"shop.clay.simple-host.app.": "https://shop.clay.simple-host.site/x?y=1",
+		"sites.simple-host.app.":     "",
+		"www.simple-host.app.":       "",
+	} {
+		r := httptest.NewRequest("GET", "http://"+host+"/x?y=1", nil)
+		got, status, ok := a.legacyBaseTarget(r)
+		if want == "" {
+			if ok {
+				t.Errorf("%s: redirected to %s, want no redirect", host, got)
+			}
+			continue
+		}
+		if !ok || got != want || status != http.StatusMovedPermanently {
+			t.Errorf("%s: %q %d %v, want %q 301", host, got, status, ok, want)
+		}
 	}
 }

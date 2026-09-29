@@ -757,7 +757,7 @@ func isSchemeDefaultPort(scheme, port string) bool {
 }
 
 func isRejectedPlatformHost(host, siteDomain, contentHost, publicBaseHostName string) bool {
-	host = strings.ToLower(host)
+	host = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(host), "."))
 	siteDomain = strings.ToLower(strings.TrimSpace(siteDomain))
 	contentHost = strings.ToLower(strings.TrimSpace(contentHost))
 	publicBaseHostName = strings.ToLower(strings.TrimSpace(publicBaseHostName))

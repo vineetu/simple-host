@@ -383,6 +383,9 @@ func Load() (Config, error) {
 		cfg.SiteBaseMove = "off"
 	}
 	cfg.SiteBaseCertDir = strings.TrimSpace(os.Getenv("SITE_BASE_CERT_DIR"))
+	if err := checkSiteBaseCertDir(cfg); err != nil {
+		return Config{}, err
+	}
 	cfg.DomainCertDir = strings.TrimSpace(os.Getenv("DOMAIN_CERT_DIR"))
 	cfg.IdleCleanup = strings.EqualFold(strings.TrimSpace(os.Getenv("IDLE_CLEANUP")), "on")
 	if v := strings.TrimSpace(os.Getenv("IDLE_CLEANUP_MAX_EMAILS")); v != "" {
@@ -425,6 +428,36 @@ func Load() (Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// checkSiteBaseCertDir refuses a split base without its certificate hand-off.
+// Without SITE_BASE_CERT_DIR every person would count as having a
+// certificate under SITE_BASE_DOMAIN, so site hosts there would be handed out
+// and redirected to before they are served (a TLS error nothing can fix after
+// the handshake). The directory must already hold ready/ (written by the
+// root issuer) and requests/ (written here; the unit makes only that
+// writable), so the service never creates them itself.
+func checkSiteBaseCertDir(cfg Config) error {
+	base := strings.ToLower(strings.TrimSpace(cfg.SiteBaseDomain))
+	d := strings.ToLower(strings.TrimSpace(cfg.SiteDomain))
+	if cfg.SiteBaseMove == "off" || base == "" || base == d ||
+		strings.HasSuffix(base, "."+d) || strings.HasSuffix(d, "."+base) {
+		return nil // one domain, or a nested base the handler ignores
+	}
+	if cfg.SiteBaseCertDir == "" {
+		return fmt.Errorf("SITE_BASE_CERT_DIR is required when SITE_BASE_DOMAIN (%s) differs from SITE_DOMAIN (%s) and SITE_BASE_MOVE is %s: without it every person would count as having a certificate under %s", base, d, cfg.SiteBaseMove, base)
+	}
+	for _, sub := range []string{"ready", "requests"} {
+		p := filepath.Join(cfg.SiteBaseCertDir, sub)
+		st, err := os.Stat(p)
+		if err != nil {
+			return fmt.Errorf("SITE_BASE_CERT_DIR %s: %s/ is missing (create %s/ root-owned and requests/ owned by the service user): %v", cfg.SiteBaseCertDir, sub, cfg.SiteBaseCertDir, err)
+		}
+		if !st.IsDir() {
+			return fmt.Errorf("SITE_BASE_CERT_DIR %s: %s is not a directory", cfg.SiteBaseCertDir, p)
+		}
+	}
+	return nil
 }
 
 // HandoutBase is the domain addresses are handed out under: SITE_BASE_DOMAIN

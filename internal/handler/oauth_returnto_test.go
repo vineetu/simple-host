@@ -66,7 +66,8 @@ func TestSplitContentHostPath(t *testing.T) {
 }
 
 func TestIsRejectedPlatformHost(t *testing.T) {
-	reject := []string{"simple-host.app", "www.simple-host.app", "blog.simple-host.app", "localhost"}
+	reject := []string{"simple-host.app", "www.simple-host.app", "blog.simple-host.app", "localhost",
+		"simple-host.app.", "www.simple-host.app.", "blog.simple-host.app.", "localhost."}
 	for _, h := range reject {
 		if !isRejectedPlatformHost(h, "simple-host.app", "sites.simple-host.app", "localhost") {
 			t.Fatalf("expected reject %q", h)

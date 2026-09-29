@@ -309,7 +309,7 @@ func (h *SiteHandler) legacyBaseTarget(r *http.Request) (string, int, bool) {
 	if strings.HasPrefix(r.URL.Path, "/v1/") || strings.HasPrefix(r.URL.Path, "/internal/") {
 		return "", 0, false
 	}
-	host := requestHostName(r)
+	host := strings.TrimSuffix(requestHostName(r), ".")
 	legacy := strings.ToLower(h.siteDomain)
 	if !strings.HasSuffix(host, "."+legacy) || strings.EqualFold(host, h.contentHost) ||
 		strings.EqualFold(host, strings.TrimSuffix(h.cnameTarget, ".")) {

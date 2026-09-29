@@ -31,7 +31,7 @@ the public instance only.
 | `CNAME_TARGET` | `cname.<SITE_DOMAIN>` | text | The hostname people point their own domain at with a CNAME record. |
 | `CUSTOM_DOMAIN_IP` | none | text | This server's public IPv4, given as the A record for a bare domain (brand.com). |
 | `SITE_CERT_DIR` | none | text | Where per-person certificates are requested from, and found ready from, the certificate issuer. |
-| `SITE_BASE_CERT_DIR` | none | text | Like SITE_CERT_DIR, for the per-person certificates under SITE_BASE_DOMAIN. |
+| `SITE_BASE_CERT_DIR` | none | text | Like SITE_CERT_DIR, for the per-person certificates under SITE_BASE_DOMAIN. Required, with ready/ and requests/ in it, once SITE_BASE_MOVE is on with its own domain: the server will not start without it. |
 | `DOMAIN_CERT_DIR` | none | text | Where custom-domain certificates are requested from the certificate issuer. Empty: issued by hand. |
 | `EVENT_DNS_TOKEN` | none | secret | The DNS token that hands out event hostnames. The public instance only. **Security-sensitive.** |
 | `EVENT_DNS_TEAM_ID` | none | text | The DNS account the event token belongs to. |
