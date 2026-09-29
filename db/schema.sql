@@ -22,6 +22,14 @@ CREATE TABLE users (
   -- no sign-in alerts, no email change, no idle cleanup
   -- (v071-event-account-flag.sql). Never set from a key's name.
   event_account      BOOLEAN NOT NULL DEFAULT FALSE,
+  -- Where the account came from, set once at creation (v075-signup-source.sql):
+  -- website | connector:<app> | agent | visitor | admin | reviewer; NULL = before
+  -- tracking. signup_agent names the agent; signup_method is email | google |
+  -- issued | password; signup_inferred marks a backfilled guess. Never an IP.
+  signup_source      TEXT,
+  signup_agent       TEXT,
+  signup_method      TEXT,
+  signup_inferred    BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 

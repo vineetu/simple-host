@@ -6,139 +6,133 @@
 <meta name="robots" content="noindex">
 <title>Admin — simple·host</title>
 <!--sh:head-->
-<script>
-// Disk usage. Measured, not predicted: the walk behind this is cached server
-// side, so reloading the page does not re-walk the tree. Failing to read it
-// must never take the rest of the admin page down with it.
-function bytes(n){
-  if(n>=1073741824) return (n/1073741824).toFixed(1)+' GB';
-  if(n>=1048576) return (n/1048576).toFixed(1)+' MB';
-  if(n>=1024) return Math.round(n/1024)+' KB';
-  return n+' B';
-}
-async function loadDisk(){
-  try{
-    var res=await fetch('/v1/admin/usage',{headers:{'X-API-Key':apiKey}});
-    if(!res.ok) return;
-    var d=await res.json();
-    document.getElementById('du').textContent=bytes(d.disk_used_bytes);
-    document.getElementById('df').textContent=bytes(d.disk_free_bytes);
-    var wrap=document.getElementById('disk'), bar=document.querySelector('.bar');
-    var note=document.getElementById('disk-note');
-    wrap.hidden=false;
-    document.getElementById('bar-fill').style.width=Math.min(100,d.disk_used_pct)+'%';
-    bar.className='bar'+(d.status==='ok'?'':' '+d.status);
-    note.className='ph'+(d.status==='ok'?'':' '+d.status);
-    var age='';
-    if(d.measured_at){
-      var secs=Math.max(0,Math.round((Date.now()-new Date(d.measured_at))/1000));
-      age=secs<90?'':' Measured '+Math.round(secs/60)+' minutes ago.';
-    }
-    note.textContent=d.message+' Websites are capped at '+d.site_limit_mb+' MB each.'+age;
-    // Settings and release in force, so nobody needs a shell to say which
-    // version this box runs or how much history it keeps.
-    var kv=d.keep_versions, keep=kv===0?'Keeps every deploy of each website.':
-      kv===1?'Keeps the latest deploy of each website.':'Keeps the latest '+kv+' deploys of each website.';
-    var inst=document.getElementById('instance-note');
-    inst.textContent=keep+(d.version?' Running release '+d.version+', commit '+d.commit+'.':'');
-    inst.hidden=false;
-    var top=(d.largest||[]);
-    if(top.length){
-      document.getElementById('disk-rows').innerHTML=top.map(function(t){
-        return '<tr><td>'+esc(t.name)+'</td><td>'+bytes(t.bytes)+'</td></tr>';
-      }).join('');
-      document.getElementById('disk-top').hidden=false;
-    }
-  }catch(e){ /* the disk figure is not worth breaking the page for */ }
-}
-</script>
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 [hidden]{display:none!important}
-/* Tokens, base type and the header/footer live in /site.css. */
-body{min-height:100vh}
-.container{max-width:960px;margin:0 auto;padding:0 20px}
-/* The header and footer are the shared chrome (/site.css); this names the page under it. */
-.page-tag{font-size:28px;font-weight:700;letter-spacing:-.01em;line-height:1.25;color:var(--text);margin-top:40px}
-.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0 24px;margin:24px 0 16px}
-@media (max-width:640px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
-.stat{border-top:1px solid var(--border);padding:12px 0 8px;min-width:0}
-.stat .n{font-size:28px;font-weight:700;color:var(--text);line-height:1.15;font-variant-numeric:tabular-nums}
-.stat .l{font-size:13px;color:var(--text-secondary);margin-top:4px}
-.bar{height:8px;border-radius:999px;background:var(--border);overflow:hidden;margin-top:4px}
+/* Tokens, base type, the header/footer and the in-page dialogs live in /site.css.
+   Two page colours on top, for both themes. */
+:root{--warn:#b45309;--row-hi:rgba(15,23,42,.04)}
+html[data-theme="dark"]{--warn:#fbbf24;--row-hi:rgba(148,163,184,.08)}
+body{min-height:100vh;background:var(--bg);color:var(--text)}
+.container{max-width:1200px;margin:0 auto;padding:0 16px}
+@media (min-width:700px){.container{padding:0 24px}}
+.page-tag{font-size:26px;font-weight:700;letter-spacing:-.01em;line-height:1.25;color:var(--text);margin-top:32px}
+.page-sub{font-size:13px;color:var(--text-secondary);margin-top:2px;min-height:18px}
+
+/* Tabs: one row, scrolls inside itself on a narrow phone. */
+.tabs{display:flex;gap:4px;margin:16px 0 0;border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{font:inherit;font-size:15px;font-weight:600;color:var(--text-secondary);background:none;border:0;border-bottom:2px solid transparent;padding:10px 12px;min-height:44px;cursor:pointer;white-space:nowrap;flex:none}
+.tab:hover{color:var(--text)}
+.tab[aria-selected="true"]{color:var(--text);border-bottom-color:var(--accent)}
+.tab:focus-visible,.btn:focus-visible,.chip:focus-visible,.mi:focus-visible,.th-btn:focus-visible,.row-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.panel{padding:20px 0 56px}
+.sec{margin:28px 0 0}
+.sec:first-child{margin-top:4px}
+.sec h2{font-size:18px;font-weight:700;letter-spacing:-.01em;margin:0 0 4px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.sec h2 .cnt{font-size:14px;font-weight:500;color:var(--text-secondary)}
+.ph{font-size:14px;color:var(--text-secondary);margin:4px 0 10px;max-width:80ch}
+.ph.warn{color:var(--warn)}
+.muted{color:var(--text-secondary)}
+.msg{position:sticky;top:8px;z-index:5;padding:10px 12px;margin-top:12px;border:1px solid var(--border-hi);border-radius:8px;background:var(--surface);color:var(--text);font-size:14px}
+.msg.err{color:var(--error);border-color:var(--error)}
+
+/* Key numbers */
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:0 20px;margin:4px 0 8px}
+.stat{border-top:1px solid var(--border);padding:10px 0 6px;min-width:0}
+.stat .n{font-size:24px;font-weight:700;color:var(--text);line-height:1.15;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.stat .l{font-size:13px;color:var(--text-secondary);margin-top:2px}
+.bar{height:8px;border-radius:999px;background:var(--border);overflow:hidden;margin-top:8px}
 .bar>div{height:100%;width:0;background:var(--accent);transition:width .3s}
-.bar.filling>div{background:#d97706}
+.bar.filling>div{background:var(--warn)}
 .bar.full>div{background:var(--error)}
-#disk-note.filling{color:#d97706}
-#disk-note.full{color:var(--error)}
-#disk-top summary{cursor:pointer;font-size:13px;color:var(--text-secondary);margin-top:10px}
-.msg{padding:12px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:15px;margin-top:16px}
-.msg.err{color:var(--error)}
-.panel{border-top:1px solid var(--border);padding-top:20px;margin:40px 0 56px}
-.panel h2{font-size:21px;font-weight:700;letter-spacing:-.01em;margin:0 0 4px}
-.ph{font-size:15px;color:var(--text-secondary);margin:6px 0 12px}
-.ph.warn{color:var(--amber,#b45309);margin-top:10px}
-.panel textarea,.panel input{width:100%;font:inherit;font-size:15px;padding:8px 12px;border:1px solid var(--border-hi);border-radius:8px;background:var(--bg);color:var(--text)}
-.panel textarea:focus,.panel input:focus{outline:none;border-color:var(--accent)}
-.panel .row{display:flex;gap:12px;align-items:end;margin-top:12px;flex-wrap:wrap}
-.panel .row > input{flex:1 1 220px;width:auto}
-.panel .row label{font-size:13px;color:var(--text-secondary);display:flex;flex-direction:column;gap:4px}
-.panel .row label input{width:110px}
-.btn{font:inherit;font-size:15px;font-weight:600;padding:8px 16px;border-radius:8px;border:1px solid transparent;background:var(--accent);color:var(--on-accent);cursor:pointer}
+.ph.filling{color:var(--warn)}.ph.full{color:var(--error)}
+.two{display:grid;grid-template-columns:minmax(0,1fr);gap:0 32px}
+.two>.sec{margin-top:28px}
+@media (min-width:980px){.two{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+
+/* Tables scroll inside their own box; the page never scrolls sideways. */
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%;margin:8px 0 4px}
+table.t{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+table.t th{font-size:12px;font-weight:600;color:var(--text-secondary);text-align:left;padding:8px 10px 8px 0;border-bottom:1px solid var(--border);white-space:nowrap}
+table.t td{padding:8px 10px 8px 0;border-bottom:1px solid var(--border);color:var(--text);vertical-align:top}
+table.t.nowrap td{white-space:nowrap}
+table.t th:last-child,table.t td:last-child{padding-right:0}
+table.t .num{text-align:right}
+table.t td a{color:var(--accent);text-decoration:none}
+table.t td a:hover{text-decoration:underline}
+table.t .sub{color:var(--text-secondary);font-size:12px;margin-top:2px;white-space:normal}
+table.t td.wrap{white-space:normal;overflow-wrap:anywhere;min-width:180px}
+table.t td.err{color:var(--error)}
+table.t td.mono,.mono{font-family:var(--mono);font-size:12px}
+table.t tbody tr.clickable{cursor:pointer}
+table.t tbody tr.clickable:hover td,table.t tbody tr.open td{background:var(--row-hi)}
+table.t tr.detail>td{background:var(--row-hi);padding:12px;white-space:normal}
+.empty{color:var(--dim)}
+.tag{display:inline-block;font-size:12px;line-height:1.5;padding:0 7px;border-radius:999px;border:1px solid var(--border-hi);color:var(--text-secondary);white-space:nowrap}
+.tag.down{color:var(--error);border-color:var(--error)}
+.tag.warn{color:var(--warn);border-color:var(--warn)}
+.tag.ok{color:var(--success);border-color:var(--success)}
+.tag.acc{color:var(--accent);border-color:var(--accent)}
+.src-inf{font-size:12px;color:var(--dim)}
+
+/* Controls */
+.btn{font:inherit;font-size:14px;font-weight:600;padding:6px 14px;min-height:34px;border-radius:8px;border:1px solid transparent;background:var(--accent);color:var(--on-accent);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;white-space:nowrap}
 .btn:hover{background:var(--accent-hover)}
 .btn.ghost{background:transparent;color:var(--text);border-color:var(--border-hi);font-weight:500}
-.btn.ghost:hover{background:transparent;border-color:var(--text-secondary)}
+.btn.ghost:hover{border-color:var(--text-secondary)}
+.btn.danger{background:transparent;color:var(--error);border-color:var(--error);font-weight:500}
 .btn[disabled]{opacity:.5;cursor:default}
-.keycell{font-family:var(--mono);font-size:13px;word-break:break-all}
-.users{margin:12px 0 56px;display:flex;flex-direction:column;border-top:1px solid var(--border)}
-.user{border-bottom:1px solid var(--border);padding:16px 0}
-.user-head{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap}
-.user-head .name{font-size:17px;font-weight:600;overflow-wrap:anywhere;min-width:0}
-.badge{font-size:13px;line-height:1.4;padding:0 8px;border-radius:999px;border:1px solid var(--border-hi);color:var(--text-secondary)}
-.badge.admin{color:var(--accent);border-color:var(--accent)}
-.badge.count{color:var(--text);font-variant-numeric:tabular-nums}
-.user-head .when{margin-left:auto;font-size:13px;color:var(--text-secondary)}
-.handle{color:var(--text-secondary);font-size:15px}
-.sites{margin-top:8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:4px 24px}
-.site{padding:6px 0;min-width:0}
-.site .sn{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px;min-width:0;overflow-wrap:anywhere}
-.dot{width:6px;height:6px;border-radius:50%;flex:none}.dot.live{background:var(--success)}.dot.pending{background:var(--dim)}
-.site a{color:var(--accent);font-size:13px;text-decoration:none;display:block;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.site a:hover{text-decoration:underline}
-.site .cd{font-size:13px;color:var(--text-secondary);margin-top:2px;display:flex;align-items:center;gap:6px;min-width:0;overflow-wrap:anywhere}
-.site .cd .ico{width:14px;height:14px;flex-shrink:0}
-.nosites{font-size:13px;color:var(--text-secondary);margin-top:6px}
-.badge.down{color:var(--error);border-color:var(--error)}
-.downnote{font-size:13px;color:var(--error);margin-top:2px;overflow-wrap:anywhere}
-.btn.mini{padding:1px 8px;font-size:13px}
-.sec{font-size:21px;font-weight:700;letter-spacing:-.01em;color:var(--text);border-top:1px solid var(--border);padding-top:20px;margin:0 0 4px}
-.secnote{font-size:15px;color:var(--text-secondary);margin-bottom:12px}
-table.apx{width:100%;border-collapse:collapse;font-size:15px;margin:12px 0 24px;font-variant-numeric:tabular-nums}
-table.apx th{font-size:13px;font-weight:500;color:var(--text-secondary);text-align:left;padding:8px 12px 8px 0;border-bottom:1px solid var(--border)}
-table.apx td{padding:9px 12px 9px 0;border-bottom:1px solid var(--border);color:var(--text);vertical-align:top;overflow-wrap:anywhere}
-table.apx tr:last-child td{border-bottom:none}
-table.apx th:last-child,table.apx td:last-child{padding-right:0}
-table.apx td.num{text-align:right}
-table.apx th.num{text-align:right}
-table.apx td a{color:var(--accent);text-decoration:none}
-table.apx td a:hover{text-decoration:underline}
-table.apx td .sub{color:var(--text-secondary);font-size:13px;margin-top:2px}
-table.apx td.err{color:var(--error)}
-#ax-routes-t td:first-child,#ax-ips-t td:first-child{font-family:var(--mono);font-size:13px}
-#ax-ips-t td:first-child .sub{font-family:var(--font)}
-@media (max-width:640px){#ax-ips-t,#ax-routes-t,#dwatch table.apx{display:block;overflow-x:auto}}
-/* Users list: one row per account, newest first. Scrolls inside its own box on
-   a phone so the page itself never scrolls sideways. */
-#ulist{margin:40px 0 0}
-#ulist h2{font-size:21px;font-weight:700;letter-spacing:-.01em;margin:0 0 4px}
-#ulist h2 .ucount{color:var(--text-secondary);font-weight:500}
-.ulist-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
-#ulist table.apx{margin-top:8px;white-space:nowrap}
-#ulist table.apx td{overflow-wrap:normal}
-#ulist th.sortable button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;display:inline-flex;gap:4px;align-items:center}
-#ulist th.sortable button:hover{color:var(--text)}
-#ulist .rel{color:var(--text-secondary)}
-#ulist .ustate{font-size:13px;color:var(--text-secondary);margin-left:8px}
+.btn.sm{padding:2px 10px;min-height:30px;font-size:13px}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
+.toolbar .grow{flex:1 1 220px;min-width:0}
+input.in,textarea.in,select.in{font:inherit;font-size:15px;padding:7px 12px;min-height:38px;border:1px solid var(--border-hi);border-radius:8px;background:var(--bg);color:var(--text);width:100%}
+input.in:focus,textarea.in:focus,select.in:focus{outline:none;border-color:var(--accent)}
+select.in{width:auto}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:inherit;font-size:13px;padding:4px 12px;min-height:32px;border-radius:999px;border:1px solid var(--border-hi);background:transparent;color:var(--text-secondary);cursor:pointer;white-space:nowrap}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.th-btn{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;display:inline-flex;gap:4px;align-items:center;white-space:nowrap;font-weight:600}
+.th-btn:hover{color:var(--text)}
+.row-toggle{font:inherit;color:var(--text-secondary);background:none;border:0;cursor:pointer;min-width:28px;min-height:28px;display:inline-flex;align-items:center;justify-content:center}
+.more{font:inherit;font-size:18px;line-height:1;color:var(--text);background:transparent;border:1px solid var(--border-hi);border-radius:8px;min-width:36px;min-height:32px;cursor:pointer}
+.more:hover,.more[aria-expanded="true"]{border-color:var(--accent)}
+.pager{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--text-secondary);margin:6px 0}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.form-row{display:flex;gap:10px;align-items:end;margin-top:10px;flex-wrap:wrap}
+.form-row label{font-size:13px;color:var(--text-secondary);display:flex;flex-direction:column;gap:4px}
+.form-row label input{width:120px}
+.down-note{font-size:13px;color:var(--error);margin-top:4px;overflow-wrap:anywhere}
+.site-mini{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px 20px;margin-top:6px}
+.site-mini div{min-width:0;font-size:14px;overflow-wrap:anywhere}
+.site-mini a{color:var(--accent);text-decoration:none}
+details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);margin:10px 0 0;min-height:32px;display:flex;align-items:center}
+.panel-inner{border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--surface)}
+.vrow{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:4px 0;font-size:14px}
+.data-rows{max-height:360px;overflow:auto;margin-top:8px}
+
+/* The Sites actions column stays in view while the table scrolls sideways. */
+#s-table th:last-child,#s-table tr[data-site] td:last-child{position:sticky;right:0;background:var(--bg);padding-left:8px;box-shadow:-8px 0 8px -8px rgba(2,6,23,.25)}
+@media (max-width:700px){.tab{padding:10px 8px;font-size:14px}}
+@media (max-width:520px){.ago{display:none}}
+/* Row menu: one "⋯" per row; the menu is fixed to the viewport so the
+   table's scroll box never clips it. */
+.menu{position:fixed;z-index:50;min-width:200px;max-width:calc(100vw - 16px);background:var(--surface);border:1px solid var(--border-hi);border-radius:10px;box-shadow:0 12px 32px rgba(2,6,23,.28);padding:6px;display:flex;flex-direction:column}
+.mi{font:inherit;font-size:14px;text-align:left;color:var(--text);background:none;border:0;border-radius:6px;padding:8px 10px;min-height:36px;cursor:pointer;text-decoration:none;display:flex;align-items:center}
+.mi:hover,.mi:focus{background:var(--row-hi);outline:none}
+.mi.danger{color:var(--error)}
+.mi[aria-disabled="true"]{color:var(--dim);cursor:default}
+.mi-sep{height:1px;background:var(--border);margin:4px 2px}
+
+/* Touch (and any narrow screen, which is almost always touch): every control
+   at least 40px. */
+@media (pointer:coarse),(any-pointer:coarse),(max-width:700px){
+  .btn,.btn.sm,.chip,.more,.row-toggle,.mi,input.in,select.in,.tab,.th-btn,details.box summary{min-height:44px}
+  .th-btn{min-width:44px}
+  .row-toggle,.more{min-width:44px}
+}
+.geo-credit{font-size:12px;color:var(--text-secondary);margin-top:8px}
+.geo-credit a{color:var(--text-secondary)}
 </style>
 </head>
 <body data-sh-account>
@@ -146,292 +140,890 @@ table.apx td.err{color:var(--error)}
 
 <div class="container" id="admin-main">
   <p class="page-tag">Admin</p>
-  <div class="stats" id="stats" hidden>
-    <div class="stat"><div class="n" id="uc">–</div><div class="l">Users</div></div>
-    <div class="stat"><div class="n" id="sc">–</div><div class="l">Websites</div></div>
-    <div class="stat"><div class="n" id="du">–</div><div class="l">Disk used</div></div>
-    <div class="stat"><div class="n" id="df">–</div><div class="l">Disk free</div></div>
-  </div>
-  <!-- The question an organiser actually has, answered from the disk rather
-       than from a projection: what is on it, and how much is left. -->
-  <div id="disk" hidden>
-    <div class="bar"><div id="bar-fill"></div></div>
-    <p class="ph" id="disk-note"></p>
-    <p class="ph" id="instance-note" hidden></p>
-    <details id="disk-top" hidden><summary>Biggest websites</summary>
-      <table class="apx"><thead><tr><th>Website</th><th>Size</th></tr></thead><tbody id="disk-rows"></tbody></table>
-    </details>
-  </div>
-  <div id="status" class="msg" hidden></div>
+  <p class="page-sub" id="instance-line"></p>
+  <div id="status" class="msg" role="status" aria-live="polite" hidden></div>
 
-  <!-- Who has joined, newest first (from GET /v1/admin/users, already loaded
-       for the cards below). Only the Joined column sorts. -->
-  <div id="ulist" hidden>
-    <h2>Users <span class="ucount" id="ulist-count"></span></h2>
-    <div class="ulist-wrap">
-      <table class="apx"><thead><tr><th class="num">#</th><th class="sortable" aria-sort="descending"><button type="button" id="ulist-sort">Joined <span id="ulist-arrow" aria-hidden="true">&darr;</span></button></th><th>Handle</th><th>Email</th><th class="num">Sites</th></tr></thead><tbody id="ulist-rows"></tbody></table>
+  <div class="tabs" role="tablist" aria-label="Admin sections" id="tabs" hidden>
+    <button class="tab" role="tab" id="tab-overview" aria-controls="p-overview" aria-selected="true" data-tab="overview">Overview</button>
+    <button class="tab" role="tab" id="tab-users" aria-controls="p-users" aria-selected="false" tabindex="-1" data-tab="users">Users</button>
+    <button class="tab" role="tab" id="tab-sites" aria-controls="p-sites" aria-selected="false" tabindex="-1" data-tab="sites">Sites</button>
+    <button class="tab" role="tab" id="tab-moderation" aria-controls="p-moderation" aria-selected="false" tabindex="-1" data-tab="moderation">Moderation</button>
+    <button class="tab" role="tab" id="tab-tools" aria-controls="p-tools" aria-selected="false" tabindex="-1" data-tab="tools">Tools</button>
+  </div>
+
+  <!-- ============ Overview ============ -->
+  <section class="panel" role="tabpanel" id="p-overview" aria-labelledby="tab-overview" hidden>
+    <div class="sec">
+      <div class="stats" id="ov-stats"></div>
+      <div id="disk" hidden>
+        <div class="bar" id="disk-bar"><div id="bar-fill"></div></div>
+        <p class="ph" id="disk-note"></p>
+      </div>
     </div>
-  </div>
-
-  <!-- Issuing participant accounts is how an event works: no email provider, no
-       OAuth client, no sign-in. Each key is shown once, here, at creation. -->
-  <div class="panel" id="issue" hidden>
-    <h2>Issue participant accounts</h2>
-    <p class="ph">Give a list of email addresses, or ask for a number. As many as you need. Each key is shown once.</p>
-    <textarea id="roster" rows="3" placeholder="ada@example.edu, alan@example.edu&#10;or leave empty and set a count below"></textarea>
-    <div class="row">
-      <label>Count <input type="number" id="count" min="1" placeholder="30"></label>
-      <label>Prefix <input type="text" id="prefix" placeholder="team"></label>
-      <button class="btn" id="issue-btn">Create</button>
-      <button class="btn ghost" id="csv-btn" hidden>Download CSV</button>
+    <div class="two">
+      <div class="sec">
+        <h2>Latest sign-ups</h2>
+        <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th>Joined</th><th>Handle</th><th>Email</th><th>Source</th></tr></thead><tbody id="ov-latest"></tbody></table></div>
+        <p class="ph"><a href="#users" class="muted" data-goto="users">All users</a></p>
+      </div>
+      <div class="sec">
+        <h2>Sign-ups by source</h2>
+        <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th>Source</th><th class="num">7 days</th><th class="num">30 days</th><th class="num">All time</th></tr></thead><tbody id="ov-sources"></tbody></table></div>
+        <p class="ph">Recorded when each account is created. "Inferred" rows were worked out later for older accounts. No IP is kept.</p>
+      </div>
     </div>
-    <div id="issued" hidden>
-      <table class="apx"><thead><tr><th>Account</th><th>Address</th><th>Key</th></tr></thead><tbody id="issued-rows"></tbody></table>
-      <p class="ph warn">Copy these now. Keys are never shown again, and re-running skips existing accounts. If someone loses their key, use New key on their account below.</p>
+    <div class="sec">
+      <h2>Biggest websites</h2>
+      <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th class="num" style="width:1%">#</th><th>Website</th><th>Owner</th><th class="num">Size</th></tr></thead><tbody id="ov-biggest"><tr><td colspan="4" class="empty">Measuring…</td></tr></tbody></table></div>
     </div>
-  </div>
+  </section>
 
-  <div class="panel" id="entries" hidden>
-    <h2>Entries</h2>
-    <p class="ph">Every published site, newest first. This is the list to give judges.</p>
-    <div class="row">
-      <input type="text" id="entry-filter" placeholder="Filter by name or account">
-      <button class="btn ghost" id="entries-csv-btn">Download CSV</button>
-      <button class="btn ghost" id="entries-copy-btn">Copy links</button>
-      <button class="btn ghost" id="entries-all-btn">Download all entries</button>
+  <!-- ============ Users ============ -->
+  <section class="panel" role="tabpanel" id="p-users" aria-labelledby="tab-users" hidden>
+    <div class="sec">
+      <h2>Users <span class="cnt" id="u-count"></span></h2>
+      <div class="toolbar">
+        <input class="in grow" type="search" id="u-search" placeholder="Search handle or email" aria-label="Search users by handle or email" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="tbl-wrap"><table class="t nowrap" id="u-table"><thead><tr>
+        <th class="num">#</th>
+        <th aria-sort="descending"><button type="button" class="th-btn" id="u-sort">Joined <span id="u-arrow" aria-hidden="true">&darr;</span></button></th>
+        <th>Handle</th><th>Email</th><th>Source</th><th class="num">Sites</th><th>Status</th>
+      </tr></thead><tbody id="u-rows"></tbody></table></div>
+      <div class="pager" id="u-pager"></div>
     </div>
-    <table class="apx"><thead><tr><th>Entry</th><th>Account</th><th>Link</th><th>Analytics</th><th>Status</th></tr></thead><tbody id="entry-rows"></tbody></table>
-    <p class="ph" id="entry-count"></p>
-  </div>
+  </section>
 
-  <!-- Idle-site cleanup, dry run (GET /v1/admin/idle-sites): what a run would
-       do now, whether or not IDLE_CLEANUP is on, so it can be checked first. -->
-  <div class="panel" id="idle" hidden>
-    <h2>Idle sites</h2>
-    <p class="ph" id="idle-note"></p>
-    <details id="idle-warn-d"><summary id="idle-warn-s">Sites that would be warned</summary>
-      <table class="apx"><thead><tr><th>Website</th><th>Owner</th><th>Last activity</th></tr></thead><tbody id="idle-warn"></tbody></table>
-    </details>
-    <details id="idle-remove-d"><summary id="idle-remove-s">Sites that would be removed</summary>
-      <table class="apx"><thead><tr><th>Website</th><th>Owner</th><th>Warned</th></tr></thead><tbody id="idle-remove"></tbody></table>
-    </details>
-  </div>
-
-  <!-- Saved-data watch (GET /v1/admin/data-watch): how pages use saved data in
-       the ways a later step makes owner-only or bounded, before anything is
-       enforced. Counts only, never content. -->
-  <div class="panel" id="dwatch" hidden>
-    <h2>Saved-data watch</h2>
-    <p class="ph" id="dwatch-note"></p>
-    <table class="apx"><thead><tr><th>Website</th><th>Owner</th><th>Visitor replaces</th><th>Not an object</th><th>Visitor ops</th><th>Large incs</th><th>New list names</th><th>Large items</th><th>Last</th></tr></thead><tbody id="dwatch-rows"></tbody></table>
-  </div>
-
-  <div class="users" id="users"></div>
-
-  <div id="apitraffic" hidden>
-    <div class="sec">API traffic</div>
-    <div class="secnote">Every API call to simple-host, counted since this feature went live. Numbers are for today and the last 7 days; caller IPs are kept 30 days.</div>
-    <div class="stats">
-      <div class="stat"><div class="n" id="ax-calls">–</div><div class="l">Calls today</div></div>
-      <div class="stat"><div class="n" id="ax-ips">–</div><div class="l">Callers today</div></div>
-      <div class="stat"><div class="n" id="ax-errs">–</div><div class="l">Errors today</div></div>
-      <div class="stat"><div class="n" id="ax-ai">–</div><div class="l">AI builds today</div></div>
+  <!-- ============ Sites ============ -->
+  <section class="panel" role="tabpanel" id="p-sites" aria-labelledby="tab-sites" hidden>
+    <div class="sec">
+      <h2>Sites <span class="cnt" id="s-count"></span></h2>
+      <div class="toolbar">
+        <input class="in grow" type="search" id="s-search" placeholder="Search site, owner or domain" aria-label="Search sites" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="chips" role="group" aria-label="Filter sites" id="s-chips">
+        <button type="button" class="chip" data-filter="all" aria-pressed="true">All</button>
+        <button type="button" class="chip" data-filter="down" aria-pressed="false">Taken down</button>
+        <button type="button" class="chip" data-filter="domain" aria-pressed="false">Has custom domain</button>
+        <button type="button" class="chip" data-filter="unlisted" aria-pressed="false">Unlisted</button>
+      </div>
+      <div class="tbl-wrap"><table class="t nowrap" id="s-table"><thead><tr>
+        <th data-sort="name"><button type="button" class="th-btn" data-sort="name">Site <span aria-hidden="true"></span></button></th>
+        <th data-sort="owner"><button type="button" class="th-btn" data-sort="owner">Owner <span aria-hidden="true"></span></button></th>
+        <th data-sort="size" class="num"><button type="button" class="th-btn" data-sort="size">Size <span aria-hidden="true"></span></button></th>
+        <th data-sort="updated"><button type="button" class="th-btn" data-sort="updated">Last updated <span aria-hidden="true"></span></button></th>
+        <th>Visibility</th><th>Status</th><th>Domain</th><th><span class="muted">Actions</span></th>
+      </tr></thead><tbody id="s-rows"></tbody></table></div>
+      <div class="pager" id="s-pager"></div>
     </div>
-    <table class="apx" id="ax-routes-t">
-      <thead><tr><th>What's being called</th><th class="num">Today</th><th class="num">7 days</th><th class="num">Errors</th></tr></thead>
-      <tbody id="ax-routes"></tbody>
-    </table>
-    <table class="apx" id="ax-ips-t">
-      <thead><tr><th>Who's calling</th><th>From</th><th class="num">Today</th><th class="num">7 days</th><th>Last seen</th></tr></thead>
-      <tbody id="ax-ipsrows"></tbody>
-    </table>
-    <div class="secnote geo-credit">Locations are looked up on this server; no IP is sent anywhere. <a href="https://db-ip.com">IP Geolocation by DB-IP</a></div>
-  </div>
+  </section>
+
+  <!-- ============ Moderation ============ -->
+  <section class="panel" role="tabpanel" id="p-moderation" aria-labelledby="tab-moderation" hidden>
+    <div class="sec">
+      <h2>Taken down <span class="cnt" id="m-count"></span></h2>
+      <p class="ph">Sites taken down and suspended accounts. Nothing is deleted; Restore and Re-enable put them back.</p>
+      <div class="tbl-wrap"><table class="t"><thead><tr><th>Site or account</th><th>Owner</th><th>Reason</th><th></th></tr></thead><tbody id="m-rows"></tbody></table></div>
+    </div>
+    <!-- Idle-site cleanup, dry run (GET /v1/admin/idle-sites). -->
+    <div class="sec" id="idle" hidden>
+      <h2>Idle sites</h2>
+      <p class="ph" id="idle-note"></p>
+      <details class="box" id="idle-warn-d"><summary id="idle-warn-s">Sites that would be warned</summary>
+        <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th>Website</th><th>Owner</th><th>Last activity</th></tr></thead><tbody id="idle-warn"></tbody></table></div>
+      </details>
+      <details class="box" id="idle-remove-d"><summary id="idle-remove-s">Sites that would be removed</summary>
+        <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th>Website</th><th>Owner</th><th>Warned</th></tr></thead><tbody id="idle-remove"></tbody></table></div>
+      </details>
+    </div>
+    <!-- Saved-data watch (GET /v1/admin/data-watch): counts only, never content. -->
+    <div class="sec" id="dwatch" hidden>
+      <h2>Saved-data watch</h2>
+      <p class="ph" id="dwatch-note"></p>
+      <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th>Website</th><th>Owner</th><th class="num">Visitor replaces</th><th class="num">Not an object</th><th>Visitor ops</th><th class="num">Large incs</th><th class="num">New list names</th><th class="num">Large items</th><th>Last</th></tr></thead><tbody id="dwatch-rows"></tbody></table></div>
+    </div>
+    <div class="sec" id="apitraffic" hidden>
+      <h2>API traffic</h2>
+      <p class="ph">Every API call to simple-host, counted since this feature went live. Numbers are for today and the last 7 days; caller IPs are kept 30 days.</p>
+      <div class="stats">
+        <div class="stat"><div class="n" id="ax-calls">–</div><div class="l">Calls today</div></div>
+        <div class="stat"><div class="n" id="ax-ips">–</div><div class="l">Callers today</div></div>
+        <div class="stat"><div class="n" id="ax-errs">–</div><div class="l">Errors today</div></div>
+        <div class="stat"><div class="n" id="ax-ai">–</div><div class="l">AI builds today</div></div>
+      </div>
+      <details class="box"><summary>What's being called</summary>
+        <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th>Route</th><th class="num">Today</th><th class="num">7 days</th><th class="num">Errors</th></tr></thead><tbody id="ax-routes"></tbody></table></div>
+      </details>
+      <details class="box"><summary>Who's calling</summary>
+        <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th>Caller</th><th>From</th><th class="num">Today</th><th class="num">7 days</th><th>Last seen</th></tr></thead><tbody id="ax-ipsrows"></tbody></table></div>
+        <p class="geo-credit">Locations are looked up on this server; no IP is sent anywhere. <a href="https://db-ip.com">IP Geolocation by DB-IP</a></p>
+      </details>
+    </div>
+  </section>
+
+  <!-- ============ Tools ============ -->
+  <section class="panel" role="tabpanel" id="p-tools" aria-labelledby="tab-tools" hidden>
+    <!-- Issuing participant accounts is how an event works: no email provider, no
+         OAuth client, no sign-in. Each key is shown once, here, at creation. -->
+    <div class="sec" id="issue">
+      <h2>Issue participant accounts</h2>
+      <p class="ph">Give a list of email addresses, or ask for a number. As many as you need. Each key is shown once.</p>
+      <textarea class="in" id="roster" rows="3" placeholder="ada@example.edu, alan@example.edu&#10;or leave empty and set a count below" aria-label="Email addresses"></textarea>
+      <div class="form-row">
+        <label>Count <input class="in" type="number" id="count" min="1" placeholder="30"></label>
+        <label>Prefix <input class="in" type="text" id="prefix" placeholder="team"></label>
+        <button class="btn" type="button" id="issue-btn">Create</button>
+        <button class="btn ghost" type="button" id="csv-btn" hidden>Download CSV</button>
+      </div>
+      <div id="issued" hidden>
+        <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th>Account</th><th>Address</th><th>Key</th></tr></thead><tbody id="issued-rows"></tbody></table></div>
+        <p class="ph warn">Copy these now. Keys are never shown again, and re-running skips existing accounts. If someone loses their key, use New key on their row in Users.</p>
+      </div>
+    </div>
+    <div class="sec" id="entries">
+      <h2>Entries <span class="cnt" id="entry-count"></span></h2>
+      <p class="ph">Every published site, newest first. This is the list to give judges.</p>
+      <div class="toolbar">
+        <input class="in grow" type="search" id="entry-filter" placeholder="Filter by name or account" aria-label="Filter entries" autocomplete="off">
+        <button class="btn ghost" type="button" id="entries-csv-btn">Download CSV</button>
+        <button class="btn ghost" type="button" id="entries-copy-btn">Copy links</button>
+        <button class="btn ghost" type="button" id="entries-all-btn">Download all entries</button>
+      </div>
+      <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th>Entry</th><th>Account</th><th>Link</th><th>Analytics</th><th>Status</th></tr></thead><tbody id="entry-rows"></tbody></table></div>
+      <div class="pager" id="entry-pager"></div>
+    </div>
+  </section>
 </div>
 
 <!--sh:footer-->
 
 <script>
-var apiKey = localStorage.getItem('apiKey') || '';
+(function(){
+'use strict';
+var apiKey='';
+try{ apiKey=localStorage.getItem('apiKey')||''; }catch(e){}
+var PAGE=50;
+var TABS=['overview','users','sites','moderation','tools'];
+var $=function(id){ return document.getElementById(id); };
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
-function fmtDate(s){ try{ return new Date(s).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}); }catch(e){ return ''; } }
-function status(msg, err){ var s=document.getElementById('status'); s.hidden=false; s.className='msg'+(err?' err':''); s.textContent=msg; }
-
-function siteCard(s){
-  var live=!!s.site_url;
-  return '<div class="site"><div class="sn"><span class="dot '+(live?'live':'pending')+'"></span>'+esc(s.name)+
-    (s.suspended?' <span class="badge down">taken down</span>':'')+'</div>'+
-    (s.suspended?'<div class="downnote">'+esc(s.suspended_reason)+(s.suspended_by==='account'?' (account suspended)':'')+'</div>':'')+
-    (live?'<a href="'+esc(s.site_url)+'" target="_blank" rel="noopener">'+esc(s.site_url)+'</a>':'<span class="cd">not live yet</span>')+
-    (s.custom_domain?'<div class="cd"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15 15 0 0 1 0 20a15 15 0 0 1 0-20z"/></svg><span>'+esc(s.custom_domain)+'</span></div>':'')+'</div>';
+function bytes(n){
+  n=Number(n)||0;
+  if(n>=1073741824) return (n/1073741824).toFixed(1)+' GB';
+  if(n>=1048576) return (n/1048576).toFixed(1)+' MB';
+  if(n>=1024) return Math.round(n/1024)+' KB';
+  return n+' B';
 }
-function userCard(u){
-  var sites=(u.sites||[]);
-  var head='<div class="user-head"><span class="name">'+esc(u.username)+'</span>'+
-    (u.handle?'<span class="handle">/'+esc(u.handle)+'</span>':'')+
-    (u.is_admin?'<span class="badge admin">admin</span>':'')+
-    (u.suspended?'<span class="badge down">suspended</span>':'')+
-    (u.is_admin||u.suspended?'':'<button class="btn ghost mini" data-newkey-id="'+esc(u.id)+'" data-newkey-name="'+esc(u.username)+'">New key</button>')+
-    (u.is_admin?'':(u.suspended
-      ?'<button class="btn ghost mini" data-user-enable="'+esc(u.id)+'" data-name="'+esc(u.username)+'">Re-enable</button>'
-      :'<button class="btn ghost mini" data-user-suspend="'+esc(u.id)+'" data-name="'+esc(u.username)+'">Suspend</button>'))+
-    (u.is_admin?'':'<button class="btn ghost mini" data-delete-id="'+esc(u.id)+'" data-delete-name="'+esc(u.username)+'">Delete</button>')+
-    '<span class="badge count">'+u.site_count+' site'+(u.site_count===1?'':'s')+'</span>'+
-    '<span class="when">joined '+fmtDate(u.created_at)+'</span></div>';
-  var why = u.suspended ? '<div class="downnote">Suspended: '+esc(u.suspended_reason)+'. Keys, connected apps and sign-in are refused; every site of theirs is taken down.</div>' : '';
-  var body = sites.length ? '<div class="sites">'+sites.map(siteCard).join('')+'</div>' : '<div class="nosites">No sites yet.</div>';
-  return '<div class="user">'+head+why+body+'</div>';
+var MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function dateOf(s){ var d=new Date(s); if(!s||isNaN(d)) return ''; return d.getDate()+' '+MONTHS[d.getMonth()]+' '+d.getFullYear(); }
+function ago(s){
+  var d=new Date(s); if(!s||isNaN(d)) return '';
+  var a=new Date(d.getFullYear(),d.getMonth(),d.getDate()), n=new Date(), b=new Date(n.getFullYear(),n.getMonth(),n.getDate());
+  var days=Math.round((b-a)/86400000);
+  if(days<=0) return 'today';
+  if(days===1) return 'yesterday';
+  if(days<30) return days+' days ago';
+  var m=Math.floor(days/30.44); if(m<12) return m+' month'+(m===1?'':'s')+' ago';
+  var y=Math.floor(days/365.25); return y+' year'+(y===1?'':'s')+' ago';
 }
+function fmtWhen(s){ var d=new Date(s); if(!s||isNaN(d)) return ''; var m=(Date.now()-d)/60000; if(m<2) return 'just now'; if(m<60) return Math.round(m)+' min ago'; if(m<1440) return Math.round(m/60)+' h ago'; return dateOf(s); }
+var statusTimer=null;
+function status(msg, err){
+  var s=$('status'); s.hidden=false; s.className='msg'+(err?' err':''); s.textContent=msg;
+  clearTimeout(statusTimer);
+  if(!err) statusTimer=setTimeout(function(){ s.hidden=true; }, 6000);
+}
+function clearStatus(){ $('status').hidden=true; }
+function api(method, path, body){
+  var o={method:method, headers:{'X-API-Key':apiKey}};
+  if(body!==undefined){ o.headers['Content-Type']='application/json'; o.body=JSON.stringify(body); }
+  return fetch(path,o);
+}
+async function errOf(res){ var d=await res.json().catch(function(){return {};}); return d.error||('HTTP '+res.status); }
 
-// Anyone who is not an admin sees an ordinary not-found page — no key prompt, no
-// hint that this route means anything. The page shell has to be public (a browser
-// navigation carries no API key, so the server cannot gate it), which makes this
-// the only place the distinction can be drawn. Signing in on the main app is
-// enough: it stores the key under the same 'apiKey' name this reads.
-var lastIssued=[];
-var allEntries=[];
-
-// One row per published site, flattened out of the per-account view. An
-// organiser judging an event needs a list of links, not a list of people.
-function collectEntries(users){
-  allEntries=[];
-  (users||[]).forEach(function(u){
-    (u.sites||[]).forEach(function(s){
-      if(!s.site_url) return;   // never deployed; nothing to judge
-      allEntries.push({id:s.id, name:s.name, account:u.handle||u.username, handle:u.handle||'', url:s.site_url, domain:s.custom_domain||'',
-        suspended:!!s.suspended, reason:s.suspended_reason||'', by:s.suspended_by||''});
-    });
+// ---------------------------------------------------------------- data
+// GET /v1/admin/users is the sign-in check and feeds Overview, Users, Sites,
+// Moderation and Entries. Everything else loads the first time its tab opens.
+var D={users:[], sites:[], byId:{}, usage:null, usagePromise:null, loaded:{}};
+function isLive(s){ return !!s.site_url && !s.suspended && !s.offline; }
+function updatedAt(s){ return s.deployed_at||s.created_at; }
+function indexData(data){
+  var users=(data.users||[]).slice();
+  var sites=[], byId={};
+  users.forEach(function(u){
+    byId[u.id]=u;
+    (u.sites||[]).forEach(function(s){ s.owner=u; sites.push(s); });
   });
-  var ep=document.getElementById('entries');
-  if(ep) ep.hidden = allEntries.length===0;
-  renderEntries();
+  D.users=users; D.sites=sites; D.byId=byId; D.siteCount=data.site_count;
+  // # counts from the newest (1 = newest joiner), whichever way the list sorts.
+  users.slice().sort(function(a,b){ return new Date(b.created_at)-new Date(a.created_at); })
+    .forEach(function(u,i){ u._n=i+1; });
+  applySizes();
+}
+function applySizes(){
+  if(!D.usage||!D.usage.site_sizes) return;
+  var m={};
+  D.usage.site_sizes.forEach(function(x){ m[x.user_id+'/'+x.name]=x.bytes; });
+  D.sites.forEach(function(s){ var b=m[s.owner.id+'/'+s.name]; s.size=b==null?null:b; });
+}
+function loadUsage(){
+  if(D.usagePromise) return D.usagePromise;
+  D.usagePromise=api('GET','/v1/admin/usage?sizes=1').then(function(r){ return r.ok?r.json():null; })
+    .then(function(d){ D.usage=d; applySizes(); return d; })
+    .catch(function(){ return null; });
+  return D.usagePromise;
+}
+async function reloadUsers(){
+  var res=await api('GET','/v1/admin/users');
+  if(!res.ok) throw new Error(await errOf(res));
+  indexData(await res.json());
+  renderCurrent();
 }
 
-function visibleEntries(){
-  var q=(document.getElementById('entry-filter')||{}).value||'';
-  q=q.trim().toLowerCase();
-  if(!q) return allEntries;
-  return allEntries.filter(function(e){ return (e.name+' '+e.account).toLowerCase().indexOf(q)>=0; });
+// ---------------------------------------------------------------- sources
+function connectorApp(name){
+  var n=String(name||'').toLowerCase();
+  if(/chatgpt|openai/.test(n)) return 'ChatGPT';
+  if(/claude|anthropic/.test(n)) return 'Claude';
+  if(/grok|xai|x\.ai/.test(n)) return 'Grok';
+  return '';
+}
+// group: stable key for counting; label: what a row shows.
+function sourceOf(u){
+  var s=u.signup_source||'', m=u.signup_method||'', a=u.signup_agent||'';
+  var how=m==='google'?'Google':m==='email'?'email':'';
+  if(!s) return {group:'unknown', label:'Unknown (before tracking)', detail:''};
+  if(s==='website') return {group:'website', label:'Website', detail:how};
+  if(s.indexOf('connector:')===0){
+    var name=s.slice(10), app=connectorApp(name);
+    return app?{group:'c-'+app, label:app, detail:how}:{group:'c-other', label:'Other connector', detail:name+(how?' · '+how:'')};
+  }
+  if(s==='agent') return {group:'agent', label:'AI agent', detail:a||'unnamed'};
+  if(s==='visitor') return {group:'visitor', label:'Site visitor sign-in', detail:how};
+  if(s==='admin') return {group:'admin', label:'Issued by admin', detail:''};
+  if(s==='reviewer') return {group:'reviewer', label:'App reviewer', detail:''};
+  return {group:'other', label:s, detail:''};
+}
+function sourceCell(u){
+  var x=sourceOf(u);
+  return esc(x.label)+(x.detail?' <span class="muted">· '+esc(x.detail)+'</span>':'')+(u.signup_inferred?' <span class="src-inf">(inferred)</span>':'');
+}
+var SOURCE_ORDER=['website','c-ChatGPT','c-Claude','c-Grok','c-other','agent','visitor','admin','reviewer','other','unknown'];
+var SOURCE_LABEL={website:'Website','c-ChatGPT':'ChatGPT','c-Claude':'Claude','c-Grok':'Grok','c-other':'Other connector',agent:'AI agent (skill or API)',visitor:'Site visitor sign-in',admin:'Issued by admin',reviewer:'App reviewer',other:'Other',unknown:'Unknown (before tracking)'};
+
+// ---------------------------------------------------------------- tabs
+var current='overview';
+function tabFromHash(){ var h=(location.hash||'').replace(/^#/,''); return TABS.indexOf(h)>=0?h:'overview'; }
+function showTab(name, focus){
+  current=name;
+  TABS.forEach(function(t){
+    var on=t===name, b=$('tab-'+t);
+    b.setAttribute('aria-selected', on?'true':'false');
+    b.tabIndex=on?0:-1;
+    $('p-'+t).hidden=!on;
+  });
+  if(focus) $('tab-'+name).focus();
+  closeMenu();
+  renderCurrent();
+}
+function renderCurrent(){
+  if(!D.loaded.users) return;
+  if(current==='overview') renderOverview();
+  else if(current==='users') renderUsers();
+  else if(current==='sites') renderSites();
+  else if(current==='moderation') renderModeration();
+  else if(current==='tools') renderEntries();
+}
+$('tabs').addEventListener('click', function(e){
+  var b=e.target.closest('[data-tab]'); if(!b) return;
+  var t=b.dataset.tab;
+  if(location.hash!=='#'+t) history.replaceState(null,'','#'+t);
+  showTab(t);
+});
+$('tabs').addEventListener('keydown', function(e){
+  var i=TABS.indexOf(current), n=null;
+  if(e.key==='ArrowRight') n=TABS[(i+1)%TABS.length];
+  else if(e.key==='ArrowLeft') n=TABS[(i+TABS.length-1)%TABS.length];
+  else if(e.key==='Home') n=TABS[0];
+  else if(e.key==='End') n=TABS[TABS.length-1];
+  if(!n) return;
+  e.preventDefault();
+  history.replaceState(null,'','#'+n);
+  showTab(n, true);
+});
+window.addEventListener('hashchange', function(){ var t=tabFromHash(); if(t!==current) showTab(t); });
+document.addEventListener('click', function(e){
+  var g=e.target.closest('[data-goto]'); if(!g) return;
+  e.preventDefault(); history.replaceState(null,'','#'+g.dataset.goto); showTab(g.dataset.goto);
+});
+
+// ---------------------------------------------------------------- overview
+function renderOverview(){
+  var people=D.users.filter(function(u){ return !u.is_admin; });
+  var now=Date.now(), d7=now-7*86400000, d30=now-30*86400000;
+  var new7=0,new30=0;
+  people.forEach(function(u){ var t=new Date(u.created_at).getTime(); if(t>=d7) new7++; if(t>=d30) new30++; });
+  var live=D.sites.filter(isLive).length;
+  var down=D.sites.filter(function(s){ return s.suspended; }).length;
+  var suspUsers=people.filter(function(u){ return u.suspended; }).length;
+  var u=D.usage;
+  var tiles=[
+    [people.length,'Users'],[new7,'New in 7 days'],[new30,'New in 30 days'],
+    [live,'Live sites <span class="muted">of '+D.sites.length+'</span>'],
+    [u?bytes(u.site_bytes):'…','Site storage'],
+    [u?(Math.round(u.disk_used_pct)+'%'):'…','Disk used'+(u?' <span class="muted">· '+esc(bytes(u.disk_free_bytes))+' free</span>':'')],
+    [suspUsers+' · '+down,'Suspended · taken down']
+  ];
+  $('ov-stats').innerHTML=tiles.map(function(t){ return '<div class="stat"><div class="n">'+esc(t[0])+'</div><div class="l">'+t[1]+'</div></div>'; }).join('');
+
+  var latest=people.slice().sort(function(a,b){ return new Date(b.created_at)-new Date(a.created_at); }).slice(0,10);
+  $('ov-latest').innerHTML=latest.map(function(u){
+    return '<tr><td>'+esc(dateOf(u.created_at))+' <span class="muted ago">· '+esc(ago(u.created_at))+'</span></td><td>'+handleLink(u)+'</td><td>'+esc(emailOf(u))+'</td><td>'+sourceCell(u)+'</td></tr>';
+  }).join('')||'<tr><td colspan="4" class="empty">Nobody yet.</td></tr>';
+
+  var counts={};
+  people.forEach(function(u){
+    var x=sourceOf(u), t=new Date(u.created_at).getTime();
+    var c=counts[x.group]||(counts[x.group]={d7:0,d30:0,all:0,inf:0,agents:{}});
+    c.all++; if(t>=d30) c.d30++; if(t>=d7) c.d7++;
+    if(u.signup_inferred) c.inf++;
+    if(x.group==='agent'||x.group==='c-other'){ var k=x.group==='agent'?(u.signup_agent||'unnamed'):String(u.signup_source).slice(10); c.agents[k]=(c.agents[k]||0)+1; }
+  });
+  $('ov-sources').innerHTML=SOURCE_ORDER.filter(function(g){ return counts[g]; }).map(function(g){
+    var c=counts[g], names=Object.keys(c.agents).sort(function(a,b){ return c.agents[b]-c.agents[a]; });
+    var sub=names.length?'<div class="sub">'+names.slice(0,6).map(function(n){ return esc(n)+' '+c.agents[n]; }).join(', ')+(names.length>6?', …':'')+'</div>':'';
+    var inf=c.inf?'<div class="sub">'+c.inf+' inferred</div>':'';
+    return '<tr><td>'+esc(SOURCE_LABEL[g])+sub+inf+'</td><td class="num">'+c.d7+'</td><td class="num">'+c.d30+'</td><td class="num">'+c.all+'</td></tr>';
+  }).join('')||'<tr><td colspan="4" class="empty">Nobody yet.</td></tr>';
+
+  if(!u){ loadUsage().then(function(){ if(current==='overview') renderOverview(); }); }
+  else renderDisk();
+}
+function renderDisk(){
+  var d=D.usage; if(!d) return;
+  $('disk').hidden=false;
+  $('bar-fill').style.width=Math.min(100,d.disk_used_pct)+'%';
+  $('disk-bar').className='bar'+(d.status==='ok'?'':' '+d.status);
+  var note=$('disk-note');
+  note.className='ph'+(d.status==='ok'?'':' '+d.status);
+  var age='';
+  if(d.measured_at){ var secs=Math.max(0,Math.round((Date.now()-new Date(d.measured_at))/1000)); age=secs<90?'':' Measured '+Math.round(secs/60)+' minutes ago.'; }
+  note.textContent=d.message+' Websites are capped at '+d.site_limit_mb+' MB each.'+age;
+  var kv=d.keep_versions, keep=kv===0?'Keeps every deploy of each website.':kv===1?'Keeps the latest deploy of each website.':'Keeps the latest '+kv+' deploys of each website.';
+  $('instance-line').textContent=keep+(d.version?' Running release '+d.version+', commit '+d.commit+'.':'');
+  var top=(d.largest||[]).slice(0,10);
+  $('ov-biggest').innerHTML=top.map(function(t,i){
+    var o=D.byId[t.user_id];
+    return '<tr><td class="num">'+(i+1)+'</td><td>'+esc(t.name)+'</td><td>'+(o?esc(o.handle||o.username):'<span class="muted">—</span>')+'</td><td class="num">'+bytes(t.bytes)+'</td></tr>';
+  }).join('')||'<tr><td colspan="4" class="empty">No websites yet.</td></tr>';
 }
 
+// ---------------------------------------------------------------- users
+function emailOf(u){ return String(u.email||(u.username&&u.username.indexOf('@')>0?u.username:'')); }
+function handleLink(u){
+  var link=u.page_url||'';
+  if(u.handle) return link?'<a href="'+esc(link)+'" target="_blank" rel="noopener">'+esc(u.handle)+'</a>':esc(u.handle);
+  return '<span class="muted">'+esc(u.username)+'</span>';
+}
+var US={q:'', newestFirst:true, page:0, open:{}};
+function userMatches(u,q){ return !q || (String(u.handle||'')+' '+u.username+' '+emailOf(u)).toLowerCase().indexOf(q)>=0; }
+function renderUsers(){
+  var q=US.q.trim().toLowerCase();
+  var rows=D.users.filter(function(u){ return userMatches(u,q); })
+    .sort(function(a,b){ return US.newestFirst?(a._n-b._n):(b._n-a._n); });
+  $('u-count').textContent='('+(q?rows.length+' of ':'')+D.users.length+')';
+  $('u-arrow').innerHTML=US.newestFirst?'&darr;':'&uarr;';
+  $('u-sort').closest('th').setAttribute('aria-sort',US.newestFirst?'descending':'ascending');
+  var pages=Math.max(1,Math.ceil(rows.length/PAGE)); if(US.page>=pages) US.page=pages-1;
+  var slice=rows.slice(US.page*PAGE,(US.page+1)*PAGE);
+  $('u-rows').innerHTML=slice.map(function(u){
+    var open=!!US.open[u.id];
+    var st=u.is_admin?'<span class="tag acc">admin</span>':u.suspended?'<span class="tag down">suspended</span>':'<span class="tag ok">active</span>';
+    return '<tr class="clickable'+(open?' open':'')+'" data-user="'+esc(u.id)+'"><td class="num"><button type="button" class="row-toggle" aria-expanded="'+open+'" aria-controls="ud-'+esc(u.id)+'" aria-label="Details for '+esc(u.handle||u.username)+'">'+(open?'&#9662;':'&#9656;')+'</button> '+u._n+'</td>'+
+      '<td>'+esc(dateOf(u.created_at))+' <span class="muted ago">· '+esc(ago(u.created_at))+'</span></td>'+
+      '<td>'+handleLink(u)+'</td><td>'+esc(emailOf(u))+'</td><td>'+(u.is_admin?'<span class="muted">—</span>':sourceCell(u))+'</td>'+
+      '<td class="num">'+(u.site_count||0)+'</td><td>'+st+'</td></tr>'+
+      (open?'<tr class="detail" id="ud-'+esc(u.id)+'"><td colspan="7">'+userPanel(u)+'</td></tr>':'');
+  }).join('')||'<tr><td colspan="7" class="empty">No one matches.</td></tr>';
+  pager('u-pager', US, rows.length, renderUsers);
+}
+function userPanel(u){
+  var sites=u.sites||[];
+  var why=u.suspended?'<div class="down-note">Suspended: '+esc(u.suspended_reason)+'. Keys, connected apps and sign-in are refused; every site of theirs is taken down.</div>':'';
+  var list=sites.length?'<div class="site-mini">'+sites.map(function(s){
+    var st=s.suspended?' <span class="tag down">taken down</span>':s.offline?' <span class="tag">offline</span>':!s.site_url?' <span class="tag">not live</span>':'';
+    return '<div><strong>'+esc(s.name)+'</strong>'+st+(s.site_url?'<br><a href="'+esc(s.site_url)+'" target="_blank" rel="noopener">'+esc(s.site_url.replace(/^https?:\/\//,''))+'</a>':'')+(s.custom_domain?'<br><span class="muted">'+esc(s.custom_domain)+'</span>':'')+'</div>';
+  }).join('')+'</div>':'<div class="muted">No sites yet.</div>';
+  var acts='';
+  if(!u.is_admin){
+    acts='<div class="actions">'+
+      (u.suspended?'':'<button type="button" class="btn ghost sm" data-newkey-id="'+esc(u.id)+'" data-name="'+esc(u.username)+'">New key</button>')+
+      (u.suspended?'<button type="button" class="btn ghost sm" data-user-enable="'+esc(u.id)+'" data-name="'+esc(u.username)+'">Re-enable</button>'
+                  :'<button type="button" class="btn ghost sm" data-user-suspend="'+esc(u.id)+'" data-name="'+esc(u.username)+'">Suspend</button>')+
+      '<button type="button" class="btn danger sm" data-delete-id="'+esc(u.id)+'" data-name="'+esc(u.username)+'">Delete account</button>'+
+      '<button type="button" class="btn ghost sm" data-goto-sites="'+esc(u.handle||u.username)+'">Open in Sites</button></div>';
+  }
+  var meta='<div class="muted" style="font-size:13px;margin-bottom:6px">'+esc(u.username)+(u.display_name?' · '+esc(u.display_name):'')+' · joined '+esc(dateOf(u.created_at))+(u.is_admin?'':' · source: '+sourceCell(u))+'</div>';
+  return meta+why+list+acts;
+}
+$('u-search').addEventListener('input', function(){ US.q=this.value; US.page=0; renderUsers(); });
+$('u-sort').addEventListener('click', function(e){ e.stopPropagation(); US.newestFirst=!US.newestFirst; renderUsers(); });
+$('u-rows').addEventListener('click', function(e){
+  if(e.target.closest('a')) return;
+  if(e.target.closest('button:not(.row-toggle)')) return; // actions: onAdminClick
+  var tr=e.target.closest('tr[data-user]'); if(!tr) return;
+  var id=tr.dataset.user; US.open[id]=!US.open[id]; renderUsers();
+  var t=document.querySelector('tr[data-user="'+id+'"] .row-toggle'); if(t) t.focus();
+});
+
+// ---------------------------------------------------------------- sites
+var SS={q:'', filter:'all', sort:'updated', dir:-1, page:0, panel:{}};
+function siteStatus(s){
+  if(s.suspended) return s.suspended_by==='account'?'<span class="tag down">suspended</span>':'<span class="tag down">taken down</span>';
+  if(s.offline) return '<span class="tag">offline</span>';
+  if(!s.site_url) return '<span class="tag">not live</span>';
+  return '<span class="tag ok">live</span>';
+}
+function siteRows(){
+  var q=SS.q.trim().toLowerCase();
+  var rows=D.sites.filter(function(s){
+    if(SS.filter==='down'&&!s.suspended) return false;
+    if(SS.filter==='domain'&&!s.custom_domain) return false;
+    if(SS.filter==='unlisted'&&s.visibility!=='unlisted') return false;
+    if(!q) return true;
+    return (s.name+' '+(s.owner.handle||'')+' '+s.owner.username+' '+(s.custom_domain||'')).toLowerCase().indexOf(q)>=0;
+  });
+  var key={
+    name:function(s){ return s.name.toLowerCase(); },
+    owner:function(s){ return String(s.owner.handle||s.owner.username).toLowerCase(); },
+    size:function(s){ return s.size==null?-1:s.size; },
+    updated:function(s){ return new Date(updatedAt(s)).getTime()||0; }
+  }[SS.sort];
+  rows.sort(function(a,b){ var x=key(a), y=key(b); return (x<y?-1:x>y?1:0)*SS.dir || (new Date(updatedAt(b))-new Date(updatedAt(a))); });
+  return rows;
+}
+function renderSites(){
+  if(!D.usage) loadUsage().then(function(){ if(current==='sites') renderSites(); });
+  var rows=siteRows();
+  $('s-count').textContent='('+(rows.length!==D.sites.length?rows.length+' of ':'')+D.sites.length+')';
+  document.querySelectorAll('#s-table th[data-sort]').forEach(function(th){
+    var on=th.dataset.sort===SS.sort;
+    if(on) th.setAttribute('aria-sort',SS.dir<0?'descending':'ascending'); else th.removeAttribute('aria-sort');
+    th.querySelector('span').innerHTML=on?(SS.dir<0?'&darr;':'&uarr;'):'';
+  });
+  var pages=Math.max(1,Math.ceil(rows.length/PAGE)); if(SS.page>=pages) SS.page=pages-1;
+  var slice=rows.slice(SS.page*PAGE,(SS.page+1)*PAGE);
+  $('s-rows').innerHTML=slice.map(function(s){
+    var o=s.owner, p=SS.panel[s.id];
+    var link=s.site_url?'<a href="'+esc(s.site_url)+'" target="_blank" rel="noopener">'+esc(s.name)+'</a>':esc(s.name);
+    var dom=s.custom_domain?esc(s.custom_domain)+(s.domain_status&&s.domain_status!=='active'?' <span class="muted">· '+esc(s.domain_status)+'</span>':''):'<span class="muted">—</span>';
+    return '<tr data-site="'+esc(s.id)+'"><td>'+link+'</td><td>'+esc(o.handle||o.username)+'</td>'+
+      '<td class="num">'+(s.size==null?'<span class="muted">'+(D.usage?'—':'…')+'</span>':bytes(s.size))+'</td>'+
+      '<td>'+esc(dateOf(updatedAt(s)))+' <span class="muted ago">· '+esc(ago(updatedAt(s)))+'</span></td>'+
+      '<td>'+esc(s.visibility||'')+'</td><td>'+siteStatus(s)+'</td><td>'+dom+'</td>'+
+      '<td><button type="button" class="more" aria-haspopup="menu" aria-expanded="false" aria-label="Actions for '+esc(s.name)+'" data-menu="'+esc(s.id)+'">&#8943;</button></td></tr>'+
+      (p?'<tr class="detail"><td colspan="8"><div class="panel-inner" id="sp-'+esc(s.id)+'">'+(p.html||'Loading…')+'</div></td></tr>':'');
+  }).join('')||'<tr><td colspan="8" class="empty">No site matches.</td></tr>';
+  pager('s-pager', SS, rows.length, renderSites);
+}
+$('s-search').addEventListener('input', function(){ SS.q=this.value; SS.page=0; renderSites(); });
+$('s-chips').addEventListener('click', function(e){
+  var c=e.target.closest('[data-filter]'); if(!c) return;
+  SS.filter=c.dataset.filter; SS.page=0;
+  this.querySelectorAll('.chip').forEach(function(x){ x.setAttribute('aria-pressed', x===c?'true':'false'); });
+  renderSites();
+});
+document.querySelector('#s-table thead').addEventListener('click', function(e){
+  var b=e.target.closest('button[data-sort]'); if(!b) return;
+  var k=b.dataset.sort;
+  if(SS.sort===k) SS.dir=-SS.dir; else { SS.sort=k; SS.dir=(k==='name'||k==='owner')?1:-1; }
+  SS.page=0; renderSites();
+});
+function pager(id, st, total, render){
+  var el=$(id), pages=Math.ceil(total/PAGE);
+  if(pages<=1){ el.innerHTML=total?'<span>'+total+' shown</span>':''; return; }
+  var a=st.page*PAGE+1, b=Math.min(total,(st.page+1)*PAGE);
+  el.innerHTML='<button type="button" class="btn ghost sm" data-pg="-1"'+(st.page===0?' disabled':'')+'>Previous</button>'+
+    '<span>'+a+'–'+b+' of '+total+'</span>'+
+    '<button type="button" class="btn ghost sm" data-pg="1"'+(st.page>=pages-1?' disabled':'')+'>Next</button>';
+  el.onclick=function(e){ var p=e.target.closest('[data-pg]'); if(!p||p.disabled) return; st.page+=Number(p.dataset.pg); render(); el.scrollIntoView({block:'nearest'}); };
+}
+
+// Row menu
+var menuEl=null, menuBtn=null;
+function closeMenu(){
+  if(menuEl){ menuEl.remove(); menuEl=null; }
+  if(menuBtn){ menuBtn.setAttribute('aria-expanded','false'); var b=menuBtn; menuBtn=null; return b; }
+  return null;
+}
+function siteById(id){ for(var i=0;i<D.sites.length;i++) if(D.sites[i].id===id) return D.sites[i]; return null; }
+function openMenu(btn){
+  var s=siteById(btn.dataset.menu); if(!s) return;
+  closeMenu();
+  var o=s.owner, items=[];
+  if(s.site_url) items.push('<a class="mi" role="menuitem" href="'+esc(s.site_url)+'" target="_blank" rel="noopener">Open site</a>');
+  if(o.handle) items.push('<a class="mi" role="menuitem" href="/analytics/'+encodeURIComponent(s.name)+'?owner='+encodeURIComponent(o.handle)+'" target="_blank" rel="noopener">Analytics</a>');
+  items.push('<button type="button" class="mi" role="menuitem" data-act="versions">Versions</button>');
+  items.push('<button type="button" class="mi" role="menuitem" data-act="data">Data</button>');
+  items.push(s.custom_domain?'<button type="button" class="mi" role="menuitem" data-act="disconnect">Disconnect '+esc(s.custom_domain)+'</button>'
+                            :'<button type="button" class="mi" role="menuitem" data-act="connect">Connect domain</button>');
+  items.push('<div class="mi-sep" role="separator"></div>');
+  if(!s.suspended) items.push('<button type="button" class="mi" role="menuitem" data-act="takedown">Take down</button>');
+  else if(s.suspended_by==='account') items.push('<span class="mi" role="menuitem" aria-disabled="true">Down with the account (re-enable it in Users)</span>');
+  else items.push('<button type="button" class="mi" role="menuitem" data-act="restore">Restore</button>');
+  items.push('<button type="button" class="mi danger" role="menuitem" data-act="delete">Delete</button>');
+  menuEl=document.createElement('div');
+  menuEl.className='menu'; menuEl.setAttribute('role','menu'); menuEl.setAttribute('aria-label','Actions for '+s.name);
+  menuEl.innerHTML=items.join('');
+  menuEl.dataset.site=s.id;
+  document.body.appendChild(menuEl);
+  menuBtn=btn; btn.setAttribute('aria-expanded','true');
+  var r=btn.getBoundingClientRect(), mw=menuEl.offsetWidth, mh=menuEl.offsetHeight;
+  var left=Math.max(8, Math.min(window.innerWidth-mw-8, r.right-mw));
+  var top=r.bottom+4; if(top+mh>window.innerHeight-8) top=Math.max(8, r.top-mh-4);
+  menuEl.style.left=left+'px'; menuEl.style.top=top+'px';
+  var first=menuEl.querySelector('.mi:not([aria-disabled])'); if(first) first.focus();
+  menuEl.addEventListener('keydown', function(e){
+    var all=[].slice.call(menuEl.querySelectorAll('.mi:not([aria-disabled])')), i=all.indexOf(document.activeElement);
+    if(e.key==='ArrowDown'){ e.preventDefault(); all[(i+1)%all.length].focus(); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); all[(i+all.length-1)%all.length].focus(); }
+    else if(e.key==='Escape'){ e.preventDefault(); var b=closeMenu(); if(b) b.focus(); }
+    else if(e.key==='Tab'){ closeMenu(); }
+  });
+  menuEl.addEventListener('click', function(e){
+    var it=e.target.closest('[data-act]');
+    if(!it){ if(e.target.closest('a.mi')) closeMenu(); return; }
+    var act=it.dataset.act, site=siteById(menuEl.dataset.site), back=closeMenu();
+    if(back) back.focus();
+    siteAction(act, site);
+  });
+}
+document.addEventListener('click', function(e){
+  var b=e.target.closest('button[data-menu]');
+  if(b){ if(menuBtn===b) closeMenu(); else openMenu(b); return; }
+  if(menuEl&&!e.target.closest('.menu')) closeMenu();
+});
+window.addEventListener('resize', function(){ closeMenu(); });
+window.addEventListener('scroll', function(){ closeMenu(); }, true);
+
+// Site actions: the admin routes by site id (/v1/admin/sites/{id}/...), which
+// run the owner routes as the site's owner; take down / restore as before.
+function sitePath(s, rest){ return '/v1/admin/sites/'+encodeURIComponent(s.id)+(rest||''); }
+function setPanel(s, html){
+  SS.panel[s.id]={html:html};
+  var el=$('sp-'+s.id);
+  if(el) el.innerHTML=html; else if(current==='sites') renderSites();
+}
+async function siteAction(act, s){
+  if(!s) return;
+  if(act==='versions') return showVersions(s);
+  if(act==='data') return showData(s);
+  if(act==='connect') return connectDomain(s);
+  if(act==='disconnect') return disconnectDomain(s);
+  if(act==='takedown') return suspendSite(s.id, s.name);
+  if(act==='restore') return restoreSite(s.id, s.name);
+  if(act==='delete') return deleteSite(s);
+}
+var closeBtn='<button type="button" class="btn ghost sm" data-panel-close>Close</button>';
+async function showVersions(s){
+  SS.panel[s.id]={html:'Loading versions…'}; renderSites();
+  try{
+    var res=await api('GET', sitePath(s,'/versions'));
+    if(!res.ok){ setPanel(s, 'Could not load versions: '+esc(await errOf(res))+' '+closeBtn); return; }
+    var v=await res.json();
+    if(!Array.isArray(v)||!v.length){ setPanel(s, 'No versions. '+closeBtn); return; }
+    setPanel(s, '<strong>Versions of '+esc(s.name)+'</strong> <span class="muted">('+esc(s.owner.handle||s.owner.username)+')</span>'+
+      v.map(function(x){ return '<div class="vrow"><span class="mono">v'+x.version_number+'</span><span class="muted">'+esc(new Date(x.created_at).toLocaleString())+'</span>'+
+        (x.is_active?'<span class="tag ok">active</span>':'<button type="button" class="btn ghost sm" data-rollback="'+x.version_number+'" data-site-id="'+esc(s.id)+'">Make active</button>')+'</div>'; }).join('')+
+      '<div class="actions">'+closeBtn+'</div>');
+  }catch(e){ setPanel(s, 'Cannot reach the server. '+closeBtn); }
+}
+async function rollback(s, n){
+  if(!(await shConfirm({title:'Make v'+n+' the live version of "'+s.name+'"?', body:'Owner: '+(s.owner.handle||s.owner.username)+'. The other versions are kept.', confirmLabel:'Make it active'}))) return;
+  try{
+    var res=await api('PUT', sitePath(s,'/active-version'), {version_number:Number(n)});
+    if(!res.ok){ status(await errOf(res), true); return; }
+    status('v'+n+' of '+s.name+' is live.');
+    await reloadUsers(); showVersions(siteById(s.id)||s);
+  }catch(e){ status('Cannot reach the server', true); }
+}
+async function showData(s){
+  SS.panel[s.id]={html:'Loading data…'}; renderSites();
+  try{
+    var res=await api('GET', sitePath(s,'/collections'));
+    if(!res.ok){ setPanel(s, 'Could not load data: '+esc(await errOf(res))+' '+closeBtn); return; }
+    var b=await res.json(), cols=(b&&b.collections)||[];
+    if(!cols.length){ setPanel(s, 'Nothing saved yet. '+closeBtn); return; }
+    setPanel(s, '<strong>Saved data of '+esc(s.name)+'</strong>'+cols.map(function(c){
+      var n=Math.trunc(Number(c.count)||0);
+      return '<div class="vrow"><span class="mono">'+esc(c.name)+'</span><span class="muted">'+n+' row'+(n===1?'':'s')+(c.last_at?' · last '+esc(new Date(c.last_at).toLocaleString()):'')+'</span>'+
+        '<button type="button" class="btn ghost sm" data-coll-view="'+esc(c.name)+'" data-site-id="'+esc(s.id)+'">View</button>'+
+        '<button type="button" class="btn ghost sm" data-coll-csv="'+esc(c.name)+'" data-site-id="'+esc(s.id)+'">Download CSV</button></div>'+
+        '<div class="data-rows" data-rows-for="'+esc(c.name)+'" hidden></div>';
+    }).join('')+'<div class="actions">'+closeBtn+'</div>');
+  }catch(e){ setPanel(s, 'Cannot reach the server. '+closeBtn); }
+}
+function fmtCell(v){ if(v==null) return ''; if(typeof v==='object') return esc(JSON.stringify(v)); return esc(String(v)); }
+async function viewRows(s, coll, btn){
+  var box=btn.closest('.panel-inner').querySelector('[data-rows-for="'+CSS.escape(coll)+'"]');
+  if(!box) return;
+  if(!box.hidden){ box.hidden=true; return; }
+  box.hidden=false; box.textContent='Loading…';
+  // The admin key reads any site's list through its owner's handle route.
+  var path=s.owner.handle?'/v1/u/'+encodeURIComponent(s.owner.handle)+'/sites/'+encodeURIComponent(s.name)+'/collections/'+encodeURIComponent(coll)+'?limit=50'
+                         :'/v1/sites/'+encodeURIComponent(s.name)+'/collections/'+encodeURIComponent(coll)+'?limit=50';
+  try{
+    var res=await api('GET', path);
+    if(!res.ok){ box.textContent='Could not load rows: '+(await errOf(res)); return; }
+    var b=await res.json(), items=(b&&b.items)||[];
+    if(!items.length){ box.textContent='No rows.'; return; }
+    var ks={}; items.forEach(function(it){ var d=it&&it.data; if(d&&typeof d==='object'&&!Array.isArray(d)) Object.keys(d).forEach(function(k){ ks[k]=1; }); });
+    var keys=Object.keys(ks).sort();
+    box.innerHTML='<table class="t nowrap"><thead><tr>'+['id','created_at'].concat(keys).map(function(k){ return '<th>'+esc(k)+'</th>'; }).join('')+'</tr></thead><tbody>'+
+      items.map(function(it){ var d=(it&&it.data&&typeof it.data==='object'&&!Array.isArray(it.data))?it.data:{};
+        return '<tr><td>'+esc(it.id)+'</td><td>'+(it.created_at?esc(new Date(it.created_at).toLocaleString()):'')+'</td>'+keys.map(function(k){ return '<td>'+fmtCell(d[k])+'</td>'; }).join('')+'</tr>'; }).join('')+
+      '</tbody></table>'+(items.length>=50?'<p class="ph">First 50 rows. Download CSV has them all.</p>':'');
+  }catch(e){ box.textContent='Cannot reach the server.'; }
+}
+async function downloadCollection(s, coll){
+  try{
+    var res=await api('GET', sitePath(s,'/collections/'+encodeURIComponent(coll)+'/export.csv'));
+    if(!res.ok){ status(await errOf(res), true); return; }
+    var blob=await res.blob(), m=/filename="([^"]+)"/.exec(res.headers.get('Content-Disposition')||'');
+    saveBlob(blob, m?m[1]:s.name+'-'+coll+'.csv');
+  }catch(e){ status('Could not download CSV', true); }
+}
+function saveBlob(blob, name){
+  var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+}
+async function connectDomain(s){
+  var d=await shPrompt({title:'Connect a domain to '+s.name, body:'Owner: '+(s.owner.handle||s.owner.username)+'. A subdomain like recipes.brand.com, or a free name.', label:'Domain', placeholder:'recipes.brand.com', confirmLabel:'Connect'});
+  if(!d||!d.trim()) return;
+  try{
+    var res=await api('POST', sitePath(s,'/domain'), {domain:d.trim()});
+    var b=await res.json().catch(function(){ return {}; });
+    if(!res.ok){ status(b.error||'Could not connect the domain', true); return; }
+    await reloadUsers();
+    if(b.status==='active'){ status(d.trim()+' is live.'); return; }
+    var recs=[b.dns,b.dns_txt,b.dns_partner].filter(Boolean).map(function(r){ return r.type+' '+r.host+' → '+r.value; }).join('\n');
+    await shAlert({title:d.trim()+' is pending', body:'The owner adds these records at their registrar. It turns active once they are seen and the domain serves the site over HTTPS.', copy:recs||'', okLabel:'Done'});
+  }catch(e){ status('Cannot reach the server', true); }
+}
+async function disconnectDomain(s){
+  if(!(await shConfirm({title:'Disconnect '+s.custom_domain+' from '+s.name+'?', body:'Owner: '+(s.owner.handle||s.owner.username)+'. The site keeps its own address.', confirmLabel:'Disconnect', danger:true}))) return;
+  try{
+    var res=await api('DELETE', sitePath(s,'/domain'));
+    if(res.status!==204&&!res.ok){ status(await errOf(res), true); return; }
+    await reloadUsers(); status('Disconnected '+s.custom_domain+'.');
+  }catch(e){ status('Cannot reach the server', true); }
+}
+async function deleteSite(s){
+  if(!(await shConfirm({title:'Delete "'+s.name+'" of '+(s.owner.handle||s.owner.username)+'?', body:'It goes offline now. For 7 days its owner can restore it, with every version and all its saved data, from Recently deleted on their page; after that it is gone for good.', confirmLabel:'Delete site', danger:true}))) return;
+  try{
+    var res=await api('DELETE', sitePath(s));
+    if(res.status!==204&&!res.ok){ status(await errOf(res), true); return; }
+    delete SS.panel[s.id];
+    await reloadUsers(); status('Deleted '+s.name+'.');
+  }catch(e){ status('Cannot reach the server', true); }
+}
+$('s-rows').addEventListener('click', function(e){
+  var b=e.target.closest('button'); if(!b) return;
+  var s=b.dataset.siteId?siteById(b.dataset.siteId):null;
+  if(b.hasAttribute('data-panel-close')){ var tr=b.closest('tr.detail'), prev=tr&&tr.previousElementSibling; if(prev&&prev.dataset.site){ delete SS.panel[prev.dataset.site]; renderSites(); } return; }
+  if(b.dataset.rollback&&s) rollback(s, b.dataset.rollback);
+  else if(b.dataset.collView&&s) viewRows(s, b.dataset.collView, b);
+  else if(b.dataset.collCsv&&s) downloadCollection(s, b.dataset.collCsv);
+});
+
+// ---------------------------------------------------------------- moderation
+function renderModeration(){
+  var rows=[];
+  D.users.forEach(function(u){
+    if(u.suspended) rows.push('<tr><td><strong>'+esc(u.handle||u.username)+'</strong> <span class="tag down">account suspended</span><div class="sub">'+(u.site_count||0)+' site'+(u.site_count===1?'':'s')+' down with it</div></td><td>'+esc(emailOf(u))+'</td><td class="wrap">'+esc(u.suspended_reason)+'</td>'+
+      '<td><button type="button" class="btn ghost sm" data-user-enable="'+esc(u.id)+'" data-name="'+esc(u.username)+'">Re-enable</button></td></tr>');
+  });
+  D.sites.forEach(function(s){
+    if(!s.suspended||s.suspended_by==='account') return;
+    rows.push('<tr><td><strong>'+esc(s.name)+'</strong> <span class="tag down">taken down</span></td><td>'+esc(s.owner.handle||s.owner.username)+'</td><td class="wrap">'+esc(s.suspended_reason)+'</td>'+
+      '<td><button type="button" class="btn ghost sm" data-site-restore="'+esc(s.id)+'" data-name="'+esc(s.name)+'">Restore</button></td></tr>');
+  });
+  $('m-count').textContent='('+rows.length+')';
+  $('m-rows').innerHTML=rows.join('')||'<tr><td colspan="4" class="empty">Nothing is taken down.</td></tr>';
+  if(!D.loaded.moderation){ D.loaded.moderation=true; loadIdle(); loadDataWatch(); loadTraffic(); }
+}
+async function loadTraffic(){
+  try{
+    var res=await api('GET','/v1/admin/api-analytics');
+    if(!res.ok) return;
+    var d=await res.json();
+    $('apitraffic').hidden=false;
+    $('ax-calls').textContent=d.calls_today; $('ax-ips').textContent=d.ips_today;
+    $('ax-errs').textContent=d.errors_today; $('ax-ai').textContent=d.ai_builds_today;
+    $('ax-routes').innerHTML=(d.routes||[]).map(function(r){
+      return '<tr><td class="mono">'+esc(r.route)+'</td><td class="num">'+r.today+'</td><td class="num">'+r.week+'</td><td class="num'+(r.errors_week>0?' err':'')+'">'+(r.errors_week||'')+'</td></tr>';
+    }).join('')||'<tr><td colspan="4" class="empty">Nothing yet — data appears as calls come in.</td></tr>';
+    $('ax-ipsrows').innerHTML=(d.ips||[]).map(function(x){
+      return '<tr><td><span class="mono">'+esc(x.ip)+'</span>'+(x.org?'<div class="sub">'+esc(x.org)+'</div>':'')+'</td><td>'+esc(x.where||'—')+'<div class="sub mono">'+esc(x.last_route||'')+'</div></td><td class="num">'+x.today+'</td><td class="num">'+x.week+'</td><td>'+esc(fmtWhen(x.last_seen))+'</td></tr>';
+    }).join('')||'<tr><td colspan="5" class="empty">Nothing yet.</td></tr>';
+  }catch(e){}
+}
+async function loadIdle(){
+  try{
+    var res=await api('GET','/v1/admin/idle-sites');
+    if(!res.ok) return;
+    var d=await res.json(), warn=d.would_warn||[], rm=d.would_remove||[];
+    var state=d.enabled?'On: every 6 hours, owners of sites with no visitors, no new version and no saved data for '+d.idle_days+' days are emailed (at most '+d.max_emails_per_run+' emails per run), and sites still idle '+d.grace_days+' days after the email move to Recently deleted.':
+      'Off (IDLE_CLEANUP is not "on"). Nothing is emailed or removed. This is what a run would do now.';
+    if(!d.visit_data_ok) state+=' Right now nothing would happen: '+(d.visit_data_note||'visit records cannot be trusted')+'.';
+    $('idle-note').textContent=state+' Sites with their own domain or name, sites marked Keep, admin, event and reviewer accounts, handles in IDLE_CLEANUP_EXEMPT_HANDLES, and taken-down or offline sites are never included. Saves, list entries and restores count as activity.';
+    $('idle-warn-s').textContent='Sites that would be warned ('+warn.length+(warn.length>=500?'+':'')+')';
+    $('idle-remove-s').textContent='Sites that would be removed ('+rm.length+(rm.length>=500?'+':'')+')';
+    $('idle-warn').innerHTML=warn.map(function(x){ return '<tr><td>'+esc(x.site)+'</td><td>'+esc(x.owner)+'</td><td>'+esc(dateOf(x.last_activity))+'</td></tr>'; }).join('')||'<tr><td colspan="3" class="empty">None.</td></tr>';
+    $('idle-remove').innerHTML=rm.map(function(x){ return '<tr><td>'+esc(x.site)+'</td><td>'+esc(x.owner)+'</td><td>'+esc(dateOf(x.warned_at))+'</td></tr>'; }).join('')||'<tr><td colspan="3" class="empty">None.</td></tr>';
+    $('idle').hidden=false;
+  }catch(e){}
+}
+async function loadDataWatch(){
+  try{
+    var res=await api('GET','/v1/admin/data-watch');
+    if(!res.ok) return;
+    var d=await res.json(), sites=d.sites||[];
+    var since=d.since?('Counting since '+d.since+' ('+d.days_counted+' of '+d.watch_days+' days). '):'Nothing counted yet. ';
+    $('dwatch-note').textContent=since+'Last '+d.days+' days, per site: whole-document replaces by visitors, documents that are not a JSON object, visitor state ops by type, visitor increments larger than '+
+      d.thresholds.inc_max+', list names a visitor started, and list items over '+d.thresholds.item_kb+' KB. These are the pages to check before the owner-only replace, object-only documents and bounded increments are switched on.';
+    $('dwatch-rows').innerHTML=sites.map(function(x){
+      var m=x.metrics||{}, ops=[];
+      Object.keys(m).sort().forEach(function(k){ if(k.indexOf('visitor_op_')===0) ops.push(k.slice(11)+' '+m[k]); });
+      var n=function(k){ return m[k]?String(m[k]):''; };
+      return '<tr><td>'+esc(x.site)+'</td><td>'+esc(x.handle)+'</td><td class="num">'+n('put_by_visitor')+'</td><td class="num">'+n('put_not_object')+
+        '</td><td>'+esc(ops.join(', '))+'</td><td class="num">'+n('visitor_inc_large')+'</td><td class="num">'+n('new_list_name')+
+        '</td><td class="num">'+n('item_large')+'</td><td>'+esc(fmtWhen(x.last_at))+'</td></tr>';
+    }).join('')||'<tr><td colspan="9" class="empty">Nothing yet.</td></tr>';
+    $('dwatch').hidden=false;
+  }catch(e){}
+}
+
+// ---------------------------------------------------------------- tools
+var ES={page:0};
+function entries(){
+  var q=(($('entry-filter').value)||'').trim().toLowerCase();
+  var list=D.sites.filter(function(s){ return !!s.site_url; }).map(function(s){
+    return {id:s.id, name:s.name, account:s.owner.handle||s.owner.username, handle:s.owner.handle||'', url:s.site_url, domain:s.custom_domain||'',
+      suspended:!!s.suspended, reason:s.suspended_reason||'', by:s.suspended_by||'', created:s.created_at};
+  }).sort(function(a,b){ return new Date(b.created)-new Date(a.created); });
+  var total=list.length;
+  if(q) list=list.filter(function(e){ return (e.name+' '+e.account).toLowerCase().indexOf(q)>=0; });
+  return {list:list, total:total};
+}
+function entryStatus(e){
+  if(!e.suspended) return 'Live <button type="button" class="btn ghost sm" data-site-suspend="'+esc(e.id)+'" data-name="'+esc(e.name)+'">Take down</button>';
+  var why='<div class="sub">'+esc(e.reason)+'</div>';
+  if(e.by==='account') return 'Taken down with the account'+why;
+  return 'Taken down <button type="button" class="btn ghost sm" data-site-restore="'+esc(e.id)+'" data-name="'+esc(e.name)+'">Restore</button>'+why;
+}
 function renderEntries(){
-  var rows=visibleEntries();
-  var tb=document.getElementById('entry-rows');
-  if(!tb) return;
-  tb.innerHTML=rows.map(function(e){
+  var r=entries(), rows=r.list;
+  var pages=Math.max(1,Math.ceil(rows.length/PAGE)); if(ES.page>=pages) ES.page=pages-1;
+  $('entry-rows').innerHTML=rows.slice(ES.page*PAGE,(ES.page+1)*PAGE).map(function(e){
     return '<tr><td>'+esc(e.name)+'</td><td>'+esc(e.account)+'</td>'+
       '<td><a href="'+esc(e.url)+'" target="_blank" rel="noopener">'+esc(e.url)+'</a></td>'+
       // Same page the owner sees; ?owner= is honoured for the admin only.
       '<td>'+(e.handle?'<a href="/analytics/'+encodeURIComponent(e.name)+'?owner='+encodeURIComponent(e.handle)+'" target="_blank" rel="noopener">Analytics</a>':'')+'</td>'+
       '<td>'+entryStatus(e)+'</td></tr>';
-  }).join('');
-  var c=document.getElementById('entry-count');
-  if(c) c.textContent=rows.length+' of '+allEntries.length+' entries';
+  }).join('')||'<tr><td colspan="5" class="empty">No entries.</td></tr>';
+  $('entry-count').textContent='('+rows.length+' of '+r.total+')';
+  pager('entry-pager', ES, rows.length, renderEntries);
 }
-
-// Live, or taken down with the reason and the switch that undoes it. A site
-// that is down because its account is suspended comes back with the account.
-function entryStatus(e){
-  if(!e.suspended) return 'Live <button class="btn ghost mini" data-site-suspend="'+esc(e.id)+'" data-name="'+esc(e.name)+'">Take down</button>';
-  var why='<div class="sub">'+esc(e.reason)+'</div>';
-  if(e.by==='account') return 'Taken down with the account'+why;
-  return 'Taken down <button class="btn ghost mini" data-site-restore="'+esc(e.id)+'" data-name="'+esc(e.name)+'">Restore</button>'+why;
-}
-
+function csvOf(rows){ return rows.map(function(r){ return r.map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(','); }).join('\n'); }
 function downloadEntries(){
-  var rows=[['entry','account','link','custom_domain','status']].concat(visibleEntries().map(function(e){return [e.name,e.account,e.url,e.domain,e.suspended?'taken down':'live'];}));
-  var csv=rows.map(function(r){return r.map(function(v){return '"'+String(v).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
-  var a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-  a.download='entries.csv'; a.click(); URL.revokeObjectURL(a.href);
+  var rows=[['entry','account','link','custom_domain','status']].concat(entries().list.map(function(e){ return [e.name,e.account,e.url,e.domain,e.suspended?'taken down':'live']; }));
+  saveBlob(new Blob([csvOf(rows)],{type:'text/csv'}), 'entries.csv');
 }
-
 function copyEntries(){
-  var text=visibleEntries().map(function(e){return e.name+' — '+e.url;}).join('\n');
-  navigator.clipboard.writeText(text).then(function(){ status('Copied '+visibleEntries().length+' links.'); },
-    function(){ status('Could not copy. Use Download CSV.', true); });
+  var list=entries().list, text=list.map(function(e){ return e.name+' — '+e.url; }).join('\n');
+  navigator.clipboard.writeText(text).then(function(){ status('Copied '+list.length+' links.'); }, function(){ status('Could not copy. Use Download CSV.', true); });
 }
-
-
-async function issueAccounts(){
-  var roster=document.getElementById('roster').value.trim();
-  var count=document.getElementById('count').value.trim();
-  var prefix=document.getElementById('prefix').value.trim();
-  var body;
-  if(roster){
-    // Commas, newlines or both: an organiser pastes whatever their roster is.
-    var emails=roster.split(/[\s,;]+/).filter(Boolean);
-    body={emails:emails};
-  } else if(count){
-    body={count:parseInt(count,10)};
-    if(prefix) body.prefix=prefix;
-  } else { status('Paste a roster or set a count.', true); return; }
-  var btn=document.getElementById('issue-btn'); btn.disabled=true;
+// Every site, its saved data and its lists, as one archive.
+async function downloadAll(){
+  var btn=$('entries-all-btn'); btn.disabled=true;
+  status('Preparing the archive…');
   try{
-    var res=await fetch('/v1/admin/users',{method:'POST',headers:{'X-API-Key':apiKey,'Content-Type':'application/json'},body:JSON.stringify(body)});
-    var d=await res.json();
+    var res=await api('GET','/v1/admin/export.tar.gz');
+    if(!res.ok){ status(await errOf(res), true); return; }
+    var blob=await res.blob(), m=/filename="([^"]+)"/.exec(res.headers.get('Content-Disposition')||'');
+    saveBlob(blob, m?m[1]:'all-entries.tar.gz');
+    status('Downloaded every entry ('+bytes(blob.size)+').');
+  }catch(e){ status('Cannot reach the server', true); }
+  finally{ btn.disabled=false; }
+}
+var lastIssued=[];
+async function issueAccounts(){
+  var roster=$('roster').value.trim(), count=$('count').value.trim(), prefix=$('prefix').value.trim(), body;
+  if(roster) body={emails:roster.split(/[\s,;]+/).filter(Boolean)};
+  else if(count){ body={count:parseInt(count,10)}; if(prefix) body.prefix=prefix; }
+  else { status('Paste a roster or set a count.', true); return; }
+  var btn=$('issue-btn'); btn.disabled=true;
+  try{
+    var res=await api('POST','/v1/admin/users', body);
+    var d=await res.json().catch(function(){ return {}; });
     if(!res.ok){ status(d.error||'Could not create accounts', true); return; }
     showIssued(d.created||[]);
     var skipped=(d.skipped||[]).length;
     status('Created '+lastIssued.length+' account'+(lastIssued.length===1?'':'s')+(skipped?', skipped '+skipped+' that already existed':'')+'.');
-    load();
-  }catch(e){ status('Cannot reach server', true); }
+    reloadUsers().catch(function(){});
+  }catch(e){ status('Cannot reach the server', true); }
   finally{ btn.disabled=false; }
 }
-
 function showIssued(list){
   lastIssued=list;
-  document.getElementById('issued-rows').innerHTML=lastIssued.map(function(c){
-    return '<tr><td>'+esc(c.username)+'</td><td>/'+esc(c.handle)+'</td><td class="keycell">'+esc(c.api_key)+'</td></tr>';
-  }).join('');
-  document.getElementById('issued').hidden=lastIssued.length===0;
-  document.getElementById('csv-btn').hidden=lastIssued.length===0;
+  $('issued-rows').innerHTML=list.map(function(c){ return '<tr><td>'+esc(c.username)+'</td><td>/'+esc(c.handle)+'</td><td class="mono">'+esc(c.api_key)+'</td></tr>'; }).join('');
+  $('issued').hidden=list.length===0; $('csv-btn').hidden=list.length===0;
 }
+function downloadCSV(){
+  var rows=[['account','address','api_key']].concat(lastIssued.map(function(c){ return [c.username,c.handle,c.api_key]; }));
+  saveBlob(new Blob([csvOf(rows)],{type:'text/csv'}), 'participants.csv');
+}
+$('issue-btn').addEventListener('click', issueAccounts);
+$('csv-btn').addEventListener('click', downloadCSV);
+$('entry-filter').addEventListener('input', function(){ ES.page=0; renderEntries(); });
+$('entries-csv-btn').addEventListener('click', downloadEntries);
+$('entries-copy-btn').addEventListener('click', copyEntries);
+$('entries-all-btn').addEventListener('click', downloadAll);
 
+// ---------------------------------------------------------------- account and site actions
 // A participant lost their key: replace every key on that account with one
-// new key, shown once in the same table as a fresh batch.
+// new key, shown once.
 async function reissueKey(id, username){
   if(!(await shConfirm({title:'Give '+username+' a new key?', body:'Every key they hold now stops working. Their sites and data stay.', confirmLabel:'Give a new key', danger:true}))) return;
   try{
-    var res=await fetch('/v1/admin/users/'+encodeURIComponent(id)+'/key',{method:'POST',headers:{'X-API-Key':apiKey}});
-    var d=await res.json().catch(function(){return {};});
+    var res=await api('POST','/v1/admin/users/'+encodeURIComponent(id)+'/key');
+    var d=await res.json().catch(function(){ return {}; });
     if(!res.ok){ status(d.error||'Could not issue a new key', true); return; }
     showIssued([{username:d.username, handle:d.handle, api_key:d.api_key}]);
-    status('New key for '+username+'. Copy it now; it is not shown again.');
-    document.getElementById('issued').scrollIntoView({block:'center'});
-  }catch(e){ status('Cannot reach server', true); }
+    await shAlert({title:'New key for '+username, body:'Copy it now; it is not shown again. It is also in Tools until you leave this page.', copy:d.api_key, okLabel:'Done'});
+  }catch(e){ status('Cannot reach the server', true); }
 }
-
-function downloadCSV(){
-  var rows=[['account','address','api_key']].concat(lastIssued.map(function(c){return [c.username,c.handle,c.api_key];}));
-  var csv=rows.map(function(r){return r.map(function(v){return '"'+String(v).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
-  var a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-  a.download='participants.csv'; a.click(); URL.revokeObjectURL(a.href);
-}
-
 async function deleteAccount(id, username){
-  // Irreversible and it takes their published work with it, so name the person
-  // in the prompt rather than asking "are you sure".
+  // Irreversible and it takes their published work with it, so name the person.
   if(!(await shConfirm({title:'Delete '+username+' and everything they published?', body:'This cannot be undone.', confirmLabel:'Delete', danger:true}))) return;
-  var res=await fetch('/v1/admin/users/'+encodeURIComponent(id),{method:'DELETE',headers:{'X-API-Key':apiKey}});
-  if(res.status===204){ status('Deleted '+username+'.'); load(); }
-  else { var d=await res.json().catch(function(){return {};}); status(d.error||'Could not delete', true); }
+  try{
+    var res=await api('DELETE','/v1/admin/users/'+encodeURIComponent(id));
+    if(res.status===204){ delete US.open[id]; await reloadUsers(); status('Deleted '+username+'.'); }
+    else status(await errOf(res), true);
+  }catch(e){ status('Cannot reach the server', true); }
 }
-
 // Take down / restore a site, suspend / re-enable a person. Nothing is deleted
 // either way, so these ask for a reason, not for "are you sure".
 async function adminAction(path, body, done){
   try{
-    var res=await fetch(path,{method:'POST',headers:{'X-API-Key':apiKey,'Content-Type':'application/json'},body:JSON.stringify(body||{})});
-    var d=await res.json().catch(function(){return {};});
-    if(!res.ok){ status(d.error||('HTTP '+res.status), true); return; }
-    await load(); status(done);
-  }catch(e){ status('Cannot reach server', true); }
+    var res=await api('POST', path, body||{});
+    if(!res.ok){ status(await errOf(res), true); return; }
+    await reloadUsers(); status(done);
+  }catch(e){ status('Cannot reach the server', true); }
 }
 async function askReason(what, label){
   var r=await shPrompt({title:'Why? One line. The owner sees this.', body:what, label:'Reason', confirmLabel:label});
-  return r==null ? null : r.trim();
+  return r==null?null:r.trim();
 }
 async function suspendSite(id, name){
   var r=await askReason('Take down '+name+': every address shows "This site has been taken down" and changes are refused. Restore puts it back.', 'Take down');
@@ -445,30 +1037,28 @@ async function suspendUser(id, name){
   adminAction('/v1/admin/users/'+encodeURIComponent(id)+'/suspend',{reason:r},'Suspended '+name+'.');
 }
 function enableUser(id, name){ adminAction('/v1/admin/users/'+encodeURIComponent(id)+'/enable',null,'Re-enabled '+name+'.'); }
+// Handlers are wired here, not as on*= attributes: the CSP allows no inline
+// event handlers.
+$('admin-main').addEventListener('click', function(e){
+  var b=e.target.closest('button'); if(!b) return;
+  var d=b.dataset;
+  if(d.newkeyId) reissueKey(d.newkeyId, d.name);
+  else if(d.deleteId) deleteAccount(d.deleteId, d.name);
+  else if(d.userSuspend) suspendUser(d.userSuspend, d.name);
+  else if(d.userEnable) enableUser(d.userEnable, d.name);
+  else if(d.siteSuspend) suspendSite(d.siteSuspend, d.name);
+  else if(d.siteRestore) restoreSite(d.siteRestore, d.name);
+  else if(d.gotoSites!=null){ SS.q=d.gotoSites; SS.filter='all'; SS.page=0; $('s-search').value=d.gotoSites;
+    document.querySelectorAll('#s-chips .chip').forEach(function(x){ x.setAttribute('aria-pressed', x.dataset.filter==='all'?'true':'false'); });
+    history.replaceState(null,'','#sites'); showTab('sites'); }
+});
 
-// Every site, its saved data and its lists, as one archive. Streamed by the
-// server; the browser holds it until the download starts.
-async function downloadAll(){
-  var btn=document.getElementById('entries-all-btn'); btn.disabled=true;
-  status('Preparing the archive…');
-  try{
-    var res=await fetch('/v1/admin/export.tar.gz',{headers:{'X-API-Key':apiKey}});
-    if(!res.ok){ var d=await res.json().catch(function(){return {};}); status(d.error||('HTTP '+res.status), true); return; }
-    var blob=await res.blob();
-    var a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
-    var m=/filename="([^"]+)"/.exec(res.headers.get('Content-Disposition')||'');
-    a.download=m?m[1]:'all-entries.tar.gz'; a.click(); URL.revokeObjectURL(a.href);
-    status('Downloaded every entry ('+bytes(blob.size)+').');
-  }catch(e){ status('Cannot reach server', true); }
-  finally{ btn.disabled=false; }
-}
-
-// renderSignIn replaces the page body with the admin key sign-in: what a
-// person sees at /admin with no key in this browser, a key the server no
-// longer takes, or a key that is not the admin's. The key is checked against
-// an admin-only route and kept in this browser (as the dashboard keeps it)
-// only when it is the admin key.
+// ---------------------------------------------------------------- sign-in
+// Anyone who is not an admin sees the admin key sign-in in place of the page.
+// The page shell has to be public (a browser navigation carries no API key),
+// so this is the only place the distinction can be drawn. The key is checked
+// against an admin-only route and kept in this browser (as the dashboard keeps
+// it) only when it is the admin key.
 // <plainHTTP>
 // keyOverPlainHTTP: a key typed on this page would cross the network
 // unencrypted (plain http to anything but this computer).
@@ -479,242 +1069,60 @@ function keyOverPlainHTTP(protocol, hostname){
 // </plainHTTP>
 function renderSignIn(why){
   document.title='Admin sign-in · simple·host';
-  var main=document.getElementById('admin-main'); if(!main) return;
+  var main=$('admin-main'); if(!main) return;
   if(keyOverPlainHTTP(location.protocol, location.hostname)){
     main.innerHTML='<p class="page-tag">Admin</p>'+
-      '<div class="panel" id="signin" style="max-width:560px">'+
-      '<h2 style="font-size:20px;margin-bottom:6px">Open the admin page over https</h2>'+
+      '<div class="sec" id="signin" style="max-width:560px">'+
+      '<h2>Open the admin page over https</h2>'+
       '<p class="ph">This address is plain http, so the admin key would travel unencrypted. Sign in at <a id="signin-https"></a> instead.</p>'+
-      '<p class="ph" style="margin-top:12px">If that address does not open yet, finish the DNS and HTTPS setup first, then sign in there.</p></div>';
-    var link=document.getElementById('signin-https'), u='https://'+location.host+'/admin';
+      '<p class="ph">If that address does not open yet, finish the DNS and HTTPS setup first, then sign in there.</p></div>';
+    var link=$('signin-https'), u='https://'+location.host+'/admin';
     link.href=u; link.textContent=u;
     return;
   }
   main.innerHTML='<p class="page-tag">Admin</p>'+
-    '<div class="panel" id="signin" style="max-width:560px">'+
-    '<h2 style="font-size:20px;margin-bottom:6px">Sign in with the admin key</h2>'+
+    '<div class="sec" id="signin" style="max-width:560px">'+
+    '<h2>Sign in with the admin key</h2>'+
     '<p class="ph" id="signin-why"></p>'+
-    '<form class="row" id="signin-form" style="margin-top:14px">'+
-    '<input type="password" id="signin-key" autocomplete="off" spellcheck="false" placeholder="Paste the admin key" aria-label="Admin key" required>'+
+    '<form class="form-row" id="signin-form">'+
+    '<input class="in" style="flex:1 1 240px" type="password" id="signin-key" autocomplete="off" spellcheck="false" placeholder="Paste the admin key" aria-label="Admin key" required>'+
     '<button class="btn" type="submit" id="signin-btn">Sign in</button></form>'+
     '<p class="ph" style="margin-top:12px">On a small box the admin key is <code>ADMIN_API_KEY</code> in <code>/opt/simple-host/.env</code> on the server; re-running the installer prints it again. It is kept in this browser once you sign in.</p>'+
     '<div id="signin-msg" class="msg err" role="alert" hidden></div></div>';
-  document.getElementById('signin-why').textContent=why;
-  document.getElementById('signin-form').addEventListener('submit', async function(e){
+  $('signin-why').textContent=why;
+  $('signin-form').addEventListener('submit', async function(e){
     e.preventDefault();
-    var key=document.getElementById('signin-key').value.trim(), msg=document.getElementById('signin-msg');
+    var key=$('signin-key').value.trim(), msg=$('signin-msg');
     if(!key) return;
-    var btn=document.getElementById('signin-btn'); btn.disabled=true; msg.hidden=true;
+    var btn=$('signin-btn'); btn.disabled=true; msg.hidden=true;
     try{
       var res=await fetch('/v1/admin/users',{headers:{'X-API-Key':key}});
-      if(res.ok){ localStorage.setItem('apiKey', key); location.reload(); return; }
+      if(res.ok){ try{ localStorage.setItem('apiKey', key); }catch(err){} location.reload(); return; }
       msg.textContent=res.status===401?'That key was not recognised.':res.status===429?'Too many tries. Wait a minute, then try again.':'That key is not the admin key.';
       msg.hidden=false;
     }catch(err){ msg.textContent='Cannot reach the server.'; msg.hidden=false; }
     finally{ btn.disabled=false; }
   });
-  document.getElementById('signin-key').focus();
+  $('signin-key').focus();
 }
-
-// Users list (top of the page). # counts from the newest (1 = newest joiner)
-// whichever way the Joined column is sorted, so a number means the same person.
-var ulistUsers=[], ulistNewestFirst=true;
-var MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-function joinedDate(s){ var d=new Date(s); if(isNaN(d)) return ''; return d.getDate()+' '+MONTHS[d.getMonth()]+' '+d.getFullYear(); }
-function joinedAgo(s){
-  var d=new Date(s); if(isNaN(d)) return '';
-  var a=new Date(d.getFullYear(),d.getMonth(),d.getDate()), n=new Date(), b=new Date(n.getFullYear(),n.getMonth(),n.getDate());
-  var days=Math.round((b-a)/86400000);
-  if(days<=0) return 'today';
-  if(days===1) return 'yesterday';
-  if(days<30) return days+' days ago';
-  var m=Math.floor(days/30.44); if(m<12) return m+' month'+(m===1?'':'s')+' ago';
-  var y=Math.floor(days/365.25); return y+' year'+(y===1?'':'s')+' ago';
-}
-function renderUserList(){
-  var rows=ulistUsers.slice();
-  if(!ulistNewestFirst) rows.reverse();
-  document.getElementById('ulist-arrow').innerHTML=ulistNewestFirst?'&darr;':'&uarr;';
-  document.getElementById('ulist-sort').closest('th').setAttribute('aria-sort',ulistNewestFirst?'descending':'ascending');
-  document.getElementById('ulist-rows').innerHTML=rows.map(function(x){
-    var u=x.u, link=u.page_url||(u.handle?'https://simple-host.app/'+encodeURIComponent(u.handle):'');
-    var handle=u.handle?'<a href="'+esc(link)+'" target="_blank" rel="noopener">'+esc(u.handle)+'</a>':'<span class="rel">'+esc(u.username)+'</span>';
-    var state=u.suspended?'<span class="ustate">suspended</span>':(u.disabled?'<span class="ustate">disabled</span>':'');
-    var email=String(u.email||(u.username&&u.username.indexOf('@')>0?u.username:''));
-    var when=joinedDate(u.created_at), ago=joinedAgo(u.created_at);
-    return '<tr><td class="num">'+x.n+'</td><td>'+esc(when)+(ago?' <span class="rel">&middot; '+esc(ago)+'</span>':'')+'</td><td>'+handle+state+'</td><td>'+esc(email)+'</td><td class="num">'+(u.site_count||0)+'</td></tr>';
-  }).join('');
-}
-function showUserList(users){
-  var sorted=(users||[]).slice().sort(function(a,b){ return new Date(b.created_at)-new Date(a.created_at); });
-  ulistUsers=sorted.map(function(u,i){ return {u:u,n:i+1}; });
-  document.getElementById('ulist-count').textContent='('+sorted.length+')';
-  document.getElementById('ulist').hidden=false;
-  renderUserList();
-}
-document.getElementById('ulist-sort').addEventListener('click',function(){ ulistNewestFirst=!ulistNewestFirst; renderUserList(); });
 
 async function load(){
   if(!apiKey){ renderSignIn('The admin page opens with the admin key.'); return; }
   status('Loading…');
   try{
-    var res=await fetch('/v1/admin/users',{headers:{'X-API-Key':apiKey}});
-    if(res.ok){ var ip=document.getElementById('issue'); if(ip) ip.hidden=false; }
+    var res=await api('GET','/v1/admin/users');
     if(res.status===401){ renderSignIn('The key in this browser is no longer accepted. Sign in with the admin key.'); return; }
     if(res.status===403||res.status===404){ renderSignIn('You are signed in with a key that is not the admin key.'); return; }
-    var data=await res.json().catch(function(){return{};});
-    if(!res.ok){ status(data.error||('HTTP '+res.status), true); return; }
-    document.getElementById('status').hidden=true;
-    document.getElementById('stats').hidden=false;
-    document.getElementById('uc').textContent=data.user_count;
-    document.getElementById('sc').textContent=data.site_count;
-    loadDisk();
-    var users=(data.users||[]);
-    showUserList(users);
-    // Most sites first, then newest joiners.
-    users.sort(function(a,b){ return (b.site_count-a.site_count) || (new Date(b.created_at)-new Date(a.created_at)); });
-    document.getElementById('users').innerHTML = users.map(userCard).join('');
-    collectEntries(users);
-    loadTraffic();
-    loadIdle();
-    loadDataWatch();
+    if(!res.ok){ status(await errOf(res), true); return; }
+    indexData(await res.json());
+    D.loaded.users=true;
+    clearStatus();
+    $('tabs').hidden=false;
+    showTab(tabFromHash());
   }catch(e){ status('Could not reach the server: '+(e.message||e), true); }
 }
-
-function fmtWhen(s){ try{ var d=new Date(s), m=(Date.now()-d)/60000; if(m<2) return 'just now'; if(m<60) return Math.round(m)+' min ago'; if(m<1440) return Math.round(m/60)+' h ago'; return fmtDate(s); }catch(e){ return ''; } }
-async function loadTraffic(){
-  try{
-    var res=await fetch('/v1/admin/api-analytics',{headers:{'X-API-Key':apiKey}});
-    if(!res.ok) return; // older server: section just stays hidden
-    var d=await res.json();
-    document.getElementById('apitraffic').hidden=false;
-    document.getElementById('ax-calls').textContent=d.calls_today;
-    document.getElementById('ax-ips').textContent=d.ips_today;
-    document.getElementById('ax-errs').textContent=d.errors_today;
-    document.getElementById('ax-ai').textContent=d.ai_builds_today;
-    document.getElementById('ax-routes').innerHTML=(d.routes||[]).map(function(r){
-      return '<tr><td>'+esc(r.route)+'</td><td class="num">'+r.today+'</td><td class="num">'+r.week+
-        '</td><td class="num'+(r.errors_week>0?' err':'')+'">'+(r.errors_week||'')+'</td></tr>';
-    }).join('')||'<tr><td colspan="4" style="color:var(--dim)">Nothing yet — data appears as calls come in.</td></tr>';
-    document.getElementById('ax-ipsrows').innerHTML=(d.ips||[]).map(function(x){
-      var who=esc(x.ip)+(x.org?'<div class="sub">'+esc(x.org)+'</div>':'');
-      var from=esc(x.where||'—')+'<div class="sub">'+esc(x.last_route||'')+'</div>';
-      return '<tr><td>'+who+'</td><td>'+from+'</td><td class="num">'+x.today+'</td><td class="num">'+x.week+
-        '</td><td>'+esc(fmtWhen(x.last_seen))+'</td></tr>';
-    }).join('')||'<tr><td colspan="5" style="color:var(--dim)">Nothing yet.</td></tr>';
-  }catch(e){}
-}
-
-async function loadIdle(){
-  try{
-    var res=await fetch('/v1/admin/idle-sites',{headers:{'X-API-Key':apiKey}});
-    if(!res.ok) return; // older server: section stays hidden
-    var d=await res.json();
-    var warn=d.would_warn||[], rm=d.would_remove||[];
-    var state=d.enabled?'On: every 6 hours, owners of sites with no visitors, no new version and no saved data for '+d.idle_days+' days are emailed (at most '+d.max_emails_per_run+' emails per run), and sites still idle '+d.grace_days+' days after the email move to Recently deleted.':
-      'Off (IDLE_CLEANUP is not "on"). Nothing is emailed or removed. This is what a run would do now.';
-    if(!d.visit_data_ok) state+=' Right now nothing would happen: '+(d.visit_data_note||'visit records cannot be trusted')+'.';
-    document.getElementById('idle-note').textContent=state+' Sites with their own domain or name, sites marked Keep, admin, event and reviewer accounts, handles in IDLE_CLEANUP_EXEMPT_HANDLES, and taken-down or offline sites are never included. Saves, list entries and restores count as activity.';
-    document.getElementById('idle-warn-s').textContent='Sites that would be warned ('+warn.length+(warn.length>=500?'+':'')+')';
-    document.getElementById('idle-remove-s').textContent='Sites that would be removed ('+rm.length+(rm.length>=500?'+':'')+')';
-    document.getElementById('idle-warn').innerHTML=warn.map(function(x){
-      return '<tr><td>'+esc(x.site)+'</td><td>'+esc(x.owner)+'</td><td>'+esc(fmtDate(x.last_activity))+'</td></tr>';
-    }).join('')||'<tr><td colspan="3" style="color:var(--dim)">None.</td></tr>';
-    document.getElementById('idle-remove').innerHTML=rm.map(function(x){
-      return '<tr><td>'+esc(x.site)+'</td><td>'+esc(x.owner)+'</td><td>'+esc(fmtDate(x.warned_at))+'</td></tr>';
-    }).join('')||'<tr><td colspan="3" style="color:var(--dim)">None.</td></tr>';
-    document.getElementById('idle').hidden=false;
-  }catch(e){}
-}
-
-async function loadDataWatch(){
-  try{
-    var res=await fetch('/v1/admin/data-watch',{headers:{'X-API-Key':apiKey}});
-    if(!res.ok) return; // older server: section stays hidden
-    var d=await res.json();
-    var sites=d.sites||[];
-    var since=d.since?('Counting since '+d.since+' ('+d.days_counted+' of '+d.watch_days+' days). '):'Nothing counted yet. ';
-    document.getElementById('dwatch-note').textContent=since+'Last '+d.days+' days, per site: whole-document replaces by visitors, documents that are not a JSON object, visitor state ops by type, visitor increments larger than '+
-      d.thresholds.inc_max+', list names a visitor started, and list items over '+d.thresholds.item_kb+' KB. These are the pages to check before the owner-only replace, object-only documents and bounded increments are switched on.';
-    document.getElementById('dwatch-rows').innerHTML=sites.map(function(x){
-      var m=x.metrics||{}, ops=[];
-      Object.keys(m).sort().forEach(function(k){ if(k.indexOf('visitor_op_')===0) ops.push(k.slice(11)+' '+m[k]); });
-      var n=function(k){ return m[k]?String(m[k]):''; };
-      return '<tr><td>'+esc(x.site)+'</td><td>'+esc(x.handle)+'</td><td class="num">'+n('put_by_visitor')+'</td><td class="num">'+n('put_not_object')+
-        '</td><td>'+esc(ops.join(', '))+'</td><td class="num">'+n('visitor_inc_large')+'</td><td class="num">'+n('new_list_name')+
-        '</td><td class="num">'+n('item_large')+'</td><td>'+esc(fmtWhen(x.last_at))+'</td></tr>';
-    }).join('')||'<tr><td colspan="9" style="color:var(--dim)">Nothing yet.</td></tr>';
-    document.getElementById('dwatch').hidden=false;
-  }catch(e){}
-}
-
-// Handlers are wired here, not as on*= attributes: the CSP allows no inline
-// event handlers.
-document.getElementById('issue-btn').addEventListener('click', issueAccounts);
-document.getElementById('csv-btn').addEventListener('click', downloadCSV);
-document.getElementById('entry-filter').addEventListener('input', renderEntries);
-document.getElementById('entries-csv-btn').addEventListener('click', downloadEntries);
-document.getElementById('entries-copy-btn').addEventListener('click', copyEntries);
-document.getElementById('entries-all-btn').addEventListener('click', downloadAll);
-function onAdminClick(e){
-  var b=e.target.closest('button'); if(!b) return;
-  var d=b.dataset;
-  if(d.newkeyId) reissueKey(d.newkeyId, d.newkeyName);
-  else if(d.deleteId) deleteAccount(d.deleteId, d.deleteName);
-  else if(d.userSuspend) suspendUser(d.userSuspend, d.name);
-  else if(d.userEnable) enableUser(d.userEnable, d.name);
-  else if(d.siteSuspend) suspendSite(d.siteSuspend, d.name);
-  else if(d.siteRestore) restoreSite(d.siteRestore, d.name);
-}
-document.getElementById('users').addEventListener('click', onAdminClick);
-document.getElementById('entry-rows').addEventListener('click', onAdminClick);
-
 load();
-
-// Disk usage. Measured, not predicted: the walk behind this is cached server
-// side, so reloading the page does not re-walk the tree. Failing to read it
-// must never take the rest of the admin page down with it.
-function bytes(n){
-  if(n>=1073741824) return (n/1073741824).toFixed(1)+' GB';
-  if(n>=1048576) return (n/1048576).toFixed(1)+' MB';
-  if(n>=1024) return Math.round(n/1024)+' KB';
-  return n+' B';
-}
-async function loadDisk(){
-  try{
-    var res=await fetch('/v1/admin/usage',{headers:{'X-API-Key':apiKey}});
-    if(!res.ok) return;
-    var d=await res.json();
-    document.getElementById('du').textContent=bytes(d.disk_used_bytes);
-    document.getElementById('df').textContent=bytes(d.disk_free_bytes);
-    var wrap=document.getElementById('disk'), bar=document.querySelector('.bar');
-    var note=document.getElementById('disk-note');
-    wrap.hidden=false;
-    document.getElementById('bar-fill').style.width=Math.min(100,d.disk_used_pct)+'%';
-    bar.className='bar'+(d.status==='ok'?'':' '+d.status);
-    note.className='ph'+(d.status==='ok'?'':' '+d.status);
-    var age='';
-    if(d.measured_at){
-      var secs=Math.max(0,Math.round((Date.now()-new Date(d.measured_at))/1000));
-      age=secs<90?'':' Measured '+Math.round(secs/60)+' minutes ago.';
-    }
-    note.textContent=d.message+' Websites are capped at '+d.site_limit_mb+' MB each.'+age;
-    // Settings and release in force, so nobody needs a shell to say which
-    // version this box runs or how much history it keeps.
-    var kv=d.keep_versions, keep=kv===0?'Keeps every deploy of each website.':
-      kv===1?'Keeps the latest deploy of each website.':'Keeps the latest '+kv+' deploys of each website.';
-    var inst=document.getElementById('instance-note');
-    inst.textContent=keep+(d.version?' Running release '+d.version+', commit '+d.commit+'.':'');
-    inst.hidden=false;
-    var top=(d.largest||[]);
-    if(top.length){
-      document.getElementById('disk-rows').innerHTML=top.map(function(t){
-        return '<tr><td>'+esc(t.name)+'</td><td>'+bytes(t.bytes)+'</td></tr>';
-      }).join('');
-      document.getElementById('disk-top').hidden=false;
-    }
-  }catch(e){ /* the disk figure is not worth breaking the page for */ }
-}
+})();
 </script>
 </body>
 </html>

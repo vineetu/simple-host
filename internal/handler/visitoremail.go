@@ -95,7 +95,7 @@ func (h *SiteHandler) verifyVisitorEmail(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
 		return
 	}
-	user, _, status, body := verifyEmailCode(r.Context(), h.database, h.emailLimiter, verifyRequest{Email: req.Email, Code: req.Code}, "visitor", sql.NullString{String: siteID, Valid: true})
+	user, created, status, body := verifyEmailCode(r.Context(), h.database, h.emailLimiter, verifyRequest{Email: req.Email, Code: req.Code}, "visitor", sql.NullString{String: siteID, Valid: true})
 	if status != 0 {
 		if status == http.StatusUnauthorized {
 			writeJSON(w, status, map[string]string{"error": body.Error, "code": "invalid_code"})
@@ -103,6 +103,9 @@ func (h *SiteHandler) verifyVisitorEmail(w http.ResponseWriter, r *http.Request)
 			writeEmailCodeError(w, status, body)
 		}
 		return
+	}
+	if created {
+		recordSignup(r.Context(), h.database, user.ID, db.Signup{Source: db.SignupVisitor, Method: db.SignupMethodEmail})
 	}
 	// Only a real suspension answers account_suspended; a failed lookup is ours.
 	if susp, serr := db.UserSuspended(r.Context(), h.database, user.ID); serr != nil {

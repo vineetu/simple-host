@@ -177,6 +177,13 @@ func RequireAdmin(next http.Handler) http.Handler {
 	})
 }
 
+// WithUser returns ctx acting as user. Only for a caller that has already
+// authorised the switch (the admin's per-site actions run the owner routes as
+// the site's owner, handler/adminsite.go).
+func WithUser(ctx context.Context, user *db.User) context.Context {
+	return context.WithValue(ctx, userContextKey, user)
+}
+
 func GetUser(ctx context.Context) *db.User {
 	user, _ := ctx.Value(userContextKey).(*db.User)
 	return user

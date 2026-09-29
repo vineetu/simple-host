@@ -44,6 +44,10 @@ type Usage struct {
 	// Biggest first, so an admin looking at a full disk sees the cause.
 	Largest []SiteUsage `json:"largest"`
 
+	// Every site's footprint, unordered, for a caller that shows each one
+	// (the admin page's Sites table). Not part of the JSON by default.
+	All []SiteUsage `json:"-"`
+
 	Status  string `json:"status"`
 	Message string `json:"message"`
 }
@@ -121,6 +125,10 @@ func Measure(dataDir string, topN int) (Usage, error) {
 	})
 
 	usage.Sites = len(sites)
+	usage.All = make([]SiteUsage, 0, len(sites))
+	for _, s := range sites {
+		usage.All = append(usage.All, *s)
+	}
 	usage.Largest = topSites(sites, topN)
 	usage.Status, usage.Message = describe(usage)
 	return usage, nil

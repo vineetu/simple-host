@@ -25,6 +25,9 @@ type User struct {
 	// deleting anything. Loaded by GetUserByAPIKey, GetUserByID and ListAllUsers.
 	Suspended       bool
 	SuspendedReason string
+	// Signup is where the account came from (see SetSignup). Loaded only by
+	// ListAllUsers, for the admin page.
+	Signup Signup
 }
 
 type Site struct {

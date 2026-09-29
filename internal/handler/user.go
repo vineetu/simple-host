@@ -104,6 +104,11 @@ type verifyRequest struct {
 	// nothing yet and answer 409 choose_handle with a suggested address; the
 	// caller asks the person and verifies again with Handle.
 	ChooseHandle bool `json:"choose_handle"`
+	// SignupClient: the /mcp consent page sends the client_id of the app
+	// being connected, so an account created there is recorded as made for
+	// that app (users.signup_source). A label only; ignored for an existing
+	// account and for an unknown client.
+	SignupClient string `json:"signup_client"`
 }
 
 type authResponse struct {
@@ -282,6 +287,9 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 			writeEmailCodeError(w, status, body)
 		}
 		return
+	}
+	if created {
+		recordSignup(r.Context(), h.database, user.ID, signupForVerify(r.Context(), h.database, r, h.publicBaseURL, req.SignupClient, strings.TrimSpace(req.Token) != ""))
 	}
 
 	// A suspended account gets no new key. It has proved its email, so it is

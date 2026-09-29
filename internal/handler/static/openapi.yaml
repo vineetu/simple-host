@@ -4588,9 +4588,12 @@ paths:
         people or sites will fit: the sites on the instance this was built for have a median size
         of 25 KB against a 100 MB per-site cap, so any figure derived from the cap is wrong by
         three orders of magnitude. status is ok, filling (75% or more) or full (90% or more).
-        The underlying walk is cached for two minutes. Non-admin callers receive 404.
+        The underlying walk is cached for two minutes. `?sizes=1` adds `site_sizes`, every site's
+        footprint from the same walk (the admin page's Sites table). Non-admin callers receive 404.
       tags: [Admin]
       security: [{ apiKey: [] }]
+      parameters:
+        - { in: query, name: sizes, required: false, schema: { type: string, enum: ['1'] }, description: 'Add site_sizes' }
       responses:
         '200':
           description: Current disk usage
@@ -4616,7 +4619,16 @@ paths:
                   measured_at: { type: string, format: date-time, description: When the walk behind these figures ran. Readings up to two minutes old are served while a refresh runs behind the request }
                   largest:
                     type: array
-                    description: The biggest sites, largest first, so a full disk has a visible cause
+                    description: The ten biggest sites, largest first, so a full disk has a visible cause
+                    items:
+                      type: object
+                      properties:
+                        user_id: { type: string }
+                        name: { type: string }
+                        bytes: { type: integer }
+                  site_sizes:
+                    type: array
+                    description: 'Only with ?sizes=1: every site on disk (every retained version included), in no order'
                     items:
                       type: object
                       properties:
@@ -4724,6 +4736,18 @@ paths:
                         site_count: { type: integer }
                         suspended: { type: boolean, description: The operator has suspended this account }
                         suspended_reason: { type: string }
+                        signup_source:
+                          type: string
+                          description: >-
+                            Where the account came from, recorded once when it was created: `website` (email
+                            code, sign-in link or Google from simple-host.app's own pages), `connector:<app>`
+                            (created on the /mcp consent page; the app's registered name, e.g. `connector:ChatGPT`),
+                            `agent` (POST /v1/auth/verify from outside the site's pages), `visitor` (first
+                            signed in on a hosted page), `admin` (issued by the operator) or `reviewer`. Empty for
+                            accounts from before this was recorded. No IP address is ever kept.
+                        signup_agent: { type: string, description: 'For agent: X-Simple-Host-Client, else "skill <X-Skill-Version>", else the User-Agent product token (e.g. curl); at most 40 characters. Empty otherwise' }
+                        signup_method: { type: string, enum: [email, google, issued, password, ''], description: How the person proved who they are at sign-up }
+                        signup_inferred: { type: boolean, description: 'The source was worked out afterwards for an older account (an issued account, an app connected within 60 minutes of sign-up, or a Google identity linked within 10 minutes), not recorded at the time' }
                         sites:
                           type: array
                           items:
@@ -4734,7 +4758,11 @@ paths:
                               site_url: { type: string }
                               active_version: { type: integer }
                               custom_domain: { type: string }
+                              domain_status: { type: string, description: "The custom domain's state (pending, active, ...); empty without one" }
                               created_at: { type: string, format: date-time }
+                              deployed_at: { type: string, format: date-time, nullable: true, description: When the live version went up; null before the first deploy }
+                              visibility: { type: string, enum: [public, unlisted] }
+                              offline: { type: boolean, description: The owner has taken it offline }
                               suspended: { type: boolean }
                               suspended_reason: { type: string }
                               suspended_by: { type: string, enum: [site, account, ''] }
@@ -5865,6 +5893,128 @@ paths:
       responses:
         '200': { description: Restored, content: { application/json: { schema: { $ref: '#/components/schemas/AdminSiteState' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/admin/sites/{id}/versions:
+    get:
+      operationId: adminListSiteVersions
+      summary: A site's versions, for the admin (admin only)
+      description: >-
+        GET /v1/sites/{sitename}/versions for anyone's site. Admin only (anyone else gets 404). Runs the owner route of the same name as the site's
+        owner, on the site named by id, with the same checks and effects; each call is logged with the admin.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: 'Versions, newest first, as GET /v1/sites/{sitename}/versions' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/admin/sites/{id}/active-version:
+    put:
+      operationId: adminSetSiteActiveVersion
+      summary: Make a version of a site live, for the admin (admin only)
+      description: >-
+        PUT /v1/sites/{sitename}/active-version for anyone's site. Admin only (anyone else gets 404). Runs the owner route of the same name as the site's
+        owner, on the site named by id, with the same checks and effects; each call is logged with the admin.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [version_number], properties: { version_number: { type: integer } } }
+      responses:
+        '200': { description: 'As PUT /v1/sites/{sitename}/active-version' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: The site is taken down (site_suspended) }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/admin/sites/{id}/collections:
+    get:
+      operationId: adminListSiteCollections
+      summary: What a site has saved, for the admin (admin only)
+      description: >-
+        GET /v1/sites/{sitename}/collections for anyone's site. Admin only (anyone else gets 404). Runs the owner route of the same name as the site's
+        owner, on the site named by id, with the same checks and effects; each call is logged with the admin.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: 'As GET /v1/sites/{sitename}/collections (collections, each with name, count and last_at)' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/admin/sites/{id}/collections/{coll}/export.csv:
+    get:
+      operationId: adminExportSiteCollectionCSV
+      summary: One of a site's lists as CSV, for the admin (admin only)
+      description: >-
+        GET /v1/sites/{sitename}/collections/{coll}/export.csv for anyone's site. Admin only (anyone else gets 404). Runs the owner route of the same name as the site's
+        owner, on the site named by id, with the same checks and effects; each call is logged with the admin.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+        - { in: path, name: coll, required: true, schema: { type: string } }
+      responses:
+        '200': { description: 'CSV, content: { text/csv: { schema: { type: string } } }' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/admin/sites/{id}/domain:
+    post:
+      operationId: adminBindSiteDomain
+      summary: Connect a domain to a site, for the admin (admin only)
+      description: >-
+        POST /v1/sites/{sitename}/domain for anyone's site. Admin only (anyone else gets 404). Runs the owner route of the same name as the site's
+        owner, on the site named by id, with the same checks and effects; each call is logged with the admin.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [domain], properties: { domain: { type: string } } }
+      responses:
+        '200': { description: 'As POST /v1/sites/{sitename}/domain (status, the DNS records to add)' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: The site is taken down (site_suspended) }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: The domain is in use }
+    delete:
+      operationId: adminDeleteSiteDomain
+      summary: Disconnect a site's domain, for the admin (admin only)
+      description: >-
+        DELETE /v1/sites/{sitename}/domain for anyone's site. Admin only (anyone else gets 404). Runs the owner route of the same name as the site's
+        owner, on the site named by id, with the same checks and effects; each call is logged with the admin.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Disconnected }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/admin/sites/{id}:
+    delete:
+      operationId: adminDeleteSite
+      summary: Delete a site, for the admin (admin only)
+      description: >-
+        DELETE /v1/sites/{sitename} for anyone's site: it goes offline now and sits in its owner's
+        Recently deleted for 7 days. A taken-down site cannot be deleted (403 site_suspended).
+        Admin only (anyone else gets 404). Runs the owner route of the same name as the site's
+        owner, on the site named by id, with the same checks and effects; each call is logged with the admin.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Deleted }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: The site is taken down (site_suspended) }
         '404': { $ref: '#/components/responses/NotFound' }
   /v1/admin/users/{id}/suspend:
     post:

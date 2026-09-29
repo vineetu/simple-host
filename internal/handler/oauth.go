@@ -339,6 +339,13 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 		writeOAuthHTMLError(w, http.StatusBadGateway)
 		return
 	}
+	if created {
+		sig := db.Signup{Source: db.SignupVisitor, Method: db.SignupMethodGoogle}
+		if st.Purpose == "owner" {
+			sig = signupForOwnerReturnTo(r.Context(), tx, st.ReturnTo)
+		}
+		recordSignup(r.Context(), tx, user.ID, sig)
+	}
 	// A suspended account signs in on no site. (A dashboard sign-in is
 	// refused, with the reason, when its token is redeemed at /v1/auth/verify.)
 	if susp, serr := db.UserSuspended(r.Context(), tx, user.ID); st.Purpose != "owner" && (serr != nil || susp) {

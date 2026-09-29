@@ -253,7 +253,7 @@
       var code = el('code').value.replace(/[^0-9]/g, '');
       el('code-btn').disabled = true;
       try {
-        var r = await window.shVerifySignIn({ email: pendingEmail, code: code, name: 'dashboard sign-in' });
+        var r = await window.shVerifySignIn({ email: pendingEmail, code: code, name: 'dashboard sign-in', signup_client: params.get('client_id') || '' });
         if (!r.ok || !r.body.api_key) { el('signin-msg').textContent = r.body.error || 'That code did not work.'; return; }
         setKey(r.body.api_key);
         el('code-form').hidden = true;

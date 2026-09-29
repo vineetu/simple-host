@@ -45,7 +45,7 @@ const usageMaxAge = 2 * time.Minute
 
 // usageLargestSites is how many of the biggest sites to name. Enough to find the
 // cause of a full disk, not so many that the admin screen becomes a file browser.
-const usageLargestSites = 5
+const usageLargestSites = 10
 
 func (c *usageCache) get(dataDir string) (capacity.Usage, time.Time, error) {
 	c.mu.Lock()
@@ -113,7 +113,7 @@ func (h *SiteHandler) adminUsage(w http.ResponseWriter, r *http.Request) {
 		`SELECT count(*) FROM users WHERE NOT is_admin`).Scan(&accounts); err != nil {
 		accounts = -1 // reported as unknown rather than as zero
 	}
-	writeJSON(w, 200, map[string]any{
+	out := map[string]any{
 		"disk_bytes":      usage.DiskBytes,
 		"disk_free_bytes": usage.DiskFreeBytes,
 		"disk_used_bytes": usage.DiskUsedBytes,
@@ -133,5 +133,15 @@ func (h *SiteHandler) adminUsage(w http.ResponseWriter, r *http.Request) {
 		// When the walk behind these figures ran. A served-stale reading is
 		// better than a page that hangs, but only if the page can say so.
 		"measured_at": measuredAt.UTC().Format(time.RFC3339),
-	})
+	}
+	// ?sizes=1 adds every site's footprint (the admin page's Sites table),
+	// from the same cached walk.
+	if r.URL.Query().Get("sizes") == "1" {
+		sizes := usage.All
+		if sizes == nil {
+			sizes = []capacity.SiteUsage{}
+		}
+		out["site_sizes"] = sizes
+	}
+	writeJSON(w, 200, out)
 }

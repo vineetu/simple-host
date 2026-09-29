@@ -376,6 +376,9 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("POST /v1/admin/sites/{id}/restore", authMiddleware(h.setSiteSuspension(false)))
 	mux.Handle("POST /v1/admin/users/{id}/suspend", authMiddleware(h.setUserSuspension(true)))
 	mux.Handle("POST /v1/admin/users/{id}/enable", authMiddleware(h.setUserSuspension(false)))
+	// Versions, Make active, Data, domain and Delete on anyone's site, by id,
+	// run as its owner (adminsite.go).
+	h.registerAdminSiteActions(mux, authMiddleware)
 	// Every site on the instance in one archive (export.go).
 	mux.Handle("GET /v1/admin/export.tar.gz", authMiddleware(http.HandlerFunc(h.exportAll)))
 	// What the disk is actually holding, and how much is left.
@@ -2137,13 +2140,25 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 	// Group sites under their owner.
 	byUser := make(map[string][]map[string]any, len(users))
 	for _, s := range sites {
+		var deployed any
+		if s.LastDeployedAt.Valid {
+			deployed = s.LastDeployedAt.Time
+		}
+		vis := s.Visibility
+		if vis == "" {
+			vis = "unlisted"
+		}
 		byUser[s.UserID] = append(byUser[s.UserID], map[string]any{
 			"id":               s.ID,
 			"name":             s.Name,
 			"site_url":         h.siteURLFor(s),
 			"active_version":   s.ActiveVersion,
 			"custom_domain":    s.CustomDomain.String,
+			"domain_status":    s.DomainStatus.String,
 			"created_at":       s.CreatedAt,
+			"deployed_at":      deployed,
+			"visibility":       vis,
+			"offline":          s.Offline,
 			"suspended":        s.Suspended(),
 			"suspended_reason": s.SuspendedReason(),
 			"suspended_by":     suspendedBy(s),
@@ -2168,6 +2183,12 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 			"sites":            list,
 			"suspended":        u.Suspended,
 			"suspended_reason": u.SuspendedReason,
+			// Where the account came from (users.signup_*): "" for accounts
+			// from before it was recorded.
+			"signup_source":   u.Signup.Source,
+			"signup_agent":    u.Signup.Agent,
+			"signup_method":   u.Signup.Method,
+			"signup_inferred": u.Signup.Inferred,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"users": out, "user_count": len(out), "site_count": len(sites)})

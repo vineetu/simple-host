@@ -230,7 +230,9 @@ func (h *ConnectorHandler) reviewerAccount(ctx context.Context, email string) (d
 	user, err := db.GetUserByUsername(ctx, h.database, email)
 	if errors.Is(err, sql.ErrNoRows) {
 		user, err = db.CreateUser(ctx, h.database, email, "", false)
-		if err != nil && isUniqueViolation(err) {
+		if err == nil {
+			recordSignup(ctx, h.database, user.ID, db.Signup{Source: db.SignupReviewer, Method: db.SignupMethodPassword})
+		} else if isUniqueViolation(err) {
 			user, err = db.GetUserByUsername(ctx, h.database, email)
 		}
 	}

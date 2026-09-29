@@ -154,7 +154,7 @@ func (h *SiteHandler) createAccounts(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var id string
-		err = tx.QueryRowContext(r.Context(), `INSERT INTO users (username) VALUES ($1) ON CONFLICT (username) DO NOTHING RETURNING id`, name).Scan(&id)
+		err = tx.QueryRowContext(r.Context(), `INSERT INTO users (username, signup_source, signup_method) VALUES ($1, 'admin', 'issued') ON CONFLICT (username) DO NOTHING RETURNING id`, name).Scan(&id)
 		if errors.Is(err, sql.ErrNoRows) {
 			skipped = append(skipped, map[string]string{"username": name, "reason": "account already exists"})
 			continue
