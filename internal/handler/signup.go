@@ -52,16 +52,16 @@ func connectorSignup(ctx context.Context, q db.Querier, clientID, method string)
 	return db.Signup{Source: db.SignupConnectorPrefix + cleanClientName(c.Name), Method: method}, true
 }
 
-// signupForOwnerReturnTo says where a Google sign-up that started on one of
+// signupForOwnerReturnTo says where a Google or GitHub sign-up that started on one of
 // the site's pages came from: the consent page (/oauth/authorize, whose query
 // names the app) or anywhere else on the site.
-func signupForOwnerReturnTo(ctx context.Context, q db.Querier, returnTo string) db.Signup {
+func signupForOwnerReturnTo(ctx context.Context, q db.Querier, returnTo, provider string) db.Signup {
 	if u, err := url.Parse(returnTo); err == nil && u.Path == "/oauth/authorize" {
-		if s, ok := connectorSignup(ctx, q, u.Query().Get("client_id"), db.SignupMethodGoogle); ok {
+		if s, ok := connectorSignup(ctx, q, u.Query().Get("client_id"), provider); ok {
 			return s
 		}
 	}
-	return db.Signup{Source: db.SignupWebsite, Method: db.SignupMethodGoogle}
+	return db.Signup{Source: db.SignupWebsite, Method: provider}
 }
 
 // fromOwnPages reports a browser request made by one of this site's pages.
@@ -95,6 +95,9 @@ func signupAgentName(r *http.Request) string {
 		ua = ua[:i]
 	}
 	ua = cleanAgentName(ua)
+	if looksLikeIP(ua) {
+		return ""
+	}
 	if strings.EqualFold(ua, "Mozilla") {
 		return "browser"
 	}
@@ -105,7 +108,7 @@ func signupAgentName(r *http.Request) string {
 // An IP address is dropped: no IP is ever kept.
 func cleanAgentName(s string) string {
 	s = strings.TrimSpace(s)
-	if net.ParseIP(strings.Trim(s, "[]")) != nil {
+	if looksLikeIP(s) {
 		return ""
 	}
 	var b strings.Builder
@@ -130,4 +133,16 @@ func clipAgent(s string) string {
 		s = strings.TrimSpace(s[:signupAgentMax])
 	}
 	return s
+}
+
+// looksLikeIP: an IP address, with or without a port or brackets.
+func looksLikeIP(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return false
+	}
+	if host, _, err := net.SplitHostPort(s); err == nil {
+		s = host
+	}
+	return net.ParseIP(strings.Trim(s, "[]")) != nil
 }

@@ -185,6 +185,10 @@ func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if adminSiteMismatch(r, siteID) {
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+		return
+	}
 	if !h.allowRead(w, r, siteID) {
 		return
 	}
@@ -370,7 +374,7 @@ func (h *SiteHandler) ownedSiteID(r *http.Request, user *db.User, siteName strin
 		return "", sql.ErrNoRows
 	}
 	if user.ID != "" {
-		site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
+		site, err := h.siteForCaller(r, user.ID, siteName)
 		if err == nil {
 			return site.ID, nil
 		}

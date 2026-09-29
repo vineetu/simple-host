@@ -339,12 +339,20 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 		writeOAuthHTMLError(w, http.StatusBadGateway)
 		return
 	}
+	// Where a new account came from, recorded after the commit below so a
+	// failure to record it can never abort the sign-in.
+	var signup *db.Signup
 	if created {
-		sig := db.Signup{Source: db.SignupVisitor, Method: db.SignupMethodGoogle}
+		sig := db.Signup{Source: db.SignupVisitor, Method: ident.Provider}
 		if st.Purpose == "owner" {
-			sig = signupForOwnerReturnTo(r.Context(), tx, st.ReturnTo)
+			sig = signupForOwnerReturnTo(r.Context(), tx, st.ReturnTo, ident.Provider)
 		}
-		recordSignup(r.Context(), tx, user.ID, sig)
+		signup = &sig
+	}
+	recordAfterCommit := func() {
+		if signup != nil {
+			recordSignup(r.Context(), h.database, user.ID, *signup)
+		}
 	}
 	// A suspended account signs in on no site. (A dashboard sign-in is
 	// refused, with the reason, when its token is redeemed at /v1/auth/verify.)
@@ -381,6 +389,7 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 			writeOAuthHTMLError(w, http.StatusBadGateway)
 			return
 		}
+		recordAfterCommit()
 		dest := ownerLandingURL(st.ReturnTo, h.cfg.PublicBaseURL, linkToken)
 		http.Redirect(w, r, dest, http.StatusFound)
 		return
@@ -421,6 +430,7 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 		writeOAuthHTMLError(w, http.StatusBadGateway)
 		return
 	}
+	recordAfterCommit()
 
 	scheme := "https"
 	if u, err := url.Parse(st.ReturnTo); err == nil && u.Scheme != "" {

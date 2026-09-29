@@ -5945,6 +5945,23 @@ paths:
         '200': { description: 'As GET /v1/sites/{sitename}/collections (collections, each with name, count and last_at)' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /v1/admin/sites/{id}/collections/{coll}:
+    get:
+      operationId: adminListSiteCollection
+      summary: A site's list, for the admin (admin only)
+      description: >-
+        GET /v1/u/{handle}/sites/{sitename}/collections/{coll} for anyone's site, named by id (private
+        lists included, as for the owner). Admin only (anyone else gets 404); each call is logged with the admin.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+        - { in: path, name: coll, required: true, schema: { type: string } }
+        - { in: query, name: limit, required: false, schema: { type: integer } }
+      responses:
+        '200': { description: 'As GET /v1/sites/{sitename}/collections/{coll}' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /v1/admin/sites/{id}/collections/{coll}/export.csv:
     get:
       operationId: adminExportSiteCollectionCSV
@@ -6016,6 +6033,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { description: The site is taken down (site_suspended) }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'The site has a name from before the current naming rules (code legacy_site_name)' }
   /v1/admin/users/{id}/suspend:
     post:
       operationId: suspendAccount

@@ -10,13 +10,17 @@
 --   visitor            first signed in on a hosted page (visitor sign-in)
 --   admin              issued by the operator (POST /v1/admin/users)
 --   reviewer           the app-store reviewer sign-in
--- signup_method is email | google | issued | password. No IP is ever stored.
+-- signup_method is email | google | github | issued | password. No IP is ever stored.
 -- Accounts from before this file stay NULL ("Unknown (before tracking)"), except
 -- the obvious cases below, which are marked signup_inferred.
 --
 -- Apply BEFORE deploying the build that reads it (the server refuses to start
 -- without it). Idempotent: nullable columns and a constant default are
 -- catalog-only; each UPDATE touches only rows still NULL.
+BEGIN;
+-- Never queue behind a long lock on a live users table: fail fast and retry.
+SET LOCAL lock_timeout = '5s';
+
 ALTER TABLE users ADD COLUMN IF NOT EXISTS signup_source TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS signup_agent TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS signup_method TEXT;
@@ -50,3 +54,5 @@ UPDATE users u SET signup_source = 'website', signup_method = 'google', signup_i
    AND EXISTS (SELECT 1 FROM oauth_identities i
                 WHERE i.user_id = u.id AND i.provider = 'google'
                   AND i.created_at <= u.created_at + interval '10 minutes');
+
+COMMIT;

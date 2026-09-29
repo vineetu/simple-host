@@ -70,14 +70,14 @@ func (h *SiteHandler) deleteSite(w http.ResponseWriter, r *http.Request) {
 	}
 	// Look the site up before taking its lock, so a request for a name the
 	// account does not have never adds a lock; read it again under the lock.
-	if _, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName); errors.Is(err, sql.ErrNoRows) {
+	if _, err := h.siteForCaller(r, user.ID, siteName); errors.Is(err, sql.ErrNoRows) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
 		return
 	}
 	unlock := h.lockSite(user.ID, siteName)
 	defer unlock()
 
-	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
+	site, err := h.siteForCaller(r, user.ID, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})

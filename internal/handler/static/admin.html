@@ -322,8 +322,8 @@ function ago(s){
   if(days<=0) return 'today';
   if(days===1) return 'yesterday';
   if(days<30) return days+' days ago';
-  var m=Math.floor(days/30.44); if(m<12) return m+' month'+(m===1?'':'s')+' ago';
-  var y=Math.floor(days/365.25); return y+' year'+(y===1?'':'s')+' ago';
+  if(days<365){ var m=Math.max(1,Math.floor(days/30.44)); return m+' month'+(m===1?'':'s')+' ago'; }
+  var y=Math.max(1,Math.floor(days/365.25)); return y+' year'+(y===1?'':'s')+' ago';
 }
 function fmtWhen(s){ var d=new Date(s); if(!s||isNaN(d)) return ''; var m=(Date.now()-d)/60000; if(m<2) return 'just now'; if(m<60) return Math.round(m)+' min ago'; if(m<1440) return Math.round(m/60)+' h ago'; return dateOf(s); }
 var statusTimer=null;
@@ -343,7 +343,7 @@ async function errOf(res){ var d=await res.json().catch(function(){return {};});
 // ---------------------------------------------------------------- data
 // GET /v1/admin/users is the sign-in check and feeds Overview, Users, Sites,
 // Moderation and Entries. Everything else loads the first time its tab opens.
-var D={users:[], sites:[], byId:{}, usage:null, usagePromise:null, loaded:{}};
+var D={users:[], sites:[], byId:{}, usage:null, usagePromise:null, usageFailed:false, loaded:{}};
 function isLive(s){ return !!s.site_url && !s.suspended && !s.offline; }
 function updatedAt(s){ return s.deployed_at||s.created_at; }
 function indexData(data){
@@ -365,12 +365,31 @@ function applySizes(){
   D.usage.site_sizes.forEach(function(x){ m[x.user_id+'/'+x.name]=x.bytes; });
   D.sites.forEach(function(s){ var b=m[s.owner.id+'/'+s.name]; s.size=b==null?null:b; });
 }
+// One request at a time; a failure is remembered (the tabs show it once, with
+// a Try again) instead of being retried on every render.
 function loadUsage(){
   if(D.usagePromise) return D.usagePromise;
-  D.usagePromise=api('GET','/v1/admin/usage?sizes=1').then(function(r){ return r.ok?r.json():null; })
-    .then(function(d){ D.usage=d; applySizes(); return d; })
-    .catch(function(){ return null; });
+  D.usageFailed=false;
+  D.usagePromise=api('GET','/v1/admin/usage?sizes=1').then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(d){ D.usage=d; applySizes(); instanceLine(d); return d; })
+    .catch(function(){ D.usageFailed=true; D.usagePromise=null; return null; });
   return D.usagePromise;
+}
+function needUsage(tab, render){
+  if(D.usage||D.usageFailed||D.usagePromise) return;
+  loadUsage().then(function(){ if(current===tab) render(); });
+}
+var usageErr='Could not measure the disk. <button type="button" class="btn ghost sm" data-usage-retry>Try again</button>';
+document.addEventListener('click', function(e){
+  if(!e.target.closest('[data-usage-retry]')) return;
+  D.usageFailed=false; renderCurrent();
+});
+// Settings and release in force, so nobody needs a shell to say which
+// version this box runs or how much history it keeps.
+function instanceLine(d){
+  if(!d) return;
+  var kv=d.keep_versions, keep=kv===0?'Keeps every deploy of each website.':kv===1?'Keeps the latest deploy of each website.':'Keeps the latest '+kv+' deploys of each website.';
+  $('instance-line').textContent=keep+(d.version?' Running release '+d.version+', commit '+d.commit+'.':'');
 }
 async function reloadUsers(){
   var res=await api('GET','/v1/admin/users');
@@ -390,7 +409,7 @@ function connectorApp(name){
 // group: stable key for counting; label: what a row shows.
 function sourceOf(u){
   var s=u.signup_source||'', m=u.signup_method||'', a=u.signup_agent||'';
-  var how=m==='google'?'Google':m==='email'?'email':'';
+  var how=m==='google'?'Google':m==='github'?'GitHub':m==='email'?'email':'';
   if(!s) return {group:'unknown', label:'Unknown (before tracking)', detail:''};
   if(s==='website') return {group:'website', label:'Website', detail:how};
   if(s.indexOf('connector:')===0){
@@ -469,8 +488,8 @@ function renderOverview(){
   var tiles=[
     [people.length,'Users'],[new7,'New in 7 days'],[new30,'New in 30 days'],
     [live,'Live sites <span class="muted">of '+D.sites.length+'</span>'],
-    [u?bytes(u.site_bytes):'…','Site storage'],
-    [u?(Math.round(u.disk_used_pct)+'%'):'…','Disk used'+(u?' <span class="muted">· '+esc(bytes(u.disk_free_bytes))+' free</span>':'')],
+    [u?bytes(u.site_bytes):D.usageFailed?'—':'…','Site storage'],
+    [u?(Math.round(u.disk_used_pct)+'%'):D.usageFailed?'—':'…','Disk used'+(u?' <span class="muted">· '+esc(bytes(u.disk_free_bytes))+' free</span>':'')],
     [suspUsers+' · '+down,'Suspended · taken down']
   ];
   $('ov-stats').innerHTML=tiles.map(function(t){ return '<div class="stat"><div class="n">'+esc(t[0])+'</div><div class="l">'+t[1]+'</div></div>'; }).join('');
@@ -495,8 +514,9 @@ function renderOverview(){
     return '<tr><td>'+esc(SOURCE_LABEL[g])+sub+inf+'</td><td class="num">'+c.d7+'</td><td class="num">'+c.d30+'</td><td class="num">'+c.all+'</td></tr>';
   }).join('')||'<tr><td colspan="4" class="empty">Nobody yet.</td></tr>';
 
-  if(!u){ loadUsage().then(function(){ if(current==='overview') renderOverview(); }); }
-  else renderDisk();
+  if(u) renderDisk();
+  else if(D.usageFailed){ $('ov-biggest').innerHTML='<tr><td colspan="4" class="empty">'+usageErr+'</td></tr>'; }
+  else needUsage('overview', renderOverview);
 }
 function renderDisk(){
   var d=D.usage; if(!d) return;
@@ -508,8 +528,6 @@ function renderDisk(){
   var age='';
   if(d.measured_at){ var secs=Math.max(0,Math.round((Date.now()-new Date(d.measured_at))/1000)); age=secs<90?'':' Measured '+Math.round(secs/60)+' minutes ago.'; }
   note.textContent=d.message+' Websites are capped at '+d.site_limit_mb+' MB each.'+age;
-  var kv=d.keep_versions, keep=kv===0?'Keeps every deploy of each website.':kv===1?'Keeps the latest deploy of each website.':'Keeps the latest '+kv+' deploys of each website.';
-  $('instance-line').textContent=keep+(d.version?' Running release '+d.version+', commit '+d.commit+'.':'');
   var top=(d.largest||[]).slice(0,10);
   $('ov-biggest').innerHTML=top.map(function(t,i){
     var o=D.byId[t.user_id];
@@ -602,9 +620,9 @@ function siteRows(){
   return rows;
 }
 function renderSites(){
-  if(!D.usage) loadUsage().then(function(){ if(current==='sites') renderSites(); });
+  needUsage('sites', renderSites);
   var rows=siteRows();
-  $('s-count').textContent='('+(rows.length!==D.sites.length?rows.length+' of ':'')+D.sites.length+')';
+  $('s-count').innerHTML='('+(rows.length!==D.sites.length?rows.length+' of ':'')+D.sites.length+')'+(D.usageFailed?' <span class="muted">· sizes unavailable.</span> '+usageErr.replace('Could not measure the disk. ',''):'');
   document.querySelectorAll('#s-table th[data-sort]').forEach(function(th){
     var on=th.dataset.sort===SS.sort;
     if(on) th.setAttribute('aria-sort',SS.dir<0?'descending':'ascending'); else th.removeAttribute('aria-sort');
@@ -617,7 +635,7 @@ function renderSites(){
     var link=s.site_url?'<a href="'+esc(s.site_url)+'" target="_blank" rel="noopener">'+esc(s.name)+'</a>':esc(s.name);
     var dom=s.custom_domain?esc(s.custom_domain)+(s.domain_status&&s.domain_status!=='active'?' <span class="muted">· '+esc(s.domain_status)+'</span>':''):'<span class="muted">—</span>';
     return '<tr data-site="'+esc(s.id)+'"><td>'+link+'</td><td>'+esc(o.handle||o.username)+'</td>'+
-      '<td class="num">'+(s.size==null?'<span class="muted">'+(D.usage?'—':'…')+'</span>':bytes(s.size))+'</td>'+
+      '<td class="num">'+(s.size==null?'<span class="muted">'+(D.usage||D.usageFailed?'—':'…')+'</span>':bytes(s.size))+'</td>'+
       '<td>'+esc(dateOf(updatedAt(s)))+' <span class="muted ago">· '+esc(ago(updatedAt(s)))+'</span></td>'+
       '<td>'+esc(s.visibility||'')+'</td><td>'+siteStatus(s)+'</td><td>'+dom+'</td>'+
       '<td><button type="button" class="more" aria-haspopup="menu" aria-expanded="false" aria-label="Actions for '+esc(s.name)+'" data-menu="'+esc(s.id)+'">&#8943;</button></td></tr>'+
@@ -768,11 +786,8 @@ async function viewRows(s, coll, btn){
   if(!box) return;
   if(!box.hidden){ box.hidden=true; return; }
   box.hidden=false; box.textContent='Loading…';
-  // The admin key reads any site's list through its owner's handle route.
-  var path=s.owner.handle?'/v1/u/'+encodeURIComponent(s.owner.handle)+'/sites/'+encodeURIComponent(s.name)+'/collections/'+encodeURIComponent(coll)+'?limit=50'
-                         :'/v1/sites/'+encodeURIComponent(s.name)+'/collections/'+encodeURIComponent(coll)+'?limit=50';
   try{
-    var res=await api('GET', path);
+    var res=await api('GET', sitePath(s,'/collections/'+encodeURIComponent(coll)+'?limit=50'));
     if(!res.ok){ box.textContent='Could not load rows: '+(await errOf(res)); return; }
     var b=await res.json(), items=(b&&b.items)||[];
     if(!items.length){ box.textContent='No rows.'; return; }
@@ -909,14 +924,14 @@ function entries(){
   var q=(($('entry-filter').value)||'').trim().toLowerCase();
   var list=D.sites.filter(function(s){ return !!s.site_url; }).map(function(s){
     return {id:s.id, name:s.name, account:s.owner.handle||s.owner.username, handle:s.owner.handle||'', url:s.site_url, domain:s.custom_domain||'',
-      suspended:!!s.suspended, reason:s.suspended_reason||'', by:s.suspended_by||'', created:s.created_at};
+      suspended:!!s.suspended, offline:!!s.offline, reason:s.suspended_reason||'', by:s.suspended_by||'', created:s.created_at};
   }).sort(function(a,b){ return new Date(b.created)-new Date(a.created); });
   var total=list.length;
   if(q) list=list.filter(function(e){ return (e.name+' '+e.account).toLowerCase().indexOf(q)>=0; });
   return {list:list, total:total};
 }
 function entryStatus(e){
-  if(!e.suspended) return 'Live <button type="button" class="btn ghost sm" data-site-suspend="'+esc(e.id)+'" data-name="'+esc(e.name)+'">Take down</button>';
+  if(!e.suspended) return (e.offline?'Offline (by its owner)':'Live')+' <button type="button" class="btn ghost sm" data-site-suspend="'+esc(e.id)+'" data-name="'+esc(e.name)+'">Take down</button>';
   var why='<div class="sub">'+esc(e.reason)+'</div>';
   if(e.by==='account') return 'Taken down with the account'+why;
   return 'Taken down <button type="button" class="btn ghost sm" data-site-restore="'+esc(e.id)+'" data-name="'+esc(e.name)+'">Restore</button>'+why;
@@ -936,7 +951,7 @@ function renderEntries(){
 }
 function csvOf(rows){ return rows.map(function(r){ return r.map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(','); }).join('\n'); }
 function downloadEntries(){
-  var rows=[['entry','account','link','custom_domain','status']].concat(entries().list.map(function(e){ return [e.name,e.account,e.url,e.domain,e.suspended?'taken down':'live']; }));
+  var rows=[['entry','account','link','custom_domain','status']].concat(entries().list.map(function(e){ return [e.name,e.account,e.url,e.domain,e.suspended?'taken down':e.offline?'offline':'live']; }));
   saveBlob(new Blob([csvOf(rows)],{type:'text/csv'}), 'entries.csv');
 }
 function copyEntries(){

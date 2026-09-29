@@ -27,6 +27,7 @@ const (
 
 	SignupMethodEmail    = "email"
 	SignupMethodGoogle   = "google"
+	SignupMethodGitHub   = "github"
 	SignupMethodIssued   = "issued"
 	SignupMethodPassword = "password"
 )

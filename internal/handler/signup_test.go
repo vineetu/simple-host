@@ -148,10 +148,13 @@ func TestSignupSourceIssuedAndGoogle(t *testing.T) {
 		{"https://simple-host.test/oauth/authorize?client_id=unknown&cn=x", "website"},
 		{"https://simple-host.test/dashboard?cn=x", "website"},
 	} {
-		s := signupForOwnerReturnTo(ctx, a.database, c.returnTo)
+		s := signupForOwnerReturnTo(ctx, a.database, c.returnTo, "google")
 		if s.Source != c.want || s.Method != "google" {
 			t.Errorf("%s: %+v", c.returnTo, s)
 		}
+	}
+	if s := signupForOwnerReturnTo(ctx, a.database, "https://simple-host.test/dashboard?cn=x", "github"); s.Source != "website" || s.Method != "github" {
+		t.Errorf("github: %+v", s)
 	}
 }
 
@@ -174,6 +177,9 @@ func TestSignupAgentName(t *testing.T) {
 		{"", "", "10.0.0.1 x", ""},
 		{"203.0.113.9", "", "curl/8", "curl"},
 		{"", "", "::1", ""},
+		{"10.0.0.1:8080", "", "curl/8", "curl"},
+		{"", "", "10.0.0.1:8080/x", ""},
+		{"", "", "[2001:db8::1]:443", ""},
 	} {
 		r := httptest.NewRequest("POST", "/v1/auth/verify", nil)
 		if c.client != "" {
@@ -299,6 +305,36 @@ func TestAdminSiteActionsActAsOwner(t *testing.T) {
 	}
 	if r := a.at(t, "GET", signupApex, "/v1/admin/sites/"+shop+"/collections", nil, admin); r.status != 200 || !strings.Contains(string(r.body), `"collections"`) {
 		t.Fatalf("collections: %d %s", r.status, r.body)
+	}
+	// A list's rows, by site id; oscar has a same-named list elsewhere.
+	if r := a.at(t, "POST", signupApex, "/v1/sites/shop/collections/signups", map[string]string{"who": "olive-row"}, map[string]string{"X-API-Key": olive.key}); r.status != 201 && r.status != 200 {
+		t.Fatalf("append: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "GET", signupApex, "/v1/admin/sites/"+shop+"/collections/signups?limit=50", nil, admin); r.status != 200 || !strings.Contains(string(r.body), "olive-row") {
+		t.Fatalf("rows: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "GET", signupApex, "/v1/admin/sites/"+shop+"/collections/signups", nil, map[string]string{"X-API-Key": oscar.key}); r.status != 404 {
+		t.Fatalf("rows as non-admin: %d", r.status)
+	}
+	// The id rides along: a lookup by owner and name that lands on another
+	// site (a rename or a new site under the old name meanwhile) is refused.
+	oliveID, _ := a.userID(t, olive)
+	req := httptest.NewRequest("GET", "/", nil)
+	req = req.WithContext(context.WithValue(req.Context(), adminSiteKey{}, "00000000-0000-0000-0000-000000000000"))
+	if _, err := a.sites.siteForCaller(req, oliveID, "shop"); err != sql.ErrNoRows {
+		t.Fatalf("mismatched id: %v", err)
+	}
+	req = req.WithContext(context.WithValue(req.Context(), adminSiteKey{}, shop))
+	if s, err := a.sites.siteForCaller(req, oliveID, "shop"); err != nil || s.ID != shop {
+		t.Fatalf("matching id: %v", err)
+	}
+	// A name from before the naming rules: delete says why it cannot.
+	var legacy string
+	if err := a.database.QueryRow(`INSERT INTO sites (user_id, name) VALUES ($1, 'Old_Name') RETURNING id`, oliveID).Scan(&legacy); err != nil {
+		t.Fatal(err)
+	}
+	if r := a.at(t, "DELETE", signupApex, "/v1/admin/sites/"+legacy, nil, admin); r.status != 409 || r.json(t)["code"] != "legacy_site_name" {
+		t.Fatalf("legacy delete: %d %s", r.status, r.body)
 	}
 	// A taken-down site stays as it is, as for its owner.
 	if r := a.at(t, "POST", signupApex, "/v1/admin/sites/"+shop+"/suspend", map[string]string{"reason": "test"}, admin); r.status != 200 {
