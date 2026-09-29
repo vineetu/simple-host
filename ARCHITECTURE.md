@@ -87,7 +87,8 @@ that one site, renamed labels (302 to the new one), missing sites (404), and a s
 domain of its own (302 there). The main-address ranking (domain > most specific canonical family
 > site host) decides where the site host redirects and where sign-in and saves happen.
 `deploy/prod/family-adopt.sh` moves a hand-made wildcard vhost to the managed file (dry run by
-default, `--apply`, `--rollback`).
+default, `--apply`, `--rollback`): ready marker first, then it waits for the admin API's `live`
+(the routing index), then swaps. A host under a proven family (verified or proof-exempt) that is not live is a plain 404.
 
 **Person hosts `<handle>.simple-host.app`** (`personhost.go`). The wildcard vhost
 proxies to the app; `PersonHosts` recognises the handle (aliases such as `admin` →

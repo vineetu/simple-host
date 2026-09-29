@@ -51,6 +51,15 @@ type familyIndex struct {
 	mu       sync.RWMutex
 	bySuffix map[string]db.AddressFamily
 	byUser   map[string][]db.AddressFamily
+	// known is every proven family's suffix (verified, or proof-exempt by
+	// the admin), live or not (failing, waiting for its certificate or its
+	// ready marker): a host under one is never the platform's, so it is
+	// never handed to the platform's pages. An unproven family is not
+	// known: anyone may connect any name, and must not blank its hosts.
+	known map[string]bool
+	// released is every proven suffix let go since this process started (a
+	// lapsed family's wildcard may still point here): known too.
+	released map[string]bool
 }
 
 // familyLabelRE is one DNS label.
@@ -155,13 +164,17 @@ func (h *SiteHandler) familyIsLive(f db.AddressFamily) bool {
 func (h *SiteHandler) refreshFamilies(ctx context.Context) {
 	bySuffix := map[string]db.AddressFamily{}
 	byUser := map[string][]db.AddressFamily{}
+	known := map[string]bool{}
 	if h.familiesOn() {
-		list, err := db.ListVerifiedFamilies(ctx, h.database)
+		list, err := db.ListAllFamilies(ctx, h.database)
 		if err != nil {
 			log.Printf("address families: list: %v", err)
 			return
 		}
 		for _, f := range list {
+			if f.VerifiedAt.Valid || f.ProofExempt {
+				known[f.Suffix] = true
+			}
 			if !h.familyIsLive(f) {
 				continue
 			}
@@ -177,8 +190,11 @@ func (h *SiteHandler) refreshFamilies(ctx context.Context) {
 		return b.String()
 	}
 	h.families.mu.Lock()
+	for s := range h.families.released {
+		known[s] = true
+	}
 	old := h.families.byUser
-	h.families.bySuffix, h.families.byUser = bySuffix, byUser
+	h.families.bySuffix, h.families.byUser, h.families.known = bySuffix, byUser, known
 	h.families.mu.Unlock()
 	changed := map[string]bool{}
 	for u, fs := range byUser {
@@ -231,6 +247,28 @@ func (h *SiteHandler) liveFamily(host string) (db.AddressFamily, string, bool) {
 		return db.AddressFamily{}, "", false
 	}
 	return f, label, true
+}
+
+// familyServed: f is live in the index requests are routed by (what
+// familyIsLive says the disk holds reaches it at the next refresh).
+func (h *SiteHandler) familyServed(f db.AddressFamily) bool {
+	h.families.mu.RLock()
+	g, ok := h.families.bySuffix[f.Suffix]
+	h.families.mu.RUnlock()
+	return ok && g.ID == f.ID && g.SitePrefix == f.SitePrefix
+}
+
+// knownFamilyHost: host is <label>.<suffix> of a proven family, live or
+// not.
+func (h *SiteHandler) knownFamilyHost(host string) bool {
+	host = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(host), "."))
+	_, suffix, ok := strings.Cut(host, ".")
+	if !ok {
+		return false
+	}
+	h.families.mu.RLock()
+	defer h.families.mu.RUnlock()
+	return h.families.known[suffix]
 }
 
 // isFamilyHostName: host is <label>.<a live family's suffix>, whatever the
@@ -423,6 +461,13 @@ func (h *SiteHandler) FamilyHosts(api, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		host := requestHostName(r)
 		f, label, ok := h.liveFamily(host)
+		if !ok && !strings.HasPrefix(r.URL.Path, "/internal/") && !strings.HasPrefix(r.URL.Path, "/v1/") &&
+			h.knownFamilyHost(host) && !h.isBoundDomain(r.Context(), host) {
+			// A family that is not live (yet, or any more) answers nothing:
+			// never the platform's own pages.
+			http.NotFound(w, r)
+			return
+		}
 		if !ok || strings.HasPrefix(r.URL.Path, "/internal/") {
 			next.ServeHTTP(w, r)
 			return

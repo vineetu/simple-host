@@ -809,3 +809,113 @@ func TestFamilyPendingDomainDoesNotBlock(t *testing.T) {
 		t.Fatalf("family over a proven domain: %d %s", r.status, r.body)
 	}
 }
+
+// A host under a connected family is never handed to the platform's own
+// pages, whatever the family's state: pending, verified but not live (no
+// ready marker yet, or the routing index not refreshed yet), live with a
+// missing label, or let go. It is a plain 404. And "live" in the API is
+// what requests are routed by, so a caller waiting for it (family-adopt.sh)
+// knows the family answers.
+func TestFamilyHostNeverPlatform(t *testing.T) {
+	a, siteDir, famDir, dns := newFamilyApp(t)
+	a.mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("PLATFORM-HOME")) })
+	olive := a.newPerson(t, "olive")
+	a.deploy(t, olive, "meera")
+	uid, oh := a.userID(t, olive)
+	markReady(t, siteDir, oh)
+	okey := map[string]string{"X-API-Key": olive.key}
+	ctx := context.Background()
+
+	if r := a.at(t, "GET", "nope.other.test", "/", nil, nil); string(r.body) != "PLATFORM-HOME" {
+		t.Fatalf("control: an unrelated host should reach the platform: %d %s", r.status, r.body)
+	}
+	plain404 := func(stage, host string) {
+		t.Helper()
+		for _, p := range []string{"/", "/index.html", "/x/y"} {
+			r := a.at(t, "GET", host, p, nil, nil)
+			if r.status != http.StatusNotFound || strings.Contains(string(r.body), "PLATFORM") {
+				t.Errorf("%s: %s%s = %d %q, want a plain 404", stage, host, p, r.status, r.body)
+			}
+		}
+	}
+	liveOf := func(suffix string) bool {
+		t.Helper()
+		r := a.at(t, "GET", pcSiteDomain, "/v1/admin/address-families", nil, map[string]string{"X-API-Key": a.admin})
+		for _, f := range r.json(t)["address_families"].([]any) {
+			m := f.(map[string]any)
+			if m["suffix"] == suffix {
+				return m["live"].(bool)
+			}
+		}
+		t.Fatalf("%s not listed: %s", suffix, r.body)
+		return false
+	}
+
+	// Pending and unproven: anyone may connect any name, so it must not
+	// blank that name's hosts; they are what they were before.
+	if r := a.at(t, "POST", pcSiteDomain, "/v1/me/address-families", map[string]any{"suffix": "*.pend.fam.test"}, okey); r.status != http.StatusCreated {
+		t.Fatalf("connect: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "GET", "nosuch.pend.fam.test", "/", nil, nil); string(r.body) != "PLATFORM-HOME" {
+		t.Errorf("an unproven family changed its hosts: %d %s", r.status, r.body)
+	}
+	// Pending but proof-exempt (the admin connected it for a name the
+	// operator runs): its hosts are the family's, a plain 404.
+	r := a.at(t, "POST", pcSiteDomain, "/v1/admin/users/"+uid+"/address-families",
+		map[string]any{"suffix": "*.exempt.fam.test", "proof_exempt": true, "canonical": false}, map[string]string{"X-API-Key": a.admin})
+	if r.status != http.StatusCreated {
+		t.Fatalf("admin connect: %d %s", r.status, r.body)
+	}
+	plain404("pending, proof-exempt", "meera.exempt.fam.test")
+	plain404("pending, proof-exempt", "nosuch.exempt.fam.test")
+
+	// Live, then a missing label.
+	f := a.liveFamily(t, famDir, dns, olive, "trips.fam.test", "", false, 2)
+	if !liveOf("trips.fam.test") {
+		t.Fatal("live family reported not live")
+	}
+	if r := a.at(t, "GET", "meera.trips.fam.test", "/", nil, nil); r.status != 200 || string(r.body) != "<h1>meera</h1>" {
+		t.Fatalf("live: %d %s", r.status, r.body)
+	}
+	plain404("live, missing label", "nosuch.trips.fam.test")
+	plain404("live, reserved label", "www.trips.fam.test")
+
+	// The ready marker gone (a rollback), the index not refreshed yet: the
+	// API still says live because requests are still routed as live; after
+	// the refresh it says not live, and nothing reaches the platform.
+	if err := os.Remove(filepath.Join(famDir, "ready", "trips.fam.test")); err != nil {
+		t.Fatal(err)
+	}
+	if !liveOf("trips.fam.test") {
+		t.Error("live must follow the routing index, not the disk")
+	}
+	a.sites.refreshFamilies(ctx)
+	if liveOf("trips.fam.test") {
+		t.Error("not live after the refresh")
+	}
+	plain404("verified, not live", "meera.trips.fam.test")
+	plain404("verified, not live", "nosuch.trips.fam.test")
+
+	// The marker back, index not refreshed: not live yet (the window
+	// family-adopt.sh waits out); then live.
+	markFamilyReady(t, famDir, "trips.fam.test", "")
+	if liveOf("trips.fam.test") {
+		t.Error("live before the index knows it")
+	}
+	plain404("ready, index stale", "nosuch.trips.fam.test")
+	r = a.at(t, "POST", pcSiteDomain, "/v1/admin/address-families/"+f.ID+"/check", nil, map[string]string{"X-API-Key": a.admin})
+	if r.status != 200 || r.json(t)["live"] != true {
+		t.Fatalf("check did not bring the index up to date: %d %s", r.status, r.body)
+	}
+
+	// Let go (a lapse, or the admin's disconnect): still never the platform.
+	if r := a.at(t, "DELETE", pcSiteDomain, "/v1/admin/address-families/"+f.ID, nil, map[string]string{"X-API-Key": a.admin}); r.status != http.StatusNoContent {
+		t.Fatalf("disconnect: %d %s", r.status, r.body)
+	}
+	a.sites.refreshFamilies(ctx)
+	plain404("released", "meera.trips.fam.test")
+	plain404("released", "nosuch.trips.fam.test")
+	if r := a.at(t, "GET", "nope.other.test", "/", nil, nil); string(r.body) != "PLATFORM-HOME" {
+		t.Fatalf("control after: %d %s", r.status, r.body)
+	}
+}

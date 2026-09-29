@@ -6,7 +6,10 @@
 # apply swaps (old link gone, ours present, ready written as the issuer
 # writes it, backup recorded); a second apply is a no-op; a failed nginx -t
 # restores the old state exactly; rollback restores the old link and removes
-# ours; rolling back twice is a no-op; sites-content-host is refused.
+# ours; rolling back twice is a no-op; sites-content-host is refused; the
+# order: the ready marker is written and the app reports the family live
+# before the vhosts are swapped (and never swapped when it does not), and
+# rollback reverses it.
 #   bash deploy/prod/family-adopt_test.sh
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
@@ -40,9 +43,32 @@ echo "server { server_name other.test; }" > "$T/avail/other"; ln -s "$T/avail/ot
 echo "the issuer said: already served here" > "$T/state/failed/fam.test"
 echo "secret-do-not-read" > "$T/enabled/sites-content-host"
 
+# The app stand-in: it reports the family live once the ready marker is on
+# disk (mode auto), or never (mode never); every question and every reload
+# is logged with what was enabled at that moment.
+echo auto > "$T/live-mode"
+cat > "$T/live.sh" <<LIVE
+#!/usr/bin/env bash
+r=0; [ -e "$T/state/ready/\$1" ] && r=1
+o=0; [ -L "$T/enabled/simple-host-family-\$1" ] && o=1
+d=0; [ -L "$T/enabled/sub-\$1" ] && d=1
+if [ "\$(cat "$T/live-mode")" = auto ] && [ \$r = 1 ]; then v=true; else v=false; fi
+echo "live \$v ready=\$r ours=\$o old=\$d" >> "$T/events"
+echo \$v
+LIVE
+cat > "$T/reload.sh" <<RELOAD
+#!/usr/bin/env bash
+r=0; [ -e "$T/state/ready/fam.test" ] && r=1
+o=0; [ -L "$T/enabled/simple-host-family-fam.test" ] && o=1
+d=0; [ -L "$T/enabled/sub-fam.test" ] && d=1
+echo "reload ready=\$r ours=\$o old=\$d" >> "$T/events"
+touch "$T/reloaded"
+RELOAD
+
 export SIMPLE_HOST_FAMILY_CERTS_CONF="$T/conf"
 export AVAILABLE="$T/avail" ENABLED="$T/enabled" STATE="$T/state" SITES="$T/sites/families" \
-  BACKUP_ROOT="$T/bak" LOCK="$T/adopt.lock" ISSUER="bash $root/deploy/family-certs/issue.sh" NGINX_RELOAD="touch $T/reloaded"
+  BACKUP_ROOT="$T/bak" LOCK="$T/adopt.lock" ISSUER="bash $root/deploy/family-certs/issue.sh" NGINX_RELOAD="bash $T/reload.sh" \
+  FAMILY_LIVE="bash $T/live.sh" LIVE_TIMEOUT=2 LIVE_INTERVAL=1
 adopt() { NGINX_TEST=${NT:-true} bash "$here/family-adopt.sh" "$@"; }
 snap() { (cd "$T" && find avail enabled state bak -printf '%p %l\n' | sort; find avail enabled state -type f ! -name sites-content-host -exec cat {} + | sha256sum); }
 
@@ -134,5 +160,34 @@ ln -s "../by-id/$U" "$T/sites/families/fam.test"
 mv "$T/state/requests/fam.test" "$T/req"
 if out=$(adopt fam.test --old sub-fam.test --apply 2>&1); then bad "adopted without the request"; else ok "no request: refused ($out)"; fi
 mv "$T/req" "$T/state/requests/fam.test"
+
+echo "== order: marker, live, then swap =="
+{ [ -L "$T/enabled/sub-fam.test" ] && [ ! -e "$T/enabled/simple-host-family-fam.test" ]; } || bad "not back at the start"
+rm -f "$T/events"
+adopt fam.test --old sub-fam.test --apply >/dev/null
+first=$(head -n1 "$T/events")
+[ "$first" = "live true ready=1 ours=0 old=1" ] && ok "the app is asked with the marker written and the old vhost still serving" || bad "first event: $first"
+[ "$(grep -c '^reload' "$T/events")" = 1 ] && grep -q '^reload ready=1 ours=1 old=0$' "$T/events" \
+  && [ "$(grep -n '^live true' "$T/events" | head -n1 | cut -d: -f1)" -lt "$(grep -n '^reload' "$T/events" | cut -d: -f1)" ] \
+  && ok "live reported before the one reload, which swapped" || bad "events: $(cat "$T/events")"
+
+echo "== order: rollback is the reverse =="
+rm -f "$T/events"
+adopt fam.test --rollback --apply >/dev/null
+first=$(head -n1 "$T/events")
+[ "$first" = "reload ready=1 ours=0 old=1" ] && ok "old vhost back and reloaded while the marker is still there" || bad "first event: $first"
+tail -n1 "$T/events" | grep -q '^live false ready=0 ours=0 old=1$' && ok "then the marker removed and the app reports not live" || bad "events: $(cat "$T/events")"
+
+echo "== the app never reports live: nothing swapped =="
+echo never > "$T/live-mode"
+echo "note" > "$T/state/failed/fam.test"
+(cd "$T" && find avail enabled state -printf '%p %l\n' | sort; find avail enabled state -type f -exec cat {} + | sha256sum) > "$T/n0"
+rm -f "$T/events" "$T/reloaded"
+if out=$(adopt fam.test --old sub-fam.test --apply 2>&1); then bad "adopted although never live"; else ok "refused ($(tail -n1 <<<"$out"))"; fi
+(cd "$T" && find avail enabled state -printf '%p %l\n' | sort; find avail enabled state -type f -exec cat {} + | sha256sum) > "$T/n1"
+cmp -s "$T/n0" "$T/n1" && ok "state exactly as before (marker taken back, failure note kept)" || { bad "state changed"; diff "$T/n0" "$T/n1" || true; }
+{ grep -q '^reload' "$T/events" || [ -e "$T/reloaded" ]; } && bad "reloaded although never live" || ok "no reload"
+[ "$(grep -c '^live false ready=1 ours=0 old=1$' "$T/events")" -ge 2 ] && ok "asked until the timeout, old vhost serving throughout" || bad "events: $(cat "$T/events")"
+echo auto > "$T/live-mode"
 
 [ "$fail" = 0 ] && echo "family-adopt: ok" || { echo "family-adopt: FAILED"; exit 1; }

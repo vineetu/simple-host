@@ -217,7 +217,7 @@ func (h *SiteHandler) familyReadyValue(suffix, key string) string {
 func (h *SiteHandler) familyResponseFor(ctx context.Context, f db.AddressFamily, withSites bool) familyResponse {
 	resp := familyResponse{
 		ID: f.ID, Family: "*." + f.Suffix, Suffix: f.Suffix, SitePrefix: f.SitePrefix, Rank: f.Rank,
-		Canonical: f.Canonical, Status: f.Status, Live: h.familyIsLive(f), LastError: f.LastError,
+		Canonical: f.Canonical, Status: f.Status, Live: h.familyServed(f), LastError: f.LastError,
 		BoundAt: f.BoundAt, VerifiedAt: timePtr(f.VerifiedAt), FailingSince: timePtr(f.FailingSince),
 		ProofExempt: f.ProofExempt, Certificate: h.familyCertOf(f),
 	}
@@ -376,6 +376,7 @@ func (h *SiteHandler) createFamilyFor(w http.ResponseWriter, r *http.Request, us
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	h.refreshFamilies(r.Context())
 	if admin {
 		log.Printf("admin %s connected address family *.%s for %s (cert %q, proof exempt %v)", adminName(r), suffix, userID, f.CertName, f.ProofExempt)
 	}
@@ -508,6 +509,7 @@ func (h *SiteHandler) checkFamilyNow(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*domainProbeTimeout)
 		defer cancel()
 		h.checkFamily(ctx, f, h.serverAddrs(ctx))
+		h.refreshFamilies(ctx)
 	}
 	f, err := db.GetFamilyByID(r.Context(), h.database, f.ID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -532,6 +534,14 @@ func (h *SiteHandler) releaseFamily(ctx context.Context, f db.AddressFamily) err
 		log.Printf("address family %s: unbind: %v", f.Suffix, err)
 	}
 	h.removeFamilyRequest(f.Suffix)
+	if f.VerifiedAt.Valid || f.ProofExempt {
+		h.families.mu.Lock()
+		if h.families.released == nil {
+			h.families.released = map[string]bool{}
+		}
+		h.families.released[f.Suffix] = true
+		h.families.mu.Unlock()
+	}
 	h.refreshFamilies(ctx)
 	h.syncUserRedirects(ctx, f.UserID)
 	log.Printf("address family *.%s of %s released", f.Suffix, f.UserID)
@@ -938,6 +948,7 @@ func (h *SiteHandler) adminCheckFamily(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*domainProbeTimeout)
 		defer cancel()
 		h.checkFamily(ctx, f, h.serverAddrs(ctx))
+		h.refreshFamilies(ctx)
 	}
 	f, err := db.GetFamilyByID(r.Context(), h.database, f.ID)
 	if err != nil {

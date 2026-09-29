@@ -86,9 +86,17 @@ change never breaks it and removing the link stops serving at once.
   site the host names; other paths go through the same file gate as the site host; a renamed
   label 302s, a missing site is 404, and a site with a domain of its own 302s there.
 - `deploy/prod/family-adopt.sh <suffix> --old <vhost>` moves a hand-made wildcard server to the
-  managed file with no downtime: dry run by default, `--apply` backs up the old link, swaps the
-  links back to back (never both enabled), runs `nginx -t` (restoring on failure), reloads and
-  writes the ready marker; `--rollback --apply` restores the old server.
+  managed file with no downtime: dry run by default. `--apply` backs up the old link, writes the
+  ready marker, waits (up to 90 s) for the admin API to report the family `live`, which is what
+  requests are routed by, and only then swaps the links back to back (never both enabled), runs
+  `nginx -t` (restoring everything, the marker included, on failure) and reloads. If the app
+  never reports it live, nothing is swapped and the marker is taken back. `--rollback --apply`
+  is the reverse: the old server back and reloaded, then the marker removed, then a wait for
+  `live: false`.
+- A host under a proven family (verified, or proof-exempt by the admin) that is not live
+  (pending, failing, verified without its marker, not yet in the routing index, or let go since
+  the server started) is a plain 404, never the platform's own pages. An unproven family changes
+  nothing: anyone may connect any name, and must not blank its hosts.
 
 ## Main address
 
@@ -148,8 +156,8 @@ subtree; they stay as they are. Per family, in the order trips, guide, voucher, 
    quotes), `cert_mode` `wildcard`, `cert_name` the existing lineage, `canonical: false`; add the
    `_simple-host.<family>` TXT record with her OK, or set `proof_exempt`. Wait for it to verify
    (the issuer reports "already served here", as expected). Rollback: delete the family.
-3. `deploy/prod/family-adopt.sh <family> --old <vhost>`, then `--apply`. Rollback:
-   `--rollback --apply`.
+3. `deploy/prod/family-adopt.sh <family> --old <vhost>`, then `--apply` (it waits for the app
+   to report the family live before it swaps). Rollback: `--rollback --apply`.
 4. Verify from a client: the baseline matches, a missing label is 404, an offline test site
    shows the offline page, `/v1/sites/<label>/me` answers, the certificate is the wildcard, an
    analytics line is written, and the neighbours (`console.quotes`, `trip.chhotabreak.com`,
