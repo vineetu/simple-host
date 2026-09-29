@@ -526,6 +526,21 @@ What follows from that, and is not negotiable without changing the line above:
   the terms and support. The take-down and offline pages stay bare (they load nothing).
   Reason: the intimate-image law wants the process on the platform, not only in the terms.
   Owner decision 2026-09-28.
+- **2026-09-28. User sites move to simple-host.site; the app stays on simple-host.app.** Every
+  person page, site and free name gets its address under `simple-host.site`
+  (`<site>.<handle>.simple-host.site`, `<handle>.simple-host.site`, `<name>.simple-host.site`);
+  the dashboard, sign-in, the API, `/mcp`, docs, emails, `sites.simple-host.app` and the CNAME
+  target stay on `simple-host.app`. Every old `.app` address keeps working and redirects to the
+  same page under `.site` (302 for a week, then 301); `/v1/` on old hosts is never redirected.
+  Visitors are signed out once and browser-kept data starts fresh at the new address; saved data
+  moves with the site. Self-hosted, hackathon and Enterprise installs keep one domain
+  (`SITE_BASE_DOMAIN` defaults to `SITE_DOMAIN`, `SITE_BASE_MOVE` to off). Rolled out in steps
+  that each undo with one setting; the new addresses are handed out no earlier than about
+  2026-10-28, because company and school web filters block domains registered less than 30 days
+  ago (simple-host.site was registered 2026-09-28). Reason: a page on a person's address should
+  never share a registrable domain with the app, and a separate domain can go on the Public
+  Suffix List. Owner decision 2026-09-28 ("Build it now and switch later");
+  plan: `docs/designs/site-base-domain-move.md`.
 
 ## Open, deliberately parked
 
