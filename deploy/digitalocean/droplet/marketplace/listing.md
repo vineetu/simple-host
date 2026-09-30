@@ -16,7 +16,7 @@ Simple Host hosts static websites and gives each one a small JSON backend in
 the same upload, so a page can save an RSVP, count a vote or keep a guestbook
 without a separate server. Sites are published by an AI coding agent (Claude
 Code, Codex and others, with the Simple Host skill) or by a plain HTTP API.
-Every site gets its own address and HTTPS certificate.
+Sites are served over HTTPS at `https://<sites address>/<handle>/<site>/`.
 
 It is one Go server, Postgres and Caddy, run with Docker Compose. The whole
 thing is sized for the smallest droplet with 1 GB of memory.
@@ -24,8 +24,10 @@ thing is sized for the smallest droplet with 1 GB of memory.
 On first login the droplet asks for your domain and shows which DNS records to
 add. Once they resolve, it installs Simple Host from a pinned release. It comes
 with an admin dashboard and account keys for the people who publish. Every
-site keeps versions you can roll back to. Visitors sign in with Google or an
-emailed code to save data, and visitor analytics stay on the droplet.
+site keeps versions you can roll back to, and visitor analytics stay on the
+droplet. Visitors can sign in to save data with Google or an emailed code once
+you add a Google client or a Resend key to `/opt/simple-host/.env`
+(`GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`, or `RESEND_API_KEY`).
 
 ## Software included
 
@@ -40,8 +42,8 @@ emailed code to save data, and visitor analytics stay on the droplet.
 ## Getting started (shown on the droplet page)
 
 1. Log in: `ssh root@your_droplet_public_ipv4`. Setup starts by itself.
-2. Enter your domain (like `hosting.example.com`), the address sites are served from (`sites.hosting.example.com` by default) and an email for certificate notices.
-3. At your DNS provider, add A records for your domain and `*.your-domain` pointing at the droplet's IPv4 address. Setup checks them and waits if they are not there yet.
+2. Enter your domain (like `hosting.example.com`) and the address sites are served from (`sites.hosting.example.com` by default).
+3. At your DNS provider, add A records for your domain and `*.your-domain` pointing at the droplet's IPv4 address (and one for the sites address if it is outside your domain). Setup checks them and waits if they are not there yet.
 4. When the install finishes, open `https://your-domain/admin` and sign in with the admin key it printed. To see the key again: `grep ^ADMIN_API_KEY= /opt/simple-host/.env`.
 
 Full guide: https://github.com/vineetu/simple-host/blob/main/docs/platforms/digitalocean.md
@@ -64,4 +66,4 @@ Category is Website Hosting (or Developer Tools). Tags are static sites, web hos
 
 ## Ports
 
-22 (SSH), 80 (HTTP) and 443 (HTTPS). UFW is enabled and blocks everything else.
+22 (SSH), 80 (HTTP) and 443 (HTTPS). UFW is enabled and blocks everything else. A port published from a Docker container later bypasses UFW.

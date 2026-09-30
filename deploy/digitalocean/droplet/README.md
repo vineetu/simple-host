@@ -45,7 +45,8 @@ Baked in at build time, the same on every droplet:
   also fetches the installer by commit and fails the build if its sha256 is
   wrong).
 - `dig` (`bind9-dnsutils`) for the DNS check, UFW allowing only 22, 80 and 443.
-- `/opt/simple-host-setup/first-login.sh`, the motd, and `001_onboot`.
+- `/opt/simple-host-setup/first-login.sh`, `/opt/simple-host-setup/upgrade.sh`,
+  the motd, and `001_onboot`.
 
 Made on the droplet, never in the image: the admin key, the database password,
 `/opt/simple-host/.env`, the database and its volume, and the TLS certificates.
@@ -56,21 +57,41 @@ The installer makes them when the first-login setup runs it.
 1. `018-force-ssh-logout.sh` holds SSH logins until the droplet has booted;
    `files/var/lib/cloud/scripts/per-instance/001_onboot` (once per droplet)
    adds the setup to root's `.bashrc` and lets SSH in.
-2. At root's first interactive login, `first-login.sh` shows the droplet's
-   IPv4 address, asks for the dashboard address, the sites address (default
-   `sites.<address>`) and an email, says which A records to add, and checks
-   them against public DNS (`r` checks again for up to `DNS_WAIT_SECONDS`,
-   `c` continues, `q` quits).
+2. At root's first interactive login, `first-login.sh` takes a lock
+   (`/run/simple-host-setup.lock`; a second session is told setup is running
+   and where its log is), shows the droplet's IPv4 address (the reserved IP
+   when one is assigned, from the metadata service, else the first public
+   IPv4 of `hostname -I`) and asks for the dashboard address and the sites
+   address (default `sites.<address>`). It says which A records to add and
+   checks them against public DNS (`r` checks again for up to
+   `DNS_WAIT_SECONDS`, `c` continues, `q` quits). A name that does not
+   resolve is never "ok"; when the droplet's IP is unknown the check is
+   skipped with a line saying so. An AAAA record that is not the droplet's
+   IPv6 gets a warning (Let's Encrypt tries IPv6 first).
 3. It fetches `deploy/install/install.sh` by the pinned commit, checks its
-   sha256, and runs it with `--host`, `--content` and `--email`. The output
-   goes to the screen and to `/root/simple-host-install.log` (mode 600: it
-   holds the admin key).
-4. On success it prints the dashboard URL and how to see the admin key again,
-   and removes its lines from `.bashrc`. Stopped or failed, it stays and runs
-   again at the next login.
+   sha256, and runs it with `--host` and `--content` in its own session
+   (`nohup setsid`, HUP ignored), so a dropped SSH connection does not stop
+   it. The login session only follows the log. Each run gets a fresh log,
+   `/root/simple-host-install-<date>-<time>.log`, mode 600.
+4. When the installer succeeds, the detached run removes the admin key line
+   from that log (the key stays only in `/opt/simple-host/.env`), writes
+   `/opt/simple-host-setup/.done` and removes the setup's lines from
+   `.bashrc`. The `.done` marker, not `SITE_DOMAIN` in `.env` (which the
+   installer writes before it pulls, migrates and checks health), is what
+   "already set up" and the motd look at. Stopped or failed, setup runs again
+   at the next login.
+5. `upgrade.sh` reads `SITE_DOMAIN` and `CONTENT_HOST` from `.env` and runs
+   the installer https://simple-host.app/setup pins (or `--commit C
+   --sha256 S`) with them, the same way. Without `--host` and `--content` the
+   installer would rewrite both empty.
+
+Setup does not ask for an email. At the pinned release `install.sh --email`
+only sets `ACME_EMAIL` for the Caddy container, whose Caddyfile has no `email`
+directive.
 
 Every time and limit in `first-login.sh` is a variable at its top
 (`DNS_WAIT_SECONDS`, `DNS_POLL_SECONDS`, `DNS_RESOLVER`, timeouts and retries).
+The build's apt lock wait is the Packer variable `apt_lock_timeout` (600 s).
 
 ## A new release
 
@@ -87,11 +108,15 @@ Copied unchanged, with their headers:
 | File | From |
 |---|---|
 | `scripts/014-ufw-http.sh`, `018-force-ssh-logout.sh`, `020-application-tag.sh`, `900-cleanup.sh`, `files/var/lib/digitalocean/application.info` | `common/` in [droplet-1-clicks](https://github.com/digitalocean/droplet-1-clicks) at `2bd00db9195c84949f948dafca499b9444f998b4` (MIT) |
-| `scripts/999-img_check.sh` | `scripts/99-img-check.sh` in [marketplace-partners](https://github.com/digitalocean/marketplace-partners) at `735b351eb3aa244b610287ef17d9e70b002f83a1`, v1.8.1 (Apache 2.0), which droplet-1-clicks' `make update-scripts` copies into `common/scripts/` |
+| `scripts/999-img_check.sh` | [marketplace-partners](https://github.com/digitalocean/marketplace-partners) `scripts/99-img-check.sh` at `735b351eb3aa244b610287ef17d9e70b002f83a1`, v1.8.1 (Apache 2.0). Saved as `999-img_check.sh`, the name droplet-1-clicks' `make update-scripts` gives it in `common/scripts/` |
 
-`900-cleanup.sh` and `999-img_check.sh` run last in the build, as in
-DigitalOcean's templates. The image check exits non-zero on a failed check,
-which fails the build.
+The build ends as DigitalOcean's templates do, with `900-cleanup.sh`, then
+this image's `950-final-cleanup.sh`, then `999-img_check.sh`. The extra step
+empties the logs written during the cleanup's apt run and zero-fill. It also
+empties `/etc/machine-id` and removes Docker's `engine-id` (with the daemon
+stopped), so each droplet makes its own. The image check exits non-zero on a
+failed check, which fails the build. `cloud-init status --wait` may exit 2
+(finished with recoverable errors) without failing the build.
 
 ## Token
 

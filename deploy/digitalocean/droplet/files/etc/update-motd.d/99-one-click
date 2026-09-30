@@ -3,7 +3,8 @@
 # Configured as part of the DigitalOcean 1-Click Image build process
 
 myip=$(hostname -I | awk '{print$1}')
-host=$(grep '^SITE_DOMAIN=' /opt/simple-host/.env 2>/dev/null | cut -d= -f2-)
+# Set only once the installer succeeded (first-login.sh writes the marker).
+host=$(sed -n 's/^host=//p' /opt/simple-host-setup/.done 2>/dev/null)
 cat <<EOM
 ********************************************************************************
 
@@ -12,6 +13,7 @@ Welcome to the Simple Host 1-Click Droplet.
 Simple Host hosts static websites, each with a small JSON backend for saved
 data. To keep this Droplet secure, the UFW firewall is enabled.
 All ports are BLOCKED except 22 (SSH), 80 (HTTP), and 443 (HTTPS).
+A port you publish from a Docker container later bypasses UFW.
 
 EOM
 if [ -n "$host" ]; then
@@ -20,10 +22,11 @@ Dashboard:          https://$host/admin
 Admin key:          grep ^ADMIN_API_KEY= /opt/simple-host/.env
 Settings:           /opt/simple-host/.env
 Status and logs:    cd /opt/simple-host && docker compose ps && docker compose logs --tail 50
+Upgrade:            /opt/simple-host-setup/upgrade.sh
 EOM
 else
 cat <<EOM
-Setup has not run yet. It starts when you log in as root, or run:
+Simple Host is not set up yet. Setup starts after this message at a root login, or run:
   /opt/simple-host-setup/first-login.sh
 You need a domain whose DNS you can change, pointed at $myip.
 EOM

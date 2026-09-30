@@ -16,9 +16,9 @@ pins:
 	bash test/pins_test.sh
 
 lint:
-	bash -n scripts/*.sh files/opt/simple-host-setup/first-login.sh files/var/lib/cloud/scripts/per-instance/001_onboot test/*.sh
+	bash -n scripts/*.sh files/opt/simple-host-setup/*.sh files/var/lib/cloud/scripts/per-instance/001_onboot test/*.sh
 	sh -n files/etc/update-motd.d/99-one-click
-	shellcheck scripts/010-docker.sh scripts/011-simple-host.sh files/opt/simple-host-setup/first-login.sh files/var/lib/cloud/scripts/per-instance/001_onboot files/etc/update-motd.d/99-one-click test/*.sh
+	shellcheck scripts/010-docker.sh scripts/011-simple-host.sh scripts/950-final-cleanup.sh files/opt/simple-host-setup/first-login.sh files/opt/simple-host-setup/upgrade.sh files/var/lib/cloud/scripts/per-instance/001_onboot files/etc/update-motd.d/99-one-click test/*.sh
 
 # The first-login setup in an ubuntu:24.04 container, installer stubbed.
 test: pins lint

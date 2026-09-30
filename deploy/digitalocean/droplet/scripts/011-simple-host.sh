@@ -24,7 +24,7 @@ INSTALLER_COMMIT=$installer_commit
 INSTALLER_SHA256=$installer_sha256
 EOM
 chmod 0644 "$SETUP_DIR/installer.env"
-chmod 0755 "$SETUP_DIR/first-login.sh" /var/lib/cloud/scripts/per-instance/001_onboot /etc/update-motd.d/99-one-click
+chmod 0755 "$SETUP_DIR/first-login.sh" "$SETUP_DIR/upgrade.sh" /var/lib/cloud/scripts/per-instance/001_onboot /etc/update-motd.d/99-one-click
 
 work=$(mktemp -d)
 curl -fsSL --retry "$FETCH_RETRIES" --max-time "$FETCH_TIMEOUT_SECONDS" "$RAW/deploy/install/install.sh" -o "$work/install.sh"

@@ -1,25 +1,25 @@
 # Run the small box on DigitalOcean
 
-![Simple Host on a DigitalOcean droplet, as on any Ubuntu server: two DNS A records point at the server; one Ubuntu server runs the installer's docker compose, with Caddy on ports 80 and 443 fetching certificates on demand from Let's Encrypt, the Simple Host server, Postgres, and Docker volumes for the sites, the log, the certificates and the database](https://simple-host.app/diagrams/upcloud.svg)
+![Simple Host on UpCloud or any Ubuntu server, a DigitalOcean droplet included: two DNS A records point at the server; one Ubuntu server runs the installer's docker compose, with Caddy on ports 80 and 443 fetching certificates on demand from Let's Encrypt, the Simple Host server, Postgres, and Docker volumes for the sites, the log, the certificates and the database](https://simple-host.app/diagrams/upcloud.svg)
+
+The 1-Click image is built from
+[`deploy/digitalocean/droplet/`](../../deploy/digitalocean/droplet/) (checked
+with `packer validate`; its first-login setup tested in a container). Until it
+is listed in the Marketplace, build it into your own account (below). Not yet
+run on a DigitalOcean droplet.
 
 A droplet is an Ubuntu server like any other, so the small box runs on it with
-the standard installer: the same layout as on UpCloud. Start from the Simple Host 1-Click
-droplet, which asks for your domain when you first log in and runs the
-installer for you, or from a plain Ubuntu droplet where you run the installer
-yourself.
-
-Not yet tested on a real DigitalOcean account. The 1-Click image is built from
-[`deploy/digitalocean/droplet/`](../../deploy/digitalocean/droplet/) (checked
-with `packer validate`, and its first-login setup tested in a container), and
-is not in the DigitalOcean Marketplace yet; until it is, build it into your
-own account as below.
+the standard installer: the same layout as on UpCloud. Start from the Simple
+Host 1-Click droplet, which asks for your domain when you first log in and
+runs the installer for you, or from a plain Ubuntu droplet where you run the
+installer yourself.
 
 ## Cost
 
 | Item | Size | Per month |
 |---|---|---|
 | Droplet `s-1vcpu-1gb` | 1 CPU, 1 GB, 25 GB disk, one IPv4 address | $6 |
-| Snapshot of the 1-Click image (only if you build it yourself) | a few GB at $0.06/GB | under $0.30 |
+| Snapshot of the 1-Click image (only if you build it yourself) | a few GB | $0.06/GB a month |
 
 The database, the web server and the sites all run on that one droplet. The
 $4 droplet has 512 MB, which is below what the small box needs. Weekly backups
@@ -31,18 +31,20 @@ are optional and add 20%.
    (Marketplace), or from your own snapshot (**Snapshots** tab): size
    `s-1vcpu-1gb` or larger in any region, with your SSH key.
 2. At your DNS provider, add two A records pointing at the droplet's public
-   IPv4 address: your domain, and `*.<your domain>`.
+   IPv4 address: your domain, and `*.<your domain>`. If the sites address is
+   not under your domain, add a third for it.
 3. Log in as root: `ssh root@<droplet IP>`. The setup starts by itself. It asks
-   for the address (your domain), the address sites are served from
-   (`sites.<your domain>` unless you change it) and an email for certificate
-   notices, checks that DNS points at the droplet, then runs the installer from
-   its pinned release after checking its sha256. It runs once; if you stop it,
-   it runs again at your next login, or now with
-   `/opt/simple-host-setup/first-login.sh`.
+   for the address (your domain) and the address sites are served from
+   (`sites.<your domain>` unless you change it), checks that DNS points at the
+   droplet, then runs the installer from its pinned release after checking its
+   sha256. A dropped SSH connection does not stop the install. Setup runs until
+   an install succeeds: if you stop it or the install fails, it runs again at
+   your next login, or now with `/opt/simple-host-setup/first-login.sh`.
 4. Open `https://<your domain>/admin` and paste the admin key the installer
    printed (also kept as `ADMIN_API_KEY` in `/opt/simple-host/.env`).
 
-The droplet's firewall (UFW) allows only SSH, HTTP and HTTPS.
+The droplet's firewall (UFW) allows only SSH, HTTP and HTTPS. A port you later
+publish from a Docker container bypasses UFW.
 
 ## Build the 1-Click image yourself
 
@@ -83,13 +85,16 @@ https://simple-host.app/setup?product=small-box#help.
 ## Everyday operations
 
 - **Admin key lost:** `grep ^ADMIN_API_KEY= /opt/simple-host/.env` on the droplet.
-- **Upgrade:** run the install command from https://simple-host.app/setup?product=small-box
-  again on the droplet. The installer is also the upgrade: it pulls the release
-  it pins, applies that release's database changes, and keeps your data, key
-  and settings.
+- **Upgrade (1-Click):** `/opt/simple-host-setup/upgrade.sh`. It runs the
+  installer that https://simple-host.app/setup pins (checked against its
+  sha256) with the addresses from `/opt/simple-host/.env`, so they are kept,
+  along with your data, key and settings.
+- **Upgrade (by hand):** answer the setup page again with the same domain and
+  sites address, and run the command it gives. It has to carry `--host` and
+  `--content`: without them the installer empties both in `.env`.
 
 ## Removing it
 
 Destroy the droplet in the DigitalOcean control panel (Destroy → Destroy
-Droplet), with its backups and snapshots if you made any, then remove the two
-DNS records. Nothing else was created.
+Droplet), with its backups and snapshots if you made any, then remove the DNS
+records. Nothing else was created.

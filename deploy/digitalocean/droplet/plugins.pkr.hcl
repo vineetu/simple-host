@@ -4,7 +4,7 @@
 packer {
   required_plugins {
     digitalocean = {
-      version = ">= 1.4.1"
+      version = "~> 1.4"
       source  = "github.com/digitalocean/digitalocean"
     }
   }
