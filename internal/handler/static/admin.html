@@ -1248,7 +1248,7 @@ $('entries-all-btn').addEventListener('click', downloadAll);
 // Hosted hackathon admin (GET /v1/admin/hack/events). Organisers type title,
 // purpose, names and email, so every value is textContent / createElement —
 // never innerHTML. The tab is inserted into TABS only on HTTP 200.
-var EV={list:[], q:'', page:0, open:{}};
+var EV={list:[], q:'', page:0, open:{}, busy:false};
 function field(v){ return v==null||v===''?'':String(v); }
 function el(tag, cls, text){
   var n=document.createElement(tag);
@@ -1322,11 +1322,14 @@ async function reloadEvents(){
   return true;
 }
 async function eventAdmin(method, path, body, done){
+  if(!path||EV.busy) return;
+  EV.busy=true;
   try{
     var res=await api(method, path, body);
     if(res.status!==204&&!res.ok){ status(await errOf(res), true); return; }
     if(await reloadEvents()) status(done);
   }catch(e){ status('Cannot reach the server', true); }
+  finally{ EV.busy=false; }
 }
 async function takeDownEvent(e){
   var title=field(e.title)||field(e.slug)||'this event';
@@ -1396,7 +1399,7 @@ function fillEventCell(td, e, open){
   }
   td.appendChild(btn);
   td.appendChild(document.createTextNode(' '));
-  td.appendChild(el('strong', '', field(e.title)));
+  td.appendChild(el('strong', '', field(e.title)||field(e.slug)));
   var url=field(e.url);
   if(url){
     var sub=el('div', 'sub');
@@ -1488,7 +1491,7 @@ function renderEvents(){
     if(open){
       var det=el('tr', 'detail');
       if(slug) det.id='ed-'+slug;
-      var cell=el('td');
+      var cell=el('td', 'wrap');
       cell.colSpan=9;
       cell.appendChild(eventDetail(e));
       det.appendChild(cell);
