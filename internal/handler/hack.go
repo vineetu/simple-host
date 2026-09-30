@@ -615,7 +615,7 @@ func (h *HackHandler) getEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.EventMember, organiser bool) map[string]any {
-	cocDefault := strings.TrimSpace(ev.CocText) == ""
+	// The code of conduct is the default text plus the organiser's own.
 	cocText := ev.CocText
 	body := map[string]any{
 		"event": map[string]any{
@@ -626,7 +626,7 @@ func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.Even
 			"rules":              ev.Rules,
 			"prizes":             ev.Prizes,
 			"coc_text":           cocText,
-			"coc_default":        cocDefault,
+			"coc_default":        HackDefaultCoC,
 			"stage":              ev.Stage,
 			"time_zone":          ev.TimeZone,
 			"starts_at":          rfc3339UTC(ev.StartsAt),
@@ -999,11 +999,8 @@ func (h *HackHandler) getCodeInfo(w http.ResponseWriter, r *http.Request, judge 
 		role = "judge"
 		joinable = ev.Stage != "results" && ev.Stage != "archived"
 	}
-	cocDefault := strings.TrimSpace(ev.CocText) == ""
+	// The code of conduct is the default text plus the organiser's own.
 	cocText := ev.CocText
-	if cocDefault {
-		cocText = HackDefaultCoC
-	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"slug":           ev.Slug,
 		"title":          ev.Title,
@@ -1013,7 +1010,7 @@ func (h *HackHandler) getCodeInfo(w http.ResponseWriter, r *http.Request, judge 
 		"stage":          ev.Stage,
 		"joinable":       joinable,
 		"role":           role,
-		"coc_default":    cocDefault,
+		"coc_default":    HackDefaultCoC,
 		"coc_text":       cocText,
 		"starts_at":      rfc3339UTC(ev.StartsAt),
 		"ends_at":        rfc3339UTC(ev.EndsAt),

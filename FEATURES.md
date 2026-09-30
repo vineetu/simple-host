@@ -806,9 +806,9 @@ app is primary. **Status: live, flag-gated.**
 
 An organiser runs a private instance for an event (their own cloud box, same binary): first-boot
 setup page, participant accounts from admin, event hostnames under `simple-hack.app`, entries
-list, export. simple-hack.app itself serves the organiser page. **Status:** marketing page and
-setup live; event hostname claims wired (`EVENT_DOMAINS=simple-hack.app`) but currently failing
-because Vercel rejects `EVENT_DNS_TOKEN`.
+list, export. **Status:** setup live; event hostname claims live (`EVENT_DOMAINS=simple-hack.app`;
+the Vercel token was re-checked 2026-09-30 and works). Since 2026-09-30 simple-hack.app itself is
+the hosted platform below, and self-hosting is its second option.
 
 | Surface | Details |
 |---|---|
@@ -822,6 +822,28 @@ because Vercel rejects `EVENT_DNS_TOKEN`.
 | Env | `EVENT_DNS_TOKEN`, `EVENT_DNS_TEAM_ID`, `EVENT_DOMAINS`, `SETUP_PASSWORD`, `SETUP_PUBLIC_API`, `PERSON_HOSTS` (off on event instances), `MAX_ARCHIVE_MB`, `KEEP_VERSIONS`, `BIND_ADDR` |
 | External | Vercel DNS API; Docker Compose + Caddy (`deploy/compose/`, `deploy/install/install.sh`; container logs capped at 3 × 10 MB per service, Caddy access log rolled daily and rolls deleted after 28 days, so raw IPs ≤30 days); live nginx `/etc/nginx/sites-enabled/simple-hack.app`; `scripts/e2e-hackathon.sh`, `scripts/check-fresh-install.sh` |
 | Limits | event claims 10 burst, 1/min; setup 5 burst, 1/min |
+
+### Hosted events: simple-hack.app (`EVENTS=hosted`)
+
+A second copy of the binary on the same box (`simple-hack.service`, :8091, database `simplehack`,
+`DATA_DIR=/srv/simple-hack/sites`, `/etc/simple-hack.env`) runs as the hosted hackathon platform.
+Anyone who signs in creates an event (no approval); the event's public page is
+`<event>.simple-hack.app`. Design: `docs/designs/simple-hack-platform.md`. **Status:** M0 and M1
+(events, stages, event page, join and judge links, code of conduct, teams, admin Events tab,
+product page) live 2026-09-30; team sites, deadline freeze, judging, results and cleanup follow.
+
+| Surface | Details |
+|---|---|
+| Routes (API) | `GET/POST /v1/hack/events` · `GET /v1/hack/names/{slug}` · `GET/PATCH/DELETE /v1/hack/events/{slug}` (delete only while draft) · `POST /v1/hack/events/{slug}/stage` · `POST /v1/hack/events/{slug}/codes/{kind}` (join, judge: new link) · `GET /v1/hack/events/{slug}/people` · `DELETE /v1/hack/events/{slug}/people/{user_id}` · `GET/POST /v1/hack/events/{slug}/teams` · `POST /v1/hack/events/{slug}/teams/join` · `POST /v1/hack/events/{slug}/teams/leave` · `DELETE /v1/hack/events/{slug}/teams/{team}` · `POST /v1/hack/events/{slug}/teams/{team}/members` · `DELETE /v1/hack/events/{slug}/teams/{team}/members/{user_id}` · `GET/POST /v1/hack/join/{code}` · `GET/POST /v1/hack/judge/{code}` · admin: `GET /v1/admin/hack/events`, `POST /v1/admin/hack/events/{slug}/takedown`, `POST /v1/admin/hack/events/{slug}/restore`, `DELETE /v1/admin/hack/events/{slug}` · loopback only: `GET /internal/names/taken` (both instances) |
+| Pages | apex: `/` (`st/hack-home.html`, Create event first, self-host second), `/signin`, `/events`, `/events/new`, `/e/<event>`, `/e/<event>/manage`, `/join/<code>`, `/judge/<code>` (`st/hack-app.html`, one client-routed page); `/dashboard` → `/events`; `/admin` Events tab. `<event>.simple-hack.app/`: server-rendered event page (`st/hack-event.html`, plain text escaped, strict CSP, noindex while draft, 410 when taken down); every other path and every non-event name is the platform 404 |
+| Roles | organiser, participant, judge: one per person per event, checked on the server on every route; a non-member gets 404 `event_not_found`. Stages draft → open → building → closed → judging → results → archived (final for the organiser). Joining open/building; judges until results; team changes by participants open/building |
+| Rules | code of conduct = default text plus the organiser's, accepted at join; join code 8, judge code 12, team code 6 characters, regenerable; team size cap set by the organiser; one team per participant; empty teams deleted; accounts own no personal sites (403 `no_personal_sites`) and get a random `u-<hex>` handle that cannot be changed (`handle_fixed`); sign-in email says Simple Hack |
+| Names | event slug 3–39 characters, not reserved, not a handle, and not a self-host claim on simple-host.app: each instance asks the other over loopback (`EVENT_NAME_PEER`), failing closed (503 `name_check_unavailable`) |
+| Go | `h/hack.go`, `h/hack_teams.go`, `h/hack_admin.go`, `h/hack_mode.go` (host dispatch, name peer, gates), `h/hack_eventpage.go`, `h/hack_home.go`, `h/hack_ui.go`, `h/hack_wire.go`, `internal/db/hack.go` |
+| DB | `events`, `event_members`, `event_teams`, `event_create_log` (`db/migrations/hack1-events.sql`; checked at start only in hosted mode) |
+| Env | `EVENTS`, `EVENT_NAME_PEER`, `EVENT_CREATE_PER_DAY` (3), `EVENT_MAX_ACTIVE_PER_ORGANISER` (2), `EVENT_TEAM_SIZE_DEFAULT` (4), `EVENT_SITES_KEEP_DAYS` (30), `HACK_INSTANCE_BUDGET_GB` (10); `MAX_ARCHIVE_MB=25`, `KEEP_VERSIONS=2` on that instance |
+| Deploy | `deploy/hack/` (unit, env example, `setup-instance.sh`, logrotate), `deploy/prod/nginx-site-base-domain.sh` with `APEX_MODE=app` (vhost `simple-hack`), `deploy/site-certs/simple-host-site-certs-hack.*` (per-event `*.<event>.simple-hack.app` certificates, 30/week, 8/day); DNS `*.simple-hack.app` A record to this box; apex certificate `simple-hack.app` + `*.simple-hack.app` |
+| Limits | name checks, join and judge links, team join: 20 burst, 1 per 3 s per IP and per account |
 
 ## 16. Enterprise and marketing pages
 

@@ -102,6 +102,17 @@ func main() {
 	if err := dbpkg.VerifySchema(context.Background(), db); err != nil {
 		log.Fatalf("schema check: %v", err)
 	}
+	// Hosted events (EVENTS=hosted, simple-hack.app): set before any route is
+	// registered, because the dashboard, the chrome and the host dispatch read it.
+	hosted := cfg.Events == "hosted"
+	if hosted {
+		if err := dbpkg.VerifyHackSchema(context.Background(), db); err != nil {
+			log.Fatalf("schema check (EVENTS=hosted): %v", err)
+		}
+		handler.SetHackMode(true)
+		handler.SetHackChrome(true)
+		log.Printf("hosted events: on (the hackathon platform at %s)", cfg.PublicBaseURL)
+	}
 
 	// A box installed from a provider's catalog boots knowing nothing about
 	// where it lives. Rather than serve a broken product on an address nobody
@@ -190,6 +201,9 @@ func main() {
 
 	mailer := email.NewResendSender(cfg.ResendAPIKey, cfg.MailFrom)
 	mailer.SetCodeLifetime(config.Span(cfg.Limits.SigninCodeTTL))
+	if hosted {
+		mailer.SetProductName("Simple Hack")
+	}
 	if cfg.ResendAPIKey == "" {
 		log.Printf("no RESEND_API_KEY: no email is sent, so sign-in codes (/v1/auth) and Submissions emails are off; accounts use keys the admin issues")
 	}
@@ -271,6 +285,22 @@ func main() {
 	connector.StartSweep(time.Hour)
 	handler.RegisterUIRoutes(mux, cfg.PublicBaseURL, siteHandler)
 	handler.RegisterSkillsHub(mux, cfg.PublicBaseURL)
+	if hosted {
+		hack := handler.NewHackHandler(db, cfg.PublicBaseURL, cfg.SiteDomain)
+		if cfg.EventNamePeer != "" {
+			peer, zone := handler.NamePeerClient(cfg.EventNamePeer), cfg.SiteDomain
+			hack.SetNamePeer(func(ctx context.Context, name string) (bool, error) { return peer(ctx, zone, name) })
+			log.Printf("hosted events: event names checked with %s", cfg.EventNamePeer)
+		}
+		hack.SetInstanceUsage(handler.DirUsage(cfg.DataDir))
+		hack.Register(mux, authMW)
+		handler.RegisterNamePeer(mux, []string{cfg.SiteDomain}, func(ctx context.Context, _ string, name string) (bool, error) {
+			return hack.NameTaken(ctx, name)
+		})
+		siteHandler.SetHackEventPage(handler.HackEventPage(db, cfg.PublicBaseURL))
+		handler.RegisterHackHome(mux)
+		handler.RegisterHackUI(mux)
+	}
 
 	// Optional "create with AI" endpoint. Sign-in-gated + rate limited; only
 	// enabled when the Grok sidecar (or another single OpenAI-compatible
@@ -323,6 +353,12 @@ func main() {
 	// hand out names under a domain it does not control.
 	if cfg.EventDNSToken != "" && len(cfg.EventDomains) > 0 {
 		ev := handler.NewEventDomainHandler(db, eventdns.NewVercel(cfg.EventDNSToken, cfg.EventDNSTeamID), cfg.EventDomains)
+		if cfg.EventNamePeer != "" {
+			// One name list with the hackathon platform (hack_mode.go).
+			ev.SetNamePeer(handler.NamePeerClient(cfg.EventNamePeer))
+			handler.RegisterNamePeer(mux, cfg.EventDomains, ev.NameClaimed)
+			log.Printf("event hostnames: names checked with %s", cfg.EventNamePeer)
+		}
 		ev.Register(mux, authMW)
 		ev.StartSweep(1 * time.Hour)
 		log.Printf("event hostnames enabled under: %s", strings.Join(cfg.EventDomains, ", "))
