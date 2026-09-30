@@ -28,35 +28,32 @@ Website Deploy skill; humans mostly never touch the API directly.
 
 ## The hackathon product, and the page that sells it
 
-An organiser stands up a private instance on their own cloud account for the length of an
-event. Their AI agent does the whole setup; they issue a key per participant; participants
-publish with whatever agent they already use. It lives at simple-hack.app, which serves the
-same binary as simple-host.app.
+simple-hack.app is a hosted hackathon platform (owner decision 2026-09-30, reversing the
+organiser-prompt page of 2026-09-11): anyone who signs in creates an event there and runs it
+end to end. It is a second copy of the same binary on the same box (`EVENTS=hosted`,
+`simple-hack.service`), with its own accounts and database. The event's public page is
+`<event>.simple-hack.app`; each team's site will be `<team>.<event>.simple-hack.app`.
+Organisers share one join link and one judge link; participants sign in, accept the code of
+conduct and form teams. Design: `docs/designs/simple-hack-platform.md`.
 
-**simple-hack.app is written for the organiser, and for nobody else.** A participant never
-reads it — they are handed a key and a prompt by the person running their event. Everything on
-the page about the participant experience is there to tell the organiser what they will be
-handing out, not to instruct a participant.
+Self-hosting stays: an organiser can still run a private instance on their own cloud account
+with the installer and the run-hackathon skill. On simple-hack.app it is the second option,
+never the first.
 
-**Its one job is to get an organiser to paste the organiser prompt into their agent.** That is
-the page's only measure. A sentence that does not help someone do that, or believe it will
-work, does not belong on it.
-
-**It is also the link shared on LinkedIn**, so most readers arrive cold: no context, not yet an
-organiser, possibly just curious what this is. The top of the page has to make a stranger
-understand the thing in one breath, in words they already have, before it asks anything of
-them. That is a constraint on the opening, not a second audience — the page still exists to
-start an event.
+**The simple-hack.app page's one job is to get an organiser to click "Create event".** It is
+written for the organiser. It is also the link shared on LinkedIn, so the top has to make a
+stranger understand the thing in one breath before it asks anything. Self-hosting is a quieter
+second link.
 
 What follows from that, and is not negotiable without changing the line above:
 
 - No sentence about limits, capacity, disk, retention or file sizes. An organiser asks "will
   this hold my event"; the answer is yes. Anything past yes is the implementation talking.
 - No section listing what the product does not do. Stated absences read as "not ready".
+- Only what works today is on the page. A feature that is not live is not described.
 - Nothing condescending about the reader's skills. Not "for people who have never deployed".
-- No internal telemetry as copy. Median site sizes and admin screens are operator concerns.
-- Operational facts an organiser must know *to run the event* stay: what it costs, what they
-  hand out, how judging gets a list, what happens to the work afterwards.
+- No internal telemetry as copy.
+- Everything is free, and the page says so in one line.
 
 ## Non-goals
 
@@ -143,7 +140,7 @@ What follows from that, and is not negotiable without changing the line above:
   GoDaddy and Porkbun, including the API call an agent can make with the user's credentials.
   Reason: the DNS record is the one step a human has to do, and it is where people get stuck.
 
-- **2026-09-11. simple-hack.app is an organiser's page with one call to action.** Audience is the
+- **2026-09-11. simple-hack.app is an organiser's page with one call to action.** Reversed 2026-09-30 (see "simple-hack.app is a hosted hackathon platform"). Audience is the
   organiser alone; the action is pasting the organiser prompt. Reason: the page had been edited
   for a day without anyone able to say what it was for, so every note about it produced a repair
   to a sentence rather than a decision about whether the sentence belonged. A capacity
@@ -579,6 +576,23 @@ What follows from that, and is not negotiable without changing the line above:
   saves and analytics did not work and every change needed the operator; one domain per account
   covering every site is what she needs. Owner decision 2026-09-29; design:
   `docs/designs/address-families.md`.
+
+- **2026-09-30. simple-hack.app is a hosted hackathon platform.** Reverses "2026-09-11.
+  simple-hack.app is an organiser's page with one call to action": the page's call to action is
+  now Create event, with self-hosting second. Anyone who signs in can create an event, with no
+  approval; creation records who is running it (organiser name, organisation or community,
+  contact email, what the event is for, expected dates and participants), which the platform
+  admin sees. No caps on participants, teams or judges; abuse safety is per-account event
+  limits (`EVENT_CREATE_PER_DAY`, `EVENT_MAX_ACTIVE_PER_ORGANISER`), the per-site size cap
+  (`MAX_ARCHIVE_MB=25`, `KEEP_VERSIONS=2` there), an instance byte budget
+  (`HACK_INSTANCE_BUDGET_GB`) and the disk alert, all env settings. Everything is free. Team
+  pages live under simple-hack.app (`<team>.<event>.simple-hack.app`). After an event closes,
+  team sites stay up 30 days (`EVENT_SITES_KEEP_DAYS`) and are then removed, with warning emails
+  to the organiser; the event page and its results stay. Results: the public sees winners only,
+  each team privately sees its own scores and the judges' comments, and the organiser can switch
+  to a full public ranking. Reason: organisers asked to run events without standing up a
+  server; the platform keeps what they build under one address and one set of rules. Owner
+  decisions 2026-09-30; design `docs/designs/simple-hack-platform.md`.
 
 ## Open, deliberately parked
 

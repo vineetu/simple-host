@@ -34,7 +34,6 @@ SITE_CERTS_DIR=${SITE_CERTS_DIR:-$HERE/../site-certs}
 SCHEMA=${SCHEMA:-$REPO/db/schema.sql}
 SIMPLE_HOST=${SIMPLE_HOST:-/usr/local/bin/simple-host}
 PSQL=${PSQL:-sudo -u postgres psql}
-PSQL_APP=${PSQL_APP:-sudo -u simplehack psql}
 PG_ROLE=${PG_ROLE:-simplehack}
 PG_DB=${PG_DB:-simplehack}
 PG_HOST=${PG_HOST:-127.0.0.1}
@@ -52,10 +51,6 @@ name_re='^[a-z_][a-z0-9_-]*$'
 psql_super() {
   # shellcheck disable=SC2086
   $PSQL "$@"
-}
-psql_app() {
-  # shellcheck disable=SC2086
-  $PSQL_APP "$@"
 }
 
 role_exists() {
@@ -212,7 +207,8 @@ else
     dbpw=$(openssl rand -hex 16)
   fi
   [ -n "$dbpw" ] || die "cannot create Postgres role $PG_ROLE without a password"
-  psql_super -v ON_ERROR_STOP=1 -c "CREATE ROLE ${PG_ROLE} LOGIN PASSWORD '${dbpw}'"
+  # On stdin, never argv: a password on the command line shows in ps.
+  printf "CREATE ROLE %s LOGIN PASSWORD '%s';\n" "$PG_ROLE" "$dbpw" | psql_super -q -v ON_ERROR_STOP=1 >/dev/null
   say "created Postgres role $PG_ROLE"
 fi
 if db_exists; then
@@ -239,7 +235,9 @@ if users_table_exists; then
   say "ok: $PG_DB already has a users table"
 else
   [ -f "$SCHEMA" ] || die "missing $SCHEMA"
-  psql_app -v ON_ERROR_STOP=1 -f "$SCHEMA" "$dsn"
+  # As the superuser, switched to the app role, so the app role owns every
+  # object and no password travels on a command line.
+  { printf 'SET ROLE %s;\n' "$PG_ROLE"; cat "$SCHEMA"; } | psql_super -q -v ON_ERROR_STOP=1 -d "$PG_DB" >/dev/null
   say "applied schema to $PG_DB"
 fi
 

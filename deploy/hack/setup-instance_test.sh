@@ -99,7 +99,7 @@ chmod +x "$T/bin/"*
 
 ENVF="$R/etc/simple-hack.env"
 export PATH="$T/bin:$PATH"
-export PSQL=psql PSQL_APP=psql
+export PSQL=psql
 export HACK_USER=simplehack
 export SITES_DIR="$R/srv/simple-hack/sites"
 export LOG_DIR="$R/var/log/simple-hack"
