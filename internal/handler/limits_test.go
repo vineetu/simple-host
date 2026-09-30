@@ -410,3 +410,34 @@ func TestArchivePhrasesFollowTheUploadCap(t *testing.T) {
 		t.Fatalf("rewritten: %q", got)
 	}
 }
+
+// Every route that serves a skill file states this instance's upload cap, not
+// the 100 MB the files are written with.
+func TestSkillRoutesFollowArchiveLimit(t *testing.T) {
+	old := SiteLimit()
+	SetSiteLimit(300 << 20)
+	t.Cleanup(func() { SetSiteLimit(old); ApplyLimits(config.DefaultLimits()) })
+	ApplyLimits(config.DefaultLimits())
+	mux := http.NewServeMux()
+	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler())
+	RegisterSkillsHub(mux, "https://simple-host.app")
+	for _, c := range []struct{ path, want string }{
+		{"/v1/skills/website-deploy", "**Archive limit** is 300 MB."},
+		{"/v1/skills/website-deploy/SKILL.md", "**Archive limit** is 300 MB."},
+		{"/.well-known/skills/website-deploy/SKILL.md", "**Archive limit** is 300 MB."},
+		{"/skills/website-deploy", "**Archive limit** is 300 MB."},
+		{"/skills/website-deploy/SKILL.md", "**Archive limit** is 300 MB."},
+		{"/v1/skills/website-deploy/references/packaging-and-validation.md", "The API rejects archives over 300 MB."},
+		{"/.well-known/skills/website-deploy/references/packaging-and-validation.md", "The API rejects archives over 300 MB."},
+		{"/skills/website-deploy/references/packaging-and-validation.md", "The API rejects archives over 300 MB."},
+	} {
+		rec := get(t, mux, "simple-host.app", c.path)
+		if rec.Code != http.StatusOK {
+			t.Errorf("%s: %d", c.path, rec.Code)
+			continue
+		}
+		if body := rec.Body.String(); !strings.Contains(body, c.want) || strings.Contains(body, "100 MB") {
+			t.Errorf("%s: want %q and no 100 MB", c.path, c.want)
+		}
+	}
+}

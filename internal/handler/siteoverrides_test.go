@@ -1,9 +1,12 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"testing"
+
+	db "github.com/vsriram/simple-host/internal/db"
 )
 
 // MAX_SITES_OVERRIDES replaces the per-account cap for the listed handles
@@ -66,5 +69,16 @@ func TestSiteOverridesEnforced(t *testing.T) {
 	}
 	if got := maxSites(olive); got != float64(4) {
 		t.Fatalf("olive max_sites after a handle change = %v, want 4", got)
+	}
+
+	// The admin list reads every alias at once; a held handle with no
+	// account (user_id NULL) must not break it.
+	if _, err := a.database.Exec(`INSERT INTO handle_aliases (handle, user_id) VALUES ($1, NULL)`, oliveHandle+"-held"); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = a.database.Exec(`DELETE FROM handle_aliases WHERE handle = $1`, oliveHandle+"-held") })
+	all, err := db.HandleAliasesByUser(context.Background(), a.database)
+	if err != nil || len(all[oliveID]) != 1 || all[oliveID][0] != oliveHandle {
+		t.Fatalf("aliases by user: %v %v", all[oliveID], err)
 	}
 }

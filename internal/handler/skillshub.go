@@ -166,9 +166,21 @@ func serveSkillDoc(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "skill not found", http.StatusNotFound)
 		return
 	}
+	data = skillServedText(name+"/SKILL.md", data)
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=300")
 	_, _ = w.Write(data)
+}
+
+// skillServedText is a skill file as this instance serves it: its hostnames
+// and limits (MAX_ARCHIVE_MB and the knobs) put in, as the zips and
+// /skills/<name>/SKILL.md do, except for a control-plane skill, which states
+// the public instance's (see copyRewritten). path is relative to skills/.
+func skillServedText(path string, data []byte) []byte {
+	if controlPlaneSkill(path) {
+		return data
+	}
+	return rewriteServedText(data)
 }
 
 // validReferenceFile guards the {file} path param. References are flat markdown
@@ -196,6 +208,7 @@ func serveSkillReference(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "reference not found", http.StatusNotFound)
 		return
 	}
+	data = skillServedText(name+"/references/"+file, data)
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=300")
 	_, _ = w.Write(data)

@@ -299,7 +299,7 @@ func ListHandleAliases(ctx context.Context, database *sql.DB, userID string) ([]
 
 // HandleAliasesByUser returns every account's earlier handles, by user id.
 func HandleAliasesByUser(ctx context.Context, database *sql.DB) (map[string][]string, error) {
-	rows, err := database.QueryContext(ctx, `SELECT user_id, handle FROM handle_aliases ORDER BY created_at, handle`)
+	rows, err := database.QueryContext(ctx, `SELECT user_id, handle FROM handle_aliases WHERE user_id IS NOT NULL ORDER BY created_at, handle`)
 	if err != nil {
 		return nil, err
 	}
