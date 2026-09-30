@@ -494,8 +494,9 @@ type MyTeam struct {
 	TeamID, TeamName, TeamSlug, EventSlug, EventTitle string
 }
 
-// ListMyTeams lists the teams userID is on in events that have not ended and
-// are not taken down.
+// ListMyTeams lists the teams userID is on that can still publish: the event
+// has not ended and is not taken down, the team's deadline has not passed and
+// its site is not taken down.
 func ListMyTeams(ctx context.Context, q interface {
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 }, userID string) ([]MyTeam, error) {
@@ -506,6 +507,8 @@ func ListMyTeams(ctx context.Context, q interface {
 		  JOIN events e ON e.id = m.event_id
 		 WHERE m.user_id = $1 AND m.role = 'participant'
 		   AND e.stage <> 'archived' AND e.taken_down_at IS NULL
+		   AND t.site_taken_down_at IS NULL
+		   AND NOT COALESCE(`+EffectiveDeadlineSQL+` <= clock_timestamp(), false)
 		 ORDER BY e.created_at DESC, t.name`, userID)
 	if err != nil {
 		return nil, err

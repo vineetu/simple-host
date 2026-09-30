@@ -654,6 +654,9 @@ func TestHackM2ReviewRound1(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.api(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "building"}, org.key)
+	// A new team cannot start after the deadline; clear it first.
+	wantTS(t, "team after deadline", a.api(t, "POST", "/v1/hack/events/"+slug+"/teams", map[string]string{"name": "Late"}, p2.key), 409, "submissions_closed")
+	a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"submission_deadline": ""}, org.key)
 	if again, _ := a.startTeam(t, slug, "Solo", p2); again == solo {
 		t.Fatalf("team name reused after purge: %s", again)
 	}

@@ -32,6 +32,7 @@ type hackEventPage struct {
 type hackGalleryCard struct {
 	Title, Tagline, Team string
 	Shot, URL            string
+	Initial              string // the title's first letter, for a card with no screenshot
 }
 
 var hackEventTmpl = template.Must(template.New("hack-event.html").Funcs(template.FuncMap{

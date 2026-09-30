@@ -479,7 +479,7 @@ func TestHackEntriesList(t *testing.T) {
 		second := rows[1].(map[string]any)
 		wantJSONKeys(t, "list item", first,
 			"team", "title", "tagline", "description", "video_url", "code_url", "has_screenshot",
-			"complete", "missing", "updated_at", "site_url", "site_exists", "deadline", "frozen",
+			"complete", "missing", "updated_at", "site_url", "site_exists", "site_taken_down", "deadline", "frozen",
 			"pinned_version", "pinned_url")
 		team := first["team"].(map[string]any)
 		wantJSONKeys(t, "team", team, "slug", "name")

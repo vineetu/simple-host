@@ -83,7 +83,7 @@
       <ul class="gallery">
         {{range .Gallery}}
         <li class="gcard">
-          {{if .Shot}}<img src="{{.Shot}}" alt="" loading="lazy">{{else}}<div class="gcard-mark" aria-hidden="true">{{if .Title}}{{slice .Title 0 1}}{{end}}</div>{{end}}
+          {{if .Shot}}<img src="{{.Shot}}" alt="" loading="lazy">{{else}}<div class="gcard-mark" aria-hidden="true">{{.Initial}}</div>{{end}}
           <h3>{{.Title}}</h3>
           {{if .Tagline}}<p>{{.Tagline}}</p>{{end}}
           {{if .Team}}<p class="gcard-team">{{.Team}}</p>{{end}}

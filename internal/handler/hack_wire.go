@@ -117,6 +117,9 @@ func hackGalleryCards(eventSlug string, cards []db.GalleryCard, teamSiteURL func
 			title = c.Name
 		}
 		card := hackGalleryCard{Title: title, Tagline: c.Tagline, URL: link}
+		if rs := []rune(strings.TrimSpace(title)); len(rs) > 0 {
+			card.Initial = strings.ToUpper(string(rs[0]))
+		}
 		if title != c.Name {
 			card.Team = c.Name
 		}

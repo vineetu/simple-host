@@ -196,6 +196,17 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback()
+	// After the event's deadline a new team would be frozen from birth.
+	var closed bool
+	if err := tx.QueryRowContext(r.Context(), `
+		SELECT COALESCE(submission_deadline <= clock_timestamp(), false) FROM events WHERE id = $1 FOR SHARE`, a.event.ID).Scan(&closed); err != nil {
+		writeInternal(w)
+		return
+	}
+	if closed {
+		writeHackErr(w, http.StatusConflict, "submissions_closed", "the submission deadline has passed, so new teams can't start")
+		return
+	}
 	if taken, err := teamNameTaken(r.Context(), tx, a.event.ID, name); err != nil {
 		writeInternal(w)
 		return
@@ -329,6 +340,15 @@ func (h *HackHandler) joinTeam(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		writeInternal(w)
+		return
+	}
+	// A team past its deadline takes nobody new (they could never publish
+	// or leave).
+	if st, serr := db.TeamWriteStateFor(r.Context(), tx, team.ID, true); serr != nil {
+		writeInternal(w)
+		return
+	} else if st.Frozen() {
+		writeHackErr(w, http.StatusConflict, "submissions_closed", "that team's deadline has passed, so it can't take new members")
 		return
 	}
 	if err := tx.Commit(); err != nil {
