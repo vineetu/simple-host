@@ -55,6 +55,8 @@ var requiredColumns = map[string][]string{
 	"collection_settings": {"site_id", "collection", "private", "kind", "one_per_person", "notify", "notify_sent_at", "declared_at", "notify_last_id"},
 	"site_savers":         {"site_id", "list", "pattern", "added_at"},
 	"site_view_hourly":    {"site_id", "hour", "class", "views"},
+	// v078-api-growth.sql
+	"api_growth_daily": {"day", "dim", "key", "calls"},
 	// w3-analytics-pages-referrers.sql
 	"site_page_daily":     {"site_id", "day", "path", "views"},
 	"site_referrer_daily": {"site_id", "day", "domain", "views"},

@@ -4898,6 +4898,65 @@ paths:
                     items: { type: object }
         '401': { description: Not signed in }
         '404': { description: Signed in but not an admin }
+  /v1/admin/growth:
+    get:
+      operationId: getAdminGrowth
+      summary: API calls, new accounts and new sites per day, with calls by country (admin)
+      description: >-
+        Admin-only. For the chosen range (ending today, UTC days): API calls per day
+        (/v1/* and /mcp) in total and by kind (deploy, data, auth, connector, admin,
+        other), new accounts per day and new sites per day, each with the period's
+        total, the previous period of the same length and the change in percent
+        (null when there is nothing to compare with, or when API calls were not yet
+        counted on the previous period's first day); and API calls per caller country
+        over the range. Countries are ISO-3166 alpha-2 codes looked up on this server
+        from a local DB-IP file when the call is counted; no address is stored with
+        these counts. Calls from this server or with no known country are in
+        unknown_country_calls. Read from day-granular aggregates and cached a minute.
+        A signed-in non-admin gets 404.
+      tags: [Admin]
+      security: [{ apiKey: [] }]
+      parameters:
+        - name: range
+          in: query
+          required: false
+          schema: { type: string, enum: [7d, 14d, 30d, 6m], default: 30d }
+          description: 6m is 182 days (26 weeks).
+      responses:
+        '200':
+          description: Growth series for the range.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  range: { type: string, example: 30d }
+                  days: { type: integer, example: 30 }
+                  from: { type: string, format: date }
+                  to: { type: string, format: date }
+                  tracking_since: { type: string, format: date, nullable: true, description: First day API calls were counted. }
+                  dates: { type: array, items: { type: string, format: date } }
+                  group_order: { type: array, items: { type: string }, example: [deploy, data, auth, connector, admin, other] }
+                  api:
+                    $ref: '#/components/schemas/GrowthSeries'
+                  users:
+                    $ref: '#/components/schemas/GrowthSeries'
+                  sites:
+                    $ref: '#/components/schemas/GrowthSeries'
+                  countries:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        code: { type: string, example: US }
+                        name: { type: string, example: United States }
+                        calls: { type: integer }
+                  unknown_country_calls: { type: integer }
+                  retention_days: { type: integer }
+                  generated_at: { type: string, format: date-time }
+        '400': { description: range is not one of 7d, 14d, 30d, 6m }
+        '401': { description: Not signed in }
+        '404': { description: Signed in but not an admin }
   /v1/events:
     get:
       operationId: listEventDomains
@@ -6743,6 +6802,17 @@ components:
       properties:
         bytes: { type: integer }
         requests: { type: integer }
+    GrowthSeries:
+      type: object
+      properties:
+        total: { type: integer }
+        previous: { type: integer, description: Total over the previous period of the same length. }
+        change_pct: { type: number, nullable: true, example: 34.0 }
+        daily: { type: array, items: { type: integer }, description: One value per entry of dates. }
+        groups:
+          type: object
+          description: API calls only; one array per kind, aligned with dates.
+          additionalProperties: { type: array, items: { type: integer } }
     Savers:
       type: object
       description: Who may save on a site.

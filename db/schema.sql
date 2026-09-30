@@ -530,6 +530,19 @@ CREATE TABLE IF NOT EXISTS api_ip_daily (
   PRIMARY KEY (day, ip)
 );
 
+-- API calls (/v1/* and /mcp) per UTC day, by caller country (dim 'country',
+-- ISO-3166 alpha-2 key, 'XX' = unknown or this server) and by kind of call
+-- (dim 'group': deploy, data, auth, connector, admin, other). Feeds the admin
+-- page's API growth views; no address is stored. Kept
+-- API_GROWTH_RETENTION_DAYS. Mirrors db/migrations/v078-api-growth.sql.
+CREATE TABLE IF NOT EXISTS api_growth_daily (
+  day   DATE NOT NULL,
+  dim   TEXT NOT NULL,
+  key   TEXT NOT NULL,
+  calls BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, dim, key)
+);
+
 -- Caller geo (country/city/network) is NOT stored: it is resolved on this box
 -- from local DB-IP Lite files when the admin page asks (internal/geoip). The
 -- old ip_geo cache table is gone from fresh installs; see

@@ -84,15 +84,21 @@ func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { retu
 // grows any outbound HTTP/network call or any absolute URL again (the old
 // ip-api.com lookup was exactly that).
 func TestAPIMetricsMakesNoOutboundCalls(t *testing.T) {
+	for _, file := range []string{"apimetrics.go", "apigrowth.go"} {
+		checkNoOutboundCalls(t, file)
+	}
+}
+
+func checkNoOutboundCalls(t *testing.T, file string) {
 	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "apimetrics.go", nil, 0)
+	f, err := parser.ParseFile(fset, file, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, imp := range f.Imports {
 		p, _ := strconv.Unquote(imp.Path.Value)
 		if p == "net/http/httputil" || p == "net/rpc" || strings.HasPrefix(p, "golang.org/x/net") {
-			t.Errorf("apimetrics.go imports %s", p)
+			t.Errorf("%s imports %s", file, p)
 		}
 	}
 	banned := map[string]bool{
@@ -114,7 +120,7 @@ func TestAPIMetricsMakesNoOutboundCalls(t *testing.T) {
 			if x.Kind == token.STRING {
 				s := strings.ToLower(x.Value)
 				if strings.Contains(s, "http://") || strings.Contains(s, "https://") || strings.Contains(s, "ip-api") {
-					t.Errorf("%s: external URL literal %s in apimetrics.go", fset.Position(x.Pos()), x.Value)
+					t.Errorf("%s: external URL literal %s in %s", fset.Position(x.Pos()), x.Value, file)
 				}
 			}
 		}

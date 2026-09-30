@@ -6,6 +6,7 @@
 <meta name="robots" content="noindex">
 <title>Admin — simple·host</title>
 <!--sh:head-->
+<link rel="stylesheet" href="/admin-growth.css">
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 [hidden]{display:none!important}
@@ -154,6 +155,7 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
     <button class="tab" role="tab" id="tab-overview" aria-controls="p-overview" aria-selected="true" data-tab="overview">Overview</button>
     <button class="tab" role="tab" id="tab-users" aria-controls="p-users" aria-selected="false" tabindex="-1" data-tab="users">Users</button>
     <button class="tab" role="tab" id="tab-sites" aria-controls="p-sites" aria-selected="false" tabindex="-1" data-tab="sites">Sites</button>
+    <button class="tab" role="tab" id="tab-api" aria-controls="p-api" aria-selected="false" tabindex="-1" data-tab="api">API</button>
     <button class="tab" role="tab" id="tab-moderation" aria-controls="p-moderation" aria-selected="false" tabindex="-1" data-tab="moderation">Moderation</button>
     <button class="tab" role="tab" id="tab-tools" aria-controls="p-tools" aria-selected="false" tabindex="-1" data-tab="tools">Tools</button>
   </div>
@@ -239,6 +241,30 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
     </div>
   </section>
 
+  <!-- ============ API ============ -->
+  <!-- Growth (admin-growth.js, GET /v1/admin/growth) and the live traffic
+       tables (GET /v1/admin/api-analytics). -->
+  <section class="panel" role="tabpanel" id="p-api" aria-labelledby="tab-api" hidden>
+    <div class="sec" id="growth"></div>
+    <div class="sec" id="apitraffic" hidden>
+      <h2>API traffic</h2>
+      <p class="ph">Every API call to simple-host, counted since this feature went live. Numbers are for today and the last 7 days; caller IPs are kept 30 days.</p>
+      <div class="stats">
+        <div class="stat"><div class="n" id="ax-calls">–</div><div class="l">Calls today</div></div>
+        <div class="stat"><div class="n" id="ax-ips">–</div><div class="l">Callers today</div></div>
+        <div class="stat"><div class="n" id="ax-errs">–</div><div class="l">Errors today</div></div>
+        <div class="stat"><div class="n" id="ax-ai">–</div><div class="l">AI builds today</div></div>
+      </div>
+      <details class="box"><summary>What's being called</summary>
+        <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th>Route</th><th class="num">Today</th><th class="num">7 days</th><th class="num">Errors</th></tr></thead><tbody id="ax-routes"></tbody></table></div>
+      </details>
+      <details class="box"><summary>Who's calling</summary>
+        <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th>Caller</th><th>From</th><th class="num">Today</th><th class="num">7 days</th><th>Last seen</th></tr></thead><tbody id="ax-ipsrows"></tbody></table></div>
+        <p class="geo-credit">Locations are looked up on this server; no IP is sent anywhere. <a href="https://db-ip.com">IP Geolocation by DB-IP</a></p>
+      </details>
+    </div>
+  </section>
+
   <!-- ============ Moderation ============ -->
   <section class="panel" role="tabpanel" id="p-moderation" aria-labelledby="tab-moderation" hidden>
     <div class="sec">
@@ -262,23 +288,6 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
       <h2>Saved-data watch</h2>
       <p class="ph" id="dwatch-note"></p>
       <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th>Website</th><th>Owner</th><th class="num">Visitor replaces</th><th class="num">Not an object</th><th>Visitor ops</th><th class="num">Large incs</th><th class="num">New list names</th><th class="num">Large items</th><th>Last</th></tr></thead><tbody id="dwatch-rows"></tbody></table></div>
-    </div>
-    <div class="sec" id="apitraffic" hidden>
-      <h2>API traffic</h2>
-      <p class="ph">Every API call to simple-host, counted since this feature went live. Numbers are for today and the last 7 days; caller IPs are kept 30 days.</p>
-      <div class="stats">
-        <div class="stat"><div class="n" id="ax-calls">–</div><div class="l">Calls today</div></div>
-        <div class="stat"><div class="n" id="ax-ips">–</div><div class="l">Callers today</div></div>
-        <div class="stat"><div class="n" id="ax-errs">–</div><div class="l">Errors today</div></div>
-        <div class="stat"><div class="n" id="ax-ai">–</div><div class="l">AI builds today</div></div>
-      </div>
-      <details class="box"><summary>What's being called</summary>
-        <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th>Route</th><th class="num">Today</th><th class="num">7 days</th><th class="num">Errors</th></tr></thead><tbody id="ax-routes"></tbody></table></div>
-      </details>
-      <details class="box"><summary>Who's calling</summary>
-        <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th>Caller</th><th>From</th><th class="num">Today</th><th class="num">7 days</th><th>Last seen</th></tr></thead><tbody id="ax-ipsrows"></tbody></table></div>
-        <p class="geo-credit">Locations are looked up on this server; no IP is sent anywhere. <a href="https://db-ip.com">IP Geolocation by DB-IP</a></p>
-      </details>
     </div>
   </section>
 
@@ -318,13 +327,15 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
 
 <!--sh:footer-->
 
+<script src="/admin-growth.js" defer></script>
+
 <script>
 (function(){
 'use strict';
 var apiKey='';
 try{ apiKey=localStorage.getItem('apiKey')||''; }catch(e){}
 var PAGE=50;
-var TABS=['overview','users','sites','moderation','tools'];
+var TABS=['overview','users','sites','api','moderation','tools'];
 var $=function(id){ return document.getElementById(id); };
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 function bytes(n){
@@ -471,6 +482,7 @@ function renderCurrent(){
   if(current==='overview') renderOverview();
   else if(current==='users') renderUsers();
   else if(current==='sites') renderSites();
+  else if(current==='api') renderApi();
   else if(current==='moderation') renderModeration();
   else if(current==='tools') renderEntries();
 }
@@ -1058,7 +1070,16 @@ function renderModeration(){
   });
   $('m-count').textContent='('+rows.length+')';
   $('m-rows').innerHTML=rows.join('')||'<tr><td colspan="4" class="empty">Nothing is taken down.</td></tr>';
-  if(!D.loaded.moderation){ D.loaded.moderation=true; loadIdle(); loadDataWatch(); loadTraffic(); }
+  if(!D.loaded.moderation){ D.loaded.moderation=true; loadIdle(); loadDataWatch(); }
+}
+
+// ---------------------------------------------------------------- api
+function renderApi(){
+  if(D.loaded.api) return;
+  D.loaded.api=true;
+  if(window.shGrowth) window.shGrowth.start(apiKey);
+  else window.addEventListener('load', function(){ if(window.shGrowth) window.shGrowth.start(apiKey); }, {once:true});
+  loadTraffic();
 }
 async function loadTraffic(){
   try{

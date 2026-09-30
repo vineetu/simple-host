@@ -41,6 +41,7 @@ const (
 // Info is what a lookup yields. Any field may be empty.
 type Info struct {
 	Country string
+	ISO     string // ISO-3166 alpha-2 country code, e.g. "US"
 	City    string
 	Org     string
 }
@@ -196,6 +197,7 @@ func (d *DB) Lookup(ip string) Info {
 	if r := d.city.reader; r != nil {
 		if res := r.Lookup(addr); res.Found() {
 			_ = res.DecodePath(&out.Country, "country", "names", "en")
+			_ = res.DecodePath(&out.ISO, "country", "iso_code")
 			_ = res.DecodePath(&out.City, "city", "names", "en")
 		}
 	}

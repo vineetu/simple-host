@@ -16,7 +16,7 @@ func writeFixtures(t *testing.T, dir, city, org string) {
 	if err := geoiptest.Write(filepath.Join(dir, CityFile), "DBIP-City-Lite", map[string]geoiptest.Record{
 		"8.8.8.0/24":     geoiptest.CityRecord(city, "United States"),
 		"2001:db8::/32":  geoiptest.CityRecord("Sydney", "Australia"),
-		"203.0.113.0/24": geoiptest.Record{"country": geoiptest.Record{"names": geoiptest.Record{"en": "Japan"}}},
+		"203.0.113.0/24": geoiptest.Record{"country": geoiptest.Record{"iso_code": "JP", "names": geoiptest.Record{"en": "Japan"}}},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -37,11 +37,11 @@ func TestLookupFromLocalFiles(t *testing.T) {
 		ip   string
 		want Info
 	}{
-		{"8.8.8.8", Info{Country: "United States", City: "Mountain View", Org: "Google LLC"}},
-		{"::ffff:8.8.8.8", Info{Country: "United States", City: "Mountain View", Org: "Google LLC"}},
-		{"2001:db8::1", Info{Country: "Australia", City: "Sydney"}},
-		{"203.0.113.9", Info{Country: "Japan"}}, // country-only record
-		{"1.1.1.1", Info{}},                     // not in the database
+		{"8.8.8.8", Info{Country: "United States", ISO: "XX", City: "Mountain View", Org: "Google LLC"}},
+		{"::ffff:8.8.8.8", Info{Country: "United States", ISO: "XX", City: "Mountain View", Org: "Google LLC"}},
+		{"2001:db8::1", Info{Country: "Australia", ISO: "XX", City: "Sydney"}},
+		{"203.0.113.9", Info{Country: "Japan", ISO: "JP"}}, // country-only record
+		{"1.1.1.1", Info{}}, // not in the database
 		{"not-an-ip", Info{}},
 		{"", Info{}},
 	}

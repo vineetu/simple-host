@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
+	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/geoip"
 )
 
@@ -40,6 +41,15 @@ type APIMetrics struct {
 	mu     sync.Mutex
 	routes map[routeKey]int64
 	ips    map[string]*ipAgg
+	growth map[growthKey]int64 // api_growth_daily counters (apigrowth.go)
+
+	// flushMu serialises writers of the aggregate tables: the flush (from
+	// the loop and from the admin endpoints) and the growth backfill, which
+	// compares the two sets of tables and must not see half a flush.
+	flushMu sync.Mutex
+
+	cacheMu sync.Mutex
+	cache   map[string]growthCacheEntry // GET /v1/admin/growth, per range
 }
 
 type routeKey struct {
@@ -58,12 +68,13 @@ func NewAPIMetrics(db *sql.DB, geo *geoip.DB) *APIMetrics {
 		geo:    geo,
 		routes: make(map[routeKey]int64),
 		ips:    make(map[string]*ipAgg),
+		growth: make(map[growthKey]int64),
 	}
 	go m.flushLoop()
 	return m
 }
 
-// Wrap counts /v1/* traffic around the mux. Static pages, health probes, and
+// Wrap counts /v1/* and /mcp traffic around the mux. Static pages, health probes, and
 // hosted-site content are deliberately not counted — this is API analytics,
 // not visitor analytics (that already exists per site).
 func (m *APIMetrics) Wrap(next http.Handler) http.Handler {
@@ -71,7 +82,7 @@ func (m *APIMetrics) Wrap(next http.Handler) http.Handler {
 		// The "Ask" assistants are left out entirely: its visitors are readers
 		// of a public page, and nothing about them is kept for it. The setup
 		// helper's check and assistant likewise.
-		if !strings.HasPrefix(r.URL.Path, "/v1/") || r.URL.Path == "/v1/ask" || r.URL.Path == "/v1/setup/check" || r.URL.Path == "/v1/setup/assist" {
+		if !(strings.HasPrefix(r.URL.Path, "/v1/") || r.URL.Path == "/mcp") || r.URL.Path == "/v1/ask" || r.URL.Path == "/v1/setup/check" || r.URL.Path == "/v1/setup/assist" {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -82,7 +93,8 @@ func (m *APIMetrics) Wrap(next http.Handler) http.Handler {
 		if route == "" {
 			route = r.Method + " " + normalizeAPIPath(r.URL.Path)
 		}
-		m.record(route, rec.status, truncateIP(clientIP(r)))
+		ip := truncateIP(clientIP(r))
+		m.record(route, rec.status, ip, m.countryOf(ip))
 	})
 }
 
@@ -133,10 +145,15 @@ func normalizeAPIPath(p string) string {
 	return "/" + strings.Join(seg, "/")
 }
 
-func (m *APIMetrics) record(route string, status int, ip string) {
+func (m *APIMetrics) record(route string, status int, ip, country string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.routes[routeKey{route, status}]++
+	if m.growth == nil {
+		m.growth = make(map[growthKey]int64)
+	}
+	m.growth[growthKey{growthDimGroup, apiRouteGroup(route)}]++
+	m.growth[growthKey{growthDimCountry, country}]++
 	a := m.ips[ip]
 	if a == nil {
 		if len(m.ips) > 5000 { // abuse guard: never grow without bound between flushes
@@ -154,7 +171,15 @@ func (m *APIMetrics) flushLoop() {
 	// 6 hours, and a ticker alone would then never fire, keeping shortened IPs
 	// past the 30 days the privacy page promises.
 	m.pruneOld()
-	tick := time.NewTicker(20 * time.Second)
+	// Fill the growth counts from the traffic tables (a no-op once done).
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	if n, err := m.BackfillGrowth(ctx); err != nil {
+		log.Printf("api growth backfill: %v", err)
+	} else if n > 0 {
+		log.Printf("api growth backfill: added %d calls from the API traffic tables", n)
+	}
+	cancel()
+	tick := time.NewTicker(config.Active().APIMetricsFlush)
 	prune := time.NewTicker(6 * time.Hour)
 	for {
 		select {
@@ -167,13 +192,17 @@ func (m *APIMetrics) flushLoop() {
 }
 
 func (m *APIMetrics) flush() {
+	m.flushMu.Lock()
+	defer m.flushMu.Unlock()
 	m.mu.Lock()
 	routes := m.routes
 	ips := m.ips
+	growth := m.growth
 	m.routes = make(map[routeKey]int64)
 	m.ips = make(map[string]*ipAgg)
+	m.growth = make(map[growthKey]int64)
 	m.mu.Unlock()
-	if len(routes) == 0 && len(ips) == 0 {
+	if len(routes) == 0 && len(ips) == 0 && len(growth) == 0 {
 		return
 	}
 
@@ -188,6 +217,12 @@ func (m *APIMetrics) flush() {
 			log.Printf("api metrics flush (route): %v", err)
 			return // DB down: drop this batch rather than queue forever
 		}
+	}
+	// Growth next, so a DB that fails mid-flush loses the traffic detail
+	// rather than the long-kept counts; the backfill repairs a gap either way.
+	if err := flushGrowth(ctx, m.db, "", growth); err != nil {
+		log.Printf("api metrics flush (growth): %v", err)
+		return
 	}
 	for ip, a := range ips {
 		if _, err := m.db.ExecContext(ctx, `
@@ -214,6 +249,9 @@ func (m *APIMetrics) pruneOld() {
 		if _, err := m.db.ExecContext(ctx, q, metricsRetentionDays()); err != nil {
 			log.Printf("api metrics prune: %v", err)
 		}
+	}
+	if _, err := m.db.ExecContext(ctx, `DELETE FROM api_growth_daily WHERE day < CURRENT_DATE - $1::int`, config.Active().APIGrowthRetention); err != nil {
+		log.Printf("api growth prune: %v", err)
 	}
 }
 

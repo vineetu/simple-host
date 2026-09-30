@@ -122,6 +122,8 @@ simple-host.app runs, so an install that sets none of them behaves exactly as be
 | `ANALYTICS_PAGES_PER_SITE_DAY` | 200 | 10–10000 | Distinct pages kept in a site's Top pages per day. Paths are normalised first (percent-escapes decoded once, `//` collapsed, query and fragment dropped); views of further new paths that day are counted together as `(other)`. |
 | `ANALYTICS_REFERRERS_PER_SITE_DAY` | 100 | 10–10000 | Distinct referring domains kept per site per day; further new domains that day are counted together as `(other)`. Bounds referrer spam. |
 | `API_METRICS_RETENTION_DAYS` | 30 | 1–3650 | How long the admin API-call counts and shortened caller IPs are kept. |
+| `API_GROWTH_RETENTION_DAYS` | 400 | 7–3650 | How long the admin API growth counts (calls per day by country and by kind; no addresses) are kept. At least 183 keeps the 6-month view full. |
+| `API_METRICS_FLUSH_SECONDS` | 20 | 5–3600 | How often counted API calls are written to the database (admin API traffic and growth). Calls counted since the last write are lost if the server stops abruptly. |
 
 ## Network use
 

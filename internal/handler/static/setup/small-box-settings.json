@@ -1789,6 +1789,20 @@
       "small_box": true
     },
     {
+      "name": "API_GROWTH_RETENTION_DAYS",
+      "group": "cleanup",
+      "description": "How long the admin page's API growth counts (calls per day by country and by kind, no addresses) are kept. Keep at least 183 for the 6-month view.",
+      "type": "duration",
+      "default": "400",
+      "min": 7,
+      "max": 3650,
+      "unit": "days",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
       "name": "IDLE_CLEANUP",
       "group": "cleanup",
       "description": "on warns owners of long-unused sites, then moves them to Recently deleted.",
@@ -2351,6 +2365,20 @@
       "required": false,
       "basic": false,
       "small_box": false
+    },
+    {
+      "name": "API_METRICS_FLUSH_SECONDS",
+      "group": "observability",
+      "description": "How often counted API calls are written to the database for the admin page's API traffic and growth. Calls counted since the last write are lost if the server stops abruptly.",
+      "type": "duration",
+      "default": "20",
+      "min": 5,
+      "max": 3600,
+      "unit": "seconds",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
     },
     {
       "name": "ANALYTICS_LOG",

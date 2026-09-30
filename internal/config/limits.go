@@ -78,6 +78,8 @@ type Limits struct {
 	AnalyticsPagesDay   int           // ANALYTICS_PAGES_PER_SITE_DAY
 	AnalyticsRefsDay    int           // ANALYTICS_REFERRERS_PER_SITE_DAY
 	APIMetricsRetention int           // API_METRICS_RETENTION_DAYS (days)
+	APIGrowthRetention  int           // API_GROWTH_RETENTION_DAYS (days)
+	APIMetricsFlush     time.Duration // API_METRICS_FLUSH_SECONDS
 	IdleReplyTo         string        // IDLE_REPLY_TO
 
 	// Network use on the admin page (internal/netusage).
@@ -333,6 +335,8 @@ func DefaultLimits() Limits {
 		AnalyticsPagesDay:   200,
 		AnalyticsRefsDay:    100,
 		APIMetricsRetention: 30,
+		APIGrowthRetention:  400,
+		APIMetricsFlush:     20 * time.Second,
 		IdleReplyTo:         "support@simple-host.app",
 
 		// Oracle Cloud Always Free: 10 TB of outbound data a month.
@@ -694,6 +698,10 @@ func Knobs() []Knob {
 		intKnob("NETWORK_MONTHLY_ALLOWANCE_GB", "GB", 0, 10_000_000, func(l *Limits) *int { return &l.NetworkAllowanceGB }),
 		intKnob("NETWORK_ALERT_PCT", "percent", 1, 100, func(l *Limits) *int { return &l.NetworkAlertPct }),
 		durKnob("NETWORK_SAMPLE_MINUTES", "minutes", m, 1, 24*60, func(l *Limits) *time.Duration { return &l.NetworkSample }),
+		// Day-by-country and day-by-kind API call counts behind the admin
+		// page's API growth views; no address is kept in them.
+		intKnob("API_GROWTH_RETENTION_DAYS", "days", 7, 3650, func(l *Limits) *int { return &l.APIGrowthRetention }),
+		durKnob("API_METRICS_FLUSH_SECONDS", "seconds", time.Second, 5, 3600, func(l *Limits) *time.Duration { return &l.APIMetricsFlush }),
 		{Env: "IDLE_REPLY_TO", Unit: "email address",
 			Value: func(l *Limits) string { return l.IdleReplyTo },
 			set: func(l *Limits, v string) error {

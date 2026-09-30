@@ -55,6 +55,11 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "migrate" {
 		os.Exit(runMigrateCommand(os.Args[2:]))
 	}
+	// `simple-host api-growth-backfill [LOG...]` fills the admin page's API
+	// growth counts from the traffic tables and old nginx logs (apigrowth.go).
+	if len(os.Args) > 1 && os.Args[1] == "api-growth-backfill" {
+		os.Exit(runAPIGrowthBackfill(os.Args[2:]))
+	}
 	// `simple-host settings --json` prints every setting (docs/advanced/).
 	if len(os.Args) > 1 && os.Args[1] == "settings" {
 		os.Exit(runSettingsCommand(os.Args[2:]))
@@ -331,6 +336,7 @@ func main() {
 	geo.Watch(time.Minute)
 	apiMetrics := handler.NewAPIMetrics(db, geo)
 	mux.Handle("GET /v1/admin/api-analytics", authMW(http.HandlerFunc(apiMetrics.AdminSummary)))
+	mux.Handle("GET /v1/admin/growth", authMW(http.HandlerFunc(apiMetrics.AdminGrowth)))
 
 	// Server-side visitor analytics: tail the nginx analytics log into daily
 	// aggregates. Off unless ANALYTICS_LOG is set (safe default for local dev).

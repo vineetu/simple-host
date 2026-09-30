@@ -146,6 +146,8 @@ var knobDocs = map[string]knobDoc{
 	"NETWORK_MONTHLY_ALLOWANCE_GB":     {"observability", "The box's free outbound data a month, in GB (1 TB = 1024 GB), which the admin page's network bar measures this month's outbound against. 10240 is Oracle Cloud Always Free's 10 TB. 0 hides the bar.", false, false},
 	"NETWORK_ALERT_PCT":                {"observability", "The share of NETWORK_MONTHLY_ALLOWANCE_GB at which the admin page's network bar turns amber, and the box's daily watch script sends its one alert of the month.", false, false},
 	"NETWORK_SAMPLE_MINUTES":           {"observability", "How often the box's network counters are added to the month's totals. The admin page adds the growth since the last sample itself, so this only bounds what a reboot can lose.", false, false},
+	"API_GROWTH_RETENTION_DAYS":        {"cleanup", "How long the admin page's API growth counts (calls per day by country and by kind, no addresses) are kept. Keep at least 183 for the 6-month view.", false, true},
+	"API_METRICS_FLUSH_SECONDS":        {"observability", "How often counted API calls are written to the database for the admin page's API traffic and growth. Calls counted since the last write are lost if the server stops abruptly.", false, true},
 
 	"AI_MAX_JOBS_PER_USER":   {"ai", "AI create: builds one person may run at once.", false, false},
 	"AI_MAX_JOBS":            {"ai", "AI create: builds running at once on the whole server.", false, false},

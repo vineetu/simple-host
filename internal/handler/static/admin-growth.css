@@ -1,0 +1,57 @@
+/* Admin > API > Growth (admin-growth.js). Page tokens come from /site.css;
+   the chart colours below are picked per theme, not flipped. Categorical
+   order: deploy, data, auth, connector, admin, other. */
+:root{
+  --g-1:#2a78d6;--g-2:#eb6834;--g-3:#1baf7a;--g-4:#eda100;--g-5:#e87ba4;--g-6:#008300;
+  --g-line:#2a78d6;
+  --g-seq-0:#e9edf3;--g-seq-1:#cde2fb;--g-seq-2:#9ec5f4;--g-seq-3:#5598e7;--g-seq-4:#256abf;--g-seq-5:#104281;
+  --g-stroke:#ffffff;
+}
+html[data-theme="dark"]{
+  --g-1:#3987e5;--g-2:#d95926;--g-3:#199e70;--g-4:#c98500;--g-5:#d55181;--g-6:#008300;
+  --g-line:#3987e5;
+  --g-seq-0:#1a2333;--g-seq-1:#104281;--g-seq-2:#1c5cab;--g-seq-3:#3987e5;--g-seq-4:#6da7ec;--g-seq-5:#b7d3f6;
+  --g-stroke:#020617;
+}
+.g-top{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;margin:6px 0 4px}
+.g-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;margin-top:12px}
+@media (min-width:760px){.g-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.g-card.wide{grid-column:1/-1}}
+.g-card{border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:14px 14px 10px;min-width:0}
+.g-card h3{font-size:14px;font-weight:600;color:var(--text-secondary);margin:0}
+.g-total{font-size:28px;font-weight:700;color:var(--text);line-height:1.2;font-variant-numeric:tabular-nums;margin-top:2px}
+.g-chg{font-size:13px;color:var(--text-secondary);margin-top:2px;min-height:18px}
+.g-chg b{font-weight:600;color:var(--text)}
+.g-chart{position:relative;margin-top:10px;width:100%;min-width:0;touch-action:pan-y}
+.g-chart svg{display:block;width:100%;height:auto;overflow:visible}
+.g-chart .ax{font-size:11px;fill:var(--text-secondary);font-variant-numeric:tabular-nums}
+.g-chart .grid{stroke:var(--border);stroke-width:1}
+.g-chart .base{stroke:var(--border-hi);stroke-width:1}
+.g-chart .hl{fill:var(--row-hi)}
+.g-cap{font-size:12px;color:var(--text-secondary);margin-top:4px}
+.g-legend{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px;font-size:13px;color:var(--text-secondary)}
+.g-legend span{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.g-legend i{width:10px;height:10px;border-radius:3px;display:inline-block;flex:none}
+.g-legend b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+.g-geo{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;margin-top:12px}
+@media (min-width:900px){.g-geo{grid-template-columns:minmax(0,2fr) minmax(240px,1fr)}}
+.g-map{position:relative;min-width:0}
+.g-map svg{display:block;width:100%;height:auto}
+.g-map path{stroke:var(--g-stroke);stroke-width:.5;cursor:pointer}
+.g-map path:hover,.g-map path.on{stroke:var(--text);stroke-width:1.2}
+.g-scale{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--text-secondary);font-variant-numeric:tabular-nums}
+.g-scale .sw{display:flex}
+.g-scale .sw i{width:22px;height:10px;display:block}
+.g-scale .sw i:first-child{border-radius:3px 0 0 3px}.g-scale .sw i:last-child{border-radius:0 3px 3px 0}
+ol.g-top10{list-style:none;margin:0;padding:0;font-size:14px}
+ol.g-top10 li{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:4px 8px;align-items:baseline;padding:7px 0;border-bottom:1px solid var(--border)}
+ol.g-top10 .rk{color:var(--text-secondary);font-size:12px;font-variant-numeric:tabular-nums}
+ol.g-top10 .nm{overflow-wrap:anywhere;color:var(--text)}
+ol.g-top10 .ct{font-variant-numeric:tabular-nums;color:var(--text);text-align:right}
+ol.g-top10 .ct small{color:var(--text-secondary);font-size:12px;margin-left:6px}
+ol.g-top10 .br{grid-column:2/-1;height:4px;border-radius:999px;background:var(--border);overflow:hidden}
+ol.g-top10 .br>div{height:100%;background:var(--g-line);border-radius:999px}
+.g-tip{position:fixed;z-index:60;pointer-events:none;max-width:min(280px,calc(100vw - 16px));background:var(--surface);color:var(--text);border:1px solid var(--border-hi);border-radius:8px;box-shadow:0 8px 24px rgba(2,6,23,.22);padding:8px 10px;font-size:13px;line-height:1.45;font-variant-numeric:tabular-nums}
+.g-tip .d{color:var(--text-secondary);font-size:12px}
+.g-tip .r{display:flex;justify-content:space-between;gap:14px}
+.g-tip .r i{width:8px;height:8px;border-radius:2px;display:inline-block;margin-right:6px}
+.g-busy{opacity:.55;transition:opacity .15s}
