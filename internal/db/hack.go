@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
@@ -761,6 +762,26 @@ func MoveParticipantToTeam(ctx context.Context, q Querier, eventID, userID, team
 	if m.Role != "participant" {
 		return EventTeam{}, ErrHackNotParticipant
 	}
+	dest, err := GetEventTeamBySlug(ctx, q, eventID, teamSlug)
+	if errors.Is(err, sql.ErrNoRows) {
+		return EventTeam{}, ErrHackTeamNotFound
+	}
+	if err != nil {
+		return EventTeam{}, err
+	}
+	if m.TeamID.Valid && m.TeamID.String == dest.ID {
+		return dest, nil
+	}
+	ids := []string{dest.ID}
+	if m.TeamID.Valid {
+		ids = append(ids, m.TeamID.String)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		if _, err := lockTeam(ctx, q, id); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return EventTeam{}, err
+		}
+	}
 	team, err := lockTeamBySlug(ctx, q, eventID, teamSlug)
 	if errors.Is(err, sql.ErrNoRows) {
 		return EventTeam{}, ErrHackTeamNotFound
@@ -768,15 +789,7 @@ func MoveParticipantToTeam(ctx context.Context, q Querier, eventID, userID, team
 	if err != nil {
 		return EventTeam{}, err
 	}
-	if m.TeamID.Valid && m.TeamID.String == team.ID {
-		return team, nil
-	}
 	old := m.TeamID
-	if old.Valid && old.String != team.ID {
-		if _, err := lockTeam(ctx, q, old.String); err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return EventTeam{}, err
-		}
-	}
 	n, err := CountTeamMembers(ctx, q, team.ID)
 	if err != nil {
 		return EventTeam{}, err
