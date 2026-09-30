@@ -1130,3 +1130,42 @@ func TestHackReviewRound3(t *testing.T) {
 		t.Fatalf("taken-down organiser: %q %v", code, err)
 	}
 }
+
+func TestHackReviewRound4(t *testing.T) {
+	// Every invisible character goes before team names are compared.
+	for _, name := range []string{"Ra‍ce Two", "Ra⁡ce Two", "Ra️ce Two", "Ra᠋ce Two", "Ra͏ce Two"} {
+		if got := stripInvisible(name); got != "Race Two" {
+			t.Errorf("stripInvisible(%q) = %q", name, got)
+		}
+	}
+	a := newHackApp(t)
+	org := a.newPerson(t, "r4org")
+	slug := uniqueSlug()
+	if r := a.createEvent(t, org, slug, nil); r.status != 201 {
+		t.Fatalf("create: %d %s", r.status, r.body)
+	}
+	t.Cleanup(func() { a.cleanupEvent(slug) })
+	a.openEvent(t, org, slug)
+	hackMode = true
+	t.Cleanup(func() { hackMode = false })
+	ctx := context.Background()
+	var holding string
+	if err := a.database.QueryRow(`SELECT account_id FROM events WHERE slug = $1`, slug).Scan(&holding); err != nil {
+		t.Fatal(err)
+	}
+	if held, err := hackHoldingAccount(ctx, a.database, strings.ToUpper(holding)); err != nil || !held {
+		t.Fatalf("upper-case holding id: %v %v", held, err)
+	}
+	// An organiser leaving with a taken-down event ends it, so a later
+	// restore cannot bring back an event nobody manages.
+	if _, err := a.database.Exec(`UPDATE events SET taken_down_at = now() WHERE slug = $1`, slug); err != nil {
+		t.Fatal(err)
+	}
+	if code, _, err := hackAccountDeleteBlock(ctx, a.database, a.userID(t, org)); err != nil || code != "" {
+		t.Fatalf("delete: %q %v", code, err)
+	}
+	var stage string
+	if err := a.database.QueryRow(`SELECT stage FROM events WHERE slug = $1`, slug).Scan(&stage); err != nil || stage != "archived" {
+		t.Fatalf("stage after organiser left: %q %v", stage, err)
+	}
+}

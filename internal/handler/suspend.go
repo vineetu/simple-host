@@ -286,7 +286,7 @@ func (h *SiteHandler) setUserSuspension(on bool) http.HandlerFunc {
 				return
 			}
 		}
-		id := r.PathValue("id")
+		id := strings.ToLower(strings.TrimSpace(r.PathValue("id")))
 		if !uuidShape.MatchString(id) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found"})
 			return

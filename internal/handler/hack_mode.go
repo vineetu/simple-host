@@ -248,6 +248,15 @@ func hackAccountDeleteBlock(ctx context.Context, q db.Querier, userID string) (c
 	if running {
 		return "organises_events", "you organise an event that has not ended; end it, or delete it while nobody has joined, before deleting the account", nil
 	}
+	// A taken-down event of theirs ends: restoring it later must not bring
+	// back a running event nobody can manage.
+	if _, err = q.ExecContext(ctx, `
+		UPDATE events e SET stage = 'archived', closed_at = COALESCE(e.closed_at, now()), updated_at = now()
+		  FROM event_members m
+		 WHERE m.event_id = e.id AND m.user_id = $1 AND m.role = 'organiser'
+		   AND e.taken_down_at IS NOT NULL AND e.stage <> 'archived'`, userID); err != nil {
+		return "", "", err
+	}
 	if _, err = q.ExecContext(ctx, `
 		UPDATE events e SET organiser_name = '', contact_email = '', updated_at = now()
 		  FROM event_members m
@@ -269,6 +278,6 @@ func hackHoldingAccount(ctx context.Context, q db.Querier, userID string) (bool,
 		return false, nil
 	}
 	var held bool
-	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM events WHERE account_id::text = $1)`, userID).Scan(&held)
+	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM events WHERE account_id::text = lower($1))`, userID).Scan(&held)
 	return held, err
 }

@@ -61,6 +61,7 @@
       border: 1px solid var(--border-hi); border-radius: 8px; background: var(--surface); color: var(--text); margin-top: 6px;
     }
     textarea.in { min-height: 120px; resize: vertical; line-height: 1.5; }
+    .ended-note { margin-bottom: 16px; }
     input.in:disabled, textarea.in:disabled, select.in:disabled { opacity: 0.55; cursor: not-allowed; background: var(--bg); }
     input.in:focus, textarea.in:focus, select.in:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
     .addr { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
@@ -338,7 +339,7 @@
       </section>
 
       <section class="panel" role="tabpanel" id="p-page" aria-labelledby="tab-page" hidden>
-        <p class="hint ended-note" hidden>The event has ended. Its page stays up, and you can still edit its text.</p>
+        <p class="hint ended-note" hidden>This event has ended. Its page stays up, and you can still edit its text.</p>
         <form id="page-form">
           <label class="fld" for="pg-title">Title
             <input class="in" id="pg-title" maxlength="120" required data-write>
@@ -400,7 +401,7 @@
       </section>
 
       <section class="panel" role="tabpanel" id="p-settings" aria-labelledby="tab-settings" hidden>
-        <p class="hint ended-note" hidden>The event has ended. You can still edit these details.</p>
+        <p class="hint ended-note" hidden>This event has ended. You can still edit these details.</p>
         <form id="set-form">
           <label class="fld" for="set-name">Your name (shown on the event page)
             <input class="in" id="set-name" maxlength="100" required data-write>
@@ -1637,11 +1638,14 @@
     var prev = currentEvent && currentEvent.event ? currentEvent.event.stage : '';
     setLive('');
     if (next === 'archived') {
+      if (stageBusy) return;
+      stageBusy = true;
       // People may have joined since the page loaded: read the count afresh.
       try {
         var fresh = await api('GET', '/v1/hack/events/' + encodeURIComponent(currentSlug));
         if (fresh.ok && fresh.data && fresh.data.organiser) { currentEvent.organiser = fresh.data.organiser; paintStats(fresh.data.organiser.counts); refreshDelete(); }
-      } catch (e) { if (stopped(e)) return; }
+      } catch (e) { if (stopped(e)) { stageBusy = false; return; } }
+      stageBusy = false;
       var cnt = (currentEvent && currentEvent.organiser && currentEvent.organiser.counts) || {};
       if (!(Number(cnt.participants) > 0)) { $('ov-stage').value = prev; setLive(ERRORS.archive_needs_participants, 'err', $('ov-stage').closest('label') || $('ov-stage')); return; }
       var ok = await window.shConfirm({ title: 'End this event?', body: "The event is over. This can't be undone.", confirmLabel: 'End', danger: true });

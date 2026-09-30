@@ -215,13 +215,6 @@ func (h *SiteHandler) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 500, errorResponse{Error: "internal server error"})
 		return
 	}
-	if held, herr := hackHoldingAccount(r.Context(), tx, id); herr != nil {
-		writeJSON(w, 500, errorResponse{Error: "internal server error"})
-		return
-	} else if held {
-		writeJSON(w, http.StatusConflict, errorResponse{Error: "this account holds an event and never signs in; manage the event from the admin Events tab", Code: "event_account"})
-		return
-	}
 	if acct.IsAdmin || acct.ID == h.adminUserID {
 		writeJSON(w, 400, errorResponse{Error: "cannot delete an admin account"})
 		return
@@ -278,6 +271,13 @@ func (h *SiteHandler) reissueAccountKey(w http.ResponseWriter, r *http.Request) 
 	}
 	if err != nil {
 		writeJSON(w, 500, errorResponse{Error: "internal server error"})
+		return
+	}
+	if held, herr := hackHoldingAccount(r.Context(), tx, id); herr != nil {
+		writeJSON(w, 500, errorResponse{Error: "internal server error"})
+		return
+	} else if held {
+		writeJSON(w, http.StatusConflict, errorResponse{Error: "this account holds an event and never signs in; manage the event from the admin Events tab", Code: "event_account"})
 		return
 	}
 	if admin || id == h.adminUserID {

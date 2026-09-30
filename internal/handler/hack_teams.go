@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/vsriram/simple-host/internal/db"
 )
@@ -576,13 +577,17 @@ func writeTeamNameTaken(w http.ResponseWriter) {
 	writeHackErr(w, http.StatusConflict, "team_name_taken", "another team already has that name")
 }
 
-// stripInvisible drops the marks that make two team names look identical
-// (soft hyphen, word joiner, direction marks, zero-width non-joiner); the
-// zero-width joiner stays for emoji sequences.
+// stripInvisible drops every character that is not seen (format
+// characters, variation selectors, fillers), so two team names that look the
+// same are the same name. An emoji sequence may lose its joiners: a
+// team name is a label, not a place for composed emoji.
 func stripInvisible(s string) string {
 	return strings.Map(func(r rune) rune {
-		switch r {
-		case 0x00AD, 0x2060, 0x200E, 0x200F, 0x200C, 0x034F, 0x061C, 0x180E:
+		switch {
+		case unicode.Is(unicode.Cf, r),
+			r >= 0xFE00 && r <= 0xFE0F, r >= 0xE0100 && r <= 0xE01EF,
+			r >= 0x180B && r <= 0x180F, r == 0x034F,
+			r == 0x115F, r == 0x1160, r == 0x3164, r == 0xFFA0:
 			return -1
 		}
 		return r
