@@ -77,7 +77,7 @@ measurement. Needs migration `v075-site-keep-versions.sql`.
 **Status: live.**
 
 **Site passcode (INTENT 2026-09-29). Status: flag** (`SITE_PASSCODES`, default on, needs
-`PASSCODE_ENC_KEY`; deployed off on simple-host.app until the address-families work ships). An
+`PASSCODE_ENC_KEY`; on at simple-host.app since 2026-09-30). An
 owner may put one passcode on a whole site (owner app "Passcode" dialog: set, "Make one for me",
 show, copy link and passcode, change, sign everyone out, remove; `PUT /v1/sites/{sitename}/lock`;
 MCP `set_site_passcode`, which asks the person first). Every address of the site (its site host,
