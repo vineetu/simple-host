@@ -134,6 +134,10 @@ func (h *HackHandler) putEntryScreenshot(w http.ResponseWriter, r *http.Request)
 	if _, ok := h.participantTeam(w, r, a); !ok {
 		return
 	}
+	if !h.shotWrites.allow(a.user.ID) {
+		writeJSON(w, http.StatusTooManyRequests, errorResponse{Error: "rate limit exceeded, slow down", Code: "rate_limited"})
+		return
+	}
 	data, mime, ok := readEntryImage(w, r)
 	if !ok {
 		return
@@ -487,12 +491,16 @@ func readEntryImage(w http.ResponseWriter, r *http.Request) ([]byte, string, boo
 		return nil, "", false
 	}
 	// A small file can declare an enormous picture; refuse one no screen
-	// needs (PNG and JPEG headers; WebP is bounded by its 14-bit fields).
-	if mime != "image/webp" {
-		if cfg, _, err := image.DecodeConfig(bytes.NewReader(data)); err != nil || cfg.Width > hackScreenshotMaxSide || cfg.Height > hackScreenshotMaxSide || cfg.Width < 1 || cfg.Height < 1 {
-			writeHackErr(w, http.StatusUnsupportedMediaType, "unsupported_image", "the screenshot must be a PNG, JPEG or WebP image at most 8000 pixels on a side")
-			return nil, "", false
-		}
+	// needs.
+	wd, ht, ok := 0, 0, false
+	if mime == "image/webp" {
+		wd, ht, ok = webpSize(data)
+	} else if cfg, _, err := image.DecodeConfig(bytes.NewReader(data)); err == nil {
+		wd, ht, ok = cfg.Width, cfg.Height, true
+	}
+	if !ok || wd < 1 || ht < 1 || wd > hackScreenshotMaxSide || ht > hackScreenshotMaxSide {
+		writeHackErr(w, http.StatusUnsupportedMediaType, "unsupported_image", "the screenshot must be a PNG, JPEG or WebP image at most 8000 pixels on a side")
+		return nil, "", false
 	}
 	return data, mime, true
 }
@@ -541,4 +549,30 @@ func (h *HackHandler) serveTeamScreenshot(w http.ResponseWriter, r *http.Request
 	w.Header().Set("Content-Disposition", "inline")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
+}
+
+// webpSize reads a WebP's canvas size from its first chunk: VP8X (extended),
+// VP8L (lossless) or VP8 (lossy). ok=false for anything else.
+func webpSize(b []byte) (w, h int, ok bool) {
+	if len(b) < 30 {
+		return 0, 0, false
+	}
+	switch string(b[12:16]) {
+	case "VP8X":
+		w = 1 + (int(b[24]) | int(b[25])<<8 | int(b[26])<<16)
+		h = 1 + (int(b[27]) | int(b[28])<<8 | int(b[29])<<16)
+		return w, h, true
+	case "VP8L":
+		if b[20] != 0x2f {
+			return 0, 0, false
+		}
+		v := uint32(b[21]) | uint32(b[22])<<8 | uint32(b[23])<<16 | uint32(b[24])<<24
+		return int(v&0x3fff) + 1, int(v>>14&0x3fff) + 1, true
+	case "VP8 ":
+		if b[23] != 0x9d || b[24] != 0x01 || b[25] != 0x2a {
+			return 0, 0, false
+		}
+		return int(uint16(b[26])|uint16(b[27])<<8) & 0x3fff, int(uint16(b[28])|uint16(b[29])<<8) & 0x3fff, true
+	}
+	return 0, 0, false
 }

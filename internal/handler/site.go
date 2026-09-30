@@ -1596,7 +1596,7 @@ func (h *SiteHandler) commitCreate(w http.ResponseWriter, r *http.Request, user 
 		}
 	}
 
-	writeJSON(w, http.StatusCreated, h.toSiteResponse(site, ""))
+	writeJSON(w, http.StatusCreated, h.siteResponseFor(user, site))
 	return false
 }
 
@@ -1759,7 +1759,7 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 	h.pruneVersions(r.Context(), site.ID, site.UserID, siteName, versionNumber, site.KeepVersions)
 
 	site.ActiveVersion = versionNumber
-	writeJSON(w, http.StatusOK, h.toSiteResponse(site, ""))
+	writeJSON(w, http.StatusOK, h.siteResponseFor(user, site))
 }
 
 // filesRequest is the JSON deploy body: a map of relative path -> file contents.
@@ -2110,7 +2110,7 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if site.ActiveVersion == req.VersionNumber {
-		writeJSON(w, http.StatusOK, h.toSiteResponse(site, ""))
+		writeJSON(w, http.StatusOK, h.siteResponseFor(user, site))
 		return
 	}
 
@@ -2183,7 +2183,7 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	site.ActiveVersion = req.VersionNumber
-	writeJSON(w, http.StatusOK, h.toSiteResponse(site, ""))
+	writeJSON(w, http.StatusOK, h.siteResponseFor(user, site))
 }
 
 // setVisibility toggles a site's showcase visibility ('public' | 'unlisted').
@@ -2501,6 +2501,16 @@ func archiveFilename(siteName string, body []byte) string {
 	}
 
 	return siteName + ".tar.gz"
+}
+
+// siteResponseFor is toSiteResponse for the caller: a team credential never
+// sees the event's internal account id.
+func (h *SiteHandler) siteResponseFor(user *db.User, site db.Site) siteResponse {
+	resp := h.toSiteResponse(site, "")
+	if user != nil && user.Team != nil {
+		resp.UserID = ""
+	}
+	return resp
 }
 
 func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {

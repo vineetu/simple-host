@@ -65,15 +65,24 @@ func (h *HackHandler) teamSiteJSONFrom(ev db.Event, team db.EventTeam, site *db.
 // teamList is what the organiser's and judges' lists read once per request
 // instead of once per team.
 type teamList struct {
-	states map[string]db.TeamWriteState
+	states  map[string]db.TeamWriteState
+	members map[string][]db.EventPerson // by team id
 	sites  map[string]db.Site // live sites of the holding account, by name
 	ready  bool
 }
 
 func (h *HackHandler) loadTeamList(ctx context.Context, ev db.Event) (teamList, error) {
 	h.pinDue(ctx, ev.ID)
-	tl := teamList{sites: map[string]db.Site{}, ready: h.teamSitesReady(ev.Slug)}
-	var err error
+	tl := teamList{sites: map[string]db.Site{}, members: map[string][]db.EventPerson{}, ready: h.teamSitesReady(ev.Slug)}
+	people, err := db.ListEventPeople(ctx, h.database, ev.ID)
+	if err != nil {
+		return tl, err
+	}
+	for _, p := range people {
+		if p.TeamID.Valid {
+			tl.members[p.TeamID.String] = append(tl.members[p.TeamID.String], p)
+		}
+	}
 	if tl.states, err = db.TeamWriteStatesForEvent(ctx, h.database, ev.ID); err != nil {
 		return tl, err
 	}
@@ -329,10 +338,7 @@ func (h *HackHandler) teamOrganiserFull(ctx context.Context, ev db.Event, team d
 
 // teamOrganiserFrom is the organiser's view of one team from a teamList.
 func (h *HackHandler) teamOrganiserFrom(ctx context.Context, ev db.Event, team db.EventTeam, tl teamList) (map[string]any, error) {
-	obj, err := h.teamOrganiserJSON(ctx, team)
-	if err != nil {
-		return nil, err
-	}
+	obj := teamOrganiserJSONFrom(team, tl.members[team.ID])
 	obj["site"] = h.teamSiteJSONFrom(ev, team, tl.site(team.Slug), tl.ready)
 	obj["deadline"], obj["frozen"], obj["extended"], obj["pinned_version"] = nil, false, false, nil
 	if st, ok := tl.states[team.ID]; ok {

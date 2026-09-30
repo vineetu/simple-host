@@ -163,7 +163,7 @@ func rfc3339Field(t *testing.T, v any) time.Time {
 var (
 	pngMagic  = pngOfSize(16, 10)
 	jpegMagic = tinyJPEG()
-	webpMagic = []byte("RIFF\x1a\x00\x00\x00WEBP")
+	webpMagic = []byte("RIFF\x16\x00\x00\x00WEBPVP8X\x0a\x00\x00\x00\x00\x00\x00\x00\x0f\x00\x00\x09\x00\x00")
 	gifMagic  = []byte("GIF89a")
 	svgBody   = []byte(`<svg xmlns="http://www.w3.org/2000/svg"><text>x</text></svg>`)
 )
@@ -352,6 +352,7 @@ func TestHackEntryIsolation(t *testing.T) {
 func TestHackEntryScreenshot(t *testing.T) {
 	w := newHackEntryWorld(t)
 	a := w.a
+	a.hack.shotWrites = newRateLimiter(1000, 1000) // this test uploads many times in a row
 	path := w.entryPath() + "/screenshot"
 	if r := a.at(t, "PUT", w.entryPath(), map[string]string{"title": "Kept"}, a.key(w.p1)); r.status != 200 {
 		t.Fatalf("title: %d %s", r.status, r.body)
@@ -652,4 +653,20 @@ func tinyJPEG() []byte {
 	var b bytes.Buffer
 	_ = jpeg.Encode(&b, image.NewRGBA(image.Rect(0, 0, 2, 2)), nil)
 	return b.Bytes()
+}
+
+func TestHackScreenshotWritesLimited(t *testing.T) {
+	w := newHackEntryWorld(t)
+	a := w.a
+	path := w.entryPath() + "/screenshot"
+	limited := false
+	for i := 0; i < 8; i++ {
+		if r := a.at(t, "PUT", path, string(pngMagic), a.key(w.p1)); r.status == 429 {
+			limited = true
+			break
+		}
+	}
+	if !limited {
+		t.Fatal("screenshot uploads not limited")
+	}
 }

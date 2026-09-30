@@ -74,6 +74,7 @@ type HackHandler struct {
 	codesUser     *rateLimiter // the same, per account
 	namesUser     *rateLimiter // event address checks, per account
 	entryWrites   *rateLimiter // entry and screenshot writes, per account
+	shotWrites    *rateLimiter // screenshot uploads, per account (2 MB each)
 	namePeer      func(ctx context.Context, name string) (bool, error)
 	usageFn       func(ctx context.Context) (int64, error)
 	// sites reaches the team sites (the SiteHandler; hack_sites.go). nil in
@@ -144,13 +145,14 @@ func NewHackHandler(database *sql.DB, publicBaseURL, siteDomain string) *HackHan
 		codesUser:     newRateLimiterFor(config.Active().RateEventCodesUser),
 		namesUser:     newRateLimiterFor(config.Active().RateEventNamesUser),
 		entryWrites:   newRateLimiter(30, 0.5),
+		shotWrites:    newRateLimiter(5, 0.1),
 	}
 	return h
 }
 
 // StartCleanup evicts idle rate-limit buckets; call once from the server.
 func (h *HackHandler) StartCleanup() {
-	for _, l := range []*rateLimiter{h.codesIP, h.codesUser, h.namesUser, h.entryWrites} {
+	for _, l := range []*rateLimiter{h.codesIP, h.codesUser, h.namesUser, h.entryWrites, h.shotWrites} {
 		l.startCleanup(10*time.Minute, 30*time.Minute)
 	}
 }

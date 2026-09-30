@@ -742,6 +742,11 @@ func TestHackM2ReviewRound2(t *testing.T) {
 	a.startTeam(t, slug, "Beta", p1)
 	r := a.on(t, "PUT", "", "/v1/hack/events/"+slug+"/entry/screenshot", string(big), p1.key)
 	wantTS(t, "huge image", r, 415, "unsupported_image")
+	hugeWebP := []byte("RIFF\x16\x00\x00\x00WEBPVP8X\x0a\x00\x00\x00\x00\x00\x00\x00\xff\x3f\x00\xff\x3f\x00")
+	wantTS(t, "huge webp", a.on(t, "PUT", "", "/v1/hack/events/"+slug+"/entry/screenshot", string(hugeWebP), p1.key), 415, "unsupported_image")
+	if w, h, ok := webpSize([]byte("RIFF\x16\x00\x00\x00WEBPVP8X\x0a\x00\x00\x00\x00\x00\x00\x00\x0f\x00\x00\x09\x00\x00")); !ok || w != 16 || h != 10 {
+		t.Fatalf("webp size %d %d %v", w, h, ok)
+	}
 }
 
 // pngOfSize is a PNG header declaring w x h (enough for DecodeConfig).

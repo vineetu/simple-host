@@ -153,6 +153,11 @@ func (h *HackHandler) teamOrganiserJSON(ctx context.Context, team db.EventTeam) 
 	if err != nil {
 		return nil, err
 	}
+	return teamOrganiserJSONFrom(team, people), nil
+}
+
+// teamOrganiserJSONFrom is teamOrganiserJSON with the members already read.
+func teamOrganiserJSONFrom(team db.EventTeam, people []db.EventPerson) map[string]any {
 	members := make([]map[string]any, 0, len(people))
 	for _, p := range people {
 		members = append(members, map[string]any{
@@ -167,12 +172,15 @@ func (h *HackHandler) teamOrganiserJSON(ctx context.Context, team db.EventTeam) 
 		"code":       team.Code,
 		"created_at": rfc3339Time(team.CreatedAt),
 		"members":    members,
-	}, nil
+	}
 }
 
 func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
 	if !ok {
+		return
+	}
+	if h.rateLimited(w, r, a.user.ID) {
 		return
 	}
 	if !participantTeamStages(a.event.Stage) {
@@ -366,6 +374,9 @@ func (h *HackHandler) joinTeam(w http.ResponseWriter, r *http.Request) {
 func (h *HackHandler) leaveTeam(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
 	if !ok {
+		return
+	}
+	if h.rateLimited(w, r, a.user.ID) {
 		return
 	}
 	if !participantTeamStages(a.event.Stage) {
