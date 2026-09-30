@@ -709,8 +709,17 @@ func TestHackAdmin(t *testing.T) {
 		t.Fatalf("admin list: %d %s", list.status, list.body)
 	}
 	found := false
-	for _, ev := range jsonArr(t, list) {
+	var listed struct {
+		Events []map[string]any `json:"events"`
+	}
+	if err := json.Unmarshal(list.body, &listed); err != nil {
+		t.Fatalf("admin list shape: %v %s", err, list.body)
+	}
+	for _, ev := range listed.Events {
 		if ev["slug"] == slug {
+			if ev["participants"] != float64(1) {
+				t.Fatalf("flat counts: %v", ev)
+			}
 			found = true
 			if ev["organiser_name"] != "Ada Lovelace" || ev["contact_email"] != "ada@example.com" {
 				t.Fatalf("organiser details: %v", ev)

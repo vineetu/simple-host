@@ -17499,11 +17499,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Events with organiser details",
-            "stage": null,
-            "counts": null,
-            "creator email": null,
-            "take-down": null
+            "description": "{\"events\": [...]}: every event with organiser details, stage, participants, teams and judges, creator email, take-down"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"

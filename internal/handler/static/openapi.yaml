@@ -7204,7 +7204,7 @@ paths:
       tags: [Hosted events]
       security: [{ apiKey: [] }]
       responses:
-        '200': { description: Events with organiser details, stage, counts, creator email, take-down }
+        '200': { description: '{"events": [...]}: every event with organiser details, stage, participants, teams and judges, creator email, take-down' }
         '404': { $ref: '#/components/responses/NotFound' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 

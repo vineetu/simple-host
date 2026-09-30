@@ -65,7 +65,7 @@
     <section>
       <h2>Projects</h2>
       <p>Projects appear here once teams publish.</p>
-      {{if gt .Teams 0}}<p>{{.Teams}} teams, {{.Participants}} participants</p>{{end}}
+      {{if gt .Teams 0}}<p>{{.Teams}} {{if eq .Teams 1}}team{{else}}teams{{end}}, {{.Participants}} {{if eq .Participants 1}}participant{{else}}participants{{end}}</p>{{end}}
     </section>
     {{end}}
   </main>

@@ -42,6 +42,9 @@ func (h *HackHandler) adminListEvents(w http.ResponseWriter, r *http.Request) {
 			"taken_down":            a.TakenDown(),
 			"taken_down_reason":     a.TakenDownReason,
 			"taken_down_at":         rfc3339UTC(a.TakenDownAt),
+			"participants":          a.Participants,
+			"teams":                 a.Teams,
+			"judges":                a.Judges,
 			"counts": map[string]int{
 				"participants": a.Participants,
 				"teams":        a.Teams,
@@ -49,7 +52,7 @@ func (h *HackHandler) adminListEvents(w http.ResponseWriter, r *http.Request) {
 			},
 		})
 	}
-	writeJSON(w, http.StatusOK, out)
+	writeJSON(w, http.StatusOK, map[string]any{"events": out})
 }
 
 func (h *HackHandler) adminTakeDown(w http.ResponseWriter, r *http.Request) {
