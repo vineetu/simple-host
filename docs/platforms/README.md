@@ -19,5 +19,5 @@ One diagram per layout, at the top of each guide:
 [Fly.io](https://simple-host.app/diagrams/fly.svg) ·
 [Render](https://simple-host.app/diagrams/render.svg).
 Enterprise on AWS has [its own](https://simple-host.app/diagrams/enterprise-aws.svg).
-Enterprise on DigitalOcean Kubernetes is a Helm chart and a 1-Click:
+Enterprise on DigitalOcean Kubernetes installs from a Helm chart, which a 1-Click wraps:
 [its guide](https://github.com/vineetu/simple-host-enterprise/blob/main/docs/cloud/digitalocean.md).
