@@ -19,6 +19,7 @@ const internalKeyTTL = 15 * time.Minute
 
 type internalCred struct {
 	userID  string
+	teamID  string // set: the person acts on their team's site only (hack_sites.go)
 	expires time.Time
 }
 
@@ -27,27 +28,51 @@ var internalKeys sync.Map // key -> internalCred
 // IssueInternalKey mints an in-process credential for userID. Call the
 // returned revoke when the request that needed it is done.
 func IssueInternalKey(userID string) (key string, revoke func(), err error) {
+	return issueInternal(userID, "")
+}
+
+// IssueInternalTeamKey mints an in-process credential that acts like a team
+// key of userID for teamID (a connector connection bound to a team site).
+func IssueInternalTeamKey(userID, teamID string) (key string, revoke func(), err error) {
+	return issueInternal(userID, teamID)
+}
+
+func issueInternal(userID, teamID string) (key string, revoke func(), err error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		return "", nil, err
 	}
 	key = internalKeyPrefix + hex.EncodeToString(b)
-	internalKeys.Store(key, internalCred{userID: userID, expires: time.Now().Add(internalKeyTTL)})
+	internalKeys.Store(key, internalCred{userID: userID, teamID: teamID, expires: time.Now().Add(internalKeyTTL)})
 	sweepInternalKeys()
 	return key, func() { internalKeys.Delete(key) }, nil
 }
 
 func lookupInternalKey(key string) (string, bool) {
+	c, ok := lookupInternalCred(key)
+	return c.userID, ok
+}
+
+func lookupInternalCred(key string) (internalCred, bool) {
 	v, ok := internalKeys.Load(key)
 	if !ok {
-		return "", false
+		return internalCred{}, false
 	}
 	c := v.(internalCred)
 	if time.Now().After(c.expires) {
 		internalKeys.Delete(key)
-		return "", false
+		return internalCred{}, false
 	}
-	return c.userID, true
+	return c, true
+}
+
+// lookupInternalTeamKey: key is a live internal credential bound to a team.
+func lookupInternalTeamKey(key string) (memberID, teamID string, ok bool) {
+	c, ok := lookupInternalCred(key)
+	if !ok || c.teamID == "" {
+		return "", "", false
+	}
+	return c.userID, c.teamID, true
 }
 
 // sweepInternalKeys drops expired entries; a revoke that never ran (a panic)

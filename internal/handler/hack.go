@@ -66,6 +66,36 @@ type HackHandler struct {
 	namesUser     *rateLimiter // event address checks, per account
 	namePeer      func(ctx context.Context, name string) (bool, error)
 	usageFn       func(ctx context.Context) (int64, error)
+	// sites reaches the team sites (the SiteHandler; hack_sites.go). nil in
+	// tests that do not need it: team addresses then count as not ready.
+	sites hackSiteHooks
+}
+
+// hackSiteHooks is what the events API needs of the site side.
+type hackSiteHooks interface {
+	TeamSitesReady(eventSlug string) bool
+	TeamSiteURL(eventSlug, teamSlug string) string
+	TeamSiteInfo(ctx context.Context, accountID, teamSlug string) (TeamSite, db.Site, error)
+	TeamPreviewLink(ctx context.Context, accountID, eventSlug, teamSlug string, n int) (string, time.Time, bool)
+	SetTeamSiteTakenDown(ctx context.Context, accountID, teamID, teamSlug string, on bool, reason string) error
+	TrashTeamSite(ctx context.Context, accountID, name string) error
+	RequestSiteCert(handle string)
+}
+
+// SetSites connects the team sites (hack_sites.go).
+func (h *HackHandler) SetSites(s hackSiteHooks) { h.sites = s }
+
+// teamSitesReady: the event's team addresses have their certificate.
+func (h *HackHandler) teamSitesReady(eventSlug string) bool {
+	return h.sites != nil && h.sites.TeamSitesReady(eventSlug)
+}
+
+// teamSiteURL is https://<team>.<event>.<SITE_DOMAIN>/.
+func (h *HackHandler) teamSiteURL(eventSlug, teamSlug string) string {
+	if h.sites != nil {
+		return h.sites.TeamSiteURL(eventSlug, teamSlug)
+	}
+	return "https://" + teamSlug + "." + eventSlug + "." + h.siteDomain + "/"
 }
 
 // NewHackHandler builds the hosted-events API. publicBaseURL is the apex

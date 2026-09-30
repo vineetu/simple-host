@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 // Sentinel errors for hosted events. Handlers map these to the HTTP contract.
@@ -55,6 +57,10 @@ type Event struct {
 	TakenDownReason      string
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
+	// M2 (hack2-team-sites.sql): which entry fields are required, and
+	// whether the public gallery is open.
+	EntryRequired []string
+	GalleryOpen   bool
 }
 
 // TakenDown reports whether the platform admin has taken the event down.
@@ -80,6 +86,12 @@ type EventTeam struct {
 	Code      string
 	CreatedBy sql.NullString
 	CreatedAt time.Time
+	// M2 (hack2-team-sites.sql).
+	DeadlineOverride    sql.NullTime
+	PinnedVersion       sql.NullInt64
+	PinnedAt            sql.NullTime
+	SiteTakenDownAt     sql.NullTime
+	SiteTakenDownReason string
 }
 
 const eventColumns = `
@@ -88,7 +100,8 @@ const eventColumns = `
 	tagline, about, rules, prizes, coc_text, time_zone, starts_at, ends_at,
 	team_size_max, join_code, judge_code, submission_deadline, results_visibility,
 	results_published_at, closed_at, removal_warned_at, sites_removed_at, keep_sites,
-	taken_down_at, taken_down_reason, created_at, updated_at`
+	taken_down_at, taken_down_reason, created_at, updated_at,
+	entry_required, gallery_open`
 
 func scanEvent(row *sql.Row) (Event, error) {
 	var e Event
@@ -99,6 +112,7 @@ func scanEvent(row *sql.Row) (Event, error) {
 		&e.TeamSizeMax, &e.JoinCode, &e.JudgeCode, &e.SubmissionDeadline, &e.ResultsVisibility,
 		&e.ResultsPublishedAt, &e.ClosedAt, &e.RemovalWarnedAt, &e.SitesRemovedAt, &e.KeepSites,
 		&e.TakenDownAt, &e.TakenDownReason, &e.CreatedAt, &e.UpdatedAt,
+		pq.Array(&e.EntryRequired), &e.GalleryOpen,
 	)
 	return e, err
 }
@@ -361,6 +375,7 @@ func scanEventRole(rows *sql.Rows) (Event, string, error) {
 		&e.TeamSizeMax, &e.JoinCode, &e.JudgeCode, &e.SubmissionDeadline, &e.ResultsVisibility,
 		&e.ResultsPublishedAt, &e.ClosedAt, &e.RemovalWarnedAt, &e.SitesRemovedAt, &e.KeepSites,
 		&e.TakenDownAt, &e.TakenDownReason, &e.CreatedAt, &e.UpdatedAt,
+		pq.Array(&e.EntryRequired), &e.GalleryOpen,
 		&role,
 	)
 	return e, role, err
@@ -400,6 +415,7 @@ func ListAdminEvents(ctx context.Context, q Querier) ([]AdminEvent, error) {
 			&a.TeamSizeMax, &a.JoinCode, &a.JudgeCode, &a.SubmissionDeadline, &a.ResultsVisibility,
 			&a.ResultsPublishedAt, &a.ClosedAt, &a.RemovalWarnedAt, &a.SitesRemovedAt, &a.KeepSites,
 			&a.TakenDownAt, &a.TakenDownReason, &a.CreatedAt, &a.UpdatedAt,
+			pq.Array(&a.EntryRequired), &a.GalleryOpen,
 			&a.CreatorEmail, &a.Participants, &a.Teams, &a.Judges,
 		)
 		if err != nil {
@@ -510,7 +526,8 @@ func ListParticipantsOnNoTeam(ctx context.Context, q Querier, eventID string) ([
 // ListEventTeams is every team of the event, oldest first.
 func ListEventTeams(ctx context.Context, q Querier, eventID string) ([]EventTeam, error) {
 	rows, err := queryContext(ctx, q, `
-		SELECT id, event_id, slug, name, code, created_by, created_at
+		SELECT id, event_id, slug, name, code, created_by, created_at,
+		deadline_override, pinned_version, pinned_at, site_taken_down_at, site_taken_down_reason
 		  FROM event_teams WHERE event_id = $1 ORDER BY created_at ASC`, eventID)
 	if err != nil {
 		return nil, err
@@ -529,34 +546,39 @@ func ListEventTeams(ctx context.Context, q Querier, eventID string) ([]EventTeam
 
 func scanTeam(row *sql.Row) (EventTeam, error) {
 	var t EventTeam
-	err := row.Scan(&t.ID, &t.EventID, &t.Slug, &t.Name, &t.Code, &t.CreatedBy, &t.CreatedAt)
+	err := row.Scan(&t.ID, &t.EventID, &t.Slug, &t.Name, &t.Code, &t.CreatedBy, &t.CreatedAt,
+		&t.DeadlineOverride, &t.PinnedVersion, &t.PinnedAt, &t.SiteTakenDownAt, &t.SiteTakenDownReason)
 	return t, err
 }
 
 func scanTeamRow(rows *sql.Rows) (EventTeam, error) {
 	var t EventTeam
-	err := rows.Scan(&t.ID, &t.EventID, &t.Slug, &t.Name, &t.Code, &t.CreatedBy, &t.CreatedAt)
+	err := rows.Scan(&t.ID, &t.EventID, &t.Slug, &t.Name, &t.Code, &t.CreatedBy, &t.CreatedAt,
+		&t.DeadlineOverride, &t.PinnedVersion, &t.PinnedAt, &t.SiteTakenDownAt, &t.SiteTakenDownReason)
 	return t, err
 }
 
 // GetEventTeamByID loads a team by primary key.
 func GetEventTeamByID(ctx context.Context, q Querier, teamID string) (EventTeam, error) {
 	return scanTeam(q.QueryRowContext(ctx, `
-		SELECT id, event_id, slug, name, code, created_by, created_at
+		SELECT id, event_id, slug, name, code, created_by, created_at,
+		deadline_override, pinned_version, pinned_at, site_taken_down_at, site_taken_down_reason
 		  FROM event_teams WHERE id = $1`, teamID))
 }
 
 // GetEventTeamBySlug loads a team of an event by its slug.
 func GetEventTeamBySlug(ctx context.Context, q Querier, eventID, slug string) (EventTeam, error) {
 	return scanTeam(q.QueryRowContext(ctx, `
-		SELECT id, event_id, slug, name, code, created_by, created_at
+		SELECT id, event_id, slug, name, code, created_by, created_at,
+		deadline_override, pinned_version, pinned_at, site_taken_down_at, site_taken_down_reason
 		  FROM event_teams WHERE event_id = $1 AND slug = $2`, eventID, slug))
 }
 
 // GetEventTeamByCode loads a team of an event by its (normalised) join code.
 func GetEventTeamByCode(ctx context.Context, q Querier, eventID, code string) (EventTeam, error) {
 	return scanTeam(q.QueryRowContext(ctx, `
-		SELECT id, event_id, slug, name, code, created_by, created_at
+		SELECT id, event_id, slug, name, code, created_by, created_at,
+		deadline_override, pinned_version, pinned_at, site_taken_down_at, site_taken_down_reason
 		  FROM event_teams WHERE event_id = $1 AND code = $2`, eventID, code))
 }
 
@@ -605,7 +627,8 @@ func InsertEventTeam(ctx context.Context, q Querier, eventID, slug, name, code, 
 	return scanTeam(q.QueryRowContext(ctx, `
 		INSERT INTO event_teams (event_id, slug, name, code, created_by)
 		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, event_id, slug, name, code, created_by, created_at`,
+		RETURNING id, event_id, slug, name, code, created_by, created_at,
+		deadline_override, pinned_version, pinned_at, site_taken_down_at, site_taken_down_reason`,
 		eventID, slug, name, code, createdBy))
 }
 
@@ -634,7 +657,8 @@ const memberForUpdate = `
 	  FROM event_members WHERE event_id = $1 AND user_id = $2 FOR UPDATE`
 
 const teamForUpdate = `
-	SELECT id, event_id, slug, name, code, created_by, created_at
+	SELECT id, event_id, slug, name, code, created_by, created_at,
+		deadline_override, pinned_version, pinned_at, site_taken_down_at, site_taken_down_reason
 	  FROM event_teams WHERE id = $1 FOR UPDATE`
 
 func lockMember(ctx context.Context, q Querier, eventID, userID string) (EventMember, error) {
@@ -647,13 +671,15 @@ func lockTeam(ctx context.Context, q Querier, teamID string) (EventTeam, error) 
 
 func lockTeamByCode(ctx context.Context, q Querier, eventID, code string) (EventTeam, error) {
 	return scanTeam(q.QueryRowContext(ctx, `
-		SELECT id, event_id, slug, name, code, created_by, created_at
+		SELECT id, event_id, slug, name, code, created_by, created_at,
+		deadline_override, pinned_version, pinned_at, site_taken_down_at, site_taken_down_reason
 		  FROM event_teams WHERE event_id = $1 AND code = $2 FOR UPDATE`, eventID, code))
 }
 
 func lockTeamBySlug(ctx context.Context, q Querier, eventID, slug string) (EventTeam, error) {
 	return scanTeam(q.QueryRowContext(ctx, `
-		SELECT id, event_id, slug, name, code, created_by, created_at
+		SELECT id, event_id, slug, name, code, created_by, created_at,
+		deadline_override, pinned_version, pinned_at, site_taken_down_at, site_taken_down_reason
 		  FROM event_teams WHERE event_id = $1 AND slug = $2 FOR UPDATE`, eventID, slug))
 }
 

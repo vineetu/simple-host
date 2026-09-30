@@ -102,6 +102,10 @@ func (h *SiteHandler) pruneVersions(ctx context.Context, siteID, userID, siteNam
 	if !ok {
 		return nil
 	}
+	// A team's deadline version stays whatever the retention (hack_sites.go).
+	if keepFrom = h.hackPinnedFloor(ctx, userID, siteName, keepFrom); keepFrom < 2 {
+		return nil
+	}
 	removed, err := db.PruneVersions(ctx, h.database, siteID, keepFrom, activeVersion)
 	if err != nil {
 		log.Printf("prune versions for %s: %v", siteName, err)

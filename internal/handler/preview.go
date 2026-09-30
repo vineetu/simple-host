@@ -104,6 +104,10 @@ func (h *SiteHandler) previewBase(site db.Site) (string, bool) {
 		return "", false
 	case h.siteHostLive(handle, site.Name):
 		return "https://" + h.siteHostFor(handle, site.Name) + "/" + previewPathSegment + "/", true
+	case hackMode:
+		// Person-path addresses are never served on the hackathon platform:
+		// a team's work lives on its own origin only.
+		return "", false
 	case h.personAddressFor(handle, site.Name):
 		return "https://" + h.personHostFor(handle) + "/" + site.Name + "/" + previewPathSegment + "/", true
 	}

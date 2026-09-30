@@ -69,13 +69,21 @@ func AddAPIKey(ctx context.Context, q Querier, userID, apiKey, name string) erro
 // in-process internal credential (see IssueInternalKey).
 func GetUserByAPIKey(ctx context.Context, db *sql.DB, apiKey string) (User, error) {
 	if strings.HasPrefix(apiKey, internalKeyPrefix) {
-		userID, ok := lookupInternalKey(apiKey)
+		c, ok := lookupInternalCred(apiKey)
 		if !ok {
 			return User{}, sql.ErrNoRows
 		}
-		u, err := GetUserByID(ctx, db, userID)
+		u, err := GetUserByID(ctx, db, c.userID)
 		if err == nil && u.Suspended {
 			return u, ErrAccountSuspended
+		}
+		if err == nil && c.teamID != "" {
+			// A connector connection bound to a team site (hack_sites.go).
+			id, terr := ResolveTeamIdentity(ctx, db, c.userID, c.teamID)
+			if terr != nil {
+				return User{}, terr
+			}
+			return actAsTeam(ctx, db, u, id)
 		}
 		return u, err
 	}
@@ -132,6 +140,22 @@ func GetUserByAPIKey(ctx context.Context, db *sql.DB, apiKey string) (User, erro
 	}
 	if err == nil {
 		touchAPIKey(ctx, db, user.KeyHash)
+	}
+	if err == nil && user.KeyScope == KeyScopeTeam {
+		// A member's team key: the event's holding account on the team's
+		// site, only while they are on that team (hack_sites.go).
+		teamID, memberID, terr := teamKeyBinding(ctx, db, user.KeyHash)
+		if terr == nil && memberID != user.ID {
+			terr = ErrTeamKeyInactive
+		}
+		if terr != nil {
+			return User{}, terr
+		}
+		id, terr := ResolveTeamIdentity(ctx, db, memberID, teamID)
+		if terr != nil {
+			return User{}, terr
+		}
+		return actAsTeam(ctx, db, user, id)
 	}
 	return user, err
 }

@@ -28,6 +28,10 @@ type User struct {
 	// Signup is where the account came from (see SetSignup). Loaded only by
 	// ListAllUsers, for the admin page.
 	Signup Signup
+	// Team is set when the request came with a team credential (hosted
+	// events, hack_sites.go): this User is then the event's holding account,
+	// acting on the one site Team.TeamSlug, for the person Team.MemberID.
+	Team *TeamIdentity
 }
 
 type Site struct {

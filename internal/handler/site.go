@@ -1451,7 +1451,7 @@ func (h *SiteHandler) commitCreate(w http.ResponseWriter, r *http.Request, user 
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
 		return false
 	}
-	if !hackNoPersonalSites(w, user.IsAdmin) {
+	if !hackNoPersonalSites(w, user) {
 		return false
 	}
 	// A guest-created users row has a NULL handle until owner-intent. First
@@ -1474,6 +1474,10 @@ func (h *SiteHandler) commitCreate(w http.ResponseWriter, r *http.Request, user 
 		return
 	}
 	defer tx.Rollback()
+
+	if !h.hackTeamTxGate(w, r, tx, user, siteName) {
+		return false
+	}
 
 	// Rename and first deploy must agree on the handle before constructing a URL.
 	if err := tx.QueryRowContext(r.Context(), "SELECT handle FROM users WHERE id = $1 FOR UPDATE", user.ID).Scan(&user.Handle); err != nil {
@@ -1663,6 +1667,10 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+
+	if !h.hackTeamTxGate(w, r, tx, user, siteName) {
 		return
 	}
 
@@ -1870,10 +1878,11 @@ func (h *SiteHandler) newSiteChecks(w http.ResponseWriter, r *http.Request, user
 	if !h.publishOnCreate(w, r) {
 		return false
 	}
-	if !hackNoPersonalSites(w, user.IsAdmin) {
+	if !hackNoPersonalSites(w, user) {
 		return false
 	}
-	if !user.IsAdmin {
+	// A team's site is one per team: the holding account has no site cap.
+	if !user.IsAdmin && user.Team == nil {
 		// Sites in Recently deleted count: delete-then-create must not
 		// get round the cap (their files are still on disk).
 		existing, err := db.CountSitesByUser(r.Context(), h.database, user.ID)
@@ -2123,6 +2132,10 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.hackTeamTxGate(w, r, tx, user, siteName) {
+		return
+	}
+
 	prev, err := db.SiteActiveVersion(r.Context(), tx, site.ID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -2226,6 +2239,16 @@ func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 		sites, err = db.ListAllSites(r.Context(), h.database)
 	} else {
 		sites, err = db.ListSitesByUser(r.Context(), h.database, user.ID)
+	}
+	// A team credential sees its team's site only, never the other teams'.
+	if err == nil && user.Team != nil {
+		kept := sites[:0]
+		for _, s := range sites {
+			if strings.EqualFold(s.Name, user.Team.TeamSlug) {
+				kept = append(kept, s)
+			}
+		}
+		sites = kept
 	}
 
 	if err != nil {

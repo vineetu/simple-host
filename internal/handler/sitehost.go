@@ -272,6 +272,12 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 				return
 			}
 		}
+		if !h.siteHostLiveOn(user.Handle.String, site.Name, base) && hackMode {
+			// The hackathon platform serves no person-path address to fall
+			// back to (hack_sites.go).
+			h.renderHackNotFound(w, r)
+			return
+		}
 		if !h.siteHostLiveOn(user.Handle.String, site.Name, base) {
 			// Reachable only when TLS was served for a person whose marker is
 			// missing (e.g. cleared by hand): serve the working address.

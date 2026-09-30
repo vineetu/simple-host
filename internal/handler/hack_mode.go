@@ -26,8 +26,8 @@ import (
 //   - <handle>.<SITE_DOMAIN> answers only for an event's holding account, and
 //     only with the server-rendered event page at "/" (serveHackEventHost);
 //     every other single-label name is our 404, never the legacy redirect.
-//   - Accounts own no personal sites: creating one is refused for everyone
-//     but the admin (team sites arrive with M2, through the event).
+//   - Accounts own no personal sites: a site is a team's, of the event's
+//     holding account, made only with a team credential (hack_sites.go).
 //   - An account's handle is never chosen or changed by its person: it is a
 //     random u-<hex> label, so sign-ups cannot squat event names.
 //   - Sign-in email says Simple Hack.
@@ -39,19 +39,6 @@ func SetHackMode(on bool) { hackMode = on }
 
 // HackMode reports whether this instance runs EVENTS=hosted.
 func HackMode() bool { return hackMode }
-
-// hackNoPersonalSites refuses a new site on the hackathon platform; false
-// after writing the answer.
-func hackNoPersonalSites(w http.ResponseWriter, isAdmin bool) bool {
-	if !hackMode || isAdmin {
-		return true
-	}
-	writeJSON(w, http.StatusForbidden, errorResponse{
-		Error: "sites on simple-hack.app belong to an event's teams; an account here has no sites of its own",
-		Code:  "no_personal_sites",
-	})
-	return false
-}
 
 // hackHandle is a new account's handle on the hackathon platform: a random
 // label nobody picks, so it can never be an event's name.
