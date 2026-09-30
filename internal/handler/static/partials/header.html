@@ -1,5 +1,20 @@
 <header class="sh-header">
     <div class="sh-bar">
+      {{if .Hack}}
+      <a class="sh-logo" href="{{.Base}}/">simple<b>·</b>hack</a>
+      <nav class="sh-nav" aria-label="Main">
+        <a href="https://simple-host.app/hackathons">Self-host</a>
+      </nav>
+      <a class="sh-signin" id="dash-link" href="{{.Base}}/signin" data-signed-in="Your events" data-signed-out="Sign in" data-href-in="{{.Base}}/events" data-href-out="{{.Base}}/signin">Sign in</a>
+      <button class="sh-signout" type="button" data-sh-signout>Sign out</button>
+      <div class="sh-acct">
+        <button class="sh-signin sh-acct-btn" id="sh-acct-btn" type="button" aria-expanded="false" aria-controls="sh-acct-menu">Your events<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+        <div class="sh-acct-menu" id="sh-acct-menu" hidden>
+          <a href="{{.Base}}/events">Your events</a>
+          <button type="button" data-sh-signout>Sign out</button>
+        </div>
+      </div>
+      {{else}}
       <a class="sh-logo" href="{{.Base}}/">simple<b>·</b>host</a>
       <nav class="sh-nav" aria-label="Main">
         {{- if .HackHome}}
@@ -9,7 +24,7 @@
         {{- end}}
         <a href="{{.Base}}/install.html"{{if eq .Current "install"}} aria-current="page"{{end}}>Get started</a>
       </nav>
-      <a class="sh-signin" id="dash-link" href="{{.Base}}/dashboard"{{if eq .Current "dashboard"}} aria-current="page"{{end}}>Sign in</a>
+      <a class="sh-signin" id="dash-link" href="{{.Base}}/dashboard" data-signed-in="Your sites" data-signed-out="Sign in"{{if eq .Current "dashboard"}} aria-current="page"{{end}}>Sign in</a>
       <button class="sh-signout" type="button" data-sh-signout>Sign out</button>
       <div class="sh-acct">
         <button class="sh-signin sh-acct-btn" id="sh-acct-btn" type="button" aria-expanded="false" aria-controls="sh-acct-menu">Your sites<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
@@ -18,6 +33,7 @@
           <button type="button" data-sh-signout>Sign out</button>
         </div>
       </div>
+      {{end}}
       <div class="sh-themes">
         <button class="sh-theme" id="theme-toggle" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="sh-theme-menu" aria-label="Theme"></button>
         <div class="sh-theme-menu" id="sh-theme-menu" role="menu" aria-label="Theme" hidden>
@@ -50,7 +66,9 @@
       var render = function () {
         var on = hasKey();
         header.classList.toggle('sh-authed', on);
-        dash.textContent = on ? 'Your sites' : 'Sign in';
+        dash.textContent = on ? (dash.getAttribute('data-signed-in') || 'Your sites') : (dash.getAttribute('data-signed-out') || 'Sign in');
+        var href = on ? dash.getAttribute('data-href-in') : dash.getAttribute('data-href-out');
+        if (href) dash.setAttribute('href', href);
         if (!on) setMenu(false);
         return on;
       };

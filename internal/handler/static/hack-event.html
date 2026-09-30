@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{.Title}} — simple-hack</title>
+  <link rel="icon" href="{{.AppURL}}/favicon.svg" type="image/svg+xml">
+  <!--sh:head-->{{hackMarker "head"}}
+  <style>
+    /* Tokens, base type and the header/footer live in /site.css. */
+    .wrap { max-width: 768px; margin: 0 auto; padding: 0 24px 48px; }
+    a { color: var(--accent); text-underline-offset: 3px; }
+    a:hover { color: var(--accent-hover); }
+    h1 { font-size: clamp(30px, 5vw, 44px); font-weight: 700; line-height: 1.1; letter-spacing: -.02em; color: var(--text); margin: 0 0 12px; overflow-wrap: anywhere; }
+    h2 { font-size: 22px; font-weight: 700; line-height: 1.2; letter-spacing: -.015em; color: var(--text); margin: 0 0 10px; }
+    .lede { font-size: 17px; color: var(--text); margin: 0 0 14px; overflow-wrap: anywhere; }
+    p { margin: 0 0 14px; color: var(--text-secondary); overflow-wrap: anywhere; }
+    .by, .when, .status { font-size: 15px; color: var(--text-secondary); margin: 0 0 8px; overflow-wrap: anywhere; }
+    .status { color: var(--text); font-weight: 600; margin-bottom: 22px; }
+    section { padding: 22px 0; border-top: 1px solid var(--border); }
+    section:first-of-type { margin-top: 8px; }
+    .hero { padding-top: 48px; }
+    @media (max-width: 640px) {
+      .wrap { padding: 0 20px 36px; }
+      .hero { padding-top: 36px; }
+      h2 { font-size: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <!--sh:header-->{{hackMarker "header"}}
+
+  <main class="wrap">
+    <div class="hero">
+      <h1>{{.Title}}</h1>
+      {{if .TakenDown}}
+      <p class="lede">This event has been taken down.</p>
+      {{if .TakenDownReason}}<p>{{.TakenDownReason}}</p>{{end}}
+      {{else}}
+      {{if .Tagline}}<p class="lede">{{.Tagline}}</p>{{end}}
+      {{if .OrganisedBy}}<p class="by">{{.OrganisedBy}}</p>{{end}}
+      {{if .DateLine}}<p class="when">{{.DateLine}}</p>{{end}}
+      {{if .Status}}<p class="status">{{.Status}}</p>{{end}}
+      {{end}}
+    </div>
+    {{if not .TakenDown}}
+    {{if .About}}
+    <section>
+      <h2>About</h2>
+      {{range .About}}<p>{{range $i, $line := .}}{{if $i}}<br>{{end}}{{$line}}{{end}}</p>{{end}}
+    </section>
+    {{end}}
+    {{if .Rules}}
+    <section>
+      <h2>Rules</h2>
+      {{range .Rules}}<p>{{range $i, $line := .}}{{if $i}}<br>{{end}}{{$line}}{{end}}</p>{{end}}
+    </section>
+    {{end}}
+    {{if .Prizes}}
+    <section>
+      <h2>Prizes</h2>
+      {{range .Prizes}}<p>{{range $i, $line := .}}{{if $i}}<br>{{end}}{{$line}}{{end}}</p>{{end}}
+    </section>
+    {{end}}
+    <section>
+      <h2>Projects</h2>
+      <p>Projects appear here once teams publish.</p>
+      {{if gt .Teams 0}}<p>{{.Teams}} teams, {{.Participants}} participants</p>{{end}}
+    </section>
+    {{end}}
+  </main>
+
+  <!--sh:footer-->{{hackMarker "footer"}}
+</body>
+</html>

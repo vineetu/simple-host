@@ -87,6 +87,16 @@ var (
 	}()
 )
 
+// hackChrome is set once at startup when this process is simple-hack.app
+// (EVENTS=hosted). Pages then render the hack header and footer.
+var hackChrome bool
+
+// SetHackChrome turns on simple-hack.app chrome. The integrator calls it
+// once at startup when EVENTS=hosted.
+func SetHackChrome(on bool) {
+	hackChrome = on
+}
+
 // chromeData is everything the partials vary on. Every field is drawn from a
 // small fixed set, so it is also a safe cache key.
 type chromeData struct {
@@ -100,7 +110,10 @@ type chromeData struct {
 	// HackHome is the hackathons page served as simple-hack.app's homepage.
 	// There "Home" would be a link back to this same page and "For hackathons"
 	// a second one, so Home points at the main product and the duplicate goes.
-	HackHome   bool
+	HackHome bool
+	// Hack is the simple-hack.app chrome. Set at startup via SetHackChrome
+	// when EVENTS=hosted; false leaves the header and footer as they are.
+	Hack       bool
 	CSSVersion string
 	// AskOn: the "Ask" assistants are on. AskPage is the page key of the
 	// path served, "" when it is not an assistant page.
@@ -153,6 +166,7 @@ func chromeDataFor(r *http.Request, base string) chromeData {
 		Base:         base,
 		Current:      current,
 		HackHome:     current == "hackathons" && strings.HasPrefix(host, "simple-hack."),
+		Hack:         hackChrome,
 		CSSVersion:   siteCSSVersion,
 		AskOn:        askEnabled,
 		AskPage:      askPageFor(r.URL.Path),
