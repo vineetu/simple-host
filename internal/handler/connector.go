@@ -131,8 +131,10 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		ServerName:     "simple-host",
 		Version:        skillVersion,
 		// An inline deploy carries the whole site in one message: the per-site
-		// limit, plus JSON/base64 overhead.
-		MaxBodyBytes: maxSiteArchiveSize*4/3 + (1 << 20),
+		// limit, plus JSON/base64 overhead. The largest any account has
+		// (MAX_ARCHIVE_MB_OVERRIDES), since the account is not known yet; the
+		// deploy route then holds each account to its own.
+		MaxBodyBytes: largestSiteLimit()*4/3 + (1 << 20),
 	})
 	return h
 }

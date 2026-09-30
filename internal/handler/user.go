@@ -369,6 +369,8 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 		n := maxSitesFor(r.Context(), h.database, user)
 		resp.MaxSites = &n
 	}
+	limit, _ := siteLimitFor(r.Context(), h.database, user)
+	resp.MaxSiteMB = statedSiteMB(limit)
 	if h.publicPage != nil && user.Handle.String != "" {
 		resp.PublicPage = h.publicPage(user.Handle.String)
 	}
@@ -392,6 +394,9 @@ type meResponse struct {
 	// MaxSites is the sites this account may hold (MAX_SITES_OVERRIDES, else
 	// MAX_SITES_PER_ACCOUNT); absent for admins, who have no limit.
 	MaxSites *int `json:"max_sites,omitempty"`
+	// MaxSiteMB is the largest site this account may deploy, in MB
+	// (MAX_ARCHIVE_MB_OVERRIDES, else MAX_ARCHIVE_MB). Admins too.
+	MaxSiteMB int `json:"max_site_mb"`
 	// Address is the state of the account's own site address
 	// (https://<site>.<handle>.<SITE_DOMAIN>/): ready, or waiting / failing
 	// with a rough time, while sites are at <handle>.<SITE_DOMAIN>/<site>/.

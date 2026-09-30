@@ -5,6 +5,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -59,21 +60,61 @@ func SetMaxEntries(n int) {
 }
 
 func deriveEntryCount() {
-	maxEntryCount = entryCeiling
-	if siteBudget <= 0 {
-		return
+	maxEntryCount = entriesFor(siteBudget)
+}
+
+// entriesFor is the file-count cap for a byte budget (0: none in force).
+func entriesFor(budget int64) int {
+	n := entryCeiling
+	if budget <= 0 {
+		return n
 	}
 	// A filesystem allocates at least one block per file, so 49,000 one-byte
 	// files occupy ~190 MB on a 4K filesystem while measuring 49 KB — the byte
 	// cap alone does not bound what a site costs on disk. One block per entry
 	// makes the budget hold.
-	if n := int(siteBudget / blockSize); n < maxEntryCount {
-		maxEntryCount = n
+	if b := int(budget / blockSize); b < n {
+		n = b
 	}
-	if maxEntryCount < 1 {
-		maxEntryCount = 1
+	if n < 1 {
+		n = 1
 	}
+	return n
 }
+
+// caps is one set of extraction caps: the instance's (current) or one
+// account's (capsFor).
+type caps struct {
+	total, file int64
+	entries     int
+}
+
+func current() caps { return caps{maxTotalUncompressedSize, maxFileSize, maxEntryCount} }
+
+// capsFor is the caps for a per-site budget in bytes, derived exactly as
+// SetSiteLimit derives the instance's: the budget bounds the total and any one
+// file, and the file count follows it. A budget of 0 or less is the instance's
+// caps; one above the ceiling is held to the ceiling.
+func capsFor(budget int64) caps {
+	if budget <= 0 {
+		return current()
+	}
+	if budget > ceilingBytes {
+		budget = ceilingBytes
+	}
+	return caps{budget, budget, entriesFor(budget)}
+}
+
+// ErrTooLarge marks an upload refused for its size or file count, so the
+// caller can answer 413 with the reason rather than "invalid archive".
+var ErrTooLarge = errors.New("over the site size limit")
+
+type sizeError string
+
+func (e sizeError) Error() string        { return string(e) }
+func (e sizeError) Is(target error) bool { return target == ErrTooLarge }
+
+func tooLarge(format string, args ...any) error { return sizeError(fmt.Sprintf(format, args...)) }
 
 // SetSiteLimit lowers the extraction caps to a per-site budget in bytes. Call
 // once at startup, before serving. Raising them above the built-in ceiling is
@@ -100,18 +141,30 @@ const (
 	maxPathLen   = 1024
 )
 
+// Extract unpacks an archive under the instance's caps.
 func Extract(r io.Reader, filename string) (map[string][]byte, error) {
+	return extract(r, filename, current())
+}
+
+// ExtractWithLimit unpacks an archive under a per-site budget in bytes (one
+// account's size limit) instead of the instance's: the total, any one file
+// and the file count are derived from it as SetSiteLimit derives them.
+func ExtractWithLimit(r io.Reader, filename string, budget int64) (map[string][]byte, error) {
+	return extract(r, filename, capsFor(budget))
+}
+
+func extract(r io.Reader, filename string, c caps) (map[string][]byte, error) {
 	switch {
 	case strings.HasSuffix(strings.ToLower(filename), ".tar.gz"):
-		return extractTarGz(r)
+		return extractTarGz(r, c)
 	case strings.HasSuffix(strings.ToLower(filename), ".zip"):
-		return extractZip(r)
+		return extractZip(r, c)
 	default:
 		return nil, fmt.Errorf("unsupported archive format: %s", filepath.Ext(filename))
 	}
 }
 
-func extractTarGz(r io.Reader) (map[string][]byte, error) {
+func extractTarGz(r io.Reader, c caps) (map[string][]byte, error) {
 	gzipReader, err := gzip.NewReader(r)
 	if err != nil {
 		return nil, fmt.Errorf("create gzip reader: %w", err)
@@ -151,11 +204,11 @@ func extractTarGz(r io.Reader) (map[string][]byte, error) {
 		}
 
 		count++
-		if count > maxEntryCount {
-			return nil, fmt.Errorf("archive exceeds %d entry limit", maxEntryCount)
+		if count > c.entries {
+			return nil, tooLarge("archive exceeds %d entry limit", c.entries)
 		}
 
-		content, err := readCapped(tarReader, totalSize)
+		content, err := readCapped(tarReader, totalSize, c)
 		if err != nil {
 			return nil, fmt.Errorf("read tar entry %q: %w", clean, err)
 		}
@@ -164,7 +217,7 @@ func extractTarGz(r io.Reader) (map[string][]byte, error) {
 	}
 }
 
-func extractZip(r io.Reader) (map[string][]byte, error) {
+func extractZip(r io.Reader, c caps) (map[string][]byte, error) {
 	archiveBytes, err := io.ReadAll(r)
 	if err != nil {
 		return nil, fmt.Errorf("read zip archive: %w", err)
@@ -198,8 +251,8 @@ func extractZip(r io.Reader) (map[string][]byte, error) {
 		}
 
 		count++
-		if count > maxEntryCount {
-			return nil, fmt.Errorf("archive exceeds %d entry limit", maxEntryCount)
+		if count > c.entries {
+			return nil, tooLarge("archive exceeds %d entry limit", c.entries)
 		}
 
 		reader, err := file.Open()
@@ -208,7 +261,7 @@ func extractZip(r io.Reader) (map[string][]byte, error) {
 		}
 		// Bound by bytes ACTUALLY read, never the zip's self-declared
 		// UncompressedSize64 (attacker-controlled — a decompression-bomb vector).
-		content, readErr := readCapped(reader, totalSize)
+		content, readErr := readCapped(reader, totalSize, c)
 		closeErr := reader.Close()
 		if readErr != nil {
 			return nil, fmt.Errorf("read zip entry %q: %w", clean, readErr)
@@ -226,9 +279,9 @@ func extractZip(r io.Reader) (map[string][]byte, error) {
 // readCapped reads at most the smaller of maxFileSize and the remaining total
 // budget, plus one byte to detect overflow. It never trusts any self-declared
 // entry size — the limit is enforced on bytes actually read.
-func readCapped(r io.Reader, alreadyRead int64) ([]byte, error) {
-	limit := maxFileSize
-	if remaining := maxTotalUncompressedSize - alreadyRead; remaining < limit {
+func readCapped(r io.Reader, alreadyRead int64, c caps) ([]byte, error) {
+	limit := c.file
+	if remaining := c.total - alreadyRead; remaining < limit {
 		limit = remaining
 	}
 	if limit < 0 {
@@ -240,8 +293,8 @@ func readCapped(r io.Reader, alreadyRead int64) ([]byte, error) {
 		return nil, err
 	}
 	if int64(len(content)) > limit {
-		return nil, fmt.Errorf("archive exceeds size limit (max %dMB per file, %dMB total)",
-			maxFileSize/(1024*1024), maxTotalUncompressedSize/(1024*1024))
+		return nil, tooLarge("archive exceeds size limit (max %dMB per file, %dMB total)",
+			c.file/(1024*1024), c.total/(1024*1024))
 	}
 	return content, nil
 }

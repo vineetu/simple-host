@@ -52,11 +52,15 @@ type Usage struct {
 	Message string `json:"message"`
 }
 
-// SiteUsage is one site's footprint on disk, versions included.
+// SiteUsage is one site's footprint on disk. Bytes is everything the site
+// holds (every kept version plus the live copy); LiveBytes is the live copy
+// alone (its `current` folder), which is what the per-site size limit is
+// about: a deploy is held to it, the kept versions are not.
 type SiteUsage struct {
-	UserID string `json:"user_id"`
-	Name   string `json:"name"`
-	Bytes  int64  `json:"bytes"`
+	UserID    string `json:"user_id"`
+	Name      string `json:"name"`
+	Bytes     int64  `json:"bytes"`
+	LiveBytes int64  `json:"live_bytes"`
 }
 
 // Disk reports the size and free space of the filesystem holding path.
@@ -120,6 +124,9 @@ func Measure(dataDir string, topN int) (Usage, error) {
 			sites[key] = site
 		}
 		site.Bytes += info.Size()
+		if len(segments) > 3 && segments[2] == "current" {
+			site.LiveBytes += info.Size()
+		}
 		usage.SiteBytes += info.Size()
 		return nil
 	})

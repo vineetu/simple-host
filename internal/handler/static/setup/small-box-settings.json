@@ -570,6 +570,20 @@
       "small_box": true
     },
     {
+      "name": "MAX_ARCHIVE_MB_OVERRIDES",
+      "group": "sites",
+      "description": "Accounts whose sites may be a different size than MAX_ARCHIVE_MB: comma-separated <handle>:<MB>, e.g. jot-transcribe:300 (1 to 500 each). It applies to new deploys only (a larger site already live stays up) and follows the handle like MAX_SITES_OVERRIDES. A proxy in front must accept bodies this large (4/3 of it for JSON and connector deploys), and the connector takes messages that large from every account, so keep values modest.",
+      "type": "int",
+      "default": "",
+      "min": 0,
+      "max": 0,
+      "unit": "handle:mb",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
       "name": "MAX_FILES_PER_SITE",
       "group": "sites",
       "description": "Files in one upload. It can only be lowered.",

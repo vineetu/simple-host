@@ -8,11 +8,23 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 )
 
 type DiskStorage struct {
 	dataDir string
+	// changes counts the writes that move what the site tree holds (a
+	// deploy, a promotion, a pruned version, a rename, delete or restore),
+	// so a cached size measurement can tell it is out of date.
+	changes atomic.Int64
 }
+
+// Changes is a counter that moves whenever this process adds, replaces or
+// removes site files. Only the ordering matters: a measurement taken at one
+// value is out of date once it moves.
+func (d *DiskStorage) Changes() int64 { return d.changes.Load() }
+
+func (d *DiskStorage) changed() { d.changes.Add(1) }
 
 func NewDiskStorage(dataDir string) (*DiskStorage, error) {
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
@@ -154,7 +166,12 @@ func (d *DiskStorage) UnbindDomain(domain string) error {
 	return nil
 }
 
-func (d *DiskStorage) WriteFiles(ctx context.Context, userID, siteName string, versionNum int, files map[string][]byte) error {
+func (d *DiskStorage) WriteFiles(ctx context.Context, userID, siteName string, versionNum int, files map[string][]byte) (err error) {
+	defer func() {
+		if err == nil {
+			d.changed()
+		}
+	}()
 	if !validPathKey(userID) {
 		return fmt.Errorf("invalid user id %q", userID)
 	}
@@ -208,7 +225,12 @@ func (d *DiskStorage) WriteFiles(ctx context.Context, userID, siteName string, v
 	return nil
 }
 
-func (d *DiskStorage) UpdateCurrent(userID, siteName string, versionNum int) error {
+func (d *DiskStorage) UpdateCurrent(userID, siteName string, versionNum int) (err error) {
+	defer func() {
+		if err == nil {
+			d.changed()
+		}
+	}()
 	if !validPathKey(userID) {
 		return fmt.Errorf("invalid user id %q", userID)
 	}
@@ -296,7 +318,12 @@ func (d *DiskStorage) EnsureHandleLink(handle, userID string) error {
 // RenameSite moves a site's directory and re-points every domains/<d> link of
 // the site (its custom domain and the earlier address it still serves while a
 // new one is pending). On failure everything is put back as it was.
-func (d *DiskStorage) RenameSite(userID, oldName, newName string, domains ...string) error {
+func (d *DiskStorage) RenameSite(userID, oldName, newName string, domains ...string) (err error) {
+	defer func() {
+		if err == nil {
+			d.changed()
+		}
+	}()
 	if !validPathKey(userID) || !validPathKey(oldName) || !validPathKey(newName) {
 		return fmt.Errorf("invalid site path")
 	}
@@ -348,7 +375,12 @@ func (d *DiskStorage) pointDomain(domain, userID, siteName string) error {
 // are reachable by path only (sites.<domain>/<handle>/<siteName>/). DeleteSite
 // still removes any pre-existing back-compat symlink so the tree self-cleans.
 
-func (d *DiskStorage) DeleteSite(userID, siteName string) error {
+func (d *DiskStorage) DeleteSite(userID, siteName string) (err error) {
+	defer func() {
+		if err == nil {
+			d.changed()
+		}
+	}()
 	if !validPathKey(userID) {
 		return fmt.Errorf("invalid user id %q", userID)
 	}
@@ -527,7 +559,12 @@ func (d *DiskStorage) RemoveHandleLinkOf(handle, userID string) error {
 // The database cascades on user_id, so deleting the row alone takes the site
 // rows with it and leaves the files behind, unreachable and unlistable, filling
 // the volume with content nobody can find to remove.
-func (d *DiskStorage) DeleteUser(userID, handle string) error {
+func (d *DiskStorage) DeleteUser(userID, handle string) (err error) {
+	defer func() {
+		if err == nil {
+			d.changed()
+		}
+	}()
 	if !validPathKey(userID) {
 		return fmt.Errorf("invalid user id %q", userID)
 	}
@@ -547,7 +584,12 @@ func (d *DiskStorage) DeleteUser(userID, handle string) error {
 //
 // A missing directory is success, not an error: retention runs after the
 // database rows are already gone, so a retry must be able to finish the job.
-func (d *DiskStorage) DeleteVersion(userID, siteName string, versionNum int) error {
+func (d *DiskStorage) DeleteVersion(userID, siteName string, versionNum int) (err error) {
+	defer func() {
+		if err == nil {
+			d.changed()
+		}
+	}()
 	if !validPathKey(userID) {
 		return fmt.Errorf("invalid user id %q", userID)
 	}

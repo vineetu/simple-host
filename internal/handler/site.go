@@ -1736,13 +1736,16 @@ type filesRequest struct {
 // ValidateExtensions). Returns the file map and a content digest for the version
 // row. On any error it has already written the HTTP response.
 func (h *SiteHandler) readJSONFiles(w http.ResponseWriter, r *http.Request, siteName string) (map[string][]byte, string, error) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxSiteArchiveSize)
+	limit, override := siteLimitFor(r.Context(), h.database, auth.GetUser(r.Context()))
+	// The body carries base64 for binary files (4/3 larger) and JSON around
+	// it; the files themselves are held to the limit once decoded.
+	r.Body = http.MaxBytesReader(w, r.Body, limit*4/3+(1<<20))
 
 	var req filesRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
-			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "request body too large"})
+			writeTooLarge(w, limit, "")
 			return nil, "", err
 		}
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid JSON body"})
@@ -1770,8 +1773,12 @@ func (h *SiteHandler) readJSONFiles(w http.ResponseWriter, r *http.Request, site
 		raw[path] = decoded
 	}
 
-	files, err := tarball.SanitizeFiles(raw)
+	files, err := tarball.SanitizeFilesWithLimit(raw, extractBudget(limit, override))
 	if err != nil {
+		if errors.Is(err, tarball.ErrTooLarge) {
+			writeTooLarge(w, limit, err.Error())
+			return nil, "", err
+		}
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
 		return nil, "", err
 	}
@@ -2261,9 +2268,10 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 		byUser[s.UserID] = append(byUser[s.UserID], m)
 	}
 
-	// Earlier handles, only needed to match MAX_SITES_OVERRIDES.
+	// Earlier handles, only needed to match MAX_SITES_OVERRIDES and
+	// MAX_ARCHIVE_MB_OVERRIDES.
 	var aliases map[string][]string
-	if config.Active().MaxSitesOverrides != "" {
+	if l := config.Active(); l.MaxSitesOverrides != "" || l.MaxArchiveOverrides != "" {
 		if aliases, err = db.HandleAliasesByUser(r.Context(), h.database); err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
@@ -2286,6 +2294,7 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 			"created_at":       u.CreatedAt,
 			"site_count":       len(list),
 			"max_sites":        maxSitesOf(u, aliases[u.ID]),
+			"max_site_mb":      siteLimitMBOf(u, aliases[u.ID]),
 			"sites":            list,
 			"suspended":        u.Suspended,
 			"suspended_reason": u.SuspendedReason,
@@ -2305,7 +2314,8 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 // extracts and validates the entries, and returns the files plus the hex
 // digest (recorded on the version row for integrity/audit).
 func (h *SiteHandler) readAndValidateFiles(w http.ResponseWriter, r *http.Request, siteName string) (map[string][]byte, string, error) {
-	body, err := readLimitedBody(w, r)
+	limit, override := siteLimitFor(r.Context(), h.database, auth.GetUser(r.Context()))
+	body, err := readLimitedBody(w, r, limit)
 	if err != nil {
 		return nil, "", err
 	}
@@ -2324,8 +2334,12 @@ func (h *SiteHandler) readAndValidateFiles(w http.ResponseWriter, r *http.Reques
 	}
 
 	filename := archiveFilename(siteName, body)
-	files, err := tarball.Extract(bytes.NewReader(body), filename)
+	files, err := tarball.ExtractWithLimit(bytes.NewReader(body), filename, extractBudget(limit, override))
 	if err != nil {
+		if errors.Is(err, tarball.ErrTooLarge) {
+			writeTooLarge(w, limit, err.Error())
+			return nil, "", err
+		}
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid site archive"})
 		return nil, "", err
 	}
@@ -2338,14 +2352,14 @@ func (h *SiteHandler) readAndValidateFiles(w http.ResponseWriter, r *http.Reques
 	return files, digest, nil
 }
 
-func readLimitedBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxSiteArchiveSize)
+func readLimitedBody(w http.ResponseWriter, r *http.Request, limit int64) ([]byte, error) {
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
-			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "request body too large"})
+			writeTooLarge(w, limit, "")
 			return nil, err
 		}
 
@@ -2359,6 +2373,28 @@ func readLimitedBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
 	}
 
 	return body, nil
+}
+
+// writeTooLarge answers 413 for an upload over this account's per-site limit
+// (siteLimitFor), naming the limit; detail is what exceeded it, when known.
+func writeTooLarge(w http.ResponseWriter, limit int64, detail string) {
+	msg := "request body too large"
+	if detail != "" {
+		msg = detail
+	}
+	writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{
+		Error: fmt.Sprintf("%s: a site on this account may be at most %d MB", msg, statedSiteMB(limit)),
+		Code:  "site_too_large",
+	})
+}
+
+// extractBudget is the byte budget the unpacked files are held to: the
+// account's own limit when it has an override, else 0, the instance's caps.
+func extractBudget(limit int64, override bool) int64 {
+	if override {
+		return limit
+	}
+	return 0
 }
 
 func archiveFilename(siteName string, body []byte) string {

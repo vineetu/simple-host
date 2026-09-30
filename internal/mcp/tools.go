@@ -189,6 +189,7 @@ var codeHints = map[string]string{
 	"name_reserved":      "That name is reserved by Simple Host and cannot be used. Ask the person for a different name.",
 	"invalid_domain":     "That is not a domain that can be connected. Send a bare hostname the person owns (e.g. shop.example.com or example.com), or a free <name>.simple-host.site address.",
 	"site_quota_reached": "This account has as many sites as it may hold. Tell the person; a site must be deleted (delete_site) before another can be created. Do not retry.",
+	"site_too_large":     "The site is bigger than this account may deploy (the error names the limit). Make it smaller (shrink or drop large images, video and unused files) and deploy again, or tell the person; do not retry the same files.",
 	"append_only": "Items in a public list cannot be edited; only a private list allows that. The owner can still remove one (delete_collection_item) or empty the list (clear_collection). " +
 		"If the person wants to edit items, make the list private with set_collection_privacy; otherwise tell them.",
 	"custom_domain_required":      "This needs the site to have its own address first. Give it one with connect_domain (a free <name>.simple-host.site is active at once), then call again.",

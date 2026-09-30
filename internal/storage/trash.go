@@ -22,7 +22,12 @@ func (d *DiskStorage) TrashDir(userID, siteID string) string {
 
 // TrashSite moves a site's files to the deleted area. A site with no files on
 // disk (never promoted) is fine.
-func (d *DiskStorage) TrashSite(userID, siteName, siteID string) error {
+func (d *DiskStorage) TrashSite(userID, siteName, siteID string) (err error) {
+	defer func() {
+		if err == nil {
+			d.changed()
+		}
+	}()
 	if !validPathKey(userID) || !validPathKey(siteName) || !validPathKey(siteID) {
 		return fmt.Errorf("invalid site path")
 	}
@@ -45,7 +50,12 @@ func (d *DiskStorage) TrashSite(userID, siteName, siteID string) error {
 
 // RestoreSite moves a deleted site's files back to where they are served.
 // Refuses to clobber an existing site directory.
-func (d *DiskStorage) RestoreSite(userID, siteName, siteID string) error {
+func (d *DiskStorage) RestoreSite(userID, siteName, siteID string) (err error) {
+	defer func() {
+		if err == nil {
+			d.changed()
+		}
+	}()
 	if !validPathKey(userID) || !validPathKey(siteName) || !validPathKey(siteID) {
 		return fmt.Errorf("invalid site path")
 	}
@@ -91,7 +101,12 @@ func (d *DiskStorage) SetTrashedSuspended(userID, siteID string, on bool) error 
 }
 
 // PurgeTrashedSite removes a deleted site's files for good. Missing is fine.
-func (d *DiskStorage) PurgeTrashedSite(userID, siteID string) error {
+func (d *DiskStorage) PurgeTrashedSite(userID, siteID string) (err error) {
+	defer func() {
+		if err == nil {
+			d.changed()
+		}
+	}()
 	if !validPathKey(userID) || !validPathKey(siteID) {
 		return fmt.Errorf("invalid site path")
 	}

@@ -43,7 +43,7 @@ func TestRestErrorHintFollowsTheCode(t *testing.T) {
 // Every code the handlers send has a hint here, so none falls back silently.
 func TestEveryKnownCodeHasAHint(t *testing.T) {
 	for _, code := range []string{"site_exists", "domain_taken", "invalid_name", "name_reserved", "invalid_domain",
-		"site_quota_reached", "append_only", "custom_domain_required", "private_visitor_only", "private_needs_own_domain",
+		"site_quota_reached", "site_too_large", "append_only", "custom_domain_required", "private_visitor_only", "private_needs_own_domain",
 		"use_custom_domain", "visitor_auth_required", "not_an_object", "not_found", "missing_api_key", "invalid_api_key",
 		"invalid_token", "site_suspended", "account_suspended"} {
 		if codeHint(code) == "" {

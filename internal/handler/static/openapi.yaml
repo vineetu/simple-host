@@ -531,6 +531,7 @@ paths:
                   is_admin: { type: boolean }
                   signin_alerts: { type: boolean, description: "Whether an email follows each sign-in or app connection (PATCH /v1/me to change)." }
                   max_sites: { type: integer, description: "Sites this account may hold (sites in Recently deleted count; one more is 403 site_quota_reached): the instance's MAX_SITES_PER_ACCOUNT, or the account's own MAX_SITES_OVERRIDES entry. Absent for admins, who have no limit." }
+                  max_site_mb: { type: integer, description: "Largest site this account may deploy, in MB (an upload or its unpacked files over it is 413 site_too_large): the instance's MAX_ARCHIVE_MB, or the account's own MAX_ARCHIVE_MB_OVERRIDES entry. A site already larger stays up." }
                   address: { $ref: '#/components/schemas/AddressState' }
         '401': { $ref: '#/components/responses/Unauthorized' }
     delete:
@@ -4991,7 +4992,8 @@ paths:
         people or sites will fit: the sites on the instance this was built for have a median size
         of 25 KB against a 100 MB per-site cap, so any figure derived from the cap is wrong by
         three orders of magnitude. status is ok, filling (75% or more) or full (90% or more).
-        The underlying walk is cached for two minutes. `?sizes=1` adds `site_sizes`, every site's
+        The underlying walk is cached for two minutes, and never served once site files have changed
+        (a deploy, a pruned version, a delete) or it is ten minutes old: that request walks again. `?sizes=1` adds `site_sizes`, every site's
         footprint from the same walk (the admin page's Sites table). Non-admin callers receive 404.
       tags: [Admin]
       security: [{ apiKey: [] }]
@@ -5013,13 +5015,14 @@ paths:
                   site_bytes: { type: integer, description: Site files specifically, every retained version included }
                   sites: { type: integer }
                   accounts: { type: integer, description: Participant accounts, or -1 if the count could not be read }
-                  site_limit_mb: { type: integer, description: Per-site cap in force }
+                  site_limit_mb: { type: integer, description: "Per-site cap in force (MAX_ARCHIVE_MB); accounts in MAX_ARCHIVE_MB_OVERRIDES have their own (max_site_mb in GET /v1/admin/users)" }
+                  site_limit_overrides: { type: object, nullable: true, additionalProperties: { type: integer }, description: "MAX_ARCHIVE_MB_OVERRIDES as handle to MB; null when no account has its own" }
                   keep_versions: { type: integer, description: 'Deploys of each site kept (KEEP_VERSIONS in force); 0 keeps every one' }
                   version: { type: string, description: 'Release this server was built from, e.g. v0.3.0; "dev" for an unstamped build' }
                   commit: { type: string, description: 'Short commit hash of the build, or "unknown"' }
                   status: { type: string, enum: [ok, filling, full] }
                   message: { type: string, description: One sentence for an admin screen }
-                  measured_at: { type: string, format: date-time, description: When the walk behind these figures ran. Readings up to two minutes old are served while a refresh runs behind the request }
+                  measured_at: { type: string, format: date-time, description: "When the walk behind these figures ran. A reading from two to ten minutes old, with no site files changed since, is served while a refresh runs behind the request" }
                   largest:
                     type: array
                     description: The ten biggest sites, largest first, so a full disk has a visible cause
@@ -5028,7 +5031,8 @@ paths:
                       properties:
                         user_id: { type: string }
                         name: { type: string }
-                        bytes: { type: integer }
+                        bytes: { type: integer, description: Everything the site holds on disk, every kept version plus the live copy }
+                        live_bytes: { type: integer, description: The live copy alone (what visitors are served, and what the per-site limit is about) }
                   site_sizes:
                     type: array
                     description: 'Only with ?sizes=1: every site on disk (every retained version included), in no order'
@@ -5037,7 +5041,8 @@ paths:
                       properties:
                         user_id: { type: string }
                         name: { type: string }
-                        bytes: { type: integer }
+                        bytes: { type: integer, description: Everything the site holds on disk, every kept version plus the live copy }
+                        live_bytes: { type: integer, description: The live copy alone (what visitors are served, and what the per-site limit is about) }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404':
           description: Caller is not an admin
@@ -5138,6 +5143,7 @@ paths:
                         created_at: { type: string, format: date-time }
                         site_count: { type: integer }
                         max_sites: { type: integer, description: "Sites this account may hold (its MAX_SITES_OVERRIDES entry, else MAX_SITES_PER_ACCOUNT); absent for admins" }
+                        max_site_mb: { type: integer, description: "Largest site this account may deploy, in MB (its MAX_ARCHIVE_MB_OVERRIDES entry, else MAX_ARCHIVE_MB)" }
                         suspended: { type: boolean, description: The operator has suspended this account }
                         suspended_reason: { type: string }
                         signup_source:
@@ -7004,7 +7010,7 @@ components:
     Forbidden: { description: Admin access required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     NotFound: { description: Not found, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     Conflict: { description: "Conflict: the code says which (site_exists, domain_taken, append_only, custom_domain_required, not_an_object)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-    TooLarge: { description: "Payload too large (on saved data, code item_too_large)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    TooLarge: { description: "Payload too large (on saved data, code item_too_large; on a deploy, code site_too_large: the upload or its unpacked files are over the account's per-site limit, max_site_mb in GET /v1/me)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     TooManyRequests: { description: "Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     SiteFull: { description: "The write would grow the site's live saved data (the page-data document plus live list items; history and Recently deleted are not counted) past 50 MB (SAVED_DATA_SITE_MAX_MB) (code site_full). Writes that do not grow it always go through; deleting list items or clearing a list makes room at once.", content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: "this site's saved data is full (50 MB of page data and list items); the owner can delete list items or clear lists to make room", code: site_full } } } }
     OriginMismatch: { description: "Origin/Referer is not one of the site's own addresses (code origin_not_allowed). An agent or script sends the site owner's X-API-Key and no Origin or Referer, which needs no page.", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }

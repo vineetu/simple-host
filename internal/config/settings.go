@@ -96,6 +96,7 @@ var knobDocs = map[string]knobDoc{
 
 	"MAX_SITES_PER_ACCOUNT":    {"sites", "Sites one account may hold (sites in Recently deleted count).", false, true},
 	"MAX_SITES_OVERRIDES":      {"sites", "Accounts that may hold a different number of sites than MAX_SITES_PER_ACCOUNT: comma-separated <handle>:<sites>, e.g. chhotabreak:2000 (1 to 100000 each). It follows the handle: an account that changes its handle keeps its override under the old one.", false, true},
+	"MAX_ARCHIVE_MB_OVERRIDES": {"sites", "Accounts whose sites may be a different size than MAX_ARCHIVE_MB: comma-separated <handle>:<MB>, e.g. jot-transcribe:300 (1 to 500 each). It applies to new deploys only (a larger site already live stays up) and follows the handle like MAX_SITES_OVERRIDES. A proxy in front must accept bodies this large (4/3 of it for JSON and connector deploys), and the connector takes messages that large from every account, so keep values modest.", false, true},
 	"MAX_FILES_PER_SITE":       {"sites", "Files in one upload. It can only be lowered.", false, true},
 	"PREVIEW_LINK_TTL_MINUTES": {"sites", "How long a preview link to a stored version works.", true, true},
 	"EXPORT_LINK_TTL_MINUTES":  {"sites", "How long a site download link works (it holds private lists too).", true, true},

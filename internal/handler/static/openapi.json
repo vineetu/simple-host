@@ -960,6 +960,10 @@
                       "type": "integer",
                       "description": "Sites this account may hold (sites in Recently deleted count; one more is 403 site_quota_reached): the instance's MAX_SITES_PER_ACCOUNT, or the account's own MAX_SITES_OVERRIDES entry. Absent for admins, who have no limit."
                     },
+                    "max_site_mb": {
+                      "type": "integer",
+                      "description": "Largest site this account may deploy, in MB (an upload or its unpacked files over it is 413 site_too_large): the instance's MAX_ARCHIVE_MB, or the account's own MAX_ARCHIVE_MB_OVERRIDES entry. A site already larger stays up."
+                    },
                     "address": {
                       "$ref": "#/components/schemas/AddressState"
                     }
@@ -12403,7 +12407,7 @@
       "get": {
         "operationId": "getInstanceUsage",
         "summary": "What this instance is using, and what is left (admin only)",
-        "description": "Measured from the filesystem, not projected. There is deliberately no estimate of how many people or sites will fit: the sites on the instance this was built for have a median size of 25 KB against a 100 MB per-site cap, so any figure derived from the cap is wrong by three orders of magnitude. status is ok, filling (75% or more) or full (90% or more). The underlying walk is cached for two minutes. `?sizes=1` adds `site_sizes`, every site's footprint from the same walk (the admin page's Sites table). Non-admin callers receive 404.",
+        "description": "Measured from the filesystem, not projected. There is deliberately no estimate of how many people or sites will fit: the sites on the instance this was built for have a median size of 25 KB against a 100 MB per-site cap, so any figure derived from the cap is wrong by three orders of magnitude. status is ok, filling (75% or more) or full (90% or more). The underlying walk is cached for two minutes, and never served once site files have changed (a deploy, a pruned version, a delete) or it is ten minutes old: that request walks again. `?sizes=1` adds `site_sizes`, every site's footprint from the same walk (the admin page's Sites table). Non-admin callers receive 404.",
         "tags": [
           "Admin"
         ],
@@ -12475,7 +12479,15 @@
                     },
                     "site_limit_mb": {
                       "type": "integer",
-                      "description": "Per-site cap in force"
+                      "description": "Per-site cap in force (MAX_ARCHIVE_MB); accounts in MAX_ARCHIVE_MB_OVERRIDES have their own (max_site_mb in GET /v1/admin/users)"
+                    },
+                    "site_limit_overrides": {
+                      "type": "object",
+                      "nullable": true,
+                      "additionalProperties": {
+                        "type": "integer"
+                      },
+                      "description": "MAX_ARCHIVE_MB_OVERRIDES as handle to MB; null when no account has its own"
                     },
                     "keep_versions": {
                       "type": "integer",
@@ -12504,7 +12516,7 @@
                     "measured_at": {
                       "type": "string",
                       "format": "date-time",
-                      "description": "When the walk behind these figures ran. Readings up to two minutes old are served while a refresh runs behind the request"
+                      "description": "When the walk behind these figures ran. A reading from two to ten minutes old, with no site files changed since, is served while a refresh runs behind the request"
                     },
                     "largest": {
                       "type": "array",
@@ -12519,7 +12531,14 @@
                             "type": "string"
                           },
                           "bytes": {
-                            "type": "integer"
+                            "type": "integer",
+                            "description": "Everything the site holds on disk",
+                            "every kept version plus the live copy": null
+                          },
+                          "live_bytes": {
+                            "type": "integer",
+                            "description": "The live copy alone (what visitors are served",
+                            "and what the per-site limit is about)": null
                           }
                         }
                       }
@@ -12537,7 +12556,14 @@
                             "type": "string"
                           },
                           "bytes": {
-                            "type": "integer"
+                            "type": "integer",
+                            "description": "Everything the site holds on disk",
+                            "every kept version plus the live copy": null
+                          },
+                          "live_bytes": {
+                            "type": "integer",
+                            "description": "The live copy alone (what visitors are served",
+                            "and what the per-site limit is about)": null
                           }
                         }
                       }
@@ -12738,6 +12764,10 @@
                           "max_sites": {
                             "type": "integer",
                             "description": "Sites this account may hold (its MAX_SITES_OVERRIDES entry, else MAX_SITES_PER_ACCOUNT); absent for admins"
+                          },
+                          "max_site_mb": {
+                            "type": "integer",
+                            "description": "Largest site this account may deploy, in MB (its MAX_ARCHIVE_MB_OVERRIDES entry, else MAX_ARCHIVE_MB)"
                           },
                           "suspended": {
                             "type": "boolean",
@@ -17023,7 +17053,7 @@
         }
       },
       "TooLarge": {
-        "description": "Payload too large (on saved data, code item_too_large)",
+        "description": "Payload too large (on saved data, code item_too_large; on a deploy, code site_too_large: the upload or its unpacked files are over the account's per-site limit, max_site_mb in GET /v1/me)",
         "content": {
           "application/json": {
             "schema": {

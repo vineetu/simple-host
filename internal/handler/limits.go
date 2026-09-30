@@ -73,11 +73,71 @@ func maxSitesFor(ctx context.Context, database *sql.DB, user *db.User) int {
 	if l.MaxSitesOverrides == "" || user == nil {
 		return l.MaxSitesPerAccount
 	}
+	return l.MaxSitesFor(accountHandles(ctx, database, user)...)
+}
+
+// siteLimitFor is the largest site this account may deploy, in bytes: its
+// MAX_ARCHIVE_MB_OVERRIDES entry (matched like MAX_SITES_OVERRIDES, against
+// its current handle and then its earlier ones), else MAX_ARCHIVE_MB. It caps
+// the upload body and the unpacked files alike. Admins are not exempt (they
+// never were). Only new uploads are held to it: a site already larger stays
+// up and keeps its versions.
+//
+// override says an entry matched. Without one the unpacked files stay under
+// the instance's own extractor caps (tarball.Extract), which are not derived
+// from MAX_ARCHIVE_MB when it is unset (500 MB total, 100 MB a file).
+func siteLimitFor(ctx context.Context, database *sql.DB, user *db.User) (limit int64, override bool) {
+	l := config.Active()
+	if l.MaxArchiveOverrides == "" || user == nil {
+		return maxSiteArchiveSize, false
+	}
+	if mb, ok := l.ArchiveOverrideMB(accountHandles(ctx, database, user)...); ok {
+		return int64(mb) << 20, true
+	}
+	return maxSiteArchiveSize, false
+}
+
+// statedSiteMB is a per-site limit as it is reported: in MB, and never above
+// what the extractor will take (config.MaxArchiveCeilingMB), which is where a
+// MAX_ARCHIVE_MB above it really stops.
+func statedSiteMB(limit int64) int {
+	if mb := int(limit >> 20); mb < config.MaxArchiveCeilingMB {
+		return mb
+	}
+	return config.MaxArchiveCeilingMB
+}
+
+// siteLimitMBOf is siteLimitFor as reported, with the account's earlier
+// handles already read (the admin list reads them all at once).
+func siteLimitMBOf(u db.User, aliases []string) int {
+	if mb, ok := config.Active().ArchiveOverrideMB(append([]string{u.Handle.String}, aliases...)...); ok {
+		return statedSiteMB(int64(mb) << 20)
+	}
+	return statedSiteMB(maxSiteArchiveSize)
+}
+
+// largestSiteLimit is the largest per-site cap any account has (MAX_ARCHIVE_MB
+// or an override above it), for caps that sit in front of the account being
+// known, like the connector's message size.
+func largestSiteLimit() int64 {
+	max := maxSiteArchiveSize
+	for _, mb := range config.Active().ArchiveOverrides() {
+		if b := int64(mb) << 20; b > max {
+			max = b
+		}
+	}
+	return max
+}
+
+// accountHandles is the account's current handle and then its earlier ones,
+// which is how the per-account overrides are matched. A failed alias read
+// falls back to the current handle alone.
+func accountHandles(ctx context.Context, database *sql.DB, user *db.User) []string {
 	handles := []string{user.Handle.String}
 	if aliases, err := db.ListHandleAliases(ctx, database, user.ID); err == nil {
 		handles = append(handles, aliases...)
 	}
-	return l.MaxSitesFor(handles...)
+	return handles
 }
 
 func previewLinkTTL() time.Duration { return config.Active().PreviewLinkTTL }

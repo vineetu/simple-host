@@ -7,7 +7,9 @@ Recently deleted (see [Cleanup and retention](cleanup-and-retention.md)).
 
 **Size.** `MAX_ARCHIVE_MB` bounds one upload and one site. It is a guard against one upload
 filling a disk, not a budget: the median site on simple-host.app is about 25 KB. A proxy in front
-needs its own body limit raised to match.
+needs its own body limit raised to match. `MAX_ARCHIVE_MB_OVERRIDES` gives named accounts their
+own size; it holds new deploys only, so a larger site already live stays up. The admin page shows
+each site's live copy (what the limit is about) and its total on disk (with kept versions).
 
 **Versions kept.** Every version is a full copy of the site, so on a small disk the history,
 not the sites, is what fills it. The installer keeps one version (no rollback); simple-host.app
@@ -42,6 +44,7 @@ one. `nginx-suspended-marker.sh` adds both to every block that serves a site fol
 |---|---|---|---|
 | `MAX_SITES_PER_ACCOUNT` | `100` | 1–100000 sites | Sites one account may hold (sites in Recently deleted count). |
 | `MAX_SITES_OVERRIDES` | none | handle:sites | Accounts that may hold a different number of sites than MAX_SITES_PER_ACCOUNT: comma-separated <handle>:<sites>, e.g. chhotabreak:2000 (1 to 100000 each). It follows the handle: an account that changes its handle keeps its override under the old one. |
+| `MAX_ARCHIVE_MB_OVERRIDES` | none | 0–0 handle:mb | Accounts whose sites may be a different size than MAX_ARCHIVE_MB: comma-separated <handle>:<MB>, e.g. jot-transcribe:300 (1 to 500 each). It applies to new deploys only (a larger site already live stays up) and follows the handle like MAX_SITES_OVERRIDES. A proxy in front must accept bodies this large (4/3 of it for JSON and connector deploys), and the connector takes messages that large from every account, so keep values modest. |
 | `MAX_FILES_PER_SITE` | `50000` | 100–50000 files | Files in one upload. It can only be lowered. |
 | `PREVIEW_LINK_TTL_MINUTES` | `60` | 5–10080 minutes | How long a preview link to a stored version works. **Security-sensitive.** |
 | `EXPORT_LINK_TTL_MINUTES` | `10` | 1–60 minutes | How long a site download link works (it holds private lists too). **Security-sensitive.** |

@@ -180,8 +180,8 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
       </div>
     </div>
     <div class="sec">
-      <h2>Biggest websites</h2>
-      <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th class="num" style="width:1%">#</th><th>Website</th><th>Owner</th><th class="num">Size</th></tr></thead><tbody id="ov-biggest"><tr><td colspan="4" class="empty">Measuring…</td></tr></tbody></table></div>
+      <h2 title="Ranked by size on disk: the live copy plus every kept version">Biggest websites</h2>
+      <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th class="num" style="width:1%">#</th><th>Website</th><th>Owner</th><th class="num" title="The copy visitors are served; the per-site limit is about this">Live</th><th class="num" title="Live copy plus every kept version">On disk</th></tr></thead><tbody id="ov-biggest"><tr><td colspan="5" class="empty">Measuring…</td></tr></tbody></table></div>
     </div>
   </section>
 
@@ -217,7 +217,8 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
       <div class="tbl-wrap"><table class="t nowrap" id="s-table"><thead><tr>
         <th data-sort="name"><button type="button" class="th-btn" data-sort="name">Site <span aria-hidden="true"></span></button></th>
         <th data-sort="owner"><button type="button" class="th-btn" data-sort="owner">Owner <span aria-hidden="true"></span></button></th>
-        <th data-sort="size" class="num"><button type="button" class="th-btn" data-sort="size">Size <span aria-hidden="true"></span></button></th>
+        <th data-sort="size" class="num" title="The copy visitors are served; the per-site limit is about this"><button type="button" class="th-btn" data-sort="size">Live <span aria-hidden="true"></span></button></th>
+        <th data-sort="disk" class="num" title="Live copy plus every kept version"><button type="button" class="th-btn" data-sort="disk">On disk <span aria-hidden="true"></span></button></th>
         <th data-sort="updated"><button type="button" class="th-btn" data-sort="updated">Last updated <span aria-hidden="true"></span></button></th>
         <th>Visibility</th><th>Status</th><th>Own address</th><th><span class="muted">Actions</span></th>
       </tr></thead><tbody id="s-rows"></tbody></table></div>
@@ -369,8 +370,8 @@ function indexData(data){
 function applySizes(){
   if(!D.usage||!D.usage.site_sizes) return;
   var m={};
-  D.usage.site_sizes.forEach(function(x){ m[x.user_id+'/'+x.name]=x.bytes; });
-  D.sites.forEach(function(s){ var b=m[s.owner.id+'/'+s.name]; s.size=b==null?null:b; });
+  D.usage.site_sizes.forEach(function(x){ m[x.user_id+'/'+x.name]=x; });
+  D.sites.forEach(function(s){ var x=m[s.owner.id+'/'+s.name]; s.size=x?x.live_bytes||0:null; s.disk=x?x.bytes:null; });
 }
 // One request at a time; a failure is remembered (the tabs show it once, with
 // a Try again) instead of being retried on every render.
@@ -522,7 +523,7 @@ function renderOverview(){
   }).join('')||'<tr><td colspan="4" class="empty">Nobody yet.</td></tr>';
 
   if(u) renderDisk();
-  else if(D.usageFailed){ $('ov-biggest').innerHTML='<tr><td colspan="4" class="empty">'+usageErr+'</td></tr>'; }
+  else if(D.usageFailed){ $('ov-biggest').innerHTML='<tr><td colspan="5" class="empty">'+usageErr+'</td></tr>'; }
   else needUsage('overview', renderOverview);
 }
 function renderDisk(){
@@ -534,12 +535,13 @@ function renderDisk(){
   note.className='ph'+(d.status==='ok'?'':' '+d.status);
   var age='';
   if(d.measured_at){ var secs=Math.max(0,Math.round((Date.now()-new Date(d.measured_at))/1000)); age=secs<90?'':' Measured '+Math.round(secs/60)+' minutes ago.'; }
-  note.textContent=d.message+' Websites are capped at '+d.site_limit_mb+' MB each.'+age;
+  var ov=Object.keys(d.site_limit_overrides||{}).sort().map(function(h){ return h+' '+d.site_limit_overrides[h]+' MB'; });
+  note.textContent=d.message+' Websites are capped at '+d.site_limit_mb+' MB each'+(ov.length?' (own limit: '+ov.join(', ')+')':'')+'.'+age;
   var top=(d.largest||[]).slice(0,10);
   $('ov-biggest').innerHTML=top.map(function(t,i){
     var o=D.byId[t.user_id];
-    return '<tr><td class="num">'+(i+1)+'</td><td>'+esc(t.name)+'</td><td>'+(o?esc(o.handle||o.username):'<span class="muted">—</span>')+'</td><td class="num">'+bytes(t.bytes)+'</td></tr>';
-  }).join('')||'<tr><td colspan="4" class="empty">No websites yet.</td></tr>';
+    return '<tr><td class="num">'+(i+1)+'</td><td>'+esc(t.name)+'</td><td>'+(o?esc(o.handle||o.username):'<span class="muted">—</span>')+'</td><td class="num">'+bytes(t.live_bytes||0)+'</td><td class="num">'+bytes(t.bytes)+'</td></tr>';
+  }).join('')||'<tr><td colspan="5" class="empty">No websites yet.</td></tr>';
 }
 
 // ---------------------------------------------------------------- users
@@ -587,7 +589,7 @@ function userPanel(u){
       '<button type="button" class="btn danger sm" data-delete-id="'+esc(u.id)+'" data-name="'+esc(u.username)+'">Delete account</button>'+
       '<button type="button" class="btn ghost sm" data-goto-sites="'+esc(u.handle||u.username)+'">Open in Sites</button></div>';
   }
-  var meta='<div class="muted" style="font-size:13px;margin-bottom:6px">'+esc(u.username)+(u.display_name?' · '+esc(u.display_name):'')+' · joined '+esc(dateOf(u.created_at))+(u.is_admin?'':' · source: '+sourceCell(u))+(u.max_sites?' · '+(u.site_count||0)+' of '+u.max_sites+' sites':'')+'</div>';
+  var meta='<div class="muted" style="font-size:13px;margin-bottom:6px">'+esc(u.username)+(u.display_name?' · '+esc(u.display_name):'')+' · joined '+esc(dateOf(u.created_at))+(u.is_admin?'':' · source: '+sourceCell(u))+(u.max_sites?' · '+(u.site_count||0)+' of '+u.max_sites+' sites':'')+(u.max_site_mb?' · up to '+u.max_site_mb+' MB each':'')+'</div>';
   return meta+why+list+acts+famPanel(u);
 }
 $('u-search').addEventListener('input', function(){ US.q=this.value; US.page=0; renderUsers(); });
@@ -737,11 +739,13 @@ function siteRows(){
     name:function(s){ return s.name.toLowerCase(); },
     owner:function(s){ return String(s.owner.handle||s.owner.username).toLowerCase(); },
     size:function(s){ return s.size==null?-1:s.size; },
+    disk:function(s){ return s.disk==null?-1:s.disk; },
     updated:function(s){ return new Date(updatedAt(s)).getTime()||0; }
   }[SS.sort];
   rows.sort(function(a,b){ var x=key(a), y=key(b); return (x<y?-1:x>y?1:0)*SS.dir || (new Date(updatedAt(b))-new Date(updatedAt(a))); });
   return rows;
 }
+function sizeCell(b){ return b==null?'<span class="muted">'+(D.usage||D.usageFailed?'—':'…')+'</span>':bytes(b); }
 function renderSites(){
   needUsage('sites', renderSites);
   var rows=siteRows();
@@ -759,12 +763,12 @@ function renderSites(){
     var fam=s.family_address?esc(hostOf(s.family_address))+' <span class="muted">· family</span>':'';
     var dom=s.custom_domain?esc(s.custom_domain)+(s.domain_status&&s.domain_status!=='active'?' <span class="muted">· '+esc(s.domain_status)+'</span>':'')+(fam?'<div class="sub">'+fam+'</div>':''):(fam||'<span class="muted">—</span>');
     return '<tr data-site="'+esc(s.id)+'"><td>'+link+'</td><td>'+esc(o.handle||o.username)+'</td>'+
-      '<td class="num">'+(s.size==null?'<span class="muted">'+(D.usage||D.usageFailed?'—':'…')+'</span>':bytes(s.size))+'</td>'+
+      '<td class="num">'+sizeCell(s.size)+'</td><td class="num">'+sizeCell(s.disk)+'</td>'+
       '<td>'+esc(dateOf(updatedAt(s)))+' <span class="muted ago">· '+esc(ago(updatedAt(s)))+'</span></td>'+
       '<td>'+esc(s.visibility||'')+'</td><td>'+siteStatus(s)+'</td><td>'+dom+'</td>'+
       '<td><button type="button" class="more" aria-haspopup="menu" aria-expanded="false" aria-label="Actions for '+esc(s.name)+'" data-menu="'+esc(s.id)+'">&#8943;</button></td></tr>'+
-      (p?'<tr class="detail"><td colspan="8"><div class="panel-inner" id="sp-'+esc(s.id)+'">'+(p.html||'Loading…')+'</div></td></tr>':'');
-  }).join('')||'<tr><td colspan="8" class="empty">No site matches.</td></tr>';
+      (p?'<tr class="detail"><td colspan="9"><div class="panel-inner" id="sp-'+esc(s.id)+'">'+(p.html||'Loading…')+'</div></td></tr>':'');
+  }).join('')||'<tr><td colspan="9" class="empty">No site matches.</td></tr>';
   pager('s-pager', SS, rows.length, renderSites);
 }
 $('s-search').addEventListener('input', function(){ SS.q=this.value; SS.page=0; renderSites(); });

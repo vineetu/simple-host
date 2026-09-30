@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -34,4 +35,38 @@ func TestRenameSiteMovesFilesAndDomain(t *testing.T) {
 	if err != nil || target != filepath.Join("..", "by-id", "user-id", "after") {
 		t.Fatalf("domain target = %q, %v", target, err)
 	}
+}
+
+// Changes moves on every write that alters what the site tree holds, so the
+// admin size report can tell its cached reading is out of date.
+func TestChangesMovesOnSiteWrites(t *testing.T) {
+	d, err := NewDiskStorage(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	last := d.Changes()
+	moved := func(what string) {
+		t.Helper()
+		if now := d.Changes(); now <= last {
+			t.Errorf("%s did not move Changes (%d)", what, now)
+		} else {
+			last = now
+		}
+	}
+	if err := d.WriteFiles(context.Background(), "user-1", "site", 1, map[string][]byte{"index.html": []byte("x")}); err != nil {
+		t.Fatal(err)
+	}
+	moved("WriteFiles")
+	if err := d.UpdateCurrent("user-1", "site", 1); err != nil {
+		t.Fatal(err)
+	}
+	moved("UpdateCurrent")
+	if err := d.DeleteVersion("user-1", "site", 1); err != nil {
+		t.Fatal(err)
+	}
+	moved("DeleteVersion")
+	if err := d.DeleteSite("user-1", "site"); err != nil {
+		t.Fatal(err)
+	}
+	moved("DeleteSite")
 }

@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -261,5 +262,55 @@ func TestSetMaxEntries(t *testing.T) {
 	SetMaxEntries(0) // ignored
 	if MaxEntries() != 1_000 {
 		t.Errorf("SetMaxEntries(0) changed the cap to %d", MaxEntries())
+	}
+}
+
+// ExtractWithLimit and SanitizeFilesWithLimit hold one upload to a per-site
+// budget (an account's MAX_ARCHIVE_MB_OVERRIDES) without moving the
+// instance's caps, and mark a refusal ErrTooLarge.
+func TestPerCallLimit(t *testing.T) {
+	restore := SnapshotLimits()
+	defer restore()
+	SetSiteLimit(1 << 20)
+
+	files := map[string][]byte{"index.html": []byte("<h1>x</h1>"), "big.bin": make([]byte, 2<<20)}
+	archive := makeTarGz(t, []tarEntry{{name: "index.html", content: files["index.html"]}, {name: "big.bin", content: files["big.bin"]}})
+
+	if _, err := Extract(bytes.NewReader(archive), "s.tar.gz"); !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("instance cap 1 MB: err = %v, want ErrTooLarge", err)
+	}
+	if got, err := ExtractWithLimit(bytes.NewReader(archive), "s.tar.gz", 3<<20); err != nil || len(got["big.bin"]) != 2<<20 {
+		t.Fatalf("budget 3 MB: err = %v", err)
+	}
+	if _, err := ExtractWithLimit(bytes.NewReader(archive), "s.tar.gz", 1<<20); !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("budget 1 MB: err = %v, want ErrTooLarge", err)
+	}
+	if _, err := SanitizeFilesWithLimit(files, 3<<20); err != nil {
+		t.Fatalf("sanitize 3 MB: %v", err)
+	}
+	if _, err := SanitizeFilesWithLimit(files, 1<<20); !errors.Is(err, ErrTooLarge) || !strings.Contains(err.Error(), "exceeds 1MB limit") {
+		t.Fatalf("sanitize 1 MB: err = %v", err)
+	}
+	if _, err := SanitizeFiles(files); !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("sanitize at the instance cap: err = %v", err)
+	}
+	// The instance's caps did not move.
+	if !SiteLimitIs(1 << 20) {
+		t.Fatal("a per-call budget moved the instance caps")
+	}
+	// Derived like SetSiteLimit: the file count follows the budget, and a
+	// budget above the ceiling is held to it.
+	if c := capsFor(40 * blockSize); c.entries != 40 || c.total != 40*blockSize {
+		t.Fatalf("capsFor(40 blocks) = %+v", c)
+	}
+	if c := capsFor(ceilingBytes * 2); c.total != ceilingBytes {
+		t.Fatalf("capsFor above the ceiling = %+v", c)
+	}
+	if c := capsFor(0); c != current() {
+		t.Fatalf("capsFor(0) = %+v, want the instance caps", c)
+	}
+	// Not a size refusal: an unsafe path is not ErrTooLarge.
+	if _, err := SanitizeFilesWithLimit(map[string][]byte{"../x": nil}, 3<<20); err == nil || errors.Is(err, ErrTooLarge) {
+		t.Fatalf("unsafe path: err = %v", err)
 	}
 }

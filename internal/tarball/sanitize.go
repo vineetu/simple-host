@@ -16,6 +16,16 @@ import "fmt"
 //
 // It enforces the same per-file, total-size, and entry-count caps as extraction.
 func SanitizeFiles(in map[string][]byte) (map[string][]byte, error) {
+	return sanitize(in, current())
+}
+
+// SanitizeFilesWithLimit is SanitizeFiles under a per-site budget in bytes
+// (one account's size limit), as ExtractWithLimit is to Extract.
+func SanitizeFilesWithLimit(in map[string][]byte, budget int64) (map[string][]byte, error) {
+	return sanitize(in, capsFor(budget))
+}
+
+func sanitize(in map[string][]byte, c caps) (map[string][]byte, error) {
 	out := make(map[string][]byte, len(in))
 	var total int64
 	var count int
@@ -34,16 +44,16 @@ func SanitizeFiles(in map[string][]byte) (map[string][]byte, error) {
 			return nil, fmt.Errorf("duplicate path %q after normalization", clean)
 		}
 
-		if int64(len(content)) > maxFileSize {
-			return nil, fmt.Errorf("file %q exceeds %dMB limit", clean, maxFileSize/(1024*1024))
+		if int64(len(content)) > c.file {
+			return nil, tooLarge("file %q exceeds %dMB limit", clean, c.file/(1024*1024))
 		}
 		total += int64(len(content))
-		if total > maxTotalUncompressedSize {
-			return nil, fmt.Errorf("files exceed %dMB total limit", maxTotalUncompressedSize/(1024*1024))
+		if total > c.total {
+			return nil, tooLarge("files exceed %dMB total limit", c.total/(1024*1024))
 		}
 		count++
-		if count > maxEntryCount {
-			return nil, fmt.Errorf("exceeds %d file limit", maxEntryCount)
+		if count > c.entries {
+			return nil, tooLarge("exceeds %d file limit", c.entries)
 		}
 
 		out[clean] = content

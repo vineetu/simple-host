@@ -43,6 +43,10 @@ func TestMeasureCountsEveryCopyOfASite(t *testing.T) {
 	if len(usage.Largest) != 2 || usage.Largest[0].Name != "entry" || usage.Largest[0].Bytes != 5000 {
 		t.Errorf("Largest = %+v, want entry at 5000 first", usage.Largest)
 	}
+	// The live copy alone is what the per-site limit is about.
+	if usage.Largest[0].LiveBytes != 2000 || usage.Largest[1].LiveBytes != 500 {
+		t.Errorf("LiveBytes = %d, %d, want 2000, 500", usage.Largest[0].LiveBytes, usage.Largest[1].LiveBytes)
+	}
 }
 
 func TestMeasureIgnoresThingsThatAreNotSiteFiles(t *testing.T) {

@@ -31,11 +31,12 @@ type Limits struct {
 	EmailChangeUndoTTL time.Duration // EMAIL_CHANGE_UNDO_DAYS
 
 	// Sites.
-	MaxSitesPerAccount int           // MAX_SITES_PER_ACCOUNT
-	MaxSitesOverrides  string        // MAX_SITES_OVERRIDES (handle:n, comma-separated; SiteOverrides)
-	MaxFilesPerSite    int           // MAX_FILES_PER_SITE
-	PreviewLinkTTL     time.Duration // PREVIEW_LINK_TTL_MINUTES
-	ExportLinkTTL      time.Duration // EXPORT_LINK_TTL_MINUTES
+	MaxSitesPerAccount  int           // MAX_SITES_PER_ACCOUNT
+	MaxSitesOverrides   string        // MAX_SITES_OVERRIDES (handle:n, comma-separated; SiteOverrides)
+	MaxArchiveOverrides string        // MAX_ARCHIVE_MB_OVERRIDES (handle:mb; ArchiveOverrideMB; MAX_ARCHIVE_MB itself is the handler's)
+	MaxFilesPerSite     int           // MAX_FILES_PER_SITE
+	PreviewLinkTTL      time.Duration // PREVIEW_LINK_TTL_MINUTES
+	ExportLinkTTL       time.Duration // EXPORT_LINK_TTL_MINUTES
 
 	// Visitors signed in on a site's own address.
 	VisitorSessionTTL  time.Duration // VISITOR_SESSION_DAYS
@@ -484,7 +485,7 @@ func (l *Limits) SiteOverrides() map[string]int {
 	if l.MaxSitesOverrides == "" {
 		return nil
 	}
-	m, _ := parseSiteOverrides(l.MaxSitesOverrides)
+	m, _ := siteOverrides.parse(l.MaxSitesOverrides)
 	return m
 }
 
@@ -493,19 +494,58 @@ func (l *Limits) SiteOverrides() map[string]int {
 // MaxSitesPerAccount. Matching earlier handles keeps an override in force
 // across a handle change (an old handle stays held by the same account).
 func (l *Limits) MaxSitesFor(handles ...string) int {
-	if m := l.SiteOverrides(); m != nil {
-		for _, h := range handles {
-			if n, ok := m[strings.ToLower(strings.TrimSpace(h))]; ok {
-				return n
-			}
-		}
+	if n, ok := overrideFor(l.SiteOverrides(), handles); ok {
+		return n
 	}
 	return l.MaxSitesPerAccount
 }
 
-// parseSiteOverrides reads MAX_SITES_OVERRIDES: "<handle>:<n>" entries,
-// comma-separated, n from 1 to 100,000, each handle at most once.
-func parseSiteOverrides(v string) (map[string]int, error) {
+// ArchiveOverrides is MAX_ARCHIVE_MB_OVERRIDES as a map from lowercased
+// handle to that account's per-site cap in MB. Nil when none.
+func (l *Limits) ArchiveOverrides() map[string]int {
+	if l.MaxArchiveOverrides == "" {
+		return nil
+	}
+	m, _ := archiveOverrides.parse(l.MaxArchiveOverrides)
+	return m
+}
+
+// ArchiveOverrideMB is the per-site cap (MB) of the first of handles (the
+// account's current handle, then its earlier ones) listed in
+// MAX_ARCHIVE_MB_OVERRIDES; ok is false when none is, and MAX_ARCHIVE_MB
+// applies.
+func (l *Limits) ArchiveOverrideMB(handles ...string) (mb int, ok bool) {
+	return overrideFor(l.ArchiveOverrides(), handles)
+}
+
+func overrideFor(m map[string]int, handles []string) (int, bool) {
+	for _, h := range handles {
+		if n, ok := m[strings.ToLower(strings.TrimSpace(h))]; ok {
+			return n, true
+		}
+	}
+	return 0, false
+}
+
+// handleOverrides is one "<handle>:<n>, ..." setting: MAX_SITES_OVERRIDES and
+// MAX_ARCHIVE_MB_OVERRIDES read the same way and differ in the range of n.
+type handleOverrides struct {
+	env, unit, example string
+	max                int
+}
+
+var (
+	siteOverrides    = handleOverrides{env: "MAX_SITES_OVERRIDES", unit: "sites", example: "chhotabreak:2000", max: 100_000}
+	archiveOverrides = handleOverrides{env: "MAX_ARCHIVE_MB_OVERRIDES", unit: "MB", example: "jot-transcribe:300", max: MaxArchiveCeilingMB}
+)
+
+// MaxArchiveCeilingMB is the largest per-site cap the extractor will honour
+// (internal/tarball's ceiling); an override above it could not be kept.
+const MaxArchiveCeilingMB = 500
+
+// parse reads "<handle>:<n>" entries, comma-separated, n from 1 to max, each
+// handle at most once.
+func (o handleOverrides) parse(v string) (map[string]int, error) {
 	m := map[string]int{}
 	for _, part := range strings.Split(v, ",") {
 		part = strings.TrimSpace(part)
@@ -517,12 +557,12 @@ func parseSiteOverrides(v string) (map[string]int, error) {
 		n, err := strconv.Atoi(strings.TrimSpace(num))
 		switch {
 		case !ok || !familyLabelShape.MatchString(hd):
-			return nil, fmt.Errorf("MAX_SITES_OVERRIDES=%q: %q is not <handle>:<sites>, e.g. chhotabreak:2000", v, part)
-		case err != nil || n < 1 || n > 100_000:
-			return nil, fmt.Errorf("MAX_SITES_OVERRIDES=%q: %q wants a whole number of sites from 1 to 100000", v, part)
+			return nil, fmt.Errorf("%s=%q: %q is not <handle>:<%s>, e.g. %s", o.env, v, part, strings.ToLower(o.unit), o.example)
+		case err != nil || n < 1 || n > o.max:
+			return nil, fmt.Errorf("%s=%q: %q wants a whole number of %s from 1 to %d", o.env, v, part, o.unit, o.max)
 		}
 		if _, dup := m[hd]; dup {
-			return nil, fmt.Errorf("MAX_SITES_OVERRIDES=%q: %q is listed twice", v, hd)
+			return nil, fmt.Errorf("%s=%q: %q is listed twice", o.env, v, hd)
 		}
 		m[hd] = n
 	}
@@ -532,7 +572,21 @@ func parseSiteOverrides(v string) (map[string]int, error) {
 	return m, nil
 }
 
-func formatSiteOverrides(m map[string]int) string {
+// knob is the setting as a Knob, stored normalised (sorted, lowercased).
+func (o handleOverrides) knob(field func(l *Limits) *string) Knob {
+	return Knob{Env: o.env, Unit: "handle:" + strings.ToLower(o.unit),
+		Value: func(l *Limits) string { return *field(l) },
+		set: func(l *Limits, v string) error {
+			m, err := o.parse(v)
+			if err != nil {
+				return err
+			}
+			*field(l) = formatOverrides(m)
+			return nil
+		}}
+}
+
+func formatOverrides(m map[string]int) string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
@@ -563,16 +617,8 @@ func Knobs() []Knob {
 		durKnob("EMAIL_CHANGE_UNDO_DAYS", "days", d, 1, 90, func(l *Limits) *time.Duration { return &l.EmailChangeUndoTTL }),
 
 		intKnob("MAX_SITES_PER_ACCOUNT", "sites", 1, 100_000, func(l *Limits) *int { return &l.MaxSitesPerAccount }),
-		{Env: "MAX_SITES_OVERRIDES", Unit: "handle:sites",
-			Value: func(l *Limits) string { return l.MaxSitesOverrides },
-			set: func(l *Limits, v string) error {
-				m, err := parseSiteOverrides(v)
-				if err != nil {
-					return err
-				}
-				l.MaxSitesOverrides = formatSiteOverrides(m)
-				return nil
-			}},
+		siteOverrides.knob(func(l *Limits) *string { return &l.MaxSitesOverrides }),
+		archiveOverrides.knob(func(l *Limits) *string { return &l.MaxArchiveOverrides }),
 		intKnob("MAX_FILES_PER_SITE", "files", 100, 50_000, func(l *Limits) *int { return &l.MaxFilesPerSite }),
 		durKnob("PREVIEW_LINK_TTL_MINUTES", "minutes", m, 5, 7*24*60, func(l *Limits) *time.Duration { return &l.PreviewLinkTTL }),
 		durKnob("EXPORT_LINK_TTL_MINUTES", "minutes", m, 1, 60, func(l *Limits) *time.Duration { return &l.ExportLinkTTL }),
