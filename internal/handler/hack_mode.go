@@ -220,3 +220,34 @@ func DirUsage(dir string) func(ctx context.Context) (int64, error) {
 		return total, nil
 	}
 }
+
+// hackAccountDeleteBlock says why an account on the hackathon platform cannot
+// be deleted yet ("" when it can). An event's holding account goes only with
+// its event (the admin's Events tab). An organiser of an event still running
+// ends or deletes it first, so no event is left that nobody can manage. The
+// organiser's name and contact address are blanked on events that ended.
+func hackAccountDeleteBlock(ctx context.Context, q db.Querier, userID string) (code, msg string, err error) {
+	if !hackMode {
+		return "", "", nil
+	}
+	var holding, running bool
+	if err = q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM events WHERE account_id = $1)`, userID).Scan(&holding); err != nil {
+		return "", "", err
+	}
+	if holding {
+		return "event_account", "this account holds an event; delete the event from the admin Events tab", nil
+	}
+	if err = q.QueryRowContext(ctx, `
+		SELECT EXISTS (SELECT 1 FROM event_members m JOIN events e ON e.id = m.event_id
+		                WHERE m.user_id = $1 AND m.role = 'organiser' AND e.stage <> 'archived')`, userID).Scan(&running); err != nil {
+		return "", "", err
+	}
+	if running {
+		return "organises_events", "you organise an event that has not ended; end it, or delete it while nobody has joined, before deleting the account", nil
+	}
+	_, err = q.ExecContext(ctx, `
+		UPDATE events e SET organiser_name = '', contact_email = '', updated_at = now()
+		  FROM event_members m
+		 WHERE m.event_id = e.id AND m.user_id = $1 AND m.role = 'organiser'`, userID)
+	return "", "", err
+}

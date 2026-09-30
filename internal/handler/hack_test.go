@@ -967,3 +967,99 @@ func TestHackReviewFixes(t *testing.T) {
 		t.Fatalf("mta-sts: %d %s", r.status, r.body)
 	}
 }
+
+func TestHackReviewRound2(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "r2org")
+	slug := uniqueSlug()
+	if r := a.createEvent(t, org, slug, nil); r.status != 201 {
+		t.Fatalf("create: %d %s", r.status, r.body)
+	}
+	t.Cleanup(func() { a.cleanupEvent(slug) })
+	a.openEvent(t, org, slug)
+	jc := a.at(t, "GET", "/v1/hack/events/"+slug, nil, a.key(org)).json(t)["organiser"].(map[string]any)["join_code"].(string)
+
+	// A venue's shared address spent by anonymous lookups does not stop a
+	// signed-in person from joining (they are metered by account).
+	for i := 0; i < 200; i++ {
+		a.at(t, "GET", "/v1/hack/join/zzzzzzzz", nil, nil)
+	}
+	if r := a.at(t, "GET", "/v1/hack/join/zzzzzzzz", nil, nil); r.status != http.StatusTooManyRequests {
+		t.Fatalf("anonymous lookups not limited: %d", r.status)
+	}
+	p1 := a.newPerson(t, "r2p1")
+	if r := a.at(t, "POST", "/v1/hack/join/"+jc, map[string]any{"accept_coc": true, "display_name": "P1"}, a.key(p1)); r.status != 200 {
+		t.Fatalf("signed-in join after the address ran dry: %d %s", r.status, r.body)
+	}
+
+	// Real text is accepted; blank-looking names are not; inner spaces collapse.
+	for _, title := range []string{"Glasgow Hack 🏴\U000E0067\U000E0062\U000E0073\U000E0063\U000E0074\U000E007F", "مرحبا ‏ABC", "Hackathon­Name"} {
+		if r := a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"title": title}, a.key(org)); r.status != 200 {
+			t.Fatalf("title %q: %d %s", title, r.status, r.body)
+		}
+	}
+	for _, title := range []string{"ㅤ", "⠀⠀", "a b"} {
+		if r := a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"title": title}, a.key(org)); r.status != 400 {
+			t.Fatalf("title %q accepted: %d %s", title, r.status, r.body)
+		}
+	}
+	if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/teams", map[string]string{"name": "Night  Owls"}, a.key(p1)); r.status != 201 || r.json(t)["name"] != "Night Owls" {
+		t.Fatalf("collapse spaces: %d %s", r.status, r.body)
+	}
+	p2 := a.newPerson(t, "r2p2")
+	if r := a.at(t, "POST", "/v1/hack/join/"+jc, map[string]any{"accept_coc": true, "display_name": "P2"}, a.key(p2)); r.status != 200 {
+		t.Fatalf("join p2: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/teams", map[string]string{"name": "night owls"}, a.key(p2)); r.status != 409 || r.json(t)["code"] != "team_name_taken" {
+		t.Fatalf("duplicate after collapse: %d %s", r.status, r.body)
+	}
+
+	// Two teams of one name at the same moment: one is created, the other is
+	// told the name is taken (never a server error).
+	p3, p4 := a.newPerson(t, "r2p3"), a.newPerson(t, "r2p4")
+	for _, p := range []person{p3, p4} {
+		if r := a.at(t, "POST", "/v1/hack/join/"+jc, map[string]any{"accept_coc": true, "display_name": "P"}, a.key(p)); r.status != 200 {
+			t.Fatalf("join: %d %s", r.status, r.body)
+		}
+	}
+	codes := make(chan int, 2)
+	for _, p := range []person{p3, p4} {
+		go func(p person) {
+			codes <- a.at(t, "POST", "/v1/hack/events/"+slug+"/teams", map[string]string{"name": "Race Team"}, a.key(p)).status
+		}(p)
+	}
+	got := []int{<-codes, <-codes}
+	if !((got[0] == 201 && got[1] == 409) || (got[0] == 409 && got[1] == 201)) {
+		t.Fatalf("race: %v", got)
+	}
+
+	// An organiser of a running event cannot delete the account; after the
+	// event ends they can, and their name and address leave the event.
+	hackMode = true
+	t.Cleanup(func() { hackMode = false })
+	orgID := a.userID(t, org)
+	if code, _, err := hackAccountDeleteBlock(context.Background(), a.database, orgID); err != nil || code != "organises_events" {
+		t.Fatalf("running event: %q %v", code, err)
+	}
+	var holding string
+	if err := a.database.QueryRow(`SELECT account_id FROM events WHERE slug = $1`, slug).Scan(&holding); err != nil {
+		t.Fatal(err)
+	}
+	if code, _, err := hackAccountDeleteBlock(context.Background(), a.database, holding); err != nil || code != "event_account" {
+		t.Fatalf("holding account: %q %v", code, err)
+	}
+	if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "archived"}, a.key(org)); r.status != 200 {
+		t.Fatalf("end: %d %s", r.status, r.body)
+	}
+	// Nothing changes after the end.
+	if r := a.at(t, "DELETE", "/v1/hack/events/"+slug+"/people/"+a.userID(t, p2), nil, a.key(org)); r.status != 409 || r.json(t)["code"] != "event_closed" {
+		t.Fatalf("remove after end: %d %s", r.status, r.body)
+	}
+	if code, _, err := hackAccountDeleteBlock(context.Background(), a.database, orgID); err != nil || code != "" {
+		t.Fatalf("ended event: %q %v", code, err)
+	}
+	var name, contact string
+	if err := a.database.QueryRow(`SELECT organiser_name, contact_email FROM events WHERE slug = $1`, slug).Scan(&name, &contact); err != nil || name != "" || contact != "" {
+		t.Fatalf("organiser details kept: %q %q %v", name, contact, err)
+	}
+}

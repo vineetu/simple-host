@@ -113,6 +113,13 @@ func (h *SiteHandler) deleteMe(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusConflict, errorResponse{Error: "this account still holds event hostnames; release them first so their DNS records are removed", Code: "event_hostnames"})
 		return
 	}
+	if code, msg, err := hackAccountDeleteBlock(r.Context(), tx, acct.ID); err != nil {
+		writeJSON(w, 500, errorResponse{Error: "internal server error"})
+		return
+	} else if code != "" {
+		writeJSON(w, http.StatusConflict, errorResponse{Error: msg, Code: code})
+		return
+	}
 	want := acct.Handle
 	what := "your handle"
 	if want == "" {

@@ -1427,6 +1427,11 @@ function eventDetail(e){
       acts.appendChild(eventBtn('Take down', 'btn ghost sm', 'Take down '+label, function(){ takeDownEvent(e); }));
     }
     acts.appendChild(eventBtn('Delete', 'btn danger sm', 'Delete '+label, function(){ deleteEvent(e); }));
+    var view=document.createElement('a');
+    view.className='btn ghost sm';
+    view.href='/e/'+encodeURIComponent(field(e.slug))+'/manage';
+    view.textContent='View as organiser';
+    acts.appendChild(view);
     box.appendChild(acts);
   }
   return box;

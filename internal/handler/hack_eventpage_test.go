@@ -377,7 +377,7 @@ func TestNonHackPartialsMatchBaseline(t *testing.T) {
 	for _, name := range names {
 		out, err := exec.Command("git", "show", "ea2c6ac:internal/handler/static/partials/"+name).Output()
 		if err != nil {
-			t.Fatalf("git show %s: %v", name, err)
+			t.Skipf("baseline not available (needs git and commit ea2c6ac): %s: %v", name, err)
 		}
 		if _, err := old.New(name).Parse(string(out)); err != nil {
 			t.Fatalf("parse baseline %s: %v", name, err)

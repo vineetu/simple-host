@@ -289,7 +289,7 @@
           <div class="actions">
             <button type="button" class="btn ghost" id="team-copy">Copy</button>
           </div>
-          <p class="hint">Share this code with your teammates</p>
+          <p class="hint" id="team-share">Share this code with your teammates</p>
           <div class="actions">
             <button type="button" class="btn danger" id="team-leave" data-write>Leave team</button>
           </div>
@@ -454,7 +454,7 @@
     invalid_name: 'That address is not valid. Use letters, numbers and dashes.',
     invalid_purpose: 'Say what the event is for.',
     invalid_contact_email: 'Enter a valid contact email.',
-    invalid_ends_at: 'That end date is not valid.',
+    invalid_ends_at: 'The end date must be a date on or after the start date.',
     invalid_starts_at: 'That start date is not valid.',
     invalid_expected_participants: 'Enter how many people you expect, at least 1.',
     invalid_team_size: 'Enter how many people per team, from 1 to 50.',
@@ -605,6 +605,10 @@
   }
   function stageLabel(id) {
     for (var i = 0; i < STAGES.length; i++) if (STAGES[i].id === id) return STAGES[i].label;
+    // Stages that arrive with judging (closed, judging, results) read as the
+    // nearest one offered today.
+    if (id === 'closed') return 'Building';
+    if (id === 'judging' || id === 'results') return 'Ended';
     return id || '';
   }
   function stageHelp(id) {
@@ -950,7 +954,7 @@
     list.forEach(function (ev) {
       var down = !!ev.taken_down;
       var card;
-      if (down) card = el('div', { class: 'card' });
+      if (down && ev.role !== 'organiser') card = el('div', { class: 'card' });
       else {
         var href = ev.role === 'organiser' ? '/e/' + encodeURIComponent(ev.slug) + '/manage' : '/e/' + encodeURIComponent(ev.slug);
         card = el('a', { class: 'card', href: href });
@@ -1158,6 +1162,8 @@
     $('team-code').textContent = team.code ? ('Team code: ' + team.code) : '';
     $('team-code').setAttribute('data-code', team.code || '');
     $('team-leave').hidden = !teamsOpen;
+    $('team-copy').hidden = !teamsOpen;
+    $('team-share').hidden = !teamsOpen;
   }
 
   function setTab(name) {
@@ -1170,6 +1176,7 @@
       tab.setAttribute('aria-selected', on ? 'true' : 'false');
       tab.tabIndex = on ? 0 : -1;
       panel.hidden = !on;
+      if (on) { try { tab.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {} }
     });
   }
 
@@ -1348,7 +1355,7 @@
       extra.selected = true;
       sel.appendChild(extra);
     }
-    $('ov-stage-help').textContent = stageHelp(event.stage);
+    $('ov-stage-help').textContent = event.taken_down ? '' : stageHelp(event.stage);
     paintStats(org.counts);
     $('ov-join-url').textContent = org.join_url || '';
     $('ov-judge-url').textContent = org.judge_url || '';
@@ -1378,7 +1385,12 @@
 
   function applyLocks() {
     setLocked(writesLocked());
-    if (currentEvent && currentEvent.event && currentEvent.event.stage === 'archived') $('ov-stage').disabled = true;
+    var ended = !!(currentEvent && currentEvent.event && currentEvent.event.stage === 'archived');
+    if (ended) {
+      $('ov-stage').disabled = true;
+      // An ended event is final: people, teams and links no longer change.
+      document.querySelectorAll('#p-people button, #p-teams button, #p-teams input, #p-teams select, #ov-join-new, #ov-judge-new').forEach(function (n) { n.disabled = true; });
+    }
     if (!(currentEvent && currentEvent.admin_view)) return;
     document.querySelectorAll('#view-manage button, #view-manage input, #view-manage textarea, #view-manage select').forEach(function (n) {
       if (!n.classList.contains('tab')) n.disabled = true;
@@ -1434,7 +1446,7 @@
     setLive('');
     var r = await api('DELETE', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams/' + encodeURIComponent(t.slug));
     if (!r.ok) { setLive(errText(r), 'err', near); return; }
-    setLive('Team removed', 'ok');
+    setLive('Team removed', 'ok', near);
     await loadTeams();
     await loadPeople();
   }
@@ -1619,20 +1631,22 @@
     var prev = currentEvent && currentEvent.event ? currentEvent.event.stage : '';
     setLive('');
     if (next === 'archived') {
+      var cnt = (currentEvent && currentEvent.organiser && currentEvent.organiser.counts) || {};
+      if (!(Number(cnt.participants) > 0)) { $('ov-stage').value = prev; setLive(ERRORS.archive_needs_participants, 'err', $('ov-stage').closest('label') || $('ov-stage')); return; }
       var ok = await window.shConfirm({ title: 'End this event?', body: "The event is over. This can't be undone.", confirmLabel: 'End', danger: true });
       if (!ok) { $('ov-stage').value = prev; return; }
     }
     stageBusy = true;
     try {
       var r = await api('POST', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/stage', { stage: next });
-      if (!r.ok) { setLive(errText(r), 'err', $('ov-stage')); $('ov-stage').value = prev; return; }
+      if (!r.ok) { setLive(errText(r), 'err', $('ov-stage').closest('label') || $('ov-stage')); $('ov-stage').value = prev; return; }
       if (currentEvent && currentEvent.event) currentEvent.event.stage = next;
       $('ov-stage-help').textContent = stageHelp(next);
       $('ov-join-draft').hidden = next !== 'draft';
       $('ov-stage').disabled = next === 'archived';
       refreshDelete();
       applyLocks();
-      setLive('Stage updated', 'ok', $('ov-stage'));
+      setLive('Stage updated', 'ok', $('ov-stage').closest('label') || $('ov-stage'));
     } finally { stageBusy = false; }
   });
   $('ov-join-copy').addEventListener('click', function () { copyText($('ov-join-url').textContent, $('ov-join-copy'), 'Copy the join link'); });

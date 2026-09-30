@@ -45,6 +45,10 @@ func (h *HackHandler) removePerson(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !organiserTeamStages(a.event.Stage) {
+		writeHackErr(w, http.StatusConflict, "event_closed", "an ended event cannot be changed")
+		return
+	}
 	userID := r.PathValue("user_id")
 	if !uuidShape.MatchString(userID) {
 		writeEventNotFound(w)
@@ -200,7 +204,11 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 				writeInternal(w)
 				return
 			}
-			team, last = db.CreateTeamAndJoin(r.Context(), tx, a.event.ID, a.user.ID, slug, name, code)
+			last = trySavepoint(r.Context(), tx, func() error {
+				var terr error
+				team, terr = db.CreateTeamAndJoin(r.Context(), tx, a.event.ID, a.user.ID, slug, name, code)
+				return terr
+			})
 			if last == nil {
 				break
 			}
@@ -537,7 +545,10 @@ func rotateTeamCode(ctx context.Context, q db.Querier, teamID string) error {
 		if err != nil {
 			return err
 		}
-		_, err = q.ExecContext(ctx, `UPDATE event_teams SET code = $2 WHERE id = $1`, teamID, code)
+		err = trySavepoint(ctx, q, func() error {
+			_, uerr := q.ExecContext(ctx, `UPDATE event_teams SET code = $2 WHERE id = $1`, teamID, code)
+			return uerr
+		})
 		if err == nil || !dbUnique(err) {
 			return err
 		}

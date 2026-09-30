@@ -102,7 +102,18 @@ var hackColumns = map[string][]string{
 
 // VerifyHackSchema is VerifySchema for the hosted-events tables.
 func VerifyHackSchema(ctx context.Context, database *sql.DB) error {
-	return verifyColumns(ctx, database, hackColumns)
+	if err := verifyColumns(ctx, database, hackColumns); err != nil {
+		return err
+	}
+	// Team-name uniqueness lives in an index (hack1-events.sql).
+	var ok bool
+	if err := database.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = current_schema() AND indexname = 'event_teams_name_idx')`).Scan(&ok); err != nil {
+		return fmt.Errorf("inspect schema: %w", err)
+	}
+	if !ok {
+		return fmt.Errorf("database is behind this build; missing: index event_teams_name_idx\nRun `simple-host migrate` against this database")
+	}
+	return nil
 }
 
 // VerifySchema refuses to start against a database that is behind the code.

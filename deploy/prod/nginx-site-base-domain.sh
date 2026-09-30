@@ -38,8 +38,8 @@ CERTS=${SITE_BASE_CERTS:-/etc/nginx/simple-host-site-certs-site}
 CERTVAR=${CERT_VAR:-sh_site_base_cert_person}
 # A second file must name its own map variable, or nginx refuses the pair
 # (or, worse, one file's person map shadows the other's).
-if [ "${NGINX_NAME:-simple-host-site}" != simple-host-site ] && [ -z "${CERT_VAR:-}" ]; then
-  echo "NGINX_NAME=${NGINX_NAME} needs its own CERT_VAR (e.g. sh_hack_cert_person)" >&2; exit 2
+if [ "${NGINX_NAME:-simple-host-site}" != simple-host-site ] && { [ -z "${CERT_VAR:-}" ] || [ "$CERTVAR" = sh_site_base_cert_person ]; }; then
+  echo "NGINX_NAME=${NGINX_NAME} needs its own CERT_VAR, not the default (e.g. sh_hack_cert_person)" >&2; exit 2
 fi
 TEMPLATE=${TEMPLATE:-$HERE/nginx-site-base-domain.conf}
 # Overridable for the test.

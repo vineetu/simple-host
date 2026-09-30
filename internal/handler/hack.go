@@ -180,8 +180,12 @@ func eventNameReserved(name string) bool {
 
 // rateLimited meters code lookups and joins: per network address (roomy,
 // since a venue shares one) and, when signed in, per account.
+//
+// A signed-in caller is metered by account only: an account costs an email
+// round trip, and a venue's shared address must not let one stranger's
+// anonymous lookups lock everyone there out of joining.
 func (h *HackHandler) rateLimited(w http.ResponseWriter, r *http.Request, userID string) bool {
-	if !h.codesIP.allow(clientIP(r)) {
+	if userID == "" && !h.codesIP.allow(clientIP(r)) {
 		writeJSON(w, http.StatusTooManyRequests, errorResponse{Error: "rate limit exceeded, slow down", Code: "rate_limited"})
 		return true
 	}
@@ -540,24 +544,28 @@ func (h *HackHandler) createEvent(w http.ResponseWriter, r *http.Request) {
 			writeInternal(w)
 			return
 		}
-		ev, err = db.InsertEvent(ctx, tx, db.Event{
-			ID:                   eventID,
-			Slug:                 slug,
-			AccountID:            holding.ID,
-			CreatedBy:            sql.NullString{String: user.ID, Valid: true},
-			Title:                title,
-			Stage:                "draft",
-			OrganiserName:        organiserName,
-			Organisation:         organisation,
-			ContactEmail:         contact,
-			Purpose:              purpose,
-			ExpectedParticipants: sql.NullInt64{Int64: int64(*req.ExpectedParticipants), Valid: true},
-			TimeZone:             tz,
-			StartsAt:             startsAt,
-			EndsAt:               endsAt,
-			TeamSizeMax:          config.Active().EventTeamSizeDefault,
-			JoinCode:             joinCode,
-			JudgeCode:            judgeCode,
+		err = trySavepoint(ctx, tx, func() error {
+			var ierr error
+			ev, ierr = db.InsertEvent(ctx, tx, db.Event{
+				ID:                   eventID,
+				Slug:                 slug,
+				AccountID:            holding.ID,
+				CreatedBy:            sql.NullString{String: user.ID, Valid: true},
+				Title:                title,
+				Stage:                "draft",
+				OrganiserName:        organiserName,
+				Organisation:         organisation,
+				ContactEmail:         contact,
+				Purpose:              purpose,
+				ExpectedParticipants: sql.NullInt64{Int64: int64(*req.ExpectedParticipants), Valid: true},
+				TimeZone:             tz,
+				StartsAt:             startsAt,
+				EndsAt:               endsAt,
+				TeamSizeMax:          config.Active().EventTeamSizeDefault,
+				JoinCode:             joinCode,
+				JudgeCode:            judgeCode,
+			})
+			return ierr
 		})
 		if err == nil {
 			break
@@ -1187,20 +1195,27 @@ func checkHackText(w http.ResponseWriter, s, field string, min, max int) (string
 	return s, true
 }
 
-// checkHackLine is checkHackText for a one-line field (a title, a name):
-// no line breaks or tabs either.
+// checkHackLine is checkHackText for a one-line field (a title, a name): no
+// line breaks, runs of spaces collapsed (so "A  B" is not a second "A B"),
+// and something visible in it.
 func checkHackLine(w http.ResponseWriter, s, field string, min, max int) (string, bool) {
-	if strings.ContainsAny(strings.TrimSpace(s), "\n\r\t") {
+	if strings.ContainsAny(strings.TrimSpace(s), "\n\r\t\u0085\u2028\u2029") {
 		writeHackErr(w, http.StatusBadRequest, "invalid_"+field, field+" must be one line")
+		return "", false
+	}
+	s = strings.Join(strings.Fields(s), " ")
+	if min > 0 && !hasVisible(s) {
+		writeHackErr(w, http.StatusBadRequest, "invalid_"+field, field+" is required")
 		return "", false
 	}
 	return checkHackText(w, s, field, min, max)
 }
 
-// hasBadControls: control characters other than newline and tab, and
-// invisible formatting characters (bidi overrides, zero-width marks) that can
-// make a name read as something else. The zero-width joiner and non-joiner
-// stay: emoji sequences and some scripts need them.
+// hasBadControls: control characters other than newline and tab, the bidi
+// embedding, override and isolate controls (they make a name read as
+// something else), the zero-width space and the byte-order mark. Joiners,
+// direction marks, soft hyphens and emoji tag sequences stay: real text
+// needs them.
 func hasBadControls(s string) bool {
 	for _, r := range s {
 		if r == '\n' || r == '\t' {
@@ -1209,9 +1224,26 @@ func hasBadControls(s string) bool {
 		if unicode.IsControl(r) {
 			return true
 		}
-		if unicode.Is(unicode.Cf, r) && r != '\u200c' && r != '\u200d' {
+		switch {
+		case r >= 0x202A && r <= 0x202E, r >= 0x2066 && r <= 0x2069, r == 0x200B, r == 0xFEFF:
 			return true
 		}
+	}
+	return false
+}
+
+// hasVisible: s has at least one character that shows (not only spaces,
+// marks or blank-looking letters such as the Hangul filler).
+func hasVisible(s string) bool {
+	for _, r := range s {
+		switch r {
+		case 0x3164, 0x115F, 0x1160, 0xFFA0, 0x2800, 0x180E:
+			continue
+		}
+		if unicode.IsSpace(r) || unicode.Is(unicode.Cf, r) || unicode.Is(unicode.Mn, r) {
+			continue
+		}
+		return true
 	}
 	return false
 }
@@ -1324,4 +1356,21 @@ func participantTeamStages(stage string) bool {
 
 func organiserTeamStages(stage string) bool {
 	return stage != "archived"
+}
+
+// trySavepoint runs fn inside a savepoint of tx, rolling back to it when fn
+// fails: a unique violation aborts the whole transaction otherwise, and a
+// retry after it could only fail.
+func trySavepoint(ctx context.Context, q db.Querier, fn func() error) error {
+	if _, err := q.ExecContext(ctx, "SAVEPOINT hack_try"); err != nil {
+		return err
+	}
+	if err := fn(); err != nil {
+		if _, rerr := q.ExecContext(ctx, "ROLLBACK TO SAVEPOINT hack_try"); rerr != nil {
+			return rerr
+		}
+		return err
+	}
+	_, err := q.ExecContext(ctx, "RELEASE SAVEPOINT hack_try")
+	return err
 }
