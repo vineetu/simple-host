@@ -1,0 +1,10 @@
+[Unit]
+Description=Issue Simple Host per-person site-host certificates (*.<handle>.simple-hack.app)
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/simple-host-site-certs-hack.conf
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/simple-host-site-certs /etc/simple-host-site-certs-hack.conf
+TimeoutStartSec=45min

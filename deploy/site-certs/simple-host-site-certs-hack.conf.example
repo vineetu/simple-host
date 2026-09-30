@@ -1,0 +1,20 @@
+# /etc/simple-host-site-certs-hack.conf
+# The simple-hack.app instance of simple-host-site-certs (event hosts
+# <event>.simple-hack.app ride the platform wildcard; team sites
+# <team>.<event>.simple-hack.app need a *.<event>.simple-hack.app
+# certificate each). Read by simple-host-site-certs-hack.service and, for
+# renewals, by the deploy hook (it matches lineages by SITE_DOMAIN).
+# SITE_DOMAIN, STATE and NGINX_CERTS are required here.
+SITE_DOMAIN=simple-hack.app
+STATE=/var/lib/simple-host-site-certs-hack
+NGINX_CERTS=/etc/nginx/simple-host-site-certs-hack
+# The Go service (simplehack) writes request files here.
+REQUESTS_OWNER=simplehack
+# Let's Encrypt allows 50 new certificates per registered domain per week;
+# simple-hack.app's 50 is shared with self-hosted event boxes that claim
+# names in this zone, so this instance keeps 30.
+BUDGET=30
+DAILY=8
+PER_RUN=4
+# RETRY_AFTER=21600
+# IP=  # A record target; default: simple-hack.app's apex A record at Vercel

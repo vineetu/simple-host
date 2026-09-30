@@ -1,0 +1,42 @@
+[Unit]
+Description=simple-hack.app (Simple Host, hosted events)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=simplehack
+Group=simplehack
+EnvironmentFile=/etc/simple-hack.env
+ExecStart=/usr/local/bin/simple-host
+Restart=on-failure
+RestartSec=2
+MemoryMax=768M
+ReadWritePaths=/srv/simple-hack/sites
+ReadWritePaths=-/var/lib/simple-host-site-certs-hack/requests
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_INET AF_INET6
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

@@ -17,11 +17,20 @@ fail=0
 check() { if eval "$2"; then echo "  ok   $1"; else echo "  FAIL $1"; fail=1; fi; }
 
 mkdir -p "$T/bin" "$T/etc" "$T/live" "$T/run" "$T/hooks"
-# install without -o/-g (not root here).
-cat > "$T/bin/install" <<'EOF'
+# install without -o/-g (not root here); log the owner/group so REQUESTS_OWNER
+# can be checked without root.
+cat > "$T/bin/install" <<EOF
 #!/usr/bin/env bash
-a=(); while [ $# -gt 0 ]; do case $1 in -o|-g) shift 2 ;; *) a+=("$1"); shift ;; esac; done
-exec /usr/bin/install "${a[@]}"
+owner=""; group=""; a=()
+while [ \$# -gt 0 ]; do
+  case \$1 in
+    -o) owner=\$2; shift 2 ;;
+    -g) group=\$2; shift 2 ;;
+    *) a+=("\$1"); shift ;;
+  esac
+done
+echo "install -o \$owner -g \$group \${a[*]}" >> "$T/calls"
+exec /usr/bin/install "\${a[@]}"
 EOF
 # certbot: make the lineage and run the deploy hook, as certbot does.
 cat > "$T/bin/certbot" <<EOF
@@ -148,6 +157,36 @@ check ".site path watches the .site requests" "grep -qx 'PathChanged=/var/lib/si
 check ".site timer has the .app timer's cadence" "[ \"\$(grep -E '^On' '$here/simple-host-site-certs-site.timer')\" = \"\$(grep -E '^On' '$here/simple-host-site-certs.timer')\" ]"
 check "drop-in: .app line unchanged, .site line optional" "grep -qx 'ReadWritePaths=/var/lib/simple-host-site-certs/requests' '$here/simple-host.service.d-site-certs.conf' && grep -qx 'ReadWritePaths=-/var/lib/simple-host-site-certs-site/requests' '$here/simple-host.service.d-site-certs.conf'"
 check "example conf sets every required line" "grep -qx 'SITE_DOMAIN=simple-host.site' '$here/simple-host-site-certs-site.conf.example' && grep -qx 'STATE=/var/lib/simple-host-site-certs-site' '$here/simple-host-site-certs-site.conf.example' && grep -qx 'NGINX_CERTS=/etc/nginx/simple-host-site-certs-site' '$here/simple-host-site-certs-site.conf.example'"
+check "hack example conf sets domain, state, certs, owner and caps" "grep -qx 'SITE_DOMAIN=simple-hack.app' '$here/simple-host-site-certs-hack.conf.example' && grep -qx 'STATE=/var/lib/simple-host-site-certs-hack' '$here/simple-host-site-certs-hack.conf.example' && grep -qx 'NGINX_CERTS=/etc/nginx/simple-host-site-certs-hack' '$here/simple-host-site-certs-hack.conf.example' && grep -qx 'REQUESTS_OWNER=simplehack' '$here/simple-host-site-certs-hack.conf.example' && grep -qx 'BUDGET=30' '$here/simple-host-site-certs-hack.conf.example' && grep -qx 'DAILY=8' '$here/simple-host-site-certs-hack.conf.example' && grep -qx 'PER_RUN=4' '$here/simple-host-site-certs-hack.conf.example'"
+check ".hack service runs the issuer with the .hack conf" "grep -qx 'ExecStart=/usr/local/sbin/simple-host-site-certs /etc/simple-host-site-certs-hack.conf' '$here/simple-host-site-certs-hack.service'"
+check ".hack path watches the .hack requests" "grep -qx 'PathChanged=/var/lib/simple-host-site-certs-hack/requests' '$here/simple-host-site-certs-hack.path' && grep -qx 'Unit=simple-host-site-certs-hack.service' '$here/simple-host-site-certs-hack.path'"
+check ".hack timer has the .app timer's cadence" "[ \"\$(grep -E '^On' '$here/simple-host-site-certs-hack.timer')\" = \"\$(grep -E '^On' '$here/simple-host-site-certs.timer')\" ]"
+
+echo "== REQUESTS_OWNER =="
+# Creating $STATE/requests uses install -o; our fake install logs that without
+# needing root. The live box is root; this check is the same owner argument.
+HACK_STATE=$T/var/simple-host-site-certs-hack
+cat > "$T/etc/simple-host-site-certs-hack.conf" <<EOF
+SITE_DOMAIN=simple-hack.app
+STATE=$HACK_STATE
+NGINX_CERTS=$T/nginx/simple-host-site-certs-hack
+LOCK_DIR=$T/run
+LE_LIVE=$T/live
+DNS_HELPER=$T/bin/dns
+DEPLOY_HOOK=$here/deploy-hook.sh
+HOOKS=$T/hooks
+EOF
+: > "$T/calls"
+issue "$T/etc/simple-host-site-certs-hack.conf" > "$T/out-hack" 2>&1 || { cat "$T/out-hack"; echo "FAIL: default REQUESTS_OWNER issue.sh exited non-zero"; exit 1; }
+check "REQUESTS_OWNER default is simplehost" "grep -q 'install -o simplehost -g simplehost .*requests' '$T/calls' && [ -d '$HACK_STATE/requests' ]"
+echo "REQUESTS_OWNER=simplehack" >> "$T/etc/simple-host-site-certs-hack.conf"
+rm -rf "$HACK_STATE"
+: > "$T/calls"
+issue "$T/etc/simple-host-site-certs-hack.conf" > "$T/out-hack" 2>&1 || { cat "$T/out-hack"; echo "FAIL: REQUESTS_OWNER=simplehack issue.sh exited non-zero"; exit 1; }
+check "REQUESTS_OWNER=simplehack is used for requests" "grep -q 'install -o simplehack -g simplehack .*requests' '$T/calls'"
+printf 'SITE_DOMAIN=simple-hack.app\nSTATE=%s\nREQUESTS_OWNER=BadUser\n' "$HACK_STATE" > "$T/hack-bad.conf"
+rc=0; issue "$T/hack-bad.conf" > "$T/out" 2>&1 || rc=$?
+check "invalid REQUESTS_OWNER is refused" "[ $rc != 0 ] && grep -q 'bad REQUESTS_OWNER' '$T/out'"
 
 [ "$fail" = 0 ] || exit 1
 echo "site-certs sandbox: ok"
